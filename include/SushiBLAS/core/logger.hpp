@@ -1,0 +1,208 @@
+/**************************************************************************/
+/* logger.hpp                                                             */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                SushiBLAS                               */
+/*                https://github.com/SushiSystems/SushiBLAS               */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present  Mustafa Garip & Sushi Systems              */
+/*                                                                   	  */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
+
+#pragma once
+
+#include <mutex>
+#include <chrono>
+#include <format>
+#include <iostream>
+#include <stdexcept>
+#include <string_view>
+#include <source_location>
+
+#ifndef SB_ENABLE_LOGGING
+    #define SB_ENABLE_LOGGING 1
+#endif
+
+namespace SushiBLAS 
+{
+    namespace Core
+    {
+        /**
+         * @brief Logging levels to filter messages.
+         */
+        enum class LogType : int 
+        {
+            OFF   = 0, /**< Logging is disabled */
+            ERR   = 1, /**< Only error messages */
+            WARN  = 2, /**< Warnings and errors */
+            INFO  = 3, /**< Info, warnings and errors */
+            DEBUG = 4  /**< All messages including debug */
+        };
+
+        #if SB_ENABLE_LOGGING
+            #ifdef NDEBUG
+                inline constexpr LogType ACTIVE_LOG_LEVEL = LogType::INFO;
+            #else
+                inline constexpr LogType ACTIVE_LOG_LEVEL = LogType::DEBUG;
+            #endif
+        #else
+            inline constexpr LogType ACTIVE_LOG_LEVEL = LogType::OFF;
+        #endif
+
+        /**
+         * @brief Internal tools for the logging system.
+         */
+        namespace Detail 
+        {
+            /** @brief Mutex for thread-safe output. */
+            inline std::mutex log_mutex;
+
+            /**
+             * @brief Gets local time in a platform-independent way.
+             * @param result The tm structure to fill.
+             * @param time The timestamp to convert.
+             */
+            inline void portable_localtime(std::tm* result, const std::time_t* time)
+            {
+                #ifdef _WIN32
+                    localtime_s(result, time);
+                #else
+                    localtime_r(time, result);
+                #endif
+            }
+
+            /**
+             * @brief Creates a timestamp with millisecond precision.
+             * @return Formatted time string (HH:MM:SS.mmm).
+             */
+            inline std::string get_timestamp() 
+            {
+                auto now = std::chrono::system_clock::now();
+                auto time = std::chrono::system_clock::to_time_t(now);
+                std::tm tm;
+                portable_localtime(&tm, &time);
+                
+                // add milliseconds for better tracking in async tasks
+                auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+                return std::format("{:02}:{:02}:{:02}.{:03}", tm.tm_hour, tm.tm_min, tm.tm_sec, ms.count());
+            }
+
+            /**
+             * @brief Extracts or formats the function name.
+             * @param sv The string view to process.
+             * @return The processed function name.
+             */
+            constexpr std::string_view extract_function_name(std::string_view sv)
+            {
+                    return sv;
+            }
+
+            template<typename... Args>
+            void log_base(LogType level, std::string_view prefix, const std::source_location& loc, std::string_view fmt, Args&&... args) 
+            {
+                #if SB_ENABLE_LOGGING
+                    try 
+                    {
+                        std::string msg = std::vformat(fmt, std::make_format_args(args...));
+                        std::string_view func_name = extract_function_name(loc.function_name());
+                        
+                        auto output = std::format("[{}] [{}] [{}:{}] [{}] {}\n", 
+                            get_timestamp(), 
+                            prefix, 
+                            loc.file_name(),
+                            loc.line(),
+                            func_name, 
+                            msg);
+                        
+                        std::lock_guard<std::mutex> lock(log_mutex);
+                        if (level <= LogType::ERR) std::cerr << output;
+                        else std::cout << output;
+                    } 
+                    catch (const std::format_error& e) 
+                    {
+                        std::cerr << "Log format error: " << e.what() << "\n";
+                    }
+                #endif
+            }
+        }
+    } // namespace Core
+    
+    /**
+     * @brief Logs a message at error level.
+     */
+    #if SB_ENABLE_LOGGING
+        #define SB_LOG_ERROR(fmt, ...) \
+            if constexpr (SushiBLAS::Core::ACTIVE_LOG_LEVEL >= SushiBLAS::Core::LogType::ERR) \
+                SushiBLAS::Core::Detail::log_base(SushiBLAS::Core::LogType::ERR, "ERROR", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
+
+        /** @brief Logs a message at warning level. */
+        #define SB_LOG_WARN(fmt, ...) \
+            if constexpr (SushiBLAS::Core::ACTIVE_LOG_LEVEL >= SushiBLAS::Core::LogType::WARN) \
+                SushiBLAS::Core::Detail::log_base(SushiBLAS::Core::LogType::WARN, "WARN", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
+
+        /** @brief Logs a message at info level. */
+        #define SB_LOG_INFO(fmt, ...) \
+            if constexpr (SushiBLAS::Core::ACTIVE_LOG_LEVEL >= SushiBLAS::Core::LogType::INFO) \
+                SushiBLAS::Core::Detail::log_base(SushiBLAS::Core::LogType::INFO, "INFO", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
+
+        /** @brief Logs a message at debug level. */
+        #define SB_LOG_DEBUG(fmt, ...) \
+            if constexpr (SushiBLAS::Core::ACTIVE_LOG_LEVEL >= SushiBLAS::Core::LogType::DEBUG) \
+                SushiBLAS::Core::Detail::log_base(SushiBLAS::Core::LogType::DEBUG, "DEBUG", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
+    #else
+        #define SB_LOG_ERROR(fmt, ...) ((void)0)
+        #define SB_LOG_WARN(fmt, ...)  ((void)0)
+        #define SB_LOG_INFO(fmt, ...)  ((void)0)
+        #define SB_LOG_DEBUG(fmt, ...) ((void)0)
+    #endif
+
+    /**
+     * @brief Custom assertion macro.
+     */
+    #ifdef NDEBUG
+        #define SB_ASSERT(condition, msg) ((void)0)
+    #else
+        #define SB_ASSERT(condition, msg) \
+            do { \
+                if (!(condition)) { \
+                    SB_LOG_ERROR("Assertion failed: {} ({}:{})", msg, __FILE__, __LINE__); \
+                    std::abort(); \
+                } \
+            } while (0)
+    #endif
+
+    /**
+     * @brief Throws an exception and logs it if a condition is met.
+     * @param condition The condition to check.
+     * @param fmt The error message format.
+     * @param ... The format arguments.
+     */
+    #define SB_THROW_IF(condition, fmt, ...) \
+        do { \
+            if (condition) { \
+                std::string msg_ = std::format(fmt __VA_OPT__(,) __VA_ARGS__); \
+                SB_LOG_ERROR("Runtime exception: {}", msg_); \
+                throw std::runtime_error(msg_); \
+            } \
+        } while (0)
+
+} // namespace SushiBLAS
