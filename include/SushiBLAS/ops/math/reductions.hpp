@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* common.hpp                                                             */
+/* reductions.hpp                                                         */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -30,35 +30,31 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
+#include <SushiBLAS/tensor.hpp>
 
 namespace SushiBLAS 
 {
-    namespace Core
+    class Engine;
+
+    /**
+     * @brief Tensor reduction operations (sum, mean, max, etc.).
+     */
+    class ReductionOps 
     {
-        /** @brief Memory layout strategies. */
-        enum class Layout : uint8_t
-        {
-            ROW_MAJOR,
-            COLUMN_MAJOR
-        };
+    public:
+        explicit ReductionOps(Engine& e) : engine_(e) {}
 
+        /** @brief Sum of all elements in the tensor. */
+        float sum(const Tensor& t);
 
-        /** @brief Supported data types in SushiBLAS. */
-        enum class DataType : uint8_t 
-        {
-            HALF,
-            FLOAT32,
-            FLOAT64,
-            COMPLEX32,
-            COMPLEX64
-        };
+        /** @brief Maximum value in the tensor. */
+        float max(const Tensor& t);
 
-        /** @brief Maximum number of supported tensor ranks. */
-        inline constexpr size_t MAX_TENSOR_RANK = 6;
-        
-    } // namespace Core
+        /** @brief Mean of all elements in the tensor. */
+        float mean(const Tensor& t);
+
+    private:
+        Engine& engine_;
+    };
+
 } // namespace SushiBLAS
-
-namespace sb = SushiBLAS;

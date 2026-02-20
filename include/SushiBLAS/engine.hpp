@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* common.hpp                                                             */
+/* engine.hpp                                                             */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -30,35 +30,55 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
+#include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/storage.hpp>
+#include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/logger.hpp>
+#include <SushiRuntime/SushiRuntime.h>
+
+// Operations Interfaces
+#include <SushiBLAS/ops/blas.hpp>
+#include <SushiBLAS/ops/math/activations.hpp>
+#include <SushiBLAS/ops/math/reductions.hpp>
+#include <SushiBLAS/ops/math/elementwise.hpp>
+
 
 namespace SushiBLAS 
 {
-    namespace Core
+    /**
+     * @brief High-performance math engine.
+     */
+    class Engine 
     {
-        /** @brief Memory layout strategies. */
-        enum class Layout : uint8_t
-        {
-            ROW_MAJOR,
-            COLUMN_MAJOR
-        };
+        public:
+            Engine(SushiRuntime::Execution::RuntimeContext& ctx, 
+                   Core::Layout layout = Core::Layout::ROW_MAJOR);
 
+            /** @brief Access default layout. */
+            inline Core::Layout get_layout() const { return default_layout_; }
 
-        /** @brief Supported data types in SushiBLAS. */
-        enum class DataType : uint8_t 
-        {
-            HALF,
-            FLOAT32,
-            FLOAT64,
-            COMPLEX32,
-            COMPLEX64
-        };
+            /** @brief Standard BLAS operations. */
+            inline BLASOps blas() { return BLASOps(*this); }
 
-        /** @brief Maximum number of supported tensor ranks. */
-        inline constexpr size_t MAX_TENSOR_RANK = 6;
-        
-    } // namespace Core
+            /** @brief NN activation functions. */
+            inline ActivationOps activations() { return ActivationOps(*this); }
+
+            /** @brief Tensor reduction operations. */
+            inline ReductionOps reductions() { return ReductionOps(*this); }
+
+            /** @brief Element-wise operations. */
+            inline ElementwiseOps elementwise() { return ElementwiseOps(*this); }
+
+            /** @brief Returns source runtime context. */
+            SushiRuntime::Execution::RuntimeContext& get_context() { return context_; }
+
+            /** @brief Creates a tensor. */
+            Tensor create_tensor(std::initializer_list<int64_t> dims, 
+                                SushiRuntime::Memory::AllocStrategy strat = SushiRuntime::Memory::AllocStrategy::SHARED);
+
+        private:
+            SushiRuntime::Execution::RuntimeContext& context_;
+            Core::Layout default_layout_;
+    };
+
 } // namespace SushiBLAS
-
-namespace sb = SushiBLAS;

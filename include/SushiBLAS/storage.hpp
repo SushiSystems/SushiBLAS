@@ -35,58 +35,52 @@
 
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiRuntime/core/sushi_ptr.hpp>
-#include <SushiRuntime/core/ref_counted.hpp>
+#include <SushiRuntime/SushiRuntime.h>
 
 namespace SushiBLAS 
 {
-    class alignas(SushiRuntime::Core::CACHE_LINE_SIZE) Storage : public SushiRuntime::Core::RefCounted 
+    /**
+     * @brief Underlying data storage for tensors.
+     */
+    class alignas(64) Storage : public SushiRuntime::Core::RefCounted 
     {
-        public:
-            void* data_ptr = nullptr;
+    public:
+        void* data_ptr = nullptr;
+        size_t size_bytes = 0;       
+        size_t requested_bytes = 0;
 
-            size_t size_bytes = 0;       
-            size_t requested_bytes = 0;
+        SushiRuntime::sushi_ptr<SushiRuntime::Memory::USMAllocator> allocator;
+        SushiRuntime::Memory::AllocStrategy strategy;
 
-            SushiRuntime::sushi_ptr<SushiRuntime::Memory::USMAllocator> allocator;
-            SushiRuntime::Memory::AllocStrategy strategy;
+        Storage(SushiRuntime::sushi_ptr<SushiRuntime::Memory::USMAllocator> alloc, 
+                size_t n_bytes, 
+                SushiRuntime::Memory::AllocStrategy strat = SushiRuntime::Memory::AllocStrategy::SHARED) 
+            : requested_bytes(n_bytes), allocator(alloc), strategy(strat)
+        {
+            SB_THROW_IF(!allocator, "Allocator pointer cannot be null");
+            SB_THROW_IF(n_bytes == 0, "Requested size cannot be zero");
 
-            Storage(SushiRuntime::sushi_ptr<SushiRuntime::Memory::USMAllocator> alloc, 
-                    size_t n_bytes, 
-                    SushiRuntime::Memory::AllocStrategy strat = SushiRuntime::Memory::AllocStrategy::SHARED) 
-                : requested_bytes(n_bytes), allocator(alloc), strategy(strat)
+            size_bytes = n_bytes;
+            // Align to modern HPC alignment
+            if (size_bytes % SushiRuntime::Core::DEFAULT_ALIGNMENT != 0) 
             {
-                SB_THROW_IF(!allocator, "Allocator pointer cannot be null");
-                SB_THROW_IF(n_bytes == 0, "Requested size cannot be zero");
-
-                size_bytes = n_bytes;
-                // Align to modern HPC alignment
-                if (size_bytes % SushiRuntime::Core::DEFAULT_ALIGNMENT != 0) 
-                {
-                    size_bytes += SushiRuntime::Core::DEFAULT_ALIGNMENT - (size_bytes % SushiRuntime::Core::DEFAULT_ALIGNMENT);
-                }
-
-                data_ptr = allocator->allocate(size_bytes, strategy);
-
-                SB_THROW_IF(!data_ptr, "Failed to allocate {} bytes using USMAllocator", size_bytes);
-
-                SB_LOG_DEBUG("Storage Created: {} bytes (requested: {}) with strategy {}", 
-                            size_bytes, requested_bytes, static_cast<int>(strategy));
+                size_bytes += SushiRuntime::Core::DEFAULT_ALIGNMENT - (size_bytes % SushiRuntime::Core::DEFAULT_ALIGNMENT);
             }
 
-            Storage(const Storage&) = delete;
-            Storage& operator=(const Storage&) = delete;
+            data_ptr = allocator->allocate(size_bytes, strategy);
+            SB_THROW_IF(!data_ptr, "Allocation failed for {} bytes", size_bytes);
+        }
 
-        protected:
-            ~Storage() override 
+        Storage(const Storage&) = delete;
+        Storage& operator=(const Storage&) = delete;
+
+    protected:
+        ~Storage() override 
+        {
+            if (data_ptr && allocator) 
             {
-                SB_ASSERT(get_ref_count() == 0, "RefCount must be 0 during destruction!");
-
-                if (data_ptr && allocator) 
-                {
-                    allocator->deallocate(data_ptr);
-                    SB_LOG_DEBUG("Deallocated {} bytes from USMAllocator", size_bytes);
-                }
+                allocator->deallocate(data_ptr);
             }
+        }
     };
 } // namespace SushiBLAS

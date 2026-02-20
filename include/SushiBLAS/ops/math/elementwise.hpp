@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* common.hpp                                                             */
+/* elementwise.hpp                                                        */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -30,35 +30,31 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
+#include <SushiBLAS/tensor.hpp>
 
 namespace SushiBLAS 
 {
-    namespace Core
+    class Engine;
+
+    /**
+     * @brief Element-wise operations for tensors.
+     */
+    class ElementwiseOps 
     {
-        /** @brief Memory layout strategies. */
-        enum class Layout : uint8_t
-        {
-            ROW_MAJOR,
-            COLUMN_MAJOR
-        };
+    public:
+        explicit ElementwiseOps(Engine& e) : engine_(e) {}
 
+        /** @brief Element-wise addition: C = A + B */
+        void add(const Tensor& A, const Tensor& B, Tensor& C);
 
-        /** @brief Supported data types in SushiBLAS. */
-        enum class DataType : uint8_t 
-        {
-            HALF,
-            FLOAT32,
-            FLOAT64,
-            COMPLEX32,
-            COMPLEX64
-        };
+        /** @brief Element-wise multiplication: C = A * B */
+        void mul(const Tensor& A, const Tensor& B, Tensor& C);
 
-        /** @brief Maximum number of supported tensor ranks. */
-        inline constexpr size_t MAX_TENSOR_RANK = 6;
-        
-    } // namespace Core
+        /** @brief Square root of each element. */
+        void sqrt(Tensor& t);
+
+    private:
+        Engine& engine_;
+    };
+
 } // namespace SushiBLAS
-
-namespace sb = SushiBLAS;

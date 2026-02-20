@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* common.hpp                                                             */
+/* engine.cpp                                                             */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -28,37 +28,27 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#pragma once
-
-#include <cstddef>
-#include <cstdint>
+#include <SushiBLAS/engine.hpp>
 
 namespace SushiBLAS 
 {
-    namespace Core
+    Engine::Engine(SushiRuntime::Execution::RuntimeContext& ctx, Core::Layout layout) 
+        : context_(ctx), default_layout_(layout) 
     {
-        /** @brief Memory layout strategies. */
-        enum class Layout : uint8_t
-        {
-            ROW_MAJOR,
-            COLUMN_MAJOR
-        };
+        SB_LOG_INFO("SushiBLAS Engine initialized with {} layout.", 
+                    layout == Core::Layout::ROW_MAJOR ? "Row-Major" : "Column-Major");
+    }
 
-
-        /** @brief Supported data types in SushiBLAS. */
-        enum class DataType : uint8_t 
-        {
-            HALF,
-            FLOAT32,
-            FLOAT64,
-            COMPLEX32,
-            COMPLEX64
-        };
-
-        /** @brief Maximum number of supported tensor ranks. */
-        inline constexpr size_t MAX_TENSOR_RANK = 6;
+    Tensor Engine::create_tensor(std::initializer_list<int64_t> dims, 
+                                 SushiRuntime::Memory::AllocStrategy strat)
+    {
+        size_t elements = 1;
+        for (auto d : dims) elements *= d;
         
-    } // namespace Core
-} // namespace SushiBLAS
+        auto storage = SushiRuntime::make_sushi<Storage>(context_.get_allocator(), elements * sizeof(float), strat);
+        
+        // Use the engine's default layout for new tensors
+        return Tensor(storage, dims, 0, default_layout_);
+    }
 
-namespace sb = SushiBLAS;
+} // namespace SushiBLAS

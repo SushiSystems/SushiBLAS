@@ -36,9 +36,11 @@
 #include <cstdint>
 #include <stdexcept>
 #include <algorithm>
+#include <sycl/sycl.hpp>
+#include <SushiBLAS/storage.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiBLAS/core/storage.hpp>
+#include <SushiRuntime/SushiRuntime.h>
 
 namespace SushiBLAS 
 {
@@ -49,6 +51,9 @@ namespace SushiBLAS
         std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK> strides{};
         int32_t rank = 0;
         
+        SushiBLAS::Core::DataType dtype = SushiBLAS::Core::DataType::FLOAT32;
+        SushiBLAS::Core::Layout layout = SushiBLAS::Core::Layout::ROW_MAJOR;
+        
         // Logical Size
         int64_t num_elements = 0;
 
@@ -58,17 +63,30 @@ namespace SushiBLAS
 
         Tensor() = default;
 
-        Tensor(SushiRuntime::sushi_ptr<Storage> s, std::span<const int64_t> dims, int64_t offset = 0) 
-            : rank(static_cast<int32_t>(dims.size())), storage(s), storage_offset(offset)
+        Tensor(SushiRuntime::sushi_ptr<Storage> s, std::span<const int64_t> dims, 
+               int64_t offset = 0, Core::Layout l = Core::Layout::ROW_MAJOR) 
+            : rank(static_cast<int32_t>(dims.size())), layout(l), storage(s), storage_offset(offset)
         {
-            SB_THROW_IF(rank > SushiBLAS::Core::MAX_TENSOR_RANK, "Rank {} exceeds limit of {}", rank, SushiBLAS::Core::MAX_TENSOR_RANK);
+            SB_THROW_IF(static_cast<size_t>(rank) > SushiBLAS::Core::MAX_TENSOR_RANK, "Rank {} exceeds limit of {}", rank, SushiBLAS::Core::MAX_TENSOR_RANK);
 
             int64_t elements = 1;
-            for (int i = rank - 1; i >= 0; --i) 
+            if (layout == Core::Layout::ROW_MAJOR) 
             {
-                shape[i] = dims[i];
-                strides[i] = elements;
-                elements *= dims[i];
+                for (int i = rank - 1; i >= 0; --i) 
+                {
+                    shape[i] = dims[i];
+                    strides[i] = elements;
+                    elements *= dims[i];
+                }
+            } 
+            else // COLUMN_MAJOR
+            {
+                for (int i = 0; i < rank; ++i) 
+                {
+                    shape[i] = dims[i];
+                    strides[i] = elements;
+                    elements *= dims[i];
+                }
             }
             num_elements = elements;
 
@@ -77,7 +95,7 @@ namespace SushiBLAS
                 SB_THROW_IF(storage_offset < 0, "Storage offset cannot be negative ({})", storage_offset);
 
                 size_t required_bytes = (static_cast<size_t>(num_elements) + storage_offset) * sizeof(float);
-
+                
                 SB_THROW_IF(required_bytes > storage->size_bytes, 
                             "Storage capacity exceeded! Required: {} bytes, Available: {} bytes", 
                             required_bytes, storage->size_bytes);
@@ -85,8 +103,9 @@ namespace SushiBLAS
         }
 
         // Public API
-        Tensor(SushiRuntime::sushi_ptr<Storage> s, std::initializer_list<int64_t> dims, int64_t offset = 0)
-            : Tensor(s, std::span<const int64_t>(dims.begin(), dims.end()), offset) {}
+        Tensor(SushiRuntime::sushi_ptr<Storage> s, std::initializer_list<int64_t> dims, 
+               int64_t offset = 0, Core::Layout l = Core::Layout::ROW_MAJOR)
+            : Tensor(s, std::span<const int64_t>(dims.begin(), dims.end()), offset, l) {}
 
         /**
          * @brief Returns the SYCL device where this tensor is allocated.
@@ -98,29 +117,53 @@ namespace SushiBLAS
         }
 
         // Data Access
-        inline float* data() const 
+        inline void* data() const 
         {
             SB_THROW_IF(storage == nullptr, "Accessing data of a tensor with no storage");
             SB_THROW_IF(storage->data_ptr == nullptr, "Accessing data of a tensor with no data pointer");
 
-            return static_cast<float*>(storage->data_ptr) + storage_offset;
+            // Offset is in terms of elements, so we must scale by byte size of the dtype
+            size_t element_size = (dtype == Core::DataType::FLOAT64) ? 8 : 4; 
+            return static_cast<char*>(storage->data_ptr) + (storage_offset * element_size);
+        }
+
+        template<typename T = float>
+        inline T* data_as() const 
+        {
+            return static_cast<T*>(data());
         }
 
         // Contiguity Check
         bool is_contiguous() const 
         {
             if (num_elements == 0) return true;
-            int64_t s = 1;
-            for (int i = rank - 1; i >= 0; --i) 
+            
+            int64_t expected_stride = 1;
+            if (layout == Core::Layout::ROW_MAJOR) 
             {
-                if (shape[i] != 1) 
+                for (int i = rank - 1; i >= 0; --i) 
                 {
-                    if (strides[i] != s) return false;
-                    s *= shape[i];
+                    if (shape[i] != 1) 
+                    {
+                        if (strides[i] != expected_stride) return false;
+                        expected_stride *= shape[i];
+                    }
+                }
+            }
+            else // COLUMN_MAJOR
+            {
+                for (int i = 0; i < rank; ++i) 
+                {
+                    if (shape[i] != 1) 
+                    {
+                        if (strides[i] != expected_stride) return false;
+                        expected_stride *= shape[i];
+                    }
                 }
             }
             return true;
         }
+
 
         // Alignment Check
         bool is_aligned() const 
@@ -158,7 +201,7 @@ namespace SushiBLAS
 
             SB_LOG_DEBUG("Tensor Reshaped: elements={}", new_len);
 
-            return Tensor(this->storage, dims_span, this->storage_offset);
+            return Tensor(this->storage, dims_span, this->storage_offset, this->layout);
         }
 
         Tensor slice(int32_t dim, int64_t start, int64_t end) const 
@@ -180,7 +223,7 @@ namespace SushiBLAS
             SB_LOG_DEBUG("Tensor Sliced: dim = {}, range = [{}, {}), new_offset = {}", 
                         dim, start, end, new_offset);
 
-            return Tensor(this->storage, std::span(new_shape_arr.data(), rank), new_offset);
+            return Tensor(this->storage, std::span(new_shape_arr.data(), rank), new_offset, this->layout);
         }
     };
 } // namespace SushiBLAS

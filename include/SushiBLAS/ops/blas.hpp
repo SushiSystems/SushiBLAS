@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* common.hpp                                                             */
+/* blas.hpp                                                               */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -30,35 +30,21 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
+#include <SushiBLAS/ops/blas/level1.hpp>
+#include <SushiBLAS/ops/blas/level2.hpp>
+#include <SushiBLAS/ops/blas/level3.hpp>
 
 namespace SushiBLAS 
 {
-    namespace Core
+    class Engine;
+
+    /**
+     * @brief Integrated BLAS operations.
+     */
+    class BLASOps : public Level1, public Level2, public Level3
     {
-        /** @brief Memory layout strategies. */
-        enum class Layout : uint8_t
-        {
-            ROW_MAJOR,
-            COLUMN_MAJOR
-        };
+        public:
+            explicit BLASOps(Engine& e) : Level1(e), Level2(e), Level3(e) {}
+    };
 
-
-        /** @brief Supported data types in SushiBLAS. */
-        enum class DataType : uint8_t 
-        {
-            HALF,
-            FLOAT32,
-            FLOAT64,
-            COMPLEX32,
-            COMPLEX64
-        };
-
-        /** @brief Maximum number of supported tensor ranks. */
-        inline constexpr size_t MAX_TENSOR_RANK = 6;
-        
-    } // namespace Core
 } // namespace SushiBLAS
-
-namespace sb = SushiBLAS;
