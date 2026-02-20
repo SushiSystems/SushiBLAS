@@ -1,28 +1,70 @@
 cmake_minimum_required(VERSION 3.20)
 
-# --- Define Executable (main app) ---
-add_executable(sushiblas_app main.cpp)
+# --- Define SushiBLAS Library ---
+add_library(sushiblas STATIC
+    engine.cpp
+
+    # Level 1
+    ops/blas/level1/axpy.cpp
+    ops/blas/level1/asum.cpp
+    ops/blas/level1/copy.cpp
+    ops/blas/level1/dot.cpp
+    ops/blas/level1/iamax.cpp
+    ops/blas/level1/nrm2.cpp
+    ops/blas/level1/rot.cpp
+    ops/blas/level1/scal.cpp
+    ops/blas/level1/swap.cpp
+
+    # Level 2
+    ops/blas/level2/gemv.cpp
+    ops/blas/level2/ger.cpp
+    ops/blas/level2/symv.cpp
+    ops/blas/level2/trmv.cpp
+    ops/blas/level2/trsv.cpp
+    ops/blas/level2/syr.cpp
+    ops/blas/level2/syr2.cpp
+
+    # Level 3
+    ops/blas/level3/gemm.cpp
+    ops/blas/level3/syrk.cpp
+    ops/blas/level3/trsm.cpp
+)
+
+
 
 # --- Include Directories ---
-target_include_directories(sushiblas_app PUBLIC 
+target_include_directories(sushiblas PUBLIC 
     "${CMAKE_SOURCE_DIR}/include"
 )
 
 # --- Link Directories ---
-target_link_directories(sushiblas_app PRIVATE "${CMAKE_SOURCE_DIR}/lib")
+target_link_directories(sushiblas PUBLIC "${CMAKE_SOURCE_DIR}/lib")
 
 # --- Link Libraries ---
-# Link against the pre-compiled SushiRuntime.lib and SYCL for the headers/compiler support
-target_link_libraries(sushiblas_app PRIVATE
+# Link against dependencies. PUBLIC so consumers (like the app) inherit them.
+target_link_libraries(sushiblas PUBLIC
     sushiruntime
     IntelSYCL::SYCL_CXX
+    OpenCL::OpenCL
 )
 
 # --- Properties ---
-set_target_properties(sushiblas_app PROPERTIES
+set_target_properties(sushiblas PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
 )
+
+# Use oneMKL through compiler flags (Recommended for IntelLLVM on Windows)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+    target_compile_options(sushiblas PUBLIC "/Qmkl")
+    target_link_options(sushiblas PUBLIC "/Qmkl")
+endif()
+
+# --- Define Executable (Example App) ---
+add_executable(sushiblas_app main.cpp)
+
+# --- Link App against Library ---
+target_link_libraries(sushiblas_app PRIVATE sushiblas)
 
 # --- Post-Build: Copy DLLs to output directory ---
 add_custom_command(TARGET sushiblas_app POST_BUILD

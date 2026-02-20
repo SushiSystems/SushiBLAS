@@ -4,13 +4,20 @@
 int main() 
 {
     sr::Execution::RuntimeContext ctx;
-    sb::Engine blas(ctx);
+    sb::Engine sb(ctx, sb::Core::Layout::COLUMN_MAJOR);
 
-    auto A = blas.create_tensor({1024, 1024}, sr::Memory::AllocStrategy::SHARED);
-    auto B = blas.create_tensor({1024, 1024}, sr::Memory::AllocStrategy::SHARED);
-    auto C = blas.create_tensor({1024, 1024}, sr::Memory::AllocStrategy::SHARED);
+    SB_LOG_INFO("Creating tensors for GEMM...");
+    auto A = sb.create_tensor({1024, 1024}, sr::Memory::AllocStrategy::SHARED);
+    auto B = sb.create_tensor({1024, 1024}, sr::Memory::AllocStrategy::SHARED);
+    auto C = sb.create_tensor({1024, 1024}, sr::Memory::AllocStrategy::SHARED);
 
-    blas.gemm(A, B, C);
+    SB_LOG_INFO("Executing GEMM operation...");
+    sb.blas().gemm(A, B, C);
+
+    // Synchronize to wait for GPU/CPU task completion
+    ctx.wait_all();
+
+    SB_LOG_INFO("SushiBLAS execution finished successfully.");
 
     return 0; 
 }

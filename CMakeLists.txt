@@ -37,29 +37,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# --- Compiler Flags (Production Ready) ---
-if(MSVC)
-    # Windows / MSVC
-    # Note: /O2 is incompatible with /RTC1 (which is default in Debug)
+# --- Compiler Flags ---
+if(MSVC OR CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+    # Windows / Intel icx-cl
     add_compile_options(/W4 /permissive-)
-    add_compile_options($<$<NOT:$<CONFIG:Debug>>:/O2>)
+    add_compile_options($<$<CONFIG:Release>:/O2>)
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 else()
-    # Linux / GCC / Clang / Intel oneAPI
-    add_compile_options(
-        -O3 
-        -march=native 
-        -Wall 
-        -Wextra 
-        -Werror 
-        -pedantic
-    )
-    
-    # Sanitizers (Optional - Enabled for Debug/RelWithDebInfo)
-    if(CMAKE_BUILD_TYPE MATCHES "Debug|RelWithDebInfo")
-        add_compile_options(-fsanitize=thread)
-        add_link_options(-fsanitize=thread)
-    endif()
+    # Linux / GCC / Clang
+    add_compile_options(-O3 -march=native -Wall -Wextra -Werror -pedantic)
 endif()
 
 # --- Dependencies ---
@@ -68,6 +54,7 @@ endif()
 # Intel oneAPI DPC++ compiler is required for SYCL support.
 # IntelSYCL is the modern replacement for IntelDPCPP.
 find_package(IntelSYCL REQUIRED)
+find_package(OpenCL REQUIRED)
 
 # --- Subdirectories ---
 add_subdirectory(src)
