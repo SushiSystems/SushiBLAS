@@ -7,6 +7,9 @@ add_executable(sushiblas_tests
 
     # Level 3
     blas/level3/test_gemm.cpp
+    
+    # Framework Simulation
+    runtime/test_framework_sim.cpp
 )
 
 # --- Include Directories ---

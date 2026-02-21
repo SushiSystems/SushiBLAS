@@ -41,7 +41,12 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if(MSVC OR CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     # Windows / Intel icx-cl
     add_compile_options(/W4 /permissive-)
-    add_compile_options($<$<CONFIG:Release>:/O2>)
+    
+    # Release / Maximum Performance Optimizations
+    add_compile_options($<$<CONFIG:Release>:/O2>)         # Maximum speed optimization
+    add_compile_options($<$<CONFIG:Release>:/fp:fast>)    # Fast floating-point math
+    add_compile_options($<$<CONFIG:Release>:/arch:AVX2>)  # Enable AVX2 instructions (Works on AMD)
+    
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 else()
     # Linux / GCC / Clang
