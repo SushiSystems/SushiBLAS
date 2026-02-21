@@ -41,7 +41,7 @@ namespace SushiBLAS
          * @brief Internal dispatcher for SYRK handling both Layout and Batching logic.
          */
         template<typename T>
-        void syrk_dispatch(sycl::queue& queue, Core::Layout layout,
+        sycl::event syrk_dispatch(sycl::queue& queue, Core::Layout layout,
                            oneapi::mkl::uplo uplo, oneapi::mkl::transpose trans,
                            int64_t n, int64_t k,
                            T alpha, const T* a, int64_t lda, int64_t str_a,
@@ -53,12 +53,12 @@ namespace SushiBLAS
                 if (batch_size > 1) 
                 {
                     SB_LOG_INFO("MKL Batch SYRK [Row-Major]: {}x[{}x{}]", batch_size, n, n);
-                    oneapi::mkl::blas::row_major::syrk_batch(queue, uplo, trans, n, k, alpha, a, lda, str_a, beta, c, ldc, str_c, batch_size, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::row_major::syrk_batch(queue, uplo, trans, n, k, alpha, a, lda, str_a, beta, c, ldc, str_c, batch_size, oneapi::mkl::blas::compute_mode::standard);
                 } 
                 else 
                 {
                     SB_LOG_INFO("MKL SYRK [Row-Major]: {}x{}", n, n);
-                    oneapi::mkl::blas::row_major::syrk(queue, uplo, trans, n, k, alpha, a, lda, beta, c, ldc, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::row_major::syrk(queue, uplo, trans, n, k, alpha, a, lda, beta, c, ldc, oneapi::mkl::blas::compute_mode::standard);
                 }
             } 
             else // COLUMN_MAJOR
@@ -66,18 +66,18 @@ namespace SushiBLAS
                 if (batch_size > 1) 
                 {
                     SB_LOG_INFO("MKL Batch SYRK [Col-Major]: {}x[{}x{}]", batch_size, n, n);
-                    oneapi::mkl::blas::column_major::syrk_batch(queue, uplo, trans, n, k, alpha, a, lda, str_a, beta, c, ldc, str_c, batch_size, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::column_major::syrk_batch(queue, uplo, trans, n, k, alpha, a, lda, str_a, beta, c, ldc, str_c, batch_size, oneapi::mkl::blas::compute_mode::standard);
                 } 
                 else 
                 {
                     SB_LOG_INFO("MKL SYRK [Col-Major]: {}x{}", n, n);
-                    oneapi::mkl::blas::column_major::syrk(queue, uplo, trans, n, k, alpha, a, lda, beta, c, ldc, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::column_major::syrk(queue, uplo, trans, n, k, alpha, a, lda, beta, c, ldc, oneapi::mkl::blas::compute_mode::standard);
                 }
             }
         }
     }
 
-    void Level3::syrk(const Tensor& A, Tensor& C, 
+    sycl::event Level3::syrk(const Tensor& A, Tensor& C, 
                       bool upper, bool transA, 
                       float alpha, float beta) 
     {
@@ -117,19 +117,16 @@ namespace SushiBLAS
         switch (A.dtype)
         {
             case Core::DataType::FLOAT32:
-                syrk_dispatch<float>(queue, A.layout, mkl_uplo, mkl_trans, n, k, alpha, A.data_as<float>(), lda, str_a, beta, C.data_as<float>(), ldc, str_c, batch_size);
-                break;
+                return syrk_dispatch<float>(queue, A.layout, mkl_uplo, mkl_trans, n, k, alpha, A.data_as<float>(), lda, str_a, beta, C.data_as<float>(), ldc, str_c, batch_size);
             case Core::DataType::FLOAT64:
-                syrk_dispatch<double>(queue, A.layout, mkl_uplo, mkl_trans, n, k, static_cast<double>(alpha), A.data_as<double>(), lda, str_a, static_cast<double>(beta), C.data_as<double>(), ldc, str_c, batch_size);
-                break;
+                return syrk_dispatch<double>(queue, A.layout, mkl_uplo, mkl_trans, n, k, static_cast<double>(alpha), A.data_as<double>(), lda, str_a, static_cast<double>(beta), C.data_as<double>(), ldc, str_c, batch_size);
             case Core::DataType::COMPLEX32:
-                syrk_dispatch<std::complex<float>>(queue, A.layout, mkl_uplo, mkl_trans, n, k, std::complex<float>(alpha, 0.0f), A.data_as<std::complex<float>>(), lda, str_a, std::complex<float>(beta, 0.0f), C.data_as<std::complex<float>>(), ldc, str_c, batch_size);
-                break;
+                return syrk_dispatch<std::complex<float>>(queue, A.layout, mkl_uplo, mkl_trans, n, k, std::complex<float>(alpha, 0.0f), A.data_as<std::complex<float>>(), lda, str_a, std::complex<float>(beta, 0.0f), C.data_as<std::complex<float>>(), ldc, str_c, batch_size);
             case Core::DataType::COMPLEX64:
-                syrk_dispatch<std::complex<double>>(queue, A.layout, mkl_uplo, mkl_trans, n, k, std::complex<double>(alpha, 0.0), A.data_as<std::complex<double>>(), lda, str_a, std::complex<double>(beta, 0.0), C.data_as<std::complex<double>>(), ldc, str_c, batch_size);
-                break;
+                return syrk_dispatch<std::complex<double>>(queue, A.layout, mkl_uplo, mkl_trans, n, k, std::complex<double>(alpha, 0.0), A.data_as<std::complex<double>>(), lda, str_a, std::complex<double>(beta, 0.0), C.data_as<std::complex<double>>(), ldc, str_c, batch_size);
             default:
                 SB_THROW_IF(true, "Unsupported data type for SYRK operation.");
         }
+        return sycl::event();
     }
 } // namespace SushiBLAS

@@ -37,29 +37,26 @@ namespace SushiBLAS
 {
     namespace
     {
-        /**
-         * @brief Internal dispatcher that handles both Layout and Batching logic.
-         */
         template<typename T>
-        void gemm_dispatch(sycl::queue& queue, Core::Layout layout,
+        sycl::event gemm_dispatch(sycl::queue& queue, Core::Layout layout,
                            oneapi::mkl::transpose transA, oneapi::mkl::transpose transB,
                            int64_t m, int64_t n, int64_t k,
                            T alpha, const T* a, int64_t lda, int64_t str_a,
                            const T* b, int64_t ldb, int64_t str_b,
                            T beta, T* c, int64_t ldc, int64_t str_c,
-                           int64_t batch_size)
+                           int64_t batch_size, const std::vector<sycl::event>& deps)
         {
             if (layout == Core::Layout::ROW_MAJOR) 
             {
                 if (batch_size > 1) 
                 {
                     SB_LOG_INFO("MKL Batch GEMM [Row-Major]: {}x[{}x{}x{}]", batch_size, m, n, k);
-                    oneapi::mkl::blas::row_major::gemm_batch(queue, transA, transB, m, n, k, alpha, a, lda, str_a, b, ldb, str_b, beta, c, ldc, str_c, batch_size, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::row_major::gemm_batch(queue, transA, transB, m, n, k, alpha, a, lda, str_a, b, ldb, str_b, beta, c, ldc, str_c, batch_size, deps);
                 } 
                 else 
                 {
                     SB_LOG_INFO("MKL GEMM [Row-Major]: {}x{}x{}", m, n, k);
-                    oneapi::mkl::blas::row_major::gemm(queue, transA, transB, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::row_major::gemm(queue, transA, transB, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, deps);
                 }
             } 
             else // COLUMN_MAJOR
@@ -67,20 +64,20 @@ namespace SushiBLAS
                 if (batch_size > 1) 
                 {
                     SB_LOG_INFO("MKL Batch GEMM [Col-Major]: {}x[{}x{}x{}]", batch_size, m, n, k);
-                    oneapi::mkl::blas::column_major::gemm_batch(queue, transA, transB, m, n, k, alpha, a, lda, str_a, b, ldb, str_b, beta, c, ldc, str_c, batch_size, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::column_major::gemm_batch(queue, transA, transB, m, n, k, alpha, a, lda, str_a, b, ldb, str_b, beta, c, ldc, str_c, batch_size, deps);
                 } 
                 else 
                 {
                     SB_LOG_INFO("MKL GEMM [Col-Major]: {}x{}x{}", m, n, k);
-                    oneapi::mkl::blas::column_major::gemm(queue, transA, transB, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::column_major::gemm(queue, transA, transB, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, deps);
                 }
             }
         }
     } // namespace Anonymous
 
-    void Level3::gemm(const Tensor& A, const Tensor& B, Tensor& C, 
-                      bool transA, bool transB,
-                      float alpha, float beta) 
+    sycl::event Level3::gemm(const Tensor& A, const Tensor& B, Tensor& C, 
+                            bool transA, bool transB,
+                            float alpha, float beta) 
     {
         // 1. Validation
         SB_THROW_IF(A.rank < 2 || B.rank < 2 || C.rank < 2, "GEMM requires at least 2D tensors.");
@@ -103,29 +100,86 @@ namespace SushiBLAS
         int64_t str_b = (batch_size > 1) ? B.strides[rB - 3] : 0;
         int64_t str_c = (batch_size > 1) ? C.strides[rC - 3] : 0;
 
-        auto& queue = engine_.get_context().get_queue();
         auto mkl_transA = transA ? oneapi::mkl::transpose::trans : oneapi::mkl::transpose::nontrans;
         auto mkl_transB = transB ? oneapi::mkl::transpose::trans : oneapi::mkl::transpose::nontrans;
+
+        // Capture data safely for asynchronous execution
+        auto layout = A.layout;
+        void* read_A = A.storage ? A.storage->data_ptr : nullptr;
+        void* read_B = B.storage ? B.storage->data_ptr : nullptr;
+        void* write_C = C.storage ? C.storage->data_ptr : nullptr;
+
+        std::vector<void*> reads = {};
+        if (read_A) reads.push_back(read_A);
+        if (read_B) reads.push_back(read_B);
+        std::vector<void*> writes = {};
+        if (write_C) writes.push_back(write_C);
 
         switch (A.dtype)
         {
             case Core::DataType::HALF:
-                gemm_dispatch<sycl::half>(queue, A.layout, mkl_transA, mkl_transB, m, n, k, static_cast<sycl::half>(alpha), A.data_as<sycl::half>(), lda, str_a, B.data_as<sycl::half>(), ldb, str_b, static_cast<sycl::half>(beta), C.data_as<sycl::half>(), ldc, str_c, batch_size);
+            {
+                engine_.get_graph().add_host_node(
+                    [layout, mkl_transA, mkl_transB, m, n, k, alpha, lda, str_a, ldb, str_b, beta, ldc, str_c, batch_size, 
+                     pA=A.data_as<sycl::half>(), pB=B.data_as<sycl::half>(), pC=C.data_as<sycl::half>()]
+                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                    {
+                        return gemm_dispatch<sycl::half>(q, layout, mkl_transA, mkl_transB, m, n, k, static_cast<sycl::half>(alpha), pA, lda, str_a, pB, ldb, str_b, static_cast<sycl::half>(beta), pC, ldc, str_c, batch_size, deps);
+                    }, reads, writes
+                );
                 break;
+            }
             case Core::DataType::FLOAT32:
-                gemm_dispatch<float>(queue, A.layout, mkl_transA, mkl_transB, m, n, k, alpha, A.data_as<float>(), lda, str_a, B.data_as<float>(), ldb, str_b, beta, C.data_as<float>(), ldc, str_c, batch_size);
+            {
+                engine_.get_graph().add_host_node(
+                    [layout, mkl_transA, mkl_transB, m, n, k, alpha, lda, str_a, ldb, str_b, beta, ldc, str_c, batch_size, 
+                     pA=A.data_as<float>(), pB=B.data_as<float>(), pC=C.data_as<float>()]
+                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                    {
+                        return gemm_dispatch<float>(q, layout, mkl_transA, mkl_transB, m, n, k, alpha, pA, lda, str_a, pB, ldb, str_b, beta, pC, ldc, str_c, batch_size, deps);
+                    }, reads, writes
+                );
                 break;
+            }
             case Core::DataType::FLOAT64:
-                gemm_dispatch<double>(queue, A.layout, mkl_transA, mkl_transB, m, n, k, static_cast<double>(alpha), A.data_as<double>(), lda, str_a, B.data_as<double>(), ldb, str_b, static_cast<double>(beta), C.data_as<double>(), ldc, str_c, batch_size);
+            {
+                engine_.get_graph().add_host_node(
+                    [layout, mkl_transA, mkl_transB, m, n, k, alpha_d=static_cast<double>(alpha), lda, str_a, ldb, str_b, beta_d=static_cast<double>(beta), ldc, str_c, batch_size, 
+                     pA=A.data_as<double>(), pB=B.data_as<double>(), pC=C.data_as<double>()]
+                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                    {
+                        return gemm_dispatch<double>(q, layout, mkl_transA, mkl_transB, m, n, k, alpha_d, pA, lda, str_a, pB, ldb, str_b, beta_d, pC, ldc, str_c, batch_size, deps);
+                    }, reads, writes
+                );
                 break;
+            }
             case Core::DataType::COMPLEX32:
-                gemm_dispatch<std::complex<float>>(queue, A.layout, mkl_transA, mkl_transB, m, n, k, std::complex<float>(alpha, 0.0f), A.data_as<std::complex<float>>(), lda, str_a, B.data_as<std::complex<float>>(), ldb, str_b, std::complex<float>(beta, 0.0f), C.data_as<std::complex<float>>(), ldc, str_c, batch_size);
+            {
+                engine_.get_graph().add_host_node(
+                    [layout, mkl_transA, mkl_transB, m, n, k, alpha_c=std::complex<float>(alpha, 0.0f), lda, str_a, ldb, str_b, beta_c=std::complex<float>(beta, 0.0f), ldc, str_c, batch_size, 
+                     pA=A.data_as<std::complex<float>>(), pB=B.data_as<std::complex<float>>(), pC=C.data_as<std::complex<float>>()]
+                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                    {
+                        return gemm_dispatch<std::complex<float>>(q, layout, mkl_transA, mkl_transB, m, n, k, alpha_c, pA, lda, str_a, pB, ldb, str_b, beta_c, pC, ldc, str_c, batch_size, deps);
+                    }, reads, writes
+                );
                 break;
+            }
             case Core::DataType::COMPLEX64:
-                gemm_dispatch<std::complex<double>>(queue, A.layout, mkl_transA, mkl_transB, m, n, k, std::complex<double>(alpha, 0.0), A.data_as<std::complex<double>>(), lda, str_a, B.data_as<std::complex<double>>(), ldb, str_b, std::complex<double>(beta, 0.0), C.data_as<std::complex<double>>(), ldc, str_c, batch_size);
+            {
+                engine_.get_graph().add_host_node(
+                    [layout, mkl_transA, mkl_transB, m, n, k, alpha_c=std::complex<double>(alpha, 0.0), lda, str_a, ldb, str_b, beta_c=std::complex<double>(beta, 0.0), ldc, str_c, batch_size, 
+                     pA=A.data_as<std::complex<double>>(), pB=B.data_as<std::complex<double>>(), pC=C.data_as<std::complex<double>>()]
+                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                    {
+                        return gemm_dispatch<std::complex<double>>(q, layout, mkl_transA, mkl_transB, m, n, k, alpha_c, pA, lda, str_a, pB, ldb, str_b, beta_c, pC, ldc, str_c, batch_size, deps);
+                    }, reads, writes
+                );
                 break;
+            }
             default:
                 SB_THROW_IF(true, "Unsupported data type for GEMM operation.");
         }
+        return sycl::event(); 
     }
 } // namespace SushiBLAS

@@ -33,7 +33,7 @@
 namespace SushiBLAS 
 {
     Engine::Engine(SushiRuntime::Execution::RuntimeContext& ctx, Core::Layout layout) 
-        : context_(ctx), default_layout_(layout) 
+        : context_(ctx), graph_(ctx), default_layout_(layout) 
     {
         SB_LOG_INFO("SushiBLAS Engine initialized with {} layout.", 
                     layout == Core::Layout::ROW_MAJOR ? "Row-Major" : "Column-Major");

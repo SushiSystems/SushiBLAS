@@ -66,4 +66,4 @@ if %ERRORLEVEL% EQU 0 (
 )
 
 popd
-pause
+if "%~1"=="" pause

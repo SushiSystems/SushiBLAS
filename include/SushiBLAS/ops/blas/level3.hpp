@@ -31,6 +31,7 @@
 #pragma once
 
 #include <SushiBLAS/tensor.hpp>
+#include <sycl/sycl.hpp>
 
 namespace SushiBLAS 
 {
@@ -58,9 +59,9 @@ namespace SushiBLAS
              * @param alpha Scalar multiplier for A*B
              * @param beta Scalar multiplier for C
              */
-            void gemm(const Tensor& A, const Tensor& B, Tensor& C, 
-                      bool transA = false, bool transB = false,
-                      float alpha = 1.0f, float beta = 0.0f);
+            sycl::event gemm(const Tensor& A, const Tensor& B, Tensor& C, 
+                            bool transA = false, bool transB = false,
+                            float alpha = 1.0f, float beta = 0.0f);
 
             /**
              * @brief Triangular Solve with Multiple Right-Hand Sides
@@ -74,7 +75,7 @@ namespace SushiBLAS
              * @param unit_diag Whether A has unit diagonal (no scaling)
              * @param alpha Scalar multiplier
              */
-            void trsm(const Tensor& A, Tensor& B, 
+            sycl::event trsm(const Tensor& A, Tensor& B, 
                       bool left_side = true, bool upper = false, 
                       bool transA = false, bool unit_diag = false, 
                       float alpha = 1.0f);
@@ -90,7 +91,7 @@ namespace SushiBLAS
              * @param alpha Scalar multiplier for A*A^T
              * @param beta Scalar multiplier for C
              */
-            void syrk(const Tensor& A, Tensor& C, 
+            sycl::event syrk(const Tensor& A, Tensor& C, 
                       bool upper = false, bool transA = false, 
                       float alpha = 1.0f, float beta = 0.0f);
     };
