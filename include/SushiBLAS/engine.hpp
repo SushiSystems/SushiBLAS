@@ -35,6 +35,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiRuntime/SushiRuntime.h>
+#include <SushiRuntime/graph/task_graph.hpp>
 
 // Operations Interfaces
 #include <SushiBLAS/ops/blas.hpp>
@@ -71,6 +72,12 @@ namespace SushiBLAS
 
             /** @brief Returns source runtime context. */
             SushiRuntime::Execution::RuntimeContext& get_context() { return context_; }
+            
+            /** @brief Returns the engine's task graph. */
+            SushiRuntime::Graph::TaskGraph& get_graph() { return graph_; }
+
+            /** @brief Submits the graph for execution and waits for completion. */
+            sycl::event execute() { return graph_.execute(); }
 
             /** @brief Creates a tensor. */
             Tensor create_tensor(std::initializer_list<int64_t> dims, 
@@ -78,6 +85,7 @@ namespace SushiBLAS
 
         private:
             SushiRuntime::Execution::RuntimeContext& context_;
+            SushiRuntime::Graph::TaskGraph graph_;
             Core::Layout default_layout_;
     };
 

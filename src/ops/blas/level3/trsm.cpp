@@ -41,7 +41,7 @@ namespace SushiBLAS
          * @brief Internal dispatcher for TRSM handling Layout and Batching logic.
          */
         template<typename T>
-        void trsm_dispatch(sycl::queue& queue, Core::Layout layout,
+        sycl::event trsm_dispatch(sycl::queue& queue, Core::Layout layout,
                            oneapi::mkl::side side, oneapi::mkl::uplo uplo,
                            oneapi::mkl::transpose trans, oneapi::mkl::diag diag,
                            int64_t m, int64_t n, 
@@ -54,12 +54,12 @@ namespace SushiBLAS
                 if (batch_size > 1) 
                 {
                     SB_LOG_INFO("MKL Batch TRSM [Row-Major]: {}x[{}x{}]", batch_size, m, n);
-                    oneapi::mkl::blas::row_major::trsm_batch(queue, side, uplo, trans, diag, m, n, alpha, a, lda, str_a, b, ldb, str_b, batch_size, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::row_major::trsm_batch(queue, side, uplo, trans, diag, m, n, alpha, a, lda, str_a, b, ldb, str_b, batch_size, oneapi::mkl::blas::compute_mode::standard);
                 } 
                 else 
                 {
                     SB_LOG_INFO("MKL TRSM [Row-Major]: {}x{}", m, n);
-                    oneapi::mkl::blas::row_major::trsm(queue, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::row_major::trsm(queue, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, oneapi::mkl::blas::compute_mode::standard);
                 }
             } 
             else // COLUMN_MAJOR
@@ -67,18 +67,18 @@ namespace SushiBLAS
                 if (batch_size > 1) 
                 {
                     SB_LOG_INFO("MKL Batch TRSM [Col-Major]: {}x[{}x{}]", batch_size, m, n);
-                    oneapi::mkl::blas::column_major::trsm_batch(queue, side, uplo, trans, diag, m, n, alpha, a, lda, str_a, b, ldb, str_b, batch_size, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::column_major::trsm_batch(queue, side, uplo, trans, diag, m, n, alpha, a, lda, str_a, b, ldb, str_b, batch_size, oneapi::mkl::blas::compute_mode::standard);
                 } 
                 else 
                 {
                     SB_LOG_INFO("MKL TRSM [Col-Major]: {}x{}", m, n);
-                    oneapi::mkl::blas::column_major::trsm(queue, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::column_major::trsm(queue, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, oneapi::mkl::blas::compute_mode::standard);
                 }
             }
         }
     }
 
-    void Level3::trsm(const Tensor& A, Tensor& B, 
+    sycl::event Level3::trsm(const Tensor& A, Tensor& B, 
                       bool left_side, bool upper, 
                       bool transA, bool unit_diag, 
                       float alpha) 
@@ -125,19 +125,16 @@ namespace SushiBLAS
         switch (A.dtype)
         {
             case Core::DataType::FLOAT32:
-                trsm_dispatch<float>(queue, A.layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, alpha, A.data_as<float>(), lda, str_a, B.data_as<float>(), ldb, str_b, batch_size);
-                break;
+                return trsm_dispatch<float>(queue, A.layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, alpha, A.data_as<float>(), lda, str_a, B.data_as<float>(), ldb, str_b, batch_size);
             case Core::DataType::FLOAT64:
-                trsm_dispatch<double>(queue, A.layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, static_cast<double>(alpha), A.data_as<double>(), lda, str_a, B.data_as<double>(), ldb, str_b, batch_size);
-                break;
+                return trsm_dispatch<double>(queue, A.layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, static_cast<double>(alpha), A.data_as<double>(), lda, str_a, B.data_as<double>(), ldb, str_b, batch_size);
             case Core::DataType::COMPLEX32:
-                trsm_dispatch<std::complex<float>>(queue, A.layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, std::complex<float>(alpha, 0.0f), A.data_as<std::complex<float>>(), lda, str_a, B.data_as<std::complex<float>>(), ldb, str_b, batch_size);
-                break;
+                return trsm_dispatch<std::complex<float>>(queue, A.layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, std::complex<float>(alpha, 0.0f), A.data_as<std::complex<float>>(), lda, str_a, B.data_as<std::complex<float>>(), ldb, str_b, batch_size);
             case Core::DataType::COMPLEX64:
-                trsm_dispatch<std::complex<double>>(queue, A.layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, std::complex<double>(alpha, 0.0), A.data_as<std::complex<double>>(), lda, str_a, B.data_as<std::complex<double>>(), ldb, str_b, batch_size);
-                break;
+                return trsm_dispatch<std::complex<double>>(queue, A.layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, std::complex<double>(alpha, 0.0), A.data_as<std::complex<double>>(), lda, str_a, B.data_as<std::complex<double>>(), ldb, str_b, batch_size);
             default:
                 SB_THROW_IF(true, "Unsupported data type for TRSM operation.");
         }
+        return sycl::event();
     }
 } // namespace SushiBLAS

@@ -14,6 +14,8 @@ for /f "usebackq tokens=1,2 delims==" %%A in ("config.ini") do (
     if "%%A"=="ONEAPI_ROOT" set "ONEAPI_ROOT=%%B"
     if "%%A"=="VCPKG_ROOT" set "VCPKG_ROOT=%%B"
     if "%%A"=="TARGET_BIN" set "DEFAULT_BIN=%%B"
+    if "%%A"=="OMP_PLACES" set "OMP_PLACES=%%B"
+    if "%%A"=="OMP_PROC_BIND" set "OMP_PROC_BIND=%%B"
 )
 
 :: 2. Setup Intel oneAPI environment if needed

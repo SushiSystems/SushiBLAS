@@ -14,6 +14,9 @@ int main()
     SB_LOG_INFO("Executing GEMM operation...");
     sb.blas().gemm(A, B, C);
 
+    // Executing the queued tasks
+    sb.execute();
+
     // Synchronize to wait for GPU/CPU task completion
     ctx.wait_all();
 

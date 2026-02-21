@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* engine.cpp                                                             */
+/* test_gemm.cpp                                                          */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -7,7 +7,7 @@
 /*                         https://sushisystems.io                        */
 /**************************************************************************/
 /* Copyright (c) 2026-present  Mustafa Garip & Sushi Systems              */
-/*                                                                   	  */
+/*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
 /* a copy of this software and associated documentation files (the        */
 /* "Software"), to deal in the Software without restriction, including    */
@@ -28,27 +28,55 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include <SushiBLAS/engine.hpp>
+#include <vector>
+#include <gtest/gtest.h>
+#include <SushiBLAS/SushiBLAS.h>
+#include "../../test_common.hpp"
 
-namespace SushiBLAS 
+
+class GEMMTest : public SushiBLASTest {};
+
+TEST_F(GEMMTest, SimpleGEMM3x3) 
 {
-    Engine::Engine(SushiRuntime::Execution::RuntimeContext& ctx, Core::Layout layout) 
-        : context_(ctx), graph_(ctx), default_layout_(layout) 
-    {
-        SB_LOG_INFO("SushiBLAS Engine initialized with {} layout.", 
-                    layout == Core::Layout::ROW_MAJOR ? "Row-Major" : "Column-Major");
-    }
+    const int N = 3;
+    auto A = engine->create_tensor({N, N});
+    auto B = engine->create_tensor({N, N});
+    auto C = engine->create_tensor({N, N});
 
-    Tensor Engine::create_tensor(std::initializer_list<int64_t> dims, 
-                                 SushiRuntime::Memory::AllocStrategy strat)
-    {
-        size_t elements = 1;
-        for (auto d : dims) elements *= d;
-        
-        auto storage = SushiRuntime::make_sushi<Storage>(context_.get_allocator(), elements * sizeof(float), strat);
-        
-        // Use the engine's default layout for new tensors
-        return Tensor(storage, dims, 0, default_layout_);
-    }
+    // Fill A: [1, 2, ..., 9]
+    fill_tensor(A, {1, 2, 3, 4, 5, 6, 7, 8, 9});
+    
+    // Fill B: Identity * 2.0
+    fill_tensor(B, {2, 0, 0, 0, 2, 0, 0, 0, 2});
+    
+    // Reset C
+    fill_tensor(C, std::vector<float>(N * N, 0.0f));
 
-} // namespace SushiBLAS
+    engine->blas().gemm(A, B, C);
+    engine->execute().wait();
+
+    // Expected: A * 2
+    verify_tensor(C, {2, 4, 6, 8, 10, 12, 14, 16, 18});
+}
+
+TEST_F(GEMMTest, SimpleGEMMColumnMajor) 
+{
+    reinit_engine(sb::Core::Layout::COLUMN_MAJOR);
+    
+    const int M = 2, N = 2, K = 2;
+    auto A = engine->create_tensor({M, K});
+    auto B = engine->create_tensor({K, N});
+    auto C = engine->create_tensor({M, N});
+
+    // A: [[1, 2], [3, 4]] -> Column-major: [1, 3, 2, 4]
+    fill_tensor(A, {1, 3, 2, 4});
+    
+    // B: [[5, 6], [7, 8]] -> Column-major: [5, 7, 6, 8]
+    fill_tensor(B, {5, 7, 6, 8});
+
+    engine->blas().gemm(A, B, C);
+    engine->execute().wait();
+
+    // Expected Memory: [19, 43, 22, 50]
+    verify_tensor(C, {19, 43, 22, 50});
+}
