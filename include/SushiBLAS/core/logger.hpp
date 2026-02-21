@@ -82,69 +82,70 @@ namespace SushiBLAS
         {
             class AsyncLogger 
             {
-            private:
-                std::queue<std::pair<LogType, std::string>> queue_;
-                std::mutex mutex_;
-                std::condition_variable cv_;
-                std::thread worker_;
-                std::atomic<bool> running_;
+                private:
+                    std::queue<std::pair<LogType, std::string>> queue_;
+                    std::mutex mutex_;
+                    std::condition_variable cv_;
+                    std::thread worker_;
+                    std::atomic<bool> running_;
 
-                void process_logs() {
-                    while (running_.load(std::memory_order_relaxed)) 
+                    void process_logs() 
                     {
-                        std::unique_lock<std::mutex> lock(mutex_);
-                        cv_.wait(lock, [this]() { return !queue_.empty() || !running_.load(std::memory_order_relaxed); });
-
-                        while (!queue_.empty()) 
+                        while (running_.load(std::memory_order_relaxed)) 
                         {
-                            auto log_entry = std::move(queue_.front());
-                            queue_.pop();
-                            lock.unlock(); // Unlock while writing to file/terminal
+                            std::unique_lock<std::mutex> lock(mutex_);
+                            cv_.wait(lock, [this]() { return !queue_.empty() || !running_.load(std::memory_order_relaxed); });
 
-                            FILE* stream = (log_entry.first <= LogType::ERR) ? stderr : stdout;
+                            while (!queue_.empty()) 
+                            {
+                                auto log_entry = std::move(queue_.front());
+                                queue_.pop();
+                                lock.unlock(); // Unlock while writing to file/terminal
 
-                            #ifdef _WIN32
-                                _lock_file(stream);
-                                fputs(log_entry.second.c_str(), stream);
-                                fflush(stream);
-                                _unlock_file(stream);
-                            #else
-                                flockfile(stream);
-                                fputs(log_entry.second.c_str(), stream);
-                                fflush(stream);
-                                funlockfile(stream);
-                            #endif
+                                FILE* stream = (log_entry.first <= LogType::ERR) ? stderr : stdout;
 
-                            lock.lock(); // Lock again before checking queue
+                                #ifdef _WIN32
+                                    _lock_file(stream);
+                                    fputs(log_entry.second.c_str(), stream);
+                                    fflush(stream);
+                                    _unlock_file(stream);
+                                #else
+                                    flockfile(stream);
+                                    fputs(log_entry.second.c_str(), stream);
+                                    fflush(stream);
+                                    funlockfile(stream);
+                                #endif
+
+                                lock.lock(); // Lock again before checking queue
+                            }
                         }
                     }
-                }
 
-            public:
-                AsyncLogger() : running_(true) 
-                {
-                    worker_ = std::thread(&AsyncLogger::process_logs, this);
-                }
-
-                ~AsyncLogger() 
-                {
-                    running_.store(false, std::memory_order_relaxed);
-                    cv_.notify_one();
-
-                    if (worker_.joinable()) 
+                public:
+                    AsyncLogger() : running_(true) 
                     {
-                        worker_.join();
+                        worker_ = std::thread(&AsyncLogger::process_logs, this);
                     }
-                }
 
-                void enqueue(LogType level, std::string&& msg) 
-                {
+                    ~AsyncLogger() 
                     {
-                        std::lock_guard<std::mutex> lock(mutex_);
-                        queue_.emplace(level, std::move(msg));
+                        running_.store(false, std::memory_order_relaxed);
+                        cv_.notify_one();
+
+                        if (worker_.joinable()) 
+                        {
+                            worker_.join();
+                        }
                     }
-                    cv_.notify_one();
-                }
+
+                    void enqueue(LogType level, std::string&& msg) 
+                    {
+                        {
+                            std::lock_guard<std::mutex> lock(mutex_);
+                            queue_.emplace(level, std::move(msg));
+                        }
+                        cv_.notify_one();
+                    }
             };
 
             inline AsyncLogger& get_logger() 
