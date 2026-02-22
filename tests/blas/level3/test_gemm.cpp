@@ -52,8 +52,11 @@ TEST_F(GEMMTest, SimpleGEMM3x3)
     // Reset C
     fill_tensor(C, std::vector<float>(N * N, 0.0f));
 
+    SB_LOG_INFO("Submitting standard 3x3 GEMM.");
     engine->blas().gemm(A, B, C);
+    
     engine->execute().wait();
+    SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: A * 2
     verify_tensor(C, {2, 4, 6, 8, 10, 12, 14, 16, 18});
@@ -74,8 +77,11 @@ TEST_F(GEMMTest, SimpleGEMMColumnMajor)
     // B: [[5, 6], [7, 8]] -> Column-major: [5, 7, 6, 8]
     fill_tensor(B, {5, 7, 6, 8});
 
+    SB_LOG_INFO("Submitting Column-Major GEMM.");
     engine->blas().gemm(A, B, C);
+    
     engine->execute().wait();
+    SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected Memory: [19, 43, 22, 50]
     verify_tensor(C, {19, 43, 22, 50});

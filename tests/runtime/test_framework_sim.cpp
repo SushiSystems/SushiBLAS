@@ -21,6 +21,7 @@ TEST_F(FrameworkSimTest, DeepForwardPass)
     
     auto X = engine->create_tensor({batch_size, features});
     fill_tensor(X, std::vector<float>(batch_size * features, 1.0f));
+    SB_LOG_INFO("Sim: X tensor created with shape {}x{}", batch_size, features);
     
     std::vector<sb::Tensor> weights;
     std::vector<sb::Tensor> activations;
@@ -41,14 +42,18 @@ TEST_F(FrameworkSimTest, DeepForwardPass)
     auto start_time = std::chrono::high_resolution_clock::now();
     
     // Build the DAG 
+    SB_LOG_INFO("Sim: Building DAG for {} layers", num_layers);
     for (int i = 0; i < num_layers; ++i) 
     {
         // H_{i+1} = H_{i} * W_i
+        SB_LOG_DEBUG("Sim: Submitting GEMM for Layer {}", i);
         engine->blas().gemm(activations[i], weights[i], activations[i+1]);
     }
     
     // Execute all deep operations asynchronously
+    SB_LOG_INFO("Sim: Executing Deep Forward Pass Task DAG and waiting...");
     engine->execute().wait();
+    SB_LOG_INFO("Sim: Deep Forward Pass execution complete");
     
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> duration = end_time - start_time;
@@ -98,7 +103,9 @@ TEST_F(FrameworkSimTest, ParallelBatchedInference)
     }
     
     // The scheduler should dispatch these horizontally to all worker threads
+    SB_LOG_INFO("Sim: Executing Parallel Inference DAG across workers...");
     engine->execute().wait();
+    SB_LOG_INFO("Sim: Parallel Inference execution complete");
     
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> duration = end_time - start_time;
