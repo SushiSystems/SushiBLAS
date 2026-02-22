@@ -30,8 +30,8 @@
 
 #pragma once
 
-#include <SushiBLAS/tensor.hpp>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/tensor.hpp>
 
 namespace SushiBLAS 
 {

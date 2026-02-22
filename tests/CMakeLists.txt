@@ -7,6 +7,8 @@ add_executable(sushiblas_tests
 
     # Level 3
     blas/level3/test_gemm.cpp
+    blas/level3/test_trsm.cpp
+    blas/level3/test_syrk.cpp
     
     # Framework Simulation
     runtime/test_framework_sim.cpp

@@ -8,11 +8,13 @@ if(WIN32)
 endif()
 
 # --- vcpkg Classic Mode ---
+# TODO: Get rid of hardcoded paths
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
     set(CMAKE_TOOLCHAIN_FILE "C:/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
 endif()
 
 # --- Compiler Selection ---
+# TODO: Get rid of hardcoded paths
 if(WIN32 AND NOT DEFINED CMAKE_CXX_COMPILER)
     set(INTEL_ONEAPI_DIR "C:/Program Files (x86)/Intel/oneAPI/compiler/latest")
     set(CMAKE_CXX_COMPILER "${INTEL_ONEAPI_DIR}/bin/icx-cl.exe" CACHE FILEPATH "CXX compiler")

@@ -10,8 +10,9 @@
 /**************************************************************************/
 
 #pragma once
-#include <SushiBLAS/tensor.hpp>
+
 #include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/tensor.hpp>
 
 namespace SushiBLAS 
 {

@@ -32,9 +32,13 @@
 #include <oneapi/mkl.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/ops/blas/level3.hpp>
+#include "SushiRuntime/graph/task_types.hpp"
+#include <vector>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     namespace
     {
         template<typename T>
@@ -115,65 +119,75 @@ namespace SushiBLAS
         std::vector<void*> writes = {};
         if (write_C) writes.push_back(write_C);
 
+        SushiRuntime::Graph::TaskMetadata meta;
+        meta.name = "mkl_gemm";
+        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.op_id = "blas.gemm"_op;
+        // encode parameters universally as 64-bit uints for profilers/fusers
+        meta.set_param(0, alpha);
+        meta.set_param(1, beta);
+        meta.set_param(2, transA);
+        meta.set_param(3, transB);
+
         switch (A.dtype)
         {
             case Core::DataType::HALF:
             {
-                engine_.get_graph().add_host_node(
+                engine_.get_graph().add_task(meta, reads, writes,
                     [layout, mkl_transA, mkl_transB, m, n, k, alpha, lda, str_a, ldb, str_b, beta, ldc, str_c, batch_size, 
                      pA=A.data_as<sycl::half>(), pB=B.data_as<sycl::half>(), pC=C.data_as<sycl::half>()]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
                     {
                         return gemm_dispatch<sycl::half>(q, layout, mkl_transA, mkl_transB, m, n, k, static_cast<sycl::half>(alpha), pA, lda, str_a, pB, ldb, str_b, static_cast<sycl::half>(beta), pC, ldc, str_c, batch_size, deps);
-                    }, reads, writes
+                    }
                 );
                 break;
             }
             case Core::DataType::FLOAT32:
             {
-                engine_.get_graph().add_host_node(
+                engine_.get_graph().add_task(meta, reads, writes,
                     [layout, mkl_transA, mkl_transB, m, n, k, alpha, lda, str_a, ldb, str_b, beta, ldc, str_c, batch_size, 
                      pA=A.data_as<float>(), pB=B.data_as<float>(), pC=C.data_as<float>()]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
                     {
                         return gemm_dispatch<float>(q, layout, mkl_transA, mkl_transB, m, n, k, alpha, pA, lda, str_a, pB, ldb, str_b, beta, pC, ldc, str_c, batch_size, deps);
-                    }, reads, writes
+                    }
                 );
                 break;
             }
             case Core::DataType::FLOAT64:
             {
-                engine_.get_graph().add_host_node(
+                engine_.get_graph().add_task(meta, reads, writes,
                     [layout, mkl_transA, mkl_transB, m, n, k, alpha_d=static_cast<double>(alpha), lda, str_a, ldb, str_b, beta_d=static_cast<double>(beta), ldc, str_c, batch_size, 
                      pA=A.data_as<double>(), pB=B.data_as<double>(), pC=C.data_as<double>()]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
                     {
                         return gemm_dispatch<double>(q, layout, mkl_transA, mkl_transB, m, n, k, alpha_d, pA, lda, str_a, pB, ldb, str_b, beta_d, pC, ldc, str_c, batch_size, deps);
-                    }, reads, writes
+                    }
                 );
                 break;
             }
             case Core::DataType::COMPLEX32:
             {
-                engine_.get_graph().add_host_node(
+                engine_.get_graph().add_task(meta, reads, writes,
                     [layout, mkl_transA, mkl_transB, m, n, k, alpha_c=std::complex<float>(alpha, 0.0f), lda, str_a, ldb, str_b, beta_c=std::complex<float>(beta, 0.0f), ldc, str_c, batch_size, 
                      pA=A.data_as<std::complex<float>>(), pB=B.data_as<std::complex<float>>(), pC=C.data_as<std::complex<float>>()]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
                     {
                         return gemm_dispatch<std::complex<float>>(q, layout, mkl_transA, mkl_transB, m, n, k, alpha_c, pA, lda, str_a, pB, ldb, str_b, beta_c, pC, ldc, str_c, batch_size, deps);
-                    }, reads, writes
+                    }
                 );
                 break;
             }
             case Core::DataType::COMPLEX64:
             {
-                engine_.get_graph().add_host_node(
+                engine_.get_graph().add_task(meta, reads, writes,
                     [layout, mkl_transA, mkl_transB, m, n, k, alpha_c=std::complex<double>(alpha, 0.0), lda, str_a, ldb, str_b, beta_c=std::complex<double>(beta, 0.0), ldc, str_c, batch_size, 
                      pA=A.data_as<std::complex<double>>(), pB=B.data_as<std::complex<double>>(), pC=C.data_as<std::complex<double>>()]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
                     {
                         return gemm_dispatch<std::complex<double>>(q, layout, mkl_transA, mkl_transB, m, n, k, alpha_c, pA, lda, str_a, pB, ldb, str_b, beta_c, pC, ldc, str_c, batch_size, deps);
-                    }, reads, writes
+                    }
                 );
                 break;
             }
