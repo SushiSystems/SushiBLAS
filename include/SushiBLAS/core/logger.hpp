@@ -30,20 +30,20 @@
 
 #pragma once
 
-#include <cstdio>
 #include <mutex>
+#include <queue>
+#include <atomic>
 #include <chrono>
+#include <cstdio>
 #include <format>
+#include <string>
+#include <thread>
+#include <utility>
 #include <iostream>
 #include <stdexcept>
 #include <string_view>
 #include <source_location>
-#include <queue>
-#include <thread>
 #include <condition_variable>
-#include <atomic>
-#include <utility>
-#include <string>
 
 #ifndef SB_ENABLE_LOGGING
     #define SB_ENABLE_LOGGING 1
@@ -256,7 +256,7 @@ namespace SushiBLAS
                     }
                 #endif
             }
-        }
+        } // namespace Detail
     } // namespace Core
     
     /**

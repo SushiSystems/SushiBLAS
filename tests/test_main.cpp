@@ -35,8 +35,8 @@
 int main(int argc, char **argv) 
 {
     // Force logs to stream synchronously during testing to avoid overlap with GTest output.
-    SR_LOGGER_SET_SYNC_MODE(false);
-    SB_LOGGER_SET_SYNC_MODE(false);
+    SR_LOGGER_SET_SYNC_MODE(true);
+    SB_LOGGER_SET_SYNC_MODE(true);
     
     ::testing::InitGoogleTest(&argc, argv);
     

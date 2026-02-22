@@ -32,9 +32,13 @@
 #include <oneapi/mkl.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/ops/blas/level3.hpp>
+#include "SushiRuntime/graph/task_types.hpp" // Added this include based on the instruction's context
+#include <vector> // Added this include based on the instruction's context
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     namespace
     {
         /**
@@ -47,19 +51,19 @@ namespace SushiBLAS
                            int64_t m, int64_t n, 
                            T alpha, const T* a, int64_t lda, int64_t str_a,
                            T* b, int64_t ldb, int64_t str_b,
-                           int64_t batch_size)
+                           int64_t batch_size, const std::vector<sycl::event>& deps)
         {
             if (layout == Core::Layout::ROW_MAJOR) 
             {
                 if (batch_size > 1) 
                 {
                     SB_LOG_INFO("MKL Batch TRSM [Row-Major]: {}x[{}x{}]", batch_size, m, n);
-                    return oneapi::mkl::blas::row_major::trsm_batch(queue, side, uplo, trans, diag, m, n, alpha, a, lda, str_a, b, ldb, str_b, batch_size, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::row_major::trsm_batch(queue, side, uplo, trans, diag, m, n, alpha, a, lda, str_a, b, ldb, str_b, batch_size, oneapi::mkl::blas::compute_mode::standard, deps);
                 } 
                 else 
                 {
                     SB_LOG_INFO("MKL TRSM [Row-Major]: {}x{}", m, n);
-                    return oneapi::mkl::blas::row_major::trsm(queue, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::row_major::trsm(queue, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, oneapi::mkl::blas::compute_mode::standard, deps);
                 }
             } 
             else // COLUMN_MAJOR
@@ -67,12 +71,12 @@ namespace SushiBLAS
                 if (batch_size > 1) 
                 {
                     SB_LOG_INFO("MKL Batch TRSM [Col-Major]: {}x[{}x{}]", batch_size, m, n);
-                    return oneapi::mkl::blas::column_major::trsm_batch(queue, side, uplo, trans, diag, m, n, alpha, a, lda, str_a, b, ldb, str_b, batch_size, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::column_major::trsm_batch(queue, side, uplo, trans, diag, m, n, alpha, a, lda, str_a, b, ldb, str_b, batch_size, oneapi::mkl::blas::compute_mode::standard, deps);
                 } 
                 else 
                 {
                     SB_LOG_INFO("MKL TRSM [Col-Major]: {}x{}", m, n);
-                    return oneapi::mkl::blas::column_major::trsm(queue, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, oneapi::mkl::blas::compute_mode::standard);
+                    return oneapi::mkl::blas::column_major::trsm(queue, side, uplo, trans, diag, m, n, alpha, a, lda, b, ldb, oneapi::mkl::blas::compute_mode::standard, deps);
                 }
             }
         }
@@ -115,23 +119,82 @@ namespace SushiBLAS
         int64_t str_a = (batch_size > 1) ? A.strides[rA - 3] : 0;
         int64_t str_b = (batch_size > 1) ? B.strides[rB - 3] : 0;
 
-        auto& queue     = engine_.get_context().get_queue();
         auto mkl_side   = left_side ? oneapi::mkl::side::left : oneapi::mkl::side::right;
         auto mkl_uplo   = upper ? oneapi::mkl::uplo::upper : oneapi::mkl::uplo::lower;
         auto mkl_trans  = transA ? oneapi::mkl::transpose::trans : oneapi::mkl::transpose::nontrans;
         auto mkl_diag   = unit_diag ? oneapi::mkl::diag::unit : oneapi::mkl::diag::nonunit;
 
+        // Capture data safely for asynchronous execution
+        auto layout = A.layout;
+        void* read_A = A.storage ? A.storage->data_ptr : nullptr;
+        void* write_B = B.storage ? B.storage->data_ptr : nullptr;
+
+        std::vector<void*> reads = {};
+        if (read_A) reads.push_back(read_A);
+        std::vector<void*> writes = {};
+        if (write_B) writes.push_back(write_B);
+
+        SushiRuntime::Graph::TaskMetadata meta;
+        meta.name = "mkl_trsm";
+        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.op_id = "blas.trsm"_op;
+        meta.set_param(0, alpha);
+        meta.set_param(1, left_side);
+        meta.set_param(2, upper);
+        meta.set_param(3, transA);
+        meta.set_param(4, unit_diag);
+
         // 2. Comprehensive Type Dispatching
         switch (A.dtype)
         {
             case Core::DataType::FLOAT32:
-                return trsm_dispatch<float>(queue, A.layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, alpha, A.data_as<float>(), lda, str_a, B.data_as<float>(), ldb, str_b, batch_size);
+            {
+                engine_.get_graph().add_task(meta, reads, writes,
+                    [layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, alpha, lda, str_a, ldb, str_b, batch_size,
+                     pA=A.data_as<float>(), pB=B.data_as<float>()]
+                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    {
+                        return trsm_dispatch<float>(q, layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, alpha, pA, lda, str_a, pB, ldb, str_b, batch_size, deps);
+                    }
+                );
+                break;
+            }
             case Core::DataType::FLOAT64:
-                return trsm_dispatch<double>(queue, A.layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, static_cast<double>(alpha), A.data_as<double>(), lda, str_a, B.data_as<double>(), ldb, str_b, batch_size);
+            {
+                engine_.get_graph().add_task(meta, reads, writes,
+                    [layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, alpha_d=static_cast<double>(alpha), lda, str_a, ldb, str_b, batch_size,
+                     pA=A.data_as<double>(), pB=B.data_as<double>()]
+                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    {
+                        return trsm_dispatch<double>(q, layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, alpha_d, pA, lda, str_a, pB, ldb, str_b, batch_size, deps);
+                    }
+                );
+                break;
+            }
             case Core::DataType::COMPLEX32:
-                return trsm_dispatch<std::complex<float>>(queue, A.layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, std::complex<float>(alpha, 0.0f), A.data_as<std::complex<float>>(), lda, str_a, B.data_as<std::complex<float>>(), ldb, str_b, batch_size);
+            {
+                engine_.get_graph().add_task(meta, reads, writes,
+                    [layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, alpha_c=std::complex<float>(alpha, 0.0f), lda, str_a, ldb, str_b, batch_size,
+                     pA=A.data_as<std::complex<float>>(), pB=B.data_as<std::complex<float>>()]
+                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    {
+                        return trsm_dispatch<std::complex<float>>(q, layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, alpha_c, pA, lda, str_a, pB, ldb, str_b, batch_size, deps);
+                    }
+                );
+                break;
+            }
             case Core::DataType::COMPLEX64:
-                return trsm_dispatch<std::complex<double>>(queue, A.layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, std::complex<double>(alpha, 0.0), A.data_as<std::complex<double>>(), lda, str_a, B.data_as<std::complex<double>>(), ldb, str_b, batch_size);
+            {
+                engine_.get_graph().add_task(meta, reads, writes,
+                    [layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, alpha_c=std::complex<double>(alpha, 0.0), lda, str_a, ldb, str_b, batch_size,
+                     pA=A.data_as<std::complex<double>>(), pB=B.data_as<std::complex<double>>()]
+                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    {
+                        return trsm_dispatch<std::complex<double>>(q, layout, mkl_side, mkl_uplo, mkl_trans, mkl_diag, m, n, alpha_c, pA, lda, str_a, pB, ldb, str_b, batch_size, deps);
+                    }
+                );
+                break;
+            }
             default:
                 SB_THROW_IF(true, "Unsupported data type for TRSM operation.");
         }
