@@ -10,6 +10,9 @@ add_executable(sushiblas_tests
     
     # Framework Simulation
     runtime/test_framework_sim.cpp
+    
+    # Stress tests
+    runtime/test_dependency_stress.cpp
 )
 
 # --- Include Directories ---

@@ -30,10 +30,17 @@
 
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiRuntime/core/logger.hpp>
 
 int main(int argc, char **argv) 
 {
+    // Force logs to stream synchronously during testing to avoid overlap with GTest output.
+    SR_LOGGER_SET_SYNC_MODE(false);
+    SB_LOGGER_SET_SYNC_MODE(false);
+    
     ::testing::InitGoogleTest(&argc, argv);
     
-    return RUN_ALL_TESTS();
+    int res = RUN_ALL_TESTS();
+    SB_LOG_INFO("All tests finished with result: {}", res);
+    return res;
 }

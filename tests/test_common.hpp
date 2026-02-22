@@ -18,11 +18,13 @@ class SushiBLASTest : public ::testing::Test
         void SetUp() override 
         {
             engine = std::make_unique<sb::Engine>(ctx, sb::Core::Layout::ROW_MAJOR);
+            SB_LOG_INFO("Engine created successfully.");
         }
 
         void TearDown() override 
         {
             engine.reset();
+            SB_LOG_INFO("Engine reset successful.");
         }
 
         // Helper to re-initialize engine with a different layout if needed
