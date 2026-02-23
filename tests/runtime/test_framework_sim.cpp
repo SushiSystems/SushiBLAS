@@ -31,6 +31,7 @@ TEST_F(FrameworkSimTest, DeepForwardPass)
     for (int i = 0; i < num_layers; ++i) 
     {
         auto W = engine->create_tensor({features, features});
+        
         // Just fill with small values to prevent explosion
         fill_tensor(W, std::vector<float>(features * features, 0.01f));
         weights.push_back(W);

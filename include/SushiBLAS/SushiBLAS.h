@@ -34,14 +34,12 @@
  * @file SushiBLAS.h
  * @brief Master header for the SushiBLAS library.
  * 
- * Including this file provides access to all public modules of the math library.
+ * Including this file provides access to all core modules, including the Engine, 
+ * Tensors, Storage, and all mathematical operations (BLAS, Non-linear, etc.).
  */
 
-// Core Infrastructure
-#include "core/common.hpp"
-#include "core/logger.hpp"
+#include "engine.hpp"
 #include "tensor.hpp"
 #include "storage.hpp"
-
-// Main Engine Interface
-#include "engine.hpp"
+#include "core/common.hpp"
+#include "core/logger.hpp"

@@ -5,6 +5,26 @@ find_package(GTest CONFIG REQUIRED)
 add_executable(sushiblas_tests
     test_main.cpp
 
+    # Level 1
+    blas/level1/test_asum.cpp
+    blas/level1/test_axpy.cpp
+    blas/level1/test_copy.cpp
+    blas/level1/test_dot.cpp
+    blas/level1/test_iamax.cpp
+    blas/level1/test_nrm2.cpp
+    blas/level1/test_rot.cpp
+    blas/level1/test_scal.cpp
+    blas/level1/test_swap.cpp
+
+    # Level 2
+    blas/level2/test_gemv.cpp
+    blas/level2/test_ger.cpp
+    blas/level2/test_symv.cpp
+    blas/level2/test_syr.cpp
+    blas/level2/test_syr2.cpp
+    blas/level2/test_trmv.cpp
+    blas/level2/test_trsv.cpp
+
     # Level 3
     blas/level3/test_gemm.cpp
     blas/level3/test_trsm.cpp

@@ -32,7 +32,6 @@
 
 #include <cstddef>
 #include <cassert>
-
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiRuntime/SushiRuntime.h>
@@ -40,47 +39,59 @@
 namespace SushiBLAS 
 {
     /**
-     * @brief Underlying data storage for tensors.
+     * @class Storage
+     * @brief Managed memory storage for tensor data.
+     * 
+     * This class encapsulates a SYCL USM allocation and its metadata. 
+     * It uses reference counting to manage memory lifetime across multiple 
+     * Tensor views.
      */
     class alignas(64) Storage : public SushiRuntime::Core::RefCounted 
     {
-    public:
-        void* data_ptr = nullptr;
-        size_t size_bytes = 0;       
-        size_t requested_bytes = 0;
+        public:
+            void* data_ptr = nullptr;      /**< Raw pointer to memory. */
+            size_t size_bytes = 0;         /**< Total allocated bytes (including alignment). */
+            size_t requested_bytes = 0;    /**< Bytes actually requested by the user. */
 
-        SushiRuntime::sushi_ptr<SushiRuntime::Memory::USMAllocator> allocator;
-        SushiRuntime::Memory::AllocStrategy strategy;
+            SushiRuntime::sushi_ptr<SushiRuntime::Memory::USMAllocator> allocator; /**< The allocator used for this storage. */
+            SushiRuntime::Memory::AllocStrategy strategy;                          /**< The USM allocation strategy. */
 
-        Storage(SushiRuntime::sushi_ptr<SushiRuntime::Memory::USMAllocator> alloc, 
-                size_t n_bytes, 
-                SushiRuntime::Memory::AllocStrategy strat = SushiRuntime::Memory::AllocStrategy::SHARED) 
-            : requested_bytes(n_bytes), allocator(alloc), strategy(strat)
-        {
-            SB_THROW_IF(!allocator, "Allocator pointer cannot be null");
-            SB_THROW_IF(n_bytes == 0, "Requested size cannot be zero");
-
-            size_bytes = n_bytes;
-            // Align to modern HPC alignment
-            if (size_bytes % SushiRuntime::Core::DEFAULT_ALIGNMENT != 0) 
+            /**
+            * @brief Construct a new Storage object.
+            * @param alloc Pointer to the USM allocator.
+            * @param n_bytes Number of bytes to allocate.
+            * @param strat USM allocation strategy.
+            */
+            Storage(SushiRuntime::sushi_ptr<SushiRuntime::Memory::USMAllocator> alloc, 
+                    size_t n_bytes, 
+                    SushiRuntime::Memory::AllocStrategy strat = SushiRuntime::Memory::AllocStrategy::SHARED) 
+                : requested_bytes(n_bytes), allocator(alloc), strategy(strat)
             {
-                size_bytes += SushiRuntime::Core::DEFAULT_ALIGNMENT - (size_bytes % SushiRuntime::Core::DEFAULT_ALIGNMENT);
+                SB_THROW_IF(!allocator, "Allocator pointer cannot be null");
+                SB_THROW_IF(n_bytes == 0, "Requested size cannot be zero");
+
+                size_bytes = n_bytes;
+                // Align to modern HPC alignment
+                if (size_bytes % SushiRuntime::Core::DEFAULT_ALIGNMENT != 0) 
+                {
+                    size_bytes += SushiRuntime::Core::DEFAULT_ALIGNMENT - (size_bytes % SushiRuntime::Core::DEFAULT_ALIGNMENT);
+                }
+
+                data_ptr = allocator->allocate(size_bytes, strategy);
+                SB_THROW_IF(!data_ptr, "Allocation failed for {} bytes", size_bytes);
             }
 
-            data_ptr = allocator->allocate(size_bytes, strategy);
-            SB_THROW_IF(!data_ptr, "Allocation failed for {} bytes", size_bytes);
-        }
+            Storage(const Storage&) = delete;
+            Storage& operator=(const Storage&) = delete;
 
-        Storage(const Storage&) = delete;
-        Storage& operator=(const Storage&) = delete;
-
-    protected:
-        ~Storage() override 
-        {
-            if (data_ptr && allocator) 
+        protected:
+            /** @brief Destructor releases allocated memory. */
+            ~Storage() override 
             {
-                allocator->deallocate(data_ptr);
+                if (data_ptr && allocator) 
+                {
+                    allocator->deallocate(data_ptr);
+                }
             }
-        }
     };
 } // namespace SushiBLAS

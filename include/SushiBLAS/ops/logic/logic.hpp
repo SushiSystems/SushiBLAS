@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* reductions.hpp                                                         */
+/* logic.hpp                                                              */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -38,89 +38,70 @@ namespace SushiBLAS
     class Engine;
 
     /**
-     * @class ReductionOps
-     * @brief Parallel tensor reduction operations.
+     * @class LogicOps
+     * @brief Logical and comparison operations for tensors.
      * 
-     * These operations aggregate many elements into a single scalar value. 
-     * All results are returned as SYCL events as they are computed asynchronously 
-     * and stored in the provided scalar tensor.
+     * These operations are essential for masking, filtering, and 
+     * implementing conditional logic in computational graphs.
      */
-    class ReductionOps 
+    class LogicOps 
     {
         public:
+            explicit LogicOps(Engine& e) : engine_(e) {}
+
             /**
-             * @brief Construct ReductionOps with a reference to the engine.
-             * @param e The SushiBLAS engine.
-             */
-            explicit ReductionOps(Engine& e) : engine_(e) {}
-
-            /** 
-             * @brief Sum of all elements.
-             * Computes result = sum(t_i).
-             * @param t Input tensor.
-             * @param result Scalar output tensor.
-             * @return sycl::event representing task completion.
-             */
-            sycl::event sum(const Tensor& t, Tensor& result);
-
-            /** 
-             * @brief Mean of all elements.
-             * Computes result = sum(t_i) / num_elements.
-             * @param t Input tensor.
-             * @param result Scalar output tensor.
+             * @brief Element-wise comparison: A > B.
+             * @param A First tensor.
+             * @param B Second tensor.
+             * @param result Boolean/Integer mask tensor.
              * @return sycl::event.
              */
-            sycl::event mean(const Tensor& t, Tensor& result);
+            sycl::event greater(const Tensor& A, const Tensor& B, Tensor& result);
 
-            /** 
-             * @brief Maximum value in the tensor.
-             * Finds result = max(t_i).
-             * @param t Input tensor.
-             * @param result Scalar output tensor.
+            /**
+             * @brief Element-wise comparison: A < B.
+             * @param A First tensor.
+             * @param B Second tensor.
+             * @param result Boolean mask tensor.
              * @return sycl::event.
              */
-            sycl::event max(const Tensor& t, Tensor& result);
+            sycl::event less(const Tensor& A, const Tensor& B, Tensor& result);
 
-            /** 
-             * @brief Minimum value in the tensor.
-             * Finds result = min(t_i).
-             * @param t Input tensor.
-             * @param result Scalar output tensor.
+            /**
+             * @brief Conditional selection (Like numpy.where).
+             * Computes: out = condition ? A : B
+             * @param condition Mask tensor (non-zero means true).
+             * @param A Selection if true.
+             * @param B Selection if false.
+             * @param out Output tensor.
              * @return sycl::event.
              */
-            sycl::event min(const Tensor& t, Tensor& result);
+            sycl::event where(const Tensor& condition, const Tensor& A, const Tensor& B, Tensor& out);
 
-            /** 
-             * @brief Index of the maximum value.
-             * @param t Input tensor.
-             * @param result Scalar output tensor (stores index as int64_t/float).
+            /**
+             * @brief Logical AND of two boolean masks.
+             * @param A Input mask A.
+             * @param B Input mask B.
+             * @param out Output mask.
              * @return sycl::event.
              */
-            sycl::event argmax(const Tensor& t, Tensor& result);
+            sycl::event logical_and(const Tensor& A, const Tensor& B, Tensor& out);
 
-            /** 
-             * @brief Index of the minimum value.
+            /**
+             * @brief Check if all elements are non-zero (Logical ALL).
              * @param t Input tensor.
-             * @param result Scalar output tensor.
+             * @param result Scalar output (1 if all true, else 0).
              * @return sycl::event.
              */
-            sycl::event argmin(const Tensor& t, Tensor& result);
+            sycl::event all(const Tensor& t, Tensor& result);
 
-            /** 
-             * @brief Variance of all elements.
+            /**
+             * @brief Check if any element is non-zero (Logical ANY).
              * @param t Input tensor.
-             * @param result Scalar output tensor.
+             * @param result Scalar output.
              * @return sycl::event.
              */
-            sycl::event var(const Tensor& t, Tensor& result);
-
-            /** 
-             * @brief Standard Deviation of all elements.
-             * @param t Input tensor.
-             * @param result Scalar output tensor.
-             * @return sycl::event.
-             */
-            sycl::event std(const Tensor& t, Tensor& result);
+            sycl::event any(const Tensor& t, Tensor& result);
 
         private:
             Engine& engine_;

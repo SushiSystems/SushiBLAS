@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
 
 namespace SushiBLAS 
@@ -37,24 +38,104 @@ namespace SushiBLAS
     class Engine;
 
     /**
-     * @brief Element-wise operations for tensors.
+     * @class ElementwiseOps
+     * @brief Element-wise arithmetic and mathematical operations for tensors.
+     * 
+     * Provides high-performance independent operations where each element 
+     * in the result depends only on its corresponding element in the input(s).
      */
     class ElementwiseOps 
     {
-    public:
-        explicit ElementwiseOps(Engine& e) : engine_(e) {}
+        public:
+            /**
+            * @brief Construct ElementwiseOps with a reference to the engine.
+            * @param e The SushiBLAS engine.
+            */
+            explicit ElementwiseOps(Engine& e) : engine_(e) {}
 
-        /** @brief Element-wise addition: C = A + B */
-        void add(const Tensor& A, const Tensor& B, Tensor& C);
+            /** 
+            * @brief Element-wise addition.
+            * Computes C = A + B element-wise.
+            * @param A First input tensor.
+            * @param B Second input tensor.
+            * @param C Output tensor to store the result.
+            * @return sycl::event representing task completion.
+            */
+            sycl::event add(const Tensor& A, const Tensor& B, Tensor& C);
 
-        /** @brief Element-wise multiplication: C = A * B */
-        void mul(const Tensor& A, const Tensor& B, Tensor& C);
+            /** 
+            * @brief Element-wise subtraction.
+            * Computes C = A - B element-wise.
+            * @param A First input tensor.
+            * @param B Second input tensor.
+            * @param C Output tensor.
+            * @return sycl::event.
+            */
+            sycl::event sub(const Tensor& A, const Tensor& B, Tensor& C);
 
-        /** @brief Square root of each element. */
-        void sqrt(Tensor& t);
+            /** 
+            * @brief Element-wise multiplication (Hadamard product).
+            * Computes C = A * B element-wise.
+            * @param A First input tensor.
+            * @param B Second input tensor.
+            * @param C Output tensor.
+            * @return sycl::event.
+            */
+            sycl::event mul(const Tensor& A, const Tensor& B, Tensor& C);
 
-    private:
-        Engine& engine_;
+            /** 
+            * @brief Element-wise division.
+            * Computes C = A / B element-wise.
+            * @param A First input tensor (dividend).
+            * @param B Second input tensor (divisor).
+            * @param C Output tensor.
+            * @return sycl::event.
+            */
+            sycl::event div(const Tensor& A, const Tensor& B, Tensor& C);
+
+            /** 
+            * @brief Element-wise square root.
+            * Computes t = sqrt(t) for each element in-place.
+            * @param t Input/Output tensor.
+            * @return sycl::event.
+            */
+            sycl::event sqrt(Tensor& t);
+
+            /** 
+            * @brief Element-wise exponential.
+            * Computes t = exp(t) for each element in-place.
+            * @param t Input/Output tensor.
+            * @return sycl::event.
+            */
+            sycl::event exp(Tensor& t);
+
+            /** 
+            * @brief Element-wise natural logarithm.
+            * Computes t = log(t) for each element in-place.
+            * @param t Input/Output tensor.
+            * @return sycl::event.
+            */
+            sycl::event log(Tensor& t);
+
+            /** 
+            * @brief Element-wise absolute value.
+            * Computes t = abs(t) for each element in-place.
+            * @param t Input/Output tensor.
+            * @return sycl::event.
+            */
+            sycl::event abs(Tensor& t);
+
+            /** 
+            * @brief Element-wise power function.
+            * Computes t = t^exponent for each element in-place.
+            * @param t Input/Output tensor.
+            * @param exponent The power to raise elements to.
+            * @return sycl::event.
+            */
+            sycl::event pow(Tensor& t, float exponent);
+
+        private:
+            Engine& engine_;
     };
 
 } // namespace SushiBLAS

@@ -38,7 +38,14 @@ namespace SushiBLAS
     class Engine;
 
     /**
-     * @brief Matrix-Matrix operations.
+     * @class Level3
+     * @brief Matrix-Matrix operations (BLAS Level 3).
+     * 
+     * This class provides an interface for standard BLAS Level 3 operations, 
+     * which involve matrix-matrix computations. These operations are typically 
+     * the most computationally intensive and benefit greatly from optimized 
+     * implementations like oneMKL. All operations are executed asynchronously 
+     * using the SushiBLAS task graph system.
      */
     class Level3 
     {
@@ -48,32 +55,40 @@ namespace SushiBLAS
 
         public:
             /**
-             * @brief General Matrix-Matrix Multiplication
-             * Computes C = alpha * op(A) * op(B) + beta * C
+             * @brief General Matrix-Matrix Multiplication (GEMM).
              * 
-             * @param A Input matrix A
-             * @param B Input matrix B
-             * @param C Output matrix C
-             * @param transA Whether to transpose A
-             * @param transB Whether to transpose B
-             * @param alpha Scalar multiplier for A*B
-             * @param beta Scalar multiplier for C
+             * Computes the operation: C = alpha * op(A) * op(B) + beta * C.
+             * This supports batching automatically if A, B, and C have rank > 2.
+             * 
+             * @param A Input matrix A.
+             * @param B Input matrix B.
+             * @param C Output matrix C.
+             * @param transA Whether to transpose A (op(A) = A^T if true, else A).
+             * @param transB Whether to transpose B (op(B) = B^T if true, else B).
+             * @param alpha Scalar multiplier for A*B.
+             * @param beta Scalar multiplier for C.
+             * @return sycl::event representing the completion of the operation.
              */
             sycl::event gemm(const Tensor& A, const Tensor& B, Tensor& C, 
                             bool transA = false, bool transB = false,
                             float alpha = 1.0f, float beta = 0.0f);
 
             /**
-             * @brief Triangular Solve with Multiple Right-Hand Sides
-             * Solves op(A)*X = alpha*B or X*op(A) = alpha*B and overwrites B with X.
+             * @brief Triangular Solve with Multiple Right-Hand Sides (TRSM).
              * 
-             * @param A Input triangular matrix A
-             * @param B Input/Output matrix B (B is overwritten with solution X)
-             * @param left_side Whether A is on the left (op(A)*X) or right (X*op(A))
-             * @param upper Whether A is upper triangular
-             * @param transA Whether to transpose A
-             * @param unit_diag Whether A has unit diagonal (no scaling)
-             * @param alpha Scalar multiplier
+             * Solves one of the following systems:
+             * op(A)*X = alpha*B   (if left_side=true)
+             * X*op(A) = alpha*B   (if left_side=false)
+             * where A is a triangular matrix. The result X overwrites matrix B.
+             * 
+             * @param A Input triangular matrix A.
+             * @param B Input/Output matrix B (initially right-hand sides, overwritten by solution X).
+             * @param left_side Whether A is on the left (true) or right (false) of X.
+             * @param upper Whether A is upper triangular (true) or lower (false).
+             * @param transA Whether to transpose A.
+             * @param unit_diag Whether A has unit diagonal.
+             * @param alpha Scalar multiplier for B.
+             * @return sycl::event representing the completion of the operation.
              */
             sycl::event trsm(const Tensor& A, Tensor& B, 
                       bool left_side = true, bool upper = false, 
@@ -81,15 +96,20 @@ namespace SushiBLAS
                       float alpha = 1.0f);
 
             /**
-             * @brief Symmetric Rank-k Update
-             * Computes C = alpha * op(A) * op(A)^T + beta * C
+             * @brief Symmetric Rank-k Update (SYRK).
              * 
-             * @param A Input matrix A
-             * @param C Input/Output matrix C (C is updated in-place)
-             * @param upper Whether to store the upper triangle of C
-             * @param transA Whether to transpose A
-             * @param alpha Scalar multiplier for A*A^T
-             * @param beta Scalar multiplier for C
+             * Computes one of the following updates:
+             * C = alpha * A * A^T + beta * C   (if transA=false)
+             * C = alpha * A^T * A + beta * C   (if transA=true)
+             * where C is a symmetric matrix.
+             * 
+             * @param A Input matrix A.
+             * @param C Input/Output symmetric matrix C (only half is updated/stored).
+             * @param upper Whether to store the result in the upper triangle of C (true) or lower (false).
+             * @param transA Whether to transpose A in the update.
+             * @param alpha Scalar multiplier for the update term.
+             * @param beta Scalar multiplier for C.
+             * @return sycl::event representing the completion of the operation.
              */
             sycl::event syrk(const Tensor& A, Tensor& C, 
                       bool upper = false, bool transA = false, 

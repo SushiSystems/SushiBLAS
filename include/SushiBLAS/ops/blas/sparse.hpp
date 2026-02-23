@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* utils.hpp                                                              */
+/* sparse.hpp                                                             */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -30,33 +30,39 @@
 
 #pragma once
 
-#include <SushiBLAS/engine.hpp>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
 
 namespace SushiBLAS 
 {
-    namespace Internal 
+    class Engine;
+
+    /**
+     * @class SparseBLAS
+     * @brief Sparse matrix operations.
+     * 
+     * This module handles matrices where most elements are zero.
+     * It uses specialized storage formats like CSR, CSC, and COO.
+     */
+    class SparseBLAS 
     {
-        /**
-         * @brief Helper to extract 1D vector parameters (size and increment) from a Tensor.
-         * 
-         * @param t The input tensor.
-         * @param n Output: Number of elements.
-         * @param inc Output: Increment (stride).
-         */
-        inline void get_vec_params(const Tensor& t, int64_t& n, int64_t& inc) 
-        {
-            n = t.num_elements;
-            if (t.is_contiguous()) 
-            {
-                inc = 1;
-            } 
-            else 
-            {
-                // TODO: Support rank > 1 tensors by allowing 2D matrix row/column slices (extracting correct strides).
-                SB_THROW_IF(t.rank > 1, "Level 1 BLAS expects contiguous memory for rank > 1 tensors.");
-                inc = t.strides[0];
-            }
-        }
-    }
-}
+        public:
+            explicit SparseBLAS(Engine& e) : engine_(e) {}
+
+            // TODO: Define a SparseTensor structure to hold values, row_indices, and col_indices.
+            
+            // TODO: Implement SpMV (Sparse Matrix-Vector Multiplication).
+            // Computes y = alpha * A * x + beta * y, where A is sparse.
+
+            // TODO: Implement SpMM (Sparse Matrix-Matrix Multiplication).
+            // Computes C = alpha * A * B + beta * C, where A is sparse.
+
+            // TODO: Support different sparse formats (CSR is high priority for Intel mkl).
+            
+            // TODO: Add support for Sparse-Sparse operations if needed.
+
+        private:
+            Engine& engine_;
+    };
+
+} // namespace SushiBLAS
