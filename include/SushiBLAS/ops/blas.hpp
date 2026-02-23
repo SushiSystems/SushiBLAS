@@ -33,18 +33,27 @@
 #include <SushiBLAS/ops/blas/level1.hpp>
 #include <SushiBLAS/ops/blas/level2.hpp>
 #include <SushiBLAS/ops/blas/level3.hpp>
+#include <SushiBLAS/ops/blas/sparse.hpp>
 
 namespace SushiBLAS 
 {
     class Engine;
 
     /**
-     * @brief Integrated BLAS operations.
+     * @class BLASOps
+     * @brief A unified interface for all BLAS operations (Standard & Sparse).
+     * 
+     * This class inherits from Level1, Level2, Level3, and SparseBLAS to provide 
+     * a single point of access for all BLAS functionality within SushiBLAS.
      */
-    class BLASOps : public Level1, public Level2, public Level3
+    class BLASOps : public Level1, public Level2, public Level3, public SparseBLAS
     {
         public:
-            explicit BLASOps(Engine& e) : Level1(e), Level2(e), Level3(e) {}
+            /**
+             * @brief Construct BLASOps with a reference to the engine.
+             * @param e The SushiBLAS engine.
+             */
+            explicit BLASOps(Engine& e) : Level1(e), Level2(e), Level3(e), SparseBLAS(e) {}
     };
 
 } // namespace SushiBLAS

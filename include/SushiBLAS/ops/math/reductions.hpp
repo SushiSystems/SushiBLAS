@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
 
 namespace SushiBLAS 
@@ -37,24 +38,92 @@ namespace SushiBLAS
     class Engine;
 
     /**
-     * @brief Tensor reduction operations (sum, mean, max, etc.).
+     * @class ReductionOps
+     * @brief Parallel tensor reduction operations.
+     * 
+     * These operations aggregate many elements into a single scalar value. 
+     * All results are returned as SYCL events as they are computed asynchronously 
+     * and stored in the provided scalar tensor.
      */
     class ReductionOps 
     {
-    public:
-        explicit ReductionOps(Engine& e) : engine_(e) {}
+        public:
+            /**
+             * @brief Construct ReductionOps with a reference to the engine.
+             * @param e The SushiBLAS engine.
+             */
+            explicit ReductionOps(Engine& e) : engine_(e) {}
 
-        /** @brief Sum of all elements in the tensor. */
-        float sum(const Tensor& t);
+            /** 
+             * @brief Sum of all elements.
+             * Computes result = sum(t_i).
+             * @param t Input tensor.
+             * @param result Scalar output tensor.
+             * @return sycl::event representing task completion.
+             */
+            sycl::event sum(const Tensor& t, Tensor& result);
 
-        /** @brief Maximum value in the tensor. */
-        float max(const Tensor& t);
+            /** 
+             * @brief Mean of all elements.
+             * Computes result = sum(t_i) / num_elements.
+             * @param t Input tensor.
+             * @param result Scalar output tensor.
+             * @return sycl::event.
+             */
+            sycl::event mean(const Tensor& t, Tensor& result);
 
-        /** @brief Mean of all elements in the tensor. */
-        float mean(const Tensor& t);
+            /** 
+             * @brief Maximum value in the tensor.
+             * Finds result = max(t_i).
+             * @param t Input tensor.
+             * @param result Scalar output tensor.
+             * @return sycl::event.
+             */
+            sycl::event max(const Tensor& t, Tensor& result);
 
-    private:
-        Engine& engine_;
+            /** 
+             * @brief Minimum value in the tensor.
+             * Finds result = min(t_i).
+             * @param t Input tensor.
+             * @param result Scalar output tensor.
+             * @return sycl::event.
+             */
+            sycl::event min(const Tensor& t, Tensor& result);
+
+            /** 
+             * @brief Index of the maximum value.
+             * @param t Input tensor.
+             * @param result Scalar output tensor (stores index as int64_t/float).
+             * @return sycl::event.
+             */
+            sycl::event argmax(const Tensor& t, Tensor& result);
+
+            /** 
+             * @brief Index of the minimum value.
+             * @param t Input tensor.
+             * @param result Scalar output tensor.
+             * @return sycl::event.
+             */
+            sycl::event argmin(const Tensor& t, Tensor& result);
+
+            /** 
+             * @brief Variance of all elements.
+             * @param t Input tensor.
+             * @param result Scalar output tensor.
+             * @return sycl::event.
+             */
+            sycl::event var(const Tensor& t, Tensor& result);
+
+            /** 
+             * @brief Standard Deviation of all elements.
+             * @param t Input tensor.
+             * @param result Scalar output tensor.
+             * @return sycl::event.
+             */
+            sycl::event std(const Tensor& t, Tensor& result);
+
+        private:
+            Engine& engine_;
     };
 
 } // namespace SushiBLAS

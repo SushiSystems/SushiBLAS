@@ -30,6 +30,7 @@
 
 #pragma once
 
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
 
 namespace SushiBLAS 
@@ -37,7 +38,12 @@ namespace SushiBLAS
     class Engine;
 
     /**
-     * @brief Vector-Vector operations.
+     * @class Level1
+     * @brief Vector-Vector operations (BLAS Level 1).
+     * 
+     * This class provides an interface for standard BLAS Level 1 operations, 
+     * which involve scalar-vector and vector-vector computations. All operations 
+     * are executed asynchronously using the SushiBLAS task graph system.
      */
     class Level1 
     {
@@ -46,72 +52,117 @@ namespace SushiBLAS
             Engine& engine_;
 
         public:
-            /** @brief y = alpha*x + y 
-            
-            @param alpha Scalar multiplier
-            @param x Input vector
-            @param y Input/output vector
-            */
-            void axpy(float alpha, const Tensor& x, Tensor& y);
-            
-            /** @brief dot = x^T * y 
-            
-            @param x Input vector
-            @param y Input vector
-            @return dot product of x and y
-            */
-            float dot(const Tensor& x, const Tensor& y);
+            /**
+             * @brief Vector-Scalar Product and Addition (AXPY).
+             * 
+             * Computes the operation: y = alpha * x + y.
+             * This is a fundamental linear algebra operation that scales vector x 
+             * by scalar alpha and adds it to vector y.
+             * 
+             * @param alpha Scalar multiplier.
+             * @param x Input vector x.
+             * @param y Input/Output vector y (result is stored in y).
+             * @return sycl::event representing the completion of the operation.
+             */
+            sycl::event axpy(float alpha, const Tensor& x, Tensor& y);
 
-            /** @brief x = alpha*x 
-            
-            @param alpha Scalar multiplier
-            @param x Input/output vector
-            */
-            void scal(float alpha, Tensor& x);
+            /**
+             * @brief Vector Dot Product (DOT).
+             * 
+             * Computes the dot product of two vectors: result = x^T * y.
+             * For complex vectors, this computes the unconjugated dot product.
+             * For complex conjugate dot product, see DOTC.
+             * 
+             * @param x Input vector x.
+             * @param y Input vector y.
+             * @param result Scalar output tensor where the result will be stored.
+             * @return sycl::event representing the completion of the operation.
+             */
+            sycl::event dot(const Tensor& x, const Tensor& y, Tensor& result);
 
-            /** @brief returns the euclidean norm of a vector (L2 norm)
-            
-            @param x Input vector
-            @return Euclidean norm of x
-            */
-            float nrm2(const Tensor& x);
+            /**
+             * @brief Vector Scaling (SCAL).
+             * 
+             * Computes the operation: x = alpha * x.
+             * Scales every element of vector x by the scalar factor alpha.
+             * 
+             * @param alpha Scalar factor.
+             * @param x Input/Output vector to scale.
+             * @return sycl::event representing the completion of the operation.
+             */
+            sycl::event scal(float alpha, Tensor& x);
 
-            /** @brief returns the sum of absolute values (L1 norm)
-            
-            @param x Input vector
-            @return L1 norm of x
-            */
-            float asum(const Tensor& x);
+            /**
+             * @brief Vector Copy (COPY).
+             * 
+             * Copies all elements from vector x to vector y: y = x.
+             * 
+             * @param x Source vector.
+             * @param y Destination vector.
+             * @return sycl::event representing the completion of the operation.
+             */
+            sycl::event copy(const Tensor& x, Tensor& y);
 
-            /** @brief returns the index of the element with the maximum absolute value
-            
-            @param x Input vector
-            @return 0-based index of the maximum absolute value
-            */
-            int64_t iamax(const Tensor& x);
+            /**
+             * @brief Vector Swap (SWAP).
+             * 
+             * Interchange the elements of vector x and vector y.
+             * 
+             * @param x First vector.
+             * @param y Second vector.
+             * @return sycl::event representing the completion of the operation.
+             */
+            sycl::event swap(Tensor& x, Tensor& y);
 
-            /** @brief y = x (copy vector)
-            
-            @param x Source vector
-            @param y Destination vector
-            */
-            void copy(const Tensor& x, Tensor& y);
+            /**
+             * @brief Euclidean Norm (NRM2).
+             * 
+             * Computes the L2 norm (Euclidean norm) of a vector: result = sqrt(sum(|x_i|^2)).
+             * This operation is more robust against overflow/underflow than a direct implementation.
+             * 
+             * @param x Input vector.
+             * @param result Scalar output tensor where the norm will be stored.
+             * @return sycl::event representing the completion of the operation.
+             */
+            sycl::event nrm2(const Tensor& x, Tensor& result);
 
-            /** @brief swap x and y
-            
-            @param x Vector to be interchanged
-            @param y Vector to be interchanged
-            */
-            void swap(Tensor& x, Tensor& y);
+            /**
+             * @brief Sum of Absolute Values (ASUM).
+             * 
+             * Computes the L1 norm of a vector: result = sum(|Re(x_i)| + |Im(x_i)|).
+             * For real vectors, this is simply the sum of absolute values.
+             * 
+             * @param x Input vector.
+             * @param result Scalar output tensor where the sum will be stored.
+             * @return sycl::event representing the completion of the operation.
+             */
+            sycl::event asum(const Tensor& x, Tensor& result);
 
-            /** @brief Performs Givens rotation of points in the plane
-            
-            @param x Input vector
-            @param y Input vector
-            @param c Cosine component
-            @param s Sine component
-            */
-            void rot(Tensor& x, Tensor& y, float c, float s);
+            /**
+             * @brief Index of Absolute Maximum (IAMAX).
+             * 
+             * Finds the smallest index i such that |Re(x_i)| + |Im(x_i)| is maximal.
+             * This is often used for pivoting in matrix factorizations.
+             * 
+             * @param x Input vector.
+             * @param result Scalar output tensor (stores the 1-based or 0-based index depending on implementation).
+             * @return sycl::event representing the completion of the operation.
+             */
+            sycl::event iamax(const Tensor& x, Tensor& result);
 
+            /**
+             * @brief Givens Rotation (ROT).
+             * 
+             * Applies a plane rotation to points in vectors x and y:
+             * x_i = c * x_i + s * y_i
+             * y_i = -s * x_i + c * y_i
+             * 
+             * @param x Vector x.
+             * @param y Vector y.
+             * @param c Cosine component of the rotation.
+             * @param s Sine component of the rotation.
+             * @return sycl::event representing the completion of the operation.
+             */
+            sycl::event rot(Tensor& x, Tensor& y, float c, float s);
     };
 }

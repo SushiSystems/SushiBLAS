@@ -27,7 +27,6 @@ class SushiBLASTest : public ::testing::Test
             SB_LOG_INFO("Engine reset successful.");
         }
 
-        // Helper to re-initialize engine with a different layout if needed
         void reinit_engine(sb::Core::Layout layout) 
         {
             engine = std::make_unique<sb::Engine>(ctx, layout);
