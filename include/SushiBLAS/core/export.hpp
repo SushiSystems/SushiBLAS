@@ -7,7 +7,7 @@
 /*                         https://sushisystems.io                        */
 /**************************************************************************/
 /* Copyright (c) 2026-present  Mustafa Garip & Sushi Systems              */
-/*                                                                   	    */
+/*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
 /* a copy of this software and associated documentation files (the        */
 /* "Software"), to deal in the Software without restriction, including    */
@@ -28,7 +28,10 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
+#pragma once
+
 #if defined(_WIN32) || defined(__CYGWIN__)
+
   #ifdef SUSHIBLAS_EXPORTS
     #define SUSHIBLAS_API __declspec(dllexport)
   #else

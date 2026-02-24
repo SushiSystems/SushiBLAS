@@ -1,10 +1,8 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Switch to script directory
 pushd %~dp0
 
-:: 1. Load configuration from config.ini
 if not exist "config.ini" (
     echo [ERROR] config.ini not found in %CD%
     goto end
@@ -18,18 +16,15 @@ for /f "usebackq tokens=1,2 delims==" %%A in ("config.ini") do (
     if "%%A"=="OMP_PROC_BIND" set "OMP_PROC_BIND=%%B"
 )
 
-:: 2. Setup Intel oneAPI environment if needed
 if exist "%ONEAPI_ROOT%\setvars.bat" (
     call "%ONEAPI_ROOT%\setvars.bat" intel64 >nul 2>&1
 )
 
-:: Add build artifact paths and vcpkg binaries to PATH
 set "PATH=%~dp0..\..\build\src;%VCPKG_ROOT%\installed\x64-windows\bin;%PATH%"
 
 set "BUILD_ROOT=..\..\build"
 set "SELECTED_EXE="
 
-:: 3. Process Arguments
 if "%~1"=="--help" (
     echo.
     echo SushiBLAS Runner Script
@@ -65,7 +60,6 @@ if "%~1"=="--sort" (
     set "idx=0"
     for /r "%BUILD_ROOT%" %%F in (*.exe) do (
         set "fpath=%%F"
-        :: Filter out internal CMake, vcpkg, and build infrastructure files
         echo !fpath! | findstr /i "CMakeFiles vcpkg_installed vcpkg-test-install" >nul
         if errorlevel 1 (
             set /a idx+=1
@@ -83,7 +77,6 @@ if "%~1"=="--sort" (
     echo ============================================================
     set /p "selection=Please select a number [1-!idx!]: "
     
-    :: Use a for loop to safely dereference the index-based variable
     for %%s in (!selection!) do (
         if defined exe_%%s (
             set "SELECTED_EXE=!exe_%%s!"
@@ -93,21 +86,16 @@ if "%~1"=="--sort" (
         )
     )
 ) else if not "%~1"=="" (
-    :: User provided a specific binary name (potentially with .cpp or without .exe)
     set "QUERY=%~1"
-    :: Strip .cpp if provided
     set "QUERY=!QUERY:.cpp=!"
     
-    :: Search for it
     for /r "%BUILD_ROOT%" %%F in (*.exe) do (
         set "fname=%%~nxF"
         set "fpath=%%F"
         
-        :: Check for exact matches
         if /i "!fname!"=="!QUERY!" set "SELECTED_EXE=%%F"
         if /i "!fname!"=="!QUERY!.exe" set "SELECTED_EXE=%%F"
         
-        :: If not found yet, check if the query is a substring (fallback)
         if not defined SELECTED_EXE (
             echo !fname! | findstr /i "!QUERY!" >nul
             if not errorlevel 1 (
@@ -122,13 +110,11 @@ if "%~1"=="--sort" (
         goto end
     )
 ) else (
-    :: No arguments, use default from config
     if not defined DEFAULT_BIN (
         echo [ERROR] No TARGET_BIN defined in config.ini and no argument provided.
         goto end
     )
     
-    :: Look for the default binary
     for /r "%BUILD_ROOT%" %%F in (*.exe) do (
         set "fname=%%~nxF"
         if /i "!fname!"=="%DEFAULT_BIN%" set "SELECTED_EXE=%%F"
@@ -136,7 +122,6 @@ if "%~1"=="--sort" (
     )
 )
 
-:: 4. Final Execution
 if defined SELECTED_EXE (
     for %%I in ("!SELECTED_EXE!") do echo [INFO] Executing: %%~nxI
     echo [INFO] Path: !SELECTED_EXE!
@@ -148,5 +133,4 @@ if defined SELECTED_EXE (
 
 :end
 popd
-:: Only pause if run without arguments (likely double-clicked)
 if "%~1"=="" pause

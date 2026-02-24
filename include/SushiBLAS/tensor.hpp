@@ -44,25 +44,51 @@
 
 namespace SushiBLAS 
 {
+    /**
+     * @struct Tensor
+     * @brief A structure that represents a multi-dimensional array of data.
+     * 
+     * The Tensor structure stores metadata like shape and strides. 
+     * It does not own the memory directly but uses a Storage object to access data.
+     */
     struct Tensor 
     {
-        // Metadata
+        /** @brief The size of each dimension (e.g., {rows, columns}). */
         std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK> shape{};
+        
+        /** @brief The memory step size for each dimension to calculate indices. */
         std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK> strides{};
+        
+        /** @brief The number of dimensions in the tensor (e.g., 2 for a matrix). */
         int32_t rank = 0;
         
+        /** @brief The type of data stored in the tensor (e.g., FLOAT32). */
         SushiBLAS::Core::DataType dtype = SushiBLAS::Core::DataType::FLOAT32;
+        
+        /** @brief How the data is arranged in memory (ROW_MAJOR or COLUMN_MAJOR). */
         SushiBLAS::Core::Layout layout = SushiBLAS::Core::Layout::ROW_MAJOR;
         
-        // Logical Size
+        /** @brief The total number of elements in the tensor. */
         int64_t num_elements = 0;
 
-        // Data Ownership
+        /** @brief A pointer to the memory storage where the actual data is kept. */
         SushiRuntime::sushi_ptr<Storage> storage;
+        
+        /** @brief The starting index in the storage where this tensor's data begins. */
         int64_t storage_offset = 0;
 
+        /** @brief Default constructor for an empty tensor. */
         Tensor() = default;
 
+        /**
+         * @brief Create a new Tensor with specific dimensions.
+         * 
+         * @param s The storage object to use for data.
+         * @param dims A list of sizes for each dimension.
+         * @param offset The starting position in the storage.
+         * @param l The memory layout (default is ROW_MAJOR).
+         * @throws std::runtime_error If the rank is too high or storage is too small.
+         */
         Tensor(SushiRuntime::sushi_ptr<Storage> s, std::span<const int64_t> dims, 
                int64_t offset = 0, Core::Layout l = Core::Layout::ROW_MAJOR) 
             : rank(static_cast<int32_t>(dims.size())), layout(l), storage(s), storage_offset(offset)
@@ -102,13 +128,21 @@ namespace SushiBLAS
             }
         }
 
-        // Public API
+        /**
+         * @brief Create a new Tensor using an initializer list for dimensions.
+         * 
+         * @param s The storage object to use.
+         * @param dims Example: {3, 3} for a 3x3 matrix.
+         * @param offset Starting position in storage.
+         * @param l Memory layout strategy.
+         */
         Tensor(SushiRuntime::sushi_ptr<Storage> s, std::initializer_list<int64_t> dims, 
                int64_t offset = 0, Core::Layout l = Core::Layout::ROW_MAJOR)
             : Tensor(s, std::span<const int64_t>(dims.begin(), dims.end()), offset, l) {}
 
         /**
-         * @brief Returns the SYCL device where this tensor is allocated.
+         * @brief Get the hardware device (GPU/CPU) where this tensor lives.
+         * @return The SYCL device object.
          */
         inline sycl::device get_device() const 
         {
@@ -116,7 +150,12 @@ namespace SushiBLAS
             return storage->allocator->get_device_of(storage->data_ptr);
         }
 
-        // Data Access
+        /**
+         * @brief Get a raw pointer to the tensor's data.
+         * 
+         * This calculates the address using the storage pointer and the offset.
+         * @return A void pointer to the start of the data.
+         */
         inline void* data() const 
         {
             SB_THROW_IF(storage == nullptr, "Accessing data of a tensor with no storage");
@@ -127,13 +166,21 @@ namespace SushiBLAS
             return static_cast<char*>(storage->data_ptr) + (storage_offset * element_size);
         }
 
+        /**
+         * @brief Get a pointer to the data cast to a specific type.
+         * @tparam T The type to cast to (default is float).
+         * @return A pointer of type T.
+         */
         template<typename T = float>
         inline T* data_as() const 
         {
             return static_cast<T*>(data());
         }
 
-        // Contiguity Check
+        /**
+         * @brief Check if the tensor data is stored continuously in memory.
+         * @return True if it is contiguous, false otherwise.
+         */
         bool is_contiguous() const 
         {
             if (num_elements == 0) return true;
@@ -165,13 +212,24 @@ namespace SushiBLAS
         }
 
 
-        // Alignment Check
+        /**
+         * @brief Check if the data pointer is correctly aligned for high performance.
+         * @return True if aligned, false otherwise.
+         */
         bool is_aligned() const 
         {
             SB_THROW_IF(data() == nullptr, "Alignment check on a tensor with no data pointer (Storage might be null)");
             return (reinterpret_cast<uintptr_t>(data()) % SushiRuntime::Core::DEFAULT_ALIGNMENT == 0);
         }
 
+        /**
+         * @brief Swap two dimensions of the tensor (e.g., for matrix transpose).
+         * 
+         * This is a "view" operation; it does not move data in memory.
+         * @param dim0 The first dimension index.
+         * @param dim1 The second dimension index.
+         * @return A new Tensor view with swapped dimensions.
+         */
         Tensor transpose(int32_t dim0, int32_t dim1) const 
         {
             SB_THROW_IF(dim0 >= rank || dim1 >= rank, 
@@ -186,6 +244,13 @@ namespace SushiBLAS
             return t;
         }
 
+        /**
+         * @brief Change the shape of the tensor without changing its data.
+         * 
+         * The tensor must be contiguous for this to work correctly.
+         * @param new_dims The new dimensions for the tensor.
+         * @return A new Tensor view with the new shape.
+         */
         Tensor reshape(std::initializer_list<int64_t> new_dims) const 
         {
             std::span<const int64_t> dims_span(new_dims.begin(), new_dims.end());
@@ -204,6 +269,14 @@ namespace SushiBLAS
             return Tensor(this->storage, dims_span, this->storage_offset, this->layout);
         }
 
+        /**
+         * @brief Take a "slice" or sub-section of the tensor.
+         * 
+         * @param dim The dimension to slice (e.g., slice certain rows).
+         * @param start The starting index (inclusive).
+         * @param end The ending index (exclusive).
+         * @return A new Tensor view representing the slice.
+         */
         Tensor slice(int32_t dim, int64_t start, int64_t end) const 
         {
             SB_THROW_IF(dim < 0 || dim >= rank, "Invalid dimension {}", dim);

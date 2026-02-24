@@ -8,6 +8,14 @@
 /**************************************************************************/
 /* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
 /* All Rights Reserved.                                                   */
+/*                                                                        */
+/* CONFIDENTIAL: This software is the proprietary information of          */
+/* Mustafa Garip & Sushi Systems. Unauthorized copying of this file,      */
+/* via any medium is strictly prohibited.                                 */
+/*                                                                        */
+/* This source code and the intellectual property contained herein        */
+/* is confidential and may not be disclosed, copied, or used without      */
+/* explicit written permission from the copyright holders.                */
 /**************************************************************************/
 
 #pragma once

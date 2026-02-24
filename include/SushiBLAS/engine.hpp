@@ -7,7 +7,7 @@
 /*                         https://sushisystems.io                        */
 /**************************************************************************/
 /* Copyright (c) 2026-present  Mustafa Garip & Sushi Systems              */
-/*                                                                   	  */
+/*                                                                        */
 /* Permission is hereby granted, free of charge, to any person obtaining  */
 /* a copy of this software and associated documentation files (the        */
 /* "Software"), to deal in the Software without restriction, including    */
@@ -30,20 +30,22 @@
 
 #pragma once
 
+#include <SushiBLAS/ops/io.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/storage.hpp>
 #include <SushiBLAS/ops/blas.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiRuntime/SushiRuntime.h>
-#include <SushiBLAS/ops/math/random.hpp>
 #include <SushiBLAS/ops/logic/logic.hpp>
-#include <SushiBLAS/ops/lapack/linalg.hpp>
+#include <SushiBLAS/ops/math/random.hpp>
 #include <SushiBLAS/ops/math/nonlinear.hpp>
-#include <SushiBLAS/ops/math/reductions.hpp>
+#include <SushiBLAS/ops/lapack/linalg.hpp>
 #include <SushiRuntime/graph/task_graph.hpp>
+#include <SushiBLAS/ops/math/reductions.hpp>
 #include <SushiBLAS/ops/math/elementwise.hpp>
 #include <SushiBLAS/ops/signal/transforms.hpp>
+
 
 namespace SushiBLAS 
 {
@@ -66,37 +68,76 @@ namespace SushiBLAS
             Engine(SushiRuntime::Execution::RuntimeContext& ctx, 
                    Core::Layout layout = Core::Layout::ROW_MAJOR);
 
-            /** @brief Get the default memory layout. */
+            /** 
+             * @brief Get the default memory layout. 
+             * @return The current default layout (Row-Major or Column-Major).
+             */
             inline Core::Layout get_layout() const { return default_layout_; }
 
-            /** @brief Access standard BLAS operations (Levels 1, 2, and 3). */
+            /** 
+             * @brief Access standard BLAS operations (Levels 1, 2, and 3). 
+             * @return A BLASOps object providing access to BLAS routines.
+             */
             inline BLASOps blas() { return BLASOps(*this); }
 
-            /** @brief Logical operations and boolean mask generation. */
+            /** 
+             * @brief Input/Output operations (Persistence & Print). 
+             * @return An IO object providing access to save, load and print routines.
+             */
+            inline IO io() { return IO(*this); }
+
+            /** 
+             * @brief Logical operations and boolean mask generation. 
+             * @return A LogicOps object providing access to logical kernels.
+             */
             inline LogicOps logic() { return LogicOps(*this); }
 
-            /** @brief High-level linear algebra (LAPACK) solvers. */
+            /** 
+             * @brief High-level linear algebra (LAPACK) solvers. 
+             * @return A LinalgOps object providing access to solvers (LU, Cholesky, etc.).
+             */
             inline LinalgOps linalg() { return LinalgOps(*this); }
 
-            /** @brief Random number generation and tensor initialization. */
+            /** 
+             * @brief Random number generation and tensor initialization. 
+             * @return A RandomOps object providing access to PRNG kernels.
+             */
             inline RandomOps random() { return RandomOps(*this); }
             
-            /** @brief Signal processing and frequency domain transforms (FFT). */
+            /** 
+             * @brief Signal processing and frequency domain transforms (FFT). 
+             * @return A TransformsOps object providing access to FFT kernels.
+             */
             inline TransformsOps signal() { return TransformsOps(*this); }
 
-            /** @brief Non-linear transformations and activation functions. */
+            /** 
+             * @brief Non-linear transformations and activation functions. 
+             * @return A NonLinearOps object providing access to non-linear kernels.
+             */
             inline NonLinearOps nonlinear() { return NonLinearOps(*this); }
 
-            /** @brief Access tensor reduction operations (sum, max, etc.). */
+            /** 
+             * @brief Access tensor reduction operations (sum, max, etc.). 
+             * @return A ReductionOps object providing access to reduction kernels.
+             */
             inline ReductionOps reductions() { return ReductionOps(*this); }
 
-            /** @brief Access element-wise arithmetic operations. */
+            /** 
+             * @brief Access element-wise arithmetic operations. 
+             * @return An ElementwiseOps object providing access to arithmetic kernels.
+             */
             inline ElementwiseOps elementwise() { return ElementwiseOps(*this); }
 
-            /** @brief Get the underlying SushiRuntime execution context. */
+            /** 
+             * @brief Get the underlying SushiRuntime execution context. 
+             * @return Reference to the RuntimeContext.
+             */
             SushiRuntime::Execution::RuntimeContext& get_context() { return context_; }
             
-            /** @brief Get the engine's asynchronous task graph. */
+            /** 
+             * @brief Get the engine's asynchronous task graph. 
+             * @return Reference to the TaskGraph.
+             */
             SushiRuntime::Graph::TaskGraph& get_graph() { return graph_; }
 
             /** 
@@ -106,14 +147,24 @@ namespace SushiBLAS
             sycl::event execute() { return graph_.execute(); }
 
             /** 
-             * @brief Create a new tensor with the specified dimensions.
-             * Memory is allocated using the engine's default allocator and layout.
+             * @brief Create a new FLOAT32 tensor with the specified dimensions.
              * @param dims The dimensions of the tensor.
+             * @param strat The allocation strategy (Shared, Device, or Host).
+             * @return A new FLOAT32 Tensor object.
+             */
+            Tensor create_tensor(std::initializer_list<int64_t> dims, 
+                                 SushiRuntime::Memory::AllocStrategy strat = SushiRuntime::Memory::AllocStrategy::SHARED);
+
+            /** 
+             * @brief Create a new tensor with the specified dimensions and data type.
+             * @param dims The dimensions of the tensor.
+             * @param dtype The data type of the tensor (e.g., FLOAT64, COMPLEX32).
              * @param strat The allocation strategy (Shared, Device, or Host).
              * @return A new Tensor object.
              */
             Tensor create_tensor(std::initializer_list<int64_t> dims, 
-                                SushiRuntime::Memory::AllocStrategy strat = SushiRuntime::Memory::AllocStrategy::SHARED);
+                                 Core::DataType dtype,
+                                 SushiRuntime::Memory::AllocStrategy strat = SushiRuntime::Memory::AllocStrategy::SHARED);
 
         private:
             SushiRuntime::Execution::RuntimeContext& context_;

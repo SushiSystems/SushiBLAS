@@ -65,8 +65,8 @@ find_package(OpenCL REQUIRED)
 
 # --- Subdirectories ---
 add_subdirectory(src)
+add_subdirectory(examples)
 
 # --- Testing ---
 enable_testing()
 add_subdirectory(tests)
-# add_subdirectory(examples)

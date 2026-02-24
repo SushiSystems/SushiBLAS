@@ -42,13 +42,30 @@ namespace SushiBLAS
     Tensor Engine::create_tensor(std::initializer_list<int64_t> dims, 
                                  SushiRuntime::Memory::AllocStrategy strat)
     {
+        return create_tensor(dims, Core::DataType::FLOAT32, strat);
+    }
+
+    Tensor Engine::create_tensor(std::initializer_list<int64_t> dims, 
+                                 Core::DataType dtype,
+                                 SushiRuntime::Memory::AllocStrategy strat)
+    {
         size_t elements = 1;
-        for (auto d : dims) elements *= d;
+
+        for (auto d : dims)
+            elements *= d;
         
-        auto storage = SushiRuntime::make_sushi<Storage>(context_.get_allocator(), elements * sizeof(float), strat);
+        size_t bpe = 4;
+
+        if (dtype == Core::DataType::FLOAT64 || dtype == Core::DataType::COMPLEX32) bpe = 8;
+        else if (dtype == Core::DataType::COMPLEX64) bpe = 16;
+        else if (dtype == Core::DataType::HALF) bpe = 2;
+
+        auto storage = SushiRuntime::make_sushi<Storage>(context_.get_allocator(), elements * bpe, strat);
         
-        // Use the engine's default layout for new tensors
-        return Tensor(storage, dims, 0, default_layout_);
+        Tensor t(storage, dims, 0, default_layout_);
+        t.dtype = dtype;
+
+        return t;
     }
 
 } // namespace SushiBLAS
