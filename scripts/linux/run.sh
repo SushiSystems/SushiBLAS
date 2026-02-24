@@ -1,19 +1,15 @@
 #!/bin/bash
 
-# Switch to script directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 cd "$SCRIPT_DIR"
 
-# 1. Load configuration
 if [ -f "config.cfg" ]; then
     while IFS='=' read -r key value; do
-        # Skip comments, empty lines, and INI-style headers
         [[ $key =~ ^#.* ]] || [[ $key =~ ^\[.* ]] || [[ -z $key ]] && continue
         export "$key=$value"
     done < config.cfg
 fi
 
-# 2. Environment Setup
 if [ -f "$ONEAPI_ROOT/setvars.sh" ]; then
     source "$ONEAPI_ROOT/setvars.sh" --force > /dev/null 2>&1
 fi
@@ -22,7 +18,6 @@ export LD_LIBRARY_PATH="$SCRIPT_DIR/../../build/src:$LD_LIBRARY_PATH"
 BUILD_ROOT="../../build"
 SELECTED_EXE=""
 
-# 3. Argument Handling
 if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
     echo ""
     echo "SushiBLAS Runner Script"
@@ -46,7 +41,6 @@ if [ "$1" == "--sort" ]; then
     echo "          AVAILABLE EXECUTABLES IN BUILD DIRECTORY          "
     echo "============================================================"
     
-    # Find executables excluding CMakeFiles, vcpkg, and libraries (.so, .a)
     mapfile -t BINS < <(find "$BUILD_ROOT" -maxdepth 4 -type f -executable ! -path "*/CMakeFiles/*" ! -path "*/vcpkg_installed/*" ! -name "*.so" ! -name "*.so.*" ! -name "*.a")
     
     if [ ${#BINS[@]} -eq 0 ]; then
@@ -68,13 +62,10 @@ if [ "$1" == "--sort" ]; then
         exit 1
     fi
 elif [ -n "$1" ]; then
-    # User provided a name
     QUERY=$(basename "$1" .cpp)
-    # Search for an executable with that name
     SELECTED_EXE=$(find "$BUILD_ROOT" -maxdepth 4 -type f -executable ! -path "*/CMakeFiles/*" -name "$QUERY" -print -quit)
     
     if [ -z "$SELECTED_EXE" ]; then
-        # Check if it exists with suffix or as substring
         SELECTED_EXE=$(find "$BUILD_ROOT" -maxdepth 4 -type f -executable ! -path "*/CMakeFiles/*" -name "*$QUERY*" -print -quit)
     fi
     
@@ -83,23 +74,19 @@ elif [ -n "$1" ]; then
         exit 1
     fi
 else
-    # Default from config
     if [ -z "$TARGET_BIN" ]; then
         echo "[ERROR] No TARGET_BIN defined in config.cfg and no argument provided."
         exit 1
     fi
     
-    # Search for the default binary
     SELECTED_EXE=$(find "$BUILD_ROOT" -maxdepth 4 -type f -executable ! -path "*/CMakeFiles/*" -name "$TARGET_BIN" -print -quit)
     
     if [ -z "$SELECTED_EXE" ]; then
-        # Try without extension if it was provided in config but linux binary has none
         QUERY=$(basename "$TARGET_BIN" .exe)
         SELECTED_EXE=$(find "$BUILD_ROOT" -maxdepth 4 -type f -executable ! -path "*/CMakeFiles/*" -name "$QUERY" -print -quit)
     fi
 fi
 
-# 4. Binary Execution
 if [ -n "$SELECTED_EXE" ]; then
     echo "[INFO] Executing: $(basename "$SELECTED_EXE")"
     echo "[INFO] Path: $SELECTED_EXE"

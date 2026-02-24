@@ -15,12 +15,12 @@ SushiBLAS is a high-performance Basic Linear Algebra Subprograms (BLAS) library.
 - **Storage Layer**: Memory management via USM allocators provided by SushiRuntime.
 
 ## Project Status
-SushiBLAS is currently under development. Internal APIs and features are subject to change.
+SushiBLAS is currently a personal project in active development. To maintain architecture consistency and performance, external Pull Requests are not being accepted at this time.
 
-## Requirements
-- Intel oneAPI (DPC++ Compiler)
-- SushiRuntime (pre-compiled binaries included in lib folder)
-- HWLOC
+## Contributing & Style
+If you find bugs or have suggestions, please open an [Issue](https://github.com/SushiSystems/SushiBLAS/issues). You can find more details in our [Contributing Policy](docs/CONTRIBUTING.md) and [Style Guide](docs/STYLE_GUIDE.md).
+
 
 ## License
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+

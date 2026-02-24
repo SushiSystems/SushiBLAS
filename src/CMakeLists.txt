@@ -2,7 +2,11 @@ cmake_minimum_required(VERSION 3.20)
 
 # --- Define SushiBLAS Library ---
 add_library(sushiblas STATIC
+    # Engine
     engine.cpp
+
+    # IO & Utilities
+    ops/io.cpp
 
     # Level 1
     ops/blas/level1/axpy.cpp
@@ -29,7 +33,6 @@ add_library(sushiblas STATIC
     ops/blas/level3/syrk.cpp
     ops/blas/level3/trsm.cpp
 )
-
 
 
 # --- Include Directories ---
@@ -60,17 +63,4 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     target_link_options(sushiblas PUBLIC "/Qmkl")
 endif()
 
-# --- Define Executable (Example App) ---
-add_executable(sushiblas_app main.cpp)
 
-# --- Link App against Library ---
-target_link_libraries(sushiblas_app PRIVATE sushiblas)
-
-# --- Post-Build: Copy DLLs to output directory ---
-add_custom_command(TARGET sushiblas_app POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/lib/sushiruntime.dll"
-        "${CMAKE_SOURCE_DIR}/lib/hwloc-15.dll"
-        $<TARGET_FILE_DIR:sushiblas_app>
-    COMMENT "Copying runtime DLLs to application directory..."
-)
