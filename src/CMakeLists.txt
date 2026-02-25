@@ -32,6 +32,16 @@ add_library(sushiblas STATIC
     ops/blas/level3/gemm.cpp
     ops/blas/level3/syrk.cpp
     ops/blas/level3/trsm.cpp
+
+    # Math: Nonlinear
+    ops/math/nonlinear/relu.cpp
+    ops/math/nonlinear/leaky_relu.cpp
+    ops/math/nonlinear/sigmoid.cpp
+    ops/math/nonlinear/tanh.cpp
+    ops/math/nonlinear/elu.cpp
+    ops/math/nonlinear/silu.cpp
+    ops/math/nonlinear/gelu.cpp
+    ops/math/nonlinear/softplus.cpp
 )
 
 

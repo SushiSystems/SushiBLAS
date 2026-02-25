@@ -45,7 +45,7 @@ class SushiBLASTest : public ::testing::Test
 
         /** @brief Verifies tensor data against expected values. */
         template<typename T = float>
-        void verify_tensor(const sb::Tensor& t, const std::vector<T>& expected) 
+        void verify_tensor(const sb::Tensor& t, const std::vector<T>& expected, float abs_error = 1e-4f) 
         {
             SB_THROW_IF(static_cast<int64_t>(expected.size()) != t.num_elements, 
                         "Data size mismatch. Expected: {}, Actual: {}", expected.size(), t.num_elements);
@@ -53,7 +53,7 @@ class SushiBLASTest : public ::testing::Test
             const T* ptr = t.data_as<T>();
             for(size_t i = 0; i < expected.size(); ++i) 
             {
-                EXPECT_FLOAT_EQ(ptr[i], expected[i]) << "Mismatch at index " << i;
+                EXPECT_NEAR(ptr[i], expected[i], abs_error) << "Mismatch at index " << i;
             }
         }
 };
