@@ -106,7 +106,7 @@ if (condition)
 ## Documentation
 
 *   Use Doxygen-style comments for all public APIs.
-*   Write comments in **Simple International English**.
+*   Write comments in **Simple English**.
 *   Use `@brief` for short descriptions.
 *   Use `@param` for parameters and `@return` for return values.
 

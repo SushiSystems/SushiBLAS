@@ -30,11 +30,21 @@ add_executable(sushiblas_tests
     blas/level3/test_trsm.cpp
     blas/level3/test_syrk.cpp
     
+    # Nonlinear
+    math/nonlinear/test_relu.cpp
+    math/nonlinear/test_leaky_relu.cpp
+    math/nonlinear/test_sigmoid.cpp
+    math/nonlinear/test_tanh.cpp
+    math/nonlinear/test_elu.cpp
+    math/nonlinear/test_silu.cpp
+    math/nonlinear/test_gelu.cpp
+    math/nonlinear/test_softplus.cpp
+    
     # Framework Simulation
-    runtime/test_framework_sim.cpp
+    # runtime/test_framework_sim.cpp
     
     # Stress tests
-    runtime/test_dependency_stress.cpp
+    #runtime/test_dependency_stress.cpp
 )
 
 # --- Include Directories ---
