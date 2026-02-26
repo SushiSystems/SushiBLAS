@@ -50,6 +50,25 @@ namespace SushiBLAS
             explicit RandomOps(Engine& e) : engine_(e) {}
 
             /**
+             * @brief Set the global seed for random number generation.
+             * @param seed The seed value.
+             */
+            void set_seed(uint64_t seed);
+
+            /**
+             * @brief Alias for set_seed.
+             */
+            inline void seed(uint64_t s) { set_seed(s); }
+
+            /**
+             * @brief Fill tensor with a constant value.
+             * @param t Tensor to fill.
+             * @param value The constant value.
+             * @return sycl::event.
+             */
+            sycl::event constant(Tensor& t, float value);
+
+            /**
              * @brief Fill tensor with values from a uniform distribution [min, max).
              * @param t Tensor to fill.
              * @param min Minimum value (default 0.0).
@@ -68,24 +87,69 @@ namespace SushiBLAS
             sycl::event normal(Tensor& t, float mean = 0.0f, float stddev = 1.0f);
 
             /**
-             * @brief Xavier/Glorot initialization for neural network weights.
+             * @brief Fill tensor with values from a truncated normal distribution.
+             * @param t Tensor to fill.
+             * @param mean Mean of the distribution.
+             * @param stddev Standard deviation.
+             * @param a Lower bound (in number of stddevs, default -2.0).
+             * @param b Upper bound (in number of stddevs, default 2.0).
+             * @return sycl::event.
+             */
+            sycl::event truncated_normal(Tensor& t, float mean = 0.0f, float stddev = 1.0f, float a = -2.0f, float b = 2.0f);
+
+            /**
+             * @brief Fill tensor with values from a Bernoulli distribution.
+             * @param t Tensor to fill.
+             * @param p Probability of success (1.0).
+             * @return sycl::event.
+             */
+            sycl::event bernoulli(Tensor& t, float p = 0.5f);
+
+            /**
+             * @brief Xavier/Glorot Uniform initialization.
              * @param t Tensor to initialize.
              * @param n_in Number of input features.
              * @param n_out Number of output features.
              * @return sycl::event.
              */
-            sycl::event xavier(Tensor& t, int64_t n_in, int64_t n_out);
+            sycl::event xavier_uniform(Tensor& t, int64_t n_in, int64_t n_out);
 
             /**
-             * @brief He (Kaiming) initialization for ReLU-based networks.
+             * @brief Xavier/Glorot Normal initialization.
+             * @param t Tensor to initialize.
+             * @param n_in Number of input features.
+             * @param n_out Number of output features.
+             * @return sycl::event.
+             */
+            sycl::event xavier_normal(Tensor& t, int64_t n_in, int64_t n_out);
+
+            /**
+             * @brief He (Kaiming) Uniform initialization.
              * @param t Tensor to initialize.
              * @param n_in Number of input features.
              * @return sycl::event.
              */
-            sycl::event he(Tensor& t, int64_t n_in);
+            sycl::event he_uniform(Tensor& t, int64_t n_in);
+
+            /**
+             * @brief He (Kaiming) Normal initialization.
+             * @param t Tensor to initialize.
+             * @param n_in Number of input features.
+             * @return sycl::event.
+             */
+            sycl::event he_normal(Tensor& t, int64_t n_in);
+
+            /**
+             * @brief Create an orthogonal matrix for weight initialization.
+             * @param t Tensor to initialize (must be 2D).
+             * @param gain Gain factor (default 1.0).
+             * @return sycl::event.
+             */
+            sycl::event orthogonal(Tensor& t, float gain = 1.0f);
 
         private:
             Engine& engine_;
+            static uint64_t seed_;
     };
 
 } // namespace SushiBLAS

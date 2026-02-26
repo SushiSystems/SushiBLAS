@@ -8,7 +8,7 @@ add_library(sushiblas STATIC
     # IO & Utilities
     ops/io.cpp
 
-    # Level 1
+    # BLAS: Level 1
     ops/blas/level1/axpy.cpp
     ops/blas/level1/asum.cpp
     ops/blas/level1/copy.cpp
@@ -19,7 +19,7 @@ add_library(sushiblas STATIC
     ops/blas/level1/scal.cpp
     ops/blas/level1/swap.cpp
 
-    # Level 2
+    # BLAS: Level 2
     ops/blas/level2/gemv.cpp
     ops/blas/level2/ger.cpp
     ops/blas/level2/symv.cpp
@@ -28,10 +28,13 @@ add_library(sushiblas STATIC
     ops/blas/level2/syr.cpp
     ops/blas/level2/syr2.cpp
 
-    # Level 3
+    # BLAS: Level 3
     ops/blas/level3/gemm.cpp
     ops/blas/level3/syrk.cpp
     ops/blas/level3/trsm.cpp
+
+    # Math: Random
+    # ops/math/random/random.cpp
 
     # Math: Nonlinear
     ops/math/nonlinear/relu.cpp
@@ -67,10 +70,15 @@ set_target_properties(sushiblas PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
-# Use oneMKL through compiler flags (Recommended for IntelLLVM on Windows)
+# Use oneMKL through compiler flags (Recommended for IntelLLVM)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
-    target_compile_options(sushiblas PUBLIC "/Qmkl")
-    target_link_options(sushiblas PUBLIC "/Qmkl")
+    if(WIN32)
+        target_compile_options(sushiblas PUBLIC "/Qmkl")
+        target_link_options(sushiblas PUBLIC "/Qmkl")
+    else()
+        target_compile_options(sushiblas PUBLIC "-qmkl")
+        target_link_options(sushiblas PUBLIC "-qmkl")
+    endif()
 endif()
 
 
