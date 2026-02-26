@@ -62,11 +62,13 @@ target_link_libraries(sushiblas_tests PRIVATE
 add_test(NAME AllTests COMMAND sushiblas_tests)
 
 # --- Post-Build: Copy DLLs ---
-# Tests need the same DLLs as the app to run.
-add_custom_command(TARGET sushiblas_tests POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/lib/sushiruntime.dll"
-        "${CMAKE_SOURCE_DIR}/lib/hwloc-15.dll"
-        $<TARGET_FILE_DIR:sushiblas_tests>
-    COMMENT "Copying runtime DLLs to test directory..."
-)
+# Tests need the same DLLs as the app to run on Windows.
+if(WIN32)
+    add_custom_command(TARGET sushiblas_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/lib/sushiruntime.dll"
+            "${CMAKE_SOURCE_DIR}/lib/hwloc-15.dll"
+            $<TARGET_FILE_DIR:sushiblas_tests>
+        COMMENT "Copying runtime DLLs to test directory..."
+    )
+endif()
