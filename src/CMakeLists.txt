@@ -6,7 +6,7 @@ add_library(sushiblas STATIC
     engine.cpp
 
     # IO & Utilities
-    ops/io.cpp
+    io.cpp
 
     # BLAS: Level 1
     ops/blas/level1/axpy.cpp
@@ -34,7 +34,22 @@ add_library(sushiblas STATIC
     ops/blas/level3/trsm.cpp
 
     # Math: Random
-    # ops/math/random/random.cpp
+    ops/math/random/bernoulli.cpp
+    ops/math/random/constant.cpp
+    ops/math/random/discrete_uniform.cpp
+    ops/math/random/exponential.cpp
+    ops/math/random/he_normal.cpp
+    ops/math/random/he_uniform.cpp
+    ops/math/random/log_normal.cpp
+    ops/math/random/normal.cpp
+    ops/math/random/orthogonal.cpp
+    ops/math/random/poisson.cpp
+    ops/math/random/set_seed.cpp
+    ops/math/random/shuffle.cpp
+    ops/math/random/truncated_normal.cpp
+    ops/math/random/uniform.cpp
+    ops/math/random/xavier_normal.cpp
+    ops/math/random/xavier_uniform.cpp
 
     # Math: Nonlinear
     ops/math/nonlinear/relu.cpp

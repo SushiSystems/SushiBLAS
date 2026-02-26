@@ -54,6 +54,8 @@ namespace SushiBLAS
         int64_t n, incx;
         Internal::get_vec_params(x, n, incx);
 
+        // TODO: Implement multi-dimensional batch support for Level 1 SCAL
+
         void* write_x = x.storage ? x.storage->data_ptr : nullptr;
         std::vector<void*> reads = {};
         std::vector<void*> writes = {};
@@ -67,6 +69,7 @@ namespace SushiBLAS
 
         switch (x.dtype) 
         {
+            // TODO: Add support for Core::DataType::HALF
             case Core::DataType::FLOAT32: 
                 engine_.get_graph().add_task(meta, reads, writes,
                     [n, alpha, incx, px=x.data_as<float>()]
@@ -100,4 +103,5 @@ namespace SushiBLAS
         }
         return sycl::event();
     }
-}
+} // namespace SushiBLAS
+

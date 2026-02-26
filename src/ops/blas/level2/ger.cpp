@@ -125,8 +125,11 @@ namespace SushiBLAS
 
         auto layout = A.layout;
 
+        // TODO: Implement multi-dimensional batch support for Level 2
+
         switch (A.dtype) 
         {
+            // TODO: Add support for Core::DataType::HALF
             case Core::DataType::FLOAT32:
                 engine_.get_graph().add_task(meta, reads, writes,
                     [layout, m, n, alpha, incx, incy, lda, px=x.data_as<float>(), py=y.data_as<float>(), pA=A.data_as<float>()]

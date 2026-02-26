@@ -31,6 +31,7 @@
 #include <vector>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/ops/math/nonlinear.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -43,6 +44,7 @@ namespace SushiBLAS
         template<typename T>
         sycl::event relu_forward_dispatch(sycl::queue& queue, T* data, int64_t size, const std::vector<sycl::event>& deps)
         {
+            SB_LOG_INFO("ReLU Forward: {} elements", size);
             return queue.submit([&](sycl::handler& h) 
             {
                 h.depends_on(deps);
@@ -56,6 +58,7 @@ namespace SushiBLAS
         template<typename T>
         sycl::event relu_backward_dispatch(sycl::queue& queue, const T* dy, const T* x, T* dx, int64_t size, const std::vector<sycl::event>& deps)
         {
+            SB_LOG_INFO("ReLU Backward: {} elements", size);
             return queue.submit([&](sycl::handler& h) 
             {
                 h.depends_on(deps);
@@ -83,8 +86,8 @@ namespace SushiBLAS
 
         switch (t.dtype)
         {
+            // TODO: Add support for Core::DataType::HALF
             case Core::DataType::FLOAT32:
-            {
                 engine_.get_graph().add_task(meta, reads, writes,
                     [size, pT=t.data_as<float>()]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
@@ -93,9 +96,7 @@ namespace SushiBLAS
                     }
                 );
                 break;
-            }
             case Core::DataType::FLOAT64:
-            {
                 engine_.get_graph().add_task(meta, reads, writes,
                     [size, pT=t.data_as<double>()]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
@@ -104,7 +105,6 @@ namespace SushiBLAS
                     }
                 );
                 break;
-            }
             default:
                 SB_THROW_IF(true, "Unsupported data type for relu operation.");
         }
@@ -135,8 +135,8 @@ namespace SushiBLAS
 
         switch (x.dtype)
         {
+            // TODO: Add support for Core::DataType::HALF
             case Core::DataType::FLOAT32:
-            {
                 engine_.get_graph().add_task(meta, reads, writes,
                     [size, pDY=dy.data_as<float>(), pX=x.data_as<float>(), pDX=dx.data_as<float>()]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
@@ -145,9 +145,7 @@ namespace SushiBLAS
                     }
                 );
                 break;
-            }
             case Core::DataType::FLOAT64:
-            {
                 engine_.get_graph().add_task(meta, reads, writes,
                     [size, pDY=dy.data_as<double>(), pX=x.data_as<double>(), pDX=dx.data_as<double>()]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
@@ -156,7 +154,6 @@ namespace SushiBLAS
                     }
                 );
                 break;
-            }
             default:
                 SB_THROW_IF(true, "Unsupported data type for relu_backward operation.");
         }

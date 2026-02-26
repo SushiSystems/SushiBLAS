@@ -83,6 +83,7 @@ namespace SushiBLAS
 
         switch (t.dtype)
         {
+            // TODO: Add support for Core::DataType::HALF
             case Core::DataType::FLOAT32:
             {
                 engine_.get_graph().add_task(meta, reads, writes,
@@ -135,6 +136,7 @@ namespace SushiBLAS
 
         switch (x.dtype)
         {
+            // TODO: Add support for Core::DataType::HALF
             case Core::DataType::FLOAT32:
             {
                 engine_.get_graph().add_task(meta, reads, writes,

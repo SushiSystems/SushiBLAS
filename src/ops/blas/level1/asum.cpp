@@ -69,6 +69,7 @@ namespace SushiBLAS
 
         switch (x.dtype) 
         {
+            // TODO: Add support for Core::DataType::HALF
             case Core::DataType::FLOAT32: 
                 engine_.get_graph().add_task(meta, reads, writes,
                     [n, incx, px=x.data_as<float>(), pr=result.data_as<float>()]

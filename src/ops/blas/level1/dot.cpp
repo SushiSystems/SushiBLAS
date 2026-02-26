@@ -72,6 +72,8 @@ namespace SushiBLAS
         Internal::get_vec_params(y, ny, incy);
         SB_THROW_IF(n != ny, "DOT requires tensors of the same number of elements.");
 
+        // TODO: Implement multi-dimensional batch support for Level 1 DOT
+
         void* read_x = x.storage ? x.storage->data_ptr : nullptr;
         void* read_y = y.storage ? y.storage->data_ptr : nullptr;
         void* write_r = result.storage ? result.storage->data_ptr : nullptr;
@@ -89,6 +91,7 @@ namespace SushiBLAS
 
         switch (x.dtype) 
         {
+            // TODO: Add support for Core::DataType::HALF
             case Core::DataType::FLOAT32: 
                 engine_.get_graph().add_task(meta, reads, writes,
                     [n, incx, incy, px=x.data_as<float>(), py=y.data_as<float>(), pr=result.data_as<float>()]
@@ -122,4 +125,4 @@ namespace SushiBLAS
         }
         return sycl::event();
     }
-}
+} // namespace SushiBLAS

@@ -33,8 +33,8 @@
 #include <iomanip>
 #include <sstream>
 #include <iostream>
+#include <SushiBLAS/io.hpp>
 #include <SushiBLAS/engine.hpp>
-#include <SushiBLAS/ops/io.hpp>
 
 namespace SushiBLAS
 {

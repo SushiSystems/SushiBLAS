@@ -94,8 +94,11 @@ namespace SushiBLAS
         meta.set_param(0, upper);
         meta.set_param(1, alpha);
 
+        // TODO: Implement multi-dimensional batch support for Level 2
+
         switch (A.dtype) 
         {
+            // TODO: Add support for Core::DataType::HALF
             case Core::DataType::FLOAT32:
                 engine_.get_graph().add_task(meta, reads, writes,
                     [layout, mkl_uplo, n, alpha, lda, incx, px=x.data_as<float>(), pA=A.data_as<float>()]
@@ -129,4 +132,4 @@ namespace SushiBLAS
         }
         return sycl::event();
     }
-}
+} // namespace SushiBLAS

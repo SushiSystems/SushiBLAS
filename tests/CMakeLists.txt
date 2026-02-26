@@ -40,6 +40,13 @@ add_executable(sushiblas_tests
     math/nonlinear/test_gelu.cpp
     math/nonlinear/test_softplus.cpp
     
+    # Math: Random
+    math/random/test_constant.cpp
+    math/random/test_distributions.cpp
+    math/random/test_initializers.cpp
+    math/random/test_normal.cpp
+    math/random/test_uniform.cpp
+    
     # Framework Simulation
     # runtime/test_framework_sim.cpp
     

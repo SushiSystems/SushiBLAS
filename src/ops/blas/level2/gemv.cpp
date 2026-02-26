@@ -72,6 +72,8 @@ namespace SushiBLAS
         int64_t m = A.shape[rA - 2];
         int64_t n = A.shape[rA - 1];
 
+        // TODO: Implement multi-dimensional batch support for Level 2 GEMV
+
         int64_t lda = (A.layout == Core::Layout::ROW_MAJOR) ? A.shape[rA - 1] : A.shape[rA - 2];
 
         int64_t nx, incx;
@@ -110,6 +112,7 @@ namespace SushiBLAS
 
         switch (A.dtype) 
         {
+            // TODO: Add support for Core::DataType::HALF
             case Core::DataType::FLOAT32:
                 engine_.get_graph().add_task(meta, reads, writes,
                     [layout, mkl_transA, m, n, alpha, lda, incx, beta, incy, pA=A.data_as<float>(), px=x.data_as<float>(), py=y.data_as<float>()]
@@ -143,4 +146,5 @@ namespace SushiBLAS
         }
         return sycl::event();
     }
-}
+} // namespace SushiBLAS
+
