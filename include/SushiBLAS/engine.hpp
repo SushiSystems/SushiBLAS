@@ -30,7 +30,8 @@
 
 #pragma once
 
-#include <SushiBLAS/ops/io.hpp>
+#include <atomic>
+#include <SushiBLAS/io.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/storage.hpp>
 #include <SushiBLAS/ops/blas.hpp>
@@ -166,10 +167,30 @@ namespace SushiBLAS
                                  Core::DataType dtype,
                                  SushiRuntime::Memory::AllocStrategy strat = SushiRuntime::Memory::AllocStrategy::SHARED);
 
+            /** 
+             * @brief Set the seed for random number generation.
+             * @param s The seed value.
+             */
+            void set_seed(uint64_t s) { seed_ = s; }
+
+            /** 
+             * @brief Get the current seed value.
+             * @return The seed value.
+             */
+            uint64_t get_seed() const { return seed_; }
+
+            /** 
+             * @brief Get the current RNG offset and increment it.
+             * @return The current offset value.
+             */
+            uint64_t get_and_increment_rng_offset() { return rng_offset_++; }
+
         private:
             SushiRuntime::Execution::RuntimeContext& context_;
             SushiRuntime::Graph::TaskGraph graph_;
             Core::Layout default_layout_;
+            uint64_t seed_ = 0;
+            std::atomic<uint64_t> rng_offset_{0};
     };
 
 } // namespace SushiBLAS

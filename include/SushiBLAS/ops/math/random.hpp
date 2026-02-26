@@ -39,7 +39,7 @@ namespace SushiBLAS
 
     /**
      * @class RandomOps
-     * @brief Random number generators for tensor initialization.
+     * @brief Random number generators for tensor initialization and statistics.
      * 
      * Uses oneMKL's Vector Statistics Library (VSL) to generate numbers 
      * from various distributions directly on the accelerator.
@@ -50,7 +50,7 @@ namespace SushiBLAS
             explicit RandomOps(Engine& e) : engine_(e) {}
 
             /**
-             * @brief Set the global seed for random number generation.
+             * @brief Set the seed for this engine's random number generation.
              * @param seed The seed value.
              */
             void set_seed(uint64_t seed);
@@ -66,7 +66,7 @@ namespace SushiBLAS
              * @param value The constant value.
              * @return sycl::event.
              */
-            sycl::event constant(Tensor& t, float value);
+            sycl::event constant(Tensor& t, double value);
 
             /**
              * @brief Fill tensor with values from a uniform distribution [min, max).
@@ -75,7 +75,7 @@ namespace SushiBLAS
              * @param max Maximum value (default 1.0).
              * @return sycl::event.
              */
-            sycl::event uniform(Tensor& t, float min = 0.0f, float max = 1.0f);
+            sycl::event uniform(Tensor& t, double min = 0.0, double max = 1.0);
 
             /**
              * @brief Fill tensor with values from a normal (Gaussian) distribution.
@@ -84,7 +84,41 @@ namespace SushiBLAS
              * @param stddev Standard deviation (default 1.0).
              * @return sycl::event.
              */
-            sycl::event normal(Tensor& t, float mean = 0.0f, float stddev = 1.0f);
+            sycl::event normal(Tensor& t, double mean = 0.0, double stddev = 1.0);
+
+            /**
+             * @brief Fill tensor with values from a Log-Normal distribution.
+             * @param t Tensor to fill.
+             * @param mean Mean of the underlying normal distribution.
+             * @param stddev Standard deviation of the underlying normal distribution.
+             * @return sycl::event.
+             */
+            sycl::event log_normal(Tensor& t, double mean = 0.0, double stddev = 1.0);
+
+            /**
+             * @brief Fill tensor with values from an Exponential distribution.
+             * @param t Tensor to fill.
+             * @param lambda Rate parameter (1/mean).
+             * @return sycl::event.
+             */
+            sycl::event exponential(Tensor& t, double lambda = 1.0);
+
+            /**
+             * @brief Fill tensor with values from a Poisson distribution.
+             * @param t Tensor to fill (should be an integer type or float).
+             * @param lambda Mean of the distribution.
+             * @return sycl::event.
+             */
+            sycl::event poisson(Tensor& t, double lambda = 1.0);
+
+            /**
+             * @brief Fill tensor with values from a Discrete Uniform distribution [min, max).
+             * @param t Tensor to fill.
+             * @param min Minimum value (inclusive).
+             * @param max Maximum value (exclusive).
+             * @return sycl::event.
+             */
+            sycl::event discrete_uniform(Tensor& t, int32_t min, int32_t max);
 
             /**
              * @brief Fill tensor with values from a truncated normal distribution.
@@ -95,7 +129,7 @@ namespace SushiBLAS
              * @param b Upper bound (in number of stddevs, default 2.0).
              * @return sycl::event.
              */
-            sycl::event truncated_normal(Tensor& t, float mean = 0.0f, float stddev = 1.0f, float a = -2.0f, float b = 2.0f);
+            sycl::event truncated_normal(Tensor& t, double mean = 0.0, double stddev = 1.0, double a = -2.0, double b = 2.0);
 
             /**
              * @brief Fill tensor with values from a Bernoulli distribution.
@@ -103,7 +137,7 @@ namespace SushiBLAS
              * @param p Probability of success (1.0).
              * @return sycl::event.
              */
-            sycl::event bernoulli(Tensor& t, float p = 0.5f);
+            sycl::event bernoulli(Tensor& t, double p = 0.5);
 
             /**
              * @brief Xavier/Glorot Uniform initialization.
@@ -145,11 +179,17 @@ namespace SushiBLAS
              * @param gain Gain factor (default 1.0).
              * @return sycl::event.
              */
-            sycl::event orthogonal(Tensor& t, float gain = 1.0f);
+            sycl::event orthogonal(Tensor& t, double gain = 1.0);
+
+            /**
+             * @brief Randomly permute the elements of a tensor.
+             * @param t Tensor to shuffle.
+             * @return sycl::event.
+             */
+            sycl::event shuffle(Tensor& t);
 
         private:
             Engine& engine_;
-            static uint64_t seed_;
     };
 
 } // namespace SushiBLAS

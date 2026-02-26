@@ -57,6 +57,8 @@ namespace SushiBLAS
         int64_t ny; Internal::get_vec_params(y, ny, incy);
         SB_THROW_IF(n != ny, "AXPY requires tensors of the same number of elements.");
 
+        // TODO: Implement multi-dimensional batch support for Level 1 AXPY
+
         void* read_x = x.storage ? x.storage->data_ptr : nullptr;
         void* write_y = y.storage ? y.storage->data_ptr : nullptr;
 
@@ -73,8 +75,8 @@ namespace SushiBLAS
 
         switch (x.dtype) 
         {
+            // TODO: Add support for Core::DataType::HALF
             case Core::DataType::FLOAT32:
-            {
                 engine_.get_graph().add_task(meta, reads, writes,
                     [n, alpha, incx, incy, px=x.data_as<float>(), py=y.data_as<float>()]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
@@ -82,9 +84,7 @@ namespace SushiBLAS
                         return axpy_dispatch<float>(q, n, alpha, px, incx, py, incy, deps);
                     });
                 break;
-            }
             case Core::DataType::FLOAT64:
-            {
                 engine_.get_graph().add_task(meta, reads, writes,
                     [n, alpha_d=static_cast<double>(alpha), incx, incy, px=x.data_as<double>(), py=y.data_as<double>()]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
@@ -92,9 +92,7 @@ namespace SushiBLAS
                         return axpy_dispatch<double>(q, n, alpha_d, px, incx, py, incy, deps);
                     });
                 break;
-            }
             case Core::DataType::COMPLEX32:
-            {
                 engine_.get_graph().add_task(meta, reads, writes,
                     [n, alpha_c=std::complex<float>(alpha, 0.0f), incx, incy, px=x.data_as<std::complex<float>>(), py=y.data_as<std::complex<float>>()]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
@@ -102,9 +100,7 @@ namespace SushiBLAS
                         return axpy_dispatch<std::complex<float>>(q, n, alpha_c, px, incx, py, incy, deps);
                     });
                 break;
-            }
             case Core::DataType::COMPLEX64:
-            {
                 engine_.get_graph().add_task(meta, reads, writes,
                     [n, alpha_c=std::complex<double>(alpha, 0.0), incx, incy, px=x.data_as<std::complex<double>>(), py=y.data_as<std::complex<double>>()]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
@@ -112,10 +108,10 @@ namespace SushiBLAS
                         return axpy_dispatch<std::complex<double>>(q, n, alpha_c, px, incx, py, incy, deps);
                     });
                 break;
-            }
             default: 
                 SB_THROW_IF(true, "Unsupported data type for AXPY.");
         }
         return sycl::event();
     }
 }
+
