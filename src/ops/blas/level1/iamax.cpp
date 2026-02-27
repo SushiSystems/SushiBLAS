@@ -34,20 +34,11 @@
 #include <SushiBLAS/ops/blas/utils.hpp>
 #include <SushiBLAS/ops/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
+#include "level1_internal.hpp"
 
 namespace SushiBLAS 
 {
     using namespace SushiRuntime::Graph::Literals;
-
-    namespace
-    {
-        template<typename T>
-        sycl::event iamax_dispatch(sycl::queue& queue, int64_t n, const T* x, int64_t incx, int64_t* res, const std::vector<sycl::event>& deps) 
-        {
-            SB_LOG_INFO("MKL IAMAX: {} elements", n);
-            return oneapi::mkl::blas::column_major::iamax(queue, n, x, incx, res, deps);
-        }
-    }
 
     sycl::event Level1::iamax(const Tensor& x, Tensor& result) 
     {
@@ -62,45 +53,20 @@ namespace SushiBLAS
         std::vector<void*> writes = {};
         if (write_r) writes.push_back(write_r);
 
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "mkl_iamax";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.iamax"_op;
-
-        switch (x.dtype) 
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, px=x.data_as<float>(), pr=result.data_as<int64_t>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return iamax_dispatch<float>(q, n, px, incx, pr, deps);
-                    });
-                break;
-            case Core::DataType::FLOAT64: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, px=x.data_as<double>(), pr=result.data_as<int64_t>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return iamax_dispatch<double>(q, n, px, incx, pr, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX32: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, px=x.data_as<std::complex<float>>(), pr=result.data_as<int64_t>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return iamax_dispatch<std::complex<float>>(q, n, px, incx, pr, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX64: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, px=x.data_as<std::complex<double>>(), pr=result.data_as<int64_t>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return iamax_dispatch<std::complex<double>>(q, n, px, incx, pr, deps);
-                    });
-                break;
-            default: 
-                SB_THROW_IF(true, "Unsupported data type for IAMAX."); 
-        }
-        return sycl::event();
+        return Internal::execute_level1(engine_, "blas.lvl1.iamax", "blas.lvl1.iamax"_op, x.dtype, reads, writes, {},
+            [n, incx, pX=read_x, pR=write_r](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+                if constexpr (std::is_same_v<T, sycl::half>) 
+                {
+                    SB_THROW_IF(true, "MKL Level 1 BLAS does not support HALF precision natively.");
+                    return sycl::event();
+                } 
+                else 
+                {
+                    SB_LOG_INFO("MKL IAMAX: {} elements", n);
+                    return oneapi::mkl::blas::column_major::iamax(q, n, static_cast<const T*>(pX), incx, static_cast<int64_t*>(pR), deps);
+                }
+            });
     }
 }

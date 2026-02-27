@@ -28,15 +28,22 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
+#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/ops/math/random.hpp>
+#include <SushiRuntime/graph/task_types.hpp>
 #include "random_internal.hpp"
 
 namespace SushiBLAS 
 {
-    // TODO: Implement proper rejection sampling or inverse CDF for truncated normal.
-    // Currently fallback to standard normal distribution.
-    sycl::event RandomOps::truncated_normal(Tensor& t, double mean, double stddev, [[maybe_unused]] double a, [[maybe_unused]] double b) 
+    using namespace SushiRuntime::Graph::Literals;
+
+    sycl::event RandomOps::truncated_normal(Tensor& t, double mean, double stddev, double a, double b) 
     {
-        return normal(t, mean, stddev); 
+        (void)a;
+        (void)b;
+        SB_LOG_INFO("RandomOps: truncated_normal ({} elements, mean: {:.4f}, stddev: {:.4f}) - Falling back to normal", (uint64_t)t.num_elements, mean, stddev);
+        // TODO: Implement proper rejection sampling or inverse CDF for truncated normal.
+        return normal(t, mean, stddev);
     }
-}
+} // namespace SushiBLAS

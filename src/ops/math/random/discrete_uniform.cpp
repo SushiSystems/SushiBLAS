@@ -40,60 +40,32 @@ namespace SushiBLAS
 
     sycl::event RandomOps::discrete_uniform(Tensor& t, int32_t min, int32_t max) 
     {
-        const int64_t size = t.num_elements;
-        void* write_ptr = t.storage ? t.storage->data_ptr : nullptr;
-        std::vector<void*> writes = {};
-        if (write_ptr) writes.push_back(write_ptr);
-        
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "random_discrete_uniform";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "random.discrete_uniform"_op;
-
-        const uint64_t seed = engine_.get_seed();
-        const uint64_t offset = engine_.get_and_increment_rng_offset();
-
-        // MKL discrete uniform only supports integer types. For floating point tensors,
-        // we use a continuous uniform distribution followed by a floor kernel.
-        // TODO: Use Internal::transform_rng_task to unify the floor transformation and mitigate JIT delay.
-        if (t.dtype == Core::DataType::FLOAT32)
-        {
-            engine_.get_graph().add_task(meta, {}, writes,
-                [size, seed, offset, min, max, pT = t.data_as<float>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+        return Internal::execute_random(engine_, t, "random.discrete_uniform", "random.discrete_uniform"_op, {static_cast<double>(min), static_cast<double>(max)},
+            [min, max](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event 
+            {
+                using T = decltype(scalar_type);
+                if constexpr (Internal::is_complex_v<T>) 
+                {
+                    SB_THROW_IF(true, "Unsupported data type for discrete_uniform operation.");
+                    return sycl::event();
+                } 
+                else 
                 {
                     oneapi::mkl::rng::philox4x32x10 engine_obj(q, seed);
                     oneapi::mkl::rng::skip_ahead(engine_obj, offset * size);
-                    auto ev = oneapi::mkl::rng::generate(oneapi::mkl::rng::uniform<float>(static_cast<float>(min), static_cast<float>(max) + 1.0f), engine_obj, size, pT, deps);
-                    return q.submit([&](sycl::handler& h) {
+                    auto ev = oneapi::mkl::rng::generate(
+                        oneapi::mkl::rng::uniform<T>(static_cast<T>(min), static_cast<T>(max) + static_cast<T>(1.0)), 
+                        engine_obj, size, pT, deps);
+                        
+                    return q.submit([&](sycl::handler& h) 
+                    {
                         h.depends_on(ev);
-                        h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx) {
-                            pT[idx] = std::floor(pT[idx]);
+                        h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx) 
+                        {
+                            pT[idx] = sycl::floor(pT[idx]);
                         });
                     });
                 }
-            );
-        }
-        else if (t.dtype == Core::DataType::FLOAT64)
-        {
-             engine_.get_graph().add_task(meta, {}, writes,
-                [size, seed, offset, min, max, pT = t.data_as<double>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                {
-                    oneapi::mkl::rng::philox4x32x10 engine_obj(q, seed);
-                    oneapi::mkl::rng::skip_ahead(engine_obj, offset * size);
-                    auto ev = oneapi::mkl::rng::generate(oneapi::mkl::rng::uniform<double>(static_cast<double>(min), static_cast<double>(max) + 1.0), engine_obj, size, pT, deps);
-                    return q.submit([&](sycl::handler& h) {
-                        h.depends_on(ev);
-                        h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx) {
-                            pT[idx] = std::floor(pT[idx]);
-                        });
-                    });
-                }
-            );
-        }
-        else
-        {
-            SB_THROW_IF(true, "Unsupported data type for discrete_uniform operation.");
-        }
-        return sycl::event();
+            });
     }
-}
+} // namespace SushiBLAS

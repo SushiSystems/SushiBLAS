@@ -28,15 +28,20 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
+#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/ops/math/random.hpp>
+#include <SushiRuntime/graph/task_types.hpp>
 #include "random_internal.hpp"
 
 namespace SushiBLAS 
 {
-    // TODO: Integrate with LinalgOps to perform QR decomposition for orthogonal initialization.
-    // Fill with Normal distribution for now.
-    sycl::event RandomOps::orthogonal(Tensor& t, [[maybe_unused]] double gain) 
+    using namespace SushiRuntime::Graph::Literals;
+
+    sycl::event RandomOps::orthogonal(Tensor& t, double gain) 
     {
+        SB_LOG_INFO("RandomOps: orthogonal ({} elements, gain: {:.4f}) - Falling back to normal", (uint64_t)t.num_elements, gain);
+        // TODO: Integrate with LinalgOps to perform QR decomposition for orthogonal initialization.
         return normal(t, 0.0, 1.0);
     }
-}
+} // namespace SushiBLAS

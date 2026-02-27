@@ -28,6 +28,7 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
+#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/ops/math/random.hpp>
 #include "random_internal.hpp"
 
@@ -35,6 +36,7 @@ namespace SushiBLAS
 {
     void RandomOps::set_seed(uint64_t seed) 
     {
+        SB_LOG_INFO("RandomOps: set_seed ({})", seed);
         engine_.set_seed(seed);
     }
-}
+} // namespace SushiBLAS

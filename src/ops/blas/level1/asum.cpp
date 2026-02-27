@@ -34,20 +34,11 @@
 #include <SushiBLAS/ops/blas/utils.hpp>
 #include <SushiBLAS/ops/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
+#include "level1_internal.hpp"
 
 namespace SushiBLAS 
 {
     using namespace SushiRuntime::Graph::Literals;
-
-    namespace
-    {
-        template<typename T, typename ResT = T>
-        sycl::event asum_dispatch(sycl::queue& queue, int64_t n, const T* x, int64_t incx, ResT* res, const std::vector<sycl::event>& deps) 
-        {
-            SB_LOG_INFO("MKL ASUM: {} elements", n);
-            return oneapi::mkl::blas::column_major::asum(queue, n, x, incx, res, deps);
-        }
-    }
 
     sycl::event Level1::asum(const Tensor& x, Tensor& result) 
     {
@@ -62,45 +53,23 @@ namespace SushiBLAS
         std::vector<void*> writes = {};
         if (write_r) writes.push_back(write_r);
 
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "mkl_asum";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.asum"_op;
-
-        switch (x.dtype) 
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, px=x.data_as<float>(), pr=result.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return asum_dispatch<float>(q, n, px, incx, pr, deps);
-                    });
-                break;
-            case Core::DataType::FLOAT64: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, px=x.data_as<double>(), pr=result.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return asum_dispatch<double, double>(q, n, px, incx, pr, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX32: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, px=x.data_as<std::complex<float>>(), pr=result.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return asum_dispatch<std::complex<float>, float>(q, n, px, incx, pr, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX64: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, px=x.data_as<std::complex<double>>(), pr=result.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return asum_dispatch<std::complex<double>, double>(q, n, px, incx, pr, deps);
-                    });
-                break;
-            default: 
-                SB_THROW_IF(true, "Unsupported data type for ASUM.");
-        }
-        return sycl::event();
+        return Internal::execute_level1(engine_, "blas.lvl1.asum", "blas.lvl1.asum"_op, x.dtype, reads, writes, {},
+            [n, incx, pX=read_x, pR=write_r](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+                if constexpr (std::is_same_v<T, sycl::half>) 
+                {
+                    SB_THROW_IF(true, "MKL Level 1 BLAS does not support HALF precision natively.");
+                    return sycl::event();
+                } 
+                else 
+                {
+                    SB_LOG_INFO("MKL ASUM: {} elements", n);
+                    if constexpr (Internal::is_complex_v<T>)
+                        return oneapi::mkl::blas::column_major::asum(q, n, static_cast<const T*>(pX), incx, static_cast<typename T::value_type*>(pR), deps);
+                    else
+                        return oneapi::mkl::blas::column_major::asum(q, n, static_cast<const T*>(pX), incx, static_cast<T*>(pR), deps);
+                }
+            });
     }
 }

@@ -60,6 +60,54 @@ add_library(sushiblas STATIC
     ops/math/nonlinear/silu.cpp
     ops/math/nonlinear/gelu.cpp
     ops/math/nonlinear/softplus.cpp
+
+    # Math: Elementwise
+    ops/math/elementwise/add.cpp
+    ops/math/elementwise/sub.cpp
+    ops/math/elementwise/mul.cpp
+    ops/math/elementwise/div.cpp
+    ops/math/elementwise/sqrt.cpp
+    ops/math/elementwise/square.cpp
+    ops/math/elementwise/reciprocal.cpp
+    ops/math/elementwise/neg.cpp
+    ops/math/elementwise/exp.cpp
+    ops/math/elementwise/log.cpp
+    ops/math/elementwise/abs.cpp
+    ops/math/elementwise/pow.cpp
+    ops/math/elementwise/sin.cpp
+    ops/math/elementwise/cos.cpp
+    ops/math/elementwise/tan.cpp
+    ops/math/elementwise/asin.cpp
+    ops/math/elementwise/acos.cpp
+    ops/math/elementwise/atan.cpp
+    ops/math/elementwise/sinh.cpp
+    ops/math/elementwise/cosh.cpp
+    ops/math/elementwise/asinh.cpp
+    ops/math/elementwise/acosh.cpp
+    ops/math/elementwise/atanh.cpp
+    ops/math/elementwise/ceil.cpp
+    ops/math/elementwise/floor.cpp
+    ops/math/elementwise/round.cpp
+    ops/math/elementwise/clamp.cpp
+    ops/math/elementwise/min.cpp
+    ops/math/elementwise/max.cpp
+    ops/math/elementwise/fmod.cpp
+    ops/math/elementwise/remainder.cpp
+
+    # Logic
+    ops/logic/equal.cpp
+    ops/logic/not_equal.cpp
+    ops/logic/greater.cpp
+    ops/logic/less.cpp
+    ops/logic/greater_equal.cpp
+    ops/logic/less_equal.cpp
+    ops/logic/logical_and.cpp
+    ops/logic/logical_or.cpp
+    ops/logic/logical_xor.cpp
+    ops/logic/logical_not.cpp
+    ops/logic/where.cpp
+    ops/logic/all.cpp
+    ops/logic/any.cpp
 )
 
 

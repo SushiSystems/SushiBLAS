@@ -34,20 +34,11 @@
 #include <SushiBLAS/ops/blas/utils.hpp>
 #include <SushiBLAS/ops/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
+#include "level1_internal.hpp"
 
 namespace SushiBLAS 
 {
     using namespace SushiRuntime::Graph::Literals;
-
-    namespace
-    {
-        template<typename T, typename Tc, typename Ts>
-        sycl::event rot_dispatch(sycl::queue& queue, int64_t n, T* x, int64_t incx, T* y, int64_t incy, Tc c, Ts s, const std::vector<sycl::event>& deps) 
-        {
-            SB_LOG_INFO("MKL ROT: {} elements", n);
-            return oneapi::mkl::blas::column_major::rot(queue, n, x, incx, y, incy, c, s, deps);
-        }
-    }
 
     sycl::event Level1::rot(Tensor& x, Tensor& y, float c, float s) 
     {
@@ -57,55 +48,32 @@ namespace SushiBLAS
         int64_t ny; Internal::get_vec_params(y, ny, incy);
         SB_THROW_IF(n != ny, "ROT requires tensors of the same number of elements.");
 
+        // TODO: Implement multi-dimensional batch support
+
         void* write_x = x.storage ? x.storage->data_ptr : nullptr;
         void* write_y = y.storage ? y.storage->data_ptr : nullptr;
 
-        std::vector<void*> reads = {};
+        std::vector<void*> reads = {}; // x and y are updated
         std::vector<void*> writes = {};
         if (write_x) writes.push_back(write_x);
         if (write_y) writes.push_back(write_y);
 
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "mkl_rot";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.rot"_op;
-        meta.set_param(0, c);
-        meta.set_param(1, s);
-
-        switch (x.dtype) 
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, incy, c, s, px=x.data_as<float>(), py=y.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return rot_dispatch(q, n, px, incx, py, incy, c, s, deps);
-                    });
-                break;
-            case Core::DataType::FLOAT64: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, incy, c_d=static_cast<double>(c), s_d=static_cast<double>(s), px=x.data_as<double>(), py=y.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return rot_dispatch(q, n, px, incx, py, incy, c_d, s_d, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX32: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, incy, c, s_c=std::complex<float>(s, 0.0f), px=x.data_as<std::complex<float>>(), py=y.data_as<std::complex<float>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return rot_dispatch(q, n, px, incx, py, incy, c, s_c, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX64: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, incy, c_d=static_cast<double>(c), s_c=std::complex<double>(s, 0.0), px=x.data_as<std::complex<double>>(), py=y.data_as<std::complex<double>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return rot_dispatch(q, n, px, incx, py, incy, c_d, s_c, deps);
-                    });
-                break;
-            default: 
-                SB_THROW_IF(true, "Unsupported data type for ROT.");
-        }
-        return sycl::event();
+        return Internal::execute_level1(engine_, "blas.lvl1.rot", "blas.lvl1.rot"_op, x.dtype, reads, writes, {c, s},
+            [n, c, s, incx, incy, pX=write_x, pY=write_y](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+                if constexpr (std::is_same_v<T, sycl::half>) 
+                {
+                    SB_THROW_IF(true, "MKL Level 1 BLAS does not support HALF precision natively.");
+                    return sycl::event();
+                } 
+                else 
+                {
+                    if constexpr (Internal::is_complex_v<T>)
+                        return oneapi::mkl::blas::column_major::rot(q, n, static_cast<T*>(pX), incx, static_cast<T*>(pY), incy, static_cast<typename T::value_type>(c), static_cast<typename T::value_type>(s), deps);
+                    else 
+                        return oneapi::mkl::blas::column_major::rot(q, n, static_cast<T*>(pX), incx, static_cast<T*>(pY), incy, static_cast<T>(c), static_cast<T>(s), deps);
+                }
+            });
     }
 }

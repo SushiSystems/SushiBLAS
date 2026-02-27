@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* gelu.cpp                                                             */
+/* gelu.cpp                                                               */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -28,140 +28,34 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include <vector>
-#include <sycl/sycl.hpp>
-#include <SushiBLAS/engine.hpp>
+#include <numbers>
 #include <SushiBLAS/ops/math/nonlinear.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include "nonlinear_internal.hpp"
 
 namespace SushiBLAS 
 {
-    using namespace SushiRuntime::Graph::Literals;
-
-    namespace
-    {
-        template<typename T>
-        sycl::event gelu_forward_dispatch(sycl::queue& queue, T* data, int64_t size, const std::vector<sycl::event>& deps)
-        {
-            return queue.submit([&](sycl::handler& h) 
-            {
-                h.depends_on(deps);
-                h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx) 
-                {
-                    T k = T(0.7978845608); T a = T(0.044715); T val = data[idx[0]]; T t = sycl::tanh(k * (val + a * val * val * val)); data[idx[0]] = T(0.5) * val * (T(1) + t);
-                });
-            });
-        }
-
-        template<typename T>
-        sycl::event gelu_backward_dispatch(sycl::queue& queue, const T* dy, const T* x, T* dx, int64_t size, const std::vector<sycl::event>& deps)
-        {
-            return queue.submit([&](sycl::handler& h) 
-            {
-                h.depends_on(deps);
-                h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx) 
-                {
-                    T k = T(0.7978845608); T a = T(0.044715); T val = x[idx[0]]; T t = sycl::tanh(k * (val + a * val * val * val)); T dt = k * (T(1) + T(3) * a * val * val); dx[idx[0]] = dy[idx[0]] * (T(0.5) * (T(1) + t) + T(0.5) * val * (T(1) - t * t) * dt);
-                });
-            });
-        }
-    } // namespace Anonymous
-
     sycl::event NonLinearOps::gelu(Tensor& t) 
     {
-        int64_t size = t.num_elements;
-        
-        void* write_t = t.storage ? t.storage->data_ptr : nullptr;
-        std::vector<void*> reads = {};
-        std::vector<void*> writes = {};
-        if (write_t) writes.push_back(write_t);
-
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "math_gelu";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "math.gelu"_op;
-
-        switch (t.dtype)
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32:
-            {
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, pT=t.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        return gelu_forward_dispatch<float>(q, pT, size, deps);
-                    }
-                );
-                break;
-            }
-            case Core::DataType::FLOAT64:
-            {
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, pT=t.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        return gelu_forward_dispatch<double>(q, pT, size, deps);
-                    }
-                );
-                break;
-            }
-            default:
-                SB_THROW_IF(true, "Unsupported data type for gelu operation.");
-        }
-        return sycl::event();
+        return Internal::execute_nonlinear_forward(engine_, t, "math.nonlinear.gelu", "math.nonlinear.gelu"_op, 
+            [](auto x) { 
+                auto x3 = x * x * x;
+                auto inner = decltype(x)(0.7978845608028654) * (x + decltype(x)(0.044715) * x3);
+                return decltype(x)(0.5) * x * (decltype(x)(1) + Internal::safe_tanh(inner)); 
+            });
     }
 
     sycl::event NonLinearOps::gelu_backward(const Tensor& dy, const Tensor& x, Tensor& dx)
     {
-        SB_THROW_IF(dy.num_elements != x.num_elements || dy.num_elements != dx.num_elements, "Tensor sizes must match for gelu_backward.");
-        SB_THROW_IF(dy.dtype != x.dtype || dy.dtype != dx.dtype, "Data types must match for gelu_backward.");
-
-        int64_t size = x.num_elements;
-
-        void* read_dy = dy.storage ? dy.storage->data_ptr : nullptr;
-        void* read_x = x.storage ? x.storage->data_ptr : nullptr;
-        void* write_dx = dx.storage ? dx.storage->data_ptr : nullptr;
-
-        std::vector<void*> reads = {};
-        if (read_dy) reads.push_back(read_dy);
-        if (read_x) reads.push_back(read_x);
-        std::vector<void*> writes = {};
-        if (write_dx) writes.push_back(write_dx);
-
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "math_gelu_bw";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "math.gelu_backward"_op;
-
-        switch (x.dtype)
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32:
-            {
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, pDY=dy.data_as<float>(), pX=x.data_as<float>(), pDX=dx.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        return gelu_backward_dispatch<float>(q, pDY, pX, pDX, size, deps);
-                    }
-                );
-                break;
-            }
-            case Core::DataType::FLOAT64:
-            {
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, pDY=dy.data_as<double>(), pX=x.data_as<double>(), pDX=dx.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        return gelu_backward_dispatch<double>(q, pDY, pX, pDX, size, deps);
-                    }
-                );
-                break;
-            }
-            default:
-                SB_THROW_IF(true, "Unsupported data type for gelu_backward operation.");
-        }
-        return sycl::event();
+        return Internal::execute_nonlinear_backward(engine_, dy, x, dx, "math.nonlinear.gelu_backward", "math.nonlinear.gelu_backward"_op, 
+            [](auto pdy, auto px) { 
+                auto x3 = px * px * px;
+                auto inner = decltype(px)(0.7978845608028654) * (px + decltype(px)(0.044715) * x3);
+                auto t = Internal::safe_tanh(inner);
+                auto cosh_term = decltype(px)(1) - t * t;
+                auto d_inner = decltype(px)(0.7978845608028654) * (decltype(px)(1) + decltype(px)(0.134145) * px * px);
+                auto pdf = decltype(px)(0.5) * px * cosh_term * d_inner;
+                auto cdf = decltype(px)(0.5) * (decltype(px)(1) + t);
+                return pdy * (cdf + pdf); 
+            });
     }
 } // namespace SushiBLAS
