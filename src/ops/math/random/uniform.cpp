@@ -40,48 +40,27 @@ namespace SushiBLAS
 
     sycl::event RandomOps::uniform(Tensor& t, double min, double max) 
     {
-        const int64_t size = t.num_elements;
-        void* write_ptr = t.storage ? t.storage->data_ptr : nullptr;
-        std::vector<void*> writes = {};
-        if (write_ptr) writes.push_back(write_ptr);
-
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "random_uniform";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "random.uniform"_op;
-
-        const uint64_t seed = engine_.get_seed();
-        const uint64_t offset = engine_.get_and_increment_rng_offset();
-
-        if (t.dtype == Core::DataType::FLOAT32)
-            return Internal::add_rng_task<float>(engine_, t, "random_uniform", "random.uniform"_op, oneapi::mkl::rng::uniform<float>(static_cast<float>(min), static_cast<float>(max)));
-        else if (t.dtype == Core::DataType::FLOAT64)
-            return Internal::add_rng_task<double>(engine_, t, "random_uniform", "random.uniform"_op, oneapi::mkl::rng::uniform<double>(min, max));
-        else if (t.dtype == Core::DataType::COMPLEX32) 
-        {
-            engine_.get_graph().add_task(meta, {}, writes,
-                [size, seed, offset, min, max, pT = reinterpret_cast<float*>(t.data_as<std::complex<float>>())](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+        return Internal::execute_random(engine_, t, "random.uniform", "random.uniform"_op, {min, max},
+            [min, max](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event 
+            {
+                using T = decltype(scalar_type);
+                oneapi::mkl::rng::philox4x32x10 engine_obj(q, seed);
+                
+                if constexpr (Internal::is_complex_v<T>) 
                 {
-                    oneapi::mkl::rng::philox4x32x10 engine_obj(q, seed);
+                    using RealT = typename T::value_type;
                     oneapi::mkl::rng::skip_ahead(engine_obj, offset * size * 2);
-                    return oneapi::mkl::rng::generate(oneapi::mkl::rng::uniform<float>(static_cast<float>(min), static_cast<float>(max)), engine_obj, size * 2, pT, deps);
-                }
-            );
-        } 
-        else if (t.dtype == Core::DataType::COMPLEX64) 
-        {
-            engine_.get_graph().add_task(meta, {}, writes,
-                [size, seed, offset, min, max, pT = reinterpret_cast<double*>(t.data_as<std::complex<double>>())](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                    return oneapi::mkl::rng::generate(
+                        oneapi::mkl::rng::uniform<RealT>(static_cast<RealT>(min), static_cast<RealT>(max)), 
+                        engine_obj, size * 2, reinterpret_cast<RealT*>(pT), deps);
+                } 
+                else 
                 {
-                    oneapi::mkl::rng::philox4x32x10 engine_obj(q, seed);
-                    oneapi::mkl::rng::skip_ahead(engine_obj, offset * size * 2);
-                    return oneapi::mkl::rng::generate(oneapi::mkl::rng::uniform<double>(min, max), engine_obj, size * 2, pT, deps);
+                    oneapi::mkl::rng::skip_ahead(engine_obj, offset * size);
+                    return oneapi::mkl::rng::generate(
+                        oneapi::mkl::rng::uniform<T>(static_cast<T>(min), static_cast<T>(max)), 
+                        engine_obj, size, pT, deps);
                 }
-            );
-        } 
-        else
-            SB_THROW_IF(true, "Unsupported data type for uniform operation.");
-
-        return sycl::event();
+            });
     }
-}
+} // namespace SushiBLAS

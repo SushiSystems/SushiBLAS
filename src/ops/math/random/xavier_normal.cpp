@@ -29,6 +29,7 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/ops/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 #include "random_internal.hpp"
@@ -40,16 +41,24 @@ namespace SushiBLAS
     sycl::event RandomOps::xavier_normal(Tensor& t, int64_t n_in, int64_t n_out) 
     {
         const double stddev = std::sqrt(2.0 / (n_in + n_out));
-
-        if (t.dtype == Core::DataType::FLOAT32)
-        {
-            return Internal::add_rng_task<float>(engine_, t, "xavier_normal", "random.xavier_normal"_op, oneapi::mkl::rng::gaussian<float>(0.0f, static_cast<float>(stddev)));
-        }
-        else if (t.dtype == Core::DataType::FLOAT64)
-        {
-            return Internal::add_rng_task<double>(engine_, t, "xavier_normal", "random.xavier_normal"_op, oneapi::mkl::rng::gaussian<double>(0.0, stddev));
-        }
-
-        return normal(t, 0.0, stddev);
+        
+        return Internal::execute_random(engine_, t, "random.xavier_normal", "random.xavier_normal"_op, {static_cast<double>(n_in), static_cast<double>(n_out), stddev},
+            [stddev](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event 
+            {
+                using T = decltype(scalar_type);
+                if constexpr (Internal::is_complex_v<T>) 
+                {
+                    SB_THROW_IF(true, "Unsupported data type for xavier_normal operation.");
+                    return sycl::event();
+                } 
+                else 
+                {
+                    oneapi::mkl::rng::philox4x32x10 engine_obj(q, seed);
+                    oneapi::mkl::rng::skip_ahead(engine_obj, offset * size);
+                    return oneapi::mkl::rng::generate(
+                        oneapi::mkl::rng::gaussian<T>(static_cast<T>(0.0), static_cast<T>(stddev)), 
+                        engine_obj, size, pT, deps);
+                }
+            });
     }
-}
+} // namespace SushiBLAS

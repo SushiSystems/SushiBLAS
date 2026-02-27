@@ -101,9 +101,9 @@ namespace SushiBLAS
         if (write_y) writes.push_back(write_y);
 
         SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "mkl_gemv";
+        meta.name = "blas.lvl2.gemv";
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.gemv"_op;
+        meta.op_id = "blas.lvl2.gemv"_op;
         meta.set_param(0, transA);
         meta.set_param(1, alpha);
         meta.set_param(2, beta);

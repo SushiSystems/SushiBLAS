@@ -40,15 +40,23 @@ namespace SushiBLAS
 
     sycl::event RandomOps::log_normal(Tensor& t, double mean, double stddev) 
     {
-        switch (t.dtype)
-        {
-            case Core::DataType::FLOAT32:
-                return Internal::add_rng_task<float>(engine_, t, "random_log_normal", "random.log_normal"_op, oneapi::mkl::rng::lognormal<float>(static_cast<float>(mean), static_cast<float>(stddev), 0.0f, 1.0f));
-            case Core::DataType::FLOAT64:
-                return Internal::add_rng_task<double>(engine_, t, "random_log_normal", "random.log_normal"_op, oneapi::mkl::rng::lognormal<double>(mean, stddev, 0.0, 1.0));
-            default:
-                SB_THROW_IF(true, "Unsupported data type for log_normal operation.");
-                return sycl::event();
-        }
+        return Internal::execute_random(engine_, t, "random.log_normal", "random.log_normal"_op, {mean, stddev},
+            [mean, stddev](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event 
+            {
+                using T = decltype(scalar_type);
+                if constexpr (Internal::is_complex_v<T>) 
+                {
+                    SB_THROW_IF(true, "Unsupported data type for log_normal operation.");
+                    return sycl::event();
+                } 
+                else 
+                {
+                    oneapi::mkl::rng::philox4x32x10 engine_obj(q, seed);
+                    oneapi::mkl::rng::skip_ahead(engine_obj, offset * size);
+                    return oneapi::mkl::rng::generate(
+                        oneapi::mkl::rng::lognormal<T>(static_cast<T>(mean), static_cast<T>(stddev)), 
+                        engine_obj, size, pT, deps);
+                }
+            });
     }
-}
+} // namespace SushiBLAS

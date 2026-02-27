@@ -126,7 +126,7 @@ if defined SELECTED_EXE (
     for %%I in ("!SELECTED_EXE!") do echo [INFO] Executing: %%~nxI
     echo [INFO] Path: !SELECTED_EXE!
     echo.
-    "!SELECTED_EXE!"
+    "!SELECTED_EXE!" %*
 ) else (
     echo [ERROR] Binary not found. Run scripts/windows/build.bat first.
 )

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* sigmoid.cpp                                                             */
+/* sigmoid.cpp                                                            */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -28,135 +28,22 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include <vector>
-#include <sycl/sycl.hpp>
-#include <SushiBLAS/engine.hpp>
-#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/ops/math/nonlinear.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include "nonlinear_internal.hpp"
 
 namespace SushiBLAS 
 {
-    using namespace SushiRuntime::Graph::Literals;
-
-    namespace
-    {
-        template<typename T>
-        sycl::event sigmoid_forward_dispatch(sycl::queue& queue, T* data, int64_t size, const std::vector<sycl::event>& deps)
-        {
-            SB_LOG_INFO("Sigmoid Forward: {} elements", size);
-            return queue.submit([&](sycl::handler& h) 
-            {
-                h.depends_on(deps);
-                h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx) 
-                {
-                    data[idx[0]] = T(1) / (T(1) + sycl::exp(-data[idx[0]]));
-                });
-            });
-        }
-
-        template<typename T>
-        sycl::event sigmoid_backward_dispatch(sycl::queue& queue, const T* dy, const T* x, T* dx, int64_t size, const std::vector<sycl::event>& deps)
-        {
-            SB_LOG_INFO("Sigmoid Backward: {} elements", size);
-            return queue.submit([&](sycl::handler& h) 
-            {
-                h.depends_on(deps);
-                h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx) 
-                {
-                    dx[idx[0]] = dy[idx[0]] * x[idx[0]] * (T(1) - x[idx[0]]);
-                });
-            });
-        }
-    } // namespace Anonymous
-
     sycl::event NonLinearOps::sigmoid(Tensor& t) 
     {
-        int64_t size = t.num_elements;
-        
-        void* write_t = t.storage ? t.storage->data_ptr : nullptr;
-        std::vector<void*> reads = {};
-        std::vector<void*> writes = {};
-        if (write_t) writes.push_back(write_t);
-
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "math_sigmoid";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "math.sigmoid"_op;
-
-        switch (t.dtype)
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, pT=t.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        return sigmoid_forward_dispatch<float>(q, pT, size, deps);
-                    }
-                );
-                break;
-            case Core::DataType::FLOAT64:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, pT=t.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        return sigmoid_forward_dispatch<double>(q, pT, size, deps);
-                    }
-                );
-                break;
-            default:
-                SB_THROW_IF(true, "Unsupported data type for sigmoid operation.");
-        }
-        return sycl::event();
+        return Internal::execute_nonlinear_forward(engine_, t, "math.nonlinear.sigmoid", "math.nonlinear.sigmoid"_op, 
+            [](auto x) { return decltype(x)(1) / (decltype(x)(1) + Internal::safe_exp(-x)); });
     }
 
     sycl::event NonLinearOps::sigmoid_backward(const Tensor& dy, const Tensor& y, Tensor& dx)
     {
-        SB_THROW_IF(dy.num_elements != y.num_elements || dy.num_elements != dx.num_elements, "Tensor sizes must match for sigmoid_backward.");
-        SB_THROW_IF(dy.dtype != y.dtype || dy.dtype != dx.dtype, "Data types must match for sigmoid_backward.");
-
-        int64_t size = y.num_elements;
-
-        void* read_dy = dy.storage ? dy.storage->data_ptr : nullptr;
-        void* read_x = y.storage ? y.storage->data_ptr : nullptr;
-        void* write_dx = dx.storage ? dx.storage->data_ptr : nullptr;
-
-        std::vector<void*> reads = {};
-        if (read_dy) reads.push_back(read_dy);
-        if (read_x) reads.push_back(read_x);
-        std::vector<void*> writes = {};
-        if (write_dx) writes.push_back(write_dx);
-
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "math_sigmoid_bw";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "math.sigmoid_backward"_op;
-
-        switch (y.dtype)
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, pDY=dy.data_as<float>(), pX=y.data_as<float>(), pDX=dx.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        return sigmoid_backward_dispatch<float>(q, pDY, pX, pDX, size, deps);
-                    }
-                );
-                break;
-            case Core::DataType::FLOAT64:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, pDY=dy.data_as<double>(), pX=y.data_as<double>(), pDX=dx.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        return sigmoid_backward_dispatch<double>(q, pDY, pX, pDX, size, deps);
-                    }
-                );
-                break;
-            default:
-                SB_THROW_IF(true, "Unsupported data type for sigmoid_backward operation.");
-        }
-        return sycl::event();
+        return Internal::execute_nonlinear_backward(engine_, dy, y, dx, "math.nonlinear.sigmoid_backward", "math.nonlinear.sigmoid_backward"_op, 
+            [](auto pdy, auto py) { 
+                return pdy * py * (decltype(py)(1) - py); 
+            });
     }
 } // namespace SushiBLAS

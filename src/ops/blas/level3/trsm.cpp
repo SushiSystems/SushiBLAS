@@ -135,9 +135,9 @@ namespace SushiBLAS
         if (write_B) writes.push_back(write_B);
 
         SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "mkl_trsm";
+        meta.name = "blas.lvl3.trsm";
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.trsm"_op;
+        meta.op_id = "blas.lvl3.trsm"_op;
         meta.set_param(0, alpha);
         meta.set_param(1, left_side);
         meta.set_param(2, upper);

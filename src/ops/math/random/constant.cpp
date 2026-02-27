@@ -29,6 +29,7 @@
 /**************************************************************************/
 
 #include <complex>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/ops/math/random.hpp>
@@ -40,47 +41,80 @@ namespace SushiBLAS
 
     sycl::event RandomOps::constant(Tensor& t, double value) 
     {
-        const int64_t size = t.num_elements;
-        void* write_ptr = t.storage ? t.storage->data_ptr : nullptr;
-        std::vector<void*> writes = {};
-        if (write_ptr) writes.push_back(write_ptr);
-
+        auto op_id = "random.constant"_op;
         SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "constant_fill";
+        meta.name = "random.constant";
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "random.constant"_op;
+        meta.op_id = op_id;
         meta.set_param(0, value);
 
-        SB_LOG_DEBUG("Dispatching Constant Fill Task, Value: {}, Size: {}", value, size);
+        const int64_t size = t.num_elements;
+        void* ptr = t.storage ? t.storage->data_ptr : nullptr;
+        std::vector<void*> reads = {};
+        std::vector<void*> writes = {};
+        if (ptr) writes.push_back(ptr);
 
-        engine_.get_graph().add_task(meta, {}, writes,
-            [size, value, t_dtype = t.dtype, 
-             pH = t.data_as<sycl::half>(), 
-             pF = t.data_as<float>(), 
-             pD = t.data_as<double>(), 
-             pCF = t.data_as<std::complex<float>>(), 
-             pCD = t.data_as<std::complex<double>>()]
-            (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+        switch (t.dtype)
+        {
+            case Core::DataType::HALF:
             {
-                switch (t_dtype) 
-                {
-                    case Core::DataType::HALF:
-                        return q.fill(pH, static_cast<sycl::half>(value), size, deps);
-                    case Core::DataType::FLOAT32:
-                        return q.fill(pF, static_cast<float>(value), size, deps);
-                    case Core::DataType::FLOAT64:
-                        return q.fill(pD, value, size, deps);
-                    case Core::DataType::COMPLEX32:
-                        return q.fill(pCF, std::complex<float>(static_cast<float>(value), 0.0f), size, deps);
-                    case Core::DataType::COMPLEX64:
-                        return q.fill(pCD, std::complex<double>(value, 0.0), size, deps);
-                    default:
-                        SB_THROW_IF(true, "Unsupported data type for random.constant");
-                        return sycl::event();
-                }
+                engine_.get_graph().add_task(meta, reads, writes,
+                    [size, value, pT = t.data_as<sycl::half>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                    {
+                        SB_LOG_INFO("RandomOps: constant ({} elements, value: {:.4f})", size, value);
+                        return q.fill(pT, static_cast<sycl::half>(value), size, deps);
+                    }
+                );
+                break;
             }
-        );
+            case Core::DataType::FLOAT32:
+            {
+                engine_.get_graph().add_task(meta, reads, writes,
+                    [size, value, pT = t.data_as<float>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                    {
+                        SB_LOG_INFO("RandomOps: constant ({} elements, value: {:.4f})", size, value);
+                        return q.fill(pT, static_cast<float>(value), size, deps);
+                    }
+                );
+                break;
+            }
+            case Core::DataType::FLOAT64:
+            {
+                engine_.get_graph().add_task(meta, reads, writes,
+                    [size, value, pT = t.data_as<double>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                    {
+                        SB_LOG_INFO("RandomOps: constant ({} elements, value: {:.4f})", size, value);
+                        return q.fill(pT, value, size, deps);
+                    }
+                );
+                break;
+            }
+            case Core::DataType::COMPLEX32:
+            {
+                engine_.get_graph().add_task(meta, reads, writes,
+                    [size, value, pT = t.data_as<std::complex<float>>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                    {
+                        SB_LOG_INFO("RandomOps: constant complex32 ({} elements, value: {:.4f})", size, value);
+                        return q.fill(pT, std::complex<float>(static_cast<float>(value), 0.0f), size, deps);
+                    }
+                );
+                break;
+            }
+            case Core::DataType::COMPLEX64:
+            {
+                engine_.get_graph().add_task(meta, reads, writes,
+                    [size, value, pT = t.data_as<std::complex<double>>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                    {
+                        SB_LOG_INFO("RandomOps: constant complex64 ({} elements, value: {:.4f})", size, value);
+                        return q.fill(pT, std::complex<double>(value, 0.0), size, deps);
+                    }
+                );
+                break;
+            }
+            default:
+                SB_THROW_IF(true, "Unsupported data type for constant operation.");
+        }
 
         return sycl::event();
     }
-}
+} // namespace SushiBLAS

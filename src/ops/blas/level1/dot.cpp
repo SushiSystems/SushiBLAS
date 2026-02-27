@@ -34,38 +34,17 @@
 #include <SushiBLAS/ops/blas/utils.hpp>
 #include <SushiBLAS/ops/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
+#include "level1_internal.hpp"
 
 namespace SushiBLAS 
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    namespace
-    {
-        template<typename T, typename ResT = T>
-        sycl::event dot_dispatch(sycl::queue& queue, int64_t n, const T* x, int64_t incx, const T* y, int64_t incy, ResT* res, const std::vector<sycl::event>& deps) 
-        {
-            SB_LOG_INFO("MKL DOT: {} elements", n);
-            return oneapi::mkl::blas::column_major::dot(queue, n, x, incx, y, incy, res, deps);
-        }
-
-        template<>
-        sycl::event dot_dispatch<std::complex<float>, std::complex<float>>(sycl::queue& queue, int64_t n, const std::complex<float>* x, int64_t incx, const std::complex<float>* y, int64_t incy, std::complex<float>* res, const std::vector<sycl::event>& deps) 
-        {
-            SB_LOG_INFO("MKL DOTC (Complex32): {} elements", n);
-            return oneapi::mkl::blas::column_major::dotc(queue, n, x, incx, y, incy, res, deps);
-        }
-
-        template<>
-        sycl::event dot_dispatch<std::complex<double>, std::complex<double>>(sycl::queue& queue, int64_t n, const std::complex<double>* x, int64_t incx, const std::complex<double>* y, int64_t incy, std::complex<double>* res, const std::vector<sycl::event>& deps) 
-        {
-            SB_LOG_INFO("MKL DOTC (Complex64): {} elements", n);
-            return oneapi::mkl::blas::column_major::dotc(queue, n, x, incx, y, incy, res, deps);
-        }
-    }
-
     sycl::event Level1::dot(const Tensor& x, const Tensor& y, Tensor& result) 
     {
         SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in DOT.");
+        // Note: For complex numbers dotc returns complex type. Result tensor should be complex.
+        
         int64_t n, incx, incy;
         Internal::get_vec_params(x, n, incx);
         int64_t ny; 
@@ -84,45 +63,23 @@ namespace SushiBLAS
         std::vector<void*> writes = {};
         if (write_r) writes.push_back(write_r);
 
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "mkl_dot";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.dot"_op;
-
-        switch (x.dtype) 
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, incy, px=x.data_as<float>(), py=y.data_as<float>(), pr=result.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return dot_dispatch<float>(q, n, px, incx, py, incy, pr, deps);
-                    });
-                break;
-            case Core::DataType::FLOAT64: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, incy, px=x.data_as<double>(), py=y.data_as<double>(), pr=result.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return dot_dispatch<double>(q, n, px, incx, py, incy, pr, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX32: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, incy, px=x.data_as<std::complex<float>>(), py=y.data_as<std::complex<float>>(), pr=result.data_as<std::complex<float>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return dot_dispatch<std::complex<float>>(q, n, px, incx, py, incy, pr, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX64: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, incy, px=x.data_as<std::complex<double>>(), py=y.data_as<std::complex<double>>(), pr=result.data_as<std::complex<double>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return dot_dispatch<std::complex<double>>(q, n, px, incx, py, incy, pr, deps);
-                    });
-                break;
-            default: 
-                SB_THROW_IF(true, "Unsupported data type for DOT.");
-        }
-        return sycl::event();
+        return Internal::execute_level1(engine_, "blas.lvl1.dot", "blas.lvl1.dot"_op, x.dtype, reads, writes, {},
+            [n, incx, incy, pX=read_x, pY=read_y, pR=write_r](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+                if constexpr (std::is_same_v<T, sycl::half>) 
+                {
+                    SB_THROW_IF(true, "MKL Level 1 BLAS does not support HALF precision natively.");
+                    return sycl::event();
+                } 
+                else 
+                {
+                    SB_LOG_INFO("MKL DOT: {} elements", n);
+                    if constexpr (Internal::is_complex_v<T>) 
+                        return oneapi::mkl::blas::column_major::dotc(q, n, static_cast<const T*>(pX), incx, static_cast<const T*>(pY), incy, static_cast<T*>(pR), deps);
+                    else 
+                        return oneapi::mkl::blas::column_major::dot(q, n, static_cast<const T*>(pX), incx, static_cast<const T*>(pY), incy, static_cast<T*>(pR), deps);
+                }
+            });
     }
 } // namespace SushiBLAS

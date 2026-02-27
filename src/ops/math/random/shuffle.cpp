@@ -28,14 +28,46 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
+#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/ops/math/random.hpp>
+#include <SushiRuntime/graph/task_types.hpp>
 #include "random_internal.hpp"
 
 namespace SushiBLAS 
 {
-    // TODO: Implement parallel shuffle algorithm (e.g., using random keys and sorting).
-    sycl::event RandomOps::shuffle([[maybe_unused]] Tensor& t) 
+    using namespace SushiRuntime::Graph::Literals;
+
+    sycl::event RandomOps::shuffle(Tensor& t) 
     {
+        auto op_id = "random.shuffle"_op;
+        SushiRuntime::Graph::TaskMetadata meta;
+        meta.name = "random.shuffle";
+        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.op_id = op_id;
+
+        const int64_t size = t.num_elements;
+        void* ptr = t.storage ? t.storage->data_ptr : nullptr;
+        std::vector<void*> reads = {};
+        std::vector<void*> writes = {};
+        if (ptr) writes.push_back(ptr);
+
+        const uint64_t seed = engine_.get_seed();
+        const uint64_t offset = engine_.get_and_increment_rng_offset();
+        meta.set_param(10, seed);
+        meta.set_param(11, offset);
+
+        engine_.get_graph().add_task(meta, reads, writes,
+            [size](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+            {
+                (void)q;
+                (void)deps;
+                SB_LOG_INFO("RandomOps: shuffle ({} elements) - TODO: Implement parallel shuffle", size);
+                // TODO: Implement parallel shuffle algorithm (e.g., using random keys and sorting).
+                return sycl::event();
+            }
+        );
+
         return sycl::event();
     }
-}
+} // namespace SushiBLAS

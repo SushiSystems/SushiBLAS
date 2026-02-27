@@ -49,6 +49,12 @@ TEST_F(FrameworkSimTest, DeepForwardPass)
         // H_{i+1} = H_{i} * W_i
         SB_LOG_DEBUG("Sim: Submitting GEMM for Layer {}", i);
         engine->blas().gemm(activations[i], weights[i], activations[i+1]);
+        
+        // Add activation after GEMM
+        if (i < num_layers - 1) 
+        {
+            engine->nonlinear().relu(activations[i+1]);
+        }
     }
     
     // Execute all deep operations asynchronously
@@ -101,6 +107,7 @@ TEST_F(FrameworkSimTest, ParallelBatchedInference)
     for (int i = 0; i < num_models; ++i) 
     {
         engine->blas().gemm(inputs[i], weights[i], outputs[i]);
+        engine->nonlinear().relu(outputs[i]);
     }
     
     // The scheduler should dispatch these horizontally to all worker threads

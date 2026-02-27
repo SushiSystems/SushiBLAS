@@ -40,15 +40,23 @@ namespace SushiBLAS
 
     sycl::event RandomOps::exponential(Tensor& t, double lambda) 
     {
-        switch (t.dtype)
-        {
-            case Core::DataType::FLOAT32:
-                return Internal::add_rng_task<float>(engine_, t, "random_exponential", "random.exponential"_op, oneapi::mkl::rng::exponential<float>(0.0f, static_cast<float>(lambda)));
-            case Core::DataType::FLOAT64:
-                return Internal::add_rng_task<double>(engine_, t, "random_exponential", "random.exponential"_op, oneapi::mkl::rng::exponential<double>(0.0, lambda));
-            default:
-                SB_THROW_IF(true, "Unsupported data type for exponential operation.");
-                return sycl::event();
-        }
+        return Internal::execute_random(engine_, t, "random.exponential", "random.exponential"_op, {lambda},
+            [lambda](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event 
+            {
+                using T = decltype(scalar_type);
+                if constexpr (Internal::is_complex_v<T>) 
+                {
+                    SB_THROW_IF(true, "Unsupported data type for exponential operation.");
+                    return sycl::event();
+                } 
+                else 
+                {
+                    oneapi::mkl::rng::philox4x32x10 engine_obj(q, seed);
+                    oneapi::mkl::rng::skip_ahead(engine_obj, offset * size);
+                    return oneapi::mkl::rng::generate(
+                        oneapi::mkl::rng::exponential<T>(static_cast<T>(0.0), static_cast<T>(1.0 / lambda)), 
+                        engine_obj, size, pT, deps);
+                }
+            });
     }
-}
+} // namespace SushiBLAS

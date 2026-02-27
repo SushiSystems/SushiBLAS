@@ -34,20 +34,11 @@
 #include <SushiBLAS/ops/blas/utils.hpp>
 #include <SushiBLAS/ops/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
+#include "level1_internal.hpp"
 
 namespace SushiBLAS 
 {
     using namespace SushiRuntime::Graph::Literals;
-
-    namespace
-    {
-        template<typename T>
-        sycl::event swap_dispatch(sycl::queue& queue, int64_t n, T* x, int64_t incx, T* y, int64_t incy, const std::vector<sycl::event>& deps) 
-        {
-            SB_LOG_INFO("MKL SWAP: {} elements", n);
-            return oneapi::mkl::blas::column_major::swap(queue, n, x, incx, y, incy, deps);
-        }
-    }
 
     sycl::event Level1::swap(Tensor& x, Tensor& y) 
     {
@@ -57,6 +48,8 @@ namespace SushiBLAS
         int64_t ny; Internal::get_vec_params(y, ny, incy);
         SB_THROW_IF(n != ny, "SWAP requires tensors of the same number of elements.");
 
+        // TODO: Implement multi-dimensional batch support
+
         void* write_x = x.storage ? x.storage->data_ptr : nullptr;
         void* write_y = y.storage ? y.storage->data_ptr : nullptr;
 
@@ -65,45 +58,20 @@ namespace SushiBLAS
         if (write_x) writes.push_back(write_x);
         if (write_y) writes.push_back(write_y);
 
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "mkl_swap";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.swap"_op;
-
-        switch (x.dtype) 
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, incy, px=x.data_as<float>(), py=y.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return swap_dispatch<float>(q, n, px, incx, py, incy, deps);
-                    });
-                break;
-            case Core::DataType::FLOAT64: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, incy, px=x.data_as<double>(), py=y.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return swap_dispatch<double>(q, n, px, incx, py, incy, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX32: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, incy, px=x.data_as<std::complex<float>>(), py=y.data_as<std::complex<float>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return swap_dispatch<std::complex<float>>(q, n, px, incx, py, incy, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX64: 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, incx, incy, px=x.data_as<std::complex<double>>(), py=y.data_as<std::complex<double>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return swap_dispatch<std::complex<double>>(q, n, px, incx, py, incy, deps);
-                    });
-                break;
-            default: 
-                SB_THROW_IF(true, "Unsupported data type for SWAP.");
-        }
-        return sycl::event();
+        return Internal::execute_level1(engine_, "blas.lvl1.swap", "blas.lvl1.swap"_op, x.dtype, reads, writes, {},
+            [n, incx, incy, pX=write_x, pY=write_y](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+                if constexpr (std::is_same_v<T, sycl::half>) 
+                {
+                    SB_THROW_IF(true, "MKL Level 1 BLAS does not support HALF precision natively.");
+                    return sycl::event();
+                } 
+                else 
+                {
+                    SB_LOG_INFO("MKL SWAP: {} elements", n);
+                    return oneapi::mkl::blas::column_major::swap(q, n, static_cast<T*>(pX), incx, static_cast<T*>(pY), incy, deps);
+                }
+            });
     }
 }

@@ -88,9 +88,9 @@ namespace SushiBLAS
         if (write_A) writes.push_back(write_A);
 
         SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "mkl_syr";
+        meta.name = "blas.lvl2.syr";
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.syr"_op;
+        meta.op_id = "blas.lvl2.syr"_op;
         meta.set_param(0, upper);
         meta.set_param(1, alpha);
 

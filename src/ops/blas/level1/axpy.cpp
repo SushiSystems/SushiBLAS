@@ -34,20 +34,11 @@
 #include <SushiBLAS/ops/blas/utils.hpp>
 #include <SushiBLAS/ops/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
+#include "level1_internal.hpp"
 
 namespace SushiBLAS 
 {
     using namespace SushiRuntime::Graph::Literals;
-
-    namespace
-    {
-        template<typename T>
-        sycl::event axpy_dispatch(sycl::queue& queue, int64_t n, T alpha, const T* x, int64_t incx, T* y, int64_t incy, const std::vector<sycl::event>& deps) 
-        {
-            SB_LOG_INFO("MKL AXPY: {} elements", n);
-            return oneapi::mkl::blas::column_major::axpy(queue, n, alpha, x, incx, y, incy, deps);
-        }
-    }
 
     sycl::event Level1::axpy(float alpha, const Tensor& x, Tensor& y) 
     {
@@ -67,51 +58,26 @@ namespace SushiBLAS
         std::vector<void*> writes = {};
         if (write_y) writes.push_back(write_y);
 
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "mkl_axpy";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.axpy"_op;
-        meta.set_param(0, alpha);
-
-        switch (x.dtype) 
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, alpha, incx, incy, px=x.data_as<float>(), py=y.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                    {
-                        return axpy_dispatch<float>(q, n, alpha, px, incx, py, incy, deps);
-                    });
-                break;
-            case Core::DataType::FLOAT64:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, alpha_d=static_cast<double>(alpha), incx, incy, px=x.data_as<double>(), py=y.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                    {
-                        return axpy_dispatch<double>(q, n, alpha_d, px, incx, py, incy, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX32:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, alpha_c=std::complex<float>(alpha, 0.0f), incx, incy, px=x.data_as<std::complex<float>>(), py=y.data_as<std::complex<float>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                    {
-                        return axpy_dispatch<std::complex<float>>(q, n, alpha_c, px, incx, py, incy, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX64:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [n, alpha_c=std::complex<double>(alpha, 0.0), incx, incy, px=x.data_as<std::complex<double>>(), py=y.data_as<std::complex<double>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                    {
-                        return axpy_dispatch<std::complex<double>>(q, n, alpha_c, px, incx, py, incy, deps);
-                    });
-                break;
-            default: 
-                SB_THROW_IF(true, "Unsupported data type for AXPY.");
-        }
-        return sycl::event();
+        return Internal::execute_level1(engine_, "blas.lvl1.axpy", "blas.lvl1.axpy"_op, x.dtype, reads, writes, {alpha},
+            [n, alpha, incx, incy, pX=read_x, pY=write_y](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+                if constexpr (std::is_same_v<T, sycl::half>) 
+                {
+                    SB_THROW_IF(true, "MKL Level 1 BLAS does not support HALF precision natively.");
+                    return sycl::event();
+                } 
+                else 
+                {
+                    T alpha_t;
+                    if constexpr (Internal::is_complex_v<T>)
+                        alpha_t = T(alpha, 0.0);
+                    else
+                        alpha_t = static_cast<T>(alpha);
+                        
+                    SB_LOG_INFO("MKL AXPY: {} elements", n);
+                    return oneapi::mkl::blas::column_major::axpy(q, n, alpha_t, static_cast<const T*>(pX), incx, static_cast<T*>(pY), incy, deps);
+                }
+            });
     }
 }
-
