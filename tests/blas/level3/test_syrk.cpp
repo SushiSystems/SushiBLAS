@@ -6,98 +6,96 @@
 /*                https://github.com/SushiSystems/SushiBLAS               */
 /*                         https://sushisystems.io                        */
 /**************************************************************************/
-/* Copyright (c) 2026-present  Mustafa Garip & Sushi Systems              */
-/*                                                                        */
-/* Permission is hereby granted, free of charge, to any person obtaining  */
-/* a copy of this software and associated documentation files (the        */
-/* "Software"), to deal in the Software without restriction, including    */
-/* without limitation the rights to use, copy, modify, merge, publish,    */
-/* distribute, sublicense, and/or sell copies of the Software, and to     */
-/* permit persons to whom the Software is furnished to do so, subject to  */
-/* the following conditions:                                              */
-/*                                                                        */
-/* The above copyright notice and this permission notice shall be         */
-/* included in all copies or substantial portions of the Software.        */
-/*                                                                        */
-/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
-/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
-/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
-/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
-/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
-/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
-/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
-/**************************************************************************/
 
 #include <vector>
+#include <complex>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include "../../test_common.hpp"
+#include "../../test_utils.hpp"
 
-
-class SYRKTest : public SushiBLASTest {};
-
-TEST_F(SYRKTest, SimpleSYRK) 
+namespace SushiBLAS
 {
-    const int N = 3;
-    const int K = 2;
-    
-    // C is N x N, A is N x K (if transA=false)
-    auto A = engine->create_tensor({N, K});
-    auto C = engine->create_tensor({N, N});
+    namespace Test
+    {
+        template <typename T>
+        class SYRKTest : public SushiBLASTest 
+        {
+            public:
+                void test_accuracy(int64_t n, int64_t k, Core::Layout layout = Core::Layout::ROW_MAJOR, bool upper = false, bool transA = false) 
+                {
+                    reinit_engine(layout);
 
-    // A: 
-    // [1 2]
-    // [3 4]
-    // [5 6]
-    fill_tensor(A, {1, 2, 3, 4, 5, 6});
-    
-    // C: initialized to zeros
-    fill_tensor(C, std::vector<float>(N * N, 0.0f));
+                    auto dtype = Core::DataType::FLOAT32;
+                    if constexpr (std::is_same_v<T, double>) dtype = Core::DataType::FLOAT64;
+                    if constexpr (std::is_same_v<T, std::complex<float>>) dtype = Core::DataType::COMPLEX32;
+                    if constexpr (std::is_same_v<T, std::complex<double>>) dtype = Core::DataType::COMPLEX64;
 
-    SB_LOG_INFO("Submitting standard SYRK.");
-    // Upper=false (lower triangular), TransA=false, alpha=1.0, beta=0.0
-    engine->blas().syrk(A, C, false, false, 1.0f, 0.0f);
-    
-    engine->execute().wait();
-    SB_LOG_INFO("Execution finished. Checking results.");
+                    int64_t a_rows = transA ? k : n;
+                    int64_t a_cols = transA ? n : k;
 
-    // C = A * A^T
-    // [1 2]   [1 3 5]   [ 5 11 17]
-    // [3 4] * [2 4 6] = [11 25 39]
-    // [5 6]             [17 39 61]
-    // Since uplo=lower (false), the upper elements are untouched (remain 0).
-    verify_tensor(C, {5, 0, 0, 11, 25, 0, 17, 39, 61});
-}
+                    // 1. Prepare Inputs
+                    auto A = engine->create_tensor({a_rows, a_cols}, dtype);
+                    auto C_actual = engine->create_tensor({n, n}, dtype);
+                    auto C_expected = engine->create_tensor({n, n}, dtype);
 
-TEST_F(SYRKTest, SimpleSYRKColumnMajor) 
-{
-    reinit_engine(sb::Core::Layout::COLUMN_MAJOR);
-    
-    const int N = 2, K = 3;
-    auto A = engine->create_tensor({K, N}); // transA=true means A is K x N
-    auto C = engine->create_tensor({N, N});
+                    fill_random<T>(A);
+                    fill_random<T>(C_actual);
+                    
+                    // Copy C_actual to C_expected so they start exactly the same (important if beta != 0)
+                    auto& q = TestEnvironment::get_context().get_queue();
+                    size_t c_size_bytes = n * n * sizeof(T);
+                    q.memcpy(C_expected.data(), C_actual.data(), c_size_bytes).wait();
 
-    // A: 
-    // [1 4]
-    // [2 5]
-    // [3 6]
-    // Column-major in memory: [1 2 3 4 5 6]
-    fill_tensor(A, {1, 2, 3, 4, 5, 6});
-    
-    // C: initialized to zeros
-    fill_tensor(C, std::vector<float>(N * N, 0.0f));
+                    double alpha = 1.5;
+                    double beta = 0.5;
 
-    SB_LOG_INFO("Submitting Column-Major SYRK.");
-    // Upper=false, TransA=true
-    engine->blas().syrk(A, C, false, true, 1.0f, 0.0f);
-    
-    engine->execute().wait();
-    SB_LOG_INFO("Execution finished. Checking results.");
+                    // 2. Compute SYCL (Optimized) result
+                    engine->set_mode(ExecutionMode::FORCE_SYCL);
+                    engine->blas().syrk(A, C_actual, upper, transA, alpha, beta);
+                    engine->execute().wait();
 
-    // C = A^T * A
-    // [1 2 3]   [1 4]   [14 32]
-    // [4 5 6] * [2 5] = [32 77]
-    //           [3 6]
-    // lower triang: (14, 32, 0, 77) -> Column-major memory: [14, 32, 0, 77]
-    verify_tensor(C, {14, 32, 0, 77});
+                    // 3. Compute Reference (CPU) result
+                    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                    engine->blas().syrk(A, C_expected, upper, transA, alpha, beta);
+                    engine->execute().wait();
+
+                    // 4. Compare
+                    double tol = (dtype == Core::DataType::HALF) ? 1e-2 : 1e-4;
+                    SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tol, T);
+                }
+        };
+
+        using DataTypes = ::testing::Types<float, double, std::complex<float>, std::complex<double>>;
+        TYPED_TEST_SUITE(SYRKTest, DataTypes);
+
+        TYPED_TEST(SYRKTest, SmallMatrixLowerNoTrans) 
+        {
+            this->test_accuracy(4, 3, Core::Layout::ROW_MAJOR, false, false);
+        }
+
+        TYPED_TEST(SYRKTest, SmallMatrixUpperNoTrans) 
+        {
+            this->test_accuracy(4, 3, Core::Layout::ROW_MAJOR, true, false);
+        }
+
+        TYPED_TEST(SYRKTest, SmallMatrixLowerTrans) 
+        {
+            this->test_accuracy(4, 3, Core::Layout::ROW_MAJOR, false, true);
+        }
+
+        TYPED_TEST(SYRKTest, SmallMatrixUpperTrans) 
+        {
+            this->test_accuracy(4, 3, Core::Layout::ROW_MAJOR, true, true);
+        }
+
+        TYPED_TEST(SYRKTest, SmallMatrixColMajor) 
+        {
+            this->test_accuracy(4, 3, Core::Layout::COLUMN_MAJOR, false, false);
+        }
+
+        TYPED_TEST(SYRKTest, Rectangular) 
+        {
+            this->test_accuracy(8, 16, Core::Layout::ROW_MAJOR, false, false);
+        }
+    }
 }

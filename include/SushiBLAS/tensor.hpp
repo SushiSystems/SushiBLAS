@@ -85,13 +85,15 @@ namespace SushiBLAS
          * 
          * @param s The storage object to use for data.
          * @param dims A list of sizes for each dimension.
+         * @param d The data type (default is FLOAT32).
          * @param offset The starting position in the storage.
          * @param l The memory layout (default is ROW_MAJOR).
          * @throws std::runtime_error If the rank is too high or storage is too small.
          */
         Tensor(SushiRuntime::sushi_ptr<Storage> s, std::span<const int64_t> dims, 
+               Core::DataType d = Core::DataType::FLOAT32,
                int64_t offset = 0, Core::Layout l = Core::Layout::ROW_MAJOR) 
-            : rank(static_cast<int32_t>(dims.size())), layout(l), storage(s), storage_offset(offset)
+            : rank(static_cast<int32_t>(dims.size())), dtype(d), layout(l), storage(s), storage_offset(offset)
         {
             SB_THROW_IF(static_cast<size_t>(rank) > SushiBLAS::Core::MAX_TENSOR_RANK, "Rank {} exceeds limit of {}", rank, SushiBLAS::Core::MAX_TENSOR_RANK);
 
@@ -120,7 +122,12 @@ namespace SushiBLAS
             {
                 SB_THROW_IF(storage_offset < 0, "Storage offset cannot be negative ({})", storage_offset);
 
-                size_t required_bytes = (static_cast<size_t>(num_elements) + storage_offset) * sizeof(float);
+                size_t bpe = 4;
+                if (dtype == Core::DataType::FLOAT64 || dtype == Core::DataType::COMPLEX32) bpe = 8;
+                else if (dtype == Core::DataType::COMPLEX64) bpe = 16;
+                else if (dtype == Core::DataType::HALF) bpe = 2;
+
+                size_t required_bytes = (static_cast<size_t>(num_elements) + storage_offset) * bpe;
                 
                 SB_THROW_IF(required_bytes > storage->size_bytes, 
                             "Storage capacity exceeded! Required: {} bytes, Available: {} bytes", 
@@ -133,12 +140,14 @@ namespace SushiBLAS
          * 
          * @param s The storage object to use.
          * @param dims Example: {3, 3} for a 3x3 matrix.
+         * @param d The data type.
          * @param offset Starting position in storage.
          * @param l Memory layout strategy.
          */
         Tensor(SushiRuntime::sushi_ptr<Storage> s, std::initializer_list<int64_t> dims, 
+               Core::DataType d = Core::DataType::FLOAT32,
                int64_t offset = 0, Core::Layout l = Core::Layout::ROW_MAJOR)
-            : Tensor(s, std::span<const int64_t>(dims.begin(), dims.end()), offset, l) {}
+            : Tensor(s, std::span<const int64_t>(dims.begin(), dims.end()), d, offset, l) {}
 
         /**
          * @brief Get the hardware device (GPU/CPU) where this tensor lives.
@@ -162,8 +171,12 @@ namespace SushiBLAS
             SB_THROW_IF(storage->data_ptr == nullptr, "Accessing data of a tensor with no data pointer");
 
             // Offset is in terms of elements, so we must scale by byte size of the dtype
-            size_t element_size = (dtype == Core::DataType::FLOAT64) ? 8 : 4; 
-            return static_cast<char*>(storage->data_ptr) + (storage_offset * element_size);
+            size_t bpe = 4;
+            if (dtype == Core::DataType::FLOAT64 || dtype == Core::DataType::COMPLEX32) bpe = 8;
+            else if (dtype == Core::DataType::COMPLEX64) bpe = 16;
+            else if (dtype == Core::DataType::HALF) bpe = 2;
+
+            return static_cast<char*>(storage->data_ptr) + (storage_offset * bpe);
         }
 
         /**
@@ -266,7 +279,7 @@ namespace SushiBLAS
 
             SB_LOG_DEBUG("Tensor Reshaped: elements={}", new_len);
 
-            return Tensor(this->storage, dims_span, this->storage_offset, this->layout);
+            return Tensor(this->storage, dims_span, this->dtype, this->storage_offset, this->layout);
         }
 
         /**
@@ -296,7 +309,7 @@ namespace SushiBLAS
             SB_LOG_DEBUG("Tensor Sliced: dim = {}, range = [{}, {}), new_offset = {}", 
                         dim, start, end, new_offset);
 
-            return Tensor(this->storage, std::span(new_shape_arr.data(), rank), new_offset, this->layout);
+            return Tensor(this->storage, std::span(new_shape_arr.data(), rank), this->dtype, new_offset, this->layout);
         }
     };
 } // namespace SushiBLAS

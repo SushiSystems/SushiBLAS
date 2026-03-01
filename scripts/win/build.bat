@@ -10,17 +10,19 @@ if not exist "config.ini" (
     exit /b 1
 )
 
-for /f "usebackq tokens=1,2 delims==" %%A in ("config.ini") do (
+for /f "usebackq tokens=1* delims==" %%A in ("config.ini") do (
     set "key=%%A"
     set "value=%%B"
-    for /f "tokens=*" %%X in ("!key!") do set "key=%%X"
-    for /f "tokens=*" %%X in ("!value!") do set "value=%%X"
-    
-    if "!key!"=="ONEAPI_ROOT" set "CFG_ONEAPI=!value!"
-    if "!key!"=="VCPKG_ROOT" set "CFG_VCPKG=!value!"
-    if "!key!"=="VS_ROOT" set "CFG_VS=!value!"
-    if "!key!"=="NINJA_EXE" set "CFG_NINJA=!value!"
-    if "!key!"=="VCVARS_BAT" set "CFG_VCVARS=!value!"
+    if not "!value!"=="" (
+        for /f "tokens=*" %%X in ("!key!") do set "key=%%X"
+        for /f "tokens=*" %%X in ("!value!") do set "value=%%X"
+        
+        if "!key!"=="ONEAPI_ROOT" set "CFG_ONEAPI=!value!"
+        if "!key!"=="VCPKG_ROOT" set "CFG_VCPKG=!value!"
+        if "!key!"=="VS_ROOT" set "CFG_VS=!value!"
+        if "!key!"=="NINJA_EXE" set "CFG_NINJA=!value!"
+        if "!key!"=="VCVARS_BAT" set "CFG_VCVARS=!value!"
+    )
 )
 
 if exist "%CFG_VCVARS%" (

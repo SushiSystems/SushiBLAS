@@ -34,22 +34,34 @@
 #include <SushiBLAS/io.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/storage.hpp>
-#include <SushiBLAS/ops/blas.hpp>
+#include <SushiBLAS/engine/blas.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiRuntime/SushiRuntime.h>
-#include <SushiBLAS/ops/logic/logic.hpp>
-#include <SushiBLAS/ops/math/random.hpp>
-#include <SushiBLAS/ops/math/nonlinear.hpp>
-#include <SushiBLAS/ops/lapack/linalg.hpp>
+#include <SushiBLAS/engine/logic/logic.hpp>
+#include <SushiBLAS/engine/math/random.hpp>
+#include <SushiBLAS/engine/math/nonlinear.hpp>
+#include <SushiBLAS/engine/lapack/linalg.hpp>
 #include <SushiRuntime/graph/task_graph.hpp>
-#include <SushiBLAS/ops/math/reductions.hpp>
-#include <SushiBLAS/ops/math/elementwise.hpp>
-#include <SushiBLAS/ops/signal/transforms.hpp>
+#include <SushiBLAS/engine/math/reductions.hpp>
+#include <SushiBLAS/engine/math/elementwise.hpp>
+#include <SushiBLAS/engine/signal/transforms.hpp>
 
 
 namespace SushiBLAS 
 {
+    /**
+     * @enum ExecutionMode
+     * @brief Defines how kernels are dispatched.
+     */
+    enum class ExecutionMode 
+    {
+        AUTO,              // Heuristic-based selection
+        FORCE_SYCL,        // Always use SYCL/MKL
+        FORCE_REFERENCE,   // Always use Reference (CPU)
+        VERIFY             // Run both and compare (Debug mode)
+    };
+
     /**
      * @class Engine
      * @brief The core engine for high-performance mathematical operations.
@@ -68,6 +80,18 @@ namespace SushiBLAS
              */
             Engine(SushiRuntime::Execution::RuntimeContext& ctx, 
                    Core::Layout layout = Core::Layout::ROW_MAJOR);
+
+            /** 
+             * @brief Set the execution mode. 
+             * @param mode The desired execution mode.
+             */
+            void set_mode(ExecutionMode mode) { mode_ = mode; }
+
+            /** 
+             * @brief Get the current execution mode. 
+             * @return The current execution mode.
+             */
+            ExecutionMode get_mode() const { return mode_; }
 
             /** 
              * @brief Get the default memory layout. 
@@ -189,6 +213,7 @@ namespace SushiBLAS
             SushiRuntime::Execution::RuntimeContext& context_;
             SushiRuntime::Graph::TaskGraph graph_;
             Core::Layout default_layout_;
+            ExecutionMode mode_ = ExecutionMode::AUTO;
             uint64_t seed_ = 0;
             std::atomic<uint64_t> rng_offset_{0};
     };
