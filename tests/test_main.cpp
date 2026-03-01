@@ -31,6 +31,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiRuntime/core/logger.hpp>
+#include "test_environment.hpp"
 
 int main(int argc, char **argv) 
 {
@@ -39,6 +40,9 @@ int main(int argc, char **argv)
     SB_LOGGER_SET_SYNC_MODE(true);
     
     ::testing::InitGoogleTest(&argc, argv);
+    
+    // Global environment registration
+    ::testing::AddGlobalTestEnvironment(new SushiBLAS::Test::TestEnvironment());
     
     int res = RUN_ALL_TESTS();
     SB_LOG_INFO("All tests finished with result: {}", res);

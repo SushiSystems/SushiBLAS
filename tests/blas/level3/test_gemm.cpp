@@ -29,60 +29,76 @@
 /**************************************************************************/
 
 #include <vector>
+#include <complex>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include "../../test_common.hpp"
+#include "../../test_utils.hpp"
 
-
-class GEMMTest : public SushiBLASTest {};
-
-TEST_F(GEMMTest, SimpleGEMM3x3) 
+namespace SushiBLAS
 {
-    const int N = 3;
-    auto A = engine->create_tensor({N, N});
-    auto B = engine->create_tensor({N, N});
-    auto C = engine->create_tensor({N, N});
+    namespace Test
+    {
+        template <typename T>
+        class GEMMTest : public SushiBLASTest 
+        {
+            public:
+                void test_accuracy(int64_t m, int64_t n, int64_t k, Core::Layout layout = Core::Layout::ROW_MAJOR)
+                {
+                    reinit_engine(layout);
 
-    // Fill A: [1, 2, ..., 9]
-    fill_tensor(A, {1, 2, 3, 4, 5, 6, 7, 8, 9});
-    
-    // Fill B: Identity * 2.0
-    fill_tensor(B, {2, 0, 0, 0, 2, 0, 0, 0, 2});
-    
-    // Reset C
-    fill_tensor(C, std::vector<float>(N * N, 0.0f));
+                    auto dtype = Core::DataType::FLOAT32;
+                    if constexpr (std::is_same_v<T, double>) dtype = Core::DataType::FLOAT64;
+                    if constexpr (std::is_same_v<T, sycl::half>) dtype = Core::DataType::HALF;
+                    if constexpr (std::is_same_v<T, std::complex<float>>) dtype = Core::DataType::COMPLEX32;
+                    if constexpr (std::is_same_v<T, std::complex<double>>) dtype = Core::DataType::COMPLEX64;
 
-    SB_LOG_INFO("Submitting standard 3x3 GEMM.");
-    engine->blas().gemm(A, B, C);
-    
-    engine->execute().wait();
-    SB_LOG_INFO("Execution finished. Checking results.");
+                    // 1. Prepare Inputs
+                    auto A = engine->create_tensor({m, k}, dtype);
+                    auto B = engine->create_tensor({k, n}, dtype);
+                    auto C_actual = engine->create_tensor({m, n}, dtype);
+                    auto C_expected = engine->create_tensor({m, n}, dtype);
 
-    // Expected: A * 2
-    verify_tensor(C, {2, 4, 6, 8, 10, 12, 14, 16, 18});
-}
+                    fill_random<T>(A);
+                    fill_random<T>(B);
+                    
+                    // 2. Compute SYCL (Optimized) result
+                    engine->set_mode(ExecutionMode::FORCE_SYCL);
+                    engine->blas().gemm(A, B, C_actual);
+                    engine->execute().wait();
 
-TEST_F(GEMMTest, SimpleGEMMColumnMajor) 
-{
-    reinit_engine(sb::Core::Layout::COLUMN_MAJOR);
-    
-    const int M = 2, N = 2, K = 2;
-    auto A = engine->create_tensor({M, K});
-    auto B = engine->create_tensor({K, N});
-    auto C = engine->create_tensor({M, N});
+                    // 3. Compute Reference (CPU) result
+                    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                    engine->blas().gemm(A, B, C_expected);
+                    engine->execute().wait();
+                    
+                    // 4. Compare
+                    double tol = (dtype == Core::DataType::HALF) ? 1e-2 : 1e-4;
+                    SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tol, T);
+                }
+            };
 
-    // A: [[1, 2], [3, 4]] -> Column-major: [1, 3, 2, 4]
-    fill_tensor(A, {1, 3, 2, 4});
-    
-    // B: [[5, 6], [7, 8]] -> Column-major: [5, 7, 6, 8]
-    fill_tensor(B, {5, 7, 6, 8});
+            using DataTypes = ::testing::Types<float, double, sycl::half, std::complex<float>, std::complex<double>>;
+            TYPED_TEST_SUITE(GEMMTest, DataTypes);
 
-    SB_LOG_INFO("Submitting Column-Major GEMM.");
-    engine->blas().gemm(A, B, C);
-    
-    engine->execute().wait();
-    SB_LOG_INFO("Execution finished. Checking results.");
+            TYPED_TEST(GEMMTest, SmallMatrix)
+            {
+                this->test_accuracy(4, 4, 4);
+            }
 
-    // Expected Memory: [19, 43, 22, 50]
-    verify_tensor(C, {19, 43, 22, 50});
-}
+            TYPED_TEST(GEMMTest, SmallMatrixColMajor)
+            {
+                this->test_accuracy(4, 4, 4, Core::Layout::COLUMN_MAJOR);
+            }
+
+            TYPED_TEST(GEMMTest, Rectangular)
+            {
+                this->test_accuracy(8, 16, 4);
+            }
+
+            TYPED_TEST(GEMMTest, RectangularColMajor)
+            {
+                this->test_accuracy(8, 16, 4, Core::Layout::COLUMN_MAJOR);
+            }
+
+    } // namespace Test
+} // namespace SushiBLAS::Test

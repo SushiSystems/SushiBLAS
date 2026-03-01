@@ -62,10 +62,7 @@ namespace SushiBLAS
 
         auto storage = SushiRuntime::make_sushi<Storage>(context_.get_allocator(), elements * bpe, strat);
         
-        Tensor t(storage, dims, 0, default_layout_);
-        t.dtype = dtype;
-
-        return t;
+        return Tensor(storage, dims, dtype, 0, default_layout_);
     }
 
 } // namespace SushiBLAS
