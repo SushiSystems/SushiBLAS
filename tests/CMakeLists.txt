@@ -1,113 +1,132 @@
-﻿# --- Find GTest ---
+# ============================================================================
+# SushiBLAS test pipeline
+#
+# One binary, sushiblas_tests, covering functional/{unit,integration,
+# regression}. Tests are grouped into CTest labels (unit / integration /
+# regression) from the GTest suite-name prefix convention (Unit_* /
+# Integration_* / Regression_*), matching sushiruntime/sushiengine, so
+# `ctest -L unit` (or the umbrella regex the CLI uses) selects a sub-suite and
+# new tests are picked up automatically as long as they follow the convention.
+#
+# Most op files below are still commented out - SB-3 enables them in batches,
+# each together with its own test file. Only the ops already ported off
+# oneMKL (GEMM, SYRK) have their tests live today.
+# ============================================================================
+
+cmake_minimum_required(VERSION 3.22) # gtest_discover_tests(TEST_FILTER ...)
+
 find_package(GTest CONFIG REQUIRED)
+include(GoogleTest)
 
-# --- Define Test Executable ---
+set(SB_TEST_COMMON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/common")
+
 add_executable(sushiblas_tests
-    test_main.cpp
+    common/test_main.cpp
 
-    # Level 1
-    # blas/level1/test_asum.cpp
-    # blas/level1/test_axpy.cpp
-    # blas/level1/test_copy.cpp
-    # blas/level1/test_dot.cpp
-    # blas/level1/test_iamax.cpp
-    # blas/level1/test_nrm2.cpp
-    # blas/level1/test_rot.cpp
-    # blas/level1/test_scal.cpp
-    # blas/level1/test_swap.cpp
+    # --- Level 1 ---
+    # functional/unit/test_asum.cpp
+    # functional/unit/test_axpy.cpp
+    # functional/unit/test_copy.cpp
+    # functional/unit/test_dot.cpp
+    # functional/unit/test_iamax.cpp
+    # functional/unit/test_nrm2.cpp
+    # functional/unit/test_rot.cpp
+    # functional/unit/test_scal.cpp
+    # functional/unit/test_swap.cpp
 
-    # Level 2
-    # blas/level2/test_gemv.cpp
-    # blas/level2/test_ger.cpp
-    # blas/level2/test_symv.cpp
-    # blas/level2/test_syr.cpp
-    # blas/level2/test_syr2.cpp
-    # blas/level2/test_trmv.cpp
-    # blas/level2/test_trsv.cpp
+    # --- Level 2 ---
+    # functional/unit/test_gemv.cpp
+    # functional/unit/test_ger.cpp
+    # functional/unit/test_symv.cpp
+    # functional/unit/test_syr.cpp
+    # functional/unit/test_syr2.cpp
+    # functional/unit/test_trmv.cpp
+    # functional/unit/test_trsv.cpp
 
-    # Level 3
-    blas/level3/test_gemm.cpp
-    # blas/level3/test_trsm.cpp
-    blas/level3/test_syrk.cpp
-    
-    # Nonlinear
-    # math/nonlinear/test_relu.cpp
-    # math/nonlinear/test_leaky_relu.cpp
-    # math/nonlinear/test_sigmoid.cpp
-    # math/nonlinear/test_tanh.cpp
-    # math/nonlinear/test_elu.cpp
-    # math/nonlinear/test_silu.cpp
-    # math/nonlinear/test_gelu.cpp
-    # math/nonlinear/test_softplus.cpp
-    
-    # Math: Random
-    # math/random/test_constant.cpp
-    # math/random/test_distributions.cpp
-    # math/random/test_initializers.cpp
-    # math/random/test_normal.cpp
-    # math/random/test_uniform.cpp
-    
-    # Elementwise
-    # math/elementwise/test_abs.cpp
-    # math/elementwise/test_acos.cpp
-    # math/elementwise/test_acosh.cpp
-    # math/elementwise/test_add.cpp
-    # math/elementwise/test_asin.cpp
-    # math/elementwise/test_asinh.cpp
-    # math/elementwise/test_atan.cpp
-    # math/elementwise/test_atanh.cpp
-    # math/elementwise/test_ceil.cpp
-    # math/elementwise/test_clamp.cpp
-    # math/elementwise/test_cos.cpp
-    # math/elementwise/test_cosh.cpp
-    # math/elementwise/test_div.cpp
-    # math/elementwise/test_exp.cpp
-    # math/elementwise/test_floor.cpp
-    # math/elementwise/test_fmod.cpp
-    # math/elementwise/test_log.cpp
-    # math/elementwise/test_max.cpp
-    # math/elementwise/test_min.cpp
-    # math/elementwise/test_mul.cpp
-    # math/elementwise/test_neg.cpp
-    # math/elementwise/test_pow.cpp
-    # math/elementwise/test_reciprocal.cpp
-    # math/elementwise/test_remainder.cpp
-    # math/elementwise/test_round.cpp
-    # math/elementwise/test_sin.cpp
-    # math/elementwise/test_sinh.cpp
-    # math/elementwise/test_sqrt.cpp
-    # math/elementwise/test_square.cpp
-    # math/elementwise/test_sub.cpp
-    # math/elementwise/test_tan.cpp
-    
-    # Reductions
-    # math/reductions/test_reductions.cpp
+    # --- Level 3 ---
+    functional/unit/test_gemm.cpp
+    functional/unit/test_syrk.cpp
+    # functional/unit/test_trsm.cpp
 
-    # Logic
-    # logic/test_all.cpp
-    # logic/test_any.cpp
-    # logic/test_equal.cpp
-    # logic/test_greater.cpp
-    # logic/test_greater_equal.cpp
-    # logic/test_less.cpp
-    # logic/test_less_equal.cpp
-    # logic/test_logical_and.cpp
-    # logic/test_logical_not.cpp
-    # logic/test_logical_or.cpp
-    # logic/test_logical_xor.cpp
-    # logic/test_not_equal.cpp
-    # logic/test_where.cpp
-    
-    # Framework Simulation
-    # runtime/test_framework_sim.cpp
-    
-    # Stress tests
-    # runtime/test_dependency_stress.cpp
+    # --- Nonlinear ---
+    # functional/unit/test_relu.cpp
+    # functional/unit/test_leaky_relu.cpp
+    # functional/unit/test_sigmoid.cpp
+    # functional/unit/test_tanh.cpp
+    # functional/unit/test_elu.cpp
+    # functional/unit/test_silu.cpp
+    # functional/unit/test_gelu.cpp
+    # functional/unit/test_softplus.cpp
+
+    # --- Math: Random ---
+    # functional/unit/test_constant.cpp
+    # functional/unit/test_distributions.cpp
+    # functional/unit/test_initializers.cpp
+    # functional/unit/test_normal.cpp
+    # functional/unit/test_uniform.cpp
+
+    # --- Elementwise ---
+    # functional/unit/test_abs.cpp
+    # functional/unit/test_acos.cpp
+    # functional/unit/test_acosh.cpp
+    # functional/unit/test_add.cpp
+    # functional/unit/test_asin.cpp
+    # functional/unit/test_asinh.cpp
+    # functional/unit/test_atan.cpp
+    # functional/unit/test_atanh.cpp
+    # functional/unit/test_ceil.cpp
+    # functional/unit/test_clamp.cpp
+    # functional/unit/test_cos.cpp
+    # functional/unit/test_cosh.cpp
+    # functional/unit/test_div.cpp
+    # functional/unit/test_exp.cpp
+    # functional/unit/test_floor.cpp
+    # functional/unit/test_fmod.cpp
+    # functional/unit/test_log.cpp
+    # functional/unit/test_max.cpp
+    # functional/unit/test_min.cpp
+    # functional/unit/test_mul.cpp
+    # functional/unit/test_neg.cpp
+    # functional/unit/test_pow.cpp
+    # functional/unit/test_reciprocal.cpp
+    # functional/unit/test_remainder.cpp
+    # functional/unit/test_round.cpp
+    # functional/unit/test_sin.cpp
+    # functional/unit/test_sinh.cpp
+    # functional/unit/test_sqrt.cpp
+    # functional/unit/test_square.cpp
+    # functional/unit/test_sub.cpp
+    # functional/unit/test_tan.cpp
+
+    # --- Reductions ---
+    # functional/unit/test_reductions.cpp
+
+    # --- Logic ---
+    # functional/unit/test_all.cpp
+    # functional/unit/test_any.cpp
+    # functional/unit/test_equal.cpp
+    # functional/unit/test_greater.cpp
+    # functional/unit/test_greater_equal.cpp
+    # functional/unit/test_less.cpp
+    # functional/unit/test_less_equal.cpp
+    # functional/unit/test_logical_and.cpp
+    # functional/unit/test_logical_not.cpp
+    # functional/unit/test_logical_or.cpp
+    # functional/unit/test_logical_xor.cpp
+    # functional/unit/test_not_equal.cpp
+    # functional/unit/test_where.cpp
+
+    # --- Integration ---
+    # functional/integration/test_framework_sim.cpp
+    # functional/integration/test_dependency_stress.cpp
+
+    # --- Regression ---
+    functional/regression/test_regression.cpp
 )
 
 # --- Include Directories ---
 target_include_directories(sushiblas_tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/tests
+    ${SB_TEST_COMMON_DIR}
 )
 
 # --- Link Libraries ---
@@ -116,8 +135,25 @@ target_link_libraries(sushiblas_tests PRIVATE
     GTest::gtest
 )
 
-# --- Test Registration ---
-add_test(NAME AllTests COMMAND sushiblas_tests)
+# One label per group; the "functional" umbrella is expressed by the consumer
+# as a label regex (`ctest -L 'unit|integration|regression'`) rather than a
+# second baked-in label, which does not survive gtest_discover_tests on
+# current CMake (see sushiruntime/sushiengine tests/CMakeLists.txt).
+gtest_discover_tests(sushiblas_tests
+    DISCOVERY_MODE PRE_TEST
+    TEST_FILTER "Unit_*"
+    PROPERTIES LABELS "unit"
+)
+gtest_discover_tests(sushiblas_tests
+    DISCOVERY_MODE PRE_TEST
+    TEST_FILTER "Integration_*"
+    PROPERTIES LABELS "integration"
+)
+gtest_discover_tests(sushiblas_tests
+    DISCOVERY_MODE PRE_TEST
+    TEST_FILTER "Regression_*"
+    PROPERTIES LABELS "regression"
+)
 
 # --- Post-Build: Copy the runtime DLL ---
 # Tests need the same DLL as the app to run on Windows. hwloc is a private

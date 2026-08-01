@@ -12,7 +12,7 @@ import typer
 
 from .services import diag as diag_svc
 from .services import project as project_svc
-from .services.project import BuildType
+from .services.project import BuildType, Suite
 
 app = typer.Typer(
     name="sb",
@@ -40,19 +40,22 @@ def build(
 
 @app.command("test")
 def test(
+    suite: Suite = typer.Option(
+        Suite.functional, "--suite", "-s", case_sensitive=False,
+        help="Which CTest label group to run ('all' runs every test)."),
     filter: Optional[str] = typer.Option(
-        None, "--filter", "-f", help="ctest -R regex over registered test names."),
+        None, "--filter", "-f", help="ctest -R regex over 'Suite.Case' test names."),
     repeat: int = typer.Option(
         0, "--repeat", "-r", min=0,
         help="Re-run each test up to N times, stopping on the first failure "
              "(ctest --repeat until-fail). Handy for hunting flaky tests."),
 ):
-    """Run the test suite via CTest.
+    """Run the test suite via CTest labels.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
     the binary directly: sb run sushiblas_tests -- --gtest_filter=Gemm.*
     """
-    raise typer.Exit(project_svc.test(filter, repeat))
+    raise typer.Exit(project_svc.test(suite, filter, repeat))
 
 
 @app.command(

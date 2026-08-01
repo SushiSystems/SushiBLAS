@@ -5,11 +5,9 @@ snapshotted build env. SushiBLAS configures against a real Intel oneAPI DPC++
 install and (classic-mode) vcpkg, so the configure args resolve those from the
 config rather than provisioning anything.
 
-Note: today's CMakeLists.txt has no test-toggle option and tests/CMakeLists.txt
-registers a single CTest case (``AllTests``, running every enabled GTest case
-inside one binary) rather than per-suite labels — unlike sushiengine, there is
-no ``--no-test`` build flag or ``--suite`` test flag here because nothing on
-the CMake side backs them yet.
+tests/CMakeLists.txt registers tests via gtest_discover_tests with CTest
+labels (unit / integration / regression) assigned from the GTest suite-name
+prefix convention, matching sushiengine — see the ``Suite`` enum below.
 """
 
 from __future__ import annotations
@@ -31,6 +29,27 @@ class BuildType(str, enum.Enum):
     debug = "debug"
     relwithdebinfo = "relwithdebinfo"
 
+
+class Suite(str, enum.Enum):
+    # Fine-grained CTest labels (assigned in tests/CMakeLists.txt from the GTest
+    # suite-name prefix convention).
+    unit = "unit"
+    regression = "regression"
+    integration = "integration"
+    functional = "functional"   # umbrella: unit + regression + integration
+    all = "all"
+
+
+# Each suite maps to a CTest label-selection regex (`ctest -L`). The umbrella
+# (functional) is an alternation over its sub-labels rather than a label of its
+# own, because a baked-in umbrella label does not survive gtest_discover_tests on
+# current CMake (see tests/CMakeLists.txt). `all` selects everything (no -L).
+_SUITE_LABEL_REGEX = {
+    Suite.unit: "^unit$",
+    Suite.regression: "^regression$",
+    Suite.integration: "^integration$",
+    Suite.functional: "^(unit|integration|regression)$",
+}
 
 _CMAKE_BUILD_TYPE = {
     BuildType.release: "Release",
@@ -219,13 +238,11 @@ def build(build_type: BuildType, clean: bool = False) -> int:
     return rc
 
 
-def test(filter: str | None = None, repeat: int = 0) -> int:
-    """Run the test suite via CTest.
+def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int = 0) -> int:
+    """Run the test suite via CTest labels.
 
-    Today there is a single registered CTest case (``AllTests``), so ``--filter``
-    mainly matters once more cases are registered. For GTest-level knobs
-    (per-case filtering, shuffle, break-on-failure) run the binary directly:
-    sb run sushiblas_tests -- --gtest_filter=Gemm.* --gtest_shuffle
+    For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
+    the binary directly: sb run sushiblas_tests -- --gtest_filter=Gemm.* --gtest_shuffle
     """
     console.header("Project Test")
     root = find_project_root()
@@ -237,7 +254,11 @@ def test(filter: str | None = None, repeat: int = 0) -> int:
 
     env = load_build_env(cfg, build_dir)
     cmd = [_ctest(cfg), "--test-dir", str(build_dir), "--output-on-failure"]
+    if suite != Suite.all:
+        cmd += ["-L", _SUITE_LABEL_REGEX[suite]]
     if filter:
+        # gtest_discover_tests registers tests as "Suite.Case"; ctest -R filters
+        # those names directly (a richer alternative to --gtest_filter).
         cmd += ["-R", filter]
     if repeat > 0:
         cmd += ["--repeat", f"until-fail:{repeat}"]
