@@ -1,6 +1,5 @@
 [Bb]uild/
 bin/
-# lib/ - We want to keep pre-compiled binaries here
 out/
 
 # IDEs

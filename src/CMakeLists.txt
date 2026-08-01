@@ -131,13 +131,13 @@ target_include_directories(sushiblas PUBLIC
     "${CMAKE_SOURCE_DIR}"
 )
 
-# --- Link Directories ---
-target_link_directories(sushiblas PUBLIC "${CMAKE_SOURCE_DIR}/lib")
-
 # --- Link Libraries ---
 # Link against dependencies. PUBLIC so consumers (like the app) inherit them.
+# SushiRuntime is always linked via its namespaced alias (D3): whichever of the
+# three resolution modes in cmake/Runtime.cmake fired, the link line here is
+# identical, and it never varies with how the dependency was actually found.
 target_link_libraries(sushiblas PUBLIC
-    sushiruntime
+    SushiRuntime::SushiRuntime
     IntelSYCL::SYCL_CXX
     OpenCL::OpenCL
 )

@@ -119,14 +119,15 @@ target_link_libraries(sushiblas_tests PRIVATE
 # --- Test Registration ---
 add_test(NAME AllTests COMMAND sushiblas_tests)
 
-# --- Post-Build: Copy DLLs ---
-# Tests need the same DLLs as the app to run on Windows.
+# --- Post-Build: Copy the runtime DLL ---
+# Tests need the same DLL as the app to run on Windows. hwloc is a private
+# implementation detail of SushiRuntime's own build and never reaches
+# consumers (see examples/CMakeLists.txt).
 if(WIN32)
     add_custom_command(TARGET sushiblas_tests POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_SOURCE_DIR}/lib/sushiruntime.dll"
-            "${CMAKE_SOURCE_DIR}/lib/hwloc-15.dll"
+            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
             $<TARGET_FILE_DIR:sushiblas_tests>
-        COMMENT "Copying runtime DLLs to test directory..."
+        COMMENT "Copying runtime DLL to test directory..."
     )
 endif()
