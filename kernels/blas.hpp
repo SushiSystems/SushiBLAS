@@ -23,12 +23,28 @@
 
 #pragma once
 
+// Level 1
+#include "kernels/reference/blas/level1/level1.hpp"
+#include "kernels/sycl/blas/level1/level1.hpp"
+
+// Level 2
+#include "kernels/reference/blas/level2/gemv.hpp"
+#include "kernels/sycl/blas/level2/gemv.hpp"
+#include "kernels/reference/blas/level2/ger.hpp"
+#include "kernels/sycl/blas/level2/ger.hpp"
+#include "kernels/reference/blas/level2/symv.hpp"
+#include "kernels/sycl/blas/level2/symv.hpp"
+#include "kernels/reference/blas/level2/syr.hpp"
+#include "kernels/sycl/blas/level2/syr.hpp"
+#include "kernels/reference/blas/level2/syr2.hpp"
+#include "kernels/sycl/blas/level2/syr2.hpp"
+#include "kernels/reference/blas/level2/trmv.hpp"
+#include "kernels/sycl/blas/level2/trmv.hpp"
+
 // Level 3
 #include "kernels/reference/blas/level3/gemm.hpp"
 #include "kernels/sycl/blas/level3/gemm.hpp"
 #include "kernels/reference/blas/level3/syrk.hpp"
 #include "kernels/sycl/blas/level3/syrk.hpp"
-
-// Level 2 (Planned)
-// #include "kernels/reference/blas/level2/gemv.hpp"
-// #include "kernels/sycl/blas/level2/gemv.hpp"
+#include "kernels/reference/blas/level3/trsm.hpp"
+#include "kernels/sycl/blas/level3/trsm.hpp"

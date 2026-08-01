@@ -22,18 +22,17 @@
 /**************************************************************************/
 
 #include <complex>
-#include <oneapi/mkl.hpp>
+#include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
-#include "level1_internal.hpp"
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level1::swap(Tensor& x, Tensor& y) 
+    sycl::event Level1::swap(Tensor& x, Tensor& y)
     {
         SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in SWAP.");
         int64_t n, incx, incy;
@@ -46,25 +45,31 @@ namespace SushiBLAS
         void* write_x = x.storage ? x.storage->data_ptr : nullptr;
         void* write_y = y.storage ? y.storage->data_ptr : nullptr;
 
-        std::vector<void*> reads = {};
-        std::vector<void*> writes = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
         if (write_x) writes.push_back(write_x);
         if (write_y) writes.push_back(write_y);
 
-        return Internal::execute_level1(engine_, "blas.lvl1.swap", "blas.lvl1.swap"_op, x.dtype, reads, writes, {},
-            [n, incx, incy, pX=write_x, pY=write_y](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+        SushiRuntime::Graph::TaskMetadata meta;
+        meta.name = "blas.lvl1.swap";
+        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.op_id = "blas.lvl1.swap"_op;
+
+        auto mode = engine_.get_mode();
+
+        return Internal::execute_blas_task(engine_, meta, reads, writes, x.dtype,
+            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (std::is_same_v<T, sycl::half>) 
-                {
-                    SB_THROW_IF(true, "MKL Level 1 BLAS does not support HALF precision natively.");
-                    return sycl::event();
-                } 
-                else 
-                {
-                    SB_LOG_INFO("MKL SWAP: {} elements", n);
-                    return oneapi::mkl::blas::column_major::swap(q, n, static_cast<T*>(pX), incx, static_cast<T*>(pY), incy, deps);
-                }
+                auto pX = static_cast<T*>(write_x);
+                auto pY = static_cast<T*>(write_y);
+
+                return Internal::dispatch_with_mode(mode, q, deps,
+                    [=] { Kernels::Reference::swap<T>(n, pX, incx, pY, incy); },
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    {
+                        return Kernels::SYCL::swap<T>(q2, n, pX, incx, pY, incy, deps2);
+                    });
             });
     }
 }

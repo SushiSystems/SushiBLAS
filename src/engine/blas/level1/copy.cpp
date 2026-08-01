@@ -22,18 +22,17 @@
 /**************************************************************************/
 
 #include <complex>
-#include <oneapi/mkl.hpp>
+#include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
-#include "level1_internal.hpp"
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level1::copy(const Tensor& x, Tensor& y) 
+    sycl::event Level1::copy(const Tensor& x, Tensor& y)
     {
         SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in COPY.");
         int64_t n, incx, incy;
@@ -46,22 +45,31 @@ namespace SushiBLAS
         void* read_x = x.storage ? x.storage->data_ptr : nullptr;
         void* write_y = y.storage ? y.storage->data_ptr : nullptr;
 
-        std::vector<void*> reads = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (read_x) reads.push_back(read_x);
-        std::vector<void*> writes = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
         if (write_y) writes.push_back(write_y);
 
-        return Internal::execute_level1(engine_, "blas.lvl1.copy", "blas.lvl1.copy"_op, x.dtype, reads, writes, {},
-            [n, incx, incy, pX=read_x, pY=write_y](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+        SushiRuntime::Graph::TaskMetadata meta;
+        meta.name = "blas.lvl1.copy";
+        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.op_id = "blas.lvl1.copy"_op;
+
+        auto mode = engine_.get_mode();
+
+        return Internal::execute_blas_task(engine_, meta, reads, writes, x.dtype,
+            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (std::is_same_v<T, sycl::half>) 
-                {
-                    SB_THROW_IF(true, "MKL Level 1 BLAS does not support HALF precision natively.");
-                    return sycl::event();
-                }
-                else
-                    return oneapi::mkl::blas::column_major::copy(q, n, static_cast<const T*>(pX), incx, static_cast<T*>(pY), incy, deps);
+                auto pX = static_cast<const T*>(read_x);
+                auto pY = static_cast<T*>(write_y);
+
+                return Internal::dispatch_with_mode(mode, q, deps,
+                    [=] { Kernels::Reference::copy<T>(n, pX, incx, pY, incy); },
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    {
+                        return Kernels::SYCL::copy<T>(q2, n, pX, incx, pY, incy, deps2);
+                    });
             });
     }
 } // namespace SushiBLAS

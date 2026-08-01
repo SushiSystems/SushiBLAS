@@ -22,39 +22,19 @@
 /**************************************************************************/
 
 #include <complex>
-#include <oneapi/mkl.hpp>
+#include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level2.hpp>
+#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    namespace
-    {
-        template<typename T>
-        sycl::event trmv_dispatch(sycl::queue& queue, Core::Layout layout,
-                           oneapi::mkl::uplo uplo, oneapi::mkl::transpose trans, oneapi::mkl::diag diag,
-                           int64_t n, const T* a, int64_t lda,
-                           T* x, int64_t incx, const std::vector<sycl::event>& deps) 
-        {
-            if (layout == Core::Layout::ROW_MAJOR) 
-            {
-                SB_LOG_INFO("MKL TRMV [Row-Major]: {}x{}", n, n);
-                return oneapi::mkl::blas::row_major::trmv(queue, uplo, trans, diag, n, a, lda, x, incx, deps);
-            } 
-            else 
-            {
-                SB_LOG_INFO("MKL TRMV [Col-Major]: {}x{}", n, n);
-                return oneapi::mkl::blas::column_major::trmv(queue, uplo, trans, diag, n, a, lda, x, incx, deps);
-            }
-        }
-    }
-
-    sycl::event Level2::trmv(const Tensor& A, Tensor& x, 
-                             bool upper, bool transA, bool unit_diag) 
+    sycl::event Level2::trmv(const Tensor& A, Tensor& x,
+                             bool upper, bool transA, bool unit_diag)
     {
         SB_THROW_IF(A.rank < 2, "TRMV requires A to be at least a 2D matrix.");
         SB_THROW_IF(A.dtype != x.dtype, "Data type mismatch in TRMV.");
@@ -70,17 +50,14 @@ namespace SushiBLAS
 
         SB_THROW_IF(nx != n, "Dimension mismatch for vector x in TRMV.");
 
-        auto mkl_uplo = upper ? oneapi::mkl::uplo::upper : oneapi::mkl::uplo::lower;
-        auto mkl_trans = transA ? oneapi::mkl::transpose::trans : oneapi::mkl::transpose::nontrans;
-        auto mkl_diag = unit_diag ? oneapi::mkl::diag::unit : oneapi::mkl::diag::nonunit;
-        auto layout = A.layout;
+        // TODO: Implement multi-dimensional batch support for Level 2
 
         void* read_A = A.storage ? A.storage->data_ptr : nullptr;
         void* write_x = x.storage ? x.storage->data_ptr : nullptr; // TRMV overwrites x
 
-        std::vector<void*> reads = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (read_A) reads.push_back(read_A);
-        std::vector<void*> writes = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
         if (write_x) writes.push_back(write_x);
 
         SushiRuntime::Graph::TaskMetadata meta;
@@ -91,42 +68,22 @@ namespace SushiBLAS
         meta.set_param(1, transA);
         meta.set_param(2, unit_diag);
 
-        // TODO: Implement multi-dimensional batch support for Level 2
+        auto layout = A.layout;
+        auto mode = engine_.get_mode();
 
-        switch (A.dtype) 
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_uplo, mkl_trans, mkl_diag, n, lda, incx, pA=A.data_as<float>(), px=x.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return trmv_dispatch<float>(q, layout, mkl_uplo, mkl_trans, mkl_diag, n, pA, lda, px, incx, deps);
+        return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
+            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+                auto pA = static_cast<const T*>(read_A);
+                auto px = static_cast<T*>(write_x);
+
+                return Internal::dispatch_with_mode(mode, q, deps,
+                    [=] { Kernels::Reference::trmv<T>(layout, upper, transA, unit_diag, n, pA, lda, px, incx); },
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    {
+                        return Kernels::SYCL::trmv<T>(q2, layout, upper, transA, unit_diag, n, pA, lda, px, incx, deps2);
                     });
-                break;
-            case Core::DataType::FLOAT64:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_uplo, mkl_trans, mkl_diag, n, lda, incx, pA=A.data_as<double>(), px=x.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return trmv_dispatch<double>(q, layout, mkl_uplo, mkl_trans, mkl_diag, n, pA, lda, px, incx, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX32:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_uplo, mkl_trans, mkl_diag, n, lda, incx, pA=A.data_as<std::complex<float>>(), px=x.data_as<std::complex<float>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return trmv_dispatch<std::complex<float>>(q, layout, mkl_uplo, mkl_trans, mkl_diag, n, pA, lda, px, incx, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX64:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_uplo, mkl_trans, mkl_diag, n, lda, incx, pA=A.data_as<std::complex<double>>(), px=x.data_as<std::complex<double>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return trmv_dispatch<std::complex<double>>(q, layout, mkl_uplo, mkl_trans, mkl_diag, n, pA, lda, px, incx, deps);
-                    });
-                break;
-            default:
-                SB_THROW_IF(true, "Unsupported data type for TRMV.");
-        }
-        return sycl::event();
+            });
     }
 }

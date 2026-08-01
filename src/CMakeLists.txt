@@ -9,29 +9,29 @@ set(SUSHIBLAS_SOURCES
     io.cpp
 
     # BLAS: Level 1
-    # engine/blas/level1/axpy.cpp
-    # engine/blas/level1/asum.cpp
-    # engine/blas/level1/copy.cpp
-    # engine/blas/level1/dot.cpp
-    # engine/blas/level1/iamax.cpp
-    # engine/blas/level1/nrm2.cpp
-    # engine/blas/level1/rot.cpp
-    # engine/blas/level1/scal.cpp
-    # engine/blas/level1/swap.cpp
+    engine/blas/level1/axpy.cpp
+    engine/blas/level1/asum.cpp
+    engine/blas/level1/copy.cpp
+    engine/blas/level1/dot.cpp
+    engine/blas/level1/iamax.cpp
+    engine/blas/level1/nrm2.cpp
+    engine/blas/level1/rot.cpp
+    engine/blas/level1/scal.cpp
+    engine/blas/level1/swap.cpp
 
     # BLAS: Level 2
-    # engine/blas/level2/gemv.cpp
-    # engine/blas/level2/ger.cpp
-    # engine/blas/level2/symv.cpp
-    # engine/blas/level2/trmv.cpp
-    # engine/blas/level2/trsv.cpp
-    # engine/blas/level2/syr.cpp
-    # engine/blas/level2/syr2.cpp
+    engine/blas/level2/gemv.cpp
+    engine/blas/level2/ger.cpp
+    engine/blas/level2/symv.cpp
+    engine/blas/level2/trmv.cpp
+    engine/blas/level2/trsv.cpp
+    engine/blas/level2/syr.cpp
+    engine/blas/level2/syr2.cpp
 
     # BLAS: Level 3
     engine/blas/level3/gemm.cpp
     engine/blas/level3/syrk.cpp
-    # engine/blas/level3/trsm.cpp
+    engine/blas/level3/trsm.cpp
 
     # Math: Random
     engine/math/random/bernoulli.cpp

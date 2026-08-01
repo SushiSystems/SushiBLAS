@@ -21,40 +21,24 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+// TRSV is a single-RHS-column TRSM (n=1), so it dispatches straight into the
+// TRSM kernels rather than duplicating the substitution algorithm - see
+// kernels/{reference,sycl}/blas/level3/trsm.hpp.
+
 #include <complex>
-#include <oneapi/mkl.hpp>
+#include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level2.hpp>
+#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    namespace
-    {
-        template<typename T>
-        sycl::event trsv_dispatch(sycl::queue& queue, Core::Layout layout,
-                           oneapi::mkl::uplo uplo, oneapi::mkl::transpose trans, oneapi::mkl::diag diag,
-                           int64_t n, const T* a, int64_t lda,
-                           T* x, int64_t incx, const std::vector<sycl::event>& deps) 
-        {
-            if (layout == Core::Layout::ROW_MAJOR) 
-            {
-                SB_LOG_INFO("MKL TRSV [Row-Major]: {}x{}", n, n);
-                return oneapi::mkl::blas::row_major::trsv(queue, uplo, trans, diag, n, a, lda, x, incx, deps);
-            } 
-            else 
-            {
-                SB_LOG_INFO("MKL TRSV [Col-Major]: {}x{}", n, n);
-                return oneapi::mkl::blas::column_major::trsv(queue, uplo, trans, diag, n, a, lda, x, incx, deps);
-            }
-        }
-    }
-
-    sycl::event Level2::trsv(const Tensor& A, Tensor& b, 
-                             bool upper, bool transA, bool unit_diag) 
+    sycl::event Level2::trsv(const Tensor& A, Tensor& b,
+                             bool upper, bool transA, bool unit_diag)
     {
         SB_THROW_IF(A.rank < 2, "TRSV requires A to be at least a 2D matrix.");
         SB_THROW_IF(A.dtype != b.dtype, "Data type mismatch in TRSV.");
@@ -64,23 +48,23 @@ namespace SushiBLAS
         SB_THROW_IF(A.shape[rA - 2] != n, "TRSV requires A to be a square matrix.");
 
         int64_t lda = (A.layout == Core::Layout::ROW_MAJOR) ? A.shape[rA - 1] : A.shape[rA - 2];
+        // b is treated as an n x 1 "matrix": a single row-major row has 1
+        // element, so ldb=1; a single column-major column just needs ldb>=n.
+        int64_t ldb = (A.layout == Core::Layout::ROW_MAJOR) ? 1 : n;
 
-        int64_t nx, incx;
-        Internal::get_vec_params(b, nx, incx);
+        int64_t nb, incb;
+        Internal::get_vec_params(b, nb, incb);
+        SB_THROW_IF(nb != n, "Dimension mismatch for vector b in TRSV.");
+        SB_THROW_IF(incb != 1, "TRSV requires a contiguous vector b.");
 
-        SB_THROW_IF(nx != n, "Dimension mismatch for vector b in TRSV.");
-
-        auto mkl_uplo = upper ? oneapi::mkl::uplo::upper : oneapi::mkl::uplo::lower;
-        auto mkl_trans = transA ? oneapi::mkl::transpose::trans : oneapi::mkl::transpose::nontrans;
-        auto mkl_diag = unit_diag ? oneapi::mkl::diag::unit : oneapi::mkl::diag::nonunit;
-        auto layout = A.layout;
+        // TODO: Implement multi-dimensional batch support for Level 2
 
         void* read_A = A.storage ? A.storage->data_ptr : nullptr;
         void* write_b = b.storage ? b.storage->data_ptr : nullptr; // TRSV overwrites b
 
-        std::vector<void*> reads = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (read_A) reads.push_back(read_A);
-        std::vector<void*> writes = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
         if (write_b) writes.push_back(write_b);
 
         SushiRuntime::Graph::TaskMetadata meta;
@@ -91,42 +75,23 @@ namespace SushiBLAS
         meta.set_param(1, transA);
         meta.set_param(2, unit_diag);
 
-        // TODO: Implement multi-dimensional batch support for Level 2
+        auto layout = A.layout;
+        auto mode = engine_.get_mode();
 
-        switch (A.dtype) 
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_uplo, mkl_trans, mkl_diag, n, lda, incx, pA=A.data_as<float>(), pb=b.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return trsv_dispatch<float>(q, layout, mkl_uplo, mkl_trans, mkl_diag, n, pA, lda, pb, incx, deps);
+        return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
+            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+                auto pA = static_cast<const T*>(read_A);
+                auto pb = static_cast<T*>(write_b);
+                T one(1);
+
+                return Internal::dispatch_with_mode(mode, q, deps,
+                    [=] { Kernels::Reference::trsm<T>(layout, true, upper, transA, unit_diag, n, 1, one, pA, lda, pb, ldb); },
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    {
+                        return Kernels::SYCL::trsm<T>(q2, layout, true, upper, transA, unit_diag, n, 1, one, pA, lda, 0, pb, ldb, 0, 1, deps2);
                     });
-                break;
-            case Core::DataType::FLOAT64:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_uplo, mkl_trans, mkl_diag, n, lda, incx, pA=A.data_as<double>(), pb=b.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return trsv_dispatch<double>(q, layout, mkl_uplo, mkl_trans, mkl_diag, n, pA, lda, pb, incx, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX32:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_uplo, mkl_trans, mkl_diag, n, lda, incx, pA=A.data_as<std::complex<float>>(), pb=b.data_as<std::complex<float>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return trsv_dispatch<std::complex<float>>(q, layout, mkl_uplo, mkl_trans, mkl_diag, n, pA, lda, pb, incx, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX64:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_uplo, mkl_trans, mkl_diag, n, lda, incx, pA=A.data_as<std::complex<double>>(), pb=b.data_as<std::complex<double>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return trsv_dispatch<std::complex<double>>(q, layout, mkl_uplo, mkl_trans, mkl_diag, n, pA, lda, pb, incx, deps);
-                    });
-                break;
-            default:
-                SB_THROW_IF(true, "Unsupported data type for TRSV.");
-        }
-        return sycl::event();
+            });
     }
 }
