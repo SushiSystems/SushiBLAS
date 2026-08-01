@@ -53,6 +53,10 @@ endif()
 
 project(SushiBLAS VERSION 0.1.0 LANGUAGES CXX C)
 
+# --- Runtime dependency (D3 layered resolution, SB-0) ---
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(Runtime)
+
 # --- Policies ---
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)
