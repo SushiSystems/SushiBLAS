@@ -1,0 +1,50 @@
+# SushiBLAS CLI configuration.
+#
+# Layering (lowest -> highest precedence):
+#   built-in defaults  ->  this file  ->  config.local.toml  ->  SB_* env vars  ->  CLI flags
+#
+# This file is committed and holds shared / portable defaults. Machine-specific
+# absolute paths (compiler locations, vcpkg, oneAPI root) belong in a gitignored
+# `config.local.toml` next to this file, using the SAME section layout. The
+# active platform's `[tool.<platform>]` section is merged over the common
+# `[tool]` section automatically.
+#
+# SushiBLAS does not yet consume the shared SushiStack SYCL toolchain (see
+# cli/sushiblas/config.py's module docstring): it needs a real Intel oneAPI
+# DPC++ install. When oneapi_root / cxx are unset, the CLI reads the
+# ONEAPI_ROOT environment variable (matching oneAPI's own setvars.bat).
+
+[tool]
+# Default executable for `sb run` with no target.
+target_bin = "sushiblas_example"
+# The Intel oneAPI root. Empty resolves to the ONEAPI_ROOT env var.
+oneapi_root = ""
+
+[tool.linux]
+generator = "Ninja"
+use_vcpkg = true
+vcpkg_triplet = "x64-linux"
+
+[tool.windows]
+generator = "Ninja"
+use_vcpkg = true
+vcpkg_triplet = "x64-windows"
+target_bin = "sushiblas_example.exe"
+# The following are machine-specific; override in config.local.toml.
+# vs_vcvars    = "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Auxiliary/Build/vcvars64.bat"
+# ninja_exe    = "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe"
+# cmake_exe    = "C:/Users/<you>/scoop/shims/cmake.exe"
+# ctest_exe    = "C:/Users/<you>/scoop/shims/ctest.exe"
+# vcpkg_root   = "C:/vcpkg"
+# pkgconf_exe  = "C:/vcpkg/installed/x64-windows/tools/pkgconf/pkgconf.exe"
+# oneapi_root  = "C:/Program Files (x86)/Intel/oneAPI"
+
+[cli]
+# CLI appearance, resolved by the shared `sushicli` package (same schema for
+# sr/se/ss). Override in config.local.toml or with SUSHI_CLI_THEME /
+# SUSHI_CLI_ICONS / SUSHI_CLI_COLOR — no rebuild needed. See sushicli's README
+# for the full list of presets and the [cli.colors] / [cli.icon_overrides]
+# tables for one-off overrides.
+theme = "default"
+icons = "text"
+color = "auto"
