@@ -19,8 +19,12 @@ cmake_minimum_required(VERSION 3.20)
 #   cmake --build /tmp/sb-consumer
 #   /tmp/sb-consumer/sushiblas_package_consumer
 #
-# The compiler must be the SYCL one: SushiBLAS's kernels are header templates
-# instantiated in THIS project's translation units, same as SushiRuntime's.
+# The compiler must still be the SYCL one - not because SushiBLAS's kernels
+# are header templates instantiated here (they are not: every kernel is
+# compiled into the sushiblas static library already), but because the
+# public headers include <sycl/sycl.hpp> and use sycl::event/sycl::queue in
+# their own signatures, so this translation unit needs a SYCL-aware compiler
+# to parse them at all. See docs/INTEGRATION.md.
 
 project(SushiBLASPackageConsumer LANGUAGES CXX)
 

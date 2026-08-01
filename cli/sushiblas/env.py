@@ -1,16 +1,16 @@
 """Build-environment snapshotting.
 
-A parent process cannot ``call vcvars64.bat`` (or oneAPI's ``setvars``) and
-inherit the result. Instead we run them in a child shell, dump the resulting
-environment, and reuse that dictionary for every cmake/ctest subprocess we
-spawn. The snapshot is cached on disk keyed by the configuration that produced
-it; an unchanged config skips the shell entirely.
+A parent process cannot ``call vcvars64.bat`` and inherit the result. Instead we
+run it in a child shell, dump the resulting environment, and reuse that
+dictionary for every cmake/ctest subprocess we spawn. The snapshot is cached on
+disk keyed by the configuration that produced it; an unchanged config skips the
+shell entirely.
 
-SushiBLAS needs a real Intel oneAPI DPC++ install (icx-cl/icpx, oneMKL): on
-Windows that means loading MSVC (clang-cl-flavored icx-cl still needs the MSVC
-headers/libs) and then oneAPI's own environment on top; on Linux, oneAPI's
-setvars.sh alone. This mirrors what scripts/win/build.bat and
-scripts/linux/build.sh already do by hand.
+SushiBLAS selects no SYCL toolchain of its own: it builds with the SushiRuntime
+sibling's bundled clang++. So the only environment work here is loading MSVC on
+Windows (clang++ -fsycl still needs the MSVC headers/libs) and putting the
+sibling's toolchain bin/lib on PATH so the compiler and its SYCL runtime
+libraries resolve at build and run time. Mirrors sushiengine's `se` env.py.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ import subprocess
 from pathlib import Path
 
 from . import console
-from .config import Config
+from .config import Config, find_project_root
 
 CACHE_NAME = ".sushi_env.json"
 
@@ -32,7 +32,7 @@ def _cache_key(cfg: Config) -> str:
         {
             "platform": cfg.platform,
             "vs_vcvars": cfg.vs_vcvars,
-            "oneapi_root": cfg.resolved_oneapi_root(),
+            "sushiruntime_dir": cfg.sushiruntime_dir,
         },
         sort_keys=True,
     )
@@ -73,57 +73,66 @@ def _parse_windows_set(output: str) -> dict[str, str]:
 
 def _snapshot_windows(cfg: Config) -> dict[str, str] | None:
     vcvars = cfg.expand(cfg.vs_vcvars)
-    oneapi = cfg.resolved_oneapi_root()
-    setvars = str(Path(oneapi) / "setvars.bat") if oneapi else ""
-
-    calls = []
-    if vcvars and Path(vcvars).is_file():
-        console.info("Loading Visual Studio environment (vcvars64)...")
-        calls.append(f'call "{vcvars}"')
-    if setvars and Path(setvars).is_file():
-        console.info("Loading Intel oneAPI environment (setvars)...")
-        calls.append(f'call "{setvars}" intel64')
-    if not calls:
+    if not (vcvars and Path(vcvars).is_file()):
         return None
-
+    console.info("Loading Visual Studio environment (vcvars64)...")
     # Pass the whole command as a single string, NOT as ["cmd", "/c", script]:
     # with a list, subprocess re-quotes each element and mangles the inner quotes
-    # around the (space-containing) script paths, so cmd.exe sees the quoted path
-    # as one unknown token and returns non-zero — silently dropping the environment.
-    #
-    # Chained with plain `&`, not `&&`: oneAPI's setvars.bat commonly exits 1 even
-    # on a fully successful run (it does this whenever any *optional* component it
-    # probes for isn't installed), so gating the next step on its exit code drops
-    # the environment it just built. `&` runs `set` regardless; success is judged
-    # by whether anything was actually captured, not by the batch files' exit code.
-    script = " & ".join(calls) + " & set"
+    # around the (space-containing) vcvars path, so cmd.exe sees the quoted path as
+    # one unknown token and returns non-zero — silently dropping the VS environment.
+    script = f'call "{vcvars}" && set'
     result = subprocess.run("cmd /c " + script, capture_output=True, text=True)
-    env = _parse_windows_set(result.stdout)
-    if not env:
-        console.warn("vcvars64/setvars produced no environment; using current env.")
-        return None
-    return env
-
-
-def _snapshot_linux(cfg: Config) -> dict[str, str] | None:
-    oneapi = cfg.resolved_oneapi_root()
-    setvars = str(Path(oneapi) / "setvars.sh") if oneapi else ""
-    if not (setvars and Path(setvars).is_file()):
-        return None
-    console.info("Loading Intel oneAPI environment (setvars)...")
-    script = f'source "{setvars}" --force > /dev/null 2>&1 && env'
-    result = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
     if result.returncode != 0:
-        console.warn("setvars.sh returned non-zero; using current env.")
+        console.warn("vcvars64 returned non-zero; using current env.")
         return None
-    return _parse_windows_set(result.stdout)  # KEY=VALUE lines; parser is shell-agnostic
+    return _parse_windows_set(result.stdout)
+
+
+def _prepend_path(env: dict[str, str], var: str, dirs: list[str]) -> None:
+    """Prepend *dirs* to the (case-insensitive) *var* path entry of *env*."""
+    if not dirs:
+        return
+    key = next((k for k in env if k.upper() == var.upper()), var)
+    existing = env.get(key, "")
+    env[key] = os.pathsep.join(dirs + ([existing] if existing else []))
+
+
+def _inject_runtime_toolchain(cfg: Config, env: dict[str, str]) -> None:
+    """Add the shared bundled clang++ bin/lib to a build/run environment.
+
+    Neither platform ships a system SYCL compiler: SushiBLAS builds with the
+    intel/llvm clang++ provisioned into the shared SushiStack dependency tree
+    (resolved via the SushiRuntime sibling), so that bin must be on PATH (and,
+    on Linux, its lib on LD_LIBRARY_PATH) for the compiler and its SYCL runtime
+    libraries to resolve.
+    """
+    try:
+        root = find_project_root()
+    except SystemExit:
+        return
+    bundle = cfg.deps_dir(root) / "toolchains" / "llvm-sycl"
+    bin_dir = bundle / "bin"
+    lib_dir = bundle / "lib"
+    if bin_dir.is_dir():
+        _prepend_path(env, "PATH", [str(bin_dir)])  # clang++ and the SYCL runtime DLLs
+    if not cfg.is_windows and lib_dir.is_dir():
+        _prepend_path(env, "LD_LIBRARY_PATH", [str(lib_dir)])
+
+    # On Windows the runtime DLL pulls in vcpkg-installed dependencies (hwloc), so
+    # the vcpkg installed bin must be on PATH for sushiruntime.dll to load.
+    if cfg.is_windows:
+        vcpkg = cfg.resolved_vcpkg(root)
+        if vcpkg:
+            vcpkg_bin = Path(vcpkg) / "installed" / cfg.vcpkg_triplet / "bin"
+            if vcpkg_bin.is_dir():
+                _prepend_path(env, "PATH", [str(vcpkg_bin)])
 
 
 def load_build_env(cfg: Config, build_dir: Path) -> dict[str, str]:
     """Return the environment for build/test/run subprocesses.
 
     Falls back to the current ``os.environ`` when no toolchain scripts are
-    configured (e.g. when icx-cl/oneAPI is already on PATH).
+    configured (e.g. when clang++ and MSVC are already on PATH).
     """
     build_dir.mkdir(parents=True, exist_ok=True)
     cache_file = build_dir / CACHE_NAME
@@ -133,17 +142,23 @@ def load_build_env(cfg: Config, build_dir: Path) -> dict[str, str]:
         try:
             cached = json.loads(cache_file.read_text())
             if cached.get("key") == key:
-                return _merge_env(dict(os.environ), cached["env"])
+                env = _merge_env(dict(os.environ), cached["env"])
+                _inject_runtime_toolchain(cfg, env)
+                return env
         except (json.JSONDecodeError, OSError, KeyError):
             pass  # fall through and rebuild
 
-    snapshot = _snapshot_windows(cfg) if cfg.is_windows else _snapshot_linux(cfg)
+    snapshot = _snapshot_windows(cfg) if cfg.is_windows else None
     if not snapshot:
-        return dict(os.environ)
+        env = dict(os.environ)
+        _inject_runtime_toolchain(cfg, env)
+        return env
 
     try:
         cache_file.write_text(json.dumps({"key": key, "env": snapshot}))
     except OSError:
         pass
 
-    return _merge_env(dict(os.environ), snapshot)
+    env = _merge_env(dict(os.environ), snapshot)
+    _inject_runtime_toolchain(cfg, env)
+    return env

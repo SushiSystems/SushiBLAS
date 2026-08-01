@@ -1,9 +1,9 @@
 """Project build / test / run / clean / doxygen logic.
 
 The cmake / ctest invocations are issued directly via subprocess with the
-snapshotted build env. SushiBLAS configures against a real Intel oneAPI DPC++
-install and (classic-mode) vcpkg, so the configure args resolve those from the
-config rather than provisioning anything.
+snapshotted build env. SushiBLAS configures against the SushiRuntime sibling's
+bundled clang++ and vcpkg, so the configure args resolve those from the
+runtime checkout (or the config overrides) rather than provisioning anything.
 
 tests/CMakeLists.txt registers tests via gtest_discover_tests with CTest
 labels (unit / integration / regression) assigned from the GTest suite-name
@@ -151,34 +151,57 @@ def _needs_configure(build_dir: Path, generator: str, build_type: str = None) ->
     return False
 
 
-def _check_vendored_runtime(root: Path) -> int:
-    """Fail early (with guidance) when the vendored SushiRuntime copy is missing.
+def _check_runtime(cfg: Config, root: Path) -> int:
+    """Fail early (with guidance) when the SushiRuntime sibling is missing.
 
-    Today's SushiBLAS vendors SushiRuntime as a git-tracked snapshot
-    (``include/SushiRuntime/``, ``lib/sushiruntime.dll``) rather than resolving
-    a sibling checkout — SB-0 replaces this with a live dependency; until then,
-    this checks the vendored copy is actually present.
+    SushiBLAS cannot configure without it (see cmake/Runtime.cmake) — the
+    runtime provides the SYCL target and the add_sycl_to_target command the
+    project's CMakeLists pulls in.
     """
-    include_dir = root / "include" / "SushiRuntime"
-    if include_dir.is_dir():
+    runtime = cfg.runtime_dir(root)
+    if (runtime / "CMakeLists.txt").is_file():
         return 0
     console.error(
-        f"Vendored SushiRuntime headers not found at: {include_dir}\n"
-        f"  - this checkout is missing its bundled runtime dependency.")
+        f"SushiRuntime sibling not found at: {runtime}\n"
+        f"  - clone it next to this repo, or\n"
+        f"  - set sushiruntime_dir in cli/config.local.toml, or SUSHIRUNTIME_DIR in the env.")
     return 1
 
 
+def _resolved_c_compiler(cxx: str) -> str:
+    """The C compiler slot for a `clang++`-personality binary: its sibling `clang`.
+
+    A `clang++`-personality binary hardcodes C++ mode regardless of file
+    extension, so pointing CMAKE_C_COMPILER at the same clang++ path breaks
+    the C-language probe (the project declares LANGUAGES CXX C). The bundled
+    intel-llvm toolchain ships a sibling `clang`/`clang.exe` in the same
+    directory for the C slot.
+
+    @param cxx The resolved C++ compiler path.
+    @return The sibling `clang` binary next to a `clang++` cxx, else cxx itself.
+    """
+    path = Path(cxx)
+    stem = path.stem
+    if stem.lower() == "clang++":
+        sibling = path.with_name(stem[:-2] + path.suffix)  # clang++[.exe] -> clang[.exe]
+        if sibling.is_file():
+            return str(sibling)
+    return cxx
+
+
 def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str) -> list[str]:
-    cxx = cfg.resolved_compiler()
+    runtime = cfg.runtime_dir(root)
+    cxx = cfg.resolved_compiler(root)
     vcpkg = cfg.resolved_vcpkg(root)
 
     args = [
         _cmake(cfg), "-S", str(root), "-B", str(build_dir), "-G", cfg.generator,
         f"-DCMAKE_BUILD_TYPE={build_type}",
         f"-DCMAKE_CXX_COMPILER={cxx}",
+        f"-DCMAKE_C_COMPILER={_resolved_c_compiler(cxx)}",
+        f"-DSUSHIRUNTIME_DIR={runtime}",
     ]
     if cfg.is_windows:
-        args.append(f"-DCMAKE_C_COMPILER={cxx}")
         if cfg.ninja_exe:
             args.append(f"-DCMAKE_MAKE_PROGRAM={cfg.expand(cfg.ninja_exe)}")
         if cfg.pkgconf_exe:
@@ -205,13 +228,14 @@ def build(build_type: BuildType, clean: bool = False) -> int:
     cmake_build_type = _CMAKE_BUILD_TYPE[build_type]
     build_dir = _build_dir(root)
 
-    if (rc := _check_vendored_runtime(root)) != 0:
+    if (rc := _check_runtime(cfg, root)) != 0:
         return rc
 
     if clean:
         clean_tree(root)
 
-    console.info(f"Compiler: {cfg.resolved_compiler()}")
+    console.info(f"Runtime: {cfg.runtime_dir(root)}")
+    console.info(f"Compiler: {cfg.resolved_compiler(root)}")
 
     env = load_build_env(cfg, build_dir)
 

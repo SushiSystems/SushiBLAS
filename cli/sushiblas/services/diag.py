@@ -26,9 +26,9 @@ from ..config import (
 )
 
 # Environment variables worth surfacing by default in `env dump` — the ones that
-# actually steer a SYCL/oneAPI build. `--all` overrides this filter.
+# actually steer a SYCL build. `--all` overrides this filter.
 _ENV_OF_INTEREST = (
-    "PATH", "CC", "CXX", "SYCL", "ONEAPI", "MKL", "VCPKG", "PKG_CONFIG",
+    "PATH", "CC", "CXX", "SYCL", "SUSHI", "VCPKG", "PKG_CONFIG",
     "CMAKE", "NINJA", "INCLUDE", "LIB", "LD_LIBRARY_PATH",
 )
 
@@ -69,10 +69,10 @@ def config_show() -> int:
 
     console.console.print(table)
 
-    # The two resolved-at-runtime paths the build actually uses.
+    # The resolved-at-runtime paths the build actually uses.
     console.info(f"Project root      : {root}")
-    console.info(f"oneAPI root       : {cfg.resolved_oneapi_root() or '(none)'}")
-    console.info(f"Resolved compiler : {cfg.resolved_compiler()}")
+    console.info(f"SushiRuntime dir  : {cfg.runtime_dir(root)}")
+    console.info(f"Resolved compiler : {cfg.resolved_compiler(root)}")
     console.info(f"Resolved vcpkg    : {cfg.resolved_vcpkg(root) or '(none)'}")
 
     cfg_dir = config_dir(root)

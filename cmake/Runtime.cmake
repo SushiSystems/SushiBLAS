@@ -23,7 +23,7 @@ if(NOT TARGET SushiRuntime::SushiRuntime)
     # SUSHISTACK_HOME when set (the installer exports it); otherwise the
     # in-tree sibling ../sushiruntime, which is the same path in a workspace
     # and the right standalone default (mirrors sushiengine/cmake/Runtime.cmake).
-    if(DEFINED ENV{SUSHISTACK_HOME})
+    if(DEFINED ENV{SUSHISTACK_HOME} AND EXISTS "$ENV{SUSHISTACK_HOME}/sushiruntime")
         set(_SB_DEFAULT_RUNTIME "$ENV{SUSHISTACK_HOME}/sushiruntime")
     else()
         set(_SB_DEFAULT_RUNTIME "${CMAKE_CURRENT_SOURCE_DIR}/../sushiruntime")

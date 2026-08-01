@@ -6,14 +6,16 @@ Precedence (lowest to highest):
 The active platform's ``[tool.<platform>]`` table is merged over the common
 ``[tool]`` table, so a single file describes both Linux and Windows.
 
-Unlike the engine, SushiBLAS does not yet consume the shared SushiStack SYCL
-toolchain: today's ``CMakeLists.txt`` calls ``find_package(IntelSYCL REQUIRED)``
-against a real Intel oneAPI DPC++ install, and the SushiRuntime dependency is a
-vendored copy checked into ``lib/``/``include/SushiRuntime`` rather than a
-sibling checkout resolved by CMake. Both of those are being replaced (SB-2's
-backend rework, SB-0's live runtime dependency) but haven't landed yet, so this
-config models the *current* build, not the target one — see the ST-1 plan's
-scope note. When SB-0/SB-2 land, only this file and env.py need to change.
+SushiBLAS is a head of the stack: it consumes the shared SushiStack SYCL
+toolchain and vcpkg tree rather than provisioning its own, and it builds
+against a live SushiRuntime sibling checkout (D3 layered CMake resolution)
+rather than a vendored copy. So this config does not select a toolchain — it
+locates the shared ``<workspace>/dependencies`` tree (provisioned by
+``ss install``) for the compiler and vcpkg, the runtime sibling module it
+builds against, plus the handful of host tools (cmake, ninja, vcvars) a build
+needs. Standalone (outside a workspace) it falls back to the runtime's own
+bundled dependencies for backward compatibility. Mirrors sushiengine's `se`
+CLI exactly (same toolchain-bundle contract, one sibling module).
 """
 
 from __future__ import annotations
@@ -66,7 +68,7 @@ _ENV_OVERRIDES = {
     "pkgconf_exe": "SB_PKGCONF",
     "doxygen_exe": "SB_DOXYGEN",
     "vcpkg_triplet": "SB_VCPKG_TRIPLET",
-    "oneapi_root": "SB_ONEAPI_ROOT",
+    "sushiruntime_dir": "SUSHIRUNTIME_DIR",
     "target_bin": "SB_TARGET_BIN",
 }
 
@@ -76,39 +78,31 @@ class Config(ToolConfig):
     """Resolved, platform-specific tool configuration for the SushiBLAS build.
 
     Inherits the generic host build-tool fields (cmake/ninja/vcpkg paths, etc.)
-    from :class:`ToolConfig`. SushiBLAS additionally needs a real Intel oneAPI
-    DPC++ install (``cxx`` empty means "derive icx-cl/icpx from oneapi_root").
+    from :class:`ToolConfig`. SushiBLAS selects no SYCL toolchain of its own —
+    it consumes the shared one — so it adds only the sibling-runtime checkout
+    below. ``cxx`` (from ToolConfig) empty means "discover it": the runtime's
+    bundled clang++ (under <runtime>/dependencies/toolchains/llvm-sycl/bin) if
+    present, else a clang++ on PATH.
     """
 
-    # The Intel oneAPI root (e.g. "C:/Program Files (x86)/Intel/oneAPI"). Empty
-    # means "read the ONEAPI_ROOT environment variable" (matching setvars.bat's
-    # own convention and today's scripts/win/config.ini).
-    oneapi_root: str = ""
+    # The SushiRuntime sibling checkout. Empty means "../sushiruntime relative
+    # to the project root" (matching SUSHIRUNTIME_DIR's default in
+    # cmake/Runtime.cmake).
+    sushiruntime_dir: str = ""
 
-    # Run defaults: sushiblas_example is a real target (examples/CMakeLists.txt),
-    # unlike the stale "sushiblas_app" the old scripts/ pointed at.
+    # Run defaults: sushiblas_example is a real target (examples/CMakeLists.txt).
     target_bin: str = "sushiblas_example"
 
-    def resolved_oneapi_root(self) -> str:
-        """The oneAPI root: explicit config value, else $ONEAPI_ROOT, else ''."""
-        if self.oneapi_root:
-            return self.expand(self.oneapi_root)
-        return os.environ.get("ONEAPI_ROOT", "")
+    def runtime_dir(self, root: Path) -> Path:
+        """Resolve the SushiRuntime checkout this build links against.
 
-    def resolved_compiler(self) -> str:
-        """The C++ compiler driving the build: explicit, then derived, then PATH.
-
-        @return A configured cxx, else icx-cl/icpx under the resolved oneAPI
-                root's compiler/latest/bin, else the bare exe name for PATH
-                resolution (mirroring CMakeLists.txt's own oneAPI discovery).
+        @param root The SushiBLAS project root (the directory holding CMakeLists.txt).
+        @return The runtime directory, defaulting to ``<root>/../sushiruntime``
+                (which, inside a SushiStack workspace, is the sibling module).
         """
-        if self.cxx:
-            return self.expand(self.cxx)
-        exe = "icx-cl.exe" if self.is_windows else "icpx"
-        root = self.resolved_oneapi_root()
-        if root:
-            return str(Path(root) / "compiler" / "latest" / "bin" / exe)
-        return exe
+        if self.sushiruntime_dir:
+            return Path(self.expand(self.sushiruntime_dir)).resolve()
+        return (root / ".." / "sushiruntime").resolve()
 
     def sushistack_home(self, root: Path) -> Path | None:
         """Locate the SushiStack workspace root, or None when standalone.
@@ -126,11 +120,14 @@ class Config(ToolConfig):
         return walk_up(root, has_marker(".sushistack"))
 
     def deps_dir(self, root: Path) -> Path:
-        """The shared dependency tree ``ss install`` provisions vcpkg into.
+        """The shared dependency tree this build resolves its toolchain from.
+
+        Inside a SushiStack workspace that is ``<workspace>/dependencies`` (shared
+        by every module); standalone it falls back to the runtime sibling's own
+        bundled ``dependencies`` tree. ``SUSHISTACK_DEPS_DIR`` overrides both.
 
         @param root The SushiBLAS project root.
-        @return The workspace's ``dependencies`` tree, or ``<root>/dependencies``
-                when standalone (not inside a SushiStack workspace).
+        @return The dependency tree root.
         """
         override = os.environ.get("SUSHISTACK_DEPS_DIR")
         if override:
@@ -138,7 +135,30 @@ class Config(ToolConfig):
         home = self.sushistack_home(root)
         if home:
             return home / "dependencies"
-        return root / "dependencies"
+        return self.runtime_dir(root) / "dependencies"
+
+    def bundled_clang(self, root: Path) -> str:
+        """The shared bundled clang++ path, or '' when the bundle is absent.
+
+        @param root The SushiBLAS project root.
+        @return The absolute clang++ path under the shared toolchain bundle, or an
+                empty string when it has not been installed there.
+        """
+        exe = "clang++.exe" if self.is_windows else "clang++"
+        candidate = self.deps_dir(root) / "toolchains" / "llvm-sycl" / "bin" / exe
+        return str(candidate) if candidate.is_file() else ""
+
+    def resolved_compiler(self, root: Path) -> str:
+        """The C++ compiler to drive the build: explicit, then bundled, then PATH.
+
+        @param root The SushiBLAS project root.
+        @return A configured cxx, else the shared bundled clang++, else bare
+                'clang++' for PATH resolution.
+        """
+        if self.cxx:
+            return self.expand(self.cxx)
+        bundled = self.bundled_clang(root)
+        return bundled or "clang++"
 
     def resolved_vcpkg(self, root: Path) -> str:
         """The vcpkg root: explicit, then the shared bundled tree, else ''.
