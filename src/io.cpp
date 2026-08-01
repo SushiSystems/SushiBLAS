@@ -242,20 +242,22 @@ namespace SushiBLAS
     std::string IO::to_string(const Tensor& t, int precision, int edge_items)
     {
         engine_.execute().wait();
-        
-        size_t bpe = (t.dtype == Core::DataType::FLOAT64 || t.dtype == Core::DataType::COMPLEX32) ? 8 : 
+
+        size_t bpe = (t.dtype == Core::DataType::HALF) ? 2 :
+                     (t.dtype == Core::DataType::FLOAT64 || t.dtype == Core::DataType::COMPLEX32) ? 8 :
                      (t.dtype == Core::DataType::COMPLEX64) ? 16 : 4;
-        
+
         std::vector<char> host_buf(t.num_elements * bpe);
         engine_.get_context().get_queue().memcpy(host_buf.data(), t.data(), t.num_elements * bpe).wait();
 
         std::vector<std::pair<float, float>> host_data(t.num_elements);
-        
+
         for (int64_t i = 0; i < t.num_elements; ++i)
         {
-            if (t.dtype == Core::DataType::FLOAT32) host_data[i] = {reinterpret_cast<float*>(host_buf.data())[i], 0.0f};
+            if (t.dtype == Core::DataType::HALF) host_data[i] = {static_cast<float>(reinterpret_cast<sycl::half*>(host_buf.data())[i]), 0.0f};
+            else if (t.dtype == Core::DataType::FLOAT32) host_data[i] = {reinterpret_cast<float*>(host_buf.data())[i], 0.0f};
             else if (t.dtype == Core::DataType::FLOAT64) host_data[i] = {static_cast<float>(reinterpret_cast<double*>(host_buf.data())[i]), 0.0f};
-            else if (t.dtype == Core::DataType::COMPLEX32) 
+            else if (t.dtype == Core::DataType::COMPLEX32)
             {
                 float* c_ptr = reinterpret_cast<float*>(host_buf.data()) + (i * 2);
                 host_data[i] = {c_ptr[0], c_ptr[1]};
@@ -275,7 +277,8 @@ namespace SushiBLAS
 
         ss << "], dtype=";
 
-        if (t.dtype == Core::DataType::FLOAT32) ss << "f32";
+        if (t.dtype == Core::DataType::HALF) ss << "f16";
+        else if (t.dtype == Core::DataType::FLOAT32) ss << "f32";
         else if (t.dtype == Core::DataType::FLOAT64) ss << "f64";
         else if (t.dtype == Core::DataType::COMPLEX32) ss << "c32";
         else if (t.dtype == Core::DataType::COMPLEX64) ss << "c64";
