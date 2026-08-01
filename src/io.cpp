@@ -63,7 +63,7 @@ namespace SushiBLAS
                      (t.dtype == Core::DataType::COMPLEX64) ? 16 : 4;
         size_t bytes = t.num_elements * bpe;
         
-        if (t.storage->strategy == SushiRuntime::Memory::AllocStrategy::DEVICE)
+        if (t.storage->strategy == &SushiRuntime::Memory::Strategies::Device::instance())
         {
             std::vector<char> buf(bytes);
             engine_.get_context().get_queue().memcpy(buf.data(), t.data(), bytes).wait();
@@ -93,7 +93,7 @@ namespace SushiBLAS
                      (t.dtype == Core::DataType::COMPLEX64) ? 16 : 4;
         size_t bytes = t.num_elements * bpe;
         
-        if (t.storage->strategy == SushiRuntime::Memory::AllocStrategy::DEVICE)
+        if (t.storage->strategy == &SushiRuntime::Memory::Strategies::Device::instance())
         {
             std::vector<char> buf(bytes);
             ifs.read(buf.data(), bytes);
@@ -176,7 +176,7 @@ namespace SushiBLAS
         
         size_t bytes = t.num_elements * bpe;
 
-        if (t.storage->strategy == SushiRuntime::Memory::AllocStrategy::DEVICE)
+        if (t.storage->strategy == &SushiRuntime::Memory::Strategies::Device::instance())
         {
             std::vector<char> buf(bytes);
             engine_.get_context().get_queue().memcpy(buf.data(), t.data(), bytes).wait();
@@ -220,7 +220,7 @@ namespace SushiBLAS
                      (t.dtype == Core::DataType::COMPLEX64) ? 16 : 4;
         size_t bytes = t.num_elements * bpe;
 
-        if (t.storage->strategy == SushiRuntime::Memory::AllocStrategy::DEVICE)
+        if (t.storage->strategy == &SushiRuntime::Memory::Strategies::Device::instance())
         {
             std::vector<char> buf(bytes);
             ifs.read(buf.data(), bytes);

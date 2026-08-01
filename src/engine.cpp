@@ -32,15 +32,15 @@ namespace SushiBLAS
                     layout == Core::Layout::ROW_MAJOR ? "Row-Major" : "Column-Major");
     }
 
-    Tensor Engine::create_tensor(std::initializer_list<int64_t> dims, 
-                                 SushiRuntime::Memory::AllocStrategy strat)
+    Tensor Engine::create_tensor(std::initializer_list<int64_t> dims,
+                                 const SushiRuntime::Memory::IAllocatorStrategy& strat)
     {
         return create_tensor(dims, Core::DataType::FLOAT32, strat);
     }
 
-    Tensor Engine::create_tensor(std::initializer_list<int64_t> dims, 
+    Tensor Engine::create_tensor(std::initializer_list<int64_t> dims,
                                  Core::DataType dtype,
-                                 SushiRuntime::Memory::AllocStrategy strat)
+                                 const SushiRuntime::Memory::IAllocatorStrategy& strat)
     {
         size_t elements = 1;
 

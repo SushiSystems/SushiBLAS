@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 # --- Define SushiBLAS Library ---
-add_library(sushiblas STATIC
+set(SUSHIBLAS_SOURCES
     # Engine
     engine.cpp
 
@@ -124,9 +124,10 @@ add_library(sushiblas STATIC
     # engine/logic/any.cpp
 )
 
+add_library(sushiblas STATIC ${SUSHIBLAS_SOURCES})
 
 # --- Include Directories ---
-target_include_directories(sushiblas PUBLIC 
+target_include_directories(sushiblas PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}"
 )
@@ -136,10 +137,12 @@ target_include_directories(sushiblas PUBLIC
 # SushiRuntime is always linked via its namespaced alias (D3): whichever of the
 # three resolution modes in cmake/Runtime.cmake fired, the link line here is
 # identical, and it never varies with how the dependency was actually found.
+# Not linked directly: IntelSYCL::SYCL_CXX. It's an imported target defined
+# inside sushiruntime's own directory scope (non-GLOBAL, per its Sycl.cmake),
+# invisible by name to sushiblas's sibling scope - but SushiRuntime::SushiRuntime
+# already carries it PUBLIC, so it reaches sushiblas transitively regardless.
 target_link_libraries(sushiblas PUBLIC
     SushiRuntime::SushiRuntime
-    IntelSYCL::SYCL_CXX
-    OpenCL::OpenCL
 )
 
 # --- Properties ---
@@ -148,15 +151,9 @@ set_target_properties(sushiblas PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
-# Use oneMKL through compiler flags (Recommended for IntelLLVM)
-if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
-    if(WIN32)
-        target_compile_options(sushiblas PUBLIC "/Qmkl")
-        target_link_options(sushiblas PUBLIC "/Qmkl")
-    else()
-        target_compile_options(sushiblas PUBLIC "-qmkl")
-        target_link_options(sushiblas PUBLIC "-qmkl")
-    endif()
-endif()
-
+# SYCL device-compilation policy (see cmake/SyclTarget.cmake) - PUBLIC, so
+# examples/tests inherit it from linking sushiblas rather than reapplying it
+# themselves. No oneMKL coupling: gemm/syrk are SushiBLAS's own ported/composed
+# tiling kernels now (SB-2, see NOTICE.md), not an oneMKL passthrough.
+sushiblas_apply_sycl(sushiblas SOURCES ${SUSHIBLAS_SOURCES})
 

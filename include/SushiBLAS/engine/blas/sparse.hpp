@@ -55,7 +55,8 @@ namespace SushiBLAS
             // TODO: Add support for Sparse-Sparse operations if needed.
 
         private:
-            Engine& engine_;
+            // Not yet read anywhere - every method here is still a TODO stub.
+            [[maybe_unused]] Engine& engine_;
     };
 
 } // namespace SushiBLAS

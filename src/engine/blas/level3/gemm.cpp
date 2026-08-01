@@ -59,9 +59,6 @@ namespace SushiBLAS
         int64_t str_b = (batch_size > 1) ? B.strides[rB - 3] : 0;
         int64_t str_c = (batch_size > 1) ? C.strides[rC - 3] : 0;
 
-        auto mkl_transA = transA ? oneapi::mkl::transpose::trans : oneapi::mkl::transpose::nontrans;
-        auto mkl_transB = transB ? oneapi::mkl::transpose::trans : oneapi::mkl::transpose::nontrans;
-
         // Capture data safely for asynchronous execution
         auto layout = A.layout;
         void* read_A = A.storage ? A.storage->data_ptr : nullptr;
@@ -103,7 +100,7 @@ namespace SushiBLAS
                     },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
-                        return Kernels::SYCL::gemm<T>(q2, layout, mkl_transA, mkl_transB, m, n, k, alpha_t, pA, lda, str_a, pB, ldb, str_b, beta_t, pC, ldc, str_c, batch_size, deps2);
+                        return Kernels::SYCL::gemm<T>(q2, layout, transA, transB, m, n, k, alpha_t, pA, lda, str_a, pB, ldb, str_b, beta_t, pC, ldc, str_c, batch_size, deps2);
                     });
             });
     }

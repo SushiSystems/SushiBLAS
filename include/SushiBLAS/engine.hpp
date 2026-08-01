@@ -144,11 +144,21 @@ namespace SushiBLAS
              */
             SushiRuntime::Graph::TaskGraph& get_graph() { return graph_; }
 
-            /** 
-             * @brief Execute all queued tasks in the graph. 
+            /**
+             * @brief Execute all queued tasks in the graph.
              * @return A sycl::event that can be used to synchronize with graph completion.
              */
-            sycl::event execute() { return graph_.execute(); }
+            sycl::event execute()
+            {
+                auto compiled = graph_.compile();
+                // Several io.cpp paths call execute() defensively (flush any pending
+                // device write before a host-side read) even when nothing was queued -
+                // e.g. a tensor filled directly through its host-visible pointer, no
+                // add_task involved. IExecutionEngine::execute() throws on a graph with
+                // no root nodes, so treat empty as an already-complete no-op instead.
+                if (compiled.roots.empty()) return sycl::event();
+                return context_.get_execution_engine().execute(compiled);
+            }
 
             /** 
              * @brief Create a new FLOAT32 tensor with the specified dimensions.
@@ -156,8 +166,8 @@ namespace SushiBLAS
              * @param strat The allocation strategy (Shared, Device, or Host).
              * @return A new FLOAT32 Tensor object.
              */
-            Tensor create_tensor(std::initializer_list<int64_t> dims, 
-                                 SushiRuntime::Memory::AllocStrategy strat = SushiRuntime::Memory::AllocStrategy::SHARED);
+            Tensor create_tensor(std::initializer_list<int64_t> dims,
+                                 const SushiRuntime::Memory::IAllocatorStrategy& strat = SushiRuntime::Memory::Strategies::Shared::instance());
 
             /** 
              * @brief Create a new tensor with the specified dimensions and data type.
@@ -166,9 +176,9 @@ namespace SushiBLAS
              * @param strat The allocation strategy (Shared, Device, or Host).
              * @return A new Tensor object.
              */
-            Tensor create_tensor(std::initializer_list<int64_t> dims, 
+            Tensor create_tensor(std::initializer_list<int64_t> dims,
                                  Core::DataType dtype,
-                                 SushiRuntime::Memory::AllocStrategy strat = SushiRuntime::Memory::AllocStrategy::SHARED);
+                                 const SushiRuntime::Memory::IAllocatorStrategy& strat = SushiRuntime::Memory::Strategies::Shared::instance());
 
             /** 
              * @brief Set the seed for random number generation.
