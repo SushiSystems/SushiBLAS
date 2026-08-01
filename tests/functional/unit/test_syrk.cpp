@@ -1,0 +1,101 @@
+/**************************************************************************/
+/* test_syrk.cpp                                                          */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                SushiBLAS                               */
+/*                https://github.com/SushiSystems/SushiBLAS               */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+
+#include <vector>
+#include <complex>
+#include <gtest/gtest.h>
+#include <SushiBLAS/SushiBLAS.h>
+#include "../../common/test_utils.hpp"
+
+namespace SushiBLAS
+{
+    namespace Test
+    {
+        template <typename T>
+        class Unit_SYRKTest : public SushiBLASTest 
+        {
+            public:
+                void test_accuracy(int64_t n, int64_t k, Core::Layout layout = Core::Layout::ROW_MAJOR, bool upper = false, bool transA = false) 
+                {
+                    reinit_engine(layout);
+
+                    auto dtype = Core::DataType::FLOAT32;
+                    if constexpr (std::is_same_v<T, double>) dtype = Core::DataType::FLOAT64;
+                    if constexpr (std::is_same_v<T, std::complex<float>>) dtype = Core::DataType::COMPLEX32;
+                    if constexpr (std::is_same_v<T, std::complex<double>>) dtype = Core::DataType::COMPLEX64;
+
+                    int64_t a_rows = transA ? k : n;
+                    int64_t a_cols = transA ? n : k;
+
+                    // 1. Prepare Inputs
+                    auto A = engine->create_tensor({a_rows, a_cols}, dtype);
+                    auto C_actual = engine->create_tensor({n, n}, dtype);
+                    auto C_expected = engine->create_tensor({n, n}, dtype);
+
+                    fill_random<T>(A);
+                    fill_random<T>(C_actual);
+                    
+                    // Copy C_actual to C_expected so they start exactly the same (important if beta != 0)
+                    auto& q = TestEnvironment::get_context().get_queue();
+                    size_t c_size_bytes = n * n * sizeof(T);
+                    q.memcpy(C_expected.data(), C_actual.data(), c_size_bytes).wait();
+
+                    double alpha = 1.5;
+                    double beta = 0.5;
+
+                    // 2. Compute SYCL (Optimized) result
+                    engine->set_mode(ExecutionMode::FORCE_SYCL);
+                    engine->blas().syrk(A, C_actual, upper, transA, alpha, beta);
+                    engine->execute().wait();
+
+                    // 3. Compute Reference (CPU) result
+                    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                    engine->blas().syrk(A, C_expected, upper, transA, alpha, beta);
+                    engine->execute().wait();
+
+                    // 4. Compare
+                    double tol = (dtype == Core::DataType::HALF) ? 1e-2 : 1e-4;
+                    SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tol, T);
+                }
+        };
+
+        using DataTypes = ::testing::Types<float, double, std::complex<float>, std::complex<double>>;
+        TYPED_TEST_SUITE(Unit_SYRKTest, DataTypes);
+
+        TYPED_TEST(Unit_SYRKTest, SmallMatrixLowerNoTrans) 
+        {
+            this->test_accuracy(4, 3, Core::Layout::ROW_MAJOR, false, false);
+        }
+
+        TYPED_TEST(Unit_SYRKTest, SmallMatrixUpperNoTrans) 
+        {
+            this->test_accuracy(4, 3, Core::Layout::ROW_MAJOR, true, false);
+        }
+
+        TYPED_TEST(Unit_SYRKTest, SmallMatrixLowerTrans) 
+        {
+            this->test_accuracy(4, 3, Core::Layout::ROW_MAJOR, false, true);
+        }
+
+        TYPED_TEST(Unit_SYRKTest, SmallMatrixUpperTrans) 
+        {
+            this->test_accuracy(4, 3, Core::Layout::ROW_MAJOR, true, true);
+        }
+
+        TYPED_TEST(Unit_SYRKTest, SmallMatrixColMajor) 
+        {
+            this->test_accuracy(4, 3, Core::Layout::COLUMN_MAJOR, false, false);
+        }
+
+        TYPED_TEST(Unit_SYRKTest, Rectangular) 
+        {
+            this->test_accuracy(8, 16, Core::Layout::ROW_MAJOR, false, false);
+        }
+    }
+}

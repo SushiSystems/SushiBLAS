@@ -1,0 +1,17 @@
+#include <gtest/gtest.h>
+#include <vector>
+#include <SushiBLAS/SushiBLAS.h>
+#include "../../common/test_utils.hpp"
+
+class Unit_RoundTest : public SushiBLASTest {};
+
+TEST_F(Unit_RoundTest, FloatForward) 
+{
+    auto t = engine->create_tensor({4});
+    fill_tensor(t, {1.1f, 2.9f, -3.2f, 0.0f});
+    
+    engine->elementwise().round(t);
+    engine->execute().wait();
+    
+    verify_tensor(t, {1.00000f, 3.00000f, -3.00000f, 0.00000f});
+}
