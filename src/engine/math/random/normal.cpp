@@ -32,35 +32,51 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
+#include <kernels/random.hpp>
 #include "random_internal.hpp"
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event RandomOps::normal(Tensor& t, double mean, double stddev) 
+    sycl::event RandomOps::normal(Tensor& t, double mean, double stddev)
     {
         return Internal::execute_random(engine_, t, "random.normal", "random.normal"_op, {mean, stddev},
-            [mean, stddev](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event 
+            [mean, stddev](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                oneapi::mkl::rng::philox4x32x10 engine_obj(q, seed);
-                
-                if constexpr (Internal::is_complex_v<T>) 
+
+                if constexpr (Internal::is_complex_v<T>)
                 {
                     using RealT = typename T::value_type;
-                    const RealT adj_stddev = static_cast<RealT>(stddev) / static_cast<RealT>(std::sqrt(2.0));
-                    oneapi::mkl::rng::skip_ahead(engine_obj, offset * size * 2);
-                    return oneapi::mkl::rng::generate(
-                        oneapi::mkl::rng::gaussian<RealT>(static_cast<RealT>(mean), adj_stddev), 
-                        engine_obj, size * 2, reinterpret_cast<RealT*>(pT), deps);
-                } 
-                else 
+                    RealT m = static_cast<RealT>(mean);
+                    RealT sd = static_cast<RealT>(stddev) / static_cast<RealT>(std::sqrt(2.0));
+                    RealT* pR = reinterpret_cast<RealT*>(pT);
+                    int64_t n = size * 2;
+
+                    auto ev = q.submit([&](sycl::handler& h)
+                    {
+                        h.depends_on(deps);
+                        h.parallel_for(sycl::range<1>(n), [=](sycl::id<1> idx)
+                        {
+                            pR[idx[0]] = Kernels::SYCL::Random::draw_normal<RealT>(seed, offset, idx[0], m, sd);
+                        });
+                    });
+                    return ev;
+                }
+                else
                 {
-                    oneapi::mkl::rng::skip_ahead(engine_obj, offset * size);
-                    return oneapi::mkl::rng::generate(
-                        oneapi::mkl::rng::gaussian<T>(static_cast<T>(mean), static_cast<T>(stddev)), 
-                        engine_obj, size, pT, deps);
+                    T m = static_cast<T>(mean), sd = static_cast<T>(stddev);
+
+                    auto ev = q.submit([&](sycl::handler& h)
+                    {
+                        h.depends_on(deps);
+                        h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx)
+                        {
+                            pT[idx[0]] = Kernels::SYCL::Random::draw_normal<T>(seed, offset, idx[0], m, sd);
+                        });
+                    });
+                    return ev;
                 }
             });
     }

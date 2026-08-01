@@ -32,30 +32,37 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
+#include <kernels/random.hpp>
 #include "random_internal.hpp"
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event RandomOps::exponential(Tensor& t, double lambda) 
+    sycl::event RandomOps::exponential(Tensor& t, double lambda)
     {
         return Internal::execute_random(engine_, t, "random.exponential", "random.exponential"_op, {lambda},
-            [lambda](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event 
+            [lambda](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (Internal::is_complex_v<T>) 
+                if constexpr (Internal::is_complex_v<T>)
                 {
                     SB_THROW_IF(true, "Unsupported data type for exponential operation.");
                     return sycl::event();
-                } 
-                else 
+                }
+                else
                 {
-                    oneapi::mkl::rng::philox4x32x10 engine_obj(q, seed);
-                    oneapi::mkl::rng::skip_ahead(engine_obj, offset * size);
-                    return oneapi::mkl::rng::generate(
-                        oneapi::mkl::rng::exponential<T>(static_cast<T>(0.0), static_cast<T>(1.0 / lambda)), 
-                        engine_obj, size, pT, deps);
+                    T beta = static_cast<T>(1.0 / lambda);
+
+                    return q.submit([&](sycl::handler& h)
+                    {
+                        h.depends_on(deps);
+                        h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx)
+                        {
+                            T u = Kernels::SYCL::Random::draw_uniform<T>(seed, offset, idx[0], static_cast<T>(0.0), static_cast<T>(1.0));
+                            pT[idx[0]] = -beta * sycl::log(static_cast<T>(1.0) - u);
+                        });
+                    });
                 }
             });
     }

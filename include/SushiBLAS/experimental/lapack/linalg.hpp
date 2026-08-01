@@ -30,20 +30,25 @@
 
 #pragma once
 
+// EXPERIMENTAL - quarantined per SB-2/D1. Not included from engine.hpp and not
+// reachable via Engine::linalg() - that accessor was removed. No .cpp
+// implementation exists for any method declared here. The LAPACK backend
+// strategy is a named follow-up (P8), not solved by this file's presence.
+
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     class Engine;
 
     /**
      * @class LinalgOps
      * @brief High-level linear algebra operations (LAPACK).
-     * 
+     *
      * Provides matrix solvers, decompositions, and structural matrix analysis.
      */
-    class LinalgOps 
+    class LinalgOps
     {
         public:
             /**
@@ -62,7 +67,7 @@ namespace SushiBLAS
 
             /**
              * @brief LU Decomposition (A = P*L*U).
-             * Factorizes matrix A into a permutation matrix P, a unit lower 
+             * Factorizes matrix A into a permutation matrix P, a unit lower
              * triangular matrix L, and an upper triangular matrix U.
              * @param A Input matrix (overwritten by L and U).
              * @param ipiv Output pivot indices.

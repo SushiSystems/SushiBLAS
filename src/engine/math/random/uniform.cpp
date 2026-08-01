@@ -32,34 +32,50 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
+#include <kernels/random.hpp>
 #include "random_internal.hpp"
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event RandomOps::uniform(Tensor& t, double min, double max) 
+    sycl::event RandomOps::uniform(Tensor& t, double min, double max)
     {
         return Internal::execute_random(engine_, t, "random.uniform", "random.uniform"_op, {min, max},
-            [min, max](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event 
+            [min, max](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                oneapi::mkl::rng::philox4x32x10 engine_obj(q, seed);
-                
-                if constexpr (Internal::is_complex_v<T>) 
+
+                if constexpr (Internal::is_complex_v<T>)
                 {
                     using RealT = typename T::value_type;
-                    oneapi::mkl::rng::skip_ahead(engine_obj, offset * size * 2);
-                    return oneapi::mkl::rng::generate(
-                        oneapi::mkl::rng::uniform<RealT>(static_cast<RealT>(min), static_cast<RealT>(max)), 
-                        engine_obj, size * 2, reinterpret_cast<RealT*>(pT), deps);
-                } 
-                else 
+                    RealT lo = static_cast<RealT>(min), hi = static_cast<RealT>(max);
+                    RealT* pR = reinterpret_cast<RealT*>(pT);
+                    int64_t n = size * 2;
+
+                    auto ev = q.submit([&](sycl::handler& h)
+                    {
+                        h.depends_on(deps);
+                        h.parallel_for(sycl::range<1>(n), [=](sycl::id<1> idx)
+                        {
+                            pR[idx[0]] = Kernels::SYCL::Random::draw_uniform<RealT>(seed, offset, idx[0], lo, hi);
+                        });
+                    });
+                    return ev;
+                }
+                else
                 {
-                    oneapi::mkl::rng::skip_ahead(engine_obj, offset * size);
-                    return oneapi::mkl::rng::generate(
-                        oneapi::mkl::rng::uniform<T>(static_cast<T>(min), static_cast<T>(max)), 
-                        engine_obj, size, pT, deps);
+                    T lo = static_cast<T>(min), hi = static_cast<T>(max);
+
+                    auto ev = q.submit([&](sycl::handler& h)
+                    {
+                        h.depends_on(deps);
+                        h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx)
+                        {
+                            pT[idx[0]] = Kernels::SYCL::Random::draw_uniform<T>(seed, offset, idx[0], lo, hi);
+                        });
+                    });
+                    return ev;
                 }
             });
     }

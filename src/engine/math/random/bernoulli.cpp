@@ -32,38 +32,35 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
+#include <kernels/random.hpp>
 #include "random_internal.hpp"
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event RandomOps::bernoulli(Tensor& t, double p) 
+    sycl::event RandomOps::bernoulli(Tensor& t, double p)
     {
         return Internal::execute_random(engine_, t, "random.bernoulli", "random.bernoulli"_op, {p},
-            [p](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event 
+            [p](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (Internal::is_complex_v<T>) 
+                if constexpr (Internal::is_complex_v<T>)
                 {
                     SB_THROW_IF(true, "Unsupported data type for bernoulli operation.");
                     return sycl::event();
-                } 
-                else 
+                }
+                else
                 {
-                    oneapi::mkl::rng::philox4x32x10 engine_obj(q, seed);
-                    oneapi::mkl::rng::skip_ahead(engine_obj, offset * size);
-                    
-                    auto ev = oneapi::mkl::rng::generate(
-                        oneapi::mkl::rng::uniform<T>(0.0, 1.0), 
-                        engine_obj, size, pT, deps);
-                        
-                    return q.submit([&](sycl::handler& h) 
+                    T pt = static_cast<T>(p);
+
+                    return q.submit([&](sycl::handler& h)
                     {
-                        h.depends_on(ev);
-                        h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx) 
+                        h.depends_on(deps);
+                        h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx)
                         {
-                            pT[idx] = (pT[idx] <= static_cast<T>(p)) ? static_cast<T>(1.0) : static_cast<T>(0.0);
+                            T u = Kernels::SYCL::Random::draw_uniform<T>(seed, offset, idx[0], static_cast<T>(0.0), static_cast<T>(1.0));
+                            pT[idx[0]] = (u <= pt) ? static_cast<T>(1.0) : static_cast<T>(0.0);
                         });
                     });
                 }
