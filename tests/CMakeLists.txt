@@ -8,9 +8,12 @@
 # `ctest -L unit` (or the umbrella regex the CLI uses) selects a sub-suite and
 # new tests are picked up automatically as long as they follow the convention.
 #
-# Most op files below are still commented out - SB-3 enables them in batches,
-# each together with its own test file. Only the ops already ported off
-# oneMKL (GEMM, SYRK) have their tests live today.
+# SB-3: elementwise/nonlinear/logic/reductions/random + GEMM/SYRK are enabled
+# (pure SYCL, no oneMKL dependency). BLAS level1/level2/level3-trsm stay
+# commented out below - those ops still call oneMKL directly, and oneMKL was
+# fully removed from this project's CMake when GEMM/SYRK were ported off it
+# (see src/CMakeLists.txt). They need the same kind of from-scratch kernel
+# port GEMM/SYRK got before they can compile, tracked as its own follow-up.
 # ============================================================================
 
 cmake_minimum_required(VERSION 3.22) # gtest_discover_tests(TEST_FILTER ...)
@@ -49,76 +52,76 @@ add_executable(sushiblas_tests
     # functional/unit/test_trsm.cpp
 
     # --- Nonlinear ---
-    # functional/unit/test_relu.cpp
-    # functional/unit/test_leaky_relu.cpp
-    # functional/unit/test_sigmoid.cpp
-    # functional/unit/test_tanh.cpp
-    # functional/unit/test_elu.cpp
-    # functional/unit/test_silu.cpp
-    # functional/unit/test_gelu.cpp
-    # functional/unit/test_softplus.cpp
+    functional/unit/test_relu.cpp
+    functional/unit/test_leaky_relu.cpp
+    functional/unit/test_sigmoid.cpp
+    functional/unit/test_tanh.cpp
+    functional/unit/test_elu.cpp
+    functional/unit/test_silu.cpp
+    functional/unit/test_gelu.cpp
+    functional/unit/test_softplus.cpp
 
     # --- Math: Random ---
-    # functional/unit/test_constant.cpp
-    # functional/unit/test_distributions.cpp
-    # functional/unit/test_initializers.cpp
-    # functional/unit/test_normal.cpp
-    # functional/unit/test_uniform.cpp
+    functional/unit/test_constant.cpp
+    functional/unit/test_distributions.cpp
+    functional/unit/test_initializers.cpp
+    functional/unit/test_normal.cpp
+    functional/unit/test_uniform.cpp
 
     # --- Elementwise ---
-    # functional/unit/test_abs.cpp
-    # functional/unit/test_acos.cpp
-    # functional/unit/test_acosh.cpp
-    # functional/unit/test_add.cpp
-    # functional/unit/test_asin.cpp
-    # functional/unit/test_asinh.cpp
-    # functional/unit/test_atan.cpp
-    # functional/unit/test_atanh.cpp
-    # functional/unit/test_ceil.cpp
-    # functional/unit/test_clamp.cpp
-    # functional/unit/test_cos.cpp
-    # functional/unit/test_cosh.cpp
-    # functional/unit/test_div.cpp
-    # functional/unit/test_exp.cpp
-    # functional/unit/test_floor.cpp
-    # functional/unit/test_fmod.cpp
-    # functional/unit/test_log.cpp
-    # functional/unit/test_max.cpp
-    # functional/unit/test_min.cpp
-    # functional/unit/test_mul.cpp
-    # functional/unit/test_neg.cpp
-    # functional/unit/test_pow.cpp
-    # functional/unit/test_reciprocal.cpp
-    # functional/unit/test_remainder.cpp
-    # functional/unit/test_round.cpp
-    # functional/unit/test_sin.cpp
-    # functional/unit/test_sinh.cpp
-    # functional/unit/test_sqrt.cpp
-    # functional/unit/test_square.cpp
-    # functional/unit/test_sub.cpp
-    # functional/unit/test_tan.cpp
+    functional/unit/test_abs.cpp
+    functional/unit/test_acos.cpp
+    functional/unit/test_acosh.cpp
+    functional/unit/test_add.cpp
+    functional/unit/test_asin.cpp
+    functional/unit/test_asinh.cpp
+    functional/unit/test_atan.cpp
+    functional/unit/test_atanh.cpp
+    functional/unit/test_ceil.cpp
+    functional/unit/test_clamp.cpp
+    functional/unit/test_cos.cpp
+    functional/unit/test_cosh.cpp
+    functional/unit/test_div.cpp
+    functional/unit/test_exp.cpp
+    functional/unit/test_floor.cpp
+    functional/unit/test_fmod.cpp
+    functional/unit/test_log.cpp
+    functional/unit/test_max.cpp
+    functional/unit/test_min.cpp
+    functional/unit/test_mul.cpp
+    functional/unit/test_neg.cpp
+    functional/unit/test_pow.cpp
+    functional/unit/test_reciprocal.cpp
+    functional/unit/test_remainder.cpp
+    functional/unit/test_round.cpp
+    functional/unit/test_sin.cpp
+    functional/unit/test_sinh.cpp
+    functional/unit/test_sqrt.cpp
+    functional/unit/test_square.cpp
+    functional/unit/test_sub.cpp
+    functional/unit/test_tan.cpp
 
     # --- Reductions ---
-    # functional/unit/test_reductions.cpp
+    functional/unit/test_reductions.cpp
 
     # --- Logic ---
-    # functional/unit/test_all.cpp
-    # functional/unit/test_any.cpp
-    # functional/unit/test_equal.cpp
-    # functional/unit/test_greater.cpp
-    # functional/unit/test_greater_equal.cpp
-    # functional/unit/test_less.cpp
-    # functional/unit/test_less_equal.cpp
-    # functional/unit/test_logical_and.cpp
-    # functional/unit/test_logical_not.cpp
-    # functional/unit/test_logical_or.cpp
-    # functional/unit/test_logical_xor.cpp
-    # functional/unit/test_not_equal.cpp
-    # functional/unit/test_where.cpp
+    functional/unit/test_all.cpp
+    functional/unit/test_any.cpp
+    functional/unit/test_equal.cpp
+    functional/unit/test_greater.cpp
+    functional/unit/test_greater_equal.cpp
+    functional/unit/test_less.cpp
+    functional/unit/test_less_equal.cpp
+    functional/unit/test_logical_and.cpp
+    functional/unit/test_logical_not.cpp
+    functional/unit/test_logical_or.cpp
+    functional/unit/test_logical_xor.cpp
+    functional/unit/test_not_equal.cpp
+    functional/unit/test_where.cpp
 
     # --- Integration ---
-    # functional/integration/test_framework_sim.cpp
-    # functional/integration/test_dependency_stress.cpp
+    functional/integration/test_framework_sim.cpp
+    functional/integration/test_dependency_stress.cpp
 
     # --- Regression ---
     functional/regression/test_regression.cpp

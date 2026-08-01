@@ -67,10 +67,12 @@ namespace SushiBLAS
                             sum += valA_1 * valA_2;
                         }
 
-                        if (layout == Core::Layout::ROW_MAJOR) 
-                            c[i * ldc + j] = alpha * sum + beta * c[i * ldc + j];
-                        else 
-                            c[i + j * ldc] = alpha * sum + beta * c[i + j * ldc];
+                        // beta==0 must not read the (possibly uninitialized) prior C value,
+                        // matching standard BLAS semantics.
+                        if (layout == Core::Layout::ROW_MAJOR)
+                            c[i * ldc + j] = (beta == T(0)) ? alpha * sum : alpha * sum + beta * c[i * ldc + j];
+                        else
+                            c[i + j * ldc] = (beta == T(0)) ? alpha * sum : alpha * sum + beta * c[i + j * ldc];
                     }
                 }
             }

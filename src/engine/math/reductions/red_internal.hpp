@@ -28,13 +28,14 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    namespace Internal 
+    namespace Internal
     {
         /**
          * @brief Helper to execute a tensor reduction operation.
@@ -54,8 +55,8 @@ namespace SushiBLAS
             void* read_T = t.data();
             void* write_R = result.data();
 
-            std::vector<void*> reads = {read_T};
-            std::vector<void*> writes = {write_R};
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {read_T};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {write_R};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;

@@ -26,6 +26,7 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
+#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS 
@@ -43,8 +44,8 @@ namespace SushiBLAS
 
         const int64_t size = t.num_elements;
         void* ptr = t.storage ? t.storage->data_ptr : nullptr;
-        std::vector<void*> reads = {};
-        std::vector<void*> writes = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
         if (ptr) writes.push_back(ptr);
 
         switch (t.dtype)

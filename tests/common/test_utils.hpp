@@ -38,8 +38,7 @@ namespace SushiBLAS
             ASSERT_EQ(actual.dtype, expected.dtype) << "Tensor data type mismatch.";
             ASSERT_EQ(actual.shape, expected.shape) << "Tensor shape mismatch.";
             
-            size_t size = 1;
-            for (auto s : actual.shape) size *= s;
+            size_t size = static_cast<size_t>(actual.num_elements);
 
             std::vector<T> host_actual(size);
             std::vector<T> host_expected(size);
@@ -75,14 +74,121 @@ namespace SushiBLAS
         }
 
         /**
+        * @brief Maps a C++ scalar type to its corresponding SushiBLAS DataType enum value.
+        */
+        template<typename T> Core::DataType get_sushiblas_dtype();
+        template<> inline Core::DataType get_sushiblas_dtype<sycl::half>() { return Core::DataType::HALF; }
+        template<> inline Core::DataType get_sushiblas_dtype<float>() { return Core::DataType::FLOAT32; }
+        template<> inline Core::DataType get_sushiblas_dtype<double>() { return Core::DataType::FLOAT64; }
+        template<> inline Core::DataType get_sushiblas_dtype<std::complex<float>>() { return Core::DataType::COMPLEX32; }
+        template<> inline Core::DataType get_sushiblas_dtype<std::complex<double>>() { return Core::DataType::COMPLEX64; }
+
+        /**
+        * @brief Writes a flat host-side value list into a tensor, dispatching on the tensor's
+        * runtime dtype (values are cast to the element type on write).
+        */
+        inline void fill_tensor(Tensor& tensor, const std::vector<float>& values)
+        {
+            size_t size = static_cast<size_t>(tensor.num_elements);
+            ASSERT_EQ(values.size(), size) << "fill_tensor: value count does not match tensor size.";
+
+            auto& q = TestEnvironment::get_context().get_queue();
+            switch (tensor.dtype)
+            {
+                case Core::DataType::HALF:
+                {
+                    std::vector<sycl::half> host(values.begin(), values.end());
+                    q.memcpy(tensor.data(), host.data(), size * sizeof(sycl::half)).wait();
+                    break;
+                }
+                case Core::DataType::FLOAT32:
+                {
+                    std::vector<float> host(values.begin(), values.end());
+                    q.memcpy(tensor.data(), host.data(), size * sizeof(float)).wait();
+                    break;
+                }
+                case Core::DataType::FLOAT64:
+                {
+                    std::vector<double> host(values.begin(), values.end());
+                    q.memcpy(tensor.data(), host.data(), size * sizeof(double)).wait();
+                    break;
+                }
+                case Core::DataType::COMPLEX32:
+                {
+                    std::vector<std::complex<float>> host(values.begin(), values.end());
+                    q.memcpy(tensor.data(), host.data(), size * sizeof(std::complex<float>)).wait();
+                    break;
+                }
+                case Core::DataType::COMPLEX64:
+                {
+                    std::vector<std::complex<double>> host(values.begin(), values.end());
+                    q.memcpy(tensor.data(), host.data(), size * sizeof(std::complex<double>)).wait();
+                    break;
+                }
+            }
+        }
+
+        /**
+        * @brief Compares a tensor's contents against a flat host-side expected value list,
+        * dispatching on the tensor's runtime dtype. For complex dtypes, only the real part is
+        * checked (matching this codebase's existing test convention for real-valued expectations).
+        */
+        inline void verify_tensor(const Tensor& tensor, const std::vector<float>& expected, double tolerance = 1e-4)
+        {
+            size_t size = static_cast<size_t>(tensor.num_elements);
+            ASSERT_EQ(expected.size(), size) << "verify_tensor: expected value count does not match tensor size.";
+
+            auto& q = TestEnvironment::get_context().get_queue();
+            std::vector<float> exp(expected.begin(), expected.end());
+
+            switch (tensor.dtype)
+            {
+                case Core::DataType::HALF:
+                {
+                    std::vector<sycl::half> host(size);
+                    q.memcpy(host.data(), tensor.data(), size * sizeof(sycl::half)).wait();
+                    for (size_t i = 0; i < size; ++i) EXPECT_NEAR(static_cast<float>(host[i]), exp[i], tolerance) << "Mismatch at index " << i;
+                    break;
+                }
+                case Core::DataType::FLOAT32:
+                {
+                    std::vector<float> host(size);
+                    q.memcpy(host.data(), tensor.data(), size * sizeof(float)).wait();
+                    for (size_t i = 0; i < size; ++i) EXPECT_NEAR(host[i], exp[i], tolerance) << "Mismatch at index " << i;
+                    break;
+                }
+                case Core::DataType::FLOAT64:
+                {
+                    std::vector<double> host(size);
+                    q.memcpy(host.data(), tensor.data(), size * sizeof(double)).wait();
+                    for (size_t i = 0; i < size; ++i) EXPECT_NEAR(host[i], exp[i], tolerance) << "Mismatch at index " << i;
+                    break;
+                }
+                case Core::DataType::COMPLEX32:
+                {
+                    std::vector<std::complex<float>> host(size);
+                    q.memcpy(host.data(), tensor.data(), size * sizeof(std::complex<float>)).wait();
+                    for (size_t i = 0; i < size; ++i) EXPECT_NEAR(host[i].real(), exp[i], tolerance) << "Mismatch (real) at index " << i;
+                    break;
+                }
+                case Core::DataType::COMPLEX64:
+                {
+                    std::vector<std::complex<double>> host(size);
+                    q.memcpy(host.data(), tensor.data(), size * sizeof(std::complex<double>)).wait();
+                    for (size_t i = 0; i < size; ++i) EXPECT_NEAR(host[i].real(), exp[i], tolerance) << "Mismatch (real) at index " << i;
+                    break;
+                }
+            }
+        }
+
+        /**
         * @brief Random data generator for testing.
         */
         template <typename T>
         void fill_random(Tensor& tensor, float min_val = -1.0f, float max_val = 1.0f)
         {
-            size_t size = 1;
-            for (auto s : tensor.shape) size *= s;
-            
+            size_t size = static_cast<size_t>(tensor.num_elements);
+
             std::vector<T> host_data(size);
             for (size_t i = 0; i < size; ++i)
             {
@@ -124,9 +230,21 @@ namespace SushiBLAS
                     engine.reset();
                 }
 
-                void reinit_engine(Core::Layout layout) 
+                void reinit_engine(Core::Layout layout)
                 {
                     engine = std::make_unique<Engine>(TestEnvironment::get_context(), layout);
+                }
+
+                /**
+                * @brief Creates a tensor of dtype `T` and initializes it from a host-side vector.
+                */
+                template<typename T>
+                Tensor create_initialized_tensor(std::initializer_list<int64_t> dims, const std::vector<T>& data)
+                {
+                    auto t = engine->create_tensor(dims, get_sushiblas_dtype<T>());
+                    auto& q = TestEnvironment::get_context().get_queue();
+                    q.memcpy(t.data(), data.data(), data.size() * sizeof(T)).wait();
+                    return t;
                 }
         };
 
@@ -135,3 +253,6 @@ namespace SushiBLAS
 
 #define SB_ASSERT_TENSOR_NEAR(actual, expected, tol, type) \
     SushiBLAS::Test::assert_tensor_near<type>(actual, expected, tol)
+
+#define EXPECT_TENSOR_NEAR(tensor, expected_list, tol) \
+    SushiBLAS::Test::verify_tensor(tensor, expected_list, tol)

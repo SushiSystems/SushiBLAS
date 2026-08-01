@@ -3,6 +3,8 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
 
+using namespace SushiBLAS::Test;
+
 class Unit_ExpTest : public SushiBLASTest {};
 
 TEST_F(Unit_ExpTest, FloatForward) 

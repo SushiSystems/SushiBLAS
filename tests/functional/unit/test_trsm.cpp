@@ -26,6 +26,8 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
 
+using namespace SushiBLAS::Test;
+
 
 class Unit_TRSMTest : public SushiBLASTest {};
 
