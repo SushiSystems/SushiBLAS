@@ -33,6 +33,7 @@
 #include <oneapi/mkl.hpp>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level3.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -97,167 +98,35 @@ namespace SushiBLAS
 
         auto mode = engine_.get_mode();
 
-        // 2. Comprehensive Type Dispatching
-        switch (A.dtype)
-        {
-            /*
-            case Core::DataType::HALF:
+        return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
+            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
-                auto pA = A.data_as<sycl::half>();
-                auto pC = C.data_as<sycl::half>();
-                auto alpha_h = static_cast<sycl::half>(alpha);
-                auto beta_h = static_cast<sycl::half>(beta);
-                
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, upper, transA, mkl_uplo, mkl_trans, n, k, alpha_h, lda, str_a, beta_h, ldc, str_c, batch_size,
-                     pA, pC, mode]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                    {
-                        if (mode == ExecutionMode::FORCE_REFERENCE)
-                        {
-                            sycl::event::wait(deps);
-                            Kernels::Reference::syrk<sycl::half>(layout, upper, transA, n, k, alpha_h, pA, lda, str_a, beta_h, pC, ldc, str_c, batch_size);
-                            return sycl::event();
-                        }
+                using T = decltype(scalar_type);
 
-                        auto ev = Kernels::SYCL::syrk<sycl::half>(q, layout, mkl_uplo, mkl_trans, n, k, alpha_h, pA, lda, str_a, beta_h, pC, ldc, str_c, batch_size, deps);
+                // oneMKL has no SYRK instantiation for sycl::half (see kernels/sycl/blas/level3/syrk.hpp);
+                // fail loudly here rather than let it surface as a template-instantiation error deep in MKL.
+                if constexpr (std::is_same_v<T, sycl::half>)
+                {
+                    SB_THROW_IF(true, "Unsupported data type for SYRK operation.");
+                    return sycl::event();
+                }
+                else
+                {
+                    auto pA = static_cast<const T*>(read_A);
+                    auto pC = static_cast<T*>(write_C);
+                    auto alpha_t = static_cast<T>(alpha);
+                    auto beta_t = static_cast<T>(beta);
 
-                        if (mode == ExecutionMode::VERIFY)
+                    return Internal::dispatch_with_mode(mode, q, deps,
+                        [=]
                         {
-                            ev.wait();
-                            Kernels::Reference::syrk<sycl::half>(layout, upper, transA, n, k, alpha_h, pA, lda, str_a, beta_h, pC, ldc, str_c, batch_size);
-                        }
-                        return ev;
-                    }
-                );
-                break;
-            }
-            */
-            case Core::DataType::FLOAT32:
-            {
-                auto pA = A.data_as<float>();
-                auto pC = C.data_as<float>();
-                auto alpha_f = static_cast<float>(alpha);
-                auto beta_f = static_cast<float>(beta);
-                
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, upper, transA, mkl_uplo, mkl_trans, n, k, alpha_f, lda, str_a, beta_f, ldc, str_c, batch_size,
-                     pA, pC, mode]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                    {
-                        if (mode == ExecutionMode::FORCE_REFERENCE)
+                            Kernels::Reference::syrk<T>(layout, upper, transA, n, k, alpha_t, pA, lda, str_a, beta_t, pC, ldc, str_c, batch_size);
+                        },
+                        [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                         {
-                            sycl::event::wait(deps);
-                            Kernels::Reference::syrk<float>(layout, upper, transA, n, k, alpha_f, pA, lda, str_a, beta_f, pC, ldc, str_c, batch_size);
-                            return sycl::event();
-                        }
-
-                        auto ev = Kernels::SYCL::syrk<float>(q, layout, mkl_uplo, mkl_trans, n, k, alpha_f, pA, lda, str_a, beta_f, pC, ldc, str_c, batch_size, deps);
-
-                        if (mode == ExecutionMode::VERIFY)
-                        {
-                            ev.wait();
-                            Kernels::Reference::syrk<float>(layout, upper, transA, n, k, alpha_f, pA, lda, str_a, beta_f, pC, ldc, str_c, batch_size);
-                        }
-                        return ev;
-                    }
-                );
-                break;
-            }
-            case Core::DataType::FLOAT64:
-            {
-                auto pA = A.data_as<double>();
-                auto pC = C.data_as<double>();
-                
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, upper, transA, mkl_uplo, mkl_trans, n, k, alpha, lda, str_a, beta, ldc, str_c, batch_size,
-                     pA, pC, mode]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                    {
-                        if (mode == ExecutionMode::FORCE_REFERENCE)
-                        {
-                            sycl::event::wait(deps);
-                            Kernels::Reference::syrk<double>(layout, upper, transA, n, k, alpha, pA, lda, str_a, beta, pC, ldc, str_c, batch_size);
-                            return sycl::event();
-                        }
-
-                        auto ev = Kernels::SYCL::syrk<double>(q, layout, mkl_uplo, mkl_trans, n, k, alpha, pA, lda, str_a, beta, pC, ldc, str_c, batch_size, deps);
-
-                        if (mode == ExecutionMode::VERIFY)
-                        {
-                            ev.wait();
-                            Kernels::Reference::syrk<double>(layout, upper, transA, n, k, alpha, pA, lda, str_a, beta, pC, ldc, str_c, batch_size);
-                        }
-                        return ev;
-                    }
-                );
-                break;
-            }
-            case Core::DataType::COMPLEX32:
-            {
-                auto pA = A.data_as<std::complex<float>>();
-                auto pC = C.data_as<std::complex<float>>();
-                auto alpha_c = std::complex<float>(static_cast<float>(alpha), 0.0f);
-                auto beta_c = std::complex<float>(static_cast<float>(beta), 0.0f);
-                
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, upper, transA, mkl_uplo, mkl_trans, n, k, alpha_c, lda, str_a, beta_c, ldc, str_c, batch_size,
-                     pA, pC, mode]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                    {
-                        if (mode == ExecutionMode::FORCE_REFERENCE)
-                        {
-                            sycl::event::wait(deps);
-                            Kernels::Reference::syrk<std::complex<float>>(layout, upper, transA, n, k, alpha_c, pA, lda, str_a, beta_c, pC, ldc, str_c, batch_size);
-                            return sycl::event();
-                        }
-
-                        auto ev = Kernels::SYCL::syrk<std::complex<float>>(q, layout, mkl_uplo, mkl_trans, n, k, alpha_c, pA, lda, str_a, beta_c, pC, ldc, str_c, batch_size, deps);
-
-                        if (mode == ExecutionMode::VERIFY)
-                        {
-                            ev.wait();
-                            Kernels::Reference::syrk<std::complex<float>>(layout, upper, transA, n, k, alpha_c, pA, lda, str_a, beta_c, pC, ldc, str_c, batch_size);
-                        }
-                        return ev;
-                    }
-                );
-                break;
-            }
-            case Core::DataType::COMPLEX64:
-            {
-                auto pA = A.data_as<std::complex<double>>();
-                auto pC = C.data_as<std::complex<double>>();
-                auto alpha_c = std::complex<double>(alpha, 0.0);
-                auto beta_c = std::complex<double>(beta, 0.0);
-                
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, upper, transA, mkl_uplo, mkl_trans, n, k, alpha_c, lda, str_a, beta_c, ldc, str_c, batch_size,
-                     pA, pC, mode]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                    {
-                        if (mode == ExecutionMode::FORCE_REFERENCE)
-                        {
-                            sycl::event::wait(deps);
-                            Kernels::Reference::syrk<std::complex<double>>(layout, upper, transA, n, k, alpha_c, pA, lda, str_a, beta_c, pC, ldc, str_c, batch_size);
-                            return sycl::event();
-                        }
-
-                        auto ev = Kernels::SYCL::syrk<std::complex<double>>(q, layout, mkl_uplo, mkl_trans, n, k, alpha_c, pA, lda, str_a, beta_c, pC, ldc, str_c, batch_size, deps);
-                        
-                        if (mode == ExecutionMode::VERIFY)
-                        {
-                            ev.wait();
-                            Kernels::Reference::syrk<std::complex<double>>(layout, upper, transA, n, k, alpha_c, pA, lda, str_a, beta_c, pC, ldc, str_c, batch_size);
-                        }
-                        return ev;
-                    }
-                );
-                break;
-            }
-            default:
-                SB_THROW_IF(true, "Unsupported data type for SYRK operation.");
-        }
-        return sycl::event();
+                            return Kernels::SYCL::syrk<T>(q2, layout, mkl_uplo, mkl_trans, n, k, alpha_t, pA, lda, str_a, beta_t, pC, ldc, str_c, batch_size, deps2);
+                        });
+                }
+            });
     }
 } // namespace SushiBLAS

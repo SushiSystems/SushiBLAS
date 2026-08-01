@@ -32,6 +32,7 @@
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level3.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -91,171 +92,26 @@ namespace SushiBLAS
 
         auto mode = engine_.get_mode();
 
-        switch (A.dtype)
-        {
-            case Core::DataType::HALF:
+        return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
+            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
-                auto pA = A.data_as<sycl::half>();
-                auto pB = B.data_as<sycl::half>();
-                auto pC = C.data_as<sycl::half>();
-                auto alpha_h = static_cast<sycl::half>(alpha);
-                auto beta_h = static_cast<sycl::half>(beta);
+                using T = decltype(scalar_type);
 
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_transA, mkl_transB, m, n, k, alpha_h, lda, str_a, ldb, str_b, beta_h, ldc, str_c, batch_size, 
-                     pA, pB, pC, mode, transA, transB]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                auto pA = static_cast<const T*>(read_A);
+                auto pB = static_cast<const T*>(read_B);
+                auto pC = static_cast<T*>(write_C);
+                auto alpha_t = static_cast<T>(alpha);
+                auto beta_t = static_cast<T>(beta);
+
+                return Internal::dispatch_with_mode(mode, q, deps,
+                    [=]
                     {
-                        if (mode == ExecutionMode::FORCE_REFERENCE)
-                        {
-                            sycl::event::wait(deps);
-                            Kernels::Reference::gemm<sycl::half>(layout, transA, transB, m, n, k, alpha_h, pA, lda, str_a, pB, ldb, str_b, beta_h, pC, ldc, str_c, batch_size);
-                            return sycl::event();
-                        }
-
-                        auto ev = Kernels::SYCL::gemm<sycl::half>(q, layout, mkl_transA, mkl_transB, m, n, k, alpha_h, pA, lda, str_a, pB, ldb, str_b, beta_h, pC, ldc, str_c, batch_size, deps);
-
-                        if (mode == ExecutionMode::VERIFY)
-                        {
-                            ev.wait();
-                            Kernels::Reference::gemm<sycl::half>(layout, transA, transB, m, n, k, alpha_h, pA, lda, str_a, pB, ldb, str_b, beta_h, pC, ldc, str_c, batch_size);
-                        }
-                        return ev;
-                    }
-                );
-                break;
-            }
-            case Core::DataType::FLOAT32:
-            {
-                auto pA = A.data_as<float>();
-                auto pB = B.data_as<float>();
-                auto pC = C.data_as<float>();
-                auto alpha_f = static_cast<float>(alpha);
-                auto beta_f = static_cast<float>(beta);
-
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_transA, mkl_transB, m, n, k, alpha_f, lda, str_a, ldb, str_b, beta_f, ldc, str_c, batch_size, 
-                     pA, pB, pC, mode, transA, transB]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                        Kernels::Reference::gemm<T>(layout, transA, transB, m, n, k, alpha_t, pA, lda, str_a, pB, ldb, str_b, beta_t, pC, ldc, str_c, batch_size);
+                    },
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
-                        if (mode == ExecutionMode::FORCE_REFERENCE)
-                        {
-                            sycl::event::wait(deps);
-                            Kernels::Reference::gemm<float>(layout, transA, transB, m, n, k, alpha_f, pA, lda, str_a, pB, ldb, str_b, beta_f, pC, ldc, str_c, batch_size);
-                            return sycl::event();
-                        }
-
-                        auto ev = Kernels::SYCL::gemm<float>(q, layout, mkl_transA, mkl_transB, m, n, k, alpha_f, pA, lda, str_a, pB, ldb, str_b, beta_f, pC, ldc, str_c, batch_size, deps);
-
-                        if (mode == ExecutionMode::VERIFY)
-                        {
-                            ev.wait();
-                            Kernels::Reference::gemm<float>(layout, transA, transB, m, n, k, alpha_f, pA, lda, str_a, pB, ldb, str_b, beta_f, pC, ldc, str_c, batch_size);
-                        }
-                        return ev;
-                    }
-                );
-                break;
-            }
-            case Core::DataType::FLOAT64:
-            {
-                auto pA = A.data_as<double>();
-                auto pB = B.data_as<double>();
-                auto pC = C.data_as<double>();
-                auto alpha_d = static_cast<double>(alpha);
-                auto beta_d = static_cast<double>(beta);
-
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_transA, mkl_transB, m, n, k, alpha_d, lda, str_a, ldb, str_b, beta_d, ldc, str_c, batch_size, 
-                     pA, pB, pC, mode, transA, transB]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        if (mode == ExecutionMode::FORCE_REFERENCE)
-                        {
-                            sycl::event::wait(deps);
-                            Kernels::Reference::gemm<double>(layout, transA, transB, m, n, k, alpha_d, pA, lda, str_a, pB, ldb, str_b, beta_d, pC, ldc, str_c, batch_size);
-                            return sycl::event();
-                        }
-
-                        auto ev = Kernels::SYCL::gemm<double>(q, layout, mkl_transA, mkl_transB, m, n, k, alpha_d, pA, lda, str_a, pB, ldb, str_b, beta_d, pC, ldc, str_c, batch_size, deps);
-
-                        if (mode == ExecutionMode::VERIFY)
-                        {
-                            ev.wait();
-                            Kernels::Reference::gemm<double>(layout, transA, transB, m, n, k, alpha_d, pA, lda, str_a, pB, ldb, str_b, beta_d, pC, ldc, str_c, batch_size);
-                        }
-                        return ev;
-                    }
-                );
-                break;
-            }
-            case Core::DataType::COMPLEX32:
-            {
-                auto pA = A.data_as<std::complex<float>>();
-                auto pB = B.data_as<std::complex<float>>();
-                auto pC = C.data_as<std::complex<float>>();
-                auto alpha_c = std::complex<float>(static_cast<float>(alpha), 0.0f);
-                auto beta_c = std::complex<float>(static_cast<float>(beta), 0.0f);
-
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_transA, mkl_transB, m, n, k, alpha_c, lda, str_a, ldb, str_b, beta_c, ldc, str_c, batch_size, 
-                     pA, pB, pC, mode, transA, transB]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        if (mode == ExecutionMode::FORCE_REFERENCE)
-                        {
-                            sycl::event::wait(deps);
-                            Kernels::Reference::gemm<std::complex<float>>(layout, transA, transB, m, n, k, alpha_c, pA, lda, str_a, pB, ldb, str_b, beta_c, pC, ldc, str_c, batch_size);
-                            return sycl::event();
-                        }
-
-                        auto ev = Kernels::SYCL::gemm<std::complex<float>>(q, layout, mkl_transA, mkl_transB, m, n, k, alpha_c, pA, lda, str_a, pB, ldb, str_b, beta_c, pC, ldc, str_c, batch_size, deps);
-
-                        if (mode == ExecutionMode::VERIFY)
-                        {
-                            ev.wait();
-                            Kernels::Reference::gemm<std::complex<float>>(layout, transA, transB, m, n, k, alpha_c, pA, lda, str_a, pB, ldb, str_b, beta_c, pC, ldc, str_c, batch_size);
-                        }
-                        return ev;
-                    }
-                );
-                break;
-            }
-            case Core::DataType::COMPLEX64:
-            {
-                auto pA = A.data_as<std::complex<double>>();
-                auto pB = B.data_as<std::complex<double>>();
-                auto pC = C.data_as<std::complex<double>>();
-                auto alpha_c = std::complex<double>(alpha, 0.0);
-                auto beta_c = std::complex<double>(beta, 0.0);
-
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_transA, mkl_transB, m, n, k, alpha_c, lda, str_a, ldb, str_b, beta_c, ldc, str_c, batch_size, 
-                     pA, pB, pC, mode, transA, transB]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        if (mode == ExecutionMode::FORCE_REFERENCE)
-                        {
-                            sycl::event::wait(deps);
-                            Kernels::Reference::gemm<std::complex<double>>(layout, transA, transB, m, n, k, alpha_c, pA, lda, str_a, pB, ldb, str_b, beta_c, pC, ldc, str_c, batch_size);
-                            return sycl::event();
-                        }
-
-                        auto ev = Kernels::SYCL::gemm<std::complex<double>>(q, layout, mkl_transA, mkl_transB, m, n, k, alpha_c, pA, lda, str_a, pB, ldb, str_b, beta_c, pC, ldc, str_c, batch_size, deps);
-
-                        if (mode == ExecutionMode::VERIFY)
-                        {
-                            ev.wait();
-                            Kernels::Reference::gemm<std::complex<double>>(layout, transA, transB, m, n, k, alpha_c, pA, lda, str_a, pB, ldb, str_b, beta_c, pC, ldc, str_c, batch_size);
-                        }
-                        return ev;
-                    }
-                );
-                break;
-            }
-            default:
-                SB_THROW_IF(true, "Unsupported data type for GEMM operation.");
-        }
-        return sycl::event(); 
+                        return Kernels::SYCL::gemm<T>(q2, layout, mkl_transA, mkl_transB, m, n, k, alpha_t, pA, lda, str_a, pB, ldb, str_b, beta_t, pC, ldc, str_c, batch_size, deps2);
+                    });
+            });
     }
 } // namespace SushiBLAS

@@ -33,6 +33,7 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level2.hpp>
+#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS 
@@ -94,10 +95,10 @@ namespace SushiBLAS
         void* read_x = x.storage ? x.storage->data_ptr : nullptr;
         void* write_y = y.storage ? y.storage->data_ptr : nullptr;
 
-        std::vector<void*> reads = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (read_A) reads.push_back(read_A);
         if (read_x) reads.push_back(read_x);
-        std::vector<void*> writes = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
         if (write_y) writes.push_back(write_y);
 
         SushiRuntime::Graph::TaskMetadata meta;
@@ -110,41 +111,29 @@ namespace SushiBLAS
 
         auto layout = A.layout;
 
-        switch (A.dtype) 
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_transA, m, n, alpha, lda, incx, beta, incy, pA=A.data_as<float>(), px=x.data_as<float>(), py=y.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return gemv_dispatch<float>(q, layout, mkl_transA, m, n, alpha, pA, lda, px, incx, beta, py, incy, deps);
-                    });
-                break;
-            case Core::DataType::FLOAT64:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_transA, m, n, alpha_d=static_cast<double>(alpha), lda, incx, beta_d=static_cast<double>(beta), incy, pA=A.data_as<double>(), px=x.data_as<double>(), py=y.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return gemv_dispatch<double>(q, layout, mkl_transA, m, n, alpha_d, pA, lda, px, incx, beta_d, py, incy, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX32:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_transA, m, n, alpha_c=std::complex<float>(alpha, 0.0f), lda, incx, beta_c=std::complex<float>(beta, 0.0f), incy, pA=A.data_as<std::complex<float>>(), px=x.data_as<std::complex<float>>(), py=y.data_as<std::complex<float>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return gemv_dispatch<std::complex<float>>(q, layout, mkl_transA, m, n, alpha_c, pA, lda, px, incx, beta_c, py, incy, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX64:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_transA, m, n, alpha_c=std::complex<double>(alpha, 0.0), lda, incx, beta_c=std::complex<double>(beta, 0.0), incy, pA=A.data_as<std::complex<double>>(), px=x.data_as<std::complex<double>>(), py=y.data_as<std::complex<double>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return gemv_dispatch<std::complex<double>>(q, layout, mkl_transA, m, n, alpha_c, pA, lda, px, incx, beta_c, py, incy, deps);
-                    });
-                break;
-            default:
-                SB_THROW_IF(true, "Unsupported data type for GEMV.");
-        }
-        return sycl::event();
+        return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
+            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+
+                // oneMKL has no GEMV instantiation for sycl::half; fail loudly rather than
+                // silently no-op (P1 corollary) or let it surface as a template error in MKL.
+                if constexpr (std::is_same_v<T, sycl::half>)
+                {
+                    SB_THROW_IF(true, "oneMKL does not support HALF precision for GEMV.");
+                    return sycl::event();
+                }
+                else
+                {
+                    auto pA = static_cast<const T*>(read_A);
+                    auto px = static_cast<const T*>(read_x);
+                    auto py = static_cast<T*>(write_y);
+                    auto alpha_t = static_cast<T>(alpha);
+                    auto beta_t = static_cast<T>(beta);
+
+                    return gemv_dispatch<T>(q, layout, mkl_transA, m, n, alpha_t, pA, lda, px, incx, beta_t, py, incy, deps);
+                }
+            });
     }
 } // namespace SushiBLAS
 
