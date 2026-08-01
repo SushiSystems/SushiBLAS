@@ -1,0 +1,91 @@
+cmake_minimum_required(VERSION 3.20)
+
+# An out-of-tree consumer of an INSTALLED SushiBLAS.
+#
+# This project is deliberately not part of the main build. It configures
+# against the package the way a third party (SushiAI) would - find_package,
+# nothing else, no access to sushiblas's source tree - because that is the
+# only way to test the thing that actually breaks: a package that works only
+# when the source tree happens to be next to it is not a package. Mirrors
+# sushiruntime/tests/package/ exactly (see SushiRuntime's BB-4.6).
+#
+# Build it against an install prefix:
+#
+#   sb build
+#   cmake --install build --prefix /tmp/sb-prefix
+#   cmake -S tests/package -B /tmp/sb-consumer \
+#         -DCMAKE_PREFIX_PATH="/tmp/sb-prefix;/path/to/sushiruntime-install" \
+#         -DCMAKE_CXX_COMPILER=<the same SYCL compiler>
+#   cmake --build /tmp/sb-consumer
+#   /tmp/sb-consumer/sushiblas_package_consumer
+#
+# The compiler must be the SYCL one: SushiBLAS's kernels are header templates
+# instantiated in THIS project's translation units, same as SushiRuntime's.
+
+project(SushiBLASPackageConsumer LANGUAGES CXX)
+
+find_package(SushiBLAS REQUIRED)
+
+# --- Flag hygiene ------------------------------------------------------------
+#
+# The assertion SB-6's split exists to make: a consumer inherits nothing but
+# SushiBLAS's include paths and library, plus whatever SushiRuntime itself
+# legitimately exports (its floating-point contract). Warnings, -Werror,
+# sanitizers and the ISA of the machine that built the package are
+# development choices of this tree, and a consumer silently compiling under
+# them gets build failures whose cause is invisible from its own source tree.
+#
+# Checked here rather than in sushiblas's own tests because "what a consumer
+# inherits" is only observable from the consumer side - in-tree, every target
+# links the policy targets directly and the leak would be invisible.
+get_target_property(_sb_interface_options
+    SushiBLAS::sushiblas INTERFACE_COMPILE_OPTIONS)
+if(NOT _sb_interface_options)
+    set(_sb_interface_options "")
+endif()
+
+get_target_property(_sb_interface_links
+    SushiBLAS::sushiblas INTERFACE_LINK_LIBRARIES)
+if(NOT _sb_interface_links)
+    set(_sb_interface_links "")
+endif()
+
+set(_sb_forbidden_flags "-Werror" "-Wall" "-Wextra" "-pedantic"
+                        "/W4" "/permissive-"
+                        "-march=" "/arch:" "-fsanitize")
+
+foreach(_sb_flag IN LISTS _sb_forbidden_flags)
+    string(FIND "${_sb_interface_options}" "${_sb_flag}" _sb_found)
+    if(NOT _sb_found EQUAL -1)
+        message(FATAL_ERROR
+            "SushiBLAS's exported interface leaks '${_sb_flag}' to consumers. "
+            "Development flags belong on the PRIVATE policy targets; see "
+            "cmake/SushiBLASBuildPolicy.cmake. Full interface: ${_sb_interface_options}")
+    endif()
+endforeach()
+
+foreach(_sb_leaked IN ITEMS sushiblas_warnings sushiblas_perf sushiblas_sanitizers)
+    string(FIND "${_sb_interface_links}" "${_sb_leaked}" _sb_found)
+    if(NOT _sb_found EQUAL -1)
+        message(FATAL_ERROR
+            "SushiBLAS's exported interface names the in-tree policy target "
+            "'${_sb_leaked}'. It should be wrapped in BUILD_INTERFACE. "
+            "Full link interface: ${_sb_interface_links}")
+    endif()
+endforeach()
+
+message(STATUS "SushiBLAS interface compile options: ${_sb_interface_options}")
+message(STATUS "SushiBLAS interface link libraries:  ${_sb_interface_links}")
+
+# --- The consumer ------------------------------------------------------------
+
+add_executable(sushiblas_package_consumer main.cpp)
+
+target_link_libraries(sushiblas_package_consumer PRIVATE
+    SushiBLAS::sushiblas
+)
+
+set_target_properties(sushiblas_package_consumer PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+)

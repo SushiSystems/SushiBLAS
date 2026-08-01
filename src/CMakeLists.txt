@@ -126,17 +126,40 @@ set(SUSHIBLAS_SOURCES
 
 add_library(sushiblas STATIC ${SUSHIBLAS_SOURCES})
 
+# A namespaced alias so an in-tree consumer (add_subdirectory, D3's
+# TARGET-guard/sibling modes) and an out-of-tree one (find_package) spell the
+# dependency identically - mirrors SushiRuntime::SushiRuntime exactly (SB-6).
+add_library(SushiBLAS::sushiblas ALIAS sushiblas)
+
 # --- Include Directories ---
+# Two different visibilities, not two equivalent PUBLIC paths: include/ is the
+# public API surface consumers compile against (BUILD_INTERFACE while
+# building this tree, INSTALL_INTERFACE afterwards - a bare absolute path
+# would bake this machine's source tree into the exported target). The repo
+# root is PRIVATE-only: it exists so this library's own .cpp files can
+# `#include <kernels/...>`, but no public header under include/SushiBLAS/
+# reaches into kernels/ - it is an implementation detail, not part of what a
+# consumer links against, so it is never installed and never PUBLIC.
 target_include_directories(sushiblas PUBLIC
-    "${CMAKE_SOURCE_DIR}/include"
-    "${CMAKE_SOURCE_DIR}"
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
+target_include_directories(sushiblas PRIVATE
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>"
+)
+
+# --- Compile Policy ---
+# Warnings, architecture targeting and sanitizers, PRIVATE to this tree (SB-6).
+sushiblas_apply_build_policy(sushiblas)
 
 # --- Link Libraries ---
 # Link against dependencies. PUBLIC so consumers (like the app) inherit them.
 # SushiRuntime is always linked via its namespaced alias (D3): whichever of the
 # three resolution modes in cmake/Runtime.cmake fired, the link line here is
 # identical, and it never varies with how the dependency was actually found.
+# This is also how SushiBLAS inherits SushiRuntime's `sushiruntime_deterministic_fp`
+# contract transitively - SushiBLAS does not need (or own) a copy of that
+# guarantee, since it links SushiRuntime::SushiRuntime PUBLIC.
 # Not linked directly: IntelSYCL::SYCL_CXX. It's an imported target defined
 # inside sushiruntime's own directory scope (non-GLOBAL, per its Sycl.cmake),
 # invisible by name to sushiblas's sibling scope - but SushiRuntime::SushiRuntime
@@ -156,4 +179,36 @@ set_target_properties(sushiblas PROPERTIES
 # themselves. No oneMKL coupling: gemm/syrk are SushiBLAS's own ported/composed
 # tiling kernels now (SB-2, see NOTICE.md), not an oneMKL passthrough.
 sushiblas_apply_sycl(sushiblas SOURCES ${SUSHIBLAS_SOURCES})
+
+# --- Install & export (SB-6) ---
+#
+# What makes SushiBLAS consumable out of tree via find_package(SushiBLAS).
+# Mirrors SushiRuntime's own install/export shape exactly. Everything the
+# build applies beyond this - warnings, -Werror, sanitizers, -march - is
+# PRIVATE and never reaches here, which is the boundary cmake/SushiBLASBuildPolicy.cmake
+# exists to draw.
+install(TARGETS sushiblas
+    EXPORT SushiBLASTargets
+    LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+
+install(EXPORT SushiBLASTargets
+    FILE SushiBLASTargets.cmake
+    NAMESPACE SushiBLAS::
+    DESTINATION "${SB_INSTALL_CMAKEDIR}"
+)
+
+# The same targets, usable from a build tree without installing. A consumer
+# can point CMAKE_PREFIX_PATH at the build directory during development.
+export(EXPORT SushiBLASTargets
+    FILE "${PROJECT_BINARY_DIR}/SushiBLASTargets.cmake"
+    NAMESPACE SushiBLAS::
+)
 

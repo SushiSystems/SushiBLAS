@@ -36,4 +36,5 @@
 #include "storage.hpp"
 #include "engine.hpp"
 #include "tensor.hpp"
+#include "version.hpp"
 
