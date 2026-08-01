@@ -8,12 +8,12 @@
 # `ctest -L unit` (or the umbrella regex the CLI uses) selects a sub-suite and
 # new tests are picked up automatically as long as they follow the convention.
 #
-# SB-3: elementwise/nonlinear/logic/reductions/random + GEMM/SYRK are enabled
-# (pure SYCL, no oneMKL dependency). BLAS level1/level2/level3-trsm stay
-# commented out below - those ops still call oneMKL directly, and oneMKL was
-# fully removed from this project's CMake when GEMM/SYRK were ported off it
-# (see src/CMakeLists.txt). They need the same kind of from-scratch kernel
-# port GEMM/SYRK got before they can compile, tracked as its own follow-up.
+# SB-3: elementwise/nonlinear/logic/reductions/random are enabled (pure SYCL,
+# no oneMKL dependency). SB-3 follow-up: BLAS level1/level2/level3-trsm are
+# also enabled now, backed by from-scratch reference+SYCL kernels (see
+# kernels/{reference,sycl}/blas/{level1,level2,level3}/) instead of oneMKL,
+# which was fully removed from this project's CMake when GEMM/SYRK were
+# ported off it (see src/CMakeLists.txt). All BLAS levels now compile.
 # ============================================================================
 
 cmake_minimum_required(VERSION 3.22) # gtest_discover_tests(TEST_FILTER ...)
@@ -27,29 +27,29 @@ add_executable(sushiblas_tests
     common/test_main.cpp
 
     # --- Level 1 ---
-    # functional/unit/test_asum.cpp
-    # functional/unit/test_axpy.cpp
-    # functional/unit/test_copy.cpp
-    # functional/unit/test_dot.cpp
-    # functional/unit/test_iamax.cpp
-    # functional/unit/test_nrm2.cpp
-    # functional/unit/test_rot.cpp
-    # functional/unit/test_scal.cpp
-    # functional/unit/test_swap.cpp
+    functional/unit/test_asum.cpp
+    functional/unit/test_axpy.cpp
+    functional/unit/test_copy.cpp
+    functional/unit/test_dot.cpp
+    functional/unit/test_iamax.cpp
+    functional/unit/test_nrm2.cpp
+    functional/unit/test_rot.cpp
+    functional/unit/test_scal.cpp
+    functional/unit/test_swap.cpp
 
     # --- Level 2 ---
-    # functional/unit/test_gemv.cpp
-    # functional/unit/test_ger.cpp
-    # functional/unit/test_symv.cpp
-    # functional/unit/test_syr.cpp
-    # functional/unit/test_syr2.cpp
-    # functional/unit/test_trmv.cpp
-    # functional/unit/test_trsv.cpp
+    functional/unit/test_gemv.cpp
+    functional/unit/test_ger.cpp
+    functional/unit/test_symv.cpp
+    functional/unit/test_syr.cpp
+    functional/unit/test_syr2.cpp
+    functional/unit/test_trmv.cpp
+    functional/unit/test_trsv.cpp
 
     # --- Level 3 ---
     functional/unit/test_gemm.cpp
     functional/unit/test_syrk.cpp
-    # functional/unit/test_trsm.cpp
+    functional/unit/test_trsm.cpp
 
     # --- Nonlinear ---
     functional/unit/test_relu.cpp

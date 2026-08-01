@@ -22,25 +22,25 @@
 /**************************************************************************/
 
 #include <complex>
-#include <oneapi/mkl.hpp>
+#include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
-#include "level1_internal.hpp"
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level1::dot(const Tensor& x, const Tensor& y, Tensor& result) 
+    sycl::event Level1::dot(const Tensor& x, const Tensor& y, Tensor& result)
     {
         SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in DOT.");
-        // Note: For complex numbers dotc returns complex type. Result tensor should be complex.
-        
+        // Note: for complex dtypes this computes the conjugated dot product (DOTC),
+        // matching the previous oneMKL-backed behavior.
+
         int64_t n, incx, incy;
         Internal::get_vec_params(x, n, incx);
-        int64_t ny; 
+        int64_t ny;
         Internal::get_vec_params(y, ny, incy);
         SB_THROW_IF(n != ny, "DOT requires tensors of the same number of elements.");
 
@@ -50,28 +50,44 @@ namespace SushiBLAS
         void* read_y = y.storage ? y.storage->data_ptr : nullptr;
         void* write_r = result.storage ? result.storage->data_ptr : nullptr;
 
-        std::vector<void*> reads = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (read_x) reads.push_back(read_x);
         if (read_y) reads.push_back(read_y);
-        std::vector<void*> writes = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
         if (write_r) writes.push_back(write_r);
 
-        return Internal::execute_level1(engine_, "blas.lvl1.dot", "blas.lvl1.dot"_op, x.dtype, reads, writes, {},
-            [n, incx, incy, pX=read_x, pY=read_y, pR=write_r](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+        SushiRuntime::Graph::TaskMetadata meta;
+        meta.name = "blas.lvl1.dot";
+        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.op_id = "blas.lvl1.dot"_op;
+
+        auto mode = engine_.get_mode();
+
+        return Internal::execute_blas_task(engine_, meta, reads, writes, x.dtype,
+            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (std::is_same_v<T, sycl::half>) 
+                auto pX = static_cast<const T*>(read_x);
+                auto pY = static_cast<const T*>(read_y);
+                auto pR = static_cast<T*>(write_r);
+
+                if constexpr (Internal::is_complex_v<T>)
                 {
-                    SB_THROW_IF(true, "MKL Level 1 BLAS does not support HALF precision natively.");
-                    return sycl::event();
-                } 
-                else 
+                    return Internal::dispatch_with_mode(mode, q, deps,
+                        [=] { Kernels::Reference::dotc<typename T::value_type>(n, pX, incx, pY, incy, pR); },
+                        [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                        {
+                            return Kernels::SYCL::dotc<typename T::value_type>(q2, n, pX, incx, pY, incy, pR, deps2);
+                        });
+                }
+                else
                 {
-                    SB_LOG_INFO("MKL DOT: {} elements", n);
-                    if constexpr (Internal::is_complex_v<T>) 
-                        return oneapi::mkl::blas::column_major::dotc(q, n, static_cast<const T*>(pX), incx, static_cast<const T*>(pY), incy, static_cast<T*>(pR), deps);
-                    else 
-                        return oneapi::mkl::blas::column_major::dot(q, n, static_cast<const T*>(pX), incx, static_cast<const T*>(pY), incy, static_cast<T*>(pR), deps);
+                    return Internal::dispatch_with_mode(mode, q, deps,
+                        [=] { Kernels::Reference::dot<T>(n, pX, incx, pY, incy, pR); },
+                        [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                        {
+                            return Kernels::SYCL::dot<T>(q2, n, pX, incx, pY, incy, pR, deps2);
+                        });
                 }
             });
     }

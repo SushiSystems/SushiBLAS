@@ -22,18 +22,17 @@
 /**************************************************************************/
 
 #include <complex>
-#include <oneapi/mkl.hpp>
+#include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
-#include "level1_internal.hpp"
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level1::nrm2(const Tensor& x, Tensor& result) 
+    sycl::event Level1::nrm2(const Tensor& x, Tensor& result)
     {
         int64_t n, incx;
         Internal::get_vec_params(x, n, incx);
@@ -41,28 +40,32 @@ namespace SushiBLAS
         void* read_x = x.storage ? x.storage->data_ptr : nullptr;
         void* write_r = result.storage ? result.storage->data_ptr : nullptr;
 
-        std::vector<void*> reads = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (read_x) reads.push_back(read_x);
-        std::vector<void*> writes = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
         if (write_r) writes.push_back(write_r);
 
-        return Internal::execute_level1(engine_, "blas.lvl1.nrm2", "blas.lvl1.nrm2"_op, x.dtype, reads, writes, {},
-            [n, incx, pX=read_x, pR=write_r](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+        SushiRuntime::Graph::TaskMetadata meta;
+        meta.name = "blas.lvl1.nrm2";
+        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.op_id = "blas.lvl1.nrm2"_op;
+
+        auto mode = engine_.get_mode();
+
+        return Internal::execute_blas_task(engine_, meta, reads, writes, x.dtype,
+            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (std::is_same_v<T, sycl::half>) 
-                {
-                    SB_THROW_IF(true, "MKL Level 1 BLAS does not support HALF precision natively.");
-                    return sycl::event();
-                } 
-                else 
-                {
-                    SB_LOG_INFO("MKL NRM2: {} elements", n);
-                    if constexpr (Internal::is_complex_v<T>)
-                        return oneapi::mkl::blas::column_major::nrm2(q, n, static_cast<const T*>(pX), incx, static_cast<typename T::value_type*>(pR), deps);
-                    else
-                        return oneapi::mkl::blas::column_major::nrm2(q, n, static_cast<const T*>(pX), incx, static_cast<T*>(pR), deps);
-                }
+                using Real = typename Kernels::Reference::RealOf<T>::type;
+                auto pX = static_cast<const T*>(read_x);
+                auto pR = static_cast<Real*>(write_r);
+
+                return Internal::dispatch_with_mode(mode, q, deps,
+                    [=] { Kernels::Reference::nrm2<T>(n, pX, incx, pR); },
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    {
+                        return Kernels::SYCL::nrm2<T>(q2, n, pX, incx, pR, deps2);
+                    });
             });
     }
 }

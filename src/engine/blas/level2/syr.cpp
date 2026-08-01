@@ -22,38 +22,18 @@
 /**************************************************************************/
 
 #include <complex>
-#include <oneapi/mkl.hpp>
+#include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level2.hpp>
+#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    namespace
-    {
-        template<typename T>
-        sycl::event syr_dispatch(sycl::queue& queue, Core::Layout layout,
-                          oneapi::mkl::uplo uplo,
-                          int64_t n, T alpha, const T* x, int64_t incx,
-                          T* a, int64_t lda, const std::vector<sycl::event>& deps) 
-        {
-            if (layout == Core::Layout::ROW_MAJOR) 
-            {
-                SB_LOG_INFO("MKL SYR [Row-Major]: {}x{}", n, n);
-                return oneapi::mkl::blas::row_major::syr(queue, uplo, n, alpha, x, incx, a, lda, deps);
-            } 
-            else 
-            {
-                SB_LOG_INFO("MKL SYR [Col-Major]: {}x{}", n, n);
-                return oneapi::mkl::blas::column_major::syr(queue, uplo, n, alpha, x, incx, a, lda, deps);
-            }
-        }
-    }
-
-    sycl::event Level2::syr(const Tensor& x, Tensor& A, bool upper, float alpha) 
+    sycl::event Level2::syr(const Tensor& x, Tensor& A, bool upper, float alpha)
     {
         SB_THROW_IF(A.rank < 2, "SYR requires A to be at least a 2D matrix.");
         SB_THROW_IF(A.dtype != x.dtype, "Data type mismatch in SYR.");
@@ -69,15 +49,14 @@ namespace SushiBLAS
 
         SB_THROW_IF(nx != n, "Dimension mismatch for vector x in SYR.");
 
-        auto mkl_uplo = upper ? oneapi::mkl::uplo::upper : oneapi::mkl::uplo::lower;
-        auto layout = A.layout;
+        // TODO: Implement multi-dimensional batch support for Level 2
 
         void* read_x = x.storage ? x.storage->data_ptr : nullptr;
         void* write_A = A.storage ? A.storage->data_ptr : nullptr;
 
-        std::vector<void*> reads = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (read_x) reads.push_back(read_x);
-        std::vector<void*> writes = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
         if (write_A) writes.push_back(write_A);
 
         SushiRuntime::Graph::TaskMetadata meta;
@@ -87,42 +66,23 @@ namespace SushiBLAS
         meta.set_param(0, upper);
         meta.set_param(1, alpha);
 
-        // TODO: Implement multi-dimensional batch support for Level 2
+        auto layout = A.layout;
+        auto mode = engine_.get_mode();
 
-        switch (A.dtype) 
-        {
-            // TODO: Add support for Core::DataType::HALF
-            case Core::DataType::FLOAT32:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_uplo, n, alpha, lda, incx, px=x.data_as<float>(), pA=A.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return syr_dispatch<float>(q, layout, mkl_uplo, n, alpha, px, incx, pA, lda, deps);
+        return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
+            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+                auto px = static_cast<const T*>(read_x);
+                auto pA = static_cast<T*>(write_A);
+                auto alpha_t = static_cast<T>(alpha);
+
+                return Internal::dispatch_with_mode(mode, q, deps,
+                    [=] { Kernels::Reference::syr<T>(layout, upper, n, alpha_t, px, incx, pA, lda); },
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    {
+                        return Kernels::SYCL::syr<T>(q2, layout, upper, n, alpha_t, px, incx, pA, lda, deps2);
                     });
-                break;
-            case Core::DataType::FLOAT64:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_uplo, n, alpha_d=static_cast<double>(alpha), lda, incx, px=x.data_as<double>(), pA=A.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return syr_dispatch<double>(q, layout, mkl_uplo, n, alpha_d, px, incx, pA, lda, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX32:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_uplo, n, alpha_c=std::complex<float>(alpha, 0.0f), lda, incx, px=x.data_as<std::complex<float>>(), pA=A.data_as<std::complex<float>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return syr_dispatch<std::complex<float>>(q, layout, mkl_uplo, n, alpha_c, px, incx, pA, lda, deps);
-                    });
-                break;
-            case Core::DataType::COMPLEX64:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [layout, mkl_uplo, n, alpha_c=std::complex<double>(alpha, 0.0), lda, incx, px=x.data_as<std::complex<double>>(), pA=A.data_as<std::complex<double>>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event {
-                        return syr_dispatch<std::complex<double>>(q, layout, mkl_uplo, n, alpha_c, px, incx, pA, lda, deps);
-                    });
-                break;
-            default:
-                SB_THROW_IF(true, "Unsupported data type for SYR.");
-        }
-        return sycl::event();
+            });
     }
 } // namespace SushiBLAS
