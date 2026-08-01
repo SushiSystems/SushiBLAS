@@ -1,8 +1,10 @@
 add_executable(sushiblas_example example.cpp)
 target_link_libraries(sushiblas_example PRIVATE sushiblas)
+sushiblas_apply_build_policy(sushiblas_example)
 
 add_executable(io_example io_example.cpp)
 target_link_libraries(io_example PRIVATE sushiblas)
+sushiblas_apply_build_policy(io_example)
 
 # Ensure RPATH is set
 set_target_properties(sushiblas_example io_example PROPERTIES

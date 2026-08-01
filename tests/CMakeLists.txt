@@ -138,6 +138,9 @@ target_link_libraries(sushiblas_tests PRIVATE
     GTest::gtest
 )
 
+# --- Compile Policy ---
+sushiblas_apply_build_policy(sushiblas_tests)
+
 # One label per group; the "functional" umbrella is expressed by the consumer
 # as a label regex (`ctest -L 'unit|integration|regression'`) rather than a
 # second baked-in label, which does not survive gtest_discover_tests on
