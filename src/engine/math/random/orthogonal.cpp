@@ -41,7 +41,8 @@ namespace SushiBLAS
     sycl::event RandomOps::orthogonal(Tensor& t, double gain) 
     {
         SB_LOG_INFO("RandomOps: orthogonal ({} elements, gain: {:.4f}) - Falling back to normal", (uint64_t)t.num_elements, gain);
-        // TODO: Integrate with LinalgOps to perform QR decomposition for orthogonal initialization.
+        // TODO: Integrate with LinalgOps (currently experimental/quarantined, see SB-2/D1)
+        // to perform QR decomposition for orthogonal initialization.
         return normal(t, 0.0, 1.0);
     }
 } // namespace SushiBLAS

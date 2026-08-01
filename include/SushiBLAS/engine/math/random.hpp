@@ -41,8 +41,9 @@ namespace SushiBLAS
      * @class RandomOps
      * @brief Random number generators for tensor initialization and statistics.
      * 
-     * Uses oneMKL's Vector Statistics Library (VSL) to generate numbers 
-     * from various distributions directly on the accelerator.
+     * Uses a hand-written, portable Philox4x32-10 counter-based PRNG implemented
+     * directly in SYCL to generate numbers from various distributions on the
+     * accelerator - no oneMKL dependency.
      */
     class RandomOps 
     {

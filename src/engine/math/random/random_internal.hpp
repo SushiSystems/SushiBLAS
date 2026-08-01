@@ -34,7 +34,6 @@
 #include <vector>
 #include <complex>
 #include <type_traits>
-#include <oneapi/mkl.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/logger.hpp>
@@ -54,9 +53,8 @@ namespace SushiBLAS
         inline constexpr bool is_complex_v = is_complex<T>::value;
         
         template<typename Func>
-        sycl::event execute_random(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, const std::vector<double>& params, Func&& task_func) 
+        sycl::event execute_random(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, const std::vector<double>& params, Func&& task_func)
         {
-            // TODO: Implement lightweight device-side PRNG (like Philox) to replace heavy MKL RNG for faster parallel random generation.
             const int64_t size = t.num_elements;
             void* ptr = t.storage ? t.storage->data_ptr : nullptr;
             
@@ -94,7 +92,7 @@ namespace SushiBLAS
                         case Core::DataType::COMPLEX64:
                             return task_func(std::complex<double>{}, q, seed, offset, size, static_cast<std::complex<double>*>(pT), deps);
                         case Core::DataType::HALF:
-                            SB_THROW_IF(true, "HALF precision is not natively supported by MKL RNG.");
+                            SB_THROW_IF(true, "HALF precision is not supported for RNG operations.");
                             return sycl::event();
                         default:
                             SB_THROW_IF(true, "Unsupported data type for RNG operation.");

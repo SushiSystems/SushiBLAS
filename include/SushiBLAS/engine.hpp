@@ -41,11 +41,9 @@
 #include <SushiBLAS/engine/logic/logic.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiBLAS/engine/math/nonlinear.hpp>
-#include <SushiBLAS/engine/lapack/linalg.hpp>
 #include <SushiRuntime/graph/task_graph.hpp>
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/elementwise.hpp>
-#include <SushiBLAS/engine/signal/transforms.hpp>
 
 
 namespace SushiBLAS 
@@ -117,25 +115,13 @@ namespace SushiBLAS
              */
             inline LogicOps logic() { return LogicOps(*this); }
 
-            /** 
-             * @brief High-level linear algebra (LAPACK) solvers. 
-             * @return A LinalgOps object providing access to solvers (LU, Cholesky, etc.).
-             */
-            inline LinalgOps linalg() { return LinalgOps(*this); }
-
-            /** 
-             * @brief Random number generation and tensor initialization. 
+            /**
+             * @brief Random number generation and tensor initialization.
              * @return A RandomOps object providing access to PRNG kernels.
              */
             inline RandomOps random() { return RandomOps(*this); }
-            
-            /** 
-             * @brief Signal processing and frequency domain transforms (FFT). 
-             * @return A TransformsOps object providing access to FFT kernels.
-             */
-            inline TransformsOps signal() { return TransformsOps(*this); }
 
-            /** 
+            /**
              * @brief Non-linear transformations and activation functions. 
              * @return A NonLinearOps object providing access to non-linear kernels.
              */
