@@ -5,6 +5,8 @@
 #include "../../common/test_utils.hpp"
 #include <iostream>
 
+using namespace SushiBLAS::Test;
+
 class Integration_FrameworkSimTest : public SushiBLASTest {};
 
 TEST_F(Integration_FrameworkSimTest, DeepForwardPass) 

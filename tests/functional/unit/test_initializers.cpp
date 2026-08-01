@@ -3,6 +3,8 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
 
+using namespace SushiBLAS::Test;
+
 // We will cluster some similar initialization tests to satisfy requirements while being lean.
 class Unit_InitializersTest : public SushiBLASTest {};
 

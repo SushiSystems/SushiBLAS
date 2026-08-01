@@ -29,13 +29,14 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    namespace Internal 
+    namespace Internal
     {
         /**
          * @brief Helper for unary logic operations.
@@ -47,8 +48,8 @@ namespace SushiBLAS
             SB_THROW_IF(x.dtype != result.dtype, "Data types must match for logic operation.");
 
             int64_t size = x.num_elements;
-            std::vector<void*> reads = {x.storage->data_ptr};
-            std::vector<void*> writes = {result.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {x.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.storage->data_ptr};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -97,8 +98,8 @@ namespace SushiBLAS
             SB_THROW_IF(A.dtype != B.dtype || A.dtype != result.dtype, "Data types must match for logic operation.");
 
             int64_t size = A.num_elements;
-            std::vector<void*> reads = {A.storage->data_ptr, B.storage->data_ptr};
-            std::vector<void*> writes = {result.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {A.storage->data_ptr, B.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.storage->data_ptr};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -180,8 +181,8 @@ namespace SushiBLAS
             SB_THROW_IF(cond.dtype != A.dtype || cond.dtype != B.dtype || cond.dtype != result.dtype, "Data types must match for logic operation.");
 
             int64_t size = cond.num_elements;
-            std::vector<void*> reads = {cond.storage->data_ptr, A.storage->data_ptr, B.storage->data_ptr};
-            std::vector<void*> writes = {result.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {cond.storage->data_ptr, A.storage->data_ptr, B.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.storage->data_ptr};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;

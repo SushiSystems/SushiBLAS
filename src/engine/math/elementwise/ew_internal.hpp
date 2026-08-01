@@ -29,13 +29,14 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    namespace Internal 
+    namespace Internal
     {
         template<typename T> struct is_complex : std::false_type {};
         template<typename T> struct is_complex<std::complex<T>> : std::true_type {};
@@ -51,7 +52,7 @@ namespace SushiBLAS
             // TODO: Optimize parallel_for with 1D/2D/3D nd_range, vectorization (float4), and local memory coalescing for faster elementwise capability.
             int64_t size = t.num_elements;
             void* ptr = t.storage ? t.storage->data_ptr : nullptr;
-            std::vector<void*> rw = ptr ? std::vector<void*>{ptr} : std::vector<void*>{};
+            std::vector<SushiRuntime::Core::ResourceRegion> rw = ptr ? std::vector<SushiRuntime::Core::ResourceRegion>{ptr} : std::vector<SushiRuntime::Core::ResourceRegion>{};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -97,8 +98,8 @@ namespace SushiBLAS
                     "Tensor data types must match for elementwise operation.");
 
             int64_t size = A.num_elements;
-            std::vector<void*> reads = {A.storage->data_ptr, B.storage->data_ptr};
-            std::vector<void*> writes = {C.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {A.storage->data_ptr, B.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {C.storage->data_ptr};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;

@@ -157,7 +157,9 @@ namespace SushiBLAS
                                 const int64_t c_idx = (layout == Core::Layout::ROW_MAJOR)
                                     ? (global_row * ldc + global_col)
                                     : (global_row + global_col * ldc);
-                                C[c_idx] = alpha * acc[ii][jj] + beta * C[c_idx];
+                                // beta==0 must not read the (possibly uninitialized) prior C
+                                // value, matching standard BLAS semantics.
+                                C[c_idx] = (beta == T(0)) ? alpha * acc[ii][jj] : alpha * acc[ii][jj] + beta * C[c_idx];
                             }
                         }
                     });

@@ -29,23 +29,24 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    namespace Internal 
+    namespace Internal
     {
         /**
          * @brief Helper for nonlinear forward operations.
          */
         template<typename Func>
-        sycl::event execute_nonlinear_forward(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {}) 
+        sycl::event execute_nonlinear_forward(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
         {
             int64_t size = t.num_elements;
             void* ptr = t.storage ? t.storage->data_ptr : nullptr;
-            std::vector<void*> rw = ptr ? std::vector<void*>{ptr} : std::vector<void*>{};
+            std::vector<SushiRuntime::Core::ResourceRegion> rw = ptr ? std::vector<SushiRuntime::Core::ResourceRegion>{ptr} : std::vector<SushiRuntime::Core::ResourceRegion>{};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -96,8 +97,8 @@ namespace SushiBLAS
                        "Tensor data types must match for backward operation.");
 
             int64_t size = x.num_elements;
-            std::vector<void*> reads = {dy.storage->data_ptr, x.storage->data_ptr};
-            std::vector<void*> writes = {dx.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {dy.storage->data_ptr, x.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {dx.storage->data_ptr};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;

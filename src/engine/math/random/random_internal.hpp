@@ -30,11 +30,12 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
-    namespace Internal 
+    namespace Internal
     {
         template <typename T>
         struct is_complex : std::false_type {};
@@ -51,8 +52,8 @@ namespace SushiBLAS
             const int64_t size = t.num_elements;
             void* ptr = t.storage ? t.storage->data_ptr : nullptr;
             
-            std::vector<void*> reads = {};
-            std::vector<void*> writes = {};
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
             if (ptr) writes.push_back(ptr);
             
             SushiRuntime::Graph::TaskMetadata meta;

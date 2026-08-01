@@ -26,6 +26,7 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/logic/logic.hpp>
+#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS 
@@ -58,9 +59,9 @@ namespace SushiBLAS
         void* read_T = t.storage ? t.storage->data_ptr : nullptr;
         void* write_R = result.storage ? result.storage->data_ptr : nullptr;
 
-        std::vector<void*> reads = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (read_T) reads.push_back(read_T);
-        std::vector<void*> writes = {};
+        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
         if (write_R) writes.push_back(write_R);
 
         SushiRuntime::Graph::TaskMetadata meta;

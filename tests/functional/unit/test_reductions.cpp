@@ -5,9 +5,10 @@
 #include <numeric>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include "test_common.hpp"
+#include "../../common/test_utils.hpp"
 #include "../../common/reference_reductions.hpp"
 
+using namespace SushiBLAS::Test;
 using namespace SushiBLAS;
 
 template <typename T>

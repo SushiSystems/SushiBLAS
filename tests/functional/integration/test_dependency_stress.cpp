@@ -4,6 +4,8 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
 
+using namespace SushiBLAS::Test;
+
 class Integration_DependencyStressTest : public SushiBLASTest {};
 
 TEST_F(Integration_DependencyStressTest, ManyReadersOneWriter) 
