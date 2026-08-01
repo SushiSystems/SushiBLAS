@@ -30,9 +30,9 @@ int main()
     sb::Engine sb(ctx, sb::Core::Layout::COLUMN_MAJOR);
 
     SB_LOG_INFO("Creating tensors for GEMM...");
-    auto A = sb.create_tensor({1024, 1024}, sr::Memory::AllocStrategy::SHARED);
-    auto B = sb.create_tensor({1024, 1024}, sr::Memory::AllocStrategy::SHARED);
-    auto C = sb.create_tensor({1024, 1024}, sr::Memory::AllocStrategy::SHARED);
+    auto A = sb.create_tensor({1024, 1024}, sr::Memory::Strategies::Shared::instance());
+    auto B = sb.create_tensor({1024, 1024}, sr::Memory::Strategies::Shared::instance());
+    auto C = sb.create_tensor({1024, 1024}, sr::Memory::Strategies::Shared::instance());
 
     SB_LOG_INFO("Executing GEMM operation...");
     sb.blas().gemm(A, B, C);

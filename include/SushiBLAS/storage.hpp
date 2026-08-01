@@ -54,24 +54,24 @@ namespace SushiBLAS
             /** @brief The allocator used to manage this memory. */
             SushiRuntime::sushi_ptr<SushiRuntime::Memory::USMAllocator> allocator; 
             
-            /** @brief The strategy used for memory allocation (Shared, Device, or Host). */
-            SushiRuntime::Memory::AllocStrategy strategy;                          
+            /** @brief The strategy used for memory allocation (Shared, Device, or Host singleton). */
+            const SushiRuntime::Memory::IAllocatorStrategy* strategy = nullptr;
 
             /**
             * @brief Create a new Storage object.
-            * 
+            *
             * This allocates memory using the provided allocator and strategy.
             * The size is automatically aligned for better performance.
-            * 
+            *
             * @param alloc The allocator to use.
             * @param n_bytes The amount of memory to allocate in bytes.
-            * @param strat The allocation strategy to use (default is SHARED).
+            * @param strat The allocation strategy to use (default is Shared).
             * @throws std::runtime_error If the allocator is null or allocation fails.
             */
-            Storage(SushiRuntime::sushi_ptr<SushiRuntime::Memory::USMAllocator> alloc, 
-                    size_t n_bytes, 
-                    SushiRuntime::Memory::AllocStrategy strat = SushiRuntime::Memory::AllocStrategy::SHARED) 
-                : requested_bytes(n_bytes), allocator(alloc), strategy(strat)
+            Storage(SushiRuntime::sushi_ptr<SushiRuntime::Memory::USMAllocator> alloc,
+                    size_t n_bytes,
+                    const SushiRuntime::Memory::IAllocatorStrategy& strat = SushiRuntime::Memory::Strategies::Shared::instance())
+                : requested_bytes(n_bytes), allocator(alloc), strategy(&strat)
             {
                 SB_THROW_IF(!allocator, "Allocator pointer cannot be null");
                 SB_THROW_IF(n_bytes == 0, "Requested size cannot be zero");
@@ -83,7 +83,7 @@ namespace SushiBLAS
                     size_bytes += SushiRuntime::Core::DEFAULT_ALIGNMENT - (size_bytes % SushiRuntime::Core::DEFAULT_ALIGNMENT);
                 }
 
-                data_ptr = allocator->allocate(size_bytes, strategy);
+                data_ptr = allocator->allocate(size_bytes, *strategy);
                 SB_THROW_IF(!data_ptr, "Allocation failed for {} bytes", size_bytes);
             }
 

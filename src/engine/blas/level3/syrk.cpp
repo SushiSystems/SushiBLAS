@@ -23,7 +23,6 @@
 
 #include <vector>
 #include <complex>
-#include <oneapi/mkl.hpp>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
@@ -67,9 +66,6 @@ namespace SushiBLAS
         int64_t str_a = (batch_size > 1) ? A.strides[rA - 3] : 0;
         int64_t str_c = (batch_size > 1) ? C.strides[rC - 3] : 0;
 
-        auto mkl_uplo = upper ? oneapi::mkl::uplo::upper : oneapi::mkl::uplo::lower;
-        auto mkl_trans = transA ? oneapi::mkl::transpose::trans : oneapi::mkl::transpose::nontrans;
-
         // Capture data safely for asynchronous execution
         auto layout = A.layout;
         void* read_A = A.storage ? A.storage->data_ptr : nullptr;
@@ -96,30 +92,20 @@ namespace SushiBLAS
             {
                 using T = decltype(scalar_type);
 
-                // oneMKL has no SYRK instantiation for sycl::half (see kernels/sycl/blas/level3/syrk.hpp);
-                // fail loudly here rather than let it surface as a template-instantiation error deep in MKL.
-                if constexpr (std::is_same_v<T, sycl::half>)
-                {
-                    SB_THROW_IF(true, "Unsupported data type for SYRK operation.");
-                    return sycl::event();
-                }
-                else
-                {
-                    auto pA = static_cast<const T*>(read_A);
-                    auto pC = static_cast<T*>(write_C);
-                    auto alpha_t = static_cast<T>(alpha);
-                    auto beta_t = static_cast<T>(beta);
+                auto pA = static_cast<const T*>(read_A);
+                auto pC = static_cast<T*>(write_C);
+                auto alpha_t = static_cast<T>(alpha);
+                auto beta_t = static_cast<T>(beta);
 
-                    return Internal::dispatch_with_mode(mode, q, deps,
-                        [=]
-                        {
-                            Kernels::Reference::syrk<T>(layout, upper, transA, n, k, alpha_t, pA, lda, str_a, beta_t, pC, ldc, str_c, batch_size);
-                        },
-                        [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
-                        {
-                            return Kernels::SYCL::syrk<T>(q2, layout, mkl_uplo, mkl_trans, n, k, alpha_t, pA, lda, str_a, beta_t, pC, ldc, str_c, batch_size, deps2);
-                        });
-                }
+                return Internal::dispatch_with_mode(mode, q, deps,
+                    [=]
+                    {
+                        Kernels::Reference::syrk<T>(layout, upper, transA, n, k, alpha_t, pA, lda, str_a, beta_t, pC, ldc, str_c, batch_size);
+                    },
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    {
+                        return Kernels::SYCL::syrk<T>(q2, layout, upper, transA, n, k, alpha_t, pA, lda, str_a, beta_t, pC, ldc, str_c, batch_size, deps2);
+                    });
             });
     }
 } // namespace SushiBLAS
