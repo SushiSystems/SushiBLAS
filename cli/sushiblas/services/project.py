@@ -1,0 +1,318 @@
+"""Project build / test / run / clean / doxygen logic.
+
+The cmake / ctest invocations are issued directly via subprocess with the
+snapshotted build env. SushiBLAS configures against a real Intel oneAPI DPC++
+install and (classic-mode) vcpkg, so the configure args resolve those from the
+config rather than provisioning anything.
+
+Note: today's CMakeLists.txt has no test-toggle option and tests/CMakeLists.txt
+registers a single CTest case (``AllTests``, running every enabled GTest case
+inside one binary) rather than per-suite labels — unlike sushiengine, there is
+no ``--no-test`` build flag or ``--suite`` test flag here because nothing on
+the CMake side backs them yet.
+"""
+
+from __future__ import annotations
+
+import enum
+import shutil
+import subprocess
+from pathlib import Path
+from typing import Optional
+
+from .. import console
+from ..config import Config, find_project_root, load_config
+from ..env import load_build_env
+from . import discovery
+
+
+class BuildType(str, enum.Enum):
+    release = "release"
+    debug = "debug"
+    relwithdebinfo = "relwithdebinfo"
+
+
+_CMAKE_BUILD_TYPE = {
+    BuildType.release: "Release",
+    BuildType.debug: "Debug",
+    BuildType.relwithdebinfo: "RelWithDebInfo",
+}
+
+
+def _build_dir(root: Path) -> Path:
+    return root / "build"
+
+
+def _cmake(cfg: Config) -> str:
+    """The cmake executable: the configured path if set, else bare 'cmake'."""
+    return cfg.expand(cfg.cmake_exe) if cfg.cmake_exe else "cmake"
+
+
+def _ctest(cfg: Config) -> str:
+    """The ctest executable: the configured path if set, else bare 'ctest'."""
+    return cfg.expand(cfg.ctest_exe) if cfg.ctest_exe else "ctest"
+
+
+def _resolve_exe(name: str, env: dict[str, str]) -> str:
+    """Return the full path to *name* from env PATH, or *name* itself as fallback.
+
+    Using the full path sidesteps Windows PATH case-sensitivity bugs when a
+    plain-dict env is passed to subprocess (os.environ uses 'Path', overlays may
+    use 'PATH' — subprocess sees both and picks unpredictably).
+    """
+    env_path = next((v for k, v in env.items() if k.upper() == "PATH"), None)
+    found = shutil.which(name, path=env_path) or shutil.which(name)
+    return found or name
+
+
+def _run(cmd: list[str], env: dict[str, str], cwd: Path) -> int:
+    resolved = list(cmd)
+    resolved[0] = _resolve_exe(cmd[0], env)
+    console.command(subprocess.list2cmdline(resolved))
+    try:
+        return subprocess.run(resolved, cwd=str(cwd), env=env).returncode
+    except FileNotFoundError:
+        console.error(
+            f"Executable not found: '{cmd[0]}'.\n"
+            f"  - it is not on PATH and no explicit path is configured.\n"
+            f"  - set its path in config.local.toml (e.g. cmake_exe / ctest_exe / ninja_exe), or\n"
+            f"  - run `sb config` to see what the CLI resolved.")
+        return 1
+
+
+def _run_drained(cmd: list[str], env: dict[str, str], cwd: Path) -> int:
+    """Run *cmd* while actively draining its output, echoing it line by line.
+
+    Unlike :func:`_run` (which lets the child inherit our stdout), this pipes the
+    child's stdout/stderr and reads them here. That matters for ``ctest`` on
+    Windows: a slowly-drained inherited pipe can make a discovery/enumeration
+    child stall and register nothing. Draining the pipe ourselves keeps it
+    reliable.
+    """
+    resolved = list(cmd)
+    resolved[0] = _resolve_exe(cmd[0], env)
+    console.command(subprocess.list2cmdline(resolved))
+    try:
+        proc = subprocess.Popen(
+            resolved, cwd=str(cwd), env=env,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1)
+    except FileNotFoundError:
+        console.error(f"Executable not found: '{cmd[0]}'. Run `sb config`.")
+        return 1
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        console.console.print(line.rstrip("\n"), highlight=False, soft_wrap=True)
+    return proc.wait()
+
+
+def _configured_build_type(build_dir: Path) -> Optional[str]:
+    """The CMAKE_BUILD_TYPE baked into build_dir's cache, or None if unconfigured."""
+    cache = build_dir / "CMakeCache.txt"
+    if not cache.is_file():
+        return None
+    prefix = "CMAKE_BUILD_TYPE:"
+    for line in cache.read_text(encoding="utf-8", errors="ignore").splitlines():
+        if line.startswith(prefix):
+            return line.split("=", 1)[1].strip()
+    return None
+
+
+def _needs_configure(build_dir: Path, generator: str, build_type: str = None) -> bool:
+    if not build_dir.is_dir():
+        return True
+    sentinel = "build.ninja" if generator == "Ninja" else "Makefile"
+    if not (build_dir / sentinel).is_file():
+        return True
+    # Single-config generators (Ninja, Make) bake CMAKE_BUILD_TYPE into the
+    # existing cache; `cmake --build --config X` is silently ignored for them,
+    # so a stale tree must be reconfigured rather than reused as-is.
+    if build_type is not None and _configured_build_type(build_dir) != build_type:
+        return True
+    return False
+
+
+def _check_vendored_runtime(root: Path) -> int:
+    """Fail early (with guidance) when the vendored SushiRuntime copy is missing.
+
+    Today's SushiBLAS vendors SushiRuntime as a git-tracked snapshot
+    (``include/SushiRuntime/``, ``lib/sushiruntime.dll``) rather than resolving
+    a sibling checkout — SB-0 replaces this with a live dependency; until then,
+    this checks the vendored copy is actually present.
+    """
+    include_dir = root / "include" / "SushiRuntime"
+    if include_dir.is_dir():
+        return 0
+    console.error(
+        f"Vendored SushiRuntime headers not found at: {include_dir}\n"
+        f"  - this checkout is missing its bundled runtime dependency.")
+    return 1
+
+
+def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str) -> list[str]:
+    cxx = cfg.resolved_compiler()
+    vcpkg = cfg.resolved_vcpkg(root)
+
+    args = [
+        _cmake(cfg), "-S", str(root), "-B", str(build_dir), "-G", cfg.generator,
+        f"-DCMAKE_BUILD_TYPE={build_type}",
+        f"-DCMAKE_CXX_COMPILER={cxx}",
+    ]
+    if cfg.is_windows:
+        args.append(f"-DCMAKE_C_COMPILER={cxx}")
+        if cfg.ninja_exe:
+            args.append(f"-DCMAKE_MAKE_PROGRAM={cfg.expand(cfg.ninja_exe)}")
+        if cfg.pkgconf_exe:
+            args.append(f"-DPKG_CONFIG_EXECUTABLE={cfg.expand(cfg.pkgconf_exe)}")
+        if cfg.rc_exe:
+            args.append(f"-DCMAKE_RC_COMPILER={cfg.expand(cfg.rc_exe)}")
+    if vcpkg:
+        args += [
+            f"-DCMAKE_TOOLCHAIN_FILE={vcpkg}/scripts/buildsystems/vcpkg.cmake",
+            f"-DVCPKG_ROOT={vcpkg}",
+        ]
+        if cfg.is_windows:
+            args += [
+                f"-DVCPKG_TARGET_TRIPLET={cfg.vcpkg_triplet}",
+                f"-DCMAKE_PREFIX_PATH={vcpkg}/installed/{cfg.vcpkg_triplet}",
+            ]
+    return args
+
+
+def build(build_type: BuildType, clean: bool = False) -> int:
+    console.header("Project Build")
+    root = find_project_root()
+    cfg = load_config()
+    cmake_build_type = _CMAKE_BUILD_TYPE[build_type]
+    build_dir = _build_dir(root)
+
+    if (rc := _check_vendored_runtime(root)) != 0:
+        return rc
+
+    if clean:
+        clean_tree(root)
+
+    console.info(f"Compiler: {cfg.resolved_compiler()}")
+
+    env = load_build_env(cfg, build_dir)
+
+    fresh = _needs_configure(build_dir, cfg.generator, cmake_build_type)
+    if fresh:
+        console.info(f"Configuring CMake... (type={build_type.value})")
+        if build_dir.is_dir():
+            shutil.rmtree(build_dir, ignore_errors=True)
+    else:
+        console.info("Reconfiguring in place...")
+    rc = _run(_configure_args(cfg, root, build_dir, cmake_build_type), env, cwd=root)
+    if rc != 0:
+        console.error("CMake configure failed.")
+        return rc
+    build_dir.mkdir(parents=True, exist_ok=True)
+
+    console.info("Building...")
+    rc = _run([_cmake(cfg), "--build", str(build_dir), "--config", cmake_build_type],
+              env, cwd=root)
+    if rc == 0:
+        console.success("Build completed successfully!")
+    else:
+        console.error("Build failed.")
+    return rc
+
+
+def test(filter: str | None = None, repeat: int = 0) -> int:
+    """Run the test suite via CTest.
+
+    Today there is a single registered CTest case (``AllTests``), so ``--filter``
+    mainly matters once more cases are registered. For GTest-level knobs
+    (per-case filtering, shuffle, break-on-failure) run the binary directly:
+    sb run sushiblas_tests -- --gtest_filter=Gemm.* --gtest_shuffle
+    """
+    console.header("Project Test")
+    root = find_project_root()
+    cfg = load_config()
+    build_dir = _build_dir(root)
+    if not build_dir.is_dir():
+        console.error("build/ not found. Run `sb build` first.")
+        return 1
+
+    env = load_build_env(cfg, build_dir)
+    cmd = [_ctest(cfg), "--test-dir", str(build_dir), "--output-on-failure"]
+    if filter:
+        cmd += ["-R", filter]
+    if repeat > 0:
+        cmd += ["--repeat", f"until-fail:{repeat}"]
+        console.info(f"Repeating each test up to {repeat}x (stop on first failure).")
+    return _run_drained(cmd, env, cwd=build_dir)
+
+
+def run(target: str | None = None, sort: bool = False,
+        app_args: list[str] | None = None) -> int:
+    console.header("Project Run")
+    root = find_project_root()
+    cfg = load_config()
+    build_dir = _build_dir(root)
+    if not build_dir.is_dir():
+        console.error("build/ not found. Run `sb build` first.")
+        return 1
+
+    env = load_build_env(cfg, build_dir)
+
+    if sort:
+        exe = discovery.select_interactive(build_dir)
+    elif target:
+        exe = discovery.match_by_name(build_dir, target)
+        if exe is None:
+            console.error(f"Executable matching '{target}' not found.")
+            return 1
+    else:
+        exe = discovery.match_by_name(build_dir, cfg.target_bin)
+        if exe is None:
+            console.error(f"Default target '{cfg.target_bin}' not found.")
+            return 1
+
+    if exe is None:
+        return 1
+
+    console.info(f"Executing: {exe.name}")
+    console.console.print(f"[dim]{exe}[/dim]")
+    return _run([str(exe), *(app_args or [])], env, cwd=root)
+
+
+def clean_tree(root: Path) -> None:
+    build_dir = _build_dir(root)
+    if build_dir.is_dir():
+        console.info(f"Removing {build_dir}...")
+        shutil.rmtree(build_dir, ignore_errors=True)
+        console.success("Build directory cleaned.")
+    else:
+        console.info("build/ does not exist, nothing to clean.")
+
+
+def clean() -> int:
+    console.header("Project Clean")
+    clean_tree(find_project_root())
+    return 0
+
+
+def doxygen() -> int:
+    console.header("Doxygen Generation")
+    root = find_project_root()
+    cfg = load_config()
+    env = load_build_env(cfg, _build_dir(root))
+    doxyfile = root / "Doxyfile"
+    if not doxyfile.is_file():
+        console.error("Doxyfile not found at repo root.")
+        return 1
+
+    doxy = cfg.expand(cfg.doxygen_exe) if cfg.doxygen_exe else "doxygen"
+    if _resolve_exe(doxy, env) == doxy and not Path(doxy).is_file():
+        console.error(
+            "Doxygen is not installed or not on PATH.\n"
+            "  - Windows: winget install DimitriVanHeesch.Doxygen\n"
+            "  - Linux:   apt-get install -y doxygen graphviz\n"
+            "  - macOS:   brew install doxygen graphviz\n"
+            "  - or set doxygen_exe in config.local.toml to an existing doxygen binary.")
+        return 1
+
+    (root / "docs").mkdir(exist_ok=True)
+    return _run([doxy, "Doxyfile"], env, cwd=root)
