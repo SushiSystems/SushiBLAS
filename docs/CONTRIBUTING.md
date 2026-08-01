@@ -15,5 +15,5 @@ I follow a strict [Style Guide](STYLE_GUIDE.md) to maintain consistency. If you 
 
 ## Licensing
 
-This project is licensed under the MIT License.
+This project is licensed under the Apache License, Version 2.0.
 
