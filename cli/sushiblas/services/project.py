@@ -15,6 +15,7 @@ from __future__ import annotations
 import enum
 import shutil
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
@@ -189,7 +190,8 @@ def _resolved_c_compiler(cxx: str) -> str:
     return cxx
 
 
-def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str) -> list[str]:
+def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
+                    defines: Sequence[str] | None = None) -> list[str]:
     runtime = cfg.runtime_dir(root)
     cxx = cfg.resolved_compiler(root)
     vcpkg = cfg.resolved_vcpkg(root)
@@ -218,10 +220,22 @@ def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str) -
                 f"-DVCPKG_TARGET_TRIPLET={cfg.vcpkg_triplet}",
                 f"-DCMAKE_PREFIX_PATH={vcpkg}/installed/{cfg.vcpkg_triplet}",
             ]
+
+    # Caller-supplied cache variables are appended last, after every default
+    # this function sets, so that an explicit -D is never silently outranked by
+    # one of them.
+    for entry in defines or ():
+        if "=" not in entry:
+            raise ValueError(
+                f"-D expects VAR=VALUE, got {entry!r}. "
+                "Use VAR= to clear a variable.")
+        args.append(f"-D{entry}")
+
     return args
 
 
-def build(build_type: BuildType, clean: bool = False) -> int:
+def build(build_type: BuildType, clean: bool = False,
+          defines: Sequence[str] | None = None) -> int:
     console.header("Project Build")
     root = find_project_root()
     cfg = load_config()
@@ -246,7 +260,13 @@ def build(build_type: BuildType, clean: bool = False) -> int:
             shutil.rmtree(build_dir, ignore_errors=True)
     else:
         console.info("Reconfiguring in place...")
-    rc = _run(_configure_args(cfg, root, build_dir, cmake_build_type), env, cwd=root)
+    try:
+        configure_args = _configure_args(cfg, root, build_dir, cmake_build_type, defines)
+    except ValueError as exc:
+        console.error(str(exc))
+        return 2
+
+    rc = _run(configure_args, env, cwd=root)
     if rc != 0:
         console.error("CMake configure failed.")
         return rc

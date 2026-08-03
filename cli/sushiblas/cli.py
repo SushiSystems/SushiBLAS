@@ -33,9 +33,19 @@ def build(
         help="Build type: release | debug | relwithdebinfo."),
     clean: bool = typer.Option(
         False, "--clean", help="Delete the build tree before configuring."),
+    define: Optional[list[str]] = typer.Option(
+        None, "--define", "-D", metavar="VAR=VALUE",
+        help="Pass a CMake cache variable through to configure. Repeatable. "
+             "Quote values containing ';', e.g. "
+             '-D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86".'),
 ):
-    """Configure and build the project."""
-    raise typer.Exit(project_svc.build(type, clean))
+    """Configure and build the project.
+
+    Cache variables set with -D persist in the build tree, so dropping the
+    flag on a later run does not unset them; pass VAR= to clear one, or
+    --clean to start over.
+    """
+    raise typer.Exit(project_svc.build(type, clean, define))
 
 
 @app.command("test")
