@@ -277,5 +277,65 @@ namespace SushiBLAS
             }
         }
 
+        // Dispatch::execute_reduction described its operands to the dependency tracker
+        // as bare `data()` pointers rather than `Tensor::region()`. Every other op
+        // family had been converted; this one was missed, and for a tensor at offset
+        // zero the two are indistinguishable, so nothing caught it.
+        //
+        // For a view inside a shared arena they are not the same thing at all. A
+        // ResourceRegion built from a bare pointer keys on THAT pointer as its
+        // allocation base; a region from Tensor::region() keys on the allocation base
+        // and carries the view's byte interval. Two views of one arena therefore got
+        // two different bases, ResourceRegion::overlaps returned false, and the tracker
+        // emitted no edge at all - not a wrong edge, none. The reduction was then free
+        // to run before the op that produced its input.
+        //
+        // Not theoretical: SushiAI's first arena-packed training run reported a loss of
+        // -57 where ln 6 was expected, because reductions().max raced the bias_add
+        // feeding it and blas().scal beat reductions().sum to the loss.
+        //
+        // Asserted on the recorded graph rather than on the answer, because the answer
+        // is exactly what a race makes unreliable: with no edge the two tasks MAY still
+        // come out in the right order by luck, and a test that passes by luck guards
+        // nothing. The in-degree is the fact that decides it.
+        TEST_F(Regression_Sentinel, ReductionsOrderAgainstViewsOfOneAllocation)
+        {
+            constexpr int64_t kN = 8;
+
+            // One allocation, two disjoint views - the shape a memory planner produces.
+            // The consumer's operand is not at offset zero, which is what makes a
+            // bare-pointer region and a real region genuinely disagree.
+            auto storage = SushiRuntime::make_sushi<Storage>(
+                TestEnvironment::get_context().get_allocator(),
+                static_cast<size_t>(2 * kN) * sizeof(float),
+                SushiRuntime::Memory::Strategies::Shared::instance());
+
+            Tensor source(storage, {kN}, Core::DataType::FLOAT32, 0);
+            Tensor packed(storage, {kN}, Core::DataType::FLOAT32, kN);
+            auto total = engine->create_tensor({1});
+
+            fill_tensor(source, std::vector<float>(static_cast<size_t>(kN), 3.0f));
+
+            // mul writes `packed`; sum then reads it. The read must be ordered behind
+            // the write.
+            engine->elementwise().mul(source, source, packed);
+            engine->reductions().sum(packed, total);
+
+            auto nodes = engine->get_graph().take_nodes();
+            ASSERT_EQ(2u, nodes.size());
+            EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
+                << "The reduction reading `packed` must depend on the op that wrote it. "
+                   "An in-degree of 0 means execute_reduction described its operand with "
+                   "a bare data() pointer, so the tracker filed the read under a resource "
+                   "nothing else touches and emitted no edge at all.";
+
+            // And the same thing behaviourally, for the reader who wants to see it.
+            engine->elementwise().mul(source, source, packed);
+            engine->reductions().sum(packed, total);
+            engine->execute().wait();
+
+            EXPECT_TENSOR_NEAR(total, {static_cast<float>(kN) * 9.0f}, 1e-5);
+        }
+
     } // namespace Test
 } // namespace SushiBLAS

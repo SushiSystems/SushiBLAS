@@ -24,23 +24,19 @@
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ReductionOps::prod(const Tensor& t, Tensor& result) 
+    // RunningProduct, not CompensatedSum: Neumaier recovers the bits an addition
+    // rounds off and has nothing to say about multiplication. What this shares with
+    // the additive reductions - and the whole reason it moved off sycl::reduction
+    // too - is the fixed combination order, since floating-point multiplication is
+    // no more associative than addition is.
+    sycl::event ReductionOps::prod(const Tensor& t, Tensor& result)
     {
-        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
-        {
-            return q.submit([&](sycl::handler& h) 
-            {
-                h.depends_on(deps);
-                h.parallel_for(sycl::range<1>(size), sycl::reduction(pR, T(1), sycl::multiplies<T>(), sycl::property::reduction::initialize_to_identity{}), [=](sycl::id<1> idx, auto& reducer) 
-                {
-                    reducer.combine(pT[idx[0]]);
-                });
-            });
-        };
-        return Dispatch::execute_reduction(engine_, t, result, "math.prod", "math.prod"_op, dispatch);
+        return Dispatch::execute_folding_reduction<Reduce::RunningProduct>(
+            engine_, t, result, "math.prod", "math.prod"_op,
+            Dispatch::ReduceIdentityTransform{}, Dispatch::ReduceIdentityFinalize{});
     }
 } // namespace SushiBLAS

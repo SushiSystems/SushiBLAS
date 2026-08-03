@@ -97,7 +97,9 @@ TEST_F(Unit_DispatchSeamTest, ConsumerCanDriveTheLogicAndReductionSeamsToo)
 
     auto total = engine->create_tensor({1});
     sb::Dispatch::execute_reduction(*engine, mask, total, "test.count", "test.count"_op,
-        []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps)
+        []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size,
+           [[maybe_unused]] sb::Dispatch::ReductionScratch<T> scratch,
+           const std::vector<sycl::event>& deps)
         {
             return q.submit([&](sycl::handler& h)
             {

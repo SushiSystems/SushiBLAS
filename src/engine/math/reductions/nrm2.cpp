@@ -24,32 +24,22 @@
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ReductionOps::nrm2(const Tensor& t, Tensor& result) 
+    // Square the elements going in, take the root coming out. Like `mean`, the
+    // finalizer folds into the last kernel instead of costing a second launch.
+    //
+    // Still the naive 2-norm rather than the scaling one BLAS's xNRM2 specifies:
+    // squaring overflows for inputs above ~1e19 in fp64 and ~1e19 in fp32 where the
+    // scaled form would not. That is pre-existing and out of scope here; the
+    // compensated fold makes the *summation* accurate, not the squaring safe.
+    sycl::event ReductionOps::nrm2(const Tensor& t, Tensor& result)
     {
-        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
-        {
-            auto e1 = q.submit([&](sycl::handler& h) 
-            {
-                h.depends_on(deps);
-                h.parallel_for(sycl::range<1>(size), sycl::reduction(pR, T(0), sycl::plus<T>(), sycl::property::reduction::initialize_to_identity{}), [=](sycl::id<1> idx, auto& reducer) 
-                {
-                    T val = pT[idx[0]];
-                    reducer.combine(val * val);
-                });
-            });
-            return q.submit([&](sycl::handler& h) 
-            {
-                h.depends_on(e1);
-                h.single_task([=]() 
-                {
-                    *pR = sycl::sqrt(*pR);
-                });
-            });
-        };
-        return Dispatch::execute_reduction(engine_, t, result, "math.nrm2", "math.nrm2"_op, dispatch);
+        return Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(
+            engine_, t, result, "math.nrm2", "math.nrm2"_op,
+            [](auto x) { return x * x; },
+            [](auto value, [[maybe_unused]] std::size_t n) { return sycl::sqrt(value); });
     }
 } // namespace SushiBLAS

@@ -24,23 +24,16 @@
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ReductionOps::asum(const Tensor& t, Tensor& result) 
+    // Sum of magnitudes: the same fold as `sum` with `fabs` as the transform.
+    sycl::event ReductionOps::asum(const Tensor& t, Tensor& result)
     {
-        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
-        {
-            return q.submit([&](sycl::handler& h) 
-            {
-                h.depends_on(deps);
-                h.parallel_for(sycl::range<1>(size), sycl::reduction(pR, T(0), sycl::plus<T>(), sycl::property::reduction::initialize_to_identity{}), [=](sycl::id<1> idx, auto& reducer) 
-                {
-                    reducer.combine(sycl::fabs(pT[idx[0]]));
-                });
-            });
-        };
-        return Dispatch::execute_reduction(engine_, t, result, "math.asum", "math.asum"_op, dispatch);
+        return Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(
+            engine_, t, result, "math.asum", "math.asum"_op,
+            [](auto x) { return sycl::fabs(x); },
+            Dispatch::ReduceIdentityFinalize{});
     }
 } // namespace SushiBLAS

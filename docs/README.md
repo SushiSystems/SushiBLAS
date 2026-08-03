@@ -5,7 +5,7 @@ SushiBLAS is a C++20 tensor and BLAS library built on [SushiRuntime](https://git
 It is built around four ideas:
 
 - **A tensor and task-graph facade over SushiRuntime.** `Engine::create_tensor()` allocates a `Tensor` (shape/stride/dtype metadata plus a ref-counted `Storage` backed by SushiRuntime USM); calling an op (`engine.blas().axpy(...)`, `engine.elementwise().add(...)`) does not run it — it registers a task on the engine's `TaskGraph`, and SushiRuntime's dependency tracker orders it against every other queued task automatically. `engine.execute()` compiles and runs the graph.
-- **Two kernels per operation, always.** Every op has a pure-C++ **reference** kernel under `kernels/reference/` (the mathematical ground truth, zero external dependencies) and a **SYCL** kernel under `kernels/sycl/` (the hardware dispatcher). Neither kernel calls into a vendor BLAS — GEMM/SYRK use SushiBLAS's own local-memory-tiled SYCL kernels (ported from portBLAS's tiling algorithm, see [NOTICE.md](../NOTICE.md)), and every other BLAS level and every non-BLAS op is original, from-scratch SYCL.
+- **Two kernels per operation, always.** Every op has a pure-C++ **reference** kernel under `kernels/reference/` (the mathematical ground truth, zero external dependencies) and a **SYCL** kernel under `kernels/sycl/` (the hardware dispatcher). GEMM's pair lives under `include/SushiBLAS/kernels/` instead, because the public `Dispatch::execute_gemm` seam instantiates it in a consumer's own translation unit. Neither kernel calls into a vendor BLAS — GEMM/SYRK use SushiBLAS's own local-memory-tiled SYCL kernels (ported from portBLAS's tiling algorithm, see [NOTICE.md](../NOTICE.md)), and every other BLAS level and every non-BLAS op is original, from-scratch SYCL.
 - **Runtime-selectable execution mode.** `Engine::set_mode()` switches every subsequent op between `AUTO` (device dispatch), `FORCE_SYCL`, `FORCE_REFERENCE` (the CPU ground truth, for debugging), and `VERIFY` (run the SYCL kernel, then run the reference kernel and cross-check) — see [ARCHITECTURE.md §3](ARCHITECTURE.md#3-executionmode-the-dispatch-triad).
 - **Uniform type coverage, and an honest map of its edges.** `HALF`, `FLOAT32`, `FLOAT64`, `COMPLEX32`, and `COMPLEX64` are supported across BLAS levels 1-3, nonlinear, logic and random — dispatched at run time from one `Core::DataType` switch (`Internal::execute_blas_task`, or the matching `SushiBLAS::Dispatch` helper), not duplicated per call site. Where a dtype genuinely has no meaning for an op — `max` or `floor` on a complex tensor, a reduction that needs an ordering — the call throws naming the op and the dtype. It never silently does nothing.
 
@@ -171,9 +171,14 @@ include/SushiBLAS/     Public headers (this is the API surface)
   engine/               Per-domain op interfaces (BLASOps, ElementwiseOps, ...)
     blas/                 Level1 (vector-vector), Level2 (matrix-vector),
                            Level3 (matrix-matrix), SparseBLAS (stub), utils.hpp
-                           (execute_blas_task, dispatch_with_mode)
+                           (execute_blas_task, dispatch_with_mode), dispatch.hpp
+                           (execute_gemm - the public GEMM epilogue seam)
     logic/                LogicOps: comparisons, boolean reductions, where()
     math/                 ElementwiseOps, NonLinearOps, ReductionOps, RandomOps
+  kernels/              The kernels a public seam instantiates in a CONSUMER's
+                         translation unit, and which are therefore installed:
+                         GEMM's reference/ and sycl/ pair plus the shared
+                         gemm_epilogue.hpp. Everything else stays in kernels/.
   core/                 common.hpp (DataType, Layout), logger.hpp
   experimental/         Quarantined FFT/LAPACK surface (see ARCHITECTURE.md §9)
   tensor.hpp            Tensor: shape/stride/dtype metadata over a Storage
@@ -181,7 +186,8 @@ include/SushiBLAS/     Public headers (this is the API surface)
   io.hpp                Save/load/print (native, .npy, raw binary)
   version.hpp           SUSHIBLAS_VERSION_* macros
 src/                    Implementations of the above (engine/<domain>/<op>.cpp)
-kernels/
+kernels/                Private kernels (never installed; see include/SushiBLAS/
+                         kernels/ above for the two exceptions)
   reference/            Pure C++ kernels — the mathematical ground truth
   sycl/                 SYCL kernels — the hardware dispatchers
 examples/               example.cpp (a 1024x1024x1024 GEMM), io_example.cpp

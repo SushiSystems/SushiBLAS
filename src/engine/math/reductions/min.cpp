@@ -36,7 +36,9 @@ namespace SushiBLAS
     // the input, not of the launch.
     sycl::event ReductionOps::min(const Tensor& t, Tensor& result)
     {
-        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
+        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size,
+                                     [[maybe_unused]] Dispatch::ReductionScratch<T> scratch,
+                                     const std::vector<sycl::event>& deps) 
         {
             T init_val = std::numeric_limits<T>::max();
             return q.submit([&](sycl::handler& h) 

@@ -271,6 +271,13 @@ throws (`SB_THROW_IF`) rather than silently no-opping — matching every other
 "unsupported case" in the codebase (see [CONTRIBUTING.md](CONTRIBUTING.md)'s
 error-handling convention).
 
+`execute_blas_task` also takes a leading `Dispatch::Domain` template parameter,
+defaulting to `REAL_AND_COMPLEX` — which is what every built-in BLAS op wants
+and has always had. It exists for `Dispatch::execute_gemm`, whose functor is
+written by the *caller*: a real-only epilogue (`value > 0` has no meaning for
+`std::complex`) would otherwise be a compile error in the two arms that can never
+run. Same vocabulary, same meaning, as the math and logic families' `Domain`.
+
 **`dispatch_with_mode`** is the `ExecutionMode` triad from [§3](#3-executionmode-the-dispatch-triad).
 
 Together, a BLAS op's `.cpp` file is typically one `execute_blas_task` call
@@ -303,16 +310,43 @@ since each op there is a short templated lambda rather than a multi-case
 tiling kernel — the reference/SYCL split is the same, just colocated with the
 dispatch code instead of factored out.
 
-Those five headers are public API, not implementation detail: `execute_binary`,
+**GEMM's two kernels are the exception to `kernels/` being private.** They live
+under `include/SushiBLAS/kernels/{reference,sycl}/blas/level3/gemm.hpp`,
+mirroring the private tree's own path, and they are installed — because
+`Dispatch::execute_gemm` instantiates them in a *consumer's* translation unit
+with the consumer's own epilogue functor, and a template a public seam
+instantiates cannot stay private. The rule is exactly that narrow: a kernel a
+public seam names moves under `include/SushiBLAS/kernels/`; everything else
+stays in `kernels/`. The epilogue contract itself
+(`Kernels::GemmIdentityEpilogue`) sits in
+`include/SushiBLAS/kernels/blas/level3/gemm_epilogue.hpp`, under neither
+`reference/` nor `sycl/`, because both kernels and the seam name it.
+
+Those six headers are public API, not implementation detail: `execute_binary`,
 `execute_unary_inplace`, `execute_zip_inplace`, `execute_nonlinear_forward` /
-`_backward`, `execute_logic_unary` / `_binary` / `_ternary`, `execute_reduction`
-and `execute_random` all live in `namespace SushiBLAS::Dispatch` and are
-installed. A downstream framework composes several math ops into one functor,
-hands it to one `execute_*` call, and gets a single fused SYCL kernel — the
-reason the seam exists, and the reason "the consumer never writes SYCL itself"
-stays true. See `include/SushiBLAS/engine/dispatch.hpp` for the shared
-vocabulary (`Domain`) and the constraints a device-inlined functor has to
-satisfy.
+`_backward`, `execute_logic_unary` / `_binary` / `_ternary`, `execute_reduction`,
+`execute_folding_reduction`, `execute_random` and `execute_gemm` all live in
+`namespace SushiBLAS::Dispatch` and are installed. A downstream framework
+composes several math ops into one functor, hands it to one `execute_*` call,
+and gets a single fused SYCL kernel — the reason the seam exists, and the reason
+"the consumer never writes SYCL itself" stays true. See
+`include/SushiBLAS/engine/dispatch.hpp` for the shared vocabulary (`Domain`) and
+the constraints a device-inlined functor has to satisfy.
+
+**`execute_gemm`** (`engine/blas/dispatch.hpp`) is the BLAS family's only
+executor, and its functor is not a per-element operation but a GEMM *epilogue*:
+`T operator()(T value, int64_t row, int64_t col)`, applied to each element of C
+in the instant before it is stored. The coordinates are what make it more than an
+elementwise pass — with them a bias broadcast is expressible, so a bias-add plus
+an activation that would otherwise be two more kernel launches over the whole of
+C become zero. `Level3::gemm` *is* this function with
+`Kernels::GemmIdentityEpilogue`, so the fused and unfused paths cannot drift.
+It carries one warning that has to survive every retelling: **an activation
+epilogue in a forward training pass is silently wrong** unless it also spills its
+pre-activation, because the backward pass must differentiate at an input that no
+longer reached memory. Nothing throws and nothing produces NaN — the model just
+trains toward the wrong place. It is why cuBLASLt exposes `GELU_AUX_BIAS` and not
+merely `GELU_BIAS`.
 
 **`execute_zip_inplace`** is the variadic member of that set, and the one built
 for optimiser steps. It takes a `std::array<Tensor*, N>` of same-shaped tensors
@@ -364,7 +398,7 @@ retuning it is one edit instead of thirty-five.
 
 ### Notable kernel designs
 
-- **GEMM** (`kernels/sycl/blas/level3/gemm.hpp`) — two kernel shapes behind one
+- **GEMM** (`include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`) — two kernel shapes behind one
   entry point, chosen at launch from the `Device::Profile` in
   `include/SushiBLAS/engine/device_policy.hpp` and logged at `SB_LOG_INFO` so
   the choice is observable:
@@ -383,10 +417,13 @@ retuning it is one edit instead of thirty-five.
   4×4 for the wider ones. The four (layout, transpose) combinations are resolved
   on the host into a row/column stride pair (`Detail::strides_for`), so the
   innermost loop carries no layout branch and no extra instantiation. A trailing
-  `Epilogue` template parameter, defaulting to `GemmIdentityEpilogue`, is applied
-  per element immediately before the store — the library's fusion hook for
-  bias-add and activations; see the `@warning` on it for why an *activation*
-  epilogue in a forward training pass is a silent-wrongness trap.
+  `Epilogue` template parameter, defaulting to `Kernels::GemmIdentityEpilogue`, is
+  applied per element immediately before the store — the library's fusion hook for
+  bias-add and activations, reachable from outside the library through
+  `Dispatch::execute_gemm` (§7 above). The reference kernel takes the same
+  parameter, so `VERIFY` mode has a ground truth for a *fused* GEMM rather than
+  declaring every one of them wrong. See the `@warning` on either for why an
+  *activation* epilogue in a forward training pass is a silent-wrongness trap.
 - **SYRK** (`kernels/sycl/blas/level3/syrk.hpp`) — local-memory-tiled and
   work-group-cooperative, composed from GEMM's operand-addressing primitives
   (`Detail::strides_for`, `Detail::load_operand`) with the second operand set to
@@ -422,7 +459,36 @@ retuning it is one edit instead of thirty-five.
 - **Level1 reductions** (`asum`/`nrm2`/`dot`/`iamax`) — serial `single_task`
   kernels rather than a tree reduction. A deliberate correctness-first choice:
   Level1 vectors are small relative to the library's actual
-  performance-critical tier (Level3 GEMM/SYRK).
+  performance-critical tier (Level3 GEMM/SYRK). Note these are the *BLAS* Level1
+  ops (`engine.blas()`), which are separate from the whole-tensor reductions
+  below.
+- **Whole-tensor folding reductions** (`engine/reduce_1d.hpp`) —
+  `reductions().sum`/`mean`/`asum`/`nrm2`/`prod` do **not** use
+  `sycl::reduction`. The spec fixes no combination order for it, floating-point
+  addition is not associative, and this library links
+  `sushiruntime_deterministic_fp` PUBLIC — so byte reproducibility was resting on
+  an implementation detail nobody had promised, one that happens to hold on an
+  OpenCL CPU and is far likelier to vary on the NVIDIA GPUs the project targets.
+  `Reduce::reduce` replaces it with a shape fixed entirely by the geometry: a
+  grid-strided serial pass per work-item using **Neumaier** compensation, a
+  hand-written halving tree over local memory (not `reduce_over_group`, whose
+  order the spec leaves equally free), then one task summing a fixed partial count
+  in ascending index order. `max`/`min`/`argmax`/`argmin`/`all`/`any` are left on
+  `sycl::reduction` deliberately — each carries a comment explaining why order
+  cannot change its value.
+
+  The per-work-group partials come from a scratch buffer allocated **once, at
+  task-record time**, from the engine's allocator, and captured by the task. That
+  is the right trade for a compile-once/replay library: a per-launch
+  `malloc_device` plus a `host_task` free would add two submissions to every
+  reduction on every replay. It is also a declared write region, so the tracker
+  can order reductions against it rather than have them race invisibly.
+
+  A CPU below `K_CPU_TWO_STAGE_MIN_ELEMENTS` (16K) takes a single sequential pass
+  instead — measured, not assumed: at 1K the single pass is 1.5× faster, at 1M the
+  two-stage shape is 11.8× faster, and they cross at 16K. Both are deterministic,
+  and the shape is a pure function of the device and the element count, so the
+  threshold does not weaken the guarantee.
 - **Random** (`kernels/sycl/random/philox.hpp`) — a hand-written
   Philox4x32-10 counter-based PRNG (constants verified against the Random123
   reference implementation), replacing what was previously oneMKL's VSL

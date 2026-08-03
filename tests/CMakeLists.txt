@@ -112,6 +112,7 @@ add_executable(sushiblas_tests
 
     # --- Reductions ---
     functional/unit/test_reductions.cpp
+    functional/unit/test_reduction_determinism.cpp
 
     # --- Logic ---
     functional/unit/test_all.cpp
