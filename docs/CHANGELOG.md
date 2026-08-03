@@ -15,6 +15,14 @@ history of *why* the codebase looks the way it does isn't lost. See
 ## [Unreleased]
 
 ### Known issues
+- ~~**Unresolved Release-mode test compile failure (found 2026-08-02, not yet
+  diagnosed).**~~ Not reproducible as of 2026-08-03: a clean `sb build --type
+  release` in this repo compiles all three named files (`test_constant.cpp`,
+  `test_leaky_relu.cpp`, `test_gelu.cpp`) under `-O3 -DNDEBUG -Werror` with no
+  diagnostics, and the full suite is green. Left recorded here rather than
+  deleted because the original failure was observed from the *sushiai* side
+  (`sa build`), which was not re-run — if it returns, it is a cross-repo
+  configuration difference, not these files. Original report follows.
 - **Unresolved Release-mode test compile failure (found 2026-08-02, not yet
   diagnosed).** A `sa build --type release` run from the sushiai repo (which
   builds this repo as a sibling) reached `[153/219]` and failed to compile
@@ -30,6 +38,43 @@ history of *why* the codebase looks the way it does isn't lost. See
   captured and read the actual compiler diagnostic.
 
 ### Added
+- **The op-dispatch seam is public API (`namespace SushiBLAS::Dispatch`).** The
+  five functor-templated `*_internal.hpp` helpers moved out of `src/` and are
+  installed as `include/SushiBLAS/engine/{math/elementwise,math/nonlinear,
+  math/reductions,math/random,logic}/dispatch.hpp`, renamed from `_internal`
+  now that they are not internal. A downstream framework composes several math
+  ops into one plain C++ lambda, hands it to one `execute_binary` /
+  `execute_unary_inplace` / `execute_nonlinear_*` / `execute_logic_*` /
+  `execute_reduction` call, and gets a single fused SYCL kernel instead of one
+  launch per op — which is the whole basis of operator fusion for the layer
+  above, and keeps "the consumer never writes SYCL itself" true. Two supporting
+  headers came with it: `engine/dispatch.hpp` (the shared `Domain` vocabulary
+  and the documented constraints on a device-inlined functor) and
+  `engine/math/safe_math.hpp` (the `safe_exp`/`safe_log`/`safe_sqrt`/`safe_abs`
+  overload sets that let one functor cover real and complex element types).
+  `tests/package/main.cpp` now calls `Dispatch::execute_binary` with its own
+  lambda against a `find_package`'d install, so the reachability claim is
+  tested from outside the tree rather than asserted.
+- **`RandomOps::shuffle` is a real Fisher-Yates permutation.** It was a no-op
+  stub, commented out of `src/CMakeLists.txt`, and declared in an installed
+  header — so a consumer that called it compiled and then failed to link.
+  Implemented as a sequential `single_task` over the engine's Philox stream
+  (new `Kernels::SYCL::Random::draw_index`, integer-only so a shuffle does not
+  depend on the device's fp64 support), supporting every dtype since it moves
+  elements rather than computing on them. Reproducible from a fixed seed.
+- **`RandomOps::orthogonal` produces an actually orthogonal matrix.** Same link
+  trap as `shuffle`, plus a worse problem: the quarantined implementation
+  forwarded to `normal()`, so un-commenting it would have shipped a Gaussian
+  matrix under an orthogonal name. Now fills with N(0,1) and orthonormalizes by
+  modified Gram-Schmidt (`kernels/sycl/random/orthonormalize.hpp`) — the same Q
+  a QR would give, without a QR. FLOAT32/FLOAT64 rank-2 only; everything else
+  throws rather than falling back.
+- **Complex support where it means something, a loud failure where it does
+  not.** `add`/`sub`/`mul`/`div`/`neg`/`exp`/`log`/`sqrt`/`square`/
+  `reciprocal`/`abs` now compute on COMPLEX32/COMPLEX64 instead of silently
+  doing nothing, as do `equal`/`not_equal`/`and`/`or`/`xor`/`not`/`where`.
+- **`Core::to_string(DataType)` and `Core::is_complex_dtype(DataType)`**
+  (`core/common.hpp`), so a dtype rejection can name the offending type.
 - **Zero oneMKL dependency, anywhere.** Every BLAS level (1, 2, 3, including
   TRSM/TRSV) now runs on SushiBLAS's own from-scratch SYCL kernels. Level 3
   (GEMM, SYRK) uses a local-memory-tiled kernel derived from portBLAS's
@@ -130,6 +175,46 @@ history of *why* the codebase looks the way it does isn't lost. See
   behavior change (D1).
 
 ### Fixed
+- **Seven silent no-ops in dtype switches.** `default: break;` in the
+  elementwise (x2), nonlinear (x2) and logic (x3) dispatch helpers meant an
+  unsupported dtype produced a command group with no kernel enqueued: `add()`
+  on a COMPLEX32 tensor returned successfully and changed nothing. Every one of
+  them now throws naming the operation and the dtype, and the reductions helper
+  and `execute_random` got the same treatment for their already-throwing
+  branches. This is P1 (fail loudly, never silently) applied to the last places
+  in the library that violated it.
+- **Lexicographic ordering of complex numbers, removed.** `less`/`less_equal`/
+  `greater`/`greater_equal` had complex overloads that compared `(real, imag)`
+  lexicographically — a confident, well-formed, mathematically meaningless
+  answer. Those overloads are gone and the ordering ops declare `Domain::REAL`,
+  so a complex operand throws at record time. Same for `max`/`min`/`clamp`/
+  `floor`/`ceil`/`round`/`fmod`/`remainder`.
+- **`is_complex` / `is_complex_v` declared three times in one namespace.** All
+  three lived in `SushiBLAS::Internal` (`engine/blas/utils.hpp` plus the
+  elementwise and random private helpers) — harmless only while no translation
+  unit saw more than one, a guarantee that promoting the dispatch helpers to
+  public headers destroyed. Collapsed into one definition,
+  `SushiBLAS::Core::is_complex` in the new `include/SushiBLAS/core/traits.hpp`;
+  `utils.hpp` includes it so existing includers still compile. A fourth copy in
+  `tests/common/test_utils.hpp` is gone too.
+- **RNG seed and offset were being written to task-metadata slots that do not
+  exist.** `random_internal.hpp` (and `shuffle.cpp`) called `set_param(10, ...)`
+  and `set_param(11, ...)` on a `TaskMetadata` holding eight; `set_param`
+  ignores an out-of-range index silently, so every random task recorded a zero
+  seed and a zero offset. The kernels were unaffected — they capture seed and
+  offset by value, not through the metadata — so no number ever came out wrong,
+  but the record of which draw a task made was blank. Now slots 6 and 7 by
+  convention (`Dispatch::K_RNG_SEED_PARAM` / `K_RNG_OFFSET_PARAM`), stored as
+  raw `uint64_t` rather than lossily cast to `double`, with distribution
+  parameters capped at six and a `Dispatch::set_task_params` helper that throws
+  rather than dropping an overflow. Fixed entirely on the SushiBLAS side;
+  sushiruntime is unchanged.
+- **`using namespace SushiRuntime::Graph::Literals;` no longer leaks from a
+  public header.** The old private helpers injected it into `namespace
+  SushiBLAS` at namespace scope, which was tolerable while they were private
+  and is not once they are installed. Each `.cpp` that uses the `_op` literal
+  now says so itself.
+
 - **GEMM/SYRK NaN propagation when `beta == 0`.** Both kernels computed
   `C[idx] = alpha*sum + beta*C[idx]` unconditionally, including when
   `beta == 0`; a freshly-allocated, never-initialized `C` tensor whose

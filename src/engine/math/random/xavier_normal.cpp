@@ -26,7 +26,7 @@
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 #include <kernels/random.hpp>
-#include "random_internal.hpp"
+#include <SushiBLAS/engine/math/random/dispatch.hpp>
 
 namespace SushiBLAS
 {
@@ -36,11 +36,11 @@ namespace SushiBLAS
     {
         const double stddev = std::sqrt(2.0 / (n_in + n_out));
 
-        return Internal::execute_random(engine_, t, "random.xavier_normal", "random.xavier_normal"_op, {static_cast<double>(n_in), static_cast<double>(n_out), stddev},
+        return Dispatch::execute_random(engine_, t, "random.xavier_normal", "random.xavier_normal"_op, {static_cast<double>(n_in), static_cast<double>(n_out), stddev},
             [stddev](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (Internal::is_complex_v<T>)
+                if constexpr (Core::is_complex_v<T>)
                 {
                     SB_THROW_IF(true, "Unsupported data type for xavier_normal operation.");
                     return sycl::event();

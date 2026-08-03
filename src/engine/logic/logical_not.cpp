@@ -22,13 +22,15 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/logic/logic.hpp>
-#include "logic_internal.hpp"
+#include <SushiBLAS/engine/logic/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event LogicOps::logical_not(const Tensor& A, Tensor& result) 
     {
-        return Internal::execute_logic_unary(engine_, A, result, "logic.not", "logic.not"_op, 
-            [](auto x) { return Internal::logic_not_zero(x) ? decltype(x)(0) : decltype(x)(1); });
+        return Dispatch::execute_logic_unary<Dispatch::Domain::REAL_AND_COMPLEX>(engine_, A, result, "logic.not", "logic.not"_op, 
+            [](auto x) { return Dispatch::logic_not_zero(x) ? decltype(x)(0) : decltype(x)(1); });
     }
 } // namespace SushiBLAS

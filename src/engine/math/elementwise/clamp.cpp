@@ -22,13 +22,15 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/math/elementwise.hpp>
-#include "ew_internal.hpp"
+#include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event ElementwiseOps::clamp(Tensor& t, float min_val, float max_val) 
     {
-        return Internal::execute_unary_inplace(engine_, t, "math.ew.clamp", "math.ew.clamp"_op, 
+        return Dispatch::execute_unary_inplace(engine_, t, "math.ew.clamp", "math.ew.clamp"_op, 
             [min_val, max_val](auto x) { return sycl::clamp(x, (decltype(x))min_val, (decltype(x))max_val); },
             {min_val, max_val});
     }

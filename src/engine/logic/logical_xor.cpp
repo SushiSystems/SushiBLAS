@@ -22,13 +22,15 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/logic/logic.hpp>
-#include "logic_internal.hpp"
+#include <SushiBLAS/engine/logic/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event LogicOps::logical_xor(const Tensor& A, const Tensor& B, Tensor& result) 
     {
-        return Internal::execute_logic_binary(engine_, A, B, result, "logic.xor", "logic.xor"_op, 
-            [](auto x, auto y) { return (Internal::logic_not_zero(x) != Internal::logic_not_zero(y)) ? decltype(x)(1) : decltype(x)(0); });
+        return Dispatch::execute_logic_binary<Dispatch::Domain::REAL_AND_COMPLEX>(engine_, A, B, result, "logic.xor", "logic.xor"_op, 
+            [](auto x, auto y) { return (Dispatch::logic_not_zero(x) != Dispatch::logic_not_zero(y)) ? decltype(x)(1) : decltype(x)(0); });
     }
 } // namespace SushiBLAS

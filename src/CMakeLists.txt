@@ -42,10 +42,10 @@ set(SUSHIBLAS_SOURCES
     engine/math/random/he_uniform.cpp
     engine/math/random/log_normal.cpp
     engine/math/random/normal.cpp
-    # engine/math/random/orthogonal.cpp     # falls back to normal(), pre-existing unrelated TODO (LinalgOps QR)
+    engine/math/random/orthogonal.cpp
     engine/math/random/poisson.cpp
     engine/math/random/set_seed.cpp
-    # engine/math/random/shuffle.cpp        # pre-existing no-op stub, unrelated TODO
+    engine/math/random/shuffle.cpp
     engine/math/random/truncated_normal.cpp
     engine/math/random/uniform.cpp
     engine/math/random/xavier_normal.cpp

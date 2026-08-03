@@ -22,13 +22,15 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/math/elementwise.hpp>
-#include "ew_internal.hpp"
+#include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event ElementwiseOps::pow(Tensor& t, float exponent) 
     {
-        return Internal::execute_unary_inplace(engine_, t, "math.ew.pow", "math.ew.pow"_op, 
+        return Dispatch::execute_unary_inplace(engine_, t, "math.ew.pow", "math.ew.pow"_op, 
             [exponent](auto x) { return sycl::pow(x, (decltype(x))exponent); },
             {exponent});
     }

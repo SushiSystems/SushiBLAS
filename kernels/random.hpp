@@ -24,3 +24,4 @@
 #pragma once
 
 #include "kernels/sycl/random/philox.hpp"
+#include "kernels/sycl/random/orthonormalize.hpp"

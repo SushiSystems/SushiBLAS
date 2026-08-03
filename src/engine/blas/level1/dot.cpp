@@ -71,7 +71,7 @@ namespace SushiBLAS
                 auto pY = static_cast<const T*>(read_y);
                 auto pR = static_cast<T*>(write_r);
 
-                if constexpr (Internal::is_complex_v<T>)
+                if constexpr (Core::is_complex_v<T>)
                 {
                     return Internal::dispatch_with_mode(mode, q, deps,
                         [=] { Kernels::Reference::dotc<typename T::value_type>(n, pX, incx, pY, incy, pR); },

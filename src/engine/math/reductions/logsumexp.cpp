@@ -23,10 +23,12 @@
 
 #include <limits>
 #include <SushiBLAS/engine/math/reductions.hpp>
-#include "red_internal.hpp"
+#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event ReductionOps::logsumexp(const Tensor& t, Tensor& result) 
     {
         // TODO: Implement a numerically stable parallel tree reduction for logsumexp to replace single_task.
@@ -52,6 +54,6 @@ namespace SushiBLAS
                 });
             });
         };
-        return Internal::execute_reduction(engine_, t, result, "math.logsumexp", "math.logsumexp"_op, dispatch);
+        return Dispatch::execute_reduction(engine_, t, result, "math.logsumexp", "math.logsumexp"_op, dispatch);
     }
 } // namespace SushiBLAS

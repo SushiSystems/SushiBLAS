@@ -22,13 +22,15 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/math/elementwise.hpp>
-#include "ew_internal.hpp"
+#include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event ElementwiseOps::neg(Tensor& t) 
     {
-        return Internal::execute_unary_inplace(engine_, t, "math.ew.neg", "math.ew.neg"_op, 
+        return Dispatch::execute_unary_inplace<Dispatch::Domain::REAL_AND_COMPLEX>(engine_, t, "math.ew.neg", "math.ew.neg"_op, 
             [](auto x) { return -x; });
     }
 } // namespace SushiBLAS

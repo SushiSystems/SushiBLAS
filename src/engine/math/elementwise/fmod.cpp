@@ -22,13 +22,15 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/math/elementwise.hpp>
-#include "ew_internal.hpp"
+#include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event ElementwiseOps::fmod(const Tensor& A, const Tensor& B, Tensor& C) 
     {
-        return Internal::execute_binary(engine_, A, B, C, "math.ew.fmod", "math.ew.fmod"_op, 
+        return Dispatch::execute_binary(engine_, A, B, C, "math.ew.fmod", "math.ew.fmod"_op, 
             [](auto x, auto y) { return sycl::fmod(x, y); });
     }
 } // namespace SushiBLAS

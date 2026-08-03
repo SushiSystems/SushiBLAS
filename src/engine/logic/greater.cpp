@@ -22,13 +22,15 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/logic/logic.hpp>
-#include "logic_internal.hpp"
+#include <SushiBLAS/engine/logic/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event LogicOps::greater(const Tensor& A, const Tensor& B, Tensor& result) 
     {
-        return Internal::execute_logic_binary(engine_, A, B, result, "logic.greater", "logic.greater"_op, 
-            [](auto x, auto y) { return Internal::logic_greater(x, y) ? decltype(x)(1) : decltype(x)(0); });
+        return Dispatch::execute_logic_binary(engine_, A, B, result, "logic.greater", "logic.greater"_op, 
+            [](auto x, auto y) { return Dispatch::logic_greater(x, y) ? decltype(x)(1) : decltype(x)(0); });
     }
 } // namespace SushiBLAS

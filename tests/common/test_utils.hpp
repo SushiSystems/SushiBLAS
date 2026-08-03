@@ -14,18 +14,16 @@
 #include <algorithm>
 #include <memory>
 #include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/core/traits.hpp>
 #include "test_environment.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /**
-        * @brief Helper trait to check for complex types.
-        */
-        template<typename T> struct is_complex : std::false_type {};
-        template<typename T> struct is_complex<std::complex<T>> : std::true_type {};
-        template<typename T> inline constexpr bool is_complex_v = is_complex<T>::value;
+        // The complex-type trait these helpers need is the library's own,
+        // SushiBLAS::Core::is_complex_v (<SushiBLAS/core/traits.hpp>). This file used to
+        // carry a fourth copy of it; there is exactly one in the project now.
 
         /**
         * @brief Comparison utility for SushiBLAS Tensors.
@@ -57,7 +55,7 @@ namespace SushiBLAS
                     float e = static_cast<float>(host_expected[i]);
                     EXPECT_NEAR(a, e, tolerance) << "Mismatch at index " << i;
                 }
-                else if constexpr (is_complex_v<T>)
+                else if constexpr (Core::is_complex_v<T>)
                 {
                     auto a = host_actual[i];
                     auto e = host_expected[i];
@@ -199,7 +197,7 @@ namespace SushiBLAS
 
                 if constexpr (std::is_same_v<T, sycl::half>)
                     host_data[i] = sycl::vec<float, 1>(get_rand()).convert<sycl::half, sycl::rounding_mode::automatic>()[0];
-                else if constexpr (is_complex_v<T>)
+                else if constexpr (Core::is_complex_v<T>)
                 {
                     using BaseT = typename T::value_type;
                     host_data[i] = T(static_cast<BaseT>(get_rand()), static_cast<BaseT>(get_rand()));

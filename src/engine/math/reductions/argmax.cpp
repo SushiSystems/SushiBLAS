@@ -21,12 +21,14 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#include "red_internal.hpp"
+#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 #include <limits>
 #include <SushiBLAS/engine/math/reductions.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     namespace 
     {
         template<typename T>
@@ -51,10 +53,10 @@ namespace SushiBLAS
     sycl::event ReductionOps::argmax(const Tensor& t, Tensor& result) 
     {
         // TODO: Implement a parallel tree reduction for argmax to replace single_task.
-        // For argmax, result tensor actually stores the index. Since red_internal assumes 
+        // For argmax, result tensor actually stores the index. Since the reduction dispatch assumes 
         // type T for pR, we will use a temporary array or variable, but we can also just 
         // fall back to a simpler approach or allocate a small struct.
-        // For now, to keep red_internal clean and avoid type mismatches, we'll implement 
+        // For now, to keep the reduction dispatch clean and avoid type mismatches, we'll implement 
         // a simple single-threaded loop on the device, as Custom Reductions with sycl::reduction 
         // can be tricky in OpenCL vs Level-Zero backends.
         auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
@@ -79,6 +81,6 @@ namespace SushiBLAS
                 });
             });
         };
-        return Internal::execute_reduction(engine_, t, result, "math.argmax", "math.argmax"_op, dispatch);
+        return Dispatch::execute_reduction(engine_, t, result, "math.argmax", "math.argmax"_op, dispatch);
     }
 } // namespace SushiBLAS

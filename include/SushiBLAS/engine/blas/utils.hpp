@@ -28,6 +28,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/core/traits.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -35,9 +36,10 @@ namespace SushiBLAS
 {
     namespace Internal
     {
-        template<typename T> struct is_complex : std::false_type {};
-        template<typename T> struct is_complex<std::complex<T>> : std::true_type {};
-        template<typename T> inline constexpr bool is_complex_v = is_complex<T>::value;
+        // `is_complex` / `is_complex_v` were declared here too, identically to two copies
+        // under src/. They now have one home, <SushiBLAS/core/traits.hpp>, which this header
+        // includes so anything that reached the trait through utils.hpp still compiles -
+        // spell it `Core::is_complex_v<T>`.
 
         /**
          * @brief Helper to extract 1D vector parameters (size and increment) from a Tensor.

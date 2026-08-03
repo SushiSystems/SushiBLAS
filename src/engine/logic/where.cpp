@@ -22,13 +22,15 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/logic/logic.hpp>
-#include "logic_internal.hpp"
+#include <SushiBLAS/engine/logic/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event LogicOps::where(const Tensor& condition, const Tensor& A, const Tensor& B, Tensor& out) 
     {
-        return Internal::execute_logic_ternary(engine_, condition, A, B, out, "logic.where", "logic.where"_op, 
-            [](auto c, auto a, auto b) { return Internal::logic_not_zero(c) ? a : b; });
+        return Dispatch::execute_logic_ternary<Dispatch::Domain::REAL_AND_COMPLEX>(engine_, condition, A, B, out, "logic.where", "logic.where"_op, 
+            [](auto c, auto a, auto b) { return Dispatch::logic_not_zero(c) ? a : b; });
     }
 } // namespace SushiBLAS

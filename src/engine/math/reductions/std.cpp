@@ -21,11 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#include "red_internal.hpp"
+#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 #include <SushiBLAS/engine/math/reductions.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event ReductionOps::std(const Tensor& t, Tensor& result) 
     {
         // TODO: Implement a parallel reduction (e.g. Chan et al. algorithm) for standard deviation to replace single_task.
@@ -51,6 +53,6 @@ namespace SushiBLAS
                 });
             });
         };
-        return Internal::execute_reduction(engine_, t, result, "math.std", "math.std"_op, dispatch);
+        return Dispatch::execute_reduction(engine_, t, result, "math.std", "math.std"_op, dispatch);
     }
 } // namespace SushiBLAS

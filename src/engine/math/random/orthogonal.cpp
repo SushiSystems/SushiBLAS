@@ -21,21 +21,105 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+#include <vector>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
+#include <SushiBLAS/engine/math/random/dispatch.hpp>
+#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
-#include "random_internal.hpp"
+#include <kernels/random.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event RandomOps::orthogonal(Tensor& t, double gain) 
+    namespace
     {
-        SB_LOG_INFO("RandomOps: orthogonal ({} elements, gain: {:.4f}) - Falling back to normal", (uint64_t)t.num_elements, gain);
-        // TODO: Integrate with LinalgOps (currently experimental/quarantined, see SB-2/D1)
-        // to perform QR decomposition for orthogonal initialization.
-        return normal(t, 0.0, 1.0);
+        template<typename T>
+        sycl::event orthogonal_dispatch(sycl::queue& q, T* p, int64_t count, int64_t length,
+                                         int64_t elem_stride, int64_t vec_stride, T gain,
+                                         const std::vector<sycl::event>& deps)
+        {
+            return q.submit([&](sycl::handler& h)
+            {
+                h.depends_on(deps);
+                h.single_task([=]()
+                {
+                    Kernels::SYCL::Random::orthonormalize_mgs(p, count, length, elem_stride, vec_stride, gain);
+                });
+            });
+        }
+    }
+
+    sycl::event RandomOps::orthogonal(Tensor& t, double gain)
+    {
+        const char* name = "random.orthogonal";
+
+        SB_THROW_IF(t.rank != 2, "Operation '{}' requires a rank-2 tensor, got rank {}.", name, t.rank);
+        SB_THROW_IF(!t.storage, "Operation '{}' requires a tensor with allocated storage.", name);
+        SB_THROW_IF(Core::is_complex_dtype(t.dtype) || t.dtype == Core::DataType::HALF,
+                    "Operation '{}' does not support dtype {}: the Gram-Schmidt sweep needs a real inner "
+                    "product, and HALF loses orthogonality to rounding before the sweep finishes.",
+                    name, Core::to_string(t.dtype));
+
+        const int64_t rows = t.shape[0];
+        const int64_t cols = t.shape[1];
+        SB_THROW_IF(rows <= 0 || cols <= 0, "Operation '{}' requires a non-empty matrix, got {}x{}.", name, rows, cols);
+
+        // Fill with N(0,1) first: the Gaussian ensemble is orthogonally invariant, which is
+        // what makes "orthonormalize a random matrix" yield a *uniformly* distributed
+        // orthogonal matrix instead of a biased one. Recorded as its own task; the graph
+        // orders the sweep after it because both declare the same region.
+        normal(t, 0.0, 1.0);
+
+        // At most min(rows, cols) vectors can be mutually orthogonal, so orthonormalize along
+        // the shorter axis: the rows of a wide matrix, the columns of a tall one. The result
+        // satisfies Q Q^T = gain^2 I in the first case and Q^T Q = gain^2 I in the second -
+        // the same convention as PyTorch's orthogonal_.
+        //
+        // Driving this off t.strides rather than off rows/cols arithmetic means it is correct
+        // for ROW_MAJOR and COLUMN_MAJOR alike, with no special case: a column-major matrix
+        // simply walks the two axes in the other order, and the transpose of an orthogonal
+        // matrix is orthogonal too.
+        const bool by_rows = (rows <= cols);
+        const int64_t count = by_rows ? rows : cols;
+        const int64_t length = by_rows ? cols : rows;
+        const int64_t elem_stride = by_rows ? t.strides[1] : t.strides[0];
+        const int64_t vec_stride = by_rows ? t.strides[0] : t.strides[1];
+
+        void* ptr = t.storage->data_ptr;
+        std::vector<SushiRuntime::Core::ResourceRegion> rw = {ptr};
+
+        SushiRuntime::Graph::TaskMetadata meta;
+        meta.name = name;
+        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.op_id = "random.orthogonal"_op;
+        meta.set_param(0, gain);
+
+        engine_.get_graph().add_task(meta, rw, rw,
+            [dtype = t.dtype, ptr, count, length, elem_stride, vec_stride, gain, name]
+            (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                SB_LOG_INFO("RandomOps: {} ({} vectors of length {}, gain: {:.4f})", name, count, length, gain);
+
+                switch (dtype)
+                {
+                    case Core::DataType::FLOAT32:
+                        return orthogonal_dispatch(q, static_cast<float*>(ptr), count, length,
+                                                   elem_stride, vec_stride, static_cast<float>(gain), deps);
+                    case Core::DataType::FLOAT64:
+                        return orthogonal_dispatch(q, static_cast<double*>(ptr), count, length,
+                                                   elem_stride, vec_stride, gain, deps);
+                    default:
+                        SB_THROW_IF(true, "Operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
+                        return sycl::event();
+                }
+            }
+        );
+
+        return sycl::event();
     }
 } // namespace SushiBLAS

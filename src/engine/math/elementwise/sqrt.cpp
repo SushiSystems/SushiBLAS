@@ -22,13 +22,15 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/math/elementwise.hpp>
-#include "ew_internal.hpp"
+#include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event ElementwiseOps::sqrt(Tensor& t) 
     {
-        return Internal::execute_unary_inplace(engine_, t, "math.ew.sqrt", "math.ew.sqrt"_op, 
-            [](auto x) { return sycl::sqrt(x); });
+        return Dispatch::execute_unary_inplace<Dispatch::Domain::REAL_AND_COMPLEX>(engine_, t, "math.ew.sqrt", "math.ew.sqrt"_op, 
+            [](auto x) { return Dispatch::safe_sqrt(x); });
     }
 } // namespace SushiBLAS
