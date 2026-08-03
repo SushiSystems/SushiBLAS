@@ -134,8 +134,15 @@ add_executable(sushiblas_tests
 )
 
 # --- Include Directories ---
+# The repo root is here for the same reason src/ has it: it is what makes
+# `#include <kernels/...>` resolve. Tests need it to reach a kernel variant the
+# public Engine API cannot select on its own - GEMM chooses between its
+# local-tiled and no-local shapes from the device profile, so on a machine with
+# only one kind of device the other shape would never be executed by any test.
+# It stays PRIVATE; nothing installed gains a header path from this.
 target_include_directories(sushiblas_tests PRIVATE
     ${SB_TEST_COMMON_DIR}
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>"
 )
 
 # --- Link Libraries ---

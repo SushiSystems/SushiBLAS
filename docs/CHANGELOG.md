@@ -37,6 +37,35 @@ None open.
   a repeat rather than filed as a new bug.
 
 ### Added
+- **GEMM ships two kernel shapes and picks one from the device profile**
+  (`kernels/sycl/blas/level3/gemm.hpp`). `Detail::gemm_local_tiled` is the
+  existing cooperative local-memory kernel; `Detail::gemm_no_local` drops the
+  `local_accessor` and both barriers entirely and reads the operands straight
+  from global memory. The split is portBLAS's own (`gemm_local` vs.
+  `gemm_no_local`) and it exists because on a CPU backend the two kernels are
+  close to opposites: local memory there is the same cache the global pointer
+  already reads through, so staging a tile copies the data twice and every
+  `group_barrier` is a real rendezvous between OS threads buying nothing. Until
+  now this library ran the GPU shape unconditionally, including on the only
+  device it can currently reach. Selection is a plain runtime `if` over two
+  compile-time configurations — the accumulator is a fixed-size private array,
+  so the two variants are two instantiations, not one function threaded with
+  `if constexpr`. The local tile is checked against `local_mem_bytes` and
+  `max_work_group_size` at launch and falls back with a warning rather than
+  failing the launch, and the variant that ran is logged at `SB_LOG_INFO`.
+- **An `Epilogue` template parameter on `Kernels::SYCL::gemm`**, defaulting to
+  `GemmIdentityEpilogue` and applied to each element immediately before the
+  store. It receives `(value, row, col)`; the coordinates are what make a bias
+  broadcast expressible rather than only elementwise work, which is what turns
+  it into a real fusion hook — the layer above can fold a bias-add and an
+  activation into GEMM instead of paying two more kernel launches. The
+  `@warning` on it documents the trap that makes this dangerous rather than
+  merely useful: an *activation* epilogue in a forward **training** pass is
+  silently wrong unless it also spills its pre-activation input, because the
+  backward pass has to differentiate at that input and it no longer exists.
+  Nothing throws and nothing produces NaN — the model just trains towards the
+  wrong place. It is why cuBLASLt exposes `GELU_AUX_BIAS` and not merely
+  `GELU_BIAS`.
 - **`SushiBLAS::Device::Profile` — the device described as facts a kernel can
   dispatch on** (`include/SushiBLAS/engine/device_policy.hpp`, included from
   `engine/dispatch.hpp`). Probed once per device and cached. The field that
@@ -159,6 +188,60 @@ None open.
   kept as separate files.
 
 ### Changed
+- **GEMM's layout/transpose handling moved off the inner loop and onto the
+  host.** The four `(layout, transA/transB)` combinations were branched on
+  per element, inside the tile-load helpers, in the innermost loop. They are
+  only ever two strides, so `Detail::strides_for` resolves them once before the
+  launch and the element access becomes `p[row * s.row + col * s.col]` — exact
+  for all four cases, branch gone, and with zero extra template instantiations
+  because the strides are runtime values rather than template parameters. The
+  same pair now describes C, and SYRK addresses its operands through it too.
+- **GEMM's register block is derived from `sizeof(T)` instead of fixed at 4x4.**
+  The old comment said the halving from portBLAS's default `Tile<8,8,8,8>` was
+  to bound private memory "across all five dispatched element types, including
+  `complex<double>`" — which penalised `float`, the training path, for the sake
+  of a type almost nobody calls. `Detail::register_block_dim` now picks the
+  largest square block fitting a byte budget, so 4-byte and narrower types get
+  the full 8x8 (256 B of accumulator, exactly what upstream's default spends)
+  and the 8- and 16-byte types keep 4x4. `constexpr` arithmetic, not a list of
+  explicit specialisations. The no-local variant uses a quarter of that budget
+  and caps at 4x4, because on a CPU backend the runtime vectorises *across*
+  work-items and every accumulator scalar is really a whole vector register —
+  a 4x4 float block is already the entire AVX2 register file.
+- **GEMM's A tile is bank-padded and its register block owns a strided lattice
+  rather than a contiguous square.** The A read was
+  `tileA[(local_row * item_rows + ii) * tile_k + kk]`, and with the widened
+  block that stride is `8 * 16 = 128` floats — `128 mod 32 == 0`, so every lane
+  in a sub-group differing only in `local_row` hits one bank. The tile's
+  leading dimension is now `tile_k + 1 = 17`; `gcd(17, 32) == 1`, so the four
+  distinct `local_row` values in a 32-lane sub-group take four distinct banks.
+  Ownership changed with it: a work-item now owns tile rows
+  `local_row + ii*wg_rows` and columns `local_col + jj*wg_cols`, so
+  neighbouring work-items touch neighbouring elements. That is what keeps the B
+  read conflict-free without padding (contiguous ownership would have spaced
+  those lanes `item_cols == 8` floats apart, banks `{0,8,16,24}` twice) and
+  what makes the global C store coalesced. The full arithmetic is written out
+  at the read site rather than left as an unexplained `+ 1`.
+- **GEMM uses 32-bit integers for tile-local indices**, keeping 64-bit only for
+  global coordinates, strides and batch offsets, which can genuinely exceed
+  2^31. 64-bit integer arithmetic is markedly slower on a GPU and a tile index
+  never comes close to needing it.
+- **Only GEMM's output pointer is `__restrict__`-qualified.** BLAS forbids C
+  from overlapping A or B, so that is sound. `a` and `b` are deliberately left
+  unqualified and a comment says why: a caller computing `C = A * A` passes the
+  same pointer for both, which is legal, and `__restrict__` on both would make
+  it undefined behaviour.
+- **SYRK owns its tile geometry** (`Detail::SyrkTileConfig`) instead of sharing
+  GEMM's, so retuning one cannot silently retune the other. SYRK has not been
+  given the local/no-local split; it still always takes the local-memory shape,
+  which is a named follow-up rather than a regression.
+- **Double buffering was considered and deliberately left out.** It would elide
+  one of the two barriers per K-step, but the win over a correctly bank-padded
+  single-buffered kernel is modest and there is no GPU on this machine to
+  measure it on — the only reachable device is an OpenCL CPU, which takes the
+  no-local variant and has no barriers to elide. Restructuring a barrier
+  sequence that cannot be verified is the wrong risk; the reasoning is recorded
+  in the kernel rather than the omission left to look like an oversight.
 - **No more vendored SushiRuntime.** SushiBLAS used to check in a snapshot of
   SushiRuntime's headers and prebuilt library (`include/SushiRuntime/`,
   `lib/{sushiruntime,hwloc-15}.*`). It now resolves a live dependency through
@@ -206,6 +289,31 @@ None open.
   behavior change (D1).
 
 ### Fixed
+- **Column-major GEMM and SYRK read A and B with row-major indexing.** Both the
+  reference and the SYCL kernel addressed a COLUMN_MAJOR operand as
+  `a[row*lda + col]` where the standard says `a[row + col*lda]` — the two arms
+  of the `layout` test were inverted, which made `layout` a complete no-op for
+  A and B (only C respected it). Two consequences. A column-major GEMM computed
+  the wrong product. And because the driver correctly passes the column-major
+  leading dimension (`lda = m` for an `m x k` A), the wrong index runs off the
+  end of the allocation whenever `m > k`: the maximum touched index is
+  `(m-1)*m + k-1` against an `m*k` buffer. `Unit_GEMMTest.RectangularColMajor`
+  (m=8, k=4) was reading 27 floats past the end of A on every run.
+
+  It survived because the reference kernel — the differential oracle — carried
+  the identical defect, so `FORCE_SYCL` and `FORCE_REFERENCE` agreed with each
+  other while both disagreed with BLAS. `Reference::gemv`, which was written
+  correctly (`ROW_MAJOR ? a[r*lda + c] : a[r + c*lda]`), is what establishes
+  that this was a level-3 defect and not a house convention.
+
+  Both kernels now go through one two-stride rule, and the fix is pinned by
+  hand-computed expectations rather than by another differential test:
+  `Regression_Sentinel.GemmColumnMajorOperandsUseColumnStrides` (both execution
+  modes, `m > k`), three `Unit_GEMMKernelTest` absolute pins, and
+  `StrideTableMatchesTheStandardIdentity`, which asserts the property that
+  would have caught it when it was written — transposing an operand and
+  flipping its layout are the same operation, so ROW_MAJOR+transposed and
+  COLUMN_MAJOR+untransposed must address identically.
 - **Seven silent no-ops in dtype switches.** `default: break;` in the
   elementwise (x2), nonlinear (x2) and logic (x3) dispatch helpers meant an
   unsupported dtype produced a command group with no kernel enqueued: `add()`
