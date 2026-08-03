@@ -22,6 +22,7 @@
 /**************************************************************************/
 
 #include <limits>
+#include <type_traits>
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
@@ -44,10 +45,12 @@ namespace SushiBLAS
     // available here fixes that; only screening the input does.
     sycl::event ReductionOps::max(const Tensor& t, Tensor& result)
     {
-        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size,
-                                     [[maybe_unused]] Dispatch::ReductionScratch<T> scratch,
-                                     const std::vector<sycl::event>& deps) 
+        auto dispatch = [](sycl::queue& q, const auto* pT, auto* pR, int64_t size,
+                           [[maybe_unused]] auto scratch,
+                           const std::vector<sycl::event>& deps)
         {
+            using T = std::decay_t<decltype(*pT)>;
+
             T init_val = std::numeric_limits<T>::lowest();
             return q.submit([&](sycl::handler& h) 
             {

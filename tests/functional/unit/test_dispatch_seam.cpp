@@ -5,10 +5,10 @@
 // headers out of src/. It is the in-tree half of the proof; the out-of-tree half is
 // tests/package/main.cpp, which does the same against a find_package()'d install.
 
-#include <bit>
 #include <array>
 #include <vector>
 #include <cstdint>
+#include <cstring>
 #include <stdexcept>
 #include <type_traits>
 #include <gtest/gtest.h>
@@ -24,6 +24,28 @@
 using namespace SushiBLAS::Test;
 using namespace SushiRuntime::Graph::Literals;
 using SushiBLAS::Core::DataType;
+
+namespace
+{
+    /**
+     * @brief The bit pattern of a float, for the determinism checks below.
+     *
+     * `std::bit_cast` is C++20 and this tree is C++17; `std::memcpy` between two
+     * trivially-copyable objects of equal size is the same operation with the same
+     * guarantees, and every compiler this project targets folds it to a register move.
+     * The reason the comparison is on bits at all is unchanged: `==` on floats says two
+     * NaNs differ and says +0 and -0 agree, and a determinism test means neither.
+     *
+     * @param value The float to reinterpret.
+     * @return Its IEEE-754 bit pattern.
+     */
+    uint32_t float_bits(float value) noexcept
+    {
+        uint32_t bits = 0;
+        std::memcpy(&bits, &value, sizeof(bits));
+        return bits;
+    }
+} // namespace
 
 class Unit_DispatchSeamTest : public SushiBLASTest {};
 
@@ -97,10 +119,12 @@ TEST_F(Unit_DispatchSeamTest, ConsumerCanDriveTheLogicAndReductionSeamsToo)
 
     auto total = engine->create_tensor({1});
     sb::Dispatch::execute_reduction(*engine, mask, total, "test.count", "test.count"_op,
-        []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size,
-           [[maybe_unused]] sb::Dispatch::ReductionScratch<T> scratch,
+        [](sycl::queue& q, const auto* pT, auto* pR, int64_t size,
+           [[maybe_unused]] auto scratch,
            const std::vector<sycl::event>& deps)
         {
+            using T = std::decay_t<decltype(*pT)>;
+
             return q.submit([&](sycl::handler& h)
             {
                 h.depends_on(deps);
@@ -270,7 +294,7 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
     ASSERT_EQ(first.size(), second.size());
     for (size_t i = 0; i < first.size(); ++i)
     {
-        EXPECT_EQ(std::bit_cast<uint32_t>(first[i]), std::bit_cast<uint32_t>(second[i]))
+        EXPECT_EQ(float_bits(first[i]), float_bits(second[i]))
             << "Fused update was not bit-reproducible at index " << i;
     }
 }

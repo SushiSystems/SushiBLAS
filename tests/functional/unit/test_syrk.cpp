@@ -66,7 +66,7 @@ namespace SushiBLAS
         };
 
         using DataTypes = ::testing::Types<float, double, std::complex<float>, std::complex<double>>;
-        TYPED_TEST_SUITE(Unit_SYRKTest, DataTypes);
+        SB_TYPED_TEST_SUITE(Unit_SYRKTest, DataTypes);
 
         TYPED_TEST(Unit_SYRKTest, SmallMatrixLowerNoTrans) 
         {

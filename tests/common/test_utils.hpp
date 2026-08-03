@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <string>
 #include <gtest/gtest.h>
 #include <vector>
 #include <cmath>
@@ -280,8 +281,44 @@ namespace SushiBLAS
                 }
         };
 
+        /**
+         * @brief The type-parameter naming GoogleTest applies when it is given none.
+         *
+         * `TYPED_TEST_SUITE(Suite, Types)` looks like a two-argument macro but is declared
+         * `TYPED_TEST_SUITE(CaseName, Types, ...)`, the `...` being an optional name
+         * generator. Passing no argument at all for a `...` is allowed from C++20 and is a
+         * diagnosed extension before it, so on this project's C++17 baseline the
+         * two-argument spelling is an error under `-pedantic -Werror` - raised inside a
+         * third-party header this project does not own and cannot fix.
+         *
+         * Naming a generator explicitly settles it, and this is the default one restated
+         * against GoogleTest's public API rather than reached for in its `internal`
+         * namespace: the suffix is the type's index, exactly as before, so every generated
+         * test name is unchanged and no test is renamed by the fix.
+         */
+        struct DefaultTypeNames
+        {
+            /**
+             * @brief The suffix for the @p i-th type parameter.
+             * @tparam T The type parameter; unused, as in GoogleTest's own default.
+             * @param i The type's index within the suite's type list.
+             * @return @p i rendered as a decimal string.
+             */
+            template<typename T>
+            static std::string GetName(int i) { return std::to_string(i); }
+        };
+
     } //namespace Test
 } // namespace SushiBLAS
+
+/**
+ * @brief `TYPED_TEST_SUITE` with the name generator spelled out.
+ *
+ * See @ref SushiBLAS::Test::DefaultTypeNames for why the two-argument form cannot be
+ * written directly on a C++17 baseline. Behaviour is identical.
+ */
+#define SB_TYPED_TEST_SUITE(SuiteName, Types) \
+    TYPED_TEST_SUITE(SuiteName, Types, SushiBLAS::Test::DefaultTypeNames)
 
 #define SB_ASSERT_TENSOR_NEAR(actual, expected, tol, type) \
     SushiBLAS::Test::assert_tensor_near<type>(actual, expected, tol)

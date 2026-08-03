@@ -21,6 +21,7 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+#include <type_traits>
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
@@ -31,10 +32,12 @@ namespace SushiBLAS
     sycl::event ReductionOps::var(const Tensor& t, Tensor& result) 
     {
         // TODO: Implement a parallel reduction (e.g. Chan et al. algorithm) for variance to replace single_task.
-        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size,
-                                     [[maybe_unused]] Dispatch::ReductionScratch<T> scratch,
-                                     const std::vector<sycl::event>& deps) 
+        auto dispatch = [](sycl::queue& q, const auto* pT, auto* pR, int64_t size,
+                           [[maybe_unused]] auto scratch,
+                           const std::vector<sycl::event>& deps)
         {
+            using T = std::decay_t<decltype(*pT)>;
+
             return q.submit([&](sycl::handler& h) 
             {
                 h.depends_on(deps);

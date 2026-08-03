@@ -174,8 +174,10 @@ target_link_libraries(sushiblas PUBLIC
 )
 
 # --- Properties ---
+# C++17, matching SushiRuntime and the root CMakeLists.txt; see the note there for why
+# the two must agree rather than merely both being modern.
 set_target_properties(sushiblas PROPERTIES
-    CXX_STANDARD 20
+    CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
 

@@ -12,7 +12,7 @@ class and file named here exists under `include/SushiBLAS/`, `src/`, or
 
 ## 1. What SushiBLAS is
 
-SushiBLAS is a C++20 tensor and BLAS library layered on top of
+SushiBLAS is a C++17 tensor and BLAS library layered on top of
 [SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph. It
 owns no execution engine, no scheduler, and no memory pool of its own — every
 one of those is SushiRuntime's. What SushiBLAS adds is a **domain layer**: a
@@ -37,7 +37,18 @@ Two design commitments shape every operation in the library:
    nonlinear/logic/reduction op, and the Philox4x32-10 random backend — is
    original SushiBLAS SYCL, written from scratch.
 
-The codebase targets C++20.
+The codebase targets C++17 — the same standard SushiRuntime is built to, and for
+a reason beyond tidiness. `SushiRuntime::span` (`core/span.hpp`) is `std::span` at
+C++20 and SushiRuntime's own shim below it, chosen on `__cplusplus`, and that choice
+reaches the compiled ABI. SushiBLAS at C++20 linked against a SushiRuntime at C++17
+put the two halves of one build on opposite sides of that branch. Nothing in
+SushiBLAS's own API changed when it moved: the two spans are the same type wherever
+`std::span` exists, so a consumer still on C++20 (SushiAI, today) compiles against
+these headers exactly as before — `tests/package/` is built at C++20 to keep proving
+it. The pieces C++20 had been supplying are C++17 stand-ins now:
+`core/format.hpp` for `std::format`, `Core::Detail::SourceLocation` for
+`std::source_location`, and a value tag (`Dispatch::ElementTag`) where the dispatch
+seam used a templated lambda.
 
 ---
 
@@ -329,7 +340,7 @@ PRNG backend, `kernels/sycl/random/philox.hpp`). The non-BLAS math domains
 (elementwise, nonlinear, logic, reductions) keep their kernels inline in
 `include/SushiBLAS/engine/math/*/dispatch.hpp` and
 `include/SushiBLAS/engine/logic/dispatch.hpp` rather than under `kernels/`,
-since each op there is a short templated lambda rather than a multi-case
+since each op there is a short generic lambda rather than a multi-case
 tiling kernel — the reference/SYCL split is the same, just colocated with the
 dispatch code instead of factored out.
 
@@ -369,11 +380,23 @@ logic families and by `execute_index_reduction`, replacing the eight
 near-identical seven-arm switches those used to carry. A dtype outside the domain
 never instantiates its arm; it throws naming the family, the op and the dtype.
 
+**An arm may be written either way.** `with_element_type` calls it as
+`arm(Dispatch::ElementTag<T>{})` if it takes that tag — a plain generic lambda,
+`[&](auto tag) { using T = typename decltype(tag)::type; ... }`, which is what the
+library itself writes and the only spelling available at C++17 — and otherwise as
+`arm.template operator()<T>()`, which is what a C++20 templated lambda
+`[&]<typename T>(){ ... }` offers. Both were live before the move to C++17 and both
+still are, so the standard change took nothing away from a consumer. An arm that is
+neither gets a written-out `static_assert` naming both forms rather than a page of
+overload-resolution noise.
+
 `execute_blas_task` spells its switch out by hand rather than calling
-`with_element_type`, because its functor deduces its element type from a *value*
-it is passed rather than from an explicit template argument — and because
-wrapping it to fit crashes this project's clang during instantiation. The arms
-and the domain rule are the same; the duplication is noted at both sites.
+`with_element_type`. Its functor is not an arm at all — it takes a *value* of the
+element type plus the queue and the dependency list and returns the submitted
+`sycl::event`, which is a different shape from the one-tag, void-returning arm this
+helper calls — and wrapping it to fit crashes this project's clang during
+instantiation. The arms and the domain rule are the same; the duplication is noted
+at both sites.
 
 **`execute_gemm`** (`engine/blas/dispatch.hpp`) is the BLAS family's only
 executor, and its functor is not a per-element operation but a GEMM *epilogue*:

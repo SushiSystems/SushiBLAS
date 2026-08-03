@@ -91,8 +91,10 @@ namespace SushiBLAS
                         h.depends_on(deps);
                         const std::size_t n = static_cast<std::size_t>(size);
                         Dispatch::with_element_type<Dom>(dtype, "Nonlinear operation", name,
-                            [&]<typename T>()
+                            [&](auto tag)
                         {
+                            using T = typename decltype(tag)::type;
+
                             Launch::map(h, q, n, vec_ok, op_func, (T*)ptr, (const T*)ptr);
                         });
                     });
@@ -153,8 +155,10 @@ namespace SushiBLAS
                         h.depends_on(deps);
                         const std::size_t n = static_cast<std::size_t>(size);
                         Dispatch::with_element_type<Dom>(dtype, "Nonlinear operation", name,
-                            [&]<typename T>()
+                            [&](auto tag)
                         {
+                            using T = typename decltype(tag)::type;
+
                             Launch::map(h, q, n, vec_ok, op_func, (T*)pDX_raw, (const T*)pDY_raw, (const T*)pX_raw);
                         });
                     });

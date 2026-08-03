@@ -102,6 +102,12 @@ target_link_libraries(sushiblas_package_consumer PRIVATE
     SushiBLAS::sushiblas
 )
 
+# C++20 on purpose, and the one place in this repo that is. SushiBLAS itself is built at
+# C++17 now; this consumer stays at 20 because that is what SushiAI is today, and because
+# it is the only assertion that the standard change did not break the API. The public
+# headers spell their spans `SushiRuntime::span`, which resolves to `std::span` here and
+# to SushiRuntime's shim inside the library - and this target compiling proves the
+# difference stays confined to inline code and never reaches a linked symbol.
 set_target_properties(sushiblas_package_consumer PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON

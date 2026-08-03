@@ -22,6 +22,7 @@
 /**************************************************************************/
 
 #include <limits>
+#include <type_traits>
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
@@ -44,9 +45,11 @@ namespace SushiBLAS
         // `static_cast<T>(idx)` - a float. Exact below 2^24, and above that two adjacent
         // indices round to the same value, so the op returned a confident wrong answer on
         // exactly the tensor sizes a training run calls it on. In HALF the ceiling is 2048.
-        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, int64_t* pR, int64_t size,
-                                       const std::vector<sycl::event>& deps)
+        auto dispatch = [](sycl::queue& q, const auto* pT, int64_t* pR, int64_t size,
+                           const std::vector<sycl::event>& deps)
         {
+            using T = std::decay_t<decltype(*pT)>;
+
             return q.submit([&](sycl::handler& h)
             {
                 h.depends_on(deps);

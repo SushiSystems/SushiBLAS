@@ -27,6 +27,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <complex>
+#include <utility>
+#include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
@@ -162,6 +164,28 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Carries one element type to a @ref with_element_type arm as a value.
+         *
+         * The C++17 way to say "here is a type" to a callable. A C++20 templated lambda
+         * `[]<typename T>(){}` takes its type as an explicit template argument, which is a
+         * spelling C++17 has no lambda syntax for; a plain generic lambda takes an
+         * *argument* and reads the type back off it, which is what this empty tag exists
+         * to be:
+         *
+         * @code
+         * [&](auto tag) { using T = typename decltype(tag)::type; ... }
+         * @endcode
+         *
+         * @tparam T The element type being carried.
+         */
+        template<typename T>
+        struct ElementTag
+        {
+            /** @brief The element type this tag denotes. */
+            using type = T;
+        };
+
+        /**
          * @brief Runs @p arm instantiated for the C++ type @p dtype denotes, or throws.
          *
          * The dtype switch, once. Every per-element executor in this library used to
@@ -170,30 +194,110 @@ namespace SushiBLAS
          * carrying the failure message. Eight copies of that is eight places to forget an
          * arm when a `DataType` is added, and eight slightly different wordings when one
          * is rejected. This is the whole thing in one function: the caller supplies a
-         * templated lambda and says nothing about dtypes at all.
+         * generic callable and says nothing about dtypes at all.
          *
          * An arm outside @p Dom is never instantiated - the `if constexpr` sees to that,
          * which is what lets a functor that is only well-formed for real scalars be
          * dispatched on a tensor whose dtype *could* have been complex.
          *
+         * **Two ways to write the arm, both supported.** The tag form is what this library
+         * writes and what a C++17 caller can spell; the explicit-template-argument form is
+         * what a C++20 caller's templated lambda offers, and it kept working when the
+         * library moved to C++17 rather than being taken away from consumers already using
+         * it. @ref Detail::invoke_arm picks whichever the arm provides.
+         *
          * @code
+         * // C++17 and later - a generic lambda over an ElementTag:
+         * Dispatch::with_element_type<Dom>(dtype, "Elementwise operation", name,
+         *     [&](auto tag)
+         *     {
+         *         using T = typename decltype(tag)::type;
+         *         Launch::map(h, q, n, ok, op, (T*)out, (const T*)in);
+         *     });
+         *
+         * // C++20 - a templated lambda, still accepted:
          * Dispatch::with_element_type<Dom>(dtype, "Elementwise operation", name,
          *     [&]<typename T>() { Launch::map(h, q, n, ok, op, (T*)out, (const T*)in); });
          * @endcode
          *
          * @tparam Dom Which element-type families to instantiate @p arm for.
-         * @tparam Arm The templated-lambda type, deduced.
+         * @tparam Arm The arm's type, deduced.
          * @param dtype The runtime element type to dispatch on.
          * @param family What kind of operation this is, for the failure message
          *        ("Elementwise operation", "Logic operation", ...).
          * @param name The op's own name, for the failure message.
-         * @param arm Callable as `arm.template operator()<T>()` for every element type in
-         *        @p Dom.
+         * @param arm Callable either as `arm(ElementTag<T>{})` or as
+         *        `arm.template operator()<T>()`, for every element type in @p Dom.
          * @throws std::runtime_error naming @p family, @p name and @p dtype when the dtype
          *         falls outside @p Dom - or is not an element type at all.
          */
         namespace Detail
         {
+            /**
+             * @brief Whether @p Arm accepts the tag form, `arm(ElementTag<T>{})`.
+             *
+             * @warning Only ask this for a @p T the caller's domain admits. Detecting the
+             *          call deduces the arm's return type, which instantiates its body -
+             *          and a body that rejects @p T fails *there*, outside the immediate
+             *          context, so it is a hard error rather than a false answer. That is
+             *          the same property @ref SushiBLAS::Dispatch::Domain exists to work
+             *          around, and it holds here because @ref run_arm_if_admitted asks
+             *          only inside its `if constexpr`.
+             *
+             * @tparam Arm The arm's type.
+             * @tparam T The element type.
+             */
+            template<typename Arm, typename T, typename = void>
+            struct arm_takes_tag : std::false_type {};
+
+            template<typename Arm, typename T>
+            struct arm_takes_tag<Arm, T,
+                                 std::void_t<decltype(std::declval<Arm&>()(ElementTag<T>{}))>>
+                : std::true_type {};
+
+            /**
+             * @brief Whether @p Arm accepts the explicit form, `arm.template operator()<T>()`.
+             * @tparam Arm The arm's type.
+             * @tparam T The element type.
+             */
+            template<typename Arm, typename T, typename = void>
+            struct arm_takes_explicit_type : std::false_type {};
+
+            template<typename Arm, typename T>
+            struct arm_takes_explicit_type<Arm, T,
+                                           std::void_t<decltype(std::declval<Arm&>().template operator()<T>())>>
+                : std::true_type {};
+
+            /**
+             * @brief Calls @p arm for element type @p T, whichever form it is written in.
+             *
+             * @tparam T The element type to instantiate @p arm for.
+             * @tparam Arm The arm's type, deduced.
+             * @param arm The caller's arm.
+             */
+            template<typename T, typename Arm>
+            inline void invoke_arm(Arm& arm)
+            {
+                if constexpr (arm_takes_tag<Arm, T>::value)
+                {
+                    arm(ElementTag<T>{});
+                }
+                else
+                {
+                    // Stated as a sentence rather than left to the call expression below,
+                    // whose failure is a page of overload-resolution noise pointing at this
+                    // header instead of at the arm the caller actually wrote.
+                    static_assert(arm_takes_explicit_type<Arm, T>::value,
+                                  "A with_element_type arm must be callable either as "
+                                  "arm(SushiBLAS::Dispatch::ElementTag<T>{}) - a generic lambda "
+                                  "'[&](auto tag) { using T = typename decltype(tag)::type; ... }' - "
+                                  "or as arm.template operator()<T>() - a C++20 templated lambda "
+                                  "'[&]<typename T>() { ... }'. This one is neither; check its "
+                                  "parameter list.");
+                    arm.template operator()<T>();
+                }
+            }
+
             /**
              * @brief Runs @p arm for element type @p T if @p Dom admits @p Family.
              *
@@ -207,7 +311,7 @@ namespace SushiBLAS
              * @tparam Dom The domain the caller declared.
              * @tparam Family The single family this arm belongs to.
              * @tparam T The element type to instantiate @p arm for.
-             * @tparam Arm The templated-lambda type, deduced.
+             * @tparam Arm The arm's type, deduced.
              * @param arm The caller's arm.
              * @return True when the arm ran; false when @p Family is outside @p Dom.
              */
@@ -216,7 +320,7 @@ namespace SushiBLAS
             {
                 if constexpr (domain_admits(Dom, Family))
                 {
-                    arm.template operator()<T>();
+                    invoke_arm<T>(arm);
                     return true;
                 }
                 else

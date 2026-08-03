@@ -122,7 +122,10 @@ Every file starts with this signature (replace `[filename]`):
 
 ### C++ standard and naming
 
-- **C++20.** Indentation is 4 spaces.
+- **C++17**, matching SushiRuntime — see
+  [ARCHITECTURE.md §1](ARCHITECTURE.md#1-what-sushiblas-is) for why the whole
+  stack has to agree rather than each repo picking its own. Indentation is 4
+  spaces.
 - **Classes/structs/namespaces**: `PascalCase` (`Engine`, `Tensor`,
   `SushiBLAS`, `Core`).
 - **Functions and variables**: `snake_case` (`create_tensor`,
