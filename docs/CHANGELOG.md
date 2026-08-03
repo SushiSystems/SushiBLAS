@@ -37,6 +37,68 @@ None open.
   a repeat rather than filed as a new bug.
 
 ### Added
+- **An exact non-finite detector: `reductions().count_nonfinite(t, result)`**
+  (`src/engine/math/reductions/count_nonfinite.cpp`). How many elements of a
+  tensor are infinite or NaN, answered into an **INT64 scalar** — the screen a
+  loss-scaling step runs before deciding whether to apply an update and halve
+  the scale. `count == 0` is the boolean "all finite"; the count itself says how
+  badly, and costs the same fold.
+
+  - **The result is INT64 because the consumer is a device kernel.** The caller
+    reads this value from an optimiser kernel with no host synchronisation — a
+    sync there would drain the graph the whole architecture exists to keep full
+    — so the answer has to be a device-resident value a kernel can load and
+    branch on. It also has to be exact, which rules out a count in the input's
+    own dtype: exact only below 2^24 in fp32 and below 2048 in fp16, and past
+    65504 an fp16 count is an infinity, so the tensors most worth counting are
+    the ones whose count would come back wrong. Same trap
+    `Dispatch::execute_index_reduction` was cut out of `execute_reduction` to
+    escape, arriving by a different route.
+  - **`asum` was considered and rejected, and the rejection is a measurement.**
+    A sum of magnitudes is non-finite whenever any element is, so
+    `isfinite(asum(g))` would nearly have served and nothing new would have been
+    needed. It fails decisively on the one input this exists for: `asum`
+    accumulates in the *input's* dtype, so a perfectly clean fp16 tensor whose
+    running total leaves binary16's range — eight elements of 20000 is enough —
+    makes it report an overflow that never happened, and in a loss-scaling loop
+    that halves the scale for ever on a run that was fine, so the mechanism meant
+    to rescue a mixed-precision run becomes the thing that stalls it.
+    Supporting reasons: even in fp32 a loss-scaled
+    gradient is *deliberately* pushed up in magnitude, the one case where a sum
+    of magnitudes overflows without any element doing so, so `asum` conflates
+    "an element is bad" with "the total is big"; and its answer is a float in
+    the input's dtype where an integer `!= 0` would do.
+    `Unit_CountNonFiniteTest.AsumReportsOverflowOnAHalfTensorThisOpCallsClean`
+    runs both ops on one eight-element fp16 tensor and asserts they disagree, so
+    that argument is evidence rather than a claim.
+  - **`sycl::isfinite`, not `x != x`.** The reflex NaN test is exactly half a
+    non-finite test — an infinity compares equal to itself — and fp16 overflow
+    produces infinities first. Substituting `x == x` in the predicate fails 13
+    of the op's 23 tests, every infinity case at every dtype and none of the NaN
+    ones, which is why the suite tests the two separately rather than together.
+  - **`Dispatch::execute_counting_reduction`** is the family's third executor:
+    `execute_reduction` is same-dtype-in-and-out with scratch of that dtype,
+    `execute_index_reduction` is INT64 out with no scratch, and this is INT64
+    out *with* an INT64 partials buffer, because "how many satisfy a predicate"
+    is a fold over the whole tensor rather than a scan.
+  - **`Reduce::reduce` gained a second type parameter**, the accumulation type,
+    deduced from `out`/`partials` and equal to the element type for every
+    pre-existing caller — so `sum`, `mean`, `asum`, `nrm2` and `prod` are
+    unchanged and the counting shape reuses the library's fixed-order two-stage
+    fold instead of hand-writing a second copy of it. Its accumulator is the new
+    `Reduce::ExactSum`, whose determinism holds for a stronger reason than the
+    floating-point accumulators': integer addition is exactly associative, so no
+    combination order can change the answer at all.
+  - **Integer and complex inputs are refused by name.** An integer element
+    cannot be infinite or NaN, so "0" would be true and useless — it would tell
+    a caller who handed over the wrong tensor that the right one had been
+    screened.
+  - **Tests** cover a clean tensor (the control, without which "always positive"
+    would pass everything else), infinity and NaN separately, both signs of
+    infinity, a single bad element at index 0, mid-tensor and at `n-1` — where
+    an off-by-one fold drops it and nowhere else — at a size above the CPU's
+    two-stage threshold, and both launch shapes agreeing.
+
 - **A dtype-converting copy: `elementwise().convert(src, dst)`**
   (`src/engine/math/elementwise/convert.cpp`). The one operation in the library
   whose two operands may disagree on dtype. Nothing could produce an fp16 view

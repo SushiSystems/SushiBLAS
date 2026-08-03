@@ -268,6 +268,121 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Records a whole-tensor reduction that **counts** elements, answering into
+         * an INT64 scalar.
+         *
+         * The third of this family's three executors, and the two it is not are the
+         * clearest way to say what it is. @ref execute_reduction folds a tensor into a
+         * scalar of the *same* dtype and owns a scratch buffer of that dtype;
+         * @ref execute_index_reduction answers with an `int64_t` and owns no scratch,
+         * because a serial scan for "which element" has no partials to stage. This one is
+         * the remaining corner: an `int64_t` answer *and* a partials buffer, because the
+         * question it serves - how many elements satisfy a predicate - is a fold over the
+         * whole tensor and wants the two-stage shape rather than one work-item walking
+         * every element.
+         *
+         * They stay three rather than one because merging them means making the result
+         * element type a template parameter of a helper whose entire job is to hide the
+         * element type, and every call site would then spell it. Three short functions
+         * that each say what they answer with is the cheaper thing to read.
+         *
+         * **Why the count goes in an INT64 tensor.** It is exact for every tensor a
+         * `Tensor` can describe, and it is a value a *device* kernel can consume with no
+         * host round trip - which is the requirement, not a nicety: the caller is an
+         * optimiser step that must decide whether to apply an update, and a host sync
+         * there would serialise the training loop against the graph it is trying to keep
+         * full. Storing it in the input's own dtype instead would reintroduce exactly the
+         * defect @ref execute_index_reduction exists to have escaped - a count is only
+         * exact in fp32 below 2^24 and in fp16 below 2048, and a HALF count past 65504
+         * comes back as an infinity, so the tensors most worth counting are the ones whose
+         * count would be wrong.
+         *
+         * @tparam Dispatcher The command-group builder type, deduced.
+         * @param engine The engine whose task graph the op is recorded on.
+         * @param t The tensor to scan.
+         * @param result The scalar INT64 output tensor.
+         * @param name Human-readable op name, used for logging and failure messages.
+         * @param op_id Stable operation identifier for the task graph.
+         * @param dispatch A generic callable `(sycl::queue& q, const auto* pT, int64_t* pR,
+         *        int64_t size, ReductionScratch<int64_t> scratch,
+         *        const std::vector<sycl::event>& deps) -> sycl::event`, instantiated once
+         *        per supported input element type. `scratch` is spelled `auto` in a generic
+         *        lambda for the reason @ref execute_reduction gives.
+         * @param scratch_elements How many per-work-group partials the dispatcher wants
+         *        room for; zero allocates nothing. @ref SushiBLAS::Reduce::planned_partials
+         *        is how to compute it.
+         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
+         *
+         * @warning Same device-kernel constraints as @ref execute_reduction.
+         * @throws std::runtime_error if `result` is not a scalar, if it is not INT64, or if
+         *         the input dtype is outside `Domain::REAL`.
+         */
+        template<typename Dispatcher>
+        sycl::event execute_counting_reduction(Engine& engine, const Tensor& t, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Dispatcher&& dispatch, std::size_t scratch_elements = 0)
+        {
+            SB_THROW_IF(result.num_elements != 1,
+                        "Result tensor for reduction '{}' must be a scalar (1 element).", name);
+            SB_THROW_IF(result.dtype != Core::DataType::INT64,
+                        "Reduction '{}' answers with a count, so its result tensor must have "
+                        "dtype INT64; got {}. A count in a floating-point tensor is exact only "
+                        "below 2^24 in FLOAT32 and below 2048 in HALF, and past 65504 a HALF "
+                        "one is an infinity.",
+                        name, Core::to_string(result.dtype));
+
+            const int64_t size = t.num_elements;
+            void* read_T = t.data();
+            int64_t* write_R = result.data_as<int64_t>();
+
+            // `Tensor::region()`, never the bare `data()` pointer - the reason is spelled
+            // out at length in execute_reduction above, and it is the same reason here.
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {t.region()};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
+
+            // Partials are INT64 whatever the input dtype is, so the scratch is sized from
+            // sizeof(int64_t) rather than from the tensor's element width.
+            SushiRuntime::sushi_ptr<Storage> scratch;
+            int64_t* scratch_ptr = nullptr;
+
+            if (scratch_elements > 0)
+            {
+                const std::size_t bytes = scratch_elements * sizeof(int64_t);
+                scratch = SushiRuntime::make_sushi<Storage>(
+                    engine.get_context().get_allocator(), bytes,
+                    SushiRuntime::Memory::Strategies::Device::instance());
+                scratch_ptr = static_cast<int64_t*>(scratch->allocation_base());
+                writes.push_back({scratch->allocation_base(), 0, bytes});
+            }
+
+            SushiRuntime::Graph::TaskMetadata meta;
+            meta.name = name;
+            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+            meta.op_id = op_id;
+
+            // REAL only. An integer or complex tensor is rejected by name rather than
+            // answered with the zero that would technically be true of the integer case:
+            // this is a screen for floating-point overflow, so a caller handing it a dtype
+            // that cannot overflow has confused two tensors, and a confident "0 bad
+            // elements" is the worst possible thing to tell them.
+            with_element_type<Domain::REAL>(t.dtype, "Reduction", name,
+                [&](auto tag)
+            {
+                using T = typename decltype(tag)::type;
+
+                engine.get_graph().add_task(meta, reads, writes,
+                    [size, pT = static_cast<const T*>(read_T), write_R, scratch,
+                     pS = scratch_ptr, scratch_elements, dispatch, name]
+                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    {
+                        SB_LOG_INFO("Reduction {}: {} elements", name, size);
+                        return dispatch(q, pT, write_R, size,
+                                        ReductionScratch<int64_t>{pS, scratch_elements}, deps);
+                    });
+            });
+
+            return sycl::event();
+        }
+
+        /**
          * @brief Records a whole-tensor reduction using the library's own deterministic
          * folding shape: `result = finalize(fold(transform(t[i])), n)`.
          *

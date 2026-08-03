@@ -601,6 +601,30 @@ retuning it is one edit instead of thirty-five.
   `execute_reduction`: their answer is an index, so it goes into an **INT64**
   result tensor rather than one sharing the input's dtype.
 
+  **`count_nonfinite` is the third reduction executor**, alongside
+  `execute_reduction` (same dtype in and out, scratch of that dtype) and
+  `execute_index_reduction` (INT64 out, no scratch): `Dispatch::execute_counting_reduction`
+  is INT64 out *with* an INT64 partials buffer, because "how many elements are inf or
+  NaN" is a fold over the whole tensor rather than a scan. It exists for a
+  mixed-precision layer above, which must decide on device — with no host sync, or the
+  optimiser step drains the graph — whether to skip an update and halve the loss scale.
+  The count is INT64 rather than a flag in the input's dtype for the reason
+  `execute_index_reduction` was cut out at all: a count is exact in fp32 only below 2^24
+  and in fp16 only below 2048, and past 65504 a HALF count is an infinity, so the tensors
+  most worth counting are the ones whose count would be wrong. `asum` would nearly have
+  served — a sum of magnitudes is non-finite whenever any element is — and is rejected
+  because it accumulates in the *input's* dtype: a clean fp16 tensor whose running total
+  leaves binary16's range — eight elements of 20000 is enough — makes it report an overflow
+  that never happened, which in a loss-scaling loop halves the scale for ever on a run that
+  was fine. `Unit_CountNonFiniteTest.AsumReportsOverflowOnAHalfTensorThisOpCallsClean`
+  runs both ops on one tensor and asserts they disagree, so that argument is a measurement
+  rather than a claim. `Reduce::reduce` gained a second type parameter for it — the
+  accumulation type, deduced, equal to the element type for every pre-existing caller — so
+  the counting shape reuses the fixed-order two-stage fold instead of hand-writing a
+  second copy; the accumulator is `Reduce::ExactSum`, whose determinism holds for a
+  stronger reason than the floating-point ones (integer addition is exactly associative,
+  so no order can change the answer).
+
   `nrm2` is the one folding reduction whose accumulator is not a plain sum.
   `Reduce::ScaledSumOfSquares` carries a running scale and folds
   `(x / scale)^2`, because `sqrt(sum(x*x))` overflows to infinity for any fp32

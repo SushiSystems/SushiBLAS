@@ -47,7 +47,6 @@
 #include <string>
 #include <vector>
 #include <cstddef>
-#include <cstring>
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>

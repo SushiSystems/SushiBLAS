@@ -111,6 +111,9 @@ set(SUSHIBLAS_SOURCES
     engine/math/reductions/asum.cpp
     engine/math/reductions/nrm2.cpp
 
+    # The one reduction whose result dtype is not its input's (see reductions.hpp).
+    engine/math/reductions/count_nonfinite.cpp
+
     # Math: Reductions along one axis (segmented; result is a vector)
     engine/math/reductions/max_along.cpp
     engine/math/reductions/sum_along.cpp
