@@ -35,35 +35,43 @@ namespace SushiBLAS
         {
             /**
             * @brief Pure C++ reference implementation of GEMM.
-            * 
+            *
             * Supports Row-Major and Column-Major layouts.
+            *
+            * Addressing an operand is two strides, not four cases: transposing it and
+            * flipping its layout are the same operation, so ROW_MAJOR+transposed and
+            * COLUMN_MAJOR+untransposed index identically (as do the other pair). That
+            * identity is the sanity check worth keeping in mind here - an earlier
+            * version of this file had the COLUMN_MAJOR arm of A and B inverted, which
+            * made `layout` a no-op for both operands and, with the column-major leading
+            * dimension the driver passes, read past the end of A whenever m > k.
             */
             template<typename T>
             void gemm(Core::Layout layout, bool transA, bool transB,
                     int64_t m, int64_t n, int64_t k,
                     T alpha, const T* a, int64_t lda,
                     const T* b, int64_t ldb,
-                    T beta, T* c, int64_t ldc) 
+                    T beta, T* c, int64_t ldc)
             {
-                for (int64_t i = 0; i < m; ++i) 
+                const bool col_major = (layout == Core::Layout::COLUMN_MAJOR);
+
+                // Element (r, col) of the logical, post-transpose operand.
+                auto A_at = [&](int64_t r, int64_t col) -> T
                 {
-                    for (int64_t j = 0; j < n; ++j) 
+                    return (transA != col_major) ? a[r + col * lda] : a[r * lda + col];
+                };
+                auto B_at = [&](int64_t r, int64_t col) -> T
+                {
+                    return (transB != col_major) ? b[r + col * ldb] : b[r * ldb + col];
+                };
+
+                for (int64_t i = 0; i < m; ++i)
+                {
+                    for (int64_t j = 0; j < n; ++j)
                     {
                         T sum(0);
-                        for (int64_t l = 0; l < k; ++l) 
-                        {
-                            T valA, valB;
-                            if (layout == Core::Layout::ROW_MAJOR) 
-                            {
-                                valA = transA ? a[l * lda + i] : a[i * lda + l];
-                                valB = transB ? b[j * ldb + l] : b[l * ldb + j];
-                            } else 
-                            {
-                                valA = transA ? a[i + l * lda] : a[l + i * lda];
-                                valB = transB ? b[l + j * ldb] : b[j + l * ldb];
-                            }
-                            sum += valA * valB;
-                        }
+                        for (int64_t l = 0; l < k; ++l)
+                            sum += A_at(i, l) * B_at(l, j);
 
                         // beta==0 must not read the (possibly uninitialized) prior C value,
                         // matching standard BLAS semantics.

@@ -35,37 +35,40 @@ namespace SushiBLAS
         {
             /**
             * @brief Pure C++ reference implementation of SYRK.
-            * 
+            *
             * Supports Row-Major and Column-Major layouts.
+            *
+            * Operand addressing follows the same two-stride rule as
+            * `Reference::gemm`, and used to carry the same defect: the COLUMN_MAJOR arm
+            * was inverted, which made `layout` a no-op for A and read past its end for
+            * some shapes. See that file for the identity that catches it.
             */
             template<typename T>
             void syrk(Core::Layout layout, bool upper, bool trans,
                       int64_t n, int64_t k,
                       T alpha, const T* a, int64_t lda,
-                      T beta, T* c, int64_t ldc) 
+                      T beta, T* c, int64_t ldc)
             {
-                for (int64_t i = 0; i < n; ++i) 
+                const bool col_major = (layout == Core::Layout::COLUMN_MAJOR);
+
+                // Element (r, col) of the logical, post-transpose op(A).
+                auto A_at = [&](int64_t r, int64_t col) -> T
                 {
-                    for (int64_t j = 0; j < n; ++j) 
+                    return (trans != col_major) ? a[r + col * lda] : a[r * lda + col];
+                };
+
+                for (int64_t i = 0; i < n; ++i)
+                {
+                    for (int64_t j = 0; j < n; ++j)
                     {
-                        if ((upper && j < i) || (!upper && j > i)) 
+                        if ((upper && j < i) || (!upper && j > i))
                             continue;
 
+                        // C = alpha*op(A)*op(A)^T, so the second factor is
+                        // op(A)^T(l, j), which is op(A)(j, l).
                         T sum(0);
-                        for (int64_t l = 0; l < k; ++l) 
-                        {
-                            T valA_1, valA_2;
-                            if (layout == Core::Layout::ROW_MAJOR) 
-                            {
-                                valA_1 = trans ? a[l * lda + i] : a[i * lda + l];
-                                valA_2 = trans ? a[l * lda + j] : a[j * lda + l];
-                            } else 
-                            {
-                                valA_1 = trans ? a[i + l * lda] : a[l + i * lda];
-                                valA_2 = trans ? a[j + l * lda] : a[l + j * lda];
-                            }
-                            sum += valA_1 * valA_2;
-                        }
+                        for (int64_t l = 0; l < k; ++l)
+                            sum += A_at(i, l) * A_at(j, l);
 
                         // beta==0 must not read the (possibly uninitialized) prior C value,
                         // matching standard BLAS semantics.

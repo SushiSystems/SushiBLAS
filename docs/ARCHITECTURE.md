@@ -277,17 +277,43 @@ true. See `include/SushiBLAS/engine/dispatch.hpp` for the shared vocabulary
 
 ### Notable kernel designs
 
-- **GEMM / SYRK** (`kernels/sycl/blas/level3/`) — local-memory-tiled,
-  work-group-cooperative kernels derived from portBLAS's tiling algorithm
-  (fixed tile config: `item_rows=4, item_cols=4, wg_rows=8, wg_cols=8,
-  tile_k=16`). SYRK reuses GEMM's tile-loading primitives with the second
-  operand set to the input itself, plus a triangular output mask. Both are
-  `beta==0`-safe: they branch around reading `C` when `beta == T(0)`, because
-  `0 * NaN == NaN` in IEEE-754 and a freshly-allocated, never-initialized `C`
-  can decode as a HALF-precision NaN. See [NOTICE.md](../NOTICE.md) for the
-  full attribution and the deliberate simplifications versus upstream
-  portBLAS (no double buffering, no vectorized packet loads, a single fixed
-  tile size).
+- **GEMM** (`kernels/sycl/blas/level3/gemm.hpp`) — two kernel shapes behind one
+  entry point, chosen at launch from the `Device::Profile` in
+  `include/SushiBLAS/engine/device_policy.hpp` and logged at `SB_LOG_INFO` so
+  the choice is observable:
+  - `Detail::gemm_local_tiled` — work-group-cooperative A/B staging through
+    local memory, for devices with genuine scratchpad memory. The A tile's
+    leading dimension is padded off a bank multiple; the arithmetic is spelled
+    out at the read site.
+  - `Detail::gemm_no_local` — no `local_accessor`, no barrier, a smaller
+    register block. What a CPU backend wants, where "local memory" is the same
+    cache the global pointer already reads through. A device that declares
+    scratchpad memory but cannot fit the tile or host the work-group falls back
+    here with a warning rather than failing the launch.
+
+  The register block is derived from `sizeof(T)` against a byte budget
+  (`Detail::register_block_dim`), not fixed: 8×8 for 4-byte and narrower types,
+  4×4 for the wider ones. The four (layout, transpose) combinations are resolved
+  on the host into a row/column stride pair (`Detail::strides_for`), so the
+  innermost loop carries no layout branch and no extra instantiation. A trailing
+  `Epilogue` template parameter, defaulting to `GemmIdentityEpilogue`, is applied
+  per element immediately before the store — the library's fusion hook for
+  bias-add and activations; see the `@warning` on it for why an *activation*
+  epilogue in a forward training pass is a silent-wrongness trap.
+- **SYRK** (`kernels/sycl/blas/level3/syrk.hpp`) — local-memory-tiled and
+  work-group-cooperative, composed from GEMM's operand-addressing primitives
+  (`Detail::strides_for`, `Detail::load_operand`) with the second operand set to
+  the input itself, plus a triangular output mask. It owns its tile geometry
+  (`Detail::SyrkTileConfig`) rather than sharing GEMM's, so retuning one cannot
+  silently retune the other. It has not been given GEMM's local/no-local split
+  yet — a named follow-up, not a regression.
+
+  Both are `beta==0`-safe: they branch around reading `C` when `beta == T(0)`,
+  because `0 * NaN == NaN` in IEEE-754 and a freshly-allocated,
+  never-initialized `C` can decode as a HALF-precision NaN. See
+  [NOTICE.md](../NOTICE.md) for the full attribution and the deliberate
+  simplifications versus upstream portBLAS (no double buffering, no vectorized
+  packet loads, no per-backend tuning table).
 - **TRSM / TRSV** (`kernels/{reference,sycl}/blas/level{2,3}/trsm.hpp`) — one
   kernel serves both: `Level2::trsv` calls `Kernels::*::trsm<T>` with a
   single-column right-hand side. The substitution direction (forward vs.

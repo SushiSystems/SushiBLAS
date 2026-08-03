@@ -26,8 +26,16 @@
 // composes SushiBLAS's own ported GEMM tiling machinery instead, the same
 // way portBLAS's SYMM composes onto its GEMM kernel: C = alpha*op(A)*op(A)^T
 // is literally GEMM(A, A, transA=trans, transB=!trans) restricted to one
-// triangle of C, so this reuses gemm.hpp's tile-loading helpers and adds the
-// triangular output mask - original SushiBLAS work, not a port.
+// triangle of C, so this reuses gemm.hpp's operand-addressing helpers and
+// adds the triangular output mask - original SushiBLAS work, not a port.
+//
+// What it deliberately does NOT reuse is GEMM's tile geometry. SYRK owns the
+// config below outright, so that retuning GEMM's register block cannot
+// silently retune SYRK's - the same argument device_policy.hpp makes for
+// keeping tile sizes out of the device profile, applied one level down.
+// SYRK has not yet been given GEMM's local/no-local split; it always takes
+// the local-memory shape, which is what it did before and is a named
+// follow-up rather than a regression (see NOTICE.md).
 
 #pragma once
 
@@ -44,11 +52,50 @@ namespace SushiBLAS
     {
         namespace SYCL
         {
+            namespace Detail
+            {
+                /**
+                * @struct SyrkTileConfig
+                * @brief SYRK's own tile geometry, independent of GEMM's.
+                *
+                * The same fixed 4x4-register / 8x8-work-group shape SYRK has always
+                * used. It is spelled out here rather than borrowed from
+                * @ref GemmLocalTile so that GEMM's per-type register-block derivation
+                * stays GEMM's business - SYRK's accumulator cost is SYRK's to reason
+                * about, and a shared config would make one kernel's tuning an invisible
+                * change to the other's.
+                */
+                template<typename T>
+                struct SyrkTileConfig
+                {
+                    /** @brief Rows of C accumulated privately by one work-item. */
+                    static constexpr int64_t item_rows = 4;
+
+                    /** @brief Columns of C accumulated privately by one work-item. */
+                    static constexpr int64_t item_cols = 4;
+
+                    /** @brief Work-items down the row axis of a work-group. */
+                    static constexpr int64_t wg_rows = 8;
+
+                    /** @brief Work-items across the column axis of a work-group. */
+                    static constexpr int64_t wg_cols = 8;
+
+                    /** @brief Rows of C covered by one work-group. */
+                    static constexpr int64_t block_m = item_rows * wg_rows;
+
+                    /** @brief Columns of C covered by one work-group. */
+                    static constexpr int64_t block_n = item_cols * wg_cols;
+
+                    /** @brief K-extent staged into local memory per iteration. */
+                    static constexpr int64_t tile_k = 16;
+                };
+            } // namespace Detail
+
             /**
             * @brief Tiled, local-memory-blocked SYCL SYRK: C = alpha*op(A)*op(A)^T + beta*C,
             * only the requested triangle of C referenced/written, matching standard BLAS
-            * SYRK semantics. Built from gemm.hpp's tile-loading primitives with the second
-            * GEMM operand set to A itself (see file header).
+            * SYRK semantics. Built from gemm.hpp's operand-addressing primitives with the
+            * second GEMM operand set to A itself (see file header).
             */
             template<typename T>
             [[nodiscard]] sycl::event syrk(sycl::queue& queue, Core::Layout layout,
@@ -58,7 +105,7 @@ namespace SushiBLAS
                              T beta, T* c, int64_t ldc, int64_t str_c,
                              int64_t batch_size, const std::vector<sycl::event>& deps)
             {
-                using Cfg = Detail::GemmTileConfig<T>;
+                using Cfg = Detail::SyrkTileConfig<T>;
                 constexpr int64_t item_rows = Cfg::item_rows;
                 constexpr int64_t item_cols = Cfg::item_cols;
                 constexpr int64_t wg_rows = Cfg::wg_rows;
@@ -67,7 +114,12 @@ namespace SushiBLAS
                 constexpr int64_t block_n = Cfg::block_n;
                 constexpr int64_t tile_k = Cfg::tile_k;
 
-                const bool transB = !trans;
+                // op(A) is the first factor, op(A)^T the second - which is exactly the
+                // second factor a GEMM would address with the opposite transpose flag.
+                const Detail::OperandStrides a_strides = Detail::strides_for(layout, trans, lda);
+                const Detail::OperandStrides b_strides = Detail::strides_for(layout, !trans, lda);
+                const Detail::OperandStrides c_strides = Detail::strides_for(layout, false, ldc);
+
                 const int64_t n_tiles_m = (n + block_m - 1) / block_m;
                 const int64_t n_tiles_n = (n + block_n - 1) / block_n;
 
@@ -116,13 +168,13 @@ namespace SushiBLAS
                             {
                                 const int64_t r = idx / tile_k;
                                 const int64_t kk = idx % tile_k;
-                                tileA[idx] = Detail::gemm_load_a(A, layout, trans, row0 + r, k0 + kk, n, k, lda);
+                                tileA[idx] = Detail::load_operand(A, row0 + r, k0 + kk, n, k, a_strides);
                             }
                             for (int64_t idx = local_linear; idx < tile_k * block_n; idx += wg_size)
                             {
                                 const int64_t kk = idx / block_n;
                                 const int64_t cc = idx % block_n;
-                                tileB[idx] = Detail::gemm_load_b(A, layout, transB, k0 + kk, col0 + cc, k, n, lda);
+                                tileB[idx] = Detail::load_operand(A, k0 + kk, col0 + cc, k, n, b_strides);
                             }
 
                             sycl::group_barrier(item.get_group());
@@ -154,9 +206,8 @@ namespace SushiBLAS
                                 // upper keeps col >= row, lower keeps col <= row.
                                 if (upper ? (global_col < global_row) : (global_col > global_row)) continue;
 
-                                const int64_t c_idx = (layout == Core::Layout::ROW_MAJOR)
-                                    ? (global_row * ldc + global_col)
-                                    : (global_row + global_col * ldc);
+                                const int64_t c_idx = global_row * c_strides.row +
+                                                      global_col * c_strides.col;
                                 // beta==0 must not read the (possibly uninitialized) prior C
                                 // value, matching standard BLAS semantics.
                                 C[c_idx] = (beta == T(0)) ? alpha * acc[ii][jj] : alpha * acc[ii][jj] + beta * C[c_idx];
