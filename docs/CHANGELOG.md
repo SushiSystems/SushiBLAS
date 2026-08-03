@@ -37,6 +37,57 @@ None open.
   a repeat rather than filed as a new bug.
 
 ### Added
+- **Axis reductions: `reductions().max_along` and `sum_along`, over a new
+  segmented launch shape** (`include/SushiBLAS/engine/reduce_axis.hpp`). One
+  axis of a rank-2 tensor folded away, result a vector — the third launch shape
+  in the library, alongside `launch_1d.hpp`'s per-element map and
+  `reduce_1d.hpp`'s whole-tensor fold.
+
+  It was added for a **correctness** reason recorded against this repository and
+  against SushiAI: a log-sum-exp shift has to be per row, and shifting a batch
+  by its *global* maximum returns `+inf` for any row about 104 below it, because
+  every `exp(x - global_max)` in that row underflows to zero and `log(0)` is
+  `-inf`. The invariance log-softmax has to a per-row offset is real in exact
+  arithmetic and destroyed in binary32 by the exponential. See
+  [GPU_VALIDATION.md §7](GPU_VALIDATION.md) for the measured before-and-after
+  figures at gaps of 90, 100, 104 and 200, and for which quantity they are.
+
+  - **`Reduce::AxisSpan` names no axis.** Five element counts — segment count,
+    extent, and three strides — so the axis, the `Core::Layout` and any
+    non-unit stride a view inherited are resolved once on the host by
+    `Dispatch::axis_span_for`. Both axes of both layouts are one kernel with
+    different numbers, so the inner loop carries no layout branch.
+  - **Two shapes, chosen from where the parallelism is.** One work-item per
+    segment when there are already enough segments to fill the machine — every
+    row-wise reduction over a batch, on every device — through `Device::plan_1d`
+    and so through the same CPU-flat / GPU-grid-stride split every elementwise
+    op takes. One work-group per segment when there are too few segments and
+    each is long enough to be worth the barriers, so a `[2, 10M]` row sum does
+    not run on two work-items. Both are correct at every shape; neither needs
+    the segment length to relate to the work-group width.
+  - **Deterministic by construction**, to the same standard as the whole-tensor
+    fold and by a cheaper argument: the item-per-segment shape has *no*
+    cross-work-item combination at all, and the work-group shape uses the same
+    hand-written fixed-offset halving tree rather than `reduce_over_group`,
+    whose order the specification leaves free.
+  - **No scratch buffer**, structurally: a work-group's tree is its segment's
+    answer, so there are no partials to stage between two kernels.
+  - **`Reduce::RunningMax`** joins `CompensatedSum`, `ScaledSumOfSquares` and
+    `RunningProduct` as an accumulation policy, selecting exactly as
+    `sycl::maximum` does so a per-axis maximum and a whole-tensor maximum cannot
+    disagree. `ReductionOps::max` stays on `sycl::reduction` — the argument in
+    `max.cpp` for that is unaffected.
+  - `Dispatch::execute_folding_axis_reduction` is installed and public, like
+    every other seam in the family; a per-axis `mean` is it with `v / n` in the
+    finalizer slot and a per-axis `min` is a four-line accumulator. An
+    index-valued axis reduction needs its own executor (its result dtype differs
+    from its input's) but reuses `axis_span_for` for the geometry.
+  - 26 tests in `tests/functional/unit/test_axis_reductions.cpp`: every dtype a
+    reduction serves, both axes, both layouts, a non-zero storage offset, the
+    dependency edge a `Tensor::region()`-built `ResourceRegion` produces, the
+    two kernels against each other and against exact arithmetic, byte-for-byte
+    stability at both, and the planner as a pure function over synthetic
+    profiles.
 - **`SushiBLAS::Core::format` is public** (`include/SushiBLAS/core/format.hpp`).
   The `std::format` stand-in the C++17 move introduced started life in
   `Core::Detail`, internal by this stack's convention, because SushiBLAS was its

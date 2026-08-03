@@ -33,6 +33,7 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/reduce_1d.hpp>
+#include <SushiBLAS/engine/reduce_axis.hpp>
 #include <SushiBLAS/engine/device_policy.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -335,6 +336,182 @@ namespace SushiBLAS
             };
 
             return execute_reduction(engine, t, result, name, op_id, dispatch, partials);
+        }
+
+        /**
+         * @brief Resolves a rank-2 tensor and an axis into the stride pair a
+         * segmented reduction walks, validating both operands on the way.
+         *
+         * The whole of "which axis, which layout, which view" lives here, on the
+         * host, once. `Tensor::strides` already carries the `Core::Layout` the
+         * tensor was built under and any non-unit stride a view inherited, so
+         * reducing along either axis of either layout is the same arithmetic with
+         * the two strides swapped - which is why @ref SushiBLAS::Reduce::AxisSpan
+         * names no axis and the kernel carries no layout branch.
+         *
+         * Public rather than tucked into a detail namespace because it is the
+         * reusable half of the seam: an index-valued axis reduction (`argmax`
+         * along an axis) has a different *result dtype* from
+         * @ref execute_folding_axis_reduction and so needs its own executor - the
+         * way `execute_index_reduction` is a twin of `execute_reduction` - but it
+         * has exactly this geometry, and should take it from here rather than
+         * derive it a second time.
+         *
+         * @param t The tensor being reduced; must be rank 2.
+         * @param axis Which axis is folded away: 0 reduces down the columns
+         *        (result length `t.shape[1]`), 1 reduces along the rows (result
+         *        length `t.shape[0]`).
+         * @param result The rank-1 output, one element per surviving position.
+         * @param name The op's own name, for the failure messages.
+         * @return The span describing every segment.
+         *
+         * @throws std::runtime_error if @p t is not rank 2, if @p axis is not 0 or
+         *         1, if @p result is not rank 1, or if @p result's length does not
+         *         match the surviving extent.
+         */
+        [[nodiscard]] inline Reduce::AxisSpan axis_span_for(const Tensor& t, int axis,
+                                                            const Tensor& result,
+                                                            const char* name)
+        {
+            SB_THROW_IF(t.rank != 2,
+                        "Axis reduction '{}' takes a rank-2 operand; got rank {}. Reducing one "
+                        "axis of a higher-rank tensor is not implemented - the launch shape "
+                        "generalises, the operand validation here does not.",
+                        name, t.rank);
+            SB_THROW_IF(axis != 0 && axis != 1,
+                        "Axis reduction '{}' takes axis 0 or 1 on a rank-2 operand; got {}.",
+                        name, axis);
+            SB_THROW_IF(result.rank != 1,
+                        "Axis reduction '{}' answers with a vector, so its result tensor must be "
+                        "rank 1; got rank {}.",
+                        name, result.rank);
+
+            // The axis that survives is the one that is not folded away, and its
+            // extent is how many independent folds there are.
+            const int kept = 1 - axis;
+
+            SB_THROW_IF(result.num_elements != t.shape[kept],
+                        "Axis reduction '{}' over axis {} of a [{}, {}] tensor produces {} "
+                        "values, but the result tensor holds {}.",
+                        name, axis, t.shape[0], t.shape[1], t.shape[kept], result.num_elements);
+
+            Reduce::AxisSpan span;
+            span.segments       = static_cast<std::size_t>(t.shape[kept]);
+            span.extent         = static_cast<std::size_t>(t.shape[axis]);
+            span.segment_stride = static_cast<std::size_t>(t.strides[kept]);
+            span.element_stride = static_cast<std::size_t>(t.strides[axis]);
+            span.out_stride     = static_cast<std::size_t>(result.strides[0]);
+            return span;
+        }
+
+        /**
+         * @brief Records a **segmented** reduction - one axis folded away, a vector
+         * of results - using the library's own deterministic folding shape.
+         *
+         * The axis-wise counterpart of @ref execute_folding_reduction, and the seam
+         * every axis reduction in the library goes through. `max_along` and
+         * `sum_along` are each one call to this, differing only in @p Accum; a
+         * per-axis mean is `Reduce::CompensatedSum` with `v / n` as its finalizer
+         * and a per-axis minimum is a four-line accumulator, neither of which
+         * re-cuts anything here.
+         *
+         * @code
+         * // Row-wise maximum of a [rows, cols] tensor into a [rows] vector -
+         * // the shift a numerically honest log-softmax needs.
+         * Dispatch::execute_folding_axis_reduction<Reduce::RunningMax>(
+         *     engine, x, 1, row_max, "math.max_along", "math.max_along"_op,
+         *     Dispatch::ReduceIdentityTransform{}, Dispatch::ReduceIdentityFinalize{});
+         * @endcode
+         *
+         * **It asks for no scratch**, unlike @ref execute_folding_reduction, and
+         * that is a property of the shape rather than an omission: a segmented
+         * reduction's work-groups never contribute to a shared answer, so there are
+         * no partials to stage between two kernels. See
+         * <SushiBLAS/engine/reduce_axis.hpp> for the two launch shapes and for the
+         * determinism argument, which is the same one `reduce_1d.hpp` makes.
+         *
+         * @tparam Accum The accumulation policy: @ref SushiBLAS::Reduce::RunningMax,
+         *         @ref SushiBLAS::Reduce::CompensatedSum for anything additive,
+         *         @ref SushiBLAS::Reduce::RunningProduct for a product.
+         * @tparam Transform The per-element transform type, deduced.
+         * @tparam Finalize The finalizer type, deduced.
+         * @param engine The engine whose task graph the op is recorded on.
+         * @param t The rank-2 tensor to reduce.
+         * @param axis Which axis to fold away; see @ref axis_span_for.
+         * @param result The rank-1 output tensor; must share `t`'s dtype.
+         * @param name Human-readable op name, used for logging and failure messages.
+         * @param op_id Stable operation identifier for the task graph.
+         * @param transform Callable `(auto x) -> auto`, applied to each element
+         *        before it is folded in.
+         * @param finalize Callable `(auto value, std::size_t n) -> auto`, applied
+         *        once per segment with @p n that segment's element count.
+         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
+         *
+         * @warning @p transform and @p finalize are inlined into a SYCL device
+         *          kernel and carry the same constraints as every other functor in
+         *          this family: device-copyable, capture by value, no host
+         *          pointers, no allocation, no exceptions.
+         * @throws std::runtime_error for the shape reasons @ref axis_span_for lists,
+         *         if the dtypes disagree, or if the dtype is one reductions do not
+         *         support (HALF, FLOAT32 and FLOAT64 are; the complex types have no
+         *         ordering or identity to fold with, and an integer result is what
+         *         the index reductions answer with, not this).
+         */
+        template<template<typename> class Accum, typename Transform, typename Finalize>
+        sycl::event execute_folding_axis_reduction(Engine& engine, const Tensor& t, int axis, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Transform transform, Finalize finalize)
+        {
+            SB_THROW_IF(t.dtype != result.dtype,
+                        "Data types must match for axis reduction '{}'.", name);
+
+            const Reduce::AxisSpan span = axis_span_for(t, axis, result, name);
+
+            void* read_T = t.data();
+            void* write_R = result.data();
+
+            // `Tensor::region()`, never the bare `data()` pointer - for exactly the
+            // reason spelled out in execute_reduction above: a bare pointer widens
+            // to the whole-buffer region of whatever it points at, so two views
+            // inside one arena look like two different allocations, overlap() says
+            // false, and the tracker emits no edge at all. That cost a training run
+            // once already.
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {t.region()};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
+
+            SushiRuntime::Graph::TaskMetadata meta;
+            meta.name = name;
+            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+            meta.op_id = op_id;
+
+            // REAL only, matching execute_reduction: a fold needs an ordering and an
+            // identity, which std::complex does not supply, and an integer tensor is
+            // not an arithmetic type in this library (see Dispatch::Domain).
+            with_element_type<Domain::REAL>(t.dtype, "Axis reduction", name,
+                [&](auto tag)
+            {
+                using T = typename decltype(tag)::type;
+
+                engine.get_graph().add_task(meta, reads, writes,
+                    [span, pT = static_cast<const T*>(read_T), pR = static_cast<T*>(write_R),
+                     transform, finalize, name]
+                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    {
+                        SB_LOG_INFO("Axis reduction {}: {} segments of {} elements",
+                                    name, span.segments, span.extent);
+
+                        // Planned here, at execution time, from the device the task
+                        // was actually routed to - the same reason Reduce::plan is
+                        // asked inside the kernel launcher rather than at record
+                        // time. Nothing is sized from it, so unlike the whole-tensor
+                        // seam there is no scratch capacity to clamp against.
+                        const Reduce::AxisPlan geometry =
+                            Reduce::plan_axis(Device::profile_for(q), span.segments, span.extent);
+
+                        return Reduce::reduce_axis<Accum>(q, pT, pR, span, geometry,
+                                                          transform, finalize, deps);
+                    });
+            });
+
+            return sycl::event();
         }
 
         /**

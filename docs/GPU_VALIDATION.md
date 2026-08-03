@@ -54,6 +54,22 @@ On an NVIDIA GPU it should report `is_cpu = false`, `has_dedicated_local_memory 
 
 **Unverified.** Profile it. `ncu --metrics l1tex__data_bank_conflicts_pipe_lsu_mem_shared` is the direct measurement.
 
+### 3.1a When an axis reduction switches to a work-group per segment
+
+`Reduce::plan_axis` (`include/SushiBLAS/engine/reduce_axis.hpp`) picks between one work-item per segment and one work-group per segment. The rule is: take the cheap item-per-segment shape whenever there are already `compute_units × K_WAVES_PER_COMPUTE_UNIT` segments or more, and otherwise take the work-group shape only if each segment is at least one full group-width long.
+
+The *floor* is an argument — a group whose segment is shorter than the group is idle lanes paying `log2(local)` pairs of barriers — but the **crossover is not measured on a GPU**, because there is no GPU here. Both shapes were measured for correctness and for bit-stability on the OpenCL CPU device, and both are exercised there by `Unit_AxisReductions` (which drives each kernel directly rather than relying on the planner to reach it).
+
+If a row-wise reduction underperforms on real hardware, this is the first knob. It cannot make an answer wrong: the shape is a pure function of the device profile and the span, so it is the same on every run of the same binary, and the two shapes compute the same thing.
+
+A row-wise reduction over a batch — the case the seam was written for — has far more segments than any GPU has resident groups, so it takes the item-per-segment shape on every device. The work-group shape is only reached by a few very long segments.
+
+**That has an unmeasured cost on a GPU, and it is worth stating plainly.** In the item-per-segment shape, work-item `s` walks segment `s`, so for a *row-wise* (axis 1) reduction consecutive work-items read addresses one whole row apart. That is the pattern a CPU wants — each thread streams a contiguous run — and it is exactly the **uncoalesced** pattern a GPU does not: 32 lanes issue 32 separate transactions per step instead of one. The work-group shape is fully coalesced (consecutive lanes read consecutive elements within a segment), but `plan_axis` will not select it for a batch-sized row count, because that would leave one group per row and most of the machine idle.
+
+Nothing here is wrong because of it; both shapes give the same answer. But if a row-wise reduction is slow on real hardware, the fix is likely a third shape — a sub-group per segment, coalesced *and* with enough segments in flight — rather than a tweak to the threshold. That was not written, because a shape that cannot be measured is a shape that cannot be justified.
+
+**Column-wise (axis 0) reductions do not have this problem** in either shape: consecutive segments are adjacent in memory, so consecutive work-items already read consecutive addresses.
+
 ### 3.2 Register pressure on the 8×8 block
 
 The register block is 8×8 for 4-byte types — 256 bytes of accumulator, matching portBLAS's `Tile<8,8,8,8>` default — and 4×4 for wider types. A block that spills its accumulator to local memory loses most of the point of blocking.
@@ -104,6 +120,7 @@ Two things were done specifically so they would keep passing there:
 
 - **gradient accumulation never uses float atomics.** It accumulates through the graph's own ordered edges instead, because a float atomic's combination order is whatever the hardware chooses.
 - **reductions no longer use `sycl::reduction`.** `sum`, `mean`, `asum`, `nrm2` and `prod` run a hand-written fixed-order fold — a Neumaier-compensated grid-strided pass, a halving tree over local memory (**not** `reduce_over_group`), then a final pass over a fixed partial count in ascending index order.
+- **the axis reductions were built to the same rule.** `max_along` and `sum_along` (`reduce_axis.hpp`) never had a `sycl::reduction` to give up — there is no segmented form of it — but they could have used `reduce_over_group` for the in-group step and deliberately do not. Their item-per-segment shape has no cross-work-item combination at all; their work-group shape uses the same hand-written fixed-offset halving tree. `Unit_AxisReductions.BothShapesAreBitwiseStable` compares repeated runs as bytes at both shapes.
 
 The justification for the second one is an argument from the SYCL specification — it gives no deterministic combination order for a non-associative operator, and floating-point addition is one — **not an observation**. On the development CPU `sycl::reduction` happened to be deterministic, so the change fixed a hazard that had never actually fired. A GPU is where it would.
 
@@ -126,11 +143,11 @@ One honest limit already found on CPU: with compensation removed, the *sequentia
 ```bash
 # SushiBLAS
 sb build --type release -D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86"
-sb test --suite all          # expect 306/306 as of this writing
+sb test --suite all          # expect 356/356 as of this writing
 
 # SushiAI (builds SushiBLAS from source as a subdirectory)
 sa build --type release -D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86"
-sa test --suite all          # expect 499/499
+sa test --suite all          # expect 582/582 (SushiAI's own plus this repo's)
 sa demo mlp
 ```
 
@@ -144,7 +161,20 @@ A GPU number for `ms/step` would be the first performance figure this project ha
 
 These are recorded so a GPU run does not get blamed for them:
 
-- **Log-softmax returns `+inf` for a row far below the batch maximum.** The shift uses the global maximum rather than a per-row one. Measured on binary32: exact to a gap of ~90, about 7% low at 100, `+inf` from ~104. Needs a row-wise maximum, which needs an axis reduction this library does not yet expose.
+- ~~**Log-softmax returns `+inf` for a row far below the batch maximum.**~~ **Fixed.** The shift used the global maximum rather than a per-row one; it now uses a per-row one, computed by `ReductionOps::max_along`, which this library did not previously expose. Re-measured on binary32, on a [2, 3] input whose true log-probabilities are −0.41 to −2.41. The quantity below is the worst absolute **deviation of the row's log-probabilities from the answer the same code gives at a gap of 0** — the one figure directly measured on both sides, by `Regression_LogSoftmaxStability.TheAnswerDoesNotDependOnTheGapAtAll`'s `EXPECT_EQ`:
+
+  | row-to-batch-max gap | global shift (before) | per-row shift (after) |
+  |---------------------:|----------------------:|----------------------:|
+  |                   90 |              2.15e−06 |          0 (exactly)  |
+  |                  100 |              2.70e−02 |          0 (exactly)  |
+  |                  104 |                `inf`  |          0 (exactly)  |
+  |                  200 |                `inf`  |          0 (exactly)  |
+
+  The after column is exactly zero at every gap because the gap no longer enters the arithmetic at all — which is why that assertion is an equality rather than a tolerance.
+
+  Measured against the hand-computed expectation directly, rather than against the gap-0 answer, the gap-100 case came out 2.7033e−02 off — 6.6% of the largest true log-probability (−0.40761), which is the "about 7% low at 100" this entry used to record.
+
+  **The residual at the gaps that pass is not stated, on either side, because it was not measured**: a passing `EXPECT_NEAR` bounds it under 1e−4 and says nothing more. An earlier revision of this entry, and of the test's own header, both carried invented figures for it.
 - **SYRK has no local/no-local split and no epilogue.** It always takes the tiled shape, including on a CPU.
 - **`nrm2` overflow behaviour** — check whether the scaling form has landed by the time you read this; the naive two-norm overflows above roughly 1e19 in fp32.
 - **The batch feed is outside the compiled plan**, costing one extra dispatch round per step. It needs an operand-address late binding that SushiRuntime does not currently offer for ordinary device tasks.
