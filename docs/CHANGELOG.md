@@ -37,6 +37,18 @@ None open.
   a repeat rather than filed as a new bug.
 
 ### Added
+- **`sb doxygen` works.** A repo-root `Doxyfile` and `docs/api/mainpage.md` are
+  now committed, and `.gitignore` no longer swallows the Doxyfile — it listed
+  it, so the command reported `Doxyfile not found at repo root.` and exited 1 in
+  every fresh checkout while `CLI_GUIDE.md` documented it as a feature.
+  sushiruntime's committed Doxyfile is the model. Scope is `include/SushiBLAS`
+  minus `Detail` and minus `experimental/` — the D1 quarantine is outside the
+  umbrella header and not every op declared there has a definition, so listing
+  it would advertise an API that does not link. Output goes to
+  `docs/api-site/html/` and the undocumented-symbol log to
+  `docs/api-site/doxygen-warnings.log`, both gitignored. `WARN_AS_ERROR` is
+  deliberately `NO`: a missing `@param` should surface as debt in the log, not
+  fail a docs build. Verified by running it — exit 0, `index.html` produced.
 - **An exact non-finite detector: `reductions().count_nonfinite(t, result)`**
   (`src/engine/math/reductions/count_nonfinite.cpp`). How many elements of a
   tensor are infinite or NaN, answered into an **INT64 scalar** — the screen a
