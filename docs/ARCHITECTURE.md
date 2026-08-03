@@ -43,12 +43,17 @@ C++20 and SushiRuntime's own shim below it, chosen on `__cplusplus`, and that ch
 reaches the compiled ABI. SushiBLAS at C++20 linked against a SushiRuntime at C++17
 put the two halves of one build on opposite sides of that branch. Nothing in
 SushiBLAS's own API changed when it moved: the two spans are the same type wherever
-`std::span` exists, so a consumer still on C++20 (SushiAI, today) compiles against
-these headers exactly as before — `tests/package/` is built at C++20 to keep proving
-it. The pieces C++20 had been supplying are C++17 stand-ins now:
-`core/format.hpp` for `std::format`, `Core::Detail::SourceLocation` for
-`std::source_location`, and a value tag (`Dispatch::ElementTag`) where the dispatch
-seam used a templated lambda.
+`std::span` exists, and every span-taking entry point in these headers is **inline**,
+so the branch is re-decided in the consumer's own translation unit and never has to
+agree with a symbol somebody else compiled. That is what lets a consumer still on
+C++20 compile *and link* against this library unchanged, and `tests/package/` is
+built at C++20 to keep proving it. (SushiAI is at C++17 now and does not have that
+property — its span-taking exports are out-of-line, so the type reaches the mangled
+name; see its `INTEGRATION.md` §3.) The pieces C++20 had been supplying are C++17
+stand-ins now: `core/format.hpp` for `std::format` — shared with SushiAI through the
+public `Core::format`, so the stack carries one copy and deletes it in one place —
+`Core::Detail::SourceLocation` for `std::source_location`, and a value tag
+(`Dispatch::ElementTag`) where the dispatch seam used a templated lambda.
 
 ---
 

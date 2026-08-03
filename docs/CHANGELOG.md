@@ -37,6 +37,26 @@ None open.
   a repeat rather than filed as a new bug.
 
 ### Added
+- **`SushiBLAS::Core::format` is public** (`include/SushiBLAS/core/format.hpp`).
+  The `std::format` stand-in the C++17 move introduced started life in
+  `Core::Detail`, internal by this stack's convention, because SushiBLAS was its
+  only caller. It is not any more: SushiAI moved to C++17 too, links SushiBLAS
+  unconditionally, and needs exactly this substitution for its own `SA_THROW_IF`
+  and its report tables. The three honest options were a third copy of the file,
+  SushiAI reaching into SushiBLAS's `Detail`, or one documented public entry —
+  and only the last leaves a single place to delete when the stack returns to
+  C++20 and this becomes a call to `std::vformat`. It is an **addition**:
+  `Detail::format` is untouched, every existing caller still resolves to it, and
+  the public entry forwards rather than reimplements.
+
+  The grammar grew with it, to cover what SushiAI writes and SushiBLAS did not:
+  fill and alignment (`[[fill]align]`, all three of `<`, `>`, `^`) and the
+  integer presentation types (`d`, `o`, `x`, `X`). Both were needed rather than
+  nice to have — under the original parser `{:<18}` read `<` as the presentation
+  type and emitted **no padding at all**, and `{:08x}` printed a magic number in
+  decimal. Centring is the one field shape iostreams cannot express as stream
+  state, so it renders into a scratch stream and splits the padding by hand,
+  odd character to the right, as `std::format` places it.
 - **GEMM ships two kernel shapes and picks one from the device profile**
   (`include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, moved there when the
   epilogue seam was made public). `Detail::gemm_local_tiled` is the
@@ -202,10 +222,12 @@ None open.
   C++20, and every one of them is inline — nothing in `sushiblas.lib` mentions a
   span in a symbol. `tests/package/` stays at C++20 to keep asserting that.
   The C++20 facilities the codebase used were replaced rather than removed:
-  - `std::format` -> `SushiBLAS::Core::Detail::format`, a new
+  - `std::format` -> `SushiBLAS::Core::format`, a new
     `include/SushiBLAS/core/format.hpp`. It supports `{}`, `{{`/`}}` and the
-    spec subset `{:[0][width][.precision][f|e|g]}`, which covers every format
-    string in the tree, so no message text changed. What is genuinely lost is
+    spec subset `{:[[fill]align][0][width][.precision][type]}`, where `align` is
+    `<`, `>` or `^` and `type` is one of `f`, `e`, `g`, `d`, `o`, `x` or `X` —
+    covering every format string in this tree and in SushiAI's, so no message
+    text changed. What is genuinely lost is
     `std::format`'s `consteval` check on a literal format string: a placeholder
     count that disagrees with the argument count is now a best-effort message
     rather than a compile error, exactly as it already was in SushiRuntime.

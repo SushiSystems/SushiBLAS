@@ -42,8 +42,7 @@
  * into a string" is not logging - it is the one thing logging happens to need, and
  * keeping it separate is what lets it be read, tested and eventually **deleted** on its
  * own. When the whole stack can assume C++20 again, this file goes away and
- * @ref SushiBLAS::Core::Detail::format becomes a call to `std::vformat`; nothing else
- * moves.
+ * @ref SushiBLAS::Core::format becomes a call to `std::vformat`; nothing else moves.
  *
  * SushiRuntime carries the same stand-in (`SushiRuntime::Core::Detail::sr_format`), and
  * this is deliberately *not* a call into it: that one lives in SushiRuntime's own
@@ -52,14 +51,25 @@
  * to another repo's private implementation detail. The approach is mirrored; the code is
  * not shared.
  *
+ * SushiAI, which links SushiBLAS unconditionally, *does* share this one - through the
+ * public @ref SushiBLAS::Core::format entry below. See its doc comment for why a third
+ * copy of this file would have been the wrong answer.
+ *
  * **What it supports, exactly.** Positional `{}` fields filled left to right, `{{` and
  * `}}` for literal braces, and the replacement-field spec subset
- * `{:[0][width][.precision][type]}` where `type` is one of `f`, `e` or `g`. That is a
- * strict subset of `std::format`'s grammar chosen to cover what this codebase actually
- * writes (`{}` everywhere, `{:.4f}` on a handful of log lines), so every existing format
- * string means the same thing it meant under `std::format`. Anything richer - explicit
- * argument indices, fill/align, `+`, `#`, chrono and range specs - is **not** supported
- * and is ignored rather than diagnosed.
+ * `{:[[fill]align][0][width][.precision][type]}` where `align` is one of `<`, `>` or `^`
+ * and `type` is one of `f`, `e`, `g` (floating point) or `d`, `o`, `x`, `X` (integer).
+ * That is a strict subset of `std::format`'s grammar chosen to cover what the two
+ * codebases that use it actually write - `{}` everywhere, `{:.4f}` on a handful of
+ * SushiBLAS log lines, and SushiAI's report tables (`{:<18}`, `{:>8.3f}`, `{:08x}`) - so
+ * every existing format string means the same thing it meant under `std::format`.
+ * Anything richer - explicit argument indices, `+`, `#`, `b`, `L`, chrono and range
+ * specs - is **not** supported and is ignored rather than diagnosed.
+ *
+ * Defaults follow `std::format`, which mostly means they follow `operator<<`: an
+ * unaligned field pads on the left (`std::right`), which is what both agree on for
+ * numbers. `std::format` left-aligns *strings* by default and `operator<<` does not, so
+ * a padded string field must spell its `<`; every call site in this stack already does.
  *
  * **What it gives up, and why that is acceptable.** `std::format` with a literal format
  * string is `consteval`-checked: a placeholder count that disagrees with the argument
@@ -95,17 +105,34 @@ namespace SushiBLAS
                 /** @brief Whether the field pads with '0' rather than ' '. */
                 bool zero_fill = false;
 
-                /** @brief The presentation type character (`f`, `e`, `g`), or '\0'. */
+                /** @brief The alignment character (`<`, `>`, `^`), or '\0' for the default. */
+                char align = '\0';
+
+                /** @brief The explicit padding character, or '\0' when none was given. */
+                char fill = '\0';
+
+                /** @brief The presentation type character (`f`, `e`, `g`, `d`, `o`, `x`, `X`), or '\0'. */
                 char type = '\0';
             };
+
+            /**
+             * @brief Reports whether @p c is one of `std::format`'s alignment characters.
+             * @param c The character to test.
+             * @return True for `<`, `>` and `^`.
+             */
+            inline bool is_align_char(char c) noexcept
+            {
+                return c == '<' || c == '>' || c == '^';
+            }
 
             /**
              * @brief Parses the text between the braces of a replacement field.
              *
              * @param field The characters between `{` and `}` - `""` for a bare `{}`, or
              *        `":.4f"` and the like for a specced field. Anything not matching
-             *        `:[0][width][.precision][type]` is ignored, leaving @p spec at its
-             *        defaults, which renders the value exactly as a bare `{}` would.
+             *        `:[[fill]align][0][width][.precision][type]` is ignored, leaving
+             *        @p spec at its defaults, which renders the value exactly as a bare
+             *        `{}` would.
              * @param spec The spec to populate.
              */
             inline void parse_format_spec(std::string_view field, FormatSpec& spec) noexcept
@@ -115,6 +142,22 @@ namespace SushiBLAS
                 if (field.empty() || field.front() != ':') return;
 
                 std::size_t i = 1;
+
+                // Fill-then-align first, because the fill character may itself be a
+                // digit or a '0' and must not be read as the zero flag or the width.
+                // Two characters are tested before one so `{:0<4}` pads with '0' on the
+                // right rather than reading as the zero flag followed by a stray '<'.
+                if (i + 1 < field.size() && is_align_char(field[i + 1]))
+                {
+                    spec.fill = field[i];
+                    spec.align = field[i + 1];
+                    i += 2;
+                }
+                else if (i < field.size() && is_align_char(field[i]))
+                {
+                    spec.align = field[i];
+                    ++i;
+                }
 
                 if (i < field.size() && field[i] == '0')
                 {
@@ -150,6 +193,10 @@ namespace SushiBLAS
              * default, and a log line that used to read "contiguous: true" must not start
              * reading "contiguous: 1" because the formatter changed.
              *
+             * Centring (`^`) is not expressible as stream state - iostreams has no such
+             * adjustfield - so it is absent here and handled by
+             * @ref FormatArg::write_centred instead.
+             *
              * @param os The stream about to receive the value.
              * @param spec The parsed field spec.
              */
@@ -157,7 +204,15 @@ namespace SushiBLAS
             {
                 os << std::boolalpha;
 
-                if (spec.zero_fill) os << std::setfill('0') << std::internal;
+                if (spec.align == '<') os << std::left;
+                else if (spec.align == '>') os << std::right;
+
+                // An explicit fill wins; the bare '0' flag is `std::format`'s
+                // sign-aware zero padding, which is what std::internal spells, and
+                // which `std::format` itself ignores once an alignment is given.
+                if (spec.fill != '\0') os << std::setfill(spec.fill);
+                else if (spec.zero_fill && spec.align == '\0') os << std::setfill('0') << std::internal;
+
                 if (spec.width > 0) os << std::setw(spec.width);
                 if (spec.precision >= 0) os << std::setprecision(spec.precision);
 
@@ -166,6 +221,10 @@ namespace SushiBLAS
                     case 'f': os << std::fixed; break;
                     case 'e': os << std::scientific; break;
                     case 'g': os.unsetf(std::ios_base::floatfield); break;
+                    case 'd': os << std::dec; break;
+                    case 'o': os << std::oct; break;
+                    case 'x': os << std::hex << std::nouppercase; break;
+                    case 'X': os << std::hex << std::uppercase; break;
                     default: break;
                 }
             }
@@ -208,6 +267,12 @@ namespace SushiBLAS
                      */
                     void write(std::ostream& os, const FormatSpec& spec) const
                     {
+                        if (spec.align == '^' && spec.width > 0)
+                        {
+                            write_centred(os, spec);
+                            return;
+                        }
+
                         const std::ios_base::fmtflags flags = os.flags();
                         const std::streamsize precision = os.precision();
                         const char fill = os.fill();
@@ -220,6 +285,42 @@ namespace SushiBLAS
                     }
 
                 private:
+                    /**
+                     * @brief Streams the bound value centred inside @p spec's width.
+                     *
+                     * The one field shape stream state cannot express, so the value is
+                     * rendered unpadded into a scratch stream and the padding is split
+                     * around it by hand - the odd character to the right, as
+                     * `std::format` places it.
+                     *
+                     * @param os The destination stream.
+                     * @param spec The field spec; its width and fill are honoured here.
+                     */
+                    void write_centred(std::ostream& os, const FormatSpec& spec) const
+                    {
+                        FormatSpec unpadded = spec;
+                        unpadded.width = 0;
+                        unpadded.align = '\0';
+                        unpadded.fill = '\0';
+                        unpadded.zero_fill = false;
+
+                        std::ostringstream rendered;
+                        write_(rendered, value_, unpadded);
+                        const std::string text = rendered.str();
+
+                        const std::size_t width = static_cast<std::size_t>(spec.width);
+                        if (text.size() >= width)
+                        {
+                            os << text;
+                            return;
+                        }
+
+                        const std::size_t padding = width - text.size();
+                        const char fill = (spec.fill != '\0') ? spec.fill : ' ';
+                        os << std::string(padding / 2, fill) << text
+                           << std::string(padding - (padding / 2), fill);
+                    }
+
                     /**
                      * @brief The streaming step, instantiated once per distinct argument type.
                      * @tparam T The bound value's type.
@@ -336,5 +437,36 @@ namespace SushiBLAS
             }
 
         } // namespace Detail
+
+        /**
+         * @brief Substitutes @p args into @p fmt's replacement fields; the `std::format`
+         *        stand-in this stack shares.
+         *
+         * **Why this is public.** Everything in a `Detail` namespace is internal by this
+         * stack's convention, and @ref Detail::format stayed there while SushiBLAS was
+         * the only caller. It is not any more: SushiAI moved to C++17 too, links
+         * SushiBLAS unconditionally, and needs exactly this substitution for its own
+         * `SA_THROW_IF` and its report tables. The three honest options were a third
+         * copy of this file, SushiAI reaching into SushiBLAS's `Detail`, or one
+         * documented public entry - and one entry is the only one of the three that
+         * still has a single place to delete when the stack returns to C++20 and this
+         * becomes a call to `std::vformat`.
+         *
+         * That makes it an **addition** to SushiBLAS's public API, not a change to it:
+         * @ref Detail::format is untouched, every existing caller still resolves to it,
+         * and this forwards rather than reimplements. The supported grammar is the
+         * file-level comment's, exactly.
+         *
+         * @tparam Args The argument types, deduced.
+         * @param fmt The format string; `{}` fields are filled left to right.
+         * @param args The values to substitute, in order.
+         * @return The substituted string.
+         */
+        template<typename... Args>
+        inline std::string format(std::string_view fmt, const Args&... args)
+        {
+            return Detail::format(fmt, args...);
+        }
+
     } // namespace Core
 } // namespace SushiBLAS
