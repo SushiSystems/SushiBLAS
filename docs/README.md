@@ -58,6 +58,30 @@ sb build --clean              # wipe the build tree first
 
 Add `--clean` to wipe the build tree first. `sb clean` removes the `build/` tree entirely.
 
+### Targeting an NVIDIA GPU
+
+By default the device image is SPIR-V, JIT-compiled by the runtime for whatever device it finds. That reaches every OpenCL and Level Zero device and reaches an NVIDIA GPU **not at all** — NVIDIA's OpenCL driver has never implemented `clCreateProgramWithIL`, so it has no way to ingest SPIR-V. A build that "falls back to the CPU" on a machine with a perfectly good NVIDIA card is this, not a fallback.
+
+Running on CUDA therefore is not a runtime choice; the CUDA image has to be compiled in ahead of time:
+
+```bash
+sb build --type release -D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86"
+```
+
+Keep `spir64` in the list unless you want a binary that runs *only* on the GPU — it is what keeps the CPU device reachable from the same build.
+
+Two requirements the flag cannot check for you. The compiler must be an intel-llvm built with `--cuda`; a stock oneAPI release has no CUDA backend and rejects the triple. And intel-llvm documents support for `sm_75` and newer, so anything older is below the tested floor even where the flag is accepted.
+
+`-D` is a general passthrough to CMake, repeatable, and the values it sets are cached — dropping the flag on a later run does not unset them. Pass `-D SB_SYCL_TARGETS=` to clear it, or `--clean` to start over.
+
+To see whether a kernel is spilling registers, which costs a blocked GEMM most of the benefit of blocking:
+
+```bash
+sb build --type release -D SB_SYCL_TARGETS=nvidia_gpu_sm_86 -D SB_SYCL_DEVICE_FLAGS="-Xcuda-ptxas;-v"
+```
+
+Either way, the configure step prints which targets are active, so a binary that cannot reach the device you expected says so at build time rather than at run time.
+
 ### Building with CMake directly
 
 If you prefer to skip the wrapper:

@@ -37,6 +37,38 @@ None open.
   a repeat rather than filed as a new bug.
 
 ### Added
+- **`SushiBLAS::Device::Profile` — the device described as facts a kernel can
+  dispatch on** (`include/SushiBLAS/engine/device_policy.hpp`, included from
+  `engine/dispatch.hpp`). Probed once per device and cached. The field that
+  carries the weight is `has_dedicated_local_memory`, because `local_mem_type`
+  alone cannot answer it: an OpenCL CPU device reports `local_mem_type::local`
+  and a plausible `local_mem_size` while backing both with the same cache the
+  global pointer already reads through, so a tiled kernel there copies the data
+  twice and pays a real thread rendezvous for every `group_barrier`. Also
+  supplies `plan_1d`, a grid-stride geometry capped at what the machine holds
+  resident rather than one work-item per element, and `vector_width`, which
+  returns 1 on CPU deliberately — the OpenCL CPU backend already vectorises
+  across work-items and a hand-written `sycl::vec` competes with it for the
+  same lanes. Knows nothing about GEMM or elementwise on purpose: only a kernel
+  knows what its accumulator costs in registers.
+- **AOT device targeting (`SB_SYCL_TARGETS`).** Default builds emit SPIR-V and
+  let the runtime JIT it, which reaches an NVIDIA GPU not at all — NVIDIA's
+  OpenCL driver implements no `clCreateProgramWithIL`, so it cannot ingest
+  SPIR-V, and the resulting "it fell back to the CPU" is not a fallback but the
+  only device the binary could ever see. `SB_SYCL_TARGETS` threads
+  `-fsycl-targets=` through compile *and* link as PUBLIC, which a STATIC
+  library needs: device code is not finalised until the consumer's executable
+  links, so a consumer inheriting `-fsycl` without the target list produces a
+  binary with no CUDA image and reports it only at run time. `SB_SYCL_DEVICE_FLAGS`
+  is the escape hatch for backend switches such as `-Xcuda-ptxas;-v`, which
+  reports the register spills that cost a blocked GEMM most of its blocking.
+  Configure prints the active targets either way.
+- **`sb build -D VAR=VALUE`**, repeatable, validated, appended after every
+  default the CLI sets so an explicit `-D` is never outranked. Added because
+  without it `SB_SYCL_TARGETS` was unreachable: this project's contributing
+  rules route every build through `sb`, and `sb build` had no way to pass a
+  cache variable, so the option above would have been unusable by the only
+  sanctioned path.
 - **The op-dispatch seam is public API (`namespace SushiBLAS::Dispatch`).** The
   five functor-templated `*_internal.hpp` helpers moved out of `src/` and are
   installed as `include/SushiBLAS/engine/{math/elementwise,math/nonlinear,
