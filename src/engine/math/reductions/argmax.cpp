@@ -52,8 +52,14 @@ namespace SushiBLAS
 
     sycl::event ReductionOps::argmax(const Tensor& t, Tensor& result) 
     {
+        // Already order-independent by construction: a sequential scan visits indices in
+        // ascending order every time, so the lowest-index maximum always wins the tie and
+        // the answer is reproducible to the bit. Whatever replaces this must keep that -
+        // ArgMaxCombine above breaks ties on the index precisely so a tree reduction would
+        // stay equivalent.
+        //
         // TODO: Implement a parallel tree reduction for argmax to replace single_task.
-        // For argmax, result tensor actually stores the index. Since the reduction dispatch assumes 
+        // For argmax, result tensor actually stores the index. Since the reduction dispatch assumes
         // type T for pR, we will use a temporary array or variable, but we can also just 
         // fall back to a simpler approach or allocate a small struct.
         // For now, to keep the reduction dispatch clean and avoid type mismatches, we'll implement 

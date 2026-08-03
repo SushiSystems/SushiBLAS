@@ -304,14 +304,63 @@ tiling kernel — the reference/SYCL split is the same, just colocated with the
 dispatch code instead of factored out.
 
 Those five headers are public API, not implementation detail: `execute_binary`,
-`execute_unary_inplace`, `execute_nonlinear_forward` / `_backward`,
-`execute_logic_unary` / `_binary` / `_ternary`, `execute_reduction` and
-`execute_random` all live in `namespace SushiBLAS::Dispatch` and are installed.
-A downstream framework composes several math ops into one functor, hands it to
-one `execute_*` call, and gets a single fused SYCL kernel — the reason the
-seam exists, and the reason "the consumer never writes SYCL itself" stays
-true. See `include/SushiBLAS/engine/dispatch.hpp` for the shared vocabulary
-(`Domain`) and the constraints a device-inlined functor has to satisfy.
+`execute_unary_inplace`, `execute_zip_inplace`, `execute_nonlinear_forward` /
+`_backward`, `execute_logic_unary` / `_binary` / `_ternary`, `execute_reduction`
+and `execute_random` all live in `namespace SushiBLAS::Dispatch` and are
+installed. A downstream framework composes several math ops into one functor,
+hands it to one `execute_*` call, and gets a single fused SYCL kernel — the
+reason the seam exists, and the reason "the consumer never writes SYCL itself"
+stays true. See `include/SushiBLAS/engine/dispatch.hpp` for the shared
+vocabulary (`Domain`) and the constraints a device-inlined functor has to
+satisfy.
+
+**`execute_zip_inplace`** is the variadic member of that set, and the one built
+for optimiser steps. It takes a `std::array<Tensor*, N>` of same-shaped tensors
+and calls the functor once per element index with an **lvalue reference to each**
+— `op(t0[i], t1[i], ..., tN-1[i])` — so one functor can read and update all N in
+a single pass over memory. An AdamW update (parameter decay, both moment
+updates, both bias corrections, the epsilon, the parameter step, an optional
+parameter EMA) is roughly seventeen recorded tasks when spelled as separate ops
+and exactly one through this seam. All N tensors are declared as both reads and
+writes on the graph, since nothing at this layer can tell which ones the functor
+touched; `Tensor::region()`'s precise byte interval keeps that from
+over-serialising disjoint views of one arena. N is a compile-time template
+parameter because the kernel stages one register per operand per element and
+expands the call through an `index_sequence` — a `span` would not do, and a
+trailing parameter pack would displace the `name` / `op_id` / `params` arguments
+every other executor in the family takes.
+
+### Launch geometry (`engine/launch_1d.hpp`)
+
+Every per-element kernel — elementwise, non-linear and logic — goes through two
+primitives in `namespace SushiBLAS::Launch` rather than calling `parallel_for`
+itself: `map` (`out[i] = op(in0[i], ...)`) and `zip_inplace`
+(`op(t0[i], ..., tN-1[i])`, every slot writable). Both own the launch shape, so
+retuning it is one edit instead of thirty-five.
+
+- **Grid-stride `nd_range`, not a bare `sycl::range<1>`.** The geometry comes
+  from `Device::plan_1d`, and the loop's `i < n` test *is* the bounds check, so
+  there is no padded tail work-group. `Device::flat_work_group_size` picks the
+  group width: `work_group_size` on a GPU, and on a CPU the widest group that
+  still gives every hardware thread one, because a flat launch pays for
+  work-group *count* (each group is a scheduling unit) and never pays for the
+  barriers `work_group_size`'s small CPU answer is protecting against.
+- **128-bit accesses where the device wants them.** When
+  `Device::vector_width` returns more than 1 *and* every operand is 16-byte
+  aligned (checked on the host at record time, because a `Tensor` view is only
+  guaranteed to be aligned to its own element type), a wide pass loads and
+  stores `sycl::vec<T, W>` — but calls the functor once per scalar component, so
+  the functor contract stays scalar and every existing caller is unaffected. The
+  remainder falls to the scalar loop. Skipped for `std::complex`. Both passes
+  live in one kernel: when the wide path is not taken the wide loop's trip count
+  is zero and the scalar loop starts at element 0, so there is no second kernel
+  and no divergent branch.
+- **Determinism is preserved by construction.** The grid, the group width and
+  the scalar/wide split are pure functions of the device, the element type, `n`
+  and the operands' alignment. Every element is written exactly once by exactly
+  one work-item, from the same inputs, in the same arithmetic — which is what
+  keeps the byte-for-byte reproducibility `sushiruntime_deterministic_fp`
+  promises intact through this layer.
 
 ### Notable kernel designs
 

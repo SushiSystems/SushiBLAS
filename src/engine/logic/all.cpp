@@ -35,6 +35,13 @@ namespace SushiBLAS
 
     namespace
     {
+        // On sycl::reduction deliberately, and safe there in a way a floating-point sum is
+        // not. The spec leaves a reduction's combination order unspecified, which only
+        // matters for a combiner whose result depends on it. This one reduces over exactly
+        // two values, T(0) and T(1), under `minimum`, which is associative, commutative and
+        // exact on that domain - every order gives the same bits. Contrast `+` on floats,
+        // where the order is visible in the result and free to shift with the launch
+        // configuration.
         template<typename T>
         sycl::event all_dispatch(sycl::queue& queue, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps)
         {

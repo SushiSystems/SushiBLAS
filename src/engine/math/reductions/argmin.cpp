@@ -31,6 +31,12 @@ namespace SushiBLAS
 
     sycl::event ReductionOps::argmin(const Tensor& t, Tensor& result) 
     {
+        // Already order-independent by construction: a sequential scan visits indices in
+        // ascending order every time, so the lowest-index minimum always wins the tie and
+        // the answer is reproducible to the bit. Whatever replaces this must keep that -
+        // a tree reduction is only equivalent if its combiner breaks ties on the index,
+        // the way ArgMaxCombine in argmax.cpp does.
+        //
         // TODO: Implement a parallel tree reduction for argmin to replace single_task.
         auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
         {
