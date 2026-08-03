@@ -28,18 +28,36 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
-#include <format>
 #include <string>
 #include <thread>
+#include <sstream>
 #include <utility>
-#include <iostream>
 #include <stdexcept>
 #include <string_view>
-#include <source_location>
 #include <condition_variable>
+#include <SushiBLAS/core/format.hpp>
 
 #ifndef SB_ENABLE_LOGGING
     #define SB_ENABLE_LOGGING 1
+#endif
+
+/**
+ * @def SB_FUNCTION_SIGNATURE
+ * @brief The compiler's name for the function a log call sits in.
+ *
+ * The C++17 stand-in for `std::source_location::current().function_name()`, which is
+ * where this used to come from. The pretty form rather than plain `__func__` on purpose:
+ * at the dispatch seam every frame is a lambda inside a function template, and the bare
+ * name is `operator()` for all of them - the signature is what tells one apart from
+ * another, and it is what the level-choice rationale on @ref SB_ACTIVE_LOG_LEVEL is
+ * costing out.
+ */
+#if defined(__clang__) || defined(__GNUC__)
+    #define SB_FUNCTION_SIGNATURE __PRETTY_FUNCTION__
+#elif defined(_MSC_VER)
+    #define SB_FUNCTION_SIGNATURE __FUNCSIG__
+#else
+    #define SB_FUNCTION_SIGNATURE __func__
 #endif
 
 /**
@@ -55,9 +73,9 @@
  *
  * The default is WARN for a release build and DEBUG for a debug build. Release used to
  * default to INFO, which was expensive rather than merely noisy: every `SB_LOG_INFO`
- * that survives the `if constexpr` materialises a `std::source_location` - file, line,
- * and the fully templated function signature, several hundred characters at the dispatch
- * seam - formats it, and pushes the string through a mutex-guarded queue. The kernel
+ * that survives the `if constexpr` formats a @ref SushiBLAS::Core::Detail::SourceLocation
+ * - file, line, and the fully templated function signature, several hundred characters at
+ * the dispatch seam - and pushes the string through a mutex-guarded queue. The kernel
  * launch path logs at INFO once per launch, so a training loop paid that on every
  * operation of every step.
  */
@@ -232,51 +250,90 @@ namespace SushiBLAS
              * @brief Creates a timestamp with millisecond precision.
              * @return Formatted time string (HH:MM:SS.mmm).
              */
-            inline std::string get_timestamp() 
+            inline std::string get_timestamp()
             {
                 auto now = std::chrono::system_clock::now();
                 auto time = std::chrono::system_clock::to_time_t(now);
                 std::tm tm;
                 portable_localtime(&tm, &time);
-                
+
                 // add milliseconds for better tracking in async tasks
                 auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
-                return std::format("{:02}:{:02}:{:02}.{:03}", tm.tm_hour, tm.tm_min, tm.tm_sec, ms.count());
+
+                // snprintf rather than the library's own formatter: this is the one format
+                // string in the codebase that runs on every single log line, and its shape
+                // never varies, so there is nothing to gain from re-parsing it each time.
+                char buf[16];
+                std::snprintf(buf, sizeof(buf), "%02d:%02d:%02d.%03d",
+                              tm.tm_hour, tm.tm_min, tm.tm_sec,
+                              static_cast<int>(ms.count()));
+                return std::string(buf);
             }
 
             /**
-             * @brief Extracts or formats the function name.
-             * @param sv The string view to process.
-             * @return The processed function name.
+             * @brief Where a log call was written.
+             *
+             * The C++17 stand-in for `std::source_location`, which is C++20. Deliberately
+             * shaped like it - same three accessors, same names - so that the day this
+             * stack can assume C++20 again the type is deleted and `std::source_location`
+             * dropped in with no other edit. It is filled by @ref SB_CURRENT_LOCATION,
+             * which is what `std::source_location::current()` was doing underneath anyway:
+             * `__FILE__`, the function signature, and `__LINE__`.
              */
-            constexpr std::string_view extract_function_name(std::string_view sv)
+            class SourceLocation
             {
-                return sv;
-            }
+                public:
+                    /** @brief Constructs an empty location. */
+                    constexpr SourceLocation() noexcept = default;
+
+                    /**
+                     * @brief Constructs a location from a call site's own macros.
+                     * @param file The source file, from `__FILE__`.
+                     * @param function The enclosing function, from @ref SB_FUNCTION_SIGNATURE.
+                     * @param line The line number, from `__LINE__`.
+                     */
+                    constexpr SourceLocation(const char* file, const char* function, int line) noexcept
+                        : file_(file), function_(function), line_(line) {}
+
+                    /**
+                     * @brief The source file the call was written in.
+                     * @return A null-terminated file name; never null.
+                     */
+                    [[nodiscard]] constexpr const char* file_name() const noexcept { return file_; }
+
+                    /**
+                     * @brief The function the call was written in.
+                     * @return A null-terminated function signature; never null.
+                     */
+                    [[nodiscard]] constexpr const char* function_name() const noexcept { return function_; }
+
+                    /**
+                     * @brief The line the call was written on.
+                     * @return The line number, or 0 for a default-constructed location.
+                     */
+                    [[nodiscard]] constexpr int line() const noexcept { return line_; }
+
+                private:
+                    const char* file_     = "";
+                    const char* function_ = "";
+                    int         line_     = 0;
+            };
 
             template<typename... Args>
-            void log_base(LogType level, std::string_view prefix, const std::source_location& loc, std::string_view fmt, Args&&... args) 
+            void log_base(LogType level, std::string_view prefix, const SourceLocation& loc, std::string_view fmt, const Args&... args)
             {
                 #if SB_ENABLE_LOGGING
-                    try 
-                    {
-                        std::string msg = std::vformat(fmt, std::make_format_args(args...));
-                        std::string_view func_name = extract_function_name(loc.function_name());
-                        
-                        auto output = std::format("[{}] [{}] [{}:{}] [{}] {}\n", 
-                            get_timestamp(), 
-                            prefix, 
-                            loc.file_name(),
-                            loc.line(),
-                            func_name, 
-                            msg);
-                        
-                        dispatch_log(level, std::move(output));
-                    }
-                    catch (const std::format_error& e)
-                    {
-                        std::cerr << "Log format error: " << e.what() << "\n";
-                    }
+                    // The message goes through the format helper; the line around it does
+                    // not. Its shape is fixed, so streaming it directly saves parsing a
+                    // second format string on every line that survives the level test.
+                    std::ostringstream os;
+                    os << '[' << get_timestamp() << "] ["
+                       << prefix << "] ["
+                       << loc.file_name() << ':' << loc.line() << "] ["
+                       << loc.function_name() << "] "
+                       << format(fmt, args...) << '\n';
+
+                    dispatch_log(level, os.str());
                 #endif
             }
 
@@ -305,11 +362,11 @@ namespace SushiBLAS
              * @tparam Level The level this message is emitted at.
              * @param prefix The bracketed tag written into the line ("INFO", "WARN", ...).
              * @param loc The call site.
-             * @param fmt The std::format format string.
+             * @param fmt The format string; see <SushiBLAS/core/format.hpp> for the grammar.
              * @param args The format arguments.
              */
             template<LogType Level, typename... Args>
-            inline void log_if(std::string_view prefix, const std::source_location& loc, std::string_view fmt, Args&&... args)
+            inline void log_if(std::string_view prefix, const SourceLocation& loc, std::string_view fmt, Args&&... args)
             {
                 if constexpr (ACTIVE_LOG_LEVEL >= Level)
                 {
@@ -327,28 +384,45 @@ namespace SushiBLAS
     } // namespace Core
 
     /**
+     * @def SB_CURRENT_LOCATION
+     * @brief The call site, as a @ref SushiBLAS::Core::Detail::SourceLocation.
+     *
+     * The C++17 replacement for `std::source_location::current()`. Costs nothing that
+     * `current()` did not: all three components are compile-time constants, and the level
+     * test in `log_if` discards them when the message is compiled out.
+     */
+    #define SB_CURRENT_LOCATION \
+        SushiBLAS::Core::Detail::SourceLocation(__FILE__, SB_FUNCTION_SIGNATURE, __LINE__)
+
+    /**
      * @brief Logs a message at error level.
      */
+    // The format string is folded into __VA_ARGS__ - the macros take (...) rather than
+    // (fmt, ...) - for two reasons, both C++17 rules that C++20 relaxed. It avoids
+    // __VA_OPT__, which is C++20; and it keeps the variadic list non-empty for a call
+    // with no arguments at all (`SB_LOG_INFO("done")`), which under `(fmt, ...)` would
+    // pass zero arguments for `...` and trip -Wpedantic. `log_if`'s `std::string_view fmt`
+    // parameter binds the first argument, so every existing call site is unchanged.
     #if SB_ENABLE_LOGGING
-        #define SB_LOG_ERROR(fmt, ...) \
-            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::ERR>("ERROR", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
+        #define SB_LOG_ERROR(...) \
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::ERR>("ERROR", SB_CURRENT_LOCATION, __VA_ARGS__)
 
         /** @brief Logs a message at warning level. */
-        #define SB_LOG_WARN(fmt, ...) \
-            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::WARN>("WARN", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
+        #define SB_LOG_WARN(...) \
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::WARN>("WARN", SB_CURRENT_LOCATION, __VA_ARGS__)
 
         /** @brief Logs a message at info level. */
-        #define SB_LOG_INFO(fmt, ...) \
-            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::INFO>("INFO", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
+        #define SB_LOG_INFO(...) \
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::INFO>("INFO", SB_CURRENT_LOCATION, __VA_ARGS__)
 
         /** @brief Logs a message at debug level. */
-        #define SB_LOG_DEBUG(fmt, ...) \
-            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::DEBUG>("DEBUG", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
+        #define SB_LOG_DEBUG(...) \
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::DEBUG>("DEBUG", SB_CURRENT_LOCATION, __VA_ARGS__)
     #else
-        #define SB_LOG_ERROR(fmt, ...) ((void)0)
-        #define SB_LOG_WARN(fmt, ...)  ((void)0)
-        #define SB_LOG_INFO(fmt, ...)  ((void)0)
-        #define SB_LOG_DEBUG(fmt, ...) ((void)0)
+        #define SB_LOG_ERROR(...) ((void)0)
+        #define SB_LOG_WARN(...)  ((void)0)
+        #define SB_LOG_INFO(...)  ((void)0)
+        #define SB_LOG_DEBUG(...) ((void)0)
     #endif
 
     /** @brief Switches the logger to synchronous block-printing mode (useful for tests). */
@@ -373,13 +447,12 @@ namespace SushiBLAS
     /**
      * @brief Throws an exception and logs it if a condition is met.
      * @param condition The condition to check.
-     * @param fmt The error message format.
-     * @param ... The format arguments.
+     * @param ... The error message format string followed by its arguments.
      */
-    #define SB_THROW_IF(condition, fmt, ...) \
+    #define SB_THROW_IF(condition, ...) \
         do { \
             if (condition) { \
-                std::string msg_ = std::format(fmt __VA_OPT__(,) __VA_ARGS__); \
+                std::string msg_ = SushiBLAS::Core::Detail::format(__VA_ARGS__); \
                 SB_LOG_ERROR("Runtime exception: {}", msg_); \
                 throw std::runtime_error(msg_); \
             } \

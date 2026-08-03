@@ -93,8 +93,10 @@ namespace SushiBLAS
                         h.depends_on(deps);
                         const std::size_t n = static_cast<std::size_t>(size);
                         Dispatch::with_element_type<Dom>(dtype, "Logic operation", name,
-                            [&]<typename T>()
+                            [&](auto tag)
                         {
+                            using T = typename decltype(tag)::type;
+
                             Launch::map(h, q, n, vec_ok, op_func, (T*)pr_raw, (const T*)px_raw);
                         });
                     });
@@ -151,8 +153,10 @@ namespace SushiBLAS
                         h.depends_on(deps);
                         const std::size_t n = static_cast<std::size_t>(size);
                         Dispatch::with_element_type<Dom>(dtype, "Logic operation", name,
-                            [&]<typename T>()
+                            [&](auto tag)
                         {
+                            using T = typename decltype(tag)::type;
+
                             Launch::map(h, q, n, vec_ok, op_func, (T*)pR_raw, (const T*)pA_raw, (const T*)pB_raw);
                         });
                     });
@@ -210,8 +214,10 @@ namespace SushiBLAS
                         h.depends_on(deps);
                         const std::size_t n = static_cast<std::size_t>(size);
                         Dispatch::with_element_type<Dom>(dtype, "Logic operation", name,
-                            [&]<typename T>()
+                            [&](auto tag)
                         {
+                            using T = typename decltype(tag)::type;
+
                             Launch::map(h, q, n, vec_ok, op_func, (T*)pR_raw, (const T*)pC_raw, (const T*)pA_raw, (const T*)pB_raw);
                         });
                     });

@@ -44,7 +44,16 @@ if(POLICY CMP0135)
 endif()
 
 # --- Configuration ---
-set(CMAKE_CXX_STANDARD 20)
+#
+# C++17, matching SushiRuntime. One standard across the stack is not tidiness:
+# SushiRuntime's own headers branch on __cplusplus - include/SushiRuntime/core/span.hpp
+# is std::span at C++20 and its own shim below - and that branch reaches the compiled
+# ABI (distributed/i_transport.hpp declares a virtual taking a SushiRuntime::span, whose
+# mangled name differs between the two readings). SushiBLAS compiling at 20 against a
+# SushiRuntime compiled at 17 put the two halves of one build on opposite sides of that
+# branch. They are on the same side now, and SushiBLAS's own public API is unaffected
+# because SushiRuntime::span *is* std::span for any consumer still on C++20.
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)

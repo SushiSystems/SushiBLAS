@@ -83,10 +83,13 @@ namespace SushiBLAS
          * @param result The scalar (single-element) output tensor; must share `t`'s dtype.
          * @param name Human-readable op name, used for logging and failure messages.
          * @param op_id Stable operation identifier for the task graph.
-         * @param dispatch A generic callable (typically a templated lambda) with the
-         *        signature `(sycl::queue& q, const auto* pT, auto* pR, int64_t size,
-         *        ReductionScratch<...> scratch, const std::vector<sycl::event>& deps)
-         *        -> sycl::event`, instantiated once per supported element type.
+         * @param dispatch A generic lambda with the signature `(sycl::queue& q,
+         *        const auto* pT, auto* pR, int64_t size, auto scratch,
+         *        const std::vector<sycl::event>& deps) -> sycl::event`, instantiated once
+         *        per supported element type. `scratch` is a @ref ReductionScratch of the
+         *        same element type as `pT`; it is spelled `auto` because a generic lambda
+         *        deduces each parameter independently and so cannot name that type in its
+         *        own parameter list.
          * @param scratch_elements How many per-work-group partials the dispatcher wants
          *        room for. Zero - the default - allocates nothing and hands the
          *        dispatcher an empty @ref ReductionScratch, which is what every
@@ -247,8 +250,10 @@ namespace SushiBLAS
             // REAL_AND_INTEGRAL: "which element is largest" needs an ordering, which the
             // complex types do not have and the integer types do.
             with_element_type<Domain::REAL_AND_INTEGRAL>(t.dtype, "Reduction", name,
-                [&]<typename T>()
+                [&](auto tag)
             {
+                using T = typename decltype(tag)::type;
+
                 engine.get_graph().add_task(meta, reads, writes,
                     [size, pT = static_cast<const T*>(read_T), write_R, dispatch, name]
                     (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
@@ -320,9 +325,9 @@ namespace SushiBLAS
                 Reduce::planned_partials(Device::profile_for(t.get_device()),
                                          static_cast<std::size_t>(t.num_elements));
 
-            auto dispatch = [transform, finalize]<typename T>(
-                sycl::queue& q, const T* pT, T* pR, int64_t size,
-                ReductionScratch<T> scratch, const std::vector<sycl::event>& deps)
+            auto dispatch = [transform, finalize](
+                sycl::queue& q, const auto* pT, auto* pR, int64_t size,
+                auto scratch, const std::vector<sycl::event>& deps)
             {
                 return Reduce::reduce<Accum>(q, pT, pR, static_cast<std::size_t>(size),
                                              scratch.data, scratch.capacity,

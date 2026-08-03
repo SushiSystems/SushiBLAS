@@ -189,6 +189,45 @@ None open.
   kept as separate files.
 
 ### Changed
+- **The library is built at C++17 instead of C++20**, matching SushiRuntime, so
+  that one standard holds across the stack. This is not tidiness.
+  `SushiRuntime::span` (`SushiRuntime/core/span.hpp`) selects between `std::span`
+  and SushiRuntime's own shim on `__cplusplus`, and that selection reaches the
+  compiled ABI — `distributed/i_transport.hpp` declares a virtual taking a
+  `SushiRuntime::span`, whose mangled name differs between the two readings, and
+  its own comment warns about exactly this. SushiBLAS at C++20 linked against a
+  SushiRuntime compiled at C++17 had the two halves of one build reading that
+  branch differently. **No API changed.** `Tensor`'s spans are spelled
+  `SushiRuntime::span` now, which *is* `std::span` for any consumer still on
+  C++20, and every one of them is inline — nothing in `sushiblas.lib` mentions a
+  span in a symbol. `tests/package/` stays at C++20 to keep asserting that.
+  The C++20 facilities the codebase used were replaced rather than removed:
+  - `std::format` -> `SushiBLAS::Core::Detail::format`, a new
+    `include/SushiBLAS/core/format.hpp`. It supports `{}`, `{{`/`}}` and the
+    spec subset `{:[0][width][.precision][f|e|g]}`, which covers every format
+    string in the tree, so no message text changed. What is genuinely lost is
+    `std::format`'s `consteval` check on a literal format string: a placeholder
+    count that disagrees with the argument count is now a best-effort message
+    rather than a compile error, exactly as it already was in SushiRuntime.
+  - `std::source_location` -> `Core::Detail::SourceLocation`, filled by
+    `SB_CURRENT_LOCATION` from `__FILE__` / `__PRETTY_FUNCTION__` / `__LINE__`.
+    The emitted line is byte-identical, including the full templated function
+    signature, and it is still materialised only where the level survives the
+    `if constexpr`.
+  - `__VA_OPT__` -> the format string folded into `__VA_ARGS__`, the same trick
+    SushiRuntime's logger uses. `SB_LOG_*` and `SB_THROW_IF` call syntax is
+    unchanged at all 244 call sites.
+  - Templated lambdas (`[]<typename T>(){}`) -> generic lambdas.
+    `Dispatch::with_element_type` now accepts an arm written either as
+    `arm(Dispatch::ElementTag<T>{})` (the new C++17-spellable form, which the
+    library itself uses) or as `arm.template operator()<T>()` (the C++20 form),
+    so a consumer already passing a templated lambda to that public seam is
+    unaffected.
+  - `std::bit_cast` -> `std::memcpy` in the one test that used it.
+  - GoogleTest's `TYPED_TEST_SUITE(Suite, Types)` passes no argument for its
+    `...` parameter, which C++17 diagnoses under `-pedantic`. `SB_TYPED_TEST_SUITE`
+    (`tests/common/test_utils.hpp`) names the default type-name generator
+    explicitly; generated test names are unchanged.
 - **GEMM's layout/transpose handling moved off the inner loop and onto the
   host.** The four `(layout, transA/transB)` combinations were branched on
   per element, inside the tile-load helpers, in the innermost loop. They are

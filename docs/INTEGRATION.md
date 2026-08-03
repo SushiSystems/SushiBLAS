@@ -109,7 +109,12 @@ You must supply:
 - **The same SYCL compiler** SushiBLAS itself was built with — mixing
   toolchains between the library and a consumer is not a supported
   configuration.
-- **C++20 or later.**
+- **C++17 or later.** SushiBLAS is built at C++17, matching SushiRuntime; a
+  consumer on C++20 is equally supported and is what `tests/package/` compiles
+  as. What is *not* supported is a consumer whose standard disagrees with the
+  SushiRuntime it links: `SushiRuntime::span` is `std::span` at C++20 and
+  SushiRuntime's own shim below, and that difference is visible in mangled
+  names across SushiRuntime's compiled ABI.
 - **`CMAKE_PREFIX_PATH` naming both install prefixes** — SushiBLAS's and its
   SushiRuntime dependency's — unless both were installed to the same prefix.
 - **SushiRuntime's shared library on the loader path** at run time (see

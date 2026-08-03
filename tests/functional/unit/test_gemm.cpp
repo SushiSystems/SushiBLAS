@@ -173,7 +173,7 @@ namespace SushiBLAS
             };
 
             using DataTypes = ::testing::Types<float, double, sycl::half, std::complex<float>, std::complex<double>>;
-            TYPED_TEST_SUITE(Unit_GEMMTest, DataTypes);
+            SB_TYPED_TEST_SUITE(Unit_GEMMTest, DataTypes);
 
             TYPED_TEST(Unit_GEMMTest, SmallMatrix)
             {

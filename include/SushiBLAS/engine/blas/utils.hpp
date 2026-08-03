@@ -103,13 +103,14 @@ namespace SushiBLAS
                 {
                     // Spelled out rather than routed through Dispatch::with_element_type,
                     // which is what the elementwise, non-linear and logic families use.
-                    // Two reasons, and the second is the binding one. `op_func` deduces its
-                    // element type from a *value* it is passed (`decltype(scalar_type)`),
-                    // not from an explicit template argument, so it does not fit that
-                    // helper's nullary-arm shape; and wrapping it to fit - a templated
-                    // lambda, inside this lambda, inside this template - crashes this
-                    // project's clang outright (a null-dereference during instantiation of
-                    // the HALF arm, under -fdelayed-template-parsing). Seven arms here, the
+                    // Two reasons, and the second is the binding one. `op_func` takes a
+                    // *value* of the element type (`decltype(scalar_type)`) alongside the
+                    // queue and the dependency list and returns the submitted event, which
+                    // is not the one-argument, void-returning arm that helper calls; and
+                    // wrapping it to fit - a nested generic lambda, inside this lambda,
+                    // inside this template - crashes this project's clang outright (a
+                    // null-dereference during instantiation of the HALF arm, under
+                    // -fdelayed-template-parsing). Seven arms here, the
                     // same seven and the same domain rule as with_element_type, kept in step
                     // by hand until that compiler bug is gone.
                     switch (dtype)

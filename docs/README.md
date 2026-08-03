@@ -1,6 +1,6 @@
 # SushiBLAS
 
-SushiBLAS is a C++20 tensor and BLAS library built on [SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph. You create tensors, queue operations against them through an `Engine`, and the runtime's automatic dependency tracking orders and parallelizes the work across CPU and GPU using SYCL. It has zero dependency on a vendor math library (no oneMKL, no cuBLAS) — every kernel is SushiBLAS's own SYCL or plain-C++ code.
+SushiBLAS is a C++17 tensor and BLAS library built on [SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph. You create tensors, queue operations against them through an `Engine`, and the runtime's automatic dependency tracking orders and parallelizes the work across CPU and GPU using SYCL. It has zero dependency on a vendor math library (no oneMKL, no cuBLAS) — every kernel is SushiBLAS's own SYCL or plain-C++ code.
 
 It is built around four ideas:
 
@@ -15,7 +15,7 @@ It is built around four ideas:
 - **CMake** 3.20 or newer (3.22 for the test suite's `gtest_discover_tests`).
 - **GoogleTest** for the test suite.
 - A **SushiRuntime** checkout, resolved via [D3 layered CMake resolution](ARCHITECTURE.md#8-the-sushiruntime-dependency-d3): an in-tree superproject target, an installed `find_package(SushiRuntime)`, or (the common case) a sibling `../sushiruntime` checkout.
-- **C++20.**
+- **C++17 or later** (the library is built at C++17; a C++20 consumer is supported).
 
 C++ library dependencies and the SYCL toolchain are provisioned by [SushiStack](https://sushisystems.io) (the `ss` CLI), which owns dependency installation for the whole stack (not just this repo) into one shared, workspace-level `dependencies/` tree.
 
@@ -179,7 +179,7 @@ include/SushiBLAS/     Public headers (this is the API surface)
                          translation unit, and which are therefore installed:
                          GEMM's reference/ and sycl/ pair plus the shared
                          gemm_epilogue.hpp. Everything else stays in kernels/.
-  core/                 common.hpp (DataType, Layout), logger.hpp
+  core/                 common.hpp (DataType, Layout), logger.hpp, format.hpp
   experimental/         Quarantined FFT/LAPACK surface (see ARCHITECTURE.md §9)
   tensor.hpp            Tensor: shape/stride/dtype metadata over a Storage
   storage.hpp           Storage: ref-counted USM allocation

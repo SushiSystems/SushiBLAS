@@ -33,7 +33,7 @@ protected:
 };
 
 using TestTypes = ::testing::Types<float>;
-TYPED_TEST_SUITE(Unit_ReductionOpsTyped, TestTypes);
+SB_TYPED_TEST_SUITE(Unit_ReductionOpsTyped, TestTypes);
 
 TYPED_TEST(Unit_ReductionOpsTyped, Sum) 
 {

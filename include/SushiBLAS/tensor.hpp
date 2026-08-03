@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <span>
 #include <array>
 #include <vector>
 #include <cstdint>
@@ -33,6 +32,7 @@
 #include <SushiBLAS/storage.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/SushiRuntime.h>
 #include <SushiRuntime/core/resource_region.hpp>
 
@@ -109,12 +109,18 @@ namespace SushiBLAS
          * element and a batched column-major GEMM silently computed the same product `b`
          * times.
          *
-         * @param dims The extent of each dimension.
+         * @param dims The extent of each dimension. `SushiRuntime::span`, not `std::span`:
+         *        the two are the same type wherever `std::span` exists (SushiRuntime's
+         *        span.hpp aliases it at C++20 and supplies its own subset below), so this
+         *        signature is unchanged for a C++20 caller while still compiling on the
+         *        C++17 baseline the rest of the stack is built to. Every span in this
+         *        header is spelled this way for that reason, and none of them crosses the
+         *        compiled ABI - they are all inline.
          * @param l The memory layout to lay the dimensions out under.
          * @return The stride of each dimension, in elements; entries past `dims.size()` are 0.
          */
         static std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK>
-        layout_strides(std::span<const int64_t> dims, Core::Layout l)
+        layout_strides(SushiRuntime::span<const int64_t> dims, Core::Layout l)
         {
             std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK> out{};
 
@@ -164,7 +170,7 @@ namespace SushiBLAS
          *        see @ref layout_strides for the full rule and why.
          * @throws std::runtime_error If the rank is too high or storage is too small.
          */
-        Tensor(SushiRuntime::sushi_ptr<Storage> s, std::span<const int64_t> dims,
+        Tensor(SushiRuntime::sushi_ptr<Storage> s, SushiRuntime::span<const int64_t> dims,
                Core::DataType d = Core::DataType::FLOAT32,
                int64_t offset = 0, Core::Layout l = Core::Layout::ROW_MAJOR)
             : Tensor(s, dims, layout_strides(dims, l), d, offset, l) {}
@@ -200,7 +206,7 @@ namespace SushiBLAS
          * @throws std::runtime_error If the rank is too high, a stride is negative, or the
          *         described elements reach past the end of @p s.
          */
-        Tensor(SushiRuntime::sushi_ptr<Storage> s, std::span<const int64_t> dims,
+        Tensor(SushiRuntime::sushi_ptr<Storage> s, SushiRuntime::span<const int64_t> dims,
                const std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK>& strides_in,
                Core::DataType d, int64_t offset, Core::Layout l)
             : rank(static_cast<int32_t>(dims.size())), dtype(d), layout(l), storage(s), storage_offset(offset)
@@ -245,7 +251,7 @@ namespace SushiBLAS
         Tensor(SushiRuntime::sushi_ptr<Storage> s, std::initializer_list<int64_t> dims, 
                Core::DataType d = Core::DataType::FLOAT32,
                int64_t offset = 0, Core::Layout l = Core::Layout::ROW_MAJOR)
-            : Tensor(s, std::span<const int64_t>(dims.begin(), dims.end()), d, offset, l) {}
+            : Tensor(s, SushiRuntime::span<const int64_t>(dims.begin(), dims.end()), d, offset, l) {}
 
         /**
          * @brief Get the hardware device (GPU/CPU) where this tensor lives.
@@ -374,7 +380,7 @@ namespace SushiBLAS
         {
             if (num_elements == 0) return true;
 
-            const auto expected = layout_strides(std::span<const int64_t>(shape.data(), static_cast<size_t>(rank)), layout);
+            const auto expected = layout_strides(SushiRuntime::span<const int64_t>(shape.data(), static_cast<size_t>(rank)), layout);
             for (int i = 0; i < rank; ++i)
             {
                 if (shape[i] != 1 && strides[i] != expected[i]) return false;
@@ -424,7 +430,7 @@ namespace SushiBLAS
          */
         Tensor reshape(std::initializer_list<int64_t> new_dims) const 
         {
-            std::span<const int64_t> dims_span(new_dims.begin(), new_dims.end());
+            SushiRuntime::span<const int64_t> dims_span(new_dims.begin(), new_dims.end());
             
             int64_t new_len = 1;
             for(auto d : dims_span) new_len *= d;
@@ -487,7 +493,7 @@ namespace SushiBLAS
             SB_LOG_DEBUG("Tensor Sliced: dim = {}, range = [{}, {}), new_offset = {}", 
                         dim, start, end, new_offset);
 
-            return Tensor(this->storage, std::span(new_shape_arr.data(), rank),
+            return Tensor(this->storage, SushiRuntime::span<const int64_t>(new_shape_arr.data(), static_cast<size_t>(rank)),
                           this->strides, this->dtype, new_offset, this->layout);
         }
     };

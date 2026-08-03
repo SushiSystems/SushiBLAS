@@ -90,8 +90,10 @@ namespace SushiBLAS
         // The dtype switch itself is Dispatch::with_element_type, the same one the logic
         // dispatch seam uses, so the arms and the by-name rejection are not written twice.
         Dispatch::with_element_type<Dispatch::Domain::REAL_AND_INTEGRAL>(
-            t.dtype, "Logic operation", meta.name, [&]<typename T>()
+            t.dtype, "Logic operation", meta.name, [&](auto tag)
         {
+            using T = typename decltype(tag)::type;
+
             engine_.get_graph().add_task(meta, reads, writes,
                 [size, pT = t.data_as<T>(), pR = result.data_as<T>()]
                 (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
