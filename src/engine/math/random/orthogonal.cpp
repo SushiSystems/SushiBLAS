@@ -90,8 +90,8 @@ namespace SushiBLAS
         const int64_t elem_stride = by_rows ? t.strides[1] : t.strides[0];
         const int64_t vec_stride = by_rows ? t.strides[0] : t.strides[1];
 
-        void* ptr = t.storage->data_ptr;
-        std::vector<SushiRuntime::Core::ResourceRegion> rw = {ptr};
+        void* ptr = t.data();
+        std::vector<SushiRuntime::Core::ResourceRegion> rw = {t.region()};
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = name;

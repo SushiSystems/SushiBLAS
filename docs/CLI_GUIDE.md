@@ -79,6 +79,35 @@ sb build --clean          # delete the build tree first, then build from scratch
 The `--type` (`-t`) option accepts `release`, `debug`, or `relwithdebinfo`.
 Flags can be combined, e.g. `sb build --type debug --clean`.
 
+### Passing CMake options
+
+`--define` (`-D`) forwards a cache variable to the configure step, and is
+repeatable:
+
+```bash
+sb build -D SB_LOG_LEVEL=INFO           # raise the compiled-in log level
+sb build -D SB_SYCL_TARGETS="spir64;nvptx64-nvidia-cuda"   # quote values with ';'
+```
+
+Cache variables persist in the build tree, so dropping the flag on a later run
+does **not** unset them — pass `VAR=` to clear one, or `--clean` to start over.
+
+The options SushiBLAS itself defines:
+
+| Option | Default | What it does |
+|--------|---------|--------------|
+| `SB_LOG_LEVEL` | `auto` | Compiled-in log level: `auto`, `OFF`, `ERR`, `WARN`, `INFO`, `DEBUG`. `auto` means WARN for a release build and DEBUG for a debug build. |
+| `SB_NATIVE_ARCH` | `OFF` | Build for the host CPU's own instruction set. |
+| `SB_SYCL_TARGETS` | *(empty)* | AOT device targets; empty means SPIR-V/JIT only. |
+| `SB_SYCL_DEVICE_FLAGS` | *(empty)* | Extra flags for the device compilation pass. |
+
+`SB_LOG_LEVEL` is the one to reach for when debugging: a release build logs at
+WARN, so `-D SB_LOG_LEVEL=INFO` turns the per-kernel-launch trace back on
+without editing `include/SushiBLAS/core/logger.hpp`. Put it back with
+`-D SB_LOG_LEVEL=auto`. Note that the level is a **public** compile definition —
+it lives in an `inline constexpr` variable in a header every consumer compiles,
+so the library and everything linking it must agree on it.
+
 If the SushiRuntime sibling can't be found, `sb build` fails fast with a
 clear message rather than letting CMake's own `add_subdirectory` error
 surface — see `sb config` for what the CLI resolved as the runtime location,

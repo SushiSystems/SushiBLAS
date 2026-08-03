@@ -33,7 +33,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level2::syr2(const Tensor& x, const Tensor& y, Tensor& A, bool upper, float alpha)
+    sycl::event Level2::syr2(const Tensor& x, const Tensor& y, Tensor& A, bool upper, double alpha)
     {
         SB_THROW_IF(A.rank < 2, "SYR2 requires A to be at least a 2D matrix.");
         SB_THROW_IF(A.dtype != x.dtype || A.dtype != y.dtype, "Data type mismatch in SYR2.");
@@ -55,15 +55,18 @@ namespace SushiBLAS
 
         // TODO: Implement multi-dimensional batch support for Level 2
 
-        void* read_x = x.storage ? x.storage->data_ptr : nullptr;
-        void* read_y = y.storage ? y.storage->data_ptr : nullptr;
-        void* write_A = A.storage ? A.storage->data_ptr : nullptr;
+        void* read_x = x.data_or_null();
+        void* read_y = y.data_or_null();
+        void* rw_A = A.data_or_null();
 
+        // Same as SYR: A is accumulated into and only one triangle is touched, so the region
+        // is read-modify-write.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_x) reads.push_back(read_x);
-        if (read_y) reads.push_back(read_y);
+        if (read_x) reads.push_back(x.region());
+        if (read_y) reads.push_back(y.region());
+        if (rw_A) reads.push_back(A.region());
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_A) writes.push_back(write_A);
+        if (rw_A) writes.push_back(A.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl2.syr2";
@@ -81,7 +84,7 @@ namespace SushiBLAS
                 using T = decltype(scalar_type);
                 auto px = static_cast<const T*>(read_x);
                 auto py = static_cast<const T*>(read_y);
-                auto pA = static_cast<T*>(write_A);
+                auto pA = static_cast<T*>(rw_A);
                 auto alpha_t = static_cast<T>(alpha);
 
                 return Internal::dispatch_with_mode(mode, q, deps,

@@ -47,11 +47,7 @@ namespace SushiBLAS
         for (auto d : dims)
             elements *= d;
         
-        size_t bpe = 4;
-
-        if (dtype == Core::DataType::FLOAT64 || dtype == Core::DataType::COMPLEX32) bpe = 8;
-        else if (dtype == Core::DataType::COMPLEX64) bpe = 16;
-        else if (dtype == Core::DataType::HALF) bpe = 2;
+        const size_t bpe = Core::bytes_per_element(dtype);
 
         auto storage = SushiRuntime::make_sushi<Storage>(context_.get_allocator(), elements * bpe, strat);
         

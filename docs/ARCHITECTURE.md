@@ -155,21 +155,56 @@ struct Tensor
 ```
 
 `Core::DataType` is one of `HALF`, `FLOAT32`, `FLOAT64`, `COMPLEX32`,
-`COMPLEX64` (`core/common.hpp`); `MAX_TENSOR_RANK` is 6. `Core::Layout` is
-`ROW_MAJOR` or `COLUMN_MAJOR`, fixed per-tensor at construction (row-major
-computes strides from the last dimension inward; column-major from the first).
+`COMPLEX64` (`core/common.hpp`); `MAX_TENSOR_RANK` is 6; `Core::bytes_per_element()`
+is the single dtype-to-width mapping every size calculation goes through.
 `is_contiguous()` and `is_aligned()` (checked against
 `SushiRuntime::Core::DEFAULT_ALIGNMENT`) are used by the BLAS layer to decide
 whether a vector operand can be treated as a flat, unit-stride buffer.
 
+**Layout and the batch axis.** `Core::Layout` (`ROW_MAJOR` / `COLUMN_MAJOR`) is
+fixed per-tensor at construction and describes the memory order **inside one
+matrix**, not across the whole tensor. `Tensor::layout_strides()` is the single
+definition — the constructor lays tensors out with it and `is_contiguous()`
+checks against it, so the two cannot drift. For rank ≤ 2 it is the familiar
+rule (row-major strides grow from the last dimension inward, column-major from
+the first). For rank ≥ 3 the trailing two axes are the matrix and take the
+layout's order, while every leading batch axis is outermost and slowest-varying
+**in either layout** — a rank-3 `{b, m, n}` tensor has batch stride `m * n`
+whichever layout it carries. That is the only reading consistent with how the
+batch stride is consumed (`A.strides[rank - 3]` is handed to the GEMM/SYRK/TRSM
+drivers as the distance between slices) and with every batched BLAS API, which
+pairs a `stride_a` with a per-slice `lda`.
+
+**Offsets are element counts.** `storage_offset` is measured in elements, never
+bytes; `data()` scales it by `bytes_per_element(dtype)`. A view is therefore
+always naturally aligned for its own element type, since the allocation base is
+64-byte aligned and the offset is a whole number of elements.
+
 `Storage` (`storage.hpp`) is a `SushiRuntime::Core::RefCounted`, 64-byte
-aligned, holding a raw `data_ptr`, its allocated `size_bytes` (rounded up to
+aligned, holding the allocation's base pointer (private; reachable only through
+`allocation_base()`), its allocated `size_bytes` (rounded up to
 `DEFAULT_ALIGNMENT`), and the `SushiRuntime::Memory::USMAllocator` +
 `IAllocatorStrategy` (`Strategies::Shared` / `Device` / `Host`) it was
 allocated with. Being `RefCounted` (via `sushi_ptr`, SushiRuntime's intrusive
 atomic-refcount smart pointer) is what lets two `Tensor` views share one
 allocation safely — the storage is freed only when the last `Tensor`
 referencing it is destroyed.
+
+The base pointer is private on purpose. Most op families used to capture
+`tensor.storage->data_ptr` directly and so ignored `storage_offset` entirely: a
+view at a non-zero offset silently aliased the base of its allocation. Three
+accessors, all on `Tensor`, are what an operation may use instead, and between
+them they cover every case a driver has:
+
+| Accessor | Gives | Used by |
+|----------|-------|---------|
+| `data()` / `data_as<T>()` | the view's first element | every kernel pointer |
+| `data_or_null()` | the same, or `nullptr` with no storage | drivers tolerating a storage-less tensor |
+| `region()` | the view's byte interval, keyed on the allocation base | every `reads`/`writes` entry |
+
+`region()` is what makes an arena work: two disjoint views of one allocation
+produce non-overlapping `ResourceRegion`s, so the dependency tracker does not
+serialize them, while overlapping views still order correctly.
 
 ---
 
@@ -186,7 +221,10 @@ It owns a `SushiRuntime::Graph::TaskGraph` (constructed against the caller's
 `RuntimeContext`), the default tensor layout, the current `ExecutionMode`, and
 a random-number seed + atomic offset counter (`get_and_increment_rng_offset()`
 — every distribution draw gets a fresh, non-overlapping stream position, even
-under concurrent task submission).
+under concurrent task submission). `set_seed()` rewinds that counter as well as
+setting the seed: the kernels mix `(seed, offset)` into Philox, so the seed
+alone does not name a stream position, and re-seeding has to reproduce the
+stream or it is not a seed.
 
 - `create_tensor(dims[, dtype], strat)` allocates a `Storage` through the
   given `IAllocatorStrategy` (default `Shared`) and wraps it in a `Tensor`.

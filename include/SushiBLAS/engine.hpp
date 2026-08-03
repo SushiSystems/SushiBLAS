@@ -180,20 +180,45 @@ namespace SushiBLAS
                                  Core::DataType dtype,
                                  const SushiRuntime::Memory::IAllocatorStrategy& strat = SushiRuntime::Memory::Strategies::Shared::instance());
 
-            /** 
-             * @brief Set the seed for random number generation.
+            /**
+             * @brief Set the seed for random number generation and restart the stream.
+             *
+             * Rewinds the counter offset to zero as well as setting the seed. Every RNG
+             * kernel mixes `(seed, offset)` into Philox, so the seed alone does not name a
+             * stream position: setting the seed while leaving the offset where the previous
+             * draws left it meant two identically-seeded generators on one engine produced
+             * different data, and re-seeding could not reproduce anything. Reproducibility is
+             * the only thing a seed is for, so the reset is part of what seeding means here
+             * rather than a separate call a caller has to remember.
+             *
+             * No caller in this repository, and none in the SushiAI tree that consumes it,
+             * relies on the offset surviving a re-seed - SushiAI's dataset shuffling
+             * explicitly constructs a fresh Engine to work around the old behaviour. Nothing
+             * is therefore exposed to opt out of the reset; if a use for one appears, it
+             * belongs as a distinct named method (`advance_rng_stream()`), never as a
+             * side effect of setting a seed.
+             *
              * @param s The seed value.
              */
-            void set_seed(uint64_t s) { seed_ = s; }
+            void set_seed(uint64_t s)
+            {
+                seed_ = s;
+                rng_offset_.store(0, std::memory_order_relaxed);
+            }
 
-            /** 
+            /**
              * @brief Get the current seed value.
              * @return The seed value.
              */
             uint64_t get_seed() const { return seed_; }
 
-            /** 
+            /**
              * @brief Get the current RNG offset and increment it.
+             *
+             * Every distribution draw takes a fresh position so two tasks never reuse a
+             * Philox (key, counter) pair, even under concurrent submission. The sequence
+             * restarts at zero on @ref set_seed.
+             *
              * @return The current offset value.
              */
             uint64_t get_and_increment_rng_offset() { return rng_offset_++; }

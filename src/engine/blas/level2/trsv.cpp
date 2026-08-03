@@ -59,13 +59,15 @@ namespace SushiBLAS
 
         // TODO: Implement multi-dimensional batch support for Level 2
 
-        void* read_A = A.storage ? A.storage->data_ptr : nullptr;
-        void* write_b = b.storage ? b.storage->data_ptr : nullptr; // TRSV overwrites b
+        void* read_A = A.data_or_null();
+        void* rw_b = b.data_or_null(); // TRSV overwrites b
 
+        // b arrives as the right-hand side and leaves as the solution: read, then written.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_A) reads.push_back(read_A);
+        if (read_A) reads.push_back(A.region());
+        if (rw_b) reads.push_back(b.region());
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_b) writes.push_back(write_b);
+        if (rw_b) writes.push_back(b.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl2.trsv";
@@ -83,7 +85,7 @@ namespace SushiBLAS
             {
                 using T = decltype(scalar_type);
                 auto pA = static_cast<const T*>(read_A);
-                auto pb = static_cast<T*>(write_b);
+                auto pb = static_cast<T*>(rw_b);
                 T one(1);
 
                 return Internal::dispatch_with_mode(mode, q, deps,

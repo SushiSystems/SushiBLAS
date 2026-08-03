@@ -61,15 +61,19 @@ namespace SushiBLAS
 
         // Capture data safely for asynchronous execution
         auto layout = A.layout;
-        void* read_A = A.storage ? A.storage->data_ptr : nullptr;
-        void* read_B = B.storage ? B.storage->data_ptr : nullptr;
-        void* write_C = C.storage ? C.storage->data_ptr : nullptr;
+        void* read_A = A.data_or_null();
+        void* read_B = B.data_or_null();
+        void* rw_C = C.data_or_null();
 
+        // `C = alpha * op(A) * op(B) + beta * C` reads C whenever beta is non-zero - the
+        // kernels branch around the read on exactly `beta == 0`. Declaring that read makes
+        // the access set true rather than merely survivable via the tracker's WAW edge.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_A) reads.push_back(read_A);
-        if (read_B) reads.push_back(read_B);
+        if (read_A) reads.push_back(A.region());
+        if (read_B) reads.push_back(B.region());
+        if (rw_C && beta != 0.0) reads.push_back(C.region());
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_C) writes.push_back(write_C);
+        if (rw_C) writes.push_back(C.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl3.gemm";
@@ -89,7 +93,7 @@ namespace SushiBLAS
 
                 auto pA = static_cast<const T*>(read_A);
                 auto pB = static_cast<const T*>(read_B);
-                auto pC = static_cast<T*>(write_C);
+                auto pC = static_cast<T*>(rw_C);
                 auto alpha_t = static_cast<T>(alpha);
                 auto beta_t = static_cast<T>(beta);
 

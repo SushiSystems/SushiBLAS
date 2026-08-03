@@ -33,7 +33,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level2::syr(const Tensor& x, Tensor& A, bool upper, float alpha)
+    sycl::event Level2::syr(const Tensor& x, Tensor& A, bool upper, double alpha)
     {
         SB_THROW_IF(A.rank < 2, "SYR requires A to be at least a 2D matrix.");
         SB_THROW_IF(A.dtype != x.dtype, "Data type mismatch in SYR.");
@@ -51,13 +51,17 @@ namespace SushiBLAS
 
         // TODO: Implement multi-dimensional batch support for Level 2
 
-        void* read_x = x.storage ? x.storage->data_ptr : nullptr;
-        void* write_A = A.storage ? A.storage->data_ptr : nullptr;
+        void* read_x = x.data_or_null();
+        void* rw_A = A.data_or_null();
 
+        // A is an accumulator, and only the selected triangle is touched at all - the other
+        // one has to survive the task unchanged. Both facts make the region a
+        // read-modify-write rather than a write.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_x) reads.push_back(read_x);
+        if (read_x) reads.push_back(x.region());
+        if (rw_A) reads.push_back(A.region());
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_A) writes.push_back(write_A);
+        if (rw_A) writes.push_back(A.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl2.syr";
@@ -74,7 +78,7 @@ namespace SushiBLAS
             {
                 using T = decltype(scalar_type);
                 auto px = static_cast<const T*>(read_x);
-                auto pA = static_cast<T*>(write_A);
+                auto pA = static_cast<T*>(rw_A);
                 auto alpha_t = static_cast<T>(alpha);
 
                 return Internal::dispatch_with_mode(mode, q, deps,

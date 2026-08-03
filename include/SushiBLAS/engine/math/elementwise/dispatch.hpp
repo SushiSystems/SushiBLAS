@@ -81,8 +81,8 @@ namespace SushiBLAS
             }
 
             int64_t size = t.num_elements;
-            void* ptr = t.storage ? t.storage->data_ptr : nullptr;
-            std::vector<SushiRuntime::Core::ResourceRegion> rw = ptr ? std::vector<SushiRuntime::Core::ResourceRegion>{ptr} : std::vector<SushiRuntime::Core::ResourceRegion>{};
+            void* ptr = t.data_or_null();
+            std::vector<SushiRuntime::Core::ResourceRegion> rw = ptr ? std::vector<SushiRuntime::Core::ResourceRegion>{t.region()} : std::vector<SushiRuntime::Core::ResourceRegion>{};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -183,8 +183,8 @@ namespace SushiBLAS
             }
 
             int64_t size = A.num_elements;
-            std::vector<SushiRuntime::Core::ResourceRegion> reads = {A.storage->data_ptr, B.storage->data_ptr};
-            std::vector<SushiRuntime::Core::ResourceRegion> writes = {C.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {A.region(), B.region()};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {C.region()};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -193,7 +193,7 @@ namespace SushiBLAS
             set_task_params(meta, params, name);
 
             engine.get_graph().add_task(meta, reads, writes,
-                [size, pA_raw = A.storage->data_ptr, pB_raw = B.storage->data_ptr, pC_raw = C.storage->data_ptr, dtype = A.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                [size, pA_raw = A.data(), pB_raw = B.data(), pC_raw = C.data(), dtype = A.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("Elementwise {}: {} elements", name, size);
                     return q.submit([&](sycl::handler& h)

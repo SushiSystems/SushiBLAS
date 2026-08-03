@@ -32,6 +32,12 @@ include(SyclTarget)  # sushiblas_apply_sycl() helper
 # sushiblas already inherits transitively.
 include(SushiBLASBuildPolicy)
 
+# The compiled-in log level (SB_LOG_LEVEL) -> sushiblas_apply_log_level(<target>).
+# Separate from BuildPolicy because it is the one compile definition that must be
+# PUBLIC: the level lives in an inline constexpr variable in a public header, so a
+# consumer that disagreed with the library about it would be an ODR violation.
+include(SushiBLASLogging)
+
 # --- Policies ---
 if(POLICY CMP0135)
   cmake_policy(SET CMP0135 NEW)

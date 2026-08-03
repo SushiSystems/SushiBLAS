@@ -152,6 +152,11 @@ target_include_directories(sushiblas PRIVATE
 # Warnings, architecture targeting and sanitizers, PRIVATE to this tree (SB-6).
 sushiblas_apply_build_policy(sushiblas)
 
+# The compiled-in log level, PUBLIC (see cmake/SushiBLASLogging.cmake) so examples,
+# tests, and out-of-tree consumers all see the same ACTIVE_LOG_LEVEL this archive was
+# compiled with.
+sushiblas_apply_log_level(sushiblas)
+
 # --- Link Libraries ---
 # Link against dependencies. PUBLIC so consumers (like the app) inherit them.
 # SushiRuntime is always linked via its namespaced alias (D3): whichever of the

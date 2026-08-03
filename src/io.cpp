@@ -59,8 +59,7 @@ namespace SushiBLAS
 
         ofs.write(reinterpret_cast<const char*>(&header), sizeof(SushiHeader));
         
-        size_t bpe = (t.dtype == Core::DataType::FLOAT64 || t.dtype == Core::DataType::COMPLEX32) ? 8 : 
-                     (t.dtype == Core::DataType::COMPLEX64) ? 16 : 4;
+        size_t bpe = Core::bytes_per_element(t.dtype);
         size_t bytes = t.num_elements * bpe;
         
         if (t.storage->strategy == &SushiRuntime::Memory::Strategies::Device::instance())
@@ -89,8 +88,7 @@ namespace SushiBLAS
         for (int i = 0; i < t.rank; ++i)
             SB_THROW_IF(header.shape[i] != t.shape[i], "Dimension mismatch at index {}", i);
 
-        size_t bpe = (t.dtype == Core::DataType::FLOAT64 || t.dtype == Core::DataType::COMPLEX32) ? 8 : 
-                     (t.dtype == Core::DataType::COMPLEX64) ? 16 : 4;
+        size_t bpe = Core::bytes_per_element(t.dtype);
         size_t bytes = t.num_elements * bpe;
         
         if (t.storage->strategy == &SushiRuntime::Memory::Strategies::Device::instance())
@@ -109,8 +107,7 @@ namespace SushiBLAS
         std::ofstream ofs(path, std::ios::binary);
         SB_THROW_IF(!ofs.is_open(), "Failed to open file: {}", path);
 
-        size_t bpe = (t.dtype == Core::DataType::FLOAT64 || t.dtype == Core::DataType::COMPLEX32) ? 8 : 
-                     (t.dtype == Core::DataType::COMPLEX64) ? 16 : 4;
+        size_t bpe = Core::bytes_per_element(t.dtype);
         size_t bytes = t.num_elements * bpe;
         ofs.write(static_cast<const char*>(t.data()), bytes);
     }
@@ -120,8 +117,7 @@ namespace SushiBLAS
         std::ifstream ifs(path, std::ios::binary);
         SB_THROW_IF(!ifs.is_open(), "Failed to open file: {}", path);
 
-        size_t bpe = (t.dtype == Core::DataType::FLOAT64 || t.dtype == Core::DataType::COMPLEX32) ? 8 : 
-                     (t.dtype == Core::DataType::COMPLEX64) ? 16 : 4;
+        size_t bpe = Core::bytes_per_element(t.dtype);
         size_t bytes = t.num_elements * bpe;
         ifs.read(static_cast<char*>(t.data()), bytes);
     }
@@ -171,8 +167,7 @@ namespace SushiBLAS
         ofs.write(dict.c_str(), header_len);
 
         // 2. Write Data
-        size_t bpe = (t.dtype == Core::DataType::FLOAT64 || t.dtype == Core::DataType::COMPLEX32) ? 8 : 
-                     (t.dtype == Core::DataType::COMPLEX64) ? 16 : 4;
+        size_t bpe = Core::bytes_per_element(t.dtype);
         
         size_t bytes = t.num_elements * bpe;
 
@@ -216,8 +211,7 @@ namespace SushiBLAS
                     SB_THROW_IF(true, "Shape dimension {} mismatch in .npy header.", i);
 
         // TODO: Optimize data loading path for different allocation strategies and layout orders.
-        size_t bpe = (t.dtype == Core::DataType::FLOAT64 || t.dtype == Core::DataType::COMPLEX32) ? 8 : 
-                     (t.dtype == Core::DataType::COMPLEX64) ? 16 : 4;
+        size_t bpe = Core::bytes_per_element(t.dtype);
         size_t bytes = t.num_elements * bpe;
 
         if (t.storage->strategy == &SushiRuntime::Memory::Strategies::Device::instance())
@@ -236,9 +230,7 @@ namespace SushiBLAS
     {
         engine_.execute().wait();
 
-        size_t bpe = (t.dtype == Core::DataType::HALF) ? 2 :
-                     (t.dtype == Core::DataType::FLOAT64 || t.dtype == Core::DataType::COMPLEX32) ? 8 :
-                     (t.dtype == Core::DataType::COMPLEX64) ? 16 : 4;
+        size_t bpe = Core::bytes_per_element(t.dtype);
 
         std::vector<char> host_buf(t.num_elements * bpe);
         engine_.get_context().get_queue().memcpy(host_buf.data(), t.data(), t.num_elements * bpe).wait();

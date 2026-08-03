@@ -56,8 +56,16 @@ namespace SushiBLAS
              * @param x Input vector x.
              * @param y Input/Output vector y (result is stored in y).
              * @return sycl::event representing the completion of the operation.
+             *
+             * Scalars are taken as `double` at every level of this API and narrowed to the
+             * tensor's element type at the kernel boundary, where that type is finally known.
+             * Declaring them `float` - as Level 1 and Level 2 used to - silently rounded an
+             * fp64 computation's scalar to about 1e-7 relative error with no diagnostic, which
+             * made FLOAT64 a partial lie. Templating the public signature instead was rejected:
+             * a tensor's dtype is a runtime value here, so a compile-time scalar type would push
+             * a dtype switch onto every caller.
              */
-            sycl::event axpy(float alpha, const Tensor& x, Tensor& y);
+            sycl::event axpy(double alpha, const Tensor& x, Tensor& y);
 
             /**
              * @brief Vector Dot Product (DOT).
@@ -82,8 +90,10 @@ namespace SushiBLAS
              * @param alpha Scalar factor.
              * @param x Input/Output vector to scale.
              * @return sycl::event representing the completion of the operation.
+             *
+             * `alpha` is a `double` and is narrowed at the kernel boundary; see @ref axpy.
              */
-            sycl::event scal(float alpha, Tensor& x);
+            sycl::event scal(double alpha, Tensor& x);
 
             /**
              * @brief Vector Copy (COPY).
@@ -155,7 +165,9 @@ namespace SushiBLAS
              * @param c Cosine component of the rotation.
              * @param s Sine component of the rotation.
              * @return sycl::event representing the completion of the operation.
+             *
+             * `c` and `s` are `double` and are narrowed at the kernel boundary; see @ref axpy.
              */
-            sycl::event rot(Tensor& x, Tensor& y, float c, float s);
+            sycl::event rot(Tensor& x, Tensor& y, double c, double s);
     };
 }

@@ -73,13 +73,15 @@ namespace SushiBLAS
 
         // Capture data safely for asynchronous execution
         auto layout = A.layout;
-        void* read_A = A.storage ? A.storage->data_ptr : nullptr;
-        void* write_B = B.storage ? B.storage->data_ptr : nullptr;
+        void* read_A = A.data_or_null();
+        void* rw_B = B.data_or_null();
 
+        // B arrives as the right-hand sides and leaves as the solution X: read, then written.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_A) reads.push_back(read_A);
+        if (read_A) reads.push_back(A.region());
+        if (rw_B) reads.push_back(B.region());
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_B) writes.push_back(write_B);
+        if (rw_B) writes.push_back(B.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl3.trsm";
@@ -98,7 +100,7 @@ namespace SushiBLAS
             {
                 using T = decltype(scalar_type);
                 auto pA = static_cast<const T*>(read_A);
-                auto pB = static_cast<T*>(write_B);
+                auto pB = static_cast<T*>(rw_B);
                 auto alpha_t = static_cast<T>(alpha);
 
                 return Internal::dispatch_with_mode(mode, q, deps,

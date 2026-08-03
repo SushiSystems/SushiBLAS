@@ -78,8 +78,8 @@ namespace SushiBLAS
             }
 
             int64_t size = x.num_elements;
-            std::vector<SushiRuntime::Core::ResourceRegion> reads = {x.storage->data_ptr};
-            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {x.region()};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -88,7 +88,7 @@ namespace SushiBLAS
             set_task_params(meta, params, name);
 
             engine.get_graph().add_task(meta, reads, writes,
-                [size, px_raw = x.storage->data_ptr, pr_raw = result.storage->data_ptr, dtype = x.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                [size, px_raw = x.data(), pr_raw = result.data(), dtype = x.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("Logic {}: {} elements", name, size);
                     return q.submit([&](sycl::handler& h)
@@ -171,8 +171,8 @@ namespace SushiBLAS
             }
 
             int64_t size = A.num_elements;
-            std::vector<SushiRuntime::Core::ResourceRegion> reads = {A.storage->data_ptr, B.storage->data_ptr};
-            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {A.region(), B.region()};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -181,7 +181,7 @@ namespace SushiBLAS
             set_task_params(meta, params, name);
 
             engine.get_graph().add_task(meta, reads, writes,
-                [size, pA_raw = A.storage->data_ptr, pB_raw = B.storage->data_ptr, pR_raw = result.storage->data_ptr, dtype = A.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                [size, pA_raw = A.data(), pB_raw = B.data(), pR_raw = result.data(), dtype = A.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("Logic {}: {} elements", name, size);
                     return q.submit([&](sycl::handler& h)
@@ -264,8 +264,8 @@ namespace SushiBLAS
             }
 
             int64_t size = cond.num_elements;
-            std::vector<SushiRuntime::Core::ResourceRegion> reads = {cond.storage->data_ptr, A.storage->data_ptr, B.storage->data_ptr};
-            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {cond.region(), A.region(), B.region()};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -274,7 +274,7 @@ namespace SushiBLAS
             set_task_params(meta, params, name);
 
             engine.get_graph().add_task(meta, reads, writes,
-                [size, pC_raw = cond.storage->data_ptr, pA_raw = A.storage->data_ptr, pB_raw = B.storage->data_ptr, pR_raw = result.storage->data_ptr, dtype = cond.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                [size, pC_raw = cond.data(), pA_raw = A.data(), pB_raw = B.data(), pR_raw = result.data(), dtype = cond.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("Logic {}: {} elements", name, size);
                     return q.submit([&](sycl::handler& h)

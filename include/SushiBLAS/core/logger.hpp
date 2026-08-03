@@ -42,6 +42,33 @@
     #define SB_ENABLE_LOGGING 1
 #endif
 
+/**
+ * @def SB_ACTIVE_LOG_LEVEL
+ * @brief The compiled-in log level, named as a `SushiBLAS::Core::LogType` enumerator.
+ *
+ * Set it from the build rather than by editing this header: the `SB_LOG_LEVEL` CMake
+ * cache variable (`cmake/SushiBLASLogging.cmake`) forwards its value here, so
+ * `sb build -D SB_LOG_LEVEL=INFO` raises the level for a debugging session and
+ * `sb build -D SB_LOG_LEVEL=auto` puts it back. Valid values are the enumerator names:
+ * `OFF`, `ERR`, `WARN`, `INFO`, `DEBUG` - a typo is a compile error naming the bad
+ * enumerator rather than a silently wrong level.
+ *
+ * The default is WARN for a release build and DEBUG for a debug build. Release used to
+ * default to INFO, which was expensive rather than merely noisy: every `SB_LOG_INFO`
+ * that survives the `if constexpr` materialises a `std::source_location` - file, line,
+ * and the fully templated function signature, several hundred characters at the dispatch
+ * seam - formats it, and pushes the string through a mutex-guarded queue. The kernel
+ * launch path logs at INFO once per launch, so a training loop paid that on every
+ * operation of every step.
+ */
+#ifndef SB_ACTIVE_LOG_LEVEL
+    #ifdef NDEBUG
+        #define SB_ACTIVE_LOG_LEVEL WARN
+    #else
+        #define SB_ACTIVE_LOG_LEVEL DEBUG
+    #endif
+#endif
+
 namespace SushiBLAS 
 {
     namespace Core
@@ -58,12 +85,15 @@ namespace SushiBLAS
             DEBUG = 4  /**< All messages including debug */
         };
 
+        /**
+         * @brief The level messages are compiled in at, from @ref SB_ACTIVE_LOG_LEVEL.
+         *
+         * Every `SB_LOG_*` macro tests against this in an `if constexpr`, so anything above
+         * the level costs nothing at all - not the formatting, not the source_location, not
+         * the call.
+         */
         #if SB_ENABLE_LOGGING
-            #ifdef NDEBUG
-                inline constexpr LogType ACTIVE_LOG_LEVEL = LogType::INFO;
-            #else
-                inline constexpr LogType ACTIVE_LOG_LEVEL = LogType::DEBUG;
-            #endif
+            inline constexpr LogType ACTIVE_LOG_LEVEL = LogType::SB_ACTIVE_LOG_LEVEL;
         #else
             inline constexpr LogType ACTIVE_LOG_LEVEL = LogType::OFF;
         #endif
@@ -242,38 +272,78 @@ namespace SushiBLAS
                             msg);
                         
                         dispatch_log(level, std::move(output));
-                    } 
-                    catch (const std::format_error& e) 
+                    }
+                    catch (const std::format_error& e)
                     {
                         std::cerr << "Log format error: " << e.what() << "\n";
                     }
                 #endif
             }
+
+            /**
+             * @brief The level test every `SB_LOG_*` macro goes through.
+             *
+             * A function template rather than an `if constexpr` spelled out in the macro,
+             * for two reasons.
+             *
+             * First, arguments stay used. The macros used to expand to
+             * `if constexpr (level ok) log_base(..., args...)`; inside a template, a
+             * discarded statement is never instantiated, so lowering the compiled-in level
+             * turned every variable a log line was the sole reader of into an unused one -
+             * `-Wunused-lambda-capture` under `-Werror` - and the fix would have been to
+             * scatter `(void)x;` through the call sites. Passing the arguments to a function
+             * keeps them odr-used whatever the level, so the level is a pure logging decision
+             * and never a compile error somewhere else.
+             *
+             * Second, it is an expression, not a statement, so `if (c) SB_LOG_INFO(...);
+             * else ...` binds the `else` where the reader expects it instead of to the
+             * macro's own hidden `if`.
+             *
+             * Everything above the active level still costs nothing at run time: the
+             * discarded branch leaves an empty function body that inlines away.
+             *
+             * @tparam Level The level this message is emitted at.
+             * @param prefix The bracketed tag written into the line ("INFO", "WARN", ...).
+             * @param loc The call site.
+             * @param fmt The std::format format string.
+             * @param args The format arguments.
+             */
+            template<LogType Level, typename... Args>
+            inline void log_if(std::string_view prefix, const std::source_location& loc, std::string_view fmt, Args&&... args)
+            {
+                if constexpr (ACTIVE_LOG_LEVEL >= Level)
+                {
+                    log_base(Level, prefix, loc, fmt, std::forward<Args>(args)...);
+                }
+                else
+                {
+                    (void)prefix;
+                    (void)loc;
+                    (void)fmt;
+                    ((void)args, ...);
+                }
+            }
         } // namespace Detail
     } // namespace Core
-    
+
     /**
      * @brief Logs a message at error level.
      */
     #if SB_ENABLE_LOGGING
         #define SB_LOG_ERROR(fmt, ...) \
-            if constexpr (SushiBLAS::Core::ACTIVE_LOG_LEVEL >= SushiBLAS::Core::LogType::ERR) \
-                SushiBLAS::Core::Detail::log_base(SushiBLAS::Core::LogType::ERR, "ERROR", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::ERR>("ERROR", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
 
         /** @brief Logs a message at warning level. */
         #define SB_LOG_WARN(fmt, ...) \
-            if constexpr (SushiBLAS::Core::ACTIVE_LOG_LEVEL >= SushiBLAS::Core::LogType::WARN) \
-                SushiBLAS::Core::Detail::log_base(SushiBLAS::Core::LogType::WARN, "WARN", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::WARN>("WARN", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
 
         /** @brief Logs a message at info level. */
         #define SB_LOG_INFO(fmt, ...) \
-            if constexpr (SushiBLAS::Core::ACTIVE_LOG_LEVEL >= SushiBLAS::Core::LogType::INFO) \
-                SushiBLAS::Core::Detail::log_base(SushiBLAS::Core::LogType::INFO, "INFO", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::INFO>("INFO", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
 
         /** @brief Logs a message at debug level. */
         #define SB_LOG_DEBUG(fmt, ...) \
-            if constexpr (SushiBLAS::Core::ACTIVE_LOG_LEVEL >= SushiBLAS::Core::LogType::DEBUG) \
-                SushiBLAS::Core::Detail::log_base(SushiBLAS::Core::LogType::DEBUG, "DEBUG", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::DEBUG>("DEBUG", std::source_location::current(), fmt __VA_OPT__(,) __VA_ARGS__)
     #else
         #define SB_LOG_ERROR(fmt, ...) ((void)0)
         #define SB_LOG_WARN(fmt, ...)  ((void)0)

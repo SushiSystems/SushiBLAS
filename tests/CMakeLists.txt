@@ -74,6 +74,9 @@ add_executable(sushiblas_tests
     functional/unit/test_dispatch_complex.cpp
     functional/unit/test_dispatch_seam.cpp
 
+    # --- Tensor views (every op family against a non-zero storage_offset) ---
+    functional/unit/test_storage_offset.cpp
+
     # --- Elementwise ---
     functional/unit/test_abs.cpp
     functional/unit/test_acos.cpp

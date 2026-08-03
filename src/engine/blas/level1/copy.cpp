@@ -42,13 +42,13 @@ namespace SushiBLAS
 
         // TODO: Implement multi-dimensional batch support
 
-        void* read_x = x.storage ? x.storage->data_ptr : nullptr;
-        void* write_y = y.storage ? y.storage->data_ptr : nullptr;
+        void* read_x = x.data_or_null();
+        void* write_y = y.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_x) reads.push_back(read_x);
+        if (read_x) reads.push_back(x.region());
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_y) writes.push_back(write_y);
+        if (write_y) writes.push_back(y.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl1.copy";

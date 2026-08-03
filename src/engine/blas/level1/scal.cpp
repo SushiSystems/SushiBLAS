@@ -32,18 +32,20 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level1::scal(float alpha, Tensor& x)
+    sycl::event Level1::scal(double alpha, Tensor& x)
     {
         int64_t n, incx;
         Internal::get_vec_params(x, n, incx);
 
         // TODO: Implement multi-dimensional batch support
 
-        void* write_x = x.storage ? x.storage->data_ptr : nullptr;
+        void* rw_x = x.data_or_null();
 
+        // In place: `x = alpha * x` reads every element it writes.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
+        if (rw_x) reads.push_back(x.region());
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_x) writes.push_back(write_x);
+        if (rw_x) writes.push_back(x.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl1.scal";
@@ -57,7 +59,7 @@ namespace SushiBLAS
             [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                auto pX = static_cast<T*>(write_x);
+                auto pX = static_cast<T*>(rw_x);
                 auto alpha_t = static_cast<T>(alpha);
 
                 return Internal::dispatch_with_mode(mode, q, deps,

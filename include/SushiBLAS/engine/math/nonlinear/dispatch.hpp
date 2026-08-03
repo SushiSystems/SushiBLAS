@@ -68,8 +68,8 @@ namespace SushiBLAS
         sycl::event execute_nonlinear_forward(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
         {
             int64_t size = t.num_elements;
-            void* ptr = t.storage ? t.storage->data_ptr : nullptr;
-            std::vector<SushiRuntime::Core::ResourceRegion> rw = ptr ? std::vector<SushiRuntime::Core::ResourceRegion>{ptr} : std::vector<SushiRuntime::Core::ResourceRegion>{};
+            void* ptr = t.data_or_null();
+            std::vector<SushiRuntime::Core::ResourceRegion> rw = ptr ? std::vector<SushiRuntime::Core::ResourceRegion>{t.region()} : std::vector<SushiRuntime::Core::ResourceRegion>{};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -143,8 +143,8 @@ namespace SushiBLAS
                        "Tensor data types must match for backward operation.");
 
             int64_t size = x.num_elements;
-            std::vector<SushiRuntime::Core::ResourceRegion> reads = {dy.storage->data_ptr, x.storage->data_ptr};
-            std::vector<SushiRuntime::Core::ResourceRegion> writes = {dx.storage->data_ptr};
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {dy.region(), x.region()};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {dx.region()};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -153,7 +153,7 @@ namespace SushiBLAS
             set_task_params(meta, params, name);
 
             engine.get_graph().add_task(meta, reads, writes,
-                [size, pDY_raw = dy.storage->data_ptr, pX_raw = x.storage->data_ptr, pDX_raw = dx.storage->data_ptr, dtype = x.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                [size, pDY_raw = dy.data(), pX_raw = x.data(), pDX_raw = dx.data(), dtype = x.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("{} Backward: {} elements", name, size);
                     return q.submit([&](sycl::handler& h)
