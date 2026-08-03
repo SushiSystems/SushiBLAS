@@ -419,6 +419,34 @@ longer reached memory. Nothing throws and nothing produces NaN — the model jus
 trains toward the wrong place. It is why cuBLASLt exposes `GELU_AUX_BIAS` and not
 merely `GELU_BIAS`.
 
+The seam declares A, B and C to the dependency tracker and **cannot** discover
+what the epilogue itself touches — the functor is an opaque callable, which is
+exactly what lets a consumer fuse without writing SYCL. An undeclared bias is
+therefore not a wrong dependency edge, it is *no* edge, and the graph is free to
+run the fused GEMM concurrently with whatever writes that bias: the same class of
+silent defect as the `execute_reduction` bare-pointer regression in §4, arriving
+by a different route. `Dispatch::gemm_epilogue(functor).reads(t).writes(t)`
+bundles the functor with the memory it touches into one value, and `execute_gemm`
+appends those regions to the task's access set. The bundle is a value rather than
+an extra defaulted parameter on purpose: the access set then travels wherever the
+functor travels — returned from a helper, chosen in a `switch` — instead of being
+a second argument that can be lost independently of the first, and an omitted
+defaulted argument is invisible in a diff whereas a functor without its operands
+is a thing you have to write. Operands are named as **tensors**, never as
+regions, because a `ResourceRegion` converts implicitly from a bare pointer and
+that conversion is precisely the mistake §4 documents; `GemmEpilogue::reads`
+calls `Tensor::region()` itself, so the wrong spelling is unavailable. A bare
+functor is still accepted and still declares nothing, so nothing that never
+declared anything changes behaviour — `Level3::gemm`'s identity epilogue
+included. `Unit_GEMMSeamTest`'s ordering cases assert on `in_degree` rather than
+on output values, for the reason §4 gives: with no edge the tasks may still come
+out in the right order by luck, so a correct answer proves nothing about
+ordering. Each has a control asserting an in-degree of 0 for the undeclared
+spelling, so the assertion cannot pass without the declaration doing the work.
+The `writes` direction is what makes an aux-buffer spill expressible at all; it
+does not by itself make a GELU epilogue correct, which additionally needs the
+consumer's backward rule to read that buffer.
+
 **`execute_zip_inplace`** is the variadic member of that set, and the one built
 for optimiser steps. It takes a `std::array<Tensor*, N>` of same-shaped tensors
 and calls the functor once per element index with an **lvalue reference to each**

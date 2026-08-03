@@ -37,6 +37,50 @@ None open.
   a repeat rather than filed as a new bug.
 
 ### Added
+- **A GEMM epilogue can now declare the memory it touches**
+  (`Dispatch::GemmEpilogue` / `Dispatch::gemm_epilogue`, in
+  `include/SushiBLAS/engine/blas/dispatch.hpp`). `execute_gemm` builds its
+  access set from A, B and C, and it cannot do better on its own: the epilogue
+  is an opaque callable, which is the property that lets a consumer fuse
+  without writing SYCL. A bias vector the functor dereferences was therefore
+  invisible to the dependency tracker — and an invisible read is not a wrong
+  edge, it is *no* edge, so the graph was free to run the fused GEMM alongside
+  whatever wrote that bias. Same class of silent defect as the
+  `execute_reduction` bare-pointer regression below, arriving by a different
+  route; the seam previously documented the hazard and handed it to the caller,
+  who could only pay for it with a no-op ordering node (SushiAI did).
+
+  - **Bundled with the functor, not passed beside it.** The rejected
+    alternative was an extra defaulted parameter on `execute_gemm` carrying the
+    regions. It is the smaller diff and adds no public type, and it loses on
+    two counts: an omitted defaulted argument is invisible in review, which is
+    the wrong property for a fix to a *silent* failure; and the access set
+    belongs to the epilogue's spelling rather than to the call, so a caller
+    choosing among several epilogues in a `switch` would have to hoist the
+    regions out of the arm that knows them. Bundled, the operands travel
+    wherever the functor travels.
+  - **Operands are named as tensors, never as regions.** A `ResourceRegion`
+    converts implicitly from a bare pointer, which is exactly the mistake that
+    cost a training run; `GemmEpilogue::reads` calls `Tensor::region()` itself,
+    so the wrong spelling is unavailable at this seam.
+  - **`writes` as well as `reads`.** An epilogue that spills its
+    pre-activation to an auxiliary buffer — what cuBLASLt's `GELU_AUX_BIAS`
+    exists to produce, and the only way an activation is safe to fuse into a
+    *training* forward pass — needs its reader ordered behind the GEMM for the
+    same reason the bias's producer needs ordering in front of it. That the
+    seam can now express it does not by itself make a fused GELU correct; the
+    consumer's backward rule has to read the buffer.
+  - **A bare functor still declares nothing** and produces byte for byte the
+    access set the seam always built, so no existing call site changes —
+    `Level3::gemm`'s identity epilogue included. `Unit_GEMMSeamTest` pins that
+    with a control asserting an in-degree of 0.
+  - **Every new test asserts on `in_degree`, not on an output value**, for the
+    reason `Regression_Sentinel.ReductionsOrderAgainstViewsOfOneAllocation`
+    gives: with no edge the tasks may still come out in the right order by
+    luck, and a test that passes by luck guards nothing. Seven cases, including
+    two views of one allocation, which is what catches a region-vs-pointer
+    mistake.
+
 - **Axis reductions: `reductions().max_along` and `sum_along`, over a new
   segmented launch shape** (`include/SushiBLAS/engine/reduce_axis.hpp`). One
   axis of a rank-2 tensor folded away, result a vector — the third launch shape
