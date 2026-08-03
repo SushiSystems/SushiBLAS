@@ -44,7 +44,7 @@ See the [SushiStack](https://sushisystems.io) docs for linking an existing check
 The fastest path is the bundled CLI, which loads your compiler/toolchain paths from config and then drives CMake. Install it through the umbrella — the single install seam for the whole stack (it sets up an isolated pipx venv and wires in the shared `sushicli` presentation layer):
 
 ```bash
-ss install-cli sushiblas           # add --no-editable for a non-dev install
+ss install-cli sushiblas           # always editable, against this checkout
 ```
 
 This gives you two equivalent commands on your PATH: **`sb`** (short) and **`sushiblas`** (long). Toolchain paths are read from `cli/config.toml` (committed, shared defaults); machine-specific absolute paths go in a gitignored `cli/config.local.toml` using the same `[tool.<platform>]` section layout. In the common case (inside a SushiStack workspace, or a sibling checkout of SushiRuntime present) no local config is needed at all — the CLI finds the runtime sibling and its bundled `clang++` on its own.
@@ -102,7 +102,7 @@ cmake --build build --config Release
 ```bash
 sb config         # print resolved config with per-field source annotation
 sb env            # print the environment cmake/ctest/run subprocesses see
-sb doxygen        # build the Doxygen API reference
+sb doxygen        # build the Doxygen API reference (not usable yet — no Doxyfile in this repo)
 ```
 
 ## Running the tests

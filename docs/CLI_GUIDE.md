@@ -21,12 +21,15 @@ and it puts two commands on your `PATH`:
 They are identical; use whichever you prefer. Every example below uses `sb`.
 
 ```bash
-ss install-cli sushiblas      # add --no-editable for a non-dev install
+ss install-cli sushiblas      # always editable, against this checkout
 ```
 
-On Windows this installs through **pipx**; on Linux and macOS it installs
-with **pip** into your current environment. You can also install the package
-directly:
+This installs through **pipx** on every platform, into an isolated venv, then
+injects the shared `sushicli` package — which is published to no index, so pipx
+cannot resolve it as an ordinary dependency. The install is always editable and
+there is no flag to make it otherwise: a frozen copy would stop tracking
+`git pull`s on this checkout without ever saying so. You can also install the
+package directly:
 
 ```bash
 pipx install ./cli               # or:  pip install ./cli   (inside a venv/conda env)
@@ -59,7 +62,8 @@ resolved, run `sb config`.
 
 | Command | What it's for |
 |---------|----------------|
-| `sb build` / `test` / `run` / `clean` / `doxygen` | Build, test, run, and document the C++ project |
+| `sb build` / `test` / `run` / `clean` | Build, test, run, and clean the C++ project |
+| `sb doxygen` | Generate the API reference — **not usable yet: no `Doxyfile` in this repo** |
 | `sb config` | Show the resolved configuration |
 | `sb env` | Show the environment your builds run under |
 
@@ -169,12 +173,18 @@ sb clean       # remove the build/ tree
 sb doxygen     # generate the Doxygen API reference into docs/
 ```
 
-`sb doxygen` runs Doxygen against the repo-root `Doxyfile`. Doxygen is an
-external tool, not vendored: install it (`winget install
-DimitriVanHeesch.Doxygen` on Windows, `apt-get install doxygen graphviz` on
-Linux, `brew install doxygen graphviz` on macOS) or point `doxygen_exe` in
-`cli/config.local.toml` at an existing binary. The command prints the right
-install line if it cannot find one.
+**`sb doxygen` does not work yet.** It runs Doxygen against a repo-root
+`Doxyfile`, and this repo has none — the command reports
+`Doxyfile not found at repo root.` and exits 1. `Doxyfile` is also listed in
+`.gitignore`, so authoring one means editing that first. Until a Doxyfile lands
+(sushiruntime's is the model: a committed `Doxyfile` scoped to the public
+header surface), treat this command as unimplemented.
+
+When one does exist, Doxygen itself is an external tool, not vendored: install
+it (`winget install DimitriVanHeesch.Doxygen` on Windows, `apt-get install
+doxygen graphviz` on Linux, `brew install doxygen graphviz` on macOS) or point
+`doxygen_exe` in `cli/config.local.toml` at an existing binary. The command
+prints the right install line if it cannot find one.
 
 ## `sb config` and `sb env` — diagnostics
 
