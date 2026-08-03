@@ -27,6 +27,7 @@
 #include <vector>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/engine/device_policy.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 // The shared vocabulary of SushiBLAS's generic op-dispatch seam.
