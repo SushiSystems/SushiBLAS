@@ -26,7 +26,7 @@
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 #include <kernels/random.hpp>
-#include "random_internal.hpp"
+#include <SushiBLAS/engine/math/random/dispatch.hpp>
 
 namespace SushiBLAS
 {
@@ -36,11 +36,11 @@ namespace SushiBLAS
     {
         const double limit = std::sqrt(6.0 / n_in);
 
-        return Internal::execute_random(engine_, t, "random.he_uniform", "random.he_uniform"_op, {static_cast<double>(n_in), limit},
+        return Dispatch::execute_random(engine_, t, "random.he_uniform", "random.he_uniform"_op, {static_cast<double>(n_in), limit},
             [limit](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (Internal::is_complex_v<T>)
+                if constexpr (Core::is_complex_v<T>)
                 {
                     SB_THROW_IF(true, "Unsupported data type for he_uniform operation.");
                     return sycl::event();

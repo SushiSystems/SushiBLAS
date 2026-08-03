@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* nonlinear_internal.hpp                                                 */
+/* dispatch.hpp                                                           */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -28,18 +28,41 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/engine/dispatch.hpp>
+#include <SushiBLAS/engine/math/safe_math.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
-
-    namespace Internal
+    namespace Dispatch
     {
         /**
-         * @brief Helper for nonlinear forward operations.
+         * @brief Records an activation's forward pass in place: `t[i] = op(t[i])`.
+         *
+         * The generic seam behind every `NonLinearOps` forward entry point. Unlike the
+         * elementwise family this instantiates all five dtypes unconditionally, because
+         * every activation in this library is expressed through the complex-tolerant
+         * `safe_*` helpers and is therefore well-formed for complex element types too.
+         *
+         * @tparam Func The functor type, deduced.
+         * @param engine The engine whose task graph the op is recorded on.
+         * @param t The tensor read and overwritten in place.
+         * @param name Human-readable op name, used for logging and failure messages.
+         * @param op_id Stable operation identifier for the task graph.
+         * @param op_func Callable `(auto x) -> auto`, invoked once per element on device.
+         * @param params Optional scalar parameters recorded in the task metadata.
+         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
+         *
+         * @warning This is a low-level generic seam. `op_func` is inlined into a SYCL device
+         *          kernel: it must be device-copyable, capture by value only, hold no host
+         *          pointers, allocate nothing and throw nothing. Write its body against
+         *          <SushiBLAS/engine/math/safe_math.hpp> rather than the raw `sycl::` math
+         *          builtins, or it will fail to compile for the complex dtypes.
+         * @throws std::runtime_error if the tensor's dtype is unrecognized, or if @p params
+         *         exceeds the task metadata's inline capacity.
          */
         template<typename Func>
         sycl::event execute_nonlinear_forward(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
@@ -52,16 +75,16 @@ namespace SushiBLAS
             meta.name = name;
             meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
             meta.op_id = op_id;
-            for (size_t i = 0; i < params.size(); ++i) meta.set_param(i, params[i]);
+            set_task_params(meta, params, name);
 
             engine.get_graph().add_task(meta, rw, rw,
-                [size, ptr, dtype = t.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                [size, ptr, dtype = t.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("{} Forward: {} elements", name, size);
-                    return q.submit([&](sycl::handler& h) 
+                    return q.submit([&](sycl::handler& h)
                     {
                         h.depends_on(deps);
-                        switch (dtype) 
+                        switch (dtype)
                         {
                             case Core::DataType::HALF:
                                 h.parallel_for(sycl::range<1>(size), [=, p = (sycl::half*)ptr](sycl::id<1> i) { p[i] = op_func(p[i]); });
@@ -78,7 +101,10 @@ namespace SushiBLAS
                             case Core::DataType::COMPLEX64:
                                 h.parallel_for(sycl::range<1>(size), [=, p = (std::complex<double>*)ptr](sycl::id<1> i) { p[i] = op_func(p[i]); });
                                 break;
-                            default: break;
+                            default:
+                                SB_THROW_IF(true, "Nonlinear operation '{}' received an unrecognized dtype ({}).",
+                                            name, static_cast<int>(dtype));
+                                break;
                         }
                     });
                 });
@@ -86,14 +112,34 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Helper for nonlinear backward operations.
+         * @brief Records an activation's backward pass: `dx[i] = op(dy[i], x[i])`.
+         *
+         * The generic seam behind every `NonLinearOps` backward entry point. The second
+         * operand is whatever the activation's derivative needs - the saved input for GELU
+         * and ELU, the saved output for sigmoid and tanh - which is why it is named
+         * generically here and documented per op at the call site.
+         *
+         * @tparam Func The functor type, deduced.
+         * @param engine The engine whose task graph the op is recorded on.
+         * @param dy The upstream gradient.
+         * @param x The saved forward input or output the derivative is taken against.
+         * @param dx The output gradient tensor.
+         * @param name Human-readable op name, used for logging and failure messages.
+         * @param op_id Stable operation identifier for the task graph.
+         * @param op_func Callable `(auto dy, auto x) -> auto`, invoked once per element on device.
+         * @param params Optional scalar parameters recorded in the task metadata.
+         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
+         *
+         * @warning Same device-kernel constraints as @ref execute_nonlinear_forward.
+         * @throws std::runtime_error if the operands disagree on size or dtype, if the dtype
+         *         is unrecognized, or if @p params exceeds the metadata's inline capacity.
          */
         template<typename Func>
-        sycl::event execute_nonlinear_backward(Engine& engine, const Tensor& dy, const Tensor& x, Tensor& dx, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {}) 
+        sycl::event execute_nonlinear_backward(Engine& engine, const Tensor& dy, const Tensor& x, Tensor& dx, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
         {
-            SB_THROW_IF(dy.num_elements != x.num_elements || dy.num_elements != dx.num_elements, 
+            SB_THROW_IF(dy.num_elements != x.num_elements || dy.num_elements != dx.num_elements,
                        "Tensor sizes must match for backward operation.");
-            SB_THROW_IF(dy.dtype != x.dtype || dy.dtype != dx.dtype, 
+            SB_THROW_IF(dy.dtype != x.dtype || dy.dtype != dx.dtype,
                        "Tensor data types must match for backward operation.");
 
             int64_t size = x.num_elements;
@@ -104,16 +150,16 @@ namespace SushiBLAS
             meta.name = name;
             meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
             meta.op_id = op_id;
-            for (size_t i = 0; i < params.size(); ++i) meta.set_param(i, params[i]);
+            set_task_params(meta, params, name);
 
             engine.get_graph().add_task(meta, reads, writes,
-                [size, pDY_raw = dy.storage->data_ptr, pX_raw = x.storage->data_ptr, pDX_raw = dx.storage->data_ptr, dtype = x.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                [size, pDY_raw = dy.storage->data_ptr, pX_raw = x.storage->data_ptr, pDX_raw = dx.storage->data_ptr, dtype = x.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("{} Backward: {} elements", name, size);
-                    return q.submit([&](sycl::handler& h) 
+                    return q.submit([&](sycl::handler& h)
                     {
                         h.depends_on(deps);
-                        switch (dtype) 
+                        switch (dtype)
                         {
                             case Core::DataType::HALF:
                                 h.parallel_for(sycl::range<1>(size), [=, pdy = (sycl::half*)pDY_raw, px = (sycl::half*)pX_raw, pdx = (sycl::half*)pDX_raw](sycl::id<1> i) { pdx[i] = op_func(pdy[i], px[i]); });
@@ -130,57 +176,15 @@ namespace SushiBLAS
                             case Core::DataType::COMPLEX64:
                                 h.parallel_for(sycl::range<1>(size), [=, pdy = (std::complex<double>*)pDY_raw, px = (std::complex<double>*)pX_raw, pdx = (std::complex<double>*)pDX_raw](sycl::id<1> i) { pdx[i] = op_func(pdy[i], px[i]); });
                                 break;
-                            default: break;
+                            default:
+                                SB_THROW_IF(true, "Nonlinear operation '{}' received an unrecognized dtype ({}).",
+                                            name, static_cast<int>(dtype));
+                                break;
                         }
                     });
                 });
             return sycl::event();
         }
 
-        // Helpers to apply math ops to both real and complex gracefully
-        template<typename T>
-        inline T real_part(T x) { return x; }
-        
-        template<typename T>
-        inline std::complex<T> real_part(const std::complex<T>& x) { return std::complex<T>(x.real(), 0); }
-        
-        template<typename T>
-        inline T make_complex_safe(T val, T) { return val; }
-
-        template<typename T, typename U>
-        inline std::complex<T> make_complex_safe(U val, const std::complex<T>&) { return std::complex<T>(val, 0); }
-        
-        template<typename T>
-        inline bool greater_than_zero(T x) { return x > T(0); }
-
-        template<typename T>
-        inline bool greater_than_zero(const std::complex<T>& x) { return x.real() > T(0); }
-        
-        template<typename T>
-        inline bool less_than_zero(T x) { return x < T(0); }
-
-        template<typename T>
-        inline bool less_than_zero(const std::complex<T>& x) { return x.real() < T(0); }
-
-        template<typename T>
-        inline T safe_exp(T x) { return sycl::exp(x); }
-        template<typename T>
-        inline std::complex<T> safe_exp(const std::complex<T>& x) { return std::exp(x); }
-        
-        template<typename T>
-        inline T safe_tanh(T x) { return sycl::tanh(x); }
-        template<typename T>
-        inline std::complex<T> safe_tanh(const std::complex<T>& x) { return std::tanh(x); }
-        
-        template<typename T>
-        inline T safe_erf(T x) { return sycl::erf(x); }
-        template<typename T>
-        inline std::complex<T> safe_erf(const std::complex<T>& x) { return std::complex<T>(std::erf(x.real()), 0); }
-
-        template<typename T>
-        inline T safe_log(T x) { return sycl::log(x); }
-        template<typename T>
-        inline std::complex<T> safe_log(const std::complex<T>& x) { return std::log(x); }
-
-    } // namespace Internal
+    } // namespace Dispatch
 } // namespace SushiBLAS

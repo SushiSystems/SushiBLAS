@@ -22,10 +22,12 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/math/reductions.hpp>
-#include "red_internal.hpp"
+#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event ReductionOps::sum(const Tensor& t, Tensor& result) 
     {
         auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
@@ -39,6 +41,6 @@ namespace SushiBLAS
                 });
             });
         };
-        return Internal::execute_reduction(engine_, t, result, "math.sum", "math.sum"_op, dispatch);
+        return Dispatch::execute_reduction(engine_, t, result, "math.sum", "math.sum"_op, dispatch);
     }
 } // namespace SushiBLAS

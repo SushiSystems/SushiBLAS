@@ -22,19 +22,21 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/math/nonlinear.hpp>
-#include "nonlinear_internal.hpp"
+#include <SushiBLAS/engine/math/nonlinear/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event NonLinearOps::tanh(Tensor& t) 
     {
-        return Internal::execute_nonlinear_forward(engine_, t, "math.nonlinear.tanh", "math.nonlinear.tanh"_op, 
-            [](auto x) { return Internal::safe_tanh(x); });
+        return Dispatch::execute_nonlinear_forward(engine_, t, "math.nonlinear.tanh", "math.nonlinear.tanh"_op, 
+            [](auto x) { return Dispatch::safe_tanh(x); });
     }
 
     sycl::event NonLinearOps::tanh_backward(const Tensor& dy, const Tensor& y, Tensor& dx)
     {
-        return Internal::execute_nonlinear_backward(engine_, dy, y, dx, "math.nonlinear.tanh_backward", "math.nonlinear.tanh_backward"_op, 
+        return Dispatch::execute_nonlinear_backward(engine_, dy, y, dx, "math.nonlinear.tanh_backward", "math.nonlinear.tanh_backward"_op, 
             [](auto pdy, auto py) 
             {
                 return pdy * (decltype(py)(1) - py * py); 

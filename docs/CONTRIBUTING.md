@@ -235,8 +235,9 @@ same shape, regardless of category:
 - **Engine driver**: `src/engine/<category>/<sub-category>/<op>.cpp`
 - **Test**: `tests/functional/unit/test_<op>.cpp`
 
-(Non-BLAS math/logic domains keep their kernels inline in an
-`*_internal.hpp` dispatch helper rather than under `kernels/` — see
+(Non-BLAS math/logic domains keep their kernels inline in a public
+`SushiBLAS::Dispatch` helper under `include/SushiBLAS/engine/**/dispatch.hpp`
+rather than under `kernels/` — see
 [ARCHITECTURE.md §7](ARCHITECTURE.md#7-kernels-reference-and-sycl) — but the
 driver/test split is identical.)
 

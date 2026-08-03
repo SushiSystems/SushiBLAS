@@ -22,19 +22,21 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/math/nonlinear.hpp>
-#include "nonlinear_internal.hpp"
+#include <SushiBLAS/engine/math/nonlinear/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event NonLinearOps::relu(Tensor& t) 
     {
-        return Internal::execute_nonlinear_forward(engine_, t, "math.nonlinear.relu", "math.nonlinear.relu"_op, 
-            [](auto x) { return Internal::greater_than_zero(x) ? x : decltype(x)(0); });
+        return Dispatch::execute_nonlinear_forward(engine_, t, "math.nonlinear.relu", "math.nonlinear.relu"_op, 
+            [](auto x) { return Dispatch::greater_than_zero(x) ? x : decltype(x)(0); });
     }
 
     sycl::event NonLinearOps::relu_backward(const Tensor& dy, const Tensor& x, Tensor& dx)
     {
-        return Internal::execute_nonlinear_backward(engine_, dy, x, dx, "math.nonlinear.relu_backward", "math.nonlinear.relu_backward"_op, 
-            [](auto pdy, auto px) { return pdy * (Internal::greater_than_zero(px) ? decltype(px)(1) : decltype(px)(0)); });
+        return Dispatch::execute_nonlinear_backward(engine_, dy, x, dx, "math.nonlinear.relu_backward", "math.nonlinear.relu_backward"_op, 
+            [](auto pdy, auto px) { return pdy * (Dispatch::greater_than_zero(px) ? decltype(px)(1) : decltype(px)(0)); });
     }
 } // namespace SushiBLAS

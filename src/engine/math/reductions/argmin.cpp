@@ -23,10 +23,12 @@
 
 #include <limits>
 #include <SushiBLAS/engine/math/reductions.hpp>
-#include "red_internal.hpp"
+#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event ReductionOps::argmin(const Tensor& t, Tensor& result) 
     {
         // TODO: Implement a parallel tree reduction for argmin to replace single_task.
@@ -52,6 +54,6 @@ namespace SushiBLAS
                 });
             });
         };
-        return Internal::execute_reduction(engine_, t, result, "math.argmin", "math.argmin"_op, dispatch);
+        return Dispatch::execute_reduction(engine_, t, result, "math.argmin", "math.argmin"_op, dispatch);
     }
 } // namespace SushiBLAS

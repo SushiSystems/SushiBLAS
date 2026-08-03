@@ -31,9 +31,22 @@
 // translation unit under the toolchain the consumer chose, and that the
 // library links and runs end to end through both SushiBLAS and its
 // SushiRuntime dependency.
+//
+// Second thing under test, added when the five *_internal.hpp op-dispatch
+// helpers were promoted out of src/ and installed: that SushiBLAS::Dispatch is
+// genuinely reachable from here. Handing execute_binary a lambda THIS file
+// wrote, and having it compile and run, is the difference between "the fusion
+// seam was moved" and "the fusion seam is public API". Nothing in sushiblas's
+// own suite can show that - in-tree, every header is on the include path
+// whether it gets installed or not.
 
+#include <cmath>
 #include <cstdio>
+#include <vector>
 #include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+
+using namespace SushiRuntime::Graph::Literals;
 
 int main()
 {
@@ -48,7 +61,46 @@ int main()
     engine.execute();
     ctx.wait_all();
 
-    std::printf("OK: SushiBLAS %s ran AXPY against an installed package\n",
+    // A consumer-authored functor fused into a single kernel: multiply, add and
+    // divide as one device-side expression, with no SYCL written here and one
+    // task in the graph instead of three.
+    auto a = engine.create_tensor({N});
+    auto b = engine.create_tensor({N});
+    auto c = engine.create_tensor({N});
+
+    auto& q = ctx.get_queue();
+    std::vector<float> host_a(N), host_b(N);
+    for (int64_t i = 0; i < N; ++i)
+    {
+        host_a[static_cast<size_t>(i)] = static_cast<float>(i);
+        host_b[static_cast<size_t>(i)] = 2.0f;
+    }
+    q.memcpy(a.data(), host_a.data(), N * sizeof(float)).wait();
+    q.memcpy(b.data(), host_b.data(), N * sizeof(float)).wait();
+
+    sb::Dispatch::execute_binary(engine, a, b, c, "consumer.fused", "consumer.fused"_op,
+        [](auto p, auto r) { return (p * r + decltype(p)(1)) / decltype(p)(2); });
+    engine.execute();
+    ctx.wait_all();
+
+    std::vector<float> host_c(N);
+    q.memcpy(host_c.data(), c.data(), N * sizeof(float)).wait();
+
+    for (int64_t i = 0; i < N; ++i)
+    {
+        const float expected = (static_cast<float>(i) * 2.0f + 1.0f) / 2.0f;
+        const float actual = host_c[static_cast<size_t>(i)];
+        if (std::fabs(actual - expected) > 1e-4f)
+        {
+            std::printf("FAIL: fused dispatch produced %f at index %lld, expected %f\n",
+                        static_cast<double>(actual), static_cast<long long>(i),
+                        static_cast<double>(expected));
+            return 1;
+        }
+    }
+
+    std::printf("OK: SushiBLAS %s ran AXPY and a consumer-authored fused kernel "
+                "against an installed package\n",
                 SUSHIBLAS_VERSION_STRING);
     return 0;
 }

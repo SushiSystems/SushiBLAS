@@ -22,21 +22,23 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/math/nonlinear.hpp>
-#include "nonlinear_internal.hpp"
+#include <SushiBLAS/engine/math/nonlinear/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event NonLinearOps::silu(Tensor& t) 
     {
-        return Internal::execute_nonlinear_forward(engine_, t, "math.nonlinear.silu", "math.nonlinear.silu"_op, 
-            [](auto x) { return x / (decltype(x)(1) + Internal::safe_exp(-x)); });
+        return Dispatch::execute_nonlinear_forward(engine_, t, "math.nonlinear.silu", "math.nonlinear.silu"_op, 
+            [](auto x) { return x / (decltype(x)(1) + Dispatch::safe_exp(-x)); });
     }
 
     sycl::event NonLinearOps::silu_backward(const Tensor& dy, const Tensor& x, Tensor& dx)
     {
-        return Internal::execute_nonlinear_backward(engine_, dy, x, dx, "math.nonlinear.silu_backward", "math.nonlinear.silu_backward"_op, 
+        return Dispatch::execute_nonlinear_backward(engine_, dy, x, dx, "math.nonlinear.silu_backward", "math.nonlinear.silu_backward"_op, 
             [](auto pdy, auto px) { 
-                auto sig = decltype(px)(1) / (decltype(px)(1) + Internal::safe_exp(-px));
+                auto sig = decltype(px)(1) / (decltype(px)(1) + Dispatch::safe_exp(-px));
                 return pdy * (sig + px * sig * (decltype(px)(1) - sig)); 
             });
     }

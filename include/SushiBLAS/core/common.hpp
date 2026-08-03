@@ -50,7 +50,46 @@ namespace SushiBLAS
 
         /** @brief Maximum number of supported tensor ranks. */
         inline constexpr size_t MAX_TENSOR_RANK = 6;
-        
+
+        /**
+         * @brief Renders a DataType as a human-readable name, for diagnostics.
+         *
+         * Exists so that a "this operation does not support that dtype" failure can name
+         * the offending type instead of printing an integer the reader has to decode.
+         *
+         * @param dtype The data type to name.
+         * @return A static, null-terminated name such as "FLOAT32"; "UNKNOWN" for a value
+         *         outside the enumeration.
+         */
+        inline constexpr const char* to_string(DataType dtype)
+        {
+            switch (dtype)
+            {
+                case DataType::HALF:
+                    return "HALF";
+                case DataType::FLOAT32:
+                    return "FLOAT32";
+                case DataType::FLOAT64:
+                    return "FLOAT64";
+                case DataType::COMPLEX32:
+                    return "COMPLEX32";
+                case DataType::COMPLEX64:
+                    return "COMPLEX64";
+            }
+            return "UNKNOWN";
+        }
+
+        /**
+         * @brief Whether a DataType names one of the complex element types.
+         *
+         * @param dtype The data type to classify.
+         * @return True for COMPLEX32 / COMPLEX64, false otherwise.
+         */
+        inline constexpr bool is_complex_dtype(DataType dtype)
+        {
+            return dtype == DataType::COMPLEX32 || dtype == DataType::COMPLEX64;
+        }
+
     } // namespace Core
 } // namespace SushiBLAS
 

@@ -26,7 +26,7 @@
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 #include <kernels/random.hpp>
-#include "random_internal.hpp"
+#include <SushiBLAS/engine/math/random/dispatch.hpp>
 
 namespace SushiBLAS
 {
@@ -34,11 +34,11 @@ namespace SushiBLAS
 
     sycl::event RandomOps::bernoulli(Tensor& t, double p)
     {
-        return Internal::execute_random(engine_, t, "random.bernoulli", "random.bernoulli"_op, {p},
+        return Dispatch::execute_random(engine_, t, "random.bernoulli", "random.bernoulli"_op, {p},
             [p](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (Internal::is_complex_v<T>)
+                if constexpr (Core::is_complex_v<T>)
                 {
                     SB_THROW_IF(true, "Unsupported data type for bernoulli operation.");
                     return sycl::event();

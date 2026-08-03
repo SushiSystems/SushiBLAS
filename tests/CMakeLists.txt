@@ -66,7 +66,13 @@ add_executable(sushiblas_tests
     functional/unit/test_distributions.cpp
     functional/unit/test_initializers.cpp
     functional/unit/test_normal.cpp
+    functional/unit/test_orthogonal.cpp
+    functional/unit/test_shuffle.cpp
     functional/unit/test_uniform.cpp
+
+    # --- Dispatch seam (the public SushiBLAS::Dispatch generic executors) ---
+    functional/unit/test_dispatch_complex.cpp
+    functional/unit/test_dispatch_seam.cpp
 
     # --- Elementwise ---
     functional/unit/test_abs.cpp

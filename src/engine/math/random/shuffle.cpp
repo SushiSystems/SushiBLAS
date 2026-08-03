@@ -21,43 +21,99 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
+#include <vector>
+#include <complex>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
+#include <SushiBLAS/engine/math/random/dispatch.hpp>
+#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
-#include "random_internal.hpp"
+#include <kernels/random.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event RandomOps::shuffle(Tensor& t) 
+    namespace
     {
-        auto op_id = "random.shuffle"_op;
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "random.shuffle";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = op_id;
+        // Fisher-Yates, sequential by necessity: each step's swap partner is drawn from a
+        // range that depends on the step index, so the permutation is only uniform if the
+        // steps happen in order. A single_task keeps that ordering on the device and leaves
+        // the tensor's data where it already is - the parallel alternative (tag every element
+        // with a random key and sort) needs a full second buffer and a device sort this
+        // library does not have.
+        //
+        // Instantiated per dtype rather than swapping raw bytes so that a std::complex<double>
+        // moves as one value, not as two halves that could tear.
+        template<typename T>
+        sycl::event shuffle_dispatch(sycl::queue& q, T* p, int64_t size, uint64_t seed, uint64_t offset,
+                                      const std::vector<sycl::event>& deps)
+        {
+            return q.submit([&](sycl::handler& h)
+            {
+                h.depends_on(deps);
+                h.single_task([=]()
+                {
+                    for (int64_t i = size - 1; i > 0; --i)
+                    {
+                        int64_t j = static_cast<int64_t>(Kernels::SYCL::Random::draw_index(
+                            seed, offset, static_cast<uint64_t>(i), static_cast<uint64_t>(i) + 1));
+
+                        T tmp = p[i];
+                        p[i] = p[j];
+                        p[j] = tmp;
+                    }
+                });
+            });
+        }
+    }
+
+    sycl::event RandomOps::shuffle(Tensor& t)
+    {
+        const char* name = "random.shuffle";
 
         const int64_t size = t.num_elements;
         void* ptr = t.storage ? t.storage->data_ptr : nullptr;
-        std::vector<void*> reads = {};
-        std::vector<void*> writes = {};
-        if (ptr) writes.push_back(ptr);
+
+        // Read-write, unlike the distributions: a shuffle permutes what is already there, so
+        // the task depends on whatever produced the contents, not only on prior writers.
+        std::vector<SushiRuntime::Core::ResourceRegion> rw = {};
+        if (ptr) rw.push_back(ptr);
+
+        SushiRuntime::Graph::TaskMetadata meta;
+        meta.name = name;
+        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.op_id = "random.shuffle"_op;
 
         const uint64_t seed = engine_.get_seed();
         const uint64_t offset = engine_.get_and_increment_rng_offset();
-        meta.set_param(10, seed);
-        meta.set_param(11, offset);
+        Dispatch::set_rng_params(meta, seed, offset);
 
-        engine_.get_graph().add_task(meta, reads, writes,
-            [size](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+        engine_.get_graph().add_task(meta, rw, rw,
+            [dtype = t.dtype, size, seed, offset, ptr, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
-                (void)q;
-                (void)deps;
-                SB_LOG_INFO("RandomOps: shuffle ({} elements) - TODO: Implement parallel shuffle", size);
-                // TODO: Implement parallel shuffle algorithm (e.g., using random keys and sorting).
-                return sycl::event();
+                SB_LOG_INFO("RandomOps: {} ({} elements, seed: {}, offset: {})", name, size, seed, offset);
+
+                switch (dtype)
+                {
+                    case Core::DataType::HALF:
+                        return shuffle_dispatch(q, static_cast<sycl::half*>(ptr), size, seed, offset, deps);
+                    case Core::DataType::FLOAT32:
+                        return shuffle_dispatch(q, static_cast<float*>(ptr), size, seed, offset, deps);
+                    case Core::DataType::FLOAT64:
+                        return shuffle_dispatch(q, static_cast<double*>(ptr), size, seed, offset, deps);
+                    case Core::DataType::COMPLEX32:
+                        return shuffle_dispatch(q, static_cast<std::complex<float>*>(ptr), size, seed, offset, deps);
+                    case Core::DataType::COMPLEX64:
+                        return shuffle_dispatch(q, static_cast<std::complex<double>*>(ptr), size, seed, offset, deps);
+                    default:
+                        SB_THROW_IF(true, "Operation '{}' received an unrecognized dtype ({}).",
+                                    name, static_cast<int>(dtype));
+                        return sycl::event();
+                }
             }
         );
 

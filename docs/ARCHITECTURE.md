@@ -126,7 +126,8 @@ Every BLAS-level op's `.cpp` file calls this once per dtype branch instead of
 hand-writing the triad — before `utils.hpp` existed, `gemm.cpp` and
 `syrk.cpp` each wrote out all three branches five times (once per `DataType`).
 Non-BLAS domains (elementwise, nonlinear, logic, reductions, random) follow
-the same pattern inline in their own `*_internal.hpp` dispatch helpers.
+the same pattern inline in their own `SushiBLAS::Dispatch` helpers under
+`include/SushiBLAS/engine/**/dispatch.hpp`.
 
 ---
 
@@ -258,10 +259,21 @@ Every operation has exactly two kernel implementations:
 `<category>` today is `blas/{level1,level2,level3}` and `random` (the Philox
 PRNG backend, `kernels/sycl/random/philox.hpp`). The non-BLAS math domains
 (elementwise, nonlinear, logic, reductions) keep their kernels inline in
-`engine/math/*_internal.hpp` / `engine/logic/logic_internal.hpp` rather than
-under `kernels/`, since each op there is a short templated lambda rather than
-a multi-case tiling kernel — the reference/SYCL split is the same, just
-colocated with the dispatch code instead of factored out.
+`include/SushiBLAS/engine/math/*/dispatch.hpp` and
+`include/SushiBLAS/engine/logic/dispatch.hpp` rather than under `kernels/`,
+since each op there is a short templated lambda rather than a multi-case
+tiling kernel — the reference/SYCL split is the same, just colocated with the
+dispatch code instead of factored out.
+
+Those five headers are public API, not implementation detail: `execute_binary`,
+`execute_unary_inplace`, `execute_nonlinear_forward` / `_backward`,
+`execute_logic_unary` / `_binary` / `_ternary`, `execute_reduction` and
+`execute_random` all live in `namespace SushiBLAS::Dispatch` and are installed.
+A downstream framework composes several math ops into one functor, hands it to
+one `execute_*` call, and gets a single fused SYCL kernel — the reason the
+seam exists, and the reason "the consumer never writes SYCL itself" stays
+true. See `include/SushiBLAS/engine/dispatch.hpp` for the shared vocabulary
+(`Domain`) and the constraints a device-inlined functor has to satisfy.
 
 ### Notable kernel designs
 

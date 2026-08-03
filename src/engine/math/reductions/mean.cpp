@@ -21,11 +21,13 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#include "red_internal.hpp"
+#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 #include <SushiBLAS/engine/math/reductions.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event ReductionOps::mean(const Tensor& t, Tensor& result) 
     {
         auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
@@ -47,6 +49,6 @@ namespace SushiBLAS
                 });
             });
         };
-        return Internal::execute_reduction(engine_, t, result, "math.mean", "math.mean"_op, dispatch);
+        return Dispatch::execute_reduction(engine_, t, result, "math.mean", "math.mean"_op, dispatch);
     }
 } // namespace SushiBLAS

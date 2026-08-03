@@ -26,7 +26,7 @@
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 #include <kernels/random.hpp>
-#include "random_internal.hpp"
+#include <SushiBLAS/engine/math/random/dispatch.hpp>
 
 namespace SushiBLAS
 {
@@ -34,12 +34,12 @@ namespace SushiBLAS
 
     sycl::event RandomOps::uniform(Tensor& t, double min, double max)
     {
-        return Internal::execute_random(engine_, t, "random.uniform", "random.uniform"_op, {min, max},
+        return Dispatch::execute_random(engine_, t, "random.uniform", "random.uniform"_op, {min, max},
             [min, max](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
-                if constexpr (Internal::is_complex_v<T>)
+                if constexpr (Core::is_complex_v<T>)
                 {
                     using RealT = typename T::value_type;
                     RealT lo = static_cast<RealT>(min), hi = static_cast<RealT>(max);

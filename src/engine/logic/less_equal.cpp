@@ -22,13 +22,15 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/logic/logic.hpp>
-#include "logic_internal.hpp"
+#include <SushiBLAS/engine/logic/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event LogicOps::less_equal(const Tensor& A, const Tensor& B, Tensor& result) 
     {
-        return Internal::execute_logic_binary(engine_, A, B, result, "logic.less_equal", "logic.less_equal"_op, 
-            [](auto x, auto y) { return Internal::logic_less_equal(x, y) ? decltype(x)(1) : decltype(x)(0); });
+        return Dispatch::execute_logic_binary(engine_, A, B, result, "logic.less_equal", "logic.less_equal"_op, 
+            [](auto x, auto y) { return Dispatch::logic_less_equal(x, y) ? decltype(x)(1) : decltype(x)(0); });
     }
 } // namespace SushiBLAS

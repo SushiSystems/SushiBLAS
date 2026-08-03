@@ -22,13 +22,15 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/math/elementwise.hpp>
-#include "ew_internal.hpp"
+#include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event ElementwiseOps::exp(Tensor& t) 
     {
-        return Internal::execute_unary_inplace(engine_, t, "math.ew.exp", "math.ew.exp"_op, 
-            [](auto x) { return sycl::exp(x); });
+        return Dispatch::execute_unary_inplace<Dispatch::Domain::REAL_AND_COMPLEX>(engine_, t, "math.ew.exp", "math.ew.exp"_op, 
+            [](auto x) { return Dispatch::safe_exp(x); });
     }
 } // namespace SushiBLAS

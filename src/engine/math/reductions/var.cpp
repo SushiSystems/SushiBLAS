@@ -22,10 +22,12 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/math/reductions.hpp>
-#include "red_internal.hpp"
+#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event ReductionOps::var(const Tensor& t, Tensor& result) 
     {
         // TODO: Implement a parallel reduction (e.g. Chan et al. algorithm) for variance to replace single_task.
@@ -51,6 +53,6 @@ namespace SushiBLAS
                 });
             });
         };
-        return Internal::execute_reduction(engine_, t, result, "math.var", "math.var"_op, dispatch);
+        return Dispatch::execute_reduction(engine_, t, result, "math.var", "math.var"_op, dispatch);
     }
 } // namespace SushiBLAS

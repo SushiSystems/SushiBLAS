@@ -22,21 +22,23 @@
 /**************************************************************************/
 
 #include <SushiBLAS/engine/math/nonlinear.hpp>
-#include "nonlinear_internal.hpp"
+#include <SushiBLAS/engine/math/nonlinear/dispatch.hpp>
 
 namespace SushiBLAS 
 {
+    using namespace SushiRuntime::Graph::Literals;
+
     sycl::event NonLinearOps::elu(Tensor& t, float alpha) 
     {
-        return Internal::execute_nonlinear_forward(engine_, t, "math.nonlinear.elu", "math.nonlinear.elu"_op, 
-            [alpha](auto x) { return Internal::greater_than_zero(x) ? x : decltype(x)(alpha) * (Internal::safe_exp(x) - decltype(x)(1)); },
+        return Dispatch::execute_nonlinear_forward(engine_, t, "math.nonlinear.elu", "math.nonlinear.elu"_op, 
+            [alpha](auto x) { return Dispatch::greater_than_zero(x) ? x : decltype(x)(alpha) * (Dispatch::safe_exp(x) - decltype(x)(1)); },
             {alpha});
     }
 
     sycl::event NonLinearOps::elu_backward(const Tensor& dy, const Tensor& x, Tensor& dx, float alpha)
     {
-        return Internal::execute_nonlinear_backward(engine_, dy, x, dx, "math.nonlinear.elu_backward", "math.nonlinear.elu_backward"_op, 
-            [alpha](auto pdy, auto px) { return pdy * (Internal::greater_than_zero(px) ? decltype(px)(1) : decltype(px)(alpha) * Internal::safe_exp(px)); },
+        return Dispatch::execute_nonlinear_backward(engine_, dy, x, dx, "math.nonlinear.elu_backward", "math.nonlinear.elu_backward"_op, 
+            [alpha](auto pdy, auto px) { return pdy * (Dispatch::greater_than_zero(px) ? decltype(px)(1) : decltype(px)(alpha) * Dispatch::safe_exp(px)); },
             {alpha});
     }
 } // namespace SushiBLAS
