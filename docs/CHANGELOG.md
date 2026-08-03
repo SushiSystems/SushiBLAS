@@ -15,27 +15,26 @@ history of *why* the codebase looks the way it does isn't lost. See
 ## [Unreleased]
 
 ### Known issues
-- ~~**Unresolved Release-mode test compile failure (found 2026-08-02, not yet
-  diagnosed).**~~ Not reproducible as of 2026-08-03: a clean `sb build --type
-  release` in this repo compiles all three named files (`test_constant.cpp`,
-  `test_leaky_relu.cpp`, `test_gelu.cpp`) under `-O3 -DNDEBUG -Werror` with no
-  diagnostics, and the full suite is green. Left recorded here rather than
-  deleted because the original failure was observed from the *sushiai* side
-  (`sa build`), which was not re-run — if it returns, it is a cross-repo
-  configuration difference, not these files. Original report follows.
-- **Unresolved Release-mode test compile failure (found 2026-08-02, not yet
-  diagnosed).** A `sa build --type release` run from the sushiai repo (which
-  builds this repo as a sibling) reached `[153/219]` and failed to compile
-  three existing test files — `tests/functional/unit/test_constant.cpp`,
-  `test_leaky_relu.cpp`, and `test_gelu.cpp` — under `-O3 -DNDEBUG`. The
-  captured build log only retained the `FAILED:` marker lines and the full
-  `clang++` invocation for each, not the actual `error:` diagnostic text, and
-  no build has been re-run since to capture it (builds were paused this
-  session). These three files build fine in the Debug-ish configurations this
-  repo's own `sb test` has been run under elsewhere in this changelog — this
-  looks Release/`-DNDEBUG`-specific. **Next step:** re-run `sb build --type
-  release` (or `sa build --type release` from sushiai) with full output
-  captured and read the actual compiler diagnostic.
+None open.
+
+#### Closed
+- **Release-mode test compile failure (reported 2026-08-02) — not reproducible,
+  closed 2026-08-03.** The original report was a `sa build --type release` from
+  the sushiai repo (which builds this one as a sibling) that reached
+  `[153/219]` and failed on `tests/functional/unit/test_constant.cpp`,
+  `test_leaky_relu.cpp` and `test_gelu.cpp` under `-O3 -DNDEBUG`. The captured
+  log had kept only the `FAILED:` markers and the `clang++` invocations, not
+  the diagnostics, so there was nothing to diagnose from.
+
+  Both sides have since been re-run with full output. `sb build --type release`
+  here compiles all three under `-O3 -DNDEBUG -Werror` with no diagnostics and
+  the suite is green at 182/182. `sa build --type release` from sushiai reaches
+  208/208 with those same three files compiling clean at steps 133, 138 and
+  140, and `sa test --suite all` passes 155/155. So it was neither these files
+  nor a cross-repo configuration difference. The likeliest explanation is a
+  stale build tree at the time of the original run, which the reconfigure has
+  replaced. Kept on record rather than deleted so a recurrence is recognised as
+  a repeat rather than filed as a new bug.
 
 ### Added
 - **The op-dispatch seam is public API (`namespace SushiBLAS::Dispatch`).** The
