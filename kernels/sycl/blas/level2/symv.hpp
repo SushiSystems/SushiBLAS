@@ -28,6 +28,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/engine/launch_1d.hpp>
 
 namespace SushiBLAS
 {
@@ -38,6 +39,10 @@ namespace SushiBLAS
             /**
             * @brief SYMV: y = alpha*A*x + beta*y, A symmetric, only the requested
             * triangle physically read. One work-item per output element.
+            *
+            * Same launch shape and the same reasoning as `gemv` above: `Launch::indexed`
+            * for the device-dependent grid, and not `Launch::map` because each output is
+            * a reduction over a row rather than a function of one input element.
             */
             template<typename T>
             [[nodiscard]] sycl::event symv(sycl::queue& queue, Core::Layout layout, bool upper,
@@ -50,9 +55,9 @@ namespace SushiBLAS
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    h.parallel_for(sycl::range<1>(static_cast<size_t>(n)), [=](sycl::id<1> idx)
+                    Launch::indexed(h, queue, static_cast<size_t>(n), [=](size_t k)
                     {
-                        int64_t i = idx[0];
+                        const int64_t i = static_cast<int64_t>(k);
                         auto A_at = [=](int64_t r, int64_t c) -> T
                         {
                             return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];

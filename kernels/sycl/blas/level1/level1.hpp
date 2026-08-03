@@ -27,6 +27,17 @@
 // Level 1 vectors are small relative to Level 3 workloads in this library,
 // so a tree reduction isn't worth the complexity yet (can revisit if a
 // profiling need for large-vector Level 1 reductions ever shows up).
+//
+// The parallel ops launch through `Launch::indexed` rather than a bare
+// `sycl::range<1>`, so they get the same device-dependent geometry as every
+// elementwise op - flat on a CPU, grid-stride on a GPU. `Launch::map` would
+// additionally give them the 128-bit wide path, but it addresses its operands
+// as `in[i]`, and a Level 1 kernel's contract is `x[i * incx]`: the increments
+// are part of the BLAS signature, so the access pattern is not the contiguous
+// one `map` assumes. Specialising each kernel on `incx == incy == 1` to reach
+// the wide path is a worthwhile follow-up, not something to write blind - the
+// wide path only ever engages on a GPU, and this project has no GPU device to
+// measure it on today.
 
 #pragma once
 
@@ -34,8 +45,11 @@
 #include <cstdint>
 #include <vector>
 #include <sycl/sycl.hpp>
-#include <kernels/reference/blas/level1/level1.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/core/traits.hpp>
+#include <SushiBLAS/engine/launch_1d.hpp>
+#include <SushiBLAS/engine/reduce_1d.hpp>
+#include <kernels/reference/blas/level1/level1.hpp>
 
 namespace SushiBLAS
 {
@@ -49,9 +63,9 @@ namespace SushiBLAS
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    h.parallel_for(sycl::range<1>(static_cast<size_t>(n)), [=](sycl::id<1> idx)
+                    Launch::indexed(h, queue, static_cast<size_t>(n), [=](size_t k)
                     {
-                        int64_t i = idx[0];
+                        const int64_t i = static_cast<int64_t>(k);
                         y[i * incy] += alpha * x[i * incx];
                     });
                 });
@@ -63,9 +77,9 @@ namespace SushiBLAS
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    h.parallel_for(sycl::range<1>(static_cast<size_t>(n)), [=](sycl::id<1> idx)
+                    Launch::indexed(h, queue, static_cast<size_t>(n), [=](size_t k)
                     {
-                        int64_t i = idx[0];
+                        const int64_t i = static_cast<int64_t>(k);
                         y[i * incy] = x[i * incx];
                     });
                 });
@@ -77,9 +91,9 @@ namespace SushiBLAS
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    h.parallel_for(sycl::range<1>(static_cast<size_t>(n)), [=](sycl::id<1> idx)
+                    Launch::indexed(h, queue, static_cast<size_t>(n), [=](size_t k)
                     {
-                        int64_t i = idx[0];
+                        const int64_t i = static_cast<int64_t>(k);
                         x[i * incx] *= alpha;
                     });
                 });
@@ -91,9 +105,9 @@ namespace SushiBLAS
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    h.parallel_for(sycl::range<1>(static_cast<size_t>(n)), [=](sycl::id<1> idx)
+                    Launch::indexed(h, queue, static_cast<size_t>(n), [=](size_t k)
                     {
-                        int64_t i = idx[0];
+                        const int64_t i = static_cast<int64_t>(k);
                         T tmp = x[i * incx];
                         x[i * incx] = y[i * incy];
                         y[i * incy] = tmp;
@@ -109,9 +123,9 @@ namespace SushiBLAS
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    h.parallel_for(sycl::range<1>(static_cast<size_t>(n)), [=](sycl::id<1> idx)
+                    Launch::indexed(h, queue, static_cast<size_t>(n), [=](size_t k)
                     {
-                        int64_t i = idx[0];
+                        const int64_t i = static_cast<int64_t>(k);
                         T xi = x[i * incx];
                         T yi = y[i * incy];
                         x[i * incx] = c * xi + s * yi;
@@ -135,21 +149,40 @@ namespace SushiBLAS
                 });
             }
 
+            // The scaling 2-norm, through the library's own accumulator rather than a
+            // second copy of the algorithm - see Reduce::ScaledSumOfSquares for what it
+            // does and why `sqrt(sum(x*x))`, which is what this used to be, is wrong at
+            // both ends of the range. The reference kernel next door deliberately spells
+            // the same mathematics a different way; see the comment there.
+            //
+            // A complex element folds as two reals. `abs1` (|Re| + |Im|) is the magnitude
+            // xASUM and IxAMAX are defined on, not the one a 2-norm needs, and using it
+            // here was a plain wrong answer for complex input.
             template<typename T>
             [[nodiscard]] sycl::event nrm2(sycl::queue& queue, int64_t n, const T* x, int64_t incx, typename Reference::RealOf<T>::type* result, const std::vector<sycl::event>& deps)
             {
+                using R = typename Reference::RealOf<T>::type;
+
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
                     h.single_task([=]()
                     {
-                        typename Reference::RealOf<T>::type sum(0);
+                        Reduce::ScaledSumOfSquares<R> acc;
                         for (int64_t i = 0; i < n; ++i)
                         {
-                            auto v = Reference::abs1(x[i * incx]);
-                            sum += v * v;
+                            const T v = x[i * incx];
+                            if constexpr (Core::is_complex_v<T>)
+                            {
+                                acc.accumulate(v.real());
+                                acc.accumulate(v.imag());
+                            }
+                            else
+                            {
+                                acc.accumulate(v);
+                            }
                         }
-                        *result = sycl::sqrt(sum);
+                        *result = acc.value();
                     });
                 });
             }

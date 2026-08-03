@@ -76,6 +76,10 @@ add_executable(sushiblas_tests
 
     # --- Tensor views (every op family against a non-zero storage_offset) ---
     functional/unit/test_storage_offset.cpp
+    functional/unit/test_tensor_view.cpp
+
+    # --- Element types (which ops serve INT32/INT64, and which refuse them) ---
+    functional/unit/test_integer_dtypes.cpp
 
     # --- Elementwise ---
     functional/unit/test_abs.cpp

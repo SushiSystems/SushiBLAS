@@ -28,18 +28,16 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    // Square the elements going in, take the root coming out. Like `mean`, the
-    // finalizer folds into the last kernel instead of costing a second launch.
-    //
-    // Still the naive 2-norm rather than the scaling one BLAS's xNRM2 specifies:
-    // squaring overflows for inputs above ~1e19 in fp64 and ~1e19 in fp32 where the
-    // scaled form would not. That is pre-existing and out of scope here; the
-    // compensated fold makes the *summation* accurate, not the squaring safe.
+    // The scaling 2-norm BLAS's xNRM2 specifies, not the naive `sqrt(sum(x*x))` this
+    // used to be. There is no transform and no finalizer any more, because the
+    // squaring and the square root are both things that have to happen *inside* a
+    // running scale to be safe - see Reduce::ScaledSumOfSquares for the algorithm and
+    // for why the accumulator, not the transform, is where this belongs. Still one
+    // launch on the single-pass shape and two on the two-stage one, exactly as before.
     sycl::event ReductionOps::nrm2(const Tensor& t, Tensor& result)
     {
-        return Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(
+        return Dispatch::execute_folding_reduction<Reduce::ScaledSumOfSquares>(
             engine_, t, result, "math.nrm2", "math.nrm2"_op,
-            [](auto x) { return x * x; },
-            [](auto value, [[maybe_unused]] std::size_t n) { return sycl::sqrt(value); });
+            Dispatch::ReduceIdentityTransform{}, Dispatch::ReduceIdentityFinalize{});
     }
 } // namespace SushiBLAS

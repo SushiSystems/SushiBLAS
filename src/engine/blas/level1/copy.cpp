@@ -57,7 +57,11 @@ namespace SushiBLAS
 
         auto mode = engine_.get_mode();
 
-        return Internal::execute_blas_task(engine_, meta, reads, writes, x.dtype,
+        // Domain::ALL, uniquely among the BLAS ops. `copy` moves elements; it does no
+        // arithmetic to them, so there is no element type it cannot serve - including the
+        // integer ones, which is what lets an index tensor produced by iamax or argmax be
+        // moved without laundering it through a float.
+        return Internal::execute_blas_task<Dispatch::Domain::ALL>(engine_, meta, reads, writes, x.dtype,
             [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);

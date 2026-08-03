@@ -140,7 +140,15 @@ namespace SushiBLAS
         else if (t.dtype == Core::DataType::FLOAT64) dict += "<f8";
         else if (t.dtype == Core::DataType::COMPLEX32) dict += "<c8";
         else if (t.dtype == Core::DataType::COMPLEX64) dict += "<c16";
-        
+        else if (t.dtype == Core::DataType::HALF) dict += "<f2";
+        else if (t.dtype == Core::DataType::INT32) dict += "<i4";
+        else if (t.dtype == Core::DataType::INT64) dict += "<i8";
+        // Every dtype now names itself. The chain used to fall through silently for HALF,
+        // writing a header with an empty 'descr' and a payload numpy could not read - a
+        // corrupt file with no error at either end. Anything unrecognised says so instead.
+        else SB_THROW_IF(true, "Cannot write a .npy header for dtype {}.", Core::to_string(t.dtype));
+
+
         dict += "', 'fortran_order': ";
         dict += (t.layout == Core::Layout::COLUMN_MAJOR) ? "True" : "False";
         dict += ", 'shape': (";
@@ -252,6 +260,13 @@ namespace SushiBLAS
                 double* c_ptr = reinterpret_cast<double*>(host_buf.data()) + (i * 2);
                 host_data[i] = {static_cast<float>(c_ptr[0]), static_cast<float>(c_ptr[1])};
             }
+            // Printed through the same float pipeline as everything else, which is lossy
+            // past 2^24 for INT32 and 2^53 for INT64. Acceptable for a human-readable dump
+            // and only there - `save_npy` above writes the raw bytes, so nothing round-trips
+            // through this.
+            else if (t.dtype == Core::DataType::INT32) host_data[i] = {static_cast<float>(reinterpret_cast<int32_t*>(host_buf.data())[i]), 0.0f};
+            else if (t.dtype == Core::DataType::INT64) host_data[i] = {static_cast<float>(reinterpret_cast<int64_t*>(host_buf.data())[i]), 0.0f};
+            else SB_THROW_IF(true, "Cannot render a tensor of dtype {} as text.", Core::to_string(t.dtype));
         }
 
         std::stringstream ss;
@@ -267,6 +282,8 @@ namespace SushiBLAS
         else if (t.dtype == Core::DataType::FLOAT64) ss << "f64";
         else if (t.dtype == Core::DataType::COMPLEX32) ss << "c32";
         else if (t.dtype == Core::DataType::COMPLEX64) ss << "c64";
+        else if (t.dtype == Core::DataType::INT32) ss << "i32";
+        else if (t.dtype == Core::DataType::INT64) ss << "i64";
 
         ss << "):" << std::endl;
         ss << std::fixed << std::setprecision(precision);

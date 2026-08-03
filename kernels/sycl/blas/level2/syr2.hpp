@@ -38,6 +38,9 @@ namespace SushiBLAS
             /**
             * @brief SYR2: A += alpha*(x*y^T + y*x^T), only the requested triangle
             * written. One work-item per output element within the triangle.
+            *
+            * A `sycl::range<2>`, for the same reason as `syr.hpp` and `ger.hpp`: a
+            * two-dimensional index that `launch_1d.hpp` has no geometry for.
             */
             template<typename T>
             [[nodiscard]] sycl::event syr2(sycl::queue& queue, Core::Layout layout, bool upper,

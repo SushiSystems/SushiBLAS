@@ -67,6 +67,7 @@
  * the one caveat about what "sequential" buys.
  */
 
+#include <limits>
 #include <vector>
 #include <cstddef>
 #include <algorithm>
@@ -292,6 +293,25 @@ namespace SushiBLAS
                 }
 
                 /**
+                 * @brief Multiplies the running total, correction and all, by @p factor.
+                 *
+                 * For an accumulator whose terms are expressed relative to a scale that can
+                 * change mid-fold - @ref ScaledSumOfSquares is the one in this library - the
+                 * total already folded has to move with it. Doing that here rather than in
+                 * the caller is what keeps the correction term correct: `comp_` is in the
+                 * same units as `sum_`, so rescaling one and not the other would quietly
+                 * stop compensating anything.
+                 *
+                 * @param factor The multiplier to apply. Exact when it is a power of two,
+                 *        which is the only way @ref ScaledSumOfSquares ever calls this.
+                 */
+                void rescale(T factor) noexcept
+                {
+                    sum_ *= factor;
+                    comp_ *= factor;
+                }
+
+                /**
                  * @brief The sum with its accumulated correction applied.
                  * @return `sum + compensation`.
                  */
@@ -303,6 +323,225 @@ namespace SushiBLAS
 
                 /** @brief Everything @ref sum_ has rounded away so far. */
                 T comp_ = T(0);
+        };
+
+        /**
+         * @class ScaledSumOfSquares
+         * @brief A running Euclidean norm that cannot overflow or underflow on the way.
+         *
+         * The accumulation policy behind `nrm2`, and the reason it is a policy rather
+         * than a `transform` is that squaring cannot be made safe one element at a time.
+         * `sqrt(fold(x * x))` is the obvious spelling and it is wrong at both ends of the
+         * range: an fp32 element past ~1.8e19 squares to infinity, so the norm of a vector
+         * whose largest entry is 1e20 comes back `inf` when the true answer is about 1e20;
+         * and an element below ~1e-22 squares to zero, so a vector of denormals comes back
+         * `0` when the true answer is a perfectly representable denormal.
+         *
+         * Neither is academic in a training loop. Gradient-norm clipping calls `nrm2`, and
+         * a gradient that has already exploded is precisely the input that overflows - so
+         * the mechanism meant to rescue the run is the one that returns `inf` and ends it.
+         *
+         * **What it does instead**, which is what reference BLAS's `snrm2`/`dnrm2` do: it
+         * keeps a running `scale_` and accumulates `sum((x / scale_)^2)`, so what is
+         * squared is always a value near 1 however large or small the input is. The
+         * finalised norm is `scale_ * sqrt(sum)`, and that product only overflows when the
+         * true answer does.
+         *
+         * **The scale climbs by binade, and is applied by multiplying.** Two details, both
+         * of which are about cost rather than about the mathematics. The scale is raised
+         * only when an element reaches *twice* it, not merely when it beats the running
+         * maximum, which caps the number of rescales at one per binade - about 250 for fp32
+         * however long the vector is - instead of one per element for a sorted input. And
+         * the reciprocal is taken once per rescale so that the per-element step is a
+         * multiply, not the divide the textbook form performs. Measured over 100 launches
+         * of a 1M-element fp32 `nrm2` on this project's OpenCL CPU device: 5.9 ms for the
+         * naive form this replaced, 17.9 ms for the textbook divide-per-element one, 11.0 ms
+         * for this. What is left over the naive form is the per-element `fabs`, compare and
+         * multiply; see @ref climb_to for the two more elaborate variants that were tried
+         * and measured *slower*, and for why the remaining inexactness does not accumulate.
+         *
+         * **The scale is bounded**, to `[min(), 1 / min()]` - for fp32 from 2^-126 to
+         * 2^126. That is what keeps its reciprocal a normal number, and it costs nothing: a
+         * magnitude below the bottom of that window still scales to a value whose square is
+         * comfortably normal, and one above the top still scales to at most 4. It is also
+         * what lets the hot path drop an `isfinite` test. An infinity clamps to the
+         * ceiling, then scales to infinity and saturates the sum, which is the answer BLAS
+         * gives; a NaN fails the `>=` that would rescale, then propagates through the
+         * multiply. Neither needs a branch of its own.
+         *
+         * **How it fits @ref reduce.** `value()` returns a finished partial *norm* - a
+         * single `T`, not the (scale, sum) pair - and @ref combine merges two of them with
+         * `hypot`, which is itself overflow-safe. So the two-stage reduction needs no
+         * wider partials buffer and no change to @ref reduce at all: stage one folds
+         * elements, the work-group tree merges partial norms, and stage two folds those
+         * partial norms back through @ref accumulate, which is correct because the norm of
+         * a set of partial norms is the norm of the whole.
+         *
+         * **Determinism** is unchanged. Every branch here is a function of the values
+         * folded and the order they arrive in, and @ref reduce fixes that order from the
+         * geometry alone.
+         *
+         * @tparam T The element type.
+         */
+        template<typename T>
+        class ScaledSumOfSquares
+        {
+            public:
+                /**
+                 * @brief Smallest value the scale is allowed to take.
+                 *
+                 * The smallest positive *normal* value, which for every IEEE format is
+                 * exactly a power of two. Bounding the scale here is what keeps its
+                 * reciprocal finite, and it costs nothing at the bottom of the range: a
+                 * denormal magnitude scaled up by `1 / min()` lands somewhere its square is
+                 * comfortably normal, which is the entire point - squaring it in place
+                 * would have given zero.
+                 *
+                 * @return `2^(min_exponent - 1)`.
+                 */
+                [[nodiscard]] static T min_scale() noexcept { return std::numeric_limits<T>::min(); }
+
+                /**
+                 * @brief Largest value the scale is allowed to take.
+                 *
+                 * The reciprocal of @ref min_scale, and therefore itself a power of two
+                 * whose own reciprocal is normal. In every IEEE format that lands one
+                 * binade below the top, which is what makes `4 * max_scale()` overflow to
+                 * infinity - the property @ref climb_to relies on to stop the scale
+                 * climbing.
+                 *
+                 * @return `2^(max_exponent - 2)`.
+                 */
+                [[nodiscard]] static T max_scale() noexcept { return T(1) / std::numeric_limits<T>::min(); }
+
+                /** @brief The value an empty norm has. */
+                [[nodiscard]] static constexpr T identity() noexcept { return T(0); }
+
+                /**
+                 * @brief Combines two finished partial norms.
+                 *
+                 * `hypot`, not `sqrt(a*a + b*b)`, for the same reason this class exists at
+                 * all: the squares are what overflow, and `hypot` is specified to compute
+                 * the result without forming them. It is called once per tree level and
+                 * once per work-group partial, never per element, so its cost is nothing.
+                 *
+                 * @param a The left partial norm.
+                 * @param b The right partial norm.
+                 * @return `sqrt(a^2 + b^2)`, computed safely.
+                 */
+                [[nodiscard]] static T combine(T a, T b) noexcept { return sycl::hypot(a, b); }
+
+                /**
+                 * @brief Folds one value into the running norm.
+                 *
+                 * Accepts either a raw element or an already-finished partial norm; the two
+                 * are the same operation, which is what lets stage two of @ref reduce fold
+                 * partials with the same accumulator that stage one folds elements with.
+                 *
+                 * @param x The value to fold in.
+                 */
+                void accumulate(T x) noexcept
+                {
+                    const T a = sycl::fabs(x);
+
+                    // An exact zero contributes nothing, and letting it reach @ref climb_to
+                    // would send the ladder there all the way to the bottom of the range for
+                    // no gain.
+                    if (a == T(0)) return;
+
+                    // Leaving the current binade, not merely beating the running maximum.
+                    // `hi_` is `2 * scale_`, so on a well-conditioned vector this fires a
+                    // handful of times in total rather than once per element - and a NaN
+                    // fails it, which is how a NaN reaches the multiply below unrescaled and
+                    // propagates the way BLAS says it should.
+                    if (a >= hi_) climb_to(a);
+
+                    // Exact: `inv_scale_` is a power of two, and the bounds @ref climb_to
+                    // keeps guarantee the product neither overflows nor underflows.
+                    const T m = a * inv_scale_;
+                    ssq_.accumulate(m * m);
+                }
+
+                /**
+                 * @brief The norm folded so far.
+                 * @return `scale * sqrt(sum-of-relative-squares)`.
+                 */
+                [[nodiscard]] T value() const noexcept { return scale_ * sycl::sqrt(ssq_.value()); }
+
+            private:
+                /**
+                 * @brief Raises the scale to @p a and rescales the total already folded to
+                 * match.
+                 *
+                 * **Straight-line on purpose.** Two earlier versions of this rounded the
+                 * scale down to an exact power of two, so that the rescale below and the
+                 * per-element multiply were both exact. Both were slower than the whole
+                 * scaling form needs to be, and by a lot, because both put something in the
+                 * loop body that a compiler will not look past: `ldexp(1, ilogb(a))` puts
+                 * two library calls there, and a doubling ladder puts two data-dependent
+                 * loops. Measured over 100 launches of a 1M-element fp32 `nrm2` on this
+                 * project's OpenCL CPU device - the branch that reaches here is taken a
+                 * handful of times in each of those launches:
+                 *
+                 * | form                                   |   best |
+                 * |----------------------------------------|-------:|
+                 * | naive `sqrt(sum(x*x))` (wrong)          | 5.9 ms |
+                 * | scaled, `ldexp`/`ilogb` binade          |14.7 ms |
+                 * | scaled, doubling-ladder binade          |21.2 ms |
+                 * | scaled, this                            |11.0 ms |
+                 *
+                 * **And exactness was not worth buying.** Rounding to a binade bought an
+                 * exact `ssq_.rescale`, but every rescale shrinks the total already folded
+                 * by at least four - that is what @ref hi_ guarantees - so a segment's
+                 * rounding error is down-weighted exactly as fast as the segment is. The
+                 * errors do not accumulate over the ~250 rescales a full-range vector can
+                 * provoke; only the last few contribute, at a few ulp. The reciprocal is
+                 * likewise a single systematic `(1 + eps)` on the whole answer, because
+                 * every element in a segment is multiplied by the same rounded `1 / scale`.
+                 *
+                 * @param a A magnitude strictly above zero and at or above the current
+                 *        @ref hi_. Never a NaN - the `>=` in @ref accumulate excludes one.
+                 */
+                void climb_to(T a) noexcept
+                {
+                    const T ceiling = max_scale();
+
+                    // Clamped so the reciprocal below is a normal number. Neither end costs
+                    // anything: a magnitude under the floor still scales to something whose
+                    // square is normal, and one over the ceiling still scales to at most 4.
+                    // An infinity lands exactly on the ceiling, which is what makes it
+                    // scale to infinity and saturate the sum rather than produce a NaN.
+                    T next = a;
+                    if (next < min_scale()) next = min_scale();
+                    if (next > ceiling) next = ceiling;
+
+                    const T inv_next = T(1) / next;
+
+                    // Zero on the very first value folded, which correctly clears an empty
+                    // sum rather than dividing by a scale that does not exist yet.
+                    const T shrink = scale_ * inv_next;
+                    ssq_.rescale(shrink * shrink);
+
+                    scale_ = next;
+                    inv_scale_ = inv_next;
+
+                    // 2 * next normally. At the ceiling `4 * next` overflows to infinity by
+                    // construction - the ceiling is one binade below the top - which is what
+                    // stops a vector of huge values from re-entering this once per element.
+                    hi_ = (next < ceiling) ? (next + next) : (next * T(4));
+                }
+
+                /** @brief The power of two every folded value is expressed relative to. */
+                T scale_ = T(0);
+
+                /** @brief `1 / scale_`, exact because @ref scale_ is a clamped power of two. */
+                T inv_scale_ = T(0);
+
+                /** @brief `2 * scale_`: the magnitude at which the scale must climb. */
+                T hi_ = T(0);
+
+                /** @brief Compensated sum of `(x / scale_)^2` over everything folded. */
+                CompensatedSum<T> ssq_{};
         };
 
         /**

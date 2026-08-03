@@ -72,12 +72,13 @@ namespace SushiBLAS
          *
          * @tparam Dom Which element types to instantiate @p op_func for, in exactly the sense
          *         `Dispatch::Domain` defines for the math and logic families. It defaults to
-         *         REAL_AND_COMPLEX because that is what every built-in BLAS op wants and has
-         *         always had; the parameter exists for `Dispatch::execute_gemm`, whose
-         *         functor is written by the *caller* and is therefore no more likely to be
-         *         well-formed for `std::complex` than an elementwise lambda is. Without it,
-         *         a consumer's real-only GEMM epilogue is a compile error in the two arms
-         *         that will never run.
+         *         REAL_AND_COMPLEX because that is what every built-in BLAS *arithmetic* op
+         *         wants and has always had; the parameter exists for `Dispatch::execute_gemm`,
+         *         whose functor is written by the *caller* and is therefore no more likely to
+         *         be well-formed for `std::complex` than an elementwise lambda is, and for
+         *         `copy`, which moves elements without doing arithmetic to them and so passes
+         *         Domain::ALL. Without it, a consumer's real-only GEMM epilogue is a compile
+         *         error in the two arms that will never run.
          * @tparam Func The functor type, deduced.
          * @param engine The engine whose task graph the op is recorded on.
          * @param meta The task metadata to record.
@@ -87,6 +88,7 @@ namespace SushiBLAS
          * @param op_func A callable `(auto scalar_type, sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`,
          * generic over the runtime dtype via `decltype(scalar_type)`.
          * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
+         * @throws std::runtime_error at record time if @p dtype falls outside @p Dom.
          */
         template<Dispatch::Domain Dom = Dispatch::Domain::REAL_AND_COMPLEX, typename Func>
         sycl::event execute_blas_task(Engine& engine, const SushiRuntime::Graph::TaskMetadata& meta,
@@ -94,9 +96,22 @@ namespace SushiBLAS
                                        const std::vector<SushiRuntime::Core::ResourceRegion>& writes,
                                        Core::DataType dtype, Func&& op_func)
         {
+            Dispatch::require_domain<Dom>(dtype, "BLAS operation", meta.name);
+
             engine.get_graph().add_task(meta, reads, writes,
                 [dtype, op_func, name = meta.name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
+                    // Spelled out rather than routed through Dispatch::with_element_type,
+                    // which is what the elementwise, non-linear and logic families use.
+                    // Two reasons, and the second is the binding one. `op_func` deduces its
+                    // element type from a *value* it is passed (`decltype(scalar_type)`),
+                    // not from an explicit template argument, so it does not fit that
+                    // helper's nullary-arm shape; and wrapping it to fit - a templated
+                    // lambda, inside this lambda, inside this template - crashes this
+                    // project's clang outright (a null-dereference during instantiation of
+                    // the HALF arm, under -fdelayed-template-parsing). Seven arms here, the
+                    // same seven and the same domain rule as with_element_type, kept in step
+                    // by hand until that compiler bug is gone.
                     switch (dtype)
                     {
                         case Core::DataType::HALF:
@@ -106,20 +121,28 @@ namespace SushiBLAS
                         case Core::DataType::FLOAT64:
                             return op_func(double{}, q, deps);
                         case Core::DataType::COMPLEX32:
-                            if constexpr (Dom == Dispatch::Domain::REAL_AND_COMPLEX)
+                            if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::COMPLEX))
                                 return op_func(std::complex<float>{}, q, deps);
-                            else
-                                SB_THROW_IF(true, "Operation '{}' does not support dtype COMPLEX32.", name);
                             break;
                         case Core::DataType::COMPLEX64:
-                            if constexpr (Dom == Dispatch::Domain::REAL_AND_COMPLEX)
+                            if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::COMPLEX))
                                 return op_func(std::complex<double>{}, q, deps);
-                            else
-                                SB_THROW_IF(true, "Operation '{}' does not support dtype COMPLEX64.", name);
                             break;
-                        default:
-                            SB_THROW_IF(true, "Unsupported data type for {}", name);
+                        case Core::DataType::INT32:
+                            if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::INTEGRAL))
+                                return op_func(int32_t{}, q, deps);
+                            break;
+                        case Core::DataType::INT64:
+                            if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::INTEGRAL))
+                                return op_func(int64_t{}, q, deps);
+                            break;
                     }
+
+                    // Unreachable in practice - require_domain rejected this dtype at record
+                    // time - but a switch that can fall through to nothing is how a silent
+                    // no-op gets in, so it ends in a throw rather than in a default return.
+                    SB_THROW_IF(true, "BLAS operation '{}' does not support dtype {}.",
+                                name, Core::to_string(dtype));
                     return sycl::event();
                 });
             return sycl::event();

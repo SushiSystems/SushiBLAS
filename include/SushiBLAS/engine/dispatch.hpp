@@ -23,8 +23,11 @@
 
 #pragma once
 
-#include <cstddef>
 #include <vector>
+#include <cstddef>
+#include <cstdint>
+#include <complex>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/device_policy.hpp>
@@ -74,16 +77,192 @@ namespace SushiBLAS
          * context). So the caller states the domain, the dispatch instantiates only the
          * arms inside it, and every arm outside it throws naming the op and the dtype.
          *
+         * **A bit set over element-type families, not a list of named combinations.** It
+         * began as the two-valued `{REAL, REAL_AND_COMPLEX}` this codebase still spells
+         * everywhere, and the arrival of `INT32`/`INT64` would have turned that into six
+         * enumerators whose relationships only the reader can see. As flags, a new family
+         * costs one bit and the query stays @ref domain_admits; the two original names
+         * survive as the combinations they always were, so no existing call site changes.
+         *
          * @warning REAL is the default deliberately: a functor written for real scalars
-         *          always compiles under it. Opt in to REAL_AND_COMPLEX only when the
-         *          functor is genuinely well-formed for `std::complex` - see the `safe_*`
-         *          helpers in <SushiBLAS/engine/math/safe_math.hpp>.
+         *          always compiles under it. Widen it only when the functor is genuinely
+         *          well-formed for the family being added - see the `safe_*` helpers in
+         *          <SushiBLAS/engine/math/safe_math.hpp> for the complex case, and note
+         *          that an integer functor must not use `sycl::` floating-point builtins.
          */
-        enum class Domain
+        enum class Domain : uint8_t
         {
-            REAL,             /**< HALF, FLOAT32, FLOAT64. Complex dtypes throw. */
-            REAL_AND_COMPLEX  /**< The above, plus COMPLEX32 and COMPLEX64. */
+            REAL              = 1u << 0,  /**< HALF, FLOAT32, FLOAT64. */
+            COMPLEX           = 1u << 1,  /**< COMPLEX32, COMPLEX64. */
+            INTEGRAL          = 1u << 2,  /**< INT32, INT64. */
+
+            REAL_AND_COMPLEX  = REAL | COMPLEX,   /**< Everything but the integers. */
+            REAL_AND_INTEGRAL = REAL | INTEGRAL,  /**< Everything an ordering is defined on. */
+            ALL               = REAL | COMPLEX | INTEGRAL /**< Every element type. */
         };
+
+        /**
+         * @brief Whether @p allowed includes the element-type family @p family.
+         *
+         * The one query every dispatch arm asks, always in an `if constexpr`, so an arm
+         * outside the domain is never instantiated - only compiled as a throw.
+         *
+         * @param allowed The domain the caller declared.
+         * @param family A single-bit @ref Domain naming one family.
+         * @return True when @p allowed contains @p family.
+         */
+        [[nodiscard]] inline constexpr bool domain_admits(Domain allowed, Domain family) noexcept
+        {
+            return (static_cast<uint8_t>(allowed) & static_cast<uint8_t>(family)) != 0;
+        }
+
+        /**
+         * @brief The element-type family a runtime dtype belongs to.
+         *
+         * The runtime companion to @ref domain_admits, for the few places that must
+         * reject a whole family before the switch rather than inside it - a shape or
+         * dtype-agreement check that runs at record time, where the compile-time domain
+         * is known but the arm has not been chosen yet.
+         *
+         * @param dtype The data type to classify.
+         * @return REAL, COMPLEX or INTEGRAL - never a combination.
+         */
+        [[nodiscard]] inline constexpr Domain domain_of(Core::DataType dtype) noexcept
+        {
+            if (Core::is_complex_dtype(dtype)) return Domain::COMPLEX;
+            if (Core::is_integer_dtype(dtype)) return Domain::INTEGRAL;
+            return Domain::REAL;
+        }
+
+        /**
+         * @brief Throws unless @p dtype is one @p Dom admits.
+         *
+         * @ref with_element_type would reject it too, but not until the task runs, which is
+         * a worse place to find out: by then the graph is recorded, the caller is inside
+         * `Engine::execute()`, and the failure is attributed to a submission rather than to
+         * the line that queued it. This is the same question asked at record time, where a
+         * caller can still act on the answer.
+         *
+         * @tparam Dom Which element-type families the operation admits.
+         * @param dtype The operand dtype to check.
+         * @param family What kind of operation this is ("Elementwise operation", ...).
+         * @param name The op's own name.
+         * @throws std::runtime_error naming @p family, @p name and @p dtype when the dtype
+         *         falls outside @p Dom.
+         */
+        template<Domain Dom>
+        inline void require_domain(Core::DataType dtype, const char* family, const char* name)
+        {
+            SB_THROW_IF(!domain_admits(Dom, domain_of(dtype)),
+                        "{} '{}' does not support dtype {}. Complex operands need an ordering "
+                        "or a real-only builtin they do not provide; integer operands are "
+                        "accepted only where an integer element means something (copy, fill, "
+                        "the comparison and logic family, and the index reductions).",
+                        family, name, Core::to_string(dtype));
+        }
+
+        /**
+         * @brief Runs @p arm instantiated for the C++ type @p dtype denotes, or throws.
+         *
+         * The dtype switch, once. Every per-element executor in this library used to
+         * write its own - seven `case` arms each, four of them differing only in a type
+         * name, two of them wrapped in an `if constexpr` domain guard, and one `default`
+         * carrying the failure message. Eight copies of that is eight places to forget an
+         * arm when a `DataType` is added, and eight slightly different wordings when one
+         * is rejected. This is the whole thing in one function: the caller supplies a
+         * templated lambda and says nothing about dtypes at all.
+         *
+         * An arm outside @p Dom is never instantiated - the `if constexpr` sees to that,
+         * which is what lets a functor that is only well-formed for real scalars be
+         * dispatched on a tensor whose dtype *could* have been complex.
+         *
+         * @code
+         * Dispatch::with_element_type<Dom>(dtype, "Elementwise operation", name,
+         *     [&]<typename T>() { Launch::map(h, q, n, ok, op, (T*)out, (const T*)in); });
+         * @endcode
+         *
+         * @tparam Dom Which element-type families to instantiate @p arm for.
+         * @tparam Arm The templated-lambda type, deduced.
+         * @param dtype The runtime element type to dispatch on.
+         * @param family What kind of operation this is, for the failure message
+         *        ("Elementwise operation", "Logic operation", ...).
+         * @param name The op's own name, for the failure message.
+         * @param arm Callable as `arm.template operator()<T>()` for every element type in
+         *        @p Dom.
+         * @throws std::runtime_error naming @p family, @p name and @p dtype when the dtype
+         *         falls outside @p Dom - or is not an element type at all.
+         */
+        namespace Detail
+        {
+            /**
+             * @brief Runs @p arm for element type @p T if @p Dom admits @p Family.
+             *
+             * Out of line from the switch in @ref with_element_type, and not inlined back
+             * into it, because an `if constexpr` written directly inside a `switch` in a
+             * template makes this project's clang lose the switch: instantiating it reports
+             * "'case' statement not in switch statement" for every label after the first.
+             * Hoisting the compile-time test into its own function leaves the switch a
+             * plain switch of plain calls, which it parses correctly.
+             *
+             * @tparam Dom The domain the caller declared.
+             * @tparam Family The single family this arm belongs to.
+             * @tparam T The element type to instantiate @p arm for.
+             * @tparam Arm The templated-lambda type, deduced.
+             * @param arm The caller's arm.
+             * @return True when the arm ran; false when @p Family is outside @p Dom.
+             */
+            template<Domain Dom, Domain Family, typename T, typename Arm>
+            [[nodiscard]] inline bool run_arm_if_admitted(Arm& arm)
+            {
+                if constexpr (domain_admits(Dom, Family))
+                {
+                    arm.template operator()<T>();
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+        } // namespace Detail
+
+        template<Domain Dom, typename Arm>
+        inline void with_element_type(Core::DataType dtype, const char* family,
+                                      const char* name, Arm&& arm)
+        {
+            bool served = false;
+
+            switch (dtype)
+            {
+                case Core::DataType::HALF:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::REAL, sycl::half>(arm);
+                    break;
+                case Core::DataType::FLOAT32:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::REAL, float>(arm);
+                    break;
+                case Core::DataType::FLOAT64:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::REAL, double>(arm);
+                    break;
+                case Core::DataType::COMPLEX32:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::COMPLEX, std::complex<float>>(arm);
+                    break;
+                case Core::DataType::COMPLEX64:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::COMPLEX, std::complex<double>>(arm);
+                    break;
+                case Core::DataType::INT32:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::INTEGRAL, int32_t>(arm);
+                    break;
+                case Core::DataType::INT64:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::INTEGRAL, int64_t>(arm);
+                    break;
+            }
+
+            // Not served means a dtype outside Dom, or a DataType holding a value outside
+            // the enumeration at all. Both are "this op cannot do that", and both say so by
+            // name - a silent no-op here is how seven operations came to do nothing at all.
+            SB_THROW_IF(!served, "{} '{}' does not support dtype {}.",
+                        family, name, Core::to_string(dtype));
+        }
 
         /**
          * @brief Copies a caller-supplied parameter list into a task's inline metadata slots.

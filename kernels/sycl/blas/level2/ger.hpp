@@ -38,6 +38,17 @@ namespace SushiBLAS
             /**
             * @brief GER (unconjugated rank-1 update): A += alpha * x * y^T,
             * one work-item per output element (elementwise on A, no hazard).
+            *
+            * Left on a `sycl::range<2>` on purpose, unlike `gemv`/`symv`.
+            * <SushiBLAS/engine/launch_1d.hpp> plans one-dimensional geometries; this
+            * kernel's index *is* two-dimensional, because `A` is addressed by `(i, j)`
+            * under a runtime layout and the two axes are strided differently. Flattening
+            * it to `i * n + j` to force it through `Launch::indexed` would trade a
+            * geometry the backend can pick a 2-D work-group for against a division and a
+            * modulo per work-item, and would buy the grid-stride shape for a kernel whose
+            * launch is already sized by the output matrix rather than by a vector length.
+            * If this ever needs the device split, the honest fix is a `plan_2d` next to
+            * `plan_1d`, not a reshape here.
             */
             template<typename T>
             [[nodiscard]] sycl::event ger(sycl::queue& queue, Core::Layout layout,

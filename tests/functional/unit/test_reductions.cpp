@@ -105,12 +105,16 @@ TYPED_TEST(Unit_ReductionOpsTyped, ArgMax)
     T expected = ReferenceKernels::argmax(data);
 
     auto t = this->template create_initialized_tensor<T>({100}, data);
-    auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+
+    // INT64, not the input's own dtype: argmax answers with an index, and an index stored
+    // in a float stops being exact past 2^24 (past 2048 in HALF). Compared exactly, for
+    // the same reason - an index is either right or wrong.
+    auto res = this->engine->create_tensor({1}, Core::DataType::INT64);
 
     this->engine->reductions().argmax(t, res);
     this->engine->execute().wait();
 
-    EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
+    EXPECT_TENSOR_NEAR(res, {static_cast<float>(expected)}, 0.0);
 }
 
 TYPED_TEST(Unit_ReductionOpsTyped, ArgMin) 
@@ -121,12 +125,14 @@ TYPED_TEST(Unit_ReductionOpsTyped, ArgMin)
     T expected = ReferenceKernels::argmin(data);
 
     auto t = this->template create_initialized_tensor<T>({100}, data);
-    auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+
+    // INT64 for the same reason as ArgMax above.
+    auto res = this->engine->create_tensor({1}, Core::DataType::INT64);
 
     this->engine->reductions().argmin(t, res);
     this->engine->execute().wait();
 
-    EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
+    EXPECT_TENSOR_NEAR(res, {static_cast<float>(expected)}, 0.0);
 }
 
 TYPED_TEST(Unit_ReductionOpsTyped, Var) 

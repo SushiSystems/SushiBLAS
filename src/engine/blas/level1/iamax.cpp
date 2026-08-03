@@ -32,8 +32,28 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
+    // The result is an index, so the result tensor's dtype must be INT64 - and this
+    // check is the whole point of the integer dtypes existing.
+    //
+    // Before them, `iamax` wrote an `int64_t` into whatever the caller passed, which in
+    // every test and every consumer was a FLOAT32 tensor. Eight bytes into a four-byte
+    // element. `tests/functional/unit/test_iamax.cpp` worked around it by allocating two
+    // floats and left a comment reading "Wait, different sizes!". That was survivable
+    // while a tensor owned its allocation; it stopped being survivable when SushiAI began
+    // packing tensors into arenas, because the four bytes past the result belong to a
+    // different tensor - and `Tensor::region()` reported a four-byte write, so the
+    // dependency tracker ordered nothing against the corruption either.
     sycl::event Level1::iamax(const Tensor& x, Tensor& result)
     {
+        SB_THROW_IF(result.dtype != Core::DataType::INT64,
+                    "Operation 'blas.lvl1.iamax' writes a 64-bit index, so its result tensor "
+                    "must have dtype INT64; got {}. A narrower dtype would be written past "
+                    "the end of its element.",
+                    Core::to_string(result.dtype));
+        SB_THROW_IF(result.num_elements != 1,
+                    "Result tensor for 'blas.lvl1.iamax' must be a scalar (1 element); got {}.",
+                    result.num_elements);
+
         int64_t n, incx;
         Internal::get_vec_params(x, n, incx);
 

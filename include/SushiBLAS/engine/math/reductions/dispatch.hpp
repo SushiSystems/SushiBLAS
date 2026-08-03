@@ -194,6 +194,74 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Records a whole-tensor reduction whose result is an **index**, not a value.
+         *
+         * `argmax` and `argmin` are not the same shape as `sum` or `nrm2` and were being
+         * forced through @ref execute_reduction as though they were. That helper insists the
+         * result tensor share the input's dtype and hands the dispatcher a `T*`, so an index
+         * had to be stored as `static_cast<T>(i)` - a float. Below 2^24 elements that is
+         * exact and nobody noticed; above it, two adjacent indices round to the same float
+         * and the answer is quietly wrong. In HALF it is quietly wrong above 2048.
+         *
+         * Here the input dtype and the result dtype are separate questions: the input may be
+         * anything an ordering is defined on, and the result is an `int64_t` in an INT64
+         * tensor, which is what an index is.
+         *
+         * @tparam Dispatcher The command-group builder type, deduced.
+         * @param engine The engine whose task graph the op is recorded on.
+         * @param t The tensor to search.
+         * @param result The scalar INT64 output tensor.
+         * @param name Human-readable op name, used for logging and failure messages.
+         * @param op_id Stable operation identifier for the task graph.
+         * @param dispatch A generic callable `(sycl::queue& q, const auto* pT, int64_t* pR,
+         *        int64_t size, const std::vector<sycl::event>& deps) -> sycl::event`,
+         *        instantiated once per supported input element type.
+         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
+         *
+         * @warning Same device-kernel constraints as @ref execute_reduction.
+         * @throws std::runtime_error if `result` is not a scalar, if it is not INT64, or if
+         *         the input dtype is one an ordering is not defined on (the complex types).
+         */
+        template<typename Dispatcher>
+        sycl::event execute_index_reduction(Engine& engine, const Tensor& t, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Dispatcher&& dispatch)
+        {
+            SB_THROW_IF(result.num_elements != 1,
+                        "Result tensor for reduction '{}' must be a scalar (1 element).", name);
+            SB_THROW_IF(result.dtype != Core::DataType::INT64,
+                        "Reduction '{}' answers with an index, so its result tensor must have "
+                        "dtype INT64; got {}.",
+                        name, Core::to_string(result.dtype));
+
+            const int64_t size = t.num_elements;
+            void* read_T = t.data();
+            int64_t* write_R = result.data_as<int64_t>();
+
+            std::vector<SushiRuntime::Core::ResourceRegion> reads = {t.region()};
+            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
+
+            SushiRuntime::Graph::TaskMetadata meta;
+            meta.name = name;
+            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+            meta.op_id = op_id;
+
+            // REAL_AND_INTEGRAL: "which element is largest" needs an ordering, which the
+            // complex types do not have and the integer types do.
+            with_element_type<Domain::REAL_AND_INTEGRAL>(t.dtype, "Reduction", name,
+                [&]<typename T>()
+            {
+                engine.get_graph().add_task(meta, reads, writes,
+                    [size, pT = static_cast<const T*>(read_T), write_R, dispatch, name]
+                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    {
+                        SB_LOG_INFO("Reduction {}: {} elements", name, size);
+                        return dispatch(q, pT, write_R, size, deps);
+                    });
+            });
+
+            return sycl::event();
+        }
+
+        /**
          * @brief Records a whole-tensor reduction using the library's own deterministic
          * folding shape: `result = finalize(fold(transform(t[i])), n)`.
          *
