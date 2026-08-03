@@ -184,13 +184,83 @@ namespace SushiBLAS
              */
             sycl::event asum(const Tensor& t, Tensor& result);
 
-            /** 
+            /**
              * @brief L2 Norm (Euclidean norm).
              * @param t Input tensor.
              * @param result Scalar output tensor.
              * @return sycl::event.
              */
             sycl::event nrm2(const Tensor& t, Tensor& result);
+
+            /**
+             * @brief How many elements of @p t are infinite or NaN.
+             *
+             * The screen a loss-scaling step runs before it applies an update: if the
+             * answer is not zero the gradients overflowed at the current scale, so the
+             * step is skipped and the scale halved. `count_nonfinite(t, r) == 0` is the
+             * boolean "all finite"; the count itself is what says how badly, which is
+             * strictly more than the boolean and costs the same fold.
+             *
+             * **Both** kinds of non-finite value, and they need separate tests: `x != x`
+             * is true only of a NaN, and an infinity compares equal to itself perfectly
+             * happily. Overflow in fp16 produces infinities and division by an overflowed
+             * quantity produces NaNs, so a screen that caught one and not the other would
+             * pass exactly half the runs it exists to stop.
+             *
+             * **The result is an INT64 scalar**, and the reason is the consumer rather
+             * than tidiness: the caller reads this value from a *device* kernel with no
+             * host synchronisation, because a sync inside the optimiser step would drain
+             * the graph the whole architecture exists to keep full. So the answer has to
+             * be a device-resident value a kernel can load and branch on, which an INT64
+             * tensor element is. It must also be **exact**, which is what rules out
+             * putting the count in a tensor of the input's own dtype: a count is exact in
+             * FLOAT32 only below 2^24 and in HALF only below 2048, and a HALF count past
+             * 65504 is an infinity - so the tensors most worth counting are precisely the
+             * ones whose count would come back wrong. That is the same trap
+             * `Dispatch::execute_index_reduction` was cut out of `execute_reduction` to
+             * escape, arriving by a different route.
+             *
+             * **Why not `asum`.** It nearly works - `sum(|x|)` is non-finite whenever any
+             * element is, so a caller could have tested `isfinite(asum(g))` and shipped
+             * nothing new. It is rejected for one decisive reason and two supporting ones.
+             * The decisive one: `asum` accumulates in the *input's* dtype, so on a HALF
+             * tensor the running total can leave binary16's range all by itself. Eight
+             * elements of 20000 - each exactly representable, not one of them remotely bad
+             * - give a non-finite total, at which point the screen reports an overflow that
+             * never happened, the scale is halved, and it is halved again on the next step,
+             * for ever, on a run that was fine. The op meant to rescue a mixed-precision
+             * run would be the thing that stalls it.
+             * `Unit_CountNonFiniteTest.AsumReportsOverflowOnAHalfTensorThisOpCallsClean` is
+             * that exact tensor put through both ops, so this is a measurement rather than
+             * a worry. The supporting ones:
+             * even in fp32 a loss-scaled gradient is *deliberately* pushed up in magnitude,
+             * which is the one situation where a sum of magnitudes overflows without any
+             * element doing so, and `asum` therefore conflates "an element is bad" with
+             * "the total is big"; and its answer is a float in the input's dtype, so a
+             * consumer branching on it does floating-point comparisons where an integer
+             * `!= 0` would do. A predicate count cannot produce a false positive, and that
+             * is the property that matters for something whose job is to decide whether to
+             * throw a training step away.
+             *
+             * **Deterministic**, like every folding reduction here - and for a stronger
+             * reason. The fold is `Reduce::ExactSum` over integers, which is exactly
+             * associative and exactly commutative, so no combination order can change the
+             * answer at all; the fixed-order shape of
+             * <SushiBLAS/engine/reduce_1d.hpp> is inherited from the shared seam rather
+             * than being what makes this op reproducible.
+             *
+             * @param t Input tensor; HALF, FLOAT32 or FLOAT64. The integer and complex
+             *        dtypes throw by name rather than answering: an integer element cannot
+             *        be infinite or NaN, so a confident count of zero would tell a caller
+             *        their tensor had been screened when the question was never asked of
+             *        it.
+             * @param result Scalar output tensor; must be rank-anything with exactly one
+             *        element and dtype INT64.
+             * @return sycl::event.
+             * @throws std::runtime_error if @p result is not a scalar or not INT64, or if
+             *         @p t's dtype is not one of HALF / FLOAT32 / FLOAT64.
+             */
+            sycl::event count_nonfinite(const Tensor& t, Tensor& result);
 
         private:
             Engine& engine_;

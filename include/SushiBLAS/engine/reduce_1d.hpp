@@ -659,6 +659,63 @@ namespace SushiBLAS
         };
 
         /**
+         * @class ExactSum
+         * @brief A running sum over a type whose addition is exact.
+         *
+         * The integer counterpart of @ref CompensatedSum, and it is a separate class
+         * rather than a specialisation because it is doing something different: there is
+         * nothing to compensate. Neumaier recovers the bits a floating-point addition
+         * *rounds away*, and an integer addition rounds nothing away - the correction term
+         * would be identically zero, and `sycl::fabs`, which @ref CompensatedSum reaches
+         * for to decide which operand kept its bits, is not defined on an integer at all.
+         *
+         * It exists for @ref reduce's counting shape: a reduction whose per-element
+         * transform answers a *predicate* folds a stream of 0s and 1s, and the natural
+         * accumulator for that is an exact integer sum, not a compensated float one.
+         *
+         * **Determinism is free here, for a stronger reason than elsewhere in this file.**
+         * Integer addition is exactly associative and exactly commutative, so no
+         * combination order can change the answer - the fixed order @ref reduce imposes is
+         * not what makes a count reproducible, it is simply the order the shared shape
+         * already has. That is worth stating rather than leaving implicit, because the
+         * determinism argument for the *floating-point* accumulators genuinely does rest
+         * on the fixed order and it would be easy to read one as the other.
+         *
+         * @tparam T The accumulation type; an integer type in every current use.
+         */
+        template<typename T>
+        class ExactSum
+        {
+            public:
+                /** @brief The value an empty sum has. */
+                [[nodiscard]] static constexpr T identity() noexcept { return T(0); }
+
+                /**
+                 * @brief Combines two finished sums.
+                 * @param a The left partial.
+                 * @param b The right partial.
+                 * @return `a + b`.
+                 */
+                [[nodiscard]] static constexpr T combine(T a, T b) noexcept { return a + b; }
+
+                /**
+                 * @brief Folds one value into the running sum.
+                 * @param x The value to add.
+                 */
+                void accumulate(T x) noexcept { sum_ += x; }
+
+                /**
+                 * @brief The sum so far.
+                 * @return The running total.
+                 */
+                [[nodiscard]] T value() const noexcept { return sum_; }
+
+            private:
+                /** @brief The running total. */
+                T sum_ = T(0);
+        };
+
+        /**
          * @brief Reduces `in[0..n)` to `*out`, deterministically.
          *
          * Computes `finalize(fold(transform(in[i])), n)`, where `fold` is @p Accum's
@@ -666,10 +723,26 @@ namespace SushiBLAS
          * one kernel on the single-pass shape and two on the two-stage one; see
          * @ref plan for which, and the file header for why the order is nailed down.
          *
-         * @tparam Accum The accumulation policy, @ref CompensatedSum or
-         *         @ref RunningProduct. A class template on the element type, supplying
+         * **The accumulation type is separate from the element type**, and every existing
+         * caller deduces them equal without saying so. `sum`, `mean`, `asum`, `nrm2` and
+         * `prod` all fold a `T` into a `T`, which is why this was one parameter for as
+         * long as there was nothing else to do - but a reduction whose transform answers a
+         * *predicate* folds a count, and a count is not an element. Storing one in the
+         * input's own dtype is the trap `Dispatch::execute_index_reduction` was cut out to
+         * escape: a count is exact only below 2^24 in fp32 and only below 2048 in fp16, so
+         * a sufficiently bad tensor would report a rounded number of bad elements, and in
+         * fp16 a count past 65504 would come back as an infinity. Splitting @p A off
+         * costs the existing callers nothing (both are deduced, and both deduce to `T`)
+         * and lets the counting reductions share this shape rather than hand-write a
+         * second copy of a two-stage fold.
+         *
+         * @tparam Accum The accumulation policy, @ref CompensatedSum, @ref RunningProduct
+         *         or @ref ExactSum. A class template on the *accumulation* type, supplying
          *         `identity()`, `combine(a, b)`, `accumulate(x)` and `value()`.
-         * @tparam T The element type, deduced.
+         * @tparam T The input element type, deduced from @p in.
+         * @tparam A The accumulation and result type, deduced from @p out and
+         *         @p partials. Equal to @p T for every reduction whose answer is a value
+         *         of the thing it reduced.
          * @tparam Transform The per-element transform type, deduced.
          * @tparam Finalize The finalizer type, deduced.
          * @param queue The queue to submit to.
@@ -679,9 +752,10 @@ namespace SushiBLAS
          * @param partials Scratch for one value per work-group; may be null when
          *        @p partial_capacity is zero.
          * @param partial_capacity How many values @p partials can hold.
-         * @param transform Callable `(T) -> T`, applied to each element before it is
-         *        folded in. `x * x` for a 2-norm, `fabs(x)` for an absolute sum.
-         * @param finalize Callable `(T value, std::size_t n) -> T`, applied once to the
+         * @param transform Callable `(T) -> A`, applied to each element before it is
+         *        folded in. `x * x` for a 2-norm, `fabs(x)` for an absolute sum,
+         *        `isfinite(x) ? 0 : 1` for a count of the elements that are not finite.
+         * @param finalize Callable `(A value, std::size_t n) -> A`, applied once to the
          *        folded result. `sqrt` for a 2-norm, `/n` for a mean. Folding it in here
          *        rather than submitting a second kernel is what lets `mean` and `nrm2`
          *        cost the same number of launches as `sum`.
@@ -692,10 +766,10 @@ namespace SushiBLAS
          *          they must be device-copyable, capture by value, hold no host
          *          pointers, allocate nothing and throw nothing.
          */
-        template<template<typename> class Accum, typename T,
+        template<template<typename> class Accum, typename T, typename A,
                  typename Transform, typename Finalize>
-        [[nodiscard]] sycl::event reduce(sycl::queue& queue, const T* in, T* out,
-                                         std::size_t n, T* partials,
+        [[nodiscard]] sycl::event reduce(sycl::queue& queue, const T* in, A* out,
+                                         std::size_t n, A* partials,
                                          std::size_t partial_capacity,
                                          Transform transform, Finalize finalize,
                                          const std::vector<sycl::event>& deps)
@@ -720,7 +794,7 @@ namespace SushiBLAS
                     h.depends_on(deps);
                     h.single_task([=]()
                     {
-                        Accum<T> acc;
+                        Accum<A> acc;
                         for (std::size_t i = 0; i < n; ++i) acc.accumulate(transform(in[i]));
                         *out = finalize(acc.value(), n);
                     });
@@ -734,7 +808,7 @@ namespace SushiBLAS
             {
                 h.depends_on(deps);
 
-                sycl::local_accessor<T, 1> tile(sycl::range<1>(local), h);
+                sycl::local_accessor<A, 1> tile(sycl::range<1>(local), h);
 
                 h.parallel_for(sycl::nd_range<1>(sycl::range<1>(groups * local),
                                                  sycl::range<1>(local)),
@@ -749,7 +823,7 @@ namespace SushiBLAS
                     // visited in, come only from the geometry, so they are the same on
                     // every run. Consecutive items also read consecutive addresses at
                     // every step, which is what keeps the loads coalesced.
-                    Accum<T> acc;
+                    Accum<A> acc;
                     for (std::size_t i = gid; i < n; i += stride)
                         acc.accumulate(transform(in[i]));
 
@@ -767,7 +841,7 @@ namespace SushiBLAS
                     // visit every lane exactly once.
                     for (std::size_t off = local / 2; off > 0; off >>= 1)
                     {
-                        if (lid < off) tile[lid] = Accum<T>::combine(tile[lid], tile[lid + off]);
+                        if (lid < off) tile[lid] = Accum<A>::combine(tile[lid], tile[lid + off]);
                         sycl::group_barrier(it.get_group());
                     }
 
@@ -783,7 +857,7 @@ namespace SushiBLAS
                     // Ascending index order over a count fixed at launch. Compensated
                     // as well, which costs nothing at this length and recovers the
                     // spread between partials that a plain walk would drop.
-                    Accum<T> acc;
+                    Accum<A> acc;
                     for (std::size_t g = 0; g < groups; ++g) acc.accumulate(partials[g]);
                     *out = finalize(acc.value(), n);
                 });

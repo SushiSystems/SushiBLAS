@@ -143,11 +143,12 @@ One honest limit already found on CPU: with compensation removed, the *sequentia
 ```bash
 # SushiBLAS
 sb build --type release -D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86"
-sb test --suite all          # expect 356/356 as of this writing
+sb test --suite all          # 403/403 on the development CPU, 2026-08-03
 
 # SushiAI (builds SushiBLAS from source as a subdirectory)
 sa build --type release -D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86"
-sa test --suite all          # expect 582/582 (SushiAI's own plus this repo's)
+sa test --suite all          # 582/582 when last recorded here; not re-run since,
+                              # and this repo has gained tests since, so expect more
 sa demo mlp
 ```
 
