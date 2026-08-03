@@ -23,14 +23,17 @@
 
 #pragma once
 
+#include <array>
 #include <vector>
 #include <complex>
+#include <cstddef>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
+#include <SushiBLAS/engine/launch_1d.hpp>
 #include <SushiBLAS/engine/math/safe_math.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -71,7 +74,6 @@ namespace SushiBLAS
         template<Domain Dom = Domain::REAL, typename Func>
         sycl::event execute_unary_inplace(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
         {
-            // TODO: Optimize parallel_for with 1D/2D/3D nd_range, vectorization (float4), and local memory coalescing for faster elementwise capability.
             if constexpr (Dom == Domain::REAL)
             {
                 SB_THROW_IF(Core::is_complex_dtype(t.dtype),
@@ -82,6 +84,7 @@ namespace SushiBLAS
 
             int64_t size = t.num_elements;
             void* ptr = t.data_or_null();
+            const bool vec_ok = Launch::is_vector_aligned(ptr);
             std::vector<SushiRuntime::Core::ResourceRegion> rw = ptr ? std::vector<SushiRuntime::Core::ResourceRegion>{t.region()} : std::vector<SushiRuntime::Core::ResourceRegion>{};
 
             SushiRuntime::Graph::TaskMetadata meta;
@@ -91,27 +94,28 @@ namespace SushiBLAS
             set_task_params(meta, params, name);
 
             engine.get_graph().add_task(meta, rw, rw,
-                [size, ptr, dtype = t.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                [size, ptr, vec_ok, dtype = t.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("Elementwise {} (In-place): {} elements", name, size);
                     return q.submit([&](sycl::handler& h)
                     {
                         h.depends_on(deps);
+                        const std::size_t n = static_cast<std::size_t>(size);
                         switch (dtype)
                         {
                             case Core::DataType::HALF:
-                                h.parallel_for(sycl::range<1>(size), [=, p = (sycl::half*)ptr](sycl::id<1> i) { p[i] = op_func(p[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (sycl::half*)ptr, (const sycl::half*)ptr);
                                 break;
                             case Core::DataType::FLOAT32:
-                                h.parallel_for(sycl::range<1>(size), [=, p = (float*)ptr](sycl::id<1> i) { p[i] = op_func(p[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (float*)ptr, (const float*)ptr);
                                 break;
                             case Core::DataType::FLOAT64:
-                                h.parallel_for(sycl::range<1>(size), [=, p = (double*)ptr](sycl::id<1> i) { p[i] = op_func(p[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (double*)ptr, (const double*)ptr);
                                 break;
                             case Core::DataType::COMPLEX32:
                                 if constexpr (Dom == Domain::REAL_AND_COMPLEX)
                                 {
-                                    h.parallel_for(sycl::range<1>(size), [=, p = (std::complex<float>*)ptr](sycl::id<1> i) { p[i] = op_func(p[i]); });
+                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<float>*)ptr, (const std::complex<float>*)ptr);
                                 }
                                 else
                                 {
@@ -121,7 +125,7 @@ namespace SushiBLAS
                             case Core::DataType::COMPLEX64:
                                 if constexpr (Dom == Domain::REAL_AND_COMPLEX)
                                 {
-                                    h.parallel_for(sycl::range<1>(size), [=, p = (std::complex<double>*)ptr](sycl::id<1> i) { p[i] = op_func(p[i]); });
+                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<double>*)ptr, (const std::complex<double>*)ptr);
                                 }
                                 else
                                 {
@@ -168,7 +172,6 @@ namespace SushiBLAS
         template<Domain Dom = Domain::REAL, typename Func>
         sycl::event execute_binary(Engine& engine, const Tensor& A, const Tensor& B, Tensor& C, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
         {
-            // TODO: Optimize parallel_for with nd_range and vectorization (float4) for high-performance memory bandwidth utilization.
             SB_THROW_IF(A.num_elements != B.num_elements || A.num_elements != C.num_elements,
                     "Tensor sizes must match for elementwise operation.");
             SB_THROW_IF(A.dtype != B.dtype || A.dtype != C.dtype,
@@ -185,6 +188,7 @@ namespace SushiBLAS
             int64_t size = A.num_elements;
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {A.region(), B.region()};
             std::vector<SushiRuntime::Core::ResourceRegion> writes = {C.region()};
+            const bool vec_ok = Launch::vector_aligned(A.data(), B.data(), C.data());
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -193,27 +197,28 @@ namespace SushiBLAS
             set_task_params(meta, params, name);
 
             engine.get_graph().add_task(meta, reads, writes,
-                [size, pA_raw = A.data(), pB_raw = B.data(), pC_raw = C.data(), dtype = A.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                [size, vec_ok, pA_raw = A.data(), pB_raw = B.data(), pC_raw = C.data(), dtype = A.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("Elementwise {}: {} elements", name, size);
                     return q.submit([&](sycl::handler& h)
                     {
                         h.depends_on(deps);
+                        const std::size_t n = static_cast<std::size_t>(size);
                         switch (dtype)
                         {
                             case Core::DataType::HALF:
-                                h.parallel_for(sycl::range<1>(size), [=, pA = (sycl::half*)pA_raw, pB = (sycl::half*)pB_raw, pC = (sycl::half*)pC_raw](sycl::id<1> i) { pC[i] = op_func(pA[i], pB[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (sycl::half*)pC_raw, (const sycl::half*)pA_raw, (const sycl::half*)pB_raw);
                                 break;
                             case Core::DataType::FLOAT32:
-                                h.parallel_for(sycl::range<1>(size), [=, pA = (float*)pA_raw, pB = (float*)pB_raw, pC = (float*)pC_raw](sycl::id<1> i) { pC[i] = op_func(pA[i], pB[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (float*)pC_raw, (const float*)pA_raw, (const float*)pB_raw);
                                 break;
                             case Core::DataType::FLOAT64:
-                                h.parallel_for(sycl::range<1>(size), [=, pA = (double*)pA_raw, pB = (double*)pB_raw, pC = (double*)pC_raw](sycl::id<1> i) { pC[i] = op_func(pA[i], pB[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (double*)pC_raw, (const double*)pA_raw, (const double*)pB_raw);
                                 break;
                             case Core::DataType::COMPLEX32:
                                 if constexpr (Dom == Domain::REAL_AND_COMPLEX)
                                 {
-                                    h.parallel_for(sycl::range<1>(size), [=, pA = (std::complex<float>*)pA_raw, pB = (std::complex<float>*)pB_raw, pC = (std::complex<float>*)pC_raw](sycl::id<1> i) { pC[i] = op_func(pA[i], pB[i]); });
+                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<float>*)pC_raw, (const std::complex<float>*)pA_raw, (const std::complex<float>*)pB_raw);
                                 }
                                 else
                                 {
@@ -223,7 +228,184 @@ namespace SushiBLAS
                             case Core::DataType::COMPLEX64:
                                 if constexpr (Dom == Domain::REAL_AND_COMPLEX)
                                 {
-                                    h.parallel_for(sycl::range<1>(size), [=, pA = (std::complex<double>*)pA_raw, pB = (std::complex<double>*)pB_raw, pC = (std::complex<double>*)pC_raw](sycl::id<1> i) { pC[i] = op_func(pA[i], pB[i]); });
+                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<double>*)pC_raw, (const std::complex<double>*)pA_raw, (const std::complex<double>*)pB_raw);
+                                }
+                                else
+                                {
+                                    SB_THROW_IF(true, "Elementwise operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
+                                }
+                                break;
+                            default:
+                                SB_THROW_IF(true, "Elementwise operation '{}' received an unrecognized dtype ({}).",
+                                            name, static_cast<int>(dtype));
+                                break;
+                        }
+                    });
+                });
+            return sycl::event();
+        }
+
+        /**
+         * @brief Records a fused in-place elementwise op over N same-shaped tensors:
+         * `op(t0[i], t1[i], ..., tN-1[i])` for every element, every slot writable.
+         *
+         * The variadic sibling of @ref execute_unary_inplace and @ref execute_binary, and
+         * the seam a consumer reaches for when the thing it wants to run is not "one output
+         * from some inputs" but "a group of tensors advanced together". @p op_func receives
+         * an **lvalue reference** to each tensor's element, so it may read and write any of
+         * them in a single pass.
+         *
+         * That is what turns a whole optimiser step into one kernel. An AdamW update issues
+         * roughly eleven launches per parameter when it is spelled as separate ops - decay
+         * the parameter, scale each moment, accumulate each moment, two bias corrections,
+         * the epsilon, the division, the step - and every one of them re-reads and rewrites
+         * state that is already in registers. Written through this seam it is one launch and
+         * one pass over memory:
+         *
+         * @code
+         * // theta, g, m, v and ema advanced together, in one kernel.
+         * Dispatch::execute_zip_inplace(engine, std::array{&theta, &g, &m, &v, &ema},
+         *     "optim.adamw", "optim.adamw"_op,
+         *     [b1, b2, lr, wd, eps, inv_bc1, inv_bc2, decay]
+         *     (auto& theta_i, auto& g_i, auto& m_i, auto& v_i, auto& ema_i)
+         *     {
+         *         using T = std::decay_t<decltype(theta_i)>;
+         *         m_i = T(b1) * m_i + T(1 - b1) * g_i;
+         *         v_i = T(b2) * v_i + T(1 - b2) * (g_i * g_i);
+         *         const T step = (m_i * T(inv_bc1))
+         *                      / (Dispatch::safe_sqrt(v_i * T(inv_bc2)) + T(eps));
+         *         theta_i = theta_i * T(1 - lr * wd) - T(lr) * step;
+         *         ema_i   = T(decay) * ema_i + T(1 - decay) * theta_i;
+         *     });
+         * @endcode
+         *
+         * **Why `std::array<Tensor*, N>` and not a pack or a span.** A pack would have to be
+         * the trailing parameter, which would push `name`, `op_id`, `op_func` and the
+         * defaulted `params` in front of the tensors and break the argument order every
+         * other executor in this family uses. A `std::span` would make N a run-time value,
+         * and the kernel needs it at compile time: it stages one register per operand per
+         * element and expands the call to @p op_func through an `index_sequence`. The array
+         * also says the true thing about these operands - that they are one homogeneous
+         * group, not a list of separately-named roles - and `std::array{&a, &b, &c, &d, &e}`
+         * stays legible at the N=5 the example above needs. Pointers rather than references
+         * only because a reference cannot be an array element.
+         *
+         * **Graph bookkeeping.** All N tensors are declared as both reads and writes, since
+         * the functor is free to touch any of them and this layer cannot see which. The
+         * regions come from `Tensor::region()`, which reports a precise byte interval, so
+         * two disjoint views of one arena still do not serialise against each other.
+         *
+         * @tparam Dom Which element types to instantiate the functor for. Defaults to
+         *         Domain::REAL; pass Domain::REAL_AND_COMPLEX only when `op_func` is
+         *         well-formed for `std::complex` (see safe_math.hpp).
+         * @tparam N How many tensors are updated together, deduced.
+         * @tparam Func The functor type, deduced.
+         * @param engine The engine whose task graph the op is recorded on.
+         * @param tensors The tensors to advance together, in the order @p op_func expects
+         *        them. None may be null; all must agree on element count and dtype.
+         * @param name Human-readable op name, used for logging and failure messages.
+         * @param op_id Stable operation identifier for the task graph.
+         * @param op_func Callable `(auto&...) -> void` taking exactly N lvalue references,
+         *        invoked once per element index on device.
+         * @param params Optional scalar parameters recorded in the task metadata.
+         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
+         *
+         * @warning Same device-kernel constraints as @ref execute_binary: `op_func` is
+         *          inlined into the kernel, so it must be device-copyable, capture by value,
+         *          hold no host pointers, allocate nothing and throw nothing.
+         * @warning The N tensors must not overlap one another. Each element index is staged
+         *          into registers, handed to @p op_func, and written back, so a write
+         *          through one operand is not visible to a second operand that happens to
+         *          name the same address. Disjoint views of one arena are fine; two views of
+         *          the same bytes are not.
+         * @throws std::runtime_error if any tensor is null, if the tensors disagree on
+         *         element count or dtype (the message names which one disagreed), if the
+         *         dtype falls outside @p Dom, or if @p params exceeds the metadata's inline
+         *         capacity.
+         */
+        template<Domain Dom = Domain::REAL, std::size_t N, typename Func>
+        sycl::event execute_zip_inplace(Engine& engine, const std::array<Tensor*, N>& tensors, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
+        {
+            static_assert(N >= 1, "A fused in-place elementwise op needs at least one tensor.");
+
+            SB_THROW_IF(tensors[0] == nullptr, "Fused elementwise operation '{}': operand 0 is null.", name);
+
+            const int64_t size = tensors[0]->num_elements;
+            const Core::DataType dtype = tensors[0]->dtype;
+
+            for (std::size_t k = 1; k < N; ++k)
+            {
+                SB_THROW_IF(tensors[k] == nullptr, "Fused elementwise operation '{}': operand {} is null.", name, k);
+                SB_THROW_IF(tensors[k]->num_elements != size,
+                            "Fused elementwise operation '{}': operand {} holds {} elements but operand 0 holds {}; "
+                            "every operand of a fused in-place update must have the same element count.",
+                            name, k, tensors[k]->num_elements, size);
+                SB_THROW_IF(tensors[k]->dtype != dtype,
+                            "Fused elementwise operation '{}': operand {} has dtype {} but operand 0 has dtype {}; "
+                            "every operand of a fused in-place update must share one dtype.",
+                            name, k, Core::to_string(tensors[k]->dtype), Core::to_string(dtype));
+            }
+
+            if constexpr (Dom == Domain::REAL)
+            {
+                SB_THROW_IF(Core::is_complex_dtype(dtype),
+                            "Elementwise operation '{}' is not defined for complex tensors (dtype {}): it needs an "
+                            "ordering or a real-only builtin that complex numbers do not provide.",
+                            name, Core::to_string(dtype));
+            }
+
+            // Every operand is both a read and a write: the functor may touch any of them,
+            // and nothing at this layer can tell which ones it actually did.
+            std::array<void*, N> ptrs{};
+            std::vector<SushiRuntime::Core::ResourceRegion> rw;
+            rw.reserve(N);
+            bool vec_ok = true;
+            for (std::size_t k = 0; k < N; ++k)
+            {
+                ptrs[k] = tensors[k]->data();
+                rw.push_back(tensors[k]->region());
+                vec_ok = vec_ok && Launch::is_vector_aligned(ptrs[k]);
+            }
+
+            SushiRuntime::Graph::TaskMetadata meta;
+            meta.name = name;
+            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+            meta.op_id = op_id;
+            set_task_params(meta, params, name);
+
+            engine.get_graph().add_task(meta, rw, rw,
+                [size, ptrs, vec_ok, dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                {
+                    SB_LOG_INFO("Elementwise {} (Fused in-place, {} operands): {} elements", name, N, size);
+                    return q.submit([&](sycl::handler& h)
+                    {
+                        h.depends_on(deps);
+                        const std::size_t n = static_cast<std::size_t>(size);
+                        switch (dtype)
+                        {
+                            case Core::DataType::HALF:
+                                Launch::zip_inplace(h, q, n, vec_ok, Launch::typed_ptrs<sycl::half>(ptrs), op_func);
+                                break;
+                            case Core::DataType::FLOAT32:
+                                Launch::zip_inplace(h, q, n, vec_ok, Launch::typed_ptrs<float>(ptrs), op_func);
+                                break;
+                            case Core::DataType::FLOAT64:
+                                Launch::zip_inplace(h, q, n, vec_ok, Launch::typed_ptrs<double>(ptrs), op_func);
+                                break;
+                            case Core::DataType::COMPLEX32:
+                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
+                                {
+                                    Launch::zip_inplace(h, q, n, vec_ok, Launch::typed_ptrs<std::complex<float>>(ptrs), op_func);
+                                }
+                                else
+                                {
+                                    SB_THROW_IF(true, "Elementwise operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
+                                }
+                                break;
+                            case Core::DataType::COMPLEX64:
+                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
+                                {
+                                    Launch::zip_inplace(h, q, n, vec_ok, Launch::typed_ptrs<std::complex<double>>(ptrs), op_func);
                                 }
                                 else
                                 {

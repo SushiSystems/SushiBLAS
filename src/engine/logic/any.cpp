@@ -35,6 +35,10 @@ namespace SushiBLAS
 
     namespace
     {
+        // On sycl::reduction deliberately - see the note in all.cpp, which applies here
+        // with `maximum` in place of `minimum`. The combiner sees only T(0) and T(1), on
+        // which max is associative, commutative and exact, so the combination order the
+        // spec leaves free cannot change a single bit of the answer.
         template<typename T>
         sycl::event any_dispatch(sycl::queue& queue, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps)
         {

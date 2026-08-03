@@ -29,7 +29,12 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ReductionOps::min(const Tensor& t, Tensor& result) 
+    // On sycl::reduction deliberately - see the note on ReductionOps::max, which applies
+    // verbatim. `minimum` is exactly associative and exactly commutative, so the
+    // combination order the spec leaves unspecified cannot change the value; the only
+    // order-sensitivity left is which operand survives a NaN, and that is a property of
+    // the input, not of the launch.
+    sycl::event ReductionOps::min(const Tensor& t, Tensor& result)
     {
         auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
         {

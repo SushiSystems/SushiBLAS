@@ -29,7 +29,20 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ReductionOps::max(const Tensor& t, Tensor& result) 
+    // On sycl::reduction deliberately - this is not an oversight sitting next to the
+    // summation reductions. The SYCL spec does not fix the order in which a reduction
+    // combines its partials, which is a real hazard for `+`, since floating-point addition
+    // is not associative and the combination order is therefore visible in the result's
+    // bits and free to change with the launch configuration. `maximum` has no such
+    // exposure: it is exactly associative and exactly commutative, so every combination
+    // order yields the same value and a hand-written fixed-order tree would buy nothing
+    // but slower code.
+    //
+    // One caveat, and it is a property of the input rather than of the launch geometry:
+    // sycl::maximum selects with `<`, and every comparison against a NaN is false, so which
+    // operand survives an encounter with NaN does depend on the order. No reduction shape
+    // available here fixes that; only screening the input does.
+    sycl::event ReductionOps::max(const Tensor& t, Tensor& result)
     {
         auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
         {

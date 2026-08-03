@@ -246,9 +246,8 @@ namespace SushiBLAS
          * @struct Grid1D
          * @brief A launch geometry for a one-dimensional grid-stride kernel.
          *
-         * @ref global_size is deliberately not `n` rounded up. It is capped at
-         * roughly what the machine can hold resident, and the kernel walks the
-         * rest with a stride loop:
+         * The kernel this describes walks its elements with a stride loop rather
+         * than assuming one work-item per element:
          *
          * @code
          * const auto grid = Device::plan_1d(profile, n, unroll);
@@ -258,11 +257,16 @@ namespace SushiBLAS
          * });
          * @endcode
          *
-         * Two things fall out of that shape. The `i < n` test replaces the
-         * bounds check a padded grid would need, so there is no divergent tail
-         * work-group. And the launch stops growing with the problem, which is
-         * what keeps a small tensor from paying to schedule a grid far larger
-         * than the device can run at once.
+         * The `i < n` test is therefore the bounds check a padded grid would
+         * otherwise need, so there is no divergent tail work-group whatever
+         * @ref global_size turns out to be.
+         *
+         * On a GPU @ref global_size is deliberately *not* `n` rounded up: it is
+         * capped at roughly what the machine can hold resident and the loop
+         * covers the rest, which stops a large tensor from scheduling a grid far
+         * bigger than the device can run at once. On a CPU it is `n` rounded up,
+         * so the loop body runs once - see @ref plan_1d for the measurement that
+         * settled that split.
          *
          * The traversal order is fixed by the geometry, so two runs of the same
          * kernel on the same device touch elements in the same order - which is
@@ -294,6 +298,44 @@ namespace SushiBLAS
         };
 
         /**
+         * @brief The work-group size a flat, barrier-free 1-D launch should use.
+         *
+         * Not @ref work_group_size, and the difference is the point.
+         * @ref work_group_size answers "how wide a group can cooperate cheaply?",
+         * which is a question about barriers, and its CPU answer is deliberately
+         * small because a barrier there is a rendezvous between OS threads. A
+         * flat elementwise launch has no barriers at all, so nothing about that
+         * answer applies to it; what it pays for instead is *work-group count*,
+         * because on an OpenCL CPU backend each group is a scheduling unit with
+         * real per-group cost. Aiming at one group per hardware thread and
+         * letting the group get as wide as it needs to be turns that cost from
+         * "once per 64 elements" into "once per thread".
+         *
+         * The GPU answer is just @ref work_group_size: there, group count is how
+         * occupancy is expressed, and 256 work-items is already the right width.
+         *
+         * @param p The target device's profile.
+         * @param n How many elements the launch must cover.
+         * @return A work-group size the device will accept; never zero.
+         */
+        [[nodiscard]] inline std::size_t flat_work_group_size(const Profile& p,
+                                                              std::size_t n) noexcept
+        {
+            if (!p.is_cpu) return work_group_size(p);
+
+            const std::size_t per_thread = (n + p.compute_units - 1) / p.compute_units;
+            const std::size_t floor_size = std::min(K_CPU_WORK_GROUP_TARGET,
+                                                    p.max_work_group_size);
+            const std::size_t wanted = std::clamp(per_thread, floor_size,
+                                                  p.max_work_group_size);
+
+            // Whole sub-groups only, for the same reason work_group_size rounds:
+            // a partial trailing sub-group is dead lanes.
+            const std::size_t whole = (wanted / p.sub_group_size) * p.sub_group_size;
+            return whole ? whole : std::size_t{1};
+        }
+
+        /**
          * @brief Plans a grid-stride launch over @p n elements.
          *
          * @param p The target device's profile.
@@ -307,19 +349,42 @@ namespace SushiBLAS
         [[nodiscard]] inline Grid1D plan_1d(const Profile& p, std::size_t n,
                                             std::size_t unroll = 1) noexcept
         {
-            const std::size_t local = work_group_size(p);
+            const std::size_t local = flat_work_group_size(p, n);
             const std::size_t per_group = local * (unroll ? unroll : 1);
 
             const std::size_t to_cover = (n + per_group - 1) / per_group;
 
-            // On a CPU there is nothing to hide behind extra resident groups: one
-            // group per hardware thread already saturates it, and more only adds
-            // scheduling. On a GPU, oversubscribing is how memory latency gets
-            // covered.
-            const std::size_t resident = p.compute_units *
-                (p.is_cpu ? std::size_t{1} : K_WAVES_PER_COMPUTE_UNIT);
-
-            std::size_t groups = std::min(to_cover, resident);
+            // A CPU gets a grid that covers the whole problem, so the stride loop
+            // body runs at most once and the launch is "one work-item per element"
+            // with an explicit work-group size. That is the opposite of the GPU
+            // choice below, and it is a locality argument rather than an occupancy
+            // one: a CPU backend hands each OS thread a contiguous run of
+            // work-groups, which its prefetchers stream through, and capping the
+            // grid replaces that with a strided walk - each thread touching one
+            // group's worth of elements, then jumping past every other thread's
+            // share to reach its next one.
+            //
+            // Measured on this project's OpenCL CPU device (12 compute units,
+            // 8192 max work-group), 200 launches of a 1M-element elementwise add:
+            // 28.3 ms capped at one group per compute unit, 9.7 ms uncapped with
+            // the work-group sizing above, against 8.2 ms for the bare
+            // `sycl::range<1>` this replaced. The residual gap is nd_range setup
+            // the CPU backend charges and the flat launch does not; at the small
+            // and medium sizes this library actually launches at (1K-64K), the
+            // planned shape is the faster of the two by 5-7%.
+            //
+            // A GPU keeps the cap. Consecutive work-items still read consecutive
+            // elements at every step of the stride loop, so each step is as
+            // coalesced as a flat launch would be, oversubscribing resident
+            // work-groups is how memory latency gets hidden, and the cap is what
+            // stops a large tensor from scheduling a grid far larger than the
+            // device can hold resident at once.
+            std::size_t groups = to_cover;
+            if (!p.is_cpu)
+            {
+                const std::size_t resident = p.compute_units * K_WAVES_PER_COMPUTE_UNIT;
+                groups = std::min(groups, resident);
+            }
             if (groups == 0) groups = 1;
 
             return Grid1D{groups * local, local};

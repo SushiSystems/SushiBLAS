@@ -25,12 +25,14 @@
 
 #include <vector>
 #include <complex>
+#include <cstddef>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
+#include <SushiBLAS/engine/launch_1d.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -80,6 +82,7 @@ namespace SushiBLAS
             int64_t size = x.num_elements;
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {x.region()};
             std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
+            const bool vec_ok = Launch::vector_aligned(x.data(), result.data());
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -88,27 +91,28 @@ namespace SushiBLAS
             set_task_params(meta, params, name);
 
             engine.get_graph().add_task(meta, reads, writes,
-                [size, px_raw = x.data(), pr_raw = result.data(), dtype = x.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                [size, vec_ok, px_raw = x.data(), pr_raw = result.data(), dtype = x.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("Logic {}: {} elements", name, size);
                     return q.submit([&](sycl::handler& h)
                     {
                         h.depends_on(deps);
+                        const std::size_t n = static_cast<std::size_t>(size);
                         switch (dtype)
                         {
                             case Core::DataType::HALF:
-                                h.parallel_for(sycl::range<1>(size), [=, px = (sycl::half*)px_raw, pr = (sycl::half*)pr_raw](sycl::id<1> i) { pr[i] = op_func(px[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (sycl::half*)pr_raw, (const sycl::half*)px_raw);
                                 break;
                             case Core::DataType::FLOAT32:
-                                h.parallel_for(sycl::range<1>(size), [=, px = (float*)px_raw, pr = (float*)pr_raw](sycl::id<1> i) { pr[i] = op_func(px[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (float*)pr_raw, (const float*)px_raw);
                                 break;
                             case Core::DataType::FLOAT64:
-                                h.parallel_for(sycl::range<1>(size), [=, px = (double*)px_raw, pr = (double*)pr_raw](sycl::id<1> i) { pr[i] = op_func(px[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (double*)pr_raw, (const double*)px_raw);
                                 break;
                             case Core::DataType::COMPLEX32:
                                 if constexpr (Dom == Domain::REAL_AND_COMPLEX)
                                 {
-                                    h.parallel_for(sycl::range<1>(size), [=, px = (std::complex<float>*)px_raw, pr = (std::complex<float>*)pr_raw](sycl::id<1> i) { pr[i] = op_func(px[i]); });
+                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<float>*)pr_raw, (const std::complex<float>*)px_raw);
                                 }
                                 else
                                 {
@@ -118,7 +122,7 @@ namespace SushiBLAS
                             case Core::DataType::COMPLEX64:
                                 if constexpr (Dom == Domain::REAL_AND_COMPLEX)
                                 {
-                                    h.parallel_for(sycl::range<1>(size), [=, px = (std::complex<double>*)px_raw, pr = (std::complex<double>*)pr_raw](sycl::id<1> i) { pr[i] = op_func(px[i]); });
+                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<double>*)pr_raw, (const std::complex<double>*)px_raw);
                                 }
                                 else
                                 {
@@ -173,6 +177,7 @@ namespace SushiBLAS
             int64_t size = A.num_elements;
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {A.region(), B.region()};
             std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
+            const bool vec_ok = Launch::vector_aligned(A.data(), B.data(), result.data());
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -181,27 +186,28 @@ namespace SushiBLAS
             set_task_params(meta, params, name);
 
             engine.get_graph().add_task(meta, reads, writes,
-                [size, pA_raw = A.data(), pB_raw = B.data(), pR_raw = result.data(), dtype = A.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                [size, vec_ok, pA_raw = A.data(), pB_raw = B.data(), pR_raw = result.data(), dtype = A.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("Logic {}: {} elements", name, size);
                     return q.submit([&](sycl::handler& h)
                     {
                         h.depends_on(deps);
+                        const std::size_t n = static_cast<std::size_t>(size);
                         switch (dtype)
                         {
                             case Core::DataType::HALF:
-                                h.parallel_for(sycl::range<1>(size), [=, pA = (sycl::half*)pA_raw, pB = (sycl::half*)pB_raw, pR = (sycl::half*)pR_raw](sycl::id<1> i) { pR[i] = op_func(pA[i], pB[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (sycl::half*)pR_raw, (const sycl::half*)pA_raw, (const sycl::half*)pB_raw);
                                 break;
                             case Core::DataType::FLOAT32:
-                                h.parallel_for(sycl::range<1>(size), [=, pA = (float*)pA_raw, pB = (float*)pB_raw, pR = (float*)pR_raw](sycl::id<1> i) { pR[i] = op_func(pA[i], pB[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (float*)pR_raw, (const float*)pA_raw, (const float*)pB_raw);
                                 break;
                             case Core::DataType::FLOAT64:
-                                h.parallel_for(sycl::range<1>(size), [=, pA = (double*)pA_raw, pB = (double*)pB_raw, pR = (double*)pR_raw](sycl::id<1> i) { pR[i] = op_func(pA[i], pB[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (double*)pR_raw, (const double*)pA_raw, (const double*)pB_raw);
                                 break;
                             case Core::DataType::COMPLEX32:
                                 if constexpr (Dom == Domain::REAL_AND_COMPLEX)
                                 {
-                                    h.parallel_for(sycl::range<1>(size), [=, pA = (std::complex<float>*)pA_raw, pB = (std::complex<float>*)pB_raw, pR = (std::complex<float>*)pR_raw](sycl::id<1> i) { pR[i] = op_func(pA[i], pB[i]); });
+                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<float>*)pR_raw, (const std::complex<float>*)pA_raw, (const std::complex<float>*)pB_raw);
                                 }
                                 else
                                 {
@@ -211,7 +217,7 @@ namespace SushiBLAS
                             case Core::DataType::COMPLEX64:
                                 if constexpr (Dom == Domain::REAL_AND_COMPLEX)
                                 {
-                                    h.parallel_for(sycl::range<1>(size), [=, pA = (std::complex<double>*)pA_raw, pB = (std::complex<double>*)pB_raw, pR = (std::complex<double>*)pR_raw](sycl::id<1> i) { pR[i] = op_func(pA[i], pB[i]); });
+                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<double>*)pR_raw, (const std::complex<double>*)pA_raw, (const std::complex<double>*)pB_raw);
                                 }
                                 else
                                 {
@@ -266,6 +272,7 @@ namespace SushiBLAS
             int64_t size = cond.num_elements;
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {cond.region(), A.region(), B.region()};
             std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
+            const bool vec_ok = Launch::vector_aligned(cond.data(), A.data(), B.data(), result.data());
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -274,27 +281,28 @@ namespace SushiBLAS
             set_task_params(meta, params, name);
 
             engine.get_graph().add_task(meta, reads, writes,
-                [size, pC_raw = cond.data(), pA_raw = A.data(), pB_raw = B.data(), pR_raw = result.data(), dtype = cond.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                [size, vec_ok, pC_raw = cond.data(), pA_raw = A.data(), pB_raw = B.data(), pR_raw = result.data(), dtype = cond.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("Logic {}: {} elements", name, size);
                     return q.submit([&](sycl::handler& h)
                     {
                         h.depends_on(deps);
+                        const std::size_t n = static_cast<std::size_t>(size);
                         switch (dtype)
                         {
                             case Core::DataType::HALF:
-                                h.parallel_for(sycl::range<1>(size), [=, pC = (sycl::half*)pC_raw, pA = (sycl::half*)pA_raw, pB = (sycl::half*)pB_raw, pR = (sycl::half*)pR_raw](sycl::id<1> i) { pR[i] = op_func(pC[i], pA[i], pB[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (sycl::half*)pR_raw, (const sycl::half*)pC_raw, (const sycl::half*)pA_raw, (const sycl::half*)pB_raw);
                                 break;
                             case Core::DataType::FLOAT32:
-                                h.parallel_for(sycl::range<1>(size), [=, pC = (float*)pC_raw, pA = (float*)pA_raw, pB = (float*)pB_raw, pR = (float*)pR_raw](sycl::id<1> i) { pR[i] = op_func(pC[i], pA[i], pB[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (float*)pR_raw, (const float*)pC_raw, (const float*)pA_raw, (const float*)pB_raw);
                                 break;
                             case Core::DataType::FLOAT64:
-                                h.parallel_for(sycl::range<1>(size), [=, pC = (double*)pC_raw, pA = (double*)pA_raw, pB = (double*)pB_raw, pR = (double*)pR_raw](sycl::id<1> i) { pR[i] = op_func(pC[i], pA[i], pB[i]); });
+                                Launch::map(h, q, n, vec_ok, op_func, (double*)pR_raw, (const double*)pC_raw, (const double*)pA_raw, (const double*)pB_raw);
                                 break;
                             case Core::DataType::COMPLEX32:
                                 if constexpr (Dom == Domain::REAL_AND_COMPLEX)
                                 {
-                                    h.parallel_for(sycl::range<1>(size), [=, pC = (std::complex<float>*)pC_raw, pA = (std::complex<float>*)pA_raw, pB = (std::complex<float>*)pB_raw, pR = (std::complex<float>*)pR_raw](sycl::id<1> i) { pR[i] = op_func(pC[i], pA[i], pB[i]); });
+                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<float>*)pR_raw, (const std::complex<float>*)pC_raw, (const std::complex<float>*)pA_raw, (const std::complex<float>*)pB_raw);
                                 }
                                 else
                                 {
@@ -304,7 +312,7 @@ namespace SushiBLAS
                             case Core::DataType::COMPLEX64:
                                 if constexpr (Dom == Domain::REAL_AND_COMPLEX)
                                 {
-                                    h.parallel_for(sycl::range<1>(size), [=, pC = (std::complex<double>*)pC_raw, pA = (std::complex<double>*)pA_raw, pB = (std::complex<double>*)pB_raw, pR = (std::complex<double>*)pR_raw](sycl::id<1> i) { pR[i] = op_func(pC[i], pA[i], pB[i]); });
+                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<double>*)pR_raw, (const std::complex<double>*)pC_raw, (const std::complex<double>*)pA_raw, (const std::complex<double>*)pB_raw);
                                 }
                                 else
                                 {

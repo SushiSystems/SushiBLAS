@@ -5,8 +5,12 @@
 // headers out of src/. It is the in-tree half of the proof; the out-of-tree half is
 // tests/package/main.cpp, which does the same against a find_package()'d install.
 
+#include <bit>
+#include <array>
 #include <vector>
+#include <cstdint>
 #include <stdexcept>
+#include <type_traits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/engine/dispatch.hpp>
@@ -120,6 +124,183 @@ TEST_F(Unit_DispatchSeamTest, RealOnlyDomainRejectsComplexAtRecordTime)
         sb::Dispatch::execute_binary(*engine, a, b, c, "test.real_only", "test.real_only"_op,
                                      [](auto x, auto y) { return x + y; }),
         std::runtime_error);
+}
+
+// --- The fused N-tensor in-place seam ----------------------------------------------
+
+TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
+{
+    // 1023 on purpose: not a multiple of any plausible work-group size, so the
+    // grid-stride loop has to wrap, and not a multiple of any vector width, so the
+    // scalar tail is exercised on any device where the wide path is taken.
+    constexpr int64_t k_n = 1023;
+
+    const float b1 = 0.9f;
+    const float b2 = 0.999f;
+    const float lr = 0.01f;
+    const float wd = 0.01f;
+    const float eps = 1e-8f;
+    const float ema_decay = 0.99f;
+    const float inv_bc1 = 1.0f / (1.0f - b1);   // bias correction at step 1
+    const float inv_bc2 = 1.0f / (1.0f - b2);
+
+    std::vector<float> g0(k_n), th0(k_n), m0(k_n), v0(k_n);
+    for (int64_t i = 0; i < k_n; ++i)
+    {
+        g0[static_cast<size_t>(i)]  = 0.01f * static_cast<float>((i % 17) - 8);
+        th0[static_cast<size_t>(i)] = 0.001f * static_cast<float>((i % 23) - 11);
+        m0[static_cast<size_t>(i)]  = 0.002f * static_cast<float>((i % 13) - 6);
+        v0[static_cast<size_t>(i)]  = 1e-4f * static_cast<float>((i % 7) + 1);
+    }
+
+    auto seeded = [&](const std::vector<float>& values)
+    {
+        auto t = engine->create_tensor({k_n});
+        fill_tensor(t, values);
+        return t;
+    };
+
+    auto g = seeded(g0);
+    auto th_fused = seeded(th0), m_fused = seeded(m0), v_fused = seeded(v0), ema_fused = seeded(th0);
+    auto th_steps = seeded(th0), m_steps = seeded(m0), v_steps = seeded(v0), ema_steps = seeded(th0);
+
+    // One task, one kernel, one pass over memory - five tensors advanced together.
+    // `g` is passed as an operand even though the functor only reads it, because the
+    // seam cannot know that; the update below must therefore leave it untouched.
+    sb::Dispatch::execute_zip_inplace(*engine,
+        std::array{&th_fused, &g, &m_fused, &v_fused, &ema_fused},
+        "test.adamw_fused", "test.adamw_fused"_op,
+        [b1, b2, lr, wd, eps, inv_bc1, inv_bc2, ema_decay]
+        (auto& theta, auto& grad, auto& m, auto& v, auto& ema)
+        {
+            using T = std::decay_t<decltype(theta)>;
+            m = T(b1) * m + T(1.0f - b1) * grad;
+            v = T(b2) * v + T(1.0f - b2) * (grad * grad);
+            const T denom = sb::Dispatch::safe_sqrt(v * T(inv_bc2)) + T(eps);
+            theta = theta * T(1.0f - lr * wd) - T(lr) * ((m * T(inv_bc1)) / denom);
+            ema = T(ema_decay) * ema + T(1.0f - ema_decay) * theta;
+        });
+
+    // The same arithmetic spelled as the library's own ops: fifteen recorded tasks and
+    // fifteen kernel launches, every one of them re-reading state the fused kernel kept
+    // in registers. This is the thing execute_zip_inplace exists to collapse.
+    auto scratch_a = engine->create_tensor({k_n});
+    auto scratch_b = engine->create_tensor({k_n});
+    auto eps_vec = engine->create_tensor({k_n});
+    fill_tensor(eps_vec, std::vector<float>(static_cast<size_t>(k_n), eps));
+
+    engine->blas().scal(static_cast<double>(b1), m_steps);
+    engine->blas().axpy(static_cast<double>(1.0f - b1), g, m_steps);
+
+    engine->blas().copy(g, scratch_a);
+    engine->elementwise().square(scratch_a);
+    engine->blas().scal(static_cast<double>(b2), v_steps);
+    engine->blas().axpy(static_cast<double>(1.0f - b2), scratch_a, v_steps);
+
+    engine->blas().copy(v_steps, scratch_a);
+    engine->blas().scal(static_cast<double>(inv_bc2), scratch_a);
+    engine->elementwise().sqrt(scratch_a);
+    engine->elementwise().add(scratch_a, eps_vec, scratch_a);
+
+    engine->blas().copy(m_steps, scratch_b);
+    engine->blas().scal(static_cast<double>(inv_bc1), scratch_b);
+    engine->elementwise().div(scratch_b, scratch_a, scratch_b);
+
+    engine->blas().scal(static_cast<double>(1.0f - lr * wd), th_steps);
+    engine->blas().axpy(static_cast<double>(-lr), scratch_b, th_steps);
+
+    engine->blas().scal(static_cast<double>(ema_decay), ema_steps);
+    engine->blas().axpy(static_cast<double>(1.0f - ema_decay), th_steps, ema_steps);
+
+    engine->execute().wait();
+
+    SB_ASSERT_TENSOR_NEAR(m_fused, m_steps, 1e-6, float);
+    SB_ASSERT_TENSOR_NEAR(v_fused, v_steps, 1e-6, float);
+    SB_ASSERT_TENSOR_NEAR(th_fused, th_steps, 1e-6, float);
+    SB_ASSERT_TENSOR_NEAR(ema_fused, ema_steps, 1e-6, float);
+
+    // A read-only operand of a fused update comes back bit-for-bit: the kernel stages
+    // every slot and writes it back, so "the functor did not touch it" has to mean
+    // "the value that was there is the value that returns".
+    verify_tensor(g, g0, 0.0);
+}
+
+TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
+{
+    // The launch geometry is a pure function of the device, the element type, the
+    // element count and the operands' alignment - none of which change between two runs
+    // in one process. So two identical fused updates must agree exactly, not nearly.
+    constexpr int64_t k_n = 517;
+    std::vector<float> seed(static_cast<size_t>(k_n));
+    for (int64_t i = 0; i < k_n; ++i) seed[static_cast<size_t>(i)] = 0.001f * static_cast<float>((i % 31) - 15);
+
+    auto run = [&]()
+    {
+        auto a = engine->create_tensor({k_n});
+        auto b = engine->create_tensor({k_n});
+        auto c = engine->create_tensor({k_n});
+        fill_tensor(a, seed);
+        fill_tensor(b, seed);
+        fill_tensor(c, seed);
+
+        sb::Dispatch::execute_zip_inplace(*engine, std::array{&a, &b, &c},
+            "test.zip_determinism", "test.zip_determinism"_op,
+            [](auto& x, auto& y, auto& z)
+            {
+                using T = std::decay_t<decltype(x)>;
+                x = x * T(1.0000001) + y * T(0.3333333) + z * T(0.1666667);
+                y = y - x * T(0.25);
+                z = sb::Dispatch::safe_sqrt(x * x + y * y);
+            });
+        engine->execute().wait();
+
+        std::vector<float> out(static_cast<size_t>(k_n) * 3);
+        auto& q = SushiBLAS::Test::TestEnvironment::get_context().get_queue();
+        q.memcpy(out.data(), a.data(), static_cast<size_t>(k_n) * sizeof(float)).wait();
+        q.memcpy(out.data() + k_n, b.data(), static_cast<size_t>(k_n) * sizeof(float)).wait();
+        q.memcpy(out.data() + 2 * k_n, c.data(), static_cast<size_t>(k_n) * sizeof(float)).wait();
+        return out;
+    };
+
+    const std::vector<float> first = run();
+    const std::vector<float> second = run();
+
+    ASSERT_EQ(first.size(), second.size());
+    for (size_t i = 0; i < first.size(); ++i)
+    {
+        EXPECT_EQ(std::bit_cast<uint32_t>(first[i]), std::bit_cast<uint32_t>(second[i]))
+            << "Fused update was not bit-reproducible at index " << i;
+    }
+}
+
+TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
+{
+    auto four = engine->create_tensor({4});
+    auto eight = engine->create_tensor({8});
+    auto wide = engine->create_tensor({4}, DataType::FLOAT64);
+    auto cplx = engine->create_tensor({4}, DataType::COMPLEX32);
+    sb::Tensor* missing = nullptr;
+
+    auto accumulate = [](auto& x, auto& y) { x = x + y; };
+
+    // Element count: the message has to name which operand disagreed, because at N=5 a
+    // bare "sizes must match" leaves the caller to find it.
+    EXPECT_THROW(sb::Dispatch::execute_zip_inplace(*engine, std::array{&four, &eight},
+                     "test.zip_size", "test.zip_size"_op, accumulate),
+                 std::runtime_error);
+
+    EXPECT_THROW(sb::Dispatch::execute_zip_inplace(*engine, std::array{&four, &wide},
+                     "test.zip_dtype", "test.zip_dtype"_op, accumulate),
+                 std::runtime_error);
+
+    EXPECT_THROW(sb::Dispatch::execute_zip_inplace(*engine, std::array{&four, missing},
+                     "test.zip_null", "test.zip_null"_op, accumulate),
+                 std::runtime_error);
+
+    // Default domain is REAL, exactly as for execute_unary_inplace/execute_binary.
+    EXPECT_THROW(sb::Dispatch::execute_zip_inplace(*engine, std::array{&cplx, &cplx},
+                     "test.zip_complex", "test.zip_complex"_op, accumulate),
+                 std::runtime_error);
 }
 
 // --- Task metadata parameter slots -------------------------------------------------

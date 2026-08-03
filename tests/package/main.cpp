@@ -40,9 +40,11 @@
 // own suite can show that - in-tree, every header is on the include path
 // whether it gets installed or not.
 
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <vector>
+#include <type_traits>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 
@@ -99,8 +101,40 @@ int main()
         }
     }
 
-    std::printf("OK: SushiBLAS %s ran AXPY and a consumer-authored fused kernel "
-                "against an installed package\n",
+    // The variadic in-place seam, from out of tree: three tensors advanced
+    // together by one consumer-authored functor, in one task. This also proves
+    // <SushiBLAS/engine/launch_1d.hpp> - the header the seam's launch geometry
+    // lives in - actually reaches an installed consumer, which nothing in-tree
+    // can show.
+    sb::Dispatch::execute_zip_inplace(engine, std::array{&a, &b, &c},
+        "consumer.zip", "consumer.zip"_op,
+        [](auto& p, auto& r, auto& s)
+        {
+            using T = std::decay_t<decltype(p)>;
+            s = p + r;
+            p = p * T(2);
+        });
+    engine.execute();
+    ctx.wait_all();
+
+    std::vector<float> host_p(N), host_s(N);
+    q.memcpy(host_p.data(), a.data(), N * sizeof(float)).wait();
+    q.memcpy(host_s.data(), c.data(), N * sizeof(float)).wait();
+
+    for (int64_t i = 0; i < N; ++i)
+    {
+        const float base = static_cast<float>(i);
+        if (std::fabs(host_s[static_cast<size_t>(i)] - (base + 2.0f)) > 1e-4f ||
+            std::fabs(host_p[static_cast<size_t>(i)] - (base * 2.0f)) > 1e-4f)
+        {
+            std::printf("FAIL: fused in-place update wrong at index %lld\n",
+                        static_cast<long long>(i));
+            return 1;
+        }
+    }
+
+    std::printf("OK: SushiBLAS %s ran AXPY, a consumer-authored fused kernel and a "
+                "fused in-place update against an installed package\n",
                 SUSHIBLAS_VERSION_STRING);
     return 0;
 }
