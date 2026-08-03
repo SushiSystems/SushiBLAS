@@ -63,7 +63,7 @@ resolved, run `sb config`.
 | Command | What it's for |
 |---------|----------------|
 | `sb build` / `test` / `run` / `clean` | Build, test, run, and clean the C++ project |
-| `sb doxygen` | Generate the API reference — **not usable yet: no `Doxyfile` in this repo** |
+| `sb doxygen` | Generate the Doxygen API reference into `docs/api-site/html/` |
 | `sb config` | Show the resolved configuration |
 | `sb env` | Show the environment your builds run under |
 
@@ -170,21 +170,31 @@ sb run sushiblas_tests -- --gtest_shuffle --gtest_break_on_failure
 
 ```bash
 sb clean       # remove the build/ tree
-sb doxygen     # generate the Doxygen API reference into docs/
+sb doxygen     # generate the Doxygen API reference into docs/api-site/html/
 ```
 
-**`sb doxygen` does not work yet.** It runs Doxygen against a repo-root
-`Doxyfile`, and this repo has none — the command reports
-`Doxyfile not found at repo root.` and exits 1. `Doxyfile` is also listed in
-`.gitignore`, so authoring one means editing that first. Until a Doxyfile lands
-(sushiruntime's is the model: a committed `Doxyfile` scoped to the public
-header surface), treat this command as unimplemented.
+It runs Doxygen against the repo-root `Doxyfile`, which is **committed** — for
+a while it was not, and `.gitignore` listed it, so the command reported
+`Doxyfile not found at repo root.` and exited 1 in every fresh checkout.
+sushiruntime commits its own for the same reason.
 
-When one does exist, Doxygen itself is an external tool, not vendored: install
-it (`winget install DimitriVanHeesch.Doxygen` on Windows, `apt-get install
-doxygen graphviz` on Linux, `brew install doxygen graphviz` on macOS) or point
-`doxygen_exe` in `cli/config.local.toml` at an existing binary. The command
-prints the right install line if it cannot find one.
+Output lands in `docs/api-site/html/`, and warnings — every public symbol
+missing a doc comment — in `docs/api-site/doxygen-warnings.log`. Both are
+gitignored; the log is where the documentation debt is read off, and
+`WARN_AS_ERROR` is deliberately `NO` so a missing `@param` cannot fail a docs
+build.
+
+Scope is `include/SushiBLAS` minus `Detail` and minus `experimental/`. The
+quarantine is deliberate: decision D1 put the FFT and linalg headers outside
+the umbrella header and not every declared op there has a definition, so
+listing them would advertise an API that does not link.
+
+Doxygen itself is an external tool, not vendored: install it (`winget install
+DimitriVanHeesch.Doxygen` on Windows, `apt-get install doxygen graphviz` on
+Linux, `brew install doxygen graphviz` on macOS) or point `doxygen_exe` in
+`cli/config.local.toml` at an existing binary. The command prints the right
+install line if it cannot find one. The stack's provisioned toolchain ships
+one, so `ss install` is usually enough.
 
 ## `sb config` and `sb env` — diagnostics
 

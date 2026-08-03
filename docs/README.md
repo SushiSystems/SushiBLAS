@@ -102,7 +102,7 @@ cmake --build build --config Release
 ```bash
 sb config         # print resolved config with per-field source annotation
 sb env            # print the environment cmake/ctest/run subprocesses see
-sb doxygen        # build the Doxygen API reference (not usable yet — no Doxyfile in this repo)
+sb doxygen        # build the Doxygen API reference into docs/api-site/html/
 ```
 
 ## Running the tests
