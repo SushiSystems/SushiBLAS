@@ -29,6 +29,7 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/traits.hpp>
+#include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -69,10 +70,25 @@ namespace SushiBLAS
          * switch(dtype) dispatching a generically-templated closure) generalized for ops with
          * matrix operands. Unsupported dtypes fail loudly (P1 corollary), never silently no-op.
          *
+         * @tparam Dom Which element types to instantiate @p op_func for, in exactly the sense
+         *         `Dispatch::Domain` defines for the math and logic families. It defaults to
+         *         REAL_AND_COMPLEX because that is what every built-in BLAS op wants and has
+         *         always had; the parameter exists for `Dispatch::execute_gemm`, whose
+         *         functor is written by the *caller* and is therefore no more likely to be
+         *         well-formed for `std::complex` than an elementwise lambda is. Without it,
+         *         a consumer's real-only GEMM epilogue is a compile error in the two arms
+         *         that will never run.
+         * @tparam Func The functor type, deduced.
+         * @param engine The engine whose task graph the op is recorded on.
+         * @param meta The task metadata to record.
+         * @param reads Regions the task reads.
+         * @param writes Regions the task writes.
+         * @param dtype The operands' runtime element type.
          * @param op_func A callable `(auto scalar_type, sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`,
          * generic over the runtime dtype via `decltype(scalar_type)`.
+         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
          */
-        template<typename Func>
+        template<Dispatch::Domain Dom = Dispatch::Domain::REAL_AND_COMPLEX, typename Func>
         sycl::event execute_blas_task(Engine& engine, const SushiRuntime::Graph::TaskMetadata& meta,
                                        const std::vector<SushiRuntime::Core::ResourceRegion>& reads,
                                        const std::vector<SushiRuntime::Core::ResourceRegion>& writes,
@@ -90,9 +106,17 @@ namespace SushiBLAS
                         case Core::DataType::FLOAT64:
                             return op_func(double{}, q, deps);
                         case Core::DataType::COMPLEX32:
-                            return op_func(std::complex<float>{}, q, deps);
+                            if constexpr (Dom == Dispatch::Domain::REAL_AND_COMPLEX)
+                                return op_func(std::complex<float>{}, q, deps);
+                            else
+                                SB_THROW_IF(true, "Operation '{}' does not support dtype COMPLEX32.", name);
+                            break;
                         case Core::DataType::COMPLEX64:
-                            return op_func(std::complex<double>{}, q, deps);
+                            if constexpr (Dom == Dispatch::Domain::REAL_AND_COMPLEX)
+                                return op_func(std::complex<double>{}, q, deps);
+                            else
+                                SB_THROW_IF(true, "Operation '{}' does not support dtype COMPLEX64.", name);
+                            break;
                         default:
                             SB_THROW_IF(true, "Unsupported data type for {}", name);
                     }

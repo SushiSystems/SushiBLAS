@@ -31,7 +31,9 @@ namespace SushiBLAS
     sycl::event ReductionOps::var(const Tensor& t, Tensor& result) 
     {
         // TODO: Implement a parallel reduction (e.g. Chan et al. algorithm) for variance to replace single_task.
-        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
+        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size,
+                                     [[maybe_unused]] Dispatch::ReductionScratch<T> scratch,
+                                     const std::vector<sycl::event>& deps) 
         {
             return q.submit([&](sycl::handler& h) 
             {

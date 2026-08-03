@@ -21,34 +21,25 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 #include <SushiBLAS/engine/math/reductions.hpp>
+#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ReductionOps::mean(const Tensor& t, Tensor& result) 
+    // The division is the finalizer, which is why this now costs the same number of
+    // kernel launches as `sum`. It used to submit a second single_task purely to
+    // divide one scalar by one integer.
+    sycl::event ReductionOps::mean(const Tensor& t, Tensor& result)
     {
-        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
-        {
-            auto e1 = q.submit([&](sycl::handler& h) 
+        return Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(
+            engine_, t, result, "math.mean", "math.mean"_op,
+            Dispatch::ReduceIdentityTransform{},
+            [](auto value, std::size_t n)
             {
-                h.depends_on(deps);
-                h.parallel_for(sycl::range<1>(size), sycl::reduction(pR, T(0), sycl::plus<T>(), sycl::property::reduction::initialize_to_identity{}), [=](sycl::id<1> idx, auto& reducer) 
-                {
-                    reducer.combine(pT[idx[0]]);
-                });
+                using T = decltype(value);
+                return value / static_cast<T>(n);
             });
-            return q.submit([&](sycl::handler& h) 
-            {
-                h.depends_on(e1);
-                h.single_task([=]() 
-                {
-                    *pR /= static_cast<T>(size);
-                });
-            });
-        };
-        return Dispatch::execute_reduction(engine_, t, result, "math.mean", "math.mean"_op, dispatch);
     }
 } // namespace SushiBLAS

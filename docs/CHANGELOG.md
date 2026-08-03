@@ -38,7 +38,8 @@ None open.
 
 ### Added
 - **GEMM ships two kernel shapes and picks one from the device profile**
-  (`kernels/sycl/blas/level3/gemm.hpp`). `Detail::gemm_local_tiled` is the
+  (`include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, moved there when the
+  epilogue seam was made public). `Detail::gemm_local_tiled` is the
   existing cooperative local-memory kernel; `Detail::gemm_no_local` drops the
   `local_accessor` and both barriers entirely and reads the operands straight
   from global memory. The split is portBLAS's own (`gemm_local` vs.

@@ -26,14 +26,17 @@
 #include <complex>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include <kernels/sycl/blas/level3/gemm.hpp>
-#include <kernels/reference/blas/level3/gemm.hpp>
+#include <SushiBLAS/engine/blas/dispatch.hpp>
+#include <SushiBLAS/kernels/sycl/blas/level3/gemm.hpp>
+#include <SushiBLAS/kernels/reference/blas/level3/gemm.hpp>
 #include "../../common/test_utils.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
+        using namespace SushiRuntime::Graph::Literals;
+
         template <typename T>
         class Unit_GEMMTest : public SushiBLASTest
         {
@@ -448,6 +451,118 @@ namespace SushiBLAS
                 EXPECT_TENSOR_NEAR(C, (std::vector<float>{2.5f, 3.0f, 0.0f, 7.5f, 8.0f, 0.0f}), 1e-5);
             }
 
+            /**
+            * @brief The epilogue through the public seam, not through the kernel.
+            *
+            * The test above calls `Kernels::SYCL::gemm` directly, which no consumer can
+            * do through the Engine API. These go through
+            * `Dispatch::execute_gemm` - recorded as a task on the graph, run by
+            * `Engine::execute()`, dispatched on the runtime dtype - because that is the
+            * seam that is actually supported, and a hook that only works when called
+            * from inside this repository is the thing this test exists to rule out.
+            *
+            * C is square (3x3) on purpose, and both biases are distinct. A square C is
+            * what makes a transposed `row`/`col` a *wrong answer* rather than an
+            * out-of-range read: with a 2x3 C, swapping the coordinates indexes a 2-entry
+            * row bias with a column index and the failure is undefined behaviour instead
+            * of a comparison this can report. The expected values below differ under the
+            * swap (row 0 would end [2, 0, 9] rather than [2, 0, 6]), so the coordinates
+            * are pinned individually and not merely jointly.
+            */
+            class Unit_GEMMSeamTest : public SushiBLASTest
+            {
+                protected:
+                    /** @brief A = 3x2, chosen so A*B is square and not symmetric. */
+                    static std::vector<float> a_values() { return {1, 0, 0, 1, 1, 1}; }
+
+                    /** @brief B = 2x3. */
+                    static std::vector<float> b_values() { return {1, 2, 3, 4, 5, 6}; }
+
+                    /**
+                    * @brief The hand-computed result of the fused call.
+                    *
+                    * A*B = [[1,2,3], [4,5,6], [5,7,9]]. With row_bias = [0, -6, 5] and
+                    * col_bias = [1, -8, 3], `value + row_bias[row] + col_bias[col]` is
+                    *
+                    *     [[  2,  -6,   6],
+                    *      [ -1,  -9,   3],
+                    *      [ 11,   4,  17]]
+                    *
+                    * and the ReLU clamps the three negatives to zero.
+                    */
+                    static std::vector<float> expected()
+                    {
+                        return {2, 0, 6,
+                                0, 0, 3,
+                                11, 4, 17};
+                    }
+            };
+
+            TEST_F(Unit_GEMMSeamTest, ExecuteGemmFusesBiasBroadcastAndReluOnTheSyclPath)
+            {
+                auto A = create_initialized_tensor<float>({3, 2}, a_values());
+                auto B = create_initialized_tensor<float>({2, 3}, b_values());
+                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto row_bias = create_initialized_tensor<float>({3}, {0.0f, -6.0f, 5.0f});
+                auto col_bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
+
+                const BiasReluEpilogue epilogue{row_bias.data_as<float>(),
+                                                col_bias.data_as<float>()};
+
+                engine->set_mode(ExecutionMode::FORCE_SYCL);
+                Dispatch::execute_gemm(*engine, A, B, C, false, false, 1.0, 0.0,
+                                       "test.gemm_bias_relu", "test.gemm_bias_relu"_op,
+                                       epilogue);
+                engine->execute().wait();
+
+                EXPECT_TENSOR_NEAR(C, expected(), 1e-5);
+            }
+
+            TEST_F(Unit_GEMMSeamTest, ExecuteGemmAppliesTheSameEpilogueOnTheReferencePath)
+            {
+                // The reference kernel is this operation's specification, so it has to
+                // apply the epilogue too - otherwise VERIFY mode would declare every
+                // fused GEMM wrong, and FORCE_REFERENCE would quietly compute a different
+                // function from FORCE_SYCL.
+                auto A = create_initialized_tensor<float>({3, 2}, a_values());
+                auto B = create_initialized_tensor<float>({2, 3}, b_values());
+                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto row_bias = create_initialized_tensor<float>({3}, {0.0f, -6.0f, 5.0f});
+                auto col_bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
+
+                const BiasReluEpilogue epilogue{row_bias.data_as<float>(),
+                                                col_bias.data_as<float>()};
+
+                engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                Dispatch::execute_gemm(*engine, A, B, C, false, false, 1.0, 0.0,
+                                       "test.gemm_bias_relu_ref", "test.gemm_bias_relu_ref"_op,
+                                       epilogue);
+                engine->execute().wait();
+
+                EXPECT_TENSOR_NEAR(C, expected(), 1e-5);
+            }
+
+            TEST_F(Unit_GEMMSeamTest, ExecuteGemmWithTheIdentityEpilogueIsPlainGemm)
+            {
+                // What `Level3::gemm` now is, asserted directly: the unfused entry point
+                // and the seam with the identity must agree element for element, or the
+                // delegation in src/engine/blas/level3/gemm.cpp changed behaviour.
+                auto A = engine->create_tensor({13, 7}, Core::DataType::FLOAT32);
+                auto B = engine->create_tensor({7, 11}, Core::DataType::FLOAT32);
+                auto via_api = engine->create_tensor({13, 11}, Core::DataType::FLOAT32);
+                auto via_seam = engine->create_tensor({13, 11}, Core::DataType::FLOAT32);
+                fill_random<float>(A);
+                fill_random<float>(B);
+
+                engine->blas().gemm(A, B, via_api, false, false, 1.5, 0.0);
+                Dispatch::execute_gemm(*engine, A, B, via_seam, false, false, 1.5, 0.0,
+                                       "test.gemm_identity", "test.gemm_identity"_op,
+                                       Kernels::GemmIdentityEpilogue{});
+                engine->execute().wait();
+
+                SB_ASSERT_TENSOR_NEAR(via_seam, via_api, 1e-6, float);
+            }
+
             TEST_F(Unit_GEMMKernelTest, NoLocalVariantMatchesReferenceOnRaggedShape)
             {
                 constexpr int64_t m = 37, n = 45, k = 23;
@@ -472,7 +587,7 @@ namespace SushiBLAS
                     alpha, static_cast<const float*>(A.data()), row_major(k), 0,
                     static_cast<const float*>(B.data()), row_major(n), 0,
                     0.0f, static_cast<float*>(C.data()), row_major(n), 0,
-                    1, {}, Kernels::SYCL::GemmIdentityEpilogue{}).wait();
+                    1, {}, Kernels::GemmIdentityEpilogue{}).wait();
 
                 EXPECT_TENSOR_NEAR(C, expected, 1e-4);
             }
@@ -514,7 +629,7 @@ namespace SushiBLAS
                     alpha, static_cast<const float*>(A.data()), row_major(k), 0,
                     static_cast<const float*>(B.data()), row_major(n), 0,
                     0.0f, static_cast<float*>(C.data()), row_major(n), 0,
-                    1, {}, Kernels::SYCL::GemmIdentityEpilogue{}).wait();
+                    1, {}, Kernels::GemmIdentityEpilogue{}).wait();
 
                 EXPECT_TENSOR_NEAR(C, expected, 1e-4);
             }
@@ -557,7 +672,7 @@ namespace SushiBLAS
                     Kd::strides_for(Core::Layout::COLUMN_MAJOR, true, n), 0,
                     0.0f, static_cast<float*>(C.data()),
                     Kd::strides_for(Core::Layout::COLUMN_MAJOR, false, m), 0,
-                    1, {}, Kernels::SYCL::GemmIdentityEpilogue{}).wait();
+                    1, {}, Kernels::GemmIdentityEpilogue{}).wait();
 
                 EXPECT_TENSOR_NEAR(C, expected, 1e-4);
             }

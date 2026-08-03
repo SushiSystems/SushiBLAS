@@ -44,7 +44,9 @@ namespace SushiBLAS
     // available here fixes that; only screening the input does.
     sycl::event ReductionOps::max(const Tensor& t, Tensor& result)
     {
-        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
+        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size,
+                                     [[maybe_unused]] Dispatch::ReductionScratch<T> scratch,
+                                     const std::vector<sycl::event>& deps) 
         {
             T init_val = std::numeric_limits<T>::lowest();
             return q.submit([&](sycl::handler& h) 

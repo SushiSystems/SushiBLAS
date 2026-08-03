@@ -19,7 +19,7 @@ these kernels is SushiBLAS's own responsibility from here on.
 
 ## Ported files
 
-- **`kernels/sycl/blas/level3/gemm.hpp`**
+- **`include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`**
   Tiling/blocking algorithms ported from `src/operations/blas3/gemm_local.hpp`
   and `src/operations/blas3/gemm_no_local.hpp`, and the reason upstream ships
   both. `Detail::gemm_local_tiled` is the local-memory form: the work-group

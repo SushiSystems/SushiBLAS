@@ -26,6 +26,7 @@
 #include <complex>
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/kernels/blas/level3/gemm_epilogue.hpp>
 
 namespace SushiBLAS
 {
@@ -45,13 +46,38 @@ namespace SushiBLAS
             * version of this file had the COLUMN_MAJOR arm of A and B inverted, which
             * made `layout` a no-op for both operands and, with the column-major leading
             * dimension the driver passes, read past the end of A whenever m > k.
+            *
+            * @tparam T The element type.
+            * @tparam Epilogue Functor applied per element immediately before the store,
+            *         exactly as in @ref SushiBLAS::Kernels::SYCL::gemm and with the same
+            *         `(value, row, col)` contract. It is here so that a *fused* GEMM has
+            *         a ground truth at all: `VERIFY` mode and `FORCE_REFERENCE` are how
+            *         this project judges a SYCL kernel, and a reference that dropped the
+            *         epilogue would silently declare every fused result wrong. Defaults
+            *         to @ref SushiBLAS::Kernels::GemmIdentityEpilogue.
+            * @param layout The layout all three operands are stored in.
+            * @param transA Whether A is used transposed.
+            * @param transB Whether B is used transposed.
+            * @param m Rows of C.
+            * @param n Columns of C.
+            * @param k Shared inner dimension.
+            * @param alpha Scale applied to the product.
+            * @param a Base pointer of A.
+            * @param lda A's leading dimension.
+            * @param b Base pointer of B.
+            * @param ldb B's leading dimension.
+            * @param beta Scale applied to the incoming C; exactly zero skips reading C.
+            * @param c Base pointer of C.
+            * @param ldc C's leading dimension.
+            * @param epilogue The per-element epilogue functor.
             */
-            template<typename T>
+            template<typename T, typename Epilogue = GemmIdentityEpilogue>
             void gemm(Core::Layout layout, bool transA, bool transB,
                     int64_t m, int64_t n, int64_t k,
                     T alpha, const T* a, int64_t lda,
                     const T* b, int64_t ldb,
-                    T beta, T* c, int64_t ldc)
+                    T beta, T* c, int64_t ldc,
+                    Epilogue epilogue = Epilogue{})
             {
                 const bool col_major = (layout == Core::Layout::COLUMN_MAJOR);
 
@@ -73,33 +99,64 @@ namespace SushiBLAS
                         for (int64_t l = 0; l < k; ++l)
                             sum += A_at(i, l) * B_at(l, j);
 
+                        const int64_t idx = (layout == Core::Layout::ROW_MAJOR)
+                            ? i * ldc + j
+                            : i + j * ldc;
+
                         // beta==0 must not read the (possibly uninitialized) prior C value,
                         // matching standard BLAS semantics.
-                        if (layout == Core::Layout::ROW_MAJOR)
-                            c[i * ldc + j] = (beta == T(0)) ? alpha * sum : alpha * sum + beta * c[i * ldc + j];
-                        else
-                            c[i + j * ldc] = (beta == T(0)) ? alpha * sum : alpha * sum + beta * c[i + j * ldc];
+                        const T value = (beta == T(0)) ? alpha * sum
+                                                       : alpha * sum + beta * c[idx];
+
+                        c[idx] = epilogue(value, i, j);
                     }
                 }
             }
 
             /**
             * @brief Batch GEMM reference implementation.
+            *
+            * @tparam T The element type.
+            * @tparam Epilogue Functor applied per element before the store; see the
+            *         single-matrix overload above.
+            * @param layout The layout all three operands are stored in.
+            * @param transA Whether A is used transposed.
+            * @param transB Whether B is used transposed.
+            * @param m Rows of C.
+            * @param n Columns of C.
+            * @param k Shared inner dimension.
+            * @param alpha Scale applied to the product.
+            * @param a Base pointer of A.
+            * @param lda A's leading dimension.
+            * @param str_a Element stride between consecutive A matrices in the batch.
+            * @param b Base pointer of B.
+            * @param ldb B's leading dimension.
+            * @param str_b Element stride between consecutive B matrices in the batch.
+            * @param beta Scale applied to the incoming C; exactly zero skips reading C.
+            * @param c Base pointer of C.
+            * @param ldc C's leading dimension.
+            * @param str_c Element stride between consecutive C matrices in the batch.
+            * @param batch_size Number of matrices in the batch.
+            * @param epilogue The per-element epilogue functor. Its `row`/`col` arguments
+            *        are the coordinates within one matrix of the batch, matching
+            *        @ref SushiBLAS::Kernels::SYCL::gemm - a batch-aware epilogue would
+            *        need a batch index the SYCL side does not supply either.
             */
-            template<typename T>
+            template<typename T, typename Epilogue = GemmIdentityEpilogue>
             void gemm(Core::Layout layout, bool transA, bool transB,
                             int64_t m, int64_t n, int64_t k,
                             T alpha, const T* a, int64_t lda, int64_t str_a,
                             const T* b, int64_t ldb, int64_t str_b,
                             T beta, T* c, int64_t ldc, int64_t str_c,
-                            int64_t batch_size) 
+                            int64_t batch_size,
+                            Epilogue epilogue = Epilogue{})
             {
-                for (int64_t b_idx = 0; b_idx < batch_size; ++b_idx) 
+                for (int64_t b_idx = 0; b_idx < batch_size; ++b_idx)
                 {
-                    gemm(layout, transA, transB, m, n, k, alpha, 
-                        a + b_idx * str_a, lda, 
-                        b + b_idx * str_b, ldb, 
-                        beta, c + b_idx * str_c, ldc);
+                    gemm(layout, transA, transB, m, n, k, alpha,
+                        a + b_idx * str_a, lda,
+                        b + b_idx * str_b, ldb,
+                        beta, c + b_idx * str_c, ldc, epilogue);
                 }
             }
 

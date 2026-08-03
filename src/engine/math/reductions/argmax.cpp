@@ -65,7 +65,9 @@ namespace SushiBLAS
         // For now, to keep the reduction dispatch clean and avoid type mismatches, we'll implement 
         // a simple single-threaded loop on the device, as Custom Reductions with sycl::reduction 
         // can be tricky in OpenCL vs Level-Zero backends.
-        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
+        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size,
+                                     [[maybe_unused]] Dispatch::ReductionScratch<T> scratch,
+                                     const std::vector<sycl::event>& deps) 
         {
             return q.submit([&](sycl::handler& h) 
             {

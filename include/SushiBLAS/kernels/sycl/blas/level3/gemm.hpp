@@ -48,6 +48,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/device_policy.hpp>
+#include <SushiBLAS/kernels/blas/level3/gemm_epilogue.hpp>
 
 namespace SushiBLAS
 {
@@ -55,37 +56,6 @@ namespace SushiBLAS
     {
         namespace SYCL
         {
-            /**
-            * @struct GemmIdentityEpilogue
-            * @brief The default GEMM epilogue: stores the computed element unchanged.
-            *
-            * Exists so that the fusion hook on @ref gemm costs nothing when unused -
-            * the call inlines to the value itself and the generated kernel is byte
-            * for byte the unfused one.
-            *
-            * @see gemm for the fusion contract, and for the training-correctness trap
-            *      that comes with any *activation* epilogue.
-            */
-            struct GemmIdentityEpilogue
-            {
-                /**
-                * @brief Returns @p value unchanged.
-                *
-                * @tparam T The element type of C.
-                * @param value The fully formed C element, alpha*(op(A)*op(B)) + beta*C.
-                * @param row The element's row in C. Unused by the identity.
-                * @param col The element's column in C. Unused by the identity.
-                * @return @p value.
-                */
-                template<typename T>
-                [[nodiscard]] T operator()(T value,
-                                           [[maybe_unused]] int64_t row,
-                                           [[maybe_unused]] int64_t col) const noexcept
-                {
-                    return value;
-                }
-            };
-
             namespace Detail
             {
                 /**
@@ -747,7 +717,11 @@ namespace SushiBLAS
             *         expressible. This is the library's highest-value fusion hook - it
             *         lets the layer above fold a bias-add and an activation into GEMM
             *         instead of paying two more kernel launches. Defaults to
-            *         @ref GemmIdentityEpilogue, which costs nothing.
+            *         @ref SushiBLAS::Kernels::GemmIdentityEpilogue, which costs nothing.
+            *
+            *         Reachable from outside this library through
+            *         @ref SushiBLAS::Dispatch::execute_gemm, which is the supported
+            *         seam; this entry point is the kernel underneath it.
             *
             *         @warning An **activation** epilogue used in a *forward training*
             *         pass is silently wrong unless it also writes its pre-activation

@@ -38,7 +38,9 @@ namespace SushiBLAS
         // the way ArgMaxCombine in argmax.cpp does.
         //
         // TODO: Implement a parallel tree reduction for argmin to replace single_task.
-        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps) 
+        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size,
+                                     [[maybe_unused]] Dispatch::ReductionScratch<T> scratch,
+                                     const std::vector<sycl::event>& deps) 
         {
             return q.submit([&](sycl::handler& h) 
             {

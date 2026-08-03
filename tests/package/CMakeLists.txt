@@ -19,6 +19,19 @@ cmake_minimum_required(VERSION 3.20)
 #   cmake --build /tmp/sb-consumer
 #   /tmp/sb-consumer/sushiblas_package_consumer
 #
+# Two things that are easy to lose an hour to, both host-environment rather
+# than package problems:
+#
+#   * `cmake --install` from sushiblas's build tree installs SushiRuntime too
+#     (it is an add_subdirectory of this build), so one prefix is enough - there
+#     is no separate sushiruntime install to point at.
+#   * On Windows the configure must run under the same MSVC environment `sb`
+#     loads for its own builds (vcvars64: INCLUDE, LIB, and a resource compiler
+#     clang-cl's CMake platform module insists on), and the built binary needs
+#     sushiruntime.dll and hwloc-15.dll beside it or it exits 0xC0000135 before
+#     main. In-tree targets get those from a POST_BUILD copy; a real consumer
+#     would deploy them itself.
+#
 # The compiler must still be the SYCL one - not because SushiBLAS's kernels
 # are header templates instantiated here (they are not: every kernel is
 # compiled into the sushiblas static library already), but because the

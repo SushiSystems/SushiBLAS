@@ -44,7 +44,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <kernels/sycl/blas/level3/gemm.hpp>
+#include <SushiBLAS/kernels/sycl/blas/level3/gemm.hpp>
 
 namespace SushiBLAS
 {
