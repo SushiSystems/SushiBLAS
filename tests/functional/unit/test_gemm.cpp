@@ -563,6 +563,296 @@ namespace SushiBLAS
                 SB_ASSERT_TENSOR_NEAR(via_seam, via_api, 1e-6, float);
             }
 
+            // ===============================================================
+            // The epilogue's own operands
+            // ===============================================================
+            //
+            // `execute_gemm` declares A, B and C. Whatever the epilogue itself
+            // touches is invisible to it - the functor is an opaque callable, and
+            // that opacity is the feature - so an undeclared bias is not a wrong
+            // dependency edge, it is NO edge, and the graph is free to run this
+            // GEMM at the same time as whatever writes the bias. Nothing throws
+            // and nothing is NaN; the run simply computes with a value that had
+            // not arrived yet.
+            //
+            // `Dispatch::gemm_epilogue(...).reads(t)/.writes(t)` is how the caller
+            // hands that back, and every assertion below is on `in_degree`, never
+            // on an output value - for the reason
+            // Regression_Sentinel.ReductionsOrderAgainstViewsOfOneAllocation gives
+            // at length: with no edge the two tasks MAY still come out in the right
+            // order by luck, so a correct answer proves nothing about ordering. The
+            // in-degree is the fact that decides it.
+
+            /**
+            * @struct BiasColumnEpilogue
+            * @brief A per-column bias add - the shape a fused Linear layer uses.
+            *
+            * Deliberately simpler than @ref BiasReluEpilogue: these tests are about
+            * what the task *declares*, not about what it computes, and a bias-only
+            * epilogue is the one the ordering hazard was actually found on.
+            */
+            struct BiasColumnEpilogue
+            {
+                /** @brief One value per column of C, broadcast down its rows. */
+                const float* bias;
+
+                /**
+                * @brief Adds the column's bias to @p value.
+                * @tparam T The element type of C.
+                * @param value The fully formed element.
+                * @param col The element's column in C.
+                * @return value + bias[col].
+                */
+                template<typename T>
+                [[nodiscard]] T operator()(T value, int64_t, int64_t col) const noexcept
+                {
+                    return value + static_cast<T>(bias[col]);
+                }
+            };
+
+            /**
+            * @struct BiasSpillEpilogue
+            * @brief A bias add that also spills its result to an auxiliary buffer.
+            *
+            * The shape cuBLASLt calls `GELU_AUX_BIAS`: the pre-activation the
+            * backward pass has to differentiate at, written out on the way past so
+            * it still exists after the fused store. No activation is applied - what
+            * is under test is whether the seam can express an auxiliary *write* at
+            * all, which is the thing that decides whether such an epilogue can ever
+            * be safe, not any particular activation's arithmetic.
+            */
+            struct BiasSpillEpilogue
+            {
+                /** @brief One value per column of C. */
+                const float* bias;
+
+                /** @brief Row-major spill buffer, the same extents as C. */
+                float* aux;
+
+                /** @brief C's column count, so the epilogue can address @ref aux. */
+                int64_t columns;
+
+                /**
+                * @brief Adds the bias, spills the result and returns it.
+                * @tparam T The element type of C.
+                * @param value The fully formed element.
+                * @param row The element's row in C.
+                * @param col The element's column in C.
+                * @return value + bias[col].
+                */
+                template<typename T>
+                T operator()(T value, int64_t row, int64_t col) const
+                {
+                    const T pre = value + static_cast<T>(bias[col]);
+                    aux[row * columns + col] = static_cast<float>(pre);
+                    return pre;
+                }
+            };
+
+            TEST_F(Unit_GEMMSeamTest, ADeclaredEpilogueReadIsOrderedBehindItsProducer)
+            {
+                auto A = create_initialized_tensor<float>({3, 2}, a_values());
+                auto B = create_initialized_tensor<float>({2, 3}, b_values());
+                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
+                auto bias = engine->create_tensor({3}, Core::DataType::FLOAT32);
+
+                // The bias is written inside the same graph, which is the case that
+                // matters: a parameter an optimizer rewrites within one compiled
+                // plan looks exactly like this. A and B have no producer here, so
+                // the GEMM's in-degree counts the bias edge and nothing else.
+                engine->elementwise().mul(seed, seed, bias);
+
+                Dispatch::execute_gemm(*engine, A, B, C, false, false, 1.0, 0.0,
+                                       "test.gemm_declared_bias", "test.gemm_declared_bias"_op,
+                                       Dispatch::gemm_epilogue(
+                                           BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
+
+                auto nodes = engine->get_graph().take_nodes();
+                ASSERT_EQ(2u, nodes.size());
+                EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
+                    << "The GEMM whose epilogue dereferences `bias` must depend on the op "
+                       "that wrote it. An in-degree of 0 means the declaration made through "
+                       "Dispatch::gemm_epilogue never reached the task's read set.";
+            }
+
+            TEST_F(Unit_GEMMSeamTest, AnUndeclaredEpilogueOperandGetsNoEdgeAtAll)
+            {
+                // The control, and the whole reason the test above is worth writing:
+                // the same graph with the same functor, passed bare. This is what
+                // every fused GEMM in this library did before gemm_epilogue existed,
+                // and it is asserted rather than merely described because a fix whose
+                // test would also pass without the fix is not a test.
+                //
+                // It is also the compatibility pin: a bare epilogue must go on
+                // producing exactly this access set, so nothing that never declared
+                // anything changes behaviour.
+                auto A = create_initialized_tensor<float>({3, 2}, a_values());
+                auto B = create_initialized_tensor<float>({2, 3}, b_values());
+                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
+                auto bias = engine->create_tensor({3}, Core::DataType::FLOAT32);
+
+                engine->elementwise().mul(seed, seed, bias);
+
+                Dispatch::execute_gemm(*engine, A, B, C, false, false, 1.0, 0.0,
+                                       "test.gemm_bare_bias", "test.gemm_bare_bias"_op,
+                                       BiasColumnEpilogue{bias.data_as<float>()});
+
+                auto nodes = engine->get_graph().take_nodes();
+                ASSERT_EQ(2u, nodes.size());
+                EXPECT_EQ(0, nodes[1]->in_degree.load(std::memory_order_relaxed))
+                    << "A bare epilogue declares nothing, so the GEMM must be a root - "
+                       "unordered against the op writing the bias it reads. If this is 1, "
+                       "something is inferring the epilogue's operands, which this layer "
+                       "cannot do correctly and must not appear to do.";
+            }
+
+            TEST_F(Unit_GEMMSeamTest, DeclaredOperandsOrderAcrossTwoViewsOfOneAllocation)
+            {
+                // The bare-pointer hazard, on this seam. A region built from `data()`
+                // widens to the whole allocation of whatever it points at, so a view
+                // at a non-zero offset and its own arena look like two unrelated
+                // resources, overlaps() says false, and the tracker emits no edge at
+                // all - not a wrong edge, none. That is what cost SushiAI's first
+                // arena-packed training run, and it is why
+                // GemmEpilogue::reads takes a Tensor and calls Tensor::region()
+                // itself rather than accepting a region a caller built.
+                constexpr int64_t kN = 3;
+
+                auto storage = SushiRuntime::make_sushi<Storage>(
+                    TestEnvironment::get_context().get_allocator(),
+                    static_cast<size_t>(2 * kN) * sizeof(float),
+                    SushiRuntime::Memory::Strategies::Shared::instance());
+
+                Tensor seed(storage, {kN}, Core::DataType::FLOAT32, 0);
+                Tensor bias(storage, {kN}, Core::DataType::FLOAT32, kN);
+
+                fill_tensor(seed, {1.0f, 2.0f, 3.0f});
+
+                auto A = create_initialized_tensor<float>({3, 2}, a_values());
+                auto B = create_initialized_tensor<float>({2, 3}, b_values());
+                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+
+                engine->elementwise().mul(seed, seed, bias);
+
+                Dispatch::execute_gemm(*engine, A, B, C, false, false, 1.0, 0.0,
+                                       "test.gemm_arena_bias", "test.gemm_arena_bias"_op,
+                                       Dispatch::gemm_epilogue(
+                                           BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
+
+                auto nodes = engine->get_graph().take_nodes();
+                ASSERT_EQ(2u, nodes.size());
+                EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
+                    << "The declared read must be described by Tensor::region() - keyed on "
+                       "the allocation base and narrowed to the view's byte interval. An "
+                       "in-degree of 0 means it was described by a bare pointer, which keys "
+                       "on a base nothing else in this graph shares.";
+            }
+
+            TEST_F(Unit_GEMMSeamTest, ADeclaredEpilogueWriteOrdersItsReaderBehindTheGemm)
+            {
+                // The direction that decides whether an activation can ever be fused
+                // into a *training* forward pass: the epilogue spills its
+                // pre-activation, and whatever differentiates against that spill has
+                // to be ordered behind the GEMM that produced it. Nothing else in the
+                // task's access set mentions the aux buffer, so this edge exists only
+                // if the write was declared.
+                auto A = create_initialized_tensor<float>({3, 2}, a_values());
+                auto B = create_initialized_tensor<float>({2, 3}, b_values());
+                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
+                auto aux = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto consumer = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+
+                Dispatch::execute_gemm(*engine, A, B, C, false, false, 1.0, 0.0,
+                                       "test.gemm_spill", "test.gemm_spill"_op,
+                                       Dispatch::gemm_epilogue(
+                                           BiasSpillEpilogue{bias.data_as<float>(),
+                                                             aux.data_as<float>(), 3})
+                                           .reads(bias)
+                                           .writes(aux));
+
+                engine->elementwise().mul(aux, aux, consumer);
+
+                auto nodes = engine->get_graph().take_nodes();
+                ASSERT_EQ(2u, nodes.size());
+                EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
+                    << "The op reading the epilogue's spill buffer must depend on the GEMM "
+                       "that filled it. An in-degree of 0 means the declared write never "
+                       "reached the task's write set, and the spill buys nothing.";
+            }
+
+            TEST_F(Unit_GEMMSeamTest, AnUndeclaredEpilogueWriteGetsNoEdgeAtAll)
+            {
+                // The control for the test above, and the shape of the bug an aux
+                // buffer would otherwise have: the epilogue really does write `aux`,
+                // the reader really does read it, and without the declaration the two
+                // are unordered.
+                auto A = create_initialized_tensor<float>({3, 2}, a_values());
+                auto B = create_initialized_tensor<float>({2, 3}, b_values());
+                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
+                auto aux = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto consumer = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+
+                Dispatch::execute_gemm(*engine, A, B, C, false, false, 1.0, 0.0,
+                                       "test.gemm_spill_bare", "test.gemm_spill_bare"_op,
+                                       BiasSpillEpilogue{bias.data_as<float>(),
+                                                         aux.data_as<float>(), 3});
+
+                engine->elementwise().mul(aux, aux, consumer);
+
+                auto nodes = engine->get_graph().take_nodes();
+                ASSERT_EQ(2u, nodes.size());
+                EXPECT_EQ(0, nodes[1]->in_degree.load(std::memory_order_relaxed))
+                    << "Nothing can see an undeclared write, so the reader must be a root.";
+            }
+
+            TEST_F(Unit_GEMMSeamTest, DeclaringOperandsChangesNoArithmetic)
+            {
+                // The declaration is bookkeeping on the host: the bundle is unwrapped
+                // before the closure is built, so the functor that reaches the kernel
+                // is the same object either way and the two spellings must agree to
+                // the bit. If they do not, the unwrapping copied something it should
+                // not have - or failed to.
+                auto A = create_initialized_tensor<float>({3, 2}, a_values());
+                auto B = create_initialized_tensor<float>({2, 3}, b_values());
+                auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
+                auto bare = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto declared = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+
+                engine->set_mode(ExecutionMode::FORCE_SYCL);
+                Dispatch::execute_gemm(*engine, A, B, bare, false, false, 1.0, 0.0,
+                                       "test.gemm_bias_bare", "test.gemm_bias_bare"_op,
+                                       BiasColumnEpilogue{bias.data_as<float>()});
+                Dispatch::execute_gemm(*engine, A, B, declared, false, false, 1.0, 0.0,
+                                       "test.gemm_bias_declared", "test.gemm_bias_declared"_op,
+                                       Dispatch::gemm_epilogue(
+                                           BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
+                engine->execute().wait();
+
+                // A*B = [[1,2,3], [4,5,6], [5,7,9]] plus the column bias [1, -8, 3].
+                EXPECT_TENSOR_NEAR(declared, (std::vector<float>{2, -6, 6,
+                                                                 5, -3, 9,
+                                                                 6, -1, 12}), 1e-5);
+                SB_ASSERT_TENSOR_NEAR(declared, bare, 0.0, float);
+            }
+
+            TEST_F(Unit_GEMMSeamTest, DeclaringAnOperandWithNoStorageIsRefused)
+            {
+                // A storage-less tensor yields a base-less region, which the tracker
+                // orders against nothing. Accepting it would let a declaration compile,
+                // read like a fix in review, and do nothing at all - which is the exact
+                // failure mode declaring operands exists to remove.
+                Tensor nothing;
+
+                EXPECT_THROW(Dispatch::gemm_epilogue(BiasColumnEpilogue{nullptr}).reads(nothing),
+                             std::runtime_error);
+                EXPECT_THROW(Dispatch::gemm_epilogue(BiasColumnEpilogue{nullptr}).writes(nothing),
+                             std::runtime_error);
+            }
+
             TEST_F(Unit_GEMMKernelTest, NoLocalVariantMatchesReferenceOnRaggedShape)
             {
                 constexpr int64_t m = 37, n = 45, k = 23;
