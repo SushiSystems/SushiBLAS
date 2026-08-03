@@ -71,13 +71,7 @@ namespace SushiBLAS
             SB_THROW_IF(x.num_elements != result.num_elements, "Tensor sizes must match for logic operation.");
             SB_THROW_IF(x.dtype != result.dtype, "Data types must match for logic operation.");
 
-            if constexpr (Dom == Domain::REAL)
-            {
-                SB_THROW_IF(Core::is_complex_dtype(x.dtype),
-                            "Logic operation '{}' is not defined for complex tensors (dtype {}): complex numbers "
-                            "carry no ordering to compare against.",
-                            name, Core::to_string(x.dtype));
-            }
+            require_domain<Dom>(x.dtype, "Logic operation", name);
 
             int64_t size = x.num_elements;
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {x.region()};
@@ -98,42 +92,11 @@ namespace SushiBLAS
                     {
                         h.depends_on(deps);
                         const std::size_t n = static_cast<std::size_t>(size);
-                        switch (dtype)
+                        Dispatch::with_element_type<Dom>(dtype, "Logic operation", name,
+                            [&]<typename T>()
                         {
-                            case Core::DataType::HALF:
-                                Launch::map(h, q, n, vec_ok, op_func, (sycl::half*)pr_raw, (const sycl::half*)px_raw);
-                                break;
-                            case Core::DataType::FLOAT32:
-                                Launch::map(h, q, n, vec_ok, op_func, (float*)pr_raw, (const float*)px_raw);
-                                break;
-                            case Core::DataType::FLOAT64:
-                                Launch::map(h, q, n, vec_ok, op_func, (double*)pr_raw, (const double*)px_raw);
-                                break;
-                            case Core::DataType::COMPLEX32:
-                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
-                                {
-                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<float>*)pr_raw, (const std::complex<float>*)px_raw);
-                                }
-                                else
-                                {
-                                    SB_THROW_IF(true, "Logic operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                                }
-                                break;
-                            case Core::DataType::COMPLEX64:
-                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
-                                {
-                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<double>*)pr_raw, (const std::complex<double>*)px_raw);
-                                }
-                                else
-                                {
-                                    SB_THROW_IF(true, "Logic operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                                }
-                                break;
-                            default:
-                                SB_THROW_IF(true, "Logic operation '{}' received an unrecognized dtype ({}).",
-                                            name, static_cast<int>(dtype));
-                                break;
-                        }
+                            Launch::map(h, q, n, vec_ok, op_func, (T*)pr_raw, (const T*)px_raw);
+                        });
                     });
                 });
             return sycl::event();
@@ -166,13 +129,7 @@ namespace SushiBLAS
             SB_THROW_IF(A.num_elements != B.num_elements || A.num_elements != result.num_elements, "Tensor sizes must match for logic operation.");
             SB_THROW_IF(A.dtype != B.dtype || A.dtype != result.dtype, "Data types must match for logic operation.");
 
-            if constexpr (Dom == Domain::REAL)
-            {
-                SB_THROW_IF(Core::is_complex_dtype(A.dtype),
-                            "Logic operation '{}' is not defined for complex tensors (dtype {}): complex numbers "
-                            "carry no ordering to compare against.",
-                            name, Core::to_string(A.dtype));
-            }
+            require_domain<Dom>(A.dtype, "Logic operation", name);
 
             int64_t size = A.num_elements;
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {A.region(), B.region()};
@@ -193,42 +150,11 @@ namespace SushiBLAS
                     {
                         h.depends_on(deps);
                         const std::size_t n = static_cast<std::size_t>(size);
-                        switch (dtype)
+                        Dispatch::with_element_type<Dom>(dtype, "Logic operation", name,
+                            [&]<typename T>()
                         {
-                            case Core::DataType::HALF:
-                                Launch::map(h, q, n, vec_ok, op_func, (sycl::half*)pR_raw, (const sycl::half*)pA_raw, (const sycl::half*)pB_raw);
-                                break;
-                            case Core::DataType::FLOAT32:
-                                Launch::map(h, q, n, vec_ok, op_func, (float*)pR_raw, (const float*)pA_raw, (const float*)pB_raw);
-                                break;
-                            case Core::DataType::FLOAT64:
-                                Launch::map(h, q, n, vec_ok, op_func, (double*)pR_raw, (const double*)pA_raw, (const double*)pB_raw);
-                                break;
-                            case Core::DataType::COMPLEX32:
-                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
-                                {
-                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<float>*)pR_raw, (const std::complex<float>*)pA_raw, (const std::complex<float>*)pB_raw);
-                                }
-                                else
-                                {
-                                    SB_THROW_IF(true, "Logic operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                                }
-                                break;
-                            case Core::DataType::COMPLEX64:
-                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
-                                {
-                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<double>*)pR_raw, (const std::complex<double>*)pA_raw, (const std::complex<double>*)pB_raw);
-                                }
-                                else
-                                {
-                                    SB_THROW_IF(true, "Logic operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                                }
-                                break;
-                            default:
-                                SB_THROW_IF(true, "Logic operation '{}' received an unrecognized dtype ({}).",
-                                            name, static_cast<int>(dtype));
-                                break;
-                        }
+                            Launch::map(h, q, n, vec_ok, op_func, (T*)pR_raw, (const T*)pA_raw, (const T*)pB_raw);
+                        });
                     });
                 });
             return sycl::event();
@@ -262,12 +188,7 @@ namespace SushiBLAS
             SB_THROW_IF(cond.num_elements != A.num_elements || cond.num_elements != B.num_elements || cond.num_elements != result.num_elements, "Tensor sizes must match for logic operation.");
             SB_THROW_IF(cond.dtype != A.dtype || cond.dtype != B.dtype || cond.dtype != result.dtype, "Data types must match for logic operation.");
 
-            if constexpr (Dom == Domain::REAL)
-            {
-                SB_THROW_IF(Core::is_complex_dtype(cond.dtype),
-                            "Logic operation '{}' is not defined for complex tensors (dtype {}).",
-                            name, Core::to_string(cond.dtype));
-            }
+            require_domain<Dom>(cond.dtype, "Logic operation", name);
 
             int64_t size = cond.num_elements;
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {cond.region(), A.region(), B.region()};
@@ -288,42 +209,11 @@ namespace SushiBLAS
                     {
                         h.depends_on(deps);
                         const std::size_t n = static_cast<std::size_t>(size);
-                        switch (dtype)
+                        Dispatch::with_element_type<Dom>(dtype, "Logic operation", name,
+                            [&]<typename T>()
                         {
-                            case Core::DataType::HALF:
-                                Launch::map(h, q, n, vec_ok, op_func, (sycl::half*)pR_raw, (const sycl::half*)pC_raw, (const sycl::half*)pA_raw, (const sycl::half*)pB_raw);
-                                break;
-                            case Core::DataType::FLOAT32:
-                                Launch::map(h, q, n, vec_ok, op_func, (float*)pR_raw, (const float*)pC_raw, (const float*)pA_raw, (const float*)pB_raw);
-                                break;
-                            case Core::DataType::FLOAT64:
-                                Launch::map(h, q, n, vec_ok, op_func, (double*)pR_raw, (const double*)pC_raw, (const double*)pA_raw, (const double*)pB_raw);
-                                break;
-                            case Core::DataType::COMPLEX32:
-                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
-                                {
-                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<float>*)pR_raw, (const std::complex<float>*)pC_raw, (const std::complex<float>*)pA_raw, (const std::complex<float>*)pB_raw);
-                                }
-                                else
-                                {
-                                    SB_THROW_IF(true, "Logic operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                                }
-                                break;
-                            case Core::DataType::COMPLEX64:
-                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
-                                {
-                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<double>*)pR_raw, (const std::complex<double>*)pC_raw, (const std::complex<double>*)pA_raw, (const std::complex<double>*)pB_raw);
-                                }
-                                else
-                                {
-                                    SB_THROW_IF(true, "Logic operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                                }
-                                break;
-                            default:
-                                SB_THROW_IF(true, "Logic operation '{}' received an unrecognized dtype ({}).",
-                                            name, static_cast<int>(dtype));
-                                break;
-                        }
+                            Launch::map(h, q, n, vec_ok, op_func, (T*)pR_raw, (const T*)pC_raw, (const T*)pA_raw, (const T*)pB_raw);
+                        });
                     });
                 });
             return sycl::event();

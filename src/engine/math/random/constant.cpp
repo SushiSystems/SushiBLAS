@@ -105,8 +105,36 @@ namespace SushiBLAS
                 );
                 break;
             }
+            // The integer arms are not an oddity here: `constant` is how an index tensor
+            // gets a known value before an op writes over it, and how a comparison operand
+            // gets a threshold, and both of those live in an integer tensor now. Truncating
+            // the double parameter is the same convention the HALF and FLOAT32 arms use -
+            // the caller states a value, the tensor's dtype decides how it is stored.
+            case Core::DataType::INT32:
+            {
+                engine_.get_graph().add_task(meta, reads, writes,
+                    [size, value, pT = t.data_as<int32_t>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    {
+                        SB_LOG_INFO("RandomOps: constant int32 ({} elements, value: {:.4f})", size, value);
+                        return q.fill(pT, static_cast<int32_t>(value), size, deps);
+                    }
+                );
+                break;
+            }
+            case Core::DataType::INT64:
+            {
+                engine_.get_graph().add_task(meta, reads, writes,
+                    [size, value, pT = t.data_as<int64_t>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                    {
+                        SB_LOG_INFO("RandomOps: constant int64 ({} elements, value: {:.4f})", size, value);
+                        return q.fill(pT, static_cast<int64_t>(value), size, deps);
+                    }
+                );
+                break;
+            }
             default:
-                SB_THROW_IF(true, "Unsupported data type for constant operation.");
+                SB_THROW_IF(true, "Operation 'random.constant' does not support dtype {}.",
+                            Core::to_string(t.dtype));
         }
 
         return sycl::event();

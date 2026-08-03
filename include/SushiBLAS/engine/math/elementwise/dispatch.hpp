@@ -74,13 +74,7 @@ namespace SushiBLAS
         template<Domain Dom = Domain::REAL, typename Func>
         sycl::event execute_unary_inplace(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
         {
-            if constexpr (Dom == Domain::REAL)
-            {
-                SB_THROW_IF(Core::is_complex_dtype(t.dtype),
-                            "Elementwise operation '{}' is not defined for complex tensors (dtype {}): it needs an "
-                            "ordering or a real-only builtin that complex numbers do not provide.",
-                            name, Core::to_string(t.dtype));
-            }
+            require_domain<Dom>(t.dtype, "Elementwise operation", name);
 
             int64_t size = t.num_elements;
             void* ptr = t.data_or_null();
@@ -101,42 +95,11 @@ namespace SushiBLAS
                     {
                         h.depends_on(deps);
                         const std::size_t n = static_cast<std::size_t>(size);
-                        switch (dtype)
+                        Dispatch::with_element_type<Dom>(dtype, "Elementwise operation", name,
+                            [&]<typename T>()
                         {
-                            case Core::DataType::HALF:
-                                Launch::map(h, q, n, vec_ok, op_func, (sycl::half*)ptr, (const sycl::half*)ptr);
-                                break;
-                            case Core::DataType::FLOAT32:
-                                Launch::map(h, q, n, vec_ok, op_func, (float*)ptr, (const float*)ptr);
-                                break;
-                            case Core::DataType::FLOAT64:
-                                Launch::map(h, q, n, vec_ok, op_func, (double*)ptr, (const double*)ptr);
-                                break;
-                            case Core::DataType::COMPLEX32:
-                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
-                                {
-                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<float>*)ptr, (const std::complex<float>*)ptr);
-                                }
-                                else
-                                {
-                                    SB_THROW_IF(true, "Elementwise operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                                }
-                                break;
-                            case Core::DataType::COMPLEX64:
-                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
-                                {
-                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<double>*)ptr, (const std::complex<double>*)ptr);
-                                }
-                                else
-                                {
-                                    SB_THROW_IF(true, "Elementwise operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                                }
-                                break;
-                            default:
-                                SB_THROW_IF(true, "Elementwise operation '{}' received an unrecognized dtype ({}).",
-                                            name, static_cast<int>(dtype));
-                                break;
-                        }
+                            Launch::map(h, q, n, vec_ok, op_func, (T*)ptr, (const T*)ptr);
+                        });
                     });
                 });
             return sycl::event();
@@ -177,13 +140,7 @@ namespace SushiBLAS
             SB_THROW_IF(A.dtype != B.dtype || A.dtype != C.dtype,
                     "Tensor data types must match for elementwise operation.");
 
-            if constexpr (Dom == Domain::REAL)
-            {
-                SB_THROW_IF(Core::is_complex_dtype(A.dtype),
-                            "Elementwise operation '{}' is not defined for complex tensors (dtype {}): it needs an "
-                            "ordering or a real-only builtin that complex numbers do not provide.",
-                            name, Core::to_string(A.dtype));
-            }
+            require_domain<Dom>(A.dtype, "Elementwise operation", name);
 
             int64_t size = A.num_elements;
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {A.region(), B.region()};
@@ -204,42 +161,11 @@ namespace SushiBLAS
                     {
                         h.depends_on(deps);
                         const std::size_t n = static_cast<std::size_t>(size);
-                        switch (dtype)
+                        Dispatch::with_element_type<Dom>(dtype, "Elementwise operation", name,
+                            [&]<typename T>()
                         {
-                            case Core::DataType::HALF:
-                                Launch::map(h, q, n, vec_ok, op_func, (sycl::half*)pC_raw, (const sycl::half*)pA_raw, (const sycl::half*)pB_raw);
-                                break;
-                            case Core::DataType::FLOAT32:
-                                Launch::map(h, q, n, vec_ok, op_func, (float*)pC_raw, (const float*)pA_raw, (const float*)pB_raw);
-                                break;
-                            case Core::DataType::FLOAT64:
-                                Launch::map(h, q, n, vec_ok, op_func, (double*)pC_raw, (const double*)pA_raw, (const double*)pB_raw);
-                                break;
-                            case Core::DataType::COMPLEX32:
-                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
-                                {
-                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<float>*)pC_raw, (const std::complex<float>*)pA_raw, (const std::complex<float>*)pB_raw);
-                                }
-                                else
-                                {
-                                    SB_THROW_IF(true, "Elementwise operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                                }
-                                break;
-                            case Core::DataType::COMPLEX64:
-                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
-                                {
-                                    Launch::map(h, q, n, vec_ok, op_func, (std::complex<double>*)pC_raw, (const std::complex<double>*)pA_raw, (const std::complex<double>*)pB_raw);
-                                }
-                                else
-                                {
-                                    SB_THROW_IF(true, "Elementwise operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                                }
-                                break;
-                            default:
-                                SB_THROW_IF(true, "Elementwise operation '{}' received an unrecognized dtype ({}).",
-                                            name, static_cast<int>(dtype));
-                                break;
-                        }
+                            Launch::map(h, q, n, vec_ok, op_func, (T*)pC_raw, (const T*)pA_raw, (const T*)pB_raw);
+                        });
                     });
                 });
             return sycl::event();
@@ -346,13 +272,7 @@ namespace SushiBLAS
                             name, k, Core::to_string(tensors[k]->dtype), Core::to_string(dtype));
             }
 
-            if constexpr (Dom == Domain::REAL)
-            {
-                SB_THROW_IF(Core::is_complex_dtype(dtype),
-                            "Elementwise operation '{}' is not defined for complex tensors (dtype {}): it needs an "
-                            "ordering or a real-only builtin that complex numbers do not provide.",
-                            name, Core::to_string(dtype));
-            }
+            require_domain<Dom>(dtype, "Elementwise operation", name);
 
             // Every operand is both a read and a write: the functor may touch any of them,
             // and nothing at this layer can tell which ones it actually did.
@@ -381,42 +301,11 @@ namespace SushiBLAS
                     {
                         h.depends_on(deps);
                         const std::size_t n = static_cast<std::size_t>(size);
-                        switch (dtype)
+                        Dispatch::with_element_type<Dom>(dtype, "Elementwise operation", name,
+                            [&]<typename T>()
                         {
-                            case Core::DataType::HALF:
-                                Launch::zip_inplace(h, q, n, vec_ok, Launch::typed_ptrs<sycl::half>(ptrs), op_func);
-                                break;
-                            case Core::DataType::FLOAT32:
-                                Launch::zip_inplace(h, q, n, vec_ok, Launch::typed_ptrs<float>(ptrs), op_func);
-                                break;
-                            case Core::DataType::FLOAT64:
-                                Launch::zip_inplace(h, q, n, vec_ok, Launch::typed_ptrs<double>(ptrs), op_func);
-                                break;
-                            case Core::DataType::COMPLEX32:
-                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
-                                {
-                                    Launch::zip_inplace(h, q, n, vec_ok, Launch::typed_ptrs<std::complex<float>>(ptrs), op_func);
-                                }
-                                else
-                                {
-                                    SB_THROW_IF(true, "Elementwise operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                                }
-                                break;
-                            case Core::DataType::COMPLEX64:
-                                if constexpr (Dom == Domain::REAL_AND_COMPLEX)
-                                {
-                                    Launch::zip_inplace(h, q, n, vec_ok, Launch::typed_ptrs<std::complex<double>>(ptrs), op_func);
-                                }
-                                else
-                                {
-                                    SB_THROW_IF(true, "Elementwise operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                                }
-                                break;
-                            default:
-                                SB_THROW_IF(true, "Elementwise operation '{}' received an unrecognized dtype ({}).",
-                                            name, static_cast<int>(dtype));
-                                break;
-                        }
+                            Launch::zip_inplace(h, q, n, vec_ok, Launch::typed_ptrs<T>(ptrs), op_func);
+                        });
                     });
                 });
             return sycl::event();

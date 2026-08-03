@@ -25,23 +25,23 @@
 #include <limits>
 #include <SushiBLAS/engine/math/reductions.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    namespace 
+    namespace
     {
         template<typename T>
-        struct ArgMaxPair 
+        struct ArgMaxPair
         {
             T val;
             int64_t idx;
         };
 
         template<typename T>
-        struct ArgMaxCombine 
+        struct ArgMaxCombine
         {
-            ArgMaxPair<T> operator()(const ArgMaxPair<T>& a, const ArgMaxPair<T>& b) const 
+            ArgMaxPair<T> operator()(const ArgMaxPair<T>& a, const ArgMaxPair<T>& b) const
             {
                 if (a.val > b.val) return a;
                 if (a.val < b.val) return b;
@@ -50,7 +50,7 @@ namespace SushiBLAS
         };
     }
 
-    sycl::event ReductionOps::argmax(const Tensor& t, Tensor& result) 
+    sycl::event ReductionOps::argmax(const Tensor& t, Tensor& result)
     {
         // Already order-independent by construction: a sequential scan visits indices in
         // ascending order every time, so the lowest-index maximum always wins the tie and
@@ -59,36 +59,38 @@ namespace SushiBLAS
         // stay equivalent.
         //
         // TODO: Implement a parallel tree reduction for argmax to replace single_task.
-        // For argmax, result tensor actually stores the index. Since the reduction dispatch assumes
-        // type T for pR, we will use a temporary array or variable, but we can also just 
-        // fall back to a simpler approach or allocate a small struct.
-        // For now, to keep the reduction dispatch clean and avoid type mismatches, we'll implement 
-        // a simple single-threaded loop on the device, as Custom Reductions with sycl::reduction 
-        // can be tricky in OpenCL vs Level-Zero backends.
-        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, T* pR, int64_t size,
-                                     [[maybe_unused]] Dispatch::ReductionScratch<T> scratch,
-                                     const std::vector<sycl::event>& deps) 
+        // A single-threaded device loop for now: custom reductions through sycl::reduction
+        // behave differently across the OpenCL and Level-Zero backends, and this op's
+        // tie-breaking rule is the part that must not move.
+        //
+        // The result goes into an INT64 tensor through execute_index_reduction, rather than
+        // into a same-dtype tensor through execute_reduction. It used to be stored as
+        // `static_cast<T>(idx)` - a float. Exact below 2^24, and above that two adjacent
+        // indices round to the same value, so the op returned a confident wrong answer on
+        // exactly the tensor sizes a training run calls it on. In HALF the ceiling is 2048.
+        auto dispatch = []<typename T>(sycl::queue& q, const T* pT, int64_t* pR, int64_t size,
+                                       const std::vector<sycl::event>& deps)
         {
-            return q.submit([&](sycl::handler& h) 
+            return q.submit([&](sycl::handler& h)
             {
                 h.depends_on(deps);
-                h.single_task([=]() 
+                h.single_task([=]()
                 {
                     if (size == 0) return;
                     T max_val = pT[0];
                     int64_t max_idx = 0;
-                    for (int64_t i = 1; i < size; ++i) 
+                    for (int64_t i = 1; i < size; ++i)
                     {
-                        if (pT[i] > max_val) 
+                        if (pT[i] > max_val)
                         {
                             max_val = pT[i];
                             max_idx = i;
                         }
                     }
-                    *pR = static_cast<T>(max_idx);
+                    *pR = max_idx;
                 });
             });
         };
-        return Dispatch::execute_reduction(engine_, t, result, "math.argmax", "math.argmax"_op, dispatch);
+        return Dispatch::execute_index_reduction(engine_, t, result, "math.argmax", "math.argmax"_op, dispatch);
     }
 } // namespace SushiBLAS

@@ -337,5 +337,126 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(total, {static_cast<float>(kN) * 9.0f}, 1e-5);
         }
 
+        namespace
+        {
+            /**
+             * @brief Reads the first FLOAT32 (or complex-real) word of a tensor to the host.
+             *
+             * The nrm2 sentinels below check values at 1e38 and 1e-40, where the absolute
+             * tolerance `verify_tensor` applies is meaningless: 1e-4 of absolute slack
+             * passes any answer at all against 2e38, and rejects every answer at 5e-40.
+             * They compare relative error instead, so they need the raw number.
+             */
+            float scalar_of(const Tensor& t)
+            {
+                float host = 0.0f;
+                TestEnvironment::get_context().get_queue()
+                    .memcpy(&host, t.data(), sizeof(float)).wait();
+                return host;
+            }
+        }
+
+        // nrm2 computed the naive two-norm - square, sum, square-root - which overflows
+        // to infinity for any fp32 element past about 1.8e19, because the SQUARE
+        // overflows long before the norm does. The compensated-fold work made the
+        // summation accurate; it did not make the squaring safe.
+        //
+        // The input that triggers it is not exotic. Gradient-norm clipping calls nrm2,
+        // and a gradient that has already exploded is exactly the vector whose squares
+        // overflow - so the mechanism meant to rescue the run was the one that returned
+        // `inf` and destroyed it.
+        //
+        // Both entry points are checked: ReductionOps::nrm2 (the deterministic folding
+        // reduction) and Level1::nrm2 (a serial Level 1 kernel pair) are separate
+        // implementations, and both had the same defect.
+        TEST_F(Regression_Sentinel, Nrm2DoesNotOverflowNearTheFloatMaximum)
+        {
+            // |x| = sqrt(1.2e38^2 + 1.6e38^2) = 2e38, comfortably inside fp32's range -
+            // but 1.2e38 squared is 1.44e76, which is not.
+            const std::vector<float> data = {1.2e38f, 1.6e38f};
+            const float expected = 2.0e38f;
+
+            auto x = create_initialized_tensor<float>({2}, data);
+            auto reduction_result = engine->create_tensor({1});
+            auto level1_result = engine->create_tensor({1});
+
+            engine->reductions().nrm2(x, reduction_result);
+            engine->blas().nrm2(x, level1_result);
+            engine->execute().wait();
+
+            const std::pair<const char*, Tensor> answers[] = {
+                {"reductions().nrm2", reduction_result},
+                {"blas().nrm2", level1_result}};
+
+            for (const auto& [label, result] : answers)
+            {
+                const float got = scalar_of(result);
+                ASSERT_TRUE(std::isfinite(got))
+                    << label << " returned " << got << " for a vector whose true norm is "
+                    << expected << ". The naive sqrt(sum(x*x)) overflows here; the scaling "
+                       "form BLAS specifies does not.";
+                EXPECT_NEAR(got / expected, 1.0f, 1e-5f) << label;
+            }
+        }
+
+        // The mirror of the overflow above, and the reason the scale has to move down as
+        // well as up: an fp32 element below ~1e-22 squares to zero, so the naive form
+        // returned exactly 0 for a vector of denormals whose true norm is a perfectly
+        // ordinary denormal.
+        TEST_F(Regression_Sentinel, Nrm2DoesNotUnderflowOnDenormalInput)
+        {
+            // Both denormal (fp32's smallest normal is ~1.18e-38), both with plenty of
+            // denormal resolution left, and a true norm of 5e-40 that is representable.
+            const std::vector<float> data = {3.0e-40f, 4.0e-40f};
+            const float expected = 5.0e-40f;
+
+            ASSERT_FALSE(std::isnormal(data[0])) << "the test input must actually be denormal";
+
+            auto x = create_initialized_tensor<float>({2}, data);
+            auto reduction_result = engine->create_tensor({1});
+            auto level1_result = engine->create_tensor({1});
+
+            engine->reductions().nrm2(x, reduction_result);
+            engine->blas().nrm2(x, level1_result);
+            engine->execute().wait();
+
+            const std::pair<const char*, Tensor> answers[] = {
+                {"reductions().nrm2", reduction_result},
+                {"blas().nrm2", level1_result}};
+
+            for (const auto& [label, result] : answers)
+            {
+                const float got = scalar_of(result);
+                ASSERT_GT(got, 0.0f)
+                    << label << " returned " << got << " for a vector whose true norm is "
+                    << expected << ". Squaring a denormal underflows to zero; dividing by a "
+                       "scale first does not.";
+
+                // Loose on purpose: a denormal has few significand bits left, and the two
+                // entry points round differently. Anything within 1% is the right answer
+                // rather than the zero the naive form produced.
+                EXPECT_NEAR(got / expected, 1.0f, 1e-2f) << label;
+            }
+        }
+
+        // Level 1 nrm2 took its per-element magnitude from `abs1`, which is BLAS's
+        // |Re| + |Im|. That is the right magnitude for xASUM and IxAMAX and the wrong one
+        // for a 2-norm, which needs Re^2 + Im^2: the cross term made every complex norm
+        // too large - by sqrt(2) for a vector of (1 + i).
+        TEST_F(Regression_Sentinel, Nrm2UsesTheModulusOfAComplexElement)
+        {
+            const std::vector<std::complex<float>> data = {{3.0f, 4.0f}};
+
+            auto x = create_initialized_tensor<std::complex<float>>({1}, data);
+            auto result = engine->create_tensor({1}, Core::DataType::COMPLEX32);
+
+            engine->blas().nrm2(x, result);
+            engine->execute().wait();
+
+            // |3 + 4i| = 5. `abs1` would have given |3| + |4| = 7.
+            EXPECT_NEAR(scalar_of(result), 5.0f, 1e-4f)
+                << "A complex 2-norm must use the modulus, not BLAS's |Re| + |Im|.";
+        }
+
     } // namespace Test
 } // namespace SushiBLAS

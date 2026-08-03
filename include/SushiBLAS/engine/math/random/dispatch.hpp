@@ -33,6 +33,7 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
+#include <SushiBLAS/engine/launch_1d.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -82,6 +83,51 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Submits one counter-based fill: `out[i] = draw(i)` for every i in [0, @p n).
+         *
+         * Every distribution in this library has that shape - the value at an index is a
+         * pure function of the index, because a counter-based generator is what makes a
+         * fill reproducible from `(seed, offset, index)` regardless of how the work was
+         * scheduled. Each of the twelve `RandomOps` entry points used to spell the
+         * submission out for itself: `q.submit`, `depends_on(deps)`, and a bare
+         * `parallel_for(sycl::range<1>(size), ...)`. That last part is the one that
+         * mattered - it was the runtime's default geometry, not this library's, and it
+         * was the same twelve times over.
+         *
+         * The launch now comes from @ref SushiBLAS::Launch::indexed, so a distribution
+         * gets the same device-dependent shape as an elementwise op and gets it without
+         * knowing that shape exists. @ref SushiBLAS::Launch::map is not the right
+         * primitive here despite the contiguous write, because there is no input array to
+         * read: the "input" is the index itself.
+         *
+         * @tparam T The element type being written, deduced.
+         * @tparam Draw The generator functor type, deduced.
+         * @param q The queue to submit to.
+         * @param deps Events this submission must depend on.
+         * @param n How many elements to fill.
+         * @param out The destination array.
+         * @param draw Callable `(uint64_t index) -> T`, invoked once per element on device.
+         * @return The submitted work's event.
+         *
+         * @warning @p draw is inlined into a SYCL device kernel: it must be
+         *          device-copyable, capture by value only, hold no host pointers,
+         *          allocate nothing and throw nothing.
+         */
+        template<typename T, typename Draw>
+        [[nodiscard]] inline sycl::event submit_random_fill(sycl::queue& q, const std::vector<sycl::event>& deps,
+                                                            int64_t n, T* out, Draw draw)
+        {
+            return q.submit([&](sycl::handler& h)
+            {
+                h.depends_on(deps);
+                Launch::indexed(h, q, static_cast<std::size_t>(n), [=](std::size_t i)
+                {
+                    out[i] = draw(static_cast<uint64_t>(i));
+                });
+            });
+        }
+
+        /**
          * @brief Records a random-fill op, resolving the tensor's dtype to a typed pointer.
          *
          * The generic seam behind every `RandomOps` distribution. It owns the parts every
@@ -113,6 +159,18 @@ namespace SushiBLAS
         template<typename Func>
         sycl::event execute_random(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, const std::vector<double>& params, Func&& task_func)
         {
+            // At record time, not inside the task. The switch below rejects an unsupported
+            // dtype too, but only once the graph is executing, by which point the caller is
+            // several frames away from the line that queued the op and the graph already
+            // holds a task that can never run.
+            SB_THROW_IF(Core::is_integer_dtype(t.dtype) || t.dtype == Core::DataType::HALF,
+                        "RNG operation '{}' does not support dtype {}. A continuous "
+                        "distribution needs a fractional part to land in, which the integer "
+                        "types do not have, and more mantissa than HALF supplies for the "
+                        "inverse-CDF and Box-Muller transforms. Use RandomOps::constant for a "
+                        "deterministic fill of either.",
+                        name, Core::to_string(t.dtype));
+
             const int64_t size = t.num_elements;
             void* ptr = t.data_or_null();
 
@@ -145,7 +203,13 @@ namespace SushiBLAS
                             return task_func(std::complex<float>{}, q, seed, offset, size, static_cast<std::complex<float>*>(pT), deps);
                         case Core::DataType::COMPLEX64:
                             return task_func(std::complex<double>{}, q, seed, offset, size, static_cast<std::complex<double>*>(pT), deps);
+                        // HALF has too little mantissa for the inverse-CDF and Box-Muller
+                        // transforms; the integer dtypes have no fractional part for a
+                        // continuous distribution to land in at all. `RandomOps::constant`
+                        // serves both of those and does not come through here.
                         case Core::DataType::HALF:
+                        case Core::DataType::INT32:
+                        case Core::DataType::INT64:
                             SB_THROW_IF(true, "RNG operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
                             return sycl::event();
                         default:

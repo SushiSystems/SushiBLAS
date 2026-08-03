@@ -140,6 +140,13 @@ ref-counted `Storage` (`storage.hpp`). Two tensors can point at the same
 and `slice()` zero-copy: each returns a new `Tensor` with adjusted
 shape/strides/offset over the *same* `SushiRuntime::sushi_ptr<Storage>`.
 
+A view that is **not** contiguous — a `slice()` along an inner axis — keeps its
+parent's strides, and is built through the stride-explicit `Tensor` constructor
+rather than the shape-derived one. `Tensor::element_span()` is what the capacity
+check and `region()` measure such a view by: `1 + sum((shape[i] - 1) *
+strides[i])`, the distance from its first element to its last, which for a
+contiguous tensor equals `num_elements` and for a strided one does not.
+
 ```cpp
 struct Tensor
 {
@@ -155,8 +162,21 @@ struct Tensor
 ```
 
 `Core::DataType` is one of `HALF`, `FLOAT32`, `FLOAT64`, `COMPLEX32`,
-`COMPLEX64` (`core/common.hpp`); `MAX_TENSOR_RANK` is 6; `Core::bytes_per_element()`
-is the single dtype-to-width mapping every size calculation goes through.
+`COMPLEX64`, `INT32`, `INT64` (`core/common.hpp`); `MAX_TENSOR_RANK` is 6;
+`Core::bytes_per_element()` is the single dtype-to-width mapping every size
+calculation goes through.
+
+**The integer types are not general-purpose arithmetic types.** They exist
+because some results are indices rather than numbers: `iamax`, `argmax` and
+`argmin` all answer "which element", and answering that into a float tensor
+meant either writing eight bytes into a four-byte element (`iamax`, which
+corrupted whatever a memory planner had packed next to it, and under-declared
+the write in `region()` so nothing ordered against the corruption) or rounding
+the index through a mantissa (`argmax`/`argmin`, exact only below 2^24). They
+are also the honest element type for a comparison result. So exactly one list of
+operations accepts them — `copy`, `constant`, the comparison and logic family,
+the index reductions, and `io` — and everything else rejects them by name at
+record time. See `Dispatch::Domain` in [§6](#6-dispatch-the-generic-op-seam).
 `is_contiguous()` and `is_aligned()` (checked against
 `SushiRuntime::Core::DEFAULT_ALIGNMENT`) are used by the BLAS layer to decide
 whether a vector operand can be treated as a flat, unit-stride buffer.
@@ -264,19 +284,22 @@ sycl::event execute_blas_task(Engine& engine, const TaskMetadata& meta,
 
 `op_func` is called as `op_func(scalar_tag{}, queue, deps)`, where
 `scalar_tag` is one of `sycl::half{}`, `float{}`, `double{}`,
-`std::complex<float>{}`, `std::complex<double>{}` — so one `op_func` lambda,
-templated on its first parameter's type via `decltype`, implements all five
-dtypes without a hand-written switch at the call site. An unsupported dtype
-throws (`SB_THROW_IF`) rather than silently no-opping — matching every other
-"unsupported case" in the codebase (see [CONTRIBUTING.md](CONTRIBUTING.md)'s
-error-handling convention).
+`std::complex<float>{}`, `std::complex<double>{}`, `int32_t{}`, `int64_t{}` — so
+one `op_func` lambda, templated on its first parameter's type via `decltype`,
+implements every dtype without a hand-written switch at the call site. An
+unsupported dtype throws (`SB_THROW_IF`) rather than silently no-opping —
+matching every other "unsupported case" in the codebase (see
+[CONTRIBUTING.md](CONTRIBUTING.md)'s error-handling convention).
 
 `execute_blas_task` also takes a leading `Dispatch::Domain` template parameter,
-defaulting to `REAL_AND_COMPLEX` — which is what every built-in BLAS op wants
-and has always had. It exists for `Dispatch::execute_gemm`, whose functor is
-written by the *caller*: a real-only epilogue (`value > 0` has no meaning for
-`std::complex`) would otherwise be a compile error in the two arms that can never
-run. Same vocabulary, same meaning, as the math and logic families' `Domain`.
+defaulting to `REAL_AND_COMPLEX` — which is what every built-in BLAS *arithmetic*
+op wants and has always had. It exists for two callers. `Dispatch::execute_gemm`,
+whose functor is written by the *caller*: a real-only epilogue (`value > 0` has no
+meaning for `std::complex`) would otherwise be a compile error in the two arms
+that can never run. And `copy`, which passes `Domain::ALL` because it moves
+elements without doing arithmetic to them, and so is the one BLAS op that serves
+the integer dtypes. Same vocabulary, same meaning, as the math and logic
+families' `Domain`.
 
 **`dispatch_with_mode`** is the `ExecutionMode` triad from [§3](#3-executionmode-the-dispatch-triad).
 
@@ -332,6 +355,25 @@ and gets a single fused SYCL kernel — the reason the seam exists, and the reas
 "the consumer never writes SYCL itself" stays true. See
 `include/SushiBLAS/engine/dispatch.hpp` for the shared vocabulary (`Domain`) and
 the constraints a device-inlined functor has to satisfy.
+
+**`Domain` is a bit set over element-type families**, not a list of named
+combinations: `REAL`, `COMPLEX`, `INTEGRAL`, plus the unions `REAL_AND_COMPLEX`,
+`REAL_AND_INTEGRAL` and `ALL`. It answers "which element types may this functor
+be instantiated for", at compile time, because a generic lambda gives no
+SFINAE-visible signal that its body rejects `std::complex` (return-type deduction
+instantiates the body, which is not the immediate context). Two functions consume
+it. `Dispatch::require_domain<Dom>` rejects an out-of-domain dtype at **record**
+time, where the caller can still act on it. `Dispatch::with_element_type<Dom>` is
+the dtype switch itself — one switch, shared by the elementwise, non-linear and
+logic families and by `execute_index_reduction`, replacing the eight
+near-identical seven-arm switches those used to carry. A dtype outside the domain
+never instantiates its arm; it throws naming the family, the op and the dtype.
+
+`execute_blas_task` spells its switch out by hand rather than calling
+`with_element_type`, because its functor deduces its element type from a *value*
+it is passed rather than from an explicit template argument — and because
+wrapping it to fit crashes this project's clang during instantiation. The arms
+and the domain rule are the same; the duplication is noted at both sites.
 
 **`execute_gemm`** (`engine/blas/dispatch.hpp`) is the BLAS family's only
 executor, and its functor is not a per-element operation but a GEMM *epilogue*:
@@ -473,9 +515,20 @@ retuning it is one edit instead of thirty-five.
   grid-strided serial pass per work-item using **Neumaier** compensation, a
   hand-written halving tree over local memory (not `reduce_over_group`, whose
   order the spec leaves equally free), then one task summing a fixed partial count
-  in ascending index order. `max`/`min`/`argmax`/`argmin`/`all`/`any` are left on
-  `sycl::reduction` deliberately — each carries a comment explaining why order
-  cannot change its value.
+  in ascending index order. `max`/`min`/`all`/`any` are left on `sycl::reduction`
+  deliberately — each carries a comment explaining why order cannot change its
+  value. `argmax`/`argmin` are a serial scan through
+  `Dispatch::execute_index_reduction`, which is a different seam from
+  `execute_reduction`: their answer is an index, so it goes into an **INT64**
+  result tensor rather than one sharing the input's dtype.
+
+  `nrm2` is the one folding reduction whose accumulator is not a plain sum.
+  `Reduce::ScaledSumOfSquares` carries a running scale and folds
+  `(x / scale)^2`, because `sqrt(sum(x*x))` overflows to infinity for any fp32
+  element past ~1.8e19 and underflows to zero below ~1e-22 — the first of which
+  is exactly what a gradient-norm clip is called on. Its `value()` is a finished
+  partial *norm* and its `combine` is `hypot`, which is what lets it fit
+  `Reduce::reduce`'s existing two-stage shape unchanged.
 
   The per-work-group partials come from a scratch buffer allocated **once, at
   task-record time**, from the engine's allocator, and captured by the task. That

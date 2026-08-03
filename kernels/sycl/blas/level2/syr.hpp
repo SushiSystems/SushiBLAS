@@ -38,6 +38,12 @@ namespace SushiBLAS
             /**
             * @brief SYR: A += alpha * x * x^T, only the requested triangle
             * written. One work-item per output element within the triangle.
+            *
+            * A `sycl::range<2>`, for the reason spelled out in `ger.hpp`: the index is
+            * genuinely two-dimensional and `launch_1d.hpp` plans one-dimensional grids.
+            * Note also that half the launched work-items return immediately, which is a
+            * real inefficiency but a different one - it is about which indices exist, not
+            * about the geometry they are scheduled under.
             */
             template<typename T>
             [[nodiscard]] sycl::event syr(sycl::queue& queue, Core::Layout layout, bool upper,

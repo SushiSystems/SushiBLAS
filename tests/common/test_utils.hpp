@@ -80,6 +80,8 @@ namespace SushiBLAS
         template<> inline Core::DataType get_sushiblas_dtype<double>() { return Core::DataType::FLOAT64; }
         template<> inline Core::DataType get_sushiblas_dtype<std::complex<float>>() { return Core::DataType::COMPLEX32; }
         template<> inline Core::DataType get_sushiblas_dtype<std::complex<double>>() { return Core::DataType::COMPLEX64; }
+        template<> inline Core::DataType get_sushiblas_dtype<int32_t>() { return Core::DataType::INT32; }
+        template<> inline Core::DataType get_sushiblas_dtype<int64_t>() { return Core::DataType::INT64; }
 
         /**
         * @brief Writes a flat host-side value list into a tensor, dispatching on the tensor's
@@ -121,6 +123,22 @@ namespace SushiBLAS
                 {
                     std::vector<std::complex<double>> host(values.begin(), values.end());
                     q.memcpy(tensor.data(), host.data(), size * sizeof(std::complex<double>)).wait();
+                    break;
+                }
+                // Truncating, like every other arm here: the caller states the values it
+                // wants and the tensor's dtype decides how they are stored. An integer
+                // tensor filled from {1.0f, 0.0f} is the natural way to write a comparison
+                // operand or an expected truth vector.
+                case Core::DataType::INT32:
+                {
+                    std::vector<int32_t> host(values.begin(), values.end());
+                    q.memcpy(tensor.data(), host.data(), size * sizeof(int32_t)).wait();
+                    break;
+                }
+                case Core::DataType::INT64:
+                {
+                    std::vector<int64_t> host(values.begin(), values.end());
+                    q.memcpy(tensor.data(), host.data(), size * sizeof(int64_t)).wait();
                     break;
                 }
             }
@@ -174,6 +192,22 @@ namespace SushiBLAS
                     std::vector<std::complex<double>> host(size);
                     q.memcpy(host.data(), tensor.data(), size * sizeof(std::complex<double>)).wait();
                     for (size_t i = 0; i < size; ++i) EXPECT_NEAR(host[i].real(), exp[i], tolerance) << "Mismatch (real) at index " << i;
+                    break;
+                }
+                // Exact, not near: an integer element either is the expected value or it is
+                // not, and a tolerance would only hide an off-by-one.
+                case Core::DataType::INT32:
+                {
+                    std::vector<int32_t> host(size);
+                    q.memcpy(host.data(), tensor.data(), size * sizeof(int32_t)).wait();
+                    for (size_t i = 0; i < size; ++i) EXPECT_EQ(host[i], static_cast<int32_t>(exp[i])) << "Mismatch at index " << i;
+                    break;
+                }
+                case Core::DataType::INT64:
+                {
+                    std::vector<int64_t> host(size);
+                    q.memcpy(host.data(), tensor.data(), size * sizeof(int64_t)).wait();
+                    for (size_t i = 0; i < size; ++i) EXPECT_EQ(host[i], static_cast<int64_t>(exp[i])) << "Mismatch at index " << i;
                     break;
                 }
             }

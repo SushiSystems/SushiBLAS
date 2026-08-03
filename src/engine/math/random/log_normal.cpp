@@ -47,13 +47,9 @@ namespace SushiBLAS
                 {
                     T m = static_cast<T>(mean), sd = static_cast<T>(stddev);
 
-                    return q.submit([&](sycl::handler& h)
+                    return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i) -> T
                     {
-                        h.depends_on(deps);
-                        h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx)
-                        {
-                            pT[idx[0]] = sycl::exp(Kernels::SYCL::Random::draw_normal<T>(seed, offset, idx[0], m, sd));
-                        });
+                        return sycl::exp(Kernels::SYCL::Random::draw_normal<T>(seed, offset, i, m, sd));
                     });
                 }
             });

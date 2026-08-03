@@ -53,23 +53,19 @@ namespace SushiBLAS
                     double L = sycl::exp(-lambda);
                     constexpr int MAX_ITERS = 10000;
 
-                    return q.submit([&](sycl::handler& h)
+                    return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i) -> T
                     {
-                        h.depends_on(deps);
-                        h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx)
+                        int32_t k = 0;
+                        double running_p = 1.0;
+                        for (int attempt = 0; attempt < MAX_ITERS; ++attempt)
                         {
-                            int32_t k = 0;
-                            double running_p = 1.0;
-                            for (int attempt = 0; attempt < MAX_ITERS; ++attempt)
-                            {
-                                uint64_t draw_index = idx[0] * static_cast<uint64_t>(MAX_ITERS) + static_cast<uint64_t>(attempt);
-                                double u = Kernels::SYCL::Random::draw_uniform<double>(seed, offset, draw_index, 0.0, 1.0);
-                                running_p *= u;
-                                if (running_p <= L) break;
-                                ++k;
-                            }
-                            pT[idx[0]] = static_cast<T>(k);
-                        });
+                            uint64_t draw_index = i * static_cast<uint64_t>(MAX_ITERS) + static_cast<uint64_t>(attempt);
+                            double u = Kernels::SYCL::Random::draw_uniform<double>(seed, offset, draw_index, 0.0, 1.0);
+                            running_p *= u;
+                            if (running_p <= L) break;
+                            ++k;
+                        }
+                        return static_cast<T>(k);
                     });
                 }
             });

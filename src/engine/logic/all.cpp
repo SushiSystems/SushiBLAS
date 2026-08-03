@@ -25,11 +25,12 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/logic/logic.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
@@ -46,10 +47,18 @@ namespace SushiBLAS
         sycl::event all_dispatch(sycl::queue& queue, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps)
         {
             SB_LOG_INFO("Logic ALL: {} elements", size);
-            return queue.submit([&](sycl::handler& h) 
+            return queue.submit([&](sycl::handler& h)
             {
                 h.depends_on(deps);
-                h.parallel_for(sycl::range<1>(size), sycl::reduction(pR, T(1), sycl::minimum<T>()), [=](sycl::id<1> idx, auto& reducer) 
+                // `initialize_to_identity` is not decoration. Without it a SYCL reduction
+                // seeds itself from whatever the result tensor already holds and folds that
+                // into the answer, so `all` over a tensor of ones returned 0 whenever the
+                // caller reused a result that had been 0 before - and returned whatever the
+                // allocator left behind when the result had never been written at all.
+                h.parallel_for(sycl::range<1>(size),
+                               sycl::reduction(pR, T(1), sycl::minimum<T>(),
+                                               sycl::property::reduction::initialize_to_identity{}),
+                               [=](sycl::id<1> idx, auto& reducer)
                 {
                     reducer.combine((pT[idx[0]] != T(0)) ? T(1) : T(0));
                 });
@@ -57,7 +66,7 @@ namespace SushiBLAS
         }
     }
 
-    sycl::event LogicOps::all(const Tensor& t, Tensor& result) 
+    sycl::event LogicOps::all(const Tensor& t, Tensor& result)
     {
         SB_THROW_IF(result.num_elements != 1, "Result tensor for 'all' must be a scalar (1 element).");
         SB_THROW_IF(t.dtype != result.dtype, "Data types must match for logic operations.");
@@ -76,35 +85,24 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "logic.all"_op;
 
-        switch (t.dtype)
+        // Domain::REAL_AND_INTEGRAL, not REAL: a truth test is exactly as meaningful on an
+        // integer tensor as on a float one, and an integer element is the honest way to
+        // carry the 1/0 this family produces. Complex stays out - `logic_not_zero` would
+        // work, but `sycl::minimum`/`sycl::maximum` over std::complex does not, and a
+        // reduction needs an ordering.
+        //
+        // The dtype switch itself is Dispatch::with_element_type, the same one the logic
+        // dispatch seam uses, so the arms and the by-name rejection are not written twice.
+        Dispatch::with_element_type<Dispatch::Domain::REAL_AND_INTEGRAL>(
+            t.dtype, "Logic operation", meta.name, [&]<typename T>()
         {
-            case Core::DataType::HALF:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, pT=t.data_as<sycl::half>(), pR=result.data_as<sycl::half>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        return all_dispatch<sycl::half>(q, pT, pR, size, deps);
-                    });
-                break;
-            case Core::DataType::FLOAT32:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, pT=t.data_as<float>(), pR=result.data_as<float>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        return all_dispatch<float>(q, pT, pR, size, deps);
-                    });
-                break;
-            case Core::DataType::FLOAT64:
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, pT=t.data_as<double>(), pR=result.data_as<double>()]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
-                    {
-                        return all_dispatch<double>(q, pT, pR, size, deps);
-                    });
-                break;
-            default:
-                SB_THROW_IF(true, "Unsupported data type for logic operation.");
-        }
+            engine_.get_graph().add_task(meta, reads, writes,
+                [size, pT = t.data_as<T>(), pR = result.data_as<T>()]
+                (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                {
+                    return all_dispatch<T>(q, pT, pR, size, deps);
+                });
+        });
         return sycl::event();
     }
 } // namespace SushiBLAS

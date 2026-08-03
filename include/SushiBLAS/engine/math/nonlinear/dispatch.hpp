@@ -66,9 +66,11 @@ namespace SushiBLAS
          * @throws std::runtime_error if the tensor's dtype is unrecognized, or if @p params
          *         exceeds the task metadata's inline capacity.
          */
-        template<typename Func>
+        template<Domain Dom = Domain::REAL_AND_COMPLEX, typename Func>
         sycl::event execute_nonlinear_forward(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
         {
+            require_domain<Dom>(t.dtype, "Nonlinear operation", name);
+
             int64_t size = t.num_elements;
             void* ptr = t.data_or_null();
             const bool vec_ok = Launch::is_vector_aligned(ptr);
@@ -88,28 +90,11 @@ namespace SushiBLAS
                     {
                         h.depends_on(deps);
                         const std::size_t n = static_cast<std::size_t>(size);
-                        switch (dtype)
+                        Dispatch::with_element_type<Dom>(dtype, "Nonlinear operation", name,
+                            [&]<typename T>()
                         {
-                            case Core::DataType::HALF:
-                                Launch::map(h, q, n, vec_ok, op_func, (sycl::half*)ptr, (const sycl::half*)ptr);
-                                break;
-                            case Core::DataType::FLOAT32:
-                                Launch::map(h, q, n, vec_ok, op_func, (float*)ptr, (const float*)ptr);
-                                break;
-                            case Core::DataType::FLOAT64:
-                                Launch::map(h, q, n, vec_ok, op_func, (double*)ptr, (const double*)ptr);
-                                break;
-                            case Core::DataType::COMPLEX32:
-                                Launch::map(h, q, n, vec_ok, op_func, (std::complex<float>*)ptr, (const std::complex<float>*)ptr);
-                                break;
-                            case Core::DataType::COMPLEX64:
-                                Launch::map(h, q, n, vec_ok, op_func, (std::complex<double>*)ptr, (const std::complex<double>*)ptr);
-                                break;
-                            default:
-                                SB_THROW_IF(true, "Nonlinear operation '{}' received an unrecognized dtype ({}).",
-                                            name, static_cast<int>(dtype));
-                                break;
-                        }
+                            Launch::map(h, q, n, vec_ok, op_func, (T*)ptr, (const T*)ptr);
+                        });
                     });
                 });
             return sycl::event();
@@ -138,13 +123,15 @@ namespace SushiBLAS
          * @throws std::runtime_error if the operands disagree on size or dtype, if the dtype
          *         is unrecognized, or if @p params exceeds the metadata's inline capacity.
          */
-        template<typename Func>
+        template<Domain Dom = Domain::REAL_AND_COMPLEX, typename Func>
         sycl::event execute_nonlinear_backward(Engine& engine, const Tensor& dy, const Tensor& x, Tensor& dx, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
         {
             SB_THROW_IF(dy.num_elements != x.num_elements || dy.num_elements != dx.num_elements,
                        "Tensor sizes must match for backward operation.");
             SB_THROW_IF(dy.dtype != x.dtype || dy.dtype != dx.dtype,
                        "Tensor data types must match for backward operation.");
+
+            require_domain<Dom>(x.dtype, "Nonlinear operation", name);
 
             int64_t size = x.num_elements;
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {dy.region(), x.region()};
@@ -165,28 +152,11 @@ namespace SushiBLAS
                     {
                         h.depends_on(deps);
                         const std::size_t n = static_cast<std::size_t>(size);
-                        switch (dtype)
+                        Dispatch::with_element_type<Dom>(dtype, "Nonlinear operation", name,
+                            [&]<typename T>()
                         {
-                            case Core::DataType::HALF:
-                                Launch::map(h, q, n, vec_ok, op_func, (sycl::half*)pDX_raw, (const sycl::half*)pDY_raw, (const sycl::half*)pX_raw);
-                                break;
-                            case Core::DataType::FLOAT32:
-                                Launch::map(h, q, n, vec_ok, op_func, (float*)pDX_raw, (const float*)pDY_raw, (const float*)pX_raw);
-                                break;
-                            case Core::DataType::FLOAT64:
-                                Launch::map(h, q, n, vec_ok, op_func, (double*)pDX_raw, (const double*)pDY_raw, (const double*)pX_raw);
-                                break;
-                            case Core::DataType::COMPLEX32:
-                                Launch::map(h, q, n, vec_ok, op_func, (std::complex<float>*)pDX_raw, (const std::complex<float>*)pDY_raw, (const std::complex<float>*)pX_raw);
-                                break;
-                            case Core::DataType::COMPLEX64:
-                                Launch::map(h, q, n, vec_ok, op_func, (std::complex<double>*)pDX_raw, (const std::complex<double>*)pDY_raw, (const std::complex<double>*)pX_raw);
-                                break;
-                            default:
-                                SB_THROW_IF(true, "Nonlinear operation '{}' received an unrecognized dtype ({}).",
-                                            name, static_cast<int>(dtype));
-                                break;
-                        }
+                            Launch::map(h, q, n, vec_ok, op_func, (T*)pDX_raw, (const T*)pDY_raw, (const T*)pX_raw);
+                        });
                     });
                 });
             return sycl::event();

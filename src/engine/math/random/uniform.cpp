@@ -46,29 +46,21 @@ namespace SushiBLAS
                     RealT* pR = reinterpret_cast<RealT*>(pT);
                     int64_t n = size * 2;
 
-                    auto ev = q.submit([&](sycl::handler& h)
+                    // As in normal.cpp: one flat run of 2n reals, so a component's draw
+                    // index is its position in that run.
+                    return Dispatch::submit_random_fill(q, deps, n, pR, [=](uint64_t i) -> RealT
                     {
-                        h.depends_on(deps);
-                        h.parallel_for(sycl::range<1>(n), [=](sycl::id<1> idx)
-                        {
-                            pR[idx[0]] = Kernels::SYCL::Random::draw_uniform<RealT>(seed, offset, idx[0], lo, hi);
-                        });
+                        return Kernels::SYCL::Random::draw_uniform<RealT>(seed, offset, i, lo, hi);
                     });
-                    return ev;
                 }
                 else
                 {
                     T lo = static_cast<T>(min), hi = static_cast<T>(max);
 
-                    auto ev = q.submit([&](sycl::handler& h)
+                    return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i) -> T
                     {
-                        h.depends_on(deps);
-                        h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx)
-                        {
-                            pT[idx[0]] = Kernels::SYCL::Random::draw_uniform<T>(seed, offset, idx[0], lo, hi);
-                        });
+                        return Kernels::SYCL::Random::draw_uniform<T>(seed, offset, i, lo, hi);
                     });
-                    return ev;
                 }
             });
     }

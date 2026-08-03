@@ -1,34 +1,108 @@
+/**************************************************************************/
+/* test_iamax.cpp                                                         */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                SushiBLAS                               */
+/*                https://github.com/SushiSystems/SushiBLAS               */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the Apache License, Version 2.0 (the "License");        */
+/* you may not use this file except in compliance with the License.       */
+/* You may obtain a copy of the License at                                */
+/*                                                                        */
+/*     http://www.apache.org/licenses/LICENSE-2.0                         */
+/*                                                                        */
+/* Unless required by applicable law or agreed to in writing, software    */
+/* distributed under the License is distributed on an "AS IS" BASIS,      */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
+/* implied. See the License for the specific language governing           */
+/* permissions and limitations under the License.                         */
+/**************************************************************************/
+
+// IAMAX answers "which element has the largest |Re| + |Im|", so its result is an
+// index and its result tensor is INT64.
+//
+// This file used to allocate two FLOAT32 elements and hope, with a comment reading
+// "Wait, different sizes!", because there was no integer dtype to allocate instead.
+// It then asserted EXPECT_TRUE(true) - the op's actual answer was never checked by
+// anything. Both halves of that are fixed here: the result has a dtype that fits it,
+// and the index is read back and compared.
+
 #include <vector>
+#include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
 
 using namespace SushiBLAS::Test;
 
+namespace
+{
+    /** @brief Reads a scalar INT64 tensor back to the host. */
+    int64_t index_of(const SushiBLAS::Tensor& t)
+    {
+        int64_t host = -1;
+        SushiBLAS::Test::TestEnvironment::get_context().get_queue()
+            .memcpy(&host, t.data(), sizeof(int64_t)).wait();
+        return host;
+    }
+}
+
 class Unit_IAMAXTest : public SushiBLASTest {};
 
-TEST_F(Unit_IAMAXTest, SimpleIAMAX) 
+TEST_F(Unit_IAMAXTest, SimpleIAMAX)
 {
-    const int N = 4;
-    auto X = engine->create_tensor({N});
-    // Assuming iamax writes a 64-bit int. We'll use INT64 if supported, but if using template we test creating tensor with default type 
-    // and passing it. MKL IAMAX returns 0-based index or 1-based index depending on std. For OneAPI it's usually 0-based for C++.
-    // Let's create a tensor for the result. We use a float tensor but cast data_as<int64_t>() in the graph. Wait, different sizes!
-    // We should create a tensor of INT64 dtype if available. Otherwise, we assume FLOAT32 tensor is allocated with enough size?
-    // Actually, rank-1 tensor with size 2 of FLOAT32 has 8 bytes, which holds int64_t.
-    // Let's just create an int64_t Tensor if Core::DataType::INT64 is available. 
-    // If not, we'll just test if execution runs without segfault. MKL's C++ interface iamax uses int64_t.
-    auto R = engine->create_tensor({2}); // allocating 2 floats = 8 bytes to be safe for int64_t
+    auto X = engine->create_tensor({4});
+    auto R = engine->create_tensor({1}, SushiBLAS::Core::DataType::INT64);
 
     fill_tensor(X, {1.0f, -5.0f, 3.0f, 2.0f});
 
-    SB_LOG_INFO("Submitting IAMAX.");
     engine->blas().iamax(X, R);
-    
     engine->execute().wait();
-    SB_LOG_INFO("Execution finished.");
 
-    // Output is stored in R as an int64_t.
-    // We will just verify the execution finishes properly. We leave checking the raw INT64 bytes out of typical verify_tensor for simplicity.
-    EXPECT_TRUE(true);
+    // Largest magnitude is |-5| at index 1. Zero-based, as the C++ BLAS bindings are.
+    EXPECT_EQ(1, index_of(R));
+}
+
+TEST_F(Unit_IAMAXTest, TiesGoToTheLowestIndex)
+{
+    auto X = engine->create_tensor({5});
+    auto R = engine->create_tensor({1}, SushiBLAS::Core::DataType::INT64);
+
+    fill_tensor(X, {2.0f, -7.0f, 1.0f, 7.0f, 0.0f});
+
+    engine->blas().iamax(X, R);
+    engine->execute().wait();
+
+    // |-7| and |7| tie; BLAS specifies the first. The reference and SYCL kernels both
+    // scan in ascending order and only replace on a strict improvement, which is what
+    // makes that reproducible rather than incidental.
+    EXPECT_EQ(1, index_of(R));
+}
+
+// The defect this dtype was added for. iamax writes eight bytes; a FLOAT32 result
+// element is four. With tensors packed into an arena the neighbouring four bytes
+// belong to something else, and Tensor::region() declared a four-byte write, so the
+// dependency tracker did not order anything against the corruption either.
+//
+// Nothing can detect that from outside, which is why the fix is a refusal rather
+// than a repair: a result tensor that cannot hold the answer is rejected at record
+// time, by name.
+TEST_F(Unit_IAMAXTest, RejectsAResultTensorTooNarrowToHoldTheIndex)
+{
+    auto X = engine->create_tensor({4});
+    fill_tensor(X, {1.0f, -5.0f, 3.0f, 2.0f});
+
+    for (auto dtype : {SushiBLAS::Core::DataType::FLOAT32,
+                       SushiBLAS::Core::DataType::FLOAT64,
+                       SushiBLAS::Core::DataType::INT32,
+                       SushiBLAS::Core::DataType::HALF})
+    {
+        auto R = engine->create_tensor({1}, dtype);
+        EXPECT_THROW(engine->blas().iamax(X, R), std::runtime_error)
+            << "iamax must refuse a " << SushiBLAS::Core::to_string(dtype)
+            << " result rather than write an int64_t into it.";
+    }
 }

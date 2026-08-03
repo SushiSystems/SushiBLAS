@@ -47,29 +47,22 @@ namespace SushiBLAS
                     RealT* pR = reinterpret_cast<RealT*>(pT);
                     int64_t n = size * 2;
 
-                    auto ev = q.submit([&](sycl::handler& h)
+                    // The real and imaginary halves are drawn as one flat run of 2n reals,
+                    // so the index a component is drawn from is its position in that run -
+                    // which is what keeps a complex fill reproducible element for element.
+                    return Dispatch::submit_random_fill(q, deps, n, pR, [=](uint64_t i) -> RealT
                     {
-                        h.depends_on(deps);
-                        h.parallel_for(sycl::range<1>(n), [=](sycl::id<1> idx)
-                        {
-                            pR[idx[0]] = Kernels::SYCL::Random::draw_normal<RealT>(seed, offset, idx[0], m, sd);
-                        });
+                        return Kernels::SYCL::Random::draw_normal<RealT>(seed, offset, i, m, sd);
                     });
-                    return ev;
                 }
                 else
                 {
                     T m = static_cast<T>(mean), sd = static_cast<T>(stddev);
 
-                    auto ev = q.submit([&](sycl::handler& h)
+                    return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i) -> T
                     {
-                        h.depends_on(deps);
-                        h.parallel_for(sycl::range<1>(size), [=](sycl::id<1> idx)
-                        {
-                            pT[idx[0]] = Kernels::SYCL::Random::draw_normal<T>(seed, offset, idx[0], m, sd);
-                        });
+                        return Kernels::SYCL::Random::draw_normal<T>(seed, offset, i, m, sd);
                     });
-                    return ev;
                 }
             });
     }

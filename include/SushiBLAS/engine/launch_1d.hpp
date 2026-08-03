@@ -31,10 +31,21 @@
  * `sycl::range<1>(n)`: one work-item per element, no work-group size, no
  * vectorisation, and the runtime free to pick whatever geometry it liked. That
  * is the shape a device is least likely to want. This header replaces it with
- * two primitives - @ref Launch::map and @ref Launch::zip_inplace - that own the
- * geometry once, so tuning it is one edit rather than thirty-five.
+ * three primitives - @ref Launch::map, @ref Launch::zip_inplace and
+ * @ref Launch::indexed - that own the geometry once, so tuning it is one edit
+ * rather than fifty-five.
  *
- * Both primitives launch a **grid-stride** `nd_range` planned by
+ * @ref Launch::map and @ref Launch::zip_inplace serve the kernels whose memory
+ * access pattern this header can see: contiguous, one element per index, so it
+ * may vectorise them. @ref Launch::indexed serves the ones whose pattern is
+ * their own business - a Level 1 vector walked with a BLAS `incx`, a GEMV output
+ * row that reduces across a whole matrix row, an RNG fill whose value is a
+ * function of the index rather than of any input array. Those get the device
+ * split and nothing else, which is the part that was missing: before this they
+ * were the launch sites still spelling `sycl::range<1>(n)` by hand and therefore
+ * still getting the runtime's default geometry on a GPU.
+ *
+ * All three launch a **grid-stride** `nd_range` planned by
  * @ref SushiBLAS::Device::plan_1d: a grid sized to what the device can hold
  * resident, walked with a `for (i = gid; i < n; i += stride)` loop. Two things
  * follow. The `i < n` test *is* the bounds check, so there is no padded,
@@ -188,6 +199,32 @@ namespace SushiBLAS
         };
 
         /**
+         * @brief Turns a device and a chosen access width into a launch geometry.
+         *
+         * The one place the flat/grid-stride decision and the wide-pass arithmetic are
+         * written down. @ref plan and @ref plan_scalar differ only in how they arrive at
+         * @p width, so neither of them restates any of this.
+         *
+         * @param p The target device's profile.
+         * @param n How many elements the kernel must cover.
+         * @param width Elements per access: 1 for the scalar shape, the `sycl::vec`
+         *        width when a 128-bit path was chosen.
+         * @return The geometry; @ref Shape1D::vector_steps is 0 when @p width is 1.
+         */
+        [[nodiscard]] inline Shape1D plan_for(const Device::Profile& p, std::size_t n,
+                                              std::size_t width) noexcept
+        {
+            Shape1D s;
+            s.vector_steps = (width > 1) ? n / width : std::size_t{0};
+            s.grid = Device::plan_1d(p, n, width);
+
+            // n == 0 stays on the grid-stride path, whose geometry is never empty, so
+            // no caller has to think about whether this backend accepts a zero range.
+            s.flat = p.is_cpu && width == 1 && n > 0;
+            return s;
+        }
+
+        /**
          * @brief Decides the launch geometry for @p n elements of type @p T.
          *
          * @tparam T The element type.
@@ -210,14 +247,24 @@ namespace SushiBLAS
             const bool vectorize = (width > 1) && aligned &&
                                    (Device::vector_width(p, sizeof(T)) == width);
 
-            Shape1D s;
-            s.vector_steps = vectorize ? n / width : std::size_t{0};
-            s.grid = Device::plan_1d(p, n, vectorize ? width : std::size_t{1});
+            return plan_for(p, n, vectorize ? width : std::size_t{1});
+        }
 
-            // n == 0 stays on the grid-stride path, whose geometry is never empty, so
-            // no caller has to think about whether this backend accepts a zero range.
-            s.flat = p.is_cpu && !vectorize && n > 0;
-            return s;
+        /**
+         * @brief Decides the launch geometry for @p n indices, with no wide path.
+         *
+         * What @ref indexed plans with. There is no element type in the signature
+         * because there is no element the launch knows about: the caller's body decides
+         * what it touches and how, so the only question left is the device one - flat on
+         * a CPU, grid-stride on a GPU.
+         *
+         * @param q The queue the kernel will be submitted to.
+         * @param n How many indices the kernel must cover.
+         * @return The geometry, always with @ref Shape1D::vector_steps == 0.
+         */
+        [[nodiscard]] inline Shape1D plan_scalar(const sycl::queue& q, std::size_t n)
+        {
+            return plan_for(Device::profile_for(q), n, std::size_t{1});
         }
 
         namespace Detail
@@ -466,6 +513,67 @@ namespace SushiBLAS
                     Detail::apply_refs(op, lane, seq_t{});
                     Detail::scatter(lane, p, i, seq_t{});
                 }
+            });
+        }
+
+        /**
+         * @brief Launches `op(i)` once for each index in `[0, n)`.
+         *
+         * The shape for a kernel that owns its own memory access pattern and therefore
+         * cannot be spelled as `out[i] = op(in[i]...)`:
+         *
+         * - a Level 1 BLAS vector, whose `incx`/`incy` mean index `i` is at `i * incx`
+         *   rather than at `i`;
+         * - a GEMV or SYMV output element, which is a reduction across a whole matrix
+         *   row and reads `in_len` values to write one;
+         * - a counter-based RNG fill, whose value at `i` is a function of `i` and no
+         *   input array at all.
+         *
+         * What it provides is exactly the device split - a flat `range<1>` on a CPU, a
+         * grid-stride `nd_range` on a GPU - taken from the same @ref plan_for that
+         * @ref map and @ref zip_inplace use, so there is one geometry in this library
+         * rather than one for the kernels that fit `map` and the runtime's default for
+         * the rest.
+         *
+         * What it deliberately does **not** provide is the 128-bit wide path. That pass
+         * loads `sycl::vec<T, W>` from a *contiguous* array, which is a claim about the
+         * caller's access pattern that this primitive, by construction, cannot make.
+         *
+         * **Determinism.** Every index is visited exactly once by exactly one work-item,
+         * and which work-item that is comes only from the geometry - a pure function of
+         * the device and @p n. A body that writes `out[i]` from index `i` alone is
+         * therefore as reproducible here as it was under a flat launch. A body that
+         * accumulates across work-items would not be, and is not what this is for; see
+         * <SushiBLAS/engine/reduce_1d.hpp> for that.
+         *
+         * @tparam Func The functor type, deduced.
+         * @param h The command group handler to record into.
+         * @param q The queue being submitted to, used only to reach the device profile.
+         * @param n How many indices to cover.
+         * @param op Callable `(std::size_t i) -> void`, invoked once per index on device.
+         *
+         * @warning @p op is inlined into a SYCL device kernel: it must be
+         *          device-copyable, capture by value only, hold no host pointers,
+         *          allocate nothing and throw nothing.
+         */
+        template<typename Func>
+        inline void indexed(sycl::handler& h, const sycl::queue& q, std::size_t n, Func op)
+        {
+            const Shape1D shape = plan_scalar(q, n);
+            const std::size_t stride = shape.grid.stride();
+
+            if (shape.flat)
+            {
+                h.parallel_for(sycl::range<1>(n), [=](sycl::id<1> idx)
+                {
+                    op(static_cast<std::size_t>(idx[0]));
+                });
+                return;
+            }
+
+            h.parallel_for(shape.grid.nd_range(), [=](sycl::nd_item<1> it)
+            {
+                for (std::size_t i = it.get_global_id(0); i < n; i += stride) op(i);
             });
         }
 
