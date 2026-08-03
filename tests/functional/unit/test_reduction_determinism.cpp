@@ -30,6 +30,12 @@
 // would leave the entire parallel path - the one a GPU always takes, and the one
 // where combination order is actually in question - untested. Every case below
 // therefore runs at a size on each side of that threshold.
+//
+// The *segmented* reductions - `max_along` / `sum_along`, whose answer is a vector
+// rather than a scalar - assert the same two properties in
+// test_axis_reductions.cpp, at both of their own launch shapes. They live there
+// rather than here because every helper in this file is built around reading one
+// float back.
 
 #include <cmath>
 #include <cstring>

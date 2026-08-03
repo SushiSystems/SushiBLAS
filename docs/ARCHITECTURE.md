@@ -364,7 +364,8 @@ stays in `kernels/`. The epilogue contract itself
 Those six headers are public API, not implementation detail: `execute_binary`,
 `execute_unary_inplace`, `execute_zip_inplace`, `execute_nonlinear_forward` /
 `_backward`, `execute_logic_unary` / `_binary` / `_ternary`, `execute_reduction`,
-`execute_folding_reduction`, `execute_random` and `execute_gemm` all live in
+`execute_folding_reduction`, `execute_folding_axis_reduction`, `execute_random`
+and `execute_gemm` all live in
 `namespace SushiBLAS::Dispatch` and are installed. A downstream framework
 composes several math ops into one functor, hands it to one `execute_*` call,
 and gets a single fused SYCL kernel — the reason the seam exists, and the reason
@@ -570,6 +571,48 @@ retuning it is one edit instead of thirty-five.
   two-stage shape is 11.8× faster, and they cross at 16K. Both are deterministic,
   and the shape is a pure function of the device and the element count, so the
   threshold does not weaken the guarantee.
+- **Axis (segmented) reductions** (`engine/reduce_axis.hpp`) — the third launch
+  shape, alongside `launch_1d.hpp`'s per-element map and `reduce_1d.hpp`'s
+  whole-tensor fold: N independent folds running side by side over one buffer,
+  producing a **vector**. `reductions().max_along` and `sum_along` are each one
+  call to `Dispatch::execute_folding_axis_reduction`, differing only in the
+  accumulation policy; a per-axis `mean` is `CompensatedSum` with `v / n` in the
+  finalizer slot and a per-axis `min` is a four-line accumulator, so neither
+  re-cuts the seam. An index-valued one (`argmax` along an axis) needs its own
+  executor, because its result dtype differs from its input's — exactly the way
+  `execute_index_reduction` is a separate twin of `execute_reduction` — but it
+  reuses `Dispatch::axis_span_for` for the geometry rather than deriving it
+  again.
+
+  It exists because a log-sum-exp shift has to be **per row**. Shifting a batch
+  by the batch's global maximum is exact in real arithmetic and wrong in
+  binary32: the invariance is destroyed by the exponential, not by the
+  subtraction, so a row about 104 below the batch maximum has every
+  `exp(x - global_max)` underflow to zero, a row sum of exactly zero, and a
+  log-softmax of `+inf`. See [GPU_VALIDATION.md §7](GPU_VALIDATION.md) for the
+  before-and-after measurements.
+
+  **`Reduce::AxisSpan` names no axis.** It carries five element counts — segment
+  count, extent, and three strides — so the axis, the `Core::Layout` and any
+  non-unit stride a view inherited are all resolved once on the host by
+  `axis_span_for`. Both axes of both layouts are the same kernel with different
+  numbers: no layout branch in the inner loop, no second instantiation.
+
+  **Two shapes, chosen by `Reduce::plan_axis` from where the parallelism is.**
+  One work-item per segment when there are already enough segments to fill the
+  machine (which is every row-wise reduction over a batch, on every device), and
+  one work-group per segment — grid-striding the segment, then the same
+  hand-written halving tree stage one of `Reduce::reduce` uses — when there are
+  too few segments and each is long enough to be worth the barriers. Both are
+  correct at every shape; neither requires the segment length to relate to the
+  work-group width. Unlike the whole-tensor fold this needs **no scratch
+  buffer**, and structurally so: a work-group's tree *is* its segment's answer,
+  so there are no partials to stage between two kernels.
+
+  Determinism holds by the same argument the whole-tensor fold makes, and the
+  item-per-segment shape makes it more cheaply: one work-item folds one segment
+  in ascending index order, so there is no cross-work-item combination for the
+  specification to leave free.
 - **Random** (`kernels/sycl/random/philox.hpp`) — a hand-written
   Philox4x32-10 counter-based PRNG (constants verified against the Random123
   reference implementation), replacing what was previously oneMKL's VSL

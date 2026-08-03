@@ -108,6 +108,10 @@ set(SUSHIBLAS_SOURCES
     engine/math/reductions/asum.cpp
     engine/math/reductions/nrm2.cpp
 
+    # Math: Reductions along one axis (segmented; result is a vector)
+    engine/math/reductions/max_along.cpp
+    engine/math/reductions/sum_along.cpp
+
     # Logic
     engine/logic/equal.cpp
     engine/logic/not_equal.cpp

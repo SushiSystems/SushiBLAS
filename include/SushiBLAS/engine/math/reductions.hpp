@@ -133,7 +133,50 @@ namespace SushiBLAS
              */
             sycl::event logsumexp(const Tensor& t, Tensor& result);
 
-            /** 
+            /**
+             * @brief Maximum along one axis of a rank-2 tensor.
+             *
+             * The axis-wise counterpart of @ref max: instead of one scalar for the
+             * whole tensor, one value per surviving position. `axis == 1` folds each
+             * row to its own maximum, which is the shift a per-row log-sum-exp needs
+             * - shifting a batch by its *global* maximum is exact in real arithmetic
+             * and returns `+inf` in binary32 for any row about 104 below it, because
+             * every exponential in that row underflows and its row sum becomes
+             * exactly zero.
+             *
+             * Deterministic by construction, like every other folding reduction here;
+             * see <SushiBLAS/engine/reduce_axis.hpp>.
+             *
+             * @param t Input tensor; must be rank 2.
+             * @param axis Which axis to fold away: 0 for a per-column maximum (result
+             *        length `t.shape[1]`), 1 for a per-row maximum (result length
+             *        `t.shape[0]`).
+             * @param result Rank-1 output tensor of the surviving length, sharing
+             *        `t`'s dtype.
+             * @return sycl::event.
+             * @throws std::runtime_error on a rank, axis, length or dtype mismatch.
+             */
+            sycl::event max_along(const Tensor& t, int axis, Tensor& result);
+
+            /**
+             * @brief Sum along one axis of a rank-2 tensor.
+             *
+             * The axis-wise counterpart of @ref sum, and compensated the same way:
+             * each segment is folded with Neumaier's correction in an order fixed by
+             * the launch geometry, so the answer is both accurate and reproducible to
+             * the bit.
+             *
+             * @param t Input tensor; must be rank 2.
+             * @param axis Which axis to fold away: 0 for column sums (result length
+             *        `t.shape[1]`), 1 for row sums (result length `t.shape[0]`).
+             * @param result Rank-1 output tensor of the surviving length, sharing
+             *        `t`'s dtype.
+             * @return sycl::event.
+             * @throws std::runtime_error on a rank, axis, length or dtype mismatch.
+             */
+            sycl::event sum_along(const Tensor& t, int axis, Tensor& result);
+
+            /**
              * @brief L1 Norm (Sum of absolute values).
              * @param t Input tensor.
              * @param result Scalar output tensor.

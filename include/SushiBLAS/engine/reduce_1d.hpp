@@ -589,6 +589,76 @@ namespace SushiBLAS
         };
 
         /**
+         * @class RunningMax
+         * @brief A running maximum, in the shape the folding seams accumulate in.
+         *
+         * **Not what the whole-tensor `max` uses, and that is deliberate.**
+         * `ReductionOps::max` stays on `sycl::reduction`, because `maximum` is
+         * exactly associative and exactly commutative, so every combination order
+         * yields the same value and a hand-written fixed-order tree there would buy
+         * nothing but slower code - the argument is written out in `max.cpp`. This
+         * class exists because the *segmented* seam
+         * (`Dispatch::execute_folding_axis_reduction`) is one shape serving every
+         * axis reduction, and a shape needs an accumulator. Order-independence means
+         * that costs nothing here either: the fold is fixed anyway, so a per-axis
+         * maximum is bit-reproducible for a stronger reason than the additive
+         * reductions are.
+         *
+         * **Selection matches `sycl::maximum` exactly**, down to which operand
+         * survives: both keep the left one unless the right compares greater, so a
+         * per-axis maximum and a whole-tensor maximum cannot disagree on the same
+         * data. That carries over `max.cpp`'s one caveat as well - every comparison
+         * against a NaN is false, so a NaN in the input does not propagate and which
+         * value survives meeting one depends on the order. No reduction shape fixes
+         * that; only screening the input does.
+         *
+         * @tparam T The element type.
+         */
+        template<typename T>
+        class RunningMax
+        {
+            public:
+                /**
+                 * @brief The value an empty maximum has.
+                 *
+                 * The lowest finite value of @p T, so folding it in against anything
+                 * representable is a no-op. Not `constexpr`, because
+                 * `std::numeric_limits<sycl::half>::lowest()` is not - the same
+                 * reason @ref ScaledSumOfSquares::min_scale is a function.
+                 *
+                 * @return `std::numeric_limits<T>::lowest()`.
+                 */
+                [[nodiscard]] static T identity() noexcept
+                {
+                    return std::numeric_limits<T>::lowest();
+                }
+
+                /**
+                 * @brief Combines two finished maxima.
+                 * @param a The left partial.
+                 * @param b The right partial.
+                 * @return The greater, keeping @p a on a tie or a NaN.
+                 */
+                [[nodiscard]] static T combine(T a, T b) noexcept { return a < b ? b : a; }
+
+                /**
+                 * @brief Folds one value into the running maximum.
+                 * @param x The value to consider.
+                 */
+                void accumulate(T x) noexcept { if (max_ < x) max_ = x; }
+
+                /**
+                 * @brief The maximum so far.
+                 * @return The running maximum, or @ref identity if nothing was folded.
+                 */
+                [[nodiscard]] T value() const noexcept { return max_; }
+
+            private:
+                /** @brief The largest value folded so far. */
+                T max_ = std::numeric_limits<T>::lowest();
+        };
+
+        /**
          * @brief Reduces `in[0..n)` to `*out`, deterministically.
          *
          * Computes `finalize(fold(transform(in[i])), n)`, where `fold` is @p Accum's
