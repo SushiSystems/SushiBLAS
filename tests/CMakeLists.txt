@@ -92,6 +92,7 @@ add_executable(sushiblas_tests
     functional/unit/test_atanh.cpp
     functional/unit/test_ceil.cpp
     functional/unit/test_clamp.cpp
+    functional/unit/test_convert.cpp
     functional/unit/test_cos.cpp
     functional/unit/test_cosh.cpp
     functional/unit/test_div.cpp

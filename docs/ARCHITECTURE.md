@@ -404,6 +404,28 @@ helper calls — and wrapping it to fit crashes this project's clang during
 instantiation. The arms and the domain rule are the same; the duplication is noted
 at both sites.
 
+**`ElementwiseOps::convert` is the one op that dispatches on two dtypes**, and it is
+the second site to spell its switch out by hand for that same compiler reason. It
+copies a tensor into another of a *different* element type — the thing nothing in this
+library could do before, since `Level1::copy` throws on a dtype mismatch and every
+other op shares one `DataType` across all its operands, so a mixed-precision layer
+above had no way to produce an fp16 view of an fp32 tensor at all. Two facts shape it.
+The cross product is bounded to `Domain::REAL` on **both** sides — nine arms, not the
+forty-nine a `with_element_type` nested inside a `with_element_type` would cost — and
+the pairs outside it throw at record time naming *both* dtypes, because a complex
+operand has no single real value to narrow to and a float-to-integer conversion is a
+rounding policy this layer cannot choose on the caller's behalf. And the switch is two
+plain, un-nested `switch` statements over ordinary function templates rather than
+nested generic lambdas, which is exactly the shape documented above as crashing this
+tree's clang. It lives in `ElementwiseOps` rather than beside `copy` because
+`engine.blas()` names the BLAS standard and no BLAS routine converts, while
+"`dst[i]` is a function of `src[i]` alone" is the sentence the elementwise family opens
+with. Converting a dtype to itself is legal and copies, so a policy holding its compute
+dtype as runtime data does not need a branch for the case where it equals the master
+dtype. There is no public `Dispatch::execute_convert` seam: every executor in that
+namespace is public because it takes a caller-written functor to fuse, and this op has
+none.
+
 **`execute_gemm`** (`engine/blas/dispatch.hpp`) is the BLAS family's only
 executor, and its functor is not a per-element operation but a GEMM *epilogue*:
 `T operator()(T value, int64_t row, int64_t col)`, applied to each element of C

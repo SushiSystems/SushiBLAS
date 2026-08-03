@@ -34,7 +34,15 @@ namespace SushiBLAS
 
     sycl::event Level1::copy(const Tensor& x, Tensor& y)
     {
-        SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in COPY.");
+        // Still an error, and it has to be: `?copy` is a BLAS routine and every BLAS
+        // routine is fixed to one precision. What changed is that there is now somewhere
+        // to send the caller, so the message names it - a converting copy is
+        // `elementwise().convert`, and this is the line a caller who wanted one reaches.
+        SB_THROW_IF(x.dtype != y.dtype,
+                    "Data type mismatch in COPY: source is {}, destination is {}. BLAS "
+                    "copy moves elements without changing their type; for a copy that "
+                    "converts, use elementwise().convert(src, dst).",
+                    Core::to_string(x.dtype), Core::to_string(y.dtype));
         int64_t n, incx, incy;
         Internal::get_vec_params(x, n, incx);
         int64_t ny; Internal::get_vec_params(y, ny, incy);
