@@ -313,6 +313,85 @@ namespace SushiBLAS
              */
             sycl::event clamp(Tensor& t, float min_val, float max_val);
 
+            /**
+             * @brief Copies @p src into @p dst, converting the element type.
+             *
+             * The one operation in this library whose two operands are *allowed* to
+             * disagree on dtype, and it exists because before it there was no way to
+             * produce an fp16 view of an fp32 tensor at all: `Level1::copy` throws on a
+             * dtype mismatch, and every other op in the library dispatches on exactly one
+             * `Core::DataType` shared by all its operands. A mixed-precision training step
+             * needs exactly the missing thing - fp32 master weights cast down to the fp16
+             * the matrix multiply runs in, and fp16 gradients cast back up before they
+             * reach an optimiser that must not accumulate in fp16.
+             *
+             * **Why it lives here and not beside `copy`.** `Level1` is the BLAS level-1
+             * surface, and reference BLAS has no converting copy at any level: every
+             * routine there is fixed to a single precision, which is why `?copy` carries
+             * one type letter and not two. Putting a routine that is not in the standard
+             * under `engine.blas()` would cost that accessor the only thing it means. What
+             * is left is the family this op already belongs to by shape - `dst[i]` is a
+             * function of `src[i]` and of nothing else, which is the sentence
+             * @ref ElementwiseOps opens with. The only thing separating it from every
+             * other elementwise op is that its input and output element types differ, and
+             * that is a property of the dispatch it needs rather than of what it computes.
+             *
+             * **The dtype cross product is bounded to REAL x REAL: nine arms.** This is
+             * the real design constraint. A converting op dispatches on *two* runtime
+             * dtypes, so the naive spelling - `with_element_type` nested inside
+             * `with_element_type` - is 7 x 7 = 49 kernel instantiations for one operation,
+             * more than this library's entire elementwise family costs put together. It is
+             * also a shape this tree's clang is known to miscompile: the nested generic
+             * lambda is exactly what crashes it during instantiation, which is why
+             * `Internal::execute_blas_task` spells its own switch out by hand
+             * (<SushiBLAS/engine/blas/utils.hpp>). So the pair is restricted to
+             * `Dispatch::Domain::REAL` on **both** sides - HALF, FLOAT32, FLOAT64, nine
+             * arms - and the switch is written as two plain, un-nested `switch`
+             * statements over ordinary function templates rather than as lambdas.
+             *
+             * REAL x REAL is not an arbitrary trim. It is what mixed precision consists
+             * of, and every pair outside it is either meaningless or a bug wearing a cast:
+             * a complex operand has no single real value to narrow to, and a float-to-int
+             * conversion is a *rounding policy* decision (truncate, round-half-even,
+             * saturate?) that this layer has no basis to make on the caller's behalf. Both
+             * therefore throw at record time, **naming both dtypes**, rather than silently
+             * doing nothing - the defect this project has called out by name more than
+             * once. An integer conversion, if one is ever wanted, belongs in its own op
+             * whose name states the rounding it performs.
+             *
+             * **Converting from a dtype to itself is legal and copies.** The alternative -
+             * making `convert(f32, f32)` an error - would push a branch back into every
+             * caller, and the caller least able to take it is the one this op was written
+             * for: a mixed-precision policy holds its compute dtype as runtime data, and
+             * when that dtype happens to equal the master dtype the op degenerates
+             * naturally into the copy the policy meant. It is not a silent no-op either -
+             * the task is still recorded and the elements are still written, so the
+             * dependency edges a caller gets are the same whatever the two dtypes are,
+             * which is the property that actually has to hold for a graph to be correct.
+             *
+             * **What it declares to the dependency tracker.** `src.region()` as a read and
+             * `dst.region()` as a write, taken from @ref Tensor::region and never from a
+             * bare pointer. A `ResourceRegion` converts implicitly from a pointer and a
+             * bare pointer widens to the *whole* allocation, so two views of one arena
+             * become two unrelated resources, `overlaps` answers false and the tracker
+             * emits no edge at all - not a wrong edge, none. That mistake has produced a
+             * silently wrong training loss in this stack twice
+             * (<SushiBLAS/engine/math/reductions/dispatch.hpp> records one of them), and
+             * it is precisely the arena-packed fp32/fp16 pair this op exists to serve.
+             *
+             * @param src The tensor to read. Must be contiguous and have storage.
+             * @param dst The tensor to overwrite, in its own dtype. Must be contiguous,
+             *        have storage, have the same shape as @p src, and not overlap it -
+             *        each work-item reads one element and writes another of a different
+             *        width, so a partial overlap is a race no launch shape can fix.
+             * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
+             * @throws std::runtime_error naming both dtypes if either falls outside
+             *         `Domain::REAL`; naming both shapes if they disagree; naming the
+             *         offending operand if it is storage-less, non-contiguous, or overlaps
+             *         the other.
+             */
+            sycl::event convert(const Tensor& src, Tensor& dst);
+
         private:
             Engine& engine_;
     };

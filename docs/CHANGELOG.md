@@ -37,6 +37,55 @@ None open.
   a repeat rather than filed as a new bug.
 
 ### Added
+- **A dtype-converting copy: `elementwise().convert(src, dst)`**
+  (`src/engine/math/elementwise/convert.cpp`). The one operation in the library
+  whose two operands may disagree on dtype. Nothing could produce an fp16 view
+  of an fp32 tensor before it — `Level1::copy` throws on a dtype mismatch, and
+  every other op dispatches on exactly one `Core::DataType` shared by all its
+  operands — which left the mixed-precision layer above with no way to cast fp32
+  master weights down to the precision its matrix multiply runs in.
+
+  - **The dtype cross product is bounded to `Domain::REAL` on both sides: nine
+    arms.** The naive spelling, a `with_element_type` nested inside a
+    `with_element_type`, is 7 × 7 = 49 kernel instantiations for one op — more
+    than the whole elementwise family costs together — and is also the nested
+    generic lambda documented at `engine/blas/utils.hpp` as crashing this tree's
+    clang during instantiation. So the switch is two plain, un-nested `switch`
+    statements over ordinary function templates, and REAL × REAL is what mixed
+    precision actually consists of. Pairs outside it throw at record time
+    **naming both dtypes**: a complex operand has no single real value to narrow
+    to, and a float-to-integer conversion is a rounding policy (truncate?
+    half-even? saturate?) this layer has no basis to pick for the caller.
+  - **It lives in `ElementwiseOps`, not beside `copy`.** Reference BLAS has no
+    converting copy at any level — every routine there is fixed to one precision,
+    which is why `?copy` takes one type letter — so putting it under
+    `engine.blas()` would cost that accessor the only thing it means. "`dst[i]`
+    is a function of `src[i]` alone" is the sentence `ElementwiseOps` opens with.
+    `Level1::copy`'s mismatch message now names both dtypes and points here.
+  - **No public `Dispatch::execute_convert` seam.** Every executor in that
+    namespace is public because it takes a caller-written functor to fuse; this
+    op has none, so a seam would advertise a parameterisation that does not
+    exist. Keeping it in one translation unit also physically confines the nine
+    instantiations.
+  - **Converting a dtype to itself is legal and copies.** A mixed-precision
+    policy holds its compute dtype as runtime data; when that equals the master
+    dtype the op has to degenerate into the copy the policy meant rather than
+    force a branch back into the caller. It is not a silent no-op — the task is
+    recorded and the elements are written either way, so the dependency edges do
+    not depend on the dtype pair.
+  - **Reads and writes are declared from `Tensor::region()`, never a bare
+    pointer**, and both ordering tests use operands at a *non-zero* storage
+    offset, where the two spellings stop agreeing. Verified by mutation: a bare
+    `data()` pointer drops both edges, and an allocation-base region invents one
+    between two disjoint views of an arena. Each mutation is caught by exactly
+    one of the three ordering cases.
+  - **The value tests assert on values that change.** Correctly-rounded fp32 to
+    fp16 including a tie broken to even, overflow to infinity in both signs,
+    underflow to zero with subnormals preserved, non-finite passthrough. A round
+    trip of exactly-representable values is present and labelled as the sanity
+    case it is — it also covers all nine dtype pairs, which is its real job.
+    Non-contiguous and overlapping operands are refused by name.
+
 - **A GEMM epilogue can now declare the memory it touches**
   (`Dispatch::GemmEpilogue` / `Dispatch::gemm_epilogue`, in
   `include/SushiBLAS/engine/blas/dispatch.hpp`). `execute_gemm` builds its

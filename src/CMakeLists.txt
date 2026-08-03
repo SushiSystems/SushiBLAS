@@ -94,6 +94,9 @@ set(SUSHIBLAS_SOURCES
     engine/math/elementwise/fmod.cpp
     engine/math/elementwise/remainder.cpp
 
+    # The one op whose operands may disagree on dtype (see elementwise.hpp).
+    engine/math/elementwise/convert.cpp
+
     # Math: Reductions
     engine/math/reductions/sum.cpp
     engine/math/reductions/mean.cpp
