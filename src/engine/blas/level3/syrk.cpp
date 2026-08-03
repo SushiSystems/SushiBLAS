@@ -68,13 +68,18 @@ namespace SushiBLAS
 
         // Capture data safely for asynchronous execution
         auto layout = A.layout;
-        void* read_A = A.storage ? A.storage->data_ptr : nullptr;
-        void* write_C = C.storage ? C.storage->data_ptr : nullptr;
+        void* read_A = A.data_or_null();
+        void* rw_C = C.data_or_null();
 
+        // C is read-modify-write unconditionally, for two independent reasons: the beta term
+        // reads it when beta != 0, and the triangular mask leaves the opposite triangle
+        // untouched even when beta == 0. A byte interval cannot express "one triangle", so
+        // the honest declaration for the whole region is read *and* write.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_A) reads.push_back(read_A);
+        if (read_A) reads.push_back(A.region());
+        if (rw_C) reads.push_back(C.region());
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_C) writes.push_back(write_C);
+        if (rw_C) writes.push_back(C.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl3.syrk";
@@ -93,7 +98,7 @@ namespace SushiBLAS
                 using T = decltype(scalar_type);
 
                 auto pA = static_cast<const T*>(read_A);
-                auto pC = static_cast<T*>(write_C);
+                auto pC = static_cast<T*>(rw_C);
                 auto alpha_t = static_cast<T>(alpha);
                 auto beta_t = static_cast<T>(beta);
 

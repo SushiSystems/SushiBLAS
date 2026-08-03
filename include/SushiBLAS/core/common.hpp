@@ -90,6 +90,37 @@ namespace SushiBLAS
             return dtype == DataType::COMPLEX32 || dtype == DataType::COMPLEX64;
         }
 
+        /**
+         * @brief Size in bytes of one element of a DataType.
+         *
+         * The one place the dtype-to-width mapping is written down. It used to be
+         * open-coded as a four-branch `size_t bpe = 4; if (...)` chain in three separate
+         * places (the Tensor constructor's capacity check, Tensor::data(), and io.cpp),
+         * which is three chances for a new dtype to be added to two of them.
+         *
+         * @param dtype The data type to measure.
+         * @return The element width in bytes.
+         */
+        inline constexpr size_t bytes_per_element(DataType dtype)
+        {
+            switch (dtype)
+            {
+                case DataType::HALF:
+                    return 2;
+                case DataType::FLOAT32:
+                    return 4;
+                case DataType::FLOAT64:
+                    return 8;
+                case DataType::COMPLEX32:
+                    return 8;
+                case DataType::COMPLEX64:
+                    return 16;
+            }
+            // Unreachable for any enumerator; matches to_string()'s shape, which needs a
+            // trailing return for a DataType holding a value outside the enumeration.
+            return 4;
+        }
+
     } // namespace Core
 } // namespace SushiBLAS
 

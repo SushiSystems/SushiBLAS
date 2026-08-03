@@ -37,13 +37,13 @@ namespace SushiBLAS
         int64_t n, incx;
         Internal::get_vec_params(x, n, incx);
 
-        void* read_x = x.storage ? x.storage->data_ptr : nullptr;
-        void* write_r = result.storage ? result.storage->data_ptr : nullptr;
+        void* read_x = x.data_or_null();
+        void* write_r = result.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_x) reads.push_back(read_x);
+        if (read_x) reads.push_back(x.region());
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_r) writes.push_back(write_r);
+        if (write_r) writes.push_back(result.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl1.nrm2";

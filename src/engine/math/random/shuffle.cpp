@@ -76,12 +76,12 @@ namespace SushiBLAS
         const char* name = "random.shuffle";
 
         const int64_t size = t.num_elements;
-        void* ptr = t.storage ? t.storage->data_ptr : nullptr;
+        void* ptr = t.data_or_null();
 
         // Read-write, unlike the distributions: a shuffle permutes what is already there, so
         // the task depends on whatever produced the contents, not only on prior writers.
         std::vector<SushiRuntime::Core::ResourceRegion> rw = {};
-        if (ptr) rw.push_back(ptr);
+        if (ptr) rw.push_back(t.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = name;

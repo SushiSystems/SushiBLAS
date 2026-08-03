@@ -114,11 +114,11 @@ namespace SushiBLAS
         sycl::event execute_random(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, const std::vector<double>& params, Func&& task_func)
         {
             const int64_t size = t.num_elements;
-            void* ptr = t.storage ? t.storage->data_ptr : nullptr;
+            void* ptr = t.data_or_null();
 
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
             std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-            if (ptr) writes.push_back(ptr);
+            if (ptr) writes.push_back(t.region());
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;

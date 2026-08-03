@@ -42,13 +42,16 @@ namespace SushiBLAS
 
         // TODO: Implement multi-dimensional batch support
 
-        void* write_x = x.storage ? x.storage->data_ptr : nullptr;
-        void* write_y = y.storage ? y.storage->data_ptr : nullptr;
+        void* rw_x = x.data_or_null();
+        void* rw_y = y.data_or_null();
 
+        // Both operands are read and written - a swap is the definition of read-modify-write.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
+        if (rw_x) reads.push_back(x.region());
+        if (rw_y) reads.push_back(y.region());
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_x) writes.push_back(write_x);
-        if (write_y) writes.push_back(write_y);
+        if (rw_x) writes.push_back(x.region());
+        if (rw_y) writes.push_back(y.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl1.swap";
@@ -61,8 +64,8 @@ namespace SushiBLAS
             [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                auto pX = static_cast<T*>(write_x);
-                auto pY = static_cast<T*>(write_y);
+                auto pX = static_cast<T*>(rw_x);
+                auto pY = static_cast<T*>(rw_y);
 
                 return Internal::dispatch_with_mode(mode, q, deps,
                     [=] { Kernels::Reference::swap<T>(n, pX, incx, pY, incy); },

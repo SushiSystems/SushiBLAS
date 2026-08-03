@@ -34,7 +34,7 @@ namespace SushiBLAS
     using namespace SushiRuntime::Graph::Literals;
 
     sycl::event Level2::gemv(const Tensor& A, const Tensor& x, Tensor& y,
-                             bool transA, float alpha, float beta)
+                             bool transA, double alpha, double beta)
     {
         SB_THROW_IF(A.rank < 2, "GEMV requires A to be at least a 2D matrix.");
         SB_THROW_IF(A.dtype != x.dtype || A.dtype != y.dtype, "Data type mismatch in GEMV.");
@@ -59,15 +59,20 @@ namespace SushiBLAS
         SB_THROW_IF(nx != expected_nx, "Dimension mismatch for vector x in GEMV.");
         SB_THROW_IF(ny != expected_ny, "Dimension mismatch for vector y in GEMV.");
 
-        void* read_A = A.storage ? A.storage->data_ptr : nullptr;
-        void* read_x = x.storage ? x.storage->data_ptr : nullptr;
-        void* write_y = y.storage ? y.storage->data_ptr : nullptr;
+        void* read_A = A.data_or_null();
+        void* read_x = x.data_or_null();
+        void* rw_y = y.data_or_null();
 
+        // `y = alpha * op(A) * x + beta * y` reads y whenever beta is non-zero. The test is
+        // on the caller's double rather than on the narrowed element type: a beta that is
+        // non-zero here but flushes to zero in the element type only ever declares an edge
+        // the kernel does not need, never drops one it does.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_A) reads.push_back(read_A);
-        if (read_x) reads.push_back(read_x);
+        if (read_A) reads.push_back(A.region());
+        if (read_x) reads.push_back(x.region());
+        if (rw_y && beta != 0.0) reads.push_back(y.region());
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_y) writes.push_back(write_y);
+        if (rw_y) writes.push_back(y.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl2.gemv";
@@ -86,7 +91,7 @@ namespace SushiBLAS
                 using T = decltype(scalar_type);
                 auto pA = static_cast<const T*>(read_A);
                 auto px = static_cast<const T*>(read_x);
-                auto py = static_cast<T*>(write_y);
+                auto py = static_cast<T*>(rw_y);
                 auto alpha_t = static_cast<T>(alpha);
                 auto beta_t = static_cast<T>(beta);
 

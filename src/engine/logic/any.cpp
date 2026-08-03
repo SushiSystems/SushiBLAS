@@ -56,13 +56,13 @@ namespace SushiBLAS
         SB_THROW_IF(t.dtype != result.dtype, "Data types must match for logic operations.");
 
         int64_t size = t.num_elements;
-        void* read_T = t.storage ? t.storage->data_ptr : nullptr;
-        void* write_R = result.storage ? result.storage->data_ptr : nullptr;
+        void* read_T = t.data_or_null();
+        void* write_R = result.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_T) reads.push_back(read_T);
+        if (read_T) reads.push_back(t.region());
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_R) writes.push_back(write_R);
+        if (write_R) writes.push_back(result.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "logic.any";

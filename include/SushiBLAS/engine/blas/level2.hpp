@@ -37,6 +37,10 @@ namespace SushiBLAS
      * This class provides an interface for standard BLAS Level 2 operations, 
      * which involve matrix-vector computations. All operations are executed 
      * asynchronously using the SushiBLAS task graph system.
+     *
+     * Scalars (`alpha`, `beta`) are `double` throughout, matching Level 1 and Level 3,
+     * and are narrowed to the tensor's element type at the kernel boundary. See
+     * Level1::axpy for why.
      */
     class Level2 
     {
@@ -60,7 +64,7 @@ namespace SushiBLAS
              * @return sycl::event representing the completion of the operation.
              */
             sycl::event gemv(const Tensor& A, const Tensor& x, Tensor& y,
-                             bool transA = false, float alpha = 1.0f, float beta = 0.0f);
+                             bool transA = false, double alpha = 1.0, double beta = 0.0);
 
             /** 
              * @brief General Rank-1 Update (GER).
@@ -74,7 +78,7 @@ namespace SushiBLAS
              * @param alpha Scalar multiplier.
              * @return sycl::event representing the completion of the operation.
              */
-            sycl::event ger(const Tensor& x, const Tensor& y, Tensor& A, float alpha = 1.0f);
+            sycl::event ger(const Tensor& x, const Tensor& y, Tensor& A, double alpha = 1.0);
 
             /**
              * @brief Symmetric Matrix-Vector Multiplication (SYMV).
@@ -91,7 +95,7 @@ namespace SushiBLAS
              * @return sycl::event representing the completion of the operation.
              */
             sycl::event symv(const Tensor& A, const Tensor& x, Tensor& y, 
-                             bool upper = false, float alpha = 1.0f, float beta = 0.0f);
+                             bool upper = false, double alpha = 1.0, double beta = 0.0);
 
             /**
              * @brief Triangular Matrix-Vector Multiplication (TRMV).
@@ -137,7 +141,7 @@ namespace SushiBLAS
              * @param alpha Scalar multiplier.
              * @return sycl::event representing the completion of the operation.
              */
-            sycl::event syr(const Tensor& x, Tensor& A, bool upper = false, float alpha = 1.0f);
+            sycl::event syr(const Tensor& x, Tensor& A, bool upper = false, double alpha = 1.0);
 
             /**
              * @brief Symmetric Rank-2 Update (SYR2).
@@ -152,6 +156,6 @@ namespace SushiBLAS
              * @param alpha Scalar multiplier.
              * @return sycl::event representing the completion of the operation.
              */
-            sycl::event syr2(const Tensor& x, const Tensor& y, Tensor& A, bool upper = false, float alpha = 1.0f);
+            sycl::event syr2(const Tensor& x, const Tensor& y, Tensor& A, bool upper = false, double alpha = 1.0);
     };
 }

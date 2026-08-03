@@ -39,12 +39,9 @@ namespace SushiBLAS
      * it uses SYCL Unified Shared Memory (USM) through a SushiRuntime allocator.
      * It is reference counted to help share data safely between tensors.
      */
-    class alignas(64) Storage : public SushiRuntime::Core::RefCounted 
+    class alignas(64) Storage : public SushiRuntime::Core::RefCounted
     {
         public:
-            /** @brief The pointer to the raw data in memory. */
-            void* data_ptr = nullptr;      
-            
             /** @brief The total number of bytes allocated in memory. */
             size_t size_bytes = 0;         
             
@@ -83,25 +80,54 @@ namespace SushiBLAS
                     size_bytes += SushiRuntime::Core::DEFAULT_ALIGNMENT - (size_bytes % SushiRuntime::Core::DEFAULT_ALIGNMENT);
                 }
 
-                data_ptr = allocator->allocate(size_bytes, *strategy);
-                SB_THROW_IF(!data_ptr, "Allocation failed for {} bytes", size_bytes);
+                data_ptr_ = allocator->allocate(size_bytes, *strategy);
+                SB_THROW_IF(!data_ptr_, "Allocation failed for {} bytes", size_bytes);
             }
 
             Storage(const Storage&) = delete;
             Storage& operator=(const Storage&) = delete;
 
+            /**
+             * @brief Base address of the whole allocation, ignoring every view's offset.
+             *
+             * @return The pointer the allocator handed back, or nullptr before construction
+             *         completed.
+             *
+             * @warning This is the *allocation* base, never a tensor's data. Handing this
+             *          pointer to a kernel silently ignores `Tensor::storage_offset`, so a
+             *          tensor that is a view at a non-zero offset reads or writes the start
+             *          of the allocation instead of its own elements - which is exactly the
+             *          defect that made this member private. Use `Tensor::data()` /
+             *          `Tensor::data_as<T>()` to address a tensor's elements, and
+             *          `Tensor::region()` to describe them to the dependency tracker. The
+             *          only legitimate uses of the base are identity ("which allocation is
+             *          this?") and deallocation.
+             */
+            void* allocation_base() const noexcept { return data_ptr_; }
+
         protected:
-            /** 
+            /**
              * @brief Destroy the Storage object.
-             * 
+             *
              * This will automatically free the allocated memory.
              */
-            ~Storage() override 
+            ~Storage() override
             {
-                if (data_ptr && allocator) 
+                if (data_ptr_ && allocator)
                 {
-                    allocator->deallocate(data_ptr);
+                    allocator->deallocate(data_ptr_);
                 }
             }
+
+        private:
+            /**
+             * @brief The pointer to the raw data in memory.
+             *
+             * Private, and reachable only through @ref allocation_base(), because the whole
+             * BLAS layer used to reach for it directly and thereby drop `storage_offset` on
+             * the floor. Making the wrong pointer un-spellable is what stops the next
+             * operation added to the library from reintroducing that.
+             */
+            void* data_ptr_ = nullptr;
     };
 } // namespace SushiBLAS

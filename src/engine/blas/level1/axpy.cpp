@@ -32,7 +32,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level1::axpy(float alpha, const Tensor& x, Tensor& y)
+    sycl::event Level1::axpy(double alpha, const Tensor& x, Tensor& y)
     {
         SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in AXPY.");
         int64_t n, incx, incy;
@@ -42,13 +42,16 @@ namespace SushiBLAS
 
         // TODO: Implement multi-dimensional batch support for Level 1 AXPY
 
-        void* read_x = x.storage ? x.storage->data_ptr : nullptr;
-        void* write_y = y.storage ? y.storage->data_ptr : nullptr;
+        void* read_x = x.data_or_null();
+        void* rw_y = y.data_or_null();
 
+        // y is an accumulator, not a destination: `y = alpha * x + y` reads it before it
+        // writes it, so it belongs in both sets.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_x) reads.push_back(read_x);
+        if (read_x) reads.push_back(x.region());
+        if (rw_y) reads.push_back(y.region());
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_y) writes.push_back(write_y);
+        if (rw_y) writes.push_back(y.region());
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl1.axpy";
@@ -63,7 +66,7 @@ namespace SushiBLAS
             {
                 using T = decltype(scalar_type);
                 auto pX = static_cast<const T*>(read_x);
-                auto pY = static_cast<T*>(write_y);
+                auto pY = static_cast<T*>(rw_y);
                 auto alpha_t = static_cast<T>(alpha);
 
                 return Internal::dispatch_with_mode(mode, q, deps,
