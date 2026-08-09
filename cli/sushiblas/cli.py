@@ -52,7 +52,9 @@ def build(
 def test(
     suite: Suite = typer.Option(
         Suite.functional, "--suite", "-s", case_sensitive=False,
-        help="Which CTest label group to run ('all' runs every test)."),
+        help="Which CTest label group to run ('all' runs every CTest test; "
+             "'package' instead builds tests/package/ against an install "
+             "prefix and is not included in 'all')."),
     filter: Optional[str] = typer.Option(
         None, "--filter", "-f", help="ctest -R regex over 'Suite.Case' test names."),
     repeat: int = typer.Option(
@@ -64,6 +66,11 @@ def test(
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
     the binary directly: sb run sushiblas_tests -- --gtest_filter=Gemm.*
+
+    --suite package is the exception: it installs the package and builds the
+    out-of-tree consumer in tests/package/ against it, which is the only check
+    of what find_package(SushiBLAS) hands a third party. It runs no CTest, so
+    --filter and --repeat do not apply to it.
     """
     raise typer.Exit(project_svc.test(suite, filter, repeat))
 
