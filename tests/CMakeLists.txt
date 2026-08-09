@@ -51,6 +51,18 @@ add_executable(sushiblas_tests
     functional/unit/test_syrk.cpp
     functional/unit/test_trsm.cpp
 
+    # --- Spatial (windowed movement over an N-D grid) ---
+    functional/unit/test_spatial_geometry.cpp
+    functional/unit/test_spatial_im2col.cpp
+    functional/unit/test_spatial_col2im.cpp
+    functional/unit/test_spatial_pool_max.cpp
+    functional/unit/test_spatial_pool_avg.cpp
+    functional/unit/test_spatial_upsample.cpp
+    functional/unit/test_spatial_channels.cpp
+    functional/unit/test_spatial_broadcast.cpp
+    functional/unit/test_mean_spatial.cpp
+    functional/unit/test_channel_bias_epilogue.cpp
+
     # --- Nonlinear ---
     functional/unit/test_relu.cpp
     functional/unit/test_leaky_relu.cpp
@@ -142,6 +154,7 @@ add_executable(sushiblas_tests
 
     # --- Regression ---
     functional/regression/test_regression.cpp
+    functional/regression/test_spatial_determinism.cpp
 )
 
 # --- Include Directories ---

@@ -1,0 +1,192 @@
+/**************************************************************************/
+/* pool_max.hpp                                                           */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                SushiBLAS                               */
+/*                https://github.com/SushiSystems/SushiBLAS               */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the Apache License, Version 2.0 (the "License");        */
+/* you may not use this file except in compliance with the License.       */
+/* You may obtain a copy of the License at                                */
+/*                                                                        */
+/*     http://www.apache.org/licenses/LICENSE-2.0                         */
+/*                                                                        */
+/* Unless required by applicable law or agreed to in writing, software    */
+/* distributed under the License is distributed on an "AS IS" BASIS,      */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
+/* implied. See the License for the specific language governing           */
+/* permissions and limitations under the License.                         */
+/**************************************************************************/
+
+#pragma once
+
+#include <cstdint>
+#include <limits>
+#include <SushiBLAS/engine/spatial/geometry.hpp>
+
+namespace SushiBLAS
+{
+    namespace Kernels
+    {
+        namespace Reference
+        {
+            /**
+             * @brief Takes each window's maximum, and records where it came from.
+             *
+             * **The running maximum starts at the lowest finite value of @p T,
+             * never at zero.** Padding is the absence of an element, not a
+             * zero-valued candidate: a zero-initialised maximum turns every
+             * all-negative border window into 0, which is a plausible number
+             * that no assertion in a shape or dtype check can catch. The same
+             * identity `Reduce::RunningMax` uses, for the same reason.
+             *
+             * **Ties keep the first element in scan order** (`>`, not `>=`), so
+             * the recorded index is single-valued and
+             * @ref pool_max_backward's equality test cannot match two taps of
+             * one window. That is also PyTorch's convention.
+             *
+             * The recorded index is the **logical** flat position
+             * `((n*H + h)*W + w)*C + c`, not a strided offset into this
+             * particular view - so it stays comparable when the gradient arrives
+             * through a differently-strided alias of the same image.
+             *
+             * A window with no in-bounds tap at all cannot occur: `window_span_for`
+             * refuses an output extent whose last window starts past the input.
+             * Such a window would record index -1, which matches no pixel, and
+             * its gradient would be dropped rather than misrouted.
+             *
+             * @tparam T The element type.
+             * @param span The window layout, in element counts.
+             * @param in The input image's first element.
+             * @param out The output image's first element.
+             * @param indices The argmax buffer's first element; laid out exactly
+             *        like @p out.
+             */
+            template<typename T>
+            void pool_max(const Spatial::WindowSpan& span, const T* in, T* out, int64_t* indices)
+            {
+                const Spatial::ConvGeometry& g = span.geometry;
+
+                for (int64_t n = 0; n < span.batch; ++n)
+                {
+                    for (int64_t h_o = 0; h_o < span.out_h; ++h_o)
+                    {
+                        for (int64_t w_o = 0; w_o < span.out_w; ++w_o)
+                        {
+                            for (int64_t c = 0; c < span.channels; ++c)
+                            {
+                                T best = std::numeric_limits<T>::lowest();
+                                int64_t best_index = -1;
+
+                                for (int64_t r = 0; r < g.kernel_h; ++r)
+                                {
+                                    const int64_t h_in = h_o * g.stride_h - g.pad_top + r * g.dilation_h;
+                                    if (h_in < 0 || h_in >= span.in_h) continue;
+
+                                    for (int64_t s = 0; s < g.kernel_w; ++s)
+                                    {
+                                        const int64_t w_in = w_o * g.stride_w - g.pad_left + s * g.dilation_w;
+                                        if (w_in < 0 || w_in >= span.in_w) continue;
+
+                                        const T candidate = in[n * span.in_batch_stride
+                                                             + h_in * span.in_row_stride
+                                                             + w_in * span.in_col_stride
+                                                             + c * span.in_channel_stride];
+
+                                        if (candidate > best)
+                                        {
+                                            best = candidate;
+                                            best_index = ((n * span.in_h + h_in) * span.in_w + w_in)
+                                                       * span.channels + c;
+                                        }
+                                    }
+                                }
+
+                                const int64_t at = n * span.out_batch_stride
+                                                 + h_o * span.out_row_stride
+                                                 + w_o * span.out_col_stride
+                                                 + c * span.out_channel_stride;
+                                out[at] = best;
+                                indices[at] = best_index;
+                            }
+                        }
+                    }
+                }
+            }
+
+            /**
+             * @brief Routes each output gradient back to the element it was taken from.
+             *
+             * A **gather over the windows that could have selected each input
+             * pixel**, using the same divisibility walk as @ref col2im with an
+             * equality test on the recorded index. The scatter form - walk the
+             * output, add each gradient into the pixel its index names - needs a
+             * floating-point atomic add wherever windows overlap, and that has a
+             * run-to-run combination order. See `engine/spatial.hpp` for why
+             * that is not a trade this library may make.
+             *
+             * A pixel selected by several overlapping windows accumulates all of
+             * their gradients, in ascending `(r, s)` order.
+             *
+             * @tparam T The element type.
+             * @param span The window layout, in element counts.
+             * @param dy The output gradient's first element.
+             * @param indices The argmax buffer @ref pool_max wrote.
+             * @param dx The input gradient's first element; every pixel is
+             *        written, so it needs no prior clear.
+             */
+            template<typename T>
+            void pool_max_backward(const Spatial::WindowSpan& span, const T* dy,
+                                   const int64_t* indices, T* dx)
+            {
+                const Spatial::ConvGeometry& g = span.geometry;
+
+                for (int64_t n = 0; n < span.batch; ++n)
+                {
+                    for (int64_t h = 0; h < span.in_h; ++h)
+                    {
+                        for (int64_t w = 0; w < span.in_w; ++w)
+                        {
+                            for (int64_t c = 0; c < span.channels; ++c)
+                            {
+                                const int64_t mine =
+                                    ((n * span.in_h + h) * span.in_w + w) * span.channels + c;
+
+                                T total = T(0);
+
+                                for (int64_t r = 0; r < g.kernel_h; ++r)
+                                {
+                                    const int64_t h_num = h + g.pad_top - r * g.dilation_h;
+                                    if (h_num < 0 || h_num % g.stride_h != 0) continue;
+                                    const int64_t h_o = h_num / g.stride_h;
+                                    if (h_o >= span.out_h) continue;
+
+                                    for (int64_t s = 0; s < g.kernel_w; ++s)
+                                    {
+                                        const int64_t w_num = w + g.pad_left - s * g.dilation_w;
+                                        if (w_num < 0 || w_num % g.stride_w != 0) continue;
+                                        const int64_t w_o = w_num / g.stride_w;
+                                        if (w_o >= span.out_w) continue;
+
+                                        const int64_t at = n * span.out_batch_stride
+                                                         + h_o * span.out_row_stride
+                                                         + w_o * span.out_col_stride
+                                                         + c * span.out_channel_stride;
+
+                                        if (indices[at] == mine) total += dy[at];
+                                    }
+                                }
+
+                                dx[n * span.in_batch_stride + h * span.in_row_stride
+                                   + w * span.in_col_stride + c * span.in_channel_stride] = total;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

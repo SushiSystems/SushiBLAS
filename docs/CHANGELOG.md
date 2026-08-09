@@ -37,6 +37,72 @@ None open.
   a repeat rather than filed as a new bug.
 
 ### Added
+- **A `spatial` engine domain, for convolutional networks.** `Engine::spatial()`
+  reaches `SpatialOps`, whose members are the windowed and strided movement a
+  convolutional stack needs and nothing more: `im2col` / `col2im`, `pool_max` /
+  `pool_avg` and their backwards, `upsample_nearest` and its backward,
+  `concat_channels` / `slice_channels`, `channel_affine`, `broadcast_spatial`
+  and `layout_convert`. Convolution itself is not here — it is an `im2col`
+  followed by a GEMM, and the layer that owns parameters and training mode is
+  SushiAI's.
+
+  Layout, axis order and inherited strides are resolved once on the host into
+  `Spatial::WindowSpan`, which carries element counts and nothing else, so each
+  operation is one kernel with no layout branch. Activations are NHWC; the
+  struct names no layout, and adding NCHW later is a second stride assignment in
+  `Spatial::window_span_for`.
+
+  **Every backward is a gather rather than an atomic scatter**, so overlapping
+  windows accumulate in a fixed order and the library's bit-reproducibility
+  contract survives. `tests/functional/regression/test_spatial_determinism.cpp`
+  pins it — five overlapping-window cases with mixed-magnitude inputs, each run
+  twice and compared bit for bit.
+
+- **`Reduce::AxisSpan` gained a second segment axis.** `segments2` and
+  `segment_stride2` describe a segment identified by a *pair*, which is what
+  global average pooling's `[N,H,W,C] -> [N,C]` needs and what a single
+  `segment_stride` cannot express. Both default to the old behaviour, so every
+  existing five-value aggregate initialisation still compiles and still means
+  what it meant. `ReductionOps::mean_spatial` is the first caller.
+
+- **`Kernels::ChannelBiasEpilogue`**, a layout-parametric per-channel bias for
+  the GEMM epilogue seam. `bias[row * row_stride + col * col_stride]` with the
+  stride pair set on the host: `(0, 1)` makes the column the channel, which is
+  what an NHWC convolution GEMM needs, and `(1, 0)` makes the row the channel,
+  which is what an NCHW one would need. A second layout costs two numbers rather
+  than a second epilogue.
+
+- **`sb test --suite package` runs the out-of-tree consumer.** `tests/package/`
+  has existed since SB-6 but had no way to run it that did not mean typing four
+  cmake commands by hand with the right compiler, resource compiler and prefix
+  path, which meant in practice it was rarely run. The CLI now installs to
+  `build/package/prefix`, configures `tests/package/` into
+  `build/package/consumer` against it, builds it, deploys the shared libraries a
+  real consumer would deploy itself, and runs it. Named a suite rather than an
+  `sb install` command because the install is this test's setup step, not the
+  point; and because `ss install` already means something else entirely
+  (provisioning SYCL toolchains into the workspace). It is deliberately **not**
+  part of `--suite all`, which now says so on every run instead of leaving the
+  gap to be discovered.
+
+### Changed
+- **The task recorder is no longer BLAS-specific.** `Internal::execute_typed_task`
+  and `Internal::dispatch_with_mode` moved to a new `engine/task.hpp`, taking the
+  diagnostic family string (`"BLAS operation"`, `"Spatial operation"`) as a
+  parameter. `Internal::execute_blas_task` remains, as a one-line forwarder with
+  `"BLAS operation"` filled in, so no existing call site changed.
+
+### Documented
+- **`ExecutionMode::VERIFY` does not compare the two kernels**, despite its name
+  and despite what this document previously implied. It runs the SYCL kernel and
+  then runs the reference kernel over the same output buffer, so the reference
+  answer is what survives; nothing diffs them. A test wanting the comparison has
+  to run `FORCE_REFERENCE` and `FORCE_SYCL` into separate tensors itself, which
+  is what every `test_spatial_*.cpp` case named
+  `TheSyclKernelAgreesWithTheReferenceKernel` now does. Recorded rather than
+  fixed: making `VERIFY` assert would change the behaviour of every operation in
+  the library and deserves its own change.
+
 - **`sb doxygen` works.** A repo-root `Doxyfile` and `docs/api/mainpage.md` are
   now committed, and `.gitignore` no longer swallows the Doxyfile — it listed
   it, so the command reported `Doxyfile not found at repo root.` and exited 1 in

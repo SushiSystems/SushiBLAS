@@ -177,6 +177,31 @@ namespace SushiBLAS
             sycl::event sum_along(const Tensor& t, int axis, Tensor& result);
 
             /**
+             * @brief Mean over the two spatial axes of an NHWC tensor:
+             * `[N, H, W, C] -> [N, C]`.
+             *
+             * The per-channel, per-sample average a normalisation layer and a
+             * global-average-pool both want, in one launch. It is not @ref mean of a
+             * reshaped view and it is not @ref sum_along of one either: the surviving
+             * position is a *pair* `(n, c)`, so the input offset of a fold is
+             * `n * strides[0] + c * strides[3]` and no single segment stride produces
+             * that from one index. Folding both spatial axes as one run of `H * W`
+             * elements is the easy half; the pair is the reason this exists.
+             *
+             * Neumaier-compensated and deterministic like every other folding
+             * reduction here - the division is the finalizer, so it costs the same
+             * launch as the sum would; see <SushiBLAS/engine/reduce_axis.hpp>.
+             *
+             * @param t Input tensor; must be rank 4 and NHWC, and its rows must be
+             *        contiguous with one another (a row-sliced view is rejected by
+             *        name rather than read past).
+             * @param result Rank-2 `[N, C]` output tensor sharing `t`'s dtype.
+             * @return sycl::event.
+             * @throws std::runtime_error on a rank, shape, stride or dtype mismatch.
+             */
+            sycl::event mean_spatial(const Tensor& t, Tensor& result);
+
+            /**
              * @brief L1 Norm (Sum of absolute values).
              * @param t Input tensor.
              * @param result Scalar output tensor.
