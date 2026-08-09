@@ -25,10 +25,12 @@
 
 #include <vector>
 #include <complex>
+#include <utility>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/traits.hpp>
+#include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -70,6 +72,11 @@ namespace SushiBLAS
          * switch(dtype) dispatching a generically-templated closure) generalized for ops with
          * matrix operands. Unsupported dtypes fail loudly (P1 corollary), never silently no-op.
          *
+         * The body is @ref Internal::execute_typed_task, which this forwards to with the
+         * family string "BLAS operation" - the one thing about the recorder that was ever
+         * BLAS-specific. This name is kept because ~40 call sites read better for it and
+         * because a BLAS op should not have to name its own family at every site.
+         *
          * @tparam Dom Which element types to instantiate @p op_func for, in exactly the sense
          *         `Dispatch::Domain` defines for the math and logic families. It defaults to
          *         REAL_AND_COMPLEX because that is what every built-in BLAS *arithmetic* op
@@ -96,86 +103,15 @@ namespace SushiBLAS
                                        const std::vector<SushiRuntime::Core::ResourceRegion>& writes,
                                        Core::DataType dtype, Func&& op_func)
         {
-            Dispatch::require_domain<Dom>(dtype, "BLAS operation", meta.name);
-
-            engine.get_graph().add_task(meta, reads, writes,
-                [dtype, op_func, name = meta.name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                {
-                    // Spelled out rather than routed through Dispatch::with_element_type,
-                    // which is what the elementwise, non-linear and logic families use.
-                    // Two reasons, and the second is the binding one. `op_func` takes a
-                    // *value* of the element type (`decltype(scalar_type)`) alongside the
-                    // queue and the dependency list and returns the submitted event, which
-                    // is not the one-argument, void-returning arm that helper calls; and
-                    // wrapping it to fit - a nested generic lambda, inside this lambda,
-                    // inside this template - crashes this project's clang outright (a
-                    // null-dereference during instantiation of the HALF arm, under
-                    // -fdelayed-template-parsing). Seven arms here, the
-                    // same seven and the same domain rule as with_element_type, kept in step
-                    // by hand until that compiler bug is gone.
-                    switch (dtype)
-                    {
-                        case Core::DataType::HALF:
-                            return op_func(sycl::half{}, q, deps);
-                        case Core::DataType::FLOAT32:
-                            return op_func(float{}, q, deps);
-                        case Core::DataType::FLOAT64:
-                            return op_func(double{}, q, deps);
-                        case Core::DataType::COMPLEX32:
-                            if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::COMPLEX))
-                                return op_func(std::complex<float>{}, q, deps);
-                            break;
-                        case Core::DataType::COMPLEX64:
-                            if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::COMPLEX))
-                                return op_func(std::complex<double>{}, q, deps);
-                            break;
-                        case Core::DataType::INT32:
-                            if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::INTEGRAL))
-                                return op_func(int32_t{}, q, deps);
-                            break;
-                        case Core::DataType::INT64:
-                            if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::INTEGRAL))
-                                return op_func(int64_t{}, q, deps);
-                            break;
-                    }
-
-                    // Unreachable in practice - require_domain rejected this dtype at record
-                    // time - but a switch that can fall through to nothing is how a silent
-                    // no-op gets in, so it ends in a throw rather than in a default return.
-                    SB_THROW_IF(true, "BLAS operation '{}' does not support dtype {}.",
-                                name, Core::to_string(dtype));
-                    return sycl::event();
-                });
-            return sycl::event();
+            return execute_typed_task<Dom>(engine, meta, reads, writes, dtype, "BLAS operation",
+                                           std::forward<Func>(op_func));
         }
 
-        /**
-         * @brief Collapses the FORCE_REFERENCE / normal / VERIFY execution-mode triad that BLAS
-         * ops used to hand-write at every call site (5x in gemm.cpp, 5x in syrk.cpp).
-         *
-         * @param reference_fn A callable `() -> void` running the pure-C++ reference kernel.
-         * @param sycl_fn A callable `(sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`
-         * running the SYCL/MKL kernel.
-         */
-        template<typename ReferenceFn, typename SyclFn>
-        sycl::event dispatch_with_mode(ExecutionMode mode, sycl::queue& q, const std::vector<sycl::event>& deps,
-                                        ReferenceFn&& reference_fn, SyclFn&& sycl_fn)
-        {
-            if (mode == ExecutionMode::FORCE_REFERENCE)
-            {
-                sycl::event::wait(deps);
-                reference_fn();
-                return sycl::event();
-            }
-
-            auto ev = sycl_fn(q, deps);
-
-            if (mode == ExecutionMode::VERIFY)
-            {
-                ev.wait();
-                reference_fn();
-            }
-            return ev;
-        }
+        // `Internal::dispatch_with_mode` used to live here and now lives in
+        // <SushiBLAS/engine/task.hpp>, which this header includes - so every call
+        // site that reached it through utils.hpp still does, unqualified and
+        // unchanged. It moved for the same reason the recorder did: the spatial
+        // domain needs the FORCE_REFERENCE / normal / VERIFY triad verbatim, and
+        // "BLAS utilities" is the wrong home for something two domains depend on.
     }
 }

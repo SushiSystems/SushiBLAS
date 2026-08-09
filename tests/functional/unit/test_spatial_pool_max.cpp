@@ -1,0 +1,309 @@
+/**************************************************************************/
+/* test_spatial_pool_max.cpp                                              */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                SushiBLAS                               */
+/*                https://github.com/SushiSystems/SushiBLAS               */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the Apache License, Version 2.0 (the "License");        */
+/* you may not use this file except in compliance with the License.       */
+/* You may obtain a copy of the License at                                */
+/*                                                                        */
+/*     http://www.apache.org/licenses/LICENSE-2.0                         */
+/*                                                                        */
+/* Unless required by applicable law or agreed to in writing, software    */
+/* distributed under the License is distributed on an "AS IS" BASIS,      */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
+/* implied. See the License for the specific language governing           */
+/* permissions and limitations under the License.                         */
+/**************************************************************************/
+
+#include <vector>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
+#include <initializer_list>
+#include <gtest/gtest.h>
+#include <SushiBLAS/SushiBLAS.h>
+#include "../../common/test_utils.hpp"
+
+namespace SushiBLAS
+{
+    namespace Test
+    {
+        namespace
+        {
+            /** @brief The bit pattern of a float; see test_spatial_im2col.cpp. */
+            uint32_t pool_max_float_bits(float value) noexcept
+            {
+                uint32_t bits = 0;
+                std::memcpy(&bits, &value, sizeof(bits));
+                return bits;
+            }
+        } // namespace
+
+        class Unit_SpatialPoolMaxTest : public SushiBLASTest
+        {
+            protected:
+                /** @brief A rank-4 NHWC float tensor holding @p values in memory order. */
+                Tensor image(int64_t n, int64_t h, int64_t w, int64_t c,
+                             std::initializer_list<float> values)
+                {
+                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::FLOAT32);
+                    float* p = t.data_as<float>();
+                    int64_t i = 0;
+                    for (float v : values) p[i++] = v;
+                    return t;
+                }
+
+                /**
+                 * @brief The 1x4x4x1 image every hand-checked case below pools.
+                 *
+                 * Chosen so each 2x2 stride-2 window's maximum sits in a
+                 * different corner of it - a kernel that always picked, say, the
+                 * last tap in scan order would pass a window whose maximum
+                 * happened to be there.
+                 *
+                 *     1  3 | 2  0
+                 *     4  2 | 1  5
+                 *     -----+-----
+                 *     0  7 | 6  2
+                 *     8  1 | 3  9
+                 */
+                Tensor four_by_four()
+                {
+                    return image(1, 4, 4, 1, {1, 3, 2, 0,
+                                              4, 2, 1, 5,
+                                              0, 7, 6, 2,
+                                              8, 1, 3, 9});
+                }
+
+                /** @brief A 2x2 stride-2 geometry. */
+                static Spatial::ConvGeometry two_by_two_stride_two()
+                {
+                    Spatial::ConvGeometry g;
+                    g.kernel_h = 2;
+                    g.kernel_w = 2;
+                    g.stride_h = 2;
+                    g.stride_w = 2;
+                    return g;
+                }
+        };
+
+        // Written and run before any kernel existed: a zero-initialised running
+        // maximum is the single likeliest defect in this operation, and it is
+        // invisible in every test whose data is non-negative.
+        TEST_F(Unit_SpatialPoolMaxTest, PaddingNeverWinsAWindow)
+        {
+            // Every element is negative, and the window at (0,0) sees exactly one
+            // of them - its other three taps fall outside the image. Those taps
+            // are the *absence* of an element, not zeros: a max initialised to
+            // T(0) would report 0 here, which is a perfectly plausible number
+            // that no shape or dtype check can catch.
+            // Ordered so each window's maximum is a different element - the
+            // largest sits at the bottom right, so a window that saw only the
+            // top-left corner cannot accidentally agree with one that saw
+            // everything.
+            auto in = image(1, 2, 2, 1, {-4, -3,
+                                         -2, -1});
+
+            Spatial::ConvGeometry g;
+            g.kernel_h = 2;
+            g.kernel_w = 2;
+            g.pad_top = 1;
+            g.pad_left = 1;
+
+            // Padded by one above and left only, so the window grid is 2x2 and
+            // its first window is centred outside the image's top-left corner.
+            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
+            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
+
+            engine->spatial().pool_max(in, out, indices, g);
+            engine->execute();
+
+            const float* got = out.data_as<float>();
+            EXPECT_FLOAT_EQ(got[0], -4.0f) << "the top-left window saw only element (0,0)";
+            EXPECT_FLOAT_EQ(got[1], -3.0f) << "saw (0,0) and (0,1)";
+            EXPECT_FLOAT_EQ(got[2], -2.0f) << "saw (0,0) and (1,0)";
+            EXPECT_FLOAT_EQ(got[3], -1.0f) << "saw the whole image";
+        }
+
+        TEST_F(Unit_SpatialPoolMaxTest, ThePoolTakesTheWindowMaximum)
+        {
+            auto in = four_by_four();
+            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
+            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
+
+            engine->spatial().pool_max(in, out, indices, two_by_two_stride_two());
+            engine->execute();
+
+            const float* got = out.data_as<float>();
+            EXPECT_FLOAT_EQ(got[0], 4.0f);   // max{1,3,4,2}
+            EXPECT_FLOAT_EQ(got[1], 5.0f);   // max{2,0,1,5}
+            EXPECT_FLOAT_EQ(got[2], 8.0f);   // max{0,7,8,1}
+            EXPECT_FLOAT_EQ(got[3], 9.0f);   // max{6,2,3,9}
+        }
+
+        TEST_F(Unit_SpatialPoolMaxTest, TheIndexNamesTheElementTheMaximumCameFrom)
+        {
+            // The logical flat position ((n*H + h)*W + w)*C + c, not an offset
+            // into this particular view. A strided offset would stop being
+            // comparable the moment the gradient arrived through an alias.
+            auto in = four_by_four();
+            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
+            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
+
+            engine->spatial().pool_max(in, out, indices, two_by_two_stride_two());
+            engine->execute();
+
+            const int64_t* got = indices.data_as<int64_t>();
+            EXPECT_EQ(got[0], 4);    // value 4 sits at (h=1, w=0)
+            EXPECT_EQ(got[1], 7);    // value 5 sits at (h=1, w=3)
+            EXPECT_EQ(got[2], 12);   // value 8 sits at (h=3, w=0)
+            EXPECT_EQ(got[3], 15);   // value 9 sits at (h=3, w=3)
+        }
+
+        TEST_F(Unit_SpatialPoolMaxTest, ATieGoesToTheFirstElementInScanOrder)
+        {
+            // Deterministic tie-breaking is not cosmetic: it is what makes the
+            // recorded index single-valued, and therefore what stops the
+            // backward's equality test from matching two taps of one window and
+            // double-counting the gradient.
+            auto in = image(1, 2, 2, 1, {5, 5,
+                                         5, 5});
+            auto out = engine->create_tensor({1, 1, 1, 1}, Core::DataType::FLOAT32);
+            auto indices = engine->create_tensor({1, 1, 1, 1}, Core::DataType::INT64);
+
+            engine->spatial().pool_max(in, out, indices, two_by_two_stride_two());
+            engine->execute();
+
+            EXPECT_FLOAT_EQ(out.data_as<float>()[0], 5.0f);
+            EXPECT_EQ(indices.data_as<int64_t>()[0], 0) << "the window's first tap, in (r, s) order";
+        }
+
+        TEST_F(Unit_SpatialPoolMaxTest, TheBackwardRoutesEachGradientToItsArgmaxAndNowhereElse)
+        {
+            auto in = four_by_four();
+            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
+            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
+
+            const Spatial::ConvGeometry g = two_by_two_stride_two();
+            engine->spatial().pool_max(in, out, indices, g);
+            engine->execute();
+
+            auto dy = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
+            float* d = dy.data_as<float>();
+            d[0] = 10.0f; d[1] = 20.0f; d[2] = 30.0f; d[3] = 40.0f;
+
+            auto dx = engine->create_tensor({1, 4, 4, 1}, Core::DataType::FLOAT32);
+            engine->spatial().pool_max_backward(dy, indices, dx, g);
+            engine->execute();
+
+            // Every non-argmax pixel must be exactly zero, not merely small: the
+            // gather writes each pixel once, so an unrouted pixel is a written
+            // zero and never a leftover.
+            const std::vector<float> expected = {0, 0, 0, 0,
+                                                 10, 0, 0, 20,
+                                                 0, 0, 0, 0,
+                                                 30, 0, 0, 40};
+
+            const float* got = dx.data_as<float>();
+            for (std::size_t i = 0; i < expected.size(); ++i)
+                EXPECT_FLOAT_EQ(got[i], expected[i]) << "pixel " << i;
+        }
+
+        TEST_F(Unit_SpatialPoolMaxTest, OverlappingWindowsAccumulateAtASharedArgmax)
+        {
+            // YOLOv3-tiny's 2x2 stride-1 pool. One dominant pixel is selected by
+            // all four windows, so its gradient is the sum of all four - which is
+            // the case a scatter would have needed an atomic add for, and the
+            // case a gather that stopped at its first match would get wrong.
+            auto in = image(1, 3, 3, 1, {0, 0, 0,
+                                         0, 9, 0,
+                                         0, 0, 0});
+
+            Spatial::ConvGeometry g;
+            g.kernel_h = 2;
+            g.kernel_w = 2;
+
+            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
+            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
+            engine->spatial().pool_max(in, out, indices, g);
+            engine->execute();
+
+            const int64_t* selected = indices.data_as<int64_t>();
+            for (int64_t k = 0; k < 4; ++k)
+                ASSERT_EQ(selected[k], 4) << "window " << k << " must select the centre pixel";
+
+            auto dy = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
+            float* d = dy.data_as<float>();
+            d[0] = 1.0f; d[1] = 2.0f; d[2] = 3.0f; d[3] = 4.0f;
+
+            auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::FLOAT32);
+            engine->spatial().pool_max_backward(dy, indices, dx, g);
+            engine->execute();
+
+            const float* got = dx.data_as<float>();
+            for (int64_t i = 0; i < dx.num_elements; ++i)
+                EXPECT_FLOAT_EQ(got[i], i == 4 ? 10.0f : 0.0f) << "pixel " << i;
+        }
+
+        TEST_F(Unit_SpatialPoolMaxTest, TheSyclKernelAgreesWithTheReferenceKernel)
+        {
+            // Compared here rather than under ExecutionMode::VERIFY, which runs
+            // both kernels but lets the reference overwrite the device's answer
+            // instead of checking it (see Internal::dispatch_with_mode).
+            //
+            // The indices are compared as well as the values. Two kernels can
+            // agree on every maximum and still disagree on where it came from -
+            // a tie broken the other way is exactly that - and the gradient
+            // follows the index, not the value.
+            const int64_t N = 2, H = 7, W = 5, C = 3;
+
+            auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            float* p = in.data_as<float>();
+            for (int64_t i = 0; i < in.num_elements; ++i)
+                p[i] = static_cast<float>((i * 37) % 23) - 11.0f;
+
+            Spatial::ConvGeometry g;
+            g.kernel_h = 3;
+            g.kernel_w = 2;
+            g.stride_h = 2;
+            g.stride_w = 1;
+            g.dilation_h = 2;
+            g.pad_top = 1;
+            g.pad_left = 1;
+
+            const int64_t out_h = Spatial::output_extent(H, 1, 1, 2, 3, 2);
+            const int64_t out_w = Spatial::output_extent(W, 1, 1, 1, 2, 1);
+
+            auto out_ref = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
+            auto idx_ref = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::INT64);
+            auto out_dev = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
+            auto idx_dev = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::INT64);
+
+            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->spatial().pool_max(in, out_ref, idx_ref, g);
+            engine->execute();
+
+            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->spatial().pool_max(in, out_dev, idx_dev, g);
+            engine->execute();
+
+            const float* value_expected = out_ref.data_as<float>();
+            const float* value_got = out_dev.data_as<float>();
+            const int64_t* index_expected = idx_ref.data_as<int64_t>();
+            const int64_t* index_got = idx_dev.data_as<int64_t>();
+
+            for (int64_t i = 0; i < out_ref.num_elements; ++i)
+            {
+                EXPECT_EQ(pool_max_float_bits(value_got[i]), pool_max_float_bits(value_expected[i]))
+                    << "value " << i;
+                EXPECT_EQ(index_got[i], index_expected[i]) << "index " << i;
+            }
+        }
+    }
+}

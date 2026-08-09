@@ -81,7 +81,10 @@
  * in are pure functions of the launch geometry, and the geometry is a pure
  * function of the device profile and the span. Two runs of the same binary on
  * the same device therefore perform the same operations on the same values in
- * the same order.
+ * the same order. A second segment axis (@ref AxisSpan::segments2) leaves that
+ * argument alone: it only changes which address a fold starts at, so the fold
+ * order *within* a segment did not move and no combination across segments was
+ * introduced.
  *
  * That is an argument from what the code does, not a measurement of a GPU - the
  * same honest limit `reduce_1d.hpp` records for itself. See
@@ -137,6 +140,33 @@ namespace SushiBLAS
 
             /** @brief Output elements between consecutive results. */
             std::size_t out_stride = 1;
+
+            /**
+             * @brief How many *groups* of segments; 1 when there is only one axis
+             * of segmentation.
+             *
+             * The second **segment** axis, not a second folded one - and which
+             * of the two it is decides which loop changes. Folding two axes at
+             * once needs nothing new: `[N*H*W, C]` is a zero-copy rank-2 view and
+             * the existing five numbers fold axis 0 to `[C]`. What the five
+             * numbers cannot express is a segment identified by a *pair*:
+             * `[N,H,W,C] -> [N,C]` has one result per `(n, c)`, whose input
+             * offset is `n * H*W*C + c`, and no single `segment_stride` produces
+             * that from a single index.
+             *
+             * Segment `(s2, s)` starts at `in[s2 * segment_stride2 + s * segment_stride]`
+             * and its result goes to `out[(s2 * segments + s) * out_stride]`.
+             */
+            std::size_t segments2 = 1;
+
+            /** @brief Input elements between the starts of consecutive segment groups. */
+            std::size_t segment_stride2 = 0;
+
+            /** @brief How many folds in total: `segments * segments2`. */
+            [[nodiscard]] std::size_t total_segments() const noexcept
+            {
+                return segments * (segments2 == 0 ? 0 : segments2);
+            }
         };
 
         /**
@@ -233,7 +263,10 @@ namespace SushiBLAS
          * @tparam Transform The per-element transform type, deduced.
          * @tparam Finalize The finalizer type, deduced.
          * @param queue The queue to submit to.
-         * @param in The input array; segment @p s starts at `in + s * segment_stride`.
+         * @param in The input array; fold `s` starts at
+         *        `in + (s / segments) * segment_stride2 + (s % segments) * segment_stride`,
+         *        which is `in + s * segment_stride` whenever there is no second
+         *        segment axis.
          * @param out Where the per-segment results go.
          * @param span The segment layout, in element counts.
          * @param geometry Which shape to launch, normally @ref plan_axis's answer.
@@ -266,14 +299,16 @@ namespace SushiBLAS
             const std::size_t segment_stride = span.segment_stride;
             const std::size_t element_stride = span.element_stride;
             const std::size_t out_stride = span.out_stride;
+            const std::size_t segment_stride2 = span.segment_stride2;
+            const std::size_t total = span.total_segments();
 
             if (!geometry.cooperative())
             {
                 // One item per segment, over the same flat/grid-stride launch
                 // shape every elementwise op takes - so a CPU covers the segments
                 // in one pass of a wide group and a GPU walks a capped, resident
-                // grid. The stride loop's `s < segments` test is the bounds check.
-                const Device::Grid1D grid = Device::plan_1d(Device::profile_for(queue), segments);
+                // grid. The stride loop's `s < total` test is the bounds check.
+                const Device::Grid1D grid = Device::plan_1d(Device::profile_for(queue), total);
                 const std::size_t stride = grid.stride();
 
                 return queue.submit([&](sycl::handler& h)
@@ -281,13 +316,19 @@ namespace SushiBLAS
                     h.depends_on(deps);
                     h.parallel_for(grid.nd_range(), [=](sycl::nd_item<1> it)
                     {
-                        for (std::size_t s = it.get_global_id(0); s < segments; s += stride)
+                        for (std::size_t s = it.get_global_id(0); s < total; s += stride)
                         {
                             // Ascending index order within the segment, and no
                             // other work-item touches it. There is nothing here
                             // whose order the SYCL specification leaves free.
                             Accum<T> acc;
-                            const T* base = in + s * segment_stride;
+                            // One integer division per fold, against an inner
+                            // loop of `extent` elements. Not worth a specialised
+                            // segments2 == 1 kernel, which would be a second
+                            // instantiation of every reduction in the library.
+                            const std::size_t s2 = s / segments;
+                            const std::size_t s1 = s % segments;
+                            const T* base = in + s2 * segment_stride2 + s1 * segment_stride;
                             for (std::size_t k = 0; k < extent; ++k)
                                 acc.accumulate(transform(base[k * element_stride]));
 
@@ -305,14 +346,20 @@ namespace SushiBLAS
 
                 sycl::local_accessor<T, 1> tile(sycl::range<1>(local), h);
 
-                h.parallel_for(sycl::nd_range<1>(sycl::range<1>(segments * local),
+                h.parallel_for(sycl::nd_range<1>(sycl::range<1>(total * local),
                                                  sycl::range<1>(local)),
                                [=](sycl::nd_item<1> it)
                 {
                     const std::size_t s = it.get_group(0);
                     const std::size_t lid = it.get_local_id(0);
 
-                    const T* base = in + s * segment_stride;
+                    // One integer division per fold, against an inner
+                    // loop of `extent` elements. Not worth a specialised
+                    // segments2 == 1 kernel, which would be a second
+                    // instantiation of every reduction in the library.
+                    const std::size_t s2 = s / segments;
+                    const std::size_t s1 = s % segments;
+                    const T* base = in + s2 * segment_stride2 + s1 * segment_stride;
 
                     // A stride-`local` slice of one segment: lane l owns
                     // positions l, l + local, l + 2*local, ... Which positions

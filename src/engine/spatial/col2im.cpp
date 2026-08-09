@@ -1,0 +1,82 @@
+/**************************************************************************/
+/* col2im.cpp                                                             */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                SushiBLAS                               */
+/*                https://github.com/SushiSystems/SushiBLAS               */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the Apache License, Version 2.0 (the "License");        */
+/* you may not use this file except in compliance with the License.       */
+/* You may obtain a copy of the License at                                */
+/*                                                                        */
+/*     http://www.apache.org/licenses/LICENSE-2.0                         */
+/*                                                                        */
+/* Unless required by applicable law or agreed to in writing, software    */
+/* distributed under the License is distributed on an "AS IS" BASIS,      */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
+/* implied. See the License for the specific language governing           */
+/* permissions and limitations under the License.                         */
+/**************************************************************************/
+
+#include <vector>
+#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/task.hpp>
+#include <SushiBLAS/engine/spatial.hpp>
+#include <SushiBLAS/engine/spatial/window.hpp>
+#include "kernels/spatial.hpp"
+
+namespace SushiBLAS
+{
+    using namespace SushiRuntime::Graph::Literals;
+
+    sycl::event SpatialOps::col2im(const Tensor& cols, Tensor& image, const Spatial::ConvGeometry& g,
+                                   int64_t out_h, int64_t out_w)
+    {
+        static constexpr const char* NAME = "spatial.col2im";
+
+        SB_THROW_IF(image.dtype != cols.dtype,
+                    "Spatial operation '{}' has a {} column matrix and a {} image.",
+                    NAME, Core::to_string(cols.dtype), Core::to_string(image.dtype));
+
+        // The extents overload: `image` plays the input role in the span - it is
+        // the rank-4 operand whose H, W and strides the window walks - and the
+        // other operand is a rank-2 column matrix with no extents to read.
+        const Spatial::WindowSpan span = Spatial::window_span_for(image, g, out_h, out_w, NAME);
+        const Spatial::ColumnSpan column = Spatial::column_span_for(cols, span, NAME);
+
+        void* read_cols = cols.data_or_null();
+        void* write_image = image.data_or_null();
+
+        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
+        if (read_cols) reads.push_back(cols.region());
+        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
+        if (write_image) writes.push_back(image.region());
+
+        SushiRuntime::Graph::TaskMetadata meta;
+        meta.name = NAME;
+        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.op_id = "spatial.col2im"_op;
+
+        const auto mode = engine_.get_mode();
+
+        return Internal::execute_typed_task<Dispatch::Domain::REAL>(
+            engine_, meta, reads, writes, image.dtype, "Spatial operation",
+            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+
+                auto source = static_cast<const T*>(read_cols);
+                auto destination = static_cast<T*>(write_image);
+
+                return Internal::dispatch_with_mode(mode, q, deps,
+                    [=] { Kernels::Reference::col2im<T>(span, column, source, destination); },
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    {
+                        return Kernels::SYCL::col2im<T>(q2, span, column, source, destination, deps2);
+                    });
+            });
+    }
+} // namespace SushiBLAS

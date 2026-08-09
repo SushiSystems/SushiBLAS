@@ -28,6 +28,7 @@
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/storage.hpp>
 #include <SushiBLAS/engine/blas.hpp>
+#include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiRuntime/SushiRuntime.h>
@@ -125,6 +126,12 @@ namespace SushiBLAS
              * @return A ReductionOps object providing access to reduction kernels.
              */
             inline ReductionOps reductions() { return ReductionOps(*this); }
+
+            /**
+             * @brief Access windowed and strided movement over an N-D grid.
+             * @return A SpatialOps object providing access to the spatial kernels.
+             */
+            inline SpatialOps spatial() { return SpatialOps(*this); }
 
             /** 
              * @brief Access element-wise arithmetic operations. 
