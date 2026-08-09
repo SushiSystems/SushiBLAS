@@ -1,0 +1,218 @@
+/**************************************************************************/
+/* channels.cpp                                                           */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                SushiBLAS                               */
+/*                https://github.com/SushiSystems/SushiBLAS               */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the Apache License, Version 2.0 (the "License");        */
+/* you may not use this file except in compliance with the License.       */
+/* You may obtain a copy of the License at                                */
+/*                                                                        */
+/*     http://www.apache.org/licenses/LICENSE-2.0                         */
+/*                                                                        */
+/* Unless required by applicable law or agreed to in writing, software    */
+/* distributed under the License is distributed on an "AS IS" BASIS,      */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or        */
+/* implied. See the License for the specific language governing           */
+/* permissions and limitations under the License.                         */
+/**************************************************************************/
+
+#include <vector>
+#include <cstdint>
+#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/task.hpp>
+#include <SushiBLAS/engine/spatial.hpp>
+#include "kernels/spatial.hpp"
+
+namespace SushiBLAS
+{
+    using namespace SushiRuntime::Graph::Literals;
+
+    namespace
+    {
+        /**
+         * @brief Checks a channel copy's operands and lays out how to address them.
+         *
+         * Built by hand rather than through `Spatial::window_span_for`, which
+         * validates window origins against a @ref Spatial::ConvGeometry that a
+         * plain copy does not have. For the same reason `out_h` and `out_w` are
+         * set to the input extents: this operation visits every pixel of a
+         * single shared grid, so there is no second, window-derived extent for
+         * them to hold.
+         *
+         * `span.channels` is left at the source's channel count and is not read
+         * by either kernel; the copy's width travels as an explicit argument.
+         *
+         * @param name The public operation's name, for the error messages.
+         * @param src The rank-4 NHWC source.
+         * @param dst The rank-4 NHWC destination.
+         * @param src_channel_offset The first source channel to read.
+         * @param dst_channel_offset The first destination channel to write.
+         * @param count How many channels the copy moves.
+         * @return The span both kernels address the operands through.
+         * @throws std::runtime_error when the ranks, dtypes or `N`/`H`/`W`
+         *         extents disagree, or the range runs past either tensor's
+         *         channel count.
+         */
+        Spatial::WindowSpan channel_copy_span(const char* name,
+                                              const Tensor& src, const Tensor& dst,
+                                              int64_t src_channel_offset,
+                                              int64_t dst_channel_offset, int64_t count)
+        {
+            SB_THROW_IF(src.rank != 4 || dst.rank != 4,
+                        "Spatial operation '{}' needs two rank-4 tensors, got rank {} and rank {}.",
+                        name, src.rank, dst.rank);
+
+            SB_THROW_IF(src.dtype != dst.dtype,
+                        "Spatial operation '{}' has a {} source and a {} destination.",
+                        name, Core::to_string(src.dtype), Core::to_string(dst.dtype));
+
+            SB_THROW_IF(src.shape[0] != dst.shape[0] || src.shape[1] != dst.shape[1]
+                        || src.shape[2] != dst.shape[2],
+                        "Spatial operation '{}' has a [{}, {}, {}] source grid and a "
+                        "[{}, {}, {}] destination grid; N, H and W must agree.",
+                        name, src.shape[0], src.shape[1], src.shape[2],
+                        dst.shape[0], dst.shape[1], dst.shape[2]);
+
+            SB_THROW_IF(count < 0,
+                        "Spatial operation '{}' was asked for a negative channel count ({}).",
+                        name, count);
+
+            SB_THROW_IF(src_channel_offset < 0 || src_channel_offset + count > src.shape[3],
+                        "Spatial operation '{}' reads channels [{}, {}) of a source that has "
+                        "{} channels.",
+                        name, src_channel_offset, src_channel_offset + count, src.shape[3]);
+
+            SB_THROW_IF(dst_channel_offset < 0 || dst_channel_offset + count > dst.shape[3],
+                        "Spatial operation '{}' writes channels [{}, {}) of a destination that "
+                        "has {} channels.",
+                        name, dst_channel_offset, dst_channel_offset + count, dst.shape[3]);
+
+            Spatial::WindowSpan span;
+            span.batch = src.shape[0];
+            span.in_h = src.shape[1];
+            span.in_w = src.shape[2];
+            span.channels = src.shape[3];
+
+            // A copy has no window, so the output grid is the input grid.
+            span.out_h = span.in_h;
+            span.out_w = span.in_w;
+
+            span.in_batch_stride = src.strides[0];
+            span.in_row_stride = src.strides[1];
+            span.in_col_stride = src.strides[2];
+            span.in_channel_stride = src.strides[3];
+
+            span.out_batch_stride = dst.strides[0];
+            span.out_row_stride = dst.strides[1];
+            span.out_col_stride = dst.strides[2];
+            span.out_channel_stride = dst.strides[3];
+
+            return span;
+        }
+    } // namespace
+
+    sycl::event SpatialOps::concat_channels(const Tensor& src, Tensor& dst,
+                                            int64_t dst_channel_offset)
+    {
+        static constexpr const char* NAME = "spatial.concat_channels";
+
+        // All of the source goes in; the caller chooses only where it lands.
+        const int64_t count = src.rank == 4 ? src.shape[3] : 0;
+        const Spatial::WindowSpan span =
+            channel_copy_span(NAME, src, dst, 0, dst_channel_offset, count);
+
+        void* read_src = src.data_or_null();
+        void* write_dst = dst.data_or_null();
+
+        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
+        if (read_src) reads.push_back(src.region());
+        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
+        if (write_dst) writes.push_back(dst.region());
+
+        SushiRuntime::Graph::TaskMetadata meta;
+        meta.name = NAME;
+        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.op_id = "spatial.concat_channels"_op;
+
+        const auto mode = engine_.get_mode();
+
+        // Domain::ALL: this moves elements and performs no arithmetic on them,
+        // so every element type the library has is a legal one to copy.
+        return Internal::execute_typed_task<Dispatch::Domain::ALL>(
+            engine_, meta, reads, writes, src.dtype, "Spatial operation",
+            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+
+                auto source = static_cast<const T*>(read_src);
+                auto destination = static_cast<T*>(write_dst);
+
+                return Internal::dispatch_with_mode(mode, q, deps,
+                    [=]
+                    {
+                        Kernels::Reference::copy_channel_range<T>(span, 0, dst_channel_offset,
+                                                                  count, source, destination);
+                    },
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    {
+                        return Kernels::SYCL::copy_channel_range<T>(q2, span, 0, dst_channel_offset,
+                                                                    count, source, destination,
+                                                                    deps2);
+                    });
+            });
+    }
+
+    sycl::event SpatialOps::slice_channels(const Tensor& src, int64_t src_channel_offset,
+                                           Tensor& dst)
+    {
+        static constexpr const char* NAME = "spatial.slice_channels";
+
+        // The destination's width is the slice's width; nothing else could be.
+        const int64_t count = dst.rank == 4 ? dst.shape[3] : 0;
+        const Spatial::WindowSpan span =
+            channel_copy_span(NAME, src, dst, src_channel_offset, 0, count);
+
+        void* read_src = src.data_or_null();
+        void* write_dst = dst.data_or_null();
+
+        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
+        if (read_src) reads.push_back(src.region());
+        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
+        if (write_dst) writes.push_back(dst.region());
+
+        SushiRuntime::Graph::TaskMetadata meta;
+        meta.name = NAME;
+        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.op_id = "spatial.slice_channels"_op;
+
+        const auto mode = engine_.get_mode();
+
+        return Internal::execute_typed_task<Dispatch::Domain::ALL>(
+            engine_, meta, reads, writes, src.dtype, "Spatial operation",
+            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            {
+                using T = decltype(scalar_type);
+
+                auto source = static_cast<const T*>(read_src);
+                auto destination = static_cast<T*>(write_dst);
+
+                return Internal::dispatch_with_mode(mode, q, deps,
+                    [=]
+                    {
+                        Kernels::Reference::copy_channel_range<T>(span, src_channel_offset, 0,
+                                                                  count, source, destination);
+                    },
+                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                    {
+                        return Kernels::SYCL::copy_channel_range<T>(q2, span, src_channel_offset, 0,
+                                                                    count, source, destination,
+                                                                    deps2);
+                    });
+            });
+    }
+} // namespace SushiBLAS

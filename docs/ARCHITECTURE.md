@@ -68,10 +68,13 @@ public `Core::format`, so the stack carries one copy and deletes it in one place
    │  Per-domain op views    BLASOps(Level1+Level2+Level3+Sparse)  │  lightweight views —
    │  (engine/*.hpp)         ElementwiseOps · NonLinearOps         │  no state of their
    │                          LogicOps · ReductionOps · RandomOps  │  own, one Engine& each
+   │                          SpatialOps                            │
    ├──────────────────────────────────────────────────────────────┤
-   │  Dispatch helpers       execute_blas_task()  — runtime-dtype  │  engine/blas/utils.hpp
+   │  Dispatch helpers       execute_typed_task() — runtime-dtype  │  engine/task.hpp
    │                          switch over one add_task              │
-   │                         dispatch_with_mode() — the             │
+   │                         execute_blas_task() — the BLAS-named   │  engine/blas/utils.hpp
+   │                          forwarder onto it                     │
+   │                         dispatch_with_mode() — the             │  engine/task.hpp
    │                          AUTO/FORCE_SYCL/FORCE_REFERENCE/      │
    │                          VERIFY triad                          │
    ├──────────────────────┬───────────────────────────────────────┤
@@ -108,11 +111,22 @@ operation between four modes:
   synchronously on the host after waiting on the task's dependencies. For
   debugging a suspected SYCL-kernel bug without touching a device at all.
 - **`VERIFY`** — runs the SYCL kernel, waits for it, then runs the reference
-  kernel and (by convention in the test suite) compares the two. For
-  confirming a SYCL kernel agrees with its ground truth.
+  kernel over the same output buffer.
+
+  **It does not compare them.** The name promises more than the code delivers:
+  nothing in the library diffs the two results, so what `VERIFY` actually
+  produces is the *reference* answer, computed after the device's answer has
+  been thrown away. A test that runs under `VERIFY` and asserts nothing throws
+  would pass even if the two kernels disagreed on every element.
+
+  A test that wants the comparison has to make it: run the same operation twice,
+  once under `FORCE_REFERENCE` and once under `FORCE_SYCL`, into two separate
+  tensors, and compare those. `tests/functional/unit/test_spatial_*.cpp` all do
+  this, each in a case named `TheSyclKernelAgreesWithTheReferenceKernel`, and
+  they compare raw bit patterns rather than using `EXPECT_FLOAT_EQ`.
 
 The triad is implemented once, centrally, in
-`Internal::dispatch_with_mode()` (`engine/blas/utils.hpp`):
+`Internal::dispatch_with_mode()` (`engine/task.hpp`):
 
 ```cpp
 template<typename ReferenceFn, typename SyclFn>
@@ -282,16 +296,37 @@ that takes an `Engine&` in its constructor and reaches back into
 
 ---
 
-## 6. The dispatch helpers (`engine/blas/utils.hpp`)
+## 6. The dispatch helpers (`engine/task.hpp`)
 
-Two templates centralize what every BLAS-level `.cpp` file needs:
+Two templates centralize what every op's `.cpp` file needs. Both live in
+`engine/task.hpp`; `engine/blas/utils.hpp` includes it and adds the BLAS-named
+forwarder plus the level-1 vector-parameter helper.
 
-**`execute_blas_task`** registers one task whose body switches on the
+**`execute_typed_task`** registers one task whose body switches on the
 tensor's *runtime* `Core::DataType` and calls a generic, templated closure
 with the matching compile-time scalar type:
 
 ```cpp
-template<typename Func>
+template<Dispatch::Domain Dom, typename Func>
+sycl::event execute_typed_task(Engine& engine, const TaskMetadata& meta,
+                               const std::vector<ResourceRegion>& reads,
+                               const std::vector<ResourceRegion>& writes,
+                               Core::DataType dtype, const char* family, Func&& op_func);
+```
+
+`family` is what the diagnostics call this kind of operation — `"BLAS operation"`,
+`"Spatial operation"`. It is a parameter because a second domain arrived: a
+`spatial.im2col` reported as a *BLAS* operation when its dtype is refused sends a
+reader to the wrong half of the library, and the alternative — a second copy of
+the seven-arm dtype switch — is seven arms to forget when a `DataType` is added.
+
+**`execute_blas_task`** is the same function with `"BLAS operation"` filled in.
+It is a one-line forwarder and it keeps its name because roughly forty BLAS call
+sites read better for it and because a BLAS op should not have to name its own
+family at every site:
+
+```cpp
+template<Dispatch::Domain Dom, typename Func>
 sycl::event execute_blas_task(Engine& engine, const TaskMetadata& meta,
                                const std::vector<ResourceRegion>& reads,
                                const std::vector<ResourceRegion>& writes,
@@ -695,6 +730,58 @@ retuning it is one edit instead of thirty-five.
   initializers) is built on it, keyed by `Engine::get_seed()` and
   `get_and_increment_rng_offset()` so concurrent draws never collide on the
   same stream position.
+
+- **Spatial** (`kernels/{reference,sycl}/spatial/`, reached through
+  `Engine::spatial()`) — windowed and strided movement over an N-D grid. In
+  §3's vocabulary these are **gathers** (`im2col`, `col2im`,
+  `upsample_nearest`, the channel copies, `layout_convert`), **windowed
+  reductions** (`pool_max`, `pool_avg`) and **broadcasts** (`channel_affine`,
+  `broadcast_spatial`). The word "convolution" does not appear in the domain
+  and should not be added to it: a convolution is an `im2col` followed by a
+  GEMM, and parameter ownership, training mode and differentiation belong to
+  the layer above.
+
+  `Spatial::WindowSpan` (`engine/spatial/geometry.hpp`) is this domain's
+  `Reduce::AxisSpan`, and exists for the same reason. It carries element counts
+  and strides only, so the layout, the axis order and any non-unit stride a view
+  inherited are resolved once on the host in `Spatial::window_span_for` and the
+  device sees none of them — one kernel per operation, no layout branch in the
+  inner loop, no second instantiation. Activations are NHWC throughout, but the
+  struct names no layout; adding NCHW later is a second stride assignment in
+  `window_span_for` and nothing else anywhere.
+
+  **Every backward in this domain is a gather, never an atomic scatter.** This is
+  the argument this section already makes for rejecting `sycl::reduction` in the
+  folding reductions, applied a second time rather than a new one. `col2im`
+  written the obvious way — walk the column matrix, add each entry into the pixel
+  it came from — needs a floating-point atomic add wherever windows overlap, and
+  the order in which those additions combine varies between runs. SushiBLAS links
+  `sushiruntime_deterministic_fp` PUBLIC, so that is not a trade the library may
+  make. Instead the loop nest is inverted: each *output* element finds the inputs
+  that contributed to it and sums them itself, in ascending `(r, s)` order. The
+  inversion is a divisibility test — pixel `h` is read by window row `h_o`
+  through tap `r` exactly when `h + pad_top - r * dilation_h` is non-negative and
+  divisible by `stride_h` — and `pool_max_backward` adds an equality test on the
+  recorded argmax index to the same walk.
+
+  The failure mode this guards is silent: an atomic add is correct to every
+  tolerance any functional test uses and differs only in the last bits, so
+  nothing in the unit tier would catch its return.
+  `tests/functional/regression/test_spatial_determinism.cpp` is the guard — five
+  cases, all with overlapping windows and inputs of deliberately mixed magnitude,
+  each run twice and compared bit for bit.
+
+  `Reduce::AxisSpan` gained a second **segment** axis for this domain, and the
+  distinction between a segment axis and a folded one decides which loop changes.
+  Folding two axes at once needs nothing new: BatchNorm over NHWC is `[N*H*W, C]`,
+  a zero-copy rank-2 view whose axis 0 the existing five numbers already fold to
+  `[C]`. What those five numbers cannot express is a segment identified by a
+  *pair* — global average pooling's `[N,H,W,C] -> [N,C]` has one result per
+  `(n, c)`, whose input offset is `n * H*W*C + c`, and no single `segment_stride`
+  produces that from a single index. Hence `segments2` / `segment_stride2` and
+  the pair decomposition in `reduce_axis`. The fold order within a segment did
+  not move and no cross-segment combination was introduced, so the determinism
+  argument above is unchanged.
 
 All five dtypes (including `HALF`) are implemented for every one of the 17
 from-scratch BLAS ops — a functional gain over oneMKL, which never supported
