@@ -128,7 +128,8 @@ sb test                          # functional (unit+integration+regression) — 
 sb test --suite unit
 sb test --suite integration
 sb test --suite regression
-sb test --suite all              # every test
+sb test --suite all              # every CTest test
+sb test --suite package          # the out-of-tree consumer (see below)
 ```
 
 Useful options:
@@ -145,6 +146,32 @@ is handy for hunting flaky tests (`ctest --repeat until-fail`).
 For GoogleTest-level options CTest doesn't expose (per-case `--gtest_filter`,
 shuffling, break-on-failure), run the binary directly with `sb run` and pass
 flags after `--`.
+
+### `--suite package`
+
+The one suite that isn't a CTest label. It installs the package to
+`build/package/prefix`, configures `tests/package/` into
+`build/package/consumer` against it, builds it, stages the shared libraries
+beside it and runs it — i.e. it consumes SushiBLAS the way SushiAI does, through
+`find_package`, with no access to this source tree.
+
+It is what catches three things nothing else does: a header that exists in the
+tree but isn't installed, a development flag (`-Werror`, `-march=`, a sanitizer)
+leaking through the exported interface onto a consumer's build, and a construct
+that compiles at the library's C++17 but not at the consumer's C++20.
+
+Two consequences worth knowing:
+
+- **It is not included in `--suite all`.** A full install plus a second
+  configure and build costs minutes and is usually not what you want mid-loop.
+  `--suite all` prints a line saying it was skipped, so the gap is announced
+  rather than silent.
+- **`--filter` and `--repeat` are rejected with exit 2.** Both are CTest knobs
+  and this suite runs no CTest; accepting them and quietly ignoring them would
+  be worse than refusing.
+
+Run it before publishing anything that adds a public header or touches
+`src/CMakeLists.txt`'s install rules.
 
 ## `sb run`
 

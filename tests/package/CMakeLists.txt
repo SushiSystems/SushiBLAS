@@ -9,18 +9,20 @@ cmake_minimum_required(VERSION 3.20)
 # when the source tree happens to be next to it is not a package. Mirrors
 # sushiruntime/tests/package/ exactly (see SushiRuntime's BB-4.6).
 #
-# Build it against an install prefix:
+# Build and run it with:
 #
 #   sb build
-#   cmake --install build --prefix /tmp/sb-prefix
-#   cmake -S tests/package -B /tmp/sb-consumer \
-#         -DCMAKE_PREFIX_PATH="/tmp/sb-prefix;/path/to/sushiruntime-install" \
-#         -DCMAKE_CXX_COMPILER=<the same SYCL compiler>
-#   cmake --build /tmp/sb-consumer
-#   /tmp/sb-consumer/sushiblas_package_consumer
+#   sb test --suite package
 #
-# Two things that are easy to lose an hour to, both host-environment rather
-# than package problems:
+# That installs to build/package/prefix, configures this project into
+# build/package/consumer against it, builds it and runs it. It is not part of
+# `sb test --suite all`, which covers only the CTest tests; `all` says so on
+# every run rather than leaving the gap to be discovered.
+#
+# Two things that were easy to lose an hour to before the CLI handled them,
+# both host-environment rather than package problems. They are recorded here
+# because they explain what `sb test --suite package` is doing on your behalf,
+# and what to look at if it ever regresses:
 #
 #   * `cmake --install` from sushiblas's build tree installs SushiRuntime too
 #     (it is an add_subdirectory of this build), so one prefix is enough - there
@@ -29,8 +31,9 @@ cmake_minimum_required(VERSION 3.20)
 #     loads for its own builds (vcvars64: INCLUDE, LIB, and a resource compiler
 #     clang-cl's CMake platform module insists on), and the built binary needs
 #     sushiruntime.dll and hwloc-15.dll beside it or it exits 0xC0000135 before
-#     main. In-tree targets get those from a POST_BUILD copy; a real consumer
-#     would deploy them itself.
+#     main. In-tree targets get those from a POST_BUILD copy; the CLI stands in
+#     for the consumer and deploys them (_deploy_consumer_dlls), which is what a
+#     real consumer would have to do itself.
 #
 # The compiler must still be the SYCL one - not because SushiBLAS's kernels
 # are header templates instantiated here (they are not: every kernel is
