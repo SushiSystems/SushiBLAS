@@ -118,6 +118,19 @@ set(SUSHIBLAS_SOURCES
     engine/math/reductions/max_along.cpp
     engine/math/reductions/sum_along.cpp
 
+    # Spatial: windowed and strided movement over an N-D grid
+    engine/spatial/im2col.cpp
+    engine/spatial/col2im.cpp
+    engine/spatial/pool_max.cpp
+    engine/spatial/pool_max_backward.cpp
+    engine/spatial/pool_avg.cpp
+    engine/spatial/upsample_nearest.cpp
+    engine/spatial/channels.cpp
+    engine/spatial/broadcast.cpp
+
+    # The one reduction whose segments are identified by a pair (see reduce_axis.hpp).
+    engine/math/reductions/mean_spatial.cpp
+
     # Logic
     engine/logic/equal.cpp
     engine/logic/not_equal.cpp

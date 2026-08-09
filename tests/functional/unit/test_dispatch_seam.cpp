@@ -9,11 +9,13 @@
 #include <vector>
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <stdexcept>
 #include <type_traits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/engine/dispatch.hpp>
+#include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/logic/dispatch.hpp>
 #include <SushiBLAS/engine/math/safe_math.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
@@ -377,4 +379,37 @@ TEST_F(Unit_DispatchSeamTest, TooManyTaskParamsThrowsInsteadOfDroppingThem)
         sb::Dispatch::execute_unary_inplace(*engine, t, "test.overflow", "test.overflow"_op,
                                             [](auto x) { return x; }, too_many),
         std::runtime_error);
+}
+
+// --- The domain-agnostic task recorder ---------------------------------------------
+
+// The family string is what a caller outside BLAS needs from this seam: an op
+// recorded by the spatial domain must not be reported as a BLAS operation when
+// its dtype is refused. Pinned here rather than in the spatial tests, because
+// the guarantee belongs to the seam and not to any one of its callers.
+TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
+{
+    auto t = engine->create_tensor({4}, DataType::COMPLEX32);
+
+    SushiRuntime::Graph::TaskMetadata meta;
+    meta.name = "spatial.im2col";
+    meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+
+    try
+    {
+        (void)sb::Internal::execute_typed_task<sb::Dispatch::Domain::REAL>(
+            *engine, meta, {}, {}, t.dtype, "Spatial operation",
+            [](auto, sycl::queue&, const std::vector<sycl::event>&) -> sycl::event
+            {
+                return sycl::event();
+            });
+        FAIL() << "a complex dtype must be refused by a REAL-only task";
+    }
+    catch (const std::exception& e)
+    {
+        const std::string message = e.what();
+        EXPECT_NE(message.find("Spatial operation"), std::string::npos) << message;
+        EXPECT_EQ(message.find("BLAS operation"), std::string::npos) << message;
+        EXPECT_NE(message.find("spatial.im2col"), std::string::npos) << message;
+    }
 }
