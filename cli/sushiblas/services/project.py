@@ -1,9 +1,11 @@
 """Project build / test / run / clean / doxygen logic.
 
-The cmake / ctest invocations are issued directly via subprocess with the
-snapshotted build env. SushiBLAS configures against the SushiRuntime sibling's
-bundled clang++ and vcpkg, so the configure args resolve those from the
-runtime checkout (or the config overrides) rather than provisioning anything.
+This module holds SushiBLAS's own build policy — which cache variables it passes,
+which targets and test suites it has — and drives cmake and ctest through
+``sushicore.cmake_driver.CMakeDriver`` with the snapshotted build env. SushiBLAS
+configures against the SushiRuntime sibling's bundled clang++ and vcpkg, so the
+configure args resolve those from the runtime checkout (or the config overrides)
+rather than provisioning anything.
 
 tests/CMakeLists.txt registers tests via gtest_discover_tests with CTest
 labels (unit / integration / regression) assigned from the GTest suite-name
