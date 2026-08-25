@@ -36,6 +36,8 @@ PROFILE = ModuleProfile(
     # Not prefixed: SUSHIRUNTIME_DIR names the same checkout for every CLI that
     # builds against it, so it must read the same variable they do.
     extra_env_overrides={"sushiruntime_dir": "SUSHIRUNTIME_DIR"},
+    # SYCL, MSVC's INCLUDE/LIB, and every SUSHI* checkout override.
+    env_of_interest=("SYCL", "SUSHI", "INCLUDE", "LIB"),
 )
 
 _MODULE = ModuleConfig(PROFILE)
