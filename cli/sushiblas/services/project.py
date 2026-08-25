@@ -17,7 +17,8 @@ import shutil
 from collections.abc import Sequence
 from pathlib import Path
 
-from sushicore.cmake_cache import cached_value, generator_sentinel
+from sushicore.cmake_cache import cached_value
+from sushicore.cmake_driver import CMakeDriver
 from sushicore.proc import Runner
 
 from .. import console
@@ -70,42 +71,14 @@ def _build_dir(root: Path) -> Path:
     return root / "build"
 
 
-def _cmake(cfg: Config) -> str:
-    """The cmake executable: the configured path if set, else bare 'cmake'."""
-    return cfg.expand(cfg.cmake_exe) if cfg.cmake_exe else "cmake"
-
-
-def _ctest(cfg: Config) -> str:
-    """The ctest executable: the configured path if set, else bare 'ctest'."""
-    return cfg.expand(cfg.ctest_exe) if cfg.ctest_exe else "ctest"
-
-
 _RUNNER = Runner(console, PROFILE.program)
+_DRIVER = CMakeDriver(console, _RUNNER)
 
-
-def _run(cmd: list[str], env: dict[str, str], cwd: Path) -> int:
-    return _RUNNER.run(cmd, cwd, env)
-
-
-def _run_drained(cmd: list[str], env: dict[str, str], cwd: Path) -> int:
-    return _RUNNER.run_drained(cmd, cwd, env)
-
-
-def _resolve_exe(name: str, env: dict[str, str]) -> str:
-    return _RUNNER.resolve_exe(name, env)
-
-
-def _needs_configure(build_dir: Path, generator: str, build_type: str = None) -> bool:
-    if not build_dir.is_dir():
-        return True
-    if not (build_dir / generator_sentinel(generator)).is_file():
-        return True
-    # Single-config generators (Ninja, Make) bake CMAKE_BUILD_TYPE into the
-    # cache; `cmake --build --config X` is silently ignored for them, so a tree
-    # configured for another type must be reconfigured rather than reused.
-    if build_type is not None and cached_value(build_dir, "CMAKE_BUILD_TYPE") != build_type:
-        return True
-    return False
+_DOXYGEN_HINT = (
+    "  - Windows: winget install DimitriVanHeesch.Doxygen\n"
+    "  - Linux:   apt-get install -y doxygen graphviz\n"
+    "  - macOS:   brew install doxygen graphviz\n"
+    "  - or set doxygen_exe in config.local.toml to an existing doxygen binary.")
 
 
 def _check_runtime(cfg: Config, root: Path) -> int:
@@ -209,7 +182,7 @@ def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
     runtime = cfg.runtime_dir(root)
 
     args = [
-        _cmake(cfg), "-S", str(root), "-B", str(build_dir), "-G", cfg.generator,
+        _DRIVER.cmake(cfg), "-S", str(root), "-B", str(build_dir), "-G", cfg.generator,
         f"-DCMAKE_BUILD_TYPE={build_type}",
         f"-DSUSHIRUNTIME_DIR={runtime}",
     ]
@@ -242,14 +215,15 @@ def build(build_type: BuildType, clean: bool = False,
         return rc
 
     if clean:
-        clean_tree(root)
+        _DRIVER.clean_tree(build_dir)
 
     console.info(f"Runtime: {cfg.runtime_dir(root)}")
     console.info(f"Compiler: {cfg.resolved_compiler(root)}")
 
     env = load_build_env(cfg, build_dir)
 
-    fresh = _needs_configure(build_dir, cfg.generator, cmake_build_type)
+    fresh = _DRIVER.needs_configure(build_dir, cfg.generator,
+                                    expect={"CMAKE_BUILD_TYPE": cmake_build_type})
     if fresh:
         console.info(f"Configuring CMake... (type={build_type.value})")
         if build_dir.is_dir():
@@ -262,15 +236,14 @@ def build(build_type: BuildType, clean: bool = False,
         console.error(str(exc))
         return 2
 
-    rc = _run(configure_args, env, cwd=root)
+    rc = _DRIVER.configure(configure_args, cwd=root, env=env)
     if rc != 0:
         console.error("CMake configure failed.")
         return rc
     build_dir.mkdir(parents=True, exist_ok=True)
 
     console.info("Building...")
-    rc = _run([_cmake(cfg), "--build", str(build_dir), "--config", cmake_build_type],
-              env, cwd=root)
+    rc = _DRIVER.compile(cfg, build_dir, cwd=root, env=env, config=cmake_build_type)
     if rc == 0:
         console.success("Build completed successfully!")
     else:
@@ -305,23 +278,17 @@ def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int
             return 2
         return test_package(cfg, root, build_dir, env)
 
-    cmd = [_ctest(cfg), "--test-dir", str(build_dir), "--output-on-failure"]
-    if suite != Suite.all:
-        cmd += ["-L", _SUITE_LABEL_REGEX[suite]]
-    else:
+    if suite is Suite.all:
         # `all` means every CTest test, which is not the same as every test this
         # repo has. Saying so out loud beats a name that quietly under-delivers.
         console.info(
             "'all' covers every CTest test. The package suite is not among them "
             "(it builds a separate project): run `sb test --suite package`.")
-    if filter:
-        # gtest_discover_tests registers tests as "Suite.Case"; ctest -R filters
-        # those names directly (a richer alternative to --gtest_filter).
-        cmd += ["-R", filter]
-    if repeat > 0:
-        cmd += ["--repeat", f"until-fail:{repeat}"]
-        console.info(f"Repeating each test up to {repeat}x (stop on first failure).")
-    return _run_drained(cmd, env, cwd=build_dir)
+
+    return _DRIVER.ctest_run(
+        cfg, build_dir, env,
+        label_regex=None if suite is Suite.all else _SUITE_LABEL_REGEX[suite],
+        filter=filter, repeat=repeat)
 
 
 def _deploy_consumer_dlls(cfg: Config, root: Path, prefix: Path, dest: Path) -> None:
@@ -380,8 +347,8 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
         shutil.rmtree(prefix, ignore_errors=True)
 
     console.info(f"Installing to {prefix}...")
-    rc = _run([_cmake(cfg), "--install", str(build_dir),
-               "--prefix", str(prefix), "--config", build_type], env, cwd=root)
+    rc = _RUNNER.run([_DRIVER.cmake(cfg), "--install", str(build_dir),
+                      "--prefix", str(prefix), "--config", build_type], root, env)
     if rc != 0:
         console.error("Install failed; the package could not be staged.")
         return rc
@@ -392,7 +359,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
 
     console.info("Configuring the out-of-tree consumer...")
     configure = [
-        _cmake(cfg), "-S", str(root / "tests" / "package"), "-B", str(consumer),
+        _DRIVER.cmake(cfg), "-S", str(root / "tests" / "package"), "-B", str(consumer),
         "-G", cfg.generator,
         # The consumer is CXX-only and never invokes vcpkg's own installer, so
         # a couple of the shared toolchain flags legitimately go unread here.
@@ -403,7 +370,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
         f"-DCMAKE_PREFIX_PATH={prefix_path}",
     ]
     configure += _toolchain_args(cfg, root)
-    rc = _run(configure, env, cwd=root)
+    rc = _DRIVER.configure(configure, cwd=root, env=env)
     if rc != 0:
         console.error(
             "The consumer could not configure against the installed package.\n"
@@ -413,8 +380,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
         return rc
 
     console.info("Building the consumer...")
-    rc = _run([_cmake(cfg), "--build", str(consumer), "--config", build_type],
-              env, cwd=root)
+    rc = _DRIVER.compile(cfg, consumer, cwd=root, env=env, config=build_type)
     if rc != 0:
         console.error(
             "The consumer failed to compile against the installed headers.\n"
@@ -432,7 +398,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     _deploy_consumer_dlls(cfg, root, prefix, exe.parent)
 
     console.info(f"Executing: {exe.name}")
-    rc = _run([str(exe)], env, cwd=consumer)
+    rc = _RUNNER.run([str(exe)], consumer, env)
     if rc == 0:
         console.success("Package consumer built and ran against the install prefix.")
     else:
@@ -470,22 +436,12 @@ def run(target: str | None = None, sort: bool = False,
 
     console.info(f"Executing: {exe.name}")
     console.console.print(f"[dim]{exe}[/dim]")
-    return _run([str(exe), *(app_args or [])], env, cwd=root)
-
-
-def clean_tree(root: Path) -> None:
-    build_dir = _build_dir(root)
-    if build_dir.is_dir():
-        console.info(f"Removing {build_dir}...")
-        shutil.rmtree(build_dir, ignore_errors=True)
-        console.success("Build directory cleaned.")
-    else:
-        console.info("build/ does not exist, nothing to clean.")
+    return _RUNNER.run([str(exe), *(app_args or [])], root, env)
 
 
 def clean() -> int:
     console.header("Project Clean")
-    clean_tree(find_project_root())
+    _DRIVER.clean_tree(_build_dir(find_project_root()))
     return 0
 
 
@@ -500,14 +456,9 @@ def doxygen() -> int:
         return 1
 
     doxy = cfg.expand(cfg.doxygen_exe) if cfg.doxygen_exe else "doxygen"
-    if _resolve_exe(doxy, env) == doxy and not Path(doxy).is_file():
-        console.error(
-            "Doxygen is not installed or not on PATH.\n"
-            "  - Windows: winget install DimitriVanHeesch.Doxygen\n"
-            "  - Linux:   apt-get install -y doxygen graphviz\n"
-            "  - macOS:   brew install doxygen graphviz\n"
-            "  - or set doxygen_exe in config.local.toml to an existing doxygen binary.")
+    if _RUNNER.resolve_exe(doxy, env) == doxy and not Path(doxy).is_file():
+        console.error("Doxygen is not installed or not on PATH.\n" + _DOXYGEN_HINT)
         return 1
 
     (root / "docs").mkdir(exist_ok=True)
-    return _run([doxy, "Doxyfile"], env, cwd=root)
+    return _RUNNER.run([doxy, "Doxyfile"], root, env)
