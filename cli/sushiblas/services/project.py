@@ -20,6 +20,8 @@ from pathlib import Path
 from sushicore.cmake_cache import cached_value
 from sushicore.cmake_driver import CMakeDriver
 from sushicore.proc import Runner
+from sushicore.toolchain_args import c_compiler_for as _resolved_c_compiler
+from sushicore.toolchain_args import vcpkg_prefix as _vcpkg_prefix
 
 from .. import console
 from ..config import Config, PROFILE, find_project_root, load_config
@@ -96,41 +98,6 @@ def _check_runtime(cfg: Config, root: Path) -> int:
         f"  - clone it next to this repo, or\n"
         f"  - set sushiruntime_dir in cli/config.local.toml, or SUSHIRUNTIME_DIR in the env.")
     return 1
-
-
-def _resolved_c_compiler(cxx: str) -> str:
-    """The C compiler slot for a `clang++`-personality binary: its sibling `clang`.
-
-    A `clang++`-personality binary hardcodes C++ mode regardless of file
-    extension, so pointing CMAKE_C_COMPILER at the same clang++ path breaks
-    the C-language probe (the project declares LANGUAGES CXX C). The bundled
-    intel-llvm toolchain ships a sibling `clang`/`clang.exe` in the same
-    directory for the C slot.
-
-    @param cxx The resolved C++ compiler path.
-    @return The sibling `clang` binary next to a `clang++` cxx, else cxx itself.
-    """
-    path = Path(cxx)
-    stem = path.stem
-    if stem.lower() == "clang++":
-        sibling = path.with_name(stem[:-2] + path.suffix)  # clang++[.exe] -> clang[.exe]
-        if sibling.is_file():
-            return str(sibling)
-    return cxx
-
-
-def _vcpkg_prefix(cfg: Config, root: Path) -> str:
-    """The vcpkg installed-tree prefix for this triplet, or '' when unavailable.
-
-    Only meaningful on Windows, where the bundled vcpkg tree is what
-    find_package uses to locate GoogleTest and hwloc.
-
-    @param cfg The resolved configuration.
-    @param root The project root.
-    @return An absolute prefix path, or '' when no vcpkg root is configured.
-    """
-    vcpkg = cfg.resolved_vcpkg(root)
-    return f"{vcpkg}/installed/{cfg.vcpkg_triplet}" if vcpkg else ""
 
 
 def _toolchain_args(cfg: Config, root: Path) -> list[str]:
