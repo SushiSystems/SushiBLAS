@@ -78,12 +78,6 @@ def _build_dir(root: Path) -> Path:
 _RUNNER = Runner(console, PROFILE.program)
 _DRIVER = CMakeDriver(console, _RUNNER)
 
-_DOXYGEN_HINT = (
-    "  - Windows: winget install DimitriVanHeesch.Doxygen\n"
-    "  - Linux:   apt-get install -y doxygen graphviz\n"
-    "  - macOS:   brew install doxygen graphviz\n"
-    "  - or set doxygen_exe in config.local.toml to an existing doxygen binary.")
-
 
 def _check_runtime(cfg: Config, root: Path) -> int:
     """Fail early (with guidance) when the SushiRuntime sibling is missing.
@@ -409,4 +403,4 @@ def doxygen() -> int:
     env = load_build_env(cfg, _build_dir(root))
     doxyfile = root / "Doxyfile"
     (root / "docs").mkdir(exist_ok=True)
-    return _DRIVER.doxygen(cfg, doxyfile, root, env, install_hint=_DOXYGEN_HINT)
+    return _DRIVER.doxygen(cfg, doxyfile, root, env)
