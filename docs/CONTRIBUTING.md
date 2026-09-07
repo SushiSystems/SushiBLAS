@@ -20,8 +20,8 @@ project's **Apache License, Version 2.0** (see [`LICENSE`](../LICENSE)).
 ## 1. Getting set up
 
 The fastest path from a fresh machine to a built tree is SushiStack's one-shot
-installer, which installs `ss` (SushiStack owns dependency provisioning for
-the whole stack) and runs `ss install`:
+installer, which installs `hub` (SushiStack owns dependency provisioning for
+the whole stack) and runs `hub install`:
 
 ```bash
 curl -fsSL https://sushisystems.io/install.sh | bash
@@ -35,7 +35,7 @@ If you already have a SushiRuntime sibling checkout and its bundled SYCL
 toolchain, install the CLI and build directly:
 
 ```bash
-ss install-cli sushiblas  # puts `sb` / `sushiblas` on PATH
+hub install-cli sushiblas  # puts `sb` / `sushiblas` on PATH
 sb build                  # Release (default)
 sb test                   # functional suite
 ```
@@ -354,7 +354,7 @@ marketing language.
 ## 8. Adding a C++ dependency
 
 Dependency provisioning is owned by [SushiStack](https://sushisystems.io)
-(the `ss` CLI). SushiBLAS's own manifest fragment is
+(the `hub` CLI). SushiBLAS's own manifest fragment is
 [`cli/sushistack.deps.toml`](../cli/sushistack.deps.toml):
 
 ```toml
@@ -379,7 +379,7 @@ check_cmd     = ["pkg-config", "--exists", "mylib"]
 
 Then also update `CMakeLists.txt` (a `find_package`/`pkg_check_modules` call
 and the link line) if the C++ build needs to find it. Verify with
-`ss doctor` (confirms the entry parses) and `ss install`.
+`hub doctor` (confirms the entry parses) and `hub install`.
 
 ---
 

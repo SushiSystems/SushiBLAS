@@ -14,6 +14,9 @@ history of *why* the codebase looks the way it does isn't lost. See
 
 ## [Unreleased]
 
+### Documentation
+- 2026-09-07 — Renamed the hub's command from `ss` to `hub` in the manual (`docs/`).
+
 ### Known issues
 None open.
 

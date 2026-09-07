@@ -21,7 +21,7 @@ and it puts two commands on your `PATH`:
 They are identical; use whichever you prefer. Every example below uses `sb`.
 
 ```bash
-ss install-cli sushiblas      # always editable, against this checkout
+hub install-cli sushiblas      # always editable, against this checkout
 ```
 
 This installs through **pipx** on every platform, into an isolated venv, then
@@ -54,7 +54,7 @@ CLI reads both from:
   committed.
 
 In the common case — a sibling `../sushiruntime` checkout with its bundled
-toolchain already provisioned by `ss install`, or a SushiStack workspace —
+toolchain already provisioned by `hub install`, or a SushiStack workspace —
 no local config is needed at all. If you're ever unsure what the CLI actually
 resolved, run `sb config`.
 
@@ -221,7 +221,7 @@ DimitriVanHeesch.Doxygen` on Windows, `apt-get install doxygen graphviz` on
 Linux, `brew install doxygen graphviz` on macOS) or point `doxygen_exe` in
 `cli/config.local.toml` at an existing binary. The command prints the right
 install line if it cannot find one. The stack's provisioned toolchain ships
-one, so `ss install` is usually enough.
+one, so `hub install` is usually enough.
 
 ## `sb config` and `sb env` — diagnostics
 

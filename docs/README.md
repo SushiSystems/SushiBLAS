@@ -17,11 +17,11 @@ It is built around four ideas:
 - A **SushiRuntime** checkout, resolved via [D3 layered CMake resolution](ARCHITECTURE.md#8-the-sushiruntime-dependency-d3): an in-tree superproject target, an installed `find_package(SushiRuntime)`, or (the common case) a sibling `../sushiruntime` checkout.
 - **C++17 or later** (the library is built at C++17; a C++20 consumer is supported).
 
-C++ library dependencies and the SYCL toolchain are provisioned by [SushiStack](https://sushisystems.io) (the `ss` CLI), which owns dependency installation for the whole stack (not just this repo) into one shared, workspace-level `dependencies/` tree.
+C++ library dependencies and the SYCL toolchain are provisioned by [SushiStack](https://sushisystems.io) (the `hub` CLI), which owns dependency installation for the whole stack (not just this repo) into one shared, workspace-level `dependencies/` tree.
 
 ## Quick start (one script)
 
-On a fresh machine you can go from nothing to a working build with a single command. SushiStack's bootstrap script installs Python/Git, installs `ss`, then runs `ss install` to fetch every toolchain and library the workspace's modules declare (SushiBLAS declares its own in `cli/sushistack.deps.toml`):
+On a fresh machine you can go from nothing to a working build with a single command. SushiStack's bootstrap script installs Python/Git, installs `hub`, then runs `hub install` to fetch every toolchain and library the workspace's modules declare (SushiBLAS declares its own in `cli/sushistack.deps.toml`):
 
 ```bash
 curl -fsSL https://sushisystems.io/install.sh | bash
@@ -33,7 +33,7 @@ irm https://sushisystems.io/install.ps1 | iex
 
 On Windows use `irm`, not `curl` — in PowerShell `curl` is an alias for `Invoke-WebRequest` and does not pipe a script the same way.
 
-See the [SushiStack](https://sushisystems.io) docs for linking an existing checkout of this repo into a workspace (`ss link`) instead of a fresh clone, and for `ss doctor` / `ss status` to inspect what's installed.
+See the [SushiStack](https://sushisystems.io) docs for linking an existing checkout of this repo into a workspace (`hub link`) instead of a fresh clone, and for `hub doctor` / `hub status` to inspect what's installed.
 
 ### Using SushiBLAS from another project
 
@@ -44,7 +44,7 @@ See the [SushiStack](https://sushisystems.io) docs for linking an existing check
 The fastest path is the bundled CLI, which loads your compiler/toolchain paths from config and then drives CMake. Install it through the umbrella — the single install seam for the whole stack (it sets up an isolated pipx venv and wires in the shared `sushicore` presentation layer):
 
 ```bash
-ss install-cli sushiblas           # always editable, against this checkout
+hub install-cli sushiblas           # always editable, against this checkout
 ```
 
 This gives you two equivalent commands on your PATH: **`sb`** (short) and **`sushiblas`** (long). Toolchain paths are read from `cli/config.toml` (committed, shared defaults); machine-specific absolute paths go in a gitignored `cli/config.local.toml` using the same `[tool.<platform>]` section layout. In the common case (inside a SushiStack workspace, or a sibling checkout of SushiRuntime present) no local config is needed at all — the CLI finds the runtime sibling and its bundled `clang++` on its own.
