@@ -69,6 +69,11 @@ resolved, run `sb config`.
 
 Run any command with `--help` to see its options.
 
+`sb --help` groups the commands under Project, Documentation and Diagnostics, and each
+command's own help ends with examples. On a colour terminal the root screen shows the logo.
+On a dark terminal add `[cli]` and `background = "dark"` to `cli/config.local.toml` to give
+it a glow; `COLORFGBG` is read when the terminal sets it, and Windows Terminal does not.
+
 ## `sb build`
 
 Configures (if needed) and builds the library, examples, and test binary.
