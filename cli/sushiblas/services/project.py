@@ -386,7 +386,7 @@ def run(target: str | None = None, sort: bool = False,
         return 1
 
     console.info(f"Executing: {exe.name}")
-    console.console.print(f"[dim]{exe}[/dim]")
+    console.console.print(f"[muted]{exe}[/muted]")
     return _RUNNER.run([str(exe), *(app_args or [])], root, env)
 
 
