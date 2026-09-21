@@ -17,7 +17,13 @@ history of *why* the codebase looks the way it does isn't lost. See
 ### Build
 
 - 2026-09-22 — Described this module in its own `sushi-module.toml`, so `hub` knows it from the checkout (`sushi-module.toml`).
+- 2026-09-22 — Raised the `sushicore` lower bound to 0.4.0 for the help page (`cli/pyproject.toml`).
 - 2026-09-22 — Took `sushicore` from PyPI instead of a sibling checkout (`cli/pyproject.toml`).
+
+### CLI
+
+- 2026-09-22 — Drew `sb --help` and each command's help through sushicore's help page, in three groups with examples (`cli/sushiblas/cli.py`, `cli/sushiblas/console.py`).
+- 2026-09-22 — Replaced the raw `[dim]` markup with the theme's `[muted]` (`cli/sushiblas/services/project.py`).
 
 ### Documentation
 - 2026-09-07 — Renamed the hub's command from `ss` to `hub` in the manual (`docs/`).
