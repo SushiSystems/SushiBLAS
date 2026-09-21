@@ -14,6 +14,10 @@ history of *why* the codebase looks the way it does isn't lost. See
 
 ## [Unreleased]
 
+### Build
+
+- 2026-09-22 — Took `sushicore` from PyPI instead of a sibling checkout (`cli/pyproject.toml`).
+
 ### Documentation
 - 2026-09-07 — Renamed the hub's command from `ss` to `hub` in the manual (`docs/`).
 
