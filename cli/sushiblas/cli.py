@@ -9,13 +9,22 @@ from __future__ import annotations
 from typing import Optional
 
 import typer
+from sushicore.typer_help import help_group
 
+from . import console
 from .services import diag as diag_svc
 from .services import project as project_svc
 from .services.project import BuildType, Suite
 
+K_PROJECT = "Project"
+K_DOCUMENTATION = "Documentation"
+K_DIAGNOSTICS = "Diagnostics"
+
+_help_group = help_group(console.current)
+
 app = typer.Typer(
     name="sb",
+    cls=_help_group,
     help="SushiBLAS developer CLI — build, test, and run SushiBLAS.",
     no_args_is_help=True,
     add_completion=False,
@@ -26,7 +35,14 @@ app = typer.Typer(
 # --------------------------------------------------------------------------- #
 # build / test / run / clean / doxygen
 # --------------------------------------------------------------------------- #
-@app.command("build")
+@app.command(
+    "build",
+    rich_help_panel=K_PROJECT,
+    epilog="sb build\n"
+           "sb build --type debug  # Build with debug settings\n"
+           "sb build --clean  # Start from an empty build tree\n"
+           "sb build -D SB_LOG_LEVEL=INFO  # Pass a CMake cache variable through",
+)
 def build(
     type: BuildType = typer.Option(
         BuildType.release, "--type", "-t", case_sensitive=False,
@@ -48,7 +64,14 @@ def build(
     raise typer.Exit(project_svc.build(type, clean, define))
 
 
-@app.command("test")
+@app.command(
+    "test",
+    rich_help_panel=K_PROJECT,
+    epilog="sb test\n"
+           "sb test --suite unit\n"
+           "sb test --filter 'Gemm.*'  # Match Suite.Case test names\n"
+           "sb test --repeat 5  # Re-run each test until one fails",
+)
 def test(
     suite: Suite = typer.Option(
         Suite.functional, "--suite", "-s", case_sensitive=False,
@@ -77,6 +100,10 @@ def test(
 
 @app.command(
     "run",
+    rich_help_panel=K_PROJECT,
+    epilog="sb run sushiblas_example\n"
+           "sb run --sort  # Pick an executable from a list\n"
+           "sb run sushiblas_tests -- --gtest_filter='Unit_GEMMTest.*'  # Flags after -- go to it",
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def run(
@@ -86,20 +113,25 @@ def run(
     sort: bool = typer.Option(
         False, "--sort", help="Interactively pick an executable."),
 ):
-    """Run a built executable. Args after `--` are forwarded to it.
-
-    Example: sb run sushiblas_example
-    """
+    """Run a built executable. Args after `--` are forwarded to it."""
     raise typer.Exit(project_svc.run(target=target, sort=sort, app_args=list(ctx.args)))
 
 
-@app.command("clean")
+@app.command(
+    "clean",
+    rich_help_panel=K_PROJECT,
+    epilog="sb clean",
+)
 def clean():
     """Remove the build/ tree."""
     raise typer.Exit(project_svc.clean())
 
 
-@app.command("doxygen")
+@app.command(
+    "doxygen",
+    rich_help_panel=K_DOCUMENTATION,
+    epilog="sb doxygen",
+)
 def doxygen():
     """Generate Doxygen documentation."""
     raise typer.Exit(project_svc.doxygen())
@@ -108,13 +140,22 @@ def doxygen():
 # --------------------------------------------------------------------------- #
 # config / env (diagnostics)
 # --------------------------------------------------------------------------- #
-@app.command("config")
+@app.command(
+    "config",
+    rich_help_panel=K_DIAGNOSTICS,
+    epilog="sb config",
+)
 def config():
     """Print the resolved config and where each value came from."""
     raise typer.Exit(diag_svc.config_show())
 
 
-@app.command("env")
+@app.command(
+    "env",
+    rich_help_panel=K_DIAGNOSTICS,
+    epilog="sb env\n"
+           "sb env --all  # Show every variable, not just build-relevant ones",
+)
 def env(
     all: bool = typer.Option(
         False, "--all", help="Show every variable, not just build-relevant ones."),
