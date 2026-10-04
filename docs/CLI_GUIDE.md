@@ -53,10 +53,10 @@ CLI reads both from:
   location). This file is gitignored, so your personal paths never get
   committed.
 
-In the common case — a sibling `../sushiruntime` checkout with its bundled
-toolchain already provisioned by `hub install`, or a SushiStack workspace —
-no local config is needed at all. If you're ever unsure what the CLI actually
-resolved, run `sb config`.
+`sb setup` provisions the toolchain and libraries for this checkout and writes
+`cli/config.local.toml`; it needs a SushiRuntime checkout beside this one. To
+provision several checkouts at once, use `hub install` from a SushiStack
+workspace. To see what the CLI resolved, run `sb config`.
 
 ## Command overview
 
@@ -66,6 +66,9 @@ resolved, run `sb config`.
 | `sb doxygen` | Generate the Doxygen API reference into `docs/api-site/html/` |
 | `sb config` | Show the resolved configuration |
 | `sb env` | Show the environment your builds run under |
+| `sb setup` | Provision what the build needs, then report readiness |
+| `sb doctor` | Report whether this machine can build the module |
+| `sb link` / `unlink` | Add this checkout to a SushiStack workspace, or remove it |
 
 Run any command with `--help` to see its options.
 
@@ -225,8 +228,8 @@ Doxygen itself is an external tool, not vendored: install it (`winget install
 DimitriVanHeesch.Doxygen` on Windows, `apt-get install doxygen graphviz` on
 Linux, `brew install doxygen graphviz` on macOS) or point `doxygen_exe` in
 `cli/config.local.toml` at an existing binary. The command prints the right
-install line if it cannot find one. The stack's provisioned toolchain ships
-one, so `hub install` is usually enough.
+install line if it cannot find one. `sb setup` installs one with the rest of
+the build tools.
 
 ## `sb config` and `sb env` — diagnostics
 
@@ -242,6 +245,36 @@ vcpkg root, plus which source (default / `config.toml` / `config.local.toml`
 / an `SB_*` environment variable) supplied each field — the first thing to
 check when a build picks an unexpected compiler or can't find its runtime
 dependency.
+
+## `sb setup`, `sb doctor`, `sb link` and `sb unlink`
+
+These four commands come from `sushicore` and behave the same in every module
+CLI.
+
+```bash
+sb setup --dry-run            # show what would be installed and written
+sb setup                      # install it, write cli/config.local.toml, run doctor
+sb setup --toolchain oneapi   # also install a toolchain the fragments do not select
+sb setup --no-gpu             # skip the toolkit for this machine's GPU
+sb setup --yes                # answer yes to the LLVM download prompt
+
+sb doctor                     # report every check
+sb doctor --for build         # one group: build | test | infer | eval
+
+sb link --workspace <path>    # record this checkout in a workspace
+sb unlink --workspace <path>  # remove it again
+```
+
+`sb setup` reads three dependency fragments in order: the shared base that
+ships with `sushicore`, SushiRuntime's `cli/sushistack.deps.toml`, then this
+repository's. It installs what they declare under `~/.sushisystems`, or under
+`SUSHISYSTEMS_HOME` when that is set. It exits 2 without installing anything
+when it finds no SushiRuntime checkout; clone one beside this repository or
+set `SUSHIRUNTIME_DIR`.
+
+`sb doctor` exits non-zero when a required check fails and prints the command
+that fixes it. `sb link` and `sb unlink` take the workspace from `--workspace`,
+then `SUSHISTACK_HOME`, then the nearest ancestor directory that is a workspace.
 
 ## Building without the CLI
 

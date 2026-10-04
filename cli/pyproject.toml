@@ -9,7 +9,7 @@ description = "SushiBLAS developer CLI (build / test / run)"
 authors = [{ name = "Mustafa Garip", email = "mustafagarip@sushisystems.io" }]
 requires-python = ">=3.10"
 dependencies = [
-    "sushicore>=0.4.0",
+    "sushicore>=0.7.0",
     "typer>=0.12",
     "rich>=13.0",
     "tomli>=2.0; python_version < '3.11'",
