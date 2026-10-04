@@ -17,7 +17,7 @@ It is built around four ideas:
 - A **SushiRuntime** checkout, resolved via [D3 layered CMake resolution](ARCHITECTURE.md#8-the-sushiruntime-dependency-d3): an in-tree superproject target, an installed `find_package(SushiRuntime)`, or (the common case) a sibling `../sushiruntime` checkout.
 - **C++17 or later** (the library is built at C++17; a C++20 consumer is supported).
 
-C++ library dependencies and the SYCL toolchain are provisioned by [SushiStack](https://sushisystems.io) (the `hub` CLI), which owns dependency installation for the whole stack (not just this repo) into one shared, workspace-level `dependencies/` tree.
+`sb setup` provisions the C++ library dependencies and the SYCL toolchain for this checkout. [SushiStack](https://sushisystems.io) (the `hub` CLI) provisions several checkouts at once, into one workspace-level `dependencies/` tree.
 
 ## Quick start (one script)
 
@@ -47,7 +47,7 @@ The fastest path is the bundled CLI, which loads your compiler/toolchain paths f
 hub install-cli sushiblas           # always editable, against this checkout
 ```
 
-This gives you two equivalent commands on your PATH: **`sb`** (short) and **`sushiblas`** (long). Toolchain paths are read from `cli/config.toml` (committed, shared defaults); machine-specific absolute paths go in a gitignored `cli/config.local.toml` using the same `[tool.<platform>]` section layout. In the common case (inside a SushiStack workspace, or a sibling checkout of SushiRuntime present) no local config is needed at all — the CLI finds the runtime sibling and its bundled `clang++` on its own.
+This gives you two equivalent commands on your PATH: **`sb`** (short) and **`sushiblas`** (long). Run `sb setup` once before the first build; `sb setup --dry-run` shows what it would install. Toolchain paths are read from `cli/config.toml` (committed, shared defaults); machine-specific absolute paths go in a gitignored `cli/config.local.toml` using the same `[tool.<platform>]` section layout. In the common case (inside a SushiStack workspace, or a sibling checkout of SushiRuntime present) no local config is needed at all — the CLI finds the runtime sibling and its bundled `clang++` on its own.
 
 ```bash
 sb build                      # release (default)
@@ -102,6 +102,8 @@ cmake --build build --config Release
 ```bash
 sb config         # print resolved config with per-field source annotation
 sb env            # print the environment cmake/ctest/run subprocesses see
+sb setup          # provision what the build needs, then report readiness
+sb doctor         # report whether this machine can build the module
 sb doxygen        # build the Doxygen API reference into docs/api-site/html/
 ```
 

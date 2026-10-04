@@ -22,6 +22,7 @@ history of *why* the codebase looks the way it does isn't lost. See
 
 ### CLI
 
+- 2026-10-04 — cli: Added setup, doctor, link and unlink from sushicore (`cli/sushiblas/cli.py`, `cli/sushiblas/config.py`).
 - 2026-09-22 — Drew `sb --help` and each command's help through sushicore's help page, in three groups with examples (`cli/sushiblas/cli.py`, `cli/sushiblas/console.py`).
 - 2026-09-22 — Replaced the raw `[dim]` markup with the theme's `[muted]` (`cli/sushiblas/services/project.py`).
 

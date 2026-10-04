@@ -31,11 +31,13 @@ curl -fsSL https://sushisystems.io/install.sh | bash
 irm https://sushisystems.io/install.ps1 | iex
 ```
 
-If you already have a SushiRuntime sibling checkout and its bundled SYCL
-toolchain, install the CLI and build directly:
+That provisions every checkout in the workspace at once. To provision this
+checkout alone, with a SushiRuntime checkout beside it, install the CLI and run
+`sb setup`:
 
 ```bash
 hub install-cli sushiblas  # puts `sb` / `sushiblas` on PATH
+sb setup                  # toolchain and libraries for this checkout
 sb build                  # Release (default)
 sb test                   # functional suite
 ```
@@ -379,7 +381,7 @@ check_cmd     = ["pkg-config", "--exists", "mylib"]
 
 Then also update `CMakeLists.txt` (a `find_package`/`pkg_check_modules` call
 and the link line) if the C++ build needs to find it. Verify with
-`hub doctor` (confirms the entry parses) and `hub install`.
+`sb doctor` (confirms the entry parses) and `sb setup`.
 
 ---
 
