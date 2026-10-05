@@ -28,12 +28,8 @@ This installs through **pipx** on every platform, into an isolated venv, then
 injects the shared `sushicore` package — which is published to no index, so pipx
 cannot resolve it as an ordinary dependency. The install is always editable and
 there is no flag to make it otherwise: a frozen copy would stop tracking
-`git pull`s on this checkout without ever saying so. You can also install the
-package directly:
-
-```bash
-pipx install ./cli               # or:  pip install ./cli   (inside a venv/conda env)
-```
+`git pull`s on this checkout without ever saying so. `pipx install ./cli` on its
+own fails for the same reason: nothing resolves `sushicore` for it.
 
 To remove it later:
 
@@ -58,19 +54,24 @@ CLI reads both from:
 provision several checkouts at once, use `hub install` from a SushiStack
 workspace. To see what the CLI resolved, run `sb config`.
 
+A config file that is not valid TOML, or a `[cli] theme` that `sushicore` does
+not know, stops the command with one line naming the problem and exit code 1.
+
 ## Command overview
 
 | Command | What it's for |
 |---------|----------------|
 | `sb build` / `test` / `run` / `clean` | Build, test, run, and clean the C++ project |
-| `sb doxygen` | Generate the Doxygen API reference into `docs/api-site/html/` |
+| `sb docs` | Generate the Doxygen API reference into `docs/api-site/html/` |
 | `sb config` | Show the resolved configuration |
 | `sb env` | Show the environment your builds run under |
 | `sb setup` | Provision what the build needs, then report readiness |
 | `sb doctor` | Report whether this machine can build the module |
 | `sb link` / `unlink` | Add this checkout to a SushiStack workspace, or remove it |
 
-Run any command with `--help` to see its options.
+Run any command with `--help` to see its options. `sb --version` prints the
+installed version of `sushiblas-cli`, and `sb --describe` prints the commands
+and their options as JSON.
 
 `sb --help` groups the commands under Project, Documentation and Diagnostics, and each
 command's own help ends with examples. On a colour terminal the root screen shows the logo.
@@ -91,6 +92,10 @@ sb build --clean          # delete the build tree first, then build from scratch
 The `--type` (`-t`) option accepts `release`, `debug`, or `relwithdebinfo`.
 Flags can be combined, e.g. `sb build --type debug --clean`.
 
+There is one build tree. Building with a different `--type` removes it and
+configures from an empty one, and `sb build` says so before it does. Ctrl+C
+during a build, a test run or `sb run` ends the command with exit code 130.
+
 ### Passing CMake options
 
 `--define` (`-D`) forwards a cache variable to the configure step, and is
@@ -103,6 +108,7 @@ sb build -D SB_SYCL_TARGETS="spir64;nvptx64-nvidia-cuda"   # quote values with '
 
 Cache variables persist in the build tree, so dropping the flag on a later run
 does **not** unset them — pass `VAR=` to clear one, or `--clean` to start over.
+A change of `--type` starts over too, so pass the variables again with it.
 
 The options SushiBLAS itself defines:
 
@@ -201,12 +207,15 @@ sb run sushiblas_tests -- --gtest_filter='Unit_GEMMTest.*'
 sb run sushiblas_tests -- --gtest_shuffle --gtest_break_on_failure
 ```
 
-## `sb clean` and `sb doxygen`
+## `sb clean` and `sb docs`
 
 ```bash
 sb clean       # remove the build/ tree
-sb doxygen     # generate the Doxygen API reference into docs/api-site/html/
+sb docs        # generate the Doxygen API reference into docs/api-site/html/
 ```
+
+`sb docs` was `sb doxygen`. The old word still runs, hidden from the help, and
+names the new one on a terminal; it is removed after 2027-03-25.
 
 It runs Doxygen against the repo-root `Doxyfile`, which is **committed** — for
 a while it was not, and `.gitignore` listed it, so the command reported
@@ -237,8 +246,10 @@ the build tools.
 sb config         # print the resolved config and where each value came from
 
 sb env            # print the environment cmake/ctest/run subprocesses run under
-sb env --all      # show every variable, not just the build-relevant ones
+sb env --all      # show every variable, not just the build-relevant ones (-a)
 ```
+
+Both commands come from `sushicore` and behave the same in every module CLI.
 
 `sb config` prints the resolved SushiRuntime sibling directory, compiler, and
 vcpkg root, plus which source (default / `config.toml` / `config.local.toml`

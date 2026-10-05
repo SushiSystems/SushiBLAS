@@ -11,7 +11,7 @@ It is built around four ideas:
 
 ## Requirements
 
-- A SYCL 2020 compiler — the bundled **intel-llvm** `clang++ -fsycl`, provisioned by SushiStack (see below). SushiBLAS selects no SYCL toolchain of its own; it builds with whatever [SushiRuntime](https://github.com/SushiSystems/SushiRuntime) sibling checkout it resolves against.
+- A SYCL 2020 compiler — the bundled **intel-llvm** `clang++ -fsycl`, provisioned by SushiStack (see below). SushiBLAS selects no SYCL toolchain of its own; it builds with the one in the workspace `dependencies/` tree or under `~/.sushisystems`, against the [SushiRuntime](https://github.com/SushiSystems/SushiRuntime) checkout it resolves.
 - **CMake** 3.20 or newer (3.22 for the test suite's `gtest_discover_tests`).
 - **GoogleTest** for the test suite.
 - A **SushiRuntime** checkout, resolved via [D3 layered CMake resolution](ARCHITECTURE.md#8-the-sushiruntime-dependency-d3): an in-tree superproject target, an installed `find_package(SushiRuntime)`, or (the common case) a sibling `../sushiruntime` checkout.
@@ -47,7 +47,7 @@ The fastest path is the bundled CLI, which loads your compiler/toolchain paths f
 hub install-cli sushiblas           # always editable, against this checkout
 ```
 
-This gives you two equivalent commands on your PATH: **`sb`** (short) and **`sushiblas`** (long). Run `sb setup` once before the first build; `sb setup --dry-run` shows what it would install. Toolchain paths are read from `cli/config.toml` (committed, shared defaults); machine-specific absolute paths go in a gitignored `cli/config.local.toml` using the same `[tool.<platform>]` section layout. In the common case (inside a SushiStack workspace, or a sibling checkout of SushiRuntime present) no local config is needed at all — the CLI finds the runtime sibling and its bundled `clang++` on its own.
+This gives you two equivalent commands on your PATH: **`sb`** (short) and **`sushiblas`** (long). Run `sb setup` once before the first build; `sb setup --dry-run` shows what it would install. Toolchain paths are read from `cli/config.toml` (committed, shared defaults); machine-specific absolute paths go in a gitignored `cli/config.local.toml` using the same `[tool.<platform>]` section layout. In the common case (inside a SushiStack workspace, or a sibling checkout of SushiRuntime present) no local config is needed at all — the CLI finds the runtime sibling on its own, and `clang++` in the workspace `dependencies/` tree or under `~/.sushisystems`.
 
 ```bash
 sb build                      # release (default)
@@ -104,7 +104,7 @@ sb config         # print resolved config with per-field source annotation
 sb env            # print the environment cmake/ctest/run subprocesses see
 sb setup          # provision what the build needs, then report readiness
 sb doctor         # report whether this machine can build the module
-sb doxygen        # build the Doxygen API reference into docs/api-site/html/
+sb docs           # build the Doxygen API reference into docs/api-site/html/
 ```
 
 ## Running the tests
@@ -114,7 +114,8 @@ sb test                          # functional suite (the default)
 sb test --suite unit             # unit only
 sb test --suite integration      # integration only
 sb test --suite regression       # regression only
-sb test --suite all              # everything
+sb test --suite all              # every CTest test
+sb test --suite package          # the out-of-tree consumer of the installed package
 sb test --filter 'Gemm.*'        # ctest -R over 'Suite.Case' test names
 sb test --repeat 5               # re-run until first failure (flaky hunt)
 

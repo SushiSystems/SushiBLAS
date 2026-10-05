@@ -3,18 +3,11 @@
 # Copyright (c) 2026 Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Project build / test / run / clean / doxygen logic.
+"""Runs SushiBLAS's build, test, run, clean and docs through sushicore's CMake driver.
 
-This module holds SushiBLAS's own build policy — which cache variables it passes,
-which targets and test suites it has — and drives cmake and ctest through
-``sushicore.cmake_driver.CMakeDriver`` with the snapshotted build env. SushiBLAS
-configures against the SushiRuntime sibling's bundled clang++ and vcpkg, so the
-configure args resolve those from the runtime checkout (or the config overrides)
-rather than provisioning anything.
-
-tests/CMakeLists.txt registers tests via gtest_discover_tests with CTest
-labels (unit / integration / regression) assigned from the GTest suite-name
-prefix convention, matching sushiengine — see the ``Suite`` enum below.
+The compiler and vcpkg come from the config overrides, then the workspace `dependencies/`
+tree, then the machine tree under `~/.sushisystems`. The suites are the CTest labels that
+tests/CMakeLists.txt assigns from the GTest suite-name prefix.
 """
 
 from __future__ import annotations
@@ -37,12 +30,16 @@ from . import discovery
 
 
 class BuildType(str, enum.Enum):
+    """Names the build types `sb build --type` accepts."""
+
     release = "release"
     debug = "debug"
     relwithdebinfo = "relwithdebinfo"
 
 
 class Suite(str, enum.Enum):
+    """Names the test suites `sb test --suite` accepts."""
+
     # Fine-grained CTest labels (assigned in tests/CMakeLists.txt from the GTest
     # suite-name prefix convention).
     unit = "unit"
@@ -77,10 +74,11 @@ _CMAKE_BUILD_TYPE = {
 
 
 def _build_dir(root: Path) -> Path:
+    """Returns the build tree of the checkout at *root*."""
     return root / "build"
 
 
-_RUNNER = Runner(console, PROFILE.program)
+_RUNNER = Runner(console, PROFILE.program, catch_interrupt=True)
 _DRIVER = CMakeDriver(console, _RUNNER)
 
 
@@ -147,6 +145,11 @@ def _toolchain_args(cfg: Config, root: Path) -> list[str]:
 
 def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
                     defines: Sequence[str] | None = None) -> list[str]:
+    """Returns the cmake configure command line for this tree.
+
+    Raises:
+        ValueError: An entry of *defines* is not VAR=VALUE.
+    """
     runtime = cfg.runtime_dir(root)
 
     args = [
@@ -173,6 +176,7 @@ def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
 
 def build(build_type: BuildType, clean: bool = False,
           defines: Sequence[str] | None = None) -> int:
+    """Configures and builds the project, replacing a tree it cannot reuse."""
     console.header("Project Build")
     root = find_project_root()
     cfg = load_config()
@@ -193,9 +197,12 @@ def build(build_type: BuildType, clean: bool = False,
     fresh = _DRIVER.needs_configure(build_dir, cfg.generator, root=root,
                                     expect={"CMAKE_BUILD_TYPE": cmake_build_type})
     if fresh:
-        console.info(f"Configuring CMake... (type={build_type.value})")
         if build_dir.is_dir():
-            shutil.rmtree(build_dir, ignore_errors=True)
+            console.info(
+                "build/ was configured for another build type, generator or source path; "
+                "starting from an empty tree.")
+            _DRIVER.clean_tree(build_dir)
+        console.info(f"Configuring CMake... (type={build_type.value})")
     else:
         console.info("Reconfiguring in place...")
     try:
@@ -376,6 +383,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
 
 def run(target: str | None = None, sort: bool = False,
         app_args: list[str] | None = None) -> int:
+    """Runs a built executable with *app_args* and returns its exit code."""
     console.header("Project Run")
     root = find_project_root()
     cfg = load_config()
@@ -396,12 +404,14 @@ def run(target: str | None = None, sort: bool = False,
 
 
 def clean() -> int:
+    """Removes the build tree."""
     console.header("Project Clean")
     _DRIVER.clean_tree(_build_dir(find_project_root()))
     return 0
 
 
-def doxygen() -> int:
+def docs() -> int:
+    """Generates the Doxygen API reference from the repository's Doxyfile."""
     console.header("Doxygen Generation")
     root = find_project_root()
     cfg = load_config()

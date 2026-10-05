@@ -26,11 +26,16 @@ history of *why* the codebase looks the way it does isn't lost. See
 
 ### CLI
 
+- 2026-10-05 — cli: Renamed the `doxygen` command to `docs`; `sb doxygen` stays as a hidden alias until 2027-03-25 (`cli/sushiblas/cli.py`, `cli/sushiblas/aliases.py`).
+- 2026-10-05 — cli: Added `--version` and `--describe`, and took `config` and `env` from sushicore, which adds `env -a` (`cli/sushiblas/cli.py`, `cli/sushiblas/services/diag.py`).
+- 2026-10-05 — cli: Added a `main()` entry point that reports a malformed config file or an unknown theme as one line and exit code 1 (`cli/sushiblas/cli.py`, `cli/sushiblas/__main__.py`).
+- 2026-10-05 — cli: Returned 130 on Ctrl+C and announced the build tree that a change of `sb build --type` removes (`cli/sushiblas/services/project.py`).
 - 2026-10-04 — cli: Added setup, doctor, link and unlink from sushicore (`cli/sushiblas/cli.py`, `cli/sushiblas/config.py`).
 - 2026-09-22 — Drew `sb --help` and each command's help through sushicore's help page, in three groups with examples (`cli/sushiblas/cli.py`, `cli/sushiblas/console.py`).
 - 2026-09-22 — Replaced the raw `[dim]` markup with the theme's `[muted]` (`cli/sushiblas/services/project.py`).
 
 ### Documentation
+- 2026-10-05 — docs: Removed the `pipx install ./cli` path and corrected the toolchain lookup and `--suite all` descriptions (`docs/CLI_GUIDE.md`, `docs/README.md`).
 - 2026-09-07 — Renamed the hub's command from `ss` to `hub` in the manual (`docs/`).
 
 ### Known issues

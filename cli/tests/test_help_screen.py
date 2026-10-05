@@ -19,7 +19,7 @@ from sushiblas.cli import app
 
 K_GROUPS = {
     "Project": ["build", "test", "run", "clean"],
-    "Documentation": ["doxygen"],
+    "Documentation": ["docs"],
     "Diagnostics": ["config", "env", "setup", "doctor", "link", "unlink"],
 }
 K_RAW_COLOUR = re.compile(r"\[/?(green|red|yellow|cyan|blue|dim)\b")
