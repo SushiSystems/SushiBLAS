@@ -1,3 +1,9 @@
+# Runtime.cmake
+# SushiBLAS - https://github.com/SushiSystems/SushiBLAS
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
 # Runtime — D3 layered resolution of the SushiRuntime dependency.
 #
 # SushiBLAS no longer vendors a snapshot of SushiRuntime (SB-0): it consumes the

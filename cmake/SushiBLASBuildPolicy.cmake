@@ -1,3 +1,9 @@
+# SushiBLASBuildPolicy.cmake
+# SushiBLAS - https://github.com/SushiSystems/SushiBLAS
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
 # SushiBLASBuildPolicy.cmake — the single entry point for this tree's compile policy.
 #
 # Single responsibility: compose the policy targets and expose one function

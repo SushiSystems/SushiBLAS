@@ -14,6 +14,10 @@ history of *why* the codebase looks the way it does isn't lost. See
 
 ## [Unreleased]
 
+### Licence
+
+- 2026-10-05 — licence: Relicensed from Apache-2.0 to PolyForm Noncommercial 1.0.0 and removed `docs/LICENSE` (`LICENSE`, `COMMERCIAL.md`, `NOTICE.md`, `third_party/licenses/Apache-2.0.txt`).
+
 ### Build
 
 - 2026-09-22 — Described this module in its own `sushi-module.toml`, so `hub` knows it from the checkout (`sushi-module.toml`).

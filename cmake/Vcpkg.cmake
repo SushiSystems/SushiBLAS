@@ -1,3 +1,9 @@
+# Vcpkg.cmake
+# SushiBLAS - https://github.com/SushiSystems/SushiBLAS
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
 # Vcpkg — (Windows) locate the vcpkg root and point CMAKE_TOOLCHAIN_FILE at it,
 # before project(). SushiBLAS is the top-level project, so it reaches project()
 # first; the runtime it pulls in needs hwloc from vcpkg on Windows, and resolving

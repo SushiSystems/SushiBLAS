@@ -1,3 +1,11 @@
+/****************************************************************/
+/* test_dispatch_complex.cpp                                    */
+/* SushiBLAS - https://github.com/SushiSystems/SushiBLAS        */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
+
 // What a complex-dtype tensor gets from the elementwise and logic families.
 //
 // Before the dispatch seam was made public, both families handled HALF/FLOAT32/FLOAT64
