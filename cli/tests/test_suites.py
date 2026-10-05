@@ -1,3 +1,8 @@
+# test_suites.py
+# SushiBLAS - https://github.com/SushiSystems/SushiBLAS
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
 """Tests for the Suite enum and the one suite that is not a CTest label.
 
 `sb test` maps every suite to a `ctest -L` regex through _SUITE_LABEL_REGEX,

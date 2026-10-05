@@ -1,9 +1,14 @@
-# NOTICE
+# Notices
 
-This project includes algorithms ported from **portBLAS**
-(https://github.com/codeplaysoftware/portBLAS), archived January 2025, whose
-lineage continues at the UXL Foundation's **generic-sycl-components**
-(https://github.com/uxlfoundation/generic-sycl-components).
+SushiBLAS is Copyright (c) 2026 Sushi Systems and licensed under the PolyForm Noncommercial
+License 1.0.0; see `LICENSE`. The material below keeps its own licence.
+
+## Ported files
+
+| File | Source | Version | Licence |
+| --- | --- | --- | --- |
+| `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp` | portBLAS, https://github.com/codeplaysoftware/portBLAS, `src/operations/blas3/gemm_local.hpp` and `gemm_no_local.hpp` | unverified; the repository was archived in January 2025 | Apache-2.0, Copyright (C) Codeplay Software Limited; text in `third_party/licenses/Apache-2.0.txt` |
+| `kernels/sycl/blas/level3/syrk.hpp` | The GEMM tiling above, composed for SYRK; portBLAS has no SYRK kernel | as above | Apache-2.0 for the tiling it carries over, as above |
 
 ```
 portBLAS / oneMath SYCL BLAS
@@ -11,13 +16,61 @@ Copyright (C) Codeplay Software Limited.
 Licensed under the Apache License, Version 2.0.
 ```
 
+portBLAS continues at the UXL Foundation's generic-sycl-components,
+https://github.com/uxlfoundation/generic-sycl-components. The Sushi Systems licence covers the
+changes to these two files, not the upstream algorithm. The sections "Port notes" and "Not
+ported" below state what was changed.
+
+The license block of both files carries the upstream lines. This command writes every license
+block in the repository and keeps them:
+
+```
+python D:/Projects/sushiskills/tools/licensing/write_license_block.py D:/Projects/sushiblas --project "SushiBLAS - https://github.com/SushiSystems/SushiBLAS" --upstream "include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syrk.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md"
+```
+
+## Algorithms written from a published reference
+
+| File | Reference | Licence of the reference |
+| --- | --- | --- |
+| `kernels/sycl/random/philox.hpp` | Philox4x32-10 from Salmon, Moraes, Dror and Shaw, "Parallel Random Numbers: As Easy as 1, 2, 3", SC'11; round constants checked against Random123, https://github.com/DEShawResearch/random123, `include/Random123/philox.h` | unverified |
+
+Whether `philox.hpp` was written from the paper or adapted from the Random123 source is not
+recorded in the tree.
+
+## Adapted text
+
+| File | Source | Version | Licence |
+| --- | --- | --- | --- |
+| `docs/CODE_OF_CONDUCT.md` | Contributor Covenant, https://www.contributor-covenant.org/version/2/1/code_of_conduct.html | 2.1 | unverified; the audit names CC BY 4.0 |
+
+## Third-party components
+
+Nothing is vendored, nothing is fetched at configure time and no binary is redistributed. The
+build and the command line interface resolve these from the machine; none of their files sits
+in this repository, and no licence below was read from its source.
+
+| Component | Used by | Source | Version | Licence |
+| --- | --- | --- | --- | --- |
+| SushiRuntime | `cmake/Runtime.cmake` | https://github.com/SushiSystems/SushiRuntime | sibling checkout or installed package, not pinned | Sushi Systems' own; see that repository's `LICENSE` |
+| SYCL headers and runtime, Intel oneAPI DPC++ | every `<sycl/...>` include, `CMakePresets.json` | https://github.com/intel/llvm | not pinned | unverified |
+| oneTBB | `CMakePresets.json` library path | Intel oneAPI | not pinned | unverified |
+| GoogleTest | `tests/CMakeLists.txt` | https://github.com/google/googletest | not pinned | unverified; the audit names BSD-3-Clause |
+| hwloc | through SushiRuntime, from vcpkg on Windows (`cmake/Vcpkg.cmake`) | https://github.com/open-mpi/hwloc | not pinned | unverified; the audit names BSD-3-Clause |
+| sushicore | `cli/pyproject.toml` | PyPI | >=0.7.0 | Sushi Systems' own; see that package's licence |
+| typer | `cli/pyproject.toml` | PyPI | >=0.12 | unverified; the audit names MIT |
+| rich | `cli/pyproject.toml` | PyPI | >=13.0 | unverified; the audit names MIT |
+| tomli | `cli/pyproject.toml`, Python below 3.11 | PyPI | >=2.0 | unverified; the audit names MIT |
+| setuptools | `cli/pyproject.toml`, build backend | PyPI | >=61.0 | unverified |
+| pytest, pyflakes | `.github/workflows/ci.yml` | PyPI | not pinned | unverified |
+| `intel/oneapi-basekit` container image | `.github/workflows/ci.yml` | Docker Hub | `latest` | unverified; the audit names the Intel EULA |
+
+## Port notes
+
 Per SushiBLAS's own convention (P3: "when you do fork, fork on purpose and
 own it"), the source below was rewritten from portBLAS's C++ expression-tree
 executor framework into SushiBLAS's flat template-function convention. There
 is no free rebase from upstream after this point - tuning and maintenance of
 these kernels is SushiBLAS's own responsibility from here on.
-
-## Ported files
 
 - **`include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`**
   Tiling/blocking algorithms ported from `src/operations/blas3/gemm_local.hpp`
@@ -98,3 +151,12 @@ these kernels is SushiBLAS's own responsibility from here on.
 FFT/DFT and LAPACK (`SVD`, `QR`, eigendecomposition, etc.) remain quarantined
 per decision D1 - see `include/SushiBLAS/experimental/`. The backend
 strategy for those is a named follow-up, not solved here.
+
+## Earlier versions
+
+No version was tagged or released before this licence. From git: the first commit, `8c64d41`,
+carries no licence file. The commits from `e8ada31` (2026-02-19) up to and including `c381046`
+carried the MIT License. The commits from `d66c872` (2026-08-01) up to the commit
+that introduced this file's licence statement carried the Apache License 2.0; of those,
+`origin/main` held the ones up to and including `aee576a` (2026-09-22) on 2026-10-05. Anyone
+who received a copy keeps the licence that copy carried.

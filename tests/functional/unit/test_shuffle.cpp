@@ -1,3 +1,11 @@
+/****************************************************************/
+/* test_shuffle.cpp                                             */
+/* SushiBLAS - https://github.com/SushiSystems/SushiBLAS        */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
+
 // RandomOps::shuffle - previously declared in an installed header, implemented as a
 // no-op stub, and commented out of the build, so any consumer that called it failed at
 // link. Now a real Fisher-Yates permutation; these are the properties that make it one.

@@ -1,3 +1,11 @@
+/****************************************************************/
+/* test_orthogonal.cpp                                          */
+/* SushiBLAS - https://github.com/SushiSystems/SushiBLAS        */
+/* Copyright (c) 2026 Sushi Systems                             */
+/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */
+/* Commercial use requires a licence from Sushi Systems.        */
+/****************************************************************/
+
 // RandomOps::orthogonal - previously declared in an installed header, implemented as a
 // forward to normal(), and commented out of the build, so a consumer calling it failed
 // at link, and anyone who un-commented it got a Gaussian matrix under an orthogonal

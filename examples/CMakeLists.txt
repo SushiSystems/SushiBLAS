@@ -1,3 +1,9 @@
+# CMakeLists.txt
+# SushiBLAS - https://github.com/SushiSystems/SushiBLAS
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
 add_executable(sushiblas_example example.cpp)
 target_link_libraries(sushiblas_example PRIVATE sushiblas)
 sushiblas_apply_build_policy(sushiblas_example)

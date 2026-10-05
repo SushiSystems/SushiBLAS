@@ -1,3 +1,9 @@
+# SushiBLASCompilerWarnings.cmake
+# SushiBLAS - https://github.com/SushiSystems/SushiBLAS
+# Copyright (c) 2026 Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
 # SushiBLASCompilerWarnings.cmake — the project's warning policy as a target.
 #
 # Single responsibility: define an INTERFACE target `sushiblas_warnings`

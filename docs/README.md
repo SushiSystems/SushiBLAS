@@ -199,9 +199,14 @@ tests/
   package/              Out-of-tree find_package(SushiBLAS) consumer
 cli/                    Python `sb` / `sushiblas` CLI package (Typer + rich)
 docs/                   This documentation
-NOTICE.md               Apache-2.0 attribution for the portBLAS-derived GEMM/SYRK tiling
+LICENSE                 PolyForm Noncommercial License 1.0.0
+COMMERCIAL.md           How to ask for a commercial licence
+NOTICE.md               Third-party notices, including the portBLAS-derived GEMM/SYRK tiling (Apache-2.0)
+third_party/licenses/   Licence texts of the third-party parts NOTICE.md lists
 ```
 
 ## License
 
-This project is licensed under the Apache License, Version 2.0 - see the [LICENSE](../LICENSE) file for details.
+SushiBLAS is source-available, free for non-commercial use under the PolyForm Noncommercial License 1.0.0; see [LICENSE](../LICENSE). Commercial use needs a licence from Sushi Systems, see [COMMERCIAL.md](../COMMERCIAL.md).
+
+The GEMM and SYRK tiling is ported from portBLAS and stays under Apache-2.0. [NOTICE.md](../NOTICE.md) lists it with the other third-party parts, and states which earlier commits carried the MIT License and the Apache License 2.0.
