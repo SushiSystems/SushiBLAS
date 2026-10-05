@@ -8,10 +8,11 @@ hand-written fixed-order folds, never `sycl::reduction`.
 This is the generated API reference. It documents what the headers say; the reasoning behind the
 design lives in the prose docs, and those are the better place to start:
 
-- `docs/README.md` — what the library is and how to build it.
-- `docs/ARCHITECTURE.md` — the engine, the dispatch seam and the kernel layers.
-- `docs/INTEGRATION.md` — consuming SushiBLAS from your own CMake project.
-- `docs/CONTRIBUTING.md` — the build rules (`sb build`, never cmake directly).
+- `README.md` — what the library is and how to build it.
+- `docs/architecture/ARCHITECTURE.md` — the engine, the dispatch seam and the kernel layers.
+- `docs/guides/INTEGRATION.md` — consuming SushiBLAS from your own CMake project.
+- `cli/README.md` — every `sb` command.
+- `docs/CONTRIBUTING.md` — how a change is built, tested and documented.
 
 ## Where to start reading
 

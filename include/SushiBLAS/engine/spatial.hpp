@@ -30,7 +30,7 @@
  * column entry atomically adds into its pixel" would silently break the
  * library's bit-reproducibility guarantee. Each output element gathers its own
  * contributions in a fixed order instead. This is the same argument
- * `docs/ARCHITECTURE.md` gives for rejecting `sycl::reduction` in the folding
+ * `docs/architecture/ARCHITECTURE.md` gives for rejecting `sycl::reduction` in the folding
  * reductions, and `tests/functional/regression/test_spatial_determinism.cpp` is
  * what keeps it true.
  */

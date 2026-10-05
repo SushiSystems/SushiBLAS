@@ -73,7 +73,7 @@
  *
  * That is an argument from what the code does, not a measurement of a GPU - the
  * same honest limit `reduce_1d.hpp` records for itself. See
- * `docs/GPU_VALIDATION.md` §5.
+ * `docs/design/GPU_VALIDATION.md` §5.
  *
  * **No scratch buffer, and that is structural rather than lucky.** A whole-tensor
  * reduction needs one because its work-groups all contribute to a single answer
@@ -194,7 +194,7 @@ namespace SushiBLAS
          * - **Otherwise** there is nothing to recover; take the cheap shape.
          *
          * @warning The GPU side of this is **derived, not measured** - this
-         *          project has no GPU (see `docs/GPU_VALIDATION.md`). The
+         *          project has no GPU (see `docs/design/GPU_VALIDATION.md`). The
          *          threshold is a floor below which the cooperative shape is
          *          certainly wrong, not a tuned crossover, and it is the first
          *          knob to reach for if a row-wise reduction underperforms on

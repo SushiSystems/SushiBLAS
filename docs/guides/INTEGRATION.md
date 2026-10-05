@@ -72,7 +72,7 @@ tree. It also runs the flag-hygiene assertion of [§3](#3-what-you-inherit-and-w
 ### From a sibling checkout
 
 `add_subdirectory(path/to/sushiblas)` also works and gives you the same
-`SushiBLAS::sushiblas` target — the [D3 layered resolution](ARCHITECTURE.md#8-the-sushiruntime-dependency-d3)
+`SushiBLAS::sushiblas` target — the [D3 layered resolution](../architecture/ARCHITECTURE.md#8-the-sushiruntime-dependency-d3)
 that SushiBLAS itself uses for its own SushiRuntime dependency applies
 identically one level up.
 
