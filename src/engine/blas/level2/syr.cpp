@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file syr.cpp
+ * @brief Defines Level2::syr, which records the BLAS SYR task.
+ * @author Mustafa Garip
+ */
+
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -34,14 +40,10 @@ namespace SushiBLAS
 
         SB_THROW_IF(nx != n, "Dimension mismatch for vector x in SYR.");
 
-        // TODO: Implement multi-dimensional batch support for Level 2
-
         void* read_x = x.data_or_null();
         void* rw_A = A.data_or_null();
 
-        // A is an accumulator, and only the selected triangle is touched at all - the other
-        // one has to survive the task unchanged. Both facts make the region a
-        // read-modify-write rather than a write.
+        // A is read-modify-write, and only the selected triangle is touched; see src/README.md.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (read_x) reads.push_back(x.region());
         if (rw_A) reads.push_back(A.region());

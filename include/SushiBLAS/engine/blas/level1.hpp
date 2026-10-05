@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file level1.hpp
+ * @brief Declares Level1, the vector-vector BLAS operations.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <sycl/sycl.hpp>
@@ -31,127 +37,56 @@ namespace SushiBLAS
 
         public:
             /**
-             * @brief Vector-Scalar Product and Addition (AXPY).
-             * 
-             * Computes the operation: y = alpha * x + y.
-             * This is a fundamental linear algebra operation that scales vector x 
-             * by scalar alpha and adds it to vector y.
-             * 
-             * @param alpha Scalar multiplier.
-             * @param x Input vector x.
-             * @param y Input/Output vector y (result is stored in y).
-             * @return sycl::event representing the completion of the operation.
-             *
-             * Scalars are taken as `double` at every level of this API and narrowed to the
-             * tensor's element type at the kernel boundary, where that type is finally known.
-             * Declaring them `float` - as Level 1 and Level 2 used to - silently rounded an
-             * fp64 computation's scalar to about 1e-7 relative error with no diagnostic, which
-             * made FLOAT64 a partial lie. Templating the public signature instead was rejected:
-             * a tensor's dtype is a runtime value here, so a compile-time scalar type would push
-             * a dtype switch onto every caller.
+             * @brief Computes y = alpha * x + y.
+             * @param alpha Taken as double and narrowed to the element type at the kernel boundary.
+             * @see include/SushiBLAS/engine/blas/README.md
              */
             sycl::event axpy(double alpha, const Tensor& x, Tensor& y);
 
             /**
-             * @brief Vector Dot Product (DOT).
-             * 
-             * Computes the dot product of two vectors: result = x^T * y.
-             * For complex vectors, this computes the unconjugated dot product.
-             * For complex conjugate dot product, see DOTC.
-             * 
-             * @param x Input vector x.
-             * @param y Input vector y.
-             * @param result Scalar output tensor where the result will be stored.
-             * @return sycl::event representing the completion of the operation.
+             * @brief Computes the unconjugated dot product x^T * y into result.
+             * @param result Scalar output tensor.
              */
             sycl::event dot(const Tensor& x, const Tensor& y, Tensor& result);
 
             /**
-             * @brief Vector Scaling (SCAL).
-             * 
-             * Computes the operation: x = alpha * x.
-             * Scales every element of vector x by the scalar factor alpha.
-             * 
-             * @param alpha Scalar factor.
-             * @param x Input/Output vector to scale.
-             * @return sycl::event representing the completion of the operation.
-             *
-             * `alpha` is a `double` and is narrowed at the kernel boundary; see @ref axpy.
+             * @brief Scales every element of x by alpha.
+             * @param alpha Taken as double and narrowed at the kernel boundary; see axpy.
              */
             sycl::event scal(double alpha, Tensor& x);
 
             /**
-             * @brief Vector Copy (COPY).
-             * 
-             * Copies all elements from vector x to vector y: y = x.
-             * 
-             * @param x Source vector.
-             * @param y Destination vector.
-             * @return sycl::event representing the completion of the operation.
+             * @brief Copies every element of x into y.
              */
             sycl::event copy(const Tensor& x, Tensor& y);
 
             /**
-             * @brief Vector Swap (SWAP).
-             * 
-             * Interchange the elements of vector x and vector y.
-             * 
-             * @param x First vector.
-             * @param y Second vector.
-             * @return sycl::event representing the completion of the operation.
+             * @brief Exchanges the elements of x and y.
              */
             sycl::event swap(Tensor& x, Tensor& y);
 
             /**
-             * @brief Euclidean Norm (NRM2).
-             * 
-             * Computes the L2 norm (Euclidean norm) of a vector: result = sqrt(sum(|x_i|^2)).
-             * This operation is more robust against overflow/underflow than a direct implementation.
-             * 
-             * @param x Input vector.
-             * @param result Scalar output tensor where the norm will be stored.
-             * @return sycl::event representing the completion of the operation.
+             * @brief Computes the Euclidean norm sqrt(sum(|x_i|^2)) into result.
+             * @param result Scalar output tensor.
+             * @see include/SushiBLAS/engine/blas/README.md
              */
             sycl::event nrm2(const Tensor& x, Tensor& result);
 
             /**
-             * @brief Sum of Absolute Values (ASUM).
-             * 
-             * Computes the L1 norm of a vector: result = sum(|Re(x_i)| + |Im(x_i)|).
-             * For real vectors, this is simply the sum of absolute values.
-             * 
-             * @param x Input vector.
-             * @param result Scalar output tensor where the sum will be stored.
-             * @return sycl::event representing the completion of the operation.
+             * @brief Computes sum(|Re(x_i)| + |Im(x_i)|) into result.
+             * @param result Scalar output tensor.
              */
             sycl::event asum(const Tensor& x, Tensor& result);
 
             /**
-             * @brief Index of Absolute Maximum (IAMAX).
-             * 
-             * Finds the smallest index i such that |Re(x_i)| + |Im(x_i)| is maximal.
-             * This is often used for pivoting in matrix factorizations.
-             * 
-             * @param x Input vector.
-             * @param result Scalar output tensor (stores the 1-based or 0-based index depending on implementation).
-             * @return sycl::event representing the completion of the operation.
+             * @brief Finds the smallest index i at which |Re(x_i)| + |Im(x_i)| is largest.
+             * @see include/SushiBLAS/engine/blas/README.md
              */
             sycl::event iamax(const Tensor& x, Tensor& result);
 
             /**
-             * @brief Givens Rotation (ROT).
-             * 
-             * Applies a plane rotation to points in vectors x and y:
-             * x_i = c * x_i + s * y_i
-             * y_i = -s * x_i + c * y_i
-             * 
-             * @param x Vector x.
-             * @param y Vector y.
-             * @param c Cosine component of the rotation.
-             * @param s Sine component of the rotation.
-             * @return sycl::event representing the completion of the operation.
-             *
-             * `c` and `s` are `double` and are narrowed at the kernel boundary; see @ref axpy.
+             * @brief Applies the plane rotation x_i = c * x_i + s * y_i, y_i = -s * x_i + c * y_i.
+             * @param c Taken as double, like s, and narrowed at the kernel boundary; see axpy.
              */
             sycl::event rot(Tensor& x, Tensor& y, double c, double s);
     };

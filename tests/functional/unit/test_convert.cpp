@@ -6,26 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// `elementwise().convert` - the dtype-converting copy.
-//
-// The values here are chosen so the assertions cannot pass without the
-// conversion actually happening. A round trip of small integers through fp16 is
-// a true statement about almost any implementation, including a `memcpy` that
-// got the widths right by luck, so it appears below only as an explicitly
-// labelled sanity case. Everything else asserts on a value that *changes*: an
-// fp32 number fp16 cannot represent must come back as the correctly *rounded*
-// fp16 neighbour (not merely "close"), one past fp16's range must come back as
-// an infinity, and one below it must come back as zero.
-//
-// The expectations are exact, and they are worked out by hand from IEEE-754
-// binary16 rather than taken from another conversion in this tree - a
-// differential oracle against `static_cast` on the host would agree with a
-// device kernel that made the same mistake.
-//
-// The ordering cases assert on `in_degree`, never on an output value, for the
-// reason Regression_Sentinel.ReductionsOrderAgainstViewsOfOneAllocation gives at
-// length: with no dependency edge the tasks may still come out in the right
-// order by luck, so a correct number proves nothing about ordering.
+/**
+ * @file test_convert.cpp
+ * @brief Tests elementwise().convert between the real dtypes, its refusals and its ordering.
+ * @author Mustafa Garip
+ */
 
 #include <cmath>
 #include <limits>
@@ -145,14 +130,10 @@ namespace SushiBLAS
                 }
         };
 
-        // =====================================================================
-        // The cases the conversion has to change a value to pass
-        // =====================================================================
-
-        // fp32 -> fp16 on a value fp16 cannot hold. The assertion is on the exact
-        // correctly-rounded neighbour, and there is a second assertion that the result
-        // is NOT the input - so an implementation that widened, reinterpreted, or
-        // otherwise carried the fp32 value through unchanged fails here.
+        /**
+         * @brief Tests that fp32 to fp16 lands on the correctly rounded neighbour, not the input.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_ConvertTest, Fp32ToFp16RoundsToTheNearestRepresentableValue)
         {
             auto src = engine->create_tensor({1}, Core::DataType::FLOAT32);
@@ -170,11 +151,10 @@ namespace SushiBLAS
                    "input means no conversion happened at all.";
         }
 
-        // Round-to-nearest-*even*, not round-away and not truncate. 1 + 2^-11 sits
-        // exactly halfway between the binary16 neighbours 1.0 (mantissa even) and
-        // 1 + 2^-10 (mantissa odd), so only ties-to-even gives 1.0. The second value is
-        // just past halfway and must go the other way, which is what stops "always round
-        // down" from passing the first one.
+        /**
+         * @brief Tests that fp32 to fp16 breaks ties to even.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_ConvertTest, Fp32ToFp16BreaksTiesToEven)
         {
             auto src = engine->create_tensor({2}, Core::DataType::FLOAT32);
@@ -190,9 +170,10 @@ namespace SushiBLAS
             EXPECT_EQ(1.0 + 0.0009765625, got[1]) << "Past halfway must round up to 1 + 2^-10.";
         }
 
-        // The behaviour a loss-scaling backoff is built on: a gradient scaled past
-        // fp16's range does not wrap, saturate or clamp - it becomes an infinity, which
-        // is a thing `count_nonfinite` can then find.
+        /**
+         * @brief Tests that an fp32 value past the fp16 range becomes an infinity.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_ConvertTest, Fp32PastTheHalfRangeBecomesInfinity)
         {
             auto src = engine->create_tensor({4}, Core::DataType::FLOAT32);
@@ -209,9 +190,10 @@ namespace SushiBLAS
             EXPECT_TRUE(std::isinf(got[3]) && got[3] > 0.0);
         }
 
-        // The other end of the range. 1e-8 is below half of the smallest subnormal and
-        // must flush to zero; 1e-7 is not, and must land on a subnormal rather than
-        // being flushed with it.
+        /**
+         * @brief Tests that 1e-8 flushes to zero in fp16 while 1e-7 lands on a subnormal.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_ConvertTest, Fp32BelowTheHalfRangeUnderflowsToZeroButSubnormalsSurvive)
         {
             auto src = engine->create_tensor({2}, Core::DataType::FLOAT32);
@@ -228,10 +210,10 @@ namespace SushiBLAS
                    "being discarded rather than represented.";
         }
 
-        // Non-finite inputs pass through unchanged in both directions. This is the pairing
-        // that makes `reductions().count_nonfinite` meaningful on a converted tensor: if a
-        // cast quietly turned a NaN into a number, screening the fp16 copy would say the
-        // fp32 original was clean.
+        /**
+         * @brief Tests that infinities and NaN pass through the conversion in both directions.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_ConvertTest, NonFiniteValuesSurviveTheConversion)
         {
             auto src = engine->create_tensor({3}, Core::DataType::FLOAT32);
@@ -254,9 +236,10 @@ namespace SushiBLAS
             }
         }
 
-        // Narrowing then widening gives the *narrow* value back, not the original. The
-        // complement of the round-trip sanity case below: it says what the round trip
-        // costs when the value is one fp16 cannot hold.
+        /**
+         * @brief Tests that narrowing then widening returns the fp16 value, not the original.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_ConvertTest, ARoundTripThroughHalfKeepsOnlyWhatHalfCouldHold)
         {
             auto src = engine->create_tensor({1}, Core::DataType::FLOAT32);
@@ -274,14 +257,10 @@ namespace SushiBLAS
                    "recover precision the narrowing threw away.";
         }
 
-        // =====================================================================
-        // The sanity case, labelled as one
-        // =====================================================================
-
-        // Exactly-representable values survive every conversion, which is necessary and
-        // nowhere near sufficient - it would pass for an implementation that had the
-        // element widths right and the rounding wrong. It is here to cover all nine arms
-        // of the dtype cross product in one place, and that coverage is its whole job.
+        /**
+         * @brief Tests all nine dtype pairs on values every dtype represents exactly.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_ConvertTest, EveryRealDTypePairConvertsExactlyRepresentableValues)
         {
             const std::vector<double> values = {0.0, 1.0, -2.0, 3.5, -4.25, 1024.0};
@@ -308,17 +287,15 @@ namespace SushiBLAS
             }
         }
 
-        // Converting a dtype to itself is legal and copies, which is the decision
-        // documented on ElementwiseOps::convert: a mixed-precision policy holds its
-        // compute dtype as runtime data, and when it equals the master dtype the op has
-        // to degenerate into a copy rather than throw.
+        /**
+         * @brief Tests that converting a dtype to itself copies.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_ConvertTest, ConvertingADTypeToItselfIsAPlainCopy)
         {
             auto src = engine->create_tensor({3}, Core::DataType::FLOAT32);
             auto dst = engine->create_tensor({3}, Core::DataType::FLOAT32);
-            // 2^40 rather than a decimal like 1e30: the expectation is an exact equality,
-            // and a decimal that fp32 cannot hold would be rounded by `write_exact` before
-            // `convert` ever saw it - making this a test of the test.
+            // 2^40 is exact in fp32; 1e30 would not be. See tests/functional/unit/README.md.
             write_exact(src, {1.5, -2.25, 1099511627776.0});
 
             EXPECT_NO_THROW(engine->elementwise().convert(src, dst));
@@ -345,10 +322,6 @@ namespace SushiBLAS
             const auto got = read_exact(dst);
             for (size_t i = 0; i < values.size(); ++i) EXPECT_EQ(values[i], got[i]) << "at index " << i;
         }
-
-        // =====================================================================
-        // What it refuses, and whether the refusal says enough to act on
-        // =====================================================================
 
         TEST_F(Unit_ConvertTest, ADTypePairOutsideTheRealDomainThrowsNamingBoth)
         {
@@ -381,8 +354,10 @@ namespace SushiBLAS
             EXPECT_NE(std::string::npos, rank.find("rank")) << rank;
         }
 
-        // A slice along an inner axis keeps its parent's strides, so its elements are not
-        // where a flat walk would look for them. Refused by name rather than read wrongly.
+        /**
+         * @brief Tests that an inner-axis slice, which is not contiguous, is refused by name.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_ConvertTest, ANonContiguousOperandIsRefused)
         {
             auto parent = engine->create_tensor({4, 4}, Core::DataType::FLOAT32);
@@ -394,8 +369,10 @@ namespace SushiBLAS
             EXPECT_NE(std::string::npos, msg.find("contiguous")) << msg;
         }
 
-        // Overlapping operands are a race between work-items, not an in-place update:
-        // each item reads one element and writes another of a different width.
+        /**
+         * @brief Tests that overlapping operands are refused.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_ConvertTest, OverlappingOperandsAreRefused)
         {
             constexpr int64_t kN = 8;
@@ -404,8 +381,7 @@ namespace SushiBLAS
                 static_cast<size_t>(2 * kN) * sizeof(float),
                 SushiRuntime::Memory::Strategies::Shared::instance());
 
-            // Two FLOAT32 views starting four elements apart over an eight-element span:
-            // they share the middle four.
+            // Two FLOAT32 views four elements apart over eight elements share the middle four.
             Tensor a(storage, {kN}, Core::DataType::FLOAT32, 0);
             Tensor b(storage, {kN}, Core::DataType::FLOAT32, kN / 2);
 
@@ -413,18 +389,10 @@ namespace SushiBLAS
             EXPECT_NE(std::string::npos, msg.find("overlap")) << msg;
         }
 
-        // =====================================================================
-        // What it declares to the dependency tracker
-        // =====================================================================
-
-        // **Both operands are views at a non-zero offset, and that is the whole point.**
-        // At offset zero a bare `data()` pointer and a real `region()` name the same
-        // resource, so an op that declared the wrong one would still get its edge and this
-        // test would pass without proving anything. Partway into an arena they diverge:
-        // `data()` is `base + offset` and converts to the whole-buffer region *of that
-        // address*, which the tracker files under a resource the producer never touched.
-        // Verified by mutation - rewriting `src.region()` as the bare pointer makes the
-        // assertion below report 0.
+        /**
+         * @brief Tests that a convert is ordered behind the op that wrote its offset source view.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_ConvertTest, AConvertIsOrderedBehindTheOpThatWroteItsSource)
         {
             constexpr int64_t kN = 4;
@@ -475,13 +443,10 @@ namespace SushiBLAS
                    "agreeing with the reader's region.";
         }
 
-        // The control, and the reason the two assertions above are worth writing: two
-        // converts over *disjoint* views of one arena must NOT serialise. It is the half
-        // of the hazard the two above cannot see - they catch an *under*-declared operand
-        // (no edge where one is needed), this catches an *over*-declared one (an edge
-        // where none is). Verified by mutation as well: declaring
-        // `src.storage->allocation_base()` instead of `src.region()` makes the assertion
-        // below report 1, while leaving both ordering tests above green.
+        /**
+         * @brief Tests that converts over disjoint views of one arena get no edge between them.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_ConvertTest, ConvertsOverDisjointViewsOfOneArenaDoNotSerialise)
         {
             constexpr int64_t kN = 8;
@@ -513,8 +478,10 @@ namespace SushiBLAS
                    "byte interval, which serialises everything a memory planner packs.";
         }
 
-        // The offset case, behaviourally: a view partway into an arena must convert its
-        // own elements and nothing else.
+        /**
+         * @brief Tests that a view at a non-zero offset converts its own elements and no others.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_ConvertTest, AViewAtANonZeroOffsetConvertsItsOwnElements)
         {
             constexpr int64_t kN = 4;

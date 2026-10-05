@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file shuffle.cpp
+ * @brief Defines RandomOps::shuffle, which records the in-place shuffle of a tensor's elements.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <complex>
 #include <sycl/sycl.hpp>
@@ -24,15 +30,7 @@ namespace SushiBLAS
 
     namespace
     {
-        // Fisher-Yates, sequential by necessity: each step's swap partner is drawn from a
-        // range that depends on the step index, so the permutation is only uniform if the
-        // steps happen in order. A single_task keeps that ordering on the device and leaves
-        // the tensor's data where it already is - the parallel alternative (tag every element
-        // with a random key and sort) needs a full second buffer and a device sort this
-        // library does not have.
-        //
-        // Instantiated per dtype rather than swapping raw bytes so that a std::complex<double>
-        // moves as one value, not as two halves that could tear.
+        // Fisher-Yates runs in one sequential task, one instantiation per dtype; see src/README.md.
         template<typename T>
         sycl::event shuffle_dispatch(sycl::queue& q, T* p, int64_t size, uint64_t seed, uint64_t offset,
                                       const std::vector<sycl::event>& deps)
@@ -63,8 +61,7 @@ namespace SushiBLAS
         const int64_t size = t.num_elements;
         void* ptr = t.data_or_null();
 
-        // Read-write, unlike the distributions: a shuffle permutes what is already there, so
-        // the task depends on whatever produced the contents, not only on prior writers.
+        // A shuffle reads what it writes, so the region is read-write; see src/README.md.
         std::vector<SushiRuntime::Core::ResourceRegion> rw = {};
         if (ptr) rw.push_back(t.region());
 

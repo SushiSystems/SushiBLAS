@@ -6,24 +6,18 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file version.hpp
+ * @brief Defines the SushiBLAS version macros.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 /**
- * @file version.hpp
- * @brief The library's version.
- *
- * Unlike SushiRuntime (a SHARED library, where "the headers compiled
- * against" and "the .dll actually loaded" can legitimately disagree),
- * SushiBLAS is STATIC: there is no separate loaded artifact whose version
- * could drift from these macros at runtime, so a single compile-time version
- * is the whole story here.
- *
- * The literals here are checked against the project's CMake version at
- * configure time (see the root CMakeLists.txt), so this header and the build
- * cannot drift apart.
+ * @brief Major version.
+ * @see include/SushiBLAS/README.md
  */
-
-/** @brief Major version. */
 #define SUSHIBLAS_VERSION_MAJOR 0
 /** @brief Minor version. */
 #define SUSHIBLAS_VERSION_MINOR 1

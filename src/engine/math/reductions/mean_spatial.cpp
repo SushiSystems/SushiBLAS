@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file mean_spatial.cpp
+ * @brief Defines ReductionOps::mean_spatial, which records the spatial mean reduction.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
@@ -13,11 +19,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    // The same three pieces `mean` is - compensated sum, nothing to transform,
-    // `v / n` as the finalizer - over the segmented seam rather than the
-    // whole-tensor one. All that is new is the span: a fold identified by a pair
-    // `(n, c)`, which is what `spatial_span_for` builds and what AxisSpan's second
-    // segment axis exists to carry.
+    // The fold is the one mean uses, over a span keyed by (n, c); see src/README.md.
     sycl::event ReductionOps::mean_spatial(const Tensor& t, Tensor& result)
     {
         const Reduce::AxisSpan span =

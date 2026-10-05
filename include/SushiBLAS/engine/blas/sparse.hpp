@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file sparse.hpp
+ * @brief Declares SparseBLAS, the placeholder for sparse BLAS operations.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <sycl/sycl.hpp>
@@ -27,20 +33,8 @@ namespace SushiBLAS
         public:
             explicit SparseBLAS(Engine& e) : engine_(e) {}
 
-            // TODO: Define a SparseTensor structure to hold values, row_indices, and col_indices.
-            
-            // TODO: Implement SpMV (Sparse Matrix-Vector Multiplication).
-            // Computes y = alpha * A * x + beta * y, where A is sparse.
-
-            // TODO: Implement SpMM (Sparse Matrix-Matrix Multiplication).
-            // Computes C = alpha * A * B + beta * C, where A is sparse.
-
-            // TODO: Support different sparse formats (CSR is high priority for Intel mkl).
-            
-            // TODO: Add support for Sparse-Sparse operations if needed.
-
         private:
-            // Not yet read anywhere - every method here is still a TODO stub.
+            // Stays unread until this class declares an operation; see include/SushiBLAS/engine/blas/README.md.
             [[maybe_unused]] Engine& engine_;
     };
 

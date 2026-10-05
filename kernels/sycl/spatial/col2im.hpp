@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file col2im.hpp
+ * @brief Defines the SYCL kernel of col2im.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <vector>
@@ -23,26 +29,8 @@ namespace SushiBLAS
         {
             /**
              * @brief Scatters an im2col matrix back onto an image by summing overlaps.
-             *
-             * One work-item per **input-image element**, each summing its own
-             * contributions in ascending `(r, s)` order. No `sycl::atomic_ref`
-             * appears in this file and none may be added: the gather form exists
-             * precisely so that overlapping windows need no atomic add, whose
-             * combination order would vary between runs and break the library's
-             * bit-reproducibility guarantee.
-             *
-             * See the reference kernel of the same name for why the divisibility
-             * test is what inverts the stride.
-             *
-             * @tparam T The element type.
-             * @param q The queue to submit to.
-             * @param span The window layout, in element counts; its `in_*` fields
-             *        describe the image this operation produces.
-             * @param cols The column matrix's addressing.
-             * @param in The column matrix's first element.
-             * @param out The image's first element.
-             * @param deps Events this submission must depend on.
-             * @return The event for the submitted kernel.
+             * @param span The window layout; its `in_*` fields describe the image this produces.
+             * @see kernels/README.md
              */
             template<typename T>
             sycl::event col2im(sycl::queue& q, const Spatial::WindowSpan& span,
@@ -52,8 +40,7 @@ namespace SushiBLAS
                 const int64_t total = span.input_elements();
                 if (total <= 0) return sycl::event();
 
-                // Copied out by value: the closure below is device code and may
-                // not chase a host reference.
+                // The device closure captures values, never a host reference.
                 const Spatial::ConvGeometry g = span.geometry;
                 const int64_t channels = span.channels;
                 const int64_t out_h = span.out_h;
@@ -81,9 +68,7 @@ namespace SushiBLAS
                         {
                             const int64_t i = static_cast<int64_t>(flat);
 
-                            // Channel innermost, so a sub-group covers a
-                            // contiguous run of channels - the NHWC half of the
-                            // argument for choosing that layout.
+                            // Channel is innermost, so a sub-group reads contiguous channels.
                             const int64_t c = i % channels;
                             const int64_t hw = i / channels;
                             const int64_t w = hw % in_w;

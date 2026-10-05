@@ -6,23 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// SYCL Level 1 kernels. The elementwise ops (axpy/copy/scal/swap/rot) are
-// embarrassingly parallel over the vector, one work-item per element. The
-// reductions (asum/nrm2/dot/iamax) run as a single serial device task -
-// Level 1 vectors are small relative to Level 3 workloads in this library,
-// so a tree reduction isn't worth the complexity yet (can revisit if a
-// profiling need for large-vector Level 1 reductions ever shows up).
-//
-// The parallel ops launch through `Launch::indexed` rather than a bare
-// `sycl::range<1>`, so they get the same device-dependent geometry as every
-// elementwise op - flat on a CPU, grid-stride on a GPU. `Launch::map` would
-// additionally give them the 128-bit wide path, but it addresses its operands
-// as `in[i]`, and a Level 1 kernel's contract is `x[i * incx]`: the increments
-// are part of the BLAS signature, so the access pattern is not the contiguous
-// one `map` assumes. Specialising each kernel on `incx == incy == 1` to reach
-// the wide path is a worthwhile follow-up, not something to write blind - the
-// wide path only ever engages on a GPU, and this project has no GPU device to
-// measure it on today.
+/**
+ * @file level1.hpp
+ * @brief Defines the SYCL kernels of the BLAS level 1 routines.
+ * @author Mustafa Garip
+ */
 
 #pragma once
 
@@ -134,15 +122,10 @@ namespace SushiBLAS
                 });
             }
 
-            // The scaling 2-norm, through the library's own accumulator rather than a
-            // second copy of the algorithm - see Reduce::ScaledSumOfSquares for what it
-            // does and why `sqrt(sum(x*x))`, which is what this used to be, is wrong at
-            // both ends of the range. The reference kernel next door deliberately spells
-            // the same mathematics a different way; see the comment there.
-            //
-            // A complex element folds as two reals. `abs1` (|Re| + |Im|) is the magnitude
-            // xASUM and IxAMAX are defined on, not the one a 2-norm needs, and using it
-            // here was a plain wrong answer for complex input.
+            /**
+             * @brief Computes the Euclidean norm through Reduce::ScaledSumOfSquares.
+             * @see kernels/README.md
+             */
             template<typename T>
             [[nodiscard]] sycl::event nrm2(sycl::queue& queue, int64_t n, const T* x, int64_t incx, typename Reference::RealOf<T>::type* result, const std::vector<sycl::event>& deps)
             {

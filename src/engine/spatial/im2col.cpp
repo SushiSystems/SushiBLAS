@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file im2col.cpp
+ * @brief Defines the two SpatialOps::im2col overloads, which record the gather of image windows
+ * into a column matrix.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/task.hpp>
@@ -29,9 +36,7 @@ namespace SushiBLAS
                     "Spatial operation '{}' has a {} input and a {} column matrix.",
                     IM2COL_NAME, Core::to_string(in.dtype), Core::to_string(cols.dtype));
 
-        // The extents overload of window_span_for, not the two-tensor one: the
-        // other operand here is a rank-2 column matrix, so there is no output
-        // image whose shape could supply H_o and W_o.
+        // The column matrix has no image shape, so the extents are passed in; see src/README.md.
         const Spatial::WindowSpan span = Spatial::window_span_for(in, g, out_h, out_w, IM2COL_NAME);
         const Spatial::ColumnSpan column = Spatial::column_span_for(cols, span, IM2COL_NAME);
 
@@ -82,12 +87,7 @@ namespace SushiBLAS
                     IM2COL_NAME, cols.shape[0], batch);
         const int64_t windows_per_image = cols.shape[0] / batch;
 
-        // Symmetric padding is what this overload assumes, and the only thing it
-        // can assume: ConvGeometry carries pad_left but not pad_right, so W_o is
-        // recoverable only by taking the leading pad for both sides. H_o then
-        // follows from the row count. A caller whose padding is asymmetric - the
-        // YOLOv3-tiny 2x2 stride-1 pool is the one in scope - must call the
-        // explicit-extent overload, which is why that one exists.
+        // This overload assumes symmetric padding; see src/README.md.
         const int64_t out_w = Spatial::output_extent(in.shape[2], g.pad_left, g.pad_left,
                                                      g.dilation_w, g.kernel_w, g.stride_w);
         SB_THROW_IF(out_w <= 0 || windows_per_image % out_w != 0,

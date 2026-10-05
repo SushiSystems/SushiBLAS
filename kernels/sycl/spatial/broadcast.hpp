@@ -6,21 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-#pragma once
-
 /**
  * @file broadcast.hpp
- * @brief The device twins of the three broadcast copies.
- *
- * **Nothing in this file accumulates.** Each work-item writes one output
- * element from one input element and at most one per-channel scalar; there is
- * no reduction, no running total and nothing whose combination order could vary
- * between two runs or differ from the reference kernel's. No `sycl::reduction`,
- * no `sycl::reduce_over_group` and no floating-point `sycl::atomic_ref` appears
- * here, and none may be added - but unlike the pooling backwards, that is not a
- * constraint being worked around: these operations have no overlap to combine
- * in the first place.
+ * @brief Defines the SYCL kernels of the three broadcast copies.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <vector>
 #include <cstdint>
@@ -36,23 +28,10 @@ namespace SushiBLAS
         namespace SYCL
         {
             /**
-             * @brief Applies a per-channel scale and shift.
-             *
-             * One work-item per output element. @p gamma and @p beta are
-             * addressed through their own strides; see the reference kernel of
-             * the same name.
-             *
-             * @tparam T The element type.
-             * @param q The queue to submit to.
-             * @param span The image layout, in element counts.
-             * @param in The input image's first element.
-             * @param gamma The scale vector's first element.
-             * @param beta The shift vector's first element.
+             * @brief Applies a per-channel scale and shift, one work-item per output element.
              * @param gamma_stride Elements between adjacent entries of @p gamma.
              * @param beta_stride Elements between adjacent entries of @p beta.
-             * @param out The output image's first element.
-             * @param deps Events this submission must depend on.
-             * @return The event for the submitted kernel.
+             * @see kernels/README.md
              */
             template<typename T>
             sycl::event channel_affine(sycl::queue& q, const Spatial::WindowSpan& span,
@@ -111,22 +90,9 @@ namespace SushiBLAS
 
             /**
              * @brief Spreads an `[N, C]` value over `[N, H, W, C]`, scaled.
-             *
-             * One work-item per output element, each reading the single
-             * `(n, c)` entry its position selects. See the reference kernel for
-             * why the rank-2 input's strides are parameters.
-             *
-             * @tparam T The element type.
-             * @param q The queue to submit to.
-             * @param span The output image's layout, in element counts.
-             * @param in The rank-2 input's first element.
              * @param in_batch_stride Elements between consecutive rows of @p in.
-             * @param in_channel_stride Elements between consecutive entries of
-             *        one row of @p in.
-             * @param out The output image's first element.
-             * @param scale The factor every element is multiplied by.
-             * @param deps Events this submission must depend on.
-             * @return The event for the submitted kernel.
+             * @param in_channel_stride Elements between consecutive entries of one row of @p in.
+             * @see kernels/README.md
              */
             template<typename T>
             sycl::event broadcast_spatial(sycl::queue& q, const Spatial::WindowSpan& span,
@@ -180,17 +146,7 @@ namespace SushiBLAS
 
             /**
              * @brief Copies a rank-4 tensor element by logical `(n, c, h, w)` position.
-             *
-             * One work-item per element, indexing each side through its own four
-             * strides. The direction is not a flag; see the reference kernel.
-             *
-             * @tparam T The element type.
-             * @param q The queue to submit to.
-             * @param span The two layouts, in element counts.
-             * @param in The input's first element.
-             * @param out The output's first element.
-             * @param deps Events this submission must depend on.
-             * @return The event for the submitted kernel.
+             * @see kernels/README.md
              */
             template<typename T>
             sycl::event layout_convert(sycl::queue& q, const Spatial::WindowSpan& span,

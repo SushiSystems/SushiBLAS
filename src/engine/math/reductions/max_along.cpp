@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file max_along.cpp
+ * @brief Defines ReductionOps::max_along, which records the per-axis maximum reduction.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
@@ -13,13 +19,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    // Through the folding seam rather than sycl::reduction, which is the opposite
-    // of what the whole-tensor `max` does one file over - and for a reason that is
-    // about shape rather than about `maximum`. `sycl::reduction` reduces to a
-    // scalar; there is no segmented form of it to reach for here at all. So the
-    // axis family has one shape serving every accumulator, and `maximum` being
-    // exactly associative simply means this one is bit-reproducible for a stronger
-    // reason than the additive ones are. See Reduce::RunningMax.
+    // An axis reduction has no sycl::reduction form, so it folds; see src/README.md.
     sycl::event ReductionOps::max_along(const Tensor& t, int axis, Tensor& result)
     {
         return Dispatch::execute_folding_axis_reduction<Reduce::RunningMax>(

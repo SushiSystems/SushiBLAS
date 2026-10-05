@@ -6,12 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The public op-dispatch seam, exercised the way a downstream consumer would.
-//
-// This translation unit reaches SushiBLAS::Dispatch through installed public headers and
-// hands it functors this file wrote - which is the whole point of promoting those five
-// headers out of src/. It is the in-tree half of the proof; the out-of-tree half is
-// tests/package/main.cpp, which does the same against a find_package()'d install.
+/**
+ * @file test_dispatch_seam.cpp
+ * @brief Tests the public Dispatch seam with functors written outside the library.
+ * @author Mustafa Garip
+ */
 
 #include <array>
 #include <vector>
@@ -38,16 +37,8 @@ using SushiBLAS::Core::DataType;
 namespace
 {
     /**
-     * @brief The bit pattern of a float, for the determinism checks below.
-     *
-     * `std::bit_cast` is C++20 and this tree is C++17; `std::memcpy` between two
-     * trivially-copyable objects of equal size is the same operation with the same
-     * guarantees, and every compiler this project targets folds it to a register move.
-     * The reason the comparison is on bits at all is unchanged: `==` on floats says two
-     * NaNs differ and says +0 and -0 agree, and a determinism test means neither.
-     *
-     * @param value The float to reinterpret.
-     * @return Its IEEE-754 bit pattern.
+     * @brief Returns the bit pattern of a float.
+     * @see tests/functional/unit/README.md
      */
     uint32_t float_bits(float value) noexcept
     {
@@ -67,8 +58,7 @@ TEST_F(Unit_DispatchSeamTest, FusesAConsumerFunctorIntoOneBinaryKernel)
     fill_tensor(a, {1.0f, 2.0f, 3.0f, 4.0f});
     fill_tensor(b, {2.0f, 4.0f, 6.0f, 8.0f});
 
-    // mul, add and div composed into one functor: three ops the public API would have
-    // recorded as three tasks and three kernel launches, collapsed into one.
+    // mul, add and div in one functor: one task where the public API records three.
     sb::Dispatch::execute_binary(*engine, a, b, c, "test.fused_binary", "test.fused_binary"_op,
         [](auto x, auto y) { return (x * y + decltype(x)(1)) / decltype(x)(2); });
     engine->execute().wait();
@@ -81,8 +71,7 @@ TEST_F(Unit_DispatchSeamTest, FusesAConsumerFunctorIntoOneUnaryKernel)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {0.0f, 1.0f, 2.0f, 3.0f});
 
-    // A consumer's own activation, written against safe_math rather than raw SYCL
-    // builtins: softplus-like, but nothing in SushiBLAS's op catalogue.
+    // A consumer's own softplus-like activation, written against safe_math.
     sb::Dispatch::execute_unary_inplace(*engine, t, "test.fused_unary", "test.fused_unary"_op,
         [](auto x) { return sb::Dispatch::safe_log(decltype(x)(1) + sb::Dispatch::safe_exp(x)); });
     engine->execute().wait();
@@ -98,8 +87,7 @@ TEST_F(Unit_DispatchSeamTest, ConsumerFunctorCanOptIntoComplex)
     auto b = create_initialized_tensor<cf>({2}, {cf(0.0f, 1.0f), cf(1.0f, 1.0f)});
     auto c = engine->create_tensor({2}, DataType::COMPLEX32);
 
-    // (1+i)(i) + (1+i) = (-1+i) + (1+i) = 2i
-    // (2-i)(1+i) + (2-i) = (3+i) + (2-i) = 5
+    // (1+i)(i) + (1+i) = 2i and (2-i)(1+i) + (2-i) = 5.
     sb::Dispatch::execute_binary<sb::Dispatch::Domain::REAL_AND_COMPLEX>(
         *engine, a, b, c, "test.fused_complex", "test.fused_complex"_op,
         [](auto x, auto y) { return x * y + x; });
@@ -153,22 +141,16 @@ TEST_F(Unit_DispatchSeamTest, RealOnlyDomainRejectsComplexAtRecordTime)
     auto b = engine->create_tensor({2}, DataType::COMPLEX32);
     auto c = engine->create_tensor({2}, DataType::COMPLEX32);
 
-    // The default domain is REAL, so a functor that was only ever meant for real scalars
-    // is rejected before it can be handed a complex operand - rather than compiled for
-    // one, or (as before) silently skipped.
+    // The default domain is REAL. See tests/functional/unit/README.md.
     EXPECT_THROW(
         sb::Dispatch::execute_binary(*engine, a, b, c, "test.real_only", "test.real_only"_op,
                                      [](auto x, auto y) { return x + y; }),
         std::runtime_error);
 }
 
-// --- The fused N-tensor in-place seam ----------------------------------------------
-
 TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
 {
-    // 1023 on purpose: not a multiple of any plausible work-group size, so the
-    // grid-stride loop has to wrap, and not a multiple of any vector width, so the
-    // scalar tail is exercised on any device where the wide path is taken.
+    // 1023 is a multiple of no work-group or vector width. See tests/functional/unit/README.md.
     constexpr int64_t k_n = 1023;
 
     const float b1 = 0.9f;
@@ -200,9 +182,7 @@ TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
     auto th_fused = seeded(th0), m_fused = seeded(m0), v_fused = seeded(v0), ema_fused = seeded(th0);
     auto th_steps = seeded(th0), m_steps = seeded(m0), v_steps = seeded(v0), ema_steps = seeded(th0);
 
-    // One task, one kernel, one pass over memory - five tensors advanced together.
-    // `g` is passed as an operand even though the functor only reads it, because the
-    // seam cannot know that; the update below must therefore leave it untouched.
+    // g is an operand although the functor only reads it. See tests/functional/unit/README.md.
     sb::Dispatch::execute_zip_inplace(*engine,
         std::array{&th_fused, &g, &m_fused, &v_fused, &ema_fused},
         "test.adamw_fused", "test.adamw_fused"_op,
@@ -217,9 +197,7 @@ TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
             ema = T(ema_decay) * ema + T(1.0f - ema_decay) * theta;
         });
 
-    // The same arithmetic spelled as the library's own ops: fifteen recorded tasks and
-    // fifteen kernel launches, every one of them re-reading state the fused kernel kept
-    // in registers. This is the thing execute_zip_inplace exists to collapse.
+    // The same arithmetic as fifteen library tasks. See tests/functional/unit/README.md.
     auto scratch_a = engine->create_tensor({k_n});
     auto scratch_b = engine->create_tensor({k_n});
     auto eps_vec = engine->create_tensor({k_n});
@@ -255,17 +233,13 @@ TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
     SB_ASSERT_TENSOR_NEAR(th_fused, th_steps, 1e-6, float);
     SB_ASSERT_TENSOR_NEAR(ema_fused, ema_steps, 1e-6, float);
 
-    // A read-only operand of a fused update comes back bit-for-bit: the kernel stages
-    // every slot and writes it back, so "the functor did not touch it" has to mean
-    // "the value that was there is the value that returns".
+    // A read-only operand comes back bit for bit. See tests/functional/unit/README.md.
     verify_tensor(g, g0, 0.0);
 }
 
 TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
 {
-    // The launch geometry is a pure function of the device, the element type, the
-    // element count and the operands' alignment - none of which change between two runs
-    // in one process. So two identical fused updates must agree exactly, not nearly.
+    // Two identical fused updates must agree exactly. See tests/functional/unit/README.md.
     constexpr int64_t k_n = 517;
     std::vector<float> seed(static_cast<size_t>(k_n));
     for (int64_t i = 0; i < k_n; ++i) seed[static_cast<size_t>(i)] = 0.001f * static_cast<float>((i % 31) - 15);
@@ -319,8 +293,7 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
 
     auto accumulate = [](auto& x, auto& y) { x = x + y; };
 
-    // Element count: the message has to name which operand disagreed, because at N=5 a
-    // bare "sizes must match" leaves the caller to find it.
+    // The message names the disagreeing operand; "sizes must match" is no help at N = 5.
     EXPECT_THROW(sb::Dispatch::execute_zip_inplace(*engine, std::array{&four, &eight},
                      "test.zip_size", "test.zip_size"_op, accumulate),
                  std::runtime_error);
@@ -339,15 +312,9 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
                  std::runtime_error);
 }
 
-// --- Task metadata parameter slots -------------------------------------------------
-
 TEST_F(Unit_DispatchSeamTest, RngMetadataSlotsAreInRangeAndRoundTrip)
 {
-    // The bug: the random dispatch wrote the seed to slot 10 and the offset to slot 11 of
-    // an eight-slot array. TaskMetadata::set_param ignores an out-of-range index without
-    // a word, so every random task recorded a zero seed and a zero offset. With the fixed
-    // slots these read back exactly, including a seed whose value would not survive the
-    // round trip through a double.
+    // The seed and offset slots read back exactly. See tests/functional/unit/README.md.
     constexpr uint64_t kSeed = 0xDEADBEEFCAFEF00Dull;
     constexpr uint64_t kOffset = 42;
 
@@ -389,12 +356,10 @@ TEST_F(Unit_DispatchSeamTest, TooManyTaskParamsThrowsInsteadOfDroppingThem)
         std::runtime_error);
 }
 
-// --- The domain-agnostic task recorder ---------------------------------------------
-
-// The family string is what a caller outside BLAS needs from this seam: an op
-// recorded by the spatial domain must not be reported as a BLAS operation when
-// its dtype is refused. Pinned here rather than in the spatial tests, because
-// the guarantee belongs to the seam and not to any one of its callers.
+/**
+ * @brief Tests that a typed task reports the family its caller declared.
+ * @see tests/functional/unit/README.md
+ */
 TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
 {
     auto t = engine->create_tensor({4}, DataType::COMPLEX32);

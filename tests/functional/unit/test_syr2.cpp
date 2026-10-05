@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_syr2.cpp
+ * @brief Tests blas().syr2 against fixed expected values.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
@@ -33,25 +39,7 @@ TEST_F(Unit_SYR2Test, SimpleSYR2)
     engine->execute().wait();
     SB_LOG_INFO("Execution finished. Checking results.");
 
-    // Expected: Lower triangle of A = A + alpha * x * y^T + alpha * y * x^T
-    // x * y^T:
-    // [1 0 0]
-    // [2 0 0]
-    // [3 0 0]
-    // y * x^T:
-    // [1 2 3]
-    // [0 0 0]
-    // [0 0 0]
-    //
-    // Summing both gives:
-    // [2 2 3]
-    // [2 0 0]
-    // [3 0 0]
-    // Lower triangle update will only update the (i >= j) values from the theoretical sum.
-    // Resulting matrix representation:
-    // [2 0 0]
-    // [2 0 0]
-    // [3 0 0]
+    // Only the lower triangle of x*y^T + y*x^T is written. See tests/functional/unit/README.md.
     
     verify_tensor(A, {2, 0, 0, 2, 0, 0, 3, 0, 0});
 }

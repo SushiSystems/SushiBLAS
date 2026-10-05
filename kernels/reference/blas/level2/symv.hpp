@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file symv.hpp
+ * @brief Defines the reference kernel of SYMV.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstdint>

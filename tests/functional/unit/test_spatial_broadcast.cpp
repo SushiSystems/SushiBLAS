@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_spatial_broadcast.cpp
+ * @brief Tests spatial().channel_affine, broadcast_spatial and layout_convert.
+ * @author Mustafa Garip
+ */
+
 #include <array>
 #include <vector>
 #include <cstdint>
@@ -64,25 +70,10 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief An NCHW-strided view of @p base's allocation, logically `[N, H, W, C]`.
-                 *
-                 * The public API does express a custom stride vector: `Tensor`'s
-                 * stride-explicit constructor takes the whole fixed-width stride
-                 * array, so nothing here reaches past the library's own seams.
-                 * `create_tensor` only ever lays a shape out contiguously, so the
-                 * allocation comes from it and the layout comes from here.
-                 *
-                 * The logical shape stays `[N, H, W, C]` because that is what
-                 * `layout_convert` compares - a conversion permutes strides, not
-                 * shapes.
-                 *
-                 * @param base A contiguous tensor of at least `N*H*W*C` elements,
-                 *        whose storage this view borrows.
-                 * @param n The batch count.
-                 * @param h The row count.
-                 * @param w The column count.
-                 * @param c The channel count.
-                 * @return The view, whose channel stride is `h*w` and whose column stride is 1.
+                 * @brief Returns an NCHW-strided view of @p base, logically [N, H, W, C].
+                 * @param base Contiguous, at least N*H*W*C elements; the view borrows its storage.
+                 * @return The view, whose channel stride is h*w and whose column stride is 1.
+                 * @see tests/functional/unit/README.md
                  */
                 Tensor nchw_view(const Tensor& base, int64_t n, int64_t h, int64_t w, int64_t c)
                 {
@@ -109,8 +100,7 @@ namespace SushiBLAS
             engine->spatial().channel_affine(in, gamma, beta, out);
             engine->execute();
 
-            // Element k of the input is k, and its channel is k % 3, so the
-            // expected value is k * gamma[k % 3] + beta[k % 3].
+            // Element k has channel k % 3, so it becomes k * gamma[k % 3] + beta[k % 3].
             const std::vector<float> expected = {10, 23, 38,
                                                  16, 32, 50,
                                                  22, 41, 62,
@@ -171,20 +161,13 @@ namespace SushiBLAS
             engine->spatial().broadcast_spatial(in, out, scale);
             engine->execute();
 
-            // Every element is 1 * float(1/20), which is a single rounding of an
-            // exact double and therefore identical everywhere.
+            // float(1/20) is one rounding of an exact double, so every element is identical.
             const float share = static_cast<float>(scale);
             const float* got = out.data_as<float>();
             for (int64_t i = 0; i < out.num_elements; ++i)
                 EXPECT_FLOAT_EQ(got[i], share) << "element " << i;
 
-            // The property SPATIAL_MEAN_BACKWARD needs: each (n, c) plane sums
-            // back to the 1.0 that global average pooling's forward divided out.
-            // Not exact, and not expected to be - 1/20 has no finite binary
-            // expansion, so twenty copies of float(1/20) add up to 1.0 only to
-            // within the rounding each addition carries. A few ulps of 1.0 is
-            // roughly 1e-7; 1e-6 leaves room without hiding a real error, which
-            // would be off by a factor of H, of W, or of N.
+            // Each (n, c) plane sums back to 1.0 within 1e-6. See tests/functional/unit/README.md.
             for (int64_t n = 0; n < N; ++n)
             {
                 for (int64_t c = 0; c < C; ++c)
@@ -209,8 +192,7 @@ namespace SushiBLAS
             auto middle = nchw_view(middle_storage, N, H, W, C);
             auto destination = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
 
-            // NHWC -> NCHW, then NCHW -> NHWC. The same call both times; only
-            // which operand carries the permuted strides changes.
+            // NHWC to NCHW and back: the same call, with the permuted strides on the other operand.
             engine->spatial().layout_convert(source, middle);
             engine->execute();
             engine->spatial().layout_convert(middle, destination);
@@ -225,8 +207,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialBroadcastTest, LayoutConvertMovesTheChannelIndex)
         {
-            // A round trip alone cannot catch a conversion that permuted
-            // nothing, so this one reads the intermediate buffer directly.
+            // A round trip cannot catch a no-op conversion, so the intermediate buffer is read.
             const int64_t N = 1, H = 2, W = 2, C = 2;
 
             auto source = ramp({N, H, W, C});
@@ -236,8 +217,7 @@ namespace SushiBLAS
             engine->spatial().layout_convert(source, nchw);
             engine->execute();
 
-            // Input element (h, w, c) sits at h*4 + w*2 + c and holds that
-            // number; in NCHW it must land at c*4 + h*2 + w.
+            // Element (h, w, c) sits at h*4 + w*2 + c and must land at c*4 + h*2 + w in NCHW.
             const std::vector<float> expected = {0, 2, 4, 6,    // channel 0
                                                  1, 3, 5, 7};   // channel 1
 
@@ -248,9 +228,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialBroadcastTest, TheSyclKernelsAgreeWithTheReferenceKernels)
         {
-            // Compared here rather than under ExecutionMode::VERIFY, which runs
-            // both kernels but lets the reference overwrite the device's answer
-            // instead of checking it (see Internal::dispatch_with_mode).
+            // VERIFY mode would not compare the two kernels. See tests/functional/unit/README.md.
             const int64_t N = 2, H = 5, W = 3, C = 4;
 
             auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);

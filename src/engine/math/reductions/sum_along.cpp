@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file sum_along.cpp
+ * @brief Defines ReductionOps::sum_along, which records the per-axis sum reduction.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
@@ -13,11 +19,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    // Order-sensitive, so it takes the same Neumaier-compensated fixed-order fold
-    // the whole-tensor `sum` takes - the segmented shape rather than the
-    // whole-tensor one, and otherwise the same argument. Nothing to transform and
-    // nothing to finalize; a per-axis `mean` is this call with `v / n` in the
-    // finalizer slot and costs no extra launch.
+    // The sum is order-sensitive, so it takes the segmented compensated fold; see src/README.md.
     sycl::event ReductionOps::sum_along(const Tensor& t, int axis, Tensor& result)
     {
         return Dispatch::execute_folding_axis_reduction<Reduce::CompensatedSum>(

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file prod.cpp
+ * @brief Defines ReductionOps::prod, which records the product reduction.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
@@ -13,11 +19,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    // RunningProduct, not CompensatedSum: Neumaier recovers the bits an addition
-    // rounds off and has nothing to say about multiplication. What this shares with
-    // the additive reductions - and the whole reason it moved off sycl::reduction
-    // too - is the fixed combination order, since floating-point multiplication is
-    // no more associative than addition is.
+    // The product folds in a fixed order through RunningProduct; see src/README.md.
     sycl::event ReductionOps::prod(const Tensor& t, Tensor& result)
     {
         return Dispatch::execute_folding_reduction<Reduce::RunningProduct>(

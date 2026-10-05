@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file pool_max.hpp
+ * @brief Defines the reference kernels of max pooling and its gradient.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstdint>
@@ -20,35 +26,8 @@ namespace SushiBLAS
         {
             /**
              * @brief Takes each window's maximum, and records where it came from.
-             *
-             * **The running maximum starts at the lowest finite value of @p T,
-             * never at zero.** Padding is the absence of an element, not a
-             * zero-valued candidate: a zero-initialised maximum turns every
-             * all-negative border window into 0, which is a plausible number
-             * that no assertion in a shape or dtype check can catch. The same
-             * identity `Reduce::RunningMax` uses, for the same reason.
-             *
-             * **Ties keep the first element in scan order** (`>`, not `>=`), so
-             * the recorded index is single-valued and
-             * @ref pool_max_backward's equality test cannot match two taps of
-             * one window. That is also PyTorch's convention.
-             *
-             * The recorded index is the **logical** flat position
-             * `((n*H + h)*W + w)*C + c`, not a strided offset into this
-             * particular view - so it stays comparable when the gradient arrives
-             * through a differently-strided alias of the same image.
-             *
-             * A window with no in-bounds tap at all cannot occur: `window_span_for`
-             * refuses an output extent whose last window starts past the input.
-             * Such a window would record index -1, which matches no pixel, and
-             * its gradient would be dropped rather than misrouted.
-             *
-             * @tparam T The element type.
-             * @param span The window layout, in element counts.
-             * @param in The input image's first element.
-             * @param out The output image's first element.
-             * @param indices The argmax buffer's first element; laid out exactly
-             *        like @p out.
+             * @param indices The argmax buffer's first element; laid out exactly like @p out.
+             * @see kernels/README.md
              */
             template<typename T>
             void pool_max(const Spatial::WindowSpan& span, const T* in, T* out, int64_t* indices)
@@ -104,24 +83,9 @@ namespace SushiBLAS
 
             /**
              * @brief Routes each output gradient back to the element it was taken from.
-             *
-             * A **gather over the windows that could have selected each input
-             * pixel**, using the same divisibility walk as @ref col2im with an
-             * equality test on the recorded index. The scatter form - walk the
-             * output, add each gradient into the pixel its index names - needs a
-             * floating-point atomic add wherever windows overlap, and that has a
-             * run-to-run combination order. See `engine/spatial.hpp` for why
-             * that is not a trade this library may make.
-             *
-             * A pixel selected by several overlapping windows accumulates all of
-             * their gradients, in ascending `(r, s)` order.
-             *
-             * @tparam T The element type.
-             * @param span The window layout, in element counts.
-             * @param dy The output gradient's first element.
-             * @param indices The argmax buffer @ref pool_max wrote.
-             * @param dx The input gradient's first element; every pixel is
-             *        written, so it needs no prior clear.
+             * @param indices The argmax buffer `pool_max` wrote.
+             * @param dx The input gradient; every pixel is written, so it needs no prior clear.
+             * @see kernels/README.md
              */
             template<typename T>
             void pool_max_backward(const Spatial::WindowSpan& span, const T* dy,

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_environment.hpp
+ * @brief Declares the GoogleTest environment that owns the shared RuntimeContext.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <gtest/gtest.h>

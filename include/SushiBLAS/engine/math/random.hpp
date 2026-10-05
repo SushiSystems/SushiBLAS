@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file random.hpp
+ * @brief Declares RandomOps, the random fills and initialisers.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <sycl/sycl.hpp>
@@ -100,13 +106,9 @@ namespace SushiBLAS
             sycl::event discrete_uniform(Tensor& t, int32_t min, int32_t max);
 
             /**
-             * @brief Fill tensor with values from a truncated normal distribution.
-             * @param t Tensor to fill.
-             * @param mean Mean of the distribution.
-             * @param stddev Standard deviation.
-             * @param a Lower bound (in number of stddevs, default -2.0).
-             * @param b Upper bound (in number of stddevs, default 2.0).
-             * @return sycl::event.
+             * @brief Fills a tensor from a truncated normal distribution.
+             * @param a Lower bound, in standard deviations.
+             * @param b Upper bound, in standard deviations.
              */
             sycl::event truncated_normal(Tensor& t, double mean = 0.0, double stddev = 1.0, double a = -2.0, double b = 2.0);
 
@@ -153,30 +155,16 @@ namespace SushiBLAS
             sycl::event he_normal(Tensor& t, int64_t n_in);
 
             /**
-             * @brief Fill a matrix with a uniformly random (semi-)orthogonal matrix, scaled by gain.
-             *
-             * Draws N(0,1) and orthonormalizes by modified Gram-Schmidt, which produces the same
-             * Q a QR decomposition would. Only the shorter axis can be orthonormal, so the result
-             * satisfies `Q Q^T = gain^2 I` when the matrix is wide and `Q^T Q = gain^2 I` when it
-             * is tall.
-             *
-             * @param t Tensor to initialize; must be rank 2, non-empty, and FLOAT32 or FLOAT64.
-             * @param gain Gain factor applied to the orthonormal result (default 1.0).
-             * @return sycl::event.
+             * @brief Fills a matrix with a random (semi-)orthogonal matrix scaled by gain.
+             * @param t Must be rank 2, non-empty, and FLOAT32 or FLOAT64.
              * @throws std::runtime_error if the tensor is not a non-empty real-valued matrix.
+             * @see include/SushiBLAS/engine/math/README.md
              */
             sycl::event orthogonal(Tensor& t, double gain = 1.0);
 
             /**
-             * @brief Randomly permute the elements of a tensor in place.
-             *
-             * A Fisher-Yates shuffle over the flat element sequence, driven by the engine's
-             * Philox stream: the output is always a permutation of the input, and replaying it
-             * from the same engine seed reproduces the same permutation. Every dtype is
-             * supported, since it moves elements rather than computing on them.
-             *
-             * @param t Tensor to shuffle.
-             * @return sycl::event.
+             * @brief Permutes the elements of a tensor in place with a Fisher-Yates shuffle.
+             * @see include/SushiBLAS/engine/math/README.md
              */
             sycl::event shuffle(Tensor& t);
 

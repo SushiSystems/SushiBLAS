@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file dot.cpp
+ * @brief Defines Level1::dot, which records the BLAS DOT task.
+ * @author Mustafa Garip
+ */
+
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -20,16 +26,13 @@ namespace SushiBLAS
     sycl::event Level1::dot(const Tensor& x, const Tensor& y, Tensor& result)
     {
         SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in DOT.");
-        // Note: for complex dtypes this computes the conjugated dot product (DOTC),
-        // matching the previous oneMKL-backed behavior.
+        // A complex dtype computes the conjugated dot product (DOTC); see src/README.md.
 
         int64_t n, incx, incy;
         Internal::get_vec_params(x, n, incx);
         int64_t ny;
         Internal::get_vec_params(y, ny, incy);
         SB_THROW_IF(n != ny, "DOT requires tensors of the same number of elements.");
-
-        // TODO: Implement multi-dimensional batch support for Level 1 DOT
 
         void* read_x = x.data_or_null();
         void* read_y = y.data_or_null();

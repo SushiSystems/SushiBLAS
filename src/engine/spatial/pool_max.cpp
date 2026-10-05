@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file pool_max.cpp
+ * @brief Defines SpatialOps::pool_max, which records max pooling with its argmax indices.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <cstdint>
 #include <SushiBLAS/engine.hpp>
@@ -27,10 +33,7 @@ namespace SushiBLAS
                     "Spatial operation '{}' has a {} input and a {} output.",
                     NAME, Core::to_string(in.dtype), Core::to_string(out.dtype));
 
-        // An index is not a number. fp32 represents integers exactly only below
-        // 2^24, and a 224x224x64 feature map passes that at batch 6 - so the
-        // argmax buffer is INT64 and nothing else, checked by name here rather
-        // than reinterpreted silently in the kernel.
+        // The argmax buffer must be INT64; see src/README.md.
         SB_THROW_IF(indices.dtype != Core::DataType::INT64,
                     "Spatial operation '{}' needs an INT64 index tensor; got {}.",
                     NAME, Core::to_string(indices.dtype));
@@ -59,9 +62,7 @@ namespace SushiBLAS
 
         const auto mode = engine_.get_mode();
 
-        // The dtype driving the switch is the *value* tensor's; the index
-        // pointer is captured as int64_t* outside it, because its type is fixed
-        // by the operation rather than by the operands.
+        // The switch runs on the value dtype; the index pointer is int64_t*; see src/README.md.
         auto* index_out = static_cast<int64_t*>(write_indices);
 
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(

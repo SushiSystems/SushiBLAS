@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file rot.cpp
+ * @brief Defines Level1::rot, which records the BLAS ROT task.
+ * @author Mustafa Garip
+ */
+
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -25,13 +31,10 @@ namespace SushiBLAS
         int64_t ny; Internal::get_vec_params(y, ny, incy);
         SB_THROW_IF(n != ny, "ROT requires tensors of the same number of elements.");
 
-        // TODO: Implement multi-dimensional batch support
-
         void* rw_x = x.data_or_null();
         void* rw_y = y.data_or_null();
 
-        // Each new x_i is built from the old x_i and y_i (and vice versa), so both operands
-        // are read as well as written.
+        // x and y are each read and written, so both sit in both access sets; see src/README.md.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (rw_x) reads.push_back(x.region());
         if (rw_y) reads.push_back(y.region());

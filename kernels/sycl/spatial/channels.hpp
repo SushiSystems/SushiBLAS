@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file channels.hpp
+ * @brief Defines the SYCL kernel that copies a run of channels.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <vector>
@@ -23,23 +29,8 @@ namespace SushiBLAS
         {
             /**
              * @brief Copies a run of channels from one image into another.
-             *
-             * One work-item per copied element, `N * H * W * count` of them,
-             * with the copied-channel index innermost so an NHWC copy of a
-             * contiguous range reads and writes consecutive addresses. See the
-             * reference kernel of the same name for why one kernel serves both
-             * concatenation and slicing, and for what `span` carries.
-             *
-             * @tparam T The element type.
-             * @param q The queue to submit to.
-             * @param span The grid and both operands' strides, in element counts.
-             * @param src_channel_offset The first source channel to read.
-             * @param dst_channel_offset The first destination channel to write.
-             * @param count How many channels to copy.
-             * @param in The source image's first element.
-             * @param out The destination image's first element.
-             * @param deps Events this submission must depend on.
-             * @return The event for the submitted kernel.
+             * @param count How many channels to copy; it is not either tensor's channel count.
+             * @see kernels/README.md
              */
             template<typename T>
             sycl::event copy_channel_range(sycl::queue& q, const Spatial::WindowSpan& span,

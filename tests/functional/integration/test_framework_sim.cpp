@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_framework_sim.cpp
+ * @brief Tests a ten-layer forward pass and 24 independent models through the engine.
+ * @author Mustafa Garip
+ */
+
 #include <gtest/gtest.h>
 #include <vector>
 #include <chrono>
@@ -17,13 +23,12 @@ using namespace SushiBLAS::Test;
 
 class Integration_FrameworkSimTest : public SushiBLASTest {};
 
+/**
+ * @brief Tests a chain of ten GEMMs, each followed by ReLU except the last.
+ * @see tests/functional/integration/README.md
+ */
 TEST_F(Integration_FrameworkSimTest, DeepForwardPass) 
 {
-    // Simulates a deep neural network forward pass:
-    // H1 = X * W1
-    // H2 = H1 * W2
-    // ...
-    // H_n = H_{n-1} * W_n
     
     const int batch_size = 512;
     const int features = 1024;
@@ -82,11 +87,12 @@ TEST_F(Integration_FrameworkSimTest, DeepForwardPass)
     EXPECT_EQ(activations.back().shape[1], features);
 }
 
+/**
+ * @brief Tests 24 independent GEMM and ReLU pairs submitted to one graph.
+ * @see tests/functional/integration/README.md
+ */
 TEST_F(Integration_FrameworkSimTest, ParallelBatchedInference) 
 {
-    // Simulates serving multiple independent models at the same time
-    // Tests the ability of the scheduler to distribute completely independent tasks 
-    // across all 12 workers optimally.
     
     const int num_models = 24; // More models than threads
     const int m = 256;

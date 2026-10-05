@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file trmv.cpp
+ * @brief Defines Level2::trmv, which records the BLAS TRMV task.
+ * @author Mustafa Garip
+ */
+
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -34,8 +40,6 @@ namespace SushiBLAS
         Internal::get_vec_params(x, nx, incx);
 
         SB_THROW_IF(nx != n, "Dimension mismatch for vector x in TRMV.");
-
-        // TODO: Implement multi-dimensional batch support for Level 2
 
         void* read_A = A.data_or_null();
         void* rw_x = x.data_or_null(); // TRMV overwrites x

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file axpy.cpp
+ * @brief Defines Level1::axpy, which records the BLAS AXPY task.
+ * @author Mustafa Garip
+ */
+
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -25,13 +31,10 @@ namespace SushiBLAS
         int64_t ny; Internal::get_vec_params(y, ny, incy);
         SB_THROW_IF(n != ny, "AXPY requires tensors of the same number of elements.");
 
-        // TODO: Implement multi-dimensional batch support for Level 1 AXPY
-
         void* read_x = x.data_or_null();
         void* rw_y = y.data_or_null();
 
-        // y is an accumulator, not a destination: `y = alpha * x + y` reads it before it
-        // writes it, so it belongs in both sets.
+        // y is read before it is written, so it sits in both access sets; see src/README.md.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (read_x) reads.push_back(x.region());
         if (rw_y) reads.push_back(y.region());

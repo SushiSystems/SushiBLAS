@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file trmv.hpp
+ * @brief Defines the SYCL kernel of TRMV.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstdint>
@@ -21,17 +27,9 @@ namespace SushiBLAS
         namespace SYCL
         {
             /**
-            * @brief TRMV: x = op(A)*x, A triangular, in-place, no temp buffer.
-            *
-            * x[i] depends only on x[k] for k on one side of i (determined by
-            * op(A)'s effective triangle: "eff_upper" means the support is
-            * k>=i). Walking i from the "open" end towards the "closed" end
-            * (increasing for eff_upper, decreasing otherwise) guarantees every
-            * x[k] a step needs is still pristine when that step runs, since
-            * indices already overwritten are always outside the remaining
-            * steps' dependency range. This must run as a single sequential
-            * task - the write/read dependency between steps isn't parallel.
-            */
+             * @brief Computes TRMV, x = op(A)*x, in place in one sequential task.
+             * @see kernels/README.md
+             */
             template<typename T>
             [[nodiscard]] sycl::event trmv(sycl::queue& queue, Core::Layout layout, bool upper, bool transA, bool unit_diag,
                              int64_t n, const T* a, int64_t lda, T* x, int64_t incx,

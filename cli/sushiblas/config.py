@@ -3,20 +3,10 @@
 # Copyright (c) 2026 Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Layered configuration loading for the SushiBLAS CLI.
+"""Loads the layered configuration of the SushiBLAS CLI.
 
-Precedence (low to high):
-
-    built-in defaults -> config.toml -> config.local.toml -> SB_* env vars
-
-SushiBLAS is a head of the stack: it consumes the shared SushiStack SYCL
-toolchain and vcpkg tree rather than provisioning its own, and it builds against
-a live SushiRuntime sibling checkout (D3 layered CMake resolution) rather than a
-vendored copy. So this module selects no toolchain -- resolving the compiler and
-vcpkg out of the shared tree is :class:`sushicore.stack_config.StackConfig`'s
-job, and locating the project and layering the files is
-:class:`sushicore.module_config.ModuleConfig`'s. What is left here is what is
-actually SushiBLAS's: its identity, and the one sibling it builds against.
+Precedence, low to high: built-in defaults, config.toml, config.local.toml, SB_* environment
+variables. See cli/sushiblas/README.md.
 """
 
 from __future__ import annotations
@@ -28,9 +18,7 @@ from sushicore.module_config import ModuleConfig
 from sushicore.profile import ModuleProfile
 from sushicore.stack_config import StackConfig
 
-#: How SushiBLAS describes itself to the shared machinery. Stated once here and
-#: read by config loading, the console, executable discovery and diagnostics --
-#: which is the point: they cannot disagree about what this module is.
+#: Describes SushiBLAS to the shared machinery; every consumer reads this one profile.
 PROFILE = ModuleProfile(
     name="SushiBLAS",
     program="sb",
@@ -38,8 +26,7 @@ PROFILE = ModuleProfile(
     root_marker="CMakeLists.txt",
     siblings=("sushiruntime",),
     default_target="sushiblas_example",
-    # Not prefixed: SUSHIRUNTIME_DIR names the same checkout for every CLI that
-    # builds against it, so it must read the same variable they do.
+    # SUSHIRUNTIME_DIR is unprefixed because every CLI that builds against the checkout reads it.
     extra_env_overrides={"sushiruntime_dir": "SUSHIRUNTIME_DIR"},
     # SYCL, MSVC's INCLUDE/LIB, and every SUSHI* checkout override.
     env_of_interest=("SYCL", "SUSHI", "INCLUDE", "LIB"),
@@ -50,9 +37,7 @@ _MODULE = ModuleConfig(PROFILE)
 find_project_root = _MODULE.find_project_root
 config_dir = _MODULE.config_dir
 
-#: Field -> environment variable, derived from the profile's prefix. Exposed as
-#: a module attribute because `sb config` reports which values came from the
-#: environment and needs the reverse map.
+#: Maps each field to its environment variable; `sb config` needs the reverse map.
 _ENV_OVERRIDES = PROFILE.env_overrides()
 
 
@@ -66,9 +51,7 @@ class Config(StackConfig):
     under the shared toolchain if present, else a clang++ on PATH.
     """
 
-    # The SushiRuntime sibling checkout. Empty means "../sushiruntime" relative
-    # to the project root, matching SUSHIRUNTIME_DIR's default in
-    # cmake/Runtime.cmake.
+    # Empty means "../sushiruntime" relative to the project root, as in cmake/Runtime.cmake.
     sushiruntime_dir: str = ""
 
     # Run defaults: sushiblas_example is a real target (examples/CMakeLists.txt).

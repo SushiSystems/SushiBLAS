@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file uniform.cpp
+ * @brief Defines RandomOps::uniform, which records the uniform fill of a tensor.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
@@ -31,8 +37,7 @@ namespace SushiBLAS
                     RealT* pR = reinterpret_cast<RealT*>(pT);
                     int64_t n = size * 2;
 
-                    // As in normal.cpp: one flat run of 2n reals, so a component's draw
-                    // index is its position in that run.
+                    // A complex fill is one flat run of 2n real draws; see src/README.md.
                     return Dispatch::submit_random_fill(q, deps, n, pR, [=](uint64_t i) -> RealT
                     {
                         return Kernels::SYCL::Random::draw_uniform<RealT>(seed, offset, i, lo, hi);

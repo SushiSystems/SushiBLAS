@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file trsm.cpp
+ * @brief Defines Level3::trsm, which records the BLAS TRSM task.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <complex>
 #include <kernels/blas.hpp>

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file dispatch.hpp
+ * @brief Declares the elementwise executors of the dispatch seam.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <array>
@@ -29,32 +35,10 @@ namespace SushiBLAS
     {
         /**
          * @brief Records a unary in-place elementwise op: `t[i] = op(t[i])` for every element.
-         *
-         * The generic seam behind every `ElementwiseOps` unary entry point, and usable
-         * directly by a downstream consumer that wants several elementwise steps collapsed
-         * into a single kernel: compose them into one functor and call this once.
-         *
-         * @tparam Dom Which element types to instantiate the functor for. Defaults to
-         *         Domain::REAL; pass Domain::REAL_AND_COMPLEX only when `op_func` is
-         *         well-formed for `std::complex` (see safe_math.hpp).
-         * @tparam Func The functor type, deduced.
-         * @param engine The engine whose task graph the op is recorded on.
-         * @param t The tensor read and overwritten in place.
-         * @param name Human-readable op name, used for logging and failure messages.
-         * @param op_id Stable operation identifier for the task graph.
-         * @param op_func Callable `(auto x) -> auto`, invoked once per element on device.
-         * @param params Optional scalar parameters recorded in the task metadata.
-         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
-         *
-         * @warning This is a low-level generic seam, not a convenience wrapper. `op_func` is
-         *          inlined into a SYCL device kernel, so it must be device-copyable and
-         *          trivially copyable, must capture by value only, must not dereference host
-         *          pointers or touch host-only state, must not allocate, and must not throw -
-         *          none of which the compiler will always diagnose for you. Element type
-         *          conversions are the functor's job: whatever it returns is assigned
-         *          straight back into the tensor's storage.
-         * @throws std::runtime_error if the tensor's dtype falls outside @p Dom, or if
-         *         @p params exceeds the task metadata's inline capacity.
+         * @tparam Dom Defaults to Domain::REAL; REAL_AND_COMPLEX needs an op_func well-formed for it.
+         * @param op_func Callable `(auto x) -> auto`: device-copyable, by-value captures, no allocation, no throw.
+         * @throws std::runtime_error if the dtype falls outside Dom or params exceeds the inline capacity.
+         * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func>
         sycl::event execute_unary_inplace(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
@@ -94,30 +78,11 @@ namespace SushiBLAS
 
         /**
          * @brief Records a binary elementwise op: `C[i] = op(A[i], B[i])` for every element.
-         *
-         * The generic seam behind every `ElementwiseOps` binary entry point. A downstream
-         * consumer fusing an expression tree into one functor and calling this once gets a
-         * single SYCL kernel for the whole expression.
-         *
-         * @tparam Dom Which element types to instantiate the functor for. Defaults to
-         *         Domain::REAL; pass Domain::REAL_AND_COMPLEX only when `op_func` is
-         *         well-formed for `std::complex` (see safe_math.hpp).
-         * @tparam Func The functor type, deduced.
-         * @param engine The engine whose task graph the op is recorded on.
-         * @param A The first input tensor.
-         * @param B The second input tensor.
-         * @param C The output tensor; may alias an input.
-         * @param name Human-readable op name, used for logging and failure messages.
-         * @param op_id Stable operation identifier for the task graph.
-         * @param op_func Callable `(auto x, auto y) -> auto`, invoked once per element on device.
-         * @param params Optional scalar parameters recorded in the task metadata.
-         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
-         *
-         * @warning Same device-kernel constraints as @ref execute_unary_inplace: `op_func` is
-         *          inlined into the kernel, so it must be device-copyable, capture by value,
-         *          hold no host pointers, allocate nothing and throw nothing.
-         * @throws std::runtime_error if the operands disagree on size or dtype, if the dtype
-         *         falls outside @p Dom, or if @p params exceeds the metadata's inline capacity.
+         * @tparam Dom Defaults to Domain::REAL; REAL_AND_COMPLEX needs an op_func well-formed for it.
+         * @param C May alias an input.
+         * @param op_func Callable `(auto x, auto y) -> auto` under execute_unary_inplace's constraints.
+         * @throws std::runtime_error on a size or dtype mismatch, a dtype outside Dom, or too many params.
+         * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func>
         sycl::event execute_binary(Engine& engine, const Tensor& A, const Tensor& B, Tensor& C, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
@@ -161,82 +126,11 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Records a fused in-place elementwise op over N same-shaped tensors:
-         * `op(t0[i], t1[i], ..., tN-1[i])` for every element, every slot writable.
-         *
-         * The variadic sibling of @ref execute_unary_inplace and @ref execute_binary, and
-         * the seam a consumer reaches for when the thing it wants to run is not "one output
-         * from some inputs" but "a group of tensors advanced together". @p op_func receives
-         * an **lvalue reference** to each tensor's element, so it may read and write any of
-         * them in a single pass.
-         *
-         * That is what turns a whole optimiser step into one kernel. An AdamW update issues
-         * roughly eleven launches per parameter when it is spelled as separate ops - decay
-         * the parameter, scale each moment, accumulate each moment, two bias corrections,
-         * the epsilon, the division, the step - and every one of them re-reads and rewrites
-         * state that is already in registers. Written through this seam it is one launch and
-         * one pass over memory:
-         *
-         * @code
-         * // theta, g, m, v and ema advanced together, in one kernel.
-         * Dispatch::execute_zip_inplace(engine, std::array{&theta, &g, &m, &v, &ema},
-         *     "optim.adamw", "optim.adamw"_op,
-         *     [b1, b2, lr, wd, eps, inv_bc1, inv_bc2, decay]
-         *     (auto& theta_i, auto& g_i, auto& m_i, auto& v_i, auto& ema_i)
-         *     {
-         *         using T = std::decay_t<decltype(theta_i)>;
-         *         m_i = T(b1) * m_i + T(1 - b1) * g_i;
-         *         v_i = T(b2) * v_i + T(1 - b2) * (g_i * g_i);
-         *         const T step = (m_i * T(inv_bc1))
-         *                      / (Dispatch::safe_sqrt(v_i * T(inv_bc2)) + T(eps));
-         *         theta_i = theta_i * T(1 - lr * wd) - T(lr) * step;
-         *         ema_i   = T(decay) * ema_i + T(1 - decay) * theta_i;
-         *     });
-         * @endcode
-         *
-         * **Why `std::array<Tensor*, N>` and not a pack or a span.** A pack would have to be
-         * the trailing parameter, which would push `name`, `op_id`, `op_func` and the
-         * defaulted `params` in front of the tensors and break the argument order every
-         * other executor in this family uses. A `std::span` would make N a run-time value,
-         * and the kernel needs it at compile time: it stages one register per operand per
-         * element and expands the call to @p op_func through an `index_sequence`. The array
-         * also says the true thing about these operands - that they are one homogeneous
-         * group, not a list of separately-named roles - and `std::array{&a, &b, &c, &d, &e}`
-         * stays legible at the N=5 the example above needs. Pointers rather than references
-         * only because a reference cannot be an array element.
-         *
-         * **Graph bookkeeping.** All N tensors are declared as both reads and writes, since
-         * the functor is free to touch any of them and this layer cannot see which. The
-         * regions come from `Tensor::region()`, which reports a precise byte interval, so
-         * two disjoint views of one arena still do not serialise against each other.
-         *
-         * @tparam Dom Which element types to instantiate the functor for. Defaults to
-         *         Domain::REAL; pass Domain::REAL_AND_COMPLEX only when `op_func` is
-         *         well-formed for `std::complex` (see safe_math.hpp).
-         * @tparam N How many tensors are updated together, deduced.
-         * @tparam Func The functor type, deduced.
-         * @param engine The engine whose task graph the op is recorded on.
-         * @param tensors The tensors to advance together, in the order @p op_func expects
-         *        them. None may be null; all must agree on element count and dtype.
-         * @param name Human-readable op name, used for logging and failure messages.
-         * @param op_id Stable operation identifier for the task graph.
-         * @param op_func Callable `(auto&...) -> void` taking exactly N lvalue references,
-         *        invoked once per element index on device.
-         * @param params Optional scalar parameters recorded in the task metadata.
-         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
-         *
-         * @warning Same device-kernel constraints as @ref execute_binary: `op_func` is
-         *          inlined into the kernel, so it must be device-copyable, capture by value,
-         *          hold no host pointers, allocate nothing and throw nothing.
-         * @warning The N tensors must not overlap one another. Each element index is staged
-         *          into registers, handed to @p op_func, and written back, so a write
-         *          through one operand is not visible to a second operand that happens to
-         *          name the same address. Disjoint views of one arena are fine; two views of
-         *          the same bytes are not.
-         * @throws std::runtime_error if any tensor is null, if the tensors disagree on
-         *         element count or dtype (the message names which one disagreed), if the
-         *         dtype falls outside @p Dom, or if @p params exceeds the metadata's inline
-         *         capacity.
+         * @brief Records a fused in-place op over N same-shaped tensors, every slot writable.
+         * @param tensors None may be null; all must agree on element count and dtype and none may overlap.
+         * @param op_func Callable `(auto&...) -> void` taking N lvalue references.
+         * @throws std::runtime_error on a null tensor, a count or dtype mismatch, or a dtype outside Dom.
+         * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, std::size_t N, typename Func>
         sycl::event execute_zip_inplace(Engine& engine, const std::array<Tensor*, N>& tensors, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
@@ -263,8 +157,7 @@ namespace SushiBLAS
 
             require_domain<Dom>(dtype, "Elementwise operation", name);
 
-            // Every operand is both a read and a write: the functor may touch any of them,
-            // and nothing at this layer can tell which ones it actually did.
+            // Every operand is declared as both a read and a write, since the functor may touch any; see include/SushiBLAS/engine/math/README.md.
             std::array<void*, N> ptrs{};
             std::vector<SushiRuntime::Core::ResourceRegion> rw;
             rw.reserve(N);

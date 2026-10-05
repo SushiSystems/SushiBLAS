@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file syr.hpp
+ * @brief Defines the reference kernel of SYR.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstdint>

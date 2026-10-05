@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_spatial_upsample.cpp
+ * @brief Tests spatial().upsample_nearest and upsample_nearest_backward.
+ * @author Mustafa Garip
+ */
+
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -77,8 +83,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialUpsampleTest, AnisotropicScalesAreIndependent)
         {
-            // 2 rows down, 3 columns across: a 2x2 input becomes 4x6, and each
-            // pixel's block is two rows tall and three columns wide.
+            // Each pixel becomes a 2-row by 3-column block, so the 2x2 input becomes 4x6.
             auto in = image(1, 2, 2, 1, {1, 2,
                                          3, 4});
 
@@ -122,8 +127,7 @@ namespace SushiBLAS
             engine->spatial().upsample_nearest_backward(dy, dx, scale_h, scale_w);
             engine->execute();
 
-            // Summed here by walking the block index by index, with no closed
-            // form the kernel could be wrong in the same way.
+            // The block is summed index by index. See tests/functional/unit/README.md.
             const float* source = dy.data_as<float>();
             const float* got = dx.data_as<float>();
 
@@ -192,9 +196,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialUpsampleTest, TheSyclKernelAgreesWithTheReferenceKernel)
         {
-            // Compared here rather than under ExecutionMode::VERIFY, which runs
-            // both kernels but lets the reference overwrite the device's answer
-            // instead of checking it (see Internal::dispatch_with_mode).
+            // VERIFY mode would not compare the two kernels. See tests/functional/unit/README.md.
             const int64_t N = 2, H = 5, W = 3, C = 3;
             const int64_t scale_h = 3, scale_w = 2;
             const int64_t out_h = H * scale_h, out_w = W * scale_w;

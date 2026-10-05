@@ -6,8 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Also backs Level2::trsv (a single-RHS-column TRSM: n=1). See
-// src/engine/blas/level2/trsv.cpp.
+/**
+ * @file trsm.hpp
+ * @brief Defines the reference kernels of TRSM, single and batched.
+ * @author Mustafa Garip
+ */
 
 #pragma once
 
@@ -21,16 +24,9 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-            * @brief Pure C++ reference TRSM: solve op(A)*X=alpha*B (left_side) or
-            * X*op(A)=alpha*B (right_side) for X, overwriting B, A triangular.
-            *
-            * Left side is solved one column of B at a time via forward (lower
-            * effective triangle) or backward (upper) substitution against the
-            * transpose-adjusted "effective" triangle of A - see
-            * kernels/sycl/blas/level3/trsm.hpp for the derivation. Right side
-            * is the equivalent row-wise system obtained by transposing once more
-            * (X*op(A)=alpha*B  <=>  op(A)^T * X^T = alpha*B^T).
-            */
+             * @brief Solves op(A)*X = alpha*B or X*op(A) = alpha*B for X, overwriting B.
+             * @see kernels/README.md
+             */
             template<typename T>
             void trsm(Core::Layout layout, bool left_side, bool upper, bool transA, bool unit_diag,
                       int64_t m, int64_t n, T alpha,

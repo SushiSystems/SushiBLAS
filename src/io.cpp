@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file io.cpp
+ * @brief Defines IO, which saves and loads tensors as .sushi, raw binary and .npy files and
+ * renders them as text.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <cstring>
 #include <fstream>
@@ -174,9 +181,7 @@ namespace SushiBLAS
         else if (t.dtype == Core::DataType::HALF) dict += "<f2";
         else if (t.dtype == Core::DataType::INT32) dict += "<i4";
         else if (t.dtype == Core::DataType::INT64) dict += "<i8";
-        // Every dtype now names itself. The chain used to fall through silently for HALF,
-        // writing a header with an empty 'descr' and a payload numpy could not read - a
-        // corrupt file with no error at either end. Anything unrecognised says so instead.
+        // A dtype with no .npy descriptor throws; see src/README.md.
         else SB_THROW_IF(true, "Cannot write a .npy header for dtype {}.", Core::to_string(t.dtype));
 
 
@@ -230,15 +235,12 @@ namespace SushiBLAS
         std::string header(header_len, ' ');
         read_exact(ifs, &header[0], header_len, "header", path);
 
-        // TODO: Implement comprehensive .npy header parsing for metadata verification (dtype, fortran_order).
-        // TODO: Enhance shape verification logic to ensure exact matching.
         size_t shape_pos = header.find("'shape': (");
         if (shape_pos != std::string::npos)
             for (int i = 0; i < t.rank; ++i)
                 if (header.find(std::to_string(t.shape[i]), shape_pos) == std::string::npos)
                     SB_THROW_IF(true, "Shape dimension {} mismatch in .npy header.", i);
 
-        // TODO: Optimize data loading path for different allocation strategies and layout orders.
         read_payload(engine_, ifs, t, path);
 
         SB_LOG_INFO("Loaded NumPy file: {}", path);
@@ -270,10 +272,7 @@ namespace SushiBLAS
                 double* c_ptr = reinterpret_cast<double*>(host_buf.data()) + (i * 2);
                 host_data[i] = {static_cast<float>(c_ptr[0]), static_cast<float>(c_ptr[1])};
             }
-            // Printed through the same float pipeline as everything else, which is lossy
-            // past 2^24 for INT32 and 2^53 for INT64. Acceptable for a human-readable dump
-            // and only there - `save_npy` above writes the raw bytes, so nothing round-trips
-            // through this.
+            // Integers print through float, which is lossy past 2^24 and 2^53; see src/README.md.
             else if (t.dtype == Core::DataType::INT32) host_data[i] = {static_cast<float>(reinterpret_cast<int32_t*>(host_buf.data())[i]), 0.0f};
             else if (t.dtype == Core::DataType::INT64) host_data[i] = {static_cast<float>(reinterpret_cast<int64_t*>(host_buf.data())[i]), 0.0f};
             else SB_THROW_IF(true, "Cannot render a tensor of dtype {} as text.", Core::to_string(t.dtype));

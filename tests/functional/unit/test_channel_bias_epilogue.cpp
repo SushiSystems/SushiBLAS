@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_channel_bias_epilogue.cpp
+ * @brief Tests ChannelBiasEpilogue's stride pair through Dispatch::execute_gemm.
+ * @author Mustafa Garip
+ */
+
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -25,17 +31,9 @@ namespace SushiBLAS
         namespace
         {
             /**
-            * @brief The bit pattern of @p value, read without type punning.
-            *
-            * `EXPECT_FLOAT_EQ` and a zero tolerance both compare *values*, and both
-            * therefore call +0 and -0 equal. The identity check below is about the
-            * generated arithmetic being unchanged, so it compares the stored bits -
-            * via memcpy, because reading a float through a uint32_t lvalue is
-            * undefined behaviour that this compiler is free to optimise on.
-            *
-            * @param value The float to reinterpret.
-            * @return The IEEE-754 encoding of @p value as an unsigned integer.
-            */
+             * @brief Returns the bit pattern of @p value, read without type punning.
+             * @see tests/functional/unit/README.md
+             */
             [[nodiscard]] uint32_t bits_of(float value)
             {
                 uint32_t pattern = 0;
@@ -45,19 +43,9 @@ namespace SushiBLAS
         } // namespace
 
         /**
-        * @brief The stride pair on @ref Kernels::ChannelBiasEpilogue, both ways round.
-        *
-        * A `(row_stride, col_stride)` that is only ever exercised at `(0, 1)` is a
-        * parameter nobody proved: the column arm and a hard-coded `bias[col]` are
-        * indistinguishable from outside. Each direction is therefore checked against
-        * a hand-computed expectation, and C is square (3x3) so that a transposed
-        * `row`/`col` is a wrong answer rather than an out-of-range read.
-        *
-        * Everything runs through `Dispatch::execute_gemm`, not through
-        * `Kernels::SYCL::gemm`, because the seam is what a consumer can actually
-        * reach and is where the epilogue is instantiated in the consumer's own
-        * translation unit.
-        */
+         * @brief Holds the operands of the ChannelBiasEpilogue tests run through execute_gemm.
+         * @see tests/functional/unit/README.md
+         */
         class Unit_ChannelBiasEpilogueTest : public SushiBLASTest
         {
             protected:
@@ -84,9 +72,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_ChannelBiasEpilogueTest, AColumnChannelBiasMatchesAPlainRowVectorBroadcast)
         {
-            // (0, 1): the channel is the column, which is what the NHWC convolution
-            // GEMM [N*H*W, C_in*R*S] x [C_in*R*S, C_out] produces, and what the
-            // existing GEMM_BIAS row-vector broadcast already does.
+            // (0, 1): the channel is the column. See tests/functional/unit/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());
             auto B = create_initialized_tensor<float>({2, 3}, b_values());
             auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
@@ -109,9 +95,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_ChannelBiasEpilogueTest, ARowChannelBiasBroadcastsDownTheOtherAxis)
         {
-            // (1, 0): the channel is the row, which is the NCHW orientation. Same
-            // bias vector as above, so the two expectations differ only in which
-            // axis it was broadcast along - a swapped stride pair fails one of them.
+            // (1, 0): the channel is the row, as in NCHW. See tests/functional/unit/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());
             auto B = create_initialized_tensor<float>({2, 3}, b_values());
             auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
@@ -134,11 +118,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_ChannelBiasEpilogueTest, TheSameEpilogueAppliesOnTheReferencePath)
         {
-            // The reference kernel is this operation's specification and invokes the
-            // epilogue on the host, so an addressing arm that only works in the SYCL
-            // instantiation would make VERIFY mode declare every fused GEMM wrong.
-            // The row orientation is the one worth pinning here, since it is the arm
-            // nothing else in the library exercises.
+            // The reference kernel runs the epilogue too. See tests/functional/unit/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());
             auto B = create_initialized_tensor<float>({2, 3}, b_values());
             auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
@@ -160,15 +140,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_ChannelBiasEpilogueTest, AZeroBiasIsTheIdentityEpilogue)
         {
-            // The check that the fusion hook costs nothing when it does nothing:
-            // against the identity epilogue, bit for bit rather than to a tolerance.
-            // A tolerance would pass on a kernel that had silently changed its
-            // accumulation order, which is exactly the regression this rules out.
-            //
-            // The operands are chosen so every element of A*B is strictly positive.
-            // `x + 0.0f` is the identity on every float except -0.0f, which it turns
-            // into +0.0f, and that one case is the only way this could fail for a
-            // reason that is not a defect.
+            // Every element of A*B is strictly positive. See tests/functional/unit/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, {1, 2, 3, 4, 5, 6});
             auto B = create_initialized_tensor<float>({2, 3}, {1, 2, 3, 4, 5, 6});
             auto fused = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
@@ -203,12 +175,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_ChannelBiasEpilogueTest, TheEpiloguesAccessSetReachesTheTask)
         {
-            // The bias is written by a task recorded *before* the GEMM, so there is a
-            // real producer to be ordered behind. The assertion is on `in_degree`,
-            // never on an output value, for the reason test_gemm.cpp gives at length:
-            // with no edge the two tasks may still come out in the right order by
-            // luck, so a correct answer proves nothing about ordering. A and B have
-            // no producer here, so the GEMM's in-degree counts the bias edge alone.
+            // The in-degree counts the bias edge alone. See tests/functional/unit/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());
             auto B = create_initialized_tensor<float>({2, 3}, b_values());
             auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
@@ -235,10 +202,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_ChannelBiasEpilogueTest, TheGemmSeesTheProducedBiasValues)
         {
-            // The other half of the test above: the edge exists, and the values that
-            // cross it are the produced ones. On its own this proves nothing about
-            // ordering - it can pass by luck without the declared read - so it is the
-            // companion to the in-degree assertion, not a replacement for it.
+            // The GEMM must see the produced bias values. See tests/functional/unit/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());
             auto B = create_initialized_tensor<float>({2, 3}, b_values());
             auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_ger.cpp
+ * @brief Tests blas().ger against fixed expected values.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
@@ -34,8 +40,6 @@ TEST_F(Unit_GERTest, SimpleGER)
     engine->execute().wait();
     SB_LOG_INFO("Execution finished. Checking results.");
 
-    // Expected: A = A + X * Y^T
-    // [1] * [1, 2, 3] = [1, 2, 3]
-    // [2]               [2, 4, 6]
+    // A = x * y^T = [1; 2] * [1 2 3] = [1 2 3; 2 4 6].
     verify_tensor(A, {1, 2, 3, 2, 4, 6});
 }

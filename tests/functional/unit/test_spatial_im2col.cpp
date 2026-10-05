@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_spatial_im2col.cpp
+ * @brief Tests spatial().im2col's gather order, padding, dilation and refusals.
+ * @author Mustafa Garip
+ */
+
 #include <string>
 #include <vector>
 #include <cstddef>
@@ -23,16 +29,8 @@ namespace SushiBLAS
         namespace
         {
             /**
-             * @brief The bit pattern of a float.
-             *
-             * `std::bit_cast` is C++20 and this tree is C++17; `std::memcpy`
-             * between two trivially-copyable objects of equal size is the same
-             * operation with the same guarantees. The comparison is on bits
-             * because `==` on floats calls two NaNs different and +0 and -0
-             * equal, and neither is what "the same answer" means here.
-             *
-             * @param value The float to reinterpret.
-             * @return Its IEEE-754 bit pattern.
+             * @brief Returns the bit pattern of a float.
+             * @see tests/functional/unit/README.md
              */
             uint32_t float_bits(float value) noexcept
             {
@@ -58,10 +56,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialIm2ColTest, AUnitWindowIsTheIdentityGather)
         {
-            // 1x1, stride 1, no padding: the column matrix is the input reshaped,
-            // element for element and in the same order. If this fails, the row
-            // and element index arithmetic disagree with each other and nothing
-            // further is worth reading.
+            // A 1x1 window's columns are the input reshaped. See tests/functional/unit/README.md.
             auto in = ramp(2, 3, 4, 5);
             auto cols = engine->create_tensor({2 * 3 * 4, 5}, Core::DataType::FLOAT32);
 
@@ -76,9 +71,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialIm2ColTest, EachRowIsOneWindowWithChannelInnermost)
         {
-            // 2x2 stride 1 over a 1x3x3x2 input: 4 windows, 8 entries each.
-            // Written out by hand rather than derived, so the test is a
-            // specification and not a second implementation.
+            // 2x2 stride 1 gives 4 windows of 8 entries each. See tests/functional/unit/README.md.
             auto in = ramp(1, 3, 3, 2);
             auto cols = engine->create_tensor({4, 8}, Core::DataType::FLOAT32);
 
@@ -89,8 +82,7 @@ namespace SushiBLAS
             engine->spatial().im2col(in, cols, g);
             engine->execute();
 
-            // Input element (h, w, c) holds (h*3 + w)*2 + c.
-            // Row 0 is the window at (0,0): taps (0,0) (0,1) (1,0) (1,1).
+            // Element (h, w, c) holds (h*3 + w)*2 + c; row 0 is the window at (0,0).
             const std::vector<float> row0 = {0, 1, 2, 3, 6, 7, 8, 9};
             // Row 1 is the window at (0,1): taps (0,1) (0,2) (1,1) (1,2).
             const std::vector<float> row1 = {2, 3, 4, 5, 8, 9, 10, 11};
@@ -108,9 +100,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialIm2ColTest, OutOfBoundsTapsReadZeroRatherThanNeighbouringMemory)
         {
-            // Padding is a parameter, not a separate zero-padded copy - which is
-            // what saves a full-tensor copy forward and a crop backward. The
-            // property that makes that safe is exactly this one.
+            // Padding is a parameter, not a padded copy. See tests/functional/unit/README.md.
             auto in = ramp(1, 2, 2, 1);
             auto cols = engine->create_tensor({4, 9}, Core::DataType::FLOAT32);
 
@@ -123,9 +113,7 @@ namespace SushiBLAS
             engine->spatial().im2col(in, cols, g);
             engine->execute();
 
-            // Row 0 is the window centred on pixel (0,0); its first tap sits at
-            // (-1,-1) and its last at (1,1). Only the four in-bounds taps carry
-            // data: positions 4, 5, 7, 8 of the 3x3.
+            // Row 0 is the window centred on (0,0); only taps 4, 5, 7, 8 of its 3x3 are in bounds.
             const std::vector<float> row0 = {0, 0, 0, 0, 0, 1, 0, 2, 3};
 
             const float* out = cols.data_as<float>();
@@ -157,10 +145,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialIm2ColTest, AsymmetricPaddingNeedsTheExplicitExtentOverload)
         {
-            // 2x2 stride 1 over a 3x3 image padded on the bottom and right only:
-            // 3x3 windows out. The two-operand overload cannot express this - it
-            // has no pad_right to read - and the point of this test is that it
-            // refuses rather than silently producing a differently-shaped answer.
+            // The two-operand overload has no pad_right. See tests/functional/unit/README.md.
             auto in = ramp(1, 3, 3, 1);
             auto cols = engine->create_tensor({9, 4}, Core::DataType::FLOAT32);
 
@@ -178,8 +163,7 @@ namespace SushiBLAS
 
             // Window (0,0): taps (0,0) (0,1) (1,0) (1,1).
             const std::vector<float> row0 = {0, 1, 3, 4};
-            // Window (2,2): only its first tap is in bounds; the rest fall past
-            // the bottom and right edges and read the implicit zero.
+            // Window (2,2) has only its first tap in bounds; the rest read the implicit zero.
             const std::vector<float> row8 = {8, 0, 0, 0};
 
             for (std::size_t i = 0; i < row0.size(); ++i)
@@ -191,17 +175,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialIm2ColTest, TheSyclKernelAgreesWithTheReferenceKernel)
         {
-            // The comparison is done here, explicitly, rather than by running
-            // under ExecutionMode::VERIFY. VERIFY submits the device kernel and
-            // then runs the reference one over the *same* output buffer, so the
-            // reference answer is what survives and a disagreement leaves no
-            // trace - see Internal::dispatch_with_mode. Whatever the enum's
-            // comment says, it is not an assertion, so this test makes its own:
-            // fill two buffers under the two forced modes and compare them.
-            //
-            // Bit-exact, not near: im2col only ever copies an element or writes
-            // a zero, so the two kernels must produce the same bits or one of
-            // them is addressing memory differently from the other.
+            // VERIFY mode would not compare the two kernels. See tests/functional/unit/README.md.
             auto in = ramp(2, 7, 5, 3);
 
             Spatial::ConvGeometry g;

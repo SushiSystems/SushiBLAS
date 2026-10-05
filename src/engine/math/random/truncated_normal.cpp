@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file truncated_normal.cpp
+ * @brief Defines RandomOps::truncated_normal, which records the truncated normal fill of a tensor.
+ * @author Mustafa Garip
+ */
+
 #include <cmath>
 #include <limits>
 #include <SushiBLAS/engine.hpp>

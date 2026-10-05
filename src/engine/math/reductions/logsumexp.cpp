@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file logsumexp.cpp
+ * @brief Defines ReductionOps::logsumexp, which records the log-sum-exp reduction.
+ * @author Mustafa Garip
+ */
+
 #include <limits>
 #include <type_traits>
 #include <SushiBLAS/engine/math/reductions.hpp>
@@ -17,7 +23,6 @@ namespace SushiBLAS
 
     sycl::event ReductionOps::logsumexp(const Tensor& t, Tensor& result) 
     {
-        // TODO: Implement a numerically stable parallel tree reduction for logsumexp to replace single_task.
         auto dispatch = [](sycl::queue& q, const auto* pT, auto* pR, int64_t size,
                            [[maybe_unused]] auto scratch,
                            const std::vector<sycl::event>& deps)

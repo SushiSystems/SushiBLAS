@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file scal.cpp
+ * @brief Defines Level1::scal, which records the BLAS SCAL task.
+ * @author Mustafa Garip
+ */
+
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -21,8 +27,6 @@ namespace SushiBLAS
     {
         int64_t n, incx;
         Internal::get_vec_params(x, n, incx);
-
-        // TODO: Implement multi-dimensional batch support
 
         void* rw_x = x.data_or_null();
 

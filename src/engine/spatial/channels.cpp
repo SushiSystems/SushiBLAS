@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file channels.cpp
+ * @brief Defines SpatialOps::concat_channels and slice_channels, which record the copy of a run of
+ * channels.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <cstdint>
 #include <SushiBLAS/engine.hpp>
@@ -21,27 +28,10 @@ namespace SushiBLAS
     {
         /**
          * @brief Checks a channel copy's operands and lays out how to address them.
-         *
-         * Built by hand rather than through `Spatial::window_span_for`, which
-         * validates window origins against a @ref Spatial::ConvGeometry that a
-         * plain copy does not have. For the same reason `out_h` and `out_w` are
-         * set to the input extents: this operation visits every pixel of a
-         * single shared grid, so there is no second, window-derived extent for
-         * them to hold.
-         *
-         * `span.channels` is left at the source's channel count and is not read
-         * by either kernel; the copy's width travels as an explicit argument.
-         *
-         * @param name The public operation's name, for the error messages.
-         * @param src The rank-4 NHWC source.
-         * @param dst The rank-4 NHWC destination.
-         * @param src_channel_offset The first source channel to read.
-         * @param dst_channel_offset The first destination channel to write.
-         * @param count How many channels the copy moves.
          * @return The span both kernels address the operands through.
-         * @throws std::runtime_error when the ranks, dtypes or `N`/`H`/`W`
-         *         extents disagree, or the range runs past either tensor's
-         *         channel count.
+         * @throws std::runtime_error when the ranks, dtypes or `N`/`H`/`W` extents disagree,
+         *         or the range runs past either tensor's channel count.
+         * @see src/README.md
          */
         Spatial::WindowSpan channel_copy_span(const char* name,
                                               const Tensor& src, const Tensor& dst,
@@ -126,8 +116,7 @@ namespace SushiBLAS
 
         const auto mode = engine_.get_mode();
 
-        // Domain::ALL: this moves elements and performs no arithmetic on them,
-        // so every element type the library has is a legal one to copy.
+        // A copy does no arithmetic, so it serves Domain::ALL; see src/README.md.
         return Internal::execute_typed_task<Dispatch::Domain::ALL>(
             engine_, meta, reads, writes, src.dtype, "Spatial operation",
             [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

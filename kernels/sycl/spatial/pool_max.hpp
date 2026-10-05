@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file pool_max.hpp
+ * @brief Defines the SYCL kernels of max pooling and its gradient.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <vector>
@@ -24,20 +30,7 @@ namespace SushiBLAS
         {
             /**
              * @brief Takes each window's maximum, and records where it came from.
-             *
-             * One work-item per output element. See the reference kernel of the
-             * same name for the two conventions this must match: the running
-             * maximum starts at `lowest()` and never at zero, and a tie keeps the
-             * first element in scan order.
-             *
-             * @tparam T The element type.
-             * @param q The queue to submit to.
-             * @param span The window layout, in element counts.
-             * @param in The input image's first element.
-             * @param out The output image's first element.
-             * @param indices The argmax buffer's first element.
-             * @param deps Events this submission must depend on.
-             * @return The event for the submitted kernel.
+             * @see kernels/README.md
              */
             template<typename T>
             sycl::event pool_max(sycl::queue& q, const Spatial::WindowSpan& span,
@@ -62,8 +55,7 @@ namespace SushiBLAS
                 const int64_t out_col_stride = span.out_col_stride;
                 const int64_t out_channel_stride = span.out_channel_stride;
 
-                // Not constexpr: std::numeric_limits<sycl::half>::lowest() is not,
-                // which is why Reduce::RunningMax::identity() is a function too.
+                // lowest() is not constexpr for sycl::half, so this is a const.
                 const T lowest = std::numeric_limits<T>::lowest();
 
                 const Device::Grid1D grid =
@@ -124,19 +116,8 @@ namespace SushiBLAS
 
             /**
              * @brief Routes each output gradient back to the element it was taken from.
-             *
-             * One work-item per **input** element, each gathering its own
-             * contributions. No `sycl::atomic_ref` appears in this file and none
-             * may be added; see the reference kernel of the same name.
-             *
-             * @tparam T The element type.
-             * @param q The queue to submit to.
-             * @param span The window layout, in element counts.
-             * @param dy The output gradient's first element.
              * @param indices The argmax buffer `pool_max` wrote.
-             * @param dx The input gradient's first element.
-             * @param deps Events this submission must depend on.
-             * @return The event for the submitted kernel.
+             * @see kernels/README.md
              */
             template<typename T>
             sycl::event pool_max_backward(sycl::queue& q, const Spatial::WindowSpan& span,

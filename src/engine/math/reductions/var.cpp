@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file var.cpp
+ * @brief Defines ReductionOps::var, which records the variance reduction.
+ * @author Mustafa Garip
+ */
+
 #include <type_traits>
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
@@ -16,7 +22,6 @@ namespace SushiBLAS
 
     sycl::event ReductionOps::var(const Tensor& t, Tensor& result) 
     {
-        // TODO: Implement a parallel reduction (e.g. Chan et al. algorithm) for variance to replace single_task.
         auto dispatch = [](sycl::queue& q, const auto* pT, auto* pR, int64_t size,
                            [[maybe_unused]] auto scratch,
                            const std::vector<sycl::event>& deps)

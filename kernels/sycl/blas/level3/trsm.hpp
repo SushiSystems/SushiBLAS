@@ -6,29 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Also backs Level2::trsv (a single-RHS-column TRSM: n=1). See
-// src/engine/blas/level2/trsv.cpp.
-//
-// TRSM's substitution is inherently sequential along one matrix dimension,
-// but each of the "n" columns (left side) or "m" rows (right side) is an
-// independent triangular solve against the same A - no data hazard between
-// them - so this parallelizes over that dimension, one work-item doing a
-// full serial substitution per column/row. Derivation of the "effective
-// triangle" (A_eff / eff_lower) used below:
-//
-//   Left side solves op(A)*X = alpha*B column by column. Define
-//   A_eff(i,k) = transA ? A(k,i) : A(i,k) - this is exactly op(A)(i,k).
-//   If A is upper and transA, op(A)=A^T is lower; if A is lower and transA,
-//   op(A) is upper. So op(A) is lower ("eff_lower") iff transA XOR lower(A),
-//   i.e. eff_lower = transA ? upper : !upper. Once eff_lower is known, the
-//   standard forward (lower) / backward (upper) substitution over A_eff
-//   applies directly, regardless of the original transpose/layout.
-//
-//   Right side solves X*op(A) = alpha*B, equivalent to op(A)^T * X^T =
-//   alpha*B^T - i.e. the same left-side system with one more transpose
-//   applied, so eff_lower uses transA_row = !transA in place of transA, and
-//   substitution walks A's "p,q" index against B's row (fixed i, varying
-//   column) instead of B's column.
+/**
+ * @file trsm.hpp
+ * @brief Defines the SYCL kernel of TRSM.
+ * @author Mustafa Garip
+ */
 
 #pragma once
 
@@ -44,6 +26,10 @@ namespace SushiBLAS
     {
         namespace SYCL
         {
+            /**
+             * @brief Solves op(A)*X = alpha*B or X*op(A) = alpha*B for X, overwriting B.
+             * @see kernels/README.md
+             */
             template<typename T>
             [[nodiscard]] sycl::event trsm(sycl::queue& queue, Core::Layout layout,
                              bool left_side, bool upper, bool transA, bool unit_diag,

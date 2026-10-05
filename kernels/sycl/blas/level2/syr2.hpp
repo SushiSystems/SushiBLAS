@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file syr2.hpp
+ * @brief Defines the SYCL kernel of SYR2.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstdint>

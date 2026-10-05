@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file syrk.hpp
+ * @brief Defines the reference kernels of SYRK, single and batched.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <complex>
@@ -19,15 +25,9 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-            * @brief Pure C++ reference implementation of SYRK.
-            *
-            * Supports Row-Major and Column-Major layouts.
-            *
-            * Operand addressing follows the same two-stride rule as
-            * `Reference::gemm`, and used to carry the same defect: the COLUMN_MAJOR arm
-            * was inverted, which made `layout` a no-op for A and read past its end for
-            * some shapes. See that file for the identity that catches it.
-            */
+             * @brief Computes SYRK, C = alpha*op(A)*op(A)^T + beta*C, on one triangle of C.
+             * @see kernels/README.md
+             */
             template<typename T>
             void syrk(Core::Layout layout, bool upper, bool trans,
                       int64_t n, int64_t k,
@@ -49,14 +49,12 @@ namespace SushiBLAS
                         if ((upper && j < i) || (!upper && j > i))
                             continue;
 
-                        // C = alpha*op(A)*op(A)^T, so the second factor is
-                        // op(A)^T(l, j), which is op(A)(j, l).
+                        // The second factor is op(A)^T(l, j), which is op(A)(j, l).
                         T sum(0);
                         for (int64_t l = 0; l < k; ++l)
                             sum += A_at(i, l) * A_at(j, l);
 
-                        // beta==0 must not read the (possibly uninitialized) prior C value,
-                        // matching standard BLAS semantics.
+                        // A zero beta must not read the prior value of C.
                         if (layout == Core::Layout::ROW_MAJOR)
                             c[i * ldc + j] = (beta == T(0)) ? alpha * sum : alpha * sum + beta * c[i * ldc + j];
                         else

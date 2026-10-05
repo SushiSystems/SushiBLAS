@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file symv.cpp
+ * @brief Defines Level2::symv, which records the BLAS SYMV task.
+ * @author Mustafa Garip
+ */
+
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -38,8 +44,6 @@ namespace SushiBLAS
 
         SB_THROW_IF(nx != n, "Dimension mismatch for vector x in SYMV.");
         SB_THROW_IF(ny != n, "Dimension mismatch for vector y in SYMV.");
-
-        // TODO: Implement multi-dimensional batch support for Level 2
 
         void* read_A = A.data_or_null();
         void* read_x = x.data_or_null();

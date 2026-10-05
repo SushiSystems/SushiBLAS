@@ -6,14 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// INT32 and INT64: the operations that serve them, and - more importantly - the
-// ones that refuse them.
-//
-// A dtype that is half-supported is worse than one that is not supported at all,
-// because "accepted" reads as "handled". So this file is deliberately lopsided:
-// a handful of tests that the supported ops give the right answer, and a sweep
-// asserting that every op outside that list throws, by name, at record time. The
-// sweep is the part that has to stay green as ops are added.
+/**
+ * @file test_integer_dtypes.cpp
+ * @brief Tests which operations serve INT32 and INT64 tensors and which refuse them.
+ * @author Mustafa Garip
+ */
 
 #include <vector>
 #include <cstdint>
@@ -48,8 +45,10 @@ namespace SushiBLAS
                 }
         };
 
-        // The element widths the rest of this file depends on. Cheap to assert and it is
-        // what a memory planner sizes an arena from.
+        /**
+         * @brief Tests the element widths and names of the integer dtypes.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_IntegerDTypeTest, ElementWidthsAndNamesAreDeclared)
         {
             EXPECT_EQ(4u, Core::bytes_per_element(Core::DataType::INT32));
@@ -67,8 +66,10 @@ namespace SushiBLAS
             EXPECT_EQ(32, t.element_span() * static_cast<int64_t>(Core::bytes_per_element(t.dtype)));
         }
 
-        // `constant` fills an integer tensor, and the value is stored exactly - well past
-        // where a float would have started rounding.
+        /**
+         * @brief Tests that constant fills an integer tensor exactly.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_IntegerDTypeTest, ConstantFillsAnIntegerTensorExactly)
         {
             auto a = engine->create_tensor({4}, Core::DataType::INT32);
@@ -82,8 +83,10 @@ namespace SushiBLAS
             EXPECT_EQ(std::vector<int64_t>(4, 1234567890), read_i64(b));
         }
 
-        // `copy` moves integer elements. It is the one BLAS op that takes Domain::ALL,
-        // because it does no arithmetic to what it moves.
+        /**
+         * @brief Tests that copy moves integer elements.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_IntegerDTypeTest, CopyMovesIntegerElements)
         {
             auto src = engine->create_tensor({3}, Core::DataType::INT64);
@@ -97,8 +100,10 @@ namespace SushiBLAS
             EXPECT_EQ((std::vector<int64_t>{10, -20, 30}), read_i64(dst));
         }
 
-        // The comparison family: results are 1 and 0, which is exactly what an integer
-        // element is for.
+        /**
+         * @brief Tests that the comparisons work on integer tensors.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_IntegerDTypeTest, ComparisonsWorkOnIntegerTensors)
         {
             auto a = engine->create_tensor({4}, Core::DataType::INT32);
@@ -172,8 +177,10 @@ namespace SushiBLAS
             EXPECT_EQ(1, read_i32(r)[0]);
         }
 
-        // argmax over an integer tensor: an ordering exists, so the op is defined - and
-        // the answer is still an INT64 index rather than an element of the input's dtype.
+        /**
+         * @brief Tests that argmax over an integer tensor returns an INT64 index.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_IntegerDTypeTest, ArgmaxSearchesAnIntegerTensor)
         {
             auto t = engine->create_tensor({5}, Core::DataType::INT32);
@@ -190,9 +197,10 @@ namespace SushiBLAS
             EXPECT_EQ(1, read_i64(r)[0]);
         }
 
-        // An index past 2^24, which is where the old `static_cast<T>(idx)` into a FLOAT32
-        // result started returning a neighbour instead of the answer. 16,777,217 is the
-        // first integer float cannot represent.
+        /**
+         * @brief Tests that argmax is exact for an index past 2^24.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_IntegerDTypeTest, ArgmaxIsExactPastTheFloatMantissa)
         {
             constexpr int64_t kN = 16777218;
@@ -217,9 +225,10 @@ namespace SushiBLAS
                 << " here, which is a different element.";
         }
 
-        // The sweep. Every op family outside the supported list must refuse an integer
-        // operand at record time - before anything is queued - and the message must name
-        // the op and the dtype rather than an enum ordinal.
+        /**
+         * @brief Tests that every unsupported op refuses an integer operand by name.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_IntegerDTypeTest, UnsupportedOpsRejectIntegerOperandsByName)
         {
             auto a = engine->create_tensor({4}, Core::DataType::INT32);
@@ -257,8 +266,10 @@ namespace SushiBLAS
                 << "A rejected op must throw before it records a task, not while executing one.";
         }
 
-        // And the ordering comparisons still refuse complex, which the widening to
-        // integers must not have quietly undone.
+        /**
+         * @brief Tests that the ordering comparisons still refuse complex operands.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_IntegerDTypeTest, OrderingComparisonsStillRejectComplex)
         {
             auto a = engine->create_tensor({4}, Core::DataType::COMPLEX32);

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file export.hpp
+ * @brief Defines SUSHIBLAS_API, the symbol visibility macro of each platform.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #if defined(_WIN32) || defined(__CYGWIN__)

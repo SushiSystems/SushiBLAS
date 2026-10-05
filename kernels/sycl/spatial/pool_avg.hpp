@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file pool_avg.hpp
+ * @brief Defines the SYCL kernels of average pooling and its gradient.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <vector>
@@ -23,18 +29,7 @@ namespace SushiBLAS
         {
             /**
              * @brief Averages each window, dividing by the window's area.
-             *
-             * One work-item per output element. See the reference kernel of the
-             * same name for why the divisor counts padded taps
-             * (`count_include_pad=True`).
-             *
-             * @tparam T The element type.
-             * @param q The queue to submit to.
-             * @param span The window layout, in element counts.
-             * @param in The input image's first element.
-             * @param out The output image's first element.
-             * @param deps Events this submission must depend on.
-             * @return The event for the submitted kernel.
+             * @see kernels/README.md
              */
             template<typename T>
             sycl::event pool_avg(sycl::queue& q, const Spatial::WindowSpan& span,
@@ -106,17 +101,7 @@ namespace SushiBLAS
 
             /**
              * @brief Spreads each output gradient evenly over the window it came from.
-             *
-             * One work-item per **input** element, each gathering its own share.
-             * No `sycl::atomic_ref` appears in this file and none may be added.
-             *
-             * @tparam T The element type.
-             * @param q The queue to submit to.
-             * @param span The window layout, in element counts.
-             * @param dy The output gradient's first element.
-             * @param dx The input gradient's first element.
-             * @param deps Events this submission must depend on.
-             * @return The event for the submitted kernel.
+             * @see kernels/README.md
              */
             template<typename T>
             sycl::event pool_avg_backward(sycl::queue& q, const Spatial::WindowSpan& span,

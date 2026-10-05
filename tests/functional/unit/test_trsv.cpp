@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_trsv.cpp
+ * @brief Tests blas().trsv on a 3x3 lower-triangular system.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
@@ -21,10 +27,7 @@ TEST_F(Unit_TRSVTest, SimpleTRSV)
     auto A = engine->create_tensor({N, N});
     auto b = engine->create_tensor({N});
 
-    // A (Lower triangular):
-    // [1 0 0]
-    // [2 1 0]
-    // [3 4 1]
+    // A is lower triangular: [1 0 0; 2 1 0; 3 4 1].
     fill_tensor(A, {1, 0, 0, 2, 1, 0, 3, 4, 1});
     
     // b: (results from multiplying A by x = [1, 1, 1] which is [1, 3, 8])

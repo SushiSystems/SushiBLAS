@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file example.cpp
+ * @brief Runs one 1024x1024 GEMM on shared memory with a column-major engine.
+ * @author Mustafa Garip
+ */
+
 #include <iostream>
 #include <SushiBLAS/SushiBLAS.h>
 

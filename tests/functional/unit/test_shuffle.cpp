@@ -6,9 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// RandomOps::shuffle - previously declared in an installed header, implemented as a
-// no-op stub, and commented out of the build, so any consumer that called it failed at
-// link. Now a real Fisher-Yates permutation; these are the properties that make it one.
+/**
+ * @file test_shuffle.cpp
+ * @brief Tests that random().shuffle permutes its input and repeats for one seed and offset.
+ * @author Mustafa Garip
+ */
 
 #include <vector>
 #include <numeric>
@@ -47,8 +49,7 @@ TEST_F(Unit_ShuffleTest, ResultIsAPermutationOfTheInput)
 {
     auto out = shuffled_iota(1234);
 
-    // The defining property, and the one the old stub trivially satisfied by doing
-    // nothing - hence the second half of this test.
+    // The result is a permutation of the input. See tests/functional/unit/README.md.
     auto sorted = out;
     std::sort(sorted.begin(), sorted.end());
     for (int i = 0; i < N; ++i)
@@ -56,9 +57,7 @@ TEST_F(Unit_ShuffleTest, ResultIsAPermutationOfTheInput)
         EXPECT_FLOAT_EQ(sorted[i], static_cast<float>(i)) << "Element " << i << " is not a permutation of the input.";
     }
 
-    // ...and it actually moved something. Identity is a legal permutation, but the odds
-    // of drawing it from 64! are not distinguishable from zero, so seeing it means the
-    // kernel never ran.
+    // The identity permutation means the kernel never ran. See tests/functional/unit/README.md.
     bool moved = false;
     for (int i = 0; i < N; ++i)
     {
@@ -71,8 +70,7 @@ TEST_F(Unit_ShuffleTest, SameSeedReproducesTheSamePermutation)
 {
     auto first = shuffled_iota(20260803);
 
-    // A fresh engine restarts the RNG offset counter, so this is the same (seed, offset)
-    // pair the first run used - the reproducibility contract the header advertises.
+    // A fresh engine restarts the RNG offset counter. See tests/functional/unit/README.md.
     reinit_engine(SushiBLAS::Core::Layout::ROW_MAJOR);
     auto second = shuffled_iota(20260803);
 
@@ -91,8 +89,7 @@ TEST_F(Unit_ShuffleTest, DifferentSeedsProduceDifferentPermutations)
 
 TEST_F(Unit_ShuffleTest, ConsecutiveShufflesOnOneEngineDiffer)
 {
-    // Each task draws a fresh counter offset, so two shuffles in one graph must not
-    // replay the same permutation - the failure mode a seed-only (offset-less) RNG has.
+    // Each task draws a fresh counter offset, so two shuffles must not repeat a permutation.
     std::vector<float> src(N);
     std::iota(src.begin(), src.end(), 0.0f);
 
@@ -116,8 +113,7 @@ TEST_F(Unit_ShuffleTest, ConsecutiveShufflesOnOneEngineDiffer)
 
 TEST_F(Unit_ShuffleTest, PermutesHalfPrecisionToo)
 {
-    // shuffle moves elements rather than computing on them, so unlike the distributions
-    // it has no reason to reject HALF.
+    // shuffle moves elements without computing on them, so it accepts HALF.
     constexpr int kSmall = 16;
     std::vector<float> src(kSmall);
     std::iota(src.begin(), src.end(), 0.0f);

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file dispatch.hpp
+ * @brief Declares the logic executors of the dispatch seam and the comparison helpers they share.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <vector>
@@ -27,28 +33,10 @@ namespace SushiBLAS
     {
         /**
          * @brief Records a unary logic op: `result[i] = op(x[i])`.
-         *
-         * Logic results are carried in the operand's own dtype (1 for true, 0 for false)
-         * rather than a dedicated boolean tensor type, so `result` must match `x`.
-         *
-         * @tparam Dom Which element types to instantiate the functor for. Defaults to
-         *         Domain::REAL; pass Domain::REAL_AND_COMPLEX only when `op_func` is
-         *         well-formed for `std::complex`.
-         * @tparam Func The functor type, deduced.
-         * @param engine The engine whose task graph the op is recorded on.
-         * @param x The input tensor.
-         * @param result The output tensor; must match `x` in size and dtype.
-         * @param name Human-readable op name, used for logging and failure messages.
-         * @param op_id Stable operation identifier for the task graph.
-         * @param op_func Callable `(auto x) -> auto`, invoked once per element on device.
-         * @param params Optional scalar parameters recorded in the task metadata.
-         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
-         *
-         * @warning This is a low-level generic seam. `op_func` is inlined into a SYCL device
-         *          kernel: it must be device-copyable, capture by value only, hold no host
-         *          pointers, allocate nothing and throw nothing.
-         * @throws std::runtime_error if the operands disagree on size or dtype, if the dtype
-         *         falls outside @p Dom, or if @p params exceeds the metadata's inline capacity.
+         * @param result Must match x in size and dtype.
+         * @param op_func Callable `(auto x) -> auto`: device-copyable, by-value captures, no allocation, no throw.
+         * @throws std::runtime_error on a size or dtype mismatch, a dtype outside Dom, or too many params.
+         * @see include/SushiBLAS/engine/logic/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func>
         sycl::event execute_logic_unary(Engine& engine, const Tensor& x, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
@@ -91,24 +79,10 @@ namespace SushiBLAS
 
         /**
          * @brief Records a binary logic op: `result[i] = op(A[i], B[i])`.
-         *
-         * @tparam Dom Which element types to instantiate the functor for. Defaults to
-         *         Domain::REAL; the ordering comparisons keep that default deliberately,
-         *         since `<` and `>` have no meaning on complex numbers.
-         * @tparam Func The functor type, deduced.
-         * @param engine The engine whose task graph the op is recorded on.
-         * @param A The first input tensor.
-         * @param B The second input tensor.
-         * @param result The output tensor; must match the inputs in size and dtype.
-         * @param name Human-readable op name, used for logging and failure messages.
-         * @param op_id Stable operation identifier for the task graph.
-         * @param op_func Callable `(auto x, auto y) -> auto`, invoked once per element on device.
-         * @param params Optional scalar parameters recorded in the task metadata.
-         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
-         *
-         * @warning Same device-kernel constraints as @ref execute_logic_unary.
-         * @throws std::runtime_error if the operands disagree on size or dtype, if the dtype
-         *         falls outside @p Dom, or if @p params exceeds the metadata's inline capacity.
+         * @tparam Dom Defaults to Domain::REAL, because `<` and `>` have no meaning on complex numbers.
+         * @param result Must match the inputs in size and dtype.
+         * @param op_func Callable `(auto x, auto y) -> auto` under execute_logic_unary's constraints.
+         * @throws std::runtime_error on a size or dtype mismatch, a dtype outside Dom, or too many params.
          */
         template<Domain Dom = Domain::REAL, typename Func>
         sycl::event execute_logic_binary(Engine& engine, const Tensor& A, const Tensor& B, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
@@ -151,25 +125,10 @@ namespace SushiBLAS
 
         /**
          * @brief Records a ternary logic op: `result[i] = op(cond[i], A[i], B[i])`.
-         *
-         * @tparam Dom Which element types to instantiate the functor for. Defaults to
-         *         Domain::REAL; pass Domain::REAL_AND_COMPLEX only when `op_func` is
-         *         well-formed for `std::complex`.
-         * @tparam Func The functor type, deduced.
-         * @param engine The engine whose task graph the op is recorded on.
-         * @param cond The selector tensor; nonzero selects `A`.
-         * @param A The value taken where `cond` is nonzero.
-         * @param B The value taken where `cond` is zero.
-         * @param result The output tensor; must match the inputs in size and dtype.
-         * @param name Human-readable op name, used for logging and failure messages.
-         * @param op_id Stable operation identifier for the task graph.
-         * @param op_func Callable `(auto c, auto a, auto b) -> auto`, invoked once per element.
-         * @param params Optional scalar parameters recorded in the task metadata.
-         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
-         *
-         * @warning Same device-kernel constraints as @ref execute_logic_unary.
-         * @throws std::runtime_error if the operands disagree on size or dtype, if the dtype
-         *         falls outside @p Dom, or if @p params exceeds the metadata's inline capacity.
+         * @param cond Nonzero selects A, zero selects B.
+         * @param result Must match the inputs in size and dtype.
+         * @param op_func Callable `(auto c, auto a, auto b) -> auto` under execute_logic_unary's constraints.
+         * @throws std::runtime_error on a size or dtype mismatch, a dtype outside Dom, or too many params.
          */
         template<Domain Dom = Domain::REAL, typename Func>
         sycl::event execute_logic_ternary(Engine& engine, const Tensor& cond, const Tensor& A, const Tensor& B, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
@@ -244,11 +203,7 @@ namespace SushiBLAS
         template<typename T>
         inline bool logic_equal(const std::complex<T>& x, const std::complex<T>& y) { return x == y; }
 
-        // No complex overloads below this line, on purpose. `<`, `<=`, `>` and `>=` have no
-        // meaning on complex numbers; these helpers used to supply a lexicographic stand-in,
-        // which made `less(a, b)` on a COMPLEX32 tensor return a confident, well-formed,
-        // mathematically meaningless answer. The ordering ops now declare Domain::REAL, so a
-        // complex operand throws at record time instead of being quietly re-interpreted.
+        // No complex overloads follow; the ordering ops are Domain::REAL; see include/SushiBLAS/engine/logic/README.md.
 
         /**
          * @brief Less-than comparison of two real scalars.

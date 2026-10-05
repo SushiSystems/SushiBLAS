@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file gemm.hpp
+ * @brief Declares the pure-C++ reference GEMM kernels.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <complex>
@@ -20,42 +26,11 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-            * @brief Pure C++ reference implementation of GEMM.
-            *
-            * Supports Row-Major and Column-Major layouts.
-            *
-            * Addressing an operand is two strides, not four cases: transposing it and
-            * flipping its layout are the same operation, so ROW_MAJOR+transposed and
-            * COLUMN_MAJOR+untransposed index identically (as do the other pair). That
-            * identity is the sanity check worth keeping in mind here - an earlier
-            * version of this file had the COLUMN_MAJOR arm of A and B inverted, which
-            * made `layout` a no-op for both operands and, with the column-major leading
-            * dimension the driver passes, read past the end of A whenever m > k.
-            *
-            * @tparam T The element type.
-            * @tparam Epilogue Functor applied per element immediately before the store,
-            *         exactly as in @ref SushiBLAS::Kernels::SYCL::gemm and with the same
-            *         `(value, row, col)` contract. It is here so that a *fused* GEMM has
-            *         a ground truth at all: `VERIFY` mode and `FORCE_REFERENCE` are how
-            *         this project judges a SYCL kernel, and a reference that dropped the
-            *         epilogue would silently declare every fused result wrong. Defaults
-            *         to @ref SushiBLAS::Kernels::GemmIdentityEpilogue.
-            * @param layout The layout all three operands are stored in.
-            * @param transA Whether A is used transposed.
-            * @param transB Whether B is used transposed.
-            * @param m Rows of C.
-            * @param n Columns of C.
-            * @param k Shared inner dimension.
-            * @param alpha Scale applied to the product.
-            * @param a Base pointer of A.
-            * @param lda A's leading dimension.
-            * @param b Base pointer of B.
-            * @param ldb B's leading dimension.
-            * @param beta Scale applied to the incoming C; exactly zero skips reading C.
-            * @param c Base pointer of C.
-            * @param ldc C's leading dimension.
-            * @param epilogue The per-element epilogue functor.
-            */
+             * @brief Computes GEMM in pure C++ for row-major and column-major operands.
+             * @tparam Epilogue Functor applied per element before the store, as `(value, row, col)`.
+             * @param beta Exactly zero skips reading C.
+             * @see include/SushiBLAS/kernels/README.md
+             */
             template<typename T, typename Epilogue = GemmIdentityEpilogue>
             void gemm(Core::Layout layout, bool transA, bool transB,
                     int64_t m, int64_t n, int64_t k,
@@ -88,8 +63,7 @@ namespace SushiBLAS
                             ? i * ldc + j
                             : i + j * ldc;
 
-                        // beta==0 must not read the (possibly uninitialized) prior C value,
-                        // matching standard BLAS semantics.
+                        // beta == 0 must not read the prior C value, which may be uninitialised; see include/SushiBLAS/kernels/README.md.
                         const T value = (beta == T(0)) ? alpha * sum
                                                        : alpha * sum + beta * c[idx];
 
@@ -99,34 +73,12 @@ namespace SushiBLAS
             }
 
             /**
-            * @brief Batch GEMM reference implementation.
-            *
-            * @tparam T The element type.
-            * @tparam Epilogue Functor applied per element before the store; see the
-            *         single-matrix overload above.
-            * @param layout The layout all three operands are stored in.
-            * @param transA Whether A is used transposed.
-            * @param transB Whether B is used transposed.
-            * @param m Rows of C.
-            * @param n Columns of C.
-            * @param k Shared inner dimension.
-            * @param alpha Scale applied to the product.
-            * @param a Base pointer of A.
-            * @param lda A's leading dimension.
-            * @param str_a Element stride between consecutive A matrices in the batch.
-            * @param b Base pointer of B.
-            * @param ldb B's leading dimension.
-            * @param str_b Element stride between consecutive B matrices in the batch.
-            * @param beta Scale applied to the incoming C; exactly zero skips reading C.
-            * @param c Base pointer of C.
-            * @param ldc C's leading dimension.
-            * @param str_c Element stride between consecutive C matrices in the batch.
-            * @param batch_size Number of matrices in the batch.
-            * @param epilogue The per-element epilogue functor. Its `row`/`col` arguments
-            *        are the coordinates within one matrix of the batch, matching
-            *        @ref SushiBLAS::Kernels::SYCL::gemm - a batch-aware epilogue would
-            *        need a batch index the SYCL side does not supply either.
-            */
+             * @brief Computes a batch of GEMMs with the reference kernel.
+             * @param beta Exactly zero skips reading C.
+             * @param str_a Element stride between consecutive A matrices; str_b and str_c likewise.
+             * @param epilogue Receives the row and column within one matrix of the batch.
+             * @see include/SushiBLAS/kernels/README.md
+             */
             template<typename T, typename Epilogue = GemmIdentityEpilogue>
             void gemm(Core::Layout layout, bool transA, bool transB,
                             int64_t m, int64_t n, int64_t k,

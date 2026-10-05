@@ -6,31 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The smallest thing that proves the package works: a real op (AXPY, one of
-// SB-3's from-scratch kernels), recorded and run against an installed
-// SushiBLAS, from a project that has no access to sushiblas's source tree.
-//
-// It is small on purpose - anything more would be testing SushiBLAS itself,
-// which its own suite does. What is under test here is the package: that the
-// headers are found, that the kernel template compiles in THIS project's
-// translation unit under the toolchain the consumer chose, and that the
-// library links and runs end to end through both SushiBLAS and its
-// SushiRuntime dependency.
-//
-// Second thing under test, added when the five *_internal.hpp op-dispatch
-// helpers were promoted out of src/ and installed: that SushiBLAS::Dispatch is
-// genuinely reachable from here. Handing execute_binary a lambda THIS file
-// wrote, and having it compile and run, is the difference between "the fusion
-// seam was moved" and "the fusion seam is public API". Nothing in sushiblas's
-// own suite can show that - in-tree, every header is on the include path
-// whether it gets installed or not.
-
-// Third thing under test, added when the GEMM epilogue was promoted to a
-// public seam: that SushiBLAS::Dispatch::execute_gemm reaches a consumer with
-// the consumer's OWN epilogue functor. That one is not like the others - it
-// instantiates a real tiling kernel (kernels/.../level3/gemm.hpp) in THIS
-// translation unit, so it is also the check that the kernel header is genuinely
-// installed rather than merely present in the source tree next door.
+/**
+ * @file main.cpp
+ * @brief Runs AXPY and three consumer-authored fused kernels against an installed SushiBLAS.
+ * @author Mustafa Garip
+ * @see tests/package/README.md
+ */
 
 #include <array>
 #include <cmath>
@@ -45,16 +26,9 @@
 using namespace SushiRuntime::Graph::Literals;
 
 /**
- * @brief A consumer-authored GEMM epilogue: a column-bias broadcast plus ReLU.
- *
- * The shape a linear layer wants. `col` is what makes the broadcast expressible
- * at all, and `row` selects the per-row term - both are read here so that a seam
- * which passed only one of them would fail this program rather than pass it.
- *
- * @warning An activation fused into a *forward training* pass is silently wrong
- *          unless the pre-activation is also spilled - see the warning on
- *          Dispatch::execute_gemm. This program is inference-shaped, so it is
- *          not affected, which is exactly the distinction that warning draws.
+ * @brief Adds a row bias and a column bias to a GEMM element and clamps the sum at zero.
+ * @warning Fused into a forward training pass, it needs the pre-activation spilled too.
+ * @see tests/package/README.md
  */
 struct ConsumerBiasRelu
 {
@@ -93,9 +67,7 @@ int main()
     engine.execute();
     ctx.wait_all();
 
-    // A consumer-authored functor fused into a single kernel: multiply, add and
-    // divide as one device-side expression, with no SYCL written here and one
-    // task in the graph instead of three.
+    // One consumer-authored functor runs multiply, add and divide as a single task.
     auto a = engine.create_tensor({N});
     auto b = engine.create_tensor({N});
     auto c = engine.create_tensor({N});
@@ -131,11 +103,7 @@ int main()
         }
     }
 
-    // The variadic in-place seam, from out of tree: three tensors advanced
-    // together by one consumer-authored functor, in one task. This also proves
-    // <SushiBLAS/engine/launch_1d.hpp> - the header the seam's launch geometry
-    // lives in - actually reaches an installed consumer, which nothing in-tree
-    // can show.
+    // One consumer-authored functor advances three tensors in a single task.
     sb::Dispatch::execute_zip_inplace(engine, std::array{&a, &b, &c},
         "consumer.zip", "consumer.zip"_op,
         [](auto& p, auto& r, auto& s)
@@ -163,16 +131,7 @@ int main()
         }
     }
 
-    // The GEMM epilogue seam, from out of tree: a 3x3 product with this file's
-    // own bias-plus-ReLU functor folded into the store, instead of the two extra
-    // kernel launches over C that spelling it as separate ops would cost.
-    //
-    // A (3x2) = [[1,0],[0,1],[1,1]], B (2x3) = [[1,2,3],[4,5,6]], so
-    // A*B = [[1,2,3],[4,5,6],[5,7,9]]. With row_bias = [0,-6,5] and
-    // col_bias = [1,-8,3] the biased matrix is [[2,-6,6],[-1,-9,3],[11,4,17]],
-    // and the ReLU clamps the three negatives. C is square so that a seam which
-    // transposed row and col would produce a different answer here rather than
-    // an out-of-range read.
+    // C is square, so a seam that swapped row and col would change the answer.
     auto gemm_a = engine.create_tensor({3, 2});
     auto gemm_b = engine.create_tensor({2, 3});
     auto gemm_c = engine.create_tensor({3, 3});

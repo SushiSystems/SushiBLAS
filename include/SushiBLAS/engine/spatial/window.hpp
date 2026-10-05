@@ -6,16 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-#pragma once
-
 /**
  * @file window.hpp
- * @brief Building a @ref SushiBLAS::Spatial::WindowSpan from tensors.
- *
- * The single place a layout is interpreted. Everything downstream of this
- * function sees element counts, so adding NCHW later is a second stride
- * assignment here and nothing else anywhere.
+ * @brief Declares the builders of a Spatial::WindowSpan and a Spatial::ColumnSpan from tensors.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -26,34 +23,10 @@ namespace SushiBLAS
     namespace Spatial
     {
         /**
-         * @brief Describes a windowed operation whose output extents are stated.
-         *
-         * The form `im2col` and `col2im` take: their other operand is a rank-2
-         * column matrix, so there is no output image to read `H_o` and `W_o`
-         * off, and the caller states them.
-         *
-         * Reads the strides off @p in rather than deriving them from its shape,
-         * so a view with a non-unit stride - a channel slice, a
-         * `storage_offset` into a shared allocation - is addressed correctly
-         * without any caller knowing it was one.
-         *
-         * **What it can and cannot check.** The extents are taken, not
-         * recomputed, because @ref output_extent needs `pad_bottom` and
-         * `pad_right` and @ref ConvGeometry deliberately does not carry them
-         * (see its documentation). What it can prove is that every window's
-         * *origin* lands inside the padded input: an output row whose window
-         * starts at or past `in_h` reads nothing but padding, which is always a
-         * caller's arithmetic error and never a legitimate request.
-         *
-         * @param in The rank-4 NHWC input.
-         * @param g The window geometry.
-         * @param out_h The output's row count.
-         * @param out_w The output's column count.
-         * @param name The operation's name, for diagnostics.
-         * @return The span, in element counts; the `out_*_stride` fields are
-         *         left at zero, since there is no output image to describe.
-         * @throws std::runtime_error when @p in is not rank 4, or a window
-         *         origin falls outside the padded input.
+         * @brief Describes a windowed operation whose output extents the caller states.
+         * @return The span in element counts; the `out_*_stride` fields stay zero.
+         * @throws std::runtime_error when in is not rank 4 or a window origin falls outside the padded input.
+         * @see include/SushiBLAS/engine/spatial/README.md
          */
         [[nodiscard]] inline WindowSpan window_span_for(const Tensor& in, const ConvGeometry& g,
                                                         int64_t out_h, int64_t out_w,
@@ -77,9 +50,7 @@ namespace SushiBLAS
 
             span.geometry = g;
 
-            // A window whose origin is at or past the last input row covers only
-            // padding. Legal arithmetic, never a legal request - and the shape it
-            // produces is plausible enough to survive every other check here.
+            // A window that starts past the last input row is refused; see include/SushiBLAS/engine/spatial/README.md.
             SB_THROW_IF(out_h > 0 && (out_h - 1) * g.stride_h - g.pad_top >= span.in_h,
                         "Spatial operation '{}' asks for {} output rows, but window {} starts at "
                         "input row {}, which is outside a {}-row input padded by {} above.",
@@ -96,19 +67,9 @@ namespace SushiBLAS
 
         /**
          * @brief Describes a windowed operation from its two rank-4 NHWC operands.
-         *
-         * The form every operation with an image output takes - pooling,
-         * upsampling, the channel copies, the affine. `H_o` and `W_o` come from
-         * @p out, which the caller sized with @ref output_extent while the
-         * trailing padding it needs was still in scope.
-         *
-         * @param in The rank-4 NHWC input.
-         * @param g The window geometry.
-         * @param out The rank-4 NHWC output.
-         * @param name The operation's name, for diagnostics.
-         * @return The span, in element counts, with both operands' strides filled in.
-         * @throws std::runtime_error when a rank is not 4, the batch or channel
-         *         counts disagree, or a window origin falls outside the padded input.
+         * @return The span in element counts, with both operands' strides filled in.
+         * @throws std::runtime_error on a rank other than 4, a batch or channel mismatch, or a bad origin.
+         * @see include/SushiBLAS/engine/spatial/README.md
          */
         [[nodiscard]] inline WindowSpan window_span_for(const Tensor& in, const ConvGeometry& g,
                                                         const Tensor& out, const char* name)
@@ -134,14 +95,8 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Describes an im2col matrix's addressing, and checks its extents.
-         *
-         * @param cols The rank-2 column matrix.
-         * @param span The window span the matrix must match.
-         * @param name The operation's name, for diagnostics.
-         * @return The column addressing, in element counts.
-         * @throws std::runtime_error when @p cols is not rank 2, or its extents
-         *         are not `span.windows()` by `span.patch_elements()`.
+         * @brief Describes an im2col matrix's addressing and checks its extents.
+         * @throws std::runtime_error when cols is not rank 2 or not `span.windows()` by `span.patch_elements()`.
          */
         [[nodiscard]] inline ColumnSpan column_span_for(const Tensor& cols, const WindowSpan& span,
                                                         const char* name)

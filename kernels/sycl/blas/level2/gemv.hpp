@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file gemv.hpp
+ * @brief Defines the SYCL kernel of GEMV.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstdint>
@@ -22,22 +28,9 @@ namespace SushiBLAS
         namespace SYCL
         {
             /**
-            * @brief GEMV: y = alpha*op(A)*x + beta*y, one work-item per output element.
-            *
-            * Launched through `Launch::indexed`, so the grid is the one
-            * <SushiBLAS/engine/launch_1d.hpp> plans for this device rather than whatever
-            * a bare `sycl::range<1>` happened to give: flat on a CPU, and on a GPU a
-            * grid-stride loop capped at what the machine can hold resident. The work per
-            * index is unchanged - each work-item still reduces one whole row of `op(A)` -
-            * because that reduction is what makes this *not* a `Launch::map`: the output
-            * at index `o` is a function of `in_len` inputs, not of `in[o]`.
-            *
-            * The parallelism is therefore still one work-item per output element, which
-            * is the right shape while `m` is large and wrong once it is small relative to
-            * the device (a 1xN GEMV is one work-item). A row-per-work-group cooperative
-            * reduction is the standard fix and is a separate change from this one: it
-            * alters what each work-item computes, not merely where it is scheduled.
-            */
+             * @brief Computes GEMV, y = alpha*op(A)*x + beta*y, one work-item per output element.
+             * @see kernels/README.md
+             */
             template<typename T>
             [[nodiscard]] sycl::event gemv(sycl::queue& queue, Core::Layout layout, bool transA,
                              int64_t m, int64_t n, T alpha, const T* a, int64_t lda,

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file common.hpp
+ * @brief Declares the layout and element-type enumerations and the helpers that classify them.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstddef>
@@ -24,25 +30,8 @@ namespace SushiBLAS
 
 
         /**
-         * @brief Supported data types in SushiBLAS.
-         *
-         * **The integer types are not general-purpose arithmetic types here.** They exist
-         * because some results are indices rather than numbers - `iamax`, `argmax` and
-         * `argmin` all answer "which element", and answering that in a FLOAT32 tensor
-         * meant either writing eight bytes into a four-byte element (which is what
-         * `iamax` did, corrupting whatever a memory planner had packed next to it) or
-         * rounding the index through a mantissa (which is what `argmax` did, silently
-         * losing exactness past 2^24). They are also the right element type for a
-         * comparison result, which is a truth value and not a float.
-         *
-         * So only the operations for which an integer element means something accept
-         * them: `copy`, `constant`, the comparison and logic family, the index
-         * reductions, and `io`. Everything else - every elementwise transcendental,
-         * every non-linearity, every BLAS product, every folding reduction - rejects
-         * them by name at record time. That is deliberate and it is the *point*: a dtype
-         * that is quietly accepted and then silently mishandled is worse than one that
-         * is not accepted at all. See `SushiBLAS::Dispatch::Domain`, which is how each
-         * op states which element types it will instantiate for.
+         * @brief Enumerates the element types a tensor can hold.
+         * @see include/SushiBLAS/core/README.md
          */
         enum class DataType : uint8_t
         {
@@ -59,14 +48,8 @@ namespace SushiBLAS
         inline constexpr size_t MAX_TENSOR_RANK = 6;
 
         /**
-         * @brief Renders a DataType as a human-readable name, for diagnostics.
-         *
-         * Exists so that a "this operation does not support that dtype" failure can name
-         * the offending type instead of printing an integer the reader has to decode.
-         *
-         * @param dtype The data type to name.
-         * @return A static, null-terminated name such as "FLOAT32"; "UNKNOWN" for a value
-         *         outside the enumeration.
+         * @brief Returns the name of a DataType for diagnostics, or "UNKNOWN" outside the enumeration.
+         * @see include/SushiBLAS/core/README.md
          */
         inline constexpr const char* to_string(DataType dtype)
         {
@@ -102,14 +85,8 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Whether a DataType names one of the integer element types.
-         *
-         * The counterpart to @ref is_complex_dtype, and used the same way: to reject a
-         * dtype at record time in the handful of places that check a whole family at
-         * once rather than switching arm by arm.
-         *
-         * @param dtype The data type to classify.
-         * @return True for INT32 / INT64, false otherwise.
+         * @brief Returns whether a DataType is INT32 or INT64.
+         * @see include/SushiBLAS/core/README.md
          */
         inline constexpr bool is_integer_dtype(DataType dtype)
         {
@@ -128,15 +105,8 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Size in bytes of one element of a DataType.
-         *
-         * The one place the dtype-to-width mapping is written down. It used to be
-         * open-coded as a four-branch `size_t bpe = 4; if (...)` chain in three separate
-         * places (the Tensor constructor's capacity check, Tensor::data(), and io.cpp),
-         * which is three chances for a new dtype to be added to two of them.
-         *
-         * @param dtype The data type to measure.
-         * @return The element width in bytes.
+         * @brief Returns the size in bytes of one element of a DataType.
+         * @see include/SushiBLAS/core/README.md
          */
         inline constexpr size_t bytes_per_element(DataType dtype)
         {
@@ -157,8 +127,7 @@ namespace SushiBLAS
                 case DataType::INT64:
                     return 8;
             }
-            // Unreachable for any enumerator; matches to_string()'s shape, which needs a
-            // trailing return for a DataType holding a value outside the enumeration.
+            // Reached only by a DataType holding a value outside the enumeration; see include/SushiBLAS/core/README.md.
             return 4;
         }
 

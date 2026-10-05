@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_reductions.cpp
+ * @brief Tests each whole-tensor reduction on a FLOAT32 tensor.
+ * @author Mustafa Garip
+ */
+
 #include <cmath>
 #include <limits>
 #include <vector>
@@ -114,9 +120,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, ArgMax)
 
     auto t = this->template create_initialized_tensor<T>({100}, data);
 
-    // INT64, not the input's own dtype: argmax answers with an index, and an index stored
-    // in a float stops being exact past 2^24 (past 2048 in HALF). Compared exactly, for
-    // the same reason - an index is either right or wrong.
+    // The index is INT64 and is compared exactly. See tests/functional/unit/README.md.
     auto res = this->engine->create_tensor({1}, Core::DataType::INT64);
 
     this->engine->reductions().argmax(t, res);
