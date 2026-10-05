@@ -6,21 +6,16 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file traits.hpp
+ * @brief Declares the compile-time type traits the library shares.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <complex>
 #include <type_traits>
-
-// The project's compile-time type vocabulary.
-//
-// `is_complex` used to be written out three separate times, all three in the
-// same `SushiBLAS::Internal` namespace: engine/blas/utils.hpp, the elementwise
-// private helper, and the random one. Three identical primary templates in one
-// namespace is only harmless while no translation unit sees more than one of
-// them - and promoting the op-dispatch helpers to public headers (which a
-// downstream consumer will include side by side) made that guarantee
-// disappear. Collapsed to this single definition; utils.hpp now includes this
-// file so anything that reached the trait through it still compiles.
 
 namespace SushiBLAS
 {

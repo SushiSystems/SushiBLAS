@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_dependency_stress.cpp
+ * @brief Tests the dependency tracker under reader fan-out and shard collisions.
+ * @author Mustafa Garip
+ */
+
 #include <gtest/gtest.h>
 #include <vector>
 #include <chrono>
@@ -16,11 +22,12 @@ using namespace SushiBLAS::Test;
 
 class Integration_DependencyStressTest : public SushiBLASTest {};
 
+/**
+ * @brief Tests that one written tensor read by 5000 independent tasks executes.
+ * @see tests/functional/integration/README.md
+ */
 TEST_F(Integration_DependencyStressTest, ManyReadersOneWriter) 
 {
-    // Test Case 1: The "Vector Expansion" Bomb
-    // A single tensor is written to, and then read by thousands of independent tasks.
-    // This targets the std::vector<Node*> readers reallocation inside the DependencyTracker's spinlock.
     
     SB_LOG_INFO("Starting Integration_DependencyStressTest.ManyReadersOneWriter");
     
@@ -44,8 +51,7 @@ TEST_F(Integration_DependencyStressTest, ManyReadersOneWriter)
     auto dummy_weights = engine->create_tensor({N, N});
     fill_tensor(dummy_weights, std::vector<float>(N * N, 2.0f));
 
-    // Submit a write (the writer_tensor is C, so it will be written to)
-    // Actually we can just say dummy_weights * dummy_weights = writer_tensor
+    // writer_tensor is the GEMM's output, so this call writes it.
     engine->blas().gemm(dummy_weights, dummy_weights, writer_tensor);
     
     // Now submit 5000 reads! (writer_tensor is A, so it is read)
@@ -66,11 +72,12 @@ TEST_F(Integration_DependencyStressTest, ManyReadersOneWriter)
     SB_LOG_INFO("ManyReadersOneWriter finished test body.");
 }
 
+/**
+ * @brief Tests that 3000 independent GEMMs on distinct tensors execute.
+ * @see tests/functional/integration/README.md
+ */
 TEST_F(Integration_DependencyStressTest, ShardCollisionStress) 
 {
-    // Test Case 2: Shard Hash Collisions
-    // DependencyTracker uses (ptr >> 6) % 1024. If we create thousands of independent tensors, 
-    // many will fall into the same shard, causing false dependencies and heavy spinlock contention.
     
     SB_LOG_INFO("Starting Integration_DependencyStressTest.ShardCollisionStress");
     

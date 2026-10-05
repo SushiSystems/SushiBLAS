@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file gemv.cpp
+ * @brief Defines Level2::gemv, which records the BLAS GEMV task.
+ * @author Mustafa Garip
+ */
+
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -28,8 +34,6 @@ namespace SushiBLAS
         int64_t m = A.shape[rA - 2];
         int64_t n = A.shape[rA - 1];
 
-        // TODO: Implement multi-dimensional batch support for Level 2 GEMV
-
         int64_t lda = (A.layout == Core::Layout::ROW_MAJOR) ? A.shape[rA - 1] : A.shape[rA - 2];
 
         int64_t nx, incx;
@@ -48,10 +52,7 @@ namespace SushiBLAS
         void* read_x = x.data_or_null();
         void* rw_y = y.data_or_null();
 
-        // `y = alpha * op(A) * x + beta * y` reads y whenever beta is non-zero. The test is
-        // on the caller's double rather than on the narrowed element type: a beta that is
-        // non-zero here but flushes to zero in the element type only ever declares an edge
-        // the kernel does not need, never drops one it does.
+        // y is read whenever the caller's beta is non-zero; see src/README.md.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (read_A) reads.push_back(A.region());
         if (read_x) reads.push_back(x.region());

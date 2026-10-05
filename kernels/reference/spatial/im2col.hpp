@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file im2col.hpp
+ * @brief Defines the reference kernel of im2col.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstdint>
@@ -19,28 +25,7 @@ namespace SushiBLAS
         {
             /**
              * @brief Gathers every window of an NHWC image into one row of a matrix.
-             *
-             * This is `im2col`'s specification, and the answer
-             * `ExecutionMode::FORCE_REFERENCE` produces. Written as the obvious
-             * nest of loops, in the obvious order, because a reference kernel
-             * that is clever is a second implementation to be wrong rather than
-             * a ground truth.
-             *
-             * Note that `ExecutionMode::VERIFY` does *not* compare the two
-             * kernels despite what its name suggests - it runs the device kernel
-             * and then overwrites the result with this one. The comparison lives
-             * in `tests/functional/unit/test_spatial_im2col.cpp`, which runs the
-             * two forced modes into two buffers and checks them bit for bit.
-             *
-             * Out-of-bounds taps write zero. Padding never materialises as a
-             * copy of the input, which is what saves a full-tensor pass here and
-             * a crop in `col2im`.
-             *
-             * @tparam T The element type.
-             * @param span The window layout, in element counts.
-             * @param cols The column matrix's addressing.
-             * @param in The input's first element.
-             * @param out The column matrix's first element.
+             * @see kernels/README.md
              */
             template<typename T>
             void im2col(const Spatial::WindowSpan& span, const Spatial::ColumnSpan& cols,

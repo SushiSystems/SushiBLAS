@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_distributions.cpp
+ * @brief Tests the log-normal, exponential, Poisson, Bernoulli, discrete and truncated draws.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>

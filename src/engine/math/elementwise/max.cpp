@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file max.cpp
+ * @brief Defines ElementwiseOps::max, which records the elementwise max task over two tensors.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/elementwise.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 

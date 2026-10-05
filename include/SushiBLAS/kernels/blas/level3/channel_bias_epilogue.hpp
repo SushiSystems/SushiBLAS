@@ -6,29 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-#pragma once
-
 /**
  * @file channel_bias_epilogue.hpp
- * @brief A per-channel bias add for the GEMM epilogue, with the channel axis
- * chosen by a stride pair rather than baked into the type.
- *
- * The stride pair exists because "which axis is the channel" is a property of
- * the *tensor layout*, not of the bias operation. In NHWC the convolution GEMM
- * is `[N*H*W, C_in*R*S] x [C_in*R*S, C_out]`, so the channel index is the
- * **column** of C - which means the row-vector broadcast the existing
- * `Ops::GEMM_BIAS` family already performs applies to convolution verbatim,
- * with no new arithmetic. In NCHW the same convolution transposes and the
- * channel becomes the **row**. Encoding that as `(row_stride, col_stride)`
- * makes the second layout cost two integers on the host instead of a second
- * epilogue type, a second fused lowering recorder and a second set of tests.
- *
- * It lives under `include/` rather than the private repo-root `kernels/` tree
- * for the reason `kernels/blas.hpp` states: `Dispatch::execute_gemm`
- * (<SushiBLAS/engine/blas/dispatch.hpp>) instantiates the epilogue in a
- * *consumer's* translation unit, and a template a public seam instantiates
- * cannot stay private.
+ * @brief Declares ChannelBiasEpilogue, the per-channel bias add for the GEMM epilogue.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstdint>
 
@@ -37,27 +21,10 @@ namespace SushiBLAS
     namespace Kernels
     {
         /**
-        * @struct ChannelBiasEpilogue
-        * @brief Adds a per-channel bias to each GEMM output element, in either layout.
-        *
-        * `value + bias[row * row_stride + col * col_stride]`, with the stride
-        * pair set on the host. `(0, 1)` makes the **column** the channel, which
-        * is what an NHWC convolution GEMM needs and what `Ops::GEMM_BIAS`'s
-        * existing row-vector broadcast already does; `(1, 0)` makes the **row**
-        * the channel, which is what an NCHW one would need. Neither is baked in,
-        * so a second layout costs two numbers rather than a second epilogue and a
-        * second fused lowering recorder.
-        *
-        * @warning The pointer is captured into a SYCL kernel. It must be
-        *          device-accessible, must outlive the submission, and the access
-        *          set that reads it has to be declared on the task -
-        *          `Dispatch::gemm_epilogue(f).reads(bias_tensor)` is how, and
-        *          `execute_gemm` cannot discover it (see its documentation).
-        *
-        * @see Kernels::GemmIdentityEpilogue for the no-op this degenerates to at a
-        *      zero bias, and SushiBLAS::Dispatch::execute_gemm for the fusion
-        *      contract and the host-readability constraint FORCE_REFERENCE adds.
-        */
+         * @brief Adds a per-channel bias to each GEMM output element, in either layout.
+         * @warning The bias pointer must be device-accessible, outlive the submission and be a declared read.
+         * @see include/SushiBLAS/kernels/README.md
+         */
         struct ChannelBiasEpilogue
         {
             /** @brief The bias vector's first element, as the GEMM's own element type. */
@@ -70,14 +37,9 @@ namespace SushiBLAS
             int64_t col_stride = 1;
 
             /**
-            * @brief Returns @p value plus the bias for its position.
-            *
-            * @tparam T The element type of C.
-            * @param value The fully formed C element, alpha*(op(A)*op(B)) + beta*C.
-            * @param row The element's row in C.
-            * @param col The element's column in C.
-            * @return @p value plus the corresponding bias element.
-            */
+             * @brief Returns value plus the bias for its position.
+             * @param value The fully formed C element, alpha*(op(A)*op(B)) + beta*C.
+             */
             template<typename T>
             [[nodiscard]] T operator()(T value, int64_t row, int64_t col) const noexcept
             {

@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file relu.cpp
+ * @brief Defines NonLinearOps::relu and NonLinearOps::relu_backward, which record the relu
+ * activation and its gradient.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/nonlinear.hpp>
 #include <SushiBLAS/engine/math/nonlinear/dispatch.hpp>
 

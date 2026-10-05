@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_gemm.cpp
+ * @brief Tests gemm against the reference kernel, hand-computed results and its epilogue seam.
+ * @author Mustafa Garip
+ */
+
 #include <limits>
 #include <vector>
 #include <complex>
@@ -43,8 +49,7 @@ namespace SushiBLAS
 
                     const auto dtype = get_sushiblas_dtype<T>();
 
-                    // op(A) is m x k and op(B) is k x n, so the stored operands are the
-                    // transposes of those when the corresponding flag is set.
+                    // op(A) is m x k and op(B) is k x n; a set flag stores the transpose.
                     const int64_t a_rows = transA ? k : m;
                     const int64_t a_cols = transA ? m : k;
                     const int64_t b_rows = transB ? n : k;
@@ -58,11 +63,7 @@ namespace SushiBLAS
                     fill_random<T>(A);
                     fill_random<T>(B);
 
-                    // Both C buffers must start identical, or a non-zero beta compares
-                    // two different problems. They are poisoned rather than zeroed when
-                    // beta is zero: BLAS says that case must not read C at all, and a
-                    // NaN that leaks through fails the comparison instead of hiding in
-                    // a plausible number.
+                    // Both C buffers must start identical. See tests/functional/unit/README.md.
                     seed_output(C_actual, C_expected, beta == 0.0);
 
                     engine->set_mode(ExecutionMode::FORCE_SYCL);
@@ -123,9 +124,7 @@ namespace SushiBLAS
                 {
                     if (poison)
                     {
-                        // A NaN is the strongest available witness: 0*NaN is NaN, so any
-                        // read of C at beta == 0 propagates and EXPECT_NEAR rejects it.
-                        // half and the complex types all carry a quiet NaN.
+                        // A read of C at beta == 0 yields NaN. See tests/functional/unit/README.md.
                         const std::vector<float> nans(
                             static_cast<std::size_t>(actual.num_elements),
                             std::numeric_limits<float>::quiet_NaN());
@@ -180,8 +179,10 @@ namespace SushiBLAS
                 this->test_accuracy(8, 16, 4, Core::Layout::COLUMN_MAJOR);
             }
 
-            // Every extent is prime and none divides any work-group block, so each of
-            // the row, column and K tails is ragged at the same time.
+            /**
+             * @brief Tests prime extents, which leave the row, column and K tails ragged at once.
+             * @see tests/functional/unit/README.md
+             */
             TYPED_TEST(Unit_GEMMTest, RaggedOnEveryAxis)
             {
                 this->test_accuracy(37, 23, 13);
@@ -192,8 +193,10 @@ namespace SushiBLAS
                 this->test_accuracy(37, 23, 13, Core::Layout::COLUMN_MAJOR);
             }
 
-            // Spans several work-groups in both output dimensions while K is shorter
-            // than one local-memory K-tile, so the staged tile is mostly zero padding.
+            /**
+             * @brief Tests a K shorter than one local-memory K-tile under a multi-group output.
+             * @see tests/functional/unit/README.md
+             */
             TYPED_TEST(Unit_GEMMTest, KShorterThanOneTile)
             {
                 this->test_accuracy(40, 40, 3);
@@ -249,9 +252,10 @@ namespace SushiBLAS
                 this->test_accuracy(17, 19, 11, Core::Layout::COLUMN_MAJOR, false, true, 1.5, 0.5);
             }
 
-            // beta == 0 against a C full of NaN: standard BLAS forbids reading C at all
-            // in that case, and a read would leave NaN behind for the comparison to
-            // catch. Ragged on purpose so the tail path is covered too.
+            /**
+             * @brief Tests that beta == 0 never reads C, which starts full of NaN.
+             * @see tests/functional/unit/README.md
+             */
             TYPED_TEST(Unit_GEMMTest, BetaZeroNeverReadsC)
             {
                 this->test_accuracy(37, 23, 13, Core::Layout::ROW_MAJOR, false, false, 1.0, 0.0);
@@ -268,20 +272,9 @@ namespace SushiBLAS
             }
 
             /**
-            * @brief Absolute correctness pins and direct kernel-variant coverage.
-            *
-            * Two things the typed differential suite above structurally cannot do.
-            *
-            * First, hand-computed expectations. A differential test passes whenever the
-            * SYCL and reference kernels agree, including when they are wrong in the same
-            * way - which is exactly how an inverted COLUMN_MAJOR addressing arm survived
-            * in both for as long as it did. The layout and transpose cases below are
-            * therefore checked against numbers worked out by hand.
-            *
-            * Second, variant coverage. GEMM picks between its local-tiled and no-local
-            * shapes from the device profile, so on any one machine the public API only
-            * ever reaches one of them. These call both directly.
-            */
+             * @brief Holds the hand-computed pins and the direct calls to both kernel variants.
+             * @see tests/functional/unit/README.md
+             */
             class Unit_GEMMKernelTest : public SushiBLASTest
             {
                 protected:
@@ -320,15 +313,7 @@ namespace SushiBLAS
             {
                 reinit_engine(Core::Layout::COLUMN_MAJOR);
 
-                // The same problem as above, stored column-major: A (2x3) is
-                // [1,4,2,5,3,6] with lda = 2, B (3x2) is [1,0,1,0,1,1] with ldb = 3.
-                //
-                // This is the case that used to be wrong. The old kernels read a
-                // column-major A as if it were row-major with a column-major leading
-                // dimension, which both produced the wrong element and - because that
-                // leading dimension is m, not k - ran off the end of the buffer whenever
-                // m > k. It survived because the reference kernel had the identical
-                // defect, so the differential tests agreed.
+                // The same problem, stored column-major. See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({2, 3}, {1, 4, 2, 5, 3, 6});
                 auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 1, 0, 1, 1});
                 auto C = engine->create_tensor({2, 2}, Core::DataType::FLOAT32);
@@ -343,8 +328,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMKernelTest, ColumnMajorReferenceMatchesHandComputedResult)
             {
-                // The oracle itself, pinned to the same numbers. Without this the SYCL
-                // kernel could only ever be as right as whatever the reference does.
+                // The oracle is pinned to the same numbers. See tests/functional/unit/README.md.
                 reinit_engine(Core::Layout::COLUMN_MAJOR);
 
                 auto A = create_initialized_tensor<float>({2, 3}, {1, 4, 2, 5, 3, 6});
@@ -360,9 +344,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMKernelTest, TransposedAMatchesHandComputedResult)
             {
-                // op(A) is the same [[1,2,3],[4,5,6]] as above, so A is stored 3x2 as
-                // its transpose: [[1,4],[2,5],[3,6]]. Pins the ROW_MAJOR+transposed arm,
-                // which must address identically to COLUMN_MAJOR+untransposed.
+                // A is stored 3x2 as the transpose of op(A). See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, {1, 4, 2, 5, 3, 6});
                 auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 0, 1, 1, 1});
                 auto C = engine->create_tensor({2, 2}, Core::DataType::FLOAT32);
@@ -391,14 +373,9 @@ namespace SushiBLAS
                 const float* col_bias;
 
                 /**
-                * @brief Adds both biases to @p value and clamps the result at zero.
-                *
-                * @tparam T The element type of C.
-                * @param value The fully formed alpha*(A*B) + beta*C element.
-                * @param row The element's row in C.
-                * @param col The element's column in C.
-                * @return max(value + row_bias[row] + col_bias[col], 0).
-                */
+                 * @brief Adds both biases to @p value and clamps the result at zero.
+                 * @return max(value + row_bias[row] + col_bias[col], 0).
+                 */
                 template<typename T>
                 [[nodiscard]] T operator()(T value, int64_t row, int64_t col) const noexcept
                 {
@@ -410,12 +387,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMKernelTest, EpilogueFusesBiasAndReluIntoTheStore)
             {
-                // A (2x2) = [[1,2],[3,4]], B (2x3) = [[1,0,-1],[0,1,-1]], alpha = 2.
-                //   A*B          = [[1, 2, -3], [3, 4, -7]]
-                //   2*(A*B)      = [[2, 4, -6], [6, 8, -14]]
-                // row_bias = [0, 1], col_bias = [0.5, -1, 5]:
-                //   + biases    = [[2.5, 3, -1], [7.5, 8, -8]]
-                //   relu        = [[2.5, 3,  0], [7.5, 8,  0]]
+                // 2*(A*B), plus both biases, clamped at 0. See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({2, 2}, {1, 2, 3, 4});
                 auto B = create_initialized_tensor<float>({2, 3}, {1, 0, -1, 0, 1, -1});
                 auto C = engine->create_tensor({2, 3}, Core::DataType::FLOAT32);
@@ -437,23 +409,9 @@ namespace SushiBLAS
             }
 
             /**
-            * @brief The epilogue through the public seam, not through the kernel.
-            *
-            * The test above calls `Kernels::SYCL::gemm` directly, which no consumer can
-            * do through the Engine API. These go through
-            * `Dispatch::execute_gemm` - recorded as a task on the graph, run by
-            * `Engine::execute()`, dispatched on the runtime dtype - because that is the
-            * seam that is actually supported, and a hook that only works when called
-            * from inside this repository is the thing this test exists to rule out.
-            *
-            * C is square (3x3) on purpose, and both biases are distinct. A square C is
-            * what makes a transposed `row`/`col` a *wrong answer* rather than an
-            * out-of-range read: with a 2x3 C, swapping the coordinates indexes a 2-entry
-            * row bias with a column index and the failure is undefined behaviour instead
-            * of a comparison this can report. The expected values below differ under the
-            * swap (row 0 would end [2, 0, 9] rather than [2, 0, 6]), so the coordinates
-            * are pinned individually and not merely jointly.
-            */
+             * @brief Holds the operands and the hand-computed result of the fused seam tests.
+             * @see tests/functional/unit/README.md
+             */
             class Unit_GEMMSeamTest : public SushiBLASTest
             {
                 protected:
@@ -464,17 +422,9 @@ namespace SushiBLAS
                     static std::vector<float> b_values() { return {1, 2, 3, 4, 5, 6}; }
 
                     /**
-                    * @brief The hand-computed result of the fused call.
-                    *
-                    * A*B = [[1,2,3], [4,5,6], [5,7,9]]. With row_bias = [0, -6, 5] and
-                    * col_bias = [1, -8, 3], `value + row_bias[row] + col_bias[col]` is
-                    *
-                    *     [[  2,  -6,   6],
-                    *      [ -1,  -9,   3],
-                    *      [ 11,   4,  17]]
-                    *
-                    * and the ReLU clamps the three negatives to zero.
-                    */
+                     * @brief Returns the hand-computed result of the fused call.
+                     * @see tests/functional/unit/README.md
+                     */
                     static std::vector<float> expected()
                     {
                         return {2, 0, 6,
@@ -505,10 +455,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMSeamTest, ExecuteGemmAppliesTheSameEpilogueOnTheReferencePath)
             {
-                // The reference kernel is this operation's specification, so it has to
-                // apply the epilogue too - otherwise VERIFY mode would declare every
-                // fused GEMM wrong, and FORCE_REFERENCE would quietly compute a different
-                // function from FORCE_SYCL.
+                // The reference kernel applies the epilogue. See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
                 auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
@@ -529,9 +476,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMSeamTest, ExecuteGemmWithTheIdentityEpilogueIsPlainGemm)
             {
-                // What `Level3::gemm` now is, asserted directly: the unfused entry point
-                // and the seam with the identity must agree element for element, or the
-                // delegation in src/engine/blas/level3/gemm.cpp changed behaviour.
+                // Level3::gemm is the seam with the identity. See tests/functional/unit/README.md.
                 auto A = engine->create_tensor({13, 7}, Core::DataType::FLOAT32);
                 auto B = engine->create_tensor({7, 11}, Core::DataType::FLOAT32);
                 auto via_api = engine->create_tensor({13, 11}, Core::DataType::FLOAT32);
@@ -548,25 +493,7 @@ namespace SushiBLAS
                 SB_ASSERT_TENSOR_NEAR(via_seam, via_api, 1e-6, float);
             }
 
-            // ===============================================================
-            // The epilogue's own operands
-            // ===============================================================
-            //
-            // `execute_gemm` declares A, B and C. Whatever the epilogue itself
-            // touches is invisible to it - the functor is an opaque callable, and
-            // that opacity is the feature - so an undeclared bias is not a wrong
-            // dependency edge, it is NO edge, and the graph is free to run this
-            // GEMM at the same time as whatever writes the bias. Nothing throws
-            // and nothing is NaN; the run simply computes with a value that had
-            // not arrived yet.
-            //
-            // `Dispatch::gemm_epilogue(...).reads(t)/.writes(t)` is how the caller
-            // hands that back, and every assertion below is on `in_degree`, never
-            // on an output value - for the reason
-            // Regression_Sentinel.ReductionsOrderAgainstViewsOfOneAllocation gives
-            // at length: with no edge the two tasks MAY still come out in the right
-            // order by luck, so a correct answer proves nothing about ordering. The
-            // in-degree is the fact that decides it.
+            // An undeclared epilogue operand gets no edge. See tests/functional/unit/README.md.
 
             /**
             * @struct BiasColumnEpilogue
@@ -596,16 +523,10 @@ namespace SushiBLAS
             };
 
             /**
-            * @struct BiasSpillEpilogue
-            * @brief A bias add that also spills its result to an auxiliary buffer.
-            *
-            * The shape cuBLASLt calls `GELU_AUX_BIAS`: the pre-activation the
-            * backward pass has to differentiate at, written out on the way past so
-            * it still exists after the fused store. No activation is applied - what
-            * is under test is whether the seam can express an auxiliary *write* at
-            * all, which is the thing that decides whether such an epilogue can ever
-            * be safe, not any particular activation's arithmetic.
-            */
+             * @struct BiasSpillEpilogue
+             * @brief Adds a bias and also writes its result to an auxiliary buffer.
+             * @see tests/functional/unit/README.md
+             */
             struct BiasSpillEpilogue
             {
                 /** @brief One value per column of C. */
@@ -642,10 +563,7 @@ namespace SushiBLAS
                 auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
                 auto bias = engine->create_tensor({3}, Core::DataType::FLOAT32);
 
-                // The bias is written inside the same graph, which is the case that
-                // matters: a parameter an optimizer rewrites within one compiled
-                // plan looks exactly like this. A and B have no producer here, so
-                // the GEMM's in-degree counts the bias edge and nothing else.
+                // The in-degree counts the bias edge alone. See tests/functional/unit/README.md.
                 engine->elementwise().mul(seed, seed, bias);
 
                 Dispatch::execute_gemm(*engine, A, B, C, false, false, 1.0, 0.0,
@@ -663,15 +581,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMSeamTest, AnUndeclaredEpilogueOperandGetsNoEdgeAtAll)
             {
-                // The control, and the whole reason the test above is worth writing:
-                // the same graph with the same functor, passed bare. This is what
-                // every fused GEMM in this library did before gemm_epilogue existed,
-                // and it is asserted rather than merely described because a fix whose
-                // test would also pass without the fix is not a test.
-                //
-                // It is also the compatibility pin: a bare epilogue must go on
-                // producing exactly this access set, so nothing that never declared
-                // anything changes behaviour.
+                // The same functor passed bare gets no edge. See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
                 auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
@@ -695,14 +605,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMSeamTest, DeclaredOperandsOrderAcrossTwoViewsOfOneAllocation)
             {
-                // The bare-pointer hazard, on this seam. A region built from `data()`
-                // widens to the whole allocation of whatever it points at, so a view
-                // at a non-zero offset and its own arena look like two unrelated
-                // resources, overlaps() says false, and the tracker emits no edge at
-                // all - not a wrong edge, none. That is what cost SushiAI's first
-                // arena-packed training run, and it is why
-                // GemmEpilogue::reads takes a Tensor and calls Tensor::region()
-                // itself rather than accepting a region a caller built.
+                // The declared read uses Tensor::region(). See tests/functional/unit/README.md.
                 constexpr int64_t kN = 3;
 
                 auto storage = SushiRuntime::make_sushi<Storage>(
@@ -737,12 +640,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMSeamTest, ADeclaredEpilogueWriteOrdersItsReaderBehindTheGemm)
             {
-                // The direction that decides whether an activation can ever be fused
-                // into a *training* forward pass: the epilogue spills its
-                // pre-activation, and whatever differentiates against that spill has
-                // to be ordered behind the GEMM that produced it. Nothing else in the
-                // task's access set mentions the aux buffer, so this edge exists only
-                // if the write was declared.
+                // Only a declared write orders the aux reader. See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
                 auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
@@ -770,10 +668,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMSeamTest, AnUndeclaredEpilogueWriteGetsNoEdgeAtAll)
             {
-                // The control for the test above, and the shape of the bug an aux
-                // buffer would otherwise have: the epilogue really does write `aux`,
-                // the reader really does read it, and without the declaration the two
-                // are unordered.
+                // An undeclared aux write gets no edge. See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
                 auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
@@ -796,11 +691,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMSeamTest, DeclaringOperandsChangesNoArithmetic)
             {
-                // The declaration is bookkeeping on the host: the bundle is unwrapped
-                // before the closure is built, so the functor that reaches the kernel
-                // is the same object either way and the two spellings must agree to
-                // the bit. If they do not, the unwrapping copied something it should
-                // not have - or failed to.
+                // Both spellings must agree to the bit. See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
                 auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
@@ -826,10 +717,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMSeamTest, DeclaringAnOperandWithNoStorageIsRefused)
             {
-                // A storage-less tensor yields a base-less region, which the tracker
-                // orders against nothing. Accepting it would let a declaration compile,
-                // read like a fix in review, and do nothing at all - which is the exact
-                // failure mode declaring operands exists to remove.
+                // A base-less region orders against nothing. See tests/functional/unit/README.md.
                 Tensor nothing;
 
                 EXPECT_THROW(Dispatch::gemm_epilogue(BiasColumnEpilogue{nullptr}).reads(nothing),
@@ -869,12 +757,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMKernelTest, LocalTiledVariantMatchesReferenceOnRaggedShape)
             {
-                // The variant a GPU would take. This machine has no GPU - the only
-                // reachable device is an OpenCL CPU - so what this proves is that the
-                // kernel compiles, launches, synchronises and computes the right answer,
-                // on a device whose "local memory" is really just cache. It is not
-                // evidence about performance on real scratchpad hardware, and it is not
-                // a substitute for running it on one.
+                // Only an OpenCL CPU runs this variant here. See tests/functional/unit/README.md.
                 constexpr int64_t m = 37, n = 45, k = 23;
                 constexpr float alpha = 1.5f;
 
@@ -911,9 +794,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMKernelTest, LocalTiledVariantHandlesColumnMajorAndTransposes)
             {
-                // Same variant, driven through the stride pair rather than the identity
-                // case, so the layout/transpose hoisting is exercised on the path the
-                // profile will not select here.
+                // The profile never selects this path here. See tests/functional/unit/README.md.
                 constexpr int64_t m = 19, n = 21, k = 17;
 
                 auto& q = TestEnvironment::get_context().get_queue();
@@ -954,9 +835,7 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMKernelTest, StrideTableMatchesTheStandardIdentity)
             {
-                // Transposing an operand and flipping its layout are the same operation.
-                // Cheap to state, and it is the check that would have caught the
-                // inverted COLUMN_MAJOR arm the moment it was written.
+                // A transpose equals a flipped layout. See tests/functional/unit/README.md.
                 namespace Kd = Kernels::SYCL::Detail;
                 constexpr int64_t ld = 7;
 

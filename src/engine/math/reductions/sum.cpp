@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file sum.cpp
+ * @brief Defines ReductionOps::sum, which records the sum reduction.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
@@ -13,11 +19,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    // Order-sensitive, so it goes through the folding seam rather than
-    // sycl::reduction - see <SushiBLAS/engine/reduce_1d.hpp> for why the spec's
-    // unspecified combination order is a correctness problem for `+` and not for
-    // `max`. Nothing to transform and nothing to finalize: this is the shape every
-    // other reduction in this file is a variation on.
+    // The sum is order-sensitive, so it goes through the folding seam; see src/README.md.
     sycl::event ReductionOps::sum(const Tensor& t, Tensor& result)
     {
         return Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(

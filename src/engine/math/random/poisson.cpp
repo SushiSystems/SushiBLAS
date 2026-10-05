@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file poisson.cpp
+ * @brief Defines RandomOps::poisson, which records the Poisson fill of a tensor.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
@@ -30,11 +36,7 @@ namespace SushiBLAS
                 }
                 else
                 {
-                    // Knuth's algorithm: multiply uniform draws until the running product drops
-                    // below exp(-lambda), counting draws. Iteration count is capped as a safety
-                    // valve against pathologically large lambda (each draw needs one Philox call,
-                    // keyed on a per-element attempt counter so it never repeats a uniform draw
-                    // used elsewhere).
+                    // Knuth's algorithm, capped at MAX_ITERS draws per element; see src/README.md.
                     double L = sycl::exp(-lambda);
                     constexpr int MAX_ITERS = 10000;
 

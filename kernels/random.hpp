@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file random.hpp
+ * @brief Includes the SYCL random kernels.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include "kernels/sycl/random/philox.hpp"

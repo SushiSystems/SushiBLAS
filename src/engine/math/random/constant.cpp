@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file constant.cpp
+ * @brief Defines RandomOps::constant, which records the constant fill of a tensor.
+ * @author Mustafa Garip
+ */
+
 #include <complex>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -90,11 +96,7 @@ namespace SushiBLAS
                 );
                 break;
             }
-            // The integer arms are not an oddity here: `constant` is how an index tensor
-            // gets a known value before an op writes over it, and how a comparison operand
-            // gets a threshold, and both of those live in an integer tensor now. Truncating
-            // the double parameter is the same convention the HALF and FLOAT32 arms use -
-            // the caller states a value, the tensor's dtype decides how it is stored.
+            // An integer tensor stores the truncated double; see src/README.md.
             case Core::DataType::INT32:
             {
                 engine_.get_graph().add_task(meta, reads, writes,

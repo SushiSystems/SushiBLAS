@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_spatial_channels.cpp
+ * @brief Tests spatial().concat_channels and slice_channels.
+ * @author Mustafa Garip
+ */
+
 #include <array>
 #include <vector>
 #include <string>
@@ -69,8 +75,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialChannelsTest, ConcatPlacesEachSourceAtItsOffset)
         {
-            // Two pixels, so a source that ignored its column stride would still
-            // pass the first pixel and fail the second.
+            // Two pixels expose an ignored column stride. See tests/functional/unit/README.md.
             auto a = image(1, 1, 2, 2, {10, 11,
                                         12, 13});
             auto b = image(1, 1, 2, 3, {20, 21, 22,
@@ -129,10 +134,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialChannelsTest, TheyAreEachOthersBackward)
         {
-            // The property the autograd rule stands on: the gradient of a concat
-            // is a slice at the same offset and of the same width. Written as one
-            // round trip through the offset the second source occupies, so an
-            // off-by-one in either direction shows up rather than cancelling.
+            // Concat's gradient is a slice at the same offset. See tests/functional/unit/README.md.
             auto a = patterned(1, 2, 2, 3, 3);
             auto b = patterned(1, 2, 2, 4, 11);
 
@@ -186,11 +188,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialChannelsTest, AStridedSourceIsAddressedThroughItsStrides)
         {
-            // Built through Tensor's stride-explicit constructor, the same public
-            // seam test_tensor_view.cpp exercises: a [1,2,2,2] view over a
-            // [1,2,2,4] parent whose channel stride is 2, so it sees the parent's
-            // even channels only. A kernel that assumed a unit channel stride
-            // would copy channels 0 and 1 instead of 0 and 2.
+            // The view sees only the parent's even channels. See tests/functional/unit/README.md.
             auto parent = image(1, 2, 2, 4, {0, 1, 2, 3,      4, 5, 6, 7,
                                              8, 9, 10, 11,    12, 13, 14, 15});
 
@@ -218,9 +216,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialChannelsTest, TheSyclKernelAgreesWithTheReferenceKernel)
         {
-            // Compared here rather than under ExecutionMode::VERIFY, which runs
-            // both kernels but lets the reference overwrite the device's answer
-            // instead of checking it (see Internal::dispatch_with_mode).
+            // VERIFY mode would not compare the two kernels. See tests/functional/unit/README.md.
             const int64_t N = 2, H = 3, W = 4, C = 3, WIDE = 7, OFFSET = 2;
 
             auto src = patterned(N, H, W, C, 5);

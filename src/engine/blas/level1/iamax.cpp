@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file iamax.cpp
+ * @brief Defines Level1::iamax, which records the BLAS IAMAX task.
+ * @author Mustafa Garip
+ */
+
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -17,17 +23,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    // The result is an index, so the result tensor's dtype must be INT64 - and this
-    // check is the whole point of the integer dtypes existing.
-    //
-    // Before them, `iamax` wrote an `int64_t` into whatever the caller passed, which in
-    // every test and every consumer was a FLOAT32 tensor. Eight bytes into a four-byte
-    // element. `tests/functional/unit/test_iamax.cpp` worked around it by allocating two
-    // floats and left a comment reading "Wait, different sizes!". That was survivable
-    // while a tensor owned its allocation; it stopped being survivable when SushiAI began
-    // packing tensors into arenas, because the four bytes past the result belong to a
-    // different tensor - and `Tensor::region()` reported a four-byte write, so the
-    // dependency tracker ordered nothing against the corruption either.
+    // The result tensor must be INT64, because the result is an index; see src/README.md.
     sycl::event Level1::iamax(const Tensor& x, Tensor& result)
     {
         SB_THROW_IF(result.dtype != Core::DataType::INT64,

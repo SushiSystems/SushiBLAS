@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file broadcast.cpp
+ * @brief Defines SpatialOps::channel_affine, broadcast_spatial and layout_convert, which record
+ * the three broadcast copies.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/task.hpp>
@@ -17,14 +24,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    // None of the three operations here has a sliding window, so none of them
-    // goes through Spatial::window_span_for: that helper validates every window
-    // origin against a ConvGeometry, and the geometry these operations would
-    // have to invent to satisfy it (a 1x1 window at stride 1) is six fields a
-    // reader would have to rule out before trusting the call. The spans below
-    // are built by hand from the operands' shape[] and strides[], with
-    // out_h/out_w set equal to in_h/in_w because these are copies rather than
-    // reductions over a window.
+    // The spans here are built by hand, not by Spatial::window_span_for; see src/README.md.
 
     sycl::event SpatialOps::channel_affine(const Tensor& in, const Tensor& gamma,
                                            const Tensor& beta, Tensor& out)
@@ -82,8 +82,7 @@ namespace SushiBLAS
         span.out_col_stride = out.strides[2];
         span.out_channel_stride = out.strides[3];
 
-        // Through their own strides, not assumed contiguous: a parameter vector
-        // is routinely a view into a packed parameter arena.
+        // gamma and beta are addressed through their own strides; see src/README.md.
         const int64_t gamma_stride = gamma.strides[0];
         const int64_t beta_stride = beta.strides[0];
 
@@ -155,10 +154,7 @@ namespace SushiBLAS
         span.out_h = out.shape[1];
         span.out_w = out.shape[2];
         span.channels = out.shape[3];
-        // The input is rank-2, so it has no row or column stride to record; the
-        // in_* extents are filled in only so that the span describes one shape
-        // rather than two, and the input's two real strides travel to the
-        // kernels as arguments.
+        // The rank-2 input has no row or column stride, so in_* mirror out_*; see src/README.md.
         span.in_h = span.out_h;
         span.in_w = span.out_w;
         span.out_batch_stride = out.strides[0];
@@ -193,9 +189,7 @@ namespace SushiBLAS
                 auto source = static_cast<const T*>(read_in);
                 auto destination = static_cast<T*>(write_out);
 
-                // Narrowed here rather than at the seam: the factor has to be a
-                // T for both kernels, and T is not known until this closure is
-                // instantiated.
+                // T is known only in this closure, so scale is narrowed here; see src/README.md.
                 const T factor = static_cast<T>(scale);
 
                 return Internal::dispatch_with_mode(mode, q, deps,
@@ -225,11 +219,7 @@ namespace SushiBLAS
                     "Spatial operation '{}' has a {} input and a {} output.",
                     NAME, Core::to_string(in.dtype), Core::to_string(out.dtype));
 
-        // The logical shape is the same on both sides - what differs is which
-        // stride is largest. A caller expresses the transpose by handing in a
-        // differently-strided output tensor, never by a direction flag, so an
-        // output whose *shape* is permuted is a caller error rather than the
-        // way NCHW is requested.
+        // Both sides share one logical shape and differ only in strides; see src/README.md.
         for (int32_t d = 0; d < 4; ++d)
         {
             SB_THROW_IF(in.shape[d] != out.shape[d],

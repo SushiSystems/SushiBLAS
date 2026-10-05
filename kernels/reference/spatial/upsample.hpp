@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file upsample.hpp
+ * @brief Defines the reference kernels of nearest-neighbour upsampling and its gradient.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstdint>
@@ -19,22 +25,7 @@ namespace SushiBLAS
         {
             /**
              * @brief Repeats each input pixel into a `scale_h` by `scale_w` block.
-             *
-             * `out[n, h_o, w_o, c] = in[n, h_o / scale_h, w_o / scale_w, c]`, a
-             * pure copy with no arithmetic, so the output's bit patterns are the
-             * input's.
-             *
-             * The span carries the two operands' extents and strides and a
-             * default-constructed @ref Spatial::ConvGeometry, which this
-             * operation does not use: nearest-neighbour upsampling is two
-             * numbers, not eight.
-             *
-             * @tparam T The element type.
-             * @param span The image layout, in element counts.
-             * @param scale_h The vertical repeat factor.
-             * @param scale_w The horizontal repeat factor.
-             * @param in The input image's first element.
-             * @param out The output image's first element.
+             * @see kernels/README.md
              */
             template<typename T>
             void upsample_nearest(const Spatial::WindowSpan& span,
@@ -65,19 +56,8 @@ namespace SushiBLAS
 
             /**
              * @brief Sums each output block back onto the pixel that produced it.
-             *
-             * One pass per **input** pixel, gathering the fixed
-             * `scale_h * scale_w` output elements that read it in ascending
-             * `(dh, dw)` order. Nothing is scattered and nothing is added
-             * twice, so no atomic appears and two runs sum identically.
-             *
-             * @tparam T The element type.
-             * @param span The image layout, in element counts.
-             * @param scale_h The vertical repeat factor the forward used.
-             * @param scale_w The horizontal repeat factor the forward used.
-             * @param dy The output gradient's first element.
-             * @param dx The input gradient's first element; every pixel is
-             *        written, so it needs no prior clear.
+             * @param dx The input gradient; every pixel is written, so it needs no prior clear.
+             * @see kernels/README.md
              */
             template<typename T>
             void upsample_nearest_backward(const Spatial::WindowSpan& span,

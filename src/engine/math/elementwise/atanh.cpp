@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file atanh.cpp
+ * @brief Defines ElementwiseOps::atanh, which records the in-place elementwise atanh task.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/elementwise.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 

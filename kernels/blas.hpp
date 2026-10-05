@@ -6,17 +6,15 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file blas.hpp
+ * @brief Includes every BLAS kernel, reference and SYCL.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
-// Most kernels under kernels/ are private to this tree and spelled with a
-// quoted, repo-root-relative path. GEMM's two are the exception and are spelled
-// as angle-bracket <SushiBLAS/...> includes: they live under include/ and are
-// installed, because `Dispatch::execute_gemm`
-// (<SushiBLAS/engine/blas/dispatch.hpp>) instantiates them in a *consumer's*
-// translation unit with the consumer's own epilogue functor. A template that a
-// public seam instantiates cannot stay private, so the rule this file follows
-// is: a kernel a public seam names lives under include/SushiBLAS/kernels/,
-// mirroring the same reference/sycl split; everything else stays here.
+// A kernel a public seam names lives under include/SushiBLAS/kernels/; see kernels/README.md.
 
 // Level 1
 #include "kernels/reference/blas/level1/level1.hpp"

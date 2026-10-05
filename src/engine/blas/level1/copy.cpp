@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file copy.cpp
+ * @brief Defines Level1::copy, which records the BLAS COPY task.
+ * @author Mustafa Garip
+ */
+
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -19,10 +25,7 @@ namespace SushiBLAS
 
     sycl::event Level1::copy(const Tensor& x, Tensor& y)
     {
-        // Still an error, and it has to be: `?copy` is a BLAS routine and every BLAS
-        // routine is fixed to one precision. What changed is that there is now somewhere
-        // to send the caller, so the message names it - a converting copy is
-        // `elementwise().convert`, and this is the line a caller who wanted one reaches.
+        // A dtype mismatch stays an error and names the converting copy; see src/README.md.
         SB_THROW_IF(x.dtype != y.dtype,
                     "Data type mismatch in COPY: source is {}, destination is {}. BLAS "
                     "copy moves elements without changing their type; for a copy that "
@@ -32,8 +35,6 @@ namespace SushiBLAS
         Internal::get_vec_params(x, n, incx);
         int64_t ny; Internal::get_vec_params(y, ny, incy);
         SB_THROW_IF(n != ny, "COPY requires tensors of the same number of elements.");
-
-        // TODO: Implement multi-dimensional batch support
 
         void* read_x = x.data_or_null();
         void* write_y = y.data_or_null();
@@ -50,10 +51,7 @@ namespace SushiBLAS
 
         auto mode = engine_.get_mode();
 
-        // Domain::ALL, uniquely among the BLAS ops. `copy` moves elements; it does no
-        // arithmetic to them, so there is no element type it cannot serve - including the
-        // integer ones, which is what lets an index tensor produced by iamax or argmax be
-        // moved without laundering it through a float.
+        // copy does no arithmetic, so it serves Domain::ALL; see src/README.md.
         return Internal::execute_blas_task<Dispatch::Domain::ALL>(engine_, meta, reads, writes, x.dtype,
             [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

@@ -6,11 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// RandomOps::orthogonal - previously declared in an installed header, implemented as a
-// forward to normal(), and commented out of the build, so a consumer calling it failed
-// at link, and anyone who un-commented it got a Gaussian matrix under an orthogonal
-// name. Now a real modified-Gram-Schmidt orthonormalization; the tests below check the
-// only property that distinguishes it from the fallback it replaced.
+/**
+ * @file test_orthogonal.cpp
+ * @brief Tests that random().orthogonal fills a matrix with orthonormal rows or columns.
+ * @author Mustafa Garip
+ */
 
 #include <cmath>
 #include <vector>
@@ -33,9 +33,7 @@ class Unit_OrthogonalTest : public SushiBLASTest
             return host;
         }
 
-        // Gram matrix of the `count` vectors laid out with the given strides, compared
-        // against `expected_diag` * I. This is the whole contract: an orthogonal matrix is
-        // exactly one whose vectors have unit norm and vanishing pairwise inner products.
+        /** @brief Asserts that the vectors' Gram matrix is expected_diag times identity. */
         void expect_orthonormal(const std::vector<float>& m, int64_t count, int64_t length,
                                  int64_t elem_stride, int64_t vec_stride,
                                  float expected_diag, float tol = 1e-4f)
@@ -60,8 +58,7 @@ class Unit_OrthogonalTest : public SushiBLASTest
 
 TEST_F(Unit_OrthogonalTest, TallMatrixHasOrthonormalColumns)
 {
-    // 8x4, row-major: 8 rows cannot all be orthogonal in a 4-dimensional space, so the
-    // four columns are the ones orthonormalized. Q^T Q = I(4).
+    // 8 rows cannot all be orthogonal in 4 dimensions, so the four columns are: Q^T Q = I(4).
     auto t = engine->create_tensor({8, 4});
     engine->set_seed(2026);
     engine->random().orthogonal(t);
@@ -96,8 +93,7 @@ TEST_F(Unit_OrthogonalTest, SquareMatrixIsFullyOrthogonal)
 
 TEST_F(Unit_OrthogonalTest, GainScalesTheGramDiagonalQuadratically)
 {
-    // Q is scaled by gain, so Q^T Q comes back as gain^2 I - the same convention as
-    // PyTorch's orthogonal_.
+    // Q is scaled by gain, so Q^T Q is gain^2 I, the convention of PyTorch's orthogonal_.
     constexpr float kGain = 2.5f;
     auto t = engine->create_tensor({5, 5});
     engine->set_seed(11);
@@ -110,9 +106,7 @@ TEST_F(Unit_OrthogonalTest, GainScalesTheGramDiagonalQuadratically)
 
 TEST_F(Unit_OrthogonalTest, ResultIsNotJustAGaussianFill)
 {
-    // The regression this whole item exists for: the previous implementation returned
-    // normal(0, 1), whose columns are neither unit-norm nor orthogonal. A Gaussian 6x6
-    // has column norms near sqrt(6) ~ 2.45, so a unit diagonal cannot be an accident.
+    // A Gaussian 6x6 has column norms near sqrt(6). See tests/functional/unit/README.md.
     auto t = engine->create_tensor({6, 6});
     engine->set_seed(4242);
     engine->random().orthogonal(t);
@@ -133,8 +127,7 @@ TEST_F(Unit_OrthogonalTest, ResultIsNotJustAGaussianFill)
 
 TEST_F(Unit_OrthogonalTest, RejectsInputsItCannotOrthonormalize)
 {
-    // Nothing here is a silent fallback: each shape or dtype the Gram-Schmidt sweep
-    // cannot handle is reported at the call site.
+    // Each shape or dtype the Gram-Schmidt sweep cannot handle is reported at the call site.
     auto vec = engine->create_tensor({16});
     EXPECT_THROW(engine->random().orthogonal(vec), std::runtime_error);
 

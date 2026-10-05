@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file trmv.hpp
+ * @brief Defines the reference kernel of TRMV.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstdint>
@@ -18,15 +24,9 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-            * @brief Pure C++ reference TRMV: x = op(A)*x, A triangular, in-place.
-            *
-            * Correct in-place, hazard-free ordering: op(A)'s "effective" triangle
-            * (upper if the transpose-adjusted support is k>=i, lower otherwise)
-            * determines the traversal direction. Processing i so that x[i] is
-            * only ever read *before* it's overwritten - and never after - lets
-            * this run without any temporary copy of x. See derivation in the
-            * corresponding SYCL kernel's comment for why both directions are safe.
-            */
+             * @brief Computes TRMV, x = op(A)*x, in place without a copy of x.
+             * @see kernels/README.md
+             */
             template<typename T>
             void trmv(Core::Layout layout, bool upper, bool transA, bool unit_diag,
                       int64_t n, const T* a, int64_t lda, T* x, int64_t incx)

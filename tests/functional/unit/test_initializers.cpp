@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_initializers.cpp
+ * @brief Tests the Xavier and He initializers of random().
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>

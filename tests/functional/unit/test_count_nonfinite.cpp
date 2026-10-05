@@ -6,30 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// `reductions().count_nonfinite` - the exact non-finite screen a loss-scaling
-// step runs before it decides whether to apply an update.
-//
-// Three things this file is deliberately careful about.
-//
-// **Infinity and NaN are tested separately.** They are two different failures
-// with two different tests, and the obvious hand-rolled predicate `x != x`
-// catches only one of them - an infinity compares equal to itself. A screen that
-// found NaNs and waved infinities through would pass a suite that only ever fed
-// it NaNs, and fp16 overflow produces infinities first.
-//
-// **There is a control.** A clean tensor must count zero. Without it, an
-// implementation that returned a positive number unconditionally would pass every
-// other case here.
-//
-// **The last index has its own case.** A fold whose loop bound is off by one
-// drops exactly the final element and is otherwise perfect, so the bad element is
-// planted at index 0, at the middle, and at n-1 in turn - at a size above
-// `Reduce::K_CPU_TWO_STAGE_MIN_ELEMENTS`, where the two-stage kernel with its
-// grid-strided walk and halving tree is the one running.
-//
-// The `asum` comparison at the bottom is the load-bearing case for the whole op
-// existing. It is a measurement, not an assertion of intent: it runs both ops on
-// one tensor and shows them disagreeing.
+/**
+ * @file test_count_nonfinite.cpp
+ * @brief Tests reductions().count_nonfinite, its refusals and its ordering in the graph.
+ * @author Mustafa Garip
+ */
 
 #include <cmath>
 #include <limits>
@@ -106,17 +87,20 @@ namespace SushiBLAS
         using CountTypes = ::testing::Types<sycl::half, float, double>;
         SB_TYPED_TEST_SUITE(Unit_CountNonFiniteTyped, CountTypes);
 
-        // The control. Every other case below asserts a positive number, and without this
-        // one an implementation that always returned a positive number would pass them all.
+        /**
+         * @brief Tests that a clean tensor counts zero.
+         * @see tests/functional/unit/README.md
+         */
         TYPED_TEST(Unit_CountNonFiniteTyped, ACleanTensorCountsZero)
         {
             EXPECT_EQ(0, this->count(this->clean(kSmall)));
             EXPECT_EQ(0, this->count(this->clean(kLarge)));
         }
 
-        // Infinity, on its own, in both signs. `x != x` - the reflex NaN test - is false
-        // for both of these, so an implementation written that way fails here and nowhere
-        // else in this file.
+        /**
+         * @brief Tests that an infinity of either sign is counted.
+         * @see tests/functional/unit/README.md
+         */
         TYPED_TEST(Unit_CountNonFiniteTyped, AnInfinityIsCountedInEitherSign)
         {
             using T = TypeParam;
@@ -130,9 +114,10 @@ namespace SushiBLAS
             EXPECT_EQ(1, this->count(negative));
         }
 
-        // NaN, on its own. Separate from the infinity case on purpose: a screen built out
-        // of a range comparison rather than `isfinite` would catch the infinities and let
-        // every NaN through, and only this case would notice.
+        /**
+         * @brief Tests that a NaN is counted.
+         * @see tests/functional/unit/README.md
+         */
         TYPED_TEST(Unit_CountNonFiniteTyped, ANaNIsCounted)
         {
             auto data = this->clean(kSmall);
@@ -140,9 +125,10 @@ namespace SushiBLAS
             EXPECT_EQ(1, this->count(data));
         }
 
-        // One bad element in a large tensor, moved to each of the three places a fold can
-        // lose it: the first index, somewhere in the middle, and the last - which is where
-        // an off-by-one loop bound drops it and nowhere else.
+        /**
+         * @brief Tests that one bad element is found at the first, a middle and the last index.
+         * @see tests/functional/unit/README.md
+         */
         TYPED_TEST(Unit_CountNonFiniteTyped, ASingleBadElementIsFoundAtAnyIndexIncludingTheLast)
         {
             const std::vector<size_t> where = {0,
@@ -161,9 +147,10 @@ namespace SushiBLAS
             }
         }
 
-        // The answer is a count and not a flag: several bad elements of both kinds, spread
-        // across the tensor, must add up. This is what distinguishes the op from a
-        // saturating "any" and is the extra information the INT64 result buys.
+        /**
+         * @brief Tests that several bad elements of both kinds add up to their count.
+         * @see tests/functional/unit/README.md
+         */
         TYPED_TEST(Unit_CountNonFiniteTyped, EveryBadElementIsCounted)
         {
             using T = TypeParam;
@@ -177,13 +164,13 @@ namespace SushiBLAS
             EXPECT_EQ(4, this->count(data));
         }
 
-        // The same tensor content at a size either side of the CPU's single-pass/two-stage
-        // crossover. Both shapes must give the same count, which is the property that lets
-        // the threshold be a pure performance choice.
+        /**
+         * @brief Tests that sizes on each side of the CPU's two-stage threshold count the same.
+         * @see tests/functional/unit/README.md
+         */
         TYPED_TEST(Unit_CountNonFiniteTyped, BothLaunchShapesGiveTheSameCount)
         {
-            // Not named `small`: <rpcndr.h>, which reaches this translation unit through
-            // the Windows headers, defines `small` as a macro for `char`.
+            // `small` is a macro for `char` in <rpcndr.h>. See tests/functional/unit/README.md.
             auto below = this->clean(kSmall);
             below[0] = this->nan();
             below[static_cast<size_t>(kSmall) - 1] = this->inf();
@@ -195,10 +182,6 @@ namespace SushiBLAS
             EXPECT_EQ(2, this->count(below)) << "the single-pass shape";
             EXPECT_EQ(2, this->count(above)) << "the two-stage shape";
         }
-
-        // =====================================================================
-        // The rest, which is not per-dtype
-        // =====================================================================
 
         class Unit_CountNonFiniteTest : public SushiBLASTest
         {
@@ -237,20 +220,10 @@ namespace SushiBLAS
                 }
         };
 
-        // The case that decides whether this op needed to exist at all.
-        //
-        // `asum` would nearly have served - a sum of magnitudes is non-finite whenever any
-        // element is - and a caller could have written `isfinite(asum(g))` instead. Here
-        // both ops run on ONE tensor of eight perfectly finite fp16 values, and they
-        // disagree: the tensor is clean, and `asum` says it is not, because it accumulates
-        // in the input's own dtype and 8 x 20000 leaves binary16's range long before any
-        // element does.
-        //
-        // In a loss-scaling loop that disagreement is not a rounding nuisance. It halves
-        // the scale on a step that never overflowed, and does it again on the next step,
-        // for ever - the mechanism meant to rescue a mixed-precision run would be the thing
-        // that stalls it. Nothing here is asserted about which value `asum` returns, only
-        // that it is not finite; that is the whole claim.
+        /**
+         * @brief Tests that asum overflows on eight finite fp16 values this op counts as clean.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_CountNonFiniteTest, AsumReportsOverflowOnAHalfTensorThisOpCallsClean)
         {
             const std::vector<sycl::half> values(8, static_cast<sycl::half>(20000.0f));
@@ -273,9 +246,10 @@ namespace SushiBLAS
                    "the header claims.";
         }
 
-        // Integer and complex inputs are refused by name rather than answered. An integer
-        // element cannot be infinite or NaN, so "0" would be true and useless - it would
-        // tell a caller who handed over the wrong tensor that the right one was screened.
+        /**
+         * @brief Tests that integer and complex inputs are refused by name.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_CountNonFiniteTest, NonRealInputDTypesAreRefusedByName)
         {
             auto result = engine->create_tensor({1}, Core::DataType::INT64);
@@ -308,9 +282,10 @@ namespace SushiBLAS
             EXPECT_NE(std::string::npos, scalar_msg.find("scalar")) << scalar_msg;
         }
 
-        // The input is a view partway into an arena, for the reason the convert suite spells
-        // out: at offset zero a bare `data()` pointer and a real `region()` name the same
-        // resource, so the assertion would pass without proving anything. Here they differ.
+        /**
+         * @brief Tests that the op is ordered behind the op that wrote its offset input view.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_CountNonFiniteTest, IsOrderedBehindTheOpThatWroteItsInput)
         {
             constexpr int64_t kN = 8;
@@ -338,8 +313,10 @@ namespace SushiBLAS
                    "is the most expensive possible way to get a clean answer.";
         }
 
-        // And the same thing behaviourally, end to end: a value that overflows to infinity
-        // inside the graph is found by a screen recorded in the same graph.
+        /**
+         * @brief Tests that a screen finds an overflow produced earlier in the same graph.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_CountNonFiniteTest, AnOverflowProducedInsideTheGraphIsFound)
         {
             auto big = create_initialized_tensor<float>({4}, {1e30f, 1.0f, 1.0f, 1.0f});

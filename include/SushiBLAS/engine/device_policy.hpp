@@ -6,39 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-#pragma once
-
 /**
  * @file device_policy.hpp
- * @brief What the device is, expressed as facts a kernel can dispatch on.
- *
- * The fastest CPU kernel and the fastest GPU kernel are not the same kernel,
- * and for the two shapes that matter most here they are close to opposites.
- * A GPU wants a large work-group cooperatively staging tiles through
- * scratchpad memory, bank-padded, with each work-item holding a wide register
- * block. A CPU wants none of that: its "local memory" is ordinary cache
- * reached through the same loads, so staging through it copies the data twice
- * and every `group_barrier` becomes a real synchronisation between OS threads
- * for no benefit. portBLAS ships exactly this split - `gemm_local` for real
- * GPUs, `gemm_no_local` for everything generic - and it is the split this
- * header exists to let a kernel express.
- *
- * The rule this header enforces is that a kernel dispatches on *facts*, never
- * on a vendor string. `has_dedicated_local_memory` is a question about the
- * memory hierarchy; `is_cpu` is a question the SYCL runtime already answers.
- * Neither is "am I on an RTX 4090", which is the kind of test that rots.
- *
- * Nothing here is GEMM-specific or elementwise-specific on purpose. A Profile
- * describes the machine; choosing a tile size or an unroll factor from it is
- * the individual kernel's business, because only the kernel knows how many
- * registers its accumulator costs. Pushing those choices in here would make
- * this file change every time any kernel is tuned.
- *
- * This is a public installed header: SushiAI's fused kernels reach the same
- * policy through the `Dispatch` seam, so a consumer-authored epilogue gets the
- * same launch geometry as a built-in one rather than an accidental
- * `sycl::range` fallback.
+ * @brief Declares the device profile and the launch geometry a kernel dispatches on.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <deque>
 #include <mutex>
@@ -53,14 +27,8 @@ namespace SushiBLAS
     namespace Device
     {
         /**
-         * @brief How many resident work-groups per compute unit a launch aims for.
-         *
-         * A grid-stride kernel does not need one work-item per element; it needs
-         * enough work-groups to fill the machine and hide memory latency, and
-         * anything beyond that is launch overhead. Eight per compute unit is the
-         * usual occupancy target for a bandwidth-bound kernel on a discrete GPU:
-         * enough concurrent waves that a stalled one always has a neighbour ready,
-         * without the register pressure of chasing maximum occupancy.
+         * @brief Holds the number of resident work-groups per compute unit a launch aims for.
+         * @see include/SushiBLAS/engine/README.md
          */
         inline constexpr std::size_t K_WAVES_PER_COMPUTE_UNIT = 8;
 
@@ -80,13 +48,8 @@ namespace SushiBLAS
         inline constexpr std::size_t K_VECTOR_TRANSACTION_BYTES = 16;
 
         /**
-         * @struct Profile
-         * @brief The device properties a kernel is allowed to dispatch on.
-         *
-         * A plain aggregate of answers, queried once and cached. Everything here
-         * comes straight from `sycl::info::device` except
-         * @ref has_dedicated_local_memory, which is a judgement the raw query
-         * cannot make on its own - see that field.
+         * @brief Holds the device properties a kernel is allowed to dispatch on.
+         * @see include/SushiBLAS/engine/README.md
          */
         struct Profile
         {
@@ -94,14 +57,8 @@ namespace SushiBLAS
             bool is_cpu = true;
 
             /**
-             * @brief True when scratchpad memory is physically separate storage.
-             *
-             * `local_mem_type` alone is not enough to answer this. An OpenCL CPU
-             * device reports `local_mem_type::local` and a plausible
-             * `local_mem_size`, but backs both with the same cache line the global
-             * pointer already reads through. Staging a tile there is a pure extra
-             * copy, and the barriers guarding it are pure loss. So a kernel that
-             * asks "is it worth tiling?" must ask this, not `local_mem_type`.
+             * @brief Holds whether scratchpad memory is physically separate storage.
+             * @see include/SushiBLAS/engine/README.md
              */
             bool has_dedicated_local_memory = false;
 
@@ -153,10 +110,7 @@ namespace SushiBLAS
                 p.has_dedicated_local_memory = declares_local && !p.is_cpu &&
                                                p.local_mem_bytes > 0;
 
-                // Widest reported sub-group: 32 on NVIDIA, 64 on AMD wave64, and on
-                // Intel the widest of {8,16,32}, which is the one that amortises a
-                // shuffle reduction best. An empty list would be a spec violation,
-                // but a zero here would divide by zero downstream, so it is guarded.
+                // The widest sub-group is kept; a zero width is guarded; see include/SushiBLAS/engine/README.md.
                 const std::vector<std::size_t> widths =
                     d.get_info<sycl::info::device::sub_group_sizes>();
                 p.sub_group_size = widths.empty()
@@ -172,27 +126,13 @@ namespace SushiBLAS
         } // namespace Detail
 
         /**
-         * @brief The cached Profile for @p d, probing the device on first sight.
-         *
-         * Called on every task execution, so it must not re-query: a replayed
-         * graph runs the same fifty nodes thousands of times and eight
-         * `get_info` round trips per node per step is real overhead against a
-         * few-microsecond kernel.
-         *
-         * @param d The device to describe.
+         * @brief Returns the cached Profile of a device, probing it on first sight.
          * @return A reference valid for the rest of the process.
+         * @see include/SushiBLAS/engine/README.md
          */
         inline const Profile& profile_for(const sycl::device& d)
         {
-            // A std::deque, not a vector: a reference handed to an earlier caller
-            // must stay valid when a second device is probed, and only deque
-            // guarantees that across push_back.
-            //
-            // Deliberately leaked. The entries hold sycl::device handles, and a
-            // static destructor running at exit is not ordered against the SYCL
-            // runtime tearing itself down - releasing a device handle afterwards
-            // is a crash on some backends. One small permanent allocation is the
-            // standard price for not having that race.
+            // The cache is a deque for stable references and is never freed; see include/SushiBLAS/engine/README.md.
             static std::deque<std::pair<sycl::device, Profile>>* cache =
                 new std::deque<std::pair<sycl::device, Profile>>();
             static std::mutex guard;
@@ -228,34 +168,8 @@ namespace SushiBLAS
         }
 
         /**
-         * @struct Grid1D
-         * @brief A launch geometry for a one-dimensional grid-stride kernel.
-         *
-         * The kernel this describes walks its elements with a stride loop rather
-         * than assuming one work-item per element:
-         *
-         * @code
-         * const auto grid = Device::plan_1d(profile, n, unroll);
-         * h.parallel_for(grid.nd_range(), [=](sycl::nd_item<1> it) {
-         *     for (std::size_t i = it.get_global_id(0); i < n; i += grid_stride)
-         *         out[i] = op(in[i]);
-         * });
-         * @endcode
-         *
-         * The `i < n` test is therefore the bounds check a padded grid would
-         * otherwise need, so there is no divergent tail work-group whatever
-         * @ref global_size turns out to be.
-         *
-         * On a GPU @ref global_size is deliberately *not* `n` rounded up: it is
-         * capped at roughly what the machine can hold resident and the loop
-         * covers the rest, which stops a large tensor from scheduling a grid far
-         * bigger than the device can run at once. On a CPU it is `n` rounded up,
-         * so the loop body runs once - see @ref plan_1d for the measurement that
-         * settled that split.
-         *
-         * The traversal order is fixed by the geometry, so two runs of the same
-         * kernel on the same device touch elements in the same order - which is
-         * what makes a deterministic reduction built on this reproducible.
+         * @brief Holds the launch geometry of a one-dimensional grid-stride kernel.
+         * @see include/SushiBLAS/engine/README.md
          */
         struct Grid1D
         {
@@ -283,25 +197,9 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief The work-group size a flat, barrier-free 1-D launch should use.
-         *
-         * Not @ref work_group_size, and the difference is the point.
-         * @ref work_group_size answers "how wide a group can cooperate cheaply?",
-         * which is a question about barriers, and its CPU answer is deliberately
-         * small because a barrier there is a rendezvous between OS threads. A
-         * flat elementwise launch has no barriers at all, so nothing about that
-         * answer applies to it; what it pays for instead is *work-group count*,
-         * because on an OpenCL CPU backend each group is a scheduling unit with
-         * real per-group cost. Aiming at one group per hardware thread and
-         * letting the group get as wide as it needs to be turns that cost from
-         * "once per 64 elements" into "once per thread".
-         *
-         * The GPU answer is just @ref work_group_size: there, group count is how
-         * occupancy is expressed, and 256 work-items is already the right width.
-         *
-         * @param p The target device's profile.
-         * @param n How many elements the launch must cover.
-         * @return A work-group size the device will accept; never zero.
+         * @brief Returns the work-group size a flat, barrier-free 1-D launch uses.
+         * @return A size the device accepts; never zero.
+         * @see include/SushiBLAS/engine/README.md
          */
         [[nodiscard]] inline std::size_t flat_work_group_size(const Profile& p,
                                                               std::size_t n) noexcept
@@ -314,22 +212,16 @@ namespace SushiBLAS
             const std::size_t wanted = std::clamp(per_thread, floor_size,
                                                   p.max_work_group_size);
 
-            // Whole sub-groups only, for the same reason work_group_size rounds:
-            // a partial trailing sub-group is dead lanes.
+            // Only whole sub-groups are kept; a partial trailing sub-group is dead lanes; see include/SushiBLAS/engine/README.md.
             const std::size_t whole = (wanted / p.sub_group_size) * p.sub_group_size;
             return whole ? whole : std::size_t{1};
         }
 
         /**
-         * @brief Plans a grid-stride launch over @p n elements.
-         *
-         * @param p The target device's profile.
-         * @param n How many elements the kernel must cover.
-         * @param unroll Elements each work-item handles per stride step; 1 for a
-         *        plain scalar loop, 4 when the kernel issues 128-bit vector
-         *        accesses. Only affects how large the grid needs to be.
-         * @return A geometry whose global size is a multiple of the local size
-         *         and never zero, even for @p n == 0.
+         * @brief Plans a grid-stride launch over n elements.
+         * @param unroll Elements each work-item handles per stride step: 1 for scalar, 4 for 128-bit accesses.
+         * @return A geometry whose global size is a non-zero multiple of the local size, even for n == 0.
+         * @see include/SushiBLAS/engine/README.md
          */
         [[nodiscard]] inline Grid1D plan_1d(const Profile& p, std::size_t n,
                                             std::size_t unroll = 1) noexcept
@@ -339,31 +231,7 @@ namespace SushiBLAS
 
             const std::size_t to_cover = (n + per_group - 1) / per_group;
 
-            // A CPU gets a grid that covers the whole problem, so the stride loop
-            // body runs at most once and the launch is "one work-item per element"
-            // with an explicit work-group size. That is the opposite of the GPU
-            // choice below, and it is a locality argument rather than an occupancy
-            // one: a CPU backend hands each OS thread a contiguous run of
-            // work-groups, which its prefetchers stream through, and capping the
-            // grid replaces that with a strided walk - each thread touching one
-            // group's worth of elements, then jumping past every other thread's
-            // share to reach its next one.
-            //
-            // Measured on this project's OpenCL CPU device (12 compute units,
-            // 8192 max work-group), 200 launches of a 1M-element elementwise add:
-            // 28.3 ms capped at one group per compute unit, 9.7 ms uncapped with
-            // the work-group sizing above, against 8.2 ms for the bare
-            // `sycl::range<1>` this replaced. The residual gap is nd_range setup
-            // the CPU backend charges and the flat launch does not; at the small
-            // and medium sizes this library actually launches at (1K-64K), the
-            // planned shape is the faster of the two by 5-7%.
-            //
-            // A GPU keeps the cap. Consecutive work-items still read consecutive
-            // elements at every step of the stride loop, so each step is as
-            // coalesced as a flat launch would be, oversubscribing resident
-            // work-groups is how memory latency gets hidden, and the cap is what
-            // stops a large tensor from scheduling a grid far larger than the
-            // device can hold resident at once.
+            // A CPU grid covers the whole problem; a GPU grid is capped; see include/SushiBLAS/engine/README.md.
             std::size_t groups = to_cover;
             if (!p.is_cpu)
             {
@@ -376,18 +244,9 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief How many elements of @p element_bytes to load in one access.
-         *
-         * Returns 1 on a CPU. Not an oversight: the OpenCL CPU backend already
-         * vectorises *across* work-items, packing neighbouring items into SIMD
-         * lanes, and a hand-written `sycl::vec` fights that by consuming the same
-         * lanes for a single item. On a GPU there is no such implicit
-         * vectorisation, and a 128-bit access is one transaction where four
-         * 32-bit accesses are four.
-         *
-         * @param p The target device's profile.
-         * @param element_bytes `sizeof` the element type.
-         * @return A `sycl::vec` width - 1, 2, 4 or 8 - never 0.
+         * @brief Returns how many elements of element_bytes to load in one access.
+         * @return A `sycl::vec` width of 1, 2, 4 or 8; always 1 on a CPU.
+         * @see include/SushiBLAS/engine/README.md
          */
         [[nodiscard]] inline std::size_t vector_width(const Profile& p,
                                                       std::size_t element_bytes) noexcept

@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file sigmoid.cpp
+ * @brief Defines NonLinearOps::sigmoid and NonLinearOps::sigmoid_backward, which record the
+ * sigmoid activation and its gradient.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/nonlinear.hpp>
 #include <SushiBLAS/engine/math/nonlinear/dispatch.hpp>
 

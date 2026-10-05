@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file xavier_normal.cpp
+ * @brief Defines RandomOps::xavier_normal, which records the Xavier normal fill of a tensor.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>

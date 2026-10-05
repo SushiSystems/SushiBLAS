@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file syrk.cpp
+ * @brief Defines Level3::syrk, which records the BLAS SYRK task.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <complex>
 #include <kernels/blas.hpp>
@@ -56,10 +62,7 @@ namespace SushiBLAS
         void* read_A = A.data_or_null();
         void* rw_C = C.data_or_null();
 
-        // C is read-modify-write unconditionally, for two independent reasons: the beta term
-        // reads it when beta != 0, and the triangular mask leaves the opposite triangle
-        // untouched even when beta == 0. A byte interval cannot express "one triangle", so
-        // the honest declaration for the whole region is read *and* write.
+        // C is read-modify-write whatever beta is; see src/README.md.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (read_A) reads.push_back(A.region());
         if (rw_C) reads.push_back(C.region());

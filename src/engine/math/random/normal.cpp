@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file normal.cpp
+ * @brief Defines RandomOps::normal, which records the normal fill of a tensor.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
@@ -32,9 +38,7 @@ namespace SushiBLAS
                     RealT* pR = reinterpret_cast<RealT*>(pT);
                     int64_t n = size * 2;
 
-                    // The real and imaginary halves are drawn as one flat run of 2n reals,
-                    // so the index a component is drawn from is its position in that run -
-                    // which is what keeps a complex fill reproducible element for element.
+                    // A complex fill is one flat run of 2n real draws; see src/README.md.
                     return Dispatch::submit_random_fill(q, deps, n, pR, [=](uint64_t i) -> RealT
                     {
                         return Kernels::SYCL::Random::draw_normal<RealT>(seed, offset, i, m, sd);

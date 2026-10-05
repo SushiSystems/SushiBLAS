@@ -6,14 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// IAMAX answers "which element has the largest |Re| + |Im|", so its result is an
-// index and its result tensor is INT64.
-//
-// This file used to allocate two FLOAT32 elements and hope, with a comment reading
-// "Wait, different sizes!", because there was no integer dtype to allocate instead.
-// It then asserted EXPECT_TRUE(true) - the op's actual answer was never checked by
-// anything. Both halves of that are fixed here: the result has a dtype that fits it,
-// and the index is read back and compared.
+/**
+ * @file test_iamax.cpp
+ * @brief Tests that blas().iamax returns the zero-based index of the largest magnitude as INT64.
+ * @author Mustafa Garip
+ */
 
 #include <vector>
 #include <cstdint>
@@ -61,20 +58,14 @@ TEST_F(Unit_IAMAXTest, TiesGoToTheLowestIndex)
     engine->blas().iamax(X, R);
     engine->execute().wait();
 
-    // |-7| and |7| tie; BLAS specifies the first. The reference and SYCL kernels both
-    // scan in ascending order and only replace on a strict improvement, which is what
-    // makes that reproducible rather than incidental.
+    // |-7| and |7| tie, and BLAS specifies the first. See tests/functional/unit/README.md.
     EXPECT_EQ(1, index_of(R));
 }
 
-// The defect this dtype was added for. iamax writes eight bytes; a FLOAT32 result
-// element is four. With tensors packed into an arena the neighbouring four bytes
-// belong to something else, and Tensor::region() declared a four-byte write, so the
-// dependency tracker did not order anything against the corruption either.
-//
-// Nothing can detect that from outside, which is why the fix is a refusal rather
-// than a repair: a result tensor that cannot hold the answer is rejected at record
-// time, by name.
+/**
+ * @brief Tests that iamax rejects a result tensor too narrow to hold the index.
+ * @see tests/functional/unit/README.md
+ */
 TEST_F(Unit_IAMAXTest, RejectsAResultTensorTooNarrowToHoldTheIndex)
 {
     auto X = engine->create_tensor({4});

@@ -6,31 +6,17 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file safe_math.hpp
+ * @brief Declares scalar math helpers that stay well-formed for real and complex element types.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cmath>
 #include <complex>
 #include <sycl/sycl.hpp>
-
-// Scalar math that stays well-formed for both real and complex element types.
-//
-// The problem these solve: an op functor handed to a Dispatch executor is a
-// generic lambda, instantiated once per dtype the executor's Domain admits. A
-// body written as `sycl::exp(x)` is fine for HALF/FLOAT32/FLOAT64 and a hard
-// compile error for `std::complex`, because the SYCL math builtins only accept
-// device scalar types. Writing `safe_exp(x)` instead picks `sycl::exp` for real
-// scalars and `std::exp` for complex ones by overload resolution, so one functor
-// covers Domain::REAL_AND_COMPLEX without any `if constexpr` at the call site.
-//
-// Only operations with an unambiguous complex meaning appear here. There is
-// deliberately no `safe_max` / `safe_floor` / `safe_clamp`: those need a total
-// order on the element type, complex numbers do not have one, and inventing a
-// lexicographic stand-in would be a silently-wrong answer rather than a missing
-// feature. Ops built on them declare Domain::REAL and throw for complex inputs.
-//
-// Lived in src/engine/math/nonlinear/nonlinear_internal.hpp before the dispatch
-// seam went public; hoisted here so the elementwise and nonlinear families share
-// one definition instead of growing a second copy each.
 
 namespace SushiBLAS
 {
@@ -154,13 +140,8 @@ namespace SushiBLAS
         inline T safe_erf(T x) { return sycl::erf(x); }
 
         /**
-         * @brief Error function of a complex value, evaluated on the real part only.
-         *
-         * The complex error function is not elementary and no activation in this library
-         * needs it; GELU only ever reaches this overload with a real-valued argument.
-         *
-         * @param x The argument.
-         * @return `erf(x.real())` with zero imaginary part.
+         * @brief Returns the error function of the real part of a complex value, with zero imaginary part.
+         * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename T>
         inline std::complex<T> safe_erf(const std::complex<T>& x) { return std::complex<T>(std::erf(x.real()), 0); }
@@ -211,14 +192,8 @@ namespace SushiBLAS
         inline T safe_abs(T x) { return sycl::fabs(x); }
 
         /**
-         * @brief Modulus of a complex value, kept in the complex element type.
-         *
-         * The result is real-valued, but elementwise `abs` is an in-place op writing back
-         * into the tensor's own complex storage, so the magnitude is returned with a zero
-         * imaginary part rather than as a bare scalar.
-         *
-         * @param x The argument.
-         * @return `(|x|, 0)`.
+         * @brief Returns the modulus of a complex value as `(|x|, 0)` in the complex element type.
+         * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename T>
         inline std::complex<T> safe_abs(const std::complex<T>& x)

@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file any.cpp
+ * @brief Defines LogicOps::any, which records the reduction that tests whether any element is non-
+ * zero.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -21,10 +28,7 @@ namespace SushiBLAS
 
     namespace
     {
-        // On sycl::reduction deliberately - see the note in all.cpp, which applies here
-        // with `maximum` in place of `minimum`. The combiner sees only T(0) and T(1), on
-        // which max is associative, commutative and exact, so the combination order the
-        // spec leaves free cannot change a single bit of the answer.
+        // maximum over T(0) and T(1) is exact in any order; see src/README.md.
         template<typename T>
         sycl::event any_dispatch(sycl::queue& queue, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps)
         {
@@ -32,10 +36,7 @@ namespace SushiBLAS
             return queue.submit([&](sycl::handler& h)
             {
                 h.depends_on(deps);
-                // `initialize_to_identity`, as in all.cpp and for the same reason: without
-                // it a SYCL reduction folds whatever the result tensor already holds into
-                // the answer, so `any` over a tensor of zeros returned 1 whenever the
-                // caller reused a result that had been 1 before.
+                // The reduction starts from its identity, not from the result; see src/README.md.
                 h.parallel_for(sycl::range<1>(size),
                                sycl::reduction(pR, T(0), sycl::maximum<T>(),
                                                sycl::property::reduction::initialize_to_identity{}),
@@ -66,14 +67,7 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "logic.any"_op;
 
-        // Domain::REAL_AND_INTEGRAL, not REAL: a truth test is exactly as meaningful on an
-        // integer tensor as on a float one, and an integer element is the honest way to
-        // carry the 1/0 this family produces. Complex stays out - `logic_not_zero` would
-        // work, but `sycl::minimum`/`sycl::maximum` over std::complex does not, and a
-        // reduction needs an ordering.
-        //
-        // The dtype switch itself is Dispatch::with_element_type, the same one the logic
-        // dispatch seam uses, so the arms and the by-name rejection are not written twice.
+        // A truth test serves real and integer dtypes and refuses complex; see src/README.md.
         Dispatch::with_element_type<Dispatch::Domain::REAL_AND_INTEGRAL>(
             t.dtype, "Logic operation", meta.name, [&](auto tag)
         {

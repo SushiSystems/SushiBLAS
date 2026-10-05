@@ -6,12 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-#pragma once
+/**
+ * @file linalg.hpp
+ * @brief Declares LinalgOps, the experimental LAPACK operations that have no implementation yet.
+ * @author Mustafa Garip
+ */
 
-// EXPERIMENTAL - quarantined per SB-2/D1. Not included from engine.hpp and not
-// reachable via Engine::linalg() - that accessor was removed. No .cpp
-// implementation exists for any method declared here. The LAPACK backend
-// strategy is a named follow-up (P8), not solved by this file's presence.
+#pragma once
 
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
@@ -25,6 +26,7 @@ namespace SushiBLAS
      * @brief High-level linear algebra operations (LAPACK).
      *
      * Provides matrix solvers, decompositions, and structural matrix analysis.
+     * @see include/SushiBLAS/experimental/README.md
      */
     class LinalgOps
     {
@@ -64,13 +66,7 @@ namespace SushiBLAS
             sycl::event qr(const Tensor& A, Tensor& Q, Tensor& R);
 
             /**
-             * @brief Singular Value Decomposition (A = U*S*V^H).
-             * Factorizes matrix A into singular values and singular vectors.
-             * @param A Input matrix.
-             * @param U Output unitary matrix.
-             * @param S Output vector of singular values.
-             * @param V Output unitary matrix.
-             * @return sycl::event.
+             * @brief Factorizes A into singular values and singular vectors: A = U*S*V^H.
              */
             sycl::event svd(const Tensor& A, Tensor& U, Tensor& S, Tensor& V);
 

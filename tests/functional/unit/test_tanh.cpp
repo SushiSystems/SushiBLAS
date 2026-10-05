@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_tanh.cpp
+ * @brief Tests nonlinear().tanh and tanh_backward against fixed expected values.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>

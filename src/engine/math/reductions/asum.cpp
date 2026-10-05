@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file asum.cpp
+ * @brief Defines ReductionOps::asum, which records the sum-of-magnitudes reduction.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 

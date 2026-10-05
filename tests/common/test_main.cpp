@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_main.cpp
+ * @brief Runs every GoogleTest suite under the shared environment with synchronous logging.
+ * @author Mustafa Garip
+ */
+
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiRuntime/core/logger.hpp>

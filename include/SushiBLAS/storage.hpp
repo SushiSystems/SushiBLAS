@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file storage.hpp
+ * @brief Declares Storage, the reference-counted USM allocation a tensor's elements live in.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cassert>
@@ -40,16 +46,9 @@ namespace SushiBLAS
             const SushiRuntime::Memory::IAllocatorStrategy* strategy = nullptr;
 
             /**
-            * @brief Create a new Storage object.
-            *
-            * This allocates memory using the provided allocator and strategy.
-            * The size is automatically aligned for better performance.
-            *
-            * @param alloc The allocator to use.
-            * @param n_bytes The amount of memory to allocate in bytes.
-            * @param strat The allocation strategy to use (default is Shared).
-            * @throws std::runtime_error If the allocator is null or allocation fails.
-            */
+             * @brief Allocates aligned memory of n_bytes through the allocator, under a strategy.
+             * @throws std::runtime_error if the allocator is null or the allocation fails.
+             */
             Storage(SushiRuntime::sushi_ptr<SushiRuntime::Memory::USMAllocator> alloc,
                     size_t n_bytes,
                     const SushiRuntime::Memory::IAllocatorStrategy& strat = SushiRuntime::Memory::Strategies::Shared::instance())
@@ -73,20 +72,10 @@ namespace SushiBLAS
             Storage& operator=(const Storage&) = delete;
 
             /**
-             * @brief Base address of the whole allocation, ignoring every view's offset.
-             *
-             * @return The pointer the allocator handed back, or nullptr before construction
-             *         completed.
-             *
-             * @warning This is the *allocation* base, never a tensor's data. Handing this
-             *          pointer to a kernel silently ignores `Tensor::storage_offset`, so a
-             *          tensor that is a view at a non-zero offset reads or writes the start
-             *          of the allocation instead of its own elements - which is exactly the
-             *          defect that made this member private. Use `Tensor::data()` /
-             *          `Tensor::data_as<T>()` to address a tensor's elements, and
-             *          `Tensor::region()` to describe them to the dependency tracker. The
-             *          only legitimate uses of the base are identity ("which allocation is
-             *          this?") and deallocation.
+             * @brief Returns the base address of the whole allocation, ignoring every view's offset.
+             * @return The pointer the allocator handed back, or nullptr before construction completed.
+             * @warning Never a tensor's data; use Tensor::data() to address elements.
+             * @see include/SushiBLAS/README.md
              */
             void* allocation_base() const noexcept { return data_ptr_; }
 

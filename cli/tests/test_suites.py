@@ -3,13 +3,9 @@
 # Copyright (c) 2026 Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Tests for the Suite enum and the one suite that is not a CTest label.
+"""Tests that every suite is either a CTest label or a handled exception.
 
-`sb test` maps every suite to a `ctest -L` regex through _SUITE_LABEL_REGEX,
-with two deliberate exceptions - `all` (no label selection at all) and
-`package` (no ctest at all). Both are absent from the mapping, so both depend
-on `test()` branching before it indexes it. A missing branch is a KeyError at
-the moment the user runs the command, which these tests exist to prevent.
+See cli/tests/README.md.
 """
 
 from __future__ import annotations

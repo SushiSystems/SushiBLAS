@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file mul.cpp
+ * @brief Defines ElementwiseOps::mul, which records the elementwise mul task over two tensors.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/elementwise.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 

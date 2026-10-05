@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file add.cpp
+ * @brief Defines ElementwiseOps::add, which records the elementwise add task over two tensors.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/elementwise.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 

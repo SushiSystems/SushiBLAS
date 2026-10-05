@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file channels.hpp
+ * @brief Defines the reference kernel that copies a run of channels.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstdint>
@@ -19,28 +25,9 @@ namespace SushiBLAS
         {
             /**
              * @brief Copies a run of channels from one image into another.
-             *
-             * The whole of channel concatenation and channel slicing (design
-             * decision D-A6): concatenation is this copy with the source's
-             * offset at zero, slicing is the same copy with the destination's
-             * at zero. Nothing distinguishes the two directions once the offsets
-             * are named, so there is one kernel and two public names.
-             *
-             * @p span carries the shared `[N, H, W]` grid and **both** operands'
-             * strides - `in_*` describing the source, `out_*` the destination.
-             * `span.channels` is not read: the copy's width is @p count, which
-             * is a different number from either tensor's channel count and has
-             * to be passed rather than inferred. `span.out_h` and `span.out_w`
-             * hold the input extents, because a copy has no window and therefore
-             * no output extent distinct from its input's.
-             *
-             * @tparam T The element type.
-             * @param span The grid and both operands' strides, in element counts.
-             * @param src_channel_offset The first source channel to read.
-             * @param dst_channel_offset The first destination channel to write.
-             * @param count How many channels to copy.
-             * @param in The source image's first element.
-             * @param out The destination image's first element.
+             * @param span The grid and both operands' strides; `span.channels` is not read.
+             * @param count How many channels to copy; it is not either tensor's channel count.
+             * @see kernels/README.md
              */
             template<typename T>
             void copy_channel_range(const Spatial::WindowSpan& span, int64_t src_channel_offset,

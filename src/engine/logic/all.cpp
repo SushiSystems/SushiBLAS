@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file all.cpp
+ * @brief Defines LogicOps::all, which records the reduction that tests whether every element is
+ * non-zero.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -21,13 +28,7 @@ namespace SushiBLAS
 
     namespace
     {
-        // On sycl::reduction deliberately, and safe there in a way a floating-point sum is
-        // not. The spec leaves a reduction's combination order unspecified, which only
-        // matters for a combiner whose result depends on it. This one reduces over exactly
-        // two values, T(0) and T(1), under `minimum`, which is associative, commutative and
-        // exact on that domain - every order gives the same bits. Contrast `+` on floats,
-        // where the order is visible in the result and free to shift with the launch
-        // configuration.
+        // minimum over T(0) and T(1) is exact in any order; see src/README.md.
         template<typename T>
         sycl::event all_dispatch(sycl::queue& queue, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps)
         {
@@ -35,11 +36,7 @@ namespace SushiBLAS
             return queue.submit([&](sycl::handler& h)
             {
                 h.depends_on(deps);
-                // `initialize_to_identity` is not decoration. Without it a SYCL reduction
-                // seeds itself from whatever the result tensor already holds and folds that
-                // into the answer, so `all` over a tensor of ones returned 0 whenever the
-                // caller reused a result that had been 0 before - and returned whatever the
-                // allocator left behind when the result had never been written at all.
+                // The reduction starts from its identity, not from the result; see src/README.md.
                 h.parallel_for(sycl::range<1>(size),
                                sycl::reduction(pR, T(1), sycl::minimum<T>(),
                                                sycl::property::reduction::initialize_to_identity{}),
@@ -70,14 +67,7 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "logic.all"_op;
 
-        // Domain::REAL_AND_INTEGRAL, not REAL: a truth test is exactly as meaningful on an
-        // integer tensor as on a float one, and an integer element is the honest way to
-        // carry the 1/0 this family produces. Complex stays out - `logic_not_zero` would
-        // work, but `sycl::minimum`/`sycl::maximum` over std::complex does not, and a
-        // reduction needs an ordering.
-        //
-        // The dtype switch itself is Dispatch::with_element_type, the same one the logic
-        // dispatch seam uses, so the arms and the by-name rejection are not written twice.
+        // A truth test serves real and integer dtypes and refuses complex; see src/README.md.
         Dispatch::with_element_type<Dispatch::Domain::REAL_AND_INTEGRAL>(
             t.dtype, "Logic operation", meta.name, [&](auto tag)
         {

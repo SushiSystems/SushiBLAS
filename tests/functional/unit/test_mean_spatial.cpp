@@ -6,13 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// `mean_spatial`, and the regression that the second segment axis it added did
-// not disturb the reductions that have only ever had one.
-//
-// Every expectation is worked out here, in double, from the same generating rule
-// the input was filled from - never from another path in this library. A
-// differential oracle against `sum_along` over a reshaped view would agree with
-// `mean_spatial` in exactly the cases where both read the strides wrongly.
+/**
+ * @file test_mean_spatial.cpp
+ * @brief Tests reductions().mean_spatial and the single-axis reductions that share its span.
+ * @author Mustafa Garip
+ */
 
 #include <vector>
 #include <cstddef>
@@ -41,8 +39,10 @@ namespace SushiBLAS
         class Unit_MeanSpatialTest : public SushiBLASTest {};
         class Regression_AxisSpanTest : public SushiBLASTest {};
 
-        // The shape the second segment axis exists for: one result per (n, c), whose
-        // input offset is n * H*W*C + c and which no single segment stride reaches.
+        /**
+         * @brief Tests that mean_spatial folds the two middle axes into one result per (n, c).
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_MeanSpatialTest, FoldsTheTwoMiddleAxesOfAnNhwcTensor)
         {
             constexpr int64_t N = 2, H = 3, W = 4, C = 5;
@@ -85,9 +85,10 @@ namespace SushiBLAS
             }
         }
 
-        // N = 1 and C = 1 collapses both segment counts to one, which is the case a
-        // generalisation most easily breaks: a stride that is never multiplied by
-        // anything but zero is a stride nothing checks.
+        /**
+         * @brief Tests that a tensor with N = 1 and C = 1 still reduces correctly.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_MeanSpatialTest, ASingleSegmentPairIsStillCorrect)
         {
             auto x = engine->create_tensor({1, 2, 2, 1});
@@ -102,11 +103,10 @@ namespace SushiBLAS
             EXPECT_NEAR(got[0], 2.5f, 1e-5f);
         }
 
-        // One fold of 262144 elements: too few segments to fill the machine and a
-        // segment far longer than a work-group, so `plan_axis` takes the cooperative
-        // shape. Both shapes compute their segment's base address, and both had that
-        // computation changed, so covering only the item-per-segment one would leave
-        // half the change untested.
+        /**
+         * @brief Tests one fold of 262144 elements, which takes the cooperative shape.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_MeanSpatialTest, ALongExtentReachesTheCooperativeShape)
         {
             constexpr int64_t H = 512, W = 512;
@@ -132,10 +132,10 @@ namespace SushiBLAS
             EXPECT_NEAR(got[0], static_cast<float>(expected), 1e-5f);
         }
 
-        // Every existing caller aggregate-initialises AxisSpan with five values and so
-        // now gets `segments2 = 1`, `segment_stride2 = 0` by default. If the fold index
-        // is decomposed wrongly at that default, every row-wise reduction in the library
-        // is wrong, and this is the cheapest place in the suite to see it.
+        /**
+         * @brief Tests that a span with no second segment axis reduces as it always did.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Regression_AxisSpanTest, ASpanWithNoSecondAxisReducesExactlyAsItAlwaysDid)
         {
             constexpr int64_t R = 6, K = 7;

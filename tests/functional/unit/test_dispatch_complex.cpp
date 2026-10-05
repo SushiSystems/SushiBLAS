@@ -6,16 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// What a complex-dtype tensor gets from the elementwise and logic families.
-//
-// Before the dispatch seam was made public, both families handled HALF/FLOAT32/FLOAT64
-// and ended their dtype switch with `default: break;`. A COMPLEX32 tensor therefore
-// reached a command group that enqueued no kernel at all: add() "succeeded", the graph
-// reported no error, and the output tensor was left holding whatever it held before.
-//
-// Every case below is one of those silently-dropped paths, now resolved one way or the
-// other: computed for real where the operation has a complex meaning, thrown for loudly
-// where it does not.
+/**
+ * @file test_dispatch_complex.cpp
+ * @brief Tests which elementwise and logic operations compute on COMPLEX32 and which refuse it.
+ * @author Mustafa Garip
+ */
 
 #include <complex>
 #include <vector>
@@ -30,8 +25,6 @@ using SushiBLAS::Core::DataType;
 using cf = std::complex<float>;
 
 class Unit_DispatchComplexTest : public SushiBLASTest {};
-
-// --- Supported: arithmetic that means the same thing over C as over R --------------
 
 TEST_F(Unit_DispatchComplexTest, BinaryArithmeticOnComplex32)
 {
@@ -52,8 +45,7 @@ TEST_F(Unit_DispatchComplexTest, BinaryArithmeticOnComplex32)
     auto sub_expected = create_initialized_tensor<cf>({2}, {cf(-1.0f, 1.0f), cf(4.0f, -5.0f)});
     SB_ASSERT_TENSOR_NEAR(c, sub_expected, 1e-4, cf);
 
-    // (1+2i)(2+i) = 5i ; (3-i)(-1+4i) = 1+13i - the imaginary cross terms are exactly what
-    // the old no-op path could never have produced, and what a real-only kernel would drop.
+    // (1+2i)(2+i) = 5i and (3-i)(-1+4i) = 1+13i. See tests/functional/unit/README.md.
     engine->elementwise().mul(a, b, c);
     engine->execute().wait();
     auto mul_expected = create_initialized_tensor<cf>({2}, {cf(0.0f, 5.0f), cf(1.0f, 13.0f)});
@@ -90,8 +82,7 @@ TEST_F(Unit_DispatchComplexTest, UnaryArithmeticOnComplex32)
 
 TEST_F(Unit_DispatchComplexTest, TranscendentalsOnComplex32)
 {
-    // |3+4i| = 5, |-5+12i| = 13. The modulus is real-valued but abs() is in-place, so it
-    // comes back in the tensor's own complex storage with a zero imaginary part.
+    // |3+4i| = 5 and |-5+12i| = 13, returned in complex storage with a zero imaginary part.
     auto abs_t = create_initialized_tensor<cf>({2}, {cf(3.0f, 4.0f), cf(-5.0f, 12.0f)});
     engine->elementwise().abs(abs_t);
     engine->execute().wait();
@@ -126,8 +117,7 @@ TEST_F(Unit_DispatchComplexTest, EqualityAndConnectivesOnComplex32)
     auto b = create_initialized_tensor<cf>({3}, {cf(1.0f, 2.0f), cf(0.0f, 1.0f), cf(1.0f, 1.0f)});
     auto r = engine->create_tensor({3}, DataType::COMPLEX32);
 
-    // Equality is component-wise, so (1,0) != (1,1) even though the real parts match - the
-    // distinction a real-only comparison would erase.
+    // Equality is component-wise, so (1,0) != (1,1) although the real parts match.
     engine->logic().equal(a, b, r);
     engine->execute().wait();
     auto eq_expected = create_initialized_tensor<cf>({3}, {cf(1.0f, 0.0f), cf(0.0f, 0.0f), cf(0.0f, 0.0f)});
@@ -159,10 +149,7 @@ TEST_F(Unit_DispatchComplexTest, WhereSelectsOnComplex32)
     SB_ASSERT_TENSOR_NEAR(out, expected, 1e-4, cf);
 }
 
-// --- Rejected: operations with no complex meaning ----------------------------------
-//
-// These threw nothing before; they enqueued nothing and returned. Each now fails at
-// record time, at the call site, before a task ever reaches the graph.
+// Operations with no complex meaning fail at record time. See tests/functional/unit/README.md.
 
 TEST_F(Unit_DispatchComplexTest, OrderingComparisonsRejectComplex32)
 {
@@ -170,8 +157,7 @@ TEST_F(Unit_DispatchComplexTest, OrderingComparisonsRejectComplex32)
     auto b = engine->create_tensor({2}, DataType::COMPLEX32);
     auto r = engine->create_tensor({2}, DataType::COMPLEX32);
 
-    // C is not an ordered field. The dispatch used to answer these lexicographically,
-    // which is a well-formed answer to a question nobody asked.
+    // C is not an ordered field. See tests/functional/unit/README.md.
     EXPECT_THROW(engine->logic().less(a, b, r), std::runtime_error);
     EXPECT_THROW(engine->logic().less_equal(a, b, r), std::runtime_error);
     EXPECT_THROW(engine->logic().greater(a, b, r), std::runtime_error);
@@ -202,9 +188,7 @@ TEST_F(Unit_DispatchComplexTest, RoundingAndClampRejectComplex32)
 
 TEST_F(Unit_DispatchComplexTest, RemainingRealOnlyOpsRejectComplex32)
 {
-    // Trigonometry and pow do have complex extensions, but SushiBLAS does not implement
-    // them yet. The contract that matters is that "not implemented" is observable: these
-    // report the gap rather than leaving the tensor untouched and claiming success.
+    // Complex trigonometry and pow are not implemented. See tests/functional/unit/README.md.
     auto t = engine->create_tensor({2}, DataType::COMPLEX32);
 
     EXPECT_THROW(engine->elementwise().sin(t), std::runtime_error);
@@ -224,8 +208,7 @@ TEST_F(Unit_DispatchComplexTest, ReductionsRejectComplex32)
 
 TEST_F(Unit_DispatchComplexTest, RealDtypesAreUnaffected)
 {
-    // The Domain switch must not have narrowed anything that already worked: max/min are
-    // Domain::REAL now, and still have to behave for a FLOAT32 tensor.
+    // max and min are Domain::REAL and must still work on a FLOAT32 tensor.
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});
     auto c = engine->create_tensor({4});

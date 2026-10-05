@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file dispatch.hpp
+ * @brief Declares what every op-dispatch family shares: the element domain and the dtype switch.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <vector>
@@ -20,62 +26,14 @@
 #include <SushiBLAS/engine/device_policy.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
-// The shared vocabulary of SushiBLAS's generic op-dispatch seam.
-//
-// `SushiBLAS::Dispatch` is the low-level, functor-templated layer every op in
-// this library is built on: one `execute_*` helper per op family that records a
-// task on the engine's graph, switches on the tensor's runtime dtype, and
-// inlines a caller-supplied functor into a single SYCL kernel. The five family
-// headers are:
-//
-//   <SushiBLAS/engine/math/elementwise/dispatch.hpp>
-//   <SushiBLAS/engine/math/nonlinear/dispatch.hpp>
-//   <SushiBLAS/engine/math/reductions/dispatch.hpp>
-//   <SushiBLAS/engine/math/random/dispatch.hpp>
-//   <SushiBLAS/engine/logic/dispatch.hpp>
-//
-// These used to be private `*_internal.hpp` headers under src/, uninstalled and
-// therefore unreachable from outside this tree. They are public now because
-// they are the seam a layer above (an autodiff/NN framework) needs in order to
-// fuse: composing several math ops into one functor and handing it to
-// `execute_binary` produces ONE kernel launch instead of one per op, and it does
-// so without the consumer writing a line of SYCL - the functor is a plain C++
-// lambda. Keeping that capability private would have forced every consumer to
-// either eat a kernel launch per elementwise op or reimplement this dispatch
-// layer itself.
-//
-// This header carries only what all five families share; include the family
-// header for the executors themselves.
-
 namespace SushiBLAS
 {
     namespace Dispatch
     {
         /**
-         * @brief The set of element types a dispatch helper is allowed to instantiate its
-         * kernel for.
-         *
-         * Not a runtime filter: it selects, at compile time, which `case` arms of the
-         * dtype switch actually instantiate the caller's functor. That distinction matters
-         * because the functor is a generic lambda whose body is only well-formed for some
-         * element types - `sycl::max(x, y)` and `sycl::floor(x)`, for instance, reject
-         * `std::complex`, and a generic lambda gives no SFINAE-visible signal of that
-         * (return-type deduction instantiates the body, which is not the immediate
-         * context). So the caller states the domain, the dispatch instantiates only the
-         * arms inside it, and every arm outside it throws naming the op and the dtype.
-         *
-         * **A bit set over element-type families, not a list of named combinations.** It
-         * began as the two-valued `{REAL, REAL_AND_COMPLEX}` this codebase still spells
-         * everywhere, and the arrival of `INT32`/`INT64` would have turned that into six
-         * enumerators whose relationships only the reader can see. As flags, a new family
-         * costs one bit and the query stays @ref domain_admits; the two original names
-         * survive as the combinations they always were, so no existing call site changes.
-         *
-         * @warning REAL is the default deliberately: a functor written for real scalars
-         *          always compiles under it. Widen it only when the functor is genuinely
-         *          well-formed for the family being added - see the `safe_*` helpers in
-         *          <SushiBLAS/engine/math/safe_math.hpp> for the complex case, and note
-         *          that an integer functor must not use `sycl::` floating-point builtins.
+         * @brief Enumerates the element-type families a dispatch helper may instantiate its kernel for.
+         * @warning Widen it from REAL only when the functor is well-formed for the family being added.
+         * @see include/SushiBLAS/engine/README.md
          */
         enum class Domain : uint8_t
         {
@@ -89,14 +47,9 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Whether @p allowed includes the element-type family @p family.
-         *
-         * The one query every dispatch arm asks, always in an `if constexpr`, so an arm
-         * outside the domain is never instantiated - only compiled as a throw.
-         *
-         * @param allowed The domain the caller declared.
-         * @param family A single-bit @ref Domain naming one family.
-         * @return True when @p allowed contains @p family.
+         * @brief Returns whether allowed includes the element-type family.
+         * @param family A single-bit Domain naming one family.
+         * @see include/SushiBLAS/engine/README.md
          */
         [[nodiscard]] inline constexpr bool domain_admits(Domain allowed, Domain family) noexcept
         {
@@ -104,15 +57,9 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief The element-type family a runtime dtype belongs to.
-         *
-         * The runtime companion to @ref domain_admits, for the few places that must
-         * reject a whole family before the switch rather than inside it - a shape or
-         * dtype-agreement check that runs at record time, where the compile-time domain
-         * is known but the arm has not been chosen yet.
-         *
-         * @param dtype The data type to classify.
-         * @return REAL, COMPLEX or INTEGRAL - never a combination.
+         * @brief Returns the element-type family a runtime dtype belongs to.
+         * @return REAL, COMPLEX or INTEGRAL, never a combination.
+         * @see include/SushiBLAS/engine/README.md
          */
         [[nodiscard]] inline constexpr Domain domain_of(Core::DataType dtype) noexcept
         {
@@ -122,20 +69,9 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Throws unless @p dtype is one @p Dom admits.
-         *
-         * @ref with_element_type would reject it too, but not until the task runs, which is
-         * a worse place to find out: by then the graph is recorded, the caller is inside
-         * `Engine::execute()`, and the failure is attributed to a submission rather than to
-         * the line that queued it. This is the same question asked at record time, where a
-         * caller can still act on the answer.
-         *
-         * @tparam Dom Which element-type families the operation admits.
-         * @param dtype The operand dtype to check.
-         * @param family What kind of operation this is ("Elementwise operation", ...).
-         * @param name The op's own name.
-         * @throws std::runtime_error naming @p family, @p name and @p dtype when the dtype
-         *         falls outside @p Dom.
+         * @brief Throws unless dtype is one Dom admits.
+         * @throws std::runtime_error naming family, name and dtype when the dtype falls outside Dom.
+         * @see include/SushiBLAS/engine/README.md
          */
         template<Domain Dom>
         inline void require_domain(Core::DataType dtype, const char* family, const char* name)
@@ -149,19 +85,8 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Carries one element type to a @ref with_element_type arm as a value.
-         *
-         * The C++17 way to say "here is a type" to a callable. A C++20 templated lambda
-         * `[]<typename T>(){}` takes its type as an explicit template argument, which is a
-         * spelling C++17 has no lambda syntax for; a plain generic lambda takes an
-         * *argument* and reads the type back off it, which is what this empty tag exists
-         * to be:
-         *
-         * @code
-         * [&](auto tag) { using T = typename decltype(tag)::type; ... }
-         * @endcode
-         *
-         * @tparam T The element type being carried.
+         * @brief Carries one element type to a with_element_type arm as a value.
+         * @see include/SushiBLAS/engine/README.md
          */
         template<typename T>
         struct ElementTag
@@ -171,66 +96,15 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Runs @p arm instantiated for the C++ type @p dtype denotes, or throws.
-         *
-         * The dtype switch, once. Every per-element executor in this library used to
-         * write its own - seven `case` arms each, four of them differing only in a type
-         * name, two of them wrapped in an `if constexpr` domain guard, and one `default`
-         * carrying the failure message. Eight copies of that is eight places to forget an
-         * arm when a `DataType` is added, and eight slightly different wordings when one
-         * is rejected. This is the whole thing in one function: the caller supplies a
-         * generic callable and says nothing about dtypes at all.
-         *
-         * An arm outside @p Dom is never instantiated - the `if constexpr` sees to that,
-         * which is what lets a functor that is only well-formed for real scalars be
-         * dispatched on a tensor whose dtype *could* have been complex.
-         *
-         * **Two ways to write the arm, both supported.** The tag form is what this library
-         * writes and what a C++17 caller can spell; the explicit-template-argument form is
-         * what a C++20 caller's templated lambda offers, and it kept working when the
-         * library moved to C++17 rather than being taken away from consumers already using
-         * it. @ref Detail::invoke_arm picks whichever the arm provides.
-         *
-         * @code
-         * // C++17 and later - a generic lambda over an ElementTag:
-         * Dispatch::with_element_type<Dom>(dtype, "Elementwise operation", name,
-         *     [&](auto tag)
-         *     {
-         *         using T = typename decltype(tag)::type;
-         *         Launch::map(h, q, n, ok, op, (T*)out, (const T*)in);
-         *     });
-         *
-         * // C++20 - a templated lambda, still accepted:
-         * Dispatch::with_element_type<Dom>(dtype, "Elementwise operation", name,
-         *     [&]<typename T>() { Launch::map(h, q, n, ok, op, (T*)out, (const T*)in); });
-         * @endcode
-         *
-         * @tparam Dom Which element-type families to instantiate @p arm for.
-         * @tparam Arm The arm's type, deduced.
-         * @param dtype The runtime element type to dispatch on.
-         * @param family What kind of operation this is, for the failure message
-         *        ("Elementwise operation", "Logic operation", ...).
-         * @param name The op's own name, for the failure message.
-         * @param arm Callable either as `arm(ElementTag<T>{})` or as
-         *        `arm.template operator()<T>()`, for every element type in @p Dom.
-         * @throws std::runtime_error naming @p family, @p name and @p dtype when the dtype
-         *         falls outside @p Dom - or is not an element type at all.
+         * @brief Holds the helpers with_element_type uses to detect and invoke an arm.
+         * @see include/SushiBLAS/engine/README.md
          */
         namespace Detail
         {
             /**
-             * @brief Whether @p Arm accepts the tag form, `arm(ElementTag<T>{})`.
-             *
-             * @warning Only ask this for a @p T the caller's domain admits. Detecting the
-             *          call deduces the arm's return type, which instantiates its body -
-             *          and a body that rejects @p T fails *there*, outside the immediate
-             *          context, so it is a hard error rather than a false answer. That is
-             *          the same property @ref SushiBLAS::Dispatch::Domain exists to work
-             *          around, and it holds here because @ref run_arm_if_admitted asks
-             *          only inside its `if constexpr`.
-             *
-             * @tparam Arm The arm's type.
-             * @tparam T The element type.
+             * @brief Reports whether Arm accepts the tag form, `arm(ElementTag<T>{})`.
+             * @pre T is an element type the caller's domain admits.
+             * @see include/SushiBLAS/engine/README.md
              */
             template<typename Arm, typename T, typename = void>
             struct arm_takes_tag : std::false_type {};
@@ -269,9 +143,7 @@ namespace SushiBLAS
                 }
                 else
                 {
-                    // Stated as a sentence rather than left to the call expression below,
-                    // whose failure is a page of overload-resolution noise pointing at this
-                    // header instead of at the arm the caller actually wrote.
+                    // The static_assert states the arm contract in a sentence; see include/SushiBLAS/engine/README.md.
                     static_assert(arm_takes_explicit_type<Arm, T>::value,
                                   "A with_element_type arm must be callable either as "
                                   "arm(SushiBLAS::Dispatch::ElementTag<T>{}) - a generic lambda "
@@ -284,21 +156,9 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Runs @p arm for element type @p T if @p Dom admits @p Family.
-             *
-             * Out of line from the switch in @ref with_element_type, and not inlined back
-             * into it, because an `if constexpr` written directly inside a `switch` in a
-             * template makes this project's clang lose the switch: instantiating it reports
-             * "'case' statement not in switch statement" for every label after the first.
-             * Hoisting the compile-time test into its own function leaves the switch a
-             * plain switch of plain calls, which it parses correctly.
-             *
-             * @tparam Dom The domain the caller declared.
-             * @tparam Family The single family this arm belongs to.
-             * @tparam T The element type to instantiate @p arm for.
-             * @tparam Arm The arm's type, deduced.
-             * @param arm The caller's arm.
-             * @return True when the arm ran; false when @p Family is outside @p Dom.
+             * @brief Runs arm for element type T if Dom admits Family.
+             * @return True when the arm ran; false when Family is outside Dom.
+             * @see include/SushiBLAS/engine/README.md
              */
             template<Domain Dom, Domain Family, typename T, typename Arm>
             [[nodiscard]] inline bool run_arm_if_admitted(Arm& arm)
@@ -315,6 +175,12 @@ namespace SushiBLAS
             }
         } // namespace Detail
 
+        /**
+         * @brief Runs arm instantiated for the C++ type dtype denotes, or throws.
+         * @param arm Callable as `arm(ElementTag<T>{})` or `arm.template operator()<T>()` for each type in Dom.
+         * @throws std::runtime_error naming family, name and dtype when the dtype falls outside Dom.
+         * @see include/SushiBLAS/engine/README.md
+         */
         template<Domain Dom, typename Arm>
         inline void with_element_type(Core::DataType dtype, const char* family,
                                       const char* name, Arm&& arm)
@@ -346,26 +212,16 @@ namespace SushiBLAS
                     break;
             }
 
-            // Not served means a dtype outside Dom, or a DataType holding a value outside
-            // the enumeration at all. Both are "this op cannot do that", and both say so by
-            // name - a silent no-op here is how seven operations came to do nothing at all.
+            // An unserved dtype throws by name; it is never a silent no-op; see include/SushiBLAS/engine/README.md.
             SB_THROW_IF(!served, "{} '{}' does not support dtype {}.",
                         family, name, Core::to_string(dtype));
         }
 
         /**
-         * @brief Copies a caller-supplied parameter list into a task's inline metadata slots.
-         *
-         * `TaskMetadata::set_param` silently ignores an out-of-range index, so a caller that
-         * writes past `K_MAX_PARAMS` loses the value with no diagnostic at all. This wrapper
-         * turns that into a loud failure at record time (P1: fail loudly, never silently).
-         *
+         * @brief Copies a parameter list into a task's inline metadata slots, starting at slot 0.
          * @tparam T The parameter element type; must fit in 64 bits.
-         * @param meta The metadata block to populate, starting at slot 0.
-         * @param params The values to store.
-         * @param name The op name, used only in the failure message.
-         * @param reserved_slots Number of trailing slots the caller keeps for its own use
-         *        (for example the RNG seed/offset pair) and which `params` must not reach.
+         * @param reserved_slots Trailing slots the caller keeps for itself, which params must not reach.
+         * @see include/SushiBLAS/engine/README.md
          */
         template<typename T>
         inline void set_task_params(SushiRuntime::Graph::TaskMetadata& meta, const std::vector<T>& params,

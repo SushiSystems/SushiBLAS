@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file ger.hpp
+ * @brief Defines the reference kernel of GER.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstdint>

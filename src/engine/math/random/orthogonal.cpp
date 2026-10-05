@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file orthogonal.cpp
+ * @brief Defines RandomOps::orthogonal, which records the orthogonal initialisation of a matrix.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -54,21 +60,10 @@ namespace SushiBLAS
         const int64_t cols = t.shape[1];
         SB_THROW_IF(rows <= 0 || cols <= 0, "Operation '{}' requires a non-empty matrix, got {}x{}.", name, rows, cols);
 
-        // Fill with N(0,1) first: the Gaussian ensemble is orthogonally invariant, which is
-        // what makes "orthonormalize a random matrix" yield a *uniformly* distributed
-        // orthogonal matrix instead of a biased one. Recorded as its own task; the graph
-        // orders the sweep after it because both declare the same region.
+        // The matrix is filled with N(0,1) before the sweep; see src/README.md.
         normal(t, 0.0, 1.0);
 
-        // At most min(rows, cols) vectors can be mutually orthogonal, so orthonormalize along
-        // the shorter axis: the rows of a wide matrix, the columns of a tall one. The result
-        // satisfies Q Q^T = gain^2 I in the first case and Q^T Q = gain^2 I in the second -
-        // the same convention as PyTorch's orthogonal_.
-        //
-        // Driving this off t.strides rather than off rows/cols arithmetic means it is correct
-        // for ROW_MAJOR and COLUMN_MAJOR alike, with no special case: a column-major matrix
-        // simply walks the two axes in the other order, and the transpose of an orthogonal
-        // matrix is orthogonal too.
+        // The shorter axis is orthonormalized, read through t.strides; see src/README.md.
         const bool by_rows = (rows <= cols);
         const int64_t count = by_rows ? rows : cols;
         const int64_t length = by_rows ? cols : rows;

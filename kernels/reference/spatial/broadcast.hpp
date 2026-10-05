@@ -6,24 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-#pragma once
-
 /**
  * @file broadcast.hpp
- * @brief Three broadcast copies: a per-channel affine, a per-(n, c) spread, and
- * a rank-4 permuting copy.
- *
- * **Nothing in this file accumulates.** Every one of these kernels writes one
- * output element per iteration, reading one input element and at most one
- * per-channel scalar; there is no running total, no reduction and no operand
- * whose combination order could differ between two runs or between the
- * reference and the device. That is worth stating rather than leaving to be
- * observed, because the rest of this domain's kernels *do* accumulate and are
- * written the way they are (gathers, never atomic scatters) precisely to keep
- * that order fixed. Here there is no order to fix, so the reference and the
- * SYCL twin agree bit for bit by construction and the test that compares them
- * is checking indexing arithmetic, not numerics.
+ * @brief Defines the reference kernels of the three broadcast copies.
+ * @author Mustafa Garip
  */
+
+#pragma once
 
 #include <cstdint>
 #include <SushiBLAS/engine/spatial/geometry.hpp>
@@ -35,25 +24,11 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-             * @brief Applies a per-channel scale and shift.
-             *
-             * `out[n,h,w,c] = in[n,h,w,c] * gamma[c] + beta[c]`. BatchNorm's
-             * apply half, and the whole of BatchNorm in evaluation mode.
-             *
-             * @p gamma and @p beta are rank-1 `[C]` operands addressed through
-             * their own strides rather than assumed contiguous, so a parameter
-             * vector that is a view into a packed parameter arena works without
-             * a compacting copy.
-             *
-             * @tparam T The element type.
-             * @param span The image layout, in element counts; `out_h` and
-             *        `out_w` equal `in_h` and `in_w`.
-             * @param in The input image's first element.
-             * @param gamma The scale vector's first element.
-             * @param beta The shift vector's first element.
+             * @brief Applies a per-channel scale and shift, `out = in * gamma[c] + beta[c]`.
+             * @param span The image layout; `out_h` and `out_w` equal `in_h` and `in_w`.
              * @param gamma_stride Elements between adjacent entries of @p gamma.
              * @param beta_stride Elements between adjacent entries of @p beta.
-             * @param out The output image's first element.
+             * @see kernels/README.md
              */
             template<typename T>
             void channel_affine(const Spatial::WindowSpan& span, const T* in,
@@ -84,24 +59,10 @@ namespace SushiBLAS
 
             /**
              * @brief Spreads an `[N, C]` value over `[N, H, W, C]`, scaled.
-             *
-             * `out[n,h,w,c] = in[n,c] * scale`. Global average pooling's
-             * backward at `scale = 1/(H*W)`.
-             *
-             * The input is rank-2, so its two strides are parameters rather than
-             * fields of @p span: a @ref Spatial::WindowSpan has four input
-             * strides and only two of them would mean anything here, and two
-             * meaningless fields are two a reader has to rule out.
-             *
-             * @tparam T The element type.
-             * @param span The output image's layout, in element counts; only the
-             *        extents and the `out_*` strides are read.
-             * @param in The rank-2 input's first element.
+             * @param span The output layout; only the extents and the `out_*` strides are read.
              * @param in_batch_stride Elements between consecutive rows of @p in.
-             * @param in_channel_stride Elements between consecutive entries of
-             *        one row of @p in.
-             * @param out The output image's first element.
-             * @param scale The factor every element is multiplied by.
+             * @param in_channel_stride Elements between consecutive entries of one row of @p in.
+             * @see kernels/README.md
              */
             template<typename T>
             void broadcast_spatial(const Spatial::WindowSpan& span, const T* in,
@@ -129,19 +90,8 @@ namespace SushiBLAS
 
             /**
              * @brief Copies a rank-4 tensor element by logical `(n, c, h, w)` position.
-             *
-             * The boundary transpose between NCHW and NHWC. **Its direction is
-             * not a flag**: both sides are indexed through their own four
-             * strides, so the caller expresses which way the transpose runs by
-             * handing in a differently-strided output, and one kernel serves
-             * both directions.
-             *
-             * @tparam T The element type.
-             * @param span The two layouts, in element counts; the logical
-             *        extents are shared, so `out_h` equals `in_h` and `out_w`
-             *        equals `in_w`.
-             * @param in The input's first element.
-             * @param out The output's first element.
+             * @param span The two layouts; `out_h` equals `in_h` and `out_w` equals `in_w`.
+             * @see kernels/README.md
              */
             template<typename T>
             void layout_convert(const Spatial::WindowSpan& span, const T* in, T* out)

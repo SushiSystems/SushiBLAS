@@ -6,8 +6,10 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-#pragma once
+/**
+ * @file math.hpp
+ * @brief Reserves the include point of the math kernels and includes nothing.
+ * @author Mustafa Garip
+ */
 
-// Reductions (Planned)
-// #include "kernels/reference/math/reductions/sum.hpp"
-// #include "kernels/sycl/math/reductions/sum.hpp"
+#pragma once

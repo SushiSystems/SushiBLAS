@@ -6,20 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Every operation family, run against tensors that are views at a non-zero
-// storage_offset rather than at the base of their allocation.
-//
-// This is the shape a memory planner produces: one arena allocation with many
-// tensors packed into it, each handed to an operation as a view at an offset.
-// Most families used to capture `tensor.storage->data_ptr` and drop the offset
-// on the floor, so a view silently aliased the start of its arena - reading the
-// wrong inputs and scribbling over whatever else lived there.
-//
-// Each test therefore asserts two things, and the second is the load-bearing
-// one. That the result is correct often passes by accident (with a single
-// tensor per allocation, offset 0 and "ignore the offset" are the same
-// address). That the poison bytes *before* and *after* the view survive
-// untouched cannot: an operation that ignores the offset writes over them.
+/**
+ * @file test_storage_offset.cpp
+ * @brief Tests every operation family on views at a non-zero storage offset.
+ * @author Mustafa Garip
+ */
 
 #include <vector>
 #include <cstddef>
@@ -61,8 +52,7 @@ namespace SushiBLAS
                         static_cast<size_t>(kPad + n + kPad) * bpe,
                         SushiRuntime::Memory::Strategies::Shared::instance());
 
-                    // Poison the whole allocation, the view's own elements included: every
-                    // test writes the view's inputs before it runs anything.
+                    // Poisons the view too; each test writes its inputs first.
                     auto& q = TestEnvironment::get_context().get_queue();
                     q.memset(storage->allocation_base(), kPoisonByte, storage->size_bytes).wait();
 
@@ -101,8 +91,6 @@ namespace SushiBLAS
                     return ::testing::AssertionSuccess();
                 }
         };
-
-        // ------------------------------------------------------------------ Level 1
 
         TEST_F(Unit_StorageOffsetTest, Level1AxpyHonoursOffset)
         {
@@ -146,12 +134,9 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(y, "copy y"));
         }
 
-        // ------------------------------------------------------------------ Level 2
-
         TEST_F(Unit_StorageOffsetTest, Level2GemvHonoursOffset)
         {
-            // beta != 0, so y is read as well as written - both directions of the offset
-            // are exercised on the same operand.
+            // beta != 0, so y is read as well as written.
             auto A = offset_view({2, 3});
             auto x = offset_view({3});
             auto y = offset_view({2});
@@ -188,8 +173,6 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(A, "ger A"));
         }
 
-        // ------------------------------------------------------------------ Level 3
-
         TEST_F(Unit_StorageOffsetTest, Level3GemmHonoursOffset)
         {
             auto A = offset_view({2, 2});
@@ -207,8 +190,6 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(B, "gemm B"));
             EXPECT_TRUE(padding_intact(C, "gemm C"));
         }
-
-        // ------------------------------------------------------------------ Elementwise
 
         TEST_F(Unit_StorageOffsetTest, ElementwiseHonoursOffset)
         {
@@ -228,8 +209,6 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(B, "add B"));
             EXPECT_TRUE(padding_intact(C, "add/neg C"));
         }
-
-        // ------------------------------------------------------------------ Nonlinear
 
         TEST_F(Unit_StorageOffsetTest, NonlinearHonoursOffset)
         {
@@ -261,8 +240,6 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(dx, "relu_backward dx"));
         }
 
-        // ------------------------------------------------------------------ Logic
-
         TEST_F(Unit_StorageOffsetTest, LogicHonoursOffset)
         {
             auto A = offset_view({4});
@@ -281,8 +258,6 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(R, "greater R"));
         }
 
-        // ------------------------------------------------------------------ Reductions
-
         TEST_F(Unit_StorageOffsetTest, ReductionHonoursOffset)
         {
             auto t = offset_view({4});
@@ -298,8 +273,6 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(r, "sum result"));
         }
 
-        // ------------------------------------------------------------------ Random
-
         TEST_F(Unit_StorageOffsetTest, RandomHonoursOffset)
         {
             auto c = offset_view({8});
@@ -313,8 +286,7 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(c, "constant"));
             EXPECT_TRUE(padding_intact(u, "uniform"));
 
-            // The uniform draw is only checked for range - the point here is the offset,
-            // not the distribution (test_uniform.cpp owns that).
+            // The uniform draw is checked for range only; test_uniform.cpp owns the distribution.
             std::vector<float> host(8);
             auto& q = TestEnvironment::get_context().get_queue();
             q.memcpy(host.data(), u.data(), host.size() * sizeof(float)).wait();
@@ -325,15 +297,9 @@ namespace SushiBLAS
             }
         }
 
-        // --------------------------------------------------- Offsets are elements
-
         TEST_F(Unit_StorageOffsetTest, OffsetIsCountedInElementsNotBytes)
         {
-            // The unit of storage_offset is a decision, not an accident, and it is the one
-            // that keeps every view naturally aligned: an element count scaled by the
-            // element width can never land an fp64 view on a 4-byte boundary. Pin it, so
-            // that "offsets are bytes" cannot be introduced later and pass the tests above
-            // (which use one dtype at a time and would not notice).
+            // storage_offset counts elements, not bytes. See tests/functional/unit/README.md.
             auto f64 = offset_view({4}, Core::DataType::FLOAT64);
 
             const auto* base = static_cast<const char*>(f64.storage->allocation_base());
@@ -353,9 +319,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_StorageOffsetTest, DisjointViewsOfOneAllocationDoNotAlias)
         {
-            // What the memory planner in the layer above needs: two tensors packed into one
-            // arena must not be reported as touching the same memory, or every op in the
-            // graph serialises behind every other one.
+            // Disjoint views of one arena must not alias. See tests/functional/unit/README.md.
             auto storage = SushiRuntime::make_sushi<Storage>(
                 TestEnvironment::get_context().get_allocator(),
                 32 * sizeof(float),

@@ -6,22 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Tensor views: does a view's metadata describe the memory it actually
-// occupies?
-//
-// The question these tests ask of `slice` is not "are the values right" - a
-// slice does not move anything, so there is nothing to get right in that sense.
-// It is "do the strides the view reports lead to its elements". `slice` used to
-// answer no for every `dim > 0`, because it rebuilt the view through the
-// shape-derived Tensor constructor, which lays contiguous strides out afresh
-// from the new shape. For `dim == 0` that coincides with the truth; for an
-// inner axis it describes a compacted tensor that does not exist. Nothing in
-// the tree called it that way, so nothing caught it.
-//
-// Each test therefore addresses the view's elements *through its own reported
-// strides* and checks what it finds against the value the parent put there.
-// That is the only formulation that fails when the strides are wrong, and it
-// is what a downstream kernel would do.
+/**
+ * @file test_tensor_view.cpp
+ * @brief Tests that a tensor view's offset and strides lead to the elements it occupies.
+ * @author Mustafa Garip
+ */
 
 #include <vector>
 #include <numeric>
@@ -69,14 +58,9 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Asserts that walking @p view by its own strides visits the elements
-                 * the parent placed at @p expected_origin plus the slice's offsets.
-                 *
-                 * @param view The slice under test.
+                 * @brief Asserts that @p view's own strides lead to the elements its parent placed.
                  * @param buffer The parent allocation, read back to the host.
-                 * @param parent_strides The strides of the tensor the slice came from.
                  * @param start Where the slice starts along @p dim, in elements of that axis.
-                 * @param dim The axis that was sliced.
                  */
                 void expect_view_addresses_its_elements(const Tensor& view,
                                                         const std::vector<float>& buffer,
@@ -113,8 +97,7 @@ namespace SushiBLAS
                         ASSERT_LT(static_cast<size_t>(reported), buffer.size())
                             << "view element " << flat << " addresses past the end of its allocation";
 
-                        // The parent filled element k with the value k, so the truth offset is
-                        // also the value that must be found there.
+                        // Element k holds k, so the true offset is the expected value.
                         EXPECT_FLOAT_EQ(buffer[static_cast<size_t>(reported)], static_cast<float>(truth))
                             << "slice along dim " << dim << ": logical element " << flat
                             << " is addressed at buffer offset " << reported
@@ -124,8 +107,10 @@ namespace SushiBLAS
                 }
         };
 
-        // Every axis of a rank-2 row-major tensor. dim 0 always worked; dim 1 is the
-        // case that used to report contiguous strides for non-contiguous memory.
+        /**
+         * @brief Tests slices along each axis of a rank-2 row-major tensor.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_TensorViewTest, SliceAlongEachAxisAddressesItsElementsRowMajor)
         {
             constexpr int64_t kRows = 4, kCols = 4;
@@ -146,8 +131,10 @@ namespace SushiBLAS
             }
         }
 
-        // The same in column-major, where the strides run the other way and a dim-0
-        // slice is the non-contiguous one.
+        /**
+         * @brief Tests slices along each axis of a rank-2 column-major tensor.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_TensorViewTest, SliceAlongEachAxisAddressesItsElementsColumnMajor)
         {
             constexpr int64_t kRows = 4, kCols = 4;
@@ -167,8 +154,10 @@ namespace SushiBLAS
             }
         }
 
-        // Rank 3, so that there is an axis which is neither the outermost nor the
-        // innermost - the one a two-dimensional test cannot distinguish.
+        /**
+         * @brief Tests slices along each axis of a rank-3 tensor, which has a middle axis.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_TensorViewTest, SliceAlongEachAxisAddressesItsElementsRankThree)
         {
             constexpr int64_t kB = 3, kM = 4, kN = 5;
@@ -185,9 +174,10 @@ namespace SushiBLAS
             }
         }
 
-        // A slice keeps its parent's strides, so it reports non-contiguous whenever
-        // narrowing an inner axis leaves gaps - and `reshape`, which requires
-        // contiguity, refuses it rather than producing a second wrong view.
+        /**
+         * @brief Tests that an inner-axis slice reports non-contiguous and reshape refuses it.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_TensorViewTest, InnerAxisSliceReportsItselfNonContiguous)
         {
             auto parent = engine->create_tensor({4, 4});
@@ -205,8 +195,10 @@ namespace SushiBLAS
             EXPECT_THROW((void)inner.reshape({8}), std::runtime_error);
         }
 
-        // A whole-axis slice changes nothing, and must therefore leave a tensor that
-        // still compares equal to its parent in every respect that matters.
+        /**
+         * @brief Tests that a whole-axis slice equals its parent.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_TensorViewTest, FullWidthSliceIsTheIdentity)
         {
             auto parent = engine->create_tensor({4, 5});
@@ -221,17 +213,16 @@ namespace SushiBLAS
             }
         }
 
-        // `region()` is what SushiRuntime's dependency tracker orders on, so it has to
-        // cover every byte the view can reach - not merely as many bytes as the view has
-        // elements. For a strided view those are different numbers, and the smaller one
-        // would leave the tail of the view unguarded.
+        /**
+         * @brief Tests that region() covers every byte a strided view reaches.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_TensorViewTest, RegionCoversEveryByteAStridedViewReaches)
         {
             auto parent = engine->create_tensor({4, 4});
             const Tensor inner = parent.slice(1, 1, 3);
 
-            // Elements at buffer offsets 1,2, 5,6, 9,10, 13,14 - so the view holds 8
-            // elements but spans 14.
+            // The view holds 8 elements, at offsets 1,2, 5,6, 9,10, 13,14, and spans 14.
             EXPECT_EQ(8, inner.num_elements);
             EXPECT_EQ(14, inner.element_span());
 
@@ -243,8 +234,10 @@ namespace SushiBLAS
                    "last three elements of the view unguarded against a concurrent writer.";
         }
 
-        // The contiguous case must not have moved: element_span and num_elements agree
-        // there, which is why the distinction went unnoticed for so long.
+        /**
+         * @brief Tests that a contiguous tensor's element span equals its element count.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_TensorViewTest, ContiguousTensorSpansExactlyItsElements)
         {
             auto parent = engine->create_tensor({4, 5});
@@ -252,9 +245,10 @@ namespace SushiBLAS
             EXPECT_EQ(static_cast<size_t>(parent.num_elements) * sizeof(float), parent.region().length);
         }
 
-        // A transpose swaps strides without moving data, so it too spans its whole
-        // matrix - and it always did, which is what makes it a useful control on
-        // element_span.
+        /**
+         * @brief Tests that a transposed matrix spans its whole matrix.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_TensorViewTest, TransposeSpansItsWholeMatrix)
         {
             auto parent = engine->create_tensor({3, 5});
@@ -265,9 +259,10 @@ namespace SushiBLAS
             EXPECT_EQ(parent.num_elements, t.element_span());
         }
 
-        // The stride-explicit constructor is the seam `slice` now goes through, so its
-        // own guards matter: they are the last thing standing between a mis-described
-        // view and a kernel reading past the end of an allocation.
+        /**
+         * @brief Tests that the stride-explicit constructor rejects incoherent metadata.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_TensorViewTest, StrideExplicitConstructorRejectsIncoherentMetadata)
         {
             auto parent = engine->create_tensor({4, 4});
@@ -286,9 +281,7 @@ namespace SushiBLAS
                                       Core::DataType::FLOAT32, 0, Core::Layout::ROW_MAJOR),
                          std::runtime_error);
 
-            // 4 rows at a stride of 64 reach element 193 of a 16-element allocation. The
-            // element count alone (16) would have fitted, which is why the capacity check
-            // has to be asked in terms of the span.
+            // The span exceeds capacity; the count does not. See tests/functional/unit/README.md.
             EXPECT_THROW((void)Tensor(parent.storage, dims, too_wide,
                                       Core::DataType::FLOAT32, 0, Core::Layout::ROW_MAJOR),
                          std::runtime_error);

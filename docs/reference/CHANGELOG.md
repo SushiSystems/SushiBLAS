@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-05 — docs: Moved design reasoning out of source comments into folder READMEs and gave every source file its file block (`include/SushiBLAS/`, `src/`, `kernels/`, `tests/`, `cli/`).
 - 2026-10-05 — random: Made `truncated_normal` draw inside its bounds by inverting the normal distribution, and reject unordered or zero-mass bounds and complex dtypes at record time (`src/engine/math/random/truncated_normal.cpp`).
 - 2026-10-05 — core: Made `SB_ASSERT` flush the asynchronous logger before it aborts (`include/SushiBLAS/core/logger.hpp`, `tests/functional/regression/test_logger.cpp`).
 - 2026-10-05 — core: Set the asynchronous logger's stop flag under its mutex and wrote every queued line before the worker exits (`include/SushiBLAS/core/logger.hpp`).

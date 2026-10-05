@@ -6,10 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Pure C++ reference implementations of BLAS Level 1 (vector-vector) ops.
-// These are simple, unblocked, single-threaded kernels - Level 1 is not the
-// performance-critical tier of this library (that's Level 3, see gemm.hpp/
-// syrk.hpp), so correctness-first serial loops are the right tradeoff here.
+/**
+ * @file level1.hpp
+ * @brief Defines the reference kernels of the BLAS level 1 routines.
+ * @author Mustafa Garip
+ */
 
 #pragma once
 
@@ -78,28 +79,10 @@ namespace SushiBLAS
                 *result = sum;
             }
 
-            // Euclidean norm in the scaling form xNRM2 specifies, not `sqrt(sum(x*x))`.
-            //
-            // Two bugs were in that one line. The squaring overflowed: an fp32 element past
-            // ~1.8e19 squares to infinity, so the norm of a vector whose largest entry is
-            // 1e20 came back `inf` where the true answer is about 1e20 - and the mirror
-            // case underflowed, an element below ~1e-22 squaring to zero so that a vector
-            // of denormals came back exactly 0. Carrying a running `scale` and summing
-            // `(x / scale)^2` squares only values near 1, so neither end can happen; the
-            // result overflows only when the true norm does.
-            //
-            // And `abs1` was the wrong magnitude for a complex element. It is BLAS's
-            // "|Re| + |Im|", which is what xASUM and IxAMAX are defined on, but the 2-norm
-            // needs `Re^2 + Im^2` - using abs1 added a spurious `2|Re||Im|` per element, so
-            // a complex nrm2 was simply the wrong number (`sqrt(2)`x too large for x = 1+i).
-            // Folding the two components separately is both the correct magnitude and the
-            // form that stays overflow-safe, and it is what LAPACK's own classq does.
-            //
-            // This is the reference kernel, so it is written the textbook way - the running
-            // maximum as the scale, no compensation - deliberately independent of the SYCL
-            // kernel's octave-rounded, Neumaier-corrected variant rather than sharing code
-            // with it. A ground truth that shares an implementation with the thing it
-            // checks is not a check.
+            /**
+             * @brief Computes the Euclidean norm in the scaling form xNRM2 specifies.
+             * @see kernels/README.md
+             */
             template<typename T>
             void nrm2(int64_t n, const T* x, int64_t incx, typename RealOf<T>::type* result)
             {
@@ -112,8 +95,7 @@ namespace SushiBLAS
                     const R a = std::abs(value);
                     if (a == R(0)) return;
 
-                    // An infinity or a NaN has no magnitude to be relative to; folding it
-                    // in unscaled saturates the sum, which is the answer BLAS gives.
+                    // A non-finite element is folded in unscaled; see kernels/README.md.
                     if (!std::isfinite(a))
                     {
                         if (scale == R(0)) scale = R(1);

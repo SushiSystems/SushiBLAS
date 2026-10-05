@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file sin.cpp
+ * @brief Defines ElementwiseOps::sin, which records the in-place elementwise sin task.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/elementwise.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 

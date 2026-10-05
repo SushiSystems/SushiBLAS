@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file pool_avg.cpp
+ * @brief Defines SpatialOps::pool_avg and pool_avg_backward, which record average pooling and its
+ * gradient.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/task.hpp>
@@ -69,8 +76,7 @@ namespace SushiBLAS
                     "Spatial operation '{}' has a {} output gradient and a {} input gradient.",
                     NAME, Core::to_string(dy.dtype), Core::to_string(dx.dtype));
 
-        // `dx` plays the input role and `dy` the output role, the same
-        // assignment the forward made - so the geometry must be the forward's.
+        // dx plays the input role and dy the output role, as in the forward; see src/README.md.
         const Spatial::WindowSpan span = Spatial::window_span_for(dx, g, dy, NAME);
 
         void* read_dy = dy.data_or_null();

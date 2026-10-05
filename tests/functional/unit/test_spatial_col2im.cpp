@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_spatial_col2im.cpp
+ * @brief Tests spatial().col2im against overlap counts and the reference kernel.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <cstdint>
 #include <cstring>
@@ -44,12 +50,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialCol2ImTest, EachPixelReceivesOncePerWindowThatReadIt)
         {
-            // col2im of an all-ones column matrix is the *overlap count* of each
-            // pixel: how many windows read it. That is a closed-form answer this
-            // test computes independently, and it is the strongest cheap check
-            // that the gather visits exactly the right set - a rule that drops
-            // contributions or double-counts fails it, where a round-trip
-            // against im2col would not necessarily.
+            // All-ones columns give a pixel's overlap count. See tests/functional/unit/README.md.
             Spatial::ConvGeometry g;
             g.kernel_h = 3;
             g.kernel_w = 3;
@@ -71,11 +72,7 @@ namespace SushiBLAS
                 for (int64_t h = 0; h < H; ++h)
                     for (int64_t w = 0; w < W; ++w)
                     {
-                        // With a 3x3 stride-1 window padded by 1, a pixel is read
-                        // by every window whose origin is within one step of it and
-                        // inside the image: 3x3 in the interior, fewer at the edges.
-                        // Counted by brute force rather than by a closed form, so
-                        // this expectation cannot share a mistake with the kernel.
+                        // Windows are counted by brute force. See tests/functional/unit/README.md.
                         int64_t count = 0;
                         for (int64_t ho = 0; ho < out_h; ++ho)
                             for (int64_t wo = 0; wo < out_w; ++wo)
@@ -92,10 +89,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialCol2ImTest, StrideAndDilationSelectTheRightContributors)
         {
-            // A stride-2 window means every pixel here is read by exactly one
-            // window. Getting the divisibility test wrong - dropping the
-            // `% stride != 0` guard - turns this into a count of 4 and is
-            // otherwise invisible.
+            // With stride 2 each pixel has exactly one window. See tests/functional/unit/README.md.
             Spatial::ConvGeometry g;
             g.kernel_h = 2;
             g.kernel_w = 2;
@@ -120,11 +114,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialCol2ImTest, PixelsNoWindowReadsAreWrittenZeroRatherThanLeftAlone)
         {
-            // A 2x2 stride-2 window over a 5x5 image covers rows 0..3 and
-            // columns 0..3; the last row and column are read by nothing. The
-            // gather form writes every pixel exactly once, so those must come
-            // back zero - which is what lets a caller pass an uninitialised
-            // destination. Seeded with a sentinel so "left alone" is visible.
+            // Pixels no window reads must come back zero. See tests/functional/unit/README.md.
             Spatial::ConvGeometry g;
             g.kernel_h = 2;
             g.kernel_w = 2;
@@ -158,14 +148,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialCol2ImTest, TheSyclKernelAgreesWithTheReferenceKernel)
         {
-            // Compared here rather than under ExecutionMode::VERIFY, which runs
-            // both kernels but lets the reference overwrite the device's answer
-            // instead of checking it (see Internal::dispatch_with_mode).
-            //
-            // The column entries are a ramp rather than all ones, so a pixel's
-            // total depends on *which* entries it gathered and not only on how
-            // many - the all-ones case cannot tell a wrong-but-equal-sized set
-            // from the right one.
+            // VERIFY mode would not compare the two kernels. See tests/functional/unit/README.md.
             Spatial::ConvGeometry g;
             g.kernel_h = 3;
             g.kernel_w = 2;

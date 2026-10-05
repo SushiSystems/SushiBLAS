@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file pool_avg.hpp
+ * @brief Defines the reference kernels of average pooling and its gradient.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstdint>
@@ -18,24 +24,8 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-             * @brief Averages each window, dividing by the window's **area**.
-             *
-             * The divisor is `kernel_h * kernel_w`, counting padded taps that
-             * contributed nothing - PyTorch's `count_include_pad=True`, which is
-             * its default and therefore what a network ported from it expects.
-             * The alternative, dividing by the number of in-bounds taps, is
-             * defensible and produces different numbers at every border pixel of
-             * every padded pool; the choice is invisible in any test that does
-             * not pad, which is why it is stated here and pinned by a test named
-             * for it.
-             *
-             * Summed in ascending `(r, s)` order, so the additions are a pure
-             * function of the geometry and two runs perform them identically.
-             *
-             * @tparam T The element type.
-             * @param span The window layout, in element counts.
-             * @param in The input image's first element.
-             * @param out The output image's first element.
+             * @brief Averages each window, dividing by the window's area.
+             * @see kernels/README.md
              */
             template<typename T>
             void pool_avg(const Spatial::WindowSpan& span, const T* in, T* out)
@@ -81,22 +71,8 @@ namespace SushiBLAS
 
             /**
              * @brief Spreads each output gradient evenly over the window it came from.
-             *
-             * The same divisibility gather as @ref pool_max_backward, and
-             * deliberately **not** the same function behind a mode flag: this
-             * one adds `dy / area` for every window covering the pixel, with no
-             * index to test. The two share a loop shape and nothing else - one
-             * selects through a recorded index, the other broadcasts a constant -
-             * and folding them together would put a branch in the inner loop to
-             * express a similarity that is only skin deep.
-             *
-             * The divisor is the window area, matching @ref pool_avg.
-             *
-             * @tparam T The element type.
-             * @param span The window layout, in element counts.
-             * @param dy The output gradient's first element.
-             * @param dx The input gradient's first element; every pixel is
-             *        written, so it needs no prior clear.
+             * @param dx The input gradient; every pixel is written, so it needs no prior clear.
+             * @see kernels/README.md
              */
             template<typename T>
             void pool_avg_backward(const Spatial::WindowSpan& span, const T* dy, T* dx)

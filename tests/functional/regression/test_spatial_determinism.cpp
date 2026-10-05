@@ -6,23 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The spatial domain's bit-reproducibility gate.
-//
-// Every backward in the spatial domain is written as a gather so that each
-// output element sums its own contributions in a fixed order (spec CV-6). The
-// failure mode this guards is silent: `sycl::atomic_ref`'s floating-point add is
-// correct to any tolerance a functional test would use and non-reproducible in
-// the last bits, so a tolerance-based test passes while the library's
-// bit-reproducibility contract - inherited from the PUBLIC link against
-// `sushiruntime_deterministic_fp` - is quietly gone.
-//
-// Nothing in the unit tier catches that, which is why this lives in the
-// regression tier and compares raw bit patterns. `EXPECT_FLOAT_EQ` would accept
-// the very difference being looked for.
-//
-// Every case below uses **overlapping** windows. A non-overlapping geometry has
-// one contribution per output element and would pass with an atomic add in
-// place, proving nothing.
+/**
+ * @file test_spatial_determinism.cpp
+ * @brief Tests that the spatial backward kernels give identical bits on two runs.
+ * @author Mustafa Garip
+ * @see tests/functional/regression/README.md
+ */
 
 #include <vector>
 #include <cstdint>
@@ -48,16 +37,7 @@ namespace SushiBLAS
 
             /**
              * @brief Fills a buffer with values whose sum is order-sensitive.
-             *
-             * A ramp of similar magnitudes can be reordered without changing a
-             * single bit of the total, which would make every test in this file
-             * pass vacuously. Alternating a huge magnitude with a small one
-             * makes the sum genuinely non-associative in binary32: `1e8 + 1.0`
-             * rounds straight back to `1e8`, so whether the `1.0` is added
-             * before or after the `-1e8` decides whether it survives at all.
-             *
-             * @param p The buffer's first element.
-             * @param count How many elements to fill.
+             * @see tests/functional/regression/README.md
              */
             void fill_order_sensitive(float* p, int64_t count)
             {
@@ -75,11 +55,7 @@ namespace SushiBLAS
 
             /**
              * @brief Runs @p run twice and asserts the two results agree bit for bit.
-             *
-             * @tparam Run A callable `(std::vector<uint32_t>&) -> void` that
-             *         performs one whole recording-and-execution pass and writes
-             *         the result's bit patterns into its argument.
-             * @param run The pass to repeat.
+             * @tparam Run A callable `(std::vector<uint32_t>&) -> void` that writes one pass's bits.
              * @param elements How many elements the result holds.
              */
             template<typename Run>
@@ -111,8 +87,7 @@ namespace SushiBLAS
 
         TEST_F(Regression_SpatialDeterminismTest, Col2ImIsBitReproducible)
         {
-            // 3x3 stride 1 padded by one, so every interior pixel gathers nine
-            // terms of alternating magnitude.
+            // 3x3, stride 1, padded by one: every interior pixel gathers nine terms.
             const int64_t N = 2, H = 6, W = 7, C = 3;
 
             Spatial::ConvGeometry g;
@@ -142,9 +117,7 @@ namespace SushiBLAS
 
         TEST_F(Regression_SpatialDeterminismTest, MaxPoolBackwardIsBitReproducible)
         {
-            // 2x2 stride 1 - YOLOv3-tiny's pool. A pixel selected by several
-            // overlapping windows accumulates all of their gradients, which is
-            // the only place this operation adds anything at all.
+            // 2x2, stride 1: a pixel selected by several windows accumulates all their gradients.
             const int64_t N = 2, H = 6, W = 7, C = 3;
 
             Spatial::ConvGeometry g;
@@ -154,9 +127,7 @@ namespace SushiBLAS
             const int64_t out_h = Spatial::output_extent(H, 0, 0, 1, 2, 1);
             const int64_t out_w = Spatial::output_extent(W, 0, 0, 1, 2, 1);
 
-            // One dominant pixel per channel plane, so every window in reach
-            // selects it and the gradients genuinely accumulate. A generic input
-            // would give most pixels a single contributor.
+            // One dominant pixel per channel plane, so every window in reach selects it.
             auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
             float* p = in.data_as<float>();
             for (int64_t i = 0; i < in.num_elements; ++i) p[i] = 0.0f;
@@ -235,11 +206,7 @@ namespace SushiBLAS
 
         TEST_F(Regression_SpatialDeterminismTest, MeanSpatialIsBitReproducible)
         {
-            // Few segments over a long extent, so the reduction takes the
-            // cooperative work-group-per-segment shape and folds through the
-            // hand-written halving tree rather than one item's serial loop. That
-            // is the shape whose combination order a `sycl::reduction` would
-            // have left free.
+            // Few segments over a long extent, so the reduction folds through the halving tree.
             const int64_t N = 2, H = 256, W = 256, C = 2;
 
             expect_bit_identical_across_runs(

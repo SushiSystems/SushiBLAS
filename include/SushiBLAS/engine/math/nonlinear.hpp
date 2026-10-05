@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file nonlinear.hpp
+ * @brief Declares NonLinearOps, the activation functions and their backward passes.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <sycl/sycl.hpp>
@@ -60,13 +66,8 @@ namespace SushiBLAS
             sycl::event leaky_relu(Tensor& t, float alpha = 0.01f);
 
             /**
-             * @brief LeakyReLU Backward.
-             * Computes dx = dy * (x > 0 ? 1 : alpha).
-             * @param dy Output gradient.
-             * @param x Forward input.
-             * @param dx Gradient result.
-             * @param alpha Slope for negative values.
-             * @return sycl::event.
+             * @brief Computes dx = dy * (x > 0 ? 1 : alpha), the LeakyReLU backward pass.
+             * @param x The forward input.
              */
             sycl::event leaky_relu_backward(const Tensor& dy, const Tensor& x, Tensor& dx, float alpha = 0.01f);
 
@@ -116,13 +117,8 @@ namespace SushiBLAS
             sycl::event elu(Tensor& t, float alpha = 1.0f);
 
             /**
-             * @brief ELU Backward.
-             * Computes dx = dy * (x > 0 ? 1 : alpha * exp(x)).
-             * @param dy Output gradient.
-             * @param x Forward input.
-             * @param dx Gradient result.
-             * @param alpha scale factor.
-             * @return sycl::event.
+             * @brief Computes dx = dy * (x > 0 ? 1 : alpha * exp(x)), the ELU backward pass.
+             * @param x The forward input.
              */
             sycl::event elu_backward(const Tensor& dy, const Tensor& x, Tensor& dx, float alpha = 1.0f);
 

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_acos.cpp
+ * @brief Tests elementwise().acos against fixed expected values.
+ * @author Mustafa Garip
+ */
+
 #include <gtest/gtest.h>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.h>

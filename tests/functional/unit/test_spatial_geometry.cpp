@@ -6,10 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Device-free by construction: geometry.hpp includes <cstdint> and nothing
-// else, so this whole file links no SYCL and needs no Engine. That is the
-// property the header exists to have - SushiAI's host-lane shape inference
-// shares this arithmetic and must not inherit the device stack to get it.
+/**
+ * @file test_spatial_geometry.cpp
+ * @brief Tests output_extent, the window span and the default ConvGeometry without a device.
+ * @author Mustafa Garip
+ */
 
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/spatial/geometry.hpp>
@@ -42,31 +43,23 @@ namespace SushiBLAS
 
         TEST(Unit_SpatialGeometry, AsymmetricPaddingIsWhatHoldsYoloTinysLastPool)
         {
-            // YOLOv3-tiny's 2x2 stride-1 max-pool, padded on the bottom and right
-            // only, so 13x13 stays 13x13. This is the case CV-5 exists to make
-            // ordinary, and it is the reason pad_bottom is a host-side number
-            // rather than a ninth attribute slot.
+            // Bottom and right padding keep 13x13 at 13x13. See tests/functional/unit/README.md.
             EXPECT_EQ(output_extent(13, 0, 1, 1, 2, 1), 13);
-            // Symmetric padding of the same total would be a different answer,
-            // which is the point: the two are not interchangeable.
+            // Padding on the other side is a separate case, not interchangeable with this one.
             EXPECT_EQ(output_extent(13, 1, 0, 1, 2, 1), 13);
             EXPECT_EQ(output_extent(13, 0, 0, 1, 2, 1), 12);
         }
 
         TEST(Unit_SpatialGeometry, NonSquareAndAnisotropicGeometryIsExpressible)
         {
-            // Height and width are independent all the way down, so a 1x7 kernel
-            // with stride (1,2) is not a special case of anything.
+            // Height and width are independent, so a 1x7 kernel at stride (1,2) is no special case.
             EXPECT_EQ(output_extent(20, 0, 0, 1, 1, 1), 20);
             EXPECT_EQ(output_extent(20, 3, 3, 1, 7, 2), 10);
         }
 
         TEST(Unit_SpatialGeometry, AWindowWiderThanThePaddedInputYieldsNoOutputRatherThanANegativeOne)
         {
-            // The formula's numerator goes negative here. Integer division of a
-            // negative numerator is implementation-flavoured and would produce a
-            // garbage extent that later multiplies into an allocation size, so
-            // it is answered explicitly.
+            // A negative numerator is answered with zero. See tests/functional/unit/README.md.
             EXPECT_EQ(output_extent(3, 0, 0, 1, 5, 1), 0);
             EXPECT_EQ(output_extent(3, 0, 0, 4, 3, 1), 0);
         }
@@ -88,10 +81,7 @@ namespace SushiBLAS
 
         TEST(Unit_SpatialGeometry, TheDefaultGeometryIsTheIdentityWindow)
         {
-            // A default-constructed geometry is 1x1, stride 1, no dilation, no
-            // padding - so it maps every extent to itself. Anything that reads a
-            // half-built geometry therefore gets a shape it can recognise as
-            // wrong rather than a plausible one.
+            // A default geometry maps every extent to itself. See tests/functional/unit/README.md.
             const Spatial::ConvGeometry g;
             EXPECT_EQ(output_extent(17, 0, 0, g.dilation_h, g.kernel_h, g.stride_h), 17);
         }

@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file upsample_nearest.cpp
+ * @brief Defines SpatialOps::upsample_nearest and upsample_nearest_backward, which record nearest-
+ * neighbour upsampling and its gradient.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <cstdint>
 #include <SushiBLAS/engine.hpp>
@@ -22,25 +29,10 @@ namespace SushiBLAS
     {
         /**
          * @brief Builds the span for an upsample from its two rank-4 operands.
-         *
-         * Deliberately **not** `Spatial::window_span_for`. That function needs a
-         * @ref Spatial::ConvGeometry, and the only honest one here is the
-         * default 1x1 stride-1 window - under which its window-origin check
-         * reads "output row `out_h - 1` starts at input row `out_h - 1`" and
-         * rejects every output larger than the input, which is the entire point
-         * of this operation. So the strides are read off the tensors here and
-         * the extent rule this operation actually has - an exact `scale`
-         * multiple - is checked instead. `span.geometry` stays default; no
-         * upsample kernel reads it.
-         *
-         * @param in The rank-4 NHWC tensor playing the input role.
-         * @param out The rank-4 NHWC tensor playing the output role.
-         * @param scale_h The vertical repeat factor.
-         * @param scale_w The horizontal repeat factor.
-         * @param name The operation's name, for diagnostics.
          * @return The span, in element counts, with both operands' strides filled in.
-         * @throws std::runtime_error when a rank is not 4, a scale is not
-         *         positive, or the extents are not the exact scaled multiples.
+         * @throws std::runtime_error when a rank is not 4, a scale is not positive, or the
+         *         extents are not the exact scaled multiples.
+         * @see src/README.md
          */
         Spatial::WindowSpan upsample_span_for(const Tensor& in, const Tensor& out,
                                               int64_t scale_h, int64_t scale_w,
@@ -154,8 +146,7 @@ namespace SushiBLAS
                     "Spatial operation '{}' has a {} output gradient and a {} input gradient.",
                     NAME, Core::to_string(dy.dtype), Core::to_string(dx.dtype));
 
-        // `dx` plays the input role and `dy` the output role, the same
-        // assignment the forward made - so the scales must be the forward's.
+        // dx plays the input role and dy the output role, as in the forward; see src/README.md.
         const Spatial::WindowSpan span = upsample_span_for(dx, dy, scale_h, scale_w, NAME);
 
         void* read_dy = dy.data_or_null();

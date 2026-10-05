@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_syrk.cpp
+ * @brief Tests blas().syrk against the reference kernel over dtypes, layouts and triangles.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <complex>
 #include <gtest/gtest.h>

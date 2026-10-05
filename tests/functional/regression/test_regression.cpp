@@ -6,8 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// Sentinels for previously fixed bugs — one fast, deterministic test per defect
-// so a future change cannot silently reintroduce it.
+/**
+ * @file test_regression.cpp
+ * @brief Tests one fast, deterministic sentinel per fixed defect.
+ * @author Mustafa Garip
+ */
 
 #include <cmath>
 #include <vector>
@@ -23,11 +26,10 @@ namespace SushiBLAS
     {
         class Regression_Sentinel : public SushiBLASTest {};
 
-        // SYRK's old oneMKL-backed implementation threw for sycl::half (oneMKL has
-        // no half-precision SYRK). The SB-2 tiling-kernel port lifted that
-        // restriction, but test_syrk's own TYPED_TEST suite only covers
-        // float/double/complex, so nothing would have caught a regression. This is
-        // that sentinel.
+        /**
+         * @brief Tests that SYRK accepts a HALF operand.
+         * @see tests/functional/regression/README.md
+         */
         TEST_F(Regression_Sentinel, SyrkAcceptsHalfDtype)
         {
             auto A = engine->create_tensor({4, 3}, Core::DataType::HALF);
@@ -43,24 +45,10 @@ namespace SushiBLAS
             }) << "SYRK must accept HALF (SB-2 removed the oneMKL-era restriction).";
         }
 
-        // GEMM and SYRK used to read a COLUMN_MAJOR A and B with row-major
-        // indexing - `a[row*lda + col]` where the standard says `a[row + col*lda]`.
-        // Two consequences. The obvious one: `layout` was a no-op for both
-        // operands, so a column-major GEMM computed the wrong product. The
-        // dangerous one: the driver passes the column-major leading dimension
-        // (lda = m for an m x k A), so the wrong index runs past the end of the
-        // buffer whenever m > k - the maximum touched index is (m-1)*m + k-1
-        // against an m*k allocation.
-        //
-        // It survived because the reference kernel carried the identical defect,
-        // so every differential SYCL-vs-reference test agreed. These are the
-        // absolute pins that cannot: hand-computed numbers, both execution modes,
-        // and a shape with m > k so an out-of-bounds read is back in range of the
-        // sanitizers if it ever returns.
-        //
-        // A (3x2) = [[1,2],[3,4],[5,6]] column-major is [1,3,5,2,4,6], lda = 3.
-        // B (2x2) = [[1,0],[1,1]]       column-major is [1,1,0,1],     ldb = 2.
-        // A*B     = [[3,2],[7,4],[11,6]] -> column-major [3,7,11,2,4,6], ldc = 3.
+        /**
+         * @brief Tests that a column-major GEMM indexes A and B by column stride in both modes.
+         * @see tests/functional/regression/README.md
+         */
         TEST_F(Regression_Sentinel, GemmColumnMajorOperandsUseColumnStrides)
         {
             reinit_engine(Core::Layout::COLUMN_MAJOR);
@@ -85,13 +73,10 @@ namespace SushiBLAS
             }
         }
 
-        // Engine::set_seed() set the seed but left the monotonically increasing RNG
-        // offset where the previous draws had pushed it. Every RNG kernel mixes
-        // (seed, offset) into Philox, so re-seeding an engine that had already drawn
-        // did not reproduce its stream - two identically-seeded generators on one
-        // engine produced different data, which is the one thing a seed exists to
-        // prevent. Byte equality, not near-equality: a reproduced stream is the same
-        // bits or it is not reproduced.
+        /**
+         * @brief Tests that re-seeding an engine that has drawn reproduces the stream bit for bit.
+         * @see tests/functional/regression/README.md
+         */
         TEST_F(Regression_Sentinel, SetSeedRewindsTheRngStream)
         {
             constexpr size_t kN = 64;
@@ -120,11 +105,10 @@ namespace SushiBLAS
                    "not have collapsed every seed onto one.";
         }
 
-        // axpy/scal/gemv declared their scalars `float` while gemm declared `double`, so
-        // an fp64 computation silently received a float-rounded scalar - about 1e-7
-        // relative error, no diagnostic, and FLOAT64 only partly true. alpha here is
-        // 1 + 2^-30, which double holds exactly and float rounds to exactly 1.0, so the
-        // two answers are distinguishable rather than merely close.
+        /**
+         * @brief Tests that fp64 AXPY and SCAL apply their scalar at fp64 precision.
+         * @see tests/functional/regression/README.md
+         */
         TEST_F(Regression_Sentinel, Fp64Level1ScalarsAreNotNarrowedToFloat)
         {
             constexpr double kAlpha = 1.0 + 0x1p-30;
@@ -159,15 +143,10 @@ namespace SushiBLAS
             EXPECT_DOUBLE_EQ(kAlpha, got) << "an fp64 SCAL must apply alpha at fp64 precision.";
         }
 
-        // Tensor's column-major constructor laid out a rank-3 tensor by giving the batch
-        // axis stride 1, so the GEMM driver's `str_a = A.strides[rank-3]` came back as 1
-        // instead of m*k and every batch element read the same slice. The rule is that a
-        // rank-3 tensor's batch axis is outermost and slowest-varying in either layout -
-        // `layout` orders the memory inside a slice only.
-        //
-        // Three distinct batch elements, all three operands varying per batch, so any
-        // operand that aliased slice 0 changes the answer:
-        //   A_i = (i+1) * I(2)          B_i = {{1,2},{3,4}} + i        C_i = A_i * B_i
+        /**
+         * @brief Tests that a batched GEMM reads a distinct slice per batch element in both layouts.
+         * @see tests/functional/regression/README.md
+         */
         TEST_F(Regression_Sentinel, BatchedGemmAdvancesEveryBatchSlice)
         {
             struct Case
@@ -215,11 +194,10 @@ namespace SushiBLAS
             }
         }
 
-        // ger and gemv(beta != 0) declared their accumulator write-only while reading it.
-        // Ordering survived only because the tracker inserts a WAW edge anyway, so this
-        // was latent rather than active - and invisible to any behavioural test. It is
-        // asserted against the recorded graph instead: take_nodes() hands back what the
-        // driver declared.
+        /**
+         * @brief Tests that GER and GEMV with a non-zero beta declare their accumulator as read.
+         * @see tests/functional/regression/README.md
+         */
         TEST_F(Regression_Sentinel, AccumulatingOpsDeclareTheirAccumulatorRead)
         {
             auto contains = [](const std::vector<SushiRuntime::Core::ResourceRegion>& set,
@@ -262,34 +240,15 @@ namespace SushiBLAS
             }
         }
 
-        // Dispatch::execute_reduction described its operands to the dependency tracker
-        // as bare `data()` pointers rather than `Tensor::region()`. Every other op
-        // family had been converted; this one was missed, and for a tensor at offset
-        // zero the two are indistinguishable, so nothing caught it.
-        //
-        // For a view inside a shared arena they are not the same thing at all. A
-        // ResourceRegion built from a bare pointer keys on THAT pointer as its
-        // allocation base; a region from Tensor::region() keys on the allocation base
-        // and carries the view's byte interval. Two views of one arena therefore got
-        // two different bases, ResourceRegion::overlaps returned false, and the tracker
-        // emitted no edge at all - not a wrong edge, none. The reduction was then free
-        // to run before the op that produced its input.
-        //
-        // Not theoretical: SushiAI's first arena-packed training run reported a loss of
-        // -57 where ln 6 was expected, because reductions().max raced the bias_add
-        // feeding it and blas().scal beat reductions().sum to the loss.
-        //
-        // Asserted on the recorded graph rather than on the answer, because the answer
-        // is exactly what a race makes unreliable: with no edge the two tasks MAY still
-        // come out in the right order by luck, and a test that passes by luck guards
-        // nothing. The in-degree is the fact that decides it.
+        /**
+         * @brief Tests that a reduction is ordered behind the op that wrote its view of a shared allocation.
+         * @see tests/functional/regression/README.md
+         */
         TEST_F(Regression_Sentinel, ReductionsOrderAgainstViewsOfOneAllocation)
         {
             constexpr int64_t kN = 8;
 
-            // One allocation, two disjoint views - the shape a memory planner produces.
-            // The consumer's operand is not at offset zero, which is what makes a
-            // bare-pointer region and a real region genuinely disagree.
+            // source and packed are disjoint views of one allocation; packed is not at offset zero.
             auto storage = SushiRuntime::make_sushi<Storage>(
                 TestEnvironment::get_context().get_allocator(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
@@ -301,8 +260,7 @@ namespace SushiBLAS
 
             fill_tensor(source, std::vector<float>(static_cast<size_t>(kN), 3.0f));
 
-            // mul writes `packed`; sum then reads it. The read must be ordered behind
-            // the write.
+            // The sum's read of packed must be ordered behind mul's write.
             engine->elementwise().mul(source, source, packed);
             engine->reductions().sum(packed, total);
 
@@ -341,23 +299,13 @@ namespace SushiBLAS
             }
         }
 
-        // nrm2 computed the naive two-norm - square, sum, square-root - which overflows
-        // to infinity for any fp32 element past about 1.8e19, because the SQUARE
-        // overflows long before the norm does. The compensated-fold work made the
-        // summation accurate; it did not make the squaring safe.
-        //
-        // The input that triggers it is not exotic. Gradient-norm clipping calls nrm2,
-        // and a gradient that has already exploded is exactly the vector whose squares
-        // overflow - so the mechanism meant to rescue the run was the one that returned
-        // `inf` and destroyed it.
-        //
-        // Both entry points are checked: ReductionOps::nrm2 (the deterministic folding
-        // reduction) and Level1::nrm2 (a serial Level 1 kernel pair) are separate
-        // implementations, and both had the same defect.
+        /**
+         * @brief Tests that both nrm2 entry points stay finite for elements whose squares overflow fp32.
+         * @see tests/functional/regression/README.md
+         */
         TEST_F(Regression_Sentinel, Nrm2DoesNotOverflowNearTheFloatMaximum)
         {
-            // |x| = sqrt(1.2e38^2 + 1.6e38^2) = 2e38, comfortably inside fp32's range -
-            // but 1.2e38 squared is 1.44e76, which is not.
+            // The norm is 2e38, inside fp32's range; 1.2e38 squared is 1.44e76, outside it.
             const std::vector<float> data = {1.2e38f, 1.6e38f};
             const float expected = 2.0e38f;
 
@@ -384,14 +332,13 @@ namespace SushiBLAS
             }
         }
 
-        // The mirror of the overflow above, and the reason the scale has to move down as
-        // well as up: an fp32 element below ~1e-22 squares to zero, so the naive form
-        // returned exactly 0 for a vector of denormals whose true norm is a perfectly
-        // ordinary denormal.
+        /**
+         * @brief Tests that both nrm2 entry points return a non-zero norm for denormal input.
+         * @see tests/functional/regression/README.md
+         */
         TEST_F(Regression_Sentinel, Nrm2DoesNotUnderflowOnDenormalInput)
         {
-            // Both denormal (fp32's smallest normal is ~1.18e-38), both with plenty of
-            // denormal resolution left, and a true norm of 5e-40 that is representable.
+            // Both elements are denormal and their norm, 5e-40, is representable.
             const std::vector<float> data = {3.0e-40f, 4.0e-40f};
             const float expected = 5.0e-40f;
 
@@ -417,17 +364,15 @@ namespace SushiBLAS
                     << expected << ". Squaring a denormal underflows to zero; dividing by a "
                        "scale first does not.";
 
-                // Loose on purpose: a denormal has few significand bits left, and the two
-                // entry points round differently. Anything within 1% is the right answer
-                // rather than the zero the naive form produced.
+                // The tolerance is 1% because the two entry points round a denormal differently.
                 EXPECT_NEAR(got / expected, 1.0f, 1e-2f) << label;
             }
         }
 
-        // Level 1 nrm2 took its per-element magnitude from `abs1`, which is BLAS's
-        // |Re| + |Im|. That is the right magnitude for xASUM and IxAMAX and the wrong one
-        // for a 2-norm, which needs Re^2 + Im^2: the cross term made every complex norm
-        // too large - by sqrt(2) for a vector of (1 + i).
+        /**
+         * @brief Tests that Level 1 nrm2 takes the modulus of a complex element.
+         * @see tests/functional/regression/README.md
+         */
         TEST_F(Regression_Sentinel, Nrm2UsesTheModulusOfAComplexElement)
         {
             const std::vector<std::complex<float>> data = {{3.0f, 4.0f}};

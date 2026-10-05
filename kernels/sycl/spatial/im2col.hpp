@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file im2col.hpp
+ * @brief Defines the SYCL kernel of im2col.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <vector>
@@ -23,25 +29,7 @@ namespace SushiBLAS
         {
             /**
              * @brief Gathers every window of an NHWC image into one row of a matrix.
-             *
-             * One work-item per *output* element, which is what makes this a pure
-             * gather: every item writes exactly one entry and reads exactly one
-             * input element (or none, for a padded tap). No two items write the
-             * same address, so there is nothing to synchronise and nothing whose
-             * combination order could vary between runs.
-             *
-             * Consecutive items differ in `c` first, so a sub-group reads a
-             * contiguous run of channels - which is the NHWC half of the
-             * argument for choosing that layout.
-             *
-             * @tparam T The element type.
-             * @param q The queue to submit to.
-             * @param span The window layout, in element counts.
-             * @param cols The column matrix's addressing.
-             * @param in The input's first element.
-             * @param out The column matrix's first element.
-             * @param deps Events this submission must depend on.
-             * @return The event for the submitted kernel.
+             * @see kernels/README.md
              */
             template<typename T>
             sycl::event im2col(sycl::queue& q, const Spatial::WindowSpan& span,
@@ -51,8 +39,7 @@ namespace SushiBLAS
                 const int64_t total = span.column_elements();
                 if (total <= 0) return sycl::event();
 
-                // Copied out by value: the closure below is device code and may
-                // not chase a host reference.
+                // The device closure captures values, never a host reference.
                 const Spatial::ConvGeometry g = span.geometry;
                 const int64_t patch_width = span.patch_elements();
                 const int64_t channels = span.channels;

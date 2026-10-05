@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file io.hpp
+ * @brief Declares IO, which saves, loads and displays tensors.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <string>
@@ -38,7 +44,6 @@ namespace SushiBLAS
              * @param t The tensor to save.
              * @param path The filesystem path to save the file to.
              */
-            // TODO: Implement asynchronous support for save operations using TaskGraph (add_host_node).
             void save(const Tensor& t, const std::string& path);
 
             /**
@@ -57,7 +62,6 @@ namespace SushiBLAS
              * @param t The tensor to export.
              * @param path The filesystem path to save the .npy file.
              */
-            // TODO: Implement asynchronous support for save operations using TaskGraph (add_host_node).
             void save_npy(const Tensor& t, const std::string& path);
 
             /**
@@ -74,7 +78,6 @@ namespace SushiBLAS
              * @param t The tensor to save.
              * @param path The filesystem path for the binary file.
              */
-            // TODO: Implement asynchronous support for save operations using TaskGraph (add_host_node).
             void save_bin(const Tensor& t, const std::string& path);
 
             /**
@@ -93,13 +96,9 @@ namespace SushiBLAS
             void print(const Tensor& t, int precision = 4, int edge_items = 3);
 
             /**
-             * @brief Convert tensor content to a formatted string.
-             * 
-             * This captures the same formatting used by the print() method.
-             * @param t The tensor to convert.
+             * @brief Returns the tensor's content as a string in the format print() uses.
              * @param precision Number of decimal places for numeric display.
-             * @param edge_items Number of items to show at the edges of each dimension.
-             * @return A formatted string representation of the tensor.
+             * @param edge_items Number of items shown at the edges of each dimension.
              */
             std::string to_string(const Tensor& t, int precision = 4, int edge_items = 3);
 

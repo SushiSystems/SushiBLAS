@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file reference_reductions.hpp
+ * @brief Defines serial reference reductions over a host vector.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <vector>

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file discrete_uniform.cpp
+ * @brief Defines RandomOps::discrete_uniform, which records the discrete uniform fill of a tensor.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>

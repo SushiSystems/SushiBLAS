@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file dispatch.hpp
+ * @brief Declares the activation executors of the dispatch seam.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <vector>
@@ -28,28 +34,9 @@ namespace SushiBLAS
     {
         /**
          * @brief Records an activation's forward pass in place: `t[i] = op(t[i])`.
-         *
-         * The generic seam behind every `NonLinearOps` forward entry point. Unlike the
-         * elementwise family this instantiates all five dtypes unconditionally, because
-         * every activation in this library is expressed through the complex-tolerant
-         * `safe_*` helpers and is therefore well-formed for complex element types too.
-         *
-         * @tparam Func The functor type, deduced.
-         * @param engine The engine whose task graph the op is recorded on.
-         * @param t The tensor read and overwritten in place.
-         * @param name Human-readable op name, used for logging and failure messages.
-         * @param op_id Stable operation identifier for the task graph.
-         * @param op_func Callable `(auto x) -> auto`, invoked once per element on device.
-         * @param params Optional scalar parameters recorded in the task metadata.
-         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
-         *
-         * @warning This is a low-level generic seam. `op_func` is inlined into a SYCL device
-         *          kernel: it must be device-copyable, capture by value only, hold no host
-         *          pointers, allocate nothing and throw nothing. Write its body against
-         *          <SushiBLAS/engine/math/safe_math.hpp> rather than the raw `sycl::` math
-         *          builtins, or it will fail to compile for the complex dtypes.
-         * @throws std::runtime_error if the tensor's dtype is unrecognized, or if @p params
-         *         exceeds the task metadata's inline capacity.
+         * @param op_func Callable `(auto x) -> auto`: device-copyable, by-value captures, no allocation, no throw.
+         * @throws std::runtime_error if the dtype is unrecognized or params exceeds the inline capacity.
+         * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL_AND_COMPLEX, typename Func>
         sycl::event execute_nonlinear_forward(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
@@ -89,26 +76,10 @@ namespace SushiBLAS
 
         /**
          * @brief Records an activation's backward pass: `dx[i] = op(dy[i], x[i])`.
-         *
-         * The generic seam behind every `NonLinearOps` backward entry point. The second
-         * operand is whatever the activation's derivative needs - the saved input for GELU
-         * and ELU, the saved output for sigmoid and tanh - which is why it is named
-         * generically here and documented per op at the call site.
-         *
-         * @tparam Func The functor type, deduced.
-         * @param engine The engine whose task graph the op is recorded on.
-         * @param dy The upstream gradient.
          * @param x The saved forward input or output the derivative is taken against.
-         * @param dx The output gradient tensor.
-         * @param name Human-readable op name, used for logging and failure messages.
-         * @param op_id Stable operation identifier for the task graph.
-         * @param op_func Callable `(auto dy, auto x) -> auto`, invoked once per element on device.
-         * @param params Optional scalar parameters recorded in the task metadata.
-         * @return An empty sycl::event; the work is deferred until `Engine::execute()`.
-         *
-         * @warning Same device-kernel constraints as @ref execute_nonlinear_forward.
-         * @throws std::runtime_error if the operands disagree on size or dtype, if the dtype
-         *         is unrecognized, or if @p params exceeds the metadata's inline capacity.
+         * @param op_func Callable `(auto dy, auto x) -> auto` under execute_nonlinear_forward's constraints.
+         * @throws std::runtime_error on a size or dtype mismatch, an unrecognized dtype, or too many params.
+         * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL_AND_COMPLEX, typename Func>
         sycl::event execute_nonlinear_backward(Engine& engine, const Tensor& dy, const Tensor& x, Tensor& dx, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})

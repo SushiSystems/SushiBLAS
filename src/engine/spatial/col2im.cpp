@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file col2im.cpp
+ * @brief Defines SpatialOps::col2im, which records the scatter of a column matrix back onto an
+ * image.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/task.hpp>
@@ -26,9 +33,7 @@ namespace SushiBLAS
                     "Spatial operation '{}' has a {} column matrix and a {} image.",
                     NAME, Core::to_string(cols.dtype), Core::to_string(image.dtype));
 
-        // The extents overload: `image` plays the input role in the span - it is
-        // the rank-4 operand whose H, W and strides the window walks - and the
-        // other operand is a rank-2 column matrix with no extents to read.
+        // image plays the input role in the span; see src/README.md.
         const Spatial::WindowSpan span = Spatial::window_span_for(image, g, out_h, out_w, NAME);
         const Spatial::ColumnSpan column = Spatial::column_span_for(cols, span, NAME);
 

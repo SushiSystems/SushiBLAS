@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file elu.cpp
+ * @brief Defines NonLinearOps::elu and NonLinearOps::elu_backward, which record the elu activation
+ * and its gradient.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/nonlinear.hpp>
 #include <SushiBLAS/engine/math/nonlinear/dispatch.hpp>
 

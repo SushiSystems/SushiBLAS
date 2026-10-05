@@ -6,13 +6,15 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file spatial.hpp
+ * @brief Includes every spatial kernel, reference and SYCL.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
-// Private to this tree, spelled with quoted repo-root-relative paths, for the
-// reason kernels/blas.hpp states: a kernel a *public* seam instantiates in a
-// consumer's translation unit has to live under include/, and nothing here is
-// one. The spatial operations are reached only through SpatialOps, whose
-// methods are compiled into this library.
+// Every spatial kernel is private to this tree; see kernels/README.md.
 
 #include "kernels/reference/spatial/im2col.hpp"
 #include "kernels/reference/spatial/col2im.hpp"

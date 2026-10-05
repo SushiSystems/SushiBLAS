@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file gelu.cpp
+ * @brief Defines NonLinearOps::gelu and NonLinearOps::gelu_backward, which record the gelu
+ * activation and its gradient.
+ * @author Mustafa Garip
+ */
+
 #include <numbers>
 #include <SushiBLAS/engine/math/nonlinear.hpp>
 #include <SushiBLAS/engine/math/nonlinear/dispatch.hpp>

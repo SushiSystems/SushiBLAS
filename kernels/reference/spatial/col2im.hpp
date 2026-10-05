@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file col2im.hpp
+ * @brief Defines the reference kernel of col2im.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <cstdint>
@@ -19,38 +25,8 @@ namespace SushiBLAS
         {
             /**
              * @brief Scatters an im2col matrix back onto an image by summing overlaps.
-             *
-             * `im2col`'s transpose, and the gradient of it. Written as a
-             * **gather**: the loop nest is over output *pixels*, and each pixel
-             * finds the column entries that read it and sums them itself. The
-             * scatter form - walk the column matrix, add each entry into the
-             * pixel it came from - needs an atomic add on overlapping windows,
-             * and a floating-point atomic add has a combination order that
-             * varies between runs. SushiBLAS links `sushiruntime_deterministic_fp`
-             * PUBLIC, so that is not a trade this library is allowed to make.
-             *
-             * Which terms are summed and the order they are summed in are pure
-             * functions of the geometry, so two runs perform the same additions
-             * on the same values in the same order.
-             *
-             * **The divisibility test is what inverts the stride.** Pixel `h` is
-             * read by window row `h_o` through tap `r` exactly when
-             * `h_o * stride_h - pad_top + r * dilation_h == h`, so `h_o` exists
-             * only if `h + pad_top - r * dilation_h` is non-negative and
-             * divisible by `stride_h`. Dropping that test makes every pixel look
-             * as though it were read by every tap.
-             *
-             * Every pixel is written exactly once, including pixels no window
-             * reads - those get an explicit zero rather than being left alone,
-             * so the destination needs no prior clear.
-             *
-             * @tparam T The element type.
-             * @param span The window layout, in element counts; its `in_*` fields
-             *        describe the *output* image here, since the image is what
-             *        this operation produces.
-             * @param cols The column matrix's addressing.
-             * @param in The column matrix's first element.
-             * @param out The image's first element.
+             * @param span The window layout; its `in_*` fields describe the image this produces.
+             * @see kernels/README.md
              */
             template<typename T>
             void col2im(const Spatial::WindowSpan& span, const Spatial::ColumnSpan& cols,

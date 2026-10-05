@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file ger.cpp
+ * @brief Defines Level2::ger, which records the BLAS GER task.
+ * @author Mustafa Garip
+ */
+
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -38,16 +44,11 @@ namespace SushiBLAS
         SB_THROW_IF(nx != m, "Dimension mismatch for vector x in GER.");
         SB_THROW_IF(ny != n, "Dimension mismatch for vector y in GER.");
 
-        // TODO: Implement multi-dimensional batch support for Level 2
-
         void* read_x = x.data_or_null();
         void* read_y = y.data_or_null();
         void* rw_A = A.data_or_null();
 
-        // A is an accumulator: the rank-1 update reads every element it writes. Ordering
-        // happened to survive the old write-only declaration because the tracker inserts a
-        // WAW edge anyway, but any pass that trusts the declared access set - aliasing
-        // analysis, arena reuse, parallel scheduling - would reason from a false premise.
+        // A is read as well as written by the rank-1 update; see src/README.md.
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
         if (read_x) reads.push_back(x.region());
         if (read_y) reads.push_back(y.region());

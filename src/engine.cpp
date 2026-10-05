@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file engine.cpp
+ * @brief Defines the Engine constructor and its tensor creation.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine.hpp>
 
 namespace SushiBLAS 

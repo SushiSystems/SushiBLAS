@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file logical_and.cpp
+ * @brief Defines LogicOps::logical_and, which records the elementwise logical_and task over two
+ * tensors.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/logic/logic.hpp>
 #include <SushiBLAS/engine/logic/dispatch.hpp>
 

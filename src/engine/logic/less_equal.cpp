@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file less_equal.cpp
+ * @brief Defines LogicOps::less_equal, which records the elementwise less_equal task over two
+ * tensors.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/logic/logic.hpp>
 #include <SushiBLAS/engine/logic/dispatch.hpp>
 

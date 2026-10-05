@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file pool_max_backward.cpp
+ * @brief Defines SpatialOps::pool_max_backward, which records the gradient of max pooling.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <cstdint>
 #include <SushiBLAS/engine.hpp>
@@ -30,9 +36,7 @@ namespace SushiBLAS
                     "Spatial operation '{}' needs an INT64 index tensor; got {}.",
                     NAME, Core::to_string(indices.dtype));
 
-        // `dx` plays the input role in the span - it has the image's H, W and
-        // strides - and `dy` the output role, which is the same assignment the
-        // forward made. The geometry must therefore be the forward's, verbatim.
+        // dx plays the input role and dy the output role, as in the forward; see src/README.md.
         const Spatial::WindowSpan span = Spatial::window_span_for(dx, g, dy, NAME);
 
         SB_THROW_IF(indices.num_elements != dy.num_elements,

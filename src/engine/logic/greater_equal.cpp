@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file greater_equal.cpp
+ * @brief Defines LogicOps::greater_equal, which records the elementwise greater_equal task over
+ * two tensors.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/logic/logic.hpp>
 #include <SushiBLAS/engine/logic/dispatch.hpp>
 

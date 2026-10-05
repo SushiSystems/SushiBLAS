@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_syr.cpp
+ * @brief Tests blas().syr against fixed expected values.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
@@ -31,16 +37,7 @@ TEST_F(Unit_SYRTest, SimpleSYR)
     engine->execute().wait();
     SB_LOG_INFO("Execution finished. Checking results.");
 
-    // Expected: Lower triangle of A is updated by alpha * x * x^T 
-    // x * x^T:
-    // [1]           [1 2 3]
-    // [2] * [1 2 3]= [2 4 6]
-    // [3]           [3 6 9]
-    //
-    // Since only lower triangle is updated: (row-major)
-    // [1 0 0]
-    // [2 4 0]
-    // [3 6 9]
+    // Only the lower triangle of x*x^T is written. See tests/functional/unit/README.md.
     
     verify_tensor(A, {1, 0, 0, 2, 4, 0, 3, 6, 9});
 }

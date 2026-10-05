@@ -7,7 +7,7 @@
 
 The compiler and vcpkg come from the config overrides, then the workspace `dependencies/`
 tree, then the machine tree under `~/.sushisystems`. The suites are the CTest labels that
-tests/CMakeLists.txt assigns from the GTest suite-name prefix.
+tests/CMakeLists.txt assigns from the GTest suite-name prefix. See cli/sushiblas/README.md.
 """
 
 from __future__ import annotations
@@ -40,25 +40,18 @@ class BuildType(str, enum.Enum):
 class Suite(str, enum.Enum):
     """Names the test suites `sb test --suite` accepts."""
 
-    # Fine-grained CTest labels (assigned in tests/CMakeLists.txt from the GTest
-    # suite-name prefix convention).
+    # CTest labels that tests/CMakeLists.txt assigns from the GTest suite-name prefix.
     unit = "unit"
     regression = "regression"
     integration = "integration"
     functional = "functional"   # umbrella: unit + regression + integration
     all = "all"
 
-    # Not a CTest label, and not part of `all`: an out-of-tree consumer of the
-    # INSTALLED package, which has to be installed and configured on its own
-    # before it can run at all. See :func:`test_package`.
+    # Not a CTest label and not part of `all`; see :func:`test_package`.
     package = "package"
 
 
-# Each suite maps to a CTest label-selection regex (`ctest -L`). The umbrella
-# (functional) is an alternation over its sub-labels rather than a label of its
-# own, because a baked-in umbrella label does not survive gtest_discover_tests on
-# current CMake (see tests/CMakeLists.txt). `all` selects everything (no -L).
-# `package` is absent on purpose - it runs no CTest at all.
+# Maps each CTest-backed suite to its `ctest -L` regex; see cli/sushiblas/README.md.
 _SUITE_LABEL_REGEX = {
     Suite.unit: "^unit$",
     Suite.regression: "^regression$",
@@ -161,9 +154,7 @@ def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
     if cfg.is_windows and (prefix := _vcpkg_prefix(cfg, root)):
         args.append(f"-DCMAKE_PREFIX_PATH={prefix}")
 
-    # Caller-supplied cache variables are appended last, after every default
-    # this function sets, so that an explicit -D is never silently outranked by
-    # one of them.
+    # Caller-supplied cache variables come last, so no default set above outranks them.
     for entry in defines or ():
         if "=" not in entry:
             raise ValueError(
@@ -247,15 +238,13 @@ def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int
 
     if suite is Suite.package:
         if filter or repeat:
-            # Both are ctest knobs, and this suite runs no ctest. Refusing
-            # beats accepting a flag and silently doing nothing with it.
+            # Both are ctest knobs and this suite runs no ctest, so they are refused.
             console.error("--filter and --repeat do not apply to the package suite.")
             return 2
         return test_package(cfg, root, build_dir, env)
 
     if suite is Suite.all:
-        # `all` means every CTest test, which is not the same as every test this
-        # repo has. Saying so out loud beats a name that quietly under-delivers.
+        # `all` covers every CTest test, which leaves the package suite out.
         console.info(
             "'all' covers every CTest test. The package suite is not among them "
             "(it builds a separate project): run `sb test --suite package`.")
@@ -316,8 +305,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     prefix = build_dir / "package" / "prefix"
     consumer = build_dir / "package" / "consumer"
 
-    # A stale prefix would let a header deleted since the last run keep
-    # satisfying an include, so the install starts from nothing.
+    # The install starts from an empty prefix, so a deleted header cannot satisfy an include.
     if prefix.is_dir():
         shutil.rmtree(prefix, ignore_errors=True)
 
@@ -336,10 +324,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     configure = [
         _DRIVER.cmake(cfg), "-S", str(root / "tests" / "package"), "-B", str(consumer),
         "-G", cfg.generator,
-        # The consumer is CXX-only and never invokes vcpkg's own installer, so
-        # a couple of the shared toolchain flags legitimately go unread here.
-        # Silencing exactly that warning keeps a clean run genuinely clean;
-        # anything else cmake has to say still comes through.
+        # The CXX-only consumer leaves some shared flags unread; only that warning is silenced.
         "--no-warn-unused-cli",
         f"-DCMAKE_BUILD_TYPE={build_type}",
         f"-DCMAKE_PREFIX_PATH={prefix_path}",

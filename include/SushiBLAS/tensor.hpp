@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file tensor.hpp
+ * @brief Declares Tensor, a typed, strided view over a Storage.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <array>
@@ -54,16 +60,8 @@ namespace SushiBLAS
         SushiRuntime::sushi_ptr<Storage> storage;
 
         /**
-         * @brief Where this tensor's first element sits inside its storage, **in elements**.
-         *
-         * Elements, never bytes. `data()` scales it by `bytes_per_element(dtype)`, so a view
-         * is by construction at a whole number of elements from a 64-byte-aligned allocation
-         * base and therefore always naturally aligned for its own element type - an fp32 view
-         * cannot land on an odd byte. Anything that computes an offset (`slice()`, a memory
-         * planner packing an arena) must count in elements too, and a planner packing mixed
-         * dtypes into one allocation has to round each tensor's start up to a multiple of its
-         * own element width itself; this class cannot do it for the planner, because by the
-         * time a Tensor exists the offset has already been chosen.
+         * @brief Holds where the first element sits inside the storage, in elements.
+         * @see include/SushiBLAS/README.md
          */
         int64_t storage_offset = 0;
 
@@ -71,38 +69,9 @@ namespace SushiBLAS
         Tensor() = default;
 
         /**
-         * @brief The strides a shape implies under a layout, as this class defines it.
-         *
-         * The single definition of "contiguous" for the whole library: the constructor lays
-         * tensors out with it and `is_contiguous()` checks against it, so the two cannot
-         * drift apart.
-         *
-         * **`layout` describes the memory order inside one matrix, not the whole tensor.**
-         * For rank <= 2 that is the entire tensor and this is the familiar rule: row-major
-         * strides grow from the last dimension inward, column-major from the first. For rank
-         * >= 3 the trailing two axes are the matrix and take the layout's order, while every
-         * leading (batch) axis is outermost and slowest-varying **whatever the layout is** -
-         * so a rank-3 `{b, m, n}` tensor has batch stride `m * n` in both layouts.
-         *
-         * That asymmetry is deliberate. It is the only reading consistent with how the batch
-         * stride is consumed (`A.strides[rank - 3]` is handed to the GEMM/SYRK/TRSM drivers as
-         * the distance between consecutive batch slices) and with every batched BLAS API,
-         * which takes a `stride_a` alongside a per-slice `lda` rather than folding the batch
-         * into the layout. Treating the batch axis as just another column-major dimension -
-         * which is what the old `for (i = 0; i < rank; ++i)` loop did - gave a rank-3
-         * column-major tensor `strides[0] == 1`, so the driver read slice 0 for every batch
-         * element and a batched column-major GEMM silently computed the same product `b`
-         * times.
-         *
-         * @param dims The extent of each dimension. `SushiRuntime::span`, not `std::span`:
-         *        the two are the same type wherever `std::span` exists (SushiRuntime's
-         *        span.hpp aliases it at C++20 and supplies its own subset below), so this
-         *        signature is unchanged for a C++20 caller while still compiling on the
-         *        C++17 baseline the rest of the stack is built to. Every span in this
-         *        header is spelled this way for that reason, and none of them crosses the
-         *        compiled ABI - they are all inline.
-         * @param l The memory layout to lay the dimensions out under.
+         * @brief Returns the strides a shape implies under a layout.
          * @return The stride of each dimension, in elements; entries past `dims.size()` are 0.
+         * @see include/SushiBLAS/README.md
          */
         static std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK>
         layout_strides(SushiRuntime::span<const int64_t> dims, Core::Layout l)
@@ -110,8 +79,7 @@ namespace SushiBLAS
             std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK> out{};
 
             const int r = static_cast<int>(dims.size());
-            // The matrix inside a batch element: the trailing two axes, or the whole
-            // tensor when there are fewer than two of them.
+            // The matrix is the trailing two axes, or the whole tensor below rank 2; see include/SushiBLAS/README.md.
             const int first_matrix_dim = r - std::min(r, 2);
 
             int64_t running = 1;
@@ -143,17 +111,10 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Create a new Tensor with specific dimensions.
-         *
-         * @param s The storage object to use for data.
-         * @param dims A list of sizes for each dimension.
-         * @param d The data type (default is FLOAT32).
-         * @param offset The starting position in the storage, **in elements** (see
-         *        @ref storage_offset).
-         * @param l The memory layout (default is ROW_MAJOR). It orders the memory *within*
-         *        one matrix only; for rank >= 3 the batch axes are outermost regardless -
-         *        see @ref layout_strides for the full rule and why.
-         * @throws std::runtime_error If the rank is too high or storage is too small.
+         * @brief Creates a Tensor whose strides derive from its dimensions and layout.
+         * @param offset The starting position in the storage, in elements.
+         * @param l Orders the memory within one matrix; batch axes stay outermost.
+         * @throws std::runtime_error if the rank is too high or the storage is too small.
          */
         Tensor(SushiRuntime::sushi_ptr<Storage> s, SushiRuntime::span<const int64_t> dims,
                Core::DataType d = Core::DataType::FLOAT32,
@@ -161,35 +122,11 @@ namespace SushiBLAS
             : Tensor(s, dims, layout_strides(dims, l), d, offset, l) {}
 
         /**
-         * @brief Create a Tensor view whose strides are given rather than derived from its
-         * shape.
-         *
-         * The construction path for a view that is **not contiguous**: a slice along an
-         * inner axis keeps its parent's strides, because that is where its elements actually
-         * are. The shape-derived constructor above cannot express that - it lays the
-         * dimensions out afresh, which for such a slice describes memory the slice does not
-         * occupy - and `slice()` used to go through it, which is exactly the defect this
-         * overload exists to make unspellable.
-         *
-         * Prefer the shape-derived constructor for anything being allocated; this one is for
-         * describing memory that already has a layout.
-         *
-         * @param s The storage object to use for data.
-         * @param dims The extent of each dimension.
-         * @param strides_in The stride of each dimension, in elements, in the same
-         *        fixed-width form @ref layout_strides returns and @ref strides holds -
-         *        entries past `dims.size()` are unused, exactly as they are in @ref shape.
-         *        A fixed-width array rather than a span so that a stride count and a
-         *        dimension count cannot disagree; every entry within the rank must be
-         *        non-negative, since a negative one would make @ref element_span, and
-         *        therefore @ref region, describe the wrong interval.
-         * @param d The data type.
-         * @param offset The starting position in the storage, **in elements** (see
-         *        @ref storage_offset).
-         * @param l The memory layout this view is *interpreted* under. It no longer decides
-         *        the strides, but it still tells a BLAS driver how to read the view.
-         * @throws std::runtime_error If the rank is too high, a stride is negative, or the
-         *         described elements reach past the end of @p s.
+         * @brief Creates a Tensor view whose strides are given instead of derived from its shape.
+         * @param strides_in The stride of each dimension, in elements; none within the rank may be negative.
+         * @param offset The starting position in the storage, in elements.
+         * @throws std::runtime_error on a rank too high, a negative stride, or elements past the end of s.
+         * @see include/SushiBLAS/README.md
          */
         Tensor(SushiRuntime::sushi_ptr<Storage> s, SushiRuntime::span<const int64_t> dims,
                const std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK>& strides_in,
@@ -212,9 +149,7 @@ namespace SushiBLAS
             {
                 SB_THROW_IF(storage_offset < 0, "Storage offset cannot be negative ({})", storage_offset);
 
-                // element_span(), not num_elements: a strided view spreads its elements over
-                // a wider interval than it has elements, and it is the wider interval that
-                // has to fit inside the allocation.
+                // element_span() is checked, because a strided view spans more elements than it holds; see include/SushiBLAS/README.md.
                 const size_t bpe = Core::bytes_per_element(dtype);
                 size_t required_bytes = (static_cast<size_t>(storage_offset) + static_cast<size_t>(element_span())) * bpe;
 
@@ -225,13 +160,7 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Create a new Tensor using an initializer list for dimensions.
-         * 
-         * @param s The storage object to use.
-         * @param dims Example: {3, 3} for a 3x3 matrix.
-         * @param d The data type.
-         * @param offset Starting position in storage.
-         * @param l Memory layout strategy.
+         * @brief Creates a Tensor from an initializer list of dimensions.
          */
         Tensor(SushiRuntime::sushi_ptr<Storage> s, std::initializer_list<int64_t> dims, 
                Core::DataType d = Core::DataType::FLOAT32,
@@ -249,17 +178,9 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Get a raw pointer to the tensor's data.
-         *
-         * This calculates the address using the storage pointer and the offset.
-         *
-         * **This, not `storage->allocation_base()`, is the pointer an operation hands to a
-         * kernel.** The two differ by `storage_offset` elements, which is zero for a
-         * freshly allocated tensor and non-zero for every view - a slice, a reshape, or a
-         * tensor a memory planner placed inside a shared arena.
-         *
-         * @return A void pointer to the start of the data.
-         * @throws std::runtime_error If the tensor has no storage.
+         * @brief Returns a pointer to the first element, storage_offset elements past the allocation base.
+         * @throws std::runtime_error if the tensor has no storage.
+         * @see include/SushiBLAS/README.md
          */
         inline void* data() const
         {
@@ -271,14 +192,8 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief The null-tolerant form of @ref data().
-         *
-         * The operation drivers treat a tensor with no storage as "nothing to address"
-         * rather than as an error, and every one of them used to spell that as
-         * `t.storage ? t.storage->data_ptr : nullptr` - the exact expression that dropped
-         * `storage_offset`. This is that idiom, offset-correct, in one place.
-         *
-         * @return The address of the first element, or nullptr if the tensor has no storage.
+         * @brief Returns the address of the first element, or nullptr if the tensor has no storage.
+         * @see include/SushiBLAS/README.md
          */
         inline void* data_or_null() const
         {
@@ -297,19 +212,9 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief How many elements this view spans from its first to its last, inclusive.
-         *
-         * Not `num_elements`. For a contiguous tensor the two agree, which is why the
-         * distinction went unnoticed - but a strided view (a slice along an inner axis, or a
-         * transpose of one) holds `num_elements` elements scattered across a *wider*
-         * interval, and it is the wider interval that says which bytes the view can reach.
-         * `1 + sum((shape[i] - 1) * strides[i])` is the distance from the first element to
-         * the last, which bounds that interval exactly.
-         *
-         * Used by the capacity check and by @ref region, both of which are questions about
-         * reachable memory rather than about element count.
-         *
+         * @brief Returns how many elements the view spans from its first to its last, inclusive.
          * @return The span in elements; 0 for an empty tensor.
+         * @see include/SushiBLAS/README.md
          */
         [[nodiscard]] inline int64_t element_span() const
         {
@@ -321,21 +226,9 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief The byte interval this view occupies, for SushiRuntime's dependency tracker.
-         *
-         * Keyed on the allocation base (the tracker's identity for "same buffer") and
-         * narrowed to the view's own byte interval, so two disjoint views of one allocation -
-         * what a memory planner produces when it packs an arena - are correctly seen as *not*
-         * conflicting, while two overlapping views still are. Passing the bare base pointer
-         * instead, as every driver used to, made every tensor in an arena alias every other
-         * one.
-         *
-         * The length is @ref element_span rather than `num_elements`, so the bound stays true
-         * for a strided view as well as a contiguous one. Stopping at the element count would
-         * under-declare what the view reaches, and the tracker would then emit no edge
-         * against whatever sits in the gaps between its elements.
-         *
-         * @return The region, or an empty (base-less) region if the tensor has no storage.
+         * @brief Returns the byte interval this view occupies, keyed on the allocation base.
+         * @return The region, or an empty base-less region if the tensor has no storage.
+         * @see include/SushiBLAS/README.md
          */
         inline SushiRuntime::Core::ResourceRegion region() const
         {
@@ -348,18 +241,8 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Check if the tensor data is stored continuously in memory.
-         *
-         * "Continuous" means "laid out exactly as this tensor's layout would lay it out",
-         * so the answer is a comparison against @ref layout_strides rather than a second,
-         * independently written walk over the dimensions - the two used to be written
-         * separately, which is how the rank-3 column-major batch stride could be changed in
-         * one and not the other.
-         *
-         * Axes of extent 1 are exempt: their stride is unobservable, so a tensor is not
-         * declared non-contiguous over a stride nothing can ever use.
-         *
-         * @return True if it is contiguous, false otherwise.
+         * @brief Returns whether the strides match what layout_strides gives for this shape and layout.
+         * @see include/SushiBLAS/README.md
          */
         bool is_contiguous() const
         {
@@ -432,32 +315,11 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Take a "slice" or sub-section of the tensor.
-         *
-         * A view: it moves the offset and shortens one axis, and **keeps the parent's
-         * strides**, because narrowing an axis does not move any of the elements that remain.
-         *
-         * That last part is the whole content of this function and it used to be wrong. The
-         * slice was built through the shape-derived constructor, which recomputes contiguous
-         * strides from the new shape - so for `dim == 0` the answer happened to come out
-         * right (shortening the outermost axis of a contiguous tensor leaves every inner
-         * stride unchanged) and for every other `dim` it came out wrong. A 4x4 row-major
-         * tensor sliced to columns [1, 3) reported strides {2, 1}, claiming its four elements
-         * sit at offsets 1, 2, 3, 4 when they really sit at 1, 2, 5, 6. Nothing in this tree
-         * called `slice` with `dim > 0`, which is why it survived; the first caller would
-         * have read the wrong memory with no diagnostic anywhere.
-         *
-         * The result of an inner-axis slice is therefore **not contiguous**, and
-         * `is_contiguous()` now says so. This library's operations expect contiguous
-         * operands, so such a slice is a description of memory rather than something to hand
-         * straight to `gemm` - which is the honest state of affairs, and a great deal better
-         * than a tensor that lies about where its elements are.
-         *
-         * @param dim The dimension to slice (e.g., slice certain rows).
-         * @param start The starting index (inclusive); negative counts back from the end.
-         * @param end The ending index (exclusive); negative counts back from the end.
-         * @return A new Tensor view representing the slice.
-         * @throws std::runtime_error If @p dim is not a dimension of this tensor.
+         * @brief Returns a view that narrows one axis and keeps the parent's strides.
+         * @param start Inclusive; negative counts back from the end.
+         * @param end Exclusive; negative counts back from the end.
+         * @throws std::runtime_error if dim is not a dimension of this tensor.
+         * @see include/SushiBLAS/README.md
          */
         Tensor slice(int32_t dim, int64_t start, int64_t end) const
         {

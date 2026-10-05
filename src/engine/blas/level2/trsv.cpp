@@ -6,9 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// TRSV is a single-RHS-column TRSM (n=1), so it dispatches straight into the
-// TRSM kernels rather than duplicating the substitution algorithm - see
-// kernels/{reference,sycl}/blas/level3/trsm.hpp.
+/**
+ * @file trsv.cpp
+ * @brief Defines Level2::trsv, which records the BLAS TRSV task.
+ * @author Mustafa Garip
+ */
 
 #include <complex>
 #include <kernels/blas.hpp>
@@ -33,16 +35,13 @@ namespace SushiBLAS
         SB_THROW_IF(A.shape[rA - 2] != n, "TRSV requires A to be a square matrix.");
 
         int64_t lda = (A.layout == Core::Layout::ROW_MAJOR) ? A.shape[rA - 1] : A.shape[rA - 2];
-        // b is treated as an n x 1 "matrix": a single row-major row has 1
-        // element, so ldb=1; a single column-major column just needs ldb>=n.
+        // b is an n x 1 matrix: ldb is 1 in row-major and n in column-major; see src/README.md.
         int64_t ldb = (A.layout == Core::Layout::ROW_MAJOR) ? 1 : n;
 
         int64_t nb, incb;
         Internal::get_vec_params(b, nb, incb);
         SB_THROW_IF(nb != n, "Dimension mismatch for vector b in TRSV.");
         SB_THROW_IF(incb != 1, "TRSV requires a contiguous vector b.");
-
-        // TODO: Implement multi-dimensional batch support for Level 2
 
         void* read_A = A.data_or_null();
         void* rw_b = b.data_or_null(); // TRSV overwrites b

@@ -6,12 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-#pragma once
+/**
+ * @file transforms.hpp
+ * @brief Declares TransformsOps, the experimental signal transforms that have no implementation yet.
+ * @author Mustafa Garip
+ */
 
-// EXPERIMENTAL - quarantined per SB-2/D1. Not included from engine.hpp and not
-// reachable via Engine::signal() - that accessor was removed. No .cpp
-// implementation exists for any method declared here. The FFT backend
-// strategy is a named follow-up (P8), not solved by this file's presence.
+#pragma once
 
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
@@ -26,6 +27,7 @@ namespace SushiBLAS
      *
      * Provides interfaces for Fast Fourier Transforms (FFT) in multiple dimensions.
      * Uses oneMKL's high-performance FFT domain underneath.
+     * @see include/SushiBLAS/experimental/README.md
      */
     class TransformsOps
     {

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file mean.cpp
+ * @brief Defines ReductionOps::mean, which records the mean reduction.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
@@ -13,9 +19,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    // The division is the finalizer, which is why this now costs the same number of
-    // kernel launches as `sum`. It used to submit a second single_task purely to
-    // divide one scalar by one integer.
+    // The division by n is the finalizer of the fold; see src/README.md.
     sycl::event ReductionOps::mean(const Tensor& t, Tensor& result)
     {
         return Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(

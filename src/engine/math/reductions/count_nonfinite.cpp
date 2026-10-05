@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file count_nonfinite.cpp
+ * @brief Defines ReductionOps::count_nonfinite, which records the non-finite count reduction.
+ * @author Mustafa Garip
+ */
+
 #include <cstdint>
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
@@ -14,20 +20,10 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    // See the `@brief` on ReductionOps::count_nonfinite for why the result is an INT64
-    // count rather than a flag in the input's dtype, and for why `asum` - which would
-    // almost have served - is a false-positive generator on exactly the mixed-precision
-    // input this exists for.
-    //
-    // The op itself is one call to the counting seam with a predicate transform. It gets
-    // the library's own fixed-order two-stage fold from `Reduce::reduce` for free, which
-    // is the point of putting the accumulation type in that function's signature rather
-    // than hand-writing a second copy of the shape here.
+    // The count goes through the counting seam with a predicate transform; see src/README.md.
     sycl::event ReductionOps::count_nonfinite(const Tensor& t, Tensor& result)
     {
-        // Sized from the device the data lives on, exactly as execute_folding_reduction
-        // does; Reduce::plan clamps to whatever scratch exists at launch, so a
-        // disagreement costs performance and never correctness.
+        // The partial count is planned from the device the data lives on; see src/README.md.
         const std::size_t partials =
             Reduce::planned_partials(Device::profile_for(t.get_device()),
                                      static_cast<std::size_t>(t.num_elements));
@@ -38,14 +34,7 @@ namespace SushiBLAS
             return Reduce::reduce<Reduce::ExactSum>(
                 q, pT, pR, static_cast<std::size_t>(size),
                 scratch.data, scratch.capacity,
-                // `sycl::isfinite`, not a hand-rolled `x != x`. That spelling is the
-                // classic NaN test and it is exactly half a non-finite test: an infinity
-                // compares equal to itself, so `x != x` would wave every overflowed fp16
-                // gradient straight through. `isfinite` is false for both, which is the
-                // whole predicate in one call and nothing to get subtly wrong. Substituting
-                // `x == x` here fails 13 of this op's 23 tests - every infinity case, at
-                // every dtype, and none of the NaN ones - which is what makes the suite's
-                // insistence on testing the two separately more than a stylistic point.
+                // isfinite is false for NaN and for infinity alike; see src/README.md.
                 [](auto x) -> int64_t { return sycl::isfinite(x) ? int64_t{0} : int64_t{1}; },
                 Dispatch::ReduceIdentityFinalize{}, deps);
         };

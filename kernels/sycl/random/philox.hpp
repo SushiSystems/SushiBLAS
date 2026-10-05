@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file philox.hpp
+ * @brief Defines Philox4x32-10 and the uniform, normal and index draws built on it.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <array>
@@ -22,17 +28,7 @@ namespace SushiBLAS
         {
             namespace Random
             {
-                /**
-                * @brief Philox4x32-10, a counter-based PRNG (Salmon, Moraes, Dror, Shaw,
-                * "Parallel Random Numbers: As Easy as 1, 2, 3", SC'11). Stateless: the same
-                * (key, counter) pair always produces the same 4-word output, so any element
-                * index can be drawn independently and in parallel with no shared RNG state.
-                * Round constants verified against the reference Random123 implementation
-                * (DEShawResearch/random123, include/Random123/philox.h).
-                *
-                * This replaces oneMKL's philox4x32x10 (SB-2): the algorithm is unchanged,
-                * only the backend is now hand-written SYCL with no oneMKL dependency.
-                */
+                /** @brief Holds the 32-bit multiply one Philox round is built from. */
                 namespace Detail
                 {
                     inline void mulhilo32(uint32_t a, uint32_t b, uint32_t& hi, uint32_t& lo)
@@ -70,8 +66,7 @@ namespace SushiBLAS
                     return {c0, c1, c2, c3};
                 }
 
-                // Maps a raw 32/64-bit word to the open interval (0,1), never exactly 0 or 1 -
-                // callers (log_normal via Box-Muller, exponential's inverse-CDF) take log(u).
+                /** @brief Maps a 32-bit word to the open interval (0,1), never exactly 0 or 1. */
                 inline float uniform01_float(uint32_t w)
                 {
                     return (static_cast<float>(w) + 0.5f) * (1.0f / 4294967296.0f);
@@ -92,11 +87,10 @@ namespace SushiBLAS
                         return static_cast<T>(uniform01_float(w[pair * 2]));
                 }
 
-                // One Philox call per element: key = (seed_lo, seed_hi), counter = (offset_lo,
-                // offset_hi, index_lo, index_hi). Keying the counter's high word on the
-                // per-task `offset` (rather than offset*size, as the old oneMKL skip_ahead call
-                // did) means two random-generating tasks never share a (key, counter) pair
-                // regardless of their tensor sizes.
+                /**
+                 * @brief Draws one uniform value between lo and hi from one Philox call.
+                 * @see kernels/README.md
+                 */
                 template<typename T>
                 inline T draw_uniform(uint64_t seed, uint64_t offset, uint64_t index, T lo, T hi)
                 {
@@ -107,9 +101,10 @@ namespace SushiBLAS
                     return lo + u * (hi - lo);
                 }
 
-                // Box-Muller: one Philox call yields both uniforms needed for one Gaussian
-                // sample (word pair 0 -> u1, word pair 1 -> u2). Only the cosine branch (z0) is
-                // used, leaving z1 unused - simplicity over throughput for this first pass.
+                /**
+                 * @brief Draws one normal value by Box-Muller from one Philox call.
+                 * @see kernels/README.md
+                 */
                 template<typename T>
                 inline T draw_normal(uint64_t seed, uint64_t offset, uint64_t index, T mean, T stddev)
                 {
@@ -126,12 +121,10 @@ namespace SushiBLAS
                     return mean + stddev * z0;
                 }
 
-                // A uniformly distributed integer in [0, bound), drawn from the same
-                // (key, counter) scheme as the float generators. Integer-only on purpose:
-                // Fisher-Yates needs an index, and routing that through a float would make a
-                // shuffle's result depend on the device's fp64 support. The modulo's bias is
-                // bounded by bound / 2**64, i.e. below one part in 10**13 for any tensor that
-                // fits in memory, so a rejection loop would buy nothing measurable.
+                /**
+                 * @brief Draws one uniform integer in [0, bound) without floating point.
+                 * @see kernels/README.md
+                 */
                 inline uint64_t draw_index(uint64_t seed, uint64_t offset, uint64_t index, uint64_t bound)
                 {
                     if (bound <= 1) return 0;

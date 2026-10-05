@@ -6,19 +6,11 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
-// The segmented reduction seam: `max_along` / `sum_along`, the geometry they are
-// planned from, and the two kernels that geometry chooses between.
-//
-// Every expectation here is worked out by hand rather than taken from another
-// path in this library. That is deliberate: a differential oracle against
-// `gemv(X, ones)` would have agreed with a row sum that read the wrong stride in
-// exactly the layouts where both read it wrongly, which is how a column-major
-// GEMM defect survived months in this repository.
-//
-// Determinism lives here too rather than in test_reduction_determinism.cpp,
-// because that file's helpers are built around a scalar result and this seam's
-// answer is a vector. The property asserted is the same one, by the same means:
-// std::memcmp, not a tolerance.
+/**
+ * @file test_axis_reductions.cpp
+ * @brief Tests max_along and sum_along, the plan they launch from and both of their kernels.
+ * @author Mustafa Garip
+ */
 
 #include <cmath>
 #include <limits>
@@ -39,18 +31,8 @@ namespace SushiBLAS
         namespace
         {
             /**
-             * @brief A 3x4 matrix whose every row and column reduction is an integer.
-             *
-             * Small whole numbers on purpose: they are exact in HALF as well as in the
-             * wider types, so one expectation serves every dtype and a mismatch is a
-             * real disagreement rather than a rounding difference.
-             *
-             *      1  -2   3   0      row max  3    row sum   2
-             *      5   4  -1   2      row max  5    row sum  10
-             *     -3  -7  -2  -9      row max -2    row sum -21
-             *
-             *   col max  5   4   3   2
-             *   col sum  3  -5   0  -7
+             * @brief Holds a 3x4 row-major matrix whose reductions are exact in every dtype.
+             * @see tests/functional/unit/README.md
              */
             const std::vector<float> kRowMajor =
                 {1, -2, 3, 0,
@@ -82,14 +64,12 @@ namespace SushiBLAS
             }
         }
 
-        // ---------------------------------------------------------------------
-        // The planner, which is a pure function and needs no device at all.
-        // ---------------------------------------------------------------------
-
         class Unit_AxisReductionPlan : public ::testing::Test {};
 
-        // The cheap shape whenever there is already enough work to go round: no
-        // local memory, no barriers, and a fold order that is trivially fixed.
+        /**
+         * @brief Tests that a span with enough segments takes one work-item per segment.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_AxisReductionPlan, EnoughSegmentsTakesOneItemPerSegment)
         {
             const Device::Profile cpu = profile(true, 12, 8192, 8);
@@ -103,8 +83,10 @@ namespace SushiBLAS
                                            1 << 20).cooperative());
         }
 
-        // Too few segments to fill the machine, and segments long enough to be worth
-        // a work-group: the only case where the tree earns its barriers.
+        /**
+         * @brief Tests that few long segments take one work-group each.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_AxisReductionPlan, FewLongSegmentsTakeAWorkGroupEach)
         {
             const Device::Profile cpu = profile(true, 12, 8192, 8);
@@ -119,8 +101,10 @@ namespace SushiBLAS
             EXPECT_EQ(Reduce::group_width(gpu), gpu_plan.local);
         }
 
-        // A group whose segment is shorter than the group is mostly idle lanes paying
-        // log2(local) pairs of barriers, so the tree is declined below one full pass.
+        /**
+         * @brief Tests that few segments shorter than a work-group take one item each.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_AxisReductionPlan, FewShortSegmentsStillTakeOneItemPerSegment)
         {
             const Device::Profile cpu = profile(true, 12, 8192, 8);
@@ -130,8 +114,10 @@ namespace SushiBLAS
             EXPECT_TRUE(Reduce::plan_axis(cpu, 2, local).cooperative());
         }
 
-        // Degenerate spans must not select a shape that would launch `segments * local`
-        // work-items over nothing, or divide by a zero extent.
+        /**
+         * @brief Tests that an empty span takes the item-per-segment shape.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_AxisReductionPlan, EmptySpansTakeTheCheapShape)
         {
             const Device::Profile cpu = profile(true, 12, 8192, 8);
@@ -139,10 +125,6 @@ namespace SushiBLAS
             EXPECT_FALSE(Reduce::plan_axis(cpu, 0, 1024).cooperative());
             EXPECT_FALSE(Reduce::plan_axis(cpu, 4, 0).cooperative());
         }
-
-        // ---------------------------------------------------------------------
-        // The public operations, over every dtype a reduction serves.
-        // ---------------------------------------------------------------------
 
         template<typename T>
         class Unit_AxisReductionsTyped : public SushiBLASTest {};
@@ -202,16 +184,12 @@ namespace SushiBLAS
             verify_tensor(out, kColSum);
         }
 
-        // ---------------------------------------------------------------------
-        // Layout, shape and rejection.
-        // ---------------------------------------------------------------------
-
         class Unit_AxisReductions : public SushiBLASTest {};
 
-        // The axis is a question about the *matrix*, not about memory order, so the
-        // same logical matrix must reduce to the same vectors under either layout.
-        // The kernel never learns which layout it is on: `Tensor::strides` already
-        // carries it, and `axis_span_for` turns the pair into a stride pair.
+        /**
+         * @brief Tests that a column-major matrix folds the same logical axes as a row-major one.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_AxisReductions, ColumnMajorOperandsFoldTheSameAxes)
         {
             reinit_engine(Core::Layout::COLUMN_MAJOR);
@@ -229,10 +207,10 @@ namespace SushiBLAS
             verify_tensor(cols, kColSum);
         }
 
-        // A view at a non-zero storage offset must reduce *its own* elements. Every
-        // address the kernel forms is `data() + s * segment_stride + k * element_stride`
-        // and `data()` already carries the offset, so this is really a check that the
-        // offset was not dropped on the way through the seam.
+        /**
+         * @brief Tests that a view at a non-zero storage offset reduces its own elements.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_AxisReductions, AViewAtANonZeroOffsetReducesItsOwnElements)
         {
             constexpr int64_t kElements = 12;
@@ -255,12 +233,10 @@ namespace SushiBLAS
             verify_tensor(out, kRowMax);
         }
 
-        // The bare-pointer hazard, on the new seam. A region built from `data()`
-        // widens to the whole allocation of whatever it points at, so two views of
-        // one arena look like two unrelated resources and the tracker emits no edge
-        // at all - not a wrong edge, none. That is what cost SushiAI's first
-        // arena-packed training run, and `Regression_Sentinel.ReductionsOrder
-        // AgainstViewsOfOneAllocation` pins it for the whole-tensor seam.
+        /**
+         * @brief Tests that axis reductions over two views of one allocation are ordered.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_AxisReductions, AxisReductionsOrderAgainstViewsOfOneAllocation)
         {
             constexpr int64_t kElements = 12;
@@ -303,8 +279,7 @@ namespace SushiBLAS
             // Rank 1 in: there is no axis to fold away.
             EXPECT_THROW(engine->reductions().max_along(vector, 0, rows), std::runtime_error);
 
-            // Rank 3 would be a meaningful request; it is refused by name rather than
-            // reduced along the wrong stride.
+            // Rank 3 is refused by name, not reduced along the wrong stride.
             auto cube = engine->create_tensor({2, 3, 4});
             EXPECT_THROW(engine->reductions().sum_along(cube, 1, rows), std::runtime_error);
 
@@ -325,9 +300,10 @@ namespace SushiBLAS
             EXPECT_THROW(engine->reductions().sum_along(matrix, 1, halves), std::runtime_error);
         }
 
-        // A fold needs an ordering and an identity, which std::complex does not have,
-        // and an integer tensor is not an arithmetic type in this library - the same
-        // Domain::REAL rule the whole-tensor reductions carry.
+        /**
+         * @brief Tests that complex and integer dtypes are refused by name.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_AxisReductions, NonRealDtypesAreRefusedByName)
         {
             for (Core::DataType dtype : {Core::DataType::COMPLEX32, Core::DataType::COMPLEX64,
@@ -343,10 +319,6 @@ namespace SushiBLAS
             }
         }
 
-        // ---------------------------------------------------------------------
-        // The two kernels, against each other and against exact arithmetic.
-        // ---------------------------------------------------------------------
-
         namespace
         {
             /** @brief Reads a whole tensor back to the host as floats. */
@@ -359,15 +331,10 @@ namespace SushiBLAS
             }
         }
 
-        // `plan_axis` picks one shape per input, so on any single machine the public
-        // ops only ever reach one of the two kernels for a given size. This drives
-        // both directly, over one input, at a size the planner would never send to
-        // the cooperative one - which is the only way the work-group tree gets
-        // exercised on a machine with no GPU.
-        //
-        // The extent is deliberately not a multiple of any work-group width, so the
-        // tree's trailing lanes fold fewer elements than the leading ones and the
-        // lanes past the extent fold none at all and contribute the identity.
+        /**
+         * @brief Tests that the cooperative tree and the item-per-segment fold agree on one input.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_AxisReductions, TheCooperativeTreeAgreesWithTheItemPerSegmentFold)
         {
             constexpr std::size_t kSegments = 5;
@@ -417,9 +384,7 @@ namespace SushiBLAS
                 for (std::size_t k = 0; k < kExtent; ++k)
                     exact += static_cast<double>(host[s * kExtent + k]);
 
-                // Not bit-equal to each other - they add in different orders, which is
-                // the point of having two shapes - but both must be right, and both
-                // must be stable run to run, which the case below asserts separately.
+                // The two shapes add in different orders. See tests/functional/unit/README.md.
                 EXPECT_NEAR(static_cast<double>(got_flat[s]), exact, exact * 1e-6)
                     << "item-per-segment, segment " << s;
                 EXPECT_NEAR(static_cast<double>(got_tree[s]), exact, exact * 1e-6)
@@ -427,9 +392,10 @@ namespace SushiBLAS
             }
         }
 
-        // The same maximum, at both shapes, on data whose per-segment answers differ
-        // from the whole-tensor answer by a lot. `max` is exactly associative, so the
-        // two shapes must agree to the bit here rather than merely to a tolerance.
+        /**
+         * @brief Tests that both shapes find the same per-segment maximum, bit for bit.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_AxisReductions, BothShapesFindTheSamePerSegmentMaximum)
         {
             constexpr std::size_t kSegments = 5;
@@ -442,8 +408,7 @@ namespace SushiBLAS
             auto flat = engine->create_tensor({static_cast<int64_t>(kSegments)});
             auto tree = engine->create_tensor({static_cast<int64_t>(kSegments)});
 
-            // Segment s peaks at 100 * s + 1, at a position that moves with s so no
-            // shape can be right by reading a fixed lane.
+            // Segment s peaks at 100*s + 1, where no fixed lane can find it.
             std::vector<float> host(kSegments * kExtent, 0.0f);
             std::vector<float> expected(kSegments);
             for (std::size_t s = 0; s < kSegments; ++s)
@@ -485,11 +450,10 @@ namespace SushiBLAS
             }
         }
 
-        // Neumaier compensation, per segment. Each row is one large head followed by
-        // 4096 ones; in float, 1e8 has an ulp of 8, so `1e8 + 1` rounds straight back
-        // to 1e8 and an uncompensated serial fold returns exactly 1e8 - short by the
-        // entire tail. 100004096 is a multiple of 8 and therefore exactly
-        // representable, so this can assert a value rather than a tolerance.
+        /**
+         * @brief Tests that each row sum is Neumaier-compensated.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_AxisReductions, RowSumsAreCompensated)
         {
             constexpr int64_t kRows = 16;
@@ -518,13 +482,10 @@ namespace SushiBLAS
             }
         }
 
-        // The guarantee SushiBLAS inherits from `sushiruntime_deterministic_fp` is
-        // byte equality for the same binary on the same device, so this compares
-        // bytes. A tolerance-based check cannot tell that apart from "close enough",
-        // which is the whole distinction under test.
-        //
-        // Run at both shapes by driving the kernel directly, for the same reason
-        // TheCooperativeTreeAgreesWithTheItemPerSegmentFold does.
+        /**
+         * @brief Tests that both shapes return the same bytes on every run.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_AxisReductions, BothShapesAreBitwiseStable)
         {
             constexpr std::size_t kSegments = 5;
@@ -568,9 +529,7 @@ namespace SushiBLAS
                     const std::vector<float> got = host_floats(out);
                     if (r == 0)
                     {
-                        // A degenerate result would make byte equality trivial and
-                        // this case vacuous, so the input has to reduce to a number
-                        // first.
+                        // A degenerate result is vacuous here. See tests/functional/unit/README.md.
                         for (float v : got)
                             ASSERT_TRUE(std::isfinite(v) && v != 0.0f)
                                 << "a segment reduced to " << v << ", which is "
@@ -587,18 +546,10 @@ namespace SushiBLAS
             }
         }
 
-        // ---------------------------------------------------------------------
-        // Why the seam exists.
-        // ---------------------------------------------------------------------
-
-        // The numerical property the whole axis reduction was added for, at the
-        // SushiBLAS layer: a log-sum-exp shifted by each row's OWN maximum survives a
-        // row-to-batch-maximum gap that destroys the globally shifted form.
-        //
-        // Both spellings are computed here from the same logits, so the comparison is
-        // not an appeal to a remembered number. Every row is three equal values, whose
-        // log-softmax is exactly -ln(3) for any offset whatsoever - which is what makes
-        // the expectation hand-computable and independent of the offset under test.
+        /**
+         * @brief Tests that a row-wise log-sum-exp shift survives a gap that destroys a global one.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_AxisReductions, ARowWiseShiftSurvivesAGapThatDestroysAGlobalOne)
         {
             constexpr int64_t kRows = 2;
@@ -628,8 +579,7 @@ namespace SushiBLAS
             q.memcpy(&peak, global_max.data(), sizeof(float)).wait();
             EXPECT_FLOAT_EQ(0.0f, peak);
 
-            // The row sums of exp(x - shift), under each shift, computed with the
-            // same seam that computed the shifts.
+            // The row sums of exp(x - shift) come from the same seam that computed the shifts.
             auto shifted = engine->create_tensor({kRows, kCols});
             auto ones_cols = engine->create_tensor({kCols});
             fill_tensor(ones_cols, {1.0f, 1.0f, 1.0f});
@@ -650,8 +600,7 @@ namespace SushiBLAS
                 EXPECT_TRUE(std::isfinite(std::log(rowwise[r])));
             }
 
-            // And now the same thing shifted by the global maximum, which is what the
-            // library offered before this seam existed.
+            // The same sums under the global maximum follow. See tests/functional/unit/README.md.
             auto ones_rows = engine->create_tensor({kRows});
             auto peak_row = engine->create_tensor({kCols});
             auto ones_column = engine->create_tensor({kCols, 1});

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_spatial_pool_max.cpp
+ * @brief Tests spatial().pool_max and pool_max_backward.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <cstdint>
 #include <cstddef>
@@ -45,18 +51,8 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief The 1x4x4x1 image every hand-checked case below pools.
-                 *
-                 * Chosen so each 2x2 stride-2 window's maximum sits in a
-                 * different corner of it - a kernel that always picked, say, the
-                 * last tap in scan order would pass a window whose maximum
-                 * happened to be there.
-                 *
-                 *     1  3 | 2  0
-                 *     4  2 | 1  5
-                 *     -----+-----
-                 *     0  7 | 6  2
-                 *     8  1 | 3  9
+                 * @brief Returns the 1x4x4x1 image the hand-checked cases pool.
+                 * @see tests/functional/unit/README.md
                  */
                 Tensor four_by_four()
                 {
@@ -78,20 +74,13 @@ namespace SushiBLAS
                 }
         };
 
-        // Written and run before any kernel existed: a zero-initialised running
-        // maximum is the single likeliest defect in this operation, and it is
-        // invisible in every test whose data is non-negative.
+        /**
+         * @brief Tests that a padded tap never wins a window when every element is negative.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_SpatialPoolMaxTest, PaddingNeverWinsAWindow)
         {
-            // Every element is negative, and the window at (0,0) sees exactly one
-            // of them - its other three taps fall outside the image. Those taps
-            // are the *absence* of an element, not zeros: a max initialised to
-            // T(0) would report 0 here, which is a perfectly plausible number
-            // that no shape or dtype check can catch.
-            // Ordered so each window's maximum is a different element - the
-            // largest sits at the bottom right, so a window that saw only the
-            // top-left corner cannot accidentally agree with one that saw
-            // everything.
+            // Window (0,0) has one tap inside the image. See tests/functional/unit/README.md.
             auto in = image(1, 2, 2, 1, {-4, -3,
                                          -2, -1});
 
@@ -101,8 +90,7 @@ namespace SushiBLAS
             g.pad_top = 1;
             g.pad_left = 1;
 
-            // Padded by one above and left only, so the window grid is 2x2 and
-            // its first window is centred outside the image's top-left corner.
+            // Padding above and left only puts the first window outside the top-left corner.
             auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
             auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
 
@@ -134,9 +122,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialPoolMaxTest, TheIndexNamesTheElementTheMaximumCameFrom)
         {
-            // The logical flat position ((n*H + h)*W + w)*C + c, not an offset
-            // into this particular view. A strided offset would stop being
-            // comparable the moment the gradient arrived through an alias.
+            // The index is the logical flat NHWC position. See tests/functional/unit/README.md.
             auto in = four_by_four();
             auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
             auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
@@ -153,10 +139,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialPoolMaxTest, ATieGoesToTheFirstElementInScanOrder)
         {
-            // Deterministic tie-breaking is not cosmetic: it is what makes the
-            // recorded index single-valued, and therefore what stops the
-            // backward's equality test from matching two taps of one window and
-            // double-counting the gradient.
+            // A tie goes to the first tap in scan order. See tests/functional/unit/README.md.
             auto in = image(1, 2, 2, 1, {5, 5,
                                          5, 5});
             auto out = engine->create_tensor({1, 1, 1, 1}, Core::DataType::FLOAT32);
@@ -187,9 +170,7 @@ namespace SushiBLAS
             engine->spatial().pool_max_backward(dy, indices, dx, g);
             engine->execute();
 
-            // Every non-argmax pixel must be exactly zero, not merely small: the
-            // gather writes each pixel once, so an unrouted pixel is a written
-            // zero and never a leftover.
+            // Every non-argmax pixel is exactly zero. See tests/functional/unit/README.md.
             const std::vector<float> expected = {0, 0, 0, 0,
                                                  10, 0, 0, 20,
                                                  0, 0, 0, 0,
@@ -202,10 +183,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialPoolMaxTest, OverlappingWindowsAccumulateAtASharedArgmax)
         {
-            // YOLOv3-tiny's 2x2 stride-1 pool. One dominant pixel is selected by
-            // all four windows, so its gradient is the sum of all four - which is
-            // the case a scatter would have needed an atomic add for, and the
-            // case a gather that stopped at its first match would get wrong.
+            // All four windows select the one dominant pixel. See tests/functional/unit/README.md.
             auto in = image(1, 3, 3, 1, {0, 0, 0,
                                          0, 9, 0,
                                          0, 0, 0});
@@ -238,14 +216,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialPoolMaxTest, TheSyclKernelAgreesWithTheReferenceKernel)
         {
-            // Compared here rather than under ExecutionMode::VERIFY, which runs
-            // both kernels but lets the reference overwrite the device's answer
-            // instead of checking it (see Internal::dispatch_with_mode).
-            //
-            // The indices are compared as well as the values. Two kernels can
-            // agree on every maximum and still disagree on where it came from -
-            // a tie broken the other way is exactly that - and the gradient
-            // follows the index, not the value.
+            // VERIFY mode would not compare the two kernels. See tests/functional/unit/README.md.
             const int64_t N = 2, H = 7, W = 5, C = 3;
 
             auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);

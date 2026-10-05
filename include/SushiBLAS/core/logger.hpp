@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file logger.hpp
+ * @brief Declares the log levels, the asynchronous and synchronous loggers and the SB_LOG macros.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <mutex>
@@ -29,14 +35,8 @@
 
 /**
  * @def SB_FUNCTION_SIGNATURE
- * @brief The compiler's name for the function a log call sits in.
- *
- * The C++17 stand-in for `std::source_location::current().function_name()`, which is
- * where this used to come from. The pretty form rather than plain `__func__` on purpose:
- * at the dispatch seam every frame is a lambda inside a function template, and the bare
- * name is `operator()` for all of them - the signature is what tells one apart from
- * another, and it is what the level-choice rationale on @ref SB_ACTIVE_LOG_LEVEL is
- * costing out.
+ * @brief Names the function a log call sits in, as the compiler spells its signature.
+ * @see include/SushiBLAS/core/README.md
  */
 #if defined(__clang__) || defined(__GNUC__)
     #define SB_FUNCTION_SIGNATURE __PRETTY_FUNCTION__
@@ -48,22 +48,8 @@
 
 /**
  * @def SB_ACTIVE_LOG_LEVEL
- * @brief The compiled-in log level, named as a `SushiBLAS::Core::LogType` enumerator.
- *
- * Set it from the build rather than by editing this header: the `SB_LOG_LEVEL` CMake
- * cache variable (`cmake/SushiBLASLogging.cmake`) forwards its value here, so
- * `sb build -D SB_LOG_LEVEL=INFO` raises the level for a debugging session and
- * `sb build -D SB_LOG_LEVEL=auto` puts it back. Valid values are the enumerator names:
- * `OFF`, `ERR`, `WARN`, `INFO`, `DEBUG` - a typo is a compile error naming the bad
- * enumerator rather than a silently wrong level.
- *
- * The default is WARN for a release build and DEBUG for a debug build. Release used to
- * default to INFO, which was expensive rather than merely noisy: every `SB_LOG_INFO`
- * that survives the `if constexpr` formats a @ref SushiBLAS::Core::Detail::SourceLocation
- * - file, line, and the fully templated function signature, several hundred characters at
- * the dispatch seam - and pushes the string through a mutex-guarded queue. The kernel
- * launch path logs at INFO once per launch, so a training loop paid that on every
- * operation of every step.
+ * @brief Names the compiled-in log level as a SushiBLAS::Core::LogType enumerator.
+ * @see include/SushiBLAS/core/README.md
  */
 #ifndef SB_ACTIVE_LOG_LEVEL
     #ifdef NDEBUG
@@ -279,9 +265,7 @@ namespace SushiBLAS
                 // add milliseconds for better tracking in async tasks
                 auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 
-                // snprintf rather than the library's own formatter: this is the one format
-                // string in the codebase that runs on every single log line, and its shape
-                // never varies, so there is nothing to gain from re-parsing it each time.
+                // snprintf formats the timestamp, which runs on every log line; see include/SushiBLAS/core/README.md.
                 char buf[16];
                 std::snprintf(buf, sizeof(buf), "%02d:%02d:%02d.%03d",
                               tm.tm_hour, tm.tm_min, tm.tm_sec,
@@ -290,14 +274,8 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Where a log call was written.
-             *
-             * The C++17 stand-in for `std::source_location`, which is C++20. Deliberately
-             * shaped like it - same three accessors, same names - so that the day this
-             * stack can assume C++20 again the type is deleted and `std::source_location`
-             * dropped in with no other edit. It is filled by @ref SB_CURRENT_LOCATION,
-             * which is what `std::source_location::current()` was doing underneath anyway:
-             * `__FILE__`, the function signature, and `__LINE__`.
+             * @brief Holds the file, function and line a log call was written at.
+             * @see include/SushiBLAS/core/README.md
              */
             class SourceLocation
             {
@@ -342,9 +320,7 @@ namespace SushiBLAS
             void log_base(LogType level, std::string_view prefix, const SourceLocation& loc, std::string_view fmt, const Args&... args)
             {
                 #if SB_ENABLE_LOGGING
-                    // The message goes through the format helper; the line around it does
-                    // not. Its shape is fixed, so streaming it directly saves parsing a
-                    // second format string on every line that survives the level test.
+                    // Only the message is formatted; the prefix is streamed; see include/SushiBLAS/core/README.md.
                     std::ostringstream os;
                     os << '[' << get_timestamp() << "] ["
                        << prefix << "] ["
@@ -357,32 +333,8 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief The level test every `SB_LOG_*` macro goes through.
-             *
-             * A function template rather than an `if constexpr` spelled out in the macro,
-             * for two reasons.
-             *
-             * First, arguments stay used. The macros used to expand to
-             * `if constexpr (level ok) log_base(..., args...)`; inside a template, a
-             * discarded statement is never instantiated, so lowering the compiled-in level
-             * turned every variable a log line was the sole reader of into an unused one -
-             * `-Wunused-lambda-capture` under `-Werror` - and the fix would have been to
-             * scatter `(void)x;` through the call sites. Passing the arguments to a function
-             * keeps them odr-used whatever the level, so the level is a pure logging decision
-             * and never a compile error somewhere else.
-             *
-             * Second, it is an expression, not a statement, so `if (c) SB_LOG_INFO(...);
-             * else ...` binds the `else` where the reader expects it instead of to the
-             * macro's own hidden `if`.
-             *
-             * Everything above the active level still costs nothing at run time: the
-             * discarded branch leaves an empty function body that inlines away.
-             *
-             * @tparam Level The level this message is emitted at.
-             * @param prefix The bracketed tag written into the line ("INFO", "WARN", ...).
-             * @param loc The call site.
-             * @param fmt The format string; see <SushiBLAS/core/format.hpp> for the grammar.
-             * @param args The format arguments.
+             * @brief Emits a message through the logger when Level is within the compiled-in level.
+             * @see include/SushiBLAS/core/README.md
              */
             template<LogType Level, typename... Args>
             inline void log_if(std::string_view prefix, const SourceLocation& loc, std::string_view fmt, Args&&... args)
@@ -416,12 +368,7 @@ namespace SushiBLAS
     /**
      * @brief Logs a message at error level.
      */
-    // The format string is folded into __VA_ARGS__ - the macros take (...) rather than
-    // (fmt, ...) - for two reasons, both C++17 rules that C++20 relaxed. It avoids
-    // __VA_OPT__, which is C++20; and it keeps the variadic list non-empty for a call
-    // with no arguments at all (`SB_LOG_INFO("done")`), which under `(fmt, ...)` would
-    // pass zero arguments for `...` and trip -Wpedantic. `log_if`'s `std::string_view fmt`
-    // parameter binds the first argument, so every existing call site is unchanged.
+    // The macros take (...) so the format string binds to log_if's fmt parameter; see include/SushiBLAS/core/README.md.
     #if SB_ENABLE_LOGGING
         #define SB_LOG_ERROR(...) \
             SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::ERR>("ERROR", SB_CURRENT_LOCATION, __VA_ARGS__)

@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_utils.hpp
+ * @brief Declares the tensor fill and comparison helpers, the base fixture and the typed-suite macro.
+ * @author Mustafa Garip
+ * @see tests/common/README.md
+ */
+
 #pragma once
 
 #include <string>
@@ -23,9 +30,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        // The complex-type trait these helpers need is the library's own,
-        // SushiBLAS::Core::is_complex_v (<SushiBLAS/core/traits.hpp>). This file used to
-        // carry a fourth copy of it; there is exactly one in the project now.
+        // The complex-type trait used here is Core::is_complex_v from <SushiBLAS/core/traits.hpp>.
 
         /**
         * @brief Comparison utility for SushiBLAS Tensors.
@@ -127,10 +132,7 @@ namespace SushiBLAS
                     q.memcpy(tensor.data(), host.data(), size * sizeof(std::complex<double>)).wait();
                     break;
                 }
-                // Truncating, like every other arm here: the caller states the values it
-                // wants and the tensor's dtype decides how they are stored. An integer
-                // tensor filled from {1.0f, 0.0f} is the natural way to write a comparison
-                // operand or an expected truth vector.
+                // The integer arms truncate the given values, as every other arm casts them.
                 case Core::DataType::INT32:
                 {
                     std::vector<int32_t> host(values.begin(), values.end());
@@ -196,8 +198,7 @@ namespace SushiBLAS
                     for (size_t i = 0; i < size; ++i) EXPECT_NEAR(host[i].real(), exp[i], tolerance) << "Mismatch (real) at index " << i;
                     break;
                 }
-                // Exact, not near: an integer element either is the expected value or it is
-                // not, and a tolerance would only hide an off-by-one.
+                // Integer elements are compared exactly, with no tolerance.
                 case Core::DataType::INT32:
                 {
                     std::vector<int32_t> host(size);
@@ -283,19 +284,8 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief The type-parameter naming GoogleTest applies when it is given none.
-         *
-         * `TYPED_TEST_SUITE(Suite, Types)` looks like a two-argument macro but is declared
-         * `TYPED_TEST_SUITE(CaseName, Types, ...)`, the `...` being an optional name
-         * generator. Passing no argument at all for a `...` is allowed from C++20 and is a
-         * diagnosed extension before it, so on this project's C++17 baseline the
-         * two-argument spelling is an error under `-pedantic -Werror` - raised inside a
-         * third-party header this project does not own and cannot fix.
-         *
-         * Naming a generator explicitly settles it, and this is the default one restated
-         * against GoogleTest's public API rather than reached for in its `internal`
-         * namespace: the suffix is the type's index, exactly as before, so every generated
-         * test name is unchanged and no test is renamed by the fix.
+         * @brief Names each type parameter by its index, as GoogleTest does by default.
+         * @see tests/common/README.md
          */
         struct DefaultTypeNames
         {

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file blas.hpp
+ * @brief Declares BLASOps, the single access point for the Level 1, 2, 3 and sparse BLAS operations.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <SushiBLAS/engine/blas/level1.hpp>

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file logic.hpp
+ * @brief Declares LogicOps, the comparison and logical operations on tensors.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <sycl/sycl.hpp>
@@ -82,13 +88,7 @@ namespace SushiBLAS
             sycl::event less_equal(const Tensor& A, const Tensor& B, Tensor& result);
 
             /**
-             * @brief Conditional selection (Like numpy.where).
-             * Computes: out = condition ? A : B
-             * @param condition Mask tensor (non-zero treated as true).
-             * @param A Selection if true.
-             * @param B Selection if false.
-             * @param out Output tensor.
-             * @return sycl::event representing the operation.
+             * @brief Selects A where condition is non-zero and B elsewhere, like numpy.where.
              */
             sycl::event where(const Tensor& condition, const Tensor& A, const Tensor& B, Tensor& out);
 

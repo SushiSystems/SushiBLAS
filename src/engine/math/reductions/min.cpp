@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file min.cpp
+ * @brief Defines ReductionOps::min, which records the minimum reduction.
+ * @author Mustafa Garip
+ */
+
 #include <limits>
 #include <type_traits>
 #include <SushiBLAS/engine/math/reductions.hpp>
@@ -15,11 +21,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    // On sycl::reduction deliberately - see the note on ReductionOps::max, which applies
-    // verbatim. `minimum` is exactly associative and exactly commutative, so the
-    // combination order the spec leaves unspecified cannot change the value; the only
-    // order-sensitivity left is which operand survives a NaN, and that is a property of
-    // the input, not of the launch.
+    // minimum is exact in any combination order, except against NaN; see src/README.md.
     sycl::event ReductionOps::min(const Tensor& t, Tensor& result)
     {
         auto dispatch = [](sycl::queue& q, const auto* pT, auto* pR, int64_t size,

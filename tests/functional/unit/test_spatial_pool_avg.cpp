@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file test_spatial_pool_avg.cpp
+ * @brief Tests spatial().pool_avg and pool_avg_backward.
+ * @author Mustafa Garip
+ */
+
 #include <vector>
 #include <cstdint>
 #include <cstddef>
@@ -54,9 +60,10 @@ namespace SushiBLAS
                 }
         };
 
-        // D-A4's pin. Without a padded case the convention is invisible: an
-        // unpadded pool divides by the area and by the in-bounds count at once,
-        // so every other test in this file passes under either rule.
+        /**
+         * @brief Tests that the average divides by the whole window area, padded taps included.
+         * @see tests/functional/unit/README.md
+         */
         TEST_F(Unit_SpatialPoolAvgTest, TheAverageIsOverTheWholeWindowIncludingPaddedTaps)
         {
             auto in = image(1, 2, 2, 1, {4, 8,
@@ -74,9 +81,7 @@ namespace SushiBLAS
 
             const float* got = out.data_as<float>();
 
-            // The top-left window's only in-bounds tap is the element 4. Divided
-            // by the window area that is 1; divided by the in-bounds count it
-            // would be 4. That difference is the whole of count_include_pad.
+            // The window's only in-bounds tap is element 4. See tests/functional/unit/README.md.
             EXPECT_FLOAT_EQ(got[0], 1.0f) << "one real tap out of four, so 4/4";
             EXPECT_FLOAT_EQ(got[1], 3.0f) << "(4 + 8) / 4";
             EXPECT_FLOAT_EQ(got[2], 4.0f) << "(4 + 12) / 4";
@@ -135,9 +140,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialPoolAvgTest, OverlappingWindowsSumTheirShares)
         {
-            // 2x2 stride 1 over a 3x3 image: the centre pixel is covered by all
-            // four windows and the corners by one each. A gather that stopped at
-            // its first covering window would give the centre 0.25.
+            // The centre pixel is covered by all four windows. See tests/functional/unit/README.md.
             Spatial::ConvGeometry g;
             g.kernel_h = 2;
             g.kernel_w = 2;
@@ -159,11 +162,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialPoolAvgTest, TheBackwardOfAConstantForwardIsUniform)
         {
-            // A stride-1 pool padded so that every pixel is covered by exactly
-            // R*S windows. Each contributes 1/(R*S), so every pixel must come
-            // back exactly 1.0 - the closed-form check that the divisor and the
-            // window set agree with each other. A divisor computed per-window
-            // from the in-bounds count would make the border pixels larger.
+            // Every pixel is covered by exactly R*S windows. See tests/functional/unit/README.md.
             Spatial::ConvGeometry g;
             g.kernel_h = 2;
             g.kernel_w = 2;
@@ -183,9 +182,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialPoolAvgTest, TheSyclKernelAgreesWithTheReferenceKernel)
         {
-            // Compared here rather than under ExecutionMode::VERIFY, which runs
-            // both kernels but lets the reference overwrite the device's answer
-            // instead of checking it (see Internal::dispatch_with_mode).
+            // VERIFY mode would not compare the two kernels. See tests/functional/unit/README.md.
             const int64_t N = 2, H = 7, W = 5, C = 3;
 
             auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);

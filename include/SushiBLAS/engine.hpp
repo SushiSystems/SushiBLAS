@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file engine.hpp
+ * @brief Declares the Engine, which records operations on a task graph and executes them.
+ * @author Mustafa Garip
+ */
+
 #pragma once
 
 #include <atomic>
@@ -143,11 +149,7 @@ namespace SushiBLAS
             sycl::event execute()
             {
                 auto compiled = graph_.compile();
-                // Several io.cpp paths call execute() defensively (flush any pending
-                // device write before a host-side read) even when nothing was queued -
-                // e.g. a tensor filled directly through its host-visible pointer, no
-                // add_task involved. IExecutionEngine::execute() throws on a graph with
-                // no root nodes, so treat empty as an already-complete no-op instead.
+                // An empty graph returns early; the execution engine throws on one; see include/SushiBLAS/README.md.
                 if (compiled.roots.empty()) return sycl::event();
                 return context_.get_execution_engine().execute(compiled);
             }
@@ -173,24 +175,8 @@ namespace SushiBLAS
                                  const SushiRuntime::Memory::IAllocatorStrategy& strat = SushiRuntime::Memory::Strategies::Shared::instance());
 
             /**
-             * @brief Set the seed for random number generation and restart the stream.
-             *
-             * Rewinds the counter offset to zero as well as setting the seed. Every RNG
-             * kernel mixes `(seed, offset)` into Philox, so the seed alone does not name a
-             * stream position: setting the seed while leaving the offset where the previous
-             * draws left it meant two identically-seeded generators on one engine produced
-             * different data, and re-seeding could not reproduce anything. Reproducibility is
-             * the only thing a seed is for, so the reset is part of what seeding means here
-             * rather than a separate call a caller has to remember.
-             *
-             * No caller in this repository, and none in the SushiAI tree that consumes it,
-             * relies on the offset surviving a re-seed - SushiAI's dataset shuffling
-             * explicitly constructs a fresh Engine to work around the old behaviour. Nothing
-             * is therefore exposed to opt out of the reset; if a use for one appears, it
-             * belongs as a distinct named method (`advance_rng_stream()`), never as a
-             * side effect of setting a seed.
-             *
-             * @param s The seed value.
+             * @brief Sets the random seed and rewinds the counter offset to zero.
+             * @see include/SushiBLAS/README.md
              */
             void set_seed(uint64_t s)
             {
@@ -205,13 +191,8 @@ namespace SushiBLAS
             uint64_t get_seed() const { return seed_; }
 
             /**
-             * @brief Get the current RNG offset and increment it.
-             *
-             * Every distribution draw takes a fresh position so two tasks never reuse a
-             * Philox (key, counter) pair, even under concurrent submission. The sequence
-             * restarts at zero on @ref set_seed.
-             *
-             * @return The current offset value.
+             * @brief Returns the current RNG offset and increments it.
+             * @see include/SushiBLAS/README.md
              */
             uint64_t get_and_increment_rng_offset() { return rng_offset_++; }
 

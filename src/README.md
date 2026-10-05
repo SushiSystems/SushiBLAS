@@ -1,0 +1,501 @@
+# src
+
+The translation units of the SushiBLAS library. Each file under `engine/` defines the methods of
+one operation: it checks the operands, declares the regions the task reads and writes, and records
+the task on the engine's graph. The kernels a task runs are in `kernels/` and under
+`include/SushiBLAS/kernels/`.
+
+| Path | Defines |
+| --- | --- |
+| `engine.cpp` | The `Engine` constructor and tensor creation |
+| `io.cpp` | `IO`: the `.sushi`, raw binary and `.npy` readers and writers, and the text rendering |
+| `engine/blas/level1/`, `level2/`, `level3/` | `Level1`, `Level2` and `Level3`, one file per BLAS routine |
+| `engine/logic/` | `LogicOps`, one file per comparison, logical operation or truth reduction |
+| `engine/math/elementwise/` | `ElementwiseOps`, one file per operation |
+| `engine/math/nonlinear/` | `NonLinearOps`, one file per activation and its gradient |
+| `engine/math/random/` | `RandomOps`, one file per distribution or initialiser |
+| `engine/math/reductions/` | `ReductionOps`, one file per reduction |
+| `engine/spatial/` | `SpatialOps`: the window, pooling, channel and broadcast operations |
+
+## Notes by file
+
+A source comment in this folder states an invariant in one line and cites this page. The reason
+behind the invariant is below, under the path of the file that cites it. A reference to another
+section of this page names that section's path; a reference to a public header names the README
+under `include/SushiBLAS/` that holds the header's notes.
+
+### `src/engine/blas/level1/axpy.cpp`
+
+`Level1::axpy` declares `y` in both the read set and the write set. `y = alpha * x + y` reads `y`
+before it writes it, so `y` is an accumulator and not only a destination.
+
+### `src/engine/blas/level1/copy.cpp`
+
+`Level1::copy` throws when the two dtypes differ. `?copy` is a BLAS routine, and every BLAS
+routine is fixed to one precision. The message names `elementwise().convert`, the converting copy,
+because a caller who wanted a conversion reaches this line.
+
+`copy` is the only BLAS operation recorded with `Domain::ALL`. It moves elements and does no
+arithmetic on them, so it can serve every element type, the integer ones included. An index tensor
+that `iamax` or `argmax` produced can then be moved without passing through a float.
+
+### `src/engine/blas/level1/dot.cpp`
+
+For complex dtypes `Level1::dot` computes the conjugated dot product (DOTC), as the earlier
+oneMKL-backed version did.
+
+### `src/engine/blas/level1/iamax.cpp`
+
+`Level1::iamax` requires its result tensor to be INT64, because the result is an index. The
+integer dtypes exist so that this check can be made.
+
+Before they existed, `iamax` wrote an `int64_t` into whatever tensor the caller passed. In every
+test and every consumer that was a FLOAT32 tensor, so eight bytes went into a four-byte element.
+`tests/functional/unit/test_iamax.cpp` worked around it by allocating two floats, and left a
+comment reading "Wait, different sizes!". The overrun was survivable while a tensor owned its
+allocation. It stopped being survivable when SushiAI began packing tensors into arenas, because
+the four bytes past the result then belong to a different tensor. `Tensor::region()` reported a
+four-byte write, so the dependency tracker ordered nothing against the corruption either.
+
+### `src/engine/blas/level1/rot.cpp`
+
+`Level1::rot` declares both operands as read and written. Each new `x_i` is built from the old
+`x_i` and `y_i`, and each new `y_i` likewise.
+
+### `src/engine/blas/level2/gemv.cpp`
+
+`Level2::gemv` declares a read of `y` whenever `beta` is non-zero, because
+`y = alpha * op(A) * x + beta * y` reads it then. The test is made on the caller's double, not on
+the value narrowed to the element type. A `beta` that is non-zero as a double and flushes to zero
+in the element type declares an edge the kernel does not need. It can never drop an edge the
+kernel does need.
+
+### `src/engine/blas/level2/ger.cpp`
+
+`Level2::ger` declares `A` as read and written, because the rank-1 update reads every element it
+writes. The earlier write-only declaration still ordered tasks correctly, since the tracker
+inserts a write-after-write edge anyway. Any pass that trusts the declared access set (aliasing
+analysis, arena reuse, parallel scheduling) would have reasoned from a false premise.
+
+### `src/engine/blas/level2/syr.cpp`
+
+`Level2::syr` declares `A` as read-modify-write for two reasons. `A` is an accumulator, and the
+kernel touches only the selected triangle, so the other triangle has to survive the task
+unchanged.
+
+### `src/engine/blas/level2/syr2.cpp`
+
+`Level2::syr2` declares `A` as read-modify-write for the reasons given under
+`src/engine/blas/level2/syr.cpp` above: the update accumulates into `A` and touches one triangle.
+
+### `src/engine/blas/level2/trsv.cpp`
+
+`Level2::trsv` dispatches into the TRSM kernels, `kernels/reference/blas/level3/trsm.hpp` and
+`kernels/sycl/blas/level3/trsm.hpp`. TRSV is a TRSM with one right-hand-side column (n = 1), so a
+second copy of the substitution would add nothing.
+
+`trsv` passes `b` as an n x 1 matrix. A row-major row of that matrix has one element, so
+`ldb = 1`; a column-major column needs `ldb >= n`.
+
+### `src/engine/blas/level3/gemm.cpp`
+
+`Level3::gemm` calls the fused GEMM with nothing fused into it. That avoids a second copy of the
+shape derivation, the access set, the dtype switch and the three `ExecutionMode` branches.
+`GemmIdentityEpilogue` inlines to its argument, so the kernel this file records is byte for byte
+the one it recorded when it called the kernel directly; see
+`include/SushiBLAS/engine/blas/README.md`, under `execute_gemm`.
+
+`gemm` passes `REAL_AND_COMPLEX` explicitly. The seam defaults to `REAL`, because an epilogue a
+caller writes is usually real only. Plain GEMM has supported all five dtypes since SB-2, and the
+identity epilogue is well-formed for each of them.
+
+### `src/engine/blas/level3/syrk.cpp`
+
+`Level3::syrk` declares `C` as read-modify-write unconditionally, for two independent reasons. The
+beta term reads `C` when beta != 0, and the triangular mask leaves the opposite triangle untouched
+even when beta == 0. A byte interval cannot express "one triangle", so the declaration that is
+true of the whole region is read and write.
+
+### `src/engine/logic/all.cpp`
+
+`LogicOps::all` uses `sycl::reduction`, which a floating-point sum in this library must not. The
+SYCL specification leaves the combination order of a reduction unspecified, and that matters only
+for a combiner whose result depends on the order. `all` reduces over two values, T(0) and T(1),
+under `minimum`, which is associative, commutative and exact on that domain, so every order gives
+the same bits. With `+` on floats the order shows in the result and can change with the launch
+configuration.
+
+The reduction is created with `initialize_to_identity`. Without that property a SYCL reduction
+seeds itself from whatever the result tensor already holds and folds it into the answer. `all`
+over a tensor of ones returned 0 whenever the caller reused a result that had held 0, and returned
+whatever the allocator left behind when the result had never been written.
+
+`all` is recorded with `Domain::REAL_AND_INTEGRAL`. A truth test means as much on an integer
+tensor as on a float one, and an integer element carries the 1 or 0 this family produces without
+a conversion. Complex is excluded: `logic_not_zero` would work on it, but `sycl::minimum` and
+`sycl::maximum` over `std::complex` do not, and a reduction needs an ordering.
+
+The dtype switch is `Dispatch::with_element_type`, the one the logic dispatch seam uses, so the
+arms and the rejection by name are written once.
+
+### `src/engine/logic/any.cpp`
+
+`LogicOps::any` uses `sycl::reduction` for the reason given under `src/engine/logic/all.cpp`
+above, with `maximum` in place of `minimum`. The combiner sees only T(0) and T(1), on which
+`maximum` is associative, commutative and exact, so the unspecified combination order cannot
+change a bit of the answer.
+
+The reduction is created with `initialize_to_identity`, as in `all`. Without it, `any` over a
+tensor of zeros returned 1 whenever the caller reused a result that had held 1.
+
+`any` is recorded with `Domain::REAL_AND_INTEGRAL` and switches on the dtype through
+`Dispatch::with_element_type`, both for the reasons given under `src/engine/logic/all.cpp`.
+
+### `src/engine/math/elementwise/convert.cpp`
+
+`convert.cpp` defines the copy that converts between dtypes. Three questions are answered in
+`include/SushiBLAS/engine/math/README.md`, under `ElementwiseOps::convert`: why the operation
+lives in the elementwise family, why the dtype pair is bounded to REAL x REAL, and why a
+conversion to the same dtype is legal. This section records the mechanics.
+
+`SushiBLAS::Dispatch` has no public `execute_convert` seam. Every other executor in `Dispatch` is
+public because it takes a functor the caller writes. That lets a consumer fuse several math
+operations into one kernel without writing SYCL, and it is why those headers were promoted out of
+`src/`. `convert` has no functor: the conversion is `static_cast`, fixed by the pair of dtypes, so
+a seam would expose a parameter that does not exist. Keeping the implementation in this
+translation unit also confines the nine instantiations to one object file, which is the bound the
+header's notes argue for.
+
+`record_convert` is one of the nine arms. It is an ordinary function template and not a lambda,
+because the dispatch in `dispatch_destination` and `ElementwiseOps::convert` has to be two plain
+`switch` statements. A generic lambda nested inside a generic lambda crashes this project's clang
+during instantiation (see `include/SushiBLAS/engine/README.md`, under `execute_typed_task`), and
+an operation over two types is where that nesting would otherwise be written.
+
+`record_convert` launches through `Launch::indexed`. `Launch::map` has a `static_assert` that
+every operand shares one element type, and the assertion is correct: the wide pass of `map` loads
+and stores `sycl::vec<T, W>` at one width, and two operands of different widths have no common W.
+`convert` therefore gets the device split, flat on a CPU and grid-stride on a GPU, and no vector
+path. A vector path would read half of every second element.
+
+The conversion is `static_cast`, which rounds to nearest even under IEEE 754 for every pair here.
+An fp32 value past 65504 therefore arrives as an fp16 infinity, not as a wrapped or clamped
+number, and an infinity is what a loss-scaling backoff is built to detect.
+
+FLOAT64 to HALF may round twice. `sycl::half` has no direct double constructor on every
+toolchain, so that pair may go double to float to half, and a double rounding differs from one
+correctly rounded step for the few values that land exactly halfway after the first step. This
+was not measured. Nothing relies on it, and it is off the mixed-precision path, which converts
+between fp32 and fp16.
+
+`dispatch_destination` has three arms and is instantiated once per source type, nine
+instantiations in total. The arms are written out and not generated, so a reader can count them.
+
+The `switch` in `dispatch_destination` ends in a throw that cannot be reached, because the caller
+rejected every non-REAL dtype when it recorded the task. A switch that can fall out of the bottom
+is how a silent no-op gets in; `include/SushiBLAS/engine/blas/README.md`, under
+`execute_blas_task`, gives the same reason for its own.
+
+The dtype check in `ElementwiseOps::convert` names both dtypes in its message. The caller's first
+question is which one was wrong, and the pair is what was rejected.
+
+The element-count check is redundant after the shape check that precedes it. It is kept because
+the kernel's loop bound rests on equal element counts. If equal shapes ever stop implying equal
+counts, this assertion fires before the kernel runs off an operand.
+
+`convert` refuses a non-contiguous operand by name. The kernel walks a flat index, so it would
+read a view whose elements are not laid out flatly at the wrong addresses, and nothing would
+report the wrong answer.
+
+`convert` refuses operands that overlap in memory. Each work-item reads one element and writes
+another of a different width, so an overlap is a race between work-items. It is not the
+well-defined same-index aliasing that the in-place callers of `Launch::map` rely on. The
+same-dtype case is refused too: equal widths do not make converting a tensor onto itself useful,
+and a rule with an exception is one more thing for a caller to remember.
+
+The access sets hold `Tensor::region()`, never `data()`. A `ResourceRegion` converts implicitly
+from a bare pointer, and a bare pointer widens to the whole allocation. Two views of one arena
+would become two unrelated resources, `overlaps` would answer false, and the tracker would emit no
+edge. `include/SushiBLAS/README.md`, under `Tensor::region`, describes the region, and
+`docs/api/mainpage.md` records that this defect has cost the stack two training runs.
+
+The `switch` in `ElementwiseOps::convert` is the outer half of the dispatch and picks the source
+type. Together with `dispatch_destination` it makes two plain switches over function templates,
+nine instantiations, and no lambda nested in a lambda.
+
+### `src/engine/math/random/constant.cpp`
+
+`RandomOps::constant` has integer arms because integer tensors need known values: an index tensor
+gets one before an operation writes over it, and a comparison operand gets a threshold. The
+double parameter is truncated to the integer type, by the same convention the HALF and FLOAT32
+arms follow: the caller states a value, and the tensor's dtype decides how it is stored.
+
+### `src/engine/math/random/normal.cpp`
+
+`RandomOps::normal` draws the real and imaginary halves of a complex tensor as one flat run of 2n
+reals. The index a component is drawn from is its position in that run, which keeps a complex
+fill reproducible element for element.
+
+### `src/engine/math/random/orthogonal.cpp`
+
+`RandomOps::orthogonal` first fills the tensor with N(0,1). The Gaussian ensemble is orthogonally
+invariant, so orthonormalising a Gaussian matrix yields a uniformly distributed orthogonal matrix
+and not a biased one. The fill is recorded as its own task, and the graph orders the sweep after
+it because both declare the same region.
+
+`orthogonal` orthonormalises along the shorter axis: the rows of a wide matrix, the columns of a
+tall one. At most min(rows, cols) vectors can be mutually orthogonal. The result satisfies
+Q Q^T = gain^2 I in the first case and Q^T Q = gain^2 I in the second, the same convention as
+PyTorch's `orthogonal_`.
+
+The sweep takes its steps from `t.strides`, not from arithmetic on rows and columns, so it is
+correct for `ROW_MAJOR` and `COLUMN_MAJOR` with no special case. A column-major matrix walks the
+two axes in the other order, and the transpose of an orthogonal matrix is orthogonal.
+
+### `src/engine/math/random/poisson.cpp`
+
+`RandomOps::poisson` uses Knuth's algorithm: it multiplies uniform draws until the running product
+drops below exp(-lambda), and counts the draws. `MAX_ITERS` caps the count at 10000 for a very
+large lambda. Each draw is one Philox call keyed on a per-element attempt counter, so it never
+repeats a uniform draw used elsewhere.
+
+### `src/engine/math/random/shuffle.cpp`
+
+`RandomOps::shuffle` runs Fisher-Yates sequentially. Each step draws its swap partner from a range
+that depends on the step index, so the permutation is uniform only if the steps happen in order. A
+`single_task` keeps that order on the device and leaves the tensor's data where it is. The
+parallel alternative tags every element with a random key and sorts, which needs a second buffer
+of the full size and a device sort this library does not have.
+
+The swap is instantiated per dtype and does not swap raw bytes, so a `std::complex<double>` moves
+as one value and cannot tear into two halves.
+
+`shuffle` declares its tensor as read and written, unlike the distributions. A shuffle permutes
+what is already there, so the task depends on whatever produced the contents and not only on
+earlier writers.
+
+### `src/engine/math/random/uniform.cpp`
+
+`RandomOps::uniform` fills a complex tensor as `src/engine/math/random/normal.cpp` above
+describes: one flat run of 2n reals, so the draw index of a component is its position in that run.
+
+### `src/engine/math/reductions/argmax.cpp`
+
+`ReductionOps::argmax` scans sequentially, so its answer does not depend on any combination order.
+The scan visits indices in ascending order every time, the lowest-index maximum always wins a tie,
+and the result is reproducible to the bit. Whatever replaces the scan must keep that rule.
+`ArgMaxCombine`, defined in the same file, breaks ties on the index so that a tree reduction
+would give the same answer.
+
+The scan is a single-threaded device loop. Custom reductions through `sycl::reduction` behave
+differently on the OpenCL and Level-Zero backends, and the tie-breaking rule must not change with
+the backend.
+
+The result goes into an INT64 tensor through `execute_index_reduction`, not into a tensor of the
+input's dtype through `execute_reduction`. It was once stored as `static_cast<T>(idx)`, a float. A
+float is exact below 2^24. Above that, two adjacent indices round to the same value, so the
+operation returned a wrong index on the tensor sizes a training run calls it on. In HALF the
+ceiling is 2048.
+
+### `src/engine/math/reductions/argmin.cpp`
+
+`ReductionOps::argmin` scans sequentially for the reasons given under
+`src/engine/math/reductions/argmax.cpp` above: the lowest-index minimum always wins a tie, and the
+result is reproducible to the bit. A tree reduction is equivalent only if its combiner breaks ties
+on the index, as `ArgMaxCombine` in `argmax.cpp` does.
+
+The result goes into an INT64 tensor through `execute_index_reduction`. The same section explains
+why a result stored in the input's dtype was wrong above 2^24, and above 2048 in HALF.
+
+### `src/engine/math/reductions/count_nonfinite.cpp`
+
+`include/SushiBLAS/engine/math/README.md`, under `ReductionOps::count_nonfinite`, answers two
+questions about this operation. The first is why the result is an INT64 count and not a flag in
+the input's dtype. The second is why `asum`, which would almost have served, reports false
+positives on the mixed-precision input this operation exists for.
+
+The operation is one call to the counting seam with a predicate transform. `Reduce::reduce` gives
+it the library's fixed-order two-stage fold. The accumulation type is in that function's signature
+so that no operation has to write a second copy of the fold.
+
+The scratch is sized from the device the data lives on, as in `execute_folding_reduction`.
+`Reduce::plan` clamps to whatever scratch exists at launch, so a disagreement between the two
+costs performance and never correctness.
+
+The predicate is `sycl::isfinite`, not `x != x`. `x != x` is the usual NaN test, and it is half of
+a non-finite test: an infinity compares equal to itself, so `x != x` would pass every overflowed
+fp16 gradient. `isfinite` is false for both. Substituting `x == x` here fails 13 of this
+operation's 23 tests: every infinity case at every dtype, and none of the NaN cases. That is why
+the suite tests the two separately.
+
+### `src/engine/math/reductions/max.cpp`
+
+`ReductionOps::max` uses `sycl::reduction`, unlike the summation reductions beside it. The SYCL
+specification does not fix the order in which a reduction combines its partials. That is a hazard
+for `+`: floating-point addition is not associative, so the order shows in the bits of the result
+and can change with the launch configuration. `maximum` is exactly associative and exactly
+commutative. Every combination order yields the same value, and a hand-written fixed-order tree
+would only be slower.
+
+The input can still make the result depend on the order. `sycl::maximum` selects with `<`, and
+every comparison against a NaN is false, so which operand survives a NaN depends on the order. No
+reduction shape available here fixes that. Screening the input does.
+
+### `src/engine/math/reductions/max_along.cpp`
+
+`ReductionOps::max_along` goes through the folding seam, where the whole-tensor `max` in
+`src/engine/math/reductions/max.cpp` uses `sycl::reduction`. The reason is the shape of the
+result. `sycl::reduction` reduces to a scalar and has no segmented form, so the axis family has
+one shape that serves every accumulator. Because `maximum` is exactly associative, `max_along` is
+bit-reproducible for a stronger reason than the additive reductions are. See
+`include/SushiBLAS/engine/README.md`, under `RunningMax`.
+
+### `src/engine/math/reductions/mean.cpp`
+
+`ReductionOps::mean` divides in the finalizer, so it costs the same number of kernel launches as
+`sum`. An earlier version submitted a second `single_task` only to divide one scalar by one
+integer.
+
+### `src/engine/math/reductions/mean_spatial.cpp`
+
+`ReductionOps::mean_spatial` is built from the same three pieces as `mean`: a compensated sum,
+no transform, and `v / n` as the finalizer. It runs them over the segmented seam, where `mean`
+uses the whole-tensor one. The new part is the span. A fold is identified by a pair `(n, c)`,
+which `spatial_span_for` builds and the second segment axis of `AxisSpan` carries.
+
+### `src/engine/math/reductions/min.cpp`
+
+`ReductionOps::min` uses `sycl::reduction` for the reasons given under
+`src/engine/math/reductions/max.cpp` above. `minimum` is exactly associative and exactly
+commutative, so the unspecified combination order cannot change the value. The one remaining
+sensitivity to order is which operand survives a NaN, and that depends on the input and not on
+the launch.
+
+### `src/engine/math/reductions/nrm2.cpp`
+
+`ReductionOps::nrm2` computes the scaling 2-norm that BLAS's xNRM2 specifies. An earlier version
+computed `sqrt(sum(x*x))`. The call has no transform and no finalizer, because the squaring and
+the square root are safe only inside a running scale. `include/SushiBLAS/engine/README.md`, under
+`ScaledSumOfSquares`, describes the algorithm and says why it belongs in the accumulator. The
+launch count did not change: one launch on the single-pass shape and two on the two-stage one.
+
+### `src/engine/math/reductions/prod.cpp`
+
+`ReductionOps::prod` accumulates with `RunningProduct`, not `CompensatedSum`. Neumaier's
+correction recovers the bits an addition rounds off and does nothing for a multiplication. What
+`prod` shares with the additive reductions is the fixed combination order, which is why it left
+`sycl::reduction` as they did: floating-point multiplication is no more associative than addition.
+
+### `src/engine/math/reductions/sum.cpp`
+
+`ReductionOps::sum` depends on the combination order, so it goes through the folding seam and not
+`sycl::reduction`. `include/SushiBLAS/engine/README.md`, under `reduce_1d.hpp`, says why the
+unspecified order is a correctness problem for `+` and not for `max`. `sum` has no transform and
+no finalizer. The other reductions on the folding seam are this call with a transform, a
+finalizer or a different accumulator added.
+
+### `src/engine/math/reductions/sum_along.cpp`
+
+`ReductionOps::sum_along` depends on the combination order, so it takes the same
+Neumaier-compensated fixed-order fold as the whole-tensor `sum`, in its segmented shape. It has no
+transform and no finalizer. A per-axis `mean` is this call with `v / n` as the finalizer and costs
+no extra launch.
+
+### `src/engine/spatial/broadcast.cpp`
+
+None of the three operations in `broadcast.cpp` has a sliding window, so none of them calls
+`Spatial::window_span_for`. That helper validates every window origin against a `ConvGeometry`.
+The geometry these operations would have to invent to satisfy it, a 1x1 window at stride 1, is six
+fields a reader would have to rule out before trusting the call. Each operation builds its span
+from the operands' `shape[]` and `strides[]`, and sets `out_h` and `out_w` equal to `in_h` and
+`in_w`, because these are copies and not reductions over a window.
+
+`SpatialOps::channel_affine` reads `gamma` and `beta` through their own strides and does not
+assume they are contiguous. A parameter vector is routinely a view into a packed parameter arena.
+
+The input of `SpatialOps::broadcast_spatial` is rank-2, so it has no row or column stride to
+record. The `in_*` extents are filled in only so that the span describes one shape, and the
+input's two real strides travel to the kernels as arguments.
+
+`broadcast_spatial` narrows `scale` inside the dispatch closure and not at the seam. The factor
+has to be a `T` for both kernels, and `T` is not known until the closure is instantiated.
+
+`SpatialOps::layout_convert` requires the same logical shape on both sides. What differs is which
+stride is largest. A caller expresses the transpose by handing in an output tensor with different
+strides, never by a direction flag, so an output whose shape is permuted is a caller error and not
+a request for NCHW.
+
+### `src/engine/spatial/channels.cpp`
+
+`channel_copy_span` builds its span by hand and does not call `Spatial::window_span_for`, which
+validates window origins against a `Spatial::ConvGeometry` that a plain copy does not have. For
+the same reason it sets `out_h` and `out_w` to the input extents: the operation visits every pixel
+of one shared grid, so there is no second extent derived from a window.
+
+`span.channels` stays at the source's channel count and neither kernel reads it. The width of the
+copy travels as an explicit argument.
+
+The channel copies are recorded with `Domain::ALL`. They move elements and do no arithmetic on
+them, so every element type the library has can be copied.
+
+### `src/engine/spatial/col2im.cpp`
+
+`SpatialOps::col2im` calls the extents overload of `window_span_for`. `image` takes the input role
+in the span: it is the rank-4 operand whose H, W and strides the window walks. The other operand
+is a rank-2 column matrix with no extents to read.
+
+### `src/engine/spatial/im2col.cpp`
+
+`SpatialOps::im2col` calls the extents overload of `window_span_for`, not the two-tensor one. The
+other operand is a rank-2 column matrix, so no output image exists whose shape could supply H_o
+and W_o.
+
+The overload of `im2col` that derives the extents assumes symmetric padding, and can assume
+nothing else. `ConvGeometry` carries `pad_left` and no `pad_right`, so W_o can be recovered only
+by taking the leading pad for both sides. H_o then follows from the row count. A caller whose
+padding is asymmetric must call the overload with explicit extents, which exists for that case.
+The 2x2 stride-1 pool of YOLOv3-tiny is the one in scope.
+
+### `src/engine/spatial/pool_avg.cpp`
+
+In `SpatialOps::pool_avg_backward`, `dx` takes the input role and `dy` the output role, the
+assignment the forward made. The geometry must therefore be the forward's.
+
+### `src/engine/spatial/pool_max.cpp`
+
+`SpatialOps::pool_max` requires its index buffer to be INT64 and checks that by name; the kernel
+never reinterprets another dtype. fp32 represents integers exactly only below 2^24, and a
+224x224x64 feature map passes that at batch 6.
+
+The dtype that drives the switch is the value tensor's. The index pointer is captured as
+`int64_t*` outside the switch, because the operation fixes its type and the operands do not.
+
+### `src/engine/spatial/pool_max_backward.cpp`
+
+In `SpatialOps::pool_max_backward`, `dx` takes the input role in the span, since it has the
+image's H, W and strides, and `dy` takes the output role. That is the assignment the forward made,
+so the geometry must be the forward's exactly.
+
+### `src/engine/spatial/upsample_nearest.cpp`
+
+`upsample_span_for` does not call `Spatial::window_span_for`. That function needs a
+`Spatial::ConvGeometry`, and the only one that fits here is the default 1x1 window at stride 1.
+Under that geometry the window-origin check reads "output row `out_h - 1` starts at input row
+`out_h - 1`" and rejects every output larger than the input, which is every upsampling.
+`upsample_span_for` reads the strides off the tensors and checks the rule this operation has: each
+output extent is an exact `scale` multiple of the input's. `span.geometry` stays default, and no
+upsample kernel reads it.
+
+In `SpatialOps::upsample_nearest_backward`, `dx` takes the input role and `dy` the output role,
+the assignment the forward made. The scales must therefore be the forward's.
+
+### `src/io.cpp`
+
+`IO::save_npy` writes a `descr` for every dtype it knows and throws for any other. The chain once
+fell through for HALF and wrote a header with an empty `descr` and a payload numpy could not read:
+a corrupt file with no error at either end.
+
+The text rendering prints integers through the same float pipeline as every other dtype, which is
+lossy past 2^24 for INT32 and past 2^53 for INT64. That is acceptable for a dump a person reads
+and nowhere else. `IO::save_npy` writes the raw bytes, so no saved value passes through the text
+rendering.

@@ -6,6 +6,12 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file swap.cpp
+ * @brief Defines Level1::swap, which records the BLAS SWAP task.
+ * @author Mustafa Garip
+ */
+
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine.hpp>
@@ -24,8 +30,6 @@ namespace SushiBLAS
         Internal::get_vec_params(x, n, incx);
         int64_t ny; Internal::get_vec_params(y, ny, incy);
         SB_THROW_IF(n != ny, "SWAP requires tensors of the same number of elements.");
-
-        // TODO: Implement multi-dimensional batch support
 
         void* rw_x = x.data_or_null();
         void* rw_y = y.data_or_null();

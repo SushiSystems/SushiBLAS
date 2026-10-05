@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file leaky_relu.cpp
+ * @brief Defines NonLinearOps::leaky_relu and NonLinearOps::leaky_relu_backward, which record the
+ * leaky_relu activation and its gradient.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/nonlinear.hpp>
 #include <SushiBLAS/engine/math/nonlinear/dispatch.hpp>
 

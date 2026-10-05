@@ -6,6 +6,13 @@
 /* Commercial use requires a licence from Sushi Systems.        */
 /****************************************************************/
 
+/**
+ * @file tanh.cpp
+ * @brief Defines NonLinearOps::tanh and NonLinearOps::tanh_backward, which record the tanh
+ * activation and its gradient.
+ * @author Mustafa Garip
+ */
+
 #include <SushiBLAS/engine/math/nonlinear.hpp>
 #include <SushiBLAS/engine/math/nonlinear/dispatch.hpp>
 
