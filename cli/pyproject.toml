@@ -17,8 +17,8 @@ dependencies = [
 ]
 
 [project.scripts]
-sb = "sushiblas.cli:app"
-sushiblas = "sushiblas.cli:app"
+sb = "sushiblas.cli:main"
+sushiblas = "sushiblas.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

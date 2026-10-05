@@ -3,29 +3,30 @@
 # Copyright (c) 2026 Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""SushiBLAS developer CLI (`sb`).
-
-Thin Typer layer: commands only parse arguments and delegate to the service
-layer in ``sushiblas.services``.
-"""
+"""Declares the `sb` commands; each parses its arguments and calls ``sushiblas.services``."""
 
 from __future__ import annotations
 
 from typing import Optional
 
 import typer
+from sushicore import entry
+from sushicore.diag_commands import register_diagnostic_commands
 from sushicore.provision.commands import ModuleProvision, register_provision_commands
+from sushicore.root_options import register_root_options
 from sushicore.typer_help import help_group
 
 from . import console
+from .aliases import K_ALIASES
 from .config import PROFILE, find_project_root, load_config
-from .services import diag as diag_svc
 from .services import project as project_svc
+from .services.diag import K_DIAGNOSTICS as K_DIAGNOSTICS_SERVICE
 from .services.project import BuildType, Suite
 
 K_PROJECT = "Project"
 K_DOCUMENTATION = "Documentation"
 K_DIAGNOSTICS = "Diagnostics"
+K_DISTRIBUTION = "sushiblas-cli"
 
 _help_group = help_group(console.current)
 
@@ -38,10 +39,9 @@ app = typer.Typer(
     rich_markup_mode="rich",
 )
 
+register_root_options(app, distribution=K_DISTRIBUTION)
 
-# --------------------------------------------------------------------------- #
-# build / test / run / clean / doxygen
-# --------------------------------------------------------------------------- #
+
 @app.command(
     "build",
     rich_help_panel=K_PROJECT,
@@ -53,7 +53,8 @@ app = typer.Typer(
 def build(
     type: BuildType = typer.Option(
         BuildType.release, "--type", "-t", case_sensitive=False,
-        help="Build type: release | debug | relwithdebinfo."),
+        help="Build type: release | debug | relwithdebinfo. "
+             "Changing it empties the build tree first."),
     clean: bool = typer.Option(
         False, "--clean", help="Delete the build tree before configuring."),
     define: Optional[list[str]] = typer.Option(
@@ -61,12 +62,13 @@ def build(
         help="Pass a CMake cache variable through to configure. Repeatable. "
              "Quote values containing ';', e.g. "
              '-D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86".'),
-):
+) -> None:
     """Configure and build the project.
 
     Cache variables set with -D persist in the build tree, so dropping the
     flag on a later run does not unset them; pass VAR= to clear one, or
-    --clean to start over.
+    --clean to start over. A different --type also starts over: the tree
+    is removed, and the variables with it.
     """
     raise typer.Exit(project_svc.build(type, clean, define))
 
@@ -91,7 +93,7 @@ def test(
         0, "--repeat", "-r", min=0,
         help="Re-run each test up to N times, stopping on the first failure "
              "(ctest --repeat until-fail). Handy for hunting flaky tests."),
-):
+) -> None:
     """Run the test suite via CTest labels.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
@@ -119,7 +121,7 @@ def run(
         None, help="Executable name to run (exact, then substring match)."),
     sort: bool = typer.Option(
         False, "--sort", help="Interactively pick an executable."),
-):
+) -> None:
     """Run a built executable. Args after `--` are forwarded to it."""
     raise typer.Exit(project_svc.run(target=target, sort=sort, app_args=list(ctx.args)))
 
@@ -129,47 +131,25 @@ def run(
     rich_help_panel=K_PROJECT,
     epilog="sb clean",
 )
-def clean():
+def clean() -> None:
     """Remove the build/ tree."""
     raise typer.Exit(project_svc.clean())
 
 
 @app.command(
-    "doxygen",
+    "docs",
     rich_help_panel=K_DOCUMENTATION,
-    epilog="sb doxygen",
+    epilog="sb docs",
 )
-def doxygen():
-    """Generate Doxygen documentation."""
-    raise typer.Exit(project_svc.doxygen())
+def docs() -> None:
+    """Generate the Doxygen API reference."""
+    raise typer.Exit(project_svc.docs())
 
 
-# --------------------------------------------------------------------------- #
-# config / env (diagnostics)
-# --------------------------------------------------------------------------- #
-@app.command(
-    "config",
-    rich_help_panel=K_DIAGNOSTICS,
-    epilog="sb config",
-)
-def config():
-    """Print the resolved config and where each value came from."""
-    raise typer.Exit(diag_svc.config_show())
+K_ALIASES.command(app, "doxygen", docs, "sb doxygen")
 
-
-@app.command(
-    "env",
-    rich_help_panel=K_DIAGNOSTICS,
-    epilog="sb env\n"
-           "sb env --all  # Show every variable, not just build-relevant ones",
-)
-def env(
-    all: bool = typer.Option(
-        False, "--all", help="Show every variable, not just build-relevant ones."),
-):
-    """Print the environment cmake/ctest/run subprocesses execute under."""
-    raise typer.Exit(diag_svc.env_dump(show_all=all))
-
+register_diagnostic_commands(
+    app, K_DIAGNOSTICS_SERVICE, program=PROFILE.program, panel=K_DIAGNOSTICS)
 
 register_provision_commands(app, ModuleProvision(
     profile=PROFILE,
@@ -182,5 +162,15 @@ register_provision_commands(app, ModuleProvision(
 ))
 
 
+def _report_error(message: str) -> None:
+    """Prints one error line through the console, which is built only now."""
+    console.error(message)
+
+
+def main() -> None:
+    """Runs `sb`; a failure the user can act on leaves one line and exit code 1."""
+    entry.run(app, _report_error)
+
+
 if __name__ == "__main__":
-    app()
+    main()

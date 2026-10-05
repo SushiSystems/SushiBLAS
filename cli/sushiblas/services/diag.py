@@ -3,15 +3,10 @@
 # Copyright (c) 2026 Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Diagnostic commands: inspect the resolved config and the build environment.
+"""Builds the diagnostics object behind `sb config` and `sb env`.
 
-Read-only troubleshooting. When a build picks the "wrong" compiler or a path
-looks off, `sb config` answers *what* the CLI resolved and *where each value
-came from*, and `sb env` answers *which environment* cmake/ctest run under.
-
-Both are :class:`sushicore.diag.Diagnostics`; what this file supplies is the
-three things that are actually SushiBLAS's -- its profile, its config module, and
-how it finds its build directory.
+The reports are :class:`sushicore.diag.Diagnostics`; this file supplies SushiBLAS's profile,
+its config module and its build environment.
 """
 
 from __future__ import annotations
@@ -36,12 +31,9 @@ def _build_env(cfg, build_dir: Path):
     return load_build_env(cfg, build_dir)
 
 
-_DIAG = Diagnostics(
+K_DIAGNOSTICS = Diagnostics(
     profile=PROFILE,
     console=console,
     config=config_module,
     build_env=_build_env,
 )
-
-config_show = _DIAG.config_show
-env_dump = _DIAG.env_dump
