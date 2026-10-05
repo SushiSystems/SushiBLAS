@@ -14,6 +14,7 @@
 #include <chrono>
 #include <cstdio>
 #include <string>
+#include <cstdlib>
 #include <thread>
 #include <sstream>
 #include <utility>
@@ -112,20 +113,23 @@ namespace SushiBLAS
                     std::queue<std::pair<LogType, std::string>> queue_;
                     std::mutex mutex_;
                     std::condition_variable cv_;
+                    /// @brief Wakes flush() each time the worker has written every queued line.
+                    std::condition_variable drained_;
                     std::thread worker_;
                     std::atomic<bool> running_;
 
-                    void process_logs() 
+                    void process_logs()
                     {
-                        while (running_.load(std::memory_order_relaxed)) 
+                        std::unique_lock<std::mutex> lock(mutex_);
+
+                        for (;;)
                         {
-                            std::unique_lock<std::mutex> lock(mutex_);
                             cv_.wait(lock, [this]() { return !queue_.empty() || !running_.load(std::memory_order_relaxed); });
 
-                            while (!queue_.empty()) 
+                            while (!queue_.empty())
                             {
+                                // An entry stays queued until it is written, so an empty queue has nothing in flight.
                                 auto log_entry = std::move(queue_.front());
-                                queue_.pop();
                                 lock.unlock(); // Unlock while writing to file/terminal
 
                                 FILE* stream = (log_entry.first <= LogType::ERR) ? stderr : stdout;
@@ -143,7 +147,13 @@ namespace SushiBLAS
                                 #endif
 
                                 lock.lock(); // Lock again before checking queue
+                                queue_.pop();
                             }
+
+                            drained_.notify_all();
+
+                            if (!running_.load(std::memory_order_relaxed))
+                                return;
                         }
                     }
 
@@ -155,7 +165,11 @@ namespace SushiBLAS
 
                     ~AsyncLogger() 
                     {
-                        running_.store(false, std::memory_order_relaxed);
+                        {
+                            // The worker tests running_ under mutex_, so this store cannot fall inside its wait.
+                            std::lock_guard<std::mutex> lock(mutex_);
+                            running_.store(false, std::memory_order_relaxed);
+                        }
                         cv_.notify_one();
 
                         if (worker_.joinable()) 
@@ -172,9 +186,16 @@ namespace SushiBLAS
                         }
                         cv_.notify_one();
                     }
+
+                    /** @brief Blocks until the worker has written every line queued so far. */
+                    void flush()
+                    {
+                        std::unique_lock<std::mutex> lock(mutex_);
+                        drained_.wait(lock, [this]() { return queue_.empty(); });
+                    }
             };
 
-            class SyncLogger 
+            class SyncLogger
             {
                 private:
                     std::mutex sync_mutex_;
@@ -203,18 +224,31 @@ namespace SushiBLAS
                 return mode;
             }
 
-            inline void dispatch_log(LogType level, std::string&& msg) 
+            /** @brief Returns the process-wide asynchronous logger, starting its worker on first use. */
+            inline AsyncLogger& async_logger()
             {
-                if (is_sync_logging_enabled().load(std::memory_order_relaxed)) 
+                static AsyncLogger logger;
+                return logger;
+            }
+
+            inline void dispatch_log(LogType level, std::string&& msg)
+            {
+                if (is_sync_logging_enabled().load(std::memory_order_relaxed))
                 {
                     static SyncLogger sync_logger;
                     sync_logger.enqueue(level, std::move(msg));
-                } 
-                else 
-                {
-                    static AsyncLogger async_logger;
-                    async_logger.enqueue(level, std::move(msg));
                 }
+                else
+                {
+                    async_logger().enqueue(level, std::move(msg));
+                }
+            }
+
+            /** @brief Blocks until every line logged so far has reached its stream. */
+            inline void flush_log()
+            {
+                if (!is_sync_logging_enabled().load(std::memory_order_relaxed))
+                    async_logger().flush();
             }
 
             /**
@@ -424,6 +458,7 @@ namespace SushiBLAS
             do { \
                 if (!(condition)) { \
                     SB_LOG_ERROR("Assertion failed: {} ({}:{})", msg, __FILE__, __LINE__); \
+                    SushiBLAS::Core::Detail::flush_log(); \
                     std::abort(); \
                 } \
             } while (0)

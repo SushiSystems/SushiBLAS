@@ -7,6 +7,7 @@
 /****************************************************************/
 
 #include <vector>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
@@ -16,11 +17,70 @@
 
 namespace SushiBLAS
 {
+    namespace
+    {
+        /** @brief Holds the only .sushi format version this build reads and writes. */
+        constexpr uint32_t K_SUSHI_FORMAT_VERSION = 1;
+
+        /** @brief Returns the number of bytes the tensor's elements occupy. */
+        size_t payload_bytes(const Tensor& t)
+        {
+            return static_cast<size_t>(t.num_elements) * Core::bytes_per_element(t.dtype);
+        }
+
+        /** @brief Reports whether the host reaches the tensor's storage only through the queue. */
+        bool is_device_allocated(const Tensor& t)
+        {
+            return t.storage->strategy == &SushiRuntime::Memory::Strategies::Device::instance();
+        }
+
+        /** @brief Reads exactly @p bytes into @p destination and throws when the file ends first. */
+        void read_exact(std::ifstream& ifs, char* destination, size_t bytes,
+                        const char* part, const std::string& path)
+        {
+            ifs.read(destination, static_cast<std::streamsize>(bytes));
+
+            const size_t bytes_read = static_cast<size_t>(ifs.gcount());
+            SB_THROW_IF(bytes_read != bytes,
+                        "File {} ends inside its {}: {} bytes expected, {} read; nothing was loaded.",
+                        path, part, bytes, bytes_read);
+        }
+
+        /** @brief Writes the tensor's bytes to the stream, copying device storage to the host first. */
+        void write_payload(Engine& engine, std::ofstream& ofs, const Tensor& t)
+        {
+            const size_t bytes = payload_bytes(t);
+
+            if (is_device_allocated(t))
+            {
+                std::vector<char> buf(bytes);
+                engine.get_context().get_queue().memcpy(buf.data(), t.data(), bytes).wait();
+                ofs.write(buf.data(), static_cast<std::streamsize>(bytes));
+            }
+            else
+                ofs.write(static_cast<const char*>(t.data()), static_cast<std::streamsize>(bytes));
+        }
+
+        /** @brief Reads the tensor's bytes from the stream and stores them once all have arrived. */
+        void read_payload(Engine& engine, std::ifstream& ifs, Tensor& t, const std::string& path)
+        {
+            const size_t bytes = payload_bytes(t);
+
+            std::vector<char> buf(bytes);
+            read_exact(ifs, buf.data(), bytes, "tensor data", path);
+
+            if (is_device_allocated(t))
+                engine.get_context().get_queue().memcpy(t.data(), buf.data(), bytes).wait();
+            else
+                std::memcpy(t.data(), buf.data(), bytes);
+        }
+    } // namespace
+
     /** @brief Internal header for .sushi files */
-    struct SushiHeader 
+    struct SushiHeader
     {
         char magic[6] = "SUSHI";
-        uint32_t version = 1;
+        uint32_t version = K_SUSHI_FORMAT_VERSION;
         int32_t rank;
         int64_t shape[Core::MAX_TENSOR_RANK];
         int32_t dtype;
@@ -43,18 +103,8 @@ namespace SushiBLAS
         SB_THROW_IF(!ofs.is_open(), "Failed to open file for writing: {}", path);
 
         ofs.write(reinterpret_cast<const char*>(&header), sizeof(SushiHeader));
-        
-        size_t bpe = Core::bytes_per_element(t.dtype);
-        size_t bytes = t.num_elements * bpe;
-        
-        if (t.storage->strategy == &SushiRuntime::Memory::Strategies::Device::instance())
-        {
-            std::vector<char> buf(bytes);
-            engine_.get_context().get_queue().memcpy(buf.data(), t.data(), bytes).wait();
-            ofs.write(buf.data(), bytes);
-        }
-        else
-            ofs.write(static_cast<const char*>(t.data()), bytes);
+
+        write_payload(engine_, ofs, t);
 
         SB_LOG_INFO("Saved native SushiBLAS file: {}", path);
     }
@@ -65,25 +115,25 @@ namespace SushiBLAS
         SB_THROW_IF(!ifs.is_open(), "Failed to open file for reading: {}", path);
 
         SushiHeader header;
-        ifs.read(reinterpret_cast<char*>(&header), sizeof(SushiHeader));
+        read_exact(ifs, reinterpret_cast<char*>(&header), sizeof(SushiHeader), "header", path);
 
         SB_THROW_IF(std::string(header.magic, 5) != "SUSHI", "Invalid .sushi file magic.");
+        SB_THROW_IF(header.version != K_SUSHI_FORMAT_VERSION,
+                    "File {} has .sushi format version {}; this build reads version {} only.",
+                    path, header.version, K_SUSHI_FORMAT_VERSION);
         SB_THROW_IF(header.rank != t.rank, "Rank mismatch in .sushi file.");
 
         for (int i = 0; i < t.rank; ++i)
             SB_THROW_IF(header.shape[i] != t.shape[i], "Dimension mismatch at index {}", i);
 
-        size_t bpe = Core::bytes_per_element(t.dtype);
-        size_t bytes = t.num_elements * bpe;
-        
-        if (t.storage->strategy == &SushiRuntime::Memory::Strategies::Device::instance())
-        {
-            std::vector<char> buf(bytes);
-            ifs.read(buf.data(), bytes);
-            engine_.get_context().get_queue().memcpy(t.data(), buf.data(), bytes).wait();
-        }
-        else
-            ifs.read(static_cast<char*>(t.data()), bytes);
+        SB_THROW_IF(header.dtype != static_cast<int32_t>(t.dtype),
+                    "File {} holds dtype id {}; the tensor it is loaded into is {}.",
+                    path, header.dtype, Core::to_string(t.dtype));
+        SB_THROW_IF(header.layout != static_cast<int32_t>(t.layout),
+                    "File {} holds layout id {}; the tensor it is loaded into has layout id {}.",
+                    path, header.layout, static_cast<int32_t>(t.layout));
+
+        read_payload(engine_, ifs, t, path);
     }
 
     void IO::save_bin(const Tensor& t, const std::string& path)
@@ -92,9 +142,7 @@ namespace SushiBLAS
         std::ofstream ofs(path, std::ios::binary);
         SB_THROW_IF(!ofs.is_open(), "Failed to open file: {}", path);
 
-        size_t bpe = Core::bytes_per_element(t.dtype);
-        size_t bytes = t.num_elements * bpe;
-        ofs.write(static_cast<const char*>(t.data()), bytes);
+        write_payload(engine_, ofs, t);
     }
 
     void IO::load_bin(Tensor& t, const std::string& path)
@@ -102,9 +150,7 @@ namespace SushiBLAS
         std::ifstream ifs(path, std::ios::binary);
         SB_THROW_IF(!ifs.is_open(), "Failed to open file: {}", path);
 
-        size_t bpe = Core::bytes_per_element(t.dtype);
-        size_t bytes = t.num_elements * bpe;
-        ifs.read(static_cast<char*>(t.data()), bytes);
+        read_payload(engine_, ifs, t, path);
     }
 
     void IO::save_npy(const Tensor& t, const std::string& path)
@@ -160,19 +206,8 @@ namespace SushiBLAS
         ofs.write(dict.c_str(), header_len);
 
         // 2. Write Data
-        size_t bpe = Core::bytes_per_element(t.dtype);
-        
-        size_t bytes = t.num_elements * bpe;
+        write_payload(engine_, ofs, t);
 
-        if (t.storage->strategy == &SushiRuntime::Memory::Strategies::Device::instance())
-        {
-            std::vector<char> buf(bytes);
-            engine_.get_context().get_queue().memcpy(buf.data(), t.data(), bytes).wait();
-            ofs.write(buf.data(), bytes);
-        }
-        else
-            ofs.write(static_cast<const char*>(t.data()), bytes);
-        
         SB_LOG_INFO("Exported NumPy file: {}", path);
     }
 
@@ -182,18 +217,18 @@ namespace SushiBLAS
         SB_THROW_IF(!ifs.is_open(), "Failed to open file for reading: {}", path);
 
         char magic[6];
-        ifs.read(magic, 6);
+        read_exact(ifs, magic, 6, "magic string", path);
         SB_THROW_IF(std::string(magic, 6) != "\x93NUMPY", "Invalid .npy file magic.");
 
         uint8_t major, minor;
-        ifs.read(reinterpret_cast<char*>(&major), 1);
-        ifs.read(reinterpret_cast<char*>(&minor), 1);
+        read_exact(ifs, reinterpret_cast<char*>(&major), 1, "format version", path);
+        read_exact(ifs, reinterpret_cast<char*>(&minor), 1, "format version", path);
 
         uint16_t header_len;
-        ifs.read(reinterpret_cast<char*>(&header_len), 2);
+        read_exact(ifs, reinterpret_cast<char*>(&header_len), 2, "header length", path);
 
         std::string header(header_len, ' ');
-        ifs.read(&header[0], header_len);
+        read_exact(ifs, &header[0], header_len, "header", path);
 
         // TODO: Implement comprehensive .npy header parsing for metadata verification (dtype, fortran_order).
         // TODO: Enhance shape verification logic to ensure exact matching.
@@ -204,17 +239,7 @@ namespace SushiBLAS
                     SB_THROW_IF(true, "Shape dimension {} mismatch in .npy header.", i);
 
         // TODO: Optimize data loading path for different allocation strategies and layout orders.
-        size_t bpe = Core::bytes_per_element(t.dtype);
-        size_t bytes = t.num_elements * bpe;
-
-        if (t.storage->strategy == &SushiRuntime::Memory::Strategies::Device::instance())
-        {
-            std::vector<char> buf(bytes);
-            ifs.read(buf.data(), bytes);
-            engine_.get_context().get_queue().memcpy(t.data(), buf.data(), bytes).wait();
-        }
-        else
-            ifs.read(static_cast<char*>(t.data()), bytes);
+        read_payload(engine_, ifs, t, path);
 
         SB_LOG_INFO("Loaded NumPy file: {}", path);
     }

@@ -6,6 +6,10 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-05 — random: Made `truncated_normal` draw inside its bounds by inverting the normal distribution, and reject unordered or zero-mass bounds and complex dtypes at record time (`src/engine/math/random/truncated_normal.cpp`).
+- 2026-10-05 — core: Made `SB_ASSERT` flush the asynchronous logger before it aborts (`include/SushiBLAS/core/logger.hpp`, `tests/functional/regression/test_logger.cpp`).
+- 2026-10-05 — core: Set the asynchronous logger's stop flag under its mutex and wrote every queued line before the worker exits (`include/SushiBLAS/core/logger.hpp`).
+- 2026-10-05 — io: Checked every read for short input and the version, dtype and layout of a `.sushi` header, and copied device storage through the queue in `save_bin` and `load_bin` (`src/io.cpp`).
 - 2026-10-05 — docs: Built the documentation tree, moved the loose pages into it, reshaped the changelog and added the checkers (`README.md`, `docs/README.md`, `docs/reference/CHANGELOG.md`, `tools/`).
 - 2026-10-05 — licence: Relicensed from Apache-2.0 to PolyForm Noncommercial 1.0.0 and removed `docs/LICENSE` (`LICENSE`, `COMMERCIAL.md`, `NOTICE.md`, `third_party/licenses/Apache-2.0.txt`).
 - 2026-10-05 — cli: Renamed the `doxygen` command to `docs` and kept `sb doxygen` as a hidden alias until 2027-03-25 (`cli/sushiblas/cli.py`, `cli/sushiblas/aliases.py`).
