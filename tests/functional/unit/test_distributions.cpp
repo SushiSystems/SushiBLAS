@@ -88,10 +88,50 @@ TEST_F(Unit_DistributionsTest, DiscreteUniform)
     }
 }
 
-TEST_F(Unit_DistributionsTest, TruncatedNormal) 
+TEST_F(Unit_DistributionsTest, TruncatedNormalStaysInsideItsBounds)
 {
-    const int N = 100;
+    const int N = 4096;
     auto t = engine->create_tensor({N});
-    engine->random().truncated_normal(t, 0.0, 1.0, -2.0, 2.0);
+    engine->random().set_seed(20261005);
+    engine->random().truncated_normal(t, 1.0, 0.5, -1.0, 1.5);
     engine->execute().wait();
+
+    // The bounds count standard deviations: 1.0 + 0.5 * [-1.0, 1.5] is [0.5, 1.75], exact in float.
+    const float* ptr = t.data_as<float>();
+    for (int i = 0; i < N; ++i) {
+        EXPECT_GE(ptr[i], 0.5f) << "Sample " << i << " is below the lower bound.";
+        EXPECT_LE(ptr[i], 1.75f) << "Sample " << i << " is above the upper bound.";
+    }
+}
+
+TEST_F(Unit_DistributionsTest, TruncatedNormalFollowsTheTruncatedLawInTheUpperTail)
+{
+    const int N = 65536;
+    auto t = engine->create_tensor({N});
+    engine->random().set_seed(20261005);
+    engine->random().truncated_normal(t, 0.0, 1.0, 1.0, 3.0);
+    engine->execute().wait();
+
+    const float* ptr = t.data_as<float>();
+    double sum = 0.0;
+    for (int i = 0; i < N; ++i) {
+        EXPECT_GE(ptr[i], 1.0f) << "Sample " << i << " is below the lower bound.";
+        EXPECT_LE(ptr[i], 3.0f) << "Sample " << i << " is above the upper bound.";
+        sum += static_cast<double>(ptr[i]);
+    }
+
+    // The mean of N(0, 1) cut to [1, 3] is (pdf(1) - pdf(3)) / (cdf(3) - cdf(1)) = 1.510048.
+    EXPECT_NEAR(sum / N, 1.510048, 0.02);
+}
+
+TEST_F(Unit_DistributionsTest, TruncatedNormalRejectsBoundsItCannotHonour)
+{
+    auto t = engine->create_tensor({8});
+    EXPECT_THROW(engine->random().truncated_normal(t, 0.0, 1.0, 2.0, -2.0), std::runtime_error);
+    EXPECT_THROW(engine->random().truncated_normal(t, 0.0, 1.0, 1.0, 1.0), std::runtime_error);
+    EXPECT_THROW(engine->random().truncated_normal(t, 0.0, 1.0, 15.0, 20.0), std::runtime_error);
+    EXPECT_THROW(engine->random().truncated_normal(t, 0.0, 1.0, -20.0, -15.0), std::runtime_error);
+
+    auto z = engine->create_tensor({8}, SushiBLAS::Core::DataType::COMPLEX32);
+    EXPECT_THROW(engine->random().truncated_normal(z, 0.0, 1.0, -2.0, 2.0), std::runtime_error);
 }

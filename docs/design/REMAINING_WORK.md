@@ -28,7 +28,6 @@ expected results.
   (13 `TODO` lines under `src/engine/blas/level1/` and `level2/`, one in `engine/blas/utils.hpp`).
 - Replace the `single_task` kernels of `argmax`, `argmin`, `logsumexp`, `std` and `var` with
   parallel reductions (`src/engine/math/reductions/`).
-- Implement `truncated_normal` by rejection sampling or the inverse CDF, or make it throw.
 - Implement `SparseBLAS`: a sparse tensor type, SpMV, SpMM and the CSR format
   (`include/SushiBLAS/engine/blas/sparse.hpp`).
 - Decide the backend of the quarantined FFT and LAPACK declarations
@@ -52,8 +51,7 @@ expected results.
   `engine/math/reductions/dispatch.hpp` come first (C1).
 - Decide whether the execution mode is a library-wide contract, then give the five families a
   reference path or make the mode throw there (C2). Owner decision.
-- Give the logger a synchronous flush for `SB_ASSERT`, set the running flag under the mutex, add
-  categories, TRACE and FATAL, and send log output to stderr (C3, C6).
+- Add categories, TRACE and FATAL to the logger and send log output to stderr (C3, C6).
 - Introduce one task-record builder for the 27 direct `add_task` sites (C7).
 - Narrow what the operation views need from `Engine` and move the RNG stream out of it (C8).
 - Give reduction kernels one home (C9) and move the launch, reduce, device-policy and geometry

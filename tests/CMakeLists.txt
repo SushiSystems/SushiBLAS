@@ -161,6 +161,8 @@ add_executable(sushiblas_tests
     # --- Regression ---
     functional/regression/test_regression.cpp
     functional/regression/test_spatial_determinism.cpp
+    functional/regression/test_io.cpp
+    functional/regression/test_logger.cpp
 )
 
 # --- Include Directories ---

@@ -9,14 +9,9 @@ is not a defect is in [the backlog](../design/REMAINING_WORK.md).
 | Issue | Where |
 | --- | --- |
 | `Storage` and `Engine` name `SushiRuntime::Memory::USMAllocator` and `IAllocatorStrategy`, which SushiRuntime removed in its commit `6e4b87b` of 2026-08-18; a `clang -fsyntax-only` run against the sibling checkout fails in both headers | `include/SushiBLAS/storage.hpp`, `include/SushiBLAS/engine.hpp` |
-| `RandomOps::truncated_normal` ignores its bounds and returns a plain normal draw; the only notice is an INFO line, which a release build compiles out | `src/engine/math/random/truncated_normal.cpp` |
 | `Engine::set_mode` is honoured by the BLAS and spatial families only; the elementwise, nonlinear, logic, reduction and random families never read the mode | `src/engine/math/`, `src/engine/logic/` |
-| `SB_ASSERT` logs through the asynchronous logger and then aborts, so the message can be lost | `include/SushiBLAS/core/logger.hpp` |
-| The asynchronous logger's destructor clears its running flag without the mutex, so the worker can miss the wake-up and the join can block | `include/SushiBLAS/core/logger.hpp` |
 | `IO::load`, `load_bin` and `load_npy` write into a tensor without first running the recorded graph, so a pending write to that tensor overwrites the loaded data | `src/io.cpp` |
-| `IO::load` checks the magic, rank and shape of a file only, and no read is checked for short input | `src/io.cpp` |
 | `IO::load_npy` finds the shape by substring search, skips the check when the header has no shape, and never checks dtype or `fortran_order` | `src/io.cpp` |
-| `IO::save_bin` and `load_bin` read host memory with no branch for device-allocated storage | `src/io.cpp` |
 | Every IO path writes `num_elements` bytes from `data()`, which is wrong for a strided view | `src/io.cpp` |
 | Nine random distributions reject a complex dtype inside the task, at execution, with a message that names no dtype | `src/engine/math/random/bernoulli.cpp` and its eight siblings |
 | `RandomOps::shuffle` rejects INT32 and INT64 inside the task, at execution, where the architecture page says rejection happens at record time | `src/engine/math/random/shuffle.cpp` |
