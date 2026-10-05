@@ -5,7 +5,7 @@ for contributors who need an accurate mental model of the library — every
 class and file named here exists under `include/SushiBLAS/`, `src/`, or
 `kernels/`.
 
-> If you only want to *use* the library, the top-level [README.md](../README.md)
+> If you only want to *use* the library, the top-level [README.md](../../README.md)
 > is enough. This document is about how the inside works.
 
 ---
@@ -32,7 +32,7 @@ Two design commitments shape every operation in the library:
 2. **No vendor math library, anywhere.** Every kernel is either pure C++
    (`kernels/reference/`) or SushiBLAS's own SYCL (`kernels/sycl/`). GEMM and
    SYRK use a local-memory-tiled kernel derived from portBLAS's tiling
-   algorithm (Apache-2.0, attributed in [`NOTICE.md`](../NOTICE.md)); every
+   algorithm (Apache-2.0, attributed in [`NOTICE.md`](../../NOTICE.md)); every
    other operation — all of BLAS levels 1/2/3-TRSM, every elementwise/
    nonlinear/logic/reduction op, and the Philox4x32-10 random backend — is
    original SushiBLAS SYCL, written from scratch.
@@ -206,7 +206,7 @@ the index through a mantissa (`argmax`/`argmin`, exact only below 2^24). They
 are also the honest element type for a comparison result. So exactly one list of
 operations accepts them — `copy`, `constant`, the comparison and logic family,
 the index reductions, and `io` — and everything else rejects them by name at
-record time. See `Dispatch::Domain` in [§6](#6-dispatch-the-generic-op-seam).
+record time. See `Dispatch::Domain` in [§6](#6-the-dispatch-helpers-enginetaskhpp).
 `is_contiguous()` and `is_aligned()` (checked against
 `SushiRuntime::Core::DEFAULT_ALIGNMENT`) are used by the BLAS layer to decide
 whether a vector operand can be treated as a flat, unit-stride buffer.
@@ -340,7 +340,7 @@ one `op_func` lambda, templated on its first parameter's type via `decltype`,
 implements every dtype without a hand-written switch at the call site. An
 unsupported dtype throws (`SB_THROW_IF`) rather than silently no-opping —
 matching every other "unsupported case" in the codebase (see
-[CONTRIBUTING.md](CONTRIBUTING.md)'s error-handling convention).
+[CONTRIBUTING.md](../CONTRIBUTING.md)'s error-handling convention).
 
 `execute_blas_task` also takes a leading `Dispatch::Domain` template parameter,
 defaulting to `REAL_AND_COMPLEX` — which is what every built-in BLAS *arithmetic*
@@ -591,7 +591,7 @@ retuning it is one edit instead of thirty-five.
   Both are `beta==0`-safe: they branch around reading `C` when `beta == T(0)`,
   because `0 * NaN == NaN` in IEEE-754 and a freshly-allocated,
   never-initialized `C` can decode as a HALF-precision NaN. See
-  [NOTICE.md](../NOTICE.md) for the full attribution and the deliberate
+  [NOTICE.md](../../NOTICE.md) for the full attribution and the deliberate
   simplifications versus upstream portBLAS (no double buffering, no vectorized
   packet loads, no per-backend tuning table).
 - **TRSM / TRSV** (`kernels/{reference,sycl}/blas/level{2,3}/trsm.hpp`) — one
@@ -698,7 +698,7 @@ retuning it is one edit instead of thirty-five.
   binary32: the invariance is destroyed by the exponential, not by the
   subtraction, so a row about 104 below the batch maximum has every
   `exp(x - global_max)` underflow to zero, a row sum of exactly zero, and a
-  log-softmax of `+inf`. See [GPU_VALIDATION.md §7](GPU_VALIDATION.md) for the
+  log-softmax of `+inf`. See [GPU_VALIDATION.md §7](../design/GPU_VALIDATION.md) for the
   before-and-after measurements.
 
   **`Reduce::AxisSpan` names no axis.** It carries five element counts — segment
@@ -839,7 +839,7 @@ aliased in-tree and exported out-of-tree under the same name),
 (`SameMinorVersion` compatibility, pre-1.0), and a version-drift check between
 `include/SushiBLAS/version.hpp` and the CMake project version at configure
 time. `tests/package/` is a real out-of-tree consumer exercised in CI-shaped
-fashion (see [INTEGRATION.md](INTEGRATION.md)).
+fashion (see [INTEGRATION.md](../guides/INTEGRATION.md)).
 
 Because `sushiblas` is a `STATIC` library, its build-policy targets
 (`sushiblas_warnings`, `sushiblas_perf`, `sushiblas_sanitizers`, composed by
@@ -860,10 +860,10 @@ CMake module files that define SushiBLAS-specific functions
 the program's full name. `Vcpkg.cmake`, `Toolchain.cmake`, and
 `SyclTarget.cmake` are not, because their logic is idempotent regardless of
 which sibling repo's copy loads first — see
-[CONTRIBUTING.md §4](CONTRIBUTING.md#4-coding-style) for the stack-wide naming
+[CONTRIBUTING.md §4](../CONTRIBUTING.md#build-system-names) for the stack-wide naming
 rule this follows and the collision it exists to prevent.
 
 ## Project layout
 
-See the top-level [README.md § Project layout](../README.md#project-layout)
+See the top-level [README.md § Project layout](../../README.md#project-layout)
 for the full directory tree.

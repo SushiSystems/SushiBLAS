@@ -1,0 +1,96 @@
+# Changelog
+
+No release is tagged yet; the version in the build files is 0.1.0. The entries dated before
+2026-09-07 were reshaped to one line each on 2026-10-05, and their original text is frozen in
+`docs/archive/CHANGELOG.md`.
+
+## Unreleased
+
+- 2026-10-05 — docs: Built the documentation tree, moved the loose pages into it, reshaped the changelog and added the checkers (`README.md`, `docs/README.md`, `docs/reference/CHANGELOG.md`, `tools/`).
+- 2026-10-05 — licence: Relicensed from Apache-2.0 to PolyForm Noncommercial 1.0.0 and removed `docs/LICENSE` (`LICENSE`, `COMMERCIAL.md`, `NOTICE.md`, `third_party/licenses/Apache-2.0.txt`).
+- 2026-10-05 — cli: Renamed the `doxygen` command to `docs` and kept `sb doxygen` as a hidden alias until 2027-03-25 (`cli/sushiblas/cli.py`, `cli/sushiblas/aliases.py`).
+- 2026-10-05 — cli: Added `--version` and `--describe` (`cli/sushiblas/cli.py`).
+- 2026-10-05 — cli: Took `config` and `env` from sushicore, which adds `env -a` (`cli/sushiblas/cli.py`, `cli/sushiblas/services/diag.py`).
+- 2026-10-05 — cli: Added a `main()` entry point that reports a malformed config file or an unknown theme as one line and exit code 1 (`cli/sushiblas/cli.py`, `cli/sushiblas/__main__.py`).
+- 2026-10-05 — cli: Returned 130 on Ctrl+C and announced the build tree that a change of `sb build --type` removes (`cli/sushiblas/services/project.py`).
+- 2026-10-05 — docs: Removed the `pipx install ./cli` path and corrected the toolchain lookup and `--suite all` descriptions (`docs/CLI_GUIDE.md`, `docs/README.md`).
+- 2026-10-04 — cli: Added setup, doctor, link and unlink from sushicore (`cli/sushiblas/cli.py`, `cli/sushiblas/config.py`).
+- 2026-10-04 — cli: Raised the `sushicore` lower bound to 0.7.0 (`cli/pyproject.toml`).
+- 2026-09-22 — build: Described this module in its own `sushi-module.toml`, so `hub` knows it from the checkout (`sushi-module.toml`).
+- 2026-09-22 — build: Raised the `sushicore` lower bound to 0.4.0 for the help page (`cli/pyproject.toml`).
+- 2026-09-22 — build: Took `sushicore` from PyPI instead of a sibling checkout (`cli/pyproject.toml`).
+- 2026-09-22 — cli: Drew `sb --help` and each command's help through sushicore's help page, in three groups with examples (`cli/sushiblas/cli.py`, `cli/sushiblas/console.py`).
+- 2026-09-22 — cli: Replaced the raw `[dim]` markup with the theme's `[muted]` (`cli/sushiblas/services/project.py`).
+- 2026-09-07 — docs: Renamed the hub's command from `ss` to `hub` in the manual (`docs/`).
+- 2026-08-09 — spatial: Added the `spatial` engine domain with im2col, col2im, pooling, upsampling, channel and layout operations (`Engine::spatial()`, `SpatialOps`, `Spatial::WindowSpan`).
+- 2026-08-09 — spatial: Wrote every spatial backward as a gather and pinned bit-reproducibility with five overlapping-window cases (`tests/functional/regression/test_spatial_determinism.cpp`).
+- 2026-08-09 — reductions: Added a second segment axis to `Reduce::AxisSpan` and its first caller (`segments2`, `segment_stride2`, `ReductionOps::mean_spatial`).
+- 2026-08-09 — gemm: Added `Kernels::ChannelBiasEpilogue`, a per-channel bias for the GEMM epilogue seam with a stride pair set on the host.
+- 2026-08-09 — cli: Added `sb test --suite package`, which installs the package and builds and runs `tests/package/` against it, outside `--suite all`.
+- 2026-08-09 — engine: Moved `Internal::execute_typed_task` and `Internal::dispatch_with_mode` to `engine/task.hpp` and kept `Internal::execute_blas_task` as a forwarder.
+- 2026-08-09 — docs: Documented that `ExecutionMode::VERIFY` runs the reference kernel over the SYCL kernel's output and does not compare the two.
+- 2026-08-04 — cli: Committed the root `Doxyfile` and `docs/api/mainpage.md` and stopped `.gitignore` from ignoring the Doxyfile, which made `sb doxygen` run.
+- 2026-08-03 — reductions: Added `reductions().count_nonfinite`, which counts the infinite and NaN elements of a tensor into an INT64 scalar (`src/engine/math/reductions/count_nonfinite.cpp`).
+- 2026-08-03 — reductions: Added `Dispatch::execute_counting_reduction`, the `Reduce::ExactSum` accumulator and an accumulation type parameter on `Reduce::reduce`.
+- 2026-08-03 — elementwise: Added `elementwise().convert`, a dtype-converting copy over the nine real dtype pairs that throws on any other pair (`src/engine/math/elementwise/convert.cpp`).
+- 2026-08-03 — blas: Named both dtypes in the mismatch message of `Level1::copy`.
+- 2026-08-03 — gemm: Let a GEMM epilogue declare the tensors it reads and writes (`Dispatch::GemmEpilogue`, `Dispatch::gemm_epilogue`, `include/SushiBLAS/engine/blas/dispatch.hpp`).
+- 2026-08-03 — reductions: Added the axis reductions `reductions().max_along` and `sum_along` over a segmented launch shape (`include/SushiBLAS/engine/reduce_axis.hpp`).
+- 2026-08-03 — reductions: Added `Dispatch::axis_span_for`, `Reduce::RunningMax` and the public `Dispatch::execute_folding_axis_reduction`, with 26 tests (`tests/functional/unit/test_axis_reductions.cpp`).
+- 2026-08-03 — core: Made `SushiBLAS::Core::format` public and added fill, alignment and the integer presentation types to its grammar (`include/SushiBLAS/core/format.hpp`).
+- 2026-08-03 — gemm: Added the `Detail::gemm_no_local` kernel beside `Detail::gemm_local_tiled` and chose between them from the device profile (`include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`).
+- 2026-08-03 — gemm: Added an `Epilogue` template parameter to `Kernels::SYCL::gemm`, defaulting to `GemmIdentityEpilogue` and applied to each element before the store.
+- 2026-08-03 — engine: Added `SushiBLAS::Device::Profile` with `has_dedicated_local_memory`, `plan_1d` and `vector_width`, probed once per device (`include/SushiBLAS/engine/device_policy.hpp`).
+- 2026-08-03 — build: Added the `SB_SYCL_TARGETS` and `SB_SYCL_DEVICE_FLAGS` options for ahead-of-time device targets and printed the active targets at configure.
+- 2026-08-03 — cli: Added the repeatable `sb build -D VAR=VALUE`, appended after the defaults the CLI sets.
+- 2026-08-03 — dispatch: Made the op-dispatch seam public as `namespace SushiBLAS::Dispatch` and installed the five `dispatch.hpp` helpers with `engine/dispatch.hpp` and `engine/math/safe_math.hpp`.
+- 2026-08-03 — tests: Called `Dispatch::execute_binary` from the package consumer against an installed package (`tests/package/main.cpp`).
+- 2026-08-03 — random: Implemented `RandomOps::shuffle` as a Fisher-Yates permutation over the Philox stream (`Kernels::SYCL::Random::draw_index`).
+- 2026-08-03 — random: Implemented `RandomOps::orthogonal` by modified Gram-Schmidt for FLOAT32 and FLOAT64 rank-2 tensors (`kernels/sycl/random/orthonormalize.hpp`).
+- 2026-08-03 — elementwise: Computed add, sub, mul, div, neg, exp, log, sqrt, square, reciprocal and abs on COMPLEX32 and COMPLEX64.
+- 2026-08-03 — logic: Computed equal, not_equal, and, or, xor, not and where on COMPLEX32 and COMPLEX64.
+- 2026-08-03 — core: Added `Core::to_string(DataType)` and `Core::is_complex_dtype(DataType)` (`core/common.hpp`).
+- 2026-08-03 — build: Built the library at C++17 in place of C++20 with no API change and kept `tests/package/` at C++20.
+- 2026-08-03 — core: Replaced `std::format` with `SushiBLAS::Core::format` and `std::source_location` with `Core::Detail::SourceLocation` (`include/SushiBLAS/core/format.hpp`).
+- 2026-08-03 — core: Replaced `__VA_OPT__`, templated lambdas and `std::bit_cast` with C++17 forms and accepted `Dispatch::ElementTag<T>` arms in `Dispatch::with_element_type`.
+- 2026-08-03 — tests: Added `SB_TYPED_TEST_SUITE`, which names the default type-name generator (`tests/common/test_utils.hpp`).
+- 2026-08-03 — gemm: Resolved GEMM's layout and transpose handling into two strides on the host (`Detail::strides_for`).
+- 2026-08-03 — gemm: Derived GEMM's register block from the element size, 8x8 for 4-byte and narrower types and 4x4 for wider ones (`Detail::register_block_dim`).
+- 2026-08-03 — gemm: Padded GEMM's A tile to a leading dimension of `tile_k + 1` and gave each work-item a strided lattice of the tile.
+- 2026-08-03 — gemm: Used 32-bit integers for GEMM's tile-local indices and kept 64-bit for global coordinates, strides and batch offsets.
+- 2026-08-03 — gemm: Qualified only GEMM's output pointer with `__restrict__`.
+- 2026-08-03 — syrk: Gave SYRK its own tile geometry (`Detail::SyrkTileConfig`).
+- 2026-08-03 — gemm: Recorded in the kernel that the tiled GEMM omits double buffering.
+- 2026-08-03 — gemm: Fixed column-major GEMM and SYRK, which read A and B with row-major indexing and past the end of A when m exceeded k (`Regression_Sentinel.GemmColumnMajorOperandsUseColumnStrides`).
+- 2026-08-03 — dispatch: Replaced seven silent `default: break;` dtype arms in the elementwise, nonlinear and logic helpers with throws that name the operation and the dtype.
+- 2026-08-03 — logic: Removed the lexicographic complex overloads of less, less_equal, greater and greater_equal and declared the ordering operations `Domain::REAL`.
+- 2026-08-03 — elementwise: Rejected complex operands of max, min, clamp, floor, ceil, round, fmod and remainder at record time.
+- 2026-08-03 — core: Collapsed three declarations of `is_complex` into `SushiBLAS::Core::is_complex` (`include/SushiBLAS/core/traits.hpp`).
+- 2026-08-03 — random: Stored the RNG seed and offset in task-metadata slots 6 and 7 as raw `uint64_t` (`Dispatch::K_RNG_SEED_PARAM`, `K_RNG_OFFSET_PARAM`, `Dispatch::set_task_params`).
+- 2026-08-03 — dispatch: Removed `using namespace SushiRuntime::Graph::Literals;` from the public dispatch headers.
+- 2026-08-03 — docs: Closed the release-mode test compile failure reported on 2026-08-02 as not reproducible.
+- 2026-08-02 — docs: Added `ARCHITECTURE.md`, `CLI_GUIDE.md`, `INTEGRATION.md`, `CODE_OF_CONDUCT.md` and `SECURITY.md` and rewrote the README and the contributing guide.
+- 2026-08-02 — docs: Folded `LAYOUT.md`, `STYLE_GUIDE.md` and `TODO.md` into `ARCHITECTURE.md` and `CONTRIBUTING.md`.
+- 2026-08-02 — cli: Resolved the SushiRuntime sibling and the bundled `clang++` the way the CMake build does and pointed `CMAKE_C_COMPILER` at the sibling `clang` (`cli/sushiblas/services/project.py`).
+- 2026-08-01 — blas: Moved every BLAS level, TRSM and TRSV included, onto SushiBLAS's own SYCL kernels and removed the oneMKL dependency.
+- 2026-08-01 — blas: Implemented HALF, FLOAT32, FLOAT64, COMPLEX32 and COMPLEX64 across all 17 BLAS operations.
+- 2026-08-01 — build: Added `install(EXPORT SushiBLASTargets)` and a generated `SushiBLASConfig.cmake`, which made `find_package(SushiBLAS)` work out of tree (`tests/package/`).
+- 2026-08-01 — core: Added `include/SushiBLAS/version.hpp` with the `SUSHIBLAS_VERSION_*` macros, checked against the CMake project version at configure.
+- 2026-08-01 — random: Added a Philox4x32-10 counter-based SYCL generator in place of oneMKL's VSL backend for the 11 distribution operations (`kernels/sycl/random/philox.hpp`).
+- 2026-08-01 — blas: Added `Internal::execute_blas_task` and `Internal::dispatch_with_mode`, the shared dispatch helpers of every BLAS operation (`engine/blas/utils.hpp`).
+- 2026-08-01 — tests: Restructured `tests/` into `tests/common/` and `tests/functional/{unit,integration,regression}/` and prefixed every GoogleTest suite name with its kind.
+- 2026-08-01 — cli: Added the `--suite` option of `sb test`, which selects a CTest label group.
+- 2026-08-01 — licence: Added `NOTICE.md` with the Apache-2.0 attribution of the portBLAS-derived GEMM tiling.
+- 2026-08-01 — licence: Relicensed from MIT to Apache-2.0 (`LICENSE`).
+- 2026-08-01 — build: Resolved SushiRuntime through a superproject target, `find_package(SushiRuntime)` or a sibling checkout and removed the vendored snapshot (`cmake/Runtime.cmake`, `include/SushiRuntime/`, `lib/`).
+- 2026-08-01 — build: Dropped the Intel oneAPI DPC++ requirement and defaulted to the bundled intel-llvm `clang++` (`cmake/Vcpkg.cmake`, `cmake/Toolchain.cmake`, `cmake/SyclTarget.cmake`).
+- 2026-08-01 — engine: Followed SushiRuntime's API to the `IAllocatorStrategy` singletons and to `TaskGraph::compile()` with `IExecutionEngine::execute()`.
+- 2026-08-01 — build: Moved the directory-scope compile options into the policy targets `sushiblas_warnings`, `sushiblas_perf` and `sushiblas_sanitizers`, applied privately by `sushiblas_apply_build_policy()`.
+- 2026-08-01 — engine: Moved `LinalgOps` and `TransformsOps` to `include/SushiBLAS/experimental/` and removed them from the `Engine` facade.
+- 2026-08-01 — gemm: Fixed NaN propagation in GEMM and SYRK when beta is zero with an explicit branch in all four kernels (`kernels/{reference,sycl}/blas/level3/{gemm,syrk}.hpp`).
+- 2026-08-01 — tests: Fixed `fill_random` and `assert_tensor_near`, which computed a zero element count for every tensor below rank 6 (`Tensor::num_elements`).
+- 2026-08-01 — blas: Moved `Internal::is_complex_v` into `engine/blas/utils.hpp` after `level1_internal.hpp` was removed (`dot.cpp`).
+- 2026-08-01 — blas: Fixed the silent HALF gaps of `gemv` and `IO::to_string()`.
+- 2026-08-01 — cmake: Renamed the build policy, warning, optimisation and sanitizer modules to `SushiBLAS`-prefixed file names and added an `EXISTS` check to the `SUSHISTACK_HOME` default (`cmake/Runtime.cmake`).
+- 2026-08-01 — cmake: Fixed `find_dependency(IntelSYCL)` and the exported alias case in SushiRuntime's `SushiRuntimeConfig.cmake.in`.
+- 2026-08-01 — build: Removed the `scripts/win/` and `scripts/linux/` build scripts.

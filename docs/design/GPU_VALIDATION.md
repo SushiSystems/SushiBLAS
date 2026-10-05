@@ -1,5 +1,7 @@
 # GPU validation checklist
 
+**Status:** Open — no item below has run on GPU hardware; the first step is section 1.
+
 Everything in this repository and in SushiAI was developed on a machine with **no usable GPU**. `sycl-ls` there reports exactly one device — a Ryzen CPU via Intel OpenCL — and there is no CUDA toolkit, so the NVIDIA path could not be compiled, let alone run.
 
 That is not a small caveat, and it is the reason this file exists. Several changes were made *for* a GPU, justified by argument and by arithmetic, and validated only to the extent a CPU can validate them. This page separates what is known from what is merely believed, so the first person with real hardware knows exactly where to look.
@@ -45,7 +47,7 @@ On an NVIDIA GPU it should report `is_cpu = false`, `has_dedicated_local_memory 
 
 ### 3.1 GEMM bank-conflict arithmetic
 
-`kernels/sycl/blas/level3/gemm.hpp` uses a padded tile (`tile_k + 1 = 17`) and a **strided ownership lattice** rather than contiguous ownership. The reasoning, for 32 banks of 4 bytes with an 8×8 register block:
+`include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp` uses a padded tile (`tile_k + 1 = 17`) and a **strided ownership lattice** rather than contiguous ownership. The reasoning, for 32 banks of 4 bytes with an 8×8 register block:
 
 - a 32-lane sub-group spans only 4 distinct `local_row`, so the 8 lanes sharing one are a broadcast rather than a conflict;
 - contiguous ownership strides `8 × 16 = 128`, and `128 mod 32 == 0` puts all four on one bank — a 4-way conflict;
@@ -158,9 +160,12 @@ A GPU number for `ms/step` would be the first performance figure this project ha
 
 ---
 
-## 7. Known-open items that are not GPU-specific
+## 7. Items that are not GPU-specific
 
-These are recorded so a GPU run does not get blamed for them:
+The open items this section listed are in
+[`REMAINING_WORK.md`](REMAINING_WORK.md), under "Kernels and reductions", so
+that a GPU run is not blamed for them. One closed item stays here because other
+documents cite its measurements:
 
 - ~~**Log-softmax returns `+inf` for a row far below the batch maximum.**~~ **Fixed.** The shift used the global maximum rather than a per-row one; it now uses a per-row one, computed by `ReductionOps::max_along`, which this library did not previously expose. Re-measured on binary32, on a [2, 3] input whose true log-probabilities are −0.41 to −2.41. The quantity below is the worst absolute **deviation of the row's log-probabilities from the answer the same code gives at a gap of 0** — the one figure directly measured on both sides, by `Regression_LogSoftmaxStability.TheAnswerDoesNotDependOnTheGapAtAll`'s `EXPECT_EQ`:
 
@@ -176,6 +181,3 @@ These are recorded so a GPU run does not get blamed for them:
   Measured against the hand-computed expectation directly, rather than against the gap-0 answer, the gap-100 case came out 2.7033e−02 off — 6.6% of the largest true log-probability (−0.40761), which is the "about 7% low at 100" this entry used to record.
 
   **The residual at the gaps that pass is not stated, on either side, because it was not measured**: a passing `EXPECT_NEAR` bounds it under 1e−4 and says nothing more. An earlier revision of this entry, and of the test's own header, both carried invented figures for it.
-- **SYRK has no local/no-local split and no epilogue.** It always takes the tiled shape, including on a CPU.
-- **`nrm2` overflow behaviour** — check whether the scaling form has landed by the time you read this; the naive two-norm overflows above roughly 1e19 in fp32.
-- **The batch feed is outside the compiled plan**, costing one extra dispatch round per step. It needs an operand-address late binding that SushiRuntime does not currently offer for ordinary device tasks.

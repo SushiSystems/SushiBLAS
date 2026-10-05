@@ -217,10 +217,8 @@ sb docs        # generate the Doxygen API reference into docs/api-site/html/
 `sb docs` was `sb doxygen`. The old word still runs, hidden from the help, and
 names the new one on a terminal; it is removed after 2027-03-25.
 
-It runs Doxygen against the repo-root `Doxyfile`, which is **committed** — for
-a while it was not, and `.gitignore` listed it, so the command reported
-`Doxyfile not found at repo root.` and exited 1 in every fresh checkout.
-sushiruntime commits its own for the same reason.
+It runs Doxygen against the repo-root `Doxyfile`, which is committed, and opens
+the reference with `docs/api/mainpage.md`.
 
 Output lands in `docs/api-site/html/`, and warnings — every public symbol
 missing a doc comment — in `docs/api-site/doxygen-warnings.log`. Both are
@@ -228,10 +226,11 @@ gitignored; the log is where the documentation debt is read off, and
 `WARN_AS_ERROR` is deliberately `NO` so a missing `@param` cannot fail a docs
 build.
 
-Scope is `include/SushiBLAS` minus `Detail` and minus `experimental/`. The
-quarantine is deliberate: decision D1 put the FFT and linalg headers outside
-the umbrella header and not every declared op there has a definition, so
-listing them would advertise an API that does not link.
+Scope is `include/SushiBLAS` minus `Detail` and minus `experimental/`.
+Decision D1 put the FFT and linalg headers outside the umbrella header, and not
+every operation declared there has a definition, so listing them would
+advertise an API that does not link. D1 is defined in
+[the glossary](../docs/reference/GLOSSARY.md).
 
 Doxygen itself is an external tool, not vendored: install it (`winget install
 DimitriVanHeesch.Doxygen` on Windows, `apt-get install doxygen graphviz` on

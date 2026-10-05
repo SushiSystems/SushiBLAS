@@ -1,20 +1,14 @@
 # Contributing to SushiBLAS
 
-SushiBLAS is currently a personal project developed by Mustafa Garip. To
-maintain a unified vision while the architecture is still settling, **external
-pull requests are not being accepted at this stage** — but bug reports and
-feature/architecture discussion are very welcome, and this document is the
-reference for how the project is actually built and how a change (mine or,
-eventually, yours) should look.
+Contributions from outside Sushi Systems are not accepted yet; pull requests
+from outside are closed. Bug reports and design discussion are welcome as
+issues. This document states how a change is built, tested, documented and
+committed. SushiBLAS is source-available under the PolyForm Noncommercial
+License 1.0.0 (see [`LICENSE`](../LICENSE)).
 
-Contributions from outside Sushi Systems are not accepted yet. SushiBLAS is
-source-available under the PolyForm Noncommercial License 1.0.0 (see
-[`LICENSE`](../LICENSE)).
-
-> New to the codebase? Read [`ARCHITECTURE.md`](ARCHITECTURE.md) first — it
-> explains the `Tensor`/`Storage` model, the `Engine` facade, the
-> `ExecutionMode` dispatch triad, and the reference/SYCL kernel split every
-> operation follows.
+Read [the architecture](architecture/ARCHITECTURE.md) first. It explains the
+`Tensor` and `Storage` model, the `Engine` facade, the `ExecutionMode` triad
+and the reference and SYCL kernel pair every operation follows.
 
 ---
 
@@ -43,15 +37,15 @@ sb build                  # Release (default)
 sb test                   # functional suite
 ```
 
-See [`CLI_GUIDE.md`](CLI_GUIDE.md) for the full command reference and how
+See [`cli/README.md`](../cli/README.md) for the full command reference and how
 machine-specific toolchain paths are resolved (`cli/config.local.toml`).
 
 ---
 
 ## 2. Before you start coding
 
-- This is a personal project; if you're not the maintainer, the productive
-  path is an issue — a bug report or a design discussion — not a PR.
+- From outside Sushi Systems, open an issue: a bug report or a design
+  discussion.
 - **Keep changes focused.** One logical change per commit. A refactor and a
   behavior change together are hard to review and hard to revert.
 - **Match the layer boundaries.** `Engine` knows nothing about individual
@@ -72,18 +66,25 @@ sb build --clean                  # wipe the build tree first
 sb test --suite unit              # fast, run this often
 sb test --suite integration
 sb test --suite regression
-sb test --suite all
+sb test --suite all               # every CTest test
+sb test --suite package           # the out-of-tree consumer
 sb test --filter 'Gemm.*'         # ctest -R over 'Suite.Case' test names
 ```
 
+A change is built and tested through `sb`. CMake can also be driven directly,
+as the [root README](../README.md#building-with-cmake-directly) shows; an agent
+working in this repository always uses `sb` (see `CLAUDE.md` at the root).
+
 Expectations for a mergeable change:
 
-1. **The full test suite passes** (`sb test --suite all`).
+1. **Every CTest test passes** (`sb test --suite all`). A change that adds a
+   public header or touches the install rules in `src/CMakeLists.txt` also
+   passes `sb test --suite package`, which `all` does not include.
 2. **A new operation ships with a typed test.** Every test suite runs across
    every dtype the op claims to support (`float`, `double`, `half`, and the
    complex types where applicable) — see [§5](#5-adding-a-new-operation).
-   `VERIFY` mode (or a manual `FORCE_SYCL` vs. `FORCE_REFERENCE` comparison) is
-   how a new SYCL kernel earns confidence against its reference implementation.
+   A `FORCE_SYCL` against `FORCE_REFERENCE` comparison is how a new SYCL kernel
+   is checked against its reference implementation.
 3. **A fixed bug gets a regression test** in
    `tests/functional/regression/`, named for what it guards against (see
    `Regression_Sentinel.SyrkAcceptsHalfDtype` for the shape).
@@ -106,7 +107,7 @@ which also keeps the upstream lines of the two files ported from portBLAS.
 ### C++ standard and naming
 
 - **C++17**, matching SushiRuntime — see
-  [ARCHITECTURE.md §1](ARCHITECTURE.md#1-what-sushiblas-is) for why the whole
+  [the architecture, section 1](architecture/ARCHITECTURE.md#1-what-sushiblas-is) for why the whole
   stack has to agree rather than each repo picking its own. Indentation is 4
   spaces.
 - **Classes/structs/namespaces**: `PascalCase` (`Engine`, `Tensor`,
@@ -161,20 +162,16 @@ if (condition)
 #include <SushiRuntime/SushiRuntime.h>
 ```
 
-### Documentation
+### Comments
 
-Doxygen-style comments on every public API, in plain English: `@brief` for
-the one-line summary, `@param` per parameter, `@return` for the result.
+Source comments follow the `source-comments` skill of SushiSkills: a `@file`
+block after the license block, a `@brief` on every symbol, private members
+included, and no `TODO`, history or design reasoning in source. Open work goes
+to [`design/REMAINING_WORK.md`](design/REMAINING_WORK.md); the reason for a
+design goes to a document under `design/`, cited by path.
 
-### Comments and TODOs
-
-`// TODO:` on its own line, directly **above** the code it refers to — never
-on the same line as code.
-
-```cpp
-// TODO: Implement support for half-precision floats
-void process_data() { ... }
-```
+The existing source does not meet this yet.
+[`reference/KNOWN_ISSUES.md`](reference/KNOWN_ISSUES.md) records the gap.
 
 ### Error handling
 
@@ -183,7 +180,7 @@ void process_data() { ... }
 internal bugs, not user-facing input validation. An unsupported case
 (dtype, layout, mode) always throws loudly — it never silently no-ops.
 
-### Build-system names are prefixed with the full program name
+### Build-system names
 
 Every CMake target, function, macro, and internal artifact this repo defines
 starts with `sushiblas_` — `sushiblas_warnings`, `sushiblas_apply_build_policy`,
@@ -202,7 +199,7 @@ exception and stay unprefixed; a file that defines a *differently-named*
 function per repo (`SushiBLASBuildPolicy.cmake` vs. a hypothetical
 `BuildPolicy.cmake` shared with sushiruntime) must be prefixed — this is
 exactly the collision SB-6 found and fixed (see
-[ARCHITECTURE.md §10](ARCHITECTURE.md#10-packaging)).
+[the architecture, section 10](architecture/ARCHITECTURE.md#10-packaging)).
 
 The rule covers build-system identifiers and build-tree artifacts, not C++
 symbols: the public C++ API is already scoped by the `SushiBLAS` namespace.
@@ -224,7 +221,7 @@ same shape, regardless of category:
 (Non-BLAS math/logic domains keep their kernels inline in a public
 `SushiBLAS::Dispatch` helper under `include/SushiBLAS/engine/**/dispatch.hpp`
 rather than under `kernels/` — see
-[ARCHITECTURE.md §7](ARCHITECTURE.md#7-kernels-reference-and-sycl) — but the
+[the architecture, section 7](architecture/ARCHITECTURE.md#7-kernels-reference-and-sycl) — but the
 driver/test split is identical.)
 
 ### Reference kernel rules
@@ -260,7 +257,7 @@ kernels. It should:
   domain dispatch helper to register the task and switch on the runtime
   dtype — do not hand-write a new `add_task`/`switch(dtype)` pair when the
   existing helper already fits.
-- Dispatch through `Internal::dispatch_with_mode` for the
+- Dispatch through `Internal::dispatch_with_mode` (`engine/task.hpp`) for the
   `FORCE_REFERENCE`/normal/`VERIFY` triad — never hand-write the triad
   per op.
 
@@ -269,8 +266,9 @@ kernels. It should:
 - **Typed tests** across every supported `Core::DataType` the op claims.
 - Type-appropriate tolerances (`SB_ASSERT_TENSOR_NEAR` / `EXPECT_TENSOR_NEAR`)
   — do not compare floating-point results for bitwise equality.
-- Exercise `VERIFY` mode, or a manual `FORCE_SYCL` vs. `FORCE_REFERENCE`
-  comparison, so the SYCL kernel is checked against its own reference.
+- Run the operation under `FORCE_SYCL` and under `FORCE_REFERENCE` into two
+  tensors and compare them, so the SYCL kernel is checked against its
+  reference. `VERIFY` does not compare the two kernels.
 - Cover more than one shape: square, rectangular, and vector, and (for BLAS
   ops) both memory layouts.
 
@@ -278,21 +276,39 @@ kernels. It should:
 
 ## 6. Documentation is part of the change
 
-Documentation ships in the same commit as the code it describes.
+Documentation lands in the same commit as the code it describes. Where a
+document goes follows the `documentation` skill of SushiSkills; the tree is
+indexed in [`README.md`](README.md).
 
-- **Changelog entries start at v1.0.0.** The project has not yet been
-  assigned a semantic version — it is in prototype stage. Do not add entries
-  to [`CHANGELOG.md`](CHANGELOG.md) until the project cuts its v1.0.0
-  release; the `[Unreleased]` section documents prototype-era milestones
-  informally until then.
-- **A new or changed operation updates [`ARCHITECTURE.md`](ARCHITECTURE.md)**
-  when it changes a class, dispatch helper, or kernel design the document
-  names — every symbol it names must still exist.
-- **Any CLI change updates [`CLI_GUIDE.md`](CLI_GUIDE.md)** — the full `sb`
-  command reference — and the build/test snippets here and in the README
-  that invoke it.
-- **A new dependency updates the dependency surface** — see
+- **Every change adds one changelog line** under `## Unreleased` in
+  [`reference/CHANGELOG.md`](reference/CHANGELOG.md): the date, the commit
+  scope, a past-tense verb, what changed and where, in at most 240 characters.
+  The line never says why.
+- **A new or changed operation updates
+  [the architecture](architecture/ARCHITECTURE.md)** when it changes a class,
+  dispatch helper or kernel design the document names. Every symbol it names
+  must still exist.
+- **A CLI change updates [`cli/README.md`](../cli/README.md)** and the build
+  and test snippets here and in the root README.
+- **A design decision with an open phase** is a document under `design/` with a
+  status line, listed in [`design/README.md`](design/README.md). Open work is a
+  line in [`design/REMAINING_WORK.md`](design/REMAINING_WORK.md), the only
+  backlog.
+- **A defect that stays open** is a row in
+  [`reference/KNOWN_ISSUES.md`](reference/KNOWN_ISSUES.md).
+- **Agent work** is written to its own folder,
+  `docs/agent/<YYYY_MM_DD>_<WORK_NAME>/`, as `SPEC.md`, `PLAN.md` and
+  `REPORT.md`.
+- **A new dependency updates the dependency surface**; see
   [§8](#8-adding-a-c-dependency).
+
+Before a commit that touches `docs/`, run the two documentation checkers; see
+[`tools/README.md`](../tools/README.md).
+
+```bash
+python tools/documentation/check_docs_layout.py .
+python tools/documentation/check_changelog.py .
+```
 
 ---
 
@@ -368,18 +384,18 @@ and the link line) if the C++ build needs to find it. Verify with
 
 ## 9. Reporting bugs and requesting features
 
-Use the GitHub issue templates. A good bug report includes the platform and
+Open a GitHub issue. A good bug report includes the platform and
 toolchain, the build type, the exact `sb` command, and the smallest
 reproducer you can manage. For anything that looks like a **security** issue,
-do **not** open a public issue — follow [`SECURITY.md`](SECURITY.md).
+do **not** open a public issue — follow [`SECURITY.md`](reference/SECURITY.md).
 
 ---
 
 ## 10. Questions
 
 Open a GitHub Discussion, join the community Discord (see
-[`SECURITY.md`](SECURITY.md) for the current invite), or email
+[`CODE_OF_CONDUCT.md`](reference/CODE_OF_CONDUCT.md) for the invite), or email
 **mustafagarip@sushisystems.io**.
 
 Please be respectful in all project spaces — see
-[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+[`CODE_OF_CONDUCT.md`](reference/CODE_OF_CONDUCT.md).
