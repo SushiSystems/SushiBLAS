@@ -1,6 +1,6 @@
 # test_cli.py
 # SushiBLAS - https://github.com/SushiSystems/SushiBLAS
-# Copyright (c) 2026 Sushi Systems
+# Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
 """Tests for sb's entry point, its root options and the commands it takes from sushicore."""
