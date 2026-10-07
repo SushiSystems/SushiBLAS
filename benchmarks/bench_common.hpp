@@ -37,6 +37,7 @@
 #include <vector>
 #include <algorithm>
 #include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/support/device_policy.hpp>
 
 /// @brief Holds the helpers shared by the benchmark programs.
 namespace SushiBLAS::Bench
@@ -109,6 +110,12 @@ namespace SushiBLAS::Bench
         const std::string device = probe.get_device().get_info<sycl::info::device::name>();
         std::printf("device:        %s\n", device.c_str());
         std::printf("build:         %s\n", build_configuration_name());
+        const Device::Profile& profile = Device::profile_for(probe.get_device());
+        std::printf("compute units: %zu\n", profile.compute_units);
+        std::printf("cache bytes:   %zu\n", profile.cache_bytes);
+        std::printf("blocking:      inner %zu, outer %zu, stream %zu, min operand %zu\n",
+                    profile.blocking.inner_bytes, profile.blocking.outer_bytes,
+                    profile.blocking.stream_bytes, profile.blocking.min_operand_bytes);
         std::printf("engine mode:   %s\n", execution_mode_name(engine.get_mode()));
         std::printf("iterations:    %d warm-up, %d timed\n\n", K_WARMUP_ITERATIONS,
                     K_TIMED_ITERATIONS);
@@ -171,27 +178,23 @@ namespace SushiBLAS::Bench
     };
 
     /**
-     * @brief Runs warm-up iterations, then times each of the timed iterations.
-     * @tparam Record Callable that records one operation on the engine's graph.
+     * @brief Runs warm-up iterations of a body, then times each of the timed iterations.
+     * @tparam Body Callable that runs one whole iteration and returns when its work is done.
      */
-    template<typename Record>
-    [[nodiscard]] Timing measure(Engine& engine, Record record)
+    template<typename Body>
+    [[nodiscard]] Timing time_iterations(Body body)
     {
         using Clock = std::chrono::steady_clock;
 
         for (int i = 0; i < K_WARMUP_ITERATIONS; ++i)
-        {
-            record();
-            engine.execute();
-        }
+            body();
 
         std::vector<double> seconds;
         seconds.reserve(static_cast<std::size_t>(K_TIMED_ITERATIONS));
         for (int i = 0; i < K_TIMED_ITERATIONS; ++i)
         {
             const Clock::time_point start = Clock::now();
-            record();
-            engine.execute();
+            body();
             const Clock::time_point stop = Clock::now();
             seconds.push_back(std::chrono::duration<double>(stop - start).count());
         }
@@ -202,6 +205,20 @@ namespace SushiBLAS::Bench
                                   ? 0.5 * (seconds[middle - 1] + seconds[middle])
                                   : seconds[middle];
         return Timing{median, seconds.front()};
+    }
+
+    /**
+     * @brief Times recording one operation and executing the engine's graph.
+     * @tparam Record Callable that records one operation on the engine's graph.
+     */
+    template<typename Record>
+    [[nodiscard]] Timing measure(Engine& engine, Record record)
+    {
+        return time_iterations([&]()
+        {
+            record();
+            engine.execute();
+        });
     }
 
     /// @brief Prints benchmark results as a fixed-width table with one rate column.

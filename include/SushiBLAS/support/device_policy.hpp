@@ -61,6 +61,54 @@ namespace SushiBLAS
         inline constexpr std::size_t K_VECTOR_TRANSACTION_BYTES = 16;
 
         /**
+         * @brief Holds the first-level data cache assumed for one compute unit, in bytes.
+         * @see include/SushiBLAS/support/README.md
+         */
+        inline constexpr std::size_t K_ASSUMED_INNER_CACHE_BYTES = 32 * 1024;
+
+        /** @brief Holds the cache size taken for a device that reports none, in bytes. */
+        inline constexpr std::size_t K_ASSUMED_CACHE_BYTES = 256 * 1024;
+
+        /**
+         * @brief Holds the byte budgets and thresholds a cache-blocked kernel sizes itself from.
+         * @see include/SushiBLAS/support/README.md
+         */
+        struct CacheBlocking
+        {
+            /** @brief Bytes the innermost loop keeps resident; it sets the depth of a block. */
+            std::size_t inner_bytes = K_ASSUMED_INNER_CACHE_BYTES / 8 * 7;
+
+            /** @brief Bytes of the packed block the inner loops sweep again; it sets the rows. */
+            std::size_t outer_bytes = K_ASSUMED_CACHE_BYTES / 4;
+
+            /** @brief Bytes of a block walked once per sweep; it sets the columns and the tile. */
+            std::size_t stream_bytes = K_ASSUMED_CACHE_BYTES / 2;
+
+            /** @brief Operand bytes of one product below which a kernel does not pack. */
+            std::size_t min_operand_bytes = K_ASSUMED_CACHE_BYTES;
+
+            /** @brief Register blocks the output must span on each axis before a kernel packs. */
+            std::size_t min_register_blocks = 4;
+
+            /** @brief Work-items a blocked launch starts per compute unit. */
+            std::size_t workers_per_compute_unit = 1;
+        };
+
+        /**
+         * @brief Returns the blocking a device that reports cache_bytes of cache starts from.
+         * @see include/SushiBLAS/support/README.md
+         */
+        [[nodiscard]] inline constexpr CacheBlocking
+        cache_blocking_for(std::size_t cache_bytes) noexcept
+        {
+            CacheBlocking blocking;
+            blocking.outer_bytes = cache_bytes / 4;
+            blocking.stream_bytes = cache_bytes / 2;
+            blocking.min_operand_bytes = cache_bytes;
+            return blocking;
+        }
+
+        /**
          * @brief Holds the device properties a kernel is allowed to dispatch on.
          * @see include/SushiBLAS/support/README.md
          */
@@ -98,6 +146,12 @@ namespace SushiBLAS
 
             /** @brief Independent execution units: SMs, CUs, or hardware threads. */
             std::size_t compute_units = 1;
+
+            /** @brief Bytes of global-memory cache the device reports, or K_ASSUMED_CACHE_BYTES. */
+            std::size_t cache_bytes = K_ASSUMED_CACHE_BYTES;
+
+            /** @brief The budgets a cache-blocked kernel sizes its blocks from. */
+            CacheBlocking blocking{};
         };
 
         namespace Detail
@@ -132,6 +186,11 @@ namespace SushiBLAS
 
                 if (p.max_work_group_size == 0) p.max_work_group_size = 1;
                 if (p.compute_units == 0) p.compute_units = 1;
+
+                const std::size_t reported_cache = static_cast<std::size_t>(
+                    d.get_info<sycl::info::device::global_mem_cache_size>());
+                p.cache_bytes = reported_cache ? reported_cache : K_ASSUMED_CACHE_BYTES;
+                p.blocking = cache_blocking_for(p.cache_bytes);
 
                 return p;
             }
