@@ -42,12 +42,12 @@ namespace SushiBLAS
     {
         static constexpr const char* NAME = "spatial.pool_max_backward";
 
-        SB_THROW_IF(dy.dtype != dx.dtype,
-                    "Spatial operation '{}' has a {} output gradient and a {} input gradient.",
-                    NAME, Core::to_string(dy.dtype), Core::to_string(dx.dtype));
-        SB_THROW_IF(indices.dtype != Core::DataType::INT64,
-                    "Spatial operation '{}' needs an INT64 index tensor; got {}.",
-                    NAME, Core::to_string(indices.dtype));
+        Dispatch::require_dtype(dx, dy.dtype, NAME, "dx");
+        Dispatch::require_dtype(indices, Core::DataType::INT64, NAME, "indices");
+
+        Dispatch::require_device_dtype(dy, NAME, "dy");
+        Dispatch::require_device_dtype(indices, NAME, "indices");
+        Dispatch::require_device_dtype(dx, NAME, "dx");
 
         // dx plays the input role and dy the output role, as in the forward; see src/README.md.
         const Spatial::WindowSpan span = Spatial::pooling_span_for(dx, g, dy, NAME);

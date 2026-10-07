@@ -177,7 +177,7 @@ namespace SushiBLAS
                 SushiBLAS::SpatialOps(*engine).concat_channels(three, five, 3);
                 FAIL() << "a concat past the destination's channel count was accepted";
             }
-            catch (const std::runtime_error& e)
+            catch (const std::invalid_argument& e)
             {
                 const std::string message = e.what();
                 EXPECT_NE(message.find("spatial.concat_channels"), std::string::npos)
@@ -191,7 +191,7 @@ namespace SushiBLAS
                 SushiBLAS::SpatialOps(*engine).slice_channels(five, 4, destination);
                 FAIL() << "a slice past the source's channel count was accepted";
             }
-            catch (const std::runtime_error& e)
+            catch (const std::invalid_argument& e)
             {
                 const std::string message = e.what();
                 EXPECT_NE(message.find("spatial.slice_channels"), std::string::npos)
@@ -268,6 +268,54 @@ namespace SushiBLAS
             for (int64_t i = 0; i < sliced_reference.num_elements; ++i)
                 EXPECT_EQ(channels_float_bits(got_slice[i]), channels_float_bits(expected_slice[i]))
                     << "slice element " << i;
+        }
+
+        TEST_F(Unit_SpatialChannelsTest, MalformedSpatialOperandsNameTheOperand)
+        {
+            /** @brief Runs a record call and expects std::invalid_argument naming op and operand. */
+            const auto expect_named = [](const auto& record, const char* op, const char* operand)
+            {
+                try
+                {
+                    record();
+                    ADD_FAILURE() << op << " accepted a malformed '" << operand << "'";
+                }
+                catch (const std::invalid_argument& e)
+                {
+                    const std::string message = e.what();
+                    EXPECT_NE(message.find(op), std::string::npos)
+                        << "the message does not name the operation: " << message;
+                    EXPECT_NE(message.find(std::string("operand '") + operand + "'"),
+                              std::string::npos)
+                        << "the message does not name the operand: " << message;
+                }
+            };
+
+            Spatial::ConvGeometry g;
+            g.kernel_h = 2;
+            g.kernel_w = 2;
+            g.stride_h = 2;
+            g.stride_w = 2;
+
+            SushiBLAS::SpatialOps spatial(*engine);
+
+            auto rank3 = engine->create_tensor({1, 4, 4}, Core::DataType::FLOAT32);
+            auto pooled = filled(1, 2, 2, 1, 0.0f);
+            expect_named([&] { spatial.pool_avg(rank3, pooled, g); }, "spatial.pool_avg", "in");
+
+            auto picture = filled(1, 4, 4, 1, 1.0f);
+            auto wide_cols = engine->create_tensor({4, 4}, Core::DataType::FLOAT64);
+            expect_named([&] { spatial.im2col(picture, wide_cols, g, 2, 2); },
+                         "spatial.im2col", "cols");
+
+            auto narrow_indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT32);
+            expect_named([&] { spatial.pool_max(picture, pooled, narrow_indices, g); },
+                         "spatial.pool_max", "indices");
+
+            auto three = filled(1, 2, 2, 3, 1.0f);
+            auto five = filled(1, 2, 2, 5, 0.0f);
+            expect_named([&] { spatial.concat_channels(three, five, -1); },
+                         "spatial.concat_channels", "dst");
         }
 
     } // namespace Test

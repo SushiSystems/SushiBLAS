@@ -28,6 +28,7 @@
 
 #include <vector>
 #include <SushiBLAS/engine/task.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/engine/spatial/window.hpp>
 #include "kernels/spatial.hpp"
@@ -43,40 +44,30 @@ namespace SushiBLAS
     {
         static constexpr const char* NAME = "spatial.channel_affine";
 
-        SB_THROW_IF(in.rank != 4, "Spatial operation '{}' needs a rank-4 NHWC input; got rank {}.",
-                    NAME, in.rank);
-        SB_THROW_IF(out.rank != 4, "Spatial operation '{}' needs a rank-4 NHWC output; got rank {}.",
-                    NAME, out.rank);
-        SB_THROW_IF(gamma.rank != 1, "Spatial operation '{}' needs a rank-1 scale; got rank {}.",
-                    NAME, gamma.rank);
-        SB_THROW_IF(beta.rank != 1, "Spatial operation '{}' needs a rank-1 shift; got rank {}.",
-                    NAME, beta.rank);
+        Dispatch::require_rank(in, 4, NAME, "in");
+        Dispatch::require_rank(out, 4, NAME, "out");
+        Dispatch::require_rank(gamma, 1, NAME, "gamma");
+        Dispatch::require_rank(beta, 1, NAME, "beta");
 
-        SB_THROW_IF(in.dtype != out.dtype,
-                    "Spatial operation '{}' has a {} input and a {} output.",
-                    NAME, Core::to_string(in.dtype), Core::to_string(out.dtype));
-        SB_THROW_IF(gamma.dtype != in.dtype,
-                    "Spatial operation '{}' has a {} input and a {} scale.",
-                    NAME, Core::to_string(in.dtype), Core::to_string(gamma.dtype));
-        SB_THROW_IF(beta.dtype != in.dtype,
-                    "Spatial operation '{}' has a {} input and a {} shift.",
-                    NAME, Core::to_string(in.dtype), Core::to_string(beta.dtype));
+        Dispatch::require_dtype(out, in.dtype, NAME, "out");
+        Dispatch::require_dtype(gamma, in.dtype, NAME, "gamma");
+        Dispatch::require_dtype(beta, in.dtype, NAME, "beta");
+
+        Dispatch::require_device_dtype(in, NAME, "in");
+        Dispatch::require_device_dtype(gamma, NAME, "gamma");
+        Dispatch::require_device_dtype(beta, NAME, "beta");
+        Dispatch::require_device_dtype(out, NAME, "out");
 
         for (int32_t d = 0; d < 4; ++d)
         {
-            SB_THROW_IF(in.shape[d] != out.shape[d],
-                        "Spatial operation '{}' has extent {} on axis {} of the input "
-                        "and {} on the output's.",
-                        NAME, in.shape[d], d, out.shape[d]);
+            Dispatch::require_operand(in.shape[d] == out.shape[d], NAME, "out",
+                                      "has extent {} on axis {}, but 'in' has {}",
+                                      out.shape[d], d, in.shape[d]);
         }
 
         const int64_t channels = in.shape[3];
-        SB_THROW_IF(gamma.shape[0] != channels,
-                    "Spatial operation '{}' has {} channels but a scale of length {}.",
-                    NAME, channels, gamma.shape[0]);
-        SB_THROW_IF(beta.shape[0] != channels,
-                    "Spatial operation '{}' has {} channels but a shift of length {}.",
-                    NAME, channels, beta.shape[0]);
+        Dispatch::require_extent(gamma.shape[0], channels, "elements", NAME, "gamma");
+        Dispatch::require_extent(beta.shape[0], channels, "elements", NAME, "beta");
 
         Spatial::WindowSpan span;
         span.batch = in.shape[0];
@@ -140,21 +131,16 @@ namespace SushiBLAS
     {
         static constexpr const char* NAME = "spatial.broadcast_spatial";
 
-        SB_THROW_IF(in.rank != 2, "Spatial operation '{}' needs a rank-2 [N, C] input; got rank {}.",
-                    NAME, in.rank);
-        SB_THROW_IF(out.rank != 4, "Spatial operation '{}' needs a rank-4 NHWC output; got rank {}.",
-                    NAME, out.rank);
+        Dispatch::require_rank(in, 2, NAME, "in");
+        Dispatch::require_rank(out, 4, NAME, "out");
 
-        SB_THROW_IF(in.dtype != out.dtype,
-                    "Spatial operation '{}' has a {} input and a {} output.",
-                    NAME, Core::to_string(in.dtype), Core::to_string(out.dtype));
+        Dispatch::require_dtype(out, in.dtype, NAME, "out");
 
-        SB_THROW_IF(in.shape[0] != out.shape[0],
-                    "Spatial operation '{}' has {} input rows and {} output images.",
-                    NAME, in.shape[0], out.shape[0]);
-        SB_THROW_IF(in.shape[1] != out.shape[3],
-                    "Spatial operation '{}' has {} input columns and {} output channels.",
-                    NAME, in.shape[1], out.shape[3]);
+        Dispatch::require_device_dtype(in, NAME, "in");
+        Dispatch::require_device_dtype(out, NAME, "out");
+
+        Dispatch::require_extent(out.shape[0], in.shape[0], "images", NAME, "out");
+        Dispatch::require_extent(out.shape[3], in.shape[1], "channels", NAME, "out");
 
         Spatial::WindowSpan span;
         span.batch = out.shape[0];
@@ -214,22 +200,21 @@ namespace SushiBLAS
     {
         static constexpr const char* NAME = "spatial.layout_convert";
 
-        SB_THROW_IF(in.rank != 4, "Spatial operation '{}' needs a rank-4 input; got rank {}.",
-                    NAME, in.rank);
-        SB_THROW_IF(out.rank != 4, "Spatial operation '{}' needs a rank-4 output; got rank {}.",
-                    NAME, out.rank);
+        Dispatch::require_rank(in, 4, NAME, "in");
+        Dispatch::require_rank(out, 4, NAME, "out");
 
-        SB_THROW_IF(in.dtype != out.dtype,
-                    "Spatial operation '{}' has a {} input and a {} output.",
-                    NAME, Core::to_string(in.dtype), Core::to_string(out.dtype));
+        Dispatch::require_dtype(out, in.dtype, NAME, "out");
+
+        Dispatch::require_device_dtype(in, NAME, "in");
+        Dispatch::require_device_dtype(out, NAME, "out");
 
         // Both sides share one logical shape and differ only in strides; see src/README.md.
         for (int32_t d = 0; d < 4; ++d)
         {
-            SB_THROW_IF(in.shape[d] != out.shape[d],
-                        "Spatial operation '{}' has extent {} on axis {} of the input and {} on "
-                        "the output's; a layout conversion permutes strides, not shapes.",
-                        NAME, in.shape[d], d, out.shape[d]);
+            Dispatch::require_operand(in.shape[d] == out.shape[d], NAME, "out",
+                                      "has extent {} on axis {}, but 'in' has {}; a layout "
+                                      "conversion permutes strides, not shapes",
+                                      out.shape[d], d, in.shape[d]);
         }
 
         Spatial::WindowSpan span;

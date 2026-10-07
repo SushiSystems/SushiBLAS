@@ -28,6 +28,7 @@
 
 #include <vector>
 #include <SushiBLAS/engine/task.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/engine/spatial/window.hpp>
 #include "kernels/spatial.hpp"
@@ -40,9 +41,10 @@ namespace SushiBLAS
     {
         static constexpr const char* NAME = "spatial.pool_avg";
 
-        SB_THROW_IF(in.dtype != out.dtype,
-                    "Spatial operation '{}' has a {} input and a {} output.",
-                    NAME, Core::to_string(in.dtype), Core::to_string(out.dtype));
+        Dispatch::require_dtype(out, in.dtype, NAME, "out");
+
+        Dispatch::require_device_dtype(in, NAME, "in");
+        Dispatch::require_device_dtype(out, NAME, "out");
 
         const Spatial::WindowSpan span = Spatial::pooling_span_for(in, g, out, NAME);
 
@@ -81,9 +83,10 @@ namespace SushiBLAS
     {
         static constexpr const char* NAME = "spatial.pool_avg_backward";
 
-        SB_THROW_IF(dy.dtype != dx.dtype,
-                    "Spatial operation '{}' has a {} output gradient and a {} input gradient.",
-                    NAME, Core::to_string(dy.dtype), Core::to_string(dx.dtype));
+        Dispatch::require_dtype(dx, dy.dtype, NAME, "dx");
+
+        Dispatch::require_device_dtype(dy, NAME, "dy");
+        Dispatch::require_device_dtype(dx, NAME, "dx");
 
         // dx plays the input role and dy the output role, as in the forward; see src/README.md.
         const Spatial::WindowSpan span = Spatial::pooling_span_for(dx, g, dy, NAME);

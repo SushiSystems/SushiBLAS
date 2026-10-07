@@ -42,14 +42,14 @@ namespace SushiBLAS
     {
         static constexpr const char* NAME = "spatial.pool_max";
 
-        SB_THROW_IF(in.dtype != out.dtype,
-                    "Spatial operation '{}' has a {} input and a {} output.",
-                    NAME, Core::to_string(in.dtype), Core::to_string(out.dtype));
+        Dispatch::require_dtype(out, in.dtype, NAME, "out");
 
         // The argmax buffer must be INT64; see src/README.md.
-        SB_THROW_IF(indices.dtype != Core::DataType::INT64,
-                    "Spatial operation '{}' needs an INT64 index tensor; got {}.",
-                    NAME, Core::to_string(indices.dtype));
+        Dispatch::require_dtype(indices, Core::DataType::INT64, NAME, "indices");
+
+        Dispatch::require_device_dtype(in, NAME, "in");
+        Dispatch::require_device_dtype(out, NAME, "out");
+        Dispatch::require_device_dtype(indices, NAME, "indices");
 
         const Spatial::WindowSpan span = Spatial::pooling_span_for(in, g, out, NAME);
 
