@@ -81,6 +81,9 @@ namespace SushiBLAS
             OperandSet operands;
             operands.reads(A).updates(C);
 
+            const ScratchBuffer pack = Internal::allocate_packed_product_scratch(
+                recorder, C, n, n, k, batch_size, operands);
+
             const Internal::BlasMetadata meta = Internal::BlasMetadata(op, op_id)
                                                     .scalar(alpha).scalar(beta)
                                                     .flag(uplo).flag(trans);
@@ -115,6 +118,7 @@ namespace SushiBLAS
                             return Kernels::SYCL::syrk<T, Policy>(q2, layout, uplo, trans, n, k,
                                                                   alpha_s, pA, lda, str_a, beta_s,
                                                                   pC, ldc, str_c, batch_size,
+                                                                  pack.data(), pack.bytes(),
                                                                   deps2);
                         });
                 });

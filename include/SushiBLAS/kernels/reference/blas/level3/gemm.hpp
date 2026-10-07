@@ -21,7 +21,7 @@
 
 /**
  * @file gemm.hpp
- * @brief Declares the pure-C++ reference GEMM kernels.
+ * @brief Defines the reference kernel of GEMM and its form over operand-access bricks.
  * @author Mustafa Garip
  */
 
@@ -42,22 +42,21 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-             * @brief Computes GEMM in pure C++ for row-major and column-major operands.
-             * @tparam Epilogue Functor applied per element before the store, as `(value, row, col)`.
+             * @brief Computes `C = Epilogue(alpha * X * Y + beta * C)` for operands read through
+             *        access bricks.
+             * @tparam AccessA Brick with `T at(const T*, int64_t, int64_t) const`; AccessB too.
              * @param beta Exactly zero skips reading C.
              * @see include/SushiBLAS/kernels/README.md
              */
-            template<typename T, typename Epilogue = GemmIdentityEpilogue>
-            void gemm(Core::Layout layout, Core::Transpose transA, Core::Transpose transB,
-                    int64_t m, int64_t n, int64_t k,
-                    T alpha, const T* a, int64_t lda,
-                    const T* b, int64_t ldb,
-                    T beta, T* c, int64_t ldc,
-                    Epilogue epilogue = Epilogue{})
+            template<typename T, typename AccessA, typename AccessB,
+                     typename Epilogue = GemmIdentityEpilogue>
+            void gemm_accessed(int64_t m, int64_t n, int64_t k,
+                               T alpha, const T* a, AccessA a_access,
+                               const T* b, AccessB b_access,
+                               T beta, T* c, OperandAccess c_access,
+                               Epilogue epilogue = Epilogue{})
             {
                 using RW = ReferenceAccumulator<T>;
-                const OperandAccess a_access = operand_access(layout, transA, lda);
-                const OperandAccess b_access = operand_access(layout, transB, ldb);
 
                 for (int64_t i = 0; i < m; ++i)
                 {
@@ -67,9 +66,7 @@ namespace SushiBLAS
                         for (int64_t l = 0; l < k; ++l)
                             sum.add(RW(a_access.at(a, i, l)) * RW(b_access.at(b, l, j)));
 
-                        const int64_t idx = (layout == Core::Layout::ROW_MAJOR)
-                            ? i * ldc + j
-                            : i + j * ldc;
+                        const int64_t idx = c_access.index(i, j);
 
                         // beta == 0 must not read the prior C value, which may be uninitialised; see include/SushiBLAS/kernels/README.md.
                         const T value = (beta == T(0))
@@ -82,6 +79,51 @@ namespace SushiBLAS
             }
 
             /**
+             * @brief Computes a batch of products through access bricks with the reference kernel.
+             * @param str_a Element stride between consecutive A matrices; str_b and str_c likewise.
+             * @param epilogue Receives the row and column within one matrix of the batch.
+             * @see include/SushiBLAS/kernels/README.md
+             */
+            template<typename T, typename AccessA, typename AccessB,
+                     typename Epilogue = GemmIdentityEpilogue>
+            void gemm_accessed(int64_t m, int64_t n, int64_t k,
+                               T alpha, const T* a, AccessA a_access, int64_t str_a,
+                               const T* b, AccessB b_access, int64_t str_b,
+                               T beta, T* c, OperandAccess c_access, int64_t str_c,
+                               int64_t batch_size,
+                               Epilogue epilogue = Epilogue{})
+            {
+                for (int64_t b_idx = 0; b_idx < batch_size; ++b_idx)
+                {
+                    gemm_accessed(m, n, k, alpha,
+                                  a + b_idx * str_a, a_access,
+                                  b + b_idx * str_b, b_access,
+                                  beta, c + b_idx * str_c, c_access, epilogue);
+                }
+            }
+
+            /**
+             * @brief Computes GEMM in pure C++ for row-major and column-major operands.
+             * @tparam Epilogue Functor applied per element before the store, as `(value, row, col)`.
+             * @param beta Exactly zero skips reading C.
+             * @see include/SushiBLAS/kernels/README.md
+             */
+            template<typename T, typename Epilogue = GemmIdentityEpilogue>
+            void gemm(Core::Layout layout, Core::Transpose transA, Core::Transpose transB,
+                      int64_t m, int64_t n, int64_t k,
+                      T alpha, const T* a, int64_t lda,
+                      const T* b, int64_t ldb,
+                      T beta, T* c, int64_t ldc,
+                      Epilogue epilogue = Epilogue{})
+            {
+                gemm_accessed(m, n, k,
+                              alpha, a, operand_access(layout, transA, lda),
+                              b, operand_access(layout, transB, ldb),
+                              beta, c, operand_access(layout, Core::Transpose::NO_TRANS, ldc),
+                              epilogue);
+            }
+
+            /**
              * @brief Computes a batch of GEMMs with the reference kernel.
              * @param beta Exactly zero skips reading C.
              * @param str_a Element stride between consecutive A matrices; str_b and str_c likewise.
@@ -90,22 +132,19 @@ namespace SushiBLAS
              */
             template<typename T, typename Epilogue = GemmIdentityEpilogue>
             void gemm(Core::Layout layout, Core::Transpose transA, Core::Transpose transB,
-                            int64_t m, int64_t n, int64_t k,
-                            T alpha, const T* a, int64_t lda, int64_t str_a,
-                            const T* b, int64_t ldb, int64_t str_b,
-                            T beta, T* c, int64_t ldc, int64_t str_c,
-                            int64_t batch_size,
-                            Epilogue epilogue = Epilogue{})
+                      int64_t m, int64_t n, int64_t k,
+                      T alpha, const T* a, int64_t lda, int64_t str_a,
+                      const T* b, int64_t ldb, int64_t str_b,
+                      T beta, T* c, int64_t ldc, int64_t str_c,
+                      int64_t batch_size,
+                      Epilogue epilogue = Epilogue{})
             {
-                for (int64_t b_idx = 0; b_idx < batch_size; ++b_idx)
-                {
-                    gemm(layout, transA, transB, m, n, k, alpha,
-                        a + b_idx * str_a, lda,
-                        b + b_idx * str_b, ldb,
-                        beta, c + b_idx * str_c, ldc, epilogue);
-                }
+                gemm_accessed(m, n, k,
+                              alpha, a, operand_access(layout, transA, lda), str_a,
+                              b, operand_access(layout, transB, ldb), str_b,
+                              beta, c, operand_access(layout, Core::Transpose::NO_TRANS, ldc),
+                              str_c, batch_size, epilogue);
             }
-
         } // namespace Reference
     } // namespace Kernels
 } // namespace SushiBLAS

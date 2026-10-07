@@ -47,6 +47,7 @@
 #include <SushiRuntime/graph/task_types.hpp>
 #include <SushiBLAS/kernels/blas/level3/gemm_epilogue.hpp>
 #include <SushiBLAS/kernels/sycl/blas/level3/gemm.hpp>
+#include <SushiBLAS/kernels/sycl/blas/level3/gemm_packed.hpp>
 #include <SushiBLAS/kernels/reference/blas/level3/gemm.hpp>
 
 namespace SushiBLAS
@@ -247,6 +248,9 @@ namespace SushiBLAS
                 operands.updates(C);
             Detail::append_epilogue_access(epilogue, operands);
 
+            const ScratchBuffer pack = Internal::allocate_packed_product_scratch(
+                recorder, C, m, n, k, batch_size, operands);
+
             // Only the functor enters the kernel closure, never the bundle and its operand set.
             const auto kernel_epilogue = Detail::epilogue_functor(epilogue);
 
@@ -287,6 +291,7 @@ namespace SushiBLAS
                             return Kernels::SYCL::gemm<T>(q2, layout, transA, transB, m, n, k,
                                                           alpha_t, pA, lda, str_a, pB, ldb, str_b,
                                                           beta_t, pC, ldc, str_c, batch_size,
+                                                          pack.data(), pack.bytes(),
                                                           deps2, kernel_epilogue);
                         });
                 });

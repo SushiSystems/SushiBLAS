@@ -37,7 +37,7 @@ namespace SushiBLAS
     namespace Internal
     {
         /**
-         * @brief Builds the TaskMetadata of one BLAS task: scalars first, then flags.
+         * @brief Builds the TaskMetadata of one BLAS task: scalars, then flags, then extents.
          * @see include/SushiBLAS/engine/blas/README.md
          */
         class BlasMetadata final
@@ -70,6 +70,13 @@ namespace SushiBLAS
                 BlasMetadata& flag(Flag value) noexcept
                 {
                     push(static_cast<uint64_t>(value));
+                    return *this;
+                }
+
+                /** @brief Appends an extent of the call, such as a band width, as one slot. */
+                BlasMetadata& extent(int64_t value) noexcept
+                {
+                    push(value);
                     return *this;
                 }
 

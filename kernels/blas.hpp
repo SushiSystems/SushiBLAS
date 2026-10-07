@@ -32,6 +32,12 @@
 // Level 1
 #include "kernels/reference/blas/level1/level1.hpp"
 #include "kernels/sycl/blas/level1/level1.hpp"
+#include "kernels/reference/blas/level1/rotg.hpp"
+#include "kernels/sycl/blas/level1/rotg.hpp"
+#include "kernels/reference/blas/level1/rotm.hpp"
+#include "kernels/sycl/blas/level1/rotm.hpp"
+#include "kernels/reference/blas/level1/rotmg.hpp"
+#include "kernels/sycl/blas/level1/rotmg.hpp"
 
 // Level 2
 #include "kernels/reference/blas/level2/gemv.hpp"
@@ -46,11 +52,31 @@
 #include "kernels/sycl/blas/level2/syr2.hpp"
 #include "kernels/reference/blas/level2/trmv.hpp"
 #include "kernels/sycl/blas/level2/trmv.hpp"
+#include "kernels/reference/blas/level2/gbmv.hpp"
+#include "kernels/sycl/blas/level2/gbmv.hpp"
+#include "kernels/reference/blas/level2/sbmv.hpp"
+#include "kernels/sycl/blas/level2/sbmv.hpp"
+#include "kernels/reference/blas/level2/spmv.hpp"
+#include "kernels/sycl/blas/level2/spmv.hpp"
+#include "kernels/reference/blas/level2/tbmv.hpp"
+#include "kernels/sycl/blas/level2/tbmv.hpp"
+#include "kernels/reference/blas/level2/tpmv.hpp"
+#include "kernels/sycl/blas/level2/tpmv.hpp"
+#include "kernels/reference/blas/level2/tbsv.hpp"
+#include "kernels/sycl/blas/level2/tbsv.hpp"
+#include "kernels/reference/blas/level2/tpsv.hpp"
+#include "kernels/sycl/blas/level2/tpsv.hpp"
+#include "kernels/reference/blas/level2/spr.hpp"
+#include "kernels/sycl/blas/level2/spr.hpp"
+#include "kernels/reference/blas/level2/spr2.hpp"
+#include "kernels/sycl/blas/level2/spr2.hpp"
 
 // Level 3
 #include <SushiBLAS/kernels/reference/blas/level3/gemm.hpp>
 #include <SushiBLAS/kernels/sycl/blas/level3/gemm.hpp>
 #include "kernels/reference/blas/level3/syrk.hpp"
 #include "kernels/sycl/blas/level3/syrk.hpp"
+#include "kernels/reference/blas/level3/syr2k.hpp"
+#include "kernels/sycl/blas/level3/syr2k.hpp"
 #include "kernels/reference/blas/level3/trsm.hpp"
 #include "kernels/sycl/blas/level3/trsm.hpp"

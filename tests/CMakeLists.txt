@@ -66,6 +66,29 @@ add_executable(sushiblas_tests
     functional/unit/test_reference_accumulator.cpp
     functional/unit/test_blas_complex.cpp
 
+    # --- Level 3 completion, band, packed, rotations and the packed GEMM path ---
+    functional/unit/test_symmetric_access.cpp
+    functional/unit/test_symm.cpp
+    functional/unit/test_syr2k.cpp
+    functional/unit/test_triangular_plan.cpp
+    functional/unit/test_triangular_parallel.cpp
+    functional/unit/test_givens.cpp
+    functional/unit/test_rotg.cpp
+    functional/unit/test_rotm.cpp
+    functional/unit/test_rotmg.cpp
+    functional/unit/test_band_access.cpp
+    functional/unit/test_packed_access.cpp
+    functional/unit/test_structured_operands.cpp
+    functional/unit/test_blas_structured_validation.cpp
+    functional/unit/test_blas_band.cpp
+    functional/unit/test_blas_packed.cpp
+    functional/unit/test_packed_product_plan.cpp
+    functional/unit/test_packed_panel.cpp
+    functional/unit/test_packed_micro_kernel.cpp
+    functional/unit/test_packed_product.cpp
+    functional/unit/test_packed_syrk.cpp
+    functional/unit/test_packed_symm.cpp
+
     # --- Spatial (windowed movement over an N-D grid) ---
     functional/unit/test_spatial_geometry.cpp
     functional/unit/test_spatial_im2col.cpp
@@ -77,6 +100,7 @@ add_executable(sushiblas_tests
     functional/unit/test_spatial_broadcast.cpp
     functional/unit/test_mean_spatial.cpp
     functional/unit/test_spatial_half.cpp
+    functional/unit/test_spatial_window_dot.cpp
     functional/unit/test_channel_bias_epilogue.cpp
 
     # --- Nonlinear ---
@@ -102,6 +126,8 @@ add_executable(sushiblas_tests
     functional/unit/test_dispatch_complex.cpp
     functional/unit/test_dispatch_seam.cpp
     functional/unit/test_read_binding.cpp
+    functional/unit/test_functor_reference.cpp
+    functional/unit/test_random_reference.cpp
 
     # --- Tensor views (every op family against a non-zero storage_offset) ---
     functional/unit/test_storage_offset.cpp
@@ -150,6 +176,7 @@ add_executable(sushiblas_tests
     functional/unit/test_axis_reductions.cpp
     functional/unit/test_count_nonfinite.cpp
     functional/unit/test_reduce_plans.cpp
+    functional/unit/test_reduce_segments.cpp
 
     # --- Logic ---
     functional/unit/test_all.cpp
@@ -206,6 +233,18 @@ add_executable(sushiblas_tests
     functional/unit/test_task_recorder.cpp
     functional/unit/test_tensor_factory.cpp
 
+    # --- Sparse ---
+    functional/unit/test_sparse_types.cpp
+    functional/unit/test_sparse_structure.cpp
+    functional/unit/test_sparse_builder.cpp
+    functional/unit/test_sparse_assembly.cpp
+    functional/unit/test_sparse_validation.cpp
+    functional/unit/test_sparse_level1.cpp
+    functional/unit/test_sparse_spmv.cpp
+    functional/unit/test_sparse_spsymv.cpp
+    functional/unit/test_sparse_spmm.cpp
+    functional/unit/test_sparse_sptrsv.cpp
+
     # --- Integration ---
     functional/integration/test_framework_sim.cpp
     functional/integration/test_dependency_stress.cpp
@@ -218,6 +257,7 @@ add_executable(sushiblas_tests
     functional/regression/test_operand_lifetime.cpp
     functional/regression/test_task_dependencies.cpp
     functional/regression/test_blas_symmetric_bits.cpp
+    functional/regression/test_sparse_recording.cpp
 )
 
 # --- Include Directories ---

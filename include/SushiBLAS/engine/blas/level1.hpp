@@ -113,6 +113,34 @@ namespace SushiBLAS
              */
             TaskHandle rot(Tensor& x, Tensor& y, double c, double s);
 
+            /**
+             * @brief Records the Givens rotation that maps (a, b) to (r, 0).
+             * @param a Scalar tensor that overlaps none of the other three; receives r.
+             * @param b Scalar tensor; receives z for a real dtype, is only read for a complex one.
+             * @param c Scalar tensor of the real component type of a; receives the cosine.
+             * @param s Scalar tensor of the dtype of a, as b is; receives the sine.
+             * @throws std::invalid_argument on an operand the call does not accept.
+             */
+            TaskHandle rotg(Tensor& a, Tensor& b, Tensor& c, Tensor& s);
+
+            /**
+             * @brief Records the modified Givens transformation of the pairs (x_i, y_i).
+             * @param param Five contiguous elements of the dtype of x: the flag, then h11, h21,
+             *        h12 and h22, as rotmg writes them.
+             * @throws std::invalid_argument on a complex operand, or one the call does not accept.
+             */
+            TaskHandle rotm(Tensor& x, Tensor& y, const Tensor& param);
+
+            /**
+             * @brief Records the modified Givens transformation that zeroes the second component
+             *        of (sqrt(d1) * x1, sqrt(d2) * y1).
+             * @param d1 Scalar tensor, updated in place as d2 and x1 are; y1 is only read.
+             * @param param Five contiguous elements that overlap no other operand; receives the
+             *        flag and the entries of H the flag does not imply.
+             * @throws std::invalid_argument on a complex or HALF operand, or one not accepted.
+             */
+            TaskHandle rotmg(Tensor& d1, Tensor& d2, Tensor& x1, const Tensor& y1, Tensor& param);
+
         protected:
             /** @brief Binds the recorder every operation records on; it must outlive this view. */
             explicit Level1(TaskRecorder& recorder) noexcept

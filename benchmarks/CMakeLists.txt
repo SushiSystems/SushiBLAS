@@ -5,7 +5,8 @@
 # Commercial use requires a licence from Sushi Systems.
 
 # One executable per benchmark source. Each includes bench_common.hpp from this folder.
-set(SB_BENCHMARKS bench_gemm bench_level1 bench_reductions bench_elementwise)
+set(SB_BENCHMARKS bench_gemm bench_gemm_blocking bench_level1 bench_reductions bench_elementwise
+    bench_band_packed bench_sparse bench_triangular)
 
 foreach(benchmark IN LISTS SB_BENCHMARKS)
     add_executable(${benchmark} ${benchmark}.cpp)
@@ -23,3 +24,6 @@ foreach(benchmark IN LISTS SB_BENCHMARKS)
         )
     endif()
 endforeach()
+
+# bench_triangular times the TRSM kernel at block widths the public API does not select.
+target_include_directories(bench_triangular PRIVATE "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>")
