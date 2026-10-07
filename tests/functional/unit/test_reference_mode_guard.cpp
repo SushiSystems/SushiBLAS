@@ -104,9 +104,9 @@ class Unit_ReferenceModeGuardTest : public SushiBLASTest
             engine->set_mode(mode);
             Tensor c = engine->create_tensor({2, 2});
             fill_tensor(c, {0.0f, 0.0f, 0.0f, 0.0f});
-            engine->blas().gemm(a, b, c);
-            engine->execute().wait();
-            return engine->io().to_vector<float>(c);
+            SushiBLAS::BLASOps(*engine).gemm(a, b, c);
+            engine->execute();
+            return SushiBLAS::IO(*engine).to_vector<float>(c);
         }
 };
 
@@ -121,7 +121,7 @@ TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceGemmRefusesADeviceOperand)
     engine->set_mode(ExecutionMode::FORCE_REFERENCE);
     try
     {
-        engine->blas().gemm(*a, b, c);
+        SushiBLAS::BLASOps(*engine).gemm(*a, b, c);
         FAIL() << "FORCE_REFERENCE must refuse a device-only operand.";
     }
     catch (const std::invalid_argument& e)

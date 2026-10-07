@@ -47,9 +47,9 @@ TEST_F(Unit_SYR2Test, SimpleSYR2)
 
     SB_LOG_INFO("Submitting SYR2.");
     // upper=false
-    engine->blas().syr2(X, Y, A, false);
+    SushiBLAS::BLASOps(*engine).syr2(X, Y, A, false);
     
-    engine->execute().wait();
+    engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Only the lower triangle of x*y^T + y*x^T is written. See tests/functional/unit/README.md.

@@ -130,8 +130,8 @@ namespace SushiBLAS
                 {
                     const std::string path = temp_path(name);
                     auto source = engine->create_tensor({2, 3});
-                    engine->io().from_vector(source, K_VALUES);
-                    engine->io().save_npy(source, path);
+                    SushiBLAS::IO(*engine).from_vector(source, K_VALUES);
+                    SushiBLAS::IO(*engine).save_npy(source, path);
                     return path;
                 }
 
@@ -143,18 +143,18 @@ namespace SushiBLAS
         TEST_F(Unit_HostTransfer, ToVectorReadsBackWhatFromVectorWrote)
         {
             auto t = engine->create_tensor({2, 3});
-            engine->io().from_vector(t, K_VALUES);
+            SushiBLAS::IO(*engine).from_vector(t, K_VALUES);
 
-            EXPECT_EQ(engine->io().to_vector<float>(t), K_VALUES);
+            EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
         TEST_F(Unit_HostTransfer, ReadReturnsWhatWriteStored)
         {
             auto t = engine->create_tensor({2, 3});
-            engine->io().write(t, K_VALUES.data(), K_VALUES.size() * sizeof(float));
+            SushiBLAS::IO(*engine).write(t, K_VALUES.data(), K_VALUES.size() * sizeof(float));
 
             std::vector<float> out(K_VALUES.size());
-            engine->io().read(t, out.data(), out.size() * sizeof(float));
+            SushiBLAS::IO(*engine).read(t, out.data(), out.size() * sizeof(float));
             EXPECT_EQ(out, K_VALUES);
         }
 
@@ -164,10 +164,12 @@ namespace SushiBLAS
             const std::vector<float> short_values{1.0f, 2.0f};
             std::vector<float> out(K_VALUES.size() + 1);
 
-            EXPECT_THROW(engine->io().from_vector(t, short_values), std::invalid_argument);
-            EXPECT_THROW(engine->io().write(t, out.data(), out.size() * sizeof(float)),
+            EXPECT_THROW(
+                SushiBLAS::IO(*engine).from_vector(t, short_values),
+                std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::IO(*engine).write(t, out.data(), out.size() * sizeof(float)),
                          std::invalid_argument);
-            EXPECT_THROW(engine->io().read(t, out.data(), out.size() * sizeof(float)),
+            EXPECT_THROW(SushiBLAS::IO(*engine).read(t, out.data(), out.size() * sizeof(float)),
                          std::invalid_argument);
         }
 
@@ -175,8 +177,8 @@ namespace SushiBLAS
         {
             auto t = engine->create_tensor({2, 3});
 
-            EXPECT_THROW((void)engine->io().to_vector<double>(t), std::invalid_argument);
-            EXPECT_THROW(engine->io().from_vector(t, std::vector<int32_t>(6, 1)),
+            EXPECT_THROW((void)SushiBLAS::IO(*engine).to_vector<double>(t), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::IO(*engine).from_vector(t, std::vector<int32_t>(6, 1)),
                          std::invalid_argument);
         }
 
@@ -184,12 +186,12 @@ namespace SushiBLAS
         {
             auto source = engine->create_tensor({2, 3});
             auto t = engine->create_tensor({2, 3});
-            engine->io().from_vector(source, K_VALUES);
-            engine->io().from_vector(t, K_PENDING_VALUES);
+            SushiBLAS::IO(*engine).from_vector(source, K_VALUES);
+            SushiBLAS::IO(*engine).from_vector(t, K_PENDING_VALUES);
 
-            engine->blas().copy(source, t);
+            SushiBLAS::BLASOps(*engine).copy(source, t);
 
-            EXPECT_EQ(engine->io().to_vector<float>(t), K_VALUES);
+            EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
         TEST_F(Unit_HostTransfer, LoadNpyRunsThePendingWriteBeforeLoading)
@@ -198,12 +200,12 @@ namespace SushiBLAS
 
             auto pending = engine->create_tensor({2, 3});
             auto t = engine->create_tensor({2, 3});
-            engine->io().from_vector(pending, K_PENDING_VALUES);
+            SushiBLAS::IO(*engine).from_vector(pending, K_PENDING_VALUES);
 
-            engine->blas().copy(pending, t);
-            engine->io().load_npy(t, path);
+            SushiBLAS::BLASOps(*engine).copy(pending, t);
+            SushiBLAS::IO(*engine).load_npy(t, path);
 
-            EXPECT_EQ(engine->io().to_vector<float>(t), K_VALUES);
+            EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
         TEST_F(Unit_HostTransfer, LoadBinRunsThePendingWriteBeforeLoading)
@@ -211,18 +213,18 @@ namespace SushiBLAS
             const std::string path = temp_path("ordering.bin");
             {
                 auto source = engine->create_tensor({2, 3});
-                engine->io().from_vector(source, K_VALUES);
-                engine->io().save_bin(source, path);
+                SushiBLAS::IO(*engine).from_vector(source, K_VALUES);
+                SushiBLAS::IO(*engine).save_bin(source, path);
             }
 
             auto pending = engine->create_tensor({2, 3});
             auto t = engine->create_tensor({2, 3});
-            engine->io().from_vector(pending, K_PENDING_VALUES);
+            SushiBLAS::IO(*engine).from_vector(pending, K_PENDING_VALUES);
 
-            engine->blas().copy(pending, t);
-            engine->io().load_bin(t, path);
+            SushiBLAS::BLASOps(*engine).copy(pending, t);
+            SushiBLAS::IO(*engine).load_bin(t, path);
 
-            EXPECT_EQ(engine->io().to_vector<float>(t), K_VALUES);
+            EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
         TEST_F(Unit_HostTransfer, NpyRoundTripKeepsTheValues)
@@ -230,9 +232,9 @@ namespace SushiBLAS
             const std::string path = save_values_npy("round_trip.npy");
 
             auto t = engine->create_tensor({2, 3});
-            engine->io().load_npy(t, path);
+            SushiBLAS::IO(*engine).load_npy(t, path);
 
-            EXPECT_EQ(engine->io().to_vector<float>(t), K_VALUES);
+            EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
         TEST_F(Unit_HostTransfer, NpyVersionTwoHeaderLoads)
@@ -255,9 +257,9 @@ namespace SushiBLAS
             write_bytes(path, v2);
 
             auto t = engine->create_tensor({2, 3});
-            engine->io().load_npy(t, path);
+            SushiBLAS::IO(*engine).load_npy(t, path);
 
-            EXPECT_EQ(engine->io().to_vector<float>(t), K_VALUES);
+            EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
         TEST_F(Unit_HostTransfer, NpyWithAnotherDtypeThrows)
@@ -268,7 +270,7 @@ namespace SushiBLAS
             write_bytes(path, bytes);
 
             auto t = engine->create_tensor({2, 3});
-            EXPECT_THROW(engine->io().load_npy(t, path), std::runtime_error);
+            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, path), std::runtime_error);
         }
 
         TEST_F(Unit_HostTransfer, NpyWithAnotherShapeThrows)
@@ -279,7 +281,7 @@ namespace SushiBLAS
             write_bytes(path, bytes);
 
             auto t = engine->create_tensor({2, 3});
-            EXPECT_THROW(engine->io().load_npy(t, path), std::runtime_error);
+            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, path), std::runtime_error);
         }
 
         TEST_F(Unit_HostTransfer, NpyWithVersionFourThrows)
@@ -293,7 +295,7 @@ namespace SushiBLAS
             write_bytes(path, bytes);
 
             auto t = engine->create_tensor({2, 3});
-            EXPECT_THROW(engine->io().load_npy(t, path), std::runtime_error);
+            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, path), std::runtime_error);
         }
 
         TEST_F(Unit_HostTransfer, NpyWithoutAShapeThrows)
@@ -304,7 +306,7 @@ namespace SushiBLAS
             write_bytes(path, bytes);
 
             auto t = engine->create_tensor({2, 3});
-            EXPECT_THROW(engine->io().load_npy(t, path), std::runtime_error);
+            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, path), std::runtime_error);
         }
 
         TEST_F(Unit_HostTransfer, NpyWithNumpyPaddingLoads)
@@ -313,9 +315,9 @@ namespace SushiBLAS
             write_npy_v1(path, "{'descr': '<f4', 'fortran_order': False, 'shape': (2, 3), }");
 
             auto t = engine->create_tensor({2, 3});
-            engine->io().load_npy(t, path);
+            SushiBLAS::IO(*engine).load_npy(t, path);
 
-            EXPECT_EQ(engine->io().to_vector<float>(t), K_VALUES);
+            EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
         TEST_F(Unit_HostTransfer, NpyWithoutCommasThrows)
@@ -324,7 +326,7 @@ namespace SushiBLAS
             write_npy_v1(path, "{'descr': '<f4' 'fortran_order': False 'shape': (2, 3) }");
 
             auto t = engine->create_tensor({2, 3});
-            EXPECT_THROW(engine->io().load_npy(t, path), std::runtime_error);
+            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, path), std::runtime_error);
         }
 
         TEST_F(Unit_HostTransfer, NpyWithADuplicateKeyThrows)
@@ -334,7 +336,7 @@ namespace SushiBLAS
                                "'shape': (2, 3), }");
 
             auto t = engine->create_tensor({2, 3});
-            EXPECT_THROW(engine->io().load_npy(t, path), std::runtime_error);
+            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, path), std::runtime_error);
         }
 
         TEST_F(Unit_HostTransfer, LoadNpyRejectsAColumnMajorRankThreeTensor)
@@ -342,7 +344,7 @@ namespace SushiBLAS
             reinit_engine(Core::Layout::COLUMN_MAJOR);
             auto t = engine->create_tensor({2, 2, 2});
 
-            EXPECT_THROW(engine->io().load_npy(t, temp_path("column_major.npy")),
+            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, temp_path("column_major.npy")),
                          std::invalid_argument);
         }
     } // namespace Test

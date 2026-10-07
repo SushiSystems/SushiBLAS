@@ -58,7 +58,8 @@ namespace
         Bench::fill_tensor(engine, a, K_A_VALUE);
         Bench::fill_tensor(engine, b, K_B_VALUE);
 
-        const Bench::Timing timing = Bench::measure(engine, [&]() { engine.blas().gemm(a, b, c); });
+        const Bench::Timing timing =
+            Bench::measure(engine, [&]() { SushiBLAS::BLASOps(engine).gemm(a, b, c); });
         const double order = static_cast<double>(n);
         const double flops = 2.0 * order * order * order;
         table.print_row("gemm", dtype, n, timing, flops, Bench::K_FLOPS_PER_GIGAFLOP);

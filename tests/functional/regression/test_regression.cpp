@@ -32,6 +32,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
+#include "../../common/graph_probe.hpp"
 
 namespace SushiBLAS
 {
@@ -53,8 +54,8 @@ namespace SushiBLAS
 
             engine->set_mode(ExecutionMode::FORCE_SYCL);
             EXPECT_NO_THROW({
-                engine->blas().syrk(A, C, /*upper=*/false, /*transA=*/false, 1.0, 0.0);
-                engine->execute().wait();
+                SushiBLAS::BLASOps(*engine).syrk(A, C, /*upper=*/false, /*transA=*/false, 1.0, 0.0);
+                engine->execute();
             }) << "SYRK must accept HALF (SB-2 removed the oneMKL-era restriction).";
         }
 
@@ -79,8 +80,8 @@ namespace SushiBLAS
                 auto C = engine->create_tensor({3, 2}, Core::DataType::FLOAT32);
 
                 engine->set_mode(mode);
-                engine->blas().gemm(A, B, C);
-                engine->execute().wait();
+                SushiBLAS::BLASOps(*engine).gemm(A, B, C);
+                engine->execute();
 
                 EXPECT_TENSOR_NEAR(C, expected, 1e-5);
             }
@@ -97,9 +98,9 @@ namespace SushiBLAS
             auto draw = [&](uint64_t seed)
             {
                 auto t = engine->create_tensor({static_cast<int64_t>(kN)});
-                engine->random().set_seed(seed);
-                engine->random().uniform(t, 0.0, 1.0);
-                engine->execute().wait();
+                SushiBLAS::RandomOps(*engine).set_seed(seed);
+                SushiBLAS::RandomOps(*engine).uniform(t, 0.0, 1.0);
+                engine->execute();
 
                 std::vector<float> host(kN);
                 auto& q = TestEnvironment::get_context().get_queue();
@@ -136,8 +137,8 @@ namespace SushiBLAS
             q.memcpy(x.data(), &one, sizeof(double)).wait();
             q.memcpy(y.data(), &zero, sizeof(double)).wait();
 
-            engine->blas().axpy(kAlpha, x, y);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).axpy(kAlpha, x, y);
+            engine->execute();
 
             double got = 0.0;
             q.memcpy(&got, y.data(), sizeof(double)).wait();
@@ -149,8 +150,8 @@ namespace SushiBLAS
 
             // scal is the same defect in the other Level 1 entry point.
             q.memcpy(x.data(), &one, sizeof(double)).wait();
-            engine->blas().scal(kAlpha, x);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).scal(kAlpha, x);
+            engine->execute();
             q.memcpy(&got, x.data(), sizeof(double)).wait();
 
             EXPECT_DOUBLE_EQ(kAlpha, got) << "an fp64 SCAL must apply alpha at fp64 precision.";
@@ -199,8 +200,8 @@ namespace SushiBLAS
                     EXPECT_TRUE(A.is_contiguous()) << "is_contiguous must agree with the layout rule.";
 
                     engine->set_mode(mode);
-                    engine->blas().gemm(A, B, C);
-                    engine->execute().wait();
+                    SushiBLAS::BLASOps(*engine).gemm(A, B, C);
+                    engine->execute();
 
                     EXPECT_TENSOR_NEAR(C, c.expected, 1e-4);
                 }
@@ -213,6 +214,8 @@ namespace SushiBLAS
          */
         TEST_F(Regression_Sentinel, AccumulatingOpsDeclareTheirAccumulatorRead)
         {
+            GraphProbe probe;
+
             auto contains = [](const std::vector<SushiRuntime::Core::ResourceRegion>& set,
                                const SushiRuntime::Core::ResourceRegion& r)
             {
@@ -224,9 +227,9 @@ namespace SushiBLAS
                 auto x = engine->create_tensor({2});
                 auto y = engine->create_tensor({3});
                 auto A = engine->create_tensor({2, 3});
-                engine->blas().ger(x, y, A);
+                SushiBLAS::BLASOps(probe.get_recorder()).ger(x, y, A);
 
-                auto nodes = engine->get_graph().take_nodes();
+                auto nodes = probe.take_nodes();
                 ASSERT_EQ(1u, nodes.size());
                 EXPECT_TRUE(contains(nodes[0]->io_reads_, A.region()))
                     << "GER accumulates into A: `A = alpha * x * y^H + A` reads it.";
@@ -238,10 +241,12 @@ namespace SushiBLAS
                 auto x = engine->create_tensor({3});
                 auto y = engine->create_tensor({2});
 
-                engine->blas().gemv(A, x, y, false, 1.0, 1.0);   // beta != 0 -> y is read
-                engine->blas().gemv(A, x, y, false, 1.0, 0.0);   // beta == 0 -> y is not
+                // beta != 0 -> y is read
+                SushiBLAS::BLASOps(probe.get_recorder()).gemv(A, x, y, false, 1.0, 1.0);
+                // beta == 0 -> y is not
+                SushiBLAS::BLASOps(probe.get_recorder()).gemv(A, x, y, false, 1.0, 0.0);
 
-                auto nodes = engine->get_graph().take_nodes();
+                auto nodes = probe.take_nodes();
                 ASSERT_EQ(2u, nodes.size());
                 EXPECT_TRUE(contains(nodes[0]->io_reads_, y.region()))
                     << "GEMV with beta != 0 reads y back before overwriting it.";
@@ -259,6 +264,8 @@ namespace SushiBLAS
          */
         TEST_F(Regression_Sentinel, ReductionsOrderAgainstViewsOfOneAllocation)
         {
+            GraphProbe probe;
+
             constexpr int64_t kN = 8;
 
             // source and packed are disjoint views of one allocation; packed is not at offset zero.
@@ -274,10 +281,10 @@ namespace SushiBLAS
             fill_tensor(source, std::vector<float>(static_cast<size_t>(kN), 3.0f));
 
             // The sum's read of packed must be ordered behind mul's write.
-            engine->elementwise().mul(source, source, packed);
-            engine->reductions().sum(packed, total);
+            SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(source, source, packed);
+            SushiBLAS::ReductionOps(probe.get_recorder()).sum(packed, total);
 
-            auto nodes = engine->get_graph().take_nodes();
+            auto nodes = probe.take_nodes();
             ASSERT_EQ(2u, nodes.size());
             EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
                 << "The reduction reading `packed` must depend on the op that wrote it. "
@@ -286,9 +293,9 @@ namespace SushiBLAS
                    "nothing else touches and emitted no edge at all.";
 
             // And the same thing behaviourally, for the reader who wants to see it.
-            engine->elementwise().mul(source, source, packed);
-            engine->reductions().sum(packed, total);
-            engine->execute().wait();
+            SushiBLAS::ElementwiseOps(*engine).mul(source, source, packed);
+            SushiBLAS::ReductionOps(*engine).sum(packed, total);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(total, {static_cast<float>(kN) * 9.0f}, 1e-5);
         }
@@ -326,9 +333,9 @@ namespace SushiBLAS
             auto reduction_result = engine->create_tensor({1});
             auto level1_result = engine->create_tensor({1});
 
-            engine->reductions().nrm2(x, reduction_result);
-            engine->blas().nrm2(x, level1_result);
-            engine->execute().wait();
+            SushiBLAS::ReductionOps(*engine).nrm2(x, reduction_result);
+            SushiBLAS::BLASOps(*engine).nrm2(x, level1_result);
+            engine->execute();
 
             const std::pair<const char*, Tensor> answers[] = {
                 {"reductions().nrm2", reduction_result},
@@ -361,9 +368,9 @@ namespace SushiBLAS
             auto reduction_result = engine->create_tensor({1});
             auto level1_result = engine->create_tensor({1});
 
-            engine->reductions().nrm2(x, reduction_result);
-            engine->blas().nrm2(x, level1_result);
-            engine->execute().wait();
+            SushiBLAS::ReductionOps(*engine).nrm2(x, reduction_result);
+            SushiBLAS::BLASOps(*engine).nrm2(x, level1_result);
+            engine->execute();
 
             const std::pair<const char*, Tensor> answers[] = {
                 {"reductions().nrm2", reduction_result},
@@ -393,8 +400,8 @@ namespace SushiBLAS
             auto x = create_initialized_tensor<std::complex<float>>({1}, data);
             auto result = engine->create_tensor({1}, Core::DataType::FLOAT32);
 
-            engine->blas().nrm2(x, result);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).nrm2(x, result);
+            engine->execute();
 
             // |3 + 4i| = 5. `abs1` would have given |3| + |4| = 7.
             EXPECT_NEAR(scalar_of(result), 5.0f, 1e-4f)

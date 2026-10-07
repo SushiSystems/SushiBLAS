@@ -65,13 +65,16 @@ namespace
 
         // add reads two tensors and writes one; exp and relu read and write the same tensor.
         table.print_row("add", dtype, n,
-                        Bench::measure(engine, [&]() { engine.elementwise().add(a, b, c); }),
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::ElementwiseOps(engine).add(a, b, c); }),
                         3.0 * tensor_bytes, gb);
         table.print_row("exp", dtype, n,
-                        Bench::measure(engine, [&]() { engine.elementwise().exp(c); }),
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::ElementwiseOps(engine).exp(c); }),
                         2.0 * tensor_bytes, gb);
         table.print_row("relu", dtype, n,
-                        Bench::measure(engine, [&]() { engine.nonlinear().relu(a); }),
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::NonLinearOps(engine).relu(a); }),
                         2.0 * tensor_bytes, gb);
     }
 

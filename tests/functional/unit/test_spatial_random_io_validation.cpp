@@ -112,7 +112,9 @@ namespace SushiBLAS
             g.kernel_w = 2;
             g.stride_h = 0;
 
-            EXPECT_THROW(engine->spatial().pool_avg(in, out, g), std::invalid_argument);
+            EXPECT_THROW(
+                SushiBLAS::SpatialOps(*engine).pool_avg(in, out, g),
+                std::invalid_argument);
         }
 
         TEST_F(Unit_SpatialRandomIOValidationTest, PoolingWindowMadeOnlyOfPaddingIsRefused)
@@ -127,7 +129,9 @@ namespace SushiBLAS
             g.kernel_w = 2;
             g.pad_top = 2;
 
-            EXPECT_THROW(engine->spatial().pool_max(in, out, indices, g), std::invalid_argument);
+            EXPECT_THROW(
+                SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g),
+                std::invalid_argument);
         }
 
         TEST_F(Unit_SpatialRandomIOValidationTest, PoolMaxRefusesAStridedIndexTensor)
@@ -137,8 +141,9 @@ namespace SushiBLAS
             auto dense = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
             auto indices = dense.transpose(1, 2);
 
-            EXPECT_THROW(engine->spatial().pool_max(in, out, indices, Spatial::ConvGeometry{}),
-                         std::invalid_argument);
+            EXPECT_THROW(
+                SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, Spatial::ConvGeometry{}),
+                std::invalid_argument);
         }
 
         TEST_F(Unit_SpatialRandomIOValidationTest, PoolMaxPropagatesANaNTap)
@@ -153,7 +158,7 @@ namespace SushiBLAS
             Spatial::ConvGeometry g;
             g.kernel_w = 3;
 
-            engine->spatial().pool_max(in, out, indices, g);
+            SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
             engine->execute();
 
             EXPECT_TRUE(std::isnan(out.data_as<float>()[0]));
@@ -164,8 +169,8 @@ namespace SushiBLAS
         {
             auto t = engine->create_tensor({K_UNIFORM_DRAWS}, Core::DataType::FLOAT32);
 
-            engine->random().set_seed(K_UNIFORM_SEED);
-            engine->random().uniform(t, 0.0, 1.0);
+            SushiBLAS::RandomOps(*engine).set_seed(K_UNIFORM_SEED);
+            SushiBLAS::RandomOps(*engine).uniform(t, 0.0, 1.0);
             engine->execute();
 
             const float* p = t.data_as<float>();
@@ -180,14 +185,18 @@ namespace SushiBLAS
         {
             auto t = engine->create_tensor({4}, Core::DataType::FLOAT32);
 
-            EXPECT_THROW(engine->random().poisson(t, K_LAMBDA_ABOVE_CAP), std::invalid_argument);
+            EXPECT_THROW(
+                SushiBLAS::RandomOps(*engine).poisson(t, K_LAMBDA_ABOVE_CAP),
+                std::invalid_argument);
         }
 
         TEST_F(Unit_SpatialRandomIOValidationTest, PoissonRefusesANegativeLambda)
         {
             auto t = engine->create_tensor({4}, Core::DataType::FLOAT32);
 
-            EXPECT_THROW(engine->random().poisson(t, K_LAMBDA_NEGATIVE), std::invalid_argument);
+            EXPECT_THROW(
+                SushiBLAS::RandomOps(*engine).poisson(t, K_LAMBDA_NEGATIVE),
+                std::invalid_argument);
         }
 
         TEST_F(Unit_SpatialRandomIOValidationTest, PoolMaxBackwardRefusesATransposedOutputGradient)
@@ -197,8 +206,10 @@ namespace SushiBLAS
             auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
             auto dx = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
 
-            EXPECT_THROW(engine->spatial().pool_max_backward(dy, indices, dx, Spatial::ConvGeometry{}),
-                         std::invalid_argument);
+            EXPECT_THROW(
+                SushiBLAS::SpatialOps(*engine).pool_max_backward(
+                    dy, indices, dx, Spatial::ConvGeometry{}),
+                std::invalid_argument);
         }
 
         TEST_F(Unit_SpatialRandomIOValidationTest, PoolMaxOfAnAllNegativeInfinityWindowIsNegativeInfinity)
@@ -213,7 +224,7 @@ namespace SushiBLAS
             Spatial::ConvGeometry g;
             g.kernel_w = 3;
 
-            engine->spatial().pool_max(in, out, indices, g);
+            SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
             engine->execute();
 
             EXPECT_EQ(out.data_as<float>()[0], neg_inf);
@@ -224,8 +235,8 @@ namespace SushiBLAS
         {
             auto t = engine->create_tensor({K_BERNOULLI_DRAWS}, Core::DataType::FLOAT32);
 
-            engine->random().set_seed(K_BERNOULLI_SEED);
-            engine->random().bernoulli(t, 0.0);
+            SushiBLAS::RandomOps(*engine).set_seed(K_BERNOULLI_SEED);
+            SushiBLAS::RandomOps(*engine).bernoulli(t, 0.0);
             engine->execute();
 
             const float* p = t.data_as<float>();
@@ -237,8 +248,8 @@ namespace SushiBLAS
         {
             auto t = engine->create_tensor({K_BERNOULLI_DRAWS}, Core::DataType::FLOAT32);
 
-            engine->random().set_seed(K_BERNOULLI_SEED);
-            engine->random().bernoulli(t, 1.0);
+            SushiBLAS::RandomOps(*engine).set_seed(K_BERNOULLI_SEED);
+            SushiBLAS::RandomOps(*engine).bernoulli(t, 1.0);
             engine->execute();
 
             const float* p = t.data_as<float>();
@@ -250,7 +261,7 @@ namespace SushiBLAS
         {
             auto t = engine->create_tensor({4}, Core::DataType::FLOAT32);
 
-            EXPECT_THROW(engine->random().uniform(t, 1.0, 0.0), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::RandomOps(*engine).uniform(t, 1.0, 0.0), std::invalid_argument);
         }
 
         TEST_F(Unit_SpatialRandomIOValidationTest, UniformRefusesANonFiniteBound)
@@ -259,8 +270,8 @@ namespace SushiBLAS
             const double inf = std::numeric_limits<double>::infinity();
             const double nan = std::numeric_limits<double>::quiet_NaN();
 
-            EXPECT_THROW(engine->random().uniform(t, 0.0, inf), std::invalid_argument);
-            EXPECT_THROW(engine->random().uniform(t, nan, 1.0), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::RandomOps(*engine).uniform(t, 0.0, inf), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::RandomOps(*engine).uniform(t, nan, 1.0), std::invalid_argument);
         }
 
         TEST_F(Unit_SpatialRandomIOValidationTest, UniformRefusesAWidthThatOverflowsTheDtype)
@@ -268,17 +279,21 @@ namespace SushiBLAS
             auto single = engine->create_tensor({4}, Core::DataType::FLOAT32);
             auto wide = engine->create_tensor({4}, Core::DataType::FLOAT64);
 
-            EXPECT_THROW(engine->random().uniform(single, -K_LARGE_FLOAT_BOUND, K_LARGE_FLOAT_BOUND),
-                         std::invalid_argument);
-            EXPECT_THROW(engine->random().uniform(wide, -K_LARGE_DOUBLE_BOUND, K_LARGE_DOUBLE_BOUND),
-                         std::invalid_argument);
+            EXPECT_THROW(
+                SushiBLAS::RandomOps(*engine).uniform(
+                    single, -K_LARGE_FLOAT_BOUND, K_LARGE_FLOAT_BOUND),
+                std::invalid_argument);
+            EXPECT_THROW(
+                SushiBLAS::RandomOps(*engine).uniform(
+                    wide, -K_LARGE_DOUBLE_BOUND, K_LARGE_DOUBLE_BOUND),
+                std::invalid_argument);
         }
 
         TEST_F(Unit_SpatialRandomIOValidationTest, UniformWithEqualBoundsFillsThatBound)
         {
             auto t = engine->create_tensor({8}, Core::DataType::FLOAT32);
 
-            engine->random().uniform(t, K_DEGENERATE_BOUND, K_DEGENERATE_BOUND);
+            SushiBLAS::RandomOps(*engine).uniform(t, K_DEGENERATE_BOUND, K_DEGENERATE_BOUND);
             engine->execute();
 
             const float* p = t.data_as<float>();
@@ -290,20 +305,26 @@ namespace SushiBLAS
         {
             auto t = engine->create_tensor({4}, Core::DataType::FLOAT32);
 
-            EXPECT_NO_THROW(engine->random().discrete_uniform(t, -K_FLOAT32_EXACT_LIMIT, K_FLOAT32_EXACT_LIMIT));
-            EXPECT_THROW(engine->random().discrete_uniform(t, 0, K_FLOAT32_EXACT_LIMIT + 1),
-                         std::invalid_argument);
-            EXPECT_THROW(engine->random().discrete_uniform(t, -K_FLOAT32_EXACT_LIMIT - 1, 0),
-                         std::invalid_argument);
+            EXPECT_NO_THROW(
+                SushiBLAS::RandomOps(*engine).discrete_uniform(
+                    t, -K_FLOAT32_EXACT_LIMIT, K_FLOAT32_EXACT_LIMIT));
+            EXPECT_THROW(
+                SushiBLAS::RandomOps(*engine).discrete_uniform(t, 0, K_FLOAT32_EXACT_LIMIT + 1),
+                std::invalid_argument);
+            EXPECT_THROW(
+                SushiBLAS::RandomOps(*engine).discrete_uniform(t, -K_FLOAT32_EXACT_LIMIT - 1, 0),
+                std::invalid_argument);
         }
 
         TEST_F(Unit_SpatialRandomIOValidationTest, IntegerValuedFillsRefuseAComplexTensor)
         {
             auto z = engine->create_tensor({4}, Core::DataType::COMPLEX32);
 
-            EXPECT_THROW(engine->random().poisson(z, 1.0), std::invalid_argument);
-            EXPECT_THROW(engine->random().discrete_uniform(z, 0, 10), std::invalid_argument);
-            EXPECT_THROW(engine->random().bernoulli(z, 0.5), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::RandomOps(*engine).poisson(z, 1.0), std::invalid_argument);
+            EXPECT_THROW(
+                SushiBLAS::RandomOps(*engine).discrete_uniform(z, 0, 10),
+                std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::RandomOps(*engine).bernoulli(z, 0.5), std::invalid_argument);
         }
 
         TEST_F(Unit_SpatialRandomIOValidationTest, ToStringReadsATransposedViewThroughItsStrides)
@@ -313,7 +334,7 @@ namespace SushiBLAS
                                                            {0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f});
             const Tensor view = source.transpose(0, 1);
 
-            const std::string text = engine->io().to_string(view, K_PRINT_PRECISION);
+            const std::string text = SushiBLAS::IO(*engine).to_string(view, K_PRINT_PRECISION);
 
             EXPECT_NE(text.find("[0.0, 3.0]"), std::string::npos) << text;
             EXPECT_NE(text.find("[1.0, 4.0]"), std::string::npos) << text;
@@ -326,10 +347,10 @@ namespace SushiBLAS
             const std::string path = temp_path("round_trip.sushi");
 
             auto source = create_initialized_tensor<float>({2, 2}, values);
-            engine->io().save(source, path);
+            SushiBLAS::IO(*engine).save(source, path);
 
             auto target = engine->create_tensor({2, 2}, Core::DataType::FLOAT32);
-            engine->io().load(target, path);
+            SushiBLAS::IO(*engine).load(target, path);
 
             EXPECT_TENSOR_NEAR(target, values, 0.0);
         }

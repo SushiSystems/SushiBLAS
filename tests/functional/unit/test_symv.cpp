@@ -52,9 +52,9 @@ TEST_F(Unit_SYMVTest, SimpleSYMV)
 
     SB_LOG_INFO("Submitting SYMV.");
     // upper=false -> lower triangle used by symv
-    engine->blas().symv(A, X, Y, false);
+    SushiBLAS::BLASOps(*engine).symv(A, X, Y, false);
     
-    engine->execute().wait();
+    engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Y = A * X = [1+2+3, 2+4+5, 3+5+6] = [6, 11, 14].
@@ -81,8 +81,8 @@ TEST_F(Unit_SYMVTest, LowerIgnoresAPoisonedUpperTriangle)
     fill_tensor(X, K_X);
     fill_tensor(Y, {0, 0, 0});
 
-    engine->blas().symv(A, X, Y, false);
-    engine->execute().wait();
+    SushiBLAS::BLASOps(*engine).symv(A, X, Y, false);
+    engine->execute();
 
     // S * [1 2 3] = [2+2+12, 1+6+15, 4+10+21].
     verify_tensor(Y, {16, 22, 35});
@@ -99,8 +99,8 @@ TEST_F(Unit_SYMVTest, UpperIgnoresAPoisonedLowerTriangle)
     fill_tensor(X, K_X);
     fill_tensor(Y, {0, 0, 0});
 
-    engine->blas().symv(A, X, Y, true);
-    engine->execute().wait();
+    SushiBLAS::BLASOps(*engine).symv(A, X, Y, true);
+    engine->execute();
 
     // S * [1 2 3] = [1+4+9, 2+8+15, 3+10+18].
     verify_tensor(Y, {14, 25, 31});

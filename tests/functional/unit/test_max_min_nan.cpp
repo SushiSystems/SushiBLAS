@@ -67,9 +67,9 @@ class Unit_MaxMinNaNTest : public SushiBLASTest
 
             auto max = engine->create_tensor({1});
             auto min = engine->create_tensor({1});
-            engine->reductions().max(t, max);
-            engine->reductions().min(t, min);
-            engine->execute().wait();
+            SushiBLAS::ReductionOps(*engine).max(t, max);
+            SushiBLAS::ReductionOps(*engine).min(t, min);
+            engine->execute();
 
             verify_tensor(max, {expected_max}, K_TOLERANCE);
             verify_tensor(min, {expected_min}, K_TOLERANCE);
@@ -102,9 +102,9 @@ TEST_F(Unit_MaxMinNaNTest, SignedZerosGivePositiveMaxAndNegativeMinInEitherOrder
 
         auto max = engine->create_tensor({1});
         auto min = engine->create_tensor({1});
-        engine->reductions().max(t, max);
-        engine->reductions().min(t, min);
-        engine->execute().wait();
+        SushiBLAS::ReductionOps(*engine).max(t, max);
+        SushiBLAS::ReductionOps(*engine).min(t, min);
+        engine->execute();
 
         const float got_max = read_tensor<float>(max)[0];
         const float got_min = read_tensor<float>(min)[0];
@@ -121,8 +121,8 @@ TEST_F(Unit_MaxMinNaNTest, MaxAlongARowOfNegativeInfinitiesGivesNegativeInfinity
     fill_tensor(x, {-K_INF, -K_INF});
 
     auto out = engine->create_tensor({1});
-    engine->reductions().max_along(x, 1, out);
-    engine->execute().wait();
+    SushiBLAS::ReductionOps(*engine).max_along(x, 1, out);
+    engine->execute();
 
     verify_tensor(out, {-K_INF}, K_TOLERANCE);
 }

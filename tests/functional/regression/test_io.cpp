@@ -92,12 +92,12 @@ namespace SushiBLAS
         {
             const std::string path = temp_path("truncated_payload.sushi");
             auto source = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
-            engine->io().save(source, path);
+            SushiBLAS::IO(*engine).save(source, path);
             drop_tail(path, 2 * sizeof(float));
 
             const std::vector<float> before{7.0f, 7.0f, 7.0f, 7.0f};
             auto target = create_initialized_tensor<float>({4}, before);
-            EXPECT_THROW(engine->io().load(target, path), std::runtime_error);
+            EXPECT_THROW(SushiBLAS::IO(*engine).load(target, path), std::runtime_error);
             EXPECT_TENSOR_NEAR(target, before, 0.0);
         }
 
@@ -105,10 +105,10 @@ namespace SushiBLAS
         {
             const std::string path = temp_path("dtype.sushi");
             auto source = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
-            engine->io().save(source, path);
+            SushiBLAS::IO(*engine).save(source, path);
 
             auto target = engine->create_tensor({4}, Core::DataType::INT32);
-            EXPECT_THROW(engine->io().load(target, path), std::runtime_error);
+            EXPECT_THROW(SushiBLAS::IO(*engine).load(target, path), std::runtime_error);
         }
 
         TEST_F(Regression_IO, LoadRejectsAnotherLayout)
@@ -116,12 +116,12 @@ namespace SushiBLAS
             const std::string path = temp_path("layout.sushi");
             {
                 auto source = create_initialized_tensor<float>({2, 3}, {1, 2, 3, 4, 5, 6});
-                engine->io().save(source, path);
+                SushiBLAS::IO(*engine).save(source, path);
             }
 
             reinit_engine(Core::Layout::COLUMN_MAJOR);
             auto target = engine->create_tensor({2, 3}, Core::DataType::FLOAT32);
-            EXPECT_THROW(engine->io().load(target, path), std::runtime_error);
+            EXPECT_THROW(SushiBLAS::IO(*engine).load(target, path), std::runtime_error);
         }
 
         TEST_F(Regression_IO, LoadRejectsAnotherFormatVersion)
@@ -131,7 +131,7 @@ namespace SushiBLAS
 
             const std::string path = temp_path("version.sushi");
             auto source = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
-            engine->io().save(source, path);
+            SushiBLAS::IO(*engine).save(source, path);
 
             std::vector<char> bytes = read_bytes(path);
             ASSERT_GT(bytes.size(), K_VERSION_OFFSET);
@@ -140,18 +140,18 @@ namespace SushiBLAS
             write_bytes(path, bytes);
 
             auto target = engine->create_tensor({4}, Core::DataType::FLOAT32);
-            EXPECT_THROW(engine->io().load(target, path), std::runtime_error);
+            EXPECT_THROW(SushiBLAS::IO(*engine).load(target, path), std::runtime_error);
         }
 
         TEST_F(Regression_IO, LoadBinRejectsAShortFileAndKeepsTheTensor)
         {
             const std::string path = temp_path("short.bin");
             auto source = create_initialized_tensor<float>({2}, {1.0f, 2.0f});
-            engine->io().save_bin(source, path);
+            SushiBLAS::IO(*engine).save_bin(source, path);
 
             const std::vector<float> before{7.0f, 7.0f, 7.0f, 7.0f};
             auto target = create_initialized_tensor<float>({4}, before);
-            EXPECT_THROW(engine->io().load_bin(target, path), std::runtime_error);
+            EXPECT_THROW(SushiBLAS::IO(*engine).load_bin(target, path), std::runtime_error);
             EXPECT_TENSOR_NEAR(target, before, 0.0);
         }
 
@@ -159,11 +159,11 @@ namespace SushiBLAS
         {
             const std::string path = temp_path("truncated_payload.npy");
             auto source = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
-            engine->io().save_npy(source, path);
+            SushiBLAS::IO(*engine).save_npy(source, path);
             drop_tail(path, sizeof(float));
 
             auto target = engine->create_tensor({4}, Core::DataType::FLOAT32);
-            EXPECT_THROW(engine->io().load_npy(target, path), std::runtime_error);
+            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(target, path), std::runtime_error);
         }
 
         TEST_F(Regression_IO, BinRoundTripsDeviceAllocatedStorage)
@@ -178,11 +178,11 @@ namespace SushiBLAS
             const std::string path = temp_path("device.bin");
             auto source = engine->create_tensor({4}, Core::DataType::FLOAT32, device);
             fill_tensor(source, values);
-            engine->io().save_bin(source, path);
+            SushiBLAS::IO(*engine).save_bin(source, path);
 
             auto target = engine->create_tensor({4}, Core::DataType::FLOAT32, device);
             fill_tensor(target, {0.0f, 0.0f, 0.0f, 0.0f});
-            engine->io().load_bin(target, path);
+            SushiBLAS::IO(*engine).load_bin(target, path);
 
             EXPECT_TENSOR_NEAR(target, values, 0.0);
         }

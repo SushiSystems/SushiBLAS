@@ -48,9 +48,9 @@ TEST_F(Unit_TRMVTest, SimpleTRMV)
 
     SB_LOG_INFO("Submitting TRMV.");
     // upper=false, transA=false, unit_diag=false
-    engine->blas().trmv(A, X, false, false, false);
+    SushiBLAS::BLASOps(*engine).trmv(A, X, false, false, false);
     
-    engine->execute().wait();
+    engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // X = A * X = [1, 2+4, 3+5+6] = [1, 6, 14].
@@ -86,8 +86,8 @@ class Unit_TRMVPoisonTest : public SushiBLASTest
             fill_tensor(A, matrix);
             fill_tensor(X, K_X);
 
-            engine->blas().trmv(A, X, upper, trans_a, false);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trmv(A, X, upper, trans_a, false);
+            engine->execute();
 
             verify_tensor(X, expected);
         }

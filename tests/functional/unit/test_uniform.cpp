@@ -79,9 +79,9 @@ class Unit_UniformTest : public SushiBLASTest
         std::vector<double> draw(uint64_t seed)
         {
             auto t = engine->create_tensor({K_DRAWS}, get_sushiblas_dtype<T>());
-            engine->random().set_seed(seed);
-            engine->random().uniform(t, K_MIN, K_MAX);
-            engine->execute().wait();
+            SushiBLAS::RandomOps(*engine).set_seed(seed);
+            SushiBLAS::RandomOps(*engine).uniform(t, K_MIN, K_MAX);
+            engine->execute();
             const std::vector<T> host = read_tensor<T>(t);
             return std::vector<double>(host.begin(), host.end());
         }

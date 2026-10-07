@@ -51,9 +51,9 @@ TEST_F(Unit_GEMVTest, SimpleGEMV)
     fill_tensor(Y, {0, 0});
 
     SB_LOG_INFO("Submitting GEMV.");
-    engine->blas().gemv(A, X, Y);
+    SushiBLAS::BLASOps(*engine).gemv(A, X, Y);
     
-    engine->execute().wait();
+    engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: Y = A * X = [1+2+3, 4+5+6] = [6, 15]

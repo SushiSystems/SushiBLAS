@@ -69,8 +69,8 @@ namespace SushiBLAS
             auto out = engine->create_tensor({N, C});
             fill_tensor(x, src);
 
-            engine->reductions().mean_spatial(x, out);
-            engine->execute().wait();
+            SushiBLAS::ReductionOps(*engine).mean_spatial(x, out);
+            engine->execute();
 
             const std::vector<float> got = read_back(out);
             ASSERT_EQ(got.size(), static_cast<std::size_t>(N * C));
@@ -108,8 +108,8 @@ namespace SushiBLAS
             auto out = engine->create_tensor({1, 1});
             fill_tensor(x, {1.0f, 2.0f, 3.0f, 4.0f});
 
-            engine->reductions().mean_spatial(x, out);
-            engine->execute().wait();
+            SushiBLAS::ReductionOps(*engine).mean_spatial(x, out);
+            engine->execute();
 
             const std::vector<float> got = read_back(out);
             ASSERT_EQ(got.size(), static_cast<std::size_t>(1));
@@ -133,8 +133,8 @@ namespace SushiBLAS
             auto out = engine->create_tensor({1, 1});
             fill_tensor(x, src);
 
-            engine->reductions().mean_spatial(x, out);
-            engine->execute().wait();
+            SushiBLAS::ReductionOps(*engine).mean_spatial(x, out);
+            engine->execute();
 
             double acc = 0.0;
             for (std::size_t i = 0; i < total; ++i) acc += static_cast<double>(src[i]);
@@ -162,8 +162,8 @@ namespace SushiBLAS
             auto out = engine->create_tensor({R});
             fill_tensor(in, src);
 
-            engine->reductions().sum_along(in, 1, out);
-            engine->execute().wait();
+            SushiBLAS::ReductionOps(*engine).sum_along(in, 1, out);
+            engine->execute();
 
             const std::vector<float> got = read_back(out);
             ASSERT_EQ(got.size(), static_cast<std::size_t>(R));

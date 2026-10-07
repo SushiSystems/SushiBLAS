@@ -118,8 +118,8 @@ namespace SushiBLAS
                     Tensor A = patterned({m, n}, 0);
                     Tensor x = patterned({n}, 11);
                     Tensor y = patterned({m}, 23);
-                    engine->blas().gemv(A, x, y, false, K_ALPHA, K_BETA);
-                    engine->execute().wait();
+                    SushiBLAS::BLASOps(*engine).gemv(A, x, y, false, K_ALPHA, K_BETA);
+                    engine->execute();
                     return read_back(y);
                 }
 
@@ -130,8 +130,8 @@ namespace SushiBLAS
                     Tensor A = patterned({n, n}, 0);
                     Tensor x = patterned({n}, 11);
                     Tensor y = patterned({n}, 23);
-                    engine->blas().symv(A, x, y, upper, K_ALPHA, K_BETA);
-                    engine->execute().wait();
+                    SushiBLAS::BLASOps(*engine).symv(A, x, y, upper, K_ALPHA, K_BETA);
+                    engine->execute();
                     return read_back(y);
                 }
 

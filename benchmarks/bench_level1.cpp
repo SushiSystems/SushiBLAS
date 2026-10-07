@@ -69,19 +69,24 @@ namespace
 
         // Bytes count each input element read once and each output element written once.
         table.print_row("axpy", dtype, n,
-                        Bench::measure(engine, [&]() { engine.blas().axpy(K_ALPHA, x, y); }),
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::BLASOps(engine).axpy(K_ALPHA, x, y); }),
                         3.0 * vector_bytes, gb);
         table.print_row("dot", dtype, n,
-                        Bench::measure(engine, [&]() { engine.blas().dot(x, y, scalar); }),
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::BLASOps(engine).dot(x, y, scalar); }),
                         2.0 * vector_bytes, gb);
         table.print_row("nrm2", dtype, n,
-                        Bench::measure(engine, [&]() { engine.blas().nrm2(x, scalar); }),
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::BLASOps(engine).nrm2(x, scalar); }),
                         vector_bytes, gb);
         table.print_row("asum", dtype, n,
-                        Bench::measure(engine, [&]() { engine.blas().asum(x, scalar); }),
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::BLASOps(engine).asum(x, scalar); }),
                         vector_bytes, gb);
         table.print_row("iamax", dtype, n,
-                        Bench::measure(engine, [&]() { engine.blas().iamax(x, index); }),
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::BLASOps(engine).iamax(x, index); }),
                         vector_bytes, gb);
     }
 

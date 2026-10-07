@@ -110,7 +110,7 @@ namespace SushiBLAS
             auto beta = filled({3}, {10.0f, 20.0f, 30.0f});
             auto out = engine->create_tensor({1, 2, 2, 3}, Core::DataType::FLOAT32);
 
-            engine->spatial().channel_affine(in, gamma, beta, out);
+            SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, out);
             engine->execute();
 
             // Element k has channel k % 3, so it becomes k * gamma[k % 3] + beta[k % 3].
@@ -131,7 +131,7 @@ namespace SushiBLAS
             auto beta = uniform({5}, 0.0f);
             auto out = engine->create_tensor({2, 3, 4, 5}, Core::DataType::FLOAT32);
 
-            engine->spatial().channel_affine(in, gamma, beta, out);
+            SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, out);
             engine->execute();
 
             const float* source = in.data_as<float>();
@@ -149,7 +149,7 @@ namespace SushiBLAS
                                       4, 5, 6});
             auto out = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
 
-            engine->spatial().broadcast_spatial(in, out, 0.5);
+            SushiBLAS::SpatialOps(*engine).broadcast_spatial(in, out, 0.5);
             engine->execute();
 
             const float* source = in.data_as<float>();
@@ -171,7 +171,7 @@ namespace SushiBLAS
             auto in = uniform({N, C}, 1.0f);
             auto out = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
 
-            engine->spatial().broadcast_spatial(in, out, scale);
+            SushiBLAS::SpatialOps(*engine).broadcast_spatial(in, out, scale);
             engine->execute();
 
             // float(1/20) is one rounding of an exact double, so every element is identical.
@@ -206,9 +206,9 @@ namespace SushiBLAS
             auto destination = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
 
             // NHWC to NCHW and back: the same call, with the permuted strides on the other operand.
-            engine->spatial().layout_convert(source, middle);
+            SushiBLAS::SpatialOps(*engine).layout_convert(source, middle);
             engine->execute();
-            engine->spatial().layout_convert(middle, destination);
+            SushiBLAS::SpatialOps(*engine).layout_convert(middle, destination);
             engine->execute();
 
             const float* expected = source.data_as<float>();
@@ -227,7 +227,7 @@ namespace SushiBLAS
             auto nchw_storage = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
             auto nchw = nchw_view(nchw_storage, N, H, W, C);
 
-            engine->spatial().layout_convert(source, nchw);
+            SushiBLAS::SpatialOps(*engine).layout_convert(source, nchw);
             engine->execute();
 
             // Element (h, w, c) sits at h*4 + w*2 + c and must land at c*4 + h*2 + w in NCHW.
@@ -241,7 +241,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialBroadcastTest, TheSyclKernelsAgreeWithTheReferenceKernels)
         {
-            // VERIFY is not implemented; the two forced modes are compared here. See tests/functional/unit/README.md.
+            // The two forced modes are compared here. See tests/functional/unit/README.md.
             const int64_t N = 2, H = 5, W = 3, C = 4;
 
             auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
@@ -276,15 +276,15 @@ namespace SushiBLAS
             auto convert_device = nchw_view(convert_device_storage, N, H, W, C);
 
             engine->set_mode(ExecutionMode::FORCE_REFERENCE);
-            engine->spatial().channel_affine(in, gamma, beta, affine_reference);
-            engine->spatial().broadcast_spatial(plane, spread_reference, 1.0 / 15.0);
-            engine->spatial().layout_convert(in, convert_reference);
+            SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, affine_reference);
+            SushiBLAS::SpatialOps(*engine).broadcast_spatial(plane, spread_reference, 1.0 / 15.0);
+            SushiBLAS::SpatialOps(*engine).layout_convert(in, convert_reference);
             engine->execute();
 
             engine->set_mode(ExecutionMode::FORCE_SYCL);
-            engine->spatial().channel_affine(in, gamma, beta, affine_device);
-            engine->spatial().broadcast_spatial(plane, spread_device, 1.0 / 15.0);
-            engine->spatial().layout_convert(in, convert_device);
+            SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, affine_device);
+            SushiBLAS::SpatialOps(*engine).broadcast_spatial(plane, spread_device, 1.0 / 15.0);
+            SushiBLAS::SpatialOps(*engine).layout_convert(in, convert_device);
             engine->execute();
 
             const float* affine_expected = affine_reference.data_as<float>();

@@ -150,8 +150,8 @@ namespace SushiBLAS
                 auto x = upload(hx);
                 auto y = upload(hy);
                 auto r = engine->create_tensor({1});
-                engine->blas().dot(x, y, r);
-                engine->execute().wait();
+                SushiBLAS::BLASOps(*engine).dot(x, y, r);
+                engine->execute();
 
                 EXPECT_NEAR(static_cast<double>(read_scalar<float>(r)), expected, K_EXACT_TOLERANCE);
             }
@@ -173,8 +173,8 @@ namespace SushiBLAS
 
                 auto x = upload(hx);
                 auto r = engine->create_tensor({1});
-                engine->blas().asum(x, r);
-                engine->execute().wait();
+                SushiBLAS::BLASOps(*engine).asum(x, r);
+                engine->execute();
 
                 EXPECT_NEAR(static_cast<double>(read_scalar<float>(r)), expected, K_EXACT_TOLERANCE);
             }
@@ -197,8 +197,8 @@ namespace SushiBLAS
 
                 auto x = upload(hx);
                 auto r = engine->create_tensor({1});
-                engine->blas().nrm2(x, r);
-                engine->execute().wait();
+                SushiBLAS::BLASOps(*engine).nrm2(x, r);
+                engine->execute();
 
                 EXPECT_NEAR(static_cast<double>(read_scalar<float>(r)), expected,
                             expected * K_NRM2_RELATIVE_TOLERANCE);
@@ -221,8 +221,8 @@ namespace SushiBLAS
 
                 auto x = upload(hx);
                 auto r = engine->create_tensor({1}, Core::DataType::INT64);
-                engine->blas().iamax(x, r);
-                engine->execute().wait();
+                SushiBLAS::BLASOps(*engine).iamax(x, r);
+                engine->execute();
 
                 EXPECT_EQ(read_scalar<int64_t>(r), expected);
             }
@@ -249,10 +249,10 @@ namespace SushiBLAS
             auto first = engine->create_tensor({1});
             auto second = engine->create_tensor({1});
 
-            engine->blas().dot(x, y, first);
-            engine->execute().wait();
-            engine->blas().dot(x, y, second);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).dot(x, y, first);
+            engine->execute();
+            SushiBLAS::BLASOps(*engine).dot(x, y, second);
+            engine->execute();
 
             const float a = read_scalar<float>(first);
             const float b = read_scalar<float>(second);
@@ -285,8 +285,8 @@ namespace SushiBLAS
 
             auto x = upload(hx);
             auto r = engine->create_tensor({1}, Core::DataType::INT64);
-            engine->blas().iamax(x, r);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).iamax(x, r);
+            engine->execute();
 
             EXPECT_EQ(read_scalar<int64_t>(r), static_cast<int64_t>(lower));
         }
@@ -305,8 +305,8 @@ namespace SushiBLAS
             auto t = create_initialized_tensor<sycl::half>({2}, host);
             auto r = engine->create_tensor({1}, Core::DataType::HALF);
 
-            engine->reductions().mean(t, r);
-            engine->execute().wait();
+            SushiBLAS::ReductionOps(*engine).mean(t, r);
+            engine->execute();
 
             EXPECT_EQ(static_cast<float>(read_scalar<sycl::half>(r)), K_EXPECTED_MEAN);
         }
@@ -323,8 +323,8 @@ namespace SushiBLAS
             auto t = create_initialized_tensor<sycl::half>({2}, host);
             auto r = engine->create_tensor({1}, Core::DataType::HALF);
 
-            engine->reductions().sum(t, r);
-            engine->execute().wait();
+            SushiBLAS::ReductionOps(*engine).sum(t, r);
+            engine->execute();
 
             const float value = static_cast<float>(read_scalar<sycl::half>(r));
             EXPECT_TRUE(std::isinf(value) && value > 0.0f);

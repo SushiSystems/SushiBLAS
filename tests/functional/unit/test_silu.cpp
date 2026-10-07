@@ -39,8 +39,8 @@ TEST_F(Unit_SiLUTest, Forward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {-1.0f, 0.0f, 1.0f, 2.0f});
     
-    engine->nonlinear().silu(t);
-    engine->execute().wait();
+    SushiBLAS::NonLinearOps(*engine).silu(t);
+    engine->execute();
     
     verify_tensor(t, {-0.268941f, 0.0f, 0.731059f, 1.761594f});
 }
@@ -55,8 +55,8 @@ TEST_F(Unit_SiLUTest, Backward)
     fill_tensor(x, {-1.0f, 0.0f, 1.0f, 2.0f});
     fill_tensor(dx, {0.0f, 0.0f, 0.0f, 0.0f});
     
-    engine->nonlinear().silu_backward(dy, x, dx);
-    engine->execute().wait();
+    SushiBLAS::NonLinearOps(*engine).silu_backward(dy, x, dx);
+    engine->execute();
     
     verify_tensor(dx, {0.072329f, 0.5f, 0.927671f, 1.090784f});
 }

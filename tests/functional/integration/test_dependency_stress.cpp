@@ -66,17 +66,17 @@ TEST_F(Integration_DependencyStressTest, ManyReadersOneWriter)
     fill_tensor(dummy_weights, std::vector<float>(N * N, 2.0f));
 
     // writer_tensor is the GEMM's output, so this call writes it.
-    engine->blas().gemm(dummy_weights, dummy_weights, writer_tensor);
+    SushiBLAS::BLASOps(*engine).gemm(dummy_weights, dummy_weights, writer_tensor);
     
     // Now submit 5000 reads! (writer_tensor is A, so it is read)
     for (int i = 0; i < num_readers; ++i) 
     {
-        engine->blas().gemm(writer_tensor, dummy_weights, reader_outputs[i]);
+        SushiBLAS::BLASOps(*engine).gemm(writer_tensor, dummy_weights, reader_outputs[i]);
     }
     
     SB_LOG_INFO("Executing DAG with massive reader fan-out...");
     auto start = std::chrono::high_resolution_clock::now();
-    engine->execute().wait();
+    engine->execute();
     auto end = std::chrono::high_resolution_clock::now();
     
     std::chrono::duration<double, std::milli> duration = end - start;
@@ -116,12 +116,12 @@ TEST_F(Integration_DependencyStressTest, ShardCollisionStress)
     SB_LOG_INFO("Enqueueing {} completely independent GEMM operations...", num_ops);
     for (int i = 0; i < num_ops; ++i) 
     {
-        engine->blas().gemm(As[i], Bs[i], Cs[i]);
+        SushiBLAS::BLASOps(*engine).gemm(As[i], Bs[i], Cs[i]);
     }
     
     SB_LOG_INFO("Executing DAG. Watch for false dependency serialization...");
     auto start = std::chrono::high_resolution_clock::now();
-    engine->execute().wait();
+    engine->execute();
     auto end = std::chrono::high_resolution_clock::now();
     
     std::chrono::duration<double, std::milli> duration = end - start;

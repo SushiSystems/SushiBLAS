@@ -97,8 +97,9 @@ namespace SushiBLAS
                     auto B = engine->create_tensor({b_rows, b_cols}, Core::DataType::FLOAT32);
                     fill_tensor(B, b_values);
 
-                    engine->blas().trsm(A, B, left_side, upper, trans_a, unit_diag, alpha);
-                    engine->execute().wait();
+                    SushiBLAS::BLASOps(*engine).trsm(
+                        A, B, left_side, upper, trans_a, unit_diag, alpha);
+                    engine->execute();
 
                     EXPECT_TENSOR_NEAR(B, expected, K_TOLERANCE);
                 }

@@ -46,9 +46,9 @@ TEST_F(Unit_DOTTest, SimpleDOT)
     fill_tensor(R, {0.0f});
 
     SB_LOG_INFO("Submitting DOT.");
-    engine->blas().dot(X, Y, R);
+    SushiBLAS::BLASOps(*engine).dot(X, Y, R);
     
-    engine->execute().wait();
+    engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: 1*4 + 2*5 + 3*6 = 4 + 10 + 18 = 32

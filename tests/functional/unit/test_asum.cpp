@@ -44,9 +44,9 @@ TEST_F(Unit_ASUMTest, SimpleASUM)
     fill_tensor(R, {0.0f});
 
     SB_LOG_INFO("Submitting ASUM.");
-    engine->blas().asum(X, R);
+    SushiBLAS::BLASOps(*engine).asum(X, R);
     
-    engine->execute().wait();
+    engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected asum: |-1| + |2| + |-3| + |4| = 1 + 2 + 3 + 4 = 10

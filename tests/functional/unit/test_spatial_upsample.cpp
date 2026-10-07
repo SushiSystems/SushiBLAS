@@ -81,7 +81,7 @@ namespace SushiBLAS
                                          2, 3});
 
             auto out = engine->create_tensor({1, 4, 4, 1}, Core::DataType::FLOAT32);
-            engine->spatial().upsample_nearest(in, out, 2, 2);
+            SushiBLAS::SpatialOps(*engine).upsample_nearest(in, out, 2, 2);
             engine->execute();
 
             const std::vector<float> expected = {0, 0, 1, 1,
@@ -101,7 +101,7 @@ namespace SushiBLAS
                                          3, 4});
 
             auto out = engine->create_tensor({1, 4, 6, 1}, Core::DataType::FLOAT32);
-            engine->spatial().upsample_nearest(in, out, 2, 3);
+            SushiBLAS::SpatialOps(*engine).upsample_nearest(in, out, 2, 3);
             engine->execute();
 
             const std::vector<float> expected = {1, 1, 1, 2, 2, 2,
@@ -119,7 +119,7 @@ namespace SushiBLAS
             auto in = ramp(2, 3, 4, 2);
             auto out = engine->create_tensor({2, 3, 4, 2}, Core::DataType::FLOAT32);
 
-            engine->spatial().upsample_nearest(in, out, 1, 1);
+            SushiBLAS::SpatialOps(*engine).upsample_nearest(in, out, 1, 1);
             engine->execute();
 
             const float* expected = in.data_as<float>();
@@ -137,7 +137,7 @@ namespace SushiBLAS
             auto dy = ramp(N, out_h, out_w, C);
             auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
 
-            engine->spatial().upsample_nearest_backward(dy, dx, scale_h, scale_w);
+            SushiBLAS::SpatialOps(*engine).upsample_nearest_backward(dy, dx, scale_h, scale_w);
             engine->execute();
 
             // The block is summed index by index. See tests/functional/unit/README.md.
@@ -181,7 +181,7 @@ namespace SushiBLAS
             bool zero_threw = false;
             try
             {
-                engine->spatial().upsample_nearest(in, out, 0, 2);
+                SushiBLAS::SpatialOps(*engine).upsample_nearest(in, out, 0, 2);
             }
             catch (const std::exception& e)
             {
@@ -195,7 +195,7 @@ namespace SushiBLAS
             bool negative_threw = false;
             try
             {
-                engine->spatial().upsample_nearest(in, out, 2, -3);
+                SushiBLAS::SpatialOps(*engine).upsample_nearest(in, out, 2, -3);
             }
             catch (const std::exception& e)
             {
@@ -209,7 +209,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialUpsampleTest, TheSyclKernelAgreesWithTheReferenceKernel)
         {
-            // VERIFY is not implemented; the two forced modes are compared here. See tests/functional/unit/README.md.
+            // The two forced modes are compared here. See tests/functional/unit/README.md.
             const int64_t N = 2, H = 5, W = 3, C = 3;
             const int64_t scale_h = 3, scale_w = 2;
             const int64_t out_h = H * scale_h, out_w = W * scale_w;
@@ -225,11 +225,11 @@ namespace SushiBLAS
                                                      Core::DataType::FLOAT32);
 
             engine->set_mode(ExecutionMode::FORCE_REFERENCE);
-            engine->spatial().upsample_nearest(in, from_reference, scale_h, scale_w);
+            SushiBLAS::SpatialOps(*engine).upsample_nearest(in, from_reference, scale_h, scale_w);
             engine->execute();
 
             engine->set_mode(ExecutionMode::FORCE_SYCL);
-            engine->spatial().upsample_nearest(in, from_device, scale_h, scale_w);
+            SushiBLAS::SpatialOps(*engine).upsample_nearest(in, from_device, scale_h, scale_w);
             engine->execute();
 
             const float* expected = from_reference.data_as<float>();

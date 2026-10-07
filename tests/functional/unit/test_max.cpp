@@ -44,8 +44,8 @@ TEST_F(Unit_MaxTest, FloatForward)
     fill_tensor(a, {1.0f, 2.0f, -3.0f, 0.5f});
     fill_tensor(b, {2.0f, 0.5f, 4.0f, -1.5f});
     
-    engine->elementwise().max(a, b, c);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).max(a, b, c);
+    engine->execute();
     
     verify_tensor(c, {2.00000f, 2.00000f, 4.00000f, 0.50000f});
 }
@@ -60,8 +60,8 @@ TEST_F(Unit_MaxTest, NaNInEitherOperandPropagates)
     auto b = create_initialized_tensor<float>({3}, {1.0f, nan, 3.0f});
     auto c = engine->create_tensor({3});
 
-    engine->elementwise().max(a, b, c);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).max(a, b, c);
+    engine->execute();
 
     const std::vector<float> got = read_tensor<float>(c);
     EXPECT_TRUE(std::isnan(got[0]));

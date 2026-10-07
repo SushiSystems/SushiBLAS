@@ -52,16 +52,15 @@ static Tensor run_axpy(Engine& engine, ExecutionMode mode)
     fill_tensor(x, {1.0f, 2.0f, 3.0f, 4.0f});
     fill_tensor(y, {10.0f, 20.0f, 30.0f, 40.0f});
 
-    engine.blas().axpy(2.0, x, y);
-    engine.execute().wait();
+    SushiBLAS::BLASOps(engine).axpy(2.0, x, y);
+    engine.execute();
     return y;
 }
 
-TEST_F(Unit_ExecutionModeTest, SetModeRefusesVerifyAndKeepsTheMode)
+TEST_F(Unit_ExecutionModeTest, SetModeIsReadBack)
 {
     engine->set_mode(ExecutionMode::FORCE_REFERENCE);
 
-    EXPECT_THROW(engine->set_mode(ExecutionMode::VERIFY), std::logic_error);
     EXPECT_EQ(ExecutionMode::FORCE_REFERENCE, engine->get_mode());
 }
 

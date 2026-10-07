@@ -29,6 +29,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
+#include "../../common/graph_probe.hpp"
 
 namespace SushiBLAS
 {
@@ -44,11 +45,14 @@ namespace SushiBLAS
                     return Tensor(SushiRuntime::sushi_ptr<Storage>(), {0, 3});
                 }
 
-                /** @brief Returns whether the graph holds no recorded task, and clears it. */
+                /** @brief Returns whether the probe holds no recorded task, and clears it. */
                 bool graph_is_empty()
                 {
-                    return engine->get_graph().take_nodes().empty();
+                    return probe.take_nodes().empty();
                 }
+
+                /// @brief The graph the tests of this suite record on and read.
+                GraphProbe probe;
         };
 
         /**
@@ -60,7 +64,7 @@ namespace SushiBLAS
             Tensor b = empty_tensor();
             Tensor c = empty_tensor();
 
-            EXPECT_NO_THROW(engine->elementwise().add(a, b, c));
+            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(probe.get_recorder()).add(a, b, c));
             EXPECT_TRUE(graph_is_empty());
         }
 
@@ -71,7 +75,7 @@ namespace SushiBLAS
         {
             Tensor t = empty_tensor();
 
-            EXPECT_NO_THROW(engine->elementwise().exp(t));
+            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(probe.get_recorder()).exp(t));
             EXPECT_TRUE(graph_is_empty());
         }
 
@@ -82,7 +86,7 @@ namespace SushiBLAS
         {
             Tensor t = empty_tensor();
 
-            EXPECT_NO_THROW(engine->nonlinear().relu(t));
+            EXPECT_NO_THROW(SushiBLAS::NonLinearOps(probe.get_recorder()).relu(t));
             EXPECT_TRUE(graph_is_empty());
         }
 
@@ -95,8 +99,8 @@ namespace SushiBLAS
             Tensor b = empty_tensor();
             Tensor r = empty_tensor();
 
-            EXPECT_NO_THROW(engine->logic().logical_and(a, b, r));
-            EXPECT_NO_THROW(engine->logic().equal(a, b, r));
+            EXPECT_NO_THROW(SushiBLAS::LogicOps(probe.get_recorder()).logical_and(a, b, r));
+            EXPECT_NO_THROW(SushiBLAS::LogicOps(probe.get_recorder()).equal(a, b, r));
             EXPECT_TRUE(graph_is_empty());
         }
 
@@ -109,8 +113,8 @@ namespace SushiBLAS
             Tensor out = engine->create_tensor({1});
             fill_tensor(out, {0.5f});
 
-            EXPECT_NO_THROW(engine->logic().all(t, out));
-            engine->execute().wait();
+            EXPECT_NO_THROW(SushiBLAS::LogicOps(*engine).all(t, out));
+            engine->execute();
             verify_tensor(out, {1.0f});
         }
 
@@ -123,8 +127,8 @@ namespace SushiBLAS
             Tensor out = engine->create_tensor({1});
             fill_tensor(out, {0.5f});
 
-            EXPECT_NO_THROW(engine->logic().any(t, out));
-            engine->execute().wait();
+            EXPECT_NO_THROW(SushiBLAS::LogicOps(*engine).any(t, out));
+            engine->execute();
             verify_tensor(out, {0.0f});
         }
 
@@ -136,7 +140,7 @@ namespace SushiBLAS
             Tensor src = empty_tensor();
             Tensor dst(SushiRuntime::sushi_ptr<Storage>(), {0, 3}, Core::DataType::FLOAT64);
 
-            EXPECT_NO_THROW(engine->elementwise().convert(src, dst));
+            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(probe.get_recorder()).convert(src, dst));
             EXPECT_TRUE(graph_is_empty());
         }
 
@@ -149,7 +153,9 @@ namespace SushiBLAS
             Tensor b(SushiRuntime::sushi_ptr<Storage>(), {3, 0});
             Tensor c = empty_tensor();
 
-            EXPECT_THROW(engine->elementwise().add(a, b, c), std::invalid_argument);
+            EXPECT_THROW(
+                SushiBLAS::ElementwiseOps(probe.get_recorder()).add(a, b, c),
+                std::invalid_argument);
             EXPECT_TRUE(graph_is_empty());
         }
     } // namespace Test

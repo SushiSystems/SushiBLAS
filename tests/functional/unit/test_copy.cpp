@@ -44,9 +44,9 @@ TEST_F(Unit_COPYTest, SimpleCOPY)
     fill_tensor(Y, {0, 0, 0});
 
     SB_LOG_INFO("Submitting COPY.");
-    engine->blas().copy(X, Y);
+    SushiBLAS::BLASOps(*engine).copy(X, Y);
     
-    engine->execute().wait();
+    engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: Y = X

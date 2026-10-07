@@ -42,8 +42,8 @@ TEST_F(Unit_SqrtTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, 3.0f, 4.0f});
     
-    engine->elementwise().sqrt(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).sqrt(t);
+    engine->execute();
     
     verify_tensor(t, {1.00000f, 1.414213f, 1.732050f, 2.00000f});
 }
@@ -80,8 +80,8 @@ TEST_F(Unit_SqrtTest, ZeroInSingleElement)
     auto t = engine->create_tensor({1});
     fill_tensor(t, {0.0f});
 
-    engine->elementwise().sqrt(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).sqrt(t);
+    engine->execute();
 
     // sqrt(0) is 0.
     verify_tensor(t, std::vector<double>{0.0}, K_FLOAT32_TOLERANCE);
@@ -92,8 +92,8 @@ TEST_F(Unit_SqrtTest, NegativeInputIsNaN)
     auto t = engine->create_tensor({1});
     fill_tensor(t, {-4.0f});
 
-    engine->elementwise().sqrt(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).sqrt(t);
+    engine->execute();
 
     // sqrt(-4) is outside the real domain.
     verify_tensor(t, {K_NAN});
@@ -104,8 +104,8 @@ TEST_F(Unit_SqrtTest, PositiveInfinity)
     auto t = engine->create_tensor({1});
     fill_tensor(t, {K_INF});
 
-    engine->elementwise().sqrt(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).sqrt(t);
+    engine->execute();
 
     verify_tensor(t, {K_INF});
 }
@@ -115,8 +115,8 @@ TEST_F(Unit_SqrtTest, ThousandElements)
     auto t = engine->create_tensor({static_cast<int64_t>(K_LARGE_SIZE)});
     fill_tensor(t, std::vector<float>(K_LARGE_SIZE, K_LARGE_INPUT));
 
-    engine->elementwise().sqrt(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).sqrt(t);
+    engine->execute();
 
     verify_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
@@ -126,8 +126,8 @@ TEST_F(Unit_SqrtTest, Float64)
     auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::FLOAT64);
     fill_tensor(t, {0.25f, 1.0f, 2.0f, 9.0f});
 
-    engine->elementwise().sqrt(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).sqrt(t);
+    engine->execute();
 
     verify_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
 }

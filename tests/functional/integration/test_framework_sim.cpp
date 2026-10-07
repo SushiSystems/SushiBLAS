@@ -82,18 +82,18 @@ TEST_F(Integration_FrameworkSimTest, DeepForwardPass)
     {
         // H_{i+1} = H_{i} * W_i
         SB_LOG_DEBUG("Sim: Submitting GEMM for Layer {}", i);
-        engine->blas().gemm(activations[i], weights[i], activations[i+1]);
+        SushiBLAS::BLASOps(*engine).gemm(activations[i], weights[i], activations[i+1]);
         
         // Add activation after GEMM
         if (i < num_layers - 1) 
         {
-            engine->nonlinear().relu(activations[i+1]);
+            SushiBLAS::NonLinearOps(*engine).relu(activations[i+1]);
         }
     }
     
     // Execute all deep operations asynchronously
     SB_LOG_INFO("Sim: Executing Deep Forward Pass Task DAG and waiting...");
-    engine->execute().wait();
+    engine->execute();
     SB_LOG_INFO("Sim: Deep Forward Pass execution complete");
     
     auto end_time = std::chrono::high_resolution_clock::now();
@@ -153,13 +153,13 @@ TEST_F(Integration_FrameworkSimTest, ParallelBatchedInference)
     // Submit all models to the DAG
     for (int i = 0; i < num_models; ++i) 
     {
-        engine->blas().gemm(inputs[i], weights[i], outputs[i]);
-        engine->nonlinear().relu(outputs[i]);
+        SushiBLAS::BLASOps(*engine).gemm(inputs[i], weights[i], outputs[i]);
+        SushiBLAS::NonLinearOps(*engine).relu(outputs[i]);
     }
     
     // The scheduler should dispatch these horizontally to all worker threads
     SB_LOG_INFO("Sim: Executing Parallel Inference DAG across workers...");
-    engine->execute().wait();
+    engine->execute();
     SB_LOG_INFO("Sim: Parallel Inference execution complete");
     
     auto end_time = std::chrono::high_resolution_clock::now();

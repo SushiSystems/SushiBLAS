@@ -60,13 +60,16 @@ namespace
         const double gb = Bench::K_BYTES_PER_GIGABYTE;
 
         table.print_row("sum", dtype, n,
-                        Bench::measure(engine, [&]() { engine.reductions().sum(input, result); }),
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::ReductionOps(engine).sum(input, result); }),
                         input_bytes, gb);
         table.print_row("max", dtype, n,
-                        Bench::measure(engine, [&]() { engine.reductions().max(input, result); }),
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::ReductionOps(engine).max(input, result); }),
                         input_bytes, gb);
         table.print_row("var", dtype, n,
-                        Bench::measure(engine, [&]() { engine.reductions().var(input, result); }),
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::ReductionOps(engine).var(input, result); }),
                         input_bytes, gb);
     }
 

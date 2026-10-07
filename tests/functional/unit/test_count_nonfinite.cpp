@@ -36,6 +36,7 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/support/reduce_1d.hpp>
 #include "../../common/test_utils.hpp"
+#include "../../common/graph_probe.hpp"
 
 namespace SushiBLAS
 {
@@ -87,8 +88,8 @@ namespace SushiBLAS
                         {static_cast<int64_t>(data.size())}, data);
                     auto result = this->engine->create_tensor({1}, Core::DataType::INT64);
 
-                    this->engine->reductions().count_nonfinite(t, result);
-                    this->engine->execute().wait();
+                    SushiBLAS::ReductionOps(*this->engine).count_nonfinite(t, result);
+                    this->engine->execute();
 
                     int64_t host = -1;
                     TestEnvironment::get_context().get_queue()
@@ -245,9 +246,9 @@ namespace SushiBLAS
             auto count = engine->create_tensor({1}, Core::DataType::INT64);
             auto total = engine->create_tensor({1}, Core::DataType::HALF);
 
-            engine->reductions().count_nonfinite(t, count);
-            engine->reductions().asum(t, total);
-            engine->execute().wait();
+            SushiBLAS::ReductionOps(*engine).count_nonfinite(t, count);
+            SushiBLAS::ReductionOps(*engine).asum(t, total);
+            engine->execute();
 
             EXPECT_EQ(0, read_count(count))
                 << "Every element is 20000, which binary16 represents exactly. The tensor "
@@ -265,18 +266,24 @@ namespace SushiBLAS
          */
         TEST_F(Unit_CountNonFiniteTest, NonRealInputDTypesAreRefusedByName)
         {
+            GraphProbe probe;
+
             auto result = engine->create_tensor({1}, Core::DataType::INT64);
 
             for (Core::DataType dtype : {Core::DataType::INT32, Core::DataType::INT64,
                                          Core::DataType::COMPLEX32, Core::DataType::COMPLEX64})
             {
                 auto t = engine->create_tensor({4}, dtype);
-                const std::string msg = message_of([&]{ engine->reductions().count_nonfinite(t, result); });
+                const std::string msg = message_of(
+                    [&]
+                    {
+                        SushiBLAS::ReductionOps(probe.get_recorder()).count_nonfinite(t, result);
+                    });
                 EXPECT_NE(std::string::npos, msg.find(Core::to_string(dtype)))
                     << "dtype " << Core::to_string(dtype) << " gave: " << msg;
             }
 
-            EXPECT_TRUE(engine->get_graph().take_nodes().empty())
+            EXPECT_TRUE(probe.take_nodes().empty())
                 << "A refused reduction must not leave a task on the graph.";
         }
 
@@ -285,13 +292,13 @@ namespace SushiBLAS
             auto t = engine->create_tensor({4}, Core::DataType::FLOAT32);
 
             auto wrong_dtype = engine->create_tensor({1}, Core::DataType::FLOAT32);
-            const std::string dtype_msg =
-                message_of([&]{ engine->reductions().count_nonfinite(t, wrong_dtype); });
+            const std::string dtype_msg = message_of(
+                [&]{ SushiBLAS::ReductionOps(*engine).count_nonfinite(t, wrong_dtype); });
             EXPECT_NE(std::string::npos, dtype_msg.find("INT64")) << dtype_msg;
 
             auto not_scalar = engine->create_tensor({2}, Core::DataType::INT64);
-            const std::string scalar_msg =
-                message_of([&]{ engine->reductions().count_nonfinite(t, not_scalar); });
+            const std::string scalar_msg = message_of(
+                [&]{ SushiBLAS::ReductionOps(*engine).count_nonfinite(t, not_scalar); });
             EXPECT_NE(std::string::npos, scalar_msg.find("scalar")) << scalar_msg;
         }
 
@@ -301,6 +308,8 @@ namespace SushiBLAS
          */
         TEST_F(Unit_CountNonFiniteTest, IsOrderedBehindTheOpThatWroteItsInput)
         {
+            GraphProbe probe;
+
             constexpr int64_t kN = 8;
             auto arena = SushiRuntime::make_sushi<Storage>(
                 TestEnvironment::get_context(),
@@ -313,10 +322,10 @@ namespace SushiBLAS
 
             fill_tensor(seed, std::vector<float>(static_cast<size_t>(kN), 3.0f));
 
-            engine->elementwise().mul(seed, seed, gradient);
-            engine->reductions().count_nonfinite(gradient, count);
+            SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(seed, seed, gradient);
+            SushiBLAS::ReductionOps(probe.get_recorder()).count_nonfinite(gradient, count);
 
-            auto nodes = engine->get_graph().take_nodes();
+            auto nodes = probe.take_nodes();
             ASSERT_EQ(2u, nodes.size());
             EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
                 << "The screen reading `gradient` must depend on the op that produced it. "
@@ -337,9 +346,9 @@ namespace SushiBLAS
             auto count = engine->create_tensor({1}, Core::DataType::INT64);
 
             // 1e30 * 1e30 overflows binary32; the other three stay at 1.
-            engine->elementwise().mul(big, big, squared);
-            engine->reductions().count_nonfinite(squared, count);
-            engine->execute().wait();
+            SushiBLAS::ElementwiseOps(*engine).mul(big, big, squared);
+            SushiBLAS::ReductionOps(*engine).count_nonfinite(squared, count);
+            engine->execute();
 
             EXPECT_EQ(1, read_count(count));
         }
