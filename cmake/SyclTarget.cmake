@@ -13,13 +13,15 @@
 
 # Which devices to generate code for.
 #
-# Empty by default, which means SPIR-V only: the device image is generated as
-# portable intermediate code and the runtime JITs it for whatever it finds. That
-# reaches every OpenCL and Level Zero device, and reaches an NVIDIA GPU not at
-# all - NVIDIA's OpenCL driver has never implemented clCreateProgramWithIL, so
-# there is no way for it to ingest SPIR-V. Running on CUDA is therefore not a
-# runtime choice; the CUDA image has to be compiled in ahead of time, and that
-# is what this option turns on.
+# Empty by default, which means the targets follow SushiRuntime: whatever its
+# GPU detection resolved for this build (sushiruntime_gpu_offload) is applied
+# here too, so the library and the runtime it links cannot disagree about which
+# devices carry an image. When the runtime publishes no offload target the
+# build is SPIR-V only: the device image is portable intermediate code that the
+# runtime JITs for whatever it finds. That reaches every OpenCL and Level Zero
+# device, and reaches an NVIDIA GPU not at all - NVIDIA's OpenCL driver has
+# never implemented clCreateProgramWithIL, so the CUDA image has to be compiled
+# in ahead of time. A non-empty value overrides the runtime's choice.
 #
 # Setting it requires an intel-llvm built with `--cuda`; a stock oneAPI release
 # has no CUDA backend and will reject the triple. Note also that intel-llvm
@@ -34,7 +36,7 @@
 # Named SB_* rather than SUSHIBLAS_* to match SB_NATIVE_ARCH, the only other
 # option this repo defines.
 set(SB_SYCL_TARGETS "" CACHE STRING
-    "Semicolon-separated SYCL AOT targets (e.g. spir64;nvidia_gpu_sm_86). Empty means SPIR-V/JIT only, which cannot reach an NVIDIA GPU.")
+    "Semicolon-separated SYCL AOT targets (e.g. spir64;nvidia_gpu_sm_86) that override SushiRuntime's. Empty means follow the runtime.")
 
 # Extra flags for the device compiler, appended verbatim to both compile and
 # link. The escape hatch for backend-specific switches this file should not need
@@ -49,11 +51,39 @@ set(SB_SYCL_DEVICE_FLAGS "" CACHE STRING
 # actually reach is the kind of thing that is painful to discover later, from a
 # runtime "no device found" on a machine that plainly has one.
 if(SB_SYCL_TARGETS)
-    message(STATUS "SushiBLAS: AOT device targets = ${SB_SYCL_TARGETS}")
+    message(STATUS "SushiBLAS: AOT device targets = ${SB_SYCL_TARGETS} (SB_SYCL_TARGETS override)")
+elseif(TARGET sushiruntime_gpu_offload)
+    get_target_property(_sb_runtime_targets sushiruntime_gpu_offload INTERFACE_COMPILE_OPTIONS)
+    if(_sb_runtime_targets)
+        message(STATUS "SushiBLAS: device targets follow SushiRuntime = ${_sb_runtime_targets}")
+    else()
+        message(STATUS "SushiBLAS: SushiRuntime publishes no offload target - SPIR-V/JIT only")
+    endif()
 else()
     message(STATUS "SushiBLAS: no AOT device targets - SPIR-V/JIT only "
                    "(will not reach an NVIDIA GPU; set SB_SYCL_TARGETS)")
 endif()
+
+# sushiblas_runtime_device_targets(<out_compile> <out_link>)
+#   Returns the device target flags SushiRuntime resolved for this build
+#   (-fsycl-targets and its backend options), read from its
+#   sushiruntime_gpu_offload target, or empty lists when it publishes none.
+function(sushiblas_runtime_device_targets out_compile out_link)
+    set(_compile "")
+    set(_link "")
+    if(TARGET sushiruntime_gpu_offload)
+        get_target_property(_compile sushiruntime_gpu_offload INTERFACE_COMPILE_OPTIONS)
+        get_target_property(_link sushiruntime_gpu_offload INTERFACE_LINK_OPTIONS)
+        if(NOT _compile)
+            set(_compile "")
+        endif()
+        if(NOT _link)
+            set(_link "")
+        endif()
+    endif()
+    set(${out_compile} "${_compile}" PARENT_SCOPE)
+    set(${out_link} "${_link}" PARENT_SCOPE)
+endfunction()
 
 # sushiblas_apply_sycl(<target> [SOURCES <src>...])
 #   Applies the SYCL device-compilation policy to <target>:
@@ -90,6 +120,10 @@ function(sushiblas_apply_sycl target)
             string(REPLACE ";" "," _sb_target_list "${SB_SYCL_TARGETS}")
             target_compile_options(${target} PUBLIC -fsycl-targets=${_sb_target_list})
             target_link_options(${target} PUBLIC -fsycl-targets=${_sb_target_list})
+        else()
+            sushiblas_runtime_device_targets(_sb_compile _sb_link)
+            target_compile_options(${target} PUBLIC ${_sb_compile})
+            target_link_options(${target} PUBLIC ${_sb_link})
         endif()
 
         if(SB_SYCL_DEVICE_FLAGS)
