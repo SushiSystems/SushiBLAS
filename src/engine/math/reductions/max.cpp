@@ -34,7 +34,6 @@ namespace SushiBLAS
 
     TaskHandle ReductionOps::max(const Tensor& t, Tensor& result)
     {
-        recorder_.require_sycl_path("Reduction", "math.max");
         Dispatch::require_min_elements(t, 1, "math.max", "t");
 
         return Dispatch::execute_folding_reduction<Reduce::NaNPropagatingMax>(

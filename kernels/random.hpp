@@ -21,7 +21,7 @@
 
 /**
  * @file random.hpp
- * @brief Includes the SYCL random kernels.
+ * @brief Includes the random kernels: the SYCL ones and the reference orthonormalisation.
  * @author Mustafa Garip
  */
 
@@ -31,3 +31,4 @@
 #include "kernels/sycl/random/poisson.hpp"
 #include "kernels/sycl/random/truncated_normal.hpp"
 #include "kernels/sycl/random/orthonormalize.hpp"
+#include "kernels/reference/random/orthonormalize.hpp"

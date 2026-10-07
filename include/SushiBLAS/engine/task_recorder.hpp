@@ -58,35 +58,6 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Runs a task body and keeps its operands' storage allocated while it exists.
-             * @tparam Body Callable `(sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`.
-             */
-            template<typename Body>
-            class RecordedTask
-            {
-                public:
-                    /** @brief Holds the body and one reference per operand storage. */
-                    RecordedTask(Body body, StorageKeepAlive retained)
-                        : body_(std::move(body)), retained_(std::move(retained))
-                    {
-
-                    }
-
-                    /** @brief Runs the body. */
-                    sycl::event operator()(sycl::queue& q, const std::vector<sycl::event>& deps) const
-                    {
-                        return body_(q, deps);
-                    }
-
-                private:
-                    /// @brief The body the operation recorded.
-                    Body body_;
-
-                    /// @brief The storages that stay allocated until the task is destroyed.
-                    StorageKeepAlive retained_;
-            };
-
-            /**
              * @brief Runs a kernel-pair body with its dispatcher and keeps its operands' storage.
              * @tparam Body Callable `(const KernelPairDispatcher&, sycl::queue&,
              *         const std::vector<sycl::event>&) -> sycl::event`.
@@ -162,22 +133,6 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Throws as record() would, for a caller that must refuse before a side effect.
-             * @throws std::invalid_argument under FORCE_REFERENCE, naming family and name.
-             */
-            void require_sycl_path(const char* family, const char* name) const
-            {
-                if (mode_ != ExecutionMode::FORCE_REFERENCE)
-                    return;
-
-                const std::string message = std::string(family) + " '" + name +
-                                            "' has no reference kernel, so it cannot be recorded "
-                                            "under ExecutionMode::FORCE_REFERENCE.";
-                SB_LOG_ERROR("Unsupported execution mode: {}", message);
-                throw std::invalid_argument(message);
-            }
-
-            /**
              * @brief Throws as record_pair() would, for a caller that must refuse before a side effect.
              * @throws std::invalid_argument under FORCE_REFERENCE when a declared tensor is
              *         device-only USM.
@@ -194,24 +149,6 @@ namespace SushiBLAS
                                             "cannot dereference.";
                 SB_LOG_ERROR("Invalid operand: {}", message);
                 throw std::invalid_argument(message);
-            }
-
-            /**
-             * @brief Records a task that has a SYCL kernel only.
-             * @param family What kind of operation this is, for the diagnostic.
-             * @param body Callable `(sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`,
-             *        copyable and callable more than once; it orders its work behind the events
-             *        it is given.
-             * @throws std::invalid_argument under FORCE_REFERENCE; no task is recorded.
-             */
-            template<typename Body>
-            TaskHandle record(const SushiRuntime::Graph::TaskMetadata& meta,
-                              const OperandSet& operands, const char* family, Body&& body)
-            {
-                require_sycl_path(family, meta.name);
-                return insert(meta, operands,
-                              Internal::Detail::RecordedTask<std::decay_t<Body>>(
-                                  std::forward<Body>(body), operands.retained()));
             }
 
             /**

@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/support/reduce_1d.hpp>
+#include <SushiBLAS/support/serial_reduce.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
 namespace SushiBLAS
@@ -81,6 +82,14 @@ namespace SushiBLAS
                     return Reduce::reduce_indexed<ArgAccum>(
                         q, static_cast<std::size_t>(size), IndexedRead<T>{in}, out,
                         scratch.data, scratch.capacity, WinningIndex{}, deps);
+                }
+
+                /** @brief Elects the index by one serial host scan in index order. */
+                template<typename T>
+                void reference(const T* in, int64_t* out, int64_t size) const
+                {
+                    Serial::reduce_indexed<ArgAccum>(static_cast<std::size_t>(size),
+                                                     IndexedRead<T>{in}, out, WinningIndex{});
                 }
         };
     } // namespace Dispatch

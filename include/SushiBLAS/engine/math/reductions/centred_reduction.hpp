@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/support/reduce_1d.hpp>
+#include <SushiBLAS/support/serial_reduce.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
 namespace SushiBLAS
@@ -159,6 +160,21 @@ namespace SushiBLAS
                         q, in, out, n, partials, capacity,
                         Term<W>{centre}, Finalize<W>{centre},
                         std::vector<sycl::event>{centred});
+                }
+
+                /** @brief Runs both stages as serial host folds, the centre held in the type stage two sums in. */
+                template<typename T>
+                void reference(const T* in, T* out, int64_t size) const
+                {
+                    using Wide = typename Serial::Fold<Reduce::CompensatedSum, T>::Wide;
+
+                    const std::size_t n = static_cast<std::size_t>(size);
+                    Wide centre{};
+
+                    Serial::reduce<CentreAccum>(in, &centre, n, ReduceIdentityTransform{},
+                                                CentreFinalize{});
+                    Serial::reduce<Reduce::CompensatedSum>(in, out, n, Term<Wide>{&centre},
+                                                           Finalize<Wide>{&centre});
                 }
         };
     } // namespace Dispatch

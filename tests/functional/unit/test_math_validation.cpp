@@ -30,10 +30,15 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <optional>
 #include <stdexcept>
+#include <exception>
 #include <functional>
+#include <initializer_list>
 #include <gtest/gtest.h>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
+#include <SushiRuntime/SushiRuntime.h>
 #include "../../common/test_utils.hpp"
 #include "../../common/graph_probe.hpp"
 
@@ -58,7 +63,12 @@ namespace SushiBLAS
             /** @brief Upper bound on softplus(-100); exp(-100) lies far below it. */
             constexpr float K_SOFTPLUS_SMALL_BOUND = 1e-30f;
 
-            /** @brief Names one record call of a family that has no reference kernel. */
+            /** @brief Holds every execution mode a record call can be made under. */
+            constexpr ExecutionMode K_EVERY_MODE[] = {ExecutionMode::AUTO,
+                                                      ExecutionMode::FORCE_SYCL,
+                                                      ExecutionMode::FORCE_REFERENCE};
+
+            /** @brief Names one record call of an operation. */
             struct RecordCase
             {
                 /** @brief The operation name, for the failure message. */
@@ -85,6 +95,9 @@ namespace SushiBLAS
 
                 /** @brief Two by two matrix for orthogonal. */
                 Tensor matrix;
+
+                /** @brief INT64 output of one element, for argmax. */
+                Tensor index;
             };
 
             /** @brief Returns what record throws as std::invalid_argument, or an empty string. */
@@ -130,6 +143,50 @@ namespace SushiBLAS
                     return run_and_read(result);
                 }
 
+                /** @brief Returns the operands the record cases share, in one residency. */
+                RecordOperands operands_in(SushiRuntime::API::Residency residency)
+                {
+                    const auto make = [&](std::initializer_list<int64_t> dims,
+                                          Core::DataType dtype)
+                    {
+                        return engine->create_tensor(dims, dtype, residency);
+                    };
+
+                    return RecordOperands{make({4}, Core::DataType::FLOAT32),
+                                          make({4}, Core::DataType::FLOAT32),
+                                          make({4}, Core::DataType::FLOAT32),
+                                          make({1}, Core::DataType::FLOAT32),
+                                          make({2, 2}, Core::DataType::FLOAT32),
+                                          make({1}, Core::DataType::INT64)};
+                }
+
+                /**
+                 * @brief Returns the same operands in device-only USM, or nothing without such USM.
+                 * @return Empty when an allocation fails or a pointer is not usm::alloc::device.
+                 */
+                std::optional<RecordOperands> device_only_operands()
+                {
+                    try
+                    {
+                        RecordOperands on = operands_in(SushiRuntime::API::Residency::Device);
+                        const sycl::context context =
+                            TestEnvironment::get_context().get_queue().get_context();
+
+                        for (const Tensor* t :
+                             {&on.a, &on.b, &on.c, &on.scalar, &on.matrix, &on.index})
+                        {
+                            if (sycl::get_pointer_type(t->data(), context) !=
+                                sycl::usm::alloc::device)
+                                return std::nullopt;
+                        }
+                        return on;
+                    }
+                    catch (const std::exception&)
+                    {
+                        return std::nullopt;
+                    }
+                }
+
                 /** @brief Returns one record call per seam and per hand-recorded source. */
                 std::vector<RecordCase> record_cases(TaskRecorder& recorder, RecordOperands& on)
                 {
@@ -149,6 +206,9 @@ namespace SushiBLAS
                         {"constant", [&] { SushiBLAS::RandomOps(recorder, rng).constant(on.c, 1.0); }},
                         {"shuffle", [&] { SushiBLAS::RandomOps(recorder, rng).shuffle(on.c); }},
                         {"orthogonal", [&] { SushiBLAS::RandomOps(recorder, rng).orthogonal(on.matrix); }},
+                        {"sum", [&] { SushiBLAS::ReductionOps(recorder).sum(on.a, on.scalar); }},
+                        {"argmax",
+                         [&] { SushiBLAS::ReductionOps(recorder).argmax(on.a, on.index); }},
                     };
                 }
         };
@@ -221,57 +281,62 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that FORCE_REFERENCE refuses each family before it reads an operand.
+         * @brief Tests that FORCE_REFERENCE records every family and refuses a device-only operand.
          * @see tests/functional/unit/README.md
          */
-        TEST_F(Unit_MathValidationTest, ForceReferenceRefusesEveryFamilyWithoutAReferenceKernel)
+        TEST_F(Unit_MathValidationTest, ADeviceOnlyOperandIsRefusedInEveryFamily)
         {
-            // A tensor without storage fails the first operand check, so the mode is named first.
-            const SushiRuntime::sushi_ptr<Storage> none;
-            RecordOperands bare{Tensor(none, {4}), Tensor(none, {4}), Tensor(none, {4}),
-                                Tensor(none, {1}), Tensor(none, {2, 2})};
+            GraphProbe probe(ExecutionMode::FORCE_REFERENCE);
 
-            GraphProbe reference(ExecutionMode::FORCE_REFERENCE);
-            for (const RecordCase& c : record_cases(reference.get_recorder(), bare))
-            {
-                EXPECT_TRUE(holds(refusal_of(c.record), "FORCE_REFERENCE"))
-                    << c.name << " did not refuse the mode first";
-            }
-            EXPECT_TRUE(reference.take_nodes().empty());
-
-            RecordOperands stored{engine->create_tensor({4}), engine->create_tensor({4}),
-                                  engine->create_tensor({4}), engine->create_tensor({1}),
-                                  engine->create_tensor({2, 2})};
-
-            GraphProbe sycl_only(ExecutionMode::FORCE_SYCL);
-            for (const RecordCase& c : record_cases(sycl_only.get_recorder(), stored))
+            RecordOperands shared = operands_in(SushiRuntime::API::Residency::Shared);
+            for (const RecordCase& c : record_cases(probe.get_recorder(), shared))
             {
                 EXPECT_NO_THROW(c.record()) << c.name;
-                EXPECT_FALSE(sycl_only.take_nodes().empty()) << c.name << " recorded nothing";
+                EXPECT_FALSE(probe.take_nodes().empty()) << c.name << " recorded nothing";
             }
+
+            std::optional<RecordOperands> device_only = device_only_operands();
+            if (!device_only)
+                GTEST_SKIP() << "This device offers no device-only USM.";
+
+            for (const RecordCase& c : record_cases(probe.get_recorder(), *device_only))
+            {
+                EXPECT_TRUE(holds(refusal_of(c.record), "FORCE_REFERENCE"))
+                    << c.name << " did not refuse the device-only operand";
+            }
+            EXPECT_TRUE(probe.take_nodes().empty());
         }
 
         /**
-         * @brief Tests that FORCE_REFERENCE is reported for an empty tensor and before an operand error.
+         * @brief Tests that an operand error and an empty call read the same under every mode.
          * @see tests/functional/unit/README.md
          */
-        TEST_F(Unit_MathValidationTest, ForceReferenceRefusesAnEmptyTensorToo)
+        TEST_F(Unit_MathValidationTest, OperandErrorsDoNotDependOnTheMode)
         {
-            GraphProbe probe(ExecutionMode::FORCE_REFERENCE);
-            SushiBLAS::ElementwiseOps ops(probe.get_recorder());
-
-            auto e0 = engine->create_tensor({0});
-            auto e1 = engine->create_tensor({0});
-            auto e2 = engine->create_tensor({0});
-            EXPECT_THROW(ops.add(e0, e1, e2), std::invalid_argument);
-
             auto a = engine->create_tensor({2, 3});
             auto b = engine->create_tensor({3, 2});
             auto c = engine->create_tensor({2, 3});
-            const std::string text = refusal_of([&] { ops.add(a, b, c); });
-            EXPECT_TRUE(holds(text, "FORCE_REFERENCE")) << text;
-            EXPECT_FALSE(holds(text, "operand '")) << text;
-            EXPECT_TRUE(probe.take_nodes().empty());
+            auto e0 = engine->create_tensor({0});
+            auto e1 = engine->create_tensor({0});
+            auto e2 = engine->create_tensor({0});
+
+            std::string text_under_auto;
+            for (const ExecutionMode mode : K_EVERY_MODE)
+            {
+                GraphProbe probe(mode);
+                SushiBLAS::ElementwiseOps ops(probe.get_recorder());
+
+                const std::string text = refusal_of([&] { ops.add(a, b, c); });
+                EXPECT_TRUE(holds(text, "'B'")) << text;
+                EXPECT_FALSE(holds(text, "FORCE_REFERENCE")) << text;
+
+                if (mode == ExecutionMode::AUTO)
+                    text_under_auto = text;
+                EXPECT_EQ(text_under_auto, text);
+
+                EXPECT_FALSE(ops.add(e0, e1, e2).is_valid());
+                EXPECT_TRUE(probe.take_nodes().empty());
+            }
         }
 
         /**

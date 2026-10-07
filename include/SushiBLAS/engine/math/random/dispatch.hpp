@@ -46,6 +46,7 @@
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -158,19 +159,86 @@ namespace SushiBLAS
             });
         }
 
+        /**
+         * @brief Runs one counter-based fill on the calling thread, block by block in index order.
+         * @param draw_block The callable submit_random_fill would launch; it is called once per block.
+         * @see include/SushiBLAS/engine/math/README.md
+         */
+        template<typename T, typename DrawBlock>
+        inline void serial_random_fill(int64_t n, T* out, const DrawBlock& draw_block)
+        {
+            constexpr std::size_t k_per_block = std::tuple_size<decltype(draw_block(uint64_t{0}))>::value;
+            const std::size_t count = static_cast<std::size_t>(n);
+            const std::size_t blocks = (count + k_per_block - 1) / k_per_block;
+
+            for (std::size_t b = 0; b < blocks; ++b)
+            {
+                const auto values = draw_block(static_cast<uint64_t>(b));
+                for (std::size_t k = 0; k < k_per_block; ++k)
+                {
+                    const std::size_t i = b * k_per_block + k;
+                    if (i < count)
+                        out[i] = static_cast<T>(values[k]);
+                }
+            }
+        }
+
+        /**
+         * @brief Runs a counter-based fill on the host or the device, as the task's mode says.
+         * @see include/SushiBLAS/engine/math/README.md
+         */
+        class RandomFill final
+        {
+            public:
+                /** @brief Binds the fill to one execution of a task; all three must outlive it. */
+                RandomFill(const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+                           const std::vector<sycl::event>& deps) noexcept
+                    : pair_(pair), q_(q), deps_(deps)
+                {
+
+                }
+
+                /**
+                 * @brief Fills `out[b*K + k] = draw_block(b)[k]` below n.
+                 * @param draw_block Callable `(uint64_t block) -> std::array<T, K>` under the constraints of a device kernel.
+                 * @return The submitted event, or an empty one under FORCE_REFERENCE.
+                 */
+                template<typename T, typename DrawBlock>
+                [[nodiscard]] sycl::event operator()(int64_t n, T* out, DrawBlock draw_block) const
+                {
+                    return pair_.run(q_, deps_,
+                        [n, out, draw_block] { serial_random_fill(n, out, draw_block); },
+                        [n, out, draw_block](sycl::queue& q2,
+                                             const std::vector<sycl::event>& deps2) -> sycl::event
+                        {
+                            return submit_random_fill(q2, deps2, n, out, draw_block);
+                        });
+                }
+
+            private:
+                /// @brief The mode router of the task being run.
+                const Internal::KernelPairDispatcher& pair_;
+
+                /// @brief The queue the SYCL fill is submitted to.
+                sycl::queue& q_;
+
+                /// @brief The events the fill is ordered behind.
+                const std::vector<sycl::event>& deps_;
+        };
+
         namespace Detail
         {
             /**
              * @brief Runs one random-fill task body for the element type of a with_element_type arm.
-             * @tparam Func The task body: `(T, queue&, seed, offset, size, T*, deps) -> sycl::event`.
+             * @tparam Func The task body: `(T, const RandomFill&, seed, offset, size, T*) -> sycl::event`.
              */
             template <typename Func>
             struct RandomArm
             {
                 /** @brief Holds the task body the arm calls. */
                 const Func& task_func;
-                /** @brief Holds the queue the fill is submitted to. */
-                sycl::queue& q;
+                /** @brief Holds the launcher the body fills through. */
+                const RandomFill& fill;
                 /** @brief Holds the stream seed recorded with the task. */
                 uint64_t seed;
                 /** @brief Holds the stream offset recorded with the task. */
@@ -179,15 +247,13 @@ namespace SushiBLAS
                 int64_t size;
                 /** @brief Holds the tensor's base address. */
                 void* ptr;
-                /** @brief Holds the events the fill depends on. */
-                const std::vector<sycl::event>& deps;
                 /** @brief Holds the operation name for messages. */
                 const char* name;
                 /** @brief Receives the event the task body returns. */
                 sycl::event& done;
 
                 /**
-                 * @brief Submits the fill for the element type named by the tag.
+                 * @brief Runs the fill for the element type named by the tag.
                  * @throws std::runtime_error for HALF.
                  */
                 template <typename Tag>
@@ -197,7 +263,7 @@ namespace SushiBLAS
                     if constexpr (std::is_same_v<T, sycl::half>)
                         SB_THROW_IF(true, "RNG operation '{}' does not support dtype HALF.", name);
                     else
-                        done = task_func(T{}, q, seed, offset, size, static_cast<T*>(ptr), deps);
+                        done = task_func(T{}, fill, seed, offset, size, static_cast<T*>(ptr));
                 }
             };
         } // namespace Detail
@@ -206,8 +272,8 @@ namespace SushiBLAS
          * @brief Records a random-fill op and resolves the tensor's dtype to a typed pointer.
          * @tparam Dom The element families the distribution draws; HALF is always refused.
          * @param params The distribution's parameters, recorded in metadata slots 0..n-1.
-         * @param task_func Submits the fill for one element type of Dom; whatever it submits runs on the device.
-         * @throws std::invalid_argument for a dtype outside Dom, HALF, no storage, a non-contiguous t, or under FORCE_REFERENCE.
+         * @param task_func Fills one element type of Dom through the RandomFill it is handed.
+         * @throws std::invalid_argument on an operand violation, or a device-only t under FORCE_REFERENCE; a refused call reserves no offset.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom, typename Func>
@@ -215,7 +281,6 @@ namespace SushiBLAS
                                   const char* name, SushiRuntime::Graph::OpID op_id,
                                   std::initializer_list<double> params, Func&& task_func)
         {
-            recorder.require_sycl_path("RNG operation", name);
             require_random_dtype(t, Dom, Sampling::DRAWS_VALUES, name);
             require_storage(t, name, "t");
             require_device_dtype(t, name, "t");
@@ -226,6 +291,7 @@ namespace SushiBLAS
 
             OperandSet operands;
             operands.writes(t);
+            recorder.require_host_reachable(operands, "RNG operation", name);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -238,14 +304,17 @@ namespace SushiBLAS
             const uint64_t offset = position.offset;
             set_rng_params(meta, seed, offset);
 
-            return recorder.record(meta, operands, "RNG operation",
-                [dtype=t.dtype, size, seed, offset, task_func, pT = ptr, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            return recorder.record_pair(meta, operands, "RNG operation",
+                [dtype=t.dtype, size, seed, offset, task_func, pT = ptr, name]
+                (const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+                 const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("RandomOps: {} ({} elements, seed: {}, offset: {})", name, size, seed, offset);
 
                     sycl::event done;
+                    const RandomFill fill(pair, q, deps);
                     const Detail::RandomArm<std::remove_reference_t<Func>> arm{
-                        task_func, q, seed, offset, size, pT, deps, name, done};
+                        task_func, fill, seed, offset, size, pT, name, done};
                     with_element_type<Dom>(dtype, "RNG operation", name, arm);
                     return done;
                 });

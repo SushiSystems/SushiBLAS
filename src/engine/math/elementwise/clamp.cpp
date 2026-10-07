@@ -35,7 +35,6 @@ namespace SushiBLAS
 
     TaskHandle ElementwiseOps::clamp(Tensor& t, double min_val, double max_val)
     {
-        recorder_.require_sycl_path("Elementwise operation", "math.ew.clamp");
         Dispatch::require_operand(!(min_val > max_val), "math.ew.clamp", "min_val",
                                   "is {}, above max_val {}", min_val, max_val);
 

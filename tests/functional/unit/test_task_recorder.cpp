@@ -42,6 +42,12 @@ namespace SushiBLAS
 {
     namespace Test
     {
+        namespace
+        {
+            /// @brief Holds the tolerance of a result made of small whole numbers: it is exact.
+            constexpr double K_EXACT = 0.0;
+        } // namespace
+
         /** @brief Builds the tensors and records the call chain the TaskRecorder tests share. */
         class Unit_TaskRecorderTest : public SushiBLASTest
         {
@@ -54,8 +60,8 @@ namespace SushiBLAS
                     Tensor total;   /**< Receives the sum of shifted. */
                 };
 
-                /** @brief Names one record call of a family that has a SYCL kernel only. */
-                struct DeviceOnlyCall
+                /** @brief Names one record call of an operation family. */
+                struct FamilyCall
                 {
                     const char* family;         /**< The family, for the failure message. */
                     std::function<void()> call; /**< Records one operation of the family. */
@@ -120,76 +126,63 @@ namespace SushiBLAS
             EXPECT_EQ(&engine->get_recorder().get_scratch_pool(), &engine->get_scratch_pool());
         }
 
-        /**
-         * @brief Tests that FORCE_REFERENCE refuses each family without a reference kernel, and
-         *        AUTO records it.
-         */
-        TEST_F(Unit_TaskRecorderTest, ADeviceOnlyFamilyIsRefusedUnderForceReference)
+        /** @brief Tests that every family records and runs one task under FORCE_REFERENCE. */
+        TEST_F(Unit_TaskRecorderTest, EveryFamilyRecordsUnderForceReference)
         {
             GraphProbe probe(ExecutionMode::FORCE_REFERENCE);
             TaskRecorder& recorder = probe.get_recorder();
 
-            auto a = vector_of_four();
-            auto b = vector_of_four();
-            auto c = vector_of_four();
-            auto scalar = engine->create_tensor({1}, Core::DataType::FLOAT32);
+            const std::vector<float> signed_values = {1.0f, -2.0f, 3.0f, -4.0f};
+            const std::vector<float> counting_values = {1.0f, 2.0f, 3.0f, 4.0f};
 
-            const std::array<DeviceOnlyCall, 5> calls = {{
-                {"elementwise", [&] { SushiBLAS::ElementwiseOps(recorder).add(a, b, c); }},
-                {"nonlinear", [&] { SushiBLAS::NonLinearOps(recorder).relu(c); }},
-                {"logic", [&] { SushiBLAS::LogicOps(recorder).equal(a, b, c); }},
-                {"reduction", [&] { SushiBLAS::ReductionOps(recorder).sum(a, scalar); }},
-                {"random", [&] { SushiBLAS::RandomOps(recorder, engine->get_rng()).uniform(c); }},
-            }};
-
-            for (const DeviceOnlyCall& entry : calls)
-            {
-                SCOPED_TRACE(entry.family);
-                EXPECT_THROW(entry.call(), std::invalid_argument);
-            }
-            EXPECT_TRUE(probe.take_nodes().empty());
-
-            recorder.set_mode(ExecutionMode::AUTO);
-            for (const DeviceOnlyCall& entry : calls)
-            {
-                SCOPED_TRACE(entry.family);
-                EXPECT_NO_THROW(entry.call());
-            }
-            EXPECT_EQ(calls.size(), probe.take_nodes().size());
-        }
-
-        /** @brief Tests that a random call refused under FORCE_REFERENCE reserves no offset. */
-        TEST_F(Unit_TaskRecorderTest, ARefusedRandomCallReservesNoOffset)
-        {
-            auto values = vector_of_four();
-            auto matrix = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
-
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
-            const std::uint64_t offset_before = engine->get_rng().reserve(0).offset;
-
-            EXPECT_THROW(SushiBLAS::RandomOps(*engine).uniform(values), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::RandomOps(*engine).shuffle(values), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::RandomOps(*engine).orthogonal(matrix), std::invalid_argument);
-
-            EXPECT_EQ(offset_before, engine->get_rng().reserve(0).offset);
-        }
-
-        /** @brief Tests that a BLAS and a spatial operation record under FORCE_REFERENCE. */
-        TEST_F(Unit_TaskRecorderTest, AKernelPairIsRecordedUnderForceReference)
-        {
-            GraphProbe probe(ExecutionMode::FORCE_REFERENCE);
-
-            auto x = vector_of_four();
-            auto y = vector_of_four();
-            auto image = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
+            auto a = create_initialized_tensor<float>({4}, signed_values);
+            auto b = create_initialized_tensor<float>({4}, counting_values);
+            auto added = vector_of_four();
+            auto rectified = create_initialized_tensor<float>({4}, signed_values);
+            auto compared = vector_of_four();
+            auto total = engine->create_tensor({1}, Core::DataType::FLOAT32);
+            auto drawn = vector_of_four();
+            auto y = create_initialized_tensor<float>({4}, counting_values);
+            auto image = create_initialized_tensor<float>({1, 2, 2, 1}, signed_values);
             auto columns = engine->create_tensor({4, 1}, Core::DataType::FLOAT32);
             const Spatial::ConvGeometry unit_window;
 
-            EXPECT_NO_THROW(SushiBLAS::BLASOps(probe.get_recorder()).axpy(2.0, x, y));
-            EXPECT_NO_THROW(
-                SushiBLAS::SpatialOps(probe.get_recorder()).im2col(image, columns, unit_window));
+            const std::array<FamilyCall, 7> calls = {{
+                {"elementwise", [&] { SushiBLAS::ElementwiseOps(recorder).add(a, b, added); }},
+                {"nonlinear", [&] { SushiBLAS::NonLinearOps(recorder).relu(rectified); }},
+                {"logic", [&] { SushiBLAS::LogicOps(recorder).equal(a, b, compared); }},
+                {"reduction", [&] { SushiBLAS::ReductionOps(recorder).sum(a, total); }},
+                {"random",
+                 [&] { SushiBLAS::RandomOps(recorder, engine->get_rng()).uniform(drawn); }},
+                {"blas", [&] { SushiBLAS::BLASOps(recorder).axpy(2.0, a, y); }},
+                {"spatial",
+                 [&] { SushiBLAS::SpatialOps(recorder).im2col(image, columns, unit_window); }},
+            }};
 
-            EXPECT_EQ(2u, probe.take_nodes().size());
+            for (const FamilyCall& entry : calls)
+            {
+                SCOPED_TRACE(entry.family);
+                EXPECT_NO_THROW(entry.call());
+                EXPECT_EQ(1u, probe.take_nodes().size());
+            }
+
+            // take_nodes() emptied the graph, so every call is recorded again before it runs.
+            for (const FamilyCall& entry : calls)
+                entry.call();
+            probe.execute();
+
+            EXPECT_TENSOR_NEAR(added, (std::vector<float>{2.0f, 0.0f, 6.0f, 0.0f}), K_EXACT);
+            EXPECT_TENSOR_NEAR(rectified, (std::vector<float>{1.0f, 0.0f, 3.0f, 0.0f}), K_EXACT);
+            EXPECT_TENSOR_NEAR(compared, (std::vector<float>{1.0f, 0.0f, 1.0f, 0.0f}), K_EXACT);
+            EXPECT_TENSOR_NEAR(total, (std::vector<float>{-2.0f}), K_EXACT);
+            EXPECT_TENSOR_NEAR(y, (std::vector<float>{3.0f, -2.0f, 9.0f, -4.0f}), K_EXACT);
+            EXPECT_TENSOR_NEAR(columns, signed_values, K_EXACT);
+
+            for (const float value : read_tensor<float>(drawn))
+            {
+                EXPECT_GE(value, 0.0f);
+                EXPECT_LT(value, 1.0f);
+            }
         }
 
         /** @brief Tests that one chain of view calls gives two graphs equal edges and results. */

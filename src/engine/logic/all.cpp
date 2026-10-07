@@ -33,6 +33,7 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/logic/logic.hpp>
+#include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -69,11 +70,23 @@ namespace SushiBLAS
                 });
             });
         }
+
+        /** @brief Writes 1 to pR when no element of pT equals zero, else 0, by one serial host scan. */
+        template<typename T>
+        void all_reference(const T* pT, T* pR, int64_t size)
+        {
+            T every = T(1);
+            for (int64_t i = 0; i < size; ++i)
+            {
+                if (!(pT[i] != T(0)))
+                    every = T(0);
+            }
+            pR[0] = every;
+        }
     }
 
     TaskHandle LogicOps::all(const Tensor& t, Tensor& result)
     {
-        recorder_.require_sycl_path("Logic operation", "logic.all");
         Dispatch::require_storage(t, "logic.all", "t");
         Dispatch::require_device_dtype(t, "logic.all", "t");
         Dispatch::require_storage(result, "logic.all", "result");
@@ -103,11 +116,18 @@ namespace SushiBLAS
         {
             using T = typename decltype(tag)::type;
 
-            handle = recorder_.record(meta, operands, "Logic operation",
+            handle = recorder_.record_pair(meta, operands, "Logic operation",
                 [size, pT = static_cast<const T*>(read_T), pR = result.data_as<T>()]
-                (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                (const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+                 const std::vector<sycl::event>& deps) -> sycl::event
                 {
-                    return all_dispatch<T>(q, pT, pR, size, deps);
+                    return pair.run(q, deps,
+                        [size, pT, pR] { all_reference<T>(pT, pR, size); },
+                        [size, pT, pR](sycl::queue& q2,
+                                       const std::vector<sycl::event>& deps2) -> sycl::event
+                        {
+                            return all_dispatch<T>(q2, pT, pR, size, deps2);
+                        });
                 });
         });
         return handle;

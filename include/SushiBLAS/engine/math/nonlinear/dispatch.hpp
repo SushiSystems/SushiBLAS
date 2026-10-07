@@ -27,7 +27,6 @@
 
 #pragma once
 
-#include <vector>
 #include <complex>
 #include <cstddef>
 #include <initializer_list>
@@ -36,14 +35,14 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
-#include <SushiBLAS/support/launch_1d.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/math/safe_math.hpp>
+#include <SushiBLAS/engine/math/elementwise/map_task.hpp>
+#include <SushiBLAS/engine/math/elementwise/read_binding.hpp>
 #include <SushiBLAS/engine/math/elementwise/scalar_binding.hpp>
-#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
@@ -53,8 +52,9 @@ namespace SushiBLAS
         /**
          * @brief Records an activation's forward pass `t[i] = op(t[i])`, or nothing when t is empty.
          * @tparam Dom Defaults to Domain::REAL; a wider domain needs an op_func well-formed for it.
-         * @param op_func Callable `(auto x) -> auto`, or a bind_scalars bundle of one.
-         * @throws std::invalid_argument on any operand violation, or under FORCE_REFERENCE.
+         * @param op_func Callable `(auto x) -> auto`, or a bind_scalars or bind_reads bundle of one.
+         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
+         *         or a device-only tensor under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
@@ -62,20 +62,18 @@ namespace SushiBLAS
                                              SushiRuntime::Graph::OpID op_id, Func&& op_func,
                                              std::initializer_list<Param> params = {})
         {
-            recorder.require_sycl_path("Nonlinear operation", name);
             require_storage(t, name, "t");
             require_device_dtype(t, name, "t");
             require_contiguous(t, name, "t");
             require_domain<Dom>(t.dtype, "Nonlinear operation", name);
+            Detail::require_declared_reads(op_func, t.dtype, name);
 
             if (t.num_elements == 0)
                 return TaskHandle();
 
-            int64_t size = t.num_elements;
-            void* ptr = t.data();
-            const bool vec_ok = Launch::is_vector_aligned(ptr);
             OperandSet operands;
             operands.updates(t);
+            Detail::declare_reads(op_func, operands, name);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -83,31 +81,20 @@ namespace SushiBLAS
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 
-            return recorder.record(meta, operands, "Nonlinear operation",
-                [size, ptr, vec_ok, dtype = t.dtype, op_func, name]
-                (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                {
-                    SB_LOG_INFO("{} Forward: {} elements", name, size);
-                    return q.submit([&](sycl::handler& h)
-                    {
-                        h.depends_on(deps);
-                        const std::size_t n = static_cast<std::size_t>(size);
-                        Dispatch::with_element_type<Dom>(dtype, "Nonlinear operation", name,
-                            [&](auto tag)
-                        {
-                            using T = typename decltype(tag)::type;
-
-                            Launch::map(h, q, n, vec_ok, Detail::narrow_for(tag, op_func), (T*)ptr, (const T*)ptr);
-                        });
-                    });
-                });
+            void* ptr = t.data();
+            return recorder.record_pair(meta, operands, "Nonlinear operation",
+                Detail::make_map_task<Dom>(t.dtype, "Nonlinear operation", name,
+                                           static_cast<std::size_t>(t.num_elements), ptr,
+                                           Detail::task_functor(op_func),
+                                           static_cast<const void*>(ptr)));
         }
 
         /**
          * @brief Records an activation's backward pass `dx[i] = op(dy[i], x[i])`, or nothing when dx is empty.
          * @param x The saved forward input or output the derivative is taken against.
-         * @param op_func Callable `(auto dy, auto x) -> auto`, or a bind_scalars bundle of one.
-         * @throws std::invalid_argument on any operand violation, or under FORCE_REFERENCE.
+         * @param op_func Callable `(auto dy, auto x) -> auto`, or a bind_scalars or bind_reads bundle of one.
+         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
+         *         or a device-only tensor under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
@@ -116,7 +103,6 @@ namespace SushiBLAS
                                               SushiRuntime::Graph::OpID op_id, Func&& op_func,
                                               std::initializer_list<Param> params = {})
         {
-            recorder.require_sycl_path("Nonlinear operation", name);
             require_storage(dy, name, "dy");
             require_device_dtype(dy, name, "dy");
             require_storage(x, name, "x");
@@ -134,14 +120,14 @@ namespace SushiBLAS
             require_dtype(dx, dy.dtype, name, "dx");
 
             require_domain<Dom>(x.dtype, "Nonlinear operation", name);
+            Detail::require_declared_reads(op_func, x.dtype, name);
 
             if (dx.num_elements == 0)
                 return TaskHandle();
 
-            int64_t size = x.num_elements;
             OperandSet operands;
             operands.reads(dy).reads(x).writes(dx);
-            const bool vec_ok = Launch::vector_aligned(dy.data(), x.data(), dx.data());
+            Detail::declare_reads(op_func, operands, name);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -149,23 +135,10 @@ namespace SushiBLAS
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 
-            return recorder.record(meta, operands, "Nonlinear operation",
-                [size, vec_ok, pDY_raw = dy.data(), pX_raw = x.data(), pDX_raw = dx.data(), dtype = x.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                {
-                    SB_LOG_INFO("{} Backward: {} elements", name, size);
-                    return q.submit([&](sycl::handler& h)
-                    {
-                        h.depends_on(deps);
-                        const std::size_t n = static_cast<std::size_t>(size);
-                        Dispatch::with_element_type<Dom>(dtype, "Nonlinear operation", name,
-                            [&](auto tag)
-                        {
-                            using T = typename decltype(tag)::type;
-
-                            Launch::map(h, q, n, vec_ok, Detail::narrow_for(tag, op_func), (T*)pDX_raw, (const T*)pDY_raw, (const T*)pX_raw);
-                        });
-                    });
-                });
+            return recorder.record_pair(meta, operands, "Nonlinear operation",
+                Detail::make_map_task<Dom>(x.dtype, "Nonlinear operation", name,
+                                           static_cast<std::size_t>(x.num_elements), dx.data(),
+                                           Detail::task_functor(op_func), dy.data(), x.data()));
         }
 
     } // namespace Dispatch

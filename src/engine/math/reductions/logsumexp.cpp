@@ -35,7 +35,6 @@ namespace SushiBLAS
 
     TaskHandle ReductionOps::logsumexp(const Tensor& t, Tensor& result)
     {
-        recorder_.require_sycl_path("Reduction", "math.logsumexp");
         Dispatch::require_min_elements(t, 1, "math.logsumexp", "t");
         Dispatch::require_storage(t, "math.logsumexp", "t");
 

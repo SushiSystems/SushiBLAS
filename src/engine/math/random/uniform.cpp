@@ -62,7 +62,8 @@ namespace SushiBLAS
                                                   min, max, Core::to_string(t.dtype));
 
         return Dispatch::execute_random<Dispatch::Domain::REAL_AND_COMPLEX>(recorder_, rng_, t, "random.uniform", "random.uniform"_op, {min, max},
-            [min, max](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
+            [min, max](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,
+                       uint64_t offset, int64_t size, auto* pT) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 if constexpr (Core::is_complex_v<T>)
@@ -72,7 +73,7 @@ namespace SushiBLAS
                     RealT* pR = reinterpret_cast<RealT*>(pT);
 
                     // A complex fill is one flat run of 2n real draws; see src/README.md.
-                    return Dispatch::submit_random_fill(q, deps, size * 2, pR, [=](uint64_t b)
+                    return fill(size * 2, pR, [=](uint64_t b)
                     {
                         return Kernels::SYCL::Random::uniform_block<RealT>(seed, offset, b, lo, hi);
                     });
@@ -81,7 +82,7 @@ namespace SushiBLAS
                 {
                     const T lo = static_cast<T>(min), hi = static_cast<T>(max);
 
-                    return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t b)
+                    return fill(size, pT, [=](uint64_t b)
                     {
                         return Kernels::SYCL::Random::uniform_block<T>(seed, offset, b, lo, hi);
                     });

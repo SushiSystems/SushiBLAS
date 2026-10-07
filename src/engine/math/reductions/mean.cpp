@@ -35,7 +35,6 @@ namespace SushiBLAS
     // The division by n is the finalizer of the fold; see src/README.md.
     TaskHandle ReductionOps::mean(const Tensor& t, Tensor& result)
     {
-        recorder_.require_sycl_path("Reduction", "math.mean");
         Dispatch::require_min_elements(t, 1, "math.mean", "t");
 
         return Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(

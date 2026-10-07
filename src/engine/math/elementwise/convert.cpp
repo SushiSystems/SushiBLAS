@@ -34,11 +34,13 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/support/serial_1d.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/math/elementwise.hpp>
+#include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -51,11 +53,27 @@ namespace SushiBLAS
         /** @brief The op's name, used for the task, the log line and every message. */
         constexpr const char* K_NAME = "math.ew.convert";
 
+        /** @brief Converts element i of a source array into a destination array of another type. */
+        template<typename Src, typename Dst>
+        struct ConvertElement
+        {
+            /** @brief Holds the source's first element. */
+            const Src* source;
+            /** @brief Holds the destination's first element. */
+            Dst* destination;
+
+            /** @brief Writes element i; static_cast rounds to nearest even, see src/README.md. */
+            void operator()(std::size_t i) const
+            {
+                destination[i] = static_cast<Dst>(source[i]);
+            }
+        };
+
         /**
          * @brief Records the task for one concrete (source, destination) type pair.
          * @param operands Must declare the source as read and the destination as written.
          * @return The handle of the recorded task.
-         * @throws std::invalid_argument under FORCE_REFERENCE.
+         * @throws std::invalid_argument under FORCE_REFERENCE when an operand is device-only USM.
          * @see src/README.md
          */
         template<typename Src, typename Dst>
@@ -64,24 +82,29 @@ namespace SushiBLAS
                                   const OperandSet& operands,
                                   const void* src_ptr, void* dst_ptr, int64_t n)
         {
-            return recorder.record(meta, operands, "Elementwise operation",
-                [n, pS = static_cast<const Src*>(src_ptr), pD = static_cast<Dst*>(dst_ptr)]
-                (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            const ConvertElement<Src, Dst> convert{static_cast<const Src*>(src_ptr),
+                                                   static_cast<Dst*>(dst_ptr)};
+            const std::size_t count = static_cast<std::size_t>(n);
+
+            return recorder.record_pair(meta, operands, "Elementwise operation",
+                [count, convert](const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+                                 const std::vector<sycl::event>& deps) -> sycl::event
                 {
-                    SB_LOG_INFO("Elementwise convert: {} elements", n);
+                    SB_LOG_INFO("Elementwise convert: {} elements", count);
 
-                    return q.submit([&](sycl::handler& h)
-                    {
-                        h.depends_on(deps);
-
-                        // Indexed, because Launch::map needs one element type; see src/README.md.
-                        Launch::indexed(h, q, static_cast<std::size_t>(n),
-                            [pS, pD](std::size_t i)
+                    return pair.run(q, deps,
+                        [count, convert] { Serial::indexed(count, convert); },
+                        [count, convert](sycl::queue& q2,
+                                         const std::vector<sycl::event>& deps2) -> sycl::event
+                        {
+                            return q2.submit([&](sycl::handler& h)
                             {
-                                // static_cast rounds to nearest even; see src/README.md.
-                                pD[i] = static_cast<Dst>(pS[i]);
+                                h.depends_on(deps2);
+
+                                // Indexed, because Launch::map needs one element type; see src/README.md.
+                                Launch::indexed(h, q2, count, convert);
                             });
-                    });
+                        });
                 });
         }
 
@@ -89,7 +112,7 @@ namespace SushiBLAS
          * @brief Selects the destination type at runtime for a fixed source type.
          * @return The handle of the recorded task.
          * @throws std::runtime_error if @p dst_dtype is outside `Domain::REAL`.
-         * @throws std::invalid_argument under FORCE_REFERENCE.
+         * @throws std::invalid_argument under FORCE_REFERENCE when an operand is device-only USM.
          * @see src/README.md
          */
         template<typename Src>
@@ -122,7 +145,6 @@ namespace SushiBLAS
 
     TaskHandle ElementwiseOps::convert(const Tensor& src, Tensor& dst)
     {
-        recorder_.require_sycl_path("Elementwise operation", K_NAME);
         Dispatch::require_operand(Core::is_real_dtype(src.dtype), K_NAME, "src",
                                   "has dtype {}; convert reads HALF, FLOAT32 or FLOAT64",
                                   Core::to_string(src.dtype));

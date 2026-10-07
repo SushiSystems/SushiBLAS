@@ -32,6 +32,8 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiBLAS/engine/math/random/dispatch.hpp>
+#include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiBLAS/support/orthonormal_sweep.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 #include <kernels/random.hpp>
@@ -44,7 +46,6 @@ namespace SushiBLAS
     {
         const char* name = "random.orthogonal";
 
-        recorder_.require_sycl_path("RNG operation", name);
         Dispatch::require_rank(t, 2, name, "t");
         Dispatch::require_random_dtype(t, Dispatch::Domain::REAL, Dispatch::Sampling::DRAWS_VALUES,
                                        name);
@@ -56,12 +57,16 @@ namespace SushiBLAS
         Dispatch::require_device_dtype(t, name, "t");
         Dispatch::require_contiguous(t, name, "t");
 
+        OperandSet operands;
+        operands.updates(t);
+        recorder_.require_host_reachable(operands, "RNG operation", name);
+
         // The matrix is filled with N(0,1) before the sweep; see src/README.md.
         normal(t, 0.0, 1.0);
 
         // The shorter axis is orthonormalized, read through t.strides; see src/README.md.
         const bool by_rows = (rows <= cols);
-        Kernels::SYCL::Random::VectorSet set;
+        Kernels::VectorSet set;
         set.count = by_rows ? rows : cols;
         set.length = by_rows ? cols : rows;
         set.elem_stride = by_rows ? t.strides[1] : t.strides[0];
@@ -69,17 +74,16 @@ namespace SushiBLAS
 
         void* ptr = t.data();
 
-        OperandSet operands;
-        operands.updates(t);
-
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = name;
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "random.orthogonal"_op;
         meta.set_param(0, gain);
 
-        return recorder_.record(meta, operands, "RNG operation",
-            [dtype = t.dtype, ptr, set, gain, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+        return recorder_.record_pair(meta, operands, "RNG operation",
+            [dtype = t.dtype, ptr, set, gain, name]
+            (const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+             const std::vector<sycl::event>& deps) -> sycl::event
             {
                 SB_LOG_INFO("RandomOps: {} ({} vectors of length {}, gain: {:.4f})", name, set.count, set.length, gain);
 
@@ -88,10 +92,26 @@ namespace SushiBLAS
                 {
                     using T = typename decltype(tag)::type;
                     if constexpr (std::is_same_v<T, sycl::half>)
+                    {
                         SB_THROW_IF(true, "RNG operation '{}' does not support dtype HALF.", name);
+                    }
                     else
-                        done = Kernels::SYCL::Random::orthonormalize(q, deps, static_cast<T*>(ptr), set,
-                                                                     static_cast<T>(gain));
+                    {
+                        T* vectors = static_cast<T*>(ptr);
+                        const T scale = static_cast<T>(gain);
+
+                        done = pair.run(q, deps,
+                            [vectors, set, scale]
+                            {
+                                Kernels::Reference::Random::orthonormalize(vectors, set, scale);
+                            },
+                            [vectors, set, scale](sycl::queue& q2,
+                                                  const std::vector<sycl::event>& deps2) -> sycl::event
+                            {
+                                return Kernels::SYCL::Random::orthonormalize(q2, deps2, vectors,
+                                                                             set, scale);
+                            });
+                    }
                 });
                 return done;
             });

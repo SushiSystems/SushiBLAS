@@ -46,14 +46,13 @@ namespace SushiBLAS
         return Dispatch::execute_random<Dispatch::Domain::REAL>(
             recorder_, rng_, t, "random.he_normal", "random.he_normal"_op,
             {static_cast<double>(n_in), stddev},
-            [stddev](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset,
-                     int64_t size, auto* pT,
-                     const std::vector<sycl::event>& deps) -> sycl::event
+            [stddev](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,
+                     uint64_t offset, int64_t size, auto* pT) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 const T sd = static_cast<T>(stddev);
 
-                return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t b)
+                return fill(size, pT, [=](uint64_t b)
                 {
                     return Kernels::SYCL::Random::normal_block<T>(seed, offset, b,
                                                                   static_cast<T>(0.0), sd);

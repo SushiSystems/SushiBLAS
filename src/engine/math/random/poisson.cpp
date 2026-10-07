@@ -56,13 +56,12 @@ namespace SushiBLAS
 
         return Dispatch::execute_random<Dispatch::Domain::REAL>(
             recorder_, rng_, t, "random.poisson", "random.poisson"_op, {lambda},
-            [params](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset,
-                     int64_t size, auto* pT,
-                     const std::vector<sycl::event>& deps) -> sycl::event
+            [params](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,
+                     uint64_t offset, int64_t size, auto* pT) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
-                return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i)
+                return fill(size, pT, [=](uint64_t i)
                 {
                     const double draw =
                         Kernels::SYCL::Random::draw_poisson(seed, offset, i, params);

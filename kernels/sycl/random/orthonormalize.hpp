@@ -34,6 +34,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/support/reduce_1d.hpp>
+#include <SushiBLAS/support/orthonormal_sweep.hpp>
 
 namespace SushiBLAS
 {
@@ -43,39 +44,17 @@ namespace SushiBLAS
         {
             namespace Random
             {
-                /**
-                 * @brief Holds the strided layout of the vectors a sweep orthonormalises.
-                 * @see kernels/README.md
-                 */
-                struct VectorSet
-                {
-                    int64_t count = 0;       /**< Number of vectors. */
-                    int64_t length = 0;      /**< Elements per vector. */
-                    int64_t elem_stride = 0; /**< Element-to-element step within one vector. */
-                    int64_t vec_stride = 0;  /**< First-element-to-first-element step between vectors. */
-                };
-
                 /** @brief Holds the helpers of the orthonormalisation sweep. */
                 namespace Detail
                 {
                     /** @brief Holds the largest work-group size of the sweep; the tree needs a power of two. */
                     inline constexpr std::size_t K_ORTHO_MAX_GROUP = 64;
 
-                    /** @brief Holds how many Gram-Schmidt sweeps run before the vectors are normalised. */
-                    inline constexpr int K_ORTHO_SWEEPS = 2;
-
                     /** @brief Returns the largest power of two at most K_ORTHO_MAX_GROUP that the device accepts. */
                     inline std::size_t ortho_group_size(const sycl::queue& q)
                     {
                         return Reduce::floor_pow2(
                             std::min(K_ORTHO_MAX_GROUP, Device::profile_for(q).max_work_group_size));
-                    }
-
-                    /** @brief Returns the squared norm at or below which a vector counts as zero. */
-                    template<typename T>
-                    inline constexpr T tiny_norm_sq()
-                    {
-                        return static_cast<T>(1e-12) * static_cast<T>(1e-12);
                     }
 
                     /**
@@ -200,7 +179,7 @@ namespace SushiBLAS
                     const std::size_t group = Detail::ortho_group_size(q);
                     std::vector<sycl::event> chain = deps;
 
-                    for (int sweep = 0; sweep < Detail::K_ORTHO_SWEEPS; ++sweep)
+                    for (int sweep = 0; sweep < K_ORTHONORMAL_SWEEPS; ++sweep)
                     {
                         for (int64_t i = 0; i + 1 < set.count; ++i)
                         {

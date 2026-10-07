@@ -35,7 +35,6 @@ namespace SushiBLAS
 
     TaskHandle ReductionOps::argmax(const Tensor& t, Tensor& result)
     {
-        recorder_.require_sycl_path("Reduction", "math.argmax");
         Dispatch::require_min_elements(t, 1, "math.argmax", "t");
         Dispatch::require_storage(t, "math.argmax", "t");
 

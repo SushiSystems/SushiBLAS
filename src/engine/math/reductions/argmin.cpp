@@ -35,7 +35,6 @@ namespace SushiBLAS
 
     TaskHandle ReductionOps::argmin(const Tensor& t, Tensor& result)
     {
-        recorder_.require_sycl_path("Reduction", "math.argmin");
         Dispatch::require_min_elements(t, 1, "math.argmin", "t");
         Dispatch::require_storage(t, "math.argmin", "t");
 
