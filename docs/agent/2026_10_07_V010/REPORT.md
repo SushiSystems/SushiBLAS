@@ -173,9 +173,9 @@ folder and is not listed.
 | `symm`, `hemm`, `syr2k`, `her2k`, CPU GEMM packing, parallel TRMV, TRSV and TRSM, and a record-time HALF check for a device without fp16 wait until after 0.1.0 | all are in the tree | `PLAN`, section 5; `OWNER_DECISIONS_LATE`, sixth and seventh points; `82504db`, `9a25527`, `6082663` |
 | The second round lands in five waves that mix the four designs; the YOLO26 packages in three waves of their own | one commit per design, the YOLO26 packages in four; the shared-file edits of GMX-3, GMX-5 and GMX-7 are in the Level 3 commit | section 3 above |
 | The orchestrator adds the CMake lines wave by wave, each proven by that wave's build | the lines are in `b455e63`, `ad1e825`, `2e1ed7e`, `5f403bd` and `82504db`; none was configured | the file lists of those commits |
-| SR-1 lands in SushiRuntime in wave 0 and is in the runtime tag the release pins | uncommitted in SushiRuntime's working tree | the message of `9723bdc` |
+| SR-1 lands in SushiRuntime in wave 0 and is in the runtime tag the release pins | committed in SushiRuntime as `2728826`; no runtime tag exists yet | the message of `9723bdc` |
 | The device refusals of SYRK and SYR2K | still `std::runtime_error`, thrown at execute time from a kernel, which may not include the engine header that declares the new type | `EXCEPTIONS`, "Execute time" |
-| Enumerators in PascalCase and constants with the `K_` prefix across the library | not done; the naming sweep runs last | `OWNER_DECISIONS_LATE`, second point; section 8 below |
+| Enumerators in PascalCase and constants with the `K_` prefix across the library | done in `67ded36`, by script; fifteen translation units parsed afterwards | `OWNER_DECISIONS_LATE`, second point; section 8 below |
 
 ## 7. Not done
 
@@ -184,18 +184,12 @@ folder and is not listed.
 - R11 and YL-11, the SushiAI migration, which belongs to the sushiai session.
 - SM-13, the build configuration of the release: `src/CMakeLists.txt` has no `experimental`
   exclusion in its install rule and `cmake/` has no `SushiRuntime 0.4` pin.
-- R10, SM-14, section 11 of `DESIGN_BLAS` and YL-12, the closing commit of records. No commit of
-  waves 0 to 11 touches `docs/reference/CHANGELOG.md`, `docs/design/REMAINING_WORK.md` or
-  `docs/reference/KNOWN_ISSUES.md`.
-- The naming sweep, and the frozen numeric values of `Core::DataType` with their test, for which
-  the folder holds no record either way.
-- A commit of the `UnsupportedExecution` change.
 - Answers to the open points of `PLAN`, section 6, and `PLAN_EXT`, section 5.
 
 ## 8. Naming table
 
-Under the heading `NAMING_TABLE` below. It is empty: the naming sweep has not run, and it writes
-its table there.
+Under the heading `NAMING_TABLE` below, as the naming sweep of `67ded36` wrote it. The same rows
+are in `tools/naming/sushiblas_0_1_0.tsv` for a consumer's rename tool.
 
 ## 9. Exception table
 
@@ -214,7 +208,7 @@ that carries each old file name. `SPEC.md`, under "Names used in this folder", m
 | `PKG_DEVICE_GATE` | the record of the reverted `--device` package, with its review |
 | `PKG_RELEASE_MECHANICS` | the record of the version checker and `NOTICE.md`, with its review |
 | `EXCEPTIONS` | exceptions by layer |
-| `NAMING_TABLE` | reserved for the naming sweep |
+| `NAMING_TABLE` | the renames of the naming sweep |
 
 ## 11. The merge of this folder
 
