@@ -28,26 +28,32 @@
 #pragma once
 
 #include <cstdint>
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/support/spatial_geometry.hpp>
 
 namespace SushiBLAS
 {
-    class Engine;
-
     /**
      * @class SpatialOps
-     * @brief Windowed gathers, windowed reductions and channel-wise broadcasts.
+     * @brief Records windowed gathers, windowed reductions and channel-wise broadcasts.
      */
-    class SpatialOps
+    class SpatialOps final
     {
         public:
-            /**
-             * @brief Construct SpatialOps with a reference to the engine.
-             * @param e The SushiBLAS engine.
-             */
-            explicit SpatialOps(Engine& e) : engine_(e) {}
+            /** @brief Builds a view that records through recorder, which must outlive the view. */
+            explicit SpatialOps(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
+
+            /** @brief Builds a view that records on engine's own graph. */
+            explicit SpatialOps(Engine& engine) noexcept : SpatialOps(engine.get_recorder()) {}
+
+            SpatialOps(const SpatialOps&) = default;
+            SpatialOps& operator=(const SpatialOps&) = delete;
+            SpatialOps(SpatialOps&&) = default;
+            SpatialOps& operator=(SpatialOps&&) = delete;
+            ~SpatialOps() = default;
 
             /**
              * @brief Gathers every window of an NHWC image into one row of a matrix.
@@ -56,8 +62,8 @@ namespace SushiBLAS
              * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g,
-                               int64_t out_h, int64_t out_w);
+            TaskHandle im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g,
+                              int64_t out_h, int64_t out_w);
 
             /**
              * @brief Gathers every window of an NHWC image into matrix rows, deriving the output extents from cols.
@@ -65,7 +71,7 @@ namespace SushiBLAS
              * @throws std::runtime_error as the other overload, or when the width does not divide the row count.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g);
+            TaskHandle im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g);
 
             /**
              * @brief Scatters an im2col matrix back onto an image by summing overlaps.
@@ -74,8 +80,8 @@ namespace SushiBLAS
              * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event col2im(const Tensor& cols, Tensor& image, const Spatial::ConvGeometry& g,
-                               int64_t out_h, int64_t out_w);
+            TaskHandle col2im(const Tensor& cols, Tensor& image, const Spatial::ConvGeometry& g,
+                              int64_t out_h, int64_t out_w);
 
             /**
              * @brief Takes each window's maximum and records where it came from.
@@ -83,8 +89,8 @@ namespace SushiBLAS
              * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event pool_max(const Tensor& in, Tensor& out, Tensor& indices,
-                                 const Spatial::ConvGeometry& g);
+            TaskHandle pool_max(const Tensor& in, Tensor& out, Tensor& indices,
+                                const Spatial::ConvGeometry& g);
 
             /**
              * @brief Routes each output gradient back to the element it was taken from.
@@ -93,15 +99,15 @@ namespace SushiBLAS
              * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event pool_max_backward(const Tensor& dy, const Tensor& indices, Tensor& dx,
-                                          const Spatial::ConvGeometry& g);
+            TaskHandle pool_max_backward(const Tensor& dy, const Tensor& indices, Tensor& dx,
+                                         const Spatial::ConvGeometry& g);
 
             /**
              * @brief Averages each window, dividing by the window's area.
              * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event pool_avg(const Tensor& in, Tensor& out, const Spatial::ConvGeometry& g);
+            TaskHandle pool_avg(const Tensor& in, Tensor& out, const Spatial::ConvGeometry& g);
 
             /**
              * @brief Spreads each output gradient evenly over the window it came from.
@@ -109,8 +115,8 @@ namespace SushiBLAS
              * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event pool_avg_backward(const Tensor& dy, Tensor& dx,
-                                          const Spatial::ConvGeometry& g);
+            TaskHandle pool_avg_backward(const Tensor& dy, Tensor& dx,
+                                         const Spatial::ConvGeometry& g);
 
             /**
              * @brief Repeats each input pixel over a scale_h by scale_w block.
@@ -119,8 +125,8 @@ namespace SushiBLAS
              * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event upsample_nearest(const Tensor& in, Tensor& out,
-                                         int64_t scale_h, int64_t scale_w);
+            TaskHandle upsample_nearest(const Tensor& in, Tensor& out,
+                                        int64_t scale_h, int64_t scale_w);
 
             /**
              * @brief Sums each output block back onto the pixel that produced it.
@@ -128,8 +134,8 @@ namespace SushiBLAS
              * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event upsample_nearest_backward(const Tensor& dy, Tensor& dx,
-                                                  int64_t scale_h, int64_t scale_w);
+            TaskHandle upsample_nearest_backward(const Tensor& dy, Tensor& dx,
+                                                 int64_t scale_h, int64_t scale_w);
 
             /**
              * @brief Copies all of src's channels into dst starting at a channel offset.
@@ -137,8 +143,8 @@ namespace SushiBLAS
              * @throws std::runtime_error at record time, also when the range runs past dst's channel count.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event concat_channels(const Tensor& src, Tensor& dst,
-                                        int64_t dst_channel_offset);
+            TaskHandle concat_channels(const Tensor& src, Tensor& dst,
+                                       int64_t dst_channel_offset);
 
             /**
              * @brief Copies a channel range out of src, filling all of dst.
@@ -146,8 +152,8 @@ namespace SushiBLAS
              * @throws std::runtime_error at record time, also when the range runs past src's channel count.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event slice_channels(const Tensor& src, int64_t src_channel_offset,
-                                       Tensor& dst);
+            TaskHandle slice_channels(const Tensor& src, int64_t src_channel_offset,
+                                      Tensor& dst);
 
             /**
              * @brief Applies a per-channel scale and shift: `out[n,h,w,c] = in[n,h,w,c] * gamma[c] + beta[c]`.
@@ -156,15 +162,15 @@ namespace SushiBLAS
              * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event channel_affine(const Tensor& in, const Tensor& gamma,
-                                       const Tensor& beta, Tensor& out);
+            TaskHandle channel_affine(const Tensor& in, const Tensor& gamma,
+                                      const Tensor& beta, Tensor& out);
 
             /**
              * @brief Spreads an `[N, C]` value over `[N, H, W, C]`: `out[n,h,w,c] = in[n,c] * scale`.
              * @throws std::runtime_error at record time when the ranks, dtypes or the N/C extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event broadcast_spatial(const Tensor& in, Tensor& out, double scale);
+            TaskHandle broadcast_spatial(const Tensor& in, Tensor& out, double scale);
 
             /**
              * @brief Copies a rank-4 tensor element by logical `(n, c, h, w)` position.
@@ -172,10 +178,11 @@ namespace SushiBLAS
              * @throws std::runtime_error at record time when the ranks, dtypes or logical shapes disagree.
              * @see include/SushiBLAS/engine/README.md
              */
-            sycl::event layout_convert(const Tensor& in, Tensor& out);
+            TaskHandle layout_convert(const Tensor& in, Tensor& out);
 
         private:
-            Engine& engine_;
+            /// @brief The recorder every operation of this view records through.
+            TaskRecorder& recorder_;
     };
 
 } // namespace SushiBLAS

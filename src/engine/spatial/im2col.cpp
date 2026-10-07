@@ -27,7 +27,6 @@
  */
 
 #include <vector>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/engine/spatial/window.hpp>
@@ -42,8 +41,8 @@ namespace SushiBLAS
         constexpr const char* IM2COL_NAME = "spatial.im2col";
     }
 
-    sycl::event SpatialOps::im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g,
-                                   int64_t out_h, int64_t out_w)
+    TaskHandle SpatialOps::im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g,
+                                  int64_t out_h, int64_t out_w)
     {
         SB_THROW_IF(in.dtype != cols.dtype,
                     "Spatial operation '{}' has a {} input and a {} column matrix.",
@@ -56,10 +55,8 @@ namespace SushiBLAS
         const void* read_in = in.data_or_null();
         void* write_cols = cols.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_in) reads.push_back(in.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_cols) writes.push_back(cols.region());
+        OperandSet operands;
+        operands.reads(in).writes(cols);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = IM2COL_NAME;
@@ -67,8 +64,7 @@ namespace SushiBLAS
         meta.op_id = "spatial.im2col"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
-            engine_, meta, reads, writes, in.dtype, "Spatial operation",
-            Internal::ReferenceOperands{read_in, write_cols},
+            recorder_, meta, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
@@ -86,7 +82,7 @@ namespace SushiBLAS
             });
     }
 
-    sycl::event SpatialOps::im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g)
+    TaskHandle SpatialOps::im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g)
     {
         SB_THROW_IF(in.rank != 4, "Spatial operation '{}' needs a rank-4 NHWC input; got rank {}.",
                     IM2COL_NAME, in.rank);

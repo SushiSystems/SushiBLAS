@@ -27,7 +27,6 @@
  */
 
 #include <vector>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/engine/spatial/window.hpp>
@@ -37,8 +36,8 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event SpatialOps::col2im(const Tensor& cols, Tensor& image, const Spatial::ConvGeometry& g,
-                                   int64_t out_h, int64_t out_w)
+    TaskHandle SpatialOps::col2im(const Tensor& cols, Tensor& image, const Spatial::ConvGeometry& g,
+                                  int64_t out_h, int64_t out_w)
     {
         static constexpr const char* NAME = "spatial.col2im";
 
@@ -53,10 +52,8 @@ namespace SushiBLAS
         const void* read_cols = cols.data_or_null();
         void* write_image = image.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_cols) reads.push_back(cols.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_image) writes.push_back(image.region());
+        OperandSet operands;
+        operands.reads(cols).writes(image);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = NAME;
@@ -64,8 +61,7 @@ namespace SushiBLAS
         meta.op_id = "spatial.col2im"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
-            engine_, meta, reads, writes, image.dtype, "Spatial operation",
-            Internal::ReferenceOperands{read_cols, write_image},
+            recorder_, meta, operands, image.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

@@ -28,7 +28,6 @@
 
 #include <vector>
 #include <cstdint>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include "kernels/spatial.hpp"
@@ -104,8 +103,8 @@ namespace SushiBLAS
         }
     } // namespace
 
-    sycl::event SpatialOps::concat_channels(const Tensor& src, Tensor& dst,
-                                            int64_t dst_channel_offset)
+    TaskHandle SpatialOps::concat_channels(const Tensor& src, Tensor& dst,
+                                           int64_t dst_channel_offset)
     {
         static constexpr const char* NAME = "spatial.concat_channels";
 
@@ -117,10 +116,8 @@ namespace SushiBLAS
         const void* read_src = src.data_or_null();
         void* write_dst = dst.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_src) reads.push_back(src.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_dst) writes.push_back(dst.region());
+        OperandSet operands;
+        operands.reads(src).writes(dst);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = NAME;
@@ -129,8 +126,7 @@ namespace SushiBLAS
 
         // A copy does no arithmetic, so it serves Domain::ALL; see src/README.md.
         return Internal::execute_typed_task<Dispatch::Domain::ALL>(
-            engine_, meta, reads, writes, src.dtype, "Spatial operation",
-            Internal::ReferenceOperands{read_src, write_dst},
+            recorder_, meta, operands, src.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
@@ -154,8 +150,8 @@ namespace SushiBLAS
             });
     }
 
-    sycl::event SpatialOps::slice_channels(const Tensor& src, int64_t src_channel_offset,
-                                           Tensor& dst)
+    TaskHandle SpatialOps::slice_channels(const Tensor& src, int64_t src_channel_offset,
+                                          Tensor& dst)
     {
         static constexpr const char* NAME = "spatial.slice_channels";
 
@@ -167,10 +163,8 @@ namespace SushiBLAS
         const void* read_src = src.data_or_null();
         void* write_dst = dst.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_src) reads.push_back(src.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_dst) writes.push_back(dst.region());
+        OperandSet operands;
+        operands.reads(src).writes(dst);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = NAME;
@@ -178,8 +172,7 @@ namespace SushiBLAS
         meta.op_id = "spatial.slice_channels"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::ALL>(
-            engine_, meta, reads, writes, src.dtype, "Spatial operation",
-            Internal::ReferenceOperands{read_src, write_dst},
+            recorder_, meta, operands, src.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

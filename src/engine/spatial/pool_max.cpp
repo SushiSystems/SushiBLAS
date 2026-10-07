@@ -27,7 +27,6 @@
 
 #include <vector>
 #include <cstdint>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
@@ -38,8 +37,8 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event SpatialOps::pool_max(const Tensor& in, Tensor& out, Tensor& indices,
-                                     const Spatial::ConvGeometry& g)
+    TaskHandle SpatialOps::pool_max(const Tensor& in, Tensor& out, Tensor& indices,
+                                    const Spatial::ConvGeometry& g)
     {
         static constexpr const char* NAME = "spatial.pool_max";
 
@@ -66,11 +65,8 @@ namespace SushiBLAS
         void* write_out = out.data_or_null();
         void* write_indices = indices.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_in) reads.push_back(in.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_out) writes.push_back(out.region());
-        if (write_indices) writes.push_back(indices.region());
+        OperandSet operands;
+        operands.reads(in).writes(out).writes(indices);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = NAME;
@@ -81,8 +77,7 @@ namespace SushiBLAS
         auto* index_out = static_cast<int64_t*>(write_indices);
 
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
-            engine_, meta, reads, writes, in.dtype, "Spatial operation",
-            Internal::ReferenceOperands{read_in, write_out, write_indices},
+            recorder_, meta, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
