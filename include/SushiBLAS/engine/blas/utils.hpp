@@ -21,76 +21,34 @@
 
 /**
  * @file utils.hpp
- * @brief Declares the BLAS helpers that read vector parameters and record a typed BLAS task.
+ * @brief Declares the BLAS helpers that size a result, allocate scratch and record a typed task.
  * @author Mustafa Garip
  */
 
 #pragma once
 
-#include <vector>
 #include <cstddef>
 #include <complex>
 #include <utility>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
-#include <SushiBLAS/core/traits.hpp>
+#include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
-#include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/support/reduce_1d.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
-#include <SushiRuntime/core/resource_region.hpp>
+#include <SushiBLAS/support/running_solution.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
 {
     namespace Internal
     {
-        /**
-         * @brief Reads the element count and the positive increment of a vector operand.
-         * @param n Receives the number of elements.
-         * @param inc Receives the distance between consecutive elements.
-         * @throws std::runtime_error on a non-contiguous tensor of rank > 1.
-         * @throws std::invalid_argument on missing storage or a rank-1 stride of zero or less.
-         */
-        inline void get_vec_params(const Tensor& t, int64_t& n, int64_t& inc, const char* op,
-                                   const char* operand)
-        {
-            Dispatch::require_storage(t, op, operand);
-
-            n = t.num_elements;
-            if (t.is_contiguous())
-            {
-                inc = 1;
-            }
-            else
-            {
-                SB_THROW_IF(t.rank > 1, "Level 1 BLAS expects contiguous memory for rank > 1 tensors.");
-                if (t.strides[0] <= 0)
-                    Dispatch::Detail::throw_operand_error(op, operand,
-                                                          "has increment {}; a vector increment "
-                                                          "must be positive",
-                                                          t.strides[0]);
-                inc = t.strides[0];
-            }
-        }
-
-        /**
-         * @brief Throws unless a Level 2 matrix operand has rank 2 or less.
-         * @throws std::invalid_argument on a rank above 2.
-         */
-        inline void require_level2_matrix_rank(const Tensor& A, const char* op)
-        {
-            if (A.rank > 2)
-                Dispatch::Detail::throw_operand_error(op, "A",
-                                                      "has rank {}; a Level 2 matrix has rank 2",
-                                                      A.rank);
-        }
-
         /**
          * @brief Returns the dtype a norm or absolute-sum result holds for an operand of dtype.
          * @return The real component type of a complex dtype, dtype itself otherwise.
@@ -105,7 +63,8 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Throws unless a scalar result tensor has storage, the expected dtype and exactly one element.
+         * @brief Throws unless a scalar result tensor has storage, the expected dtype and exactly
+         *        one element.
          * @throws std::invalid_argument naming the first rule that fails.
          */
         inline void require_scalar_result(const Tensor& result, Core::DataType expected,
@@ -121,33 +80,81 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Leases the partials scratch a Level 1 reduction over x plans on x's device,
-         *        and declares it in operands.
+         * @brief Returns the bytes one element of a substitution's wide solution takes.
+         * @return 0 when the solution is carried in the dtype itself.
+         */
+        [[nodiscard]] inline constexpr std::size_t
+        running_solution_bytes(Core::DataType dtype) noexcept
+        {
+            switch (dtype)
+            {
+                case Core::DataType::HALF:
+                    return Kernels::RunningSolution<sycl::half>::K_NEEDS_WORKSPACE
+                               ? sizeof(Kernels::RunningSolution<sycl::half>::Wide) : 0;
+                case Core::DataType::FLOAT32:
+                    return Kernels::RunningSolution<float>::K_NEEDS_WORKSPACE
+                               ? sizeof(Kernels::RunningSolution<float>::Wide) : 0;
+                case Core::DataType::FLOAT64:
+                    return Kernels::RunningSolution<double>::K_NEEDS_WORKSPACE
+                               ? sizeof(Kernels::RunningSolution<double>::Wide) : 0;
+                case Core::DataType::COMPLEX32:
+                    return Kernels::RunningSolution<std::complex<float>>::K_NEEDS_WORKSPACE
+                               ? sizeof(Kernels::RunningSolution<std::complex<float>>::Wide) : 0;
+                case Core::DataType::COMPLEX64:
+                    return Kernels::RunningSolution<std::complex<double>>::K_NEEDS_WORKSPACE
+                               ? sizeof(Kernels::RunningSolution<std::complex<double>>::Wide) : 0;
+                case Core::DataType::INT32:
+                case Core::DataType::INT64:
+                    return 0;
+            }
+            return 0;
+        }
+
+        /**
+         * @brief Leases device scratch on the device of anchor and declares it written.
+         * @return An empty buffer when anchor has no storage, bytes is zero, or the recorder's mode
+         *         is FORCE_REFERENCE, under which no SYCL kernel reads it.
+         */
+        [[nodiscard]] inline ScratchBuffer allocate_blas_scratch(TaskRecorder& recorder,
+                                                                 const Tensor& anchor,
+                                                                 std::size_t bytes,
+                                                                 OperandSet& operands)
+        {
+            if (!anchor.storage || bytes == 0 ||
+                recorder.get_mode() == ExecutionMode::FORCE_REFERENCE)
+                return ScratchBuffer();
+
+            ScratchBuffer scratch(recorder.get_scratch_pool(), bytes,
+                                  anchor.storage->get_device_index());
+            operands.scratch(scratch);
+            return scratch;
+        }
+
+        /**
+         * @brief Leases the partials scratch a Level 1 reduction over x plans.
          * @param elements Values the reduction folds: n, or 2n for a complex nrm2.
          * @param partial_bytes Bytes one partial takes.
-         * @return The scratch, empty when x has no storage or nothing is planned.
          */
-        [[nodiscard]] inline ScratchBuffer allocate_level1_scratch(
-            TaskRecorder& recorder, const Tensor& x, std::size_t elements,
-            std::size_t partial_bytes, OperandSet& operands)
+        [[nodiscard]] inline ScratchBuffer allocate_level1_scratch(TaskRecorder& recorder,
+                                                                   const Tensor& x,
+                                                                   std::size_t elements,
+                                                                   std::size_t partial_bytes,
+                                                                   OperandSet& operands)
         {
             if (!x.storage || elements == 0)
                 return ScratchBuffer();
 
             const std::size_t partials =
                 Reduce::planned_partials(Device::profile_for(x.get_device()), elements);
-            ScratchBuffer scratch(recorder.get_scratch_pool(), partials * partial_bytes,
-                                  x.storage->get_device_index());
-            operands.scratch(scratch);
-            return scratch;
+            return allocate_blas_scratch(recorder, x, partials * partial_bytes, operands);
         }
 
         /**
-         * @brief Records one dtype-dispatched BLAS task whose body runs a reference and SYCL kernel pair.
-         * @param op_func Callable taking a scalar of the element type, a const KernelPairDispatcher&,
-         *        the queue and the dependencies.
-         * @throws At record time as Dispatch::require_domain states, if dtype falls outside Dom.
-         * @throws std::invalid_argument at record time, as TaskRecorder::record_pair states.
+         * @brief Records one dtype-dispatched BLAS task whose body runs a reference and SYCL pair.
+         * @param op_func Callable taking a value of the element type, a const
+         *        KernelPairDispatcher&, the queue and the dependencies.
+         * @throws std::invalid_argument at record time on a dtype outside Dom or an operand the
+         *         reference kernel cannot reach under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/blas/README.md
          */
         template<Dispatch::Domain Dom = Dispatch::Domain::REAL_AND_COMPLEX, typename Func>

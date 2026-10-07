@@ -25,55 +25,53 @@
  * @author Mustafa Garip
  */
 
+#include <SushiBLAS/engine/blas/level2.hpp>
+
+#include <vector>
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
-#include <SushiBLAS/engine/blas/level2.hpp>
-#include <SushiRuntime/core/resource_region.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/blas/task_metadata.hpp>
+#include <SushiBLAS/engine/blas/argument_check.hpp>
+#include <SushiBLAS/engine/blas/matrix_operand.hpp>
+#include <SushiBLAS/engine/blas/vector_operand.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    TaskHandle Level2::trmv(const Tensor& A, Tensor& x,
-                            bool upper, bool transA, bool unit_diag)
+    TaskHandle Level2::trmv(const Tensor& A, Tensor& x, Core::Uplo uplo, Core::Transpose trans,
+                            Core::Diag diag)
     {
-        SB_THROW_IF(A.rank < 2, "TRMV requires A to be at least a 2D matrix.");
-        Internal::require_level2_matrix_rank(A, "blas.lvl2.trmv");
-        SB_THROW_IF(A.dtype != x.dtype, "Data type mismatch in TRMV.");
+        const char* const op = "blas.lvl2.trmv";
 
-        int32_t rA = A.rank;
-        Dispatch::require_storage(A, "blas.lvl2.trmv", "A");
-        Dispatch::require_contiguous(A, "blas.lvl2.trmv", "A");
-        int64_t n = A.shape[rA - 1]; // Triangular matrix must be n x n
-        SB_THROW_IF(A.shape[rA - 2] != n, "TRMV requires A to be a square matrix.");
+        Dispatch::require_flag(uplo, op, "uplo");
+        Dispatch::require_flag(trans, op, "trans");
+        Dispatch::require_flag(diag, op, "diag");
+        Dispatch::require_dtype(x, A.dtype, op, "x");
 
-        int64_t lda = (A.layout == Core::Layout::ROW_MAJOR) ? A.shape[rA - 1] : A.shape[rA - 2];
+        const Dispatch::MatrixOperand a = Dispatch::describe_matrix_operand(A, op, "A");
+        Dispatch::require_unbatched(a, op, "A");
+        Dispatch::require_square(a, op, "A");
+        const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
+        Dispatch::require_vector_length(vx, a.cols, "the order of A", op, "x");
 
-        int64_t nx, incx;
-        Internal::get_vec_params(x, nx, incx, "blas.lvl2.trmv", "x");
-
-        SB_THROW_IF(nx != n, "Dimension mismatch for vector x in TRMV.");
-
-        const void* read_A = A.data_or_null();
-        void* rw_x = x.data_or_null(); // TRMV overwrites x
-
-        // `x = op(A) * x` is computed in place, so x is read as well as written.
         OperandSet operands;
         operands.reads(A).updates(x);
 
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "blas.lvl2.trmv";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.lvl2.trmv"_op;
-        meta.set_param(0, upper);
-        meta.set_param(1, transA);
-        meta.set_param(2, unit_diag);
+        const Internal::BlasMetadata meta =
+            Internal::BlasMetadata(op, "blas.lvl2.trmv"_op).flag(uplo).flag(trans).flag(diag);
 
-        auto layout = A.layout;
+        const Core::Layout layout = a.layout;
+        const int64_t n = a.cols;
+        const int64_t lda = a.leading_dimension;
+        const int64_t incx = vx.increment;
+        const void* read_A = A.data_or_null();
+        void* rw_x = x.data_or_null();
 
-        return Internal::execute_blas_task(recorder_, meta, operands, A.dtype,
+        return Internal::execute_blas_task(recorder_, meta.get(), operands, A.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
@@ -82,11 +80,16 @@ namespace SushiBLAS
                 auto px = static_cast<T*>(rw_x);
 
                 return dispatcher.run(q, deps,
-                    [=] { Kernels::Reference::trmv<T>(layout, upper, transA, unit_diag, n, pA, lda, px, incx); },
+                    [=]
+                    {
+                        Kernels::Reference::trmv<T>(layout, uplo, trans, diag, n, pA, lda, px,
+                                                    incx);
+                    },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
-                        return Kernels::SYCL::trmv<T>(q2, layout, upper, transA, unit_diag, n, pA, lda, px, incx, deps2);
+                        return Kernels::SYCL::trmv<T>(q2, layout, uplo, trans, diag, n, pA, lda,
+                                                      px, incx, deps2);
                     });
             });
     }
-}
+} // namespace SushiBLAS

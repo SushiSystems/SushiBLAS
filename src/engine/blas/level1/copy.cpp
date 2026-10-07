@@ -25,10 +25,16 @@
  * @author Mustafa Garip
  */
 
+#include <SushiBLAS/engine/blas/level1.hpp>
+
+#include <vector>
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
-#include <SushiBLAS/engine/blas/level1.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/engine/blas/task_metadata.hpp>
+#include <SushiBLAS/engine/blas/vector_operand.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
@@ -37,30 +43,35 @@ namespace SushiBLAS
 
     TaskHandle Level1::copy(const Tensor& x, Tensor& y)
     {
-        // A dtype mismatch stays an error and names the converting copy; see src/README.md.
-        SB_THROW_IF(x.dtype != y.dtype,
-                    "Data type mismatch in COPY: source is {}, destination is {}. BLAS "
-                    "copy moves elements without changing their type; for a copy that "
-                    "converts, use elementwise().convert(src, dst).",
-                    Core::to_string(x.dtype), Core::to_string(y.dtype));
-        int64_t n, incx, incy;
-        Internal::get_vec_params(x, n, incx, "blas.lvl1.copy", "x");
-        int64_t ny; Internal::get_vec_params(y, ny, incy, "blas.lvl1.copy", "y");
-        SB_THROW_IF(n != ny, "COPY requires tensors of the same number of elements.");
+        const char* const op = "blas.lvl1.copy";
 
-        const void* read_x = x.data_or_null();
-        void* write_y = y.data_or_null();
+        // A dtype mismatch stays an error and names the converting copy; see src/README.md.
+        if (x.dtype != y.dtype)
+            Dispatch::Detail::throw_operand_error(op, "y",
+                                                  "has dtype {}, but 'x' has dtype {}; BLAS copy "
+                                                  "moves elements without changing their type, "
+                                                  "ElementwiseOps::convert copies and converts",
+                                                  Core::to_string(y.dtype),
+                                                  Core::to_string(x.dtype));
+
+        const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
+        const Dispatch::VectorOperand vy = Dispatch::describe_vector_operand(y, op, "y");
+        Dispatch::require_same_element_count(x, y, op, "x", "y");
 
         OperandSet operands;
         operands.reads(x).writes(y);
 
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "blas.lvl1.copy";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.lvl1.copy"_op;
+        const Internal::BlasMetadata meta(op, "blas.lvl1.copy"_op);
+
+        const int64_t n = vx.length;
+        const int64_t incx = vx.increment;
+        const int64_t incy = vy.increment;
+        const void* read_x = x.data_or_null();
+        void* write_y = y.data_or_null();
 
         // copy does no arithmetic, so it serves Domain::ALL; see src/README.md.
-        return Internal::execute_blas_task<Dispatch::Domain::ALL>(recorder_, meta, operands, x.dtype,
+        return Internal::execute_blas_task<Dispatch::Domain::ALL>(
+            recorder_, meta.get(), operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
@@ -69,7 +80,10 @@ namespace SushiBLAS
                 auto pY = static_cast<T*>(write_y);
 
                 return dispatcher.run(q, deps,
-                    [=] { Kernels::Reference::copy<T>(n, pX, incx, pY, incy); },
+                    [=]
+                    {
+                        Kernels::Reference::copy<T>(n, pX, incx, pY, incy);
+                    },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
                         return Kernels::SYCL::copy<T>(q2, n, pX, incx, pY, incy, deps2);

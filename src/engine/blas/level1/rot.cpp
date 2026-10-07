@@ -25,10 +25,17 @@
  * @author Mustafa Garip
  */
 
+#include <SushiBLAS/engine/blas/level1.hpp>
+
+#include <vector>
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
-#include <SushiBLAS/engine/blas/level1.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/engine/blas/task_metadata.hpp>
+#include <SushiBLAS/engine/blas/vector_operand.hpp>
+#include <SushiBLAS/support/complex_arithmetic.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
@@ -37,43 +44,46 @@ namespace SushiBLAS
 
     TaskHandle Level1::rot(Tensor& x, Tensor& y, double c, double s)
     {
-        SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in ROT.");
-        int64_t n, incx, incy;
-        Internal::get_vec_params(x, n, incx, "blas.lvl1.rot", "x");
-        int64_t ny; Internal::get_vec_params(y, ny, incy, "blas.lvl1.rot", "y");
-        SB_THROW_IF(n != ny, "ROT requires tensors of the same number of elements.");
+        const char* const op = "blas.lvl1.rot";
 
-        void* rw_x = x.data_or_null();
-        void* rw_y = y.data_or_null();
+        Dispatch::require_dtype(y, x.dtype, op, "y");
+        const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
+        const Dispatch::VectorOperand vy = Dispatch::describe_vector_operand(y, op, "y");
+        Dispatch::require_same_element_count(x, y, op, "x", "y");
 
         // x and y are each read and written, so both sit in both access sets; see src/README.md.
         OperandSet operands;
         operands.updates(x).updates(y);
 
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "blas.lvl1.rot";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.lvl1.rot"_op;
-        meta.set_param(0, c);
-        meta.set_param(1, s);
+        const Internal::BlasMetadata meta =
+            Internal::BlasMetadata(op, "blas.lvl1.rot"_op).scalar(c).scalar(s);
 
-        return Internal::execute_blas_task(recorder_, meta, operands, x.dtype,
+        const int64_t n = vx.length;
+        const int64_t incx = vx.increment;
+        const int64_t incy = vy.increment;
+        void* rw_x = x.data_or_null();
+        void* rw_y = y.data_or_null();
+
+        return Internal::execute_blas_task(recorder_, meta.get(), operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                using Real = typename Kernels::Reference::RealOf<T>::type;
+                using Real = Kernels::RealType<T>;
                 auto pX = static_cast<T*>(rw_x);
                 auto pY = static_cast<T*>(rw_y);
-                auto c_t = static_cast<Real>(c);
-                auto s_t = static_cast<Real>(s);
+                const Real c_t = BlasScalar(c).as<Real>();
+                const Real s_t = BlasScalar(s).as<Real>();
 
                 return dispatcher.run(q, deps,
-                    [=] { Kernels::Reference::rot<T>(n, pX, incx, pY, incy, c_t, s_t); },
+                    [=]
+                    {
+                        Kernels::Reference::rot<T>(n, pX, incx, pY, incy, c_t, s_t);
+                    },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
                         return Kernels::SYCL::rot<T>(q2, n, pX, incx, pY, incy, c_t, s_t, deps2);
                     });
             });
     }
-}
+} // namespace SushiBLAS

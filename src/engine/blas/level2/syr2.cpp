@@ -21,77 +21,109 @@
 
 /**
  * @file syr2.cpp
- * @brief Defines Level2::syr2, which records the BLAS SYR2 task.
+ * @brief Defines Level2::syr2 and Level2::her2, which record the BLAS SYR2 and HER2 tasks.
  * @author Mustafa Garip
  */
 
+#include <SushiBLAS/engine/blas/level2.hpp>
+
+#include <vector>
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
-#include <SushiBLAS/engine/blas/level2.hpp>
-#include <SushiRuntime/core/resource_region.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/blas/task_metadata.hpp>
+#include <SushiBLAS/engine/blas/argument_check.hpp>
+#include <SushiBLAS/engine/blas/matrix_operand.hpp>
+#include <SushiBLAS/engine/blas/vector_operand.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    TaskHandle Level2::syr2(const Tensor& x, const Tensor& y, Tensor& A, bool upper, double alpha)
+    namespace
     {
-        SB_THROW_IF(A.rank < 2, "SYR2 requires A to be at least a 2D matrix.");
-        Internal::require_level2_matrix_rank(A, "blas.lvl2.syr2");
-        SB_THROW_IF(A.dtype != x.dtype || A.dtype != y.dtype, "Data type mismatch in SYR2.");
+        /**
+         * @brief Records the rank-2 update A = alpha * x * y^T + alpha * y * x^T + A, or its
+         *        Hermitian form.
+         * @tparam Conj Kernels::Unconjugated for SYR2, Kernels::Conjugated for HER2.
+         */
+        template<typename Conj>
+        TaskHandle record_syr2(TaskRecorder& recorder, const char* op,
+                               SushiRuntime::Graph::OpID op_id,
+                               const Tensor& x, const Tensor& y, Tensor& A,
+                               Core::Uplo uplo, BlasScalar alpha)
+        {
+            Dispatch::require_flag(uplo, op, "uplo");
+            Dispatch::require_dtype(x, A.dtype, op, "x");
+            Dispatch::require_dtype(y, A.dtype, op, "y");
+            Dispatch::require_real_scalar(alpha, A.dtype, op, "alpha");
 
-        int32_t rA = A.rank;
-        Dispatch::require_storage(A, "blas.lvl2.syr2", "A");
-        Dispatch::require_contiguous(A, "blas.lvl2.syr2", "A");
-        int64_t n = A.shape[rA - 1]; // Symmetric matrix must be n x n
-        SB_THROW_IF(A.shape[rA - 2] != n, "SYR2 requires A to be a square matrix.");
+            const Dispatch::MatrixOperand a = Dispatch::describe_matrix_operand(A, op, "A");
+            Dispatch::require_unbatched(a, op, "A");
+            Dispatch::require_square(a, op, "A");
+            const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
+            const Dispatch::VectorOperand vy = Dispatch::describe_vector_operand(y, op, "y");
+            Dispatch::require_vector_length(vx, a.cols, "the order of A", op, "x");
+            Dispatch::require_vector_length(vy, a.cols, "the order of A", op, "y");
 
-        int64_t lda = (A.layout == Core::Layout::ROW_MAJOR) ? A.shape[rA - 1] : A.shape[rA - 2];
+            OperandSet operands;
+            operands.reads(x).reads(y).updates(A);
 
-        int64_t nx, incx;
-        Internal::get_vec_params(x, nx, incx, "blas.lvl2.syr2", "x");
+            const Internal::BlasMetadata meta =
+                Internal::BlasMetadata(op, op_id).scalar(alpha).flag(uplo);
 
-        int64_t ny, incy;
-        Internal::get_vec_params(y, ny, incy, "blas.lvl2.syr2", "y");
+            const Core::Layout layout = a.layout;
+            const int64_t n = a.cols;
+            const int64_t lda = a.leading_dimension;
+            const int64_t incx = vx.increment;
+            const int64_t incy = vy.increment;
+            const void* read_x = x.data_or_null();
+            const void* read_y = y.data_or_null();
+            void* rw_A = A.data_or_null();
 
-        SB_THROW_IF(nx != n, "Dimension mismatch for vector x in SYR2.");
-        SB_THROW_IF(ny != n, "Dimension mismatch for vector y in SYR2.");
+            return Internal::execute_blas_task(recorder, meta.get(), operands, A.dtype,
+                [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                    sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                {
+                    using T = decltype(scalar_type);
+                    using Policy = Kernels::ConjugationFor<T, Conj>;
+                    auto px = static_cast<const T*>(read_x);
+                    auto py = static_cast<const T*>(read_y);
+                    auto pA = static_cast<T*>(rw_A);
+                    const T alpha_t = alpha.as<T>();
 
-        const void* read_x = x.data_or_null();
-        const void* read_y = y.data_or_null();
-        void* rw_A = A.data_or_null();
+                    return dispatcher.run(q, deps,
+                        [=]
+                        {
+                            Kernels::Reference::syr2<T, Policy>(layout, uplo, n, alpha_t, px, incx,
+                                                                py, incy, pA, lda);
+                        },
+                        [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                        {
+                            return Kernels::SYCL::syr2<T, Policy>(q2, layout, uplo, n, alpha_t, px,
+                                                                  incx, py, incy, pA, lda, deps2);
+                        });
+                });
+        }
+    } // namespace
 
-        // A is read-modify-write, and only the selected triangle is touched; see src/README.md.
-        OperandSet operands;
-        operands.reads(x).reads(y).updates(A);
-
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "blas.lvl2.syr2";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.lvl2.syr2"_op;
-        meta.set_param(0, upper);
-        meta.set_param(1, alpha);
-
-        auto layout = A.layout;
-
-        return Internal::execute_blas_task(recorder_, meta, operands, A.dtype,
-            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-            {
-                using T = decltype(scalar_type);
-                auto px = static_cast<const T*>(read_x);
-                auto py = static_cast<const T*>(read_y);
-                auto pA = static_cast<T*>(rw_A);
-                auto alpha_t = static_cast<T>(alpha);
-
-                return dispatcher.run(q, deps,
-                    [=] { Kernels::Reference::syr2<T>(layout, upper, n, alpha_t, px, incx, py, incy, pA, lda); },
-                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
-                    {
-                        return Kernels::SYCL::syr2<T>(q2, layout, upper, n, alpha_t, px, incx, py, incy, pA, lda, deps2);
-                    });
-            });
+    TaskHandle Level2::syr2(const Tensor& x, const Tensor& y, Tensor& A, Core::Uplo uplo,
+                            BlasScalar alpha)
+    {
+        return record_syr2<Kernels::Unconjugated>(recorder_, "blas.lvl2.syr2", "blas.lvl2.syr2"_op,
+                                                  x, y, A, uplo, alpha);
     }
-}
+
+    TaskHandle Level2::her2(const Tensor& x, const Tensor& y, Tensor& A, Core::Uplo uplo,
+                            BlasScalar alpha)
+    {
+        if (!Core::is_complex_dtype(A.dtype))
+            return syr2(x, y, A, uplo, alpha);
+
+        return record_syr2<Kernels::Conjugated>(recorder_, "blas.lvl2.her2", "blas.lvl2.her2"_op,
+                                                x, y, A, uplo, alpha);
+    }
+} // namespace SushiBLAS

@@ -21,83 +21,115 @@
 
 /**
  * @file symv.cpp
- * @brief Defines Level2::symv, which records the BLAS SYMV task.
+ * @brief Defines Level2::symv and Level2::hemv, which record the BLAS SYMV and HEMV tasks.
  * @author Mustafa Garip
  */
 
+#include <SushiBLAS/engine/blas/level2.hpp>
+
+#include <vector>
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
-#include <SushiBLAS/engine/blas/level2.hpp>
-#include <SushiRuntime/core/resource_region.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/blas/task_metadata.hpp>
+#include <SushiBLAS/engine/blas/argument_check.hpp>
+#include <SushiBLAS/engine/blas/matrix_operand.hpp>
+#include <SushiBLAS/engine/blas/vector_operand.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    TaskHandle Level2::symv(const Tensor& A, const Tensor& x, Tensor& y,
-                            bool upper, double alpha, double beta)
+    namespace
     {
-        SB_THROW_IF(A.rank < 2, "SYMV requires A to be at least a 2D matrix.");
-        Internal::require_level2_matrix_rank(A, "blas.lvl2.symv");
-        SB_THROW_IF(A.dtype != x.dtype || A.dtype != y.dtype, "Data type mismatch in SYMV.");
+        /**
+         * @brief Records y = alpha * A * x + beta * y for a symmetric or Hermitian A.
+         * @tparam Conj Kernels::Unconjugated for SYMV, Kernels::Conjugated for HEMV.
+         */
+        template<typename Conj>
+        TaskHandle record_symv(TaskRecorder& recorder, const char* op,
+                               SushiRuntime::Graph::OpID op_id,
+                               const Tensor& A, const Tensor& x, Tensor& y,
+                               Core::Uplo uplo, BlasScalar alpha, BlasScalar beta)
+        {
+            Dispatch::require_flag(uplo, op, "uplo");
+            Dispatch::require_dtype(x, A.dtype, op, "x");
+            Dispatch::require_dtype(y, A.dtype, op, "y");
+            Dispatch::require_real_scalar(alpha, A.dtype, op, "alpha");
+            Dispatch::require_real_scalar(beta, A.dtype, op, "beta");
 
-        int32_t rA = A.rank;
-        Dispatch::require_storage(A, "blas.lvl2.symv", "A");
-        Dispatch::require_contiguous(A, "blas.lvl2.symv", "A");
-        int64_t n = A.shape[rA - 1]; // Symmetric matrix must be n x n
-        SB_THROW_IF(A.shape[rA - 2] != n, "SYMV requires A to be a square matrix.");
+            const Dispatch::MatrixOperand a = Dispatch::describe_matrix_operand(A, op, "A");
+            Dispatch::require_unbatched(a, op, "A");
+            Dispatch::require_square(a, op, "A");
+            const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
+            const Dispatch::VectorOperand vy = Dispatch::describe_vector_operand(y, op, "y");
+            Dispatch::require_vector_length(vx, a.cols, "the columns of A", op, "x");
+            Dispatch::require_vector_length(vy, a.rows, "the rows of A", op, "y");
 
-        int64_t lda = (A.layout == Core::Layout::ROW_MAJOR) ? A.shape[rA - 1] : A.shape[rA - 2];
+            OperandSet operands;
+            operands.reads(A).reads(x);
+            if (beta.is_zero())
+                operands.writes(y);
+            else
+                operands.updates(y);
 
-        int64_t nx, incx;
-        Internal::get_vec_params(x, nx, incx, "blas.lvl2.symv", "x");
+            const Internal::BlasMetadata meta =
+                Internal::BlasMetadata(op, op_id).scalar(alpha).scalar(beta).flag(uplo);
 
-        int64_t ny, incy;
-        Internal::get_vec_params(y, ny, incy, "blas.lvl2.symv", "y");
+            const Core::Layout layout = a.layout;
+            const int64_t n = a.rows;
+            const int64_t lda = a.leading_dimension;
+            const int64_t incx = vx.increment;
+            const int64_t incy = vy.increment;
+            const void* read_A = A.data_or_null();
+            const void* read_x = x.data_or_null();
+            void* rw_y = y.data_or_null();
 
-        SB_THROW_IF(nx != n, "Dimension mismatch for vector x in SYMV.");
-        SB_THROW_IF(ny != n, "Dimension mismatch for vector y in SYMV.");
+            return Internal::execute_blas_task(recorder, meta.get(), operands, A.dtype,
+                [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                    sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                {
+                    using T = decltype(scalar_type);
+                    using Policy = Kernels::ConjugationFor<T, Conj>;
+                    auto pA = static_cast<const T*>(read_A);
+                    auto px = static_cast<const T*>(read_x);
+                    auto py = static_cast<T*>(rw_y);
+                    const T alpha_t = alpha.as<T>();
+                    const T beta_t = beta.as<T>();
 
-        const void* read_A = A.data_or_null();
-        const void* read_x = x.data_or_null();
-        void* rw_y = y.data_or_null();
+                    return dispatcher.run(q, deps,
+                        [=]
+                        {
+                            Kernels::Reference::symv<T, Policy>(layout, uplo, n, alpha_t, pA, lda,
+                                                                px, incx, beta_t, py, incy);
+                        },
+                        [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                        {
+                            return Kernels::SYCL::symv<T, Policy>(q2, layout, uplo, n, alpha_t,
+                                                                  pA, lda, px, incx, beta_t, py,
+                                                                  incy, deps2);
+                        });
+                });
+        }
+    } // namespace
 
-        // Same beta rule as GEMV: y is read back only when beta is non-zero.
-        OperandSet operands;
-        operands.reads(A).reads(x);
-        if (beta != 0.0)
-            operands.reads(y);
-        operands.writes(y);
-
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "blas.lvl2.symv";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.lvl2.symv"_op;
-        meta.set_param(0, upper);
-        meta.set_param(1, alpha);
-        meta.set_param(2, beta);
-
-        auto layout = A.layout;
-
-        return Internal::execute_blas_task(recorder_, meta, operands, A.dtype,
-            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-            {
-                using T = decltype(scalar_type);
-                auto pA = static_cast<const T*>(read_A);
-                auto px = static_cast<const T*>(read_x);
-                auto py = static_cast<T*>(rw_y);
-                auto alpha_t = static_cast<T>(alpha);
-                auto beta_t = static_cast<T>(beta);
-
-                return dispatcher.run(q, deps,
-                    [=] { Kernels::Reference::symv<T>(layout, upper, n, alpha_t, pA, lda, px, incx, beta_t, py, incy); },
-                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
-                    {
-                        return Kernels::SYCL::symv<T>(q2, layout, upper, n, alpha_t, pA, lda, px, incx, beta_t, py, incy, deps2);
-                    });
-            });
+    TaskHandle Level2::symv(const Tensor& A, const Tensor& x, Tensor& y, Core::Uplo uplo,
+                            BlasScalar alpha, BlasScalar beta)
+    {
+        return record_symv<Kernels::Unconjugated>(recorder_, "blas.lvl2.symv", "blas.lvl2.symv"_op,
+                                                  A, x, y, uplo, alpha, beta);
     }
-}
+
+    TaskHandle Level2::hemv(const Tensor& A, const Tensor& x, Tensor& y, Core::Uplo uplo,
+                            BlasScalar alpha, BlasScalar beta)
+    {
+        if (!Core::is_complex_dtype(A.dtype))
+            return symv(A, x, y, uplo, alpha, beta);
+
+        return record_symv<Kernels::Conjugated>(recorder_, "blas.lvl2.hemv", "blas.lvl2.hemv"_op,
+                                                A, x, y, uplo, alpha, beta);
+    }
+} // namespace SushiBLAS

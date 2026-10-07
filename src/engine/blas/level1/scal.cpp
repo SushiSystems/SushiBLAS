@@ -25,47 +25,57 @@
  * @author Mustafa Garip
  */
 
+#include <SushiBLAS/engine/blas/level1.hpp>
+
+#include <vector>
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
-#include <SushiBLAS/engine/blas/level1.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/blas/task_metadata.hpp>
+#include <SushiBLAS/engine/blas/argument_check.hpp>
+#include <SushiBLAS/engine/blas/vector_operand.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    TaskHandle Level1::scal(double alpha, Tensor& x)
+    TaskHandle Level1::scal(BlasScalar alpha, Tensor& x)
     {
-        int64_t n, incx;
-        Internal::get_vec_params(x, n, incx, "blas.lvl1.scal", "x");
+        const char* const op = "blas.lvl1.scal";
 
-        void* rw_x = x.data_or_null();
+        Dispatch::require_real_scalar(alpha, x.dtype, op, "alpha");
+        const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
 
-        // In place: `x = alpha * x` reads every element it writes.
+        // x = alpha * x reads every element it writes.
         OperandSet operands;
         operands.updates(x);
 
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "blas.lvl1.scal";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.lvl1.scal"_op;
-        meta.set_param(0, alpha);
+        const Internal::BlasMetadata meta =
+            Internal::BlasMetadata(op, "blas.lvl1.scal"_op).scalar(alpha);
 
-        return Internal::execute_blas_task(recorder_, meta, operands, x.dtype,
+        const int64_t n = vx.length;
+        const int64_t incx = vx.increment;
+        void* rw_x = x.data_or_null();
+
+        return Internal::execute_blas_task(recorder_, meta.get(), operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 auto pX = static_cast<T*>(rw_x);
-                auto alpha_t = static_cast<T>(alpha);
+                const T alpha_t = alpha.as<T>();
 
                 return dispatcher.run(q, deps,
-                    [=] { Kernels::Reference::scal<T>(n, alpha_t, pX, incx); },
+                    [=]
+                    {
+                        Kernels::Reference::scal<T>(n, alpha_t, pX, incx);
+                    },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
                         return Kernels::SYCL::scal<T>(q2, n, alpha_t, pX, incx, deps2);
                     });
             });
     }
-}
+} // namespace SushiBLAS

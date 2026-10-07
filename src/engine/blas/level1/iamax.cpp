@@ -25,27 +25,31 @@
  * @author Mustafa Garip
  */
 
+#include <SushiBLAS/engine/blas/level1.hpp>
+
+#include <vector>
 #include <complex>
 #include <kernels/blas.hpp>
-#include <SushiBLAS/engine/blas/utils.hpp>
-#include <SushiBLAS/engine/blas/level1.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
+#include <SushiBLAS/engine/blas/utils.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/blas/task_metadata.hpp>
+#include <SushiBLAS/engine/blas/vector_operand.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    // The result tensor must be INT64, because the result is an index; see src/README.md.
     TaskHandle Level1::iamax(const Tensor& x, Tensor& result)
     {
-        Internal::require_scalar_result(result, Core::DataType::INT64, "blas.lvl1.iamax");
+        const char* const op = "blas.lvl1.iamax";
 
-        int64_t n, incx;
-        Internal::get_vec_params(x, n, incx, "blas.lvl1.iamax", "x");
+        // The result is an index, so its tensor is INT64 whatever x holds; see src/README.md.
+        Internal::require_scalar_result(result, Core::DataType::INT64, op);
+        const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
 
-        const void* read_x = x.data_or_null();
-        void* write_r = result.data_or_null();
+        const int64_t n = vx.length;
 
         OperandSet operands;
         operands.reads(x).writes(result);
@@ -54,12 +58,13 @@ namespace SushiBLAS
             recorder_, x, static_cast<std::size_t>(n),
             Kernels::SYCL::K_LEVEL1_PARTIAL_BYTES, operands);
 
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "blas.lvl1.iamax";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.lvl1.iamax"_op;
+        const Internal::BlasMetadata meta(op, "blas.lvl1.iamax"_op);
 
-        return Internal::execute_blas_task(recorder_, meta, operands, x.dtype,
+        const int64_t incx = vx.increment;
+        const void* read_x = x.data_or_null();
+        void* write_r = result.data_or_null();
+
+        return Internal::execute_blas_task(recorder_, meta.get(), operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
@@ -68,11 +73,15 @@ namespace SushiBLAS
                 auto pR = static_cast<int64_t*>(write_r);
 
                 return dispatcher.run(q, deps,
-                    [=] { Kernels::Reference::iamax<T>(n, pX, incx, pR); },
+                    [=]
+                    {
+                        Kernels::Reference::iamax<T>(n, pX, incx, pR);
+                    },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
-                        return Kernels::SYCL::iamax<T>(q2, n, pX, incx, pR, scratch.data(), scratch.bytes(), deps2);
+                        return Kernels::SYCL::iamax<T>(q2, n, pX, incx, pR, scratch.data(),
+                                                       scratch.bytes(), deps2);
                     });
             });
     }
-}
+} // namespace SushiBLAS
