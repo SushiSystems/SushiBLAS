@@ -26,11 +26,15 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <limits>
+#include <memory>
 #include <vector>
 #include <cstdio>
+#include <cstdint>
 #include <cstring>
 #include <fstream>
+#include <algorithm>
 #include <stdexcept>
 #include <iomanip>
 #include <sstream>
@@ -334,21 +338,101 @@ namespace SushiBLAS
                         part, path, bytes);
         }
 
-        /** @brief Writes the tensor's bytes to the stream, copying device storage to host first. */
+        /** @brief Holds the bytes one file transfer stages on the host for device storage. */
+        constexpr size_t K_IO_CHUNK_BYTES = size_t{4} << 20;
+
+        /**
+         * @brief Returns the bytes left in the stream after its read position.
+         * @throws std::runtime_error if the stream cannot seek.
+         */
+        std::uintmax_t remaining_bytes(std::ifstream& ifs, const std::string& path)
+        {
+            const std::streampos here = ifs.tellg();
+            ifs.seekg(0, std::ios::end);
+            const std::streampos end = ifs.tellg();
+            ifs.seekg(here);
+            SB_THROW_IF(!ifs || here == std::streampos(-1) || end < here,
+                        "The length of file {} cannot be measured.", path);
+            return static_cast<std::uintmax_t>(end - here);
+        }
+
+        /**
+         * @brief Reads bytes of tensor data into destination.
+         * @throws std::runtime_error if the stream fails; destination then holds a partial load.
+         */
+        void read_tensor_bytes(std::ifstream& ifs, char* destination, size_t bytes,
+                               const std::string& path)
+        {
+            ifs.read(destination, static_cast<std::streamsize>(bytes));
+
+            const size_t bytes_read = static_cast<size_t>(ifs.gcount());
+            SB_THROW_IF(bytes_read != bytes,
+                        "Reading the tensor data of {} failed after {} of {} bytes; the tensor "
+                        "holds a partial load.",
+                        path, bytes_read, bytes);
+        }
+
+        /**
+         * @brief Writes the tensor's bytes to the stream, staging device storage one chunk at a
+         *        time.
+         */
         void write_payload(std::ofstream& ofs, const Tensor& t, const std::string& path)
         {
             const size_t bytes = payload_bytes(t);
             if (bytes == 0)
                 return;
 
-            if (is_device_allocated(t))
+            const char* source = static_cast<const char*>(t.data());
+            if (!is_device_allocated(t))
             {
-                std::vector<char> buf(bytes);
-                storage_queue(t).memcpy(buf.data(), t.data(), bytes).wait();
-                write_checked(ofs, buf.data(), bytes, "tensor data", path);
+                write_checked(ofs, source, bytes, "tensor data", path);
+                return;
             }
-            else
-                write_checked(ofs, t.data(), bytes, "tensor data", path);
+
+            const size_t chunk_bytes = std::min(bytes, K_IO_CHUNK_BYTES);
+            const std::unique_ptr<char[]> chunk(new char[chunk_bytes]);
+            sycl::queue& queue = storage_queue(t);
+            for (size_t done = 0; done < bytes; done += chunk_bytes)
+            {
+                const size_t step = std::min(chunk_bytes, bytes - done);
+                queue.memcpy(chunk.get(), source + done, step).wait();
+                write_checked(ofs, chunk.get(), step, "tensor data", path);
+            }
+        }
+
+        /**
+         * @brief Reads the tensor's bytes from the stream, straight into host-readable storage
+         *        and one chunk at a time into device storage.
+         * @throws std::runtime_error before any element changes if the file is too short.
+         */
+        void read_payload(std::ifstream& ifs, Tensor& t, const std::string& path)
+        {
+            const size_t bytes = payload_bytes(t);
+            if (bytes == 0)
+                return;
+
+            const std::uintmax_t available = remaining_bytes(ifs, path);
+            SB_THROW_IF(available < bytes,
+                        "File {} ends inside its tensor data: {} bytes expected, {} present; "
+                        "nothing was loaded.",
+                        path, bytes, available);
+
+            char* destination = static_cast<char*>(t.data());
+            if (!is_device_allocated(t))
+            {
+                read_tensor_bytes(ifs, destination, bytes, path);
+                return;
+            }
+
+            const size_t chunk_bytes = std::min(bytes, K_IO_CHUNK_BYTES);
+            const std::unique_ptr<char[]> chunk(new char[chunk_bytes]);
+            sycl::queue& queue = storage_queue(t);
+            for (size_t done = 0; done < bytes; done += chunk_bytes)
+            {
+                const size_t step = std::min(chunk_bytes, bytes - done);
+                read_tensor_bytes(ifs, chunk.get(), step, path);
+                queue.memcpy(destination + done, chunk.get(), step).wait();
+            }
         }
 
         /**
@@ -432,20 +516,163 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Reads the tensor's bytes from the stream and stores them once all arrived. */
-        void read_payload(std::ifstream& ifs, Tensor& t, const std::string& path)
+        /**
+         * @brief Reads runs of a tensor's elements as (real, imaginary) pairs, through the queue
+         *        for device storage.
+         */
+        class ElementRunReader
         {
-            const size_t bytes = payload_bytes(t);
-            if (bytes == 0)
-                return;
+            public:
+                /**
+                 * @brief Binds the reader to the tensor's first element, dtype and queue.
+                 * @pre t has storage or holds no elements.
+                 */
+                explicit ElementRunReader(const Tensor& t)
+                    : base_(static_cast<const char*>(t.data_or_null())), dtype_(t.dtype),
+                      element_bytes_(Core::bytes_per_element(t.dtype)),
+                      queue_(t.storage && is_device_allocated(t) ? &storage_queue(t) : nullptr)
+                {
 
-            std::vector<char> buf(bytes);
-            read_exact(ifs, buf.data(), bytes, "tensor data", path);
+                }
 
-            if (is_device_allocated(t))
-                storage_queue(t).memcpy(t.data(), buf.data(), bytes).wait();
+                /**
+                 * @brief Appends count elements to out: element first of the view, then every
+                 *        stride-th element after it.
+                 */
+                void read(int64_t first, int64_t count, int64_t stride,
+                          std::vector<std::pair<double, double>>& out)
+                {
+                    if (queue_ == nullptr)
+                    {
+                        for (int64_t i = 0; i < count; ++i)
+                            out.push_back(decode_element(base_, dtype_, first + i * stride));
+                        return;
+                    }
+
+                    // One copy serves a unit-stride run; any other stride copies one by one.
+                    const int64_t per_copy = stride == 1 ? count : 1;
+                    staging_.resize(static_cast<size_t>(per_copy) * element_bytes_);
+                    for (int64_t i = 0; i < count; i += per_copy)
+                    {
+                        const char* source =
+                            base_ + static_cast<size_t>(first + i * stride) * element_bytes_;
+                        queue_->memcpy(staging_.data(), source, staging_.size()).wait();
+                        for (int64_t k = 0; k < per_copy; ++k)
+                            out.push_back(decode_element(staging_.data(), dtype_, k));
+                    }
+                }
+
+            private:
+                /// @brief The address of the view's first element, or null for an empty tensor.
+                const char* base_;
+
+                /// @brief The element type decoded.
+                Core::DataType dtype_;
+
+                /// @brief The bytes one element takes.
+                size_t element_bytes_;
+
+                /// @brief The queue device storage is copied through; null when host-readable.
+                sycl::queue* queue_;
+
+                /// @brief The host bytes of the run being decoded.
+                std::vector<char> staging_;
+        };
+
+        /** @brief Holds what the text writer needs at every depth of a tensor. */
+        struct TextLayout
+        {
+            const int64_t* shape;   /**< The size of each dimension. */
+            const int64_t* strides; /**< The stride of each dimension, in elements. */
+            int rank;               /**< The number of dimensions. */
+            int precision;          /**< Decimal places per number. */
+            int edge_items;         /**< Entries kept at each end of an elided dimension. */
+        };
+
+        /**
+         * @brief Returns one element as text: a real number, or `(re+imj)` when it has an
+         *        imaginary part.
+         */
+        std::string format_element(const std::pair<double, double>& value, int precision)
+        {
+            std::stringstream text;
+            text << std::fixed << std::setprecision(precision);
+            if (std::abs(value.second) < 1e-9)
+                text << value.first;
             else
-                std::memcpy(t.data(), buf.data(), bytes);
+                text << "(" << value.first << (value.second >= 0 ? "+" : "") << value.second
+                     << "j)";
+            return text.str();
+        }
+
+        /** @brief Writes the innermost dimension starting at element offset of the view. */
+        void write_innermost(std::ostream& os, ElementRunReader& reader, const TextLayout& layout,
+                             int64_t offset)
+        {
+            const int dim = layout.rank - 1;
+            const int64_t extent = layout.shape[dim];
+            const int64_t stride = layout.strides[dim];
+            const int64_t edge = layout.edge_items;
+            const bool elided = edge >= 0 && extent > edge * 2;
+
+            std::vector<std::pair<double, double>> values;
+            if (elided)
+            {
+                reader.read(offset, edge, stride, values);
+                reader.read(offset + (extent - edge) * stride, edge, stride, values);
+            }
+            else
+                reader.read(offset, extent, stride, values);
+
+            os << "[";
+            for (size_t i = 0; i <= values.size(); ++i)
+            {
+                if (elided && i == static_cast<size_t>(edge))
+                    os << "... ";
+                if (i == values.size())
+                    break;
+                os << format_element(values[i], layout.precision)
+                   << (i + 1 == values.size() ? "" : ", ");
+            }
+            os << "]";
+        }
+
+        /**
+         * @brief Writes dimension dim and everything inside it, starting at element offset of
+         *        the view.
+         */
+        void write_dimension(std::ostream& os, ElementRunReader& reader, const TextLayout& layout,
+                             int dim, int64_t offset)
+        {
+            if (dim == layout.rank - 1)
+            {
+                write_innermost(os, reader, layout, offset);
+                return;
+            }
+
+            const int64_t extent = layout.shape[dim];
+            const int64_t edge = layout.edge_items;
+
+            os << "[";
+            for (int64_t i = 0; i < extent; ++i)
+            {
+                if (extent > edge * 2 && i == edge)
+                {
+                    const std::string indent(dim + 1, ' ');
+                    os << "\n" << indent << "...\n" << indent;
+                    i = extent - edge - 1;
+                    continue;
+                }
+
+                write_dimension(os, reader, layout, dim + 1, offset + i * layout.strides[dim]);
+
+                if (i < extent - 1)
+                    os << ",\n" << std::string(dim + 1, ' ');
+            }
+            os << "]";
+
+            if (dim == 0)
+                os << std::endl;
         }
 
         /** @brief Holds the largest .npy header dictionary this build reads, in bytes. */
@@ -697,21 +924,6 @@ namespace SushiBLAS
 
         Dispatch::require_storage(t, "io.to_string", "t");
 
-        const size_t bpe = Core::bytes_per_element(t.dtype);
-
-        // The view's elements lie in [data(), data() + element_span()), addressed by its strides.
-        const int64_t span = t.element_span();
-
-        std::vector<char> host_buf(static_cast<size_t>(span) * bpe);
-        if (span > 0)
-            storage_queue(t).memcpy(host_buf.data(), t.data(), host_buf.size()).wait();
-
-        std::vector<std::pair<double, double>> host_data(static_cast<size_t>(span));
-
-        // INT64 values above 2^53 lose precision through double; see src/README.md.
-        for (int64_t i = 0; i < span; ++i)
-            host_data[i] = decode_element(host_buf.data(), t.dtype, i);
-
         std::stringstream ss;
         ss << "Tensor(shape=[";
 
@@ -731,8 +943,9 @@ namespace SushiBLAS
         ss << "):" << std::endl;
         ss << std::fixed << std::setprecision(precision);
 
-        print_recursive(ss, host_data.data(), t.shape.data(),
-                        t.strides.data(), t.rank, 0, 0, precision, edge_items);
+        ElementRunReader reader(t);
+        const TextLayout layout{t.shape.data(), t.strides.data(), t.rank, precision, edge_items};
+        write_dimension(ss, reader, layout, 0, 0);
 
         return ss.str();
     }
@@ -740,72 +953,5 @@ namespace SushiBLAS
     void IO::print(const Tensor& t, int precision, int edge_items)
     {
         std::cout << to_string(t, precision, edge_items);
-    }
-
-    void IO::print_recursive(std::ostream& os, const std::pair<double, double>* data,
-                             const int64_t* shape, const int64_t* strides, int rank,
-                             int current_dim, int64_t offset, int precision, int edge_items)
-    {
-        auto get_val = [&](int64_t idx) -> std::string
-        {
-            const double re = data[idx].first;
-            const double im = data[idx].second;
-
-            if (std::abs(im) < 1e-9)
-            {
-                std::stringstream val_ss;
-                val_ss << std::fixed << std::setprecision(precision) << re;
-                return val_ss.str();
-            }
-
-            std::stringstream val_ss;
-            val_ss << std::fixed << std::setprecision(precision) << "(" << re
-                   << (im >= 0 ? "+" : "") << im << "j)";
-            return val_ss.str();
-        };
-
-        if (current_dim == rank - 1)
-        {
-            os << "[";
-
-            for (int64_t i = 0; i < shape[current_dim]; ++i)
-            {
-                if (shape[current_dim] > edge_items * 2 && i == edge_items)
-                {
-                    os << "... ";
-                    i = shape[current_dim] - edge_items - 1;
-                    continue;
-                }
-                os << get_val(offset + i * strides[current_dim])
-                   << (i == shape[current_dim] - 1 ? "" : ", ");
-            }
-
-            os << "]";
-            return;
-        }
-
-        os << "[";
-
-        for (int64_t i = 0; i < shape[current_dim]; ++i)
-        {
-            if (shape[current_dim] > edge_items * 2 && i == edge_items)
-            {
-                const std::string indent(current_dim + 1, ' ');
-                os << "\n" << indent << "...\n" << indent;
-                i = shape[current_dim] - edge_items - 1;
-                continue;
-            }
-
-            print_recursive(os, data, shape, strides, rank, current_dim + 1,
-                            offset + i * strides[current_dim], precision, edge_items);
-
-            if (i < shape[current_dim] - 1)
-                os << ",\n" << std::string(current_dim + 1, ' ');
-        }
-
-        os << "]";
-
-        if (current_dim == 0)
-            os << std::endl;
     }
 } // namespace SushiBLAS

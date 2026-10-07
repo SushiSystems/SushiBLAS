@@ -28,6 +28,7 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+#include <cstdint>
 #include <fstream>
 #include <iterator>
 #include <stdexcept>
@@ -185,6 +186,87 @@ namespace SushiBLAS
             SushiBLAS::IO(*engine).load_bin(target, path);
 
             EXPECT_TENSOR_NEAR(target, values, 0.0);
+        }
+
+        TEST_F(Regression_IO, AShortFileLeavesTheTensorUntouched)
+        {
+            const std::string bin_path = temp_path("one_byte_short.bin");
+            const std::string sushi_path = temp_path("one_byte_short.sushi");
+            const std::string npy_path = temp_path("one_byte_short.npy");
+
+            auto source = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
+            SushiBLAS::IO(*engine).save_bin(source, bin_path);
+            SushiBLAS::IO(*engine).save(source, sushi_path);
+            SushiBLAS::IO(*engine).save_npy(source, npy_path);
+            drop_tail(bin_path, 1);
+            drop_tail(sushi_path, 1);
+            drop_tail(npy_path, 1);
+
+            const std::vector<float> sentinel{7.0f, 7.0f, 7.0f, 7.0f};
+            for (const auto residency : {SushiRuntime::API::Residency::Shared,
+                                         SushiRuntime::API::Residency::Device})
+            {
+                SCOPED_TRACE(residency == SushiRuntime::API::Residency::Device ? "Device"
+                                                                               : "Shared");
+                auto target = engine->create_tensor({4}, Core::DataType::FLOAT32, residency);
+                fill_tensor(target, sentinel);
+
+                EXPECT_THROW(SushiBLAS::IO(*engine).load_bin(target, bin_path),
+                             std::runtime_error);
+                EXPECT_TENSOR_NEAR(target, sentinel, 0.0);
+
+                EXPECT_THROW(SushiBLAS::IO(*engine).load(target, sushi_path), std::runtime_error);
+                EXPECT_TENSOR_NEAR(target, sentinel, 0.0);
+
+                EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(target, npy_path),
+                             std::runtime_error);
+                EXPECT_TENSOR_NEAR(target, sentinel, 0.0);
+            }
+        }
+
+        TEST_F(Regression_IO, APayloadLargerThanOneChunkRoundTrips)
+        {
+            // 3 x 2^20 FLOAT32 elements are 12 MiB, three of the 4 MiB chunks IO stages.
+            constexpr int64_t K_ELEMENTS = int64_t{3} << 20;
+
+            std::vector<float> values(static_cast<size_t>(K_ELEMENTS));
+            for (size_t i = 0; i < values.size(); ++i)
+                values[i] = static_cast<float>(i % 8191) - 4095.0f;
+
+            for (const auto residency : {SushiRuntime::API::Residency::Device,
+                                         SushiRuntime::API::Residency::Shared})
+            {
+                const bool on_device = residency == SushiRuntime::API::Residency::Device;
+                SCOPED_TRACE(on_device ? "Device" : "Shared");
+                const std::string path =
+                    temp_path(on_device ? "chunks_device.bin" : "chunks_shared.bin");
+
+                auto source = engine->create_tensor({K_ELEMENTS}, Core::DataType::FLOAT32,
+                                                    residency);
+                SushiBLAS::IO(*engine).from_vector(source, values);
+                SushiBLAS::IO(*engine).save_bin(source, path);
+
+                auto target = engine->create_tensor({K_ELEMENTS}, Core::DataType::FLOAT32,
+                                                    residency);
+                SushiBLAS::IO(*engine).load_bin(target, path);
+
+                EXPECT_TRUE(SushiBLAS::IO(*engine).to_vector<float>(target) == values)
+                    << "The loaded elements differ from the saved ones.";
+            }
+        }
+
+        TEST_F(Regression_IO, ALongerFileStillLoadsItsPrefix)
+        {
+            const std::string path = temp_path("longer.bin");
+            auto source = create_initialized_tensor<float>({6},
+                                                           {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f});
+            SushiBLAS::IO(*engine).save_bin(source, path);
+
+            auto target = create_initialized_tensor<float>({4}, {7.0f, 7.0f, 7.0f, 7.0f});
+            SushiBLAS::IO(*engine).load_bin(target, path);
+
+            const std::vector<float> prefix{1.0f, 2.0f, 3.0f, 4.0f};
+            EXPECT_TENSOR_NEAR(target, prefix, 0.0);
         }
     } // namespace Test
 } // namespace SushiBLAS
