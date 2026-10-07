@@ -21,7 +21,8 @@
 
 /**
  * @file matrix_operand.hpp
- * @brief Declares MatrixOperand, the batch and matrix geometry of one Level 3 BLAS operand.
+ * @brief Declares MatrixOperand, the batch and matrix geometry of one dense matrix operand of a
+ *        BLAS call.
  * @author Mustafa Garip
  */
 
@@ -53,7 +54,8 @@ namespace SushiBLAS
 
         /**
          * @brief Returns the geometry of a dense matrix operand of rank 2 or more.
-         * @throws std::invalid_argument on rank < 2, missing storage or a non-contiguous tensor.
+         * @throws std::invalid_argument on rank < 2, missing storage, a non-contiguous tensor or
+         *         a dtype the tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/blas/README.md
          */
         [[nodiscard]] inline MatrixOperand describe_matrix_operand(const Tensor& t, const char* op,
@@ -64,6 +66,7 @@ namespace SushiBLAS
                                             t.rank);
 
             require_storage(t, op, operand);
+            require_device_dtype(t, op, operand);
             require_contiguous(t, op, operand);
 
             MatrixOperand m;
@@ -156,6 +159,29 @@ namespace SushiBLAS
             if (actual != expected)
                 Detail::throw_operand_error(op, operand, "has {} {}, the call needs {}", actual, what,
                                             expected);
+        }
+
+        /**
+         * @brief Throws unless a matrix operand holds exactly one matrix of rank 2.
+         * @throws std::invalid_argument naming the rank.
+         */
+        inline void require_unbatched(const MatrixOperand& m, const char* op, const char* operand)
+        {
+            if (m.rank != 2)
+                Detail::throw_operand_error(op, operand, "has rank {}; a Level 2 matrix has rank 2",
+                                            m.rank);
+        }
+
+        /**
+         * @brief Throws unless a matrix operand has as many rows as columns.
+         * @throws std::invalid_argument naming both extents.
+         */
+        inline void require_square(const MatrixOperand& m, const char* op, const char* operand)
+        {
+            if (m.rows != m.cols)
+                Detail::throw_operand_error(op, operand,
+                                            "is {} x {}; the operation needs a square matrix",
+                                            m.rows, m.cols);
         }
     } // namespace Dispatch
 } // namespace SushiBLAS
