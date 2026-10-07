@@ -33,9 +33,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::remainder(const Tensor& A, const Tensor& B, Tensor& C) 
+    TaskHandle ElementwiseOps::remainder(const Tensor& A, const Tensor& B, Tensor& C) 
     {
-        return Dispatch::execute_binary(engine_, A, B, C, "math.ew.remainder", "math.ew.remainder"_op, 
+        return Dispatch::execute_binary(recorder_, A, B, C, "math.ew.remainder", "math.ew.remainder"_op, 
             [](auto x, auto y) { return sycl::remainder(x, y); });
     }
 } // namespace SushiBLAS

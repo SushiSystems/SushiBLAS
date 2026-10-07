@@ -30,12 +30,14 @@
 #include <cstdint>
 #include <vector>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/math/elementwise.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -51,17 +53,18 @@ namespace SushiBLAS
 
         /**
          * @brief Records the task for one concrete (source, destination) type pair.
-         * @param reads The read set; must be `src.region()`, never a bare pointer.
-         * @param writes The write set; must be `dst.region()`, never a bare pointer.
+         * @param operands Must declare the source as read and the destination as written.
+         * @return The handle of the recorded task.
+         * @throws std::invalid_argument under FORCE_REFERENCE.
          * @see src/README.md
          */
         template<typename Src, typename Dst>
-        void record_convert(Engine& engine, const SushiRuntime::Graph::TaskMetadata& meta,
-                            const std::vector<SushiRuntime::Core::ResourceRegion>& reads,
-                            const std::vector<SushiRuntime::Core::ResourceRegion>& writes,
-                            const void* src_ptr, void* dst_ptr, int64_t n)
+        TaskHandle record_convert(TaskRecorder& recorder,
+                                  const SushiRuntime::Graph::TaskMetadata& meta,
+                                  const OperandSet& operands,
+                                  const void* src_ptr, void* dst_ptr, int64_t n)
         {
-            engine.get_graph().add_task(meta, reads, writes,
+            return recorder.record(meta, operands, "Elementwise operation",
                 [n, pS = static_cast<const Src*>(src_ptr), pD = static_cast<Dst*>(dst_ptr)]
                 (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
@@ -84,27 +87,28 @@ namespace SushiBLAS
 
         /**
          * @brief Selects the destination type at runtime for a fixed source type.
+         * @return The handle of the recorded task.
          * @throws std::runtime_error if @p dst_dtype is outside `Domain::REAL`.
+         * @throws std::invalid_argument under FORCE_REFERENCE.
          * @see src/README.md
          */
         template<typename Src>
-        void dispatch_destination(Core::DataType dst_dtype, Engine& engine,
-                                  const SushiRuntime::Graph::TaskMetadata& meta,
-                                  const std::vector<SushiRuntime::Core::ResourceRegion>& reads,
-                                  const std::vector<SushiRuntime::Core::ResourceRegion>& writes,
-                                  const void* src_ptr, void* dst_ptr, int64_t n)
+        TaskHandle dispatch_destination(Core::DataType dst_dtype, TaskRecorder& recorder,
+                                        const SushiRuntime::Graph::TaskMetadata& meta,
+                                        const OperandSet& operands,
+                                        const void* src_ptr, void* dst_ptr, int64_t n)
         {
             switch (dst_dtype)
             {
                 case Core::DataType::HALF:
-                    record_convert<Src, sycl::half>(engine, meta, reads, writes, src_ptr, dst_ptr, n);
-                    return;
+                    return record_convert<Src, sycl::half>(recorder, meta, operands,
+                                                           src_ptr, dst_ptr, n);
                 case Core::DataType::FLOAT32:
-                    record_convert<Src, float>(engine, meta, reads, writes, src_ptr, dst_ptr, n);
-                    return;
+                    return record_convert<Src, float>(recorder, meta, operands,
+                                                      src_ptr, dst_ptr, n);
                 case Core::DataType::FLOAT64:
-                    record_convert<Src, double>(engine, meta, reads, writes, src_ptr, dst_ptr, n);
-                    return;
+                    return record_convert<Src, double>(recorder, meta, operands,
+                                                       src_ptr, dst_ptr, n);
                 default:
                     break;
             }
@@ -112,10 +116,11 @@ namespace SushiBLAS
             // Unreachable after the caller's dtype check, and it still throws; see src/README.md.
             SB_THROW_IF(true, "Elementwise operation '{}' does not support destination dtype {}.",
                         K_NAME, Core::to_string(dst_dtype));
+            return TaskHandle();
         }
     } // namespace
 
-    sycl::event ElementwiseOps::convert(const Tensor& src, Tensor& dst)
+    TaskHandle ElementwiseOps::convert(const Tensor& src, Tensor& dst)
     {
         // The message names both dtypes; see src/README.md.
         SB_THROW_IF(!Core::is_real_dtype(src.dtype) || !Core::is_real_dtype(dst.dtype),
@@ -135,7 +140,7 @@ namespace SushiBLAS
         Dispatch::require_same_layout(src, dst, K_NAME, "src", "dst");
 
         if (dst.num_elements == 0)
-            return sycl::event();
+            return TaskHandle();
 
         // Overlapping operands race between work-items, so they are refused; see src/README.md.
         SB_THROW_IF(src.region().overlaps(dst.region()),
@@ -148,9 +153,8 @@ namespace SushiBLAS
         void* write_dst = dst.data();
         const int64_t n = src.num_elements;
 
-        // The access sets hold Tensor::region(), never data(); see src/README.md.
-        const std::vector<SushiRuntime::Core::ResourceRegion> reads = {src.region()};
-        const std::vector<SushiRuntime::Core::ResourceRegion> writes = {dst.region()};
+        OperandSet operands;
+        operands.reads(src).writes(dst);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = K_NAME;
@@ -161,20 +165,20 @@ namespace SushiBLAS
         switch (src.dtype)
         {
             case Core::DataType::HALF:
-                dispatch_destination<sycl::half>(dst.dtype, engine_, meta, reads, writes, read_src, write_dst, n);
-                return sycl::event();
+                return dispatch_destination<sycl::half>(dst.dtype, recorder_, meta, operands,
+                                                        read_src, write_dst, n);
             case Core::DataType::FLOAT32:
-                dispatch_destination<float>(dst.dtype, engine_, meta, reads, writes, read_src, write_dst, n);
-                return sycl::event();
+                return dispatch_destination<float>(dst.dtype, recorder_, meta, operands,
+                                                   read_src, write_dst, n);
             case Core::DataType::FLOAT64:
-                dispatch_destination<double>(dst.dtype, engine_, meta, reads, writes, read_src, write_dst, n);
-                return sycl::event();
+                return dispatch_destination<double>(dst.dtype, recorder_, meta, operands,
+                                                    read_src, write_dst, n);
             default:
                 break;
         }
 
         SB_THROW_IF(true, "Elementwise operation '{}' does not support source dtype {}.",
                     K_NAME, Core::to_string(src.dtype));
-        return sycl::event();
+        return TaskHandle();
     }
 } // namespace SushiBLAS

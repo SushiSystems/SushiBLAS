@@ -32,9 +32,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::ceil(Tensor& t) 
+    TaskHandle ElementwiseOps::ceil(Tensor& t) 
     {
-        return Dispatch::execute_unary_inplace(engine_, t, "math.ew.ceil", "math.ew.ceil"_op, 
+        return Dispatch::execute_unary_inplace(recorder_, t, "math.ew.ceil", "math.ew.ceil"_op, 
             [](auto x) { return sycl::ceil(x); });
     }
 } // namespace SushiBLAS

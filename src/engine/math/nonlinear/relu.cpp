@@ -33,15 +33,15 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event NonLinearOps::relu(Tensor& t) 
+    TaskHandle NonLinearOps::relu(Tensor& t) 
     {
-        return Dispatch::execute_nonlinear_forward(engine_, t, "math.nonlinear.relu", "math.nonlinear.relu"_op, 
+        return Dispatch::execute_nonlinear_forward(recorder_, t, "math.nonlinear.relu", "math.nonlinear.relu"_op, 
             [](auto x) { return Dispatch::greater_than_zero(x) ? x : decltype(x)(0); });
     }
 
-    sycl::event NonLinearOps::relu_backward(const Tensor& dy, const Tensor& x, Tensor& dx)
+    TaskHandle NonLinearOps::relu_backward(const Tensor& dy, const Tensor& x, Tensor& dx)
     {
-        return Dispatch::execute_nonlinear_backward(engine_, dy, x, dx, "math.nonlinear.relu_backward", "math.nonlinear.relu_backward"_op, 
+        return Dispatch::execute_nonlinear_backward(recorder_, dy, x, dx, "math.nonlinear.relu_backward", "math.nonlinear.relu_backward"_op, 
             [](auto pdy, auto px) { return pdy * (Dispatch::greater_than_zero(px) ? decltype(px)(1) : decltype(px)(0)); });
     }
 } // namespace SushiBLAS

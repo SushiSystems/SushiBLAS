@@ -27,13 +27,13 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
+#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 
 namespace SushiBLAS 
 {
-    class Engine;
-
     /**
      * @class NonLinearOps
      * @brief Records activation functions and their backward passes on contiguous tensors.
@@ -41,22 +41,28 @@ namespace SushiBLAS
      * pass must share one shape: the library does not broadcast. Sigmoid and tanh accept real
      * and complex dtypes; every other activation accepts real dtypes only.
      */
-    class NonLinearOps 
+    class NonLinearOps final
     {
         public:
-            /**
-             * @brief Construct NonLinearOps with a reference to the engine.
-             * @param e The SushiBLAS engine.
-             */
-            explicit NonLinearOps(Engine& e) : engine_(e) {}
+            /** @brief Builds a view that records through recorder, which must outlive the view. */
+            explicit NonLinearOps(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
+
+            /** @brief Builds a view that records on engine's own graph. */
+            explicit NonLinearOps(Engine& engine) noexcept : NonLinearOps(engine.get_recorder()) {}
+
+            NonLinearOps(const NonLinearOps&) = default;
+            NonLinearOps& operator=(const NonLinearOps&) = delete;
+            NonLinearOps(NonLinearOps&&) = default;
+            NonLinearOps& operator=(NonLinearOps&&) = delete;
+            ~NonLinearOps() = default;
 
             /**
              * @brief Rectified Linear Unit (ReLU).
              * Computes f(x) = max(0, x) element-wise.
              * @param t Input/Output tensor (modified in-place).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event relu(Tensor& t);
+            TaskHandle relu(Tensor& t);
 
             /**
              * @brief ReLU Backward (Gradient).
@@ -64,32 +70,32 @@ namespace SushiBLAS
              * @param dy Output gradient (incoming).
              * @param x Original forward input.
              * @param dx Input gradient result.
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event relu_backward(const Tensor& dy, const Tensor& x, Tensor& dx);
+            TaskHandle relu_backward(const Tensor& dy, const Tensor& x, Tensor& dx);
 
             /**
              * @brief Leaky Rectified Linear Unit (LeakyReLU).
              * Computes f(x) = x if x > 0 else alpha * x.
              * @param t Input/Output tensor.
              * @param alpha Small slope for negative values (default: 0.01).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event leaky_relu(Tensor& t, double alpha = 0.01);
+            TaskHandle leaky_relu(Tensor& t, double alpha = 0.01);
 
             /**
              * @brief Computes dx = dy * (x > 0 ? 1 : alpha), the LeakyReLU backward pass.
              * @param x The forward input.
              */
-            sycl::event leaky_relu_backward(const Tensor& dy, const Tensor& x, Tensor& dx, double alpha = 0.01);
+            TaskHandle leaky_relu_backward(const Tensor& dy, const Tensor& x, Tensor& dx, double alpha = 0.01);
 
             /**
              * @brief Sigmoid Activation.
              * Computes f(x) = 1 / (1 + exp(-x)).
              * @param t Input/Output tensor.
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event sigmoid(Tensor& t);
+            TaskHandle sigmoid(Tensor& t);
 
             /**
              * @brief Sigmoid Backward.
@@ -97,17 +103,17 @@ namespace SushiBLAS
              * @param dy Output gradient.
              * @param y Forward output (the sigmoid result).
              * @param dx Gradient result.
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event sigmoid_backward(const Tensor& dy, const Tensor& y, Tensor& dx);
+            TaskHandle sigmoid_backward(const Tensor& dy, const Tensor& y, Tensor& dx);
 
             /**
              * @brief Hyperbolic Tangent (Tanh).
              * Computes f(x) = tanh(x).
              * @param t Input/Output tensor.
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event tanh(Tensor& t);
+            TaskHandle tanh(Tensor& t);
 
             /**
              * @brief Tanh Backward.
@@ -115,32 +121,32 @@ namespace SushiBLAS
              * @param dy Output gradient.
              * @param y Forward output (the tanh result).
              * @param dx Gradient result.
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event tanh_backward(const Tensor& dy, const Tensor& y, Tensor& dx);
+            TaskHandle tanh_backward(const Tensor& dy, const Tensor& y, Tensor& dx);
 
             /**
              * @brief Exponential Linear Unit (ELU).
              * Computes f(x) = x if x > 0 else alpha * (exp(x) - 1).
              * @param t Input/Output tensor.
              * @param alpha ELU scale factor.
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event elu(Tensor& t, double alpha = 1.0);
+            TaskHandle elu(Tensor& t, double alpha = 1.0);
 
             /**
              * @brief Computes dx = dy * (x > 0 ? 1 : alpha * exp(x)), the ELU backward pass.
              * @param x The forward input.
              */
-            sycl::event elu_backward(const Tensor& dy, const Tensor& x, Tensor& dx, double alpha = 1.0);
+            TaskHandle elu_backward(const Tensor& dy, const Tensor& x, Tensor& dx, double alpha = 1.0);
 
             /**
              * @brief Sigmoid Linear Unit (SiLU / Swish).
              * Computes f(x) = x * sigmoid(x).
              * @param t Input/Output tensor.
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event silu(Tensor& t);
+            TaskHandle silu(Tensor& t);
 
             /**
              * @brief SiLU Backward.
@@ -148,35 +154,35 @@ namespace SushiBLAS
              * @param dy Output gradient.
              * @param x Forward input.
              * @param dx Gradient result.
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event silu_backward(const Tensor& dy, const Tensor& x, Tensor& dx);
+            TaskHandle silu_backward(const Tensor& dy, const Tensor& x, Tensor& dx);
 
             /**
              * @brief Gaussian Error Linear Unit (GELU).
              * Computes f(x) = x * P(X <= x) where X ~ N(0, 1).
              * Approximated as: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3))).
              * @param t Input/Output tensor.
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event gelu(Tensor& t);
+            TaskHandle gelu(Tensor& t);
 
             /**
              * @brief GELU Backward.
              * @param dy Output gradient.
              * @param x Forward input.
              * @param dx Gradient result.
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event gelu_backward(const Tensor& dy, const Tensor& x, Tensor& dx);
+            TaskHandle gelu_backward(const Tensor& dy, const Tensor& x, Tensor& dx);
 
             /**
              * @brief Softplus activation.
              * Computes f(x) = max(x, 0) + log1p(exp(-|x|)), which equals ln(1 + exp(x)) without overflow.
              * @param t Input/Output tensor.
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event softplus(Tensor& t);
+            TaskHandle softplus(Tensor& t);
 
             /**
              * @brief Softplus Backward.
@@ -184,12 +190,13 @@ namespace SushiBLAS
              * @param dy Output gradient.
              * @param x Forward input.
              * @param dx Gradient result.
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event softplus_backward(const Tensor& dy, const Tensor& x, Tensor& dx);
+            TaskHandle softplus_backward(const Tensor& dy, const Tensor& x, Tensor& dx);
 
         private:
-            Engine& engine_;
+            /// @brief The recorder every operation of this view records through.
+            TaskRecorder& recorder_;
     };
 
 } // namespace SushiBLAS

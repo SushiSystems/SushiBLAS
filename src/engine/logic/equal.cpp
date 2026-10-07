@@ -32,9 +32,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event LogicOps::equal(const Tensor& A, const Tensor& B, Tensor& result) 
+    TaskHandle LogicOps::equal(const Tensor& A, const Tensor& B, Tensor& result) 
     {
-        return Dispatch::execute_logic_binary<Dispatch::Domain::ALL>(engine_, A, B, result, "logic.equal", "logic.equal"_op, 
+        return Dispatch::execute_logic_binary<Dispatch::Domain::ALL>(recorder_, A, B, result, "logic.equal", "logic.equal"_op, 
             [](auto x, auto y) { return Dispatch::logic_equal(x, y) ? decltype(x)(1) : decltype(x)(0); });
     }
 } // namespace SushiBLAS

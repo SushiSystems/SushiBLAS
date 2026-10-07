@@ -33,10 +33,10 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::pow(Tensor& t, double exponent) 
+    TaskHandle ElementwiseOps::pow(Tensor& t, double exponent) 
     {
         const Dispatch::ElementScalar e(exponent);
-        return Dispatch::execute_unary_inplace(engine_, t, "math.ew.pow", "math.ew.pow"_op, 
+        return Dispatch::execute_unary_inplace(recorder_, t, "math.ew.pow", "math.ew.pow"_op, 
             [e](auto x) { return sycl::pow(x, e.as<decltype(x)>()); },
             {exponent});
     }

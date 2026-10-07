@@ -34,9 +34,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event NonLinearOps::gelu(Tensor& t) 
+    TaskHandle NonLinearOps::gelu(Tensor& t) 
     {
-        return Dispatch::execute_nonlinear_forward(engine_, t, "math.nonlinear.gelu", "math.nonlinear.gelu"_op, 
+        return Dispatch::execute_nonlinear_forward(recorder_, t, "math.nonlinear.gelu", "math.nonlinear.gelu"_op, 
             [](auto x) { 
                 auto x3 = x * x * x;
                 auto inner = decltype(x)(0.7978845608028654) * (x + decltype(x)(0.044715) * x3);
@@ -44,9 +44,9 @@ namespace SushiBLAS
             });
     }
 
-    sycl::event NonLinearOps::gelu_backward(const Tensor& dy, const Tensor& x, Tensor& dx)
+    TaskHandle NonLinearOps::gelu_backward(const Tensor& dy, const Tensor& x, Tensor& dx)
     {
-        return Dispatch::execute_nonlinear_backward(engine_, dy, x, dx, "math.nonlinear.gelu_backward", "math.nonlinear.gelu_backward"_op, 
+        return Dispatch::execute_nonlinear_backward(recorder_, dy, x, dx, "math.nonlinear.gelu_backward", "math.nonlinear.gelu_backward"_op, 
             [](auto pdy, auto px) { 
                 auto x3 = px * px * px;
                 auto inner = decltype(px)(0.7978845608028654) * (px + decltype(px)(0.044715) * x3);

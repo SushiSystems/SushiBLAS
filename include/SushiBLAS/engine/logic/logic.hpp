@@ -27,136 +27,147 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
+#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 
 namespace SushiBLAS 
 {
-    class Engine;
-
     /**
      * @class LogicOps
-     * @brief Records element-wise logical and comparison operations on contiguous tensors.
+     * @brief Records comparisons, boolean combinations and truth tests of tensors.
      * @note Every operand must have storage and dense strides, and the operands of one call must
      * share one shape: the library does not broadcast.
      */
-    class LogicOps 
+    class LogicOps final
     {
         public:
-            explicit LogicOps(Engine& e) : engine_(e) {}
+            /** @brief Builds a view that records through recorder, which must outlive the view. */
+            explicit LogicOps(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
+
+            /** @brief Builds a view that records on engine's own graph. */
+            explicit LogicOps(Engine& engine) noexcept : LogicOps(engine.get_recorder()) {}
+
+            LogicOps(const LogicOps&) = default;
+            LogicOps& operator=(const LogicOps&) = delete;
+            LogicOps(LogicOps&&) = default;
+            LogicOps& operator=(LogicOps&&) = delete;
+            ~LogicOps() = default;
 
             /**
              * @brief Element-wise equality comparison: A == B.
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param result Output tensor (1 if true, 0 if false).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event equal(const Tensor& A, const Tensor& B, Tensor& result);
+            TaskHandle equal(const Tensor& A, const Tensor& B, Tensor& result);
 
             /**
              * @brief Element-wise inequality comparison: A != B.
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param result Output tensor (1 if true, 0 if false).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event not_equal(const Tensor& A, const Tensor& B, Tensor& result);
+            TaskHandle not_equal(const Tensor& A, const Tensor& B, Tensor& result);
 
             /**
              * @brief Element-wise comparison: A > B.
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param result Output tensor (1 if true, 0 if false).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event greater(const Tensor& A, const Tensor& B, Tensor& result);
+            TaskHandle greater(const Tensor& A, const Tensor& B, Tensor& result);
 
             /**
              * @brief Element-wise comparison: A < B.
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param result Output tensor (1 if true, 0 if false).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event less(const Tensor& A, const Tensor& B, Tensor& result);
+            TaskHandle less(const Tensor& A, const Tensor& B, Tensor& result);
 
             /**
              * @brief Element-wise comparison: A >= B.
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param result Output tensor (1 if true, 0 if false).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event greater_equal(const Tensor& A, const Tensor& B, Tensor& result);
+            TaskHandle greater_equal(const Tensor& A, const Tensor& B, Tensor& result);
 
             /**
              * @brief Element-wise comparison: A <= B.
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param result Output tensor (1 if true, 0 if false).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event less_equal(const Tensor& A, const Tensor& B, Tensor& result);
+            TaskHandle less_equal(const Tensor& A, const Tensor& B, Tensor& result);
 
             /**
              * @brief Selects A where condition is non-zero and B elsewhere, like numpy.where.
              */
-            sycl::event where(const Tensor& condition, const Tensor& A, const Tensor& B, Tensor& out);
+            TaskHandle where(const Tensor& condition, const Tensor& A, const Tensor& B, Tensor& out);
 
             /**
              * @brief Element-wise logical AND of two tensors.
              * @param A Input tensor A.
              * @param B Input tensor B.
              * @param out Output tensor (1 if both non-zero, else 0).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event logical_and(const Tensor& A, const Tensor& B, Tensor& out);
+            TaskHandle logical_and(const Tensor& A, const Tensor& B, Tensor& out);
 
             /**
              * @brief Element-wise logical OR of two tensors.
              * @param A Input tensor A.
              * @param B Input tensor B.
              * @param out Output tensor (1 if either non-zero, else 0).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event logical_or(const Tensor& A, const Tensor& B, Tensor& out);
+            TaskHandle logical_or(const Tensor& A, const Tensor& B, Tensor& out);
 
             /**
              * @brief Element-wise logical XOR of two tensors.
              * @param A Input tensor A.
              * @param B Input tensor B.
              * @param out Output tensor (1 if exactly one is non-zero, else 0).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event logical_xor(const Tensor& A, const Tensor& B, Tensor& out);
+            TaskHandle logical_xor(const Tensor& A, const Tensor& B, Tensor& out);
 
             /**
              * @brief Element-wise logical NOT of a tensor.
              * @param A Input tensor.
              * @param out Output tensor (1 if zero, 0 if non-zero).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event logical_not(const Tensor& A, Tensor& out);
+            TaskHandle logical_not(const Tensor& A, Tensor& out);
 
             /**
              * @brief Check if all elements are non-zero (Logical ALL reduction).
              * @param t Input tensor.
              * @param result Scalar output (1 if all true, else 0).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event all(const Tensor& t, Tensor& result);
+            TaskHandle all(const Tensor& t, Tensor& result);
 
             /**
              * @brief Check if any element is non-zero (Logical ANY reduction).
              * @param t Input tensor.
              * @param result Scalar output (1 if any true, else 0).
-             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @return The handle of the recorded task.
              */
-            sycl::event any(const Tensor& t, Tensor& result);
+            TaskHandle any(const Tensor& t, Tensor& result);
 
         private:
-            Engine& engine_;
+            /// @brief The recorder every operation of this view records through.
+            TaskRecorder& recorder_;
     };
 
 } // namespace SushiBLAS

@@ -32,9 +32,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::floor(Tensor& t) 
+    TaskHandle ElementwiseOps::floor(Tensor& t) 
     {
-        return Dispatch::execute_unary_inplace(engine_, t, "math.ew.floor", "math.ew.floor"_op, 
+        return Dispatch::execute_unary_inplace(recorder_, t, "math.ew.floor", "math.ew.floor"_op, 
             [](auto x) { return sycl::floor(x); });
     }
 } // namespace SushiBLAS

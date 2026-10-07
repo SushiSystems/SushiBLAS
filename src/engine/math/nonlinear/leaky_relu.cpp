@@ -34,18 +34,18 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event NonLinearOps::leaky_relu(Tensor& t, double alpha) 
+    TaskHandle NonLinearOps::leaky_relu(Tensor& t, double alpha) 
     {
         const Dispatch::ElementScalar a(alpha);
-        return Dispatch::execute_nonlinear_forward(engine_, t, "math.nonlinear.leaky_relu", "math.nonlinear.leaky_relu"_op, 
+        return Dispatch::execute_nonlinear_forward(recorder_, t, "math.nonlinear.leaky_relu", "math.nonlinear.leaky_relu"_op, 
             [a](auto x) { return Dispatch::greater_than_zero(x) ? x : x * a.as<decltype(x)>(); },
             {alpha});
     }
 
-    sycl::event NonLinearOps::leaky_relu_backward(const Tensor& dy, const Tensor& x, Tensor& dx, double alpha)
+    TaskHandle NonLinearOps::leaky_relu_backward(const Tensor& dy, const Tensor& x, Tensor& dx, double alpha)
     {
         const Dispatch::ElementScalar a(alpha);
-        return Dispatch::execute_nonlinear_backward(engine_, dy, x, dx, "math.nonlinear.leaky_relu_backward", "math.nonlinear.leaky_relu_backward"_op, 
+        return Dispatch::execute_nonlinear_backward(recorder_, dy, x, dx, "math.nonlinear.leaky_relu_backward", "math.nonlinear.leaky_relu_backward"_op, 
             [a](auto pdy, auto px) { return pdy * (Dispatch::greater_than_zero(px) ? decltype(px)(1) : a.as<decltype(px)>()); },
             {alpha});
     }

@@ -33,9 +33,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event NonLinearOps::softplus(Tensor& t) 
+    TaskHandle NonLinearOps::softplus(Tensor& t) 
     {
-        return Dispatch::execute_nonlinear_forward(engine_, t, "math.nonlinear.softplus", "math.nonlinear.softplus"_op, 
+        return Dispatch::execute_nonlinear_forward(recorder_, t, "math.nonlinear.softplus", "math.nonlinear.softplus"_op, 
             [](auto x) 
             { 
                 using T = decltype(x);
@@ -43,9 +43,9 @@ namespace SushiBLAS
             });
     }
 
-    sycl::event NonLinearOps::softplus_backward(const Tensor& dy, const Tensor& x, Tensor& dx)
+    TaskHandle NonLinearOps::softplus_backward(const Tensor& dy, const Tensor& x, Tensor& dx)
     {
-        return Dispatch::execute_nonlinear_backward(engine_, dy, x, dx, "math.nonlinear.softplus_backward", "math.nonlinear.softplus_backward"_op, 
+        return Dispatch::execute_nonlinear_backward(recorder_, dy, x, dx, "math.nonlinear.softplus_backward", "math.nonlinear.softplus_backward"_op, 
             [](auto pdy, auto px) 
             { 
                 return pdy * (decltype(px)(1) - decltype(px)(1) / (decltype(px)(1) + Dispatch::safe_exp(px)));
