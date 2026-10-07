@@ -183,6 +183,10 @@ add_executable(sushiblas_tests
     functional/unit/test_tensor_const_access.cpp
     functional/unit/test_rng_stream.cpp
 
+    # --- Support layer and scratch ---
+    functional/unit/test_scratch_shelf.cpp
+    functional/unit/test_launch_shapes.cpp
+
     # --- Integration ---
     functional/integration/test_framework_sim.cpp
     functional/integration/test_dependency_stress.cpp
