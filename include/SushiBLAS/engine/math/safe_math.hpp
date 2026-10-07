@@ -31,6 +31,7 @@
 #include <limits>
 #include <complex>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/support/complex_arithmetic.hpp>
 
 namespace SushiBLAS
 {
@@ -259,6 +260,36 @@ namespace SushiBLAS
         inline std::complex<T> safe_abs(const std::complex<T>& x)
         {
             return std::complex<T>(sycl::hypot(x.real(), x.imag()), 0);
+        }
+
+        /**
+         * @brief Returns the complex conjugate of x; a real x is returned unchanged.
+         * @see include/SushiBLAS/engine/math/README.md
+         */
+        template<typename T>
+        [[nodiscard]] inline T safe_conj(T x) noexcept
+        {
+            return Kernels::conjugate(x);
+        }
+
+        /**
+         * @brief Returns `a * b` without calling a std::complex operator.
+         * @see include/SushiBLAS/engine/math/README.md
+         */
+        template<typename T>
+        [[nodiscard]] inline T safe_mul(T a, T b) noexcept
+        {
+            return Kernels::multiply(a, b);
+        }
+
+        /**
+         * @brief Returns `a / b` without calling a std::complex operator.
+         * @see include/SushiBLAS/engine/math/README.md
+         */
+        template<typename T>
+        [[nodiscard]] inline T safe_div(T a, T b) noexcept
+        {
+            return Kernels::divide(a, b);
         }
 
     } // namespace Dispatch
