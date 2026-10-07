@@ -27,9 +27,15 @@
 
 #pragma once
 
+#include <vector>
+#include <cstddef>
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/support/running_solution.hpp>
+#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/kernels/blas/operand_access.hpp>
 
 namespace SushiBLAS
 {
@@ -42,72 +48,91 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T>
-            void trsm(Core::Layout layout, bool left_side, bool upper, bool transA, bool unit_diag,
-                      int64_t m, int64_t n, T alpha,
+            void trsm(Core::Layout layout, Core::Side side, Core::Uplo uplo, Core::Transpose trans,
+                      Core::Diag diag, int64_t m, int64_t n, T alpha,
                       const T* a, int64_t lda,
                       T* b, int64_t ldb)
             {
                 using W = Accumulator<T>;
-                auto A_at = [&](int64_t r, int64_t c) -> T
-                {
-                    return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
-                };
-                auto B_ref = [&](int64_t r, int64_t c) -> T&
-                {
-                    return (layout == Core::Layout::ROW_MAJOR) ? b[r * ldb + c] : b[r + c * ldb];
-                };
+                using RW = ReferenceAccumulator<T>;
+                const bool left = (side == Core::Side::LEFT);
+                const bool unit_diag = (diag == Core::Diag::UNIT);
+                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::UPPER);
+                const OperandAccess op_a = operand_access(layout, trans, lda);
+                const OperandAccess at_b = operand_access(layout, Core::Transpose::NO_TRANS, ldb);
 
-                if (left_side)
-                {
-                    bool eff_lower = transA ? upper : !upper;
-                    auto A_eff = [&](int64_t i, int64_t k) -> T { return transA ? A_at(k, i) : A_at(i, k); };
+                // The workspace is indexed like B, so it reaches as far as B's last element.
+                const bool needs_wide = RunningSolution<T>::K_NEEDS_WORKSPACE && m > 0 && n > 0;
+                std::vector<W> wide(needs_wide
+                                        ? static_cast<std::size_t>(at_b.index(m - 1, n - 1) + 1)
+                                        : std::size_t{0});
+                const RunningSolution<T> X(b, wide.data(), 0);
 
+                if (left)
+                {
                     for (int64_t j = 0; j < n; ++j)
                     {
-                        if (eff_lower)
+                        if (!op_upper)
                         {
                             for (int64_t i = 0; i < m; ++i)
                             {
-                                W sum = W(alpha) * W(B_ref(i, j));
-                                for (int64_t k = 0; k < i; ++k) sum -= W(A_eff(i, k)) * W(B_ref(k, j));
-                                B_ref(i, j) = unit_diag ? T(sum) : T(sum / W(A_eff(i, i)));
+                                ReferenceSum<T> sum;
+                                sum.add(RW(alpha) * RW(b[at_b.index(i, j)]));
+                                for (int64_t k = 0; k < i; ++k)
+                                    sum.add(-(RW(op_a.at(a, i, k)) * RW(X.get(at_b.index(k, j)))));
+                                X.set(at_b.index(i, j),
+                                      static_cast<W>(unit_diag
+                                                         ? sum.value()
+                                                         : sum.value() / RW(op_a.at(a, i, i))));
                             }
                         }
                         else
                         {
                             for (int64_t i = m - 1; i >= 0; --i)
                             {
-                                W sum = W(alpha) * W(B_ref(i, j));
-                                for (int64_t k = i + 1; k < m; ++k) sum -= W(A_eff(i, k)) * W(B_ref(k, j));
-                                B_ref(i, j) = unit_diag ? T(sum) : T(sum / W(A_eff(i, i)));
+                                ReferenceSum<T> sum;
+                                sum.add(RW(alpha) * RW(b[at_b.index(i, j)]));
+                                for (int64_t k = i + 1; k < m; ++k)
+                                    sum.add(-(RW(op_a.at(a, i, k)) * RW(X.get(at_b.index(k, j)))));
+                                X.set(at_b.index(i, j),
+                                      static_cast<W>(unit_diag
+                                                         ? sum.value()
+                                                         : sum.value() / RW(op_a.at(a, i, i))));
                             }
                         }
                     }
                 }
                 else
                 {
-                    bool transA_row = !transA;
-                    bool eff_lower = transA_row ? upper : !upper;
-                    auto A_eff = [&](int64_t p, int64_t q) -> T { return transA_row ? A_at(q, p) : A_at(p, q); };
-
+                    // Row i solves against op(A)^T; its element (p, q) is op(A)(q, p).
                     for (int64_t i = 0; i < m; ++i)
                     {
-                        if (eff_lower)
+                        if (op_upper)
                         {
                             for (int64_t p = 0; p < n; ++p)
                             {
-                                W sum = W(alpha) * W(B_ref(i, p));
-                                for (int64_t q = 0; q < p; ++q) sum -= W(A_eff(p, q)) * W(B_ref(i, q));
-                                B_ref(i, p) = unit_diag ? T(sum) : T(sum / W(A_eff(p, p)));
+                                ReferenceSum<T> sum;
+                                sum.add(RW(alpha) * RW(b[at_b.index(i, p)]));
+                                for (int64_t q = 0; q < p; ++q)
+                                    sum.add(-(RW(op_a.at(a, q, p)) * RW(X.get(at_b.index(i, q)))));
+                                X.set(at_b.index(i, p),
+                                      static_cast<W>(unit_diag
+                                                         ? sum.value()
+                                                         : sum.value() / RW(op_a.at(a, p, p))));
                             }
                         }
                         else
                         {
                             for (int64_t p = n - 1; p >= 0; --p)
                             {
-                                W sum = W(alpha) * W(B_ref(i, p));
-                                for (int64_t q = p + 1; q < n; ++q) sum -= W(A_eff(p, q)) * W(B_ref(i, q));
-                                B_ref(i, p) = unit_diag ? T(sum) : T(sum / W(A_eff(p, p)));
+                                ReferenceSum<T> sum;
+                                sum.add(RW(alpha) * RW(b[at_b.index(i, p)]));
+                                for (int64_t q = p + 1; q < n; ++q)
+                                    sum.add(-(RW(op_a.at(a, q, p)) * RW(X.get(at_b.index(i, q)))));
+                                X.set(at_b.index(i, p),
+                                      static_cast<W>(unit_diag
+                                                         ? sum.value()
+                                                         : sum.value() / RW(op_a.at(a, p, p))));
                             }
                         }
                     }
@@ -115,17 +140,19 @@ namespace SushiBLAS
             }
 
             /**
-            * @brief Batched TRSM reference implementation.
-            */
+             * @brief Solves a batch of triangular systems with the reference kernel.
+             * @param str_a Element stride between consecutive A matrices; str_b likewise.
+             * @see kernels/README.md
+             */
             template<typename T>
-            void trsm(Core::Layout layout, bool left_side, bool upper, bool transA, bool unit_diag,
-                      int64_t m, int64_t n, T alpha,
+            void trsm(Core::Layout layout, Core::Side side, Core::Uplo uplo, Core::Transpose trans,
+                      Core::Diag diag, int64_t m, int64_t n, T alpha,
                       const T* a, int64_t lda, int64_t str_a,
                       T* b, int64_t ldb, int64_t str_b,
                       int64_t batch_size)
             {
                 for (int64_t bidx = 0; bidx < batch_size; ++bidx)
-                    trsm(layout, left_side, upper, transA, unit_diag, m, n, alpha,
+                    trsm(layout, side, uplo, trans, diag, m, n, alpha,
                          a + bidx * str_a, lda, b + bidx * str_b, ldb);
             }
 

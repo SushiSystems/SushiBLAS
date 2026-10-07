@@ -31,9 +31,12 @@
 #include <vector>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/support/complex_arithmetic.hpp>
 #include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/kernels/blas/operand_access.hpp>
 #include "kernels/sycl/blas/level2/row_reduction.hpp"
 
 namespace SushiBLAS
@@ -43,22 +46,26 @@ namespace SushiBLAS
         namespace SYCL
         {
             /**
-             * @brief Computes GEMV, y = alpha*op(A)*x + beta*y, per work-item or per work-group by output element.
+             * @brief Computes GEMV, y = alpha*op(A)*x + beta*y, one output element per work-item
+             *        or per work-group.
              * @see kernels/README.md
              */
             template<typename T>
-            [[nodiscard]] sycl::event gemv(sycl::queue& queue, Core::Layout layout, bool transA,
-                             int64_t m, int64_t n, T alpha, const T* a, int64_t lda,
-                             const T* x, int64_t incx, T beta, T* y, int64_t incy,
-                             const std::vector<sycl::event>& deps)
+            [[nodiscard]] sycl::event gemv(sycl::queue& queue, Core::Layout layout,
+                                           Core::Transpose trans, int64_t m, int64_t n, T alpha,
+                                           const T* a, int64_t lda, const T* x, int64_t incx,
+                                           T beta, T* y, int64_t incy,
+                                           const std::vector<sycl::event>& deps)
             {
                 using W = Accumulator<T>;
-                const int64_t out_len = transA ? n : m;
-                const int64_t in_len = transA ? m : n;
+                const OperandAccess access = operand_access(layout, trans, lda);
+                const bool transposed = Core::is_transposed(trans);
+                const int64_t out_len = transposed ? n : m;
+                const int64_t in_len = transposed ? m : n;
 
                 SB_LOG_INFO("SYCL GEMV: {}x{}", m, n);
 
-                const bool row_contiguous = (layout == Core::Layout::ROW_MAJOR) != transA;
+                const bool row_contiguous = (layout == Core::Layout::ROW_MAJOR) != transposed;
                 const std::size_t width = (row_contiguous && out_len > 0)
                     ? Detail::row_reduction_width(Device::profile_for(queue), in_len)
                     : std::size_t{0};
@@ -68,16 +75,18 @@ namespace SushiBLAS
                     return queue.submit([&](sycl::handler& h)
                     {
                         h.depends_on(deps);
-                        // A row-contiguous op(A) holds element (o, k) at a[o * lda + k] in both layouts.
+                        // A row-contiguous op(A) holds (o, k) at a[o * lda + k] in both layouts.
                         Detail::reduce_rows_by_group<W>(h, out_len, in_len, width,
                             [=](int64_t o, int64_t k) -> W
                             {
-                                return W(a[o * lda + k]) * W(x[k * incx]);
+                                return multiply(W(access.at(a, o, k)), W(x[k * incx]));
                             },
                             [=](int64_t o, W sum)
                             {
-                                y[o * incy] = (beta == T(0)) ? T(W(alpha) * sum)
-                                                             : T(W(alpha) * sum + W(beta) * W(y[o * incy]));
+                                y[o * incy] = (beta == T(0))
+                                    ? T(multiply(W(alpha), sum))
+                                    : T(multiply(W(alpha), sum) +
+                                        multiply(W(beta), W(y[o * incy])));
                             });
                     });
                 }
@@ -88,18 +97,12 @@ namespace SushiBLAS
                     Launch::indexed(h, queue, static_cast<size_t>(out_len), [=](size_t k)
                     {
                         const int64_t o = static_cast<int64_t>(k);
-                        auto A_at = [=](int64_t r, int64_t c) -> T
-                        {
-                            return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
-                        };
                         W sum(0);
                         for (int64_t k = 0; k < in_len; ++k)
-                        {
-                            T aval = transA ? A_at(k, o) : A_at(o, k);
-                            sum += W(aval) * W(x[k * incx]);
-                        }
-                        y[o * incy] = (beta == T(0)) ? T(W(alpha) * sum)
-                                                     : T(W(alpha) * sum + W(beta) * W(y[o * incy]));
+                            sum += multiply(W(access.at(a, o, k)), W(x[k * incx]));
+                        y[o * incy] = (beta == T(0))
+                            ? T(multiply(W(alpha), sum))
+                            : T(multiply(W(alpha), sum) + multiply(W(beta), W(y[o * incy])));
                     });
                 });
             }

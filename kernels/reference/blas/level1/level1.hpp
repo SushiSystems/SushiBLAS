@@ -32,7 +32,9 @@
 #include <cstdint>
 #include <utility>
 #include <type_traits>
-#include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
+#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/support/reference_accumulator.hpp>
 
 namespace SushiBLAS
 {
@@ -40,8 +42,7 @@ namespace SushiBLAS
     {
         namespace Reference
         {
-            template<typename T> struct RealOf { using type = T; };
-            template<typename T> struct RealOf<std::complex<T>> { using type = T; };
+            using Kernels::RealOf;
 
             template<typename T>
             inline typename RealOf<T>::type abs1(const T& v) { return static_cast<typename RealOf<T>::type>(std::abs(v)); }
@@ -86,31 +87,41 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Computes sum(|Re(x_i)| + |Im(x_i)|) in Accumulator precision, rounded once
-             *        on store.
+             * @brief Computes sum(|Re(x_i)| + |Im(x_i)|) in a ReferenceSum, rounded once on store.
              */
             template<typename T>
             void asum(int64_t n, const T* x, int64_t incx, typename RealOf<T>::type* result)
             {
                 using R = typename RealOf<T>::type;
-                using W = Accumulator<R>;
+                using RW = ReferenceAccumulator<R>;
 
-                W sum(0);
+                ReferenceSum<R> sum;
                 for (int64_t i = 0; i < n; ++i)
-                    sum += static_cast<W>(abs1(x[i * incx]));
-                *result = static_cast<R>(sum);
+                {
+                    const T v = x[i * incx];
+                    if constexpr (std::is_same_v<T, std::complex<R>>)
+                    {
+                        sum.add(std::abs(static_cast<RW>(v.real())));
+                        sum.add(std::abs(static_cast<RW>(v.imag())));
+                    }
+                    else
+                    {
+                        sum.add(std::abs(static_cast<RW>(v)));
+                    }
+                }
+                *result = static_cast<R>(sum.value());
             }
 
             /**
              * @brief Computes the Euclidean norm in the scaling form xNRM2 specifies, in
-             *        Accumulator precision, rounded once on store.
+             *        ReferenceAccumulator precision, rounded once on store.
              * @see kernels/README.md
              */
             template<typename T>
             void nrm2(int64_t n, const T* x, int64_t incx, typename RealOf<T>::type* result)
             {
                 using R = typename RealOf<T>::type;
-                using W = Accumulator<R>;
+                using W = ReferenceAccumulator<R>;
 
                 W scale(0);
                 W ssq(0);
@@ -162,27 +173,19 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Computes the unconjugated dot product sum(x_i * y_i) in Accumulator
-             *        precision, rounded once on store.
+             * @brief Computes sum(Conj(x_i) * y_i) in a ReferenceSum, rounded once on store.
+             * @tparam Conj Unconjugated for dot and dotu, Conjugated for dotc.
              */
-            template<typename T>
+            template<typename T, typename Conj = Unconjugated>
             void dot(int64_t n, const T* x, int64_t incx, const T* y, int64_t incy, T* result)
             {
-                using W = Accumulator<T>;
+                using RW = ReferenceAccumulator<T>;
 
-                W sum(0);
+                ReferenceSum<T> sum;
                 for (int64_t i = 0; i < n; ++i)
-                    sum += static_cast<W>(x[i * incx]) * static_cast<W>(y[i * incy]);
-                *result = static_cast<T>(sum);
-            }
-
-            // Conjugated dot product (DOTC): result = sum(conj(x_i) * y_i).
-            template<typename T>
-            void dotc(int64_t n, const std::complex<T>* x, int64_t incx, const std::complex<T>* y, int64_t incy, std::complex<T>* result)
-            {
-                std::complex<T> sum(0);
-                for (int64_t i = 0; i < n; ++i) sum += std::conj(x[i * incx]) * y[i * incy];
-                *result = sum;
+                    sum.add(Conj::apply(static_cast<RW>(x[i * incx])) *
+                            static_cast<RW>(y[i * incy]));
+                *result = static_cast<T>(sum.value());
             }
 
             // Smallest index achieving the maximum of |Re(x_i)| + |Im(x_i)|.

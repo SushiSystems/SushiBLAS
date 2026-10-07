@@ -21,7 +21,7 @@
 
 /**
  * @file symv.hpp
- * @brief Defines the reference kernel of SYMV.
+ * @brief Defines the reference kernel of SYMV and HEMV.
  * @author Mustafa Garip
  */
 
@@ -29,7 +29,9 @@
 
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
+#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
 
 namespace SushiBLAS
 {
@@ -38,32 +40,40 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-            * @brief Pure C++ reference SYMV: y = alpha*A*x + beta*y, A symmetric
-            * with only the requested triangle physically read.
-            */
-            template<typename T>
-            void symv(Core::Layout layout, bool upper, int64_t n,
+             * @brief Computes SYMV or HEMV, y = alpha*A*x + beta*y, each element in a ReferenceSum.
+             * @tparam Conj Unconjugated for symv, Conjugated for hemv.
+             * @param a Only the triangle uplo names is read.
+             */
+            template<typename T, typename Conj = Unconjugated>
+            void symv(Core::Layout layout, Core::Uplo uplo, int64_t n,
                       T alpha, const T* a, int64_t lda,
                       const T* x, int64_t incx,
                       T beta, T* y, int64_t incy)
             {
+                using RW = ReferenceAccumulator<T>;
+
                 auto A_at = [&](int64_t r, int64_t c) -> T
                 {
                     return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
                 };
-                auto sym_at = [&](int64_t i, int64_t j) -> T
+                const bool upper = (uplo == Core::Uplo::UPPER);
+                auto sym_at = [&](int64_t r, int64_t c) -> T
                 {
-                    if (upper) return (i <= j) ? A_at(i, j) : A_at(j, i);
-                    return (i >= j) ? A_at(i, j) : A_at(j, i);
+                    if (r == c)
+                        return Conj::diagonal(A_at(r, r));
+                    const bool stored = upper ? (r < c) : (r > c);
+                    return stored ? A_at(r, c) : Conj::apply(A_at(c, r));
                 };
 
-                using W = Accumulator<T>;
                 for (int64_t i = 0; i < n; ++i)
                 {
-                    W sum(0);
-                    for (int64_t j = 0; j < n; ++j) sum += W(sym_at(i, j)) * W(x[j * incx]);
-                    y[i * incy] = (beta == T(0)) ? T(W(alpha) * sum)
-                                                 : T(W(alpha) * sum + W(beta) * W(y[i * incy]));
+                    ReferenceSum<T> sum;
+                    for (int64_t j = 0; j < n; ++j)
+                        sum.add(RW(sym_at(i, j)) * RW(x[j * incx]));
+
+                    y[i * incy] = (beta == T(0))
+                        ? T(RW(alpha) * sum.value())
+                        : T(RW(alpha) * sum.value() + RW(beta) * RW(y[i * incy]));
                 }
             }
 

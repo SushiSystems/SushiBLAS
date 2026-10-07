@@ -21,7 +21,7 @@
 
 /**
  * @file ger.hpp
- * @brief Defines the SYCL kernel of GER.
+ * @brief Defines the SYCL kernel of GER, GERU and GERC.
  * @author Mustafa Garip
  */
 
@@ -33,6 +33,8 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
 
 namespace SushiBLAS
 {
@@ -41,10 +43,11 @@ namespace SushiBLAS
         namespace SYCL
         {
             /**
-             * @brief Computes GER, A += alpha * x * y^T, one work-item per element of A.
+             * @brief Computes GER, A += alpha * x * Conj(y)^T, one work-item per element of A.
+             * @tparam Conj Unconjugated for ger and geru, Conjugated for gerc.
              * @see kernels/README.md
              */
-            template<typename T>
+            template<typename T, typename Conj = Unconjugated>
             [[nodiscard]] sycl::event ger(sycl::queue& queue, Core::Layout layout,
                             int64_t m, int64_t n, T alpha,
                             const T* x, int64_t incx, const T* y, int64_t incy,
@@ -56,11 +59,14 @@ namespace SushiBLAS
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    h.parallel_for(sycl::range<2>(static_cast<size_t>(m), static_cast<size_t>(n)), [=](sycl::id<2> idx)
+                    const sycl::range<2> elements(static_cast<size_t>(m), static_cast<size_t>(n));
+                    h.parallel_for(elements, [=](sycl::id<2> idx)
                     {
                         int64_t i = idx[0], j = idx[1];
-                        T& ref = (layout == Core::Layout::ROW_MAJOR) ? a[i * lda + j] : a[i + j * lda];
-                        ref = T(W(ref) + W(alpha) * W(x[i * incx]) * W(y[j * incy]));
+                        T& ref = (layout == Core::Layout::ROW_MAJOR) ? a[i * lda + j]
+                                                                     : a[i + j * lda];
+                        ref = T(W(ref) + multiply(multiply(W(alpha), W(x[i * incx])),
+                                                  Conj::apply(W(y[j * incy]))));
                     });
                 });
             }

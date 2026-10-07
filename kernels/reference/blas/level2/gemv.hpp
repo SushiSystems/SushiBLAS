@@ -29,7 +29,9 @@
 
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
+#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/kernels/blas/operand_access.hpp>
 
 namespace SushiBLAS
 {
@@ -38,35 +40,33 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-            * @brief Pure C++ reference GEMV: y = alpha*op(A)*x + beta*y.
-            * A is m x n physically; op(A) is n x m if transA else m x n.
-            */
+             * @brief Computes GEMV, y = alpha*op(A)*x + beta*y, each element in a ReferenceSum.
+             * @param m Rows of A as stored; op(A) is n x m when trans transposes.
+             * @param n Columns of A as stored.
+             */
             template<typename T>
-            void gemv(Core::Layout layout, bool transA, int64_t m, int64_t n,
+            void gemv(Core::Layout layout, Core::Transpose trans, int64_t m, int64_t n,
                       T alpha, const T* a, int64_t lda,
                       const T* x, int64_t incx,
                       T beta, T* y, int64_t incy)
             {
-                auto A_at = [&](int64_t r, int64_t c) -> T
-                {
-                    return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
-                };
+                using RW = ReferenceAccumulator<T>;
 
-                using W = Accumulator<T>;
-                int64_t out_len = transA ? n : m;
-                int64_t in_len = transA ? m : n;
+                const OperandAccess access = operand_access(layout, trans, lda);
+                const bool transposed = Core::is_transposed(trans);
+                const int64_t out_len = transposed ? n : m;
+                const int64_t in_len = transposed ? m : n;
 
                 for (int64_t o = 0; o < out_len; ++o)
                 {
-                    W sum(0);
+                    ReferenceSum<T> sum;
                     for (int64_t k = 0; k < in_len; ++k)
-                    {
-                        T aval = transA ? A_at(k, o) : A_at(o, k);
-                        sum += W(aval) * W(x[k * incx]);
-                    }
+                        sum.add(RW(access.at(a, o, k)) * RW(x[k * incx]));
+
                     // beta==0 must not read the (possibly uninitialized) prior y value.
-                    y[o * incy] = (beta == T(0)) ? T(W(alpha) * sum)
-                                                 : T(W(alpha) * sum + W(beta) * W(y[o * incy]));
+                    y[o * incy] = (beta == T(0))
+                        ? T(RW(alpha) * sum.value())
+                        : T(RW(alpha) * sum.value() + RW(beta) * RW(y[o * incy]));
                 }
             }
 

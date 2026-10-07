@@ -34,6 +34,8 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/traits.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
+#include <SushiBLAS/support/complex_arithmetic.hpp>
 #include <SushiBLAS/support/launch_1d.hpp>
 #include <SushiBLAS/support/reduce_1d.hpp>
 #include <kernels/reference/blas/level1/level1.hpp>
@@ -53,7 +55,7 @@ namespace SushiBLAS
                     Launch::indexed(h, queue, static_cast<size_t>(n), [=](size_t k)
                     {
                         const int64_t i = static_cast<int64_t>(k);
-                        y[i * incy] += alpha * x[i * incx];
+                        y[i * incy] += multiply(alpha, x[i * incx]);
                     });
                 });
             }
@@ -81,7 +83,7 @@ namespace SushiBLAS
                     Launch::indexed(h, queue, static_cast<size_t>(n), [=](size_t k)
                     {
                         const int64_t i = static_cast<int64_t>(k);
-                        x[i * incx] *= alpha;
+                        x[i * incx] = multiply(x[i * incx], alpha);
                     });
                 });
             }
@@ -115,8 +117,8 @@ namespace SushiBLAS
                         const int64_t i = static_cast<int64_t>(k);
                         T xi = x[i * incx];
                         T yi = y[i * incy];
-                        x[i * incx] = c * xi + s * yi;
-                        y[i * incy] = c * yi - s * xi;
+                        x[i * incx] = multiply(c, xi) + multiply(s, yi);
+                        y[i * incy] = multiply(c, yi) - multiply(s, xi);
                     });
                 });
             }
@@ -186,45 +188,36 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Computes the real dot product through Reduce::CompensatedSum.
-             * @param scratch Device scratch for the partials; may be null when scratch_bytes is zero.
+             * @brief Computes sum(Conj(x_i) * y_i) through a compensated sum.
+             * @tparam Conj Unconjugated for dot and dotu, Conjugated for dotc.
+             * @param scratch Device scratch for the partials; may be null when scratch_bytes is 0.
              * @note The result may differ in the last bits from a serial left-to-right sum.
              * @see kernels/README.md
              */
-            template<typename T>
-            [[nodiscard]] sycl::event dot(sycl::queue& queue, int64_t n, const T* x, int64_t incx, const T* y, int64_t incy, T* result, void* scratch, std::size_t scratch_bytes, const std::vector<sycl::event>& deps)
+            template<typename T, typename Conj = Unconjugated>
+            [[nodiscard]] sycl::event dot(sycl::queue& queue, int64_t n, const T* x, int64_t incx,
+                                          const T* y, int64_t incy, T* result, void* scratch,
+                                          std::size_t scratch_bytes,
+                                          const std::vector<sycl::event>& deps)
             {
                 using W = Reduce::AccumulationOf<T>;
 
-                return Reduce::reduce_indexed<Reduce::CompensatedSum>(queue, static_cast<std::size_t>(n),
-                    [=](std::size_t k)
-                    {
-                        const int64_t i = static_cast<int64_t>(k);
-                        return static_cast<W>(x[i * incx]) * static_cast<W>(y[i * incy]);
-                    },
-                    result, static_cast<W*>(scratch), partial_capacity<W>(scratch_bytes),
-                    [](W v, std::size_t) { return v; }, deps);
-            }
+                const auto term = [=](std::size_t k)
+                {
+                    const int64_t i = static_cast<int64_t>(k);
+                    return multiply(Conj::apply(static_cast<W>(x[i * incx])),
+                                    static_cast<W>(y[i * incy]));
+                };
+                const auto finish = [](W v, std::size_t) { return v; };
 
-            /**
-             * @brief Computes the conjugated dot product through Reduce::CompensatedComplexSum.
-             * @param scratch Device scratch for the partials; may be null when scratch_bytes is zero.
-             * @note The result may differ in the last bits from a serial left-to-right sum.
-             * @see kernels/README.md
-             */
-            template<typename T>
-            [[nodiscard]] sycl::event dotc(sycl::queue& queue, int64_t n, const std::complex<T>* x, int64_t incx, const std::complex<T>* y, int64_t incy, std::complex<T>* result, void* scratch, std::size_t scratch_bytes, const std::vector<sycl::event>& deps)
-            {
-                using W = std::complex<T>;
-
-                return Reduce::reduce_indexed<Reduce::CompensatedComplexSum>(queue, static_cast<std::size_t>(n),
-                    [=](std::size_t k)
-                    {
-                        const int64_t i = static_cast<int64_t>(k);
-                        return std::conj(x[i * incx]) * y[i * incy];
-                    },
-                    result, static_cast<W*>(scratch), partial_capacity<W>(scratch_bytes),
-                    [](W v, std::size_t) { return v; }, deps);
+                if constexpr (Core::is_complex_v<T>)
+                    return Reduce::reduce_indexed<Reduce::CompensatedComplexSum>(
+                        queue, static_cast<std::size_t>(n), term, result, static_cast<W*>(scratch),
+                        partial_capacity<W>(scratch_bytes), finish, deps);
+                else
+                    return Reduce::reduce_indexed<Reduce::CompensatedSum>(
+                        queue, static_cast<std::size_t>(n), term, result, static_cast<W*>(scratch),
+                        partial_capacity<W>(scratch_bytes), finish, deps);
             }
 
             /**

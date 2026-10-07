@@ -31,11 +31,17 @@
 #pragma once
 
 #include <vector>
+#include <cstddef>
 #include <cstdint>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
+#include <SushiBLAS/kernels/blas/operand_access.hpp>
 #include <SushiBLAS/kernels/sycl/blas/level3/gemm.hpp>
 
 namespace SushiBLAS
@@ -73,23 +79,37 @@ namespace SushiBLAS
 
                     /** @brief K-extent staged into local memory per iteration. */
                     static constexpr int64_t tile_k = 16;
+
+                    /** @brief Work-items per work-group. */
+                    static constexpr int64_t wg_items = wg_rows * wg_cols;
+
+                    /** @brief Returns the local memory one work-group needs, in bytes. */
+                    [[nodiscard]] static constexpr std::size_t local_mem_bytes() noexcept
+                    {
+                        return static_cast<std::size_t>(block_m * tile_k + tile_k * block_n) *
+                               sizeof(T);
+                    }
                 };
             } // namespace Detail
 
             /**
-             * @brief Computes SYRK, C = alpha*op(A)*op(A)^T + beta*C, tiled through local memory,
-             * on the requested triangle of C.
+             * @brief Computes C = alpha*op(A)*Conj(op(A))^T + beta*C on one triangle of C, tiled
+             *        through local memory.
+             * @tparam Conj Unconjugated for SYRK, Conjugated for HERK.
+             * @tparam Scalar The type of alpha and beta: T, or its real component for HERK.
+             * @throws std::runtime_error When the device cannot host the tile's work-group.
              * @see kernels/README.md
              */
-            template<typename T>
+            template<typename T, typename Conj = Unconjugated, typename Scalar = T>
             [[nodiscard]] sycl::event syrk(sycl::queue& queue, Core::Layout layout,
-                             bool upper, bool trans,
+                             Core::Uplo uplo, Core::Transpose trans,
                              int64_t n, int64_t k,
-                             T alpha, const T* a, int64_t lda, int64_t str_a,
-                             T beta, T* c, int64_t ldc, int64_t str_c,
+                             Scalar alpha, const T* a, int64_t lda, int64_t str_a,
+                             Scalar beta, T* c, int64_t ldc, int64_t str_c,
                              int64_t batch_size, const std::vector<sycl::event>& deps)
             {
                 using W = Accumulator<T>;
+                using WS = Accumulator<Scalar>;
                 using Cfg = Detail::SyrkTileConfig<T>;
                 constexpr int64_t item_rows = Cfg::item_rows;
                 constexpr int64_t item_cols = Cfg::item_cols;
@@ -99,10 +119,22 @@ namespace SushiBLAS
                 constexpr int64_t block_n = Cfg::block_n;
                 constexpr int64_t tile_k = Cfg::tile_k;
 
-                // op(A)^T is the factor a GEMM addresses with the opposite transpose flag.
-                const Detail::OperandStrides a_strides = Detail::strides_for(layout, trans, lda);
-                const Detail::OperandStrides b_strides = Detail::strides_for(layout, !trans, lda);
-                const Detail::OperandStrides c_strides = Detail::strides_for(layout, false, ldc);
+                const bool upper = (uplo == Core::Uplo::UPPER);
+
+                // The second factor is read through the transpose of op(A)'s access.
+                const OperandAccess a_access = operand_access(layout, trans, lda);
+                const OperandAccess b_access = a_access.transposed();
+                const OperandAccess c_access =
+                    operand_access(layout, Core::Transpose::NO_TRANS, ldc);
+
+                const Device::Profile& profile = Device::profile_for(queue);
+                const Device::LocalTileDemand demand{Cfg::local_mem_bytes(),
+                                                     static_cast<std::size_t>(Cfg::wg_items)};
+                SB_THROW_IF(!Device::hosts_local_tile(profile, demand),
+                            "SYCL SYRK stages {} B of local memory in {}-item work-groups; the "
+                            "device offers {} B and {}.",
+                            demand.local_bytes, demand.work_group_items,
+                            profile.local_mem_bytes, profile.max_work_group_size);
 
                 const int64_t n_tiles_m = (n + block_m - 1) / block_m;
                 const int64_t n_tiles_n = (n + block_n - 1) / block_n;
@@ -151,13 +183,15 @@ namespace SushiBLAS
                             {
                                 const int64_t r = idx / tile_k;
                                 const int64_t kk = idx % tile_k;
-                                tileA[idx] = Detail::load_operand(A, row0 + r, k0 + kk, n, k, a_strides);
+                                tileA[idx] =
+                                    Detail::load_operand(A, row0 + r, k0 + kk, n, k, a_access);
                             }
                             for (int64_t idx = local_linear; idx < tile_k * block_n; idx += wg_size)
                             {
                                 const int64_t kk = idx / block_n;
                                 const int64_t cc = idx % block_n;
-                                tileB[idx] = Detail::load_operand(A, k0 + kk, col0 + cc, k, n, b_strides);
+                                tileB[idx] = Conj::apply(
+                                    Detail::load_operand(A, k0 + kk, col0 + cc, k, n, b_access));
                             }
 
                             sycl::group_barrier(item.get_group());
@@ -171,7 +205,7 @@ namespace SushiBLAS
                                     regb[jj] = tileB[kk * block_n + (local_col * item_cols + jj)];
                                 for (int64_t ii = 0; ii < item_rows; ++ii)
                                     for (int64_t jj = 0; jj < item_cols; ++jj)
-                                        acc[ii][jj] += W(rega[ii]) * W(regb[jj]);
+                                        acc[ii][jj] += multiply(W(rega[ii]), W(regb[jj]));
                             }
 
                             sycl::group_barrier(item.get_group());
@@ -188,12 +222,14 @@ namespace SushiBLAS
                                 // Upper keeps col >= row; lower keeps col <= row.
                                 if (upper ? (global_col < global_row) : (global_col > global_row)) continue;
 
-                                const int64_t c_idx = global_row * c_strides.row +
-                                                      global_col * c_strides.col;
+                                const int64_t c_idx = c_access.index(global_row, global_col);
                                 // A zero beta must not read the prior value of C.
-                                C[c_idx] = (beta == T(0))
-                                    ? T(W(alpha) * acc[ii][jj])
-                                    : T(W(alpha) * acc[ii][jj] + W(beta) * W(C[c_idx]));
+                                const W updated = (beta == Scalar(0))
+                                    ? W(multiply(WS(alpha), acc[ii][jj]))
+                                    : W(multiply(WS(alpha), acc[ii][jj]) +
+                                        multiply(WS(beta), W(C[c_idx])));
+                                C[c_idx] = T((global_row == global_col) ? Conj::diagonal(updated)
+                                                                        : updated);
                             }
                         }
                     });

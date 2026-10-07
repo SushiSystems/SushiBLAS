@@ -21,7 +21,7 @@
 
 /**
  * @file symv.hpp
- * @brief Defines the SYCL kernel of SYMV.
+ * @brief Defines the SYCL kernel of SYMV and HEMV.
  * @author Mustafa Garip
  */
 
@@ -31,9 +31,12 @@
 #include <vector>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/support/complex_arithmetic.hpp>
 #include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
 #include "kernels/sycl/blas/level2/row_reduction.hpp"
 
 namespace SushiBLAS
@@ -43,11 +46,12 @@ namespace SushiBLAS
         namespace SYCL
         {
             /**
-             * @brief Computes SYMV, y = alpha*A*x + beta*y, reading only the requested triangle of A.
+             * @brief Computes SYMV or HEMV, y = alpha*A*x + beta*y, reading one triangle of A.
+             * @tparam Conj Unconjugated for symv, Conjugated for hemv.
              * @see kernels/README.md
              */
-            template<typename T>
-            [[nodiscard]] sycl::event symv(sycl::queue& queue, Core::Layout layout, bool upper,
+            template<typename T, typename Conj = Unconjugated>
+            [[nodiscard]] sycl::event symv(sycl::queue& queue, Core::Layout layout, Core::Uplo uplo,
                              int64_t n, T alpha, const T* a, int64_t lda,
                              const T* x, int64_t incx, T beta, T* y, int64_t incy,
                              const std::vector<sycl::event>& deps)
@@ -59,10 +63,13 @@ namespace SushiBLAS
                 {
                     return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
                 };
+                const bool upper = (uplo == Core::Uplo::UPPER);
                 auto sym_at = [=](int64_t r, int64_t c) -> T
                 {
-                    if (upper) return (r <= c) ? A_at(r, c) : A_at(c, r);
-                    return (r >= c) ? A_at(r, c) : A_at(c, r);
+                    if (r == c)
+                        return Conj::diagonal(A_at(r, r));
+                    const bool stored = upper ? (r < c) : (r > c);
+                    return stored ? A_at(r, c) : Conj::apply(A_at(c, r));
                 };
 
                 const std::size_t width = (n > 0)
@@ -77,12 +84,14 @@ namespace SushiBLAS
                         Detail::reduce_rows_by_group<W>(h, n, n, width,
                             [=](int64_t i, int64_t j) -> W
                             {
-                                return W(sym_at(i, j)) * W(x[j * incx]);
+                                return multiply(W(sym_at(i, j)), W(x[j * incx]));
                             },
                             [=](int64_t i, W sum)
                             {
-                                y[i * incy] = (beta == T(0)) ? T(W(alpha) * sum)
-                                                             : T(W(alpha) * sum + W(beta) * W(y[i * incy]));
+                                y[i * incy] = (beta == T(0))
+                                    ? T(multiply(W(alpha), sum))
+                                    : T(multiply(W(alpha), sum) +
+                                        multiply(W(beta), W(y[i * incy])));
                             });
                     });
                 }
@@ -94,9 +103,11 @@ namespace SushiBLAS
                     {
                         const int64_t i = static_cast<int64_t>(k);
                         W sum(0);
-                        for (int64_t j = 0; j < n; ++j) sum += W(sym_at(i, j)) * W(x[j * incx]);
-                        y[i * incy] = (beta == T(0)) ? T(W(alpha) * sum)
-                                                     : T(W(alpha) * sum + W(beta) * W(y[i * incy]));
+                        for (int64_t j = 0; j < n; ++j)
+                            sum += multiply(W(sym_at(i, j)), W(x[j * incx]));
+                        y[i * incy] = (beta == T(0))
+                            ? T(multiply(W(alpha), sum))
+                            : T(multiply(W(alpha), sum) + multiply(W(beta), W(y[i * incy])));
                     });
                 });
             }

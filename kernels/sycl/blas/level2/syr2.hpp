@@ -21,7 +21,7 @@
 
 /**
  * @file syr2.hpp
- * @brief Defines the SYCL kernel of SYR2.
+ * @brief Defines the SYCL kernel of SYR2 and HER2.
  * @author Mustafa Garip
  */
 
@@ -31,8 +31,11 @@
 #include <vector>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
 
 namespace SushiBLAS
 {
@@ -40,33 +43,56 @@ namespace SushiBLAS
     {
         namespace SYCL
         {
+            namespace Detail
+            {
+                /** @brief Returns the SYR2 term alpha * (x_i * y_j + y_i * x_j). */
+                template<typename W>
+                [[nodiscard]] inline W rank2_term(Unconjugated, W alpha, W xi, W yj, W yi, W xj)
+                {
+                    return multiply(alpha, multiply(xi, yj) + multiply(yi, xj));
+                }
+
+                /** @brief Returns the HER2 term, which conjugates y_j, x_j and the second alpha. */
+                template<typename W>
+                [[nodiscard]] inline W rank2_term(Conjugated, W alpha, W xi, W yj, W yi, W xj)
+                {
+                    return multiply(multiply(alpha, xi), Conjugated::apply(yj)) +
+                           multiply(multiply(Conjugated::apply(alpha), yi), Conjugated::apply(xj));
+                }
+            } // namespace Detail
+
             /**
-            * @brief SYR2: A += alpha*(x*y^T + y*x^T), only the requested triangle
-            * written. One work-item per output element within the triangle.
-            *
-            * A `sycl::range<2>`, for the same reason as `syr.hpp` and `ger.hpp`: a
-            * two-dimensional index that `launch_1d.hpp` has no geometry for.
-            */
-            template<typename T>
-            [[nodiscard]] sycl::event syr2(sycl::queue& queue, Core::Layout layout, bool upper,
+             * @brief Computes SYR2 or HER2, A(i, j) += rank2_term, in the triangle uplo names.
+             * @tparam Conj Unconjugated (syr2) or Conjugated (her2, which stores a real diagonal).
+             * @see kernels/README.md
+             */
+            template<typename T, typename Conj = Unconjugated>
+            [[nodiscard]] sycl::event syr2(sycl::queue& queue, Core::Layout layout, Core::Uplo uplo,
                              int64_t n, T alpha, const T* x, int64_t incx,
                              const T* y, int64_t incy, T* a, int64_t lda,
                              const std::vector<sycl::event>& deps)
             {
                 using W = Accumulator<T>;
+                const bool upper = (uplo == Core::Uplo::UPPER);
                 SB_LOG_INFO("SYCL SYR2: {}x{}", n, n);
 
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    h.parallel_for(sycl::range<2>(static_cast<size_t>(n), static_cast<size_t>(n)), [=](sycl::id<2> idx)
+                    const sycl::range<2> elements(static_cast<size_t>(n), static_cast<size_t>(n));
+                    h.parallel_for(elements, [=](sycl::id<2> idx)
                     {
                         int64_t i = idx[0], j = idx[1];
                         bool in_triangle = upper ? (j >= i) : (j <= i);
-                        if (!in_triangle) return;
-                        T& ref = (layout == Core::Layout::ROW_MAJOR) ? a[i * lda + j] : a[i + j * lda];
-                        ref = T(W(ref) + W(alpha) * (W(x[i * incx]) * W(y[j * incy]) +
-                                                     W(y[i * incy]) * W(x[j * incx])));
+                        if (!in_triangle)
+                            return;
+                        T& ref = (layout == Core::Layout::ROW_MAJOR) ? a[i * lda + j]
+                                                                     : a[i + j * lda];
+                        const W term = Detail::rank2_term(Conj{}, W(alpha),
+                                                          W(x[i * incx]), W(y[j * incy]),
+                                                          W(y[i * incy]), W(x[j * incx]));
+                        const W updated = W(ref) + term;
+                        ref = T((i == j) ? Conj::diagonal(updated) : updated);
                     });
                 });
             }
