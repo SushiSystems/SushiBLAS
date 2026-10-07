@@ -21,205 +21,143 @@
 
 /**
  * @file engine.hpp
- * @brief Declares the Engine, which records operations on a task graph and executes them.
+ * @brief Declares the Engine, which owns one task graph, the bricks that record on it, and runs it.
  * @author Mustafa Garip
  */
 
 #pragma once
 
-#include <SushiBLAS/io.hpp>
+#include <cstddef>
+#include <cstdint>
+#include <initializer_list>
 #include <SushiBLAS/tensor.hpp>
-#include <SushiBLAS/storage.hpp>
-#include <SushiBLAS/engine/blas.hpp>
-#include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/core/common.hpp>
-#include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/tensor_factory.hpp>
 #include <SushiBLAS/engine/rng_stream.hpp>
+#include <SushiBLAS/engine/scratch_pool.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiRuntime/SushiRuntime.h>
-#include <SushiBLAS/engine/logic/logic.hpp>
-#include <SushiBLAS/engine/math/random.hpp>
-#include <SushiBLAS/engine/math/nonlinear.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/graph/task_graph.hpp>
-#include <SushiBLAS/engine/math/reductions.hpp>
-#include <SushiBLAS/engine/math/elementwise.hpp>
 
-
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     /**
-     * @enum ExecutionMode
-     * @brief Defines how kernels are dispatched.
-     */
-    enum class ExecutionMode 
-    {
-        AUTO,              // Heuristic-based selection
-        FORCE_SYCL,        // Always use SYCL
-        FORCE_REFERENCE,   // Always use Reference (CPU)
-        VERIFY             // Not implemented; Engine::set_mode refuses it with std::logic_error
-    };
-
-    /**
      * @class Engine
-     * @brief The core engine for high-performance mathematical operations.
-     * 
-     * The Engine manages the execution context, task graph, and memory allocation 
-     * for all SushiBLAS operations. It acts as the primary entry point for 
-     * performing BLAS and other mathematical computations.
+     * @brief Owns one task graph with its scratch pool, recorder, tensor factory and random
+     *        stream, and runs the graph.
+     * @see include/SushiBLAS/README.md
      */
-    class Engine 
+    class Engine final
     {
         public:
             /**
-             * @brief Construct a new Engine.
-             * @param ctx The SushiRuntime execution context.
-             * @param layout The default memory layout for tensors created by this engine.
+             * @brief Builds an engine on a runtime context.
+             * @param context Must outlive the engine and every tensor it creates.
+             * @param layout The memory layout of tensors this engine creates.
              */
-            Engine(SushiRuntime::Execution::RuntimeContext& ctx, 
-                   Core::Layout layout = Core::Layout::ROW_MAJOR);
+            explicit Engine(SushiRuntime::Execution::RuntimeContext& context,
+                            Core::Layout layout = Core::Layout::ROW_MAJOR);
 
-            /** 
-             * @brief Set the execution mode. 
-             * @param mode The desired execution mode.
-             * @throws std::logic_error if mode is ExecutionMode::VERIFY; the mode stays unchanged.
-             */
-            void set_mode(ExecutionMode mode);
+            Engine(const Engine&) = delete;
+            Engine& operator=(const Engine&) = delete;
+            Engine(Engine&&) = delete;
+            Engine& operator=(Engine&&) = delete;
+            ~Engine() = default;
 
-            /** 
-             * @brief Get the current execution mode. 
-             * @return The current execution mode.
-             */
-            ExecutionMode get_mode() const { return mode_; }
+            /** @brief Returns the recorder every operation view of this engine records through. */
+            [[nodiscard]] TaskRecorder& get_recorder() noexcept { return recorder_; }
 
-            /** 
-             * @brief Get the default memory layout. 
-             * @return The current default layout (Row-Major or Column-Major).
-             */
-            inline Core::Layout get_layout() const { return default_layout_; }
-
-            /** 
-             * @brief Access standard BLAS operations (Levels 1, 2, and 3). 
-             * @return A BLASOps object providing access to BLAS routines.
-             */
-            inline BLASOps blas() { return BLASOps(*this); }
-
-            /** 
-             * @brief Input/Output operations (Persistence & Print). 
-             * @return An IO object providing access to save, load and print routines.
-             */
-            inline IO io() { return IO(*this); }
-
-            /** 
-             * @brief Logical operations and boolean mask generation. 
-             * @return A LogicOps object providing access to logical kernels.
-             */
-            inline LogicOps logic() { return LogicOps(*this); }
+            /** @brief Returns the factory create_tensor forwards to. */
+            [[nodiscard]] TensorFactory& get_tensor_factory() noexcept { return tensor_factory_; }
 
             /**
-             * @brief Random number generation and tensor initialization.
-             * @return A RandomOps object providing access to PRNG kernels.
-             */
-            inline RandomOps random() { return RandomOps(*this); }
-
-            /**
-             * @brief Non-linear transformations and activation functions. 
-             * @return A NonLinearOps object providing access to non-linear kernels.
-             */
-            inline NonLinearOps nonlinear() { return NonLinearOps(*this); }
-
-            /** 
-             * @brief Access tensor reduction operations (sum, max, etc.). 
-             * @return A ReductionOps object providing access to reduction kernels.
-             */
-            inline ReductionOps reductions() { return ReductionOps(*this); }
-
-            /**
-             * @brief Access windowed and strided movement over an N-D grid.
-             * @return A SpatialOps object providing access to the spatial kernels.
-             */
-            inline SpatialOps spatial() { return SpatialOps(*this); }
-
-            /** 
-             * @brief Access element-wise arithmetic operations. 
-             * @return An ElementwiseOps object providing access to arithmetic kernels.
-             */
-            inline ElementwiseOps elementwise() { return ElementwiseOps(*this); }
-
-            /** 
-             * @brief Get the underlying SushiRuntime execution context. 
-             * @return Reference to the RuntimeContext.
-             */
-            SushiRuntime::Execution::RuntimeContext& get_context() { return context_; }
-            
-            /** 
-             * @brief Get the engine's asynchronous task graph. 
-             * @return Reference to the TaskGraph.
-             */
-            SushiRuntime::Graph::TaskGraph& get_graph() { return graph_; }
-
-            /**
-             * @brief Execute all queued tasks in the graph.
-             * @return An already-completed sycl::event; the call returns only after the graph has finished.
-             */
-            sycl::event execute()
-            {
-                auto compiled = graph_.compile();
-                // An empty graph returns early; the execution engine throws on one; see include/SushiBLAS/README.md.
-                if (compiled.roots.empty()) return sycl::event();
-                context_.get_execution_engine().execute(compiled);
-                return sycl::event();
-            }
-
-            /** 
-             * @brief Create a new FLOAT32 tensor with the specified dimensions.
-             * @param dims The dimensions of the tensor.
-             * @param residency The kind of USM to allocate (Shared, Device, or Host).
-             * @return A new FLOAT32 Tensor object.
-             * @throws std::runtime_error on a negative dimension or an overflowing byte count.
-             */
-            Tensor create_tensor(std::initializer_list<int64_t> dims,
-                                 SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared);
-
-            /** 
-             * @brief Create a new tensor with the specified dimensions and data type.
-             * @param dims The dimensions of the tensor.
-             * @param dtype The data type of the tensor (e.g., FLOAT64, COMPLEX32).
-             * @param residency The kind of USM to allocate (Shared, Device, or Host).
-             * @return A new Tensor object.
-             * @throws std::runtime_error on a negative dimension or an overflowing byte count.
-             */
-            Tensor create_tensor(std::initializer_list<int64_t> dims,
-                                 Core::DataType dtype,
-                                 SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared);
-
-            /**
-             * @brief Creates a FLOAT32 tensor whose dimensions are known only at run time.
-             * @param residency The kind of USM to allocate (Shared, Device, or Host).
-             * @throws std::runtime_error on a rank too high, a negative dimension or an overflowing byte count.
-             */
-            Tensor create_tensor(const std::vector<int64_t>& dims,
-                                 SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared);
-
-            /**
-             * @brief Creates a tensor of one data type whose dimensions are known only at run time.
-             * @param residency The kind of USM to allocate (Shared, Device, or Host).
-             * @throws std::runtime_error on a rank too high, a negative dimension or an overflowing byte count.
-             */
-            Tensor create_tensor(const std::vector<int64_t>& dims,
-                                 Core::DataType dtype,
-                                 SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared);
-
-            /**
-             * @brief Returns the random stream every random operation of this engine draws from.
+             * @brief Returns the random stream every RandomOps view of this engine draws from.
              * @see include/SushiBLAS/engine/README.md
              */
-            RngStream& rng() noexcept { return rng_; }
+            [[nodiscard]] RngStream& get_rng() noexcept { return rng_; }
+
+            /**
+             * @brief Returns the pool tasks recorded through this engine lease device scratch from.
+             * @see include/SushiBLAS/engine/README.md
+             */
+            [[nodiscard]] ScratchPool& get_scratch_pool() noexcept { return scratch_pool_; }
+
+            /** @brief Returns the runtime context the engine was built on. */
+            [[nodiscard]] SushiRuntime::Execution::RuntimeContext& get_context() noexcept
+            {
+                return context_;
+            }
+
+            /** @brief Sets the execution mode of every operation recorded from now on. */
+            void set_mode(ExecutionMode mode) noexcept { recorder_.set_mode(mode); }
+
+            /** @brief Returns the execution mode operations are recorded under. */
+            [[nodiscard]] ExecutionMode get_mode() const noexcept { return recorder_.get_mode(); }
+
+            /** @brief Returns the memory layout of tensors this engine creates. */
+            [[nodiscard]] Core::Layout get_layout() const noexcept
+            {
+                return tensor_factory_.get_layout();
+            }
+
+            /**
+             * @brief Compiles the graph recorded through get_recorder(), runs it and returns when
+             *        every task has finished.
+             * @pre No thread is recording on this engine.
+             */
+            void execute();
+
+            /**
+             * @brief Creates a tensor from a brace list of dimensions.
+             * @param device_index Device queue that owns the allocation.
+             * @return A tensor without storage when a dimension is 0.
+             * @throws std::runtime_error as TensorFactory::create states.
+             */
+            [[nodiscard]] Tensor create_tensor(
+                std::initializer_list<int64_t> dims,
+                Core::DataType dtype = Core::DataType::FLOAT32,
+                SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared,
+                std::size_t device_index = 0)
+            {
+                return tensor_factory_.create(
+                    SushiRuntime::span<const int64_t>(dims.begin(), dims.end()), dtype, residency,
+                    device_index);
+            }
+
+            /**
+             * @brief Creates a tensor whose dimensions are known only at run time.
+             * @param device_index Device queue that owns the allocation.
+             * @return A tensor without storage when a dimension is 0.
+             * @throws std::runtime_error as TensorFactory::create states.
+             */
+            [[nodiscard]] Tensor create_tensor(
+                SushiRuntime::span<const int64_t> dims,
+                Core::DataType dtype = Core::DataType::FLOAT32,
+                SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared,
+                std::size_t device_index = 0)
+            {
+                return tensor_factory_.create(dims, dtype, residency, device_index);
+            }
 
         private:
+            /// @brief The runtime context that allocates and executes.
             SushiRuntime::Execution::RuntimeContext& context_;
+
+            /// @brief The pool recorded tasks lease scratch from; see include/SushiBLAS/README.md.
+            ScratchPool scratch_pool_;
+
+            /// @brief The graph recorded tasks wait in until execute(); no accessor reaches it.
             SushiRuntime::Graph::TaskGraph graph_;
-            Core::Layout default_layout_;
-            ExecutionMode mode_ = ExecutionMode::AUTO;
+
+            /// @brief The recorder bound to graph_ and scratch_pool_.
+            TaskRecorder recorder_;
+
+            /// @brief The factory behind create_tensor.
+            TensorFactory tensor_factory_;
+
+            /// @brief The random stream of this engine.
             RngStream rng_;
     };
-
 } // namespace SushiBLAS

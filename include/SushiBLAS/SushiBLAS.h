@@ -21,16 +21,26 @@
 
 /**
  * @file SushiBLAS.h
- * @brief Includes the core, storage, engine, tensor and version headers of SushiBLAS.
+ * @brief Includes the core, storage, tensor, engine and version headers and every operation
+ * family of SushiBLAS.
  * @author Mustafa Garip
  */
 
 #pragma once
 
-#include "core/common.hpp"
-#include "core/logger.hpp"
-#include "storage.hpp"
-#include "engine.hpp"
-#include "tensor.hpp"
-#include "version.hpp"
+#include <SushiBLAS/version.hpp>
+#include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/storage.hpp>
+#include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/tensor_factory.hpp>
+#include <SushiBLAS/engine.hpp>
 
+#include <SushiBLAS/io.hpp>
+#include <SushiBLAS/engine/blas.hpp>
+#include <SushiBLAS/engine/spatial.hpp>
+#include <SushiBLAS/engine/logic/logic.hpp>
+#include <SushiBLAS/engine/math/random.hpp>
+#include <SushiBLAS/engine/math/nonlinear.hpp>
+#include <SushiBLAS/engine/math/reductions.hpp>
+#include <SushiBLAS/engine/math/elementwise.hpp>
