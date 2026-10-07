@@ -95,9 +95,6 @@ namespace SushiBLAS
 
             /** @brief Independent execution units: SMs, CUs, or hardware threads. */
             std::size_t compute_units = 1;
-
-            /** @brief Global memory cache line, in bytes; 0 when the device won't say. */
-            std::size_t global_mem_cache_line = 0;
         };
 
         namespace Detail
@@ -114,8 +111,6 @@ namespace SushiBLAS
                     d.get_info<sycl::info::device::max_work_group_size>());
                 p.compute_units = static_cast<std::size_t>(
                     d.get_info<sycl::info::device::max_compute_units>());
-                p.global_mem_cache_line = static_cast<std::size_t>(
-                    d.get_info<sycl::info::device::global_mem_cache_line_size>());
 
                 const bool declares_local =
                     d.get_info<sycl::info::device::local_mem_type>() ==
@@ -178,6 +173,30 @@ namespace SushiBLAS
             const std::size_t clamped = std::min(target, p.max_work_group_size);
             const std::size_t whole = (clamped / p.sub_group_size) * p.sub_group_size;
             return whole ? whole : std::size_t{1};
+        }
+
+        /**
+         * @struct LocalTileDemand
+         * @brief Holds what a kernel that stages a tile in work-group local memory needs from a device.
+         */
+        struct LocalTileDemand
+        {
+            /** @brief Bytes of local memory one work-group allocates. */
+            std::size_t local_bytes = 0;
+
+            /** @brief Work-items in one work-group. */
+            std::size_t work_group_items = 1;
+        };
+
+        /**
+         * @brief Returns whether a device can host a work-group with demand's local memory and size.
+         * @see include/SushiBLAS/support/README.md
+         */
+        [[nodiscard]] inline bool hosts_local_tile(const Profile& p,
+                                                   const LocalTileDemand& demand) noexcept
+        {
+            return p.local_mem_bytes >= demand.local_bytes &&
+                   p.max_work_group_size >= demand.work_group_items;
         }
 
         /**
