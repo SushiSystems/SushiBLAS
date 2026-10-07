@@ -178,6 +178,25 @@ namespace SushiBLAS
             }
 
             /**
+             * @brief Throws as record_pair() would, for a caller that must refuse before a side effect.
+             * @throws std::invalid_argument under FORCE_REFERENCE when a declared tensor is
+             *         device-only USM.
+             */
+            void require_host_reachable(const OperandSet& operands, const char* family,
+                                        const char* name) const
+            {
+                if (mode_ != ExecutionMode::FORCE_REFERENCE || !operands.has_device_only_operand())
+                    return;
+
+                const std::string message = std::string(family) + " '" + name +
+                                            "' cannot run under FORCE_REFERENCE: an operand is "
+                                            "device-only USM, which the host reference kernel "
+                                            "cannot dereference.";
+                SB_LOG_ERROR("Invalid operand: {}", message);
+                throw std::invalid_argument(message);
+            }
+
+            /**
              * @brief Records a task that has a SYCL kernel only.
              * @param family What kind of operation this is, for the diagnostic.
              * @param body Callable `(sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`,
@@ -215,21 +234,6 @@ namespace SushiBLAS
             }
 
         private:
-            /** @brief Throws std::invalid_argument when the host kernel could not read an operand. */
-            void require_host_reachable(const OperandSet& operands, const char* family,
-                                        const char* name) const
-            {
-                if (mode_ != ExecutionMode::FORCE_REFERENCE || !operands.has_device_only_operand())
-                    return;
-
-                const std::string message = std::string(family) + " '" + name +
-                                            "' cannot run under FORCE_REFERENCE: an operand is "
-                                            "device-only USM, which the host reference kernel "
-                                            "cannot dereference.";
-                SB_LOG_ERROR("Invalid operand: {}", message);
-                throw std::invalid_argument(message);
-            }
-
             /** @brief Adds one task to the graph under a registration index drawn for it. */
             TaskHandle insert(const SushiRuntime::Graph::TaskMetadata& meta,
                               const OperandSet& operands, SushiRuntime::Graph::HostWork work)
