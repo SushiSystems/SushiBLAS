@@ -118,32 +118,23 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Reduces each segment of span to one element of out, in a fixed order.
+         * @brief Reduces each of segments index ranges `[0, extent)` to one value, in a fixed order.
+         * @tparam W The type a term is read in and folded in by Accum.
          * @param geometry Which shape to launch, normally plan_axis's answer.
-         * @param transform Callable `(T) -> T`, applied to each element before the fold.
-         * @param finalize Callable `(T value, std::size_t n) -> T`, applied once per segment.
-         * @return The event for the submitted kernel.
+         * @param open Callable `(std::size_t segment) -> Cursor`; a Cursor is callable `(std::size_t k) -> W`.
+         * @param store Callable `(std::size_t segment, W value)`, called once per segment.
          * @see include/SushiBLAS/support/README.md
          */
-        template<template<typename> class Accum, typename T,
-                 typename Transform, typename Finalize>
-        [[nodiscard]] sycl::event reduce_axis(sycl::queue& queue, const T* in, T* out,
-                                              const AxisSpan& span, const AxisPlan& geometry,
-                                              Transform transform, Finalize finalize,
-                                              const std::vector<sycl::event>& deps)
+        template<template<typename> class Accum, typename W, typename Open, typename Store>
+        [[nodiscard]] sycl::event reduce_segments(sycl::queue& queue, std::size_t segments,
+                                                  std::size_t extent, const AxisPlan& geometry,
+                                                  Open open, Store store,
+                                                  const std::vector<sycl::event>& deps)
         {
-            const std::size_t segments = span.segments;
-            const std::size_t extent = span.extent;
-            const std::size_t segment_stride = span.segment_stride;
-            const std::size_t element_stride = span.element_stride;
-            const std::size_t out_stride = span.out_stride;
-            const std::size_t segment_stride2 = span.segment_stride2;
-            const std::size_t total = span.total_segments();
-
             if (!geometry.cooperative())
             {
                 // One work-item folds one whole segment; see include/SushiBLAS/support/README.md.
-                const Device::Grid1D grid = Device::plan_1d(Device::profile_for(queue), total);
+                const Device::Grid1D grid = Device::plan_1d(Device::profile_for(queue), segments);
                 const std::size_t stride = grid.stride();
 
                 return queue.submit([&](sycl::handler& h)
@@ -151,18 +142,15 @@ namespace SushiBLAS
                     h.depends_on(deps);
                     h.parallel_for(grid.nd_range(), [=](sycl::nd_item<1> it)
                     {
-                        for (std::size_t s = it.get_global_id(0); s < total; s += stride)
+                        for (std::size_t s = it.get_global_id(0); s < segments; s += stride)
                         {
                             // The segment is folded in ascending index order and no other work-item touches it; see include/SushiBLAS/support/README.md.
-                            Accum<T> acc;
-                            // One division per fold; a segments2 == 1 kernel is not worth a second instantiation, see include/SushiBLAS/support/README.md.
-                            const std::size_t s2 = s / segments;
-                            const std::size_t s1 = s % segments;
-                            const T* base = in + s2 * segment_stride2 + s1 * segment_stride;
+                            const auto cursor = open(s);
+                            Accum<W> acc;
                             for (std::size_t k = 0; k < extent; ++k)
-                                acc.accumulate(transform(base[k * element_stride]));
+                                acc.accumulate(cursor(k));
 
-                            out[s * out_stride] = finalize(acc.value(), extent);
+                            store(s, acc.value());
                         }
                     });
                 });
@@ -174,24 +162,20 @@ namespace SushiBLAS
             {
                 h.depends_on(deps);
 
-                sycl::local_accessor<T, 1> tile(sycl::range<1>(local), h);
+                sycl::local_accessor<W, 1> tile(sycl::range<1>(local), h);
 
-                h.parallel_for(sycl::nd_range<1>(sycl::range<1>(total * local),
+                h.parallel_for(sycl::nd_range<1>(sycl::range<1>(segments * local),
                                                  sycl::range<1>(local)),
                                [=](sycl::nd_item<1> it)
                 {
                     const std::size_t s = it.get_group(0);
                     const std::size_t lid = it.get_local_id(0);
-
-                    // One division per fold; a segments2 == 1 kernel is not worth a second instantiation, see include/SushiBLAS/support/README.md.
-                    const std::size_t s2 = s / segments;
-                    const std::size_t s1 = s % segments;
-                    const T* base = in + s2 * segment_stride2 + s1 * segment_stride;
+                    const auto cursor = open(s);
 
                     // Lane l owns positions l, l + local, l + 2*local, fixed by the geometry; see include/SushiBLAS/support/README.md.
-                    Accum<T> acc;
+                    Accum<W> acc;
                     for (std::size_t k = lid; k < extent; k += local)
-                        acc.accumulate(transform(base[k * element_stride]));
+                        acc.accumulate(cursor(k));
 
                     tile[lid] = acc.value();
 
@@ -200,13 +184,156 @@ namespace SushiBLAS
                     // A fixed-order halving tree; local is a power of two; see include/SushiBLAS/support/README.md.
                     for (std::size_t off = local / 2; off > 0; off >>= 1)
                     {
-                        if (lid < off) tile[lid] = Accum<T>::combine(tile[lid], tile[lid + off]);
+                        if (lid < off) tile[lid] = Accum<W>::combine(tile[lid], tile[lid + off]);
                         sycl::group_barrier(it.get_group());
                     }
 
-                    if (lid == 0) out[s * out_stride] = finalize(tile[0], extent);
+                    if (lid == 0) store(s, tile[0]);
                 });
             });
+        }
+
+        namespace Detail
+        {
+            /**
+             * @brief Reads the elements of one segment of an AxisSpan, transformed and widened to W.
+             * @see include/SushiBLAS/support/README.md
+             */
+            template<typename T, typename W, typename Transform>
+            class AxisCursor final
+            {
+                public:
+                    /** @brief Binds the cursor to a segment's first element. */
+                    AxisCursor(const T* base, std::size_t element_stride, const Transform& transform)
+                        : base_(base), element_stride_(element_stride), transform_(transform)
+                    {
+
+                    }
+
+                    /** @brief Returns element k of the segment after the transform. */
+                    [[nodiscard]] W operator()(std::size_t k) const
+                    {
+                        return static_cast<W>(transform_(base_[k * element_stride_]));
+                    }
+
+                private:
+                    /// @brief The segment's first element.
+                    const T* base_;
+
+                    /// @brief Input elements between consecutive elements of the segment.
+                    std::size_t element_stride_;
+
+                    /// @brief The callable applied to each element before the fold.
+                    Transform transform_;
+            };
+
+            /**
+             * @brief Opens the segments of an AxisSpan for reduce_segments.
+             * @see include/SushiBLAS/support/README.md
+             */
+            template<typename T, typename W, typename Transform>
+            class AxisOpen final
+            {
+                public:
+                    /** @brief Binds the opener to an input array and its segment geometry. */
+                    AxisOpen(const T* in, const AxisSpan& span, const Transform& transform)
+                        : in_(in), segments_(span.segments), segment_stride_(span.segment_stride),
+                          segment_stride2_(span.segment_stride2),
+                          element_stride_(span.element_stride), transform_(transform)
+                    {
+
+                    }
+
+                    /** @brief Returns the cursor of segment s. */
+                    [[nodiscard]] AxisCursor<T, W, Transform> operator()(std::size_t s) const
+                    {
+                        // One division per fold; see include/SushiBLAS/support/README.md.
+                        const std::size_t s2 = s / segments_;
+                        const std::size_t s1 = s % segments_;
+                        return AxisCursor<T, W, Transform>(
+                            in_ + s2 * segment_stride2_ + s1 * segment_stride_, element_stride_,
+                            transform_);
+                    }
+
+                private:
+                    /// @brief The input's first element.
+                    const T* in_;
+
+                    /// @brief Segments per segment group.
+                    std::size_t segments_;
+
+                    /// @brief Input elements between the starts of consecutive segments.
+                    std::size_t segment_stride_;
+
+                    /// @brief Input elements between the starts of consecutive segment groups.
+                    std::size_t segment_stride2_;
+
+                    /// @brief Input elements between consecutive elements of one segment.
+                    std::size_t element_stride_;
+
+                    /// @brief The callable applied to each element before the fold.
+                    Transform transform_;
+            };
+
+            /**
+             * @brief Finalizes a segment's fold and stores it as T.
+             * @see include/SushiBLAS/support/README.md
+             */
+            template<typename T, typename W, typename Finalize>
+            class AxisStore final
+            {
+                public:
+                    /** @brief Binds the store to an output array and the segments' extent. */
+                    AxisStore(T* out, std::size_t out_stride, std::size_t extent,
+                              const Finalize& finalize)
+                        : out_(out), out_stride_(out_stride), extent_(extent), finalize_(finalize)
+                    {
+
+                    }
+
+                    /** @brief Writes `finalize(value, extent)` to the element of segment s. */
+                    void operator()(std::size_t s, W value) const
+                    {
+                        out_[s * out_stride_] = static_cast<T>(finalize_(value, extent_));
+                    }
+
+                private:
+                    /// @brief The output's first element.
+                    T* out_;
+
+                    /// @brief Output elements between consecutive results.
+                    std::size_t out_stride_;
+
+                    /// @brief How many elements each segment folded.
+                    std::size_t extent_;
+
+                    /// @brief The callable applied once to each segment's fold.
+                    Finalize finalize_;
+            };
+        } // namespace Detail
+
+        /**
+         * @brief Reduces each segment of span to one element of out, in a fixed order, folding in AccumulationOf<T>.
+         * @param geometry Which shape to launch, normally plan_axis's answer.
+         * @param transform Callable `(T) -> auto`, applied to each element before the fold.
+         * @param finalize Callable `(AccumulationOf<T> value, std::size_t n) -> auto`, applied once per segment.
+         * @return The event for the submitted kernel.
+         * @see include/SushiBLAS/support/README.md
+         */
+        template<template<typename> class Accum, typename T,
+                 typename Transform, typename Finalize>
+        [[nodiscard]] sycl::event reduce_axis(sycl::queue& queue, const T* in, T* out,
+                                              const AxisSpan& span, const AxisPlan& geometry,
+                                              Transform transform, Finalize finalize,
+                                              const std::vector<sycl::event>& deps)
+        {
+            using W = AccumulationOf<T>;
+
+            return reduce_segments<Accum, W>(
+                queue, span.total_segments(), span.extent, geometry,
+                Detail::AxisOpen<T, W, Transform>(in, span, transform),
+                Detail::AxisStore<T, W, Finalize>(out, span.out_stride, span.extent, finalize),
+                deps);
         }
 
     } // namespace Reduce

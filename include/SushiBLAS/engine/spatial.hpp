@@ -59,7 +59,7 @@ namespace SushiBLAS
              * @brief Gathers every window of an NHWC image into one row of a matrix.
              * @param out_h The output's row count.
              * @param out_w The output's column count.
-             * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g,
@@ -68,7 +68,7 @@ namespace SushiBLAS
             /**
              * @brief Gathers every window of an NHWC image into matrix rows, deriving the output extents from cols.
              * @pre The padding is symmetric.
-             * @throws std::runtime_error as the other overload, or when the width does not divide the row count.
+             * @throws std::invalid_argument as the other overload, or when the width does not divide the row count.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g);
@@ -77,7 +77,7 @@ namespace SushiBLAS
              * @brief Scatters an im2col matrix back onto an image by summing overlaps.
              * @param out_h The window grid's row count, im2col's `H_o`.
              * @param out_w The window grid's column count, im2col's `W_o`.
-             * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle col2im(const Tensor& cols, Tensor& image, const Spatial::ConvGeometry& g,
@@ -86,7 +86,7 @@ namespace SushiBLAS
             /**
              * @brief Takes each window's maximum and records where it came from.
              * @param indices Must be INT64 and shaped like out.
-             * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle pool_max(const Tensor& in, Tensor& out, Tensor& indices,
@@ -96,7 +96,7 @@ namespace SushiBLAS
              * @brief Routes each output gradient back to the element it was taken from.
              * @param indices The INT64 argmax buffer pool_max wrote.
              * @param g Must be the geometry the forward used.
-             * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle pool_max_backward(const Tensor& dy, const Tensor& indices, Tensor& dx,
@@ -104,7 +104,7 @@ namespace SushiBLAS
 
             /**
              * @brief Averages each window, dividing by the window's area.
-             * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle pool_avg(const Tensor& in, Tensor& out, const Spatial::ConvGeometry& g);
@@ -112,17 +112,49 @@ namespace SushiBLAS
             /**
              * @brief Spreads each output gradient evenly over the window it came from.
              * @param g Must be the geometry the forward used.
-             * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle pool_avg_backward(const Tensor& dy, Tensor& dx,
                                          const Spatial::ConvGeometry& g);
 
             /**
+             * @brief Sums each channel's window weighted by that channel's taps.
+             * @param weights The rank-3 `[kernel_h, kernel_w, C]` taps.
+             * @param out Its extents state `H_o` and `W_o`; a tap outside the input adds nothing.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree, or out overlaps an input.
+             * @see include/SushiBLAS/engine/README.md
+             */
+            TaskHandle window_dot(const Tensor& in, const Tensor& weights, Tensor& out,
+                                  const Spatial::ConvGeometry& g);
+
+            /**
+             * @brief Gathers onto each input element the gradients of the windows that read it, each times its tap.
+             * @param weights The taps the forward used.
+             * @param g Must be the geometry the forward used.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree, or dx overlaps an input.
+             * @see include/SushiBLAS/engine/README.md
+             */
+            TaskHandle window_dot_backward(const Tensor& dy, const Tensor& weights, Tensor& dx,
+                                           const Spatial::ConvGeometry& g);
+
+            /**
+             * @brief Sums, for each tap of each channel, every output gradient times the input element that tap read.
+             * @param in The forward's input.
+             * @param dweights The rank-3 `[kernel_h, kernel_w, C]` gradient of the taps.
+             * @param g Must be the geometry the forward used.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree, or dweights overlaps an input.
+             * @see include/SushiBLAS/engine/README.md
+             */
+            TaskHandle window_dot_weights_backward(const Tensor& dy, const Tensor& in,
+                                                   Tensor& dweights,
+                                                   const Spatial::ConvGeometry& g);
+
+            /**
              * @brief Repeats each input pixel over a scale_h by scale_w block.
              * @param out Its extents must be exactly `scale_h * H` by `scale_w * W`.
              * @param scale_h Must be positive, as must scale_w.
-             * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle upsample_nearest(const Tensor& in, Tensor& out,
@@ -131,7 +163,7 @@ namespace SushiBLAS
             /**
              * @brief Sums each output block back onto the pixel that produced it.
              * @param scale_h The factor the forward used, as is scale_w; both must be positive.
-             * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle upsample_nearest_backward(const Tensor& dy, Tensor& dx,
@@ -140,7 +172,7 @@ namespace SushiBLAS
             /**
              * @brief Copies all of src's channels into dst starting at a channel offset.
              * @pre src and dst agree on N, H and W.
-             * @throws std::runtime_error at record time, also when the range runs past dst's channel count.
+             * @throws std::invalid_argument at record time, also when the range runs past dst's channel count.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle concat_channels(const Tensor& src, Tensor& dst,
@@ -149,7 +181,7 @@ namespace SushiBLAS
             /**
              * @brief Copies a channel range out of src, filling all of dst.
              * @param dst Its channel count decides how many channels are copied.
-             * @throws std::runtime_error at record time, also when the range runs past src's channel count.
+             * @throws std::invalid_argument at record time, also when the range runs past src's channel count.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle slice_channels(const Tensor& src, int64_t src_channel_offset,
@@ -159,7 +191,7 @@ namespace SushiBLAS
              * @brief Applies a per-channel scale and shift: `out[n,h,w,c] = in[n,h,w,c] * gamma[c] + beta[c]`.
              * @param gamma The rank-1 `[C]` scale.
              * @param beta The rank-1 `[C]` shift.
-             * @throws std::runtime_error at record time when the ranks, dtypes or extents disagree.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle channel_affine(const Tensor& in, const Tensor& gamma,
@@ -167,7 +199,7 @@ namespace SushiBLAS
 
             /**
              * @brief Spreads an `[N, C]` value over `[N, H, W, C]`: `out[n,h,w,c] = in[n,c] * scale`.
-             * @throws std::runtime_error at record time when the ranks, dtypes or the N/C extents disagree.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or the N/C extents disagree.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle broadcast_spatial(const Tensor& in, Tensor& out, double scale);
@@ -175,7 +207,7 @@ namespace SushiBLAS
             /**
              * @brief Copies a rank-4 tensor element by logical `(n, c, h, w)` position.
              * @param out Its logical shape must match in's.
-             * @throws std::runtime_error at record time when the ranks, dtypes or logical shapes disagree.
+             * @throws std::invalid_argument at record time when the ranks, dtypes or logical shapes disagree.
              * @see include/SushiBLAS/engine/README.md
              */
             TaskHandle layout_convert(const Tensor& in, Tensor& out);

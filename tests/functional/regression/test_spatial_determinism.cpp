@@ -66,6 +66,13 @@ namespace SushiBLAS
                 }
             }
 
+            /** @brief Fills a buffer with ones, so a product with it keeps the other factor. */
+            void fill_ones(float* p, int64_t count)
+            {
+                for (int64_t i = 0; i < count; ++i)
+                    p[i] = 1.0f;
+            }
+
             /**
              * @brief Runs @p run twice and asserts the two results agree bit for bit.
              * @tparam Run A callable `(std::vector<uint32_t>&) -> void` that writes one pass's bits.
@@ -193,6 +200,70 @@ namespace SushiBLAS
                     capture(dx, sink);
                 },
                 N * H * W * C);
+        }
+
+        TEST_F(Regression_SpatialDeterminismTest, WindowDotBackwardIsBitReproducible)
+        {
+            // 3x3, stride 1, padded by one, unit taps: every interior pixel gathers nine terms.
+            const int64_t N = 2, H = 6, W = 7, C = 3;
+
+            Spatial::ConvGeometry g;
+            g.kernel_h = 3;
+            g.kernel_w = 3;
+            g.pad_top = 1;
+            g.pad_left = 1;
+
+            const int64_t out_h = Spatial::output_extent(H, 1, 1, 1, 3, 1);
+            const int64_t out_w = Spatial::output_extent(W, 1, 1, 1, 3, 1);
+
+            expect_bit_identical_across_runs(
+                [&](std::vector<uint32_t>& sink)
+                {
+                    auto dy = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
+                    fill_order_sensitive(dy.data_as<float>(), dy.num_elements);
+
+                    auto weights = engine->create_tensor({3, 3, C}, Core::DataType::FLOAT32);
+                    fill_ones(weights.data_as<float>(), weights.num_elements);
+
+                    auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+                    SushiBLAS::SpatialOps(*engine).window_dot_backward(dy, weights, dx, g);
+                    engine->execute();
+
+                    capture(dx, sink);
+                },
+                N * H * W * C);
+        }
+
+        TEST_F(Regression_SpatialDeterminismTest, WindowDotWeightsBackwardIsBitReproducible)
+        {
+            // 3x3, stride 1, padded by one, unit input: every tap folds up to 84 gradients.
+            const int64_t N = 2, H = 6, W = 7, C = 3;
+
+            Spatial::ConvGeometry g;
+            g.kernel_h = 3;
+            g.kernel_w = 3;
+            g.pad_top = 1;
+            g.pad_left = 1;
+
+            const int64_t out_h = Spatial::output_extent(H, 1, 1, 1, 3, 1);
+            const int64_t out_w = Spatial::output_extent(W, 1, 1, 1, 3, 1);
+
+            expect_bit_identical_across_runs(
+                [&](std::vector<uint32_t>& sink)
+                {
+                    auto dy = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
+                    fill_order_sensitive(dy.data_as<float>(), dy.num_elements);
+
+                    auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+                    fill_ones(in.data_as<float>(), in.num_elements);
+
+                    auto dweights = engine->create_tensor({3, 3, C}, Core::DataType::FLOAT32);
+                    SushiBLAS::SpatialOps(*engine).window_dot_weights_backward(dy, in, dweights, g);
+                    engine->execute();
+
+                    capture(dweights, sink);
+                },
+                3 * 3 * C);
         }
 
         TEST_F(Regression_SpatialDeterminismTest, UpsampleBackwardIsBitReproducible)
