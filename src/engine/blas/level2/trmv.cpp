@@ -28,8 +28,11 @@
 #include <SushiBLAS/engine/blas/level2.hpp>
 
 #include <vector>
+#include <cstddef>
 #include <complex>
 #include <kernels/blas.hpp>
+#include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/blas/task_metadata.hpp>
@@ -56,16 +59,20 @@ namespace SushiBLAS
         Dispatch::require_unbatched(a, op, "A");
         Dispatch::require_square(a, op, "A");
         const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
-        Dispatch::require_vector_length(vx, a.cols, "the order of A", op, "x");
+        Dispatch::require_vector_length(vx, a.rows, "the order of A", op, "x");
 
+        const int64_t n = a.rows;
+
+        // The SYCL kernel reads the old x from a snapshot while it writes the new one.
         OperandSet operands;
         operands.reads(A).updates(x);
+        const ScratchBuffer snapshot = Internal::allocate_blas_scratch(
+            recorder_, x, Core::bytes_per_element(A.dtype) * static_cast<std::size_t>(n), operands);
 
-        const Internal::BlasMetadata meta =
-            Internal::BlasMetadata(op, "blas.lvl2.trmv"_op).flag(uplo).flag(trans).flag(diag);
+        const Internal::BlasMetadata meta = Internal::BlasMetadata(op, "blas.lvl2.trmv"_op)
+                                                .flag(uplo).flag(trans).flag(diag);
 
         const Core::Layout layout = a.layout;
-        const int64_t n = a.cols;
         const int64_t lda = a.leading_dimension;
         const int64_t incx = vx.increment;
         const void* read_A = A.data_or_null();
@@ -78,6 +85,7 @@ namespace SushiBLAS
                 using T = decltype(scalar_type);
                 auto pA = static_cast<const T*>(read_A);
                 auto px = static_cast<T*>(rw_x);
+                auto work = static_cast<T*>(snapshot.data());
 
                 return dispatcher.run(q, deps,
                     [=]
@@ -88,7 +96,7 @@ namespace SushiBLAS
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
                         return Kernels::SYCL::trmv<T>(q2, layout, uplo, trans, diag, n, pA, lda,
-                                                      px, incx, deps2);
+                                                      px, incx, work, deps2);
                     });
             });
     }

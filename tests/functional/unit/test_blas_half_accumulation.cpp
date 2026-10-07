@@ -63,6 +63,13 @@ namespace SushiBLAS
         /// @brief Right-hand sides the TRSM cases solve in one call.
         constexpr int64_t K_RIGHT_HAND_SIDES = 3;
 
+        /** @brief Selects the order a backward step subtracts its solved elements in. */
+        enum class BackwardOrder : std::uint8_t
+        {
+            ASCENDING, /**< From the element after the step up to the last one. */
+            DESCENDING /**< From the last element down to the one after the step. */
+        };
+
         /**
          * @brief Runs HALF BLAS calls in a chosen execution mode, on all-ones operands and on a
          *        unit-lower system.
@@ -133,10 +140,12 @@ namespace SushiBLAS
                  *        right-hand side, each element rounded once to HALF.
                  * @tparam Sum The type the sum of a step is formed in.
                  * @tparam Carried The type a solved element is kept in between steps.
+                 * @param backward The order of the right side's steps; the left side ignores it.
                  */
                 template<typename Sum, typename Carried>
                 [[nodiscard]] static std::vector<sycl::half> substitute(Core::Side side,
-                                                                        int64_t rows, int64_t cols)
+                                                                        int64_t rows, int64_t cols,
+                                                                        BackwardOrder backward)
                 {
                     const std::vector<sycl::half> a = unit_lower_values();
                     const std::vector<sycl::half> b = right_hand_side_values(rows * cols);
@@ -183,8 +192,16 @@ namespace SushiBLAS
                             for (int64_t p = cols - 1; p >= 0; --p)
                             {
                                 Sum sum = static_cast<Sum>(static_cast<float>(b[at_b(i, p)]));
-                                for (int64_t q = p + 1; q < cols; ++q)
-                                    sum -= term(at_a(q, p), at_b(i, q));
+                                if (backward == BackwardOrder::DESCENDING)
+                                {
+                                    for (int64_t q = cols - 1; q > p; --q)
+                                        sum -= term(at_a(q, p), at_b(i, q));
+                                }
+                                else
+                                {
+                                    for (int64_t q = p + 1; q < cols; ++q)
+                                        sum -= term(at_a(q, p), at_b(i, q));
+                                }
                                 store(at_b(i, p), sum);
                             }
                         }
@@ -254,9 +271,12 @@ namespace SushiBLAS
                 template<typename Run>
                 void expect_carried_in_float(Core::Side side, int64_t rows, int64_t cols, Run run)
                 {
-                    const auto summed_in_float = substitute<float, float>(side, rows, cols);
-                    const auto summed_in_double = substitute<double, float>(side, rows, cols);
-                    const auto carried_in_half = substitute<float, sycl::half>(side, rows, cols);
+                    const auto summed_in_float =
+                        substitute<float, float>(side, rows, cols, BackwardOrder::DESCENDING);
+                    const auto summed_in_double =
+                        substitute<double, float>(side, rows, cols, BackwardOrder::ASCENDING);
+                    const auto carried_in_half =
+                        substitute<float, sycl::half>(side, rows, cols, BackwardOrder::DESCENDING);
 
                     EXPECT_TRUE(differs(summed_in_float, carried_in_half));
                     EXPECT_TRUE(differs(summed_in_double, carried_in_half));

@@ -53,12 +53,14 @@ namespace SushiBLAS
             {
                 /**
                  * @brief Returns one operand element, or zero for coordinates outside the matrix.
+                 * @tparam Access Brick with `T at(const T*, int64_t, int64_t) const`, such as
+                 *         OperandAccess or SymmetricAccess.
                  * @see include/SushiBLAS/kernels/README.md
                  */
-                template<typename T>
+                template<typename T, typename Access>
                 [[nodiscard]] inline T load_operand(const T* p, int64_t row, int64_t col,
                                                     int64_t rows, int64_t cols,
-                                                    OperandAccess s) noexcept
+                                                    const Access& s) noexcept
                 {
                     if (row >= rows || col >= cols) return T(0);
                     return s.at(p, row, col);
@@ -208,12 +210,12 @@ namespace SushiBLAS
                  * @param c Must not overlap A or B.
                  * @see include/SushiBLAS/kernels/README.md
                  */
-                template<typename T, typename Epilogue>
+                template<typename T, typename AccessA, typename AccessB, typename Epilogue>
                 [[nodiscard]] sycl::event gemm_local_tiled(
                     sycl::queue& queue,
                     int64_t m, int64_t n, int64_t k,
-                    T alpha, const T* a, OperandAccess a_access, int64_t str_a,
-                    const T* b, OperandAccess b_access, int64_t str_b,
+                    T alpha, const T* a, AccessA a_access, int64_t str_a,
+                    const T* b, AccessB b_access, int64_t str_b,
                     T beta, T* c, OperandAccess c_access, int64_t str_c,
                     int64_t batch_size, const std::vector<sycl::event>& deps,
                     Epilogue epilogue)
@@ -343,12 +345,12 @@ namespace SushiBLAS
                  * @param c Must not overlap A or B.
                  * @see include/SushiBLAS/kernels/README.md
                  */
-                template<typename T, typename Epilogue>
+                template<typename T, typename AccessA, typename AccessB, typename Epilogue>
                 [[nodiscard]] sycl::event gemm_no_local(
                     sycl::queue& queue, const Device::Profile& profile,
                     int64_t m, int64_t n, int64_t k,
-                    T alpha, const T* a, OperandAccess a_access, int64_t str_a,
-                    const T* b, OperandAccess b_access, int64_t str_b,
+                    T alpha, const T* a, AccessA a_access, int64_t str_a,
+                    const T* b, AccessB b_access, int64_t str_b,
                     T beta, T* c, OperandAccess c_access, int64_t str_c,
                     int64_t batch_size, const std::vector<sycl::event>& deps,
                     Epilogue epilogue)
@@ -443,29 +445,23 @@ namespace SushiBLAS
             } // namespace Detail
 
             /**
-             * @brief Computes `C = Epilogue(alpha * op(A) * op(B) + beta * C)` with the kernel the profile selects.
-             * @tparam Epilogue Functor `T operator()(T value, int64_t row, int64_t col) const`, applied before a store.
+             * @brief Computes `C = Epilogue(alpha * X * Y + beta * C)` for operands read through
+             *        access bricks, with the kernel the profile selects.
+             * @tparam AccessA Brick with `T at(const T*, int64_t, int64_t) const`; AccessB too.
              * @param beta Exactly zero skips reading C.
-             * @param c Must not overlap A or B.
+             * @param c Must not overlap a or b.
              * @see include/SushiBLAS/kernels/README.md
              */
-            template<typename T, typename Epilogue = GemmIdentityEpilogue>
-            [[nodiscard]] sycl::event gemm(sycl::queue& queue, Core::Layout layout,
-                            Core::Transpose transA, Core::Transpose transB,
+            template<typename T, typename AccessA, typename AccessB,
+                     typename Epilogue = GemmIdentityEpilogue>
+            [[nodiscard]] sycl::event gemm_accessed(sycl::queue& queue,
                             int64_t m, int64_t n, int64_t k,
-                            T alpha, const T* a, int64_t lda, int64_t str_a,
-                            const T* b, int64_t ldb, int64_t str_b,
-                            T beta, T* c, int64_t ldc, int64_t str_c,
+                            T alpha, const T* a, AccessA a_access, int64_t str_a,
+                            const T* b, AccessB b_access, int64_t str_b,
+                            T beta, T* c, OperandAccess c_access, int64_t str_c,
                             int64_t batch_size, const std::vector<sycl::event>& deps,
                             Epilogue epilogue = Epilogue{})
             {
-                const OperandAccess a_access = operand_access(layout, transA, lda);
-                const OperandAccess b_access = operand_access(layout, transB, ldb);
-
-                // C is never transposed in BLAS, so it only ever sees the layout.
-                const OperandAccess c_access =
-                    operand_access(layout, Core::Transpose::NO_TRANS, ldc);
-
                 using LocalCfg = Detail::GemmLocalTile<T>;
                 constexpr std::size_t local_bytes = LocalCfg::local_mem_bytes();
                 constexpr std::size_t local_items = static_cast<std::size_t>(LocalCfg::wg_items);
@@ -506,6 +502,32 @@ namespace SushiBLAS
                     b, b_access, str_b,
                     beta, c, c_access, str_c,
                     batch_size, deps, epilogue);
+            }
+
+            /**
+             * @brief Computes `C = Epilogue(alpha * op(A) * op(B) + beta * C)` with the kernel the profile selects.
+             * @tparam Epilogue Functor `T operator()(T value, int64_t row, int64_t col) const`, applied before a store.
+             * @param beta Exactly zero skips reading C.
+             * @param c Must not overlap A or B.
+             * @see include/SushiBLAS/kernels/README.md
+             */
+            template<typename T, typename Epilogue = GemmIdentityEpilogue>
+            [[nodiscard]] sycl::event gemm(sycl::queue& queue, Core::Layout layout,
+                            Core::Transpose transA, Core::Transpose transB,
+                            int64_t m, int64_t n, int64_t k,
+                            T alpha, const T* a, int64_t lda, int64_t str_a,
+                            const T* b, int64_t ldb, int64_t str_b,
+                            T beta, T* c, int64_t ldc, int64_t str_c,
+                            int64_t batch_size, const std::vector<sycl::event>& deps,
+                            Epilogue epilogue = Epilogue{})
+            {
+                // C is never transposed in BLAS, so it only ever sees the layout.
+                return gemm_accessed<T>(queue, m, n, k,
+                                        alpha, a, operand_access(layout, transA, lda), str_a,
+                                        b, operand_access(layout, transB, ldb), str_b,
+                                        beta, c,
+                                        operand_access(layout, Core::Transpose::NO_TRANS, ldc),
+                                        str_c, batch_size, deps, epilogue);
             }
 
         } // namespace SYCL

@@ -53,6 +53,30 @@ namespace SushiBLAS
                             BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
 
             /**
+             * @brief Records C = alpha * A * B + beta * C or C = alpha * B * A + beta * C for a
+             *        symmetric A, batched above rank 2.
+             * @param side LEFT multiplies A * B, RIGHT multiplies B * A.
+             * @param uplo The triangle of A that is read.
+             * @param C Must not overlap A or B; beta exactly zero skips reading it.
+             * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
+             */
+            TaskHandle symm(const Tensor& A, const Tensor& B, Tensor& C,
+                            Core::Side side, Core::Uplo uplo,
+                            BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
+
+            /**
+             * @brief Records C = alpha * A * B + beta * C or C = alpha * B * A + beta * C for a
+             *        Hermitian A, batched above rank 2.
+             * @param side LEFT multiplies A * B, RIGHT multiplies B * A.
+             * @param uplo The triangle of A that is read; its diagonal's imaginary part is not.
+             * @param C Must not overlap A or B; beta exactly zero skips reading it.
+             * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
+             */
+            TaskHandle hemm(const Tensor& A, const Tensor& B, Tensor& C,
+                            Core::Side side, Core::Uplo uplo,
+                            BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
+
+            /**
              * @brief Records the solution of a triangular system, overwriting B with X.
              * @param side LEFT solves op(A) * X = alpha * B, RIGHT solves X * op(A) = alpha * B.
              * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
@@ -80,6 +104,28 @@ namespace SushiBLAS
             TaskHandle herk(const Tensor& A, Tensor& C, Core::Uplo uplo,
                             Core::Transpose trans = Core::Transpose::NO_TRANS,
                             double alpha = 1.0, double beta = 0.0);
+
+            /**
+             * @brief Records the symmetric rank-2k update
+             *        C = alpha * op(A) * op(B)^T + alpha * op(B) * op(A)^T + beta * C.
+             * @param uplo The triangle of C that is updated.
+             * @param trans NO_TRANS or TRANS; CONJ_TRANS only for a real tensor, where it is TRANS.
+             * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
+             */
+            TaskHandle syr2k(const Tensor& A, const Tensor& B, Tensor& C, Core::Uplo uplo,
+                             Core::Transpose trans = Core::Transpose::NO_TRANS,
+                             BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
+
+            /**
+             * @brief Records the Hermitian rank-2k update
+             *        C = alpha * op(A) * op(B)^H + conj(alpha) * op(B) * op(A)^H + beta * C.
+             * @param uplo The triangle of C that is updated; its diagonal is left real.
+             * @param trans NO_TRANS or CONJ_TRANS for a complex tensor.
+             * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
+             */
+            TaskHandle her2k(const Tensor& A, const Tensor& B, Tensor& C, Core::Uplo uplo,
+                             Core::Transpose trans = Core::Transpose::NO_TRANS,
+                             BlasScalar alpha = 1.0, double beta = 0.0);
 
         protected:
             /** @brief Binds the recorder every operation records on; it must outlive this view. */

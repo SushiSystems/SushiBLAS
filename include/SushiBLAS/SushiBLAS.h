@@ -34,10 +34,14 @@
 #include <SushiBLAS/storage.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/tensor_factory.hpp>
+#include <SushiBLAS/sparse_vector.hpp>
+#include <SushiBLAS/sparse_matrix.hpp>
+#include <SushiBLAS/sparse_builder.hpp>
 #include <SushiBLAS/engine.hpp>
 
 #include <SushiBLAS/io.hpp>
 #include <SushiBLAS/engine/blas.hpp>
+#include <SushiBLAS/engine/sparse.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/engine/logic/logic.hpp>
 #include <SushiBLAS/engine/math/random.hpp>

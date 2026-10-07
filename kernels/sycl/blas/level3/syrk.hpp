@@ -24,7 +24,7 @@
 
 /**
  * @file syrk.hpp
- * @brief Defines the tiled SYCL kernel of SYRK and its tile geometry.
+ * @brief Defines the SYCL kernels of SYRK and HERK, their tile geometry and their packed store.
  * @author Mustafa Garip
  */
 
@@ -33,6 +33,7 @@
 #include <vector>
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
@@ -42,7 +43,9 @@
 #include <SushiBLAS/support/complex_arithmetic.hpp>
 #include <SushiBLAS/kernels/blas/conjugation.hpp>
 #include <SushiBLAS/kernels/blas/operand_access.hpp>
+#include <SushiBLAS/kernels/blas/level3/packed_product_plan.hpp>
 #include <SushiBLAS/kernels/sycl/blas/level3/gemm.hpp>
+#include <SushiBLAS/kernels/sycl/blas/level3/packed_product.hpp>
 
 namespace SushiBLAS
 {
@@ -90,13 +93,75 @@ namespace SushiBLAS
                                sizeof(T);
                     }
                 };
+
+                /**
+                 * @brief Stores one triangle of a packed SYRK or HERK: alpha * sum + beta * C.
+                 * @tparam Conj Unconjugated for SYRK, Conjugated for HERK.
+                 * @tparam Scalar The type of alpha and beta: T, or its real component for HERK.
+                 * @see kernels/README.md
+                 */
+                template<typename T, typename Conj, typename Scalar>
+                class SyrkStore final
+                {
+                    public:
+                        /** @brief Binds the triangle, the scalars and the addressing of C. */
+                        SyrkStore(bool upper, Scalar alpha, Scalar beta,
+                                  OperandAccess c_access) noexcept
+                            : upper_(upper), alpha_(alpha), beta_(beta), c_access_(c_access)
+                        {
+
+                        }
+
+                        /** @brief Returns whether a macro-block holds part of the triangle. */
+                        [[nodiscard]] bool wants(int64_t row0, int64_t rows,
+                                                 int64_t col0, int64_t cols) const noexcept
+                        {
+                            return upper_ ? (col0 + cols - 1 >= row0) : (row0 + rows - 1 >= col0);
+                        }
+
+                        /**
+                         * @brief Writes element (row, col) of one matrix if the triangle holds it.
+                         * @param c The first element of the matrix.
+                         */
+                        void operator()(T* c, int64_t row, int64_t col, Accumulator<T> sum) const
+                        {
+                            using W = Accumulator<T>;
+                            using WS = Accumulator<Scalar>;
+
+                            if (upper_ ? (col < row) : (col > row))
+                                return;
+
+                            const int64_t c_idx = c_access_.index(row, col);
+
+                            // A zero beta must not read C, whose prior value may be uninitialised.
+                            const W updated = (beta_ == Scalar(0))
+                                ? W(multiply(WS(alpha_), sum))
+                                : W(multiply(WS(alpha_), sum) + multiply(WS(beta_), W(c[c_idx])));
+
+                            c[c_idx] = T((row == col) ? Conj::diagonal(updated) : updated);
+                        }
+
+                    private:
+                        /// @brief Whether the upper triangle is the one stored.
+                        bool upper_;
+
+                        /// @brief The scale of the product.
+                        Scalar alpha_;
+
+                        /// @brief The scale of the prior C; exactly zero skips reading it.
+                        Scalar beta_;
+
+                        /// @brief How element (row, col) of C is addressed.
+                        OperandAccess c_access_;
+                };
             } // namespace Detail
 
             /**
-             * @brief Computes C = alpha*op(A)*Conj(op(A))^T + beta*C on one triangle of C, tiled
-             *        through local memory.
+             * @brief Computes C = alpha*op(A)*Conj(op(A))^T + beta*C on one triangle of C, packed
+             *        where the profile selects it and tiled through local memory elsewhere.
              * @tparam Conj Unconjugated for SYRK, Conjugated for HERK.
              * @tparam Scalar The type of alpha and beta: T, or its real component for HERK.
+             * @param scratch Device memory for the packed panels; may be null.
              * @throws std::runtime_error When the device cannot host the tile's work-group.
              * @see kernels/README.md
              */
@@ -106,7 +171,8 @@ namespace SushiBLAS
                              int64_t n, int64_t k,
                              Scalar alpha, const T* a, int64_t lda, int64_t str_a,
                              Scalar beta, T* c, int64_t ldc, int64_t str_c,
-                             int64_t batch_size, const std::vector<sycl::event>& deps)
+                             int64_t batch_size, void* scratch, std::size_t scratch_bytes,
+                             const std::vector<sycl::event>& deps)
             {
                 using W = Accumulator<T>;
                 using WS = Accumulator<Scalar>;
@@ -128,6 +194,25 @@ namespace SushiBLAS
                     operand_access(layout, Core::Transpose::NO_TRANS, ldc);
 
                 const Device::Profile& profile = Device::profile_for(queue);
+                const PackedProductPlan packed =
+                    plan_packed_product<T>(profile, n, n, k, batch_size);
+
+                if (packed_product_is_ready(packed, scratch, scratch_bytes))
+                {
+                    // The second factor is op(A) transposed, conjugated once more under Conjugated.
+                    OperandAccess second = a_access.transposed();
+                    second.conjugated = (a_access.conjugated != std::is_same_v<Conj, Conjugated>);
+
+                    SB_LOG_INFO("SYCL SYRK [packed]: batch={} {}x{} k={} block={}x{}x{} workers={}",
+                                batch_size, n, n, k, packed.block_rows, packed.block_cols,
+                                packed.block_depth, packed.workers);
+
+                    return Detail::packed_product<T>(
+                        queue, packed, n, n, k, a, a_access, str_a, a, second, str_a,
+                        c, str_c, scratch, deps,
+                        Detail::SyrkStore<T, Conj, Scalar>(upper, alpha, beta, c_access));
+                }
+
                 const Device::LocalTileDemand demand{Cfg::local_mem_bytes(),
                                                      static_cast<std::size_t>(Cfg::wg_items)};
                 SB_THROW_IF(!Device::hosts_local_tile(profile, demand),

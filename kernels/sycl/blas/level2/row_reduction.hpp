@@ -21,7 +21,7 @@
 
 /**
  * @file row_reduction.hpp
- * @brief Defines the work-group-per-row reduction GEMV and SYMV share.
+ * @brief Defines the work-group-per-row reduction GEMV, SYMV and TRMV share.
  * @author Mustafa Garip
  */
 
@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/support/reduce_1d.hpp>
 
@@ -54,16 +55,57 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Launches one work-group per row; each folds `element(row, k)` over k in a fixed-order tree.
-                 * @tparam T The partial type: Accumulator of the element type.
-                 * @tparam Element Callable `(int64_t row, int64_t k) -> T`.
-                 * @tparam Store Callable `(int64_t row, T sum)`, called once per row by local item 0.
-                 * @pre width is a power of two returned by row_reduction_width.
+                 * @brief Holds the columns one row folds: first up to, and not including, last.
                  * @see kernels/README.md
                  */
-                template<typename T, typename Element, typename Store>
-                void reduce_rows_by_group(sycl::handler& h, int64_t rows, int64_t len,
-                                          std::size_t width, Element element, Store store)
+                struct RowWindow
+                {
+                    int64_t first = 0; /**< The first column folded. */
+                    int64_t last = 0;  /**< One past the last column folded. */
+                };
+
+                /**
+                 * @brief Gives every row the same window, the whole row.
+                 * @see kernels/README.md
+                 */
+                struct WholeRow
+                {
+                    int64_t length = 0; /**< Columns in a row. */
+
+                    /** @brief Returns the window of a row: every column. */
+                    [[nodiscard]] constexpr RowWindow operator()(int64_t) const noexcept
+                    {
+                        return RowWindow{0, length};
+                    }
+                };
+
+                /**
+                 * @brief Gives row i of a triangular matrix its stored columns, diagonal included.
+                 * @see kernels/README.md
+                 */
+                struct TriangleRow
+                {
+                    int64_t order = 0;  /**< Rows and columns of the matrix. */
+                    bool upper = false; /**< Whether row i holds the columns from i on. */
+
+                    /** @brief Returns [row, order) for an upper row, [0, row] for a lower one. */
+                    [[nodiscard]] constexpr RowWindow operator()(int64_t row) const noexcept
+                    {
+                        return upper ? RowWindow{row, order} : RowWindow{0, row + 1};
+                    }
+                };
+
+                /**
+                 * @brief Launches one work-group per row; each folds `element(row, k)` over the
+                 *        row's window in a fixed-order tree.
+                 * @tparam T The partial type: Accumulator of the element type.
+                 * @tparam Window Callable `(int64_t row) -> RowWindow`.
+                 * @pre width is a power of two from row_reduction_width, and rows is above zero.
+                 * @see kernels/README.md
+                 */
+                template<typename T, typename Window, typename Element, typename Store>
+                void reduce_row_windows_by_group(sycl::handler& h, int64_t rows, std::size_t width,
+                                                 Window window, Element element, Store store)
                 {
                     sycl::local_accessor<T, 1> tile(sycl::range<1>(width), h);
                     const std::size_t global = static_cast<std::size_t>(rows) * width;
@@ -74,9 +116,11 @@ namespace SushiBLAS
                         const int64_t row = static_cast<int64_t>(it.get_group(0));
                         const std::size_t lid = it.get_local_id(0);
                         const int64_t step = static_cast<int64_t>(width);
+                        const RowWindow columns = window(row);
 
                         T sum(0);
-                        for (int64_t k = static_cast<int64_t>(lid); k < len; k += step)
+                        const int64_t lane = static_cast<int64_t>(lid);
+                        for (int64_t k = columns.first + lane; k < columns.last; k += step)
                             sum += element(row, k);
                         tile[lid] = sum;
 
@@ -91,6 +135,22 @@ namespace SushiBLAS
 
                         if (lid == 0) store(row, tile[0]);
                     });
+                }
+
+                /**
+                 * @brief Launches one work-group per row; each folds `element(row, k)` over k in a fixed-order tree.
+                 * @tparam T The partial type: Accumulator of the element type.
+                 * @tparam Element Callable `(int64_t row, int64_t k) -> T`.
+                 * @tparam Store Callable `(int64_t row, T sum)`, called once per row by local item 0.
+                 * @pre width is a power of two returned by row_reduction_width.
+                 * @see kernels/README.md
+                 */
+                template<typename T, typename Element, typename Store>
+                void reduce_rows_by_group(sycl::handler& h, int64_t rows, int64_t len,
+                                          std::size_t width, Element element, Store store)
+                {
+                    reduce_row_windows_by_group<T>(h, rows, width, WholeRow{len},
+                                                   std::move(element), std::move(store));
                 }
             } // namespace Detail
         } // namespace SYCL

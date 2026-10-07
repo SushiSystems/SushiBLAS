@@ -43,6 +43,7 @@
 #include <SushiBLAS/support/reduce_1d.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/support/running_solution.hpp>
+#include <SushiBLAS/kernels/blas/level3/packed_product_plan.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
@@ -147,6 +148,60 @@ namespace SushiBLAS
             const std::size_t partials =
                 Reduce::planned_partials(Device::profile_for(x.get_device()), elements);
             return allocate_blas_scratch(recorder, x, partials * partial_bytes, operands);
+        }
+
+        /**
+         * @brief Returns the scratch bytes a packed product of dtype needs on a device.
+         * @return 0 when the profile does not select the packed kernel, or for an integer dtype.
+         */
+        [[nodiscard]] inline std::size_t
+        packed_product_scratch_bytes(Core::DataType dtype, const Device::Profile& profile,
+                                     int64_t m, int64_t n, int64_t k,
+                                     int64_t batch_size) noexcept
+        {
+            Kernels::PackedProductPlan plan;
+            switch (dtype)
+            {
+                case Core::DataType::HALF:
+                    plan = Kernels::plan_packed_product<sycl::half>(profile, m, n, k, batch_size);
+                    break;
+                case Core::DataType::FLOAT32:
+                    plan = Kernels::plan_packed_product<float>(profile, m, n, k, batch_size);
+                    break;
+                case Core::DataType::FLOAT64:
+                    plan = Kernels::plan_packed_product<double>(profile, m, n, k, batch_size);
+                    break;
+                case Core::DataType::COMPLEX32:
+                    plan = Kernels::plan_packed_product<std::complex<float>>(profile, m, n, k,
+                                                                             batch_size);
+                    break;
+                case Core::DataType::COMPLEX64:
+                    plan = Kernels::plan_packed_product<std::complex<double>>(profile, m, n, k,
+                                                                              batch_size);
+                    break;
+                case Core::DataType::INT32:
+                case Core::DataType::INT64:
+                    break;
+            }
+            return plan.selected ? plan.scratch_bytes : std::size_t{0};
+        }
+
+        /**
+         * @brief Leases the panels an m x n product of k terms stages, on the device of C.
+         * @return An empty buffer when the profile of that device does not select the packed
+         *         kernel, and wherever allocate_blas_scratch returns one.
+         */
+        [[nodiscard]] inline ScratchBuffer
+        allocate_packed_product_scratch(TaskRecorder& recorder, const Tensor& C,
+                                        int64_t m, int64_t n, int64_t k, int64_t batch_size,
+                                        OperandSet& operands)
+        {
+            if (!C.storage)
+                return ScratchBuffer();
+
+            const std::size_t bytes = packed_product_scratch_bytes(
+                C.dtype, Device::profile_for(C.get_device()), m, n, k, batch_size);
+            return allocate_blas_scratch(recorder, C, bytes, operands);
         }
 
         /**

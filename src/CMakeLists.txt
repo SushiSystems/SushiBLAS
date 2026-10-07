@@ -13,6 +13,7 @@ set(SUSHIBLAS_SOURCES
 
     # IO & Utilities
     io.cpp
+    sparse_builder.cpp
 
     # BLAS: Level 1
     engine/blas/level1/axpy.cpp
@@ -24,6 +25,9 @@ set(SUSHIBLAS_SOURCES
     engine/blas/level1/rot.cpp
     engine/blas/level1/scal.cpp
     engine/blas/level1/swap.cpp
+    engine/blas/level1/rotg.cpp
+    engine/blas/level1/rotm.cpp
+    engine/blas/level1/rotmg.cpp
 
     # BLAS: Level 2
     engine/blas/level2/gemv.cpp
@@ -31,6 +35,15 @@ set(SUSHIBLAS_SOURCES
     engine/blas/level2/symv.cpp
     engine/blas/level2/trmv.cpp
     engine/blas/level2/trsv.cpp
+    engine/blas/level2/gbmv.cpp
+    engine/blas/level2/sbmv.cpp
+    engine/blas/level2/tbmv.cpp
+    engine/blas/level2/tbsv.cpp
+    engine/blas/level2/spmv.cpp
+    engine/blas/level2/tpmv.cpp
+    engine/blas/level2/tpsv.cpp
+    engine/blas/level2/spr.cpp
+    engine/blas/level2/spr2.cpp
     engine/blas/level2/syr.cpp
     engine/blas/level2/syr2.cpp
 
@@ -38,6 +51,8 @@ set(SUSHIBLAS_SOURCES
     engine/blas/level3/gemm.cpp
     engine/blas/level3/syrk.cpp
     engine/blas/level3/trsm.cpp
+    engine/blas/level3/symm.cpp
+    engine/blas/level3/syr2k.cpp
 
     # Math: Random
     engine/math/random/bernoulli.cpp
@@ -132,6 +147,8 @@ set(SUSHIBLAS_SOURCES
     engine/spatial/pool_max_backward.cpp
     engine/spatial/pool_avg.cpp
     engine/spatial/upsample_nearest.cpp
+    engine/spatial/window_dot.cpp
+    engine/spatial/window_dot_weights_backward.cpp
     engine/spatial/channels.cpp
     engine/spatial/broadcast.cpp
 
@@ -152,6 +169,18 @@ set(SUSHIBLAS_SOURCES
     engine/logic/where.cpp
     engine/logic/all.cpp
     engine/logic/any.cpp
+
+    # --- Sparse ---
+    engine/sparse/axpyi.cpp
+    engine/sparse/doti.cpp
+    engine/sparse/gthr.cpp
+    engine/sparse/gthrz.cpp
+    engine/sparse/roti.cpp
+    engine/sparse/sctr.cpp
+    engine/sparse/spmv.cpp
+    engine/sparse/spmm.cpp
+    engine/sparse/spsymv.cpp
+    engine/sparse/sptrsv.cpp
 )
 
 add_library(sushiblas STATIC ${SUSHIBLAS_SOURCES})
