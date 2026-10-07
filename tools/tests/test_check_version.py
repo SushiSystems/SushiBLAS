@@ -22,6 +22,7 @@ from versioning.check_version import (  # noqa: E402
     Repository,
     Version,
     collect,
+    rule_changelog,
     rule_cli_package,
     rule_doxyfile,
     rule_module_manifest,
@@ -36,6 +37,8 @@ K_DOXYFILE = "Doxyfile"
 K_PYPROJECT = "cli/pyproject.toml"
 K_MANIFEST = "sushi-module.toml"
 K_README = "README.md"
+K_CHANGELOG = "docs/reference/CHANGELOG.md"
+K_CMAKE_0_1_0 = "cmake_minimum_required(VERSION 3.20)\n\nproject(SushiBLAS VERSION 0.1.0)\n"
 
 K_AGREEING = {
     K_CMAKE: (
@@ -88,6 +91,7 @@ class RegistrationTest(unittest.TestCase):
                 "rule_cli_package",
                 "rule_module_manifest",
                 "rule_readme",
+                "rule_changelog",
             ],
         )
 
@@ -268,6 +272,45 @@ class MissingTest(unittest.TestCase):
             repository = _repository(folder, {K_CMAKE: text})
             self.assertIsNone(repository.version)
             self.assertEqual(len(list(rule_source_version(repository))), 1)
+
+
+class ChangelogTest(unittest.TestCase):
+    """Checks the release heading of the changelog against project()."""
+
+    def _issues(self, folder: str, changelog: str | None) -> list[Issue]:
+        """Returns what rule_changelog reports for one changelog text against project() 0.1.0."""
+        changes = {K_CMAKE: K_CMAKE_0_1_0, K_CHANGELOG: changelog}
+        return list(rule_changelog(_repository(folder, changes)))
+
+    def test_a_changelog_without_a_release_is_accepted(self) -> None:
+        """Reports nothing for a changelog that holds only the Unreleased heading."""
+        text = "# Changelog\n\n## Unreleased\n\n- 2026-10-07 — tools: Added a rule.\n"
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(self._issues(folder, text), [])
+
+    def test_a_release_heading_that_agrees_is_accepted(self) -> None:
+        """Reports nothing for a release or a pre-release heading of the project() version."""
+        for heading in ("## v0.1.0 — 2026-10-20", "## v0.1.0-rc.1 — 2026-10-20"):
+            text = f"# Changelog\n\n## Unreleased\n\n{heading}\n\n- An entry.\n"
+            with self.subTest(heading=heading), tempfile.TemporaryDirectory() as folder:
+                self.assertEqual(self._issues(folder, text), [])
+
+    def test_a_release_heading_that_disagrees_is_reported_at_its_line(self) -> None:
+        """Reports a release heading of another version at the line of the heading."""
+        text = "# Changelog\n\n## Unreleased\n\n## v0.2.0 — 2026-11-01\n\n- An entry.\n"
+        with tempfile.TemporaryDirectory() as folder:
+            issues = self._issues(folder, text)
+            found = [(issue.path.as_posix().endswith(K_CHANGELOG), issue.line) for issue in issues]
+            self.assertEqual(found, [(True, 5)])
+            self.assertEqual(
+                issues[0].message,
+                "release heading is '0.2.0', CMakeLists.txt:3 expects 0.1.0",
+            )
+
+    def test_a_missing_changelog_is_not_a_finding(self) -> None:
+        """Reports nothing when docs/reference/CHANGELOG.md is absent."""
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(self._issues(folder, None), [])
 
 
 class CommandLineTest(unittest.TestCase):

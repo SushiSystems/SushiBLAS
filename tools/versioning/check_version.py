@@ -118,6 +118,14 @@ K_README_FILE = "README.md"
 K_README_COPIES = (
     Copy("SushiBLAS x.y.z", re.compile(r"\bSushiBLAS\s+(v?\d+\.\d+\.\d+)\b"), _dotted, prefix="v"),
 )
+K_CHANGELOG_FILE = "docs/reference/CHANGELOG.md"
+K_CHANGELOG_COPIES = (
+    Copy(
+        "release heading",
+        re.compile(r"^## v(\d+\.\d+\.\d+)(?:-[0-9A-Za-z.]+)? — "),
+        _dotted,
+    ),
+)
 
 
 def read_source_version(root: Path) -> tuple[Version | None, int]:
@@ -196,6 +204,7 @@ rule_doxyfile = _copy_rule(K_DOXYFILE, K_DOXYFILE_COPIES, required=True)
 rule_cli_package = _copy_rule(K_CLI_PACKAGE_FILE, K_CLI_PACKAGE_COPIES, required=True)
 rule_module_manifest = _copy_rule(K_MODULE_MANIFEST_FILE, K_MODULE_MANIFEST_COPIES, required=False)
 rule_readme = _copy_rule(K_README_FILE, K_README_COPIES, required=False)
+rule_changelog = _copy_rule(K_CHANGELOG_FILE, K_CHANGELOG_COPIES, required=False)
 
 K_CHECKER = Checker(
     description="Checks every copy of the version against project() in the root CMakeLists.txt.",
@@ -207,6 +216,7 @@ K_CHECKER = Checker(
         "rule_cli_package": rule_cli_package,
         "rule_module_manifest": rule_module_manifest,
         "rule_readme": rule_readme,
+        "rule_changelog": rule_changelog,
     },
 )
 
