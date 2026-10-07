@@ -30,7 +30,10 @@
 #include <vector>
 #include <cstddef>
 #include <cstdint>
+#include <algorithm>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/support/reduce_1d.hpp>
 
 namespace SushiBLAS
 {
@@ -64,11 +67,8 @@ namespace SushiBLAS
                     /** @brief Returns the largest power of two at most K_ORTHO_MAX_GROUP that the device accepts. */
                     inline std::size_t ortho_group_size(const sycl::queue& q)
                     {
-                        const std::size_t device_max = q.get_device().get_info<sycl::info::device::max_work_group_size>();
-                        std::size_t group = K_ORTHO_MAX_GROUP;
-                        while (group > device_max)
-                            group /= 2;
-                        return group;
+                        return Reduce::floor_pow2(
+                            std::min(K_ORTHO_MAX_GROUP, Device::profile_for(q).max_work_group_size));
                     }
 
                     /** @brief Returns the squared norm at or below which a vector counts as zero. */

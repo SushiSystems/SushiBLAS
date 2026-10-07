@@ -232,14 +232,15 @@ namespace SushiBLAS
         } // namespace Detail
 
         /**
-         * @brief Launches `out[i] = op(in0[i], ..., inM[i])` over n elements.
-         * @param aligned Whether out and every input satisfy is_vector_aligned.
+         * @brief Launches `out[i] = op(in0[i], ..., inM[i])` over n elements in a given shape.
+         * @pre shape.vector_steps * K_VECTOR_WIDTH<T> <= n, and out and every input satisfy
+         *      is_vector_aligned when shape.vector_steps is above zero.
          * @param op Device-copyable, captures by value, holds no host pointer, allocates and throws nothing.
          * @param out May alias an input at the same index only.
          * @see include/SushiBLAS/support/README.md
          */
         template<typename Func, typename T, typename... Ins>
-        inline void map(sycl::handler& h, const sycl::queue& q, std::size_t n, bool aligned,
+        inline void map(sycl::handler& h, const Shape1D& shape, std::size_t n,
                         Func op, T* out, const Ins*... ins)
         {
             static_assert(sizeof...(Ins) >= 1, "An elementwise map needs at least one input array.");
@@ -251,9 +252,10 @@ namespace SushiBLAS
             using seq_t = std::make_index_sequence<arity>;
 
             const std::array<const T*, arity> in{ins...};
-            const Shape1D shape = plan<T>(q, n, aligned);
             const std::size_t stride = shape.grid.stride();
-            const std::size_t steps = shape.vector_steps;
+
+            // A type whose K_VECTOR_WIDTH is 1 has no wide pass, whatever the shape asks for.
+            const std::size_t steps = (width > 1) ? shape.vector_steps : std::size_t{0};
             const std::size_t tail = steps * static_cast<std::size_t>(width);
 
             if (shape.flat)
@@ -292,13 +294,26 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Launches `op(t0[i], ..., tN-1[i])` over n elements with every slot writable.
+         * @brief Launches `out[i] = op(in0[i], ..., inM[i])` over n elements in the shape the queue's device plans.
+         * @param aligned Whether out and every input satisfy is_vector_aligned.
+         * @see include/SushiBLAS/support/README.md
+         */
+        template<typename Func, typename T, typename... Ins>
+        inline void map(sycl::handler& h, const sycl::queue& q, std::size_t n, bool aligned,
+                        Func op, T* out, const Ins*... ins)
+        {
+            map(h, plan<T>(q, n, aligned), n, std::move(op), out, ins...);
+        }
+
+        /**
+         * @brief Launches `op(t0[i], ..., tN-1[i])` over n elements in a given shape, every slot writable.
+         * @pre The preconditions of the shape form of map, for every array in ptrs.
          * @param ptrs The arrays to update, in the order op expects; they must not overlap each other.
          * @param op Callable `(auto&...) -> void` under the same device-kernel constraints as map.
          * @see include/SushiBLAS/support/README.md
          */
         template<typename T, std::size_t N, typename Func>
-        inline void zip_inplace(sycl::handler& h, const sycl::queue& q, std::size_t n, bool aligned,
+        inline void zip_inplace(sycl::handler& h, const Shape1D& shape, std::size_t n,
                                 const std::array<T*, N>& ptrs, Func op)
         {
             static_assert(N >= 1, "A fused in-place update needs at least one operand.");
@@ -307,9 +322,8 @@ namespace SushiBLAS
             using seq_t = std::make_index_sequence<N>;
 
             const std::array<T*, N> p = ptrs;
-            const Shape1D shape = plan<T>(q, n, aligned);
             const std::size_t stride = shape.grid.stride();
-            const std::size_t steps = shape.vector_steps;
+            const std::size_t steps = (width > 1) ? shape.vector_steps : std::size_t{0};
             const std::size_t tail = steps * static_cast<std::size_t>(width);
 
             if (shape.flat)
@@ -359,14 +373,25 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Launches `op(i)` once for each index in `[0, n)`, with no wide path.
+         * @brief Launches `op(t0[i], ..., tN-1[i])` over n elements in the shape the queue's device plans.
+         * @param aligned Whether every array in ptrs satisfies is_vector_aligned.
+         * @see include/SushiBLAS/support/README.md
+         */
+        template<typename T, std::size_t N, typename Func>
+        inline void zip_inplace(sycl::handler& h, const sycl::queue& q, std::size_t n, bool aligned,
+                                const std::array<T*, N>& ptrs, Func op)
+        {
+            zip_inplace(h, plan<T>(q, n, aligned), n, ptrs, std::move(op));
+        }
+
+        /**
+         * @brief Launches `op(i)` once for each index in `[0, n)` in a given shape, with no wide path.
          * @param op Callable `(std::size_t i) -> void` under the same device-kernel constraints as map.
          * @see include/SushiBLAS/support/README.md
          */
         template<typename Func>
-        inline void indexed(sycl::handler& h, const sycl::queue& q, std::size_t n, Func op)
+        inline void indexed(sycl::handler& h, const Shape1D& shape, std::size_t n, Func op)
         {
-            const Shape1D shape = plan_scalar(q, n);
             const std::size_t stride = shape.grid.stride();
 
             if (shape.flat)
@@ -382,6 +407,16 @@ namespace SushiBLAS
             {
                 for (std::size_t i = it.get_global_id(0); i < n; i += stride) op(i);
             });
+        }
+
+        /**
+         * @brief Launches `op(i)` once for each index in `[0, n)` in the shape the queue's device plans.
+         * @see include/SushiBLAS/support/README.md
+         */
+        template<typename Func>
+        inline void indexed(sycl::handler& h, const sycl::queue& q, std::size_t n, Func op)
+        {
+            indexed(h, plan_scalar(q, n), n, std::move(op));
         }
 
     } // namespace Launch
