@@ -700,7 +700,8 @@ namespace SushiBLAS
 
             auto global_sums = engine->create_tensor({kRows});
 
-            SushiBLAS::BLASOps(*engine).gemv(ones_column, global_max, peak_row, false, 1.0f, 0.0f);
+            SushiBLAS::BLASOps(*engine).gemv(ones_column, global_max, peak_row,
+                                             Core::Transpose::NO_TRANS, 1.0f, 0.0f);
             SushiBLAS::BLASOps(*engine).copy(logits, shifted);
             SushiBLAS::BLASOps(*engine).ger(ones_rows, peak_row, shifted, -1.0f);
             SushiBLAS::ElementwiseOps(*engine).exp(shifted);

@@ -29,6 +29,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
+#include "../../common/blas_flags.hpp"
 
 using namespace SushiBLAS::Test;
 
@@ -47,8 +48,9 @@ TEST_F(Unit_TRMVTest, SimpleTRMV)
     fill_tensor(X, {1, 1, 1});
 
     SB_LOG_INFO("Submitting TRMV.");
-    // upper=false, transA=false, unit_diag=false
-    SushiBLAS::BLASOps(*engine).trmv(A, X, false, false, false);
+    SushiBLAS::BLASOps(*engine).trmv(A, X, SushiBLAS::Core::Uplo::LOWER,
+                                     SushiBLAS::Core::Transpose::NO_TRANS,
+                                     SushiBLAS::Core::Diag::NON_UNIT);
     
     engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
@@ -86,7 +88,8 @@ class Unit_TRMVPoisonTest : public SushiBLASTest
             fill_tensor(A, matrix);
             fill_tensor(X, K_X);
 
-            SushiBLAS::BLASOps(*engine).trmv(A, X, upper, trans_a, false);
+            SushiBLAS::BLASOps(*engine).trmv(A, X, uplo_of(upper), transpose_of(trans_a),
+                                             SushiBLAS::Core::Diag::NON_UNIT);
             engine->execute();
 
             verify_tensor(X, expected);

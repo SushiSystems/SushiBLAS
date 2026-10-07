@@ -89,7 +89,8 @@ namespace SushiBLAS
                 live_with_bias = live_allocations();
 
                 const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
-                Dispatch::execute_gemm(engine->get_recorder(), A, B, C, false, false, 1.0, 0.0,
+                Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NO_TRANS,
+                                       Core::Transpose::NO_TRANS, 1.0, 0.0,
                                        "test.gemm_kept_epilogue",
                                        "test.gemm_kept_epilogue"_op,
                                        Dispatch::gemm_epilogue(epilogue).reads(bias));

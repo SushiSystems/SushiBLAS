@@ -158,7 +158,7 @@ namespace SushiBLAS
             fill_tensor(y, {100, 200});
 
             SushiBLAS::BLASOps(*engine).gemv(
-                A, x, y, /*transA=*/false, /*alpha=*/1.0, /*beta=*/2.0);
+                A, x, y, Core::Transpose::NO_TRANS, /*alpha=*/1.0, /*beta=*/2.0);
             engine->execute();
 
             // A*x = {6, 15}; + 2*{100, 200} = {206, 415}

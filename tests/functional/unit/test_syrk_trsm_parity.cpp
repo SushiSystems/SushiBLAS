@@ -30,6 +30,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
+#include "../../common/blas_flags.hpp"
 
 namespace SushiBLAS
 {
@@ -70,11 +71,13 @@ namespace SushiBLAS
                     copy_contents(C_actual, C_expected);
 
                     engine->set_mode(ExecutionMode::FORCE_SYCL);
-                    SushiBLAS::BLASOps(*engine).syrk(A, C_actual, upper, trans_a, 1.5, 0.5);
+                    SushiBLAS::BLASOps(*engine).syrk(A, C_actual, uplo_of(upper),
+                                                     transpose_of(trans_a), 1.5, 0.5);
                     engine->execute();
 
                     engine->set_mode(ExecutionMode::FORCE_REFERENCE);
-                    SushiBLAS::BLASOps(*engine).syrk(A, C_expected, upper, trans_a, 1.5, 0.5);
+                    SushiBLAS::BLASOps(*engine).syrk(A, C_expected, uplo_of(upper),
+                                                     transpose_of(trans_a), 1.5, 0.5);
                     engine->execute();
 
                     SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, K_TOLERANCE, T);
@@ -99,12 +102,14 @@ namespace SushiBLAS
 
                     engine->set_mode(ExecutionMode::FORCE_SYCL);
                     SushiBLAS::BLASOps(*engine).trsm(
-                        A, B_actual, left_side, upper, trans_a, unit_diag, 1.5);
+                        A, B_actual, side_of(left_side), uplo_of(upper), transpose_of(trans_a),
+                        diag_of(unit_diag), 1.5);
                     engine->execute();
 
                     engine->set_mode(ExecutionMode::FORCE_REFERENCE);
                     SushiBLAS::BLASOps(*engine).trsm(
-                        A, B_expected, left_side, upper, trans_a, unit_diag, 1.5);
+                        A, B_expected, side_of(left_side), uplo_of(upper), transpose_of(trans_a),
+                        diag_of(unit_diag), 1.5);
                     engine->execute();
 
                     SB_ASSERT_TENSOR_NEAR(B_actual, B_expected, K_TOLERANCE, T);
