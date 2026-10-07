@@ -25,7 +25,6 @@
  * @author Mustafa Garip
  */
 
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -36,7 +35,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event RandomOps::normal(Tensor& t, double mean, double stddev)
+    TaskHandle RandomOps::normal(Tensor& t, double mean, double stddev)
     {
         if (!std::isfinite(mean))
             Dispatch::Detail::throw_operand_error("random.normal", "mean",
@@ -46,7 +45,7 @@ namespace SushiBLAS
                                                   "is {}, expected finite and at least 0", stddev);
 
         return Dispatch::execute_random<Dispatch::Domain::REAL_AND_COMPLEX>(
-            engine_, t, "random.normal", "random.normal"_op, {mean, stddev},
+            recorder_, rng_, t, "random.normal", "random.normal"_op, {mean, stddev},
             [mean, stddev](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset,
                            int64_t size, auto* pT,
                            const std::vector<sycl::event>& deps) -> sycl::event

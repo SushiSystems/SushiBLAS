@@ -28,7 +28,6 @@
 #include <vector>
 #include <type_traits>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
@@ -41,7 +40,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event RandomOps::orthogonal(Tensor& t, double gain)
+    TaskHandle RandomOps::orthogonal(Tensor& t, double gain)
     {
         const char* name = "random.orthogonal";
 
@@ -57,6 +56,8 @@ namespace SushiBLAS
         Dispatch::require_storage(t, name, "t");
         Dispatch::require_contiguous(t, name, "t");
 
+        recorder_.require_sycl_path("RNG operation", name);
+
         // The matrix is filled with N(0,1) before the sweep; see src/README.md.
         normal(t, 0.0, 1.0);
 
@@ -69,7 +70,9 @@ namespace SushiBLAS
         set.vec_stride = by_rows ? t.strides[0] : t.strides[1];
 
         void* ptr = t.data();
-        std::vector<SushiRuntime::Core::ResourceRegion> rw = {t.region()};
+
+        OperandSet operands;
+        operands.updates(t);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = name;
@@ -77,7 +80,7 @@ namespace SushiBLAS
         meta.op_id = "random.orthogonal"_op;
         meta.set_param(0, gain);
 
-        engine_.get_graph().add_task(meta, rw, rw,
+        return recorder_.record(meta, operands, "RNG operation",
             [dtype = t.dtype, ptr, set, gain, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 SB_LOG_INFO("RandomOps: {} ({} vectors of length {}, gain: {:.4f})", name, set.count, set.length, gain);
@@ -93,9 +96,6 @@ namespace SushiBLAS
                                                                      static_cast<T>(gain));
                 });
                 return done;
-            }
-        );
-
-        return sycl::event();
+            });
     }
 } // namespace SushiBLAS

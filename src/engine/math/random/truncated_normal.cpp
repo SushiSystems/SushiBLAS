@@ -28,7 +28,6 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -50,8 +49,8 @@ namespace SushiBLAS
         }
     } // namespace
 
-    sycl::event RandomOps::truncated_normal(Tensor& t, double mean, double stddev, double a,
-                                            double b)
+    TaskHandle RandomOps::truncated_normal(Tensor& t, double mean, double stddev, double a,
+                                           double b)
     {
         SB_THROW_IF(!std::isfinite(a) || !std::isfinite(b) || !(a < b),
                     "RandomOps::truncated_normal needs finite bounds with a < b, "
@@ -80,7 +79,7 @@ namespace SushiBLAS
                     a, b, Core::to_string(t.dtype));
 
         return Dispatch::execute_random<Dispatch::Domain::REAL>(
-            engine_, t, "random.truncated_normal", "random.truncated_normal"_op,
+            recorder_, rng_, t, "random.truncated_normal", "random.truncated_normal"_op,
             {mean, stddev, a_clamped, b_clamped},
             [mean, scale, lo, hi](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset,
                                   int64_t size, auto* pT,

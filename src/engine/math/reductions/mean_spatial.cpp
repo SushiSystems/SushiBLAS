@@ -33,13 +33,13 @@ namespace SushiBLAS
     using namespace SushiRuntime::Graph::Literals;
 
     // The fold is the one mean uses, over a span keyed by (n, c); see src/README.md.
-    sycl::event ReductionOps::mean_spatial(const Tensor& t, Tensor& result)
+    TaskHandle ReductionOps::mean_spatial(const Tensor& t, Tensor& result)
     {
         const Reduce::AxisSpan span =
             Dispatch::spatial_span_for(t, result, "math.mean_spatial");
 
         return Dispatch::execute_folding_span_reduction<Reduce::CompensatedSum>(
-            engine_, t, span, result, "math.mean_spatial", "math.mean_spatial"_op,
+            recorder_, t, span, result, "math.mean_spatial", "math.mean_spatial"_op,
             Dispatch::ReduceIdentityTransform{},
             [](auto value, std::size_t n)
             {

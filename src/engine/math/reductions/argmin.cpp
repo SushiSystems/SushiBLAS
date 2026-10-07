@@ -34,7 +34,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ReductionOps::argmin(const Tensor& t, Tensor& result)
+    TaskHandle ReductionOps::argmin(const Tensor& t, Tensor& result)
     {
         Dispatch::require_min_elements(t, 1, "math.argmin", "t");
 
@@ -63,6 +63,6 @@ namespace SushiBLAS
                 });
             });
         };
-        return Dispatch::execute_index_reduction(engine_, t, result, "math.argmin", "math.argmin"_op, dispatch);
+        return Dispatch::execute_index_reduction(recorder_, t, result, "math.argmin", "math.argmin"_op, dispatch);
     }
 } // namespace SushiBLAS

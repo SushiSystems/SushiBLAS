@@ -34,7 +34,7 @@ namespace SushiBLAS
     using namespace SushiRuntime::Graph::Literals;
 
     // The count goes through the counting seam with a predicate transform; see src/README.md.
-    sycl::event ReductionOps::count_nonfinite(const Tensor& t, Tensor& result)
+    TaskHandle ReductionOps::count_nonfinite(const Tensor& t, Tensor& result)
     {
         // The partial count is planned from the device the data lives on; see src/README.md.
         const std::size_t partials =
@@ -52,7 +52,7 @@ namespace SushiBLAS
                 Dispatch::ReduceIdentityFinalize{}, deps);
         };
 
-        return Dispatch::execute_counting_reduction(engine_, t, result,
+        return Dispatch::execute_counting_reduction(recorder_, t, result,
             "math.count_nonfinite", "math.count_nonfinite"_op, dispatch, partials);
     }
 } // namespace SushiBLAS

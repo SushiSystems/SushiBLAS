@@ -27,7 +27,6 @@
 
 #include <array>
 #include <cmath>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
@@ -40,7 +39,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event RandomOps::poisson(Tensor& t, double lambda)
+    TaskHandle RandomOps::poisson(Tensor& t, double lambda)
     {
         if (!std::isfinite(lambda) || lambda < 0.0 || lambda > K_MAX_POISSON_LAMBDA)
             Dispatch::Detail::throw_operand_error("random.poisson", "lambda",
@@ -56,7 +55,7 @@ namespace SushiBLAS
             Kernels::SYCL::Random::make_poisson_params(lambda);
 
         return Dispatch::execute_random<Dispatch::Domain::REAL>(
-            engine_, t, "random.poisson", "random.poisson"_op, {lambda},
+            recorder_, rng_, t, "random.poisson", "random.poisson"_op, {lambda},
             [params](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset,
                      int64_t size, auto* pT,
                      const std::vector<sycl::event>& deps) -> sycl::event

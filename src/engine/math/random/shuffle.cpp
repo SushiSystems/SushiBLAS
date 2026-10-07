@@ -28,7 +28,6 @@
 #include <vector>
 #include <complex>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
@@ -68,7 +67,7 @@ namespace SushiBLAS
         }
     }
 
-    sycl::event RandomOps::shuffle(Tensor& t)
+    TaskHandle RandomOps::shuffle(Tensor& t)
     {
         const char* name = "random.shuffle";
 
@@ -80,20 +79,21 @@ namespace SushiBLAS
         void* ptr = t.data_or_null();
 
         // A shuffle reads what it writes, so the region is read-write; see src/README.md.
-        std::vector<SushiRuntime::Core::ResourceRegion> rw = {};
-        if (ptr) rw.push_back(t.region());
+        OperandSet operands;
+        operands.updates(t);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = name;
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "random.shuffle"_op;
 
-        const RngPosition position = Dispatch::reserve_offsets(engine_, 1);
+        recorder_.require_sycl_path("RNG operation", name);
+        const RngPosition position = rng_.reserve(1);
         const uint64_t seed = position.seed;
         const uint64_t offset = position.offset;
         Dispatch::set_rng_params(meta, seed, offset);
 
-        engine_.get_graph().add_task(meta, rw, rw,
+        return recorder_.record(meta, operands, "RNG operation",
             [dtype = t.dtype, size, seed, offset, ptr, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 SB_LOG_INFO("RandomOps: {} ({} elements, seed: {}, offset: {})", name, size, seed, offset);
@@ -105,9 +105,6 @@ namespace SushiBLAS
                     done = shuffle_dispatch(q, static_cast<T*>(ptr), size, seed, offset, deps);
                 });
                 return done;
-            }
-        );
-
-        return sycl::event();
+            });
     }
 } // namespace SushiBLAS

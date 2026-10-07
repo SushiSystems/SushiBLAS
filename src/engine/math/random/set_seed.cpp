@@ -27,13 +27,12 @@
 
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
-#include <SushiBLAS/engine/math/random/dispatch.hpp>
 
 namespace SushiBLAS 
 {
     void RandomOps::set_seed(uint64_t seed) 
     {
         SB_LOG_INFO("RandomOps: set_seed ({})", seed);
-        Dispatch::reseed(engine_, seed);
+        rng_.reseed(seed);
     }
 } // namespace SushiBLAS
