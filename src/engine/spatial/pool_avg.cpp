@@ -27,7 +27,6 @@
  */
 
 #include <vector>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/engine/spatial/window.hpp>
@@ -37,7 +36,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event SpatialOps::pool_avg(const Tensor& in, Tensor& out, const Spatial::ConvGeometry& g)
+    TaskHandle SpatialOps::pool_avg(const Tensor& in, Tensor& out, const Spatial::ConvGeometry& g)
     {
         static constexpr const char* NAME = "spatial.pool_avg";
 
@@ -50,10 +49,8 @@ namespace SushiBLAS
         const void* read_in = in.data_or_null();
         void* write_out = out.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_in) reads.push_back(in.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_out) writes.push_back(out.region());
+        OperandSet operands;
+        operands.reads(in).writes(out);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = NAME;
@@ -61,8 +58,7 @@ namespace SushiBLAS
         meta.op_id = "spatial.pool_avg"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
-            engine_, meta, reads, writes, in.dtype, "Spatial operation",
-            Internal::ReferenceOperands{read_in, write_out},
+            recorder_, meta, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
@@ -80,8 +76,8 @@ namespace SushiBLAS
             });
     }
 
-    sycl::event SpatialOps::pool_avg_backward(const Tensor& dy, Tensor& dx,
-                                              const Spatial::ConvGeometry& g)
+    TaskHandle SpatialOps::pool_avg_backward(const Tensor& dy, Tensor& dx,
+                                             const Spatial::ConvGeometry& g)
     {
         static constexpr const char* NAME = "spatial.pool_avg_backward";
 
@@ -95,10 +91,8 @@ namespace SushiBLAS
         const void* read_dy = dy.data_or_null();
         void* write_dx = dx.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_dy) reads.push_back(dy.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_dx) writes.push_back(dx.region());
+        OperandSet operands;
+        operands.reads(dy).writes(dx);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = NAME;
@@ -106,8 +100,7 @@ namespace SushiBLAS
         meta.op_id = "spatial.pool_avg_backward"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
-            engine_, meta, reads, writes, dy.dtype, "Spatial operation",
-            Internal::ReferenceOperands{read_dy, write_dx},
+            recorder_, meta, operands, dy.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

@@ -28,7 +28,6 @@
 
 #include <vector>
 #include <cstdint>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/engine/spatial/window.hpp>
@@ -101,8 +100,8 @@ namespace SushiBLAS
         }
     } // namespace
 
-    sycl::event SpatialOps::upsample_nearest(const Tensor& in, Tensor& out,
-                                             int64_t scale_h, int64_t scale_w)
+    TaskHandle SpatialOps::upsample_nearest(const Tensor& in, Tensor& out,
+                                            int64_t scale_h, int64_t scale_w)
     {
         static constexpr const char* NAME = "spatial.upsample_nearest";
 
@@ -115,10 +114,8 @@ namespace SushiBLAS
         const void* read_in = in.data_or_null();
         void* write_out = out.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_in) reads.push_back(in.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_out) writes.push_back(out.region());
+        OperandSet operands;
+        operands.reads(in).writes(out);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = NAME;
@@ -126,8 +123,7 @@ namespace SushiBLAS
         meta.op_id = "spatial.upsample_nearest"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
-            engine_, meta, reads, writes, in.dtype, "Spatial operation",
-            Internal::ReferenceOperands{read_in, write_out},
+            recorder_, meta, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
@@ -150,8 +146,8 @@ namespace SushiBLAS
             });
     }
 
-    sycl::event SpatialOps::upsample_nearest_backward(const Tensor& dy, Tensor& dx,
-                                                      int64_t scale_h, int64_t scale_w)
+    TaskHandle SpatialOps::upsample_nearest_backward(const Tensor& dy, Tensor& dx,
+                                                     int64_t scale_h, int64_t scale_w)
     {
         static constexpr const char* NAME = "spatial.upsample_nearest_backward";
 
@@ -165,10 +161,8 @@ namespace SushiBLAS
         const void* read_dy = dy.data_or_null();
         void* write_dx = dx.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_dy) reads.push_back(dy.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_dx) writes.push_back(dx.region());
+        OperandSet operands;
+        operands.reads(dy).writes(dx);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = NAME;
@@ -176,8 +170,7 @@ namespace SushiBLAS
         meta.op_id = "spatial.upsample_nearest_backward"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
-            engine_, meta, reads, writes, dy.dtype, "Spatial operation",
-            Internal::ReferenceOperands{read_dy, write_dx},
+            recorder_, meta, operands, dy.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

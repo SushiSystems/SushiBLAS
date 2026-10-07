@@ -27,13 +27,12 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 
 namespace SushiBLAS
 {
-    class Engine;
-
     /**
      * @class TransformsOps
      * @brief Signal transformation operations (FFT, etc.).
@@ -42,45 +41,53 @@ namespace SushiBLAS
      * Uses oneMKL's high-performance FFT domain underneath.
      * @see include/SushiBLAS/experimental/README.md
      */
-    class TransformsOps
+    class TransformsOps final
     {
         public:
-            explicit TransformsOps(Engine& e) : engine_(e) {}
+            /** @brief Builds a view that records through recorder, which must outlive the view. */
+            explicit TransformsOps(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
+
+            TransformsOps(const TransformsOps&) = default;
+            TransformsOps& operator=(const TransformsOps&) = delete;
+            TransformsOps(TransformsOps&&) = default;
+            TransformsOps& operator=(TransformsOps&&) = delete;
+            ~TransformsOps() = default;
 
             /**
              * @brief 1D Forward Fast Fourier Transform.
              * @param in Input tensor (time domain).
              * @param out Output tensor (frequency domain, complex).
-             * @return sycl::event.
+             * @return The handle of the recorded task.
              */
-            sycl::event fft1d(const Tensor& in, Tensor& out);
+            TaskHandle fft1d(const Tensor& in, Tensor& out);
 
             /**
              * @brief 1D Inverse Fast Fourier Transform.
              * @param in Input tensor (frequency domain).
              * @param out Output tensor (time domain).
-             * @return sycl::event.
+             * @return The handle of the recorded task.
              */
-            sycl::event ifft1d(const Tensor& in, Tensor& out);
+            TaskHandle ifft1d(const Tensor& in, Tensor& out);
 
             /**
              * @brief 2D Forward Fast Fourier Transform (Gratings/Images).
              * @param in Input tensor.
              * @param out Output complex tensor.
-             * @return sycl::event.
+             * @return The handle of the recorded task.
              */
-            sycl::event fft2d(const Tensor& in, Tensor& out);
+            TaskHandle fft2d(const Tensor& in, Tensor& out);
 
             /**
              * @brief 2D Inverse Fast Fourier Transform.
              * @param in Input complex tensor.
              * @param out Output tensor.
-             * @return sycl::event.
+             * @return The handle of the recorded task.
              */
-            sycl::event ifft2d(const Tensor& in, Tensor& out);
+            TaskHandle ifft2d(const Tensor& in, Tensor& out);
 
         private:
-            Engine& engine_;
+            /// @brief The recorder every operation of this view records through.
+            TaskRecorder& recorder_;
     };
 
 } // namespace SushiBLAS

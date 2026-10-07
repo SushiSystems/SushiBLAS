@@ -27,7 +27,6 @@
  */
 
 #include <vector>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/engine/spatial/window.hpp>
@@ -39,8 +38,8 @@ namespace SushiBLAS
 
     // The spans here are built by hand, not by Spatial::window_span_for; see src/README.md.
 
-    sycl::event SpatialOps::channel_affine(const Tensor& in, const Tensor& gamma,
-                                           const Tensor& beta, Tensor& out)
+    TaskHandle SpatialOps::channel_affine(const Tensor& in, const Tensor& gamma,
+                                          const Tensor& beta, Tensor& out)
     {
         static constexpr const char* NAME = "spatial.channel_affine";
 
@@ -104,12 +103,8 @@ namespace SushiBLAS
         const void* read_beta = beta.data_or_null();
         void* write_out = out.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_in) reads.push_back(in.region());
-        if (read_gamma) reads.push_back(gamma.region());
-        if (read_beta) reads.push_back(beta.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_out) writes.push_back(out.region());
+        OperandSet operands;
+        operands.reads(in).reads(gamma).reads(beta).writes(out);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = NAME;
@@ -117,8 +112,7 @@ namespace SushiBLAS
         meta.op_id = "spatial.channel_affine"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
-            engine_, meta, reads, writes, in.dtype, "Spatial operation",
-            Internal::ReferenceOperands{read_in, read_gamma, read_beta, write_out},
+            recorder_, meta, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
@@ -142,7 +136,7 @@ namespace SushiBLAS
             });
     }
 
-    sycl::event SpatialOps::broadcast_spatial(const Tensor& in, Tensor& out, double scale)
+    TaskHandle SpatialOps::broadcast_spatial(const Tensor& in, Tensor& out, double scale)
     {
         static constexpr const char* NAME = "spatial.broadcast_spatial";
 
@@ -181,10 +175,8 @@ namespace SushiBLAS
         const void* read_in = in.data_or_null();
         void* write_out = out.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_in) reads.push_back(in.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_out) writes.push_back(out.region());
+        OperandSet operands;
+        operands.reads(in).writes(out);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = NAME;
@@ -192,8 +184,7 @@ namespace SushiBLAS
         meta.op_id = "spatial.broadcast_spatial"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
-            engine_, meta, reads, writes, in.dtype, "Spatial operation",
-            Internal::ReferenceOperands{read_in, write_out},
+            recorder_, meta, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
@@ -219,7 +210,7 @@ namespace SushiBLAS
             });
     }
 
-    sycl::event SpatialOps::layout_convert(const Tensor& in, Tensor& out)
+    TaskHandle SpatialOps::layout_convert(const Tensor& in, Tensor& out)
     {
         static constexpr const char* NAME = "spatial.layout_convert";
 
@@ -260,10 +251,8 @@ namespace SushiBLAS
         const void* read_in = in.data_or_null();
         void* write_out = out.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_in) reads.push_back(in.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_out) writes.push_back(out.region());
+        OperandSet operands;
+        operands.reads(in).writes(out);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = NAME;
@@ -271,8 +260,7 @@ namespace SushiBLAS
         meta.op_id = "spatial.layout_convert"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
-            engine_, meta, reads, writes, in.dtype, "Spatial operation",
-            Internal::ReferenceOperands{read_in, write_out},
+            recorder_, meta, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

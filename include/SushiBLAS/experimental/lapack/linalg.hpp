@@ -27,13 +27,12 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 
 namespace SushiBLAS
 {
-    class Engine;
-
     /**
      * @class LinalgOps
      * @brief High-level linear algebra operations (LAPACK).
@@ -41,22 +40,25 @@ namespace SushiBLAS
      * Provides matrix solvers, decompositions, and structural matrix analysis.
      * @see include/SushiBLAS/experimental/README.md
      */
-    class LinalgOps
+    class LinalgOps final
     {
         public:
-            /**
-             * @brief Construct LinalgOps with a reference to the engine.
-             * @param e The SushiBLAS engine.
-             */
-            explicit LinalgOps(Engine& e) : engine_(e) {}
+            /** @brief Builds a view that records through recorder, which must outlive the view. */
+            explicit LinalgOps(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
+
+            LinalgOps(const LinalgOps&) = default;
+            LinalgOps& operator=(const LinalgOps&) = delete;
+            LinalgOps(LinalgOps&&) = default;
+            LinalgOps& operator=(LinalgOps&&) = delete;
+            ~LinalgOps() = default;
 
             /**
              * @brief Matrix Inversion.
              * Computes A^-1. Overwrites input A with its inverse.
              * @param A Input square matrix.
-             * @return sycl::event representing task completion.
+             * @return The handle of the recorded task.
              */
-            sycl::event inv(Tensor& A);
+            TaskHandle inv(Tensor& A);
 
             /**
              * @brief LU Decomposition (A = P*L*U).
@@ -64,9 +66,9 @@ namespace SushiBLAS
              * triangular matrix L, and an upper triangular matrix U.
              * @param A Input matrix (overwritten by L and U).
              * @param ipiv Output pivot indices.
-             * @return sycl::event.
+             * @return The handle of the recorded task.
              */
-            sycl::event lu(Tensor& A, Tensor& ipiv);
+            TaskHandle lu(Tensor& A, Tensor& ipiv);
 
             /**
              * @brief QR Decomposition (A = Q*R).
@@ -74,14 +76,14 @@ namespace SushiBLAS
              * @param A Input matrix.
              * @param Q Output orthogonal matrix.
              * @param R Output upper triangular matrix.
-             * @return sycl::event.
+             * @return The handle of the recorded task.
              */
-            sycl::event qr(const Tensor& A, Tensor& Q, Tensor& R);
+            TaskHandle qr(const Tensor& A, Tensor& Q, Tensor& R);
 
             /**
              * @brief Factorizes A into singular values and singular vectors: A = U*S*V^H.
              */
-            sycl::event svd(const Tensor& A, Tensor& U, Tensor& S, Tensor& V);
+            TaskHandle svd(const Tensor& A, Tensor& U, Tensor& S, Tensor& V);
 
             /**
              * @brief Eigendecomposition for Symmetric Matrices.
@@ -89,39 +91,40 @@ namespace SushiBLAS
              * @param A Input symmetric matrix.
              * @param W Output vector of eigenvalues.
              * @param V Optional output matrix of eigenvectors.
-             * @return sycl::event.
+             * @return The handle of the recorded task.
              */
-            sycl::event eigh(const Tensor& A, Tensor& W, Tensor* V = nullptr);
+            TaskHandle eigh(const Tensor& A, Tensor& W, Tensor* V = nullptr);
 
             /**
              * @brief General Eigenvalue Problem.
              * Computes eigenvalues for a general non-symmetric square matrix A.
              * @param A Input square matrix.
              * @param W Output vector of eigenvalues (complex values).
-             * @return sycl::event.
+             * @return The handle of the recorded task.
              */
-            sycl::event eig(const Tensor& A, Tensor& W);
+            TaskHandle eig(const Tensor& A, Tensor& W);
 
             /**
              * @brief Numerical Determinant.
              * Computes the determinant of matrix A.
              * @param A Input square matrix.
              * @param result Scalar output tensor.
-             * @return sycl::event.
+             * @return The handle of the recorded task.
              */
-            sycl::event det(const Tensor& A, Tensor& result);
+            TaskHandle det(const Tensor& A, Tensor& result);
 
             /**
              * @brief Solve Linear System (Ax = B).
              * Solves a system of linear equations for x.
              * @param A Coefficient matrix.
              * @param B Right-hand side matrix (overwritten by solution x).
-             * @return sycl::event.
+             * @return The handle of the recorded task.
              */
-            sycl::event solve(const Tensor& A, Tensor& B);
+            TaskHandle solve(const Tensor& A, Tensor& B);
 
         private:
-            Engine& engine_;
+            /// @brief The recorder every operation of this view records through.
+            TaskRecorder& recorder_;
     };
 
 } // namespace SushiBLAS
