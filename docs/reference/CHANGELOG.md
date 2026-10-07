@@ -6,7 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
-- 2026-10-08 — tests: Corrected three tests after the first build of the v0.1.0 tree: the rotg mode bound, the element type of the width-one launch case and the `HALF` parity of the windowed product below 2^-13 (`test_rotg.cpp`, `test_launch_shapes.cpp`, `test_spatial_window_dot.cpp`).
+- 2026-10-08 — tests: Corrected the rotg mode bound, the width-one launch case and the `HALF` parity of the windowed product after the first build (`test_rotg.cpp`, `test_launch_shapes.cpp`, `test_spatial_window_dot.cpp`).
 - 2026-10-07 — core: Breaking change: Renamed every enumerator to PascalCase and every namespace-scope and class-scope constant to K_UPPER_SNAKE (`tools/naming/sushiblas_0_1_0.tsv`, `core/common.hpp`, `core/blas_types.hpp`).
 - 2026-10-07 — core: Added `SB_LOG_TYPE_OF`, which expands a level name of `SB_ACTIVE_LOG_LEVEL` to its `LogType` enumerator (`core/logger.hpp`).
 - 2026-10-07 — engine: Added `UnsupportedExecution`, derived from std::invalid_argument, and threw it for every mode or device refusal at record time (`core/errors.hpp`, `engine/operand_check.hpp`, `engine/task_recorder.hpp`).
