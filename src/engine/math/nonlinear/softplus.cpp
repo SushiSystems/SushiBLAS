@@ -38,7 +38,8 @@ namespace SushiBLAS
         return Dispatch::execute_nonlinear_forward(engine_, t, "math.nonlinear.softplus", "math.nonlinear.softplus"_op, 
             [](auto x) 
             { 
-                return Dispatch::safe_log(decltype(x)(1) + Dispatch::safe_exp(x));
+                using T = decltype(x);
+                return T(sycl::fmax(x, T(0)) + sycl::log1p(sycl::exp(-sycl::fabs(x))));
             });
     }
 

@@ -26,15 +26,24 @@
  */
 
 #include <SushiBLAS/engine/math/elementwise.hpp>
+#include <type_traits>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::min(const Tensor& A, const Tensor& B, Tensor& C) 
+    sycl::event ElementwiseOps::min(const Tensor& A, const Tensor& B, Tensor& C)
     {
-        return Dispatch::execute_binary(engine_, A, B, C, "math.ew.min", "math.ew.min"_op, 
-            [](auto x, auto y) { return sycl::min(x, y); });
+        return Dispatch::execute_binary<Dispatch::Domain::REAL_AND_INTEGRAL>(
+            engine_, A, B, C, "math.ew.min", "math.ew.min"_op,
+            [](auto x, auto y)
+            {
+                using T = decltype(x);
+                if constexpr (std::is_integral_v<T>)
+                    return sycl::min(x, y);
+                else
+                    return (x != x) ? x : ((y != y) ? y : sycl::min(x, y));
+            });
     }
 } // namespace SushiBLAS

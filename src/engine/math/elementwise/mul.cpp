@@ -27,6 +27,7 @@
 
 #include <SushiBLAS/engine/math/elementwise.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+#include <SushiBLAS/engine/math/elementwise/wrapping_math.hpp>
 
 namespace SushiBLAS 
 {
@@ -34,7 +35,7 @@ namespace SushiBLAS
 
     sycl::event ElementwiseOps::mul(const Tensor& A, const Tensor& B, Tensor& C) 
     {
-        return Dispatch::execute_binary<Dispatch::Domain::REAL_AND_COMPLEX>(engine_, A, B, C, "math.ew.mul", "math.ew.mul"_op, 
-            [](auto x, auto y) { return x * y; });
+        return Dispatch::execute_binary<Dispatch::Domain::ALL>(engine_, A, B, C, "math.ew.mul", "math.ew.mul"_op, 
+            [](auto x, auto y) { return Dispatch::wrapping_mul(x, y); });
     }
 } // namespace SushiBLAS

@@ -28,6 +28,7 @@
 #pragma once
 
 #include <array>
+#include <string>
 #include <vector>
 #include <complex>
 #include <cstddef>
@@ -37,8 +38,10 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
-#include <SushiBLAS/engine/launch_1d.hpp>
+#include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/math/safe_math.hpp>
+#include <SushiBLAS/engine/math/elementwise/wrapping_math.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -47,21 +50,33 @@ namespace SushiBLAS
     namespace Dispatch
     {
         /**
-         * @brief Records a unary in-place elementwise op: `t[i] = op(t[i])` for every element.
-         * @tparam Dom Defaults to Domain::REAL; REAL_AND_COMPLEX needs an op_func well-formed for it.
-         * @param op_func Callable `(auto x) -> auto`: device-copyable, by-value captures, no allocation, no throw.
-         * @throws std::runtime_error if the dtype falls outside Dom or params exceeds the inline capacity.
+         * @brief Records a unary in-place elementwise op `t[i] = op(t[i])`, or nothing when t
+         * is empty.
+         * @tparam Dom Defaults to Domain::REAL; REAL_AND_COMPLEX needs an op_func well-formed
+         * for it.
+         * @param op_func Callable `(auto x) -> auto`: device-copyable, by-value captures, no
+         * allocation, no throw.
+         * @throws std::invalid_argument if t holds elements without storage or is not contiguous.
+         * @throws std::runtime_error if the dtype falls outside Dom or params exceeds the inline
+         * capacity.
          * @see include/SushiBLAS/engine/math/README.md
          */
-        template<Domain Dom = Domain::REAL, typename Func>
-        sycl::event execute_unary_inplace(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
+        template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
+        sycl::event execute_unary_inplace(Engine& engine, Tensor& t, const char* name,
+                                          SushiRuntime::Graph::OpID op_id, Func&& op_func,
+                                          const std::vector<Param>& params = {})
         {
+            require_storage(t, name, "t");
+            require_contiguous(t, name, "t");
             require_domain<Dom>(t.dtype, "Elementwise operation", name);
 
+            if (t.num_elements == 0)
+                return sycl::event();
+
             int64_t size = t.num_elements;
-            void* ptr = t.data_or_null();
+            void* ptr = t.data();
             const bool vec_ok = Launch::is_vector_aligned(ptr);
-            std::vector<SushiRuntime::Core::ResourceRegion> rw = ptr ? std::vector<SushiRuntime::Core::ResourceRegion>{t.region()} : std::vector<SushiRuntime::Core::ResourceRegion>{};
+            std::vector<SushiRuntime::Core::ResourceRegion> rw = {t.region()};
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -70,7 +85,8 @@ namespace SushiBLAS
             set_task_params(meta, params, name);
 
             engine.get_graph().add_task(meta, rw, rw,
-                [size, ptr, vec_ok, dtype = t.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                [size, ptr, vec_ok, dtype = t.dtype, op_func, name]
+                (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("Elementwise {} (In-place): {} elements", name, size);
                     return q.submit([&](sycl::handler& h)
@@ -90,22 +106,34 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Records a binary elementwise op: `C[i] = op(A[i], B[i])` for every element.
+         * @brief Records a binary elementwise op `C[i] = op(A[i], B[i])`, or nothing when C is empty.
          * @tparam Dom Defaults to Domain::REAL; REAL_AND_COMPLEX needs an op_func well-formed for it.
          * @param C May alias an input.
          * @param op_func Callable `(auto x, auto y) -> auto` under execute_unary_inplace's constraints.
-         * @throws std::runtime_error on a size or dtype mismatch, a dtype outside Dom, or too many params.
+         * @throws std::invalid_argument on a missing storage, a non-contiguous operand, or a shape or layout mismatch.
+         * @throws std::runtime_error on a dtype mismatch, a dtype outside Dom, or too many params.
          * @see include/SushiBLAS/engine/math/README.md
          */
-        template<Domain Dom = Domain::REAL, typename Func>
-        sycl::event execute_binary(Engine& engine, const Tensor& A, const Tensor& B, Tensor& C, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
+        template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
+        sycl::event execute_binary(Engine& engine, const Tensor& A, const Tensor& B, Tensor& C, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<Param>& params = {})
         {
-            SB_THROW_IF(A.num_elements != B.num_elements || A.num_elements != C.num_elements,
-                    "Tensor sizes must match for elementwise operation.");
+            require_storage(A, name, "A");
+            require_storage(B, name, "B");
+            require_storage(C, name, "C");
+            require_contiguous(A, name, "A");
+            require_contiguous(B, name, "B");
+            require_contiguous(C, name, "C");
+            require_same_shape(A, B, name, "A", "B");
+            require_same_layout(A, B, name, "A", "B");
+            require_same_shape(A, C, name, "A", "C");
+            require_same_layout(A, C, name, "A", "C");
             SB_THROW_IF(A.dtype != B.dtype || A.dtype != C.dtype,
                     "Tensor data types must match for elementwise operation.");
 
             require_domain<Dom>(A.dtype, "Elementwise operation", name);
+
+            if (C.num_elements == 0)
+                return sycl::event();
 
             int64_t size = A.num_elements;
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {A.region(), B.region()};
@@ -139,18 +167,21 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Records a fused in-place op over N same-shaped tensors, every slot writable.
-         * @param tensors None may be null; all must agree on element count and dtype and none may overlap.
+         * @brief Records a fused in-place op over N same-shaped tensors, or nothing when they are empty.
+         * @param tensors None may be null; all must share one shape, layout and dtype, and none may overlap.
          * @param op_func Callable `(auto&...) -> void` taking N lvalue references.
-         * @throws std::runtime_error on a null tensor, a count or dtype mismatch, or a dtype outside Dom.
+         * @throws std::invalid_argument on a missing storage, a non-contiguous operand, or a shape or layout mismatch.
+         * @throws std::runtime_error on a null tensor, a dtype mismatch, or a dtype outside Dom.
          * @see include/SushiBLAS/engine/math/README.md
          */
-        template<Domain Dom = Domain::REAL, std::size_t N, typename Func>
-        sycl::event execute_zip_inplace(Engine& engine, const std::array<Tensor*, N>& tensors, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
+        template<Domain Dom = Domain::REAL, std::size_t N, typename Func, typename Param = double>
+        sycl::event execute_zip_inplace(Engine& engine, const std::array<Tensor*, N>& tensors, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<Param>& params = {})
         {
             static_assert(N >= 1, "A fused in-place elementwise op needs at least one tensor.");
 
             SB_THROW_IF(tensors[0] == nullptr, "Fused elementwise operation '{}': operand 0 is null.", name);
+            require_storage(*tensors[0], name, "operand 0");
+            require_contiguous(*tensors[0], name, "operand 0");
 
             const int64_t size = tensors[0]->num_elements;
             const Core::DataType dtype = tensors[0]->dtype;
@@ -158,10 +189,11 @@ namespace SushiBLAS
             for (std::size_t k = 1; k < N; ++k)
             {
                 SB_THROW_IF(tensors[k] == nullptr, "Fused elementwise operation '{}': operand {} is null.", name, k);
-                SB_THROW_IF(tensors[k]->num_elements != size,
-                            "Fused elementwise operation '{}': operand {} holds {} elements but operand 0 holds {}; "
-                            "every operand of a fused in-place update must have the same element count.",
-                            name, k, tensors[k]->num_elements, size);
+                const std::string operand = "operand " + std::to_string(k);
+                require_storage(*tensors[k], name, operand.c_str());
+                require_contiguous(*tensors[k], name, operand.c_str());
+                require_same_shape(*tensors[k], *tensors[0], name, operand.c_str(), "operand 0");
+                require_same_layout(*tensors[k], *tensors[0], name, operand.c_str(), "operand 0");
                 SB_THROW_IF(tensors[k]->dtype != dtype,
                             "Fused elementwise operation '{}': operand {} has dtype {} but operand 0 has dtype {}; "
                             "every operand of a fused in-place update must share one dtype.",
@@ -169,6 +201,9 @@ namespace SushiBLAS
             }
 
             require_domain<Dom>(dtype, "Elementwise operation", name);
+
+            if (size == 0)
+                return sycl::event();
 
             // Every operand is declared as both a read and a write, since the functor may touch any; see include/SushiBLAS/engine/math/README.md.
             std::array<void*, N> ptrs{};
@@ -209,31 +244,34 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Addition, as a named functor for callers composing ops generically.
-         * @param a Left operand.
-         * @param b Right operand.
-         * @return `a + b`.
+         * @brief Returns `a + b`, wrapping modulo 2^N when T is an integer type.
+         * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename T>
-        inline T safe_ew_add(T a, T b) { return a + b; }
+        inline T safe_ew_add(T a, T b)
+        {
+            return wrapping_add(a, b);
+        }
 
         /**
-         * @brief Subtraction, as a named functor for callers composing ops generically.
-         * @param a Left operand.
-         * @param b Right operand.
-         * @return `a - b`.
+         * @brief Returns `a - b`, wrapping modulo 2^N when T is an integer type.
+         * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename T>
-        inline T safe_ew_sub(T a, T b) { return a - b; }
+        inline T safe_ew_sub(T a, T b)
+        {
+            return wrapping_sub(a, b);
+        }
 
         /**
-         * @brief Multiplication, as a named functor for callers composing ops generically.
-         * @param a Left operand.
-         * @param b Right operand.
-         * @return `a * b`.
+         * @brief Returns `a * b`, wrapping modulo 2^N when T is an integer type.
+         * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename T>
-        inline T safe_ew_mul(T a, T b) { return a * b; }
+        inline T safe_ew_mul(T a, T b)
+        {
+            return wrapping_mul(a, b);
+        }
 
         /**
          * @brief Division, as a named functor for callers composing ops generically.

@@ -36,10 +36,9 @@ namespace SushiBLAS
 
     /**
      * @class ElementwiseOps
-     * @brief Element-wise arithmetic and mathematical operations for tensors.
-     * 
-     * Provides high-performance independent operations where each element 
-     * in the result depends only on its corresponding element in the input(s).
+     * @brief Records element-wise arithmetic and mathematical operations on contiguous tensors.
+     * @note Every operand must have storage and dense strides, and the operands of one call must
+     * share one shape: the library does not broadcast.
      */
     class ElementwiseOps 
     {
@@ -56,7 +55,7 @@ namespace SushiBLAS
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param C Output tensor to store the result.
-             * @return sycl::event representing task completion.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event add(const Tensor& A, const Tensor& B, Tensor& C);
 
@@ -66,7 +65,7 @@ namespace SushiBLAS
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param C Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event sub(const Tensor& A, const Tensor& B, Tensor& C);
 
@@ -76,7 +75,7 @@ namespace SushiBLAS
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param C Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event mul(const Tensor& A, const Tensor& B, Tensor& C);
 
@@ -86,7 +85,7 @@ namespace SushiBLAS
              * @param A First input tensor (dividend).
              * @param B Second input tensor (divisor).
              * @param C Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event div(const Tensor& A, const Tensor& B, Tensor& C);
 
@@ -94,7 +93,7 @@ namespace SushiBLAS
              * @brief Element-wise square root.
              * Computes t = sqrt(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event sqrt(Tensor& t);
 
@@ -102,7 +101,7 @@ namespace SushiBLAS
              * @brief Element-wise square.
              * Computes t = t * t for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event square(Tensor& t);
 
@@ -110,7 +109,7 @@ namespace SushiBLAS
              * @brief Element-wise reciprocal.
              * Computes t = 1 / t for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event reciprocal(Tensor& t);
 
@@ -118,7 +117,7 @@ namespace SushiBLAS
              * @brief Element-wise negation.
              * Computes t = -t for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event neg(Tensor& t);
 
@@ -126,7 +125,7 @@ namespace SushiBLAS
              * @brief Element-wise exponential.
              * Computes t = exp(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event exp(Tensor& t);
 
@@ -134,7 +133,7 @@ namespace SushiBLAS
              * @brief Element-wise natural logarithm.
              * Computes t = log(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event log(Tensor& t);
 
@@ -142,24 +141,23 @@ namespace SushiBLAS
              * @brief Element-wise absolute value.
              * Computes t = abs(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event abs(Tensor& t);
 
-            /** 
-             * @brief Element-wise power function.
-             * Computes t = t^exponent for each element in-place.
-             * @param t Input/Output tensor.
-             * @param exponent The power to raise elements to.
-             * @return sycl::event.
+            /**
+             * @brief Raises each element of t to exponent in place.
+             * @param exponent The power, narrowed to the element type when the call is recorded.
+             * @return A default-constructed, already-complete event; the task runs at
+             * Engine::execute.
              */
-            sycl::event pow(Tensor& t, float exponent);
+            sycl::event pow(Tensor& t, double exponent);
 
             /** 
              * @brief Element-wise sine.
              * Computes t = sin(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event sin(Tensor& t);
 
@@ -167,7 +165,7 @@ namespace SushiBLAS
              * @brief Element-wise cosine.
              * Computes t = cos(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event cos(Tensor& t);
 
@@ -175,7 +173,7 @@ namespace SushiBLAS
              * @brief Element-wise tangent.
              * Computes t = tan(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event tan(Tensor& t);
 
@@ -183,7 +181,7 @@ namespace SushiBLAS
              * @brief Element-wise arcsine.
              * Computes t = asin(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event asin(Tensor& t);
 
@@ -191,7 +189,7 @@ namespace SushiBLAS
              * @brief Element-wise arccosine.
              * Computes t = acos(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event acos(Tensor& t);
 
@@ -199,7 +197,7 @@ namespace SushiBLAS
              * @brief Element-wise arctangent.
              * Computes t = atan(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event atan(Tensor& t);
 
@@ -207,7 +205,7 @@ namespace SushiBLAS
              * @brief Element-wise hyperbolic sine.
              * Computes t = sinh(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event sinh(Tensor& t);
 
@@ -215,7 +213,7 @@ namespace SushiBLAS
              * @brief Element-wise hyperbolic cosine.
              * Computes t = cosh(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event cosh(Tensor& t);
 
@@ -223,7 +221,7 @@ namespace SushiBLAS
              * @brief Element-wise inverse hyperbolic sine.
              * Computes t = asinh(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event asinh(Tensor& t);
 
@@ -231,7 +229,7 @@ namespace SushiBLAS
              * @brief Element-wise inverse hyperbolic cosine.
              * Computes t = acosh(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event acosh(Tensor& t);
 
@@ -239,7 +237,7 @@ namespace SushiBLAS
              * @brief Element-wise inverse hyperbolic tangent.
              * Computes t = atanh(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event atanh(Tensor& t);
 
@@ -247,7 +245,7 @@ namespace SushiBLAS
              * @brief Element-wise ceiling.
              * Computes t = ceil(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event ceil(Tensor& t);
 
@@ -255,7 +253,7 @@ namespace SushiBLAS
              * @brief Element-wise floor.
              * Computes t = floor(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event floor(Tensor& t);
 
@@ -263,7 +261,7 @@ namespace SushiBLAS
              * @brief Element-wise rounding.
              * Computes t = round(t) for each element in-place.
              * @param t Input/Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event round(Tensor& t);
 
@@ -273,7 +271,7 @@ namespace SushiBLAS
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param C Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event min(const Tensor& A, const Tensor& B, Tensor& C);
 
@@ -283,7 +281,7 @@ namespace SushiBLAS
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param C Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event max(const Tensor& A, const Tensor& B, Tensor& C);
 
@@ -293,7 +291,7 @@ namespace SushiBLAS
              * @param A Dividend tensor.
              * @param B Divisor tensor.
              * @param C Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event fmod(const Tensor& A, const Tensor& B, Tensor& C);
 
@@ -303,24 +301,26 @@ namespace SushiBLAS
              * @param A Dividend tensor.
              * @param B Divisor tensor.
              * @param C Output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event remainder(const Tensor& A, const Tensor& B, Tensor& C);
 
-            /** 
-             * @brief Element-wise clamping.
-             * Computes t = max(min_val, min(max_val, t)) for each element in-place.
-             * @param t Input/Output tensor.
-             * @param min_val Minimum value.
-             * @param max_val Maximum value.
-             * @return sycl::event.
+            /**
+             * @brief Clamps each element of t in place to `[min_val, max_val]`.
+             * @param min_val Lower bound; an integer tensor truncates it toward zero.
+             * @param max_val Upper bound; an integer tensor truncates it toward zero.
+             * @return A default-constructed, already-complete event; the task runs at
+             * Engine::execute.
+             * @throws std::runtime_error if min_val > max_val, when the call is recorded.
              */
-            sycl::event clamp(Tensor& t, float min_val, float max_val);
+            sycl::event clamp(Tensor& t, double min_val, double max_val);
 
             /**
              * @brief Copies src into dst, converting the element type.
              * @param src Must be contiguous and have storage.
-             * @param dst Must be contiguous, have storage, match src's shape and not overlap it.
+             * @param dst Must be contiguous, have storage, match src's shape and layout and not overlap it.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
+             * @throws std::invalid_argument if an operand has no storage, is not contiguous, or the shapes or layouts differ.
              * @throws std::runtime_error naming both dtypes if either falls outside Domain::REAL.
              * @see include/SushiBLAS/engine/math/README.md
              */
