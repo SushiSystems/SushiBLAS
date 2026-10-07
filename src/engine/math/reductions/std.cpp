@@ -35,7 +35,6 @@ namespace SushiBLAS
 
     TaskHandle ReductionOps::std(const Tensor& t, Tensor& result)
     {
-        recorder_.require_sycl_path("Reduction", "math.std");
         Dispatch::require_min_elements(t, 1, "math.std", "t");
         Dispatch::require_storage(t, "math.std", "t");
 

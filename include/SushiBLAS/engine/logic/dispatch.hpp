@@ -27,7 +27,6 @@
 
 #pragma once
 
-#include <vector>
 #include <complex>
 #include <cstddef>
 #include <initializer_list>
@@ -36,12 +35,12 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
-#include <SushiBLAS/support/launch_1d.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
-#include <SushiRuntime/core/resource_region.hpp>
+#include <SushiBLAS/engine/math/elementwise/map_task.hpp>
+#include <SushiBLAS/engine/math/elementwise/read_binding.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
@@ -51,8 +50,9 @@ namespace SushiBLAS
         /**
          * @brief Records a unary logic op `result[i] = op(x[i])`, or nothing when result is empty.
          * @param result Must match x in size and dtype.
-         * @param op_func Callable `(auto x) -> auto`: device-copyable, by-value captures, no allocation, no throw.
-         * @throws std::invalid_argument on any operand violation, or under FORCE_REFERENCE.
+         * @param op_func Callable `(auto x) -> auto`, or a bind_reads bundle of one: device-copyable, by-value captures, no allocation, no throw.
+         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
+         *         or a device-only tensor under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/logic/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
@@ -60,7 +60,6 @@ namespace SushiBLAS
                                        const char* name, SushiRuntime::Graph::OpID op_id,
                                        Func&& op_func, std::initializer_list<Param> params = {})
         {
-            recorder.require_sycl_path("Logic operation", name);
             require_storage(x, name, "x");
             require_device_dtype(x, name, "x");
             require_storage(result, name, "result");
@@ -72,14 +71,14 @@ namespace SushiBLAS
             require_dtype(result, x.dtype, name, "result");
 
             require_domain<Dom>(x.dtype, "Logic operation", name);
+            Detail::require_declared_reads(op_func, x.dtype, name);
 
             if (result.num_elements == 0)
                 return TaskHandle();
 
-            int64_t size = x.num_elements;
             OperandSet operands;
             operands.reads(x).writes(result);
-            const bool vec_ok = Launch::vector_aligned(x.data(), result.data());
+            Detail::declare_reads(op_func, operands, name);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -87,31 +86,19 @@ namespace SushiBLAS
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 
-            return recorder.record(meta, operands, "Logic operation",
-                [size, vec_ok, px_raw = x.data(), pr_raw = result.data(), dtype = x.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                {
-                    SB_LOG_INFO("Logic {}: {} elements", name, size);
-                    return q.submit([&](sycl::handler& h)
-                    {
-                        h.depends_on(deps);
-                        const std::size_t n = static_cast<std::size_t>(size);
-                        Dispatch::with_element_type<Dom>(dtype, "Logic operation", name,
-                            [&](auto tag)
-                        {
-                            using T = typename decltype(tag)::type;
-
-                            Launch::map(h, q, n, vec_ok, op_func, (T*)pr_raw, (const T*)px_raw);
-                        });
-                    });
-                });
+            return recorder.record_pair(meta, operands, "Logic operation",
+                Detail::make_map_task<Dom>(x.dtype, "Logic operation", name,
+                                           static_cast<std::size_t>(x.num_elements), result.data(),
+                                           Detail::task_functor(op_func), x.data()));
         }
 
         /**
          * @brief Records a binary logic op `result[i] = op(A[i], B[i])`, or nothing when result is empty.
          * @tparam Dom Defaults to Domain::REAL, because `<` and `>` have no meaning on complex numbers.
          * @param result Must match the inputs in size and dtype.
-         * @param op_func Callable `(auto x, auto y) -> auto` under execute_logic_unary's constraints.
-         * @throws std::invalid_argument on any operand violation, or under FORCE_REFERENCE.
+         * @param op_func Callable `(auto x, auto y) -> auto`, or a bind_reads bundle of one, under execute_logic_unary's constraints.
+         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
+         *         or a device-only tensor under FORCE_REFERENCE.
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
         TaskHandle execute_logic_binary(TaskRecorder& recorder, const Tensor& A, const Tensor& B,
@@ -119,7 +106,6 @@ namespace SushiBLAS
                                         SushiRuntime::Graph::OpID op_id, Func&& op_func,
                                         std::initializer_list<Param> params = {})
         {
-            recorder.require_sycl_path("Logic operation", name);
             require_storage(A, name, "A");
             require_device_dtype(A, name, "A");
             require_storage(B, name, "B");
@@ -137,14 +123,14 @@ namespace SushiBLAS
             require_dtype(result, A.dtype, name, "result");
 
             require_domain<Dom>(A.dtype, "Logic operation", name);
+            Detail::require_declared_reads(op_func, A.dtype, name);
 
             if (result.num_elements == 0)
                 return TaskHandle();
 
-            int64_t size = A.num_elements;
             OperandSet operands;
             operands.reads(A).reads(B).writes(result);
-            const bool vec_ok = Launch::vector_aligned(A.data(), B.data(), result.data());
+            Detail::declare_reads(op_func, operands, name);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -152,31 +138,19 @@ namespace SushiBLAS
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 
-            return recorder.record(meta, operands, "Logic operation",
-                [size, vec_ok, pA_raw = A.data(), pB_raw = B.data(), pR_raw = result.data(), dtype = A.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                {
-                    SB_LOG_INFO("Logic {}: {} elements", name, size);
-                    return q.submit([&](sycl::handler& h)
-                    {
-                        h.depends_on(deps);
-                        const std::size_t n = static_cast<std::size_t>(size);
-                        Dispatch::with_element_type<Dom>(dtype, "Logic operation", name,
-                            [&](auto tag)
-                        {
-                            using T = typename decltype(tag)::type;
-
-                            Launch::map(h, q, n, vec_ok, op_func, (T*)pR_raw, (const T*)pA_raw, (const T*)pB_raw);
-                        });
-                    });
-                });
+            return recorder.record_pair(meta, operands, "Logic operation",
+                Detail::make_map_task<Dom>(A.dtype, "Logic operation", name,
+                                           static_cast<std::size_t>(A.num_elements), result.data(),
+                                           Detail::task_functor(op_func), A.data(), B.data()));
         }
 
         /**
          * @brief Records a ternary logic op `result[i] = op(cond[i], A[i], B[i])`, or nothing when result is empty.
          * @param cond Nonzero selects A, zero selects B.
          * @param result Must match the inputs in size and dtype.
-         * @param op_func Callable `(auto c, auto a, auto b) -> auto` under execute_logic_unary's constraints.
-         * @throws std::invalid_argument on any operand violation, or under FORCE_REFERENCE.
+         * @param op_func Callable `(auto c, auto a, auto b) -> auto`, or a bind_reads bundle of one, under execute_logic_unary's constraints.
+         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
+         *         or a device-only tensor under FORCE_REFERENCE.
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
         TaskHandle execute_logic_ternary(TaskRecorder& recorder, const Tensor& cond, const Tensor& A,
@@ -184,7 +158,6 @@ namespace SushiBLAS
                                          SushiRuntime::Graph::OpID op_id, Func&& op_func,
                                          std::initializer_list<Param> params = {})
         {
-            recorder.require_sycl_path("Logic operation", name);
             require_storage(cond, name, "cond");
             require_device_dtype(cond, name, "cond");
             require_storage(A, name, "A");
@@ -208,14 +181,14 @@ namespace SushiBLAS
             require_dtype(result, cond.dtype, name, "result");
 
             require_domain<Dom>(cond.dtype, "Logic operation", name);
+            Detail::require_declared_reads(op_func, cond.dtype, name);
 
             if (result.num_elements == 0)
                 return TaskHandle();
 
-            int64_t size = cond.num_elements;
             OperandSet operands;
             operands.reads(cond).reads(A).reads(B).writes(result);
-            const bool vec_ok = Launch::vector_aligned(cond.data(), A.data(), B.data(), result.data());
+            Detail::declare_reads(op_func, operands, name);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -223,23 +196,11 @@ namespace SushiBLAS
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 
-            return recorder.record(meta, operands, "Logic operation",
-                [size, vec_ok, pC_raw = cond.data(), pA_raw = A.data(), pB_raw = B.data(), pR_raw = result.data(), dtype = cond.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                {
-                    SB_LOG_INFO("Logic {}: {} elements", name, size);
-                    return q.submit([&](sycl::handler& h)
-                    {
-                        h.depends_on(deps);
-                        const std::size_t n = static_cast<std::size_t>(size);
-                        Dispatch::with_element_type<Dom>(dtype, "Logic operation", name,
-                            [&](auto tag)
-                        {
-                            using T = typename decltype(tag)::type;
-
-                            Launch::map(h, q, n, vec_ok, op_func, (T*)pR_raw, (const T*)pC_raw, (const T*)pA_raw, (const T*)pB_raw);
-                        });
-                    });
-                });
+            return recorder.record_pair(meta, operands, "Logic operation",
+                Detail::make_map_task<Dom>(cond.dtype, "Logic operation", name,
+                                           static_cast<std::size_t>(cond.num_elements),
+                                           result.data(), Detail::task_functor(op_func),
+                                           cond.data(), A.data(), B.data()));
         }
 
         /**

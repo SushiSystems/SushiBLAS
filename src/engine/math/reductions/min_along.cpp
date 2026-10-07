@@ -34,7 +34,6 @@ namespace SushiBLAS
 
     TaskHandle ReductionOps::min_along(const Tensor& t, int axis, Tensor& result)
     {
-        recorder_.require_sycl_path("Axis reduction", "math.min_along");
         Dispatch::require_min_elements(t, 1, "math.min_along", "t");
 
         return Dispatch::execute_folding_axis_reduction<Reduce::NaNPropagatingMin>(

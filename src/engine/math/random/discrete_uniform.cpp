@@ -61,13 +61,14 @@ namespace SushiBLAS
                                                   min, max, K_MAX_EXACT_FLOAT32_INTEGER);
 
         return Dispatch::execute_random<Dispatch::Domain::REAL>(recorder_, rng_, t, "random.discrete_uniform", "random.discrete_uniform"_op, {static_cast<double>(min), static_cast<double>(max)},
-            [min, max](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
+            [min, max](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,
+                       uint64_t offset, int64_t size, auto* pT) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 const int64_t lo = static_cast<int64_t>(min);
                 const uint64_t count = static_cast<uint64_t>(static_cast<int64_t>(max) - lo + 1);
 
-                return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i)
+                return fill(size, pT, [=](uint64_t i)
                 {
                     const uint64_t pick = Kernels::SYCL::Random::draw_index(seed, offset, i, count);
                     return std::array<T, 1>{static_cast<T>(lo + static_cast<int64_t>(pick))};

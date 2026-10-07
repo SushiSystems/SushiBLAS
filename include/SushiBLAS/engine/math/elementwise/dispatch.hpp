@@ -29,7 +29,6 @@
 
 #include <array>
 #include <string>
-#include <vector>
 #include <complex>
 #include <cstddef>
 #include <initializer_list>
@@ -38,15 +37,15 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
-#include <SushiBLAS/support/launch_1d.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/math/safe_math.hpp>
+#include <SushiBLAS/engine/math/elementwise/map_task.hpp>
+#include <SushiBLAS/engine/math/elementwise/read_binding.hpp>
 #include <SushiBLAS/engine/math/elementwise/wrapping_math.hpp>
 #include <SushiBLAS/engine/math/elementwise/scalar_binding.hpp>
-#include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
@@ -56,9 +55,9 @@ namespace SushiBLAS
         /**
          * @brief Records a unary in-place elementwise op `t[i] = op(t[i])`, or nothing when t is empty.
          * @tparam Dom Defaults to Domain::REAL; a wider domain needs an op_func well-formed for it.
-         * @param op_func Callable `(auto x) -> auto`, or a bind_scalars bundle of one.
-         * @throws std::invalid_argument on any operand violation, too many params, or
-         *         FORCE_REFERENCE.
+         * @param op_func Callable `(auto x) -> auto`, or a bind_scalars or bind_reads bundle of one.
+         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
+         *         or a device-only tensor under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
@@ -66,20 +65,18 @@ namespace SushiBLAS
                                          SushiRuntime::Graph::OpID op_id, Func&& op_func,
                                          std::initializer_list<Param> params = {})
         {
-            recorder.require_sycl_path("Elementwise operation", name);
             require_storage(t, name, "t");
             require_device_dtype(t, name, "t");
             require_contiguous(t, name, "t");
             require_domain<Dom>(t.dtype, "Elementwise operation", name);
+            Detail::require_declared_reads(op_func, t.dtype, name);
 
             if (t.num_elements == 0)
                 return TaskHandle();
 
-            int64_t size = t.num_elements;
-            void* ptr = t.data();
-            const bool vec_ok = Launch::is_vector_aligned(ptr);
             OperandSet operands;
             operands.updates(t);
+            Detail::declare_reads(op_func, operands, name);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -87,31 +84,20 @@ namespace SushiBLAS
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 
-            return recorder.record(meta, operands, "Elementwise operation",
-                [size, ptr, vec_ok, dtype = t.dtype, op_func, name]
-                (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                {
-                    SB_LOG_INFO("Elementwise {} (In-place): {} elements", name, size);
-                    return q.submit([&](sycl::handler& h)
-                    {
-                        h.depends_on(deps);
-                        const std::size_t n = static_cast<std::size_t>(size);
-                        Dispatch::with_element_type<Dom>(dtype, "Elementwise operation", name,
-                            [&](auto tag)
-                        {
-                            using T = typename decltype(tag)::type;
-
-                            Launch::map(h, q, n, vec_ok, Detail::narrow_for(tag, op_func), (T*)ptr, (const T*)ptr);
-                        });
-                    });
-                });
+            void* ptr = t.data();
+            return recorder.record_pair(meta, operands, "Elementwise operation",
+                Detail::make_map_task<Dom>(t.dtype, "Elementwise operation", name,
+                                           static_cast<std::size_t>(t.num_elements), ptr,
+                                           Detail::task_functor(op_func),
+                                           static_cast<const void*>(ptr)));
         }
 
         /**
          * @brief Records a binary elementwise op `C[i] = op(A[i], B[i])`, or nothing when C is empty.
          * @param C May alias an input.
-         * @param op_func Callable `(auto x, auto y) -> auto`, or a bind_scalars bundle of one.
-         * @throws std::invalid_argument on any operand violation, or under FORCE_REFERENCE.
+         * @param op_func Callable `(auto x, auto y) -> auto`, or a bind_scalars or bind_reads bundle of one.
+         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
+         *         or a device-only tensor under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
@@ -119,7 +105,6 @@ namespace SushiBLAS
                                   const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func,
                                   std::initializer_list<Param> params = {})
         {
-            recorder.require_sycl_path("Elementwise operation", name);
             require_storage(A, name, "A");
             require_device_dtype(A, name, "A");
             require_storage(B, name, "B");
@@ -137,14 +122,14 @@ namespace SushiBLAS
             require_dtype(C, A.dtype, name, "C");
 
             require_domain<Dom>(A.dtype, "Elementwise operation", name);
+            Detail::require_declared_reads(op_func, A.dtype, name);
 
             if (C.num_elements == 0)
                 return TaskHandle();
 
-            int64_t size = A.num_elements;
             OperandSet operands;
             operands.reads(A).reads(B).writes(C);
-            const bool vec_ok = Launch::vector_aligned(A.data(), B.data(), C.data());
+            Detail::declare_reads(op_func, operands, name);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -152,30 +137,18 @@ namespace SushiBLAS
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 
-            return recorder.record(meta, operands, "Elementwise operation",
-                [size, vec_ok, pA_raw = A.data(), pB_raw = B.data(), pC_raw = C.data(), dtype = A.dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                {
-                    SB_LOG_INFO("Elementwise {}: {} elements", name, size);
-                    return q.submit([&](sycl::handler& h)
-                    {
-                        h.depends_on(deps);
-                        const std::size_t n = static_cast<std::size_t>(size);
-                        Dispatch::with_element_type<Dom>(dtype, "Elementwise operation", name,
-                            [&](auto tag)
-                        {
-                            using T = typename decltype(tag)::type;
-
-                            Launch::map(h, q, n, vec_ok, Detail::narrow_for(tag, op_func), (T*)pC_raw, (const T*)pA_raw, (const T*)pB_raw);
-                        });
-                    });
-                });
+            return recorder.record_pair(meta, operands, "Elementwise operation",
+                Detail::make_map_task<Dom>(A.dtype, "Elementwise operation", name,
+                                           static_cast<std::size_t>(A.num_elements), C.data(),
+                                           Detail::task_functor(op_func), A.data(), B.data()));
         }
 
         /**
          * @brief Records a fused in-place op over N same-shaped tensors, or nothing when they are empty.
          * @param tensors None may be null; all must share one shape, layout and dtype, and none may overlap.
-         * @param op_func Callable `(auto&...) -> void` over N lvalue references, or a bind_scalars bundle of one.
-         * @throws std::invalid_argument on any operand violation, or under FORCE_REFERENCE.
+         * @param op_func Callable `(auto&...) -> void` over N lvalues, or a bind_scalars or bind_reads bundle of one.
+         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
+         *         or a device-only tensor under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, std::size_t N, typename Func, typename Param = double>
@@ -185,7 +158,6 @@ namespace SushiBLAS
         {
             static_assert(N >= 1, "A fused in-place elementwise op needs at least one tensor.");
 
-            recorder.require_sycl_path("Elementwise operation", name);
             require_operand(tensors[0] != nullptr, name, "operand 0", "is null");
             require_storage(*tensors[0], name, "operand 0");
             require_device_dtype(*tensors[0], name, "operand 0");
@@ -207,6 +179,7 @@ namespace SushiBLAS
             }
 
             require_domain<Dom>(dtype, "Elementwise operation", name);
+            Detail::require_declared_reads(op_func, dtype, name);
 
             if (size == 0)
                 return TaskHandle();
@@ -214,13 +187,12 @@ namespace SushiBLAS
             // Every operand is declared as both a read and a write, since the functor may touch any; see include/SushiBLAS/engine/math/README.md.
             std::array<void*, N> ptrs{};
             OperandSet operands;
-            bool vec_ok = true;
             for (std::size_t k = 0; k < N; ++k)
             {
                 ptrs[k] = tensors[k]->data();
                 operands.updates(*tensors[k]);
-                vec_ok = vec_ok && Launch::is_vector_aligned(ptrs[k]);
             }
+            Detail::declare_reads(op_func, operands, name);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -228,24 +200,11 @@ namespace SushiBLAS
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 
-            return recorder.record(meta, operands, "Elementwise operation",
-                [size, ptrs, vec_ok, dtype, op_func, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                {
-                    SB_LOG_INFO("Elementwise {} (Fused in-place, {} operands): {} elements", name, N, size);
-                    return q.submit([&](sycl::handler& h)
-                    {
-                        h.depends_on(deps);
-                        const std::size_t n = static_cast<std::size_t>(size);
-                        Dispatch::with_element_type<Dom>(dtype, "Elementwise operation", name,
-                            [&](auto tag)
-                        {
-                            using T = typename decltype(tag)::type;
-
-                            Launch::zip_inplace(h, q, n, vec_ok, Launch::typed_ptrs<T>(ptrs),
-                                                Detail::narrow_for(tag, op_func));
-                        });
-                    });
-                });
+            using Op = std::decay_t<decltype(Detail::task_functor(op_func))>;
+            return recorder.record_pair(meta, operands, "Elementwise operation",
+                Detail::ZipTask<Dom, Op, N>(dtype, "Elementwise operation", name,
+                                            static_cast<std::size_t>(size), ptrs,
+                                            Detail::task_functor(op_func)));
         }
 
         /**

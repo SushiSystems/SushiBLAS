@@ -33,6 +33,7 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiBLAS/engine/math/random/dispatch.hpp>
+#include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 #include <kernels/random.hpp>
@@ -43,27 +44,58 @@ namespace SushiBLAS
 
     namespace
     {
-        // Fisher-Yates runs in one sequential task, one instantiation per dtype; see src/README.md.
+        /**
+         * @brief Permutes size elements in place by Fisher-Yates over one (seed, offset) stream.
+         * @see src/README.md
+         */
         template<typename T>
-        sycl::event shuffle_dispatch(sycl::queue& q, T* p, int64_t size, uint64_t seed, uint64_t offset,
-                                      const std::vector<sycl::event>& deps)
+        struct FisherYates
         {
-            return q.submit([&](sycl::handler& h)
-            {
-                h.depends_on(deps);
-                h.single_task([=]()
-                {
-                    for (int64_t i = size - 1; i > 0; --i)
-                    {
-                        int64_t j = static_cast<int64_t>(Kernels::SYCL::Random::draw_index(
-                            seed, offset, static_cast<uint64_t>(i), static_cast<uint64_t>(i) + 1));
+            /** @brief Holds the first element. */
+            T* p;
+            /** @brief Holds the element count. */
+            int64_t size;
+            /** @brief Holds the stream seed recorded with the task. */
+            uint64_t seed;
+            /** @brief Holds the stream offset recorded with the task. */
+            uint64_t offset;
 
-                        T tmp = p[i];
-                        p[i] = p[j];
-                        p[j] = tmp;
-                    }
+            /** @brief Runs the permutation; the host path and the device task both call it. */
+            void operator()() const
+            {
+                for (int64_t i = size - 1; i > 0; --i)
+                {
+                    const int64_t j = static_cast<int64_t>(Kernels::SYCL::Random::draw_index(
+                        seed, offset, static_cast<uint64_t>(i), static_cast<uint64_t>(i) + 1));
+
+                    const T tmp = p[i];
+                    p[i] = p[j];
+                    p[j] = tmp;
+                }
+            }
+        };
+
+        /**
+         * @brief Runs the Fisher-Yates permutation of size elements of T on the host or as one device task.
+         * @return The submitted event, or an empty one under FORCE_REFERENCE.
+         * @see src/README.md
+         */
+        template<typename T>
+        sycl::event shuffle_dispatch(const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+                                     T* p, int64_t size, uint64_t seed, uint64_t offset,
+                                     const std::vector<sycl::event>& deps)
+        {
+            const FisherYates<T> permute{p, size, seed, offset};
+
+            return pair.run(q, deps, permute,
+                [permute](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                {
+                    return q2.submit([&](sycl::handler& h)
+                    {
+                        h.depends_on(deps2);
+                        h.single_task(permute);
+                    });
                 });
-            });
         }
     }
 
@@ -71,7 +103,6 @@ namespace SushiBLAS
     {
         const char* name = "random.shuffle";
 
-        recorder_.require_sycl_path("RNG operation", name);
         Dispatch::require_random_dtype(t, Dispatch::Domain::REAL_AND_COMPLEX, Dispatch::Sampling::MOVES_VALUES, name);
         Dispatch::require_storage(t, name, "t");
         Dispatch::require_device_dtype(t, name, "t");
@@ -89,13 +120,16 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "random.shuffle"_op;
 
+        recorder_.require_host_reachable(operands, "RNG operation", name);
         const RngPosition position = rng_.reserve(1);
         const uint64_t seed = position.seed;
         const uint64_t offset = position.offset;
         Dispatch::set_rng_params(meta, seed, offset);
 
-        return recorder_.record(meta, operands, "RNG operation",
-            [dtype = t.dtype, size, seed, offset, ptr, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+        return recorder_.record_pair(meta, operands, "RNG operation",
+            [dtype = t.dtype, size, seed, offset, ptr, name]
+            (const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+             const std::vector<sycl::event>& deps) -> sycl::event
             {
                 SB_LOG_INFO("RandomOps: {} ({} elements, seed: {}, offset: {})", name, size, seed, offset);
 
@@ -103,7 +137,7 @@ namespace SushiBLAS
                 Dispatch::with_element_type<Dispatch::Domain::REAL_AND_COMPLEX>(dtype, "RNG operation", name, [&](auto tag)
                 {
                     using T = typename decltype(tag)::type;
-                    done = shuffle_dispatch(q, static_cast<T*>(ptr), size, seed, offset, deps);
+                    done = shuffle_dispatch(pair, q, static_cast<T*>(ptr), size, seed, offset, deps);
                 });
                 return done;
             });

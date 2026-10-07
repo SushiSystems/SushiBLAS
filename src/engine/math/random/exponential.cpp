@@ -44,14 +44,13 @@ namespace SushiBLAS
 
         return Dispatch::execute_random<Dispatch::Domain::REAL>(
             recorder_, rng_, t, "random.exponential", "random.exponential"_op, {lambda},
-            [lambda](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset,
-                     int64_t size, auto* pT,
-                     const std::vector<sycl::event>& deps) -> sycl::event
+            [lambda](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,
+                     uint64_t offset, int64_t size, auto* pT) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 const T beta = static_cast<T>(1.0 / lambda);
 
-                return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t b)
+                return fill(size, pT, [=](uint64_t b)
                 {
                     Kernels::SYCL::Random::DrawBlock<T> values =
                         Kernels::SYCL::Random::uniform_block<T>(seed, offset, b, static_cast<T>(0.0),

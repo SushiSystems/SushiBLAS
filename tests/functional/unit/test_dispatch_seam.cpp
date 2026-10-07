@@ -27,23 +27,32 @@
 
 #include <array>
 #include <cmath>
+#include <atomic>
 #include <vector>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <optional>
+#include <exception>
 #include <stdexcept>
 #include <type_traits>
 #include <initializer_list>
 #include <gtest/gtest.h>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/logic/dispatch.hpp>
 #include <SushiBLAS/engine/math/safe_math.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+#include <SushiBLAS/engine/math/nonlinear/dispatch.hpp>
 #include <SushiBLAS/engine/math/random/dispatch.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
+#include <SushiBLAS/engine/math/elementwise/read_binding.hpp>
+#include <SushiRuntime/SushiRuntime.h>
 #include "../../common/test_utils.hpp"
+#include "../../common/graph_probe.hpp"
 
 namespace sb = SushiBLAS;
 
@@ -104,6 +113,97 @@ namespace
     inline double widen(double value)
     {
         return value;
+    }
+
+    /** @brief Absolute tolerance on a result made of small whole numbers: it is exact. */
+    constexpr double K_EXACT_TOLERANCE = 0.0;
+
+    /** @brief Element count of a gated update; a multiple of no work-group or vector width. */
+    constexpr int64_t K_GATED_ELEMENTS = 1023;
+
+    /** @brief The FLOAT32 step a gated update reads from its first declared tensor. */
+    constexpr float K_GATED_STEP = 0.5f;
+
+    /** @brief Sums a tensor with a plain SYCL reduction, as a consumer's own dispatcher would. */
+    struct PlainSumDispatch
+    {
+        /** @brief Submits the SYCL fold behind deps; it stages no partials and uses no scratch. */
+        template<typename T, typename Scratch>
+        sycl::event operator()(sycl::queue& q, const T* pT, T* pR, int64_t size, Scratch,
+                               const std::vector<sycl::event>& deps) const
+        {
+            return q.submit([&](sycl::handler& h)
+            {
+                h.depends_on(deps);
+                h.parallel_for(sycl::range<1>(size),
+                    sycl::reduction(pR, T(0), sycl::plus<T>(),
+                                    sycl::property::reduction::initialize_to_identity{}),
+                    [=](sycl::id<1> idx, auto& reducer) { reducer.combine(pT[idx[0]]); });
+            });
+        }
+
+        /** @brief Runs the same sum on the host, in index order. */
+        template<typename T>
+        void reference(const T* pT, T* pR, int64_t size) const
+        {
+            T total = T(0);
+            for (int64_t i = 0; i < size; ++i)
+                total = total + pT[i];
+            pR[0] = total;
+        }
+    };
+
+    /** @brief Multiplies an element by the first element of the tensor its functor declared. */
+    struct ScaledByRead
+    {
+        /** @brief Returns `value * factor[0]`. */
+        template<typename T>
+        T operator()(T value, const T* factor) const
+        {
+            return value * factor[0];
+        }
+    };
+
+    /** @brief Adds `scalars[0] * g` to theta unless the gate of its slot is set. */
+    struct GatedStep
+    {
+        /** @brief Holds the index of this parameter's gate. */
+        int64_t slot;
+
+        /** @brief Updates one element; the two pointers are the declared reads, in bound order. */
+        template<typename T>
+        void operator()(T& theta, T& g, const float* scalars, const int64_t* gate) const
+        {
+            if (gate[slot] != 0)
+                return;
+
+            theta = theta + static_cast<T>(scalars[0]) * g;
+        }
+    };
+
+    /** @brief Holds the two FLOAT64 parameters a gated update leaves, and what it started from. */
+    struct GatedUpdate
+    {
+        std::vector<double> theta;    /**< Both parameters before the update. */
+        std::vector<double> gradient; /**< The gradient both updates read. */
+        std::vector<double> gated;    /**< The parameter whose gate is set. */
+        std::vector<double> stepped;  /**< The parameter whose gate is clear. */
+    };
+
+    /** @brief Returns what record throws as std::invalid_argument, or an empty string. */
+    template<typename Record>
+    std::string refusal_of(const Record& record)
+    {
+        try
+        {
+            record();
+        }
+        catch (const std::invalid_argument& error)
+        {
+            return error.what();
+        }
+
+        return std::string();
     }
 } // namespace
 
@@ -183,6 +283,98 @@ class Unit_DispatchSeamTest : public SushiBLASTest
             expect_elements(leaky_dx, x, tolerance, "leaky_relu_backward",
                             [=](double v) { return v > 0.0 ? 1.0 : alpha; });
         }
+
+        /** @brief Returns the in-degree of every node a probe holds, in recording order. */
+        [[nodiscard]] static std::vector<int32_t> in_degrees_of(GraphProbe& probe)
+        {
+            std::vector<int32_t> degrees;
+            for (const auto& node : probe.take_nodes())
+                degrees.push_back(node->in_degree.load(std::memory_order_relaxed));
+            return degrees;
+        }
+
+        /**
+         * @brief Returns a FLOAT32 tensor of dims in device-only USM, or nothing without such USM.
+         * @return Empty when the allocation fails or the pointer is not usm::alloc::device.
+         */
+        std::optional<sb::Tensor> make_device_tensor(std::initializer_list<int64_t> dims)
+        {
+            try
+            {
+                sb::Tensor t = engine->create_tensor(dims, DataType::FLOAT32,
+                                                     SushiRuntime::API::Residency::Device);
+                const sycl::context context =
+                    TestEnvironment::get_context().get_queue().get_context();
+                if (sycl::get_pointer_type(t.data(), context) != sycl::usm::alloc::device)
+                    return std::nullopt;
+                return t;
+            }
+            catch (const std::exception&)
+            {
+                return std::nullopt;
+            }
+        }
+
+        /** @brief Records `y[i] = y[i] * factor[0]` with factor as a declared element read. */
+        static sb::TaskHandle record_scaled(sb::TaskRecorder& recorder, sb::Tensor& y,
+                                            const sb::Tensor& factor)
+        {
+            return sb::Dispatch::execute_unary_inplace(
+                recorder, y, "test.scaled_by_read", "test.scaled_by_read"_op,
+                sb::Dispatch::bind_reads(ScaledByRead{}, sb::Dispatch::read_as_element(factor)));
+        }
+
+        /**
+         * @brief Runs a FLOAT64 update under mode on two parameters, gated by slots 0 and 1.
+         * @return The inputs and both parameters; slot 0's gate is set and slot 1's is clear.
+         */
+        GatedUpdate run_gated_update(sb::ExecutionMode mode)
+        {
+            const size_t count = static_cast<size_t>(K_GATED_ELEMENTS);
+
+            GatedUpdate update;
+            update.theta.resize(count);
+            update.gradient.resize(count);
+            for (size_t i = 0; i < count; ++i)
+            {
+                update.theta[i] = 0.125 * (static_cast<double>(i % 23) - 11.0);
+                update.gradient[i] = 0.25 * (static_cast<double>(i % 17) - 8.0);
+            }
+
+            auto scalars = create_initialized_tensor<float>({1}, {K_GATED_STEP});
+            auto gate = create_initialized_tensor<int64_t>({2}, {1, 0});
+            auto gradient = create_initialized_tensor<double>({K_GATED_ELEMENTS}, update.gradient);
+            auto gated = create_initialized_tensor<double>({K_GATED_ELEMENTS}, update.theta);
+            auto stepped = create_initialized_tensor<double>({K_GATED_ELEMENTS}, update.theta);
+
+            GraphProbe probe(mode);
+            const std::array<sb::Tensor*, 2> parameters = {&gated, &stepped};
+            for (size_t slot = 0; slot < parameters.size(); ++slot)
+            {
+                sb::Dispatch::execute_zip_inplace(
+                    probe.get_recorder(), std::array{parameters[slot], &gradient},
+                    "test.gated_update", "test.gated_update"_op,
+                    sb::Dispatch::bind_reads(GatedStep{static_cast<int64_t>(slot)},
+                                             sb::Dispatch::read_as<float>(scalars),
+                                             sb::Dispatch::read_as<int64_t>(gate)));
+            }
+            probe.execute();
+
+            update.gated = read_tensor<double>(gated);
+            update.stepped = read_tensor<double>(stepped);
+            return update;
+        }
+
+        /** @brief Expects two FLOAT64 buffers to hold the same bits. */
+        static void expect_same_bits(const std::vector<double>& actual,
+                                     const std::vector<double>& expected, const char* what)
+        {
+            ASSERT_EQ(actual.size(), expected.size()) << what;
+
+            const size_t bytes = actual.size() * sizeof(double);
+            EXPECT_EQ(std::memcmp(actual.data(), expected.data(), bytes), 0)
+                << what << " differs in its bits";
+        }
 };
 
 TEST_F(Unit_DispatchSeamTest, FusesAConsumerFunctorIntoOneBinaryKernel)
@@ -255,21 +447,7 @@ TEST_F(Unit_DispatchSeamTest, ConsumerCanDriveTheLogicAndReductionSeamsToo)
 
     auto total = engine->create_tensor({1});
     sb::Dispatch::execute_reduction(
-        engine->get_recorder(), mask, total, "test.count", "test.count"_op,
-        [](sycl::queue& q, const auto* pT, auto* pR, int64_t size,
-           [[maybe_unused]] auto scratch,
-           const std::vector<sycl::event>& deps)
-        {
-            using T = std::decay_t<decltype(*pT)>;
-
-            return q.submit([&](sycl::handler& h)
-            {
-                h.depends_on(deps);
-                h.parallel_for(sycl::range<1>(size),
-                    sycl::reduction(pR, T(0), sycl::plus<T>(), sycl::property::reduction::initialize_to_identity{}),
-                    [=](sycl::id<1> idx, auto& reducer) { reducer.combine(pT[idx[0]]); });
-            });
-        });
+        engine->get_recorder(), mask, total, "test.count", "test.count"_op, PlainSumDispatch{});
     engine->execute();
     verify_tensor(total, {3.0f});
 }
@@ -572,4 +750,185 @@ TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
         EXPECT_EQ(message.find("BLAS operation"), std::string::npos) << message;
         EXPECT_NE(message.find("spatial.im2col"), std::string::npos) << message;
     }
+}
+
+/**
+ * @brief Tests that a declared read orders its task behind the tensor's writer, and a captured
+ *        pointer does not.
+ * @see tests/functional/unit/README.md
+ */
+TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsOrderedBehindItsWriter)
+{
+    auto factor = engine->create_tensor({1});
+    auto y = engine->create_tensor({4});
+
+    GraphProbe declared;
+    sb::RandomOps(declared.get_recorder(), engine->get_rng()).constant(factor, 2.0);
+    record_scaled(declared.get_recorder(), y, factor);
+    EXPECT_EQ(in_degrees_of(declared), (std::vector<int32_t>{0, 1}));
+
+    GraphProbe captured;
+    sb::RandomOps(captured.get_recorder(), engine->get_rng()).constant(factor, 2.0);
+    sb::Dispatch::execute_unary_inplace(
+        captured.get_recorder(), y, "test.captured_pointer", "test.captured_pointer"_op,
+        [pointer = factor.data_as<float>()](auto v) { return v * decltype(v)(pointer[0]); });
+    EXPECT_EQ(in_degrees_of(captured), (std::vector<int32_t>{0, 0}));
+}
+
+/**
+ * @brief Tests that a task keeps the storage of a tensor its functor declared.
+ * @see tests/functional/unit/README.md
+ */
+TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsKeptAllocated)
+{
+    SushiRuntime::Execution::RuntimeContext& context = TestEnvironment::get_context();
+
+    auto y = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
+    std::optional<sb::Tensor> factor(create_initialized_tensor<float>({1}, {2.0f}));
+
+    record_scaled(engine->get_recorder(), y, *factor);
+
+    const size_t live_before = context.live_usm_count();
+    factor.reset();
+    EXPECT_EQ(context.live_usm_count(), live_before);
+
+    engine->execute();
+    verify_tensor(y, {2.0f, 4.0f, 6.0f, 8.0f}, K_EXACT_TOLERANCE);
+}
+
+/**
+ * @brief Tests that a read declared in another type than the operation's reaches the functor typed.
+ * @see tests/functional/unit/README.md
+ */
+TEST_F(Unit_DispatchSeamTest, ADeclaredReadOfAnotherTypeArrivesTyped)
+{
+    const GatedUpdate update = run_gated_update(sb::ExecutionMode::AUTO);
+
+    std::vector<double> expected = update.theta;
+    for (size_t i = 0; i < expected.size(); ++i)
+        expected[i] = update.theta[i] + static_cast<double>(K_GATED_STEP) * update.gradient[i];
+
+    expect_same_bits(update.gated, update.theta, "the parameter whose gate is set");
+    expect_same_bits(update.stepped, expected, "the parameter whose gate is clear");
+}
+
+/**
+ * @brief Tests that each of the other six functor seams hands a declared read to its functor.
+ * @see tests/functional/unit/README.md
+ */
+TEST_F(Unit_DispatchSeamTest, ADeclaredReadWorksOnEverySeam)
+{
+    const std::vector<float> a_values = {1.0f, 2.0f, 3.0f, 4.0f};
+    const std::vector<float> b_values = {2.0f, 3.0f, 6.0f, 7.0f};
+
+    auto factor = create_initialized_tensor<float>({1}, {2.0f});
+    auto a = create_initialized_tensor<float>({4}, a_values);
+    auto b = create_initialized_tensor<float>({4}, b_values);
+    auto condition = create_initialized_tensor<float>({4}, {1.0f, 1.0f, 0.0f, 0.0f});
+    auto forward = create_initialized_tensor<float>({4}, a_values);
+    auto binary = engine->create_tensor({4});
+    auto backward = engine->create_tensor({4});
+    auto logic_unary = engine->create_tensor({4});
+    auto logic_binary = engine->create_tensor({4});
+    auto logic_ternary = engine->create_tensor({4});
+
+    sb::TaskRecorder& recorder = engine->get_recorder();
+    const auto read = sb::Dispatch::read_as_element(factor);
+
+    sb::Dispatch::execute_binary(
+        recorder, a, b, binary, "test.read_binary", "test.read_binary"_op,
+        sb::Dispatch::bind_reads([](auto x, auto y, const auto* f) { return (x + y) * f[0]; },
+                                 read));
+    sb::Dispatch::execute_nonlinear_forward(
+        recorder, forward, "test.read_forward", "test.read_forward"_op,
+        sb::Dispatch::bind_reads(ScaledByRead{}, read));
+    sb::Dispatch::execute_nonlinear_backward(
+        recorder, a, b, backward, "test.read_backward", "test.read_backward"_op,
+        sb::Dispatch::bind_reads([](auto dy, auto x, const auto* f) { return dy * x * f[0]; },
+                                 read));
+    sb::Dispatch::execute_logic_unary(
+        recorder, a, logic_unary, "test.read_logic_unary", "test.read_logic_unary"_op,
+        sb::Dispatch::bind_reads(
+            [](auto x, const auto* f) { return x > f[0] ? decltype(x)(1) : decltype(x)(0); },
+            read));
+    sb::Dispatch::execute_logic_binary(
+        recorder, a, b, logic_binary, "test.read_logic_binary", "test.read_logic_binary"_op,
+        sb::Dispatch::bind_reads(
+            [](auto x, auto y, const auto* f)
+            {
+                return x * f[0] > y ? decltype(x)(1) : decltype(x)(0);
+            },
+            read));
+    sb::Dispatch::execute_logic_ternary(
+        recorder, condition, a, b, logic_ternary, "test.read_logic_ternary",
+        "test.read_logic_ternary"_op,
+        sb::Dispatch::bind_reads(
+            [](auto c, auto x, auto y, const auto* f)
+            {
+                return c != decltype(c)(0) ? x * f[0] : y;
+            },
+            read));
+    engine->execute();
+
+    verify_tensor(binary, {6.0f, 10.0f, 18.0f, 22.0f}, K_EXACT_TOLERANCE);
+    verify_tensor(forward, {2.0f, 4.0f, 6.0f, 8.0f}, K_EXACT_TOLERANCE);
+    verify_tensor(backward, {4.0f, 12.0f, 36.0f, 56.0f}, K_EXACT_TOLERANCE);
+    verify_tensor(logic_unary, {0.0f, 0.0f, 1.0f, 1.0f}, K_EXACT_TOLERANCE);
+    verify_tensor(logic_binary, {0.0f, 1.0f, 0.0f, 1.0f}, K_EXACT_TOLERANCE);
+    verify_tensor(logic_ternary, {2.0f, 4.0f, 6.0f, 7.0f}, K_EXACT_TOLERANCE);
+}
+
+/**
+ * @brief Tests that a seam refuses a declared read of a tensor the operation writes.
+ * @see tests/functional/unit/README.md
+ */
+TEST_F(Unit_DispatchSeamTest, ADeclaredReadMayNotBeAnOutput)
+{
+    GraphProbe probe;
+    auto y = engine->create_tensor({4});
+
+    const std::string message = refusal_of([&] { record_scaled(probe.get_recorder(), y, y); });
+
+    EXPECT_NE(message.find("'read 0'"), std::string::npos) << message;
+    EXPECT_TRUE(probe.take_nodes().empty());
+}
+
+/**
+ * @brief Tests that FORCE_REFERENCE refuses a declared read in device-only USM and FORCE_SYCL
+ *        records it.
+ * @see tests/functional/unit/README.md
+ */
+TEST_F(Unit_DispatchSeamTest, ADeviceOnlyReadIsRefusedUnderForceReference)
+{
+    std::optional<sb::Tensor> factor = make_device_tensor({1});
+    if (!factor)
+        GTEST_SKIP() << "This device offers no device-only USM.";
+    auto y = engine->create_tensor({4});
+
+    GraphProbe reference(sb::ExecutionMode::FORCE_REFERENCE);
+    const std::string message =
+        refusal_of([&] { record_scaled(reference.get_recorder(), y, *factor); });
+    EXPECT_NE(message.find("FORCE_REFERENCE"), std::string::npos) << message;
+    EXPECT_TRUE(reference.take_nodes().empty());
+
+    GraphProbe device(sb::ExecutionMode::FORCE_SYCL);
+    EXPECT_NO_THROW(record_scaled(device.get_recorder(), y, *factor));
+    EXPECT_EQ(device.take_nodes().size(), 1u);
+}
+
+/**
+ * @brief Tests that the host path hands a functor the same declared reads as the SYCL path.
+ * @see tests/functional/unit/README.md
+ */
+TEST_F(Unit_DispatchSeamTest, ADeclaredReadReachesTheHostPath)
+{
+    const GatedUpdate reference = run_gated_update(sb::ExecutionMode::FORCE_REFERENCE);
+    const GatedUpdate device = run_gated_update(sb::ExecutionMode::FORCE_SYCL);
+
+    expect_same_bits(reference.gated, device.gated, "the parameter whose gate is set");
+    expect_same_bits(reference.stepped, device.stepped, "the parameter whose gate is clear");
+    ASSERT_EQ(reference.stepped.size(), reference.theta.size());
+    EXPECT_NE(std::memcmp(reference.stepped.data(), reference.theta.data(),
+                          reference.theta.size() * sizeof(double)), 0)
+        << "the update under FORCE_REFERENCE changed nothing";
 }

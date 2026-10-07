@@ -25,7 +25,11 @@
  * @author Mustafa Garip
  */
 
+#include <vector>
+#include <cstddef>
 #include <cstdint>
+#include <SushiBLAS/support/reduce_1d.hpp>
+#include <SushiBLAS/support/serial_reduce.hpp>
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
@@ -33,27 +37,56 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
+    namespace
+    {
+        /** @brief Maps an element to 1 when it is NaN or infinite, else 0. */
+        struct NonFiniteIndicator
+        {
+            /** @brief Returns 1 for a NaN or an infinity; isfinite is false for both, see src/README.md. */
+            template<typename T>
+            [[nodiscard]] int64_t operator()(T x) const noexcept
+            {
+                return sycl::isfinite(x) ? int64_t{0} : int64_t{1};
+            }
+        };
+
+        /** @brief Counts the non-finite elements of a tensor, on the device or on the host. */
+        class CountNonFiniteDispatch final
+        {
+            public:
+                /** @brief Submits the fixed-order SYCL count and returns its last event. */
+                template<typename T>
+                [[nodiscard]] sycl::event operator()(sycl::queue& q, const T* in, int64_t* out,
+                                                     int64_t size,
+                                                     Dispatch::ReductionScratch<int64_t> scratch,
+                                                     const std::vector<sycl::event>& deps) const
+                {
+                    return Reduce::reduce<Reduce::ExactSum>(
+                        q, in, out, static_cast<std::size_t>(size), scratch.data,
+                        scratch.capacity, NonFiniteIndicator{}, Dispatch::ReduceIdentityFinalize{},
+                        deps);
+                }
+
+                /** @brief Counts by one serial host scan in index order. */
+                template<typename T>
+                void reference(const T* in, int64_t* out, int64_t size) const
+                {
+                    Serial::reduce<Reduce::ExactSum>(in, out, static_cast<std::size_t>(size),
+                                                     NonFiniteIndicator{},
+                                                     Dispatch::ReduceIdentityFinalize{});
+                }
+        };
+    } // namespace
+
     // The count goes through the counting seam with a predicate transform; see src/README.md.
     TaskHandle ReductionOps::count_nonfinite(const Tensor& t, Tensor& result)
     {
-        recorder_.require_sycl_path("Reduction", "math.count_nonfinite");
         Dispatch::require_storage(t, "math.count_nonfinite", "t");
 
         // The partial count is planned from the device the data lives on; see src/README.md.
         const std::size_t partials = Dispatch::planned_partials_for(t);
 
-        auto dispatch = [](sycl::queue& q, const auto* pT, int64_t* pR, int64_t size,
-                           auto scratch, const std::vector<sycl::event>& deps)
-        {
-            return Reduce::reduce<Reduce::ExactSum>(
-                q, pT, pR, static_cast<std::size_t>(size),
-                scratch.data, scratch.capacity,
-                // isfinite is false for NaN and for infinity alike; see src/README.md.
-                [](auto x) -> int64_t { return sycl::isfinite(x) ? int64_t{0} : int64_t{1}; },
-                Dispatch::ReduceIdentityFinalize{}, deps);
-        };
-
         return Dispatch::execute_counting_reduction(recorder_, t, result,
-            "math.count_nonfinite", "math.count_nonfinite"_op, dispatch, partials);
+            "math.count_nonfinite", "math.count_nonfinite"_op, CountNonFiniteDispatch{}, partials);
     }
 } // namespace SushiBLAS

@@ -29,6 +29,7 @@
 
 #include <vector>
 #include <cstddef>
+#include <utility>
 #include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
@@ -44,6 +45,9 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/support/serial_reduce.hpp>
+#include <SushiBLAS/engine/execution_mode.hpp>
+#include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -106,11 +110,153 @@ namespace SushiBLAS
         inline constexpr std::size_t K_INDEXED_PARTIAL_BYTES = 16;
 
         /**
+         * @brief Returns how many partials a reduction leases under the recorder's mode.
+         * @return planned, or 0 under FORCE_REFERENCE, whose host fold stages nothing.
+         */
+        [[nodiscard]] inline std::size_t leased_partials(const TaskRecorder& recorder,
+                                                         std::size_t planned) noexcept
+        {
+            return recorder.get_mode() == ExecutionMode::FORCE_REFERENCE ? std::size_t{0}
+                                                                          : planned;
+        }
+
+        namespace Detail
+        {
+            /**
+             * @brief Reports whether Dispatcher has the host path, `dispatch.reference(in, out, size)`.
+             * @see include/SushiBLAS/engine/math/README.md
+             */
+            template<typename Dispatcher, typename T, typename Out, typename = void>
+            struct has_reference_path : std::false_type {};
+
+            template<typename Dispatcher, typename T, typename Out>
+            struct has_reference_path<Dispatcher, T, Out,
+                                      std::void_t<decltype(std::declval<const Dispatcher&>().reference(
+                                          std::declval<const T*>(), std::declval<Out*>(),
+                                          std::declval<int64_t>()))>>
+                : std::true_type {};
+
+            /** @brief Reports whether R is the C++ type of HALF, FLOAT32 or FLOAT64. */
+            template<typename R>
+            inline constexpr bool is_real_scalar_v =
+                std::is_floating_point_v<R> || std::is_same_v<R, sycl::half>;
+
+            /**
+             * @brief Reports whether Finalize, handed a fold in Wide, returns a value no narrower than Wide.
+             * @tparam Wide The type a host fold hands finalize: double for a sum, whatever the element type.
+             * @see include/SushiBLAS/engine/math/README.md
+             */
+            template<typename Finalize, typename Wide>
+            struct finalize_keeps_width
+            {
+                /** @brief The type finalize returns for a fold in Wide. */
+                using Result = std::decay_t<std::invoke_result_t<const Finalize&, Wide, std::size_t>>;
+
+                /** @brief Holds false only when both types are real scalars and Result is the narrower. */
+                static constexpr bool value = !is_real_scalar_v<Result> || !is_real_scalar_v<Wide> ||
+                                              sizeof(Result) >= sizeof(Wide);
+            };
+
+            /**
+             * @brief Refuses at compile time a Finalize that narrows the host fold it is handed.
+             * @tparam Wide The type a host fold hands finalize: double for a sum, whatever the element type.
+             * @see include/SushiBLAS/engine/math/README.md
+             */
+            template<typename Finalize, typename Wide>
+            constexpr void require_finalize_keeps_width() noexcept
+            {
+                // The static_assert states the finalize contract in a sentence; see include/SushiBLAS/engine/math/README.md.
+                static_assert(finalize_keeps_width<Finalize, Wide>::value,
+                              "A reduction's finalize must return its value in the type it is "
+                              "handed, which is double on the host path of a sum whatever the "
+                              "element type. Write it as '[](auto value, std::size_t n) { ... }' "
+                              "and let the seam narrow the result; this one returns a narrower "
+                              "type.");
+            }
+
+            /**
+             * @brief Runs one whole-tensor reduction on the host or the device, as its mode says.
+             * @tparam P The type of one staged partial.
+             * @tparam Out The type the result is written in.
+             * @tparam Dispatcher Callable as `dispatch(q, in, out, size, ReductionScratch<P>, deps)`
+             *         for the SYCL path, with a member `reference(in, out, size)` for the host path.
+             * @see include/SushiBLAS/engine/math/README.md
+             */
+            template<typename T, typename P, typename Out, typename Dispatcher>
+            class ReductionTask final
+            {
+                // The static_assert states the dispatcher contract in a sentence; see include/SushiBLAS/engine/math/README.md.
+                static_assert(has_reference_path<Dispatcher, T, Out>::value,
+                              "A reduction dispatcher needs both paths: "
+                              "'sycl::event operator()(sycl::queue&, const T*, Out*, int64_t, "
+                              "ReductionScratch<P>, const std::vector<sycl::event>&) const' for "
+                              "the SYCL fold and 'void reference(const T*, Out*, int64_t) const' "
+                              "for the serial host fold. This one has no reference(); a lambda "
+                              "cannot be a dispatcher, write a class.");
+
+                public:
+                    /**
+                     * @brief Holds everything the body needs at execute time.
+                     * @param scratch The lease on the partials; held so the block stays lent to this task.
+                     * @param name Stored, not copied; must outlive the task.
+                     */
+                    ReductionTask(const T* in, Out* out, int64_t size, ScratchBuffer scratch,
+                                  std::size_t partials, Dispatcher dispatch, const char* name)
+                        : in_(in), out_(out), size_(size), scratch_(std::move(scratch)),
+                          partials_(partials), dispatch_(std::move(dispatch)), name_(name)
+                    {
+
+                    }
+
+                    /** @brief Runs the serial host fold under FORCE_REFERENCE, else submits the kernels. */
+                    sycl::event operator()(const Internal::KernelPairDispatcher& pair,
+                                           sycl::queue& q,
+                                           const std::vector<sycl::event>& deps) const
+                    {
+                        SB_LOG_INFO("Reduction {}: {} elements", name_, size_);
+
+                        return pair.run(q, deps,
+                            [this] { dispatch_.reference(in_, out_, size_); },
+                            [this](sycl::queue& q2,
+                                   const std::vector<sycl::event>& deps2) -> sycl::event
+                            {
+                                return dispatch_(q2, in_, out_, size_,
+                                                 ReductionScratch<P>{
+                                                     static_cast<P*>(scratch_.data()), partials_},
+                                                 deps2);
+                            });
+                    }
+
+                private:
+                    /// @brief The input's base address; null for an operand without storage.
+                    const T* in_;
+
+                    /// @brief The address the result is written to.
+                    Out* out_;
+
+                    /// @brief The element count of the input.
+                    int64_t size_;
+
+                    /// @brief The lease on the staged partials; empty under FORCE_REFERENCE.
+                    ScratchBuffer scratch_;
+
+                    /// @brief How many partials the lease has room for.
+                    std::size_t partials_;
+
+                    /// @brief The reduction's two paths.
+                    Dispatcher dispatch_;
+
+                    /// @brief The operation name, for the log line.
+                    const char* name_;
+            };
+        } // namespace Detail
+
+        /**
          * @brief Records a whole-tensor reduction to a scalar result tensor.
          * @param result Must hold one element and share t's dtype.
-         * @param dispatch Builds the command group per element type and must call `depends_on(deps)`.
+         * @param dispatch Has the two paths Detail::ReductionTask names; its SYCL path must call `depends_on(deps)`.
          * @param scratch_elements Per-work-group partials to lease; zero leases nothing.
-         * @throws std::invalid_argument on an operand violation, or under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand violation, or a device-only tensor under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
@@ -118,7 +264,6 @@ namespace SushiBLAS
                                      const char* name, SushiRuntime::Graph::OpID op_id,
                                      Dispatcher&& dispatch, std::size_t scratch_elements = 0)
         {
-            recorder.require_sycl_path("Reduction", name);
             require_storage(t, name, "t");
             require_device_dtype(t, name, "t");
             require_storage(result, name, "result");
@@ -135,12 +280,13 @@ namespace SushiBLAS
             // Operands are declared by Tensor::region(), not by data(); see include/SushiBLAS/engine/math/README.md.
             OperandSet operands;
             operands.reads(t).writes(result);
+            recorder.require_host_reachable(operands, "Reduction", name);
 
             // The scratch is declared as a resource with its own region; see include/SushiBLAS/engine/math/README.md.
+            const std::size_t partials = leased_partials(recorder, scratch_elements);
             const ScratchBuffer scratch(recorder.get_scratch_pool(),
-                                        scratch_elements * partial_bytes(t.dtype),
+                                        partials * partial_bytes(t.dtype),
                                         reduction_device_index(t, result));
-            void* scratch_ptr = scratch.data();
             operands.scratch(scratch);
 
             SushiRuntime::Graph::TaskMetadata meta;
@@ -148,38 +294,26 @@ namespace SushiBLAS
             meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
             meta.op_id = op_id;
 
+            using D = std::decay_t<Dispatcher>;
+
             switch (t.dtype)
             {
                 case Core::DataType::HALF:
-                    return recorder.record(meta, operands, "Reduction",
-                        [size, pT=(const sycl::half*)read_T, pR=(sycl::half*)write_R, scratch,
-                         pS=(float*)scratch_ptr, scratch_elements, dispatch, name]
-                        (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                        {
-                            SB_LOG_INFO("Reduction {}: {} elements", name, size);
-                            return dispatch(q, pT, pR, size,
-                                            ReductionScratch<float>{pS, scratch_elements}, deps);
-                        });
+                    return recorder.record_pair(meta, operands, "Reduction",
+                        Detail::ReductionTask<sycl::half, float, sycl::half, D>(
+                            static_cast<const sycl::half*>(read_T),
+                            static_cast<sycl::half*>(write_R), size, scratch, partials, dispatch,
+                            name));
                 case Core::DataType::FLOAT32:
-                    return recorder.record(meta, operands, "Reduction",
-                        [size, pT=(const float*)read_T, pR=(float*)write_R, scratch,
-                         pS=(float*)scratch_ptr, scratch_elements, dispatch, name]
-                        (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                        {
-                            SB_LOG_INFO("Reduction {}: {} elements", name, size);
-                            return dispatch(q, pT, pR, size,
-                                            ReductionScratch<float>{pS, scratch_elements}, deps);
-                        });
+                    return recorder.record_pair(meta, operands, "Reduction",
+                        Detail::ReductionTask<float, float, float, D>(
+                            static_cast<const float*>(read_T), static_cast<float*>(write_R), size,
+                            scratch, partials, dispatch, name));
                 case Core::DataType::FLOAT64:
-                    return recorder.record(meta, operands, "Reduction",
-                        [size, pT=(const double*)read_T, pR=(double*)write_R, scratch,
-                         pS=(double*)scratch_ptr, scratch_elements, dispatch, name]
-                        (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                        {
-                            SB_LOG_INFO("Reduction {}: {} elements", name, size);
-                            return dispatch(q, pT, pR, size,
-                                            ReductionScratch<double>{pS, scratch_elements}, deps);
-                        });
+                    return recorder.record_pair(meta, operands, "Reduction",
+                        Detail::ReductionTask<double, double, double, D>(
+                            static_cast<const double*>(read_T), static_cast<double*>(write_R),
+                            size, scratch, partials, dispatch, name));
                 default:
                     break;
             }
@@ -192,8 +326,7 @@ namespace SushiBLAS
         {
             /**
              * @brief Records an index reduction for the element type of a with_element_type arm.
-             * @tparam Dispatcher Callable `(queue&, const T*, int64_t*, int64_t,
-             *         ReductionScratch<Reduce::IndexedValue<T>>, deps) -> sycl::event`.
+             * @tparam Dispatcher The two-path dispatcher execute_index_reduction was given.
              * @see docs/reference/KNOWN_ISSUES.md
              */
             template<typename Dispatcher>
@@ -205,7 +338,7 @@ namespace SushiBLAS
                 const SushiRuntime::Graph::TaskMetadata& meta;
                 /** @brief Holds the operands the task declares. */
                 const OperandSet& operands;
-                /** @brief Holds the command-group builder the task body calls. */
+                /** @brief Holds the dispatcher the task body calls. */
                 const Dispatcher& dispatch;
                 /** @brief Holds the element count of the input. */
                 int64_t size;
@@ -215,10 +348,8 @@ namespace SushiBLAS
                 int64_t* write_R;
                 /** @brief Holds the lease the task keeps until it is destroyed. */
                 const ScratchBuffer& scratch;
-                /** @brief Holds the base address of the leased partials, or null. */
-                void* scratch_ptr;
                 /** @brief Holds how many partials the lease has room for. */
-                std::size_t scratch_elements;
+                std::size_t partials;
                 /** @brief Holds the operation name for messages. */
                 const char* name;
                 /** @brief Receives the handle of the recorded task. */
@@ -234,23 +365,16 @@ namespace SushiBLAS
                     static_assert(sizeof(P) <= K_INDEXED_PARTIAL_BYTES,
                                   "An index partial must fit the bytes its scratch is sized by.");
 
-                    handle = recorder.record(meta, operands, "Reduction",
-                        [size = size, pT = static_cast<const T*>(read_T), write_R = write_R,
-                         scratch = scratch, pS = static_cast<P*>(scratch_ptr),
-                         scratch_elements = scratch_elements, dispatch = dispatch, name = name]
-                        (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                        {
-                            SB_LOG_INFO("Reduction {}: {} elements", name, size);
-                            return dispatch(q, pT, write_R, size,
-                                            ReductionScratch<P>{pS, scratch_elements}, deps);
-                        });
+                    handle = recorder.record_pair(meta, operands, "Reduction",
+                        ReductionTask<T, P, int64_t, Dispatcher>(
+                            static_cast<const T*>(read_T), write_R, size, scratch, partials,
+                            dispatch, name));
                 }
             };
 
             /**
              * @brief Records a counting reduction for the element type of a with_element_type arm.
-             * @tparam Dispatcher Callable `(queue&, const T*, int64_t*, int64_t,
-             *         ReductionScratch<int64_t>, deps) -> sycl::event`.
+             * @tparam Dispatcher The two-path dispatcher execute_counting_reduction was given.
              * @see docs/reference/KNOWN_ISSUES.md
              */
             template<typename Dispatcher>
@@ -262,7 +386,7 @@ namespace SushiBLAS
                 const SushiRuntime::Graph::TaskMetadata& meta;
                 /** @brief Holds the operands the task declares. */
                 const OperandSet& operands;
-                /** @brief Holds the command-group builder the task body calls. */
+                /** @brief Holds the dispatcher the task body calls. */
                 const Dispatcher& dispatch;
                 /** @brief Holds the element count of the input. */
                 int64_t size;
@@ -272,10 +396,8 @@ namespace SushiBLAS
                 int64_t* write_R;
                 /** @brief Holds the lease the task keeps until it is destroyed. */
                 const ScratchBuffer& scratch;
-                /** @brief Holds the base address of the leased partials, or null. */
-                int64_t* scratch_ptr;
                 /** @brief Holds how many partials the lease has room for. */
-                std::size_t scratch_elements;
+                std::size_t partials;
                 /** @brief Holds the operation name for messages. */
                 const char* name;
                 /** @brief Receives the handle of the recorded task. */
@@ -287,17 +409,83 @@ namespace SushiBLAS
                 {
                     using T = typename Tag::type;
 
-                    handle = recorder.record(meta, operands, "Reduction",
-                        [size = size, pT = static_cast<const T*>(read_T), write_R = write_R,
-                         scratch = scratch, pS = scratch_ptr, scratch_elements = scratch_elements,
-                         dispatch = dispatch, name = name]
-                        (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                        {
-                            SB_LOG_INFO("Reduction {}: {} elements", name, size);
-                            return dispatch(q, pT, write_R, size,
-                                            ReductionScratch<int64_t>{pS, scratch_elements}, deps);
-                        });
+                    handle = recorder.record_pair(meta, operands, "Reduction",
+                        ReductionTask<T, int64_t, int64_t, Dispatcher>(
+                            static_cast<const T*>(read_T), write_R, size, scratch, partials,
+                            dispatch, name));
                 }
+            };
+
+            /**
+             * @brief Runs one segmented fold on the host or the device, as its mode says.
+             * @tparam Accum The Reduce accumulator the fold runs in.
+             * @tparam Finalize Returns its value in the type it is handed: double on the host path of a sum.
+             * @see include/SushiBLAS/engine/math/README.md
+             */
+            template<template<typename> class Accum, typename T, typename Transform,
+                     typename Finalize>
+            class SpanReductionTask final
+            {
+                public:
+                    /**
+                     * @brief Holds everything the body needs at execute time.
+                     * @param name Stored, not copied; must outlive the task.
+                     */
+                    SpanReductionTask(const Reduce::AxisSpan& span, const T* in, T* out,
+                                      Transform transform, Finalize finalize, const char* name)
+                        : span_(span), in_(in), out_(out), transform_(std::move(transform)),
+                          finalize_(std::move(finalize)), name_(name)
+                    {
+
+                    }
+
+                    /** @brief Runs the serial host folds under FORCE_REFERENCE, else submits the kernel. */
+                    sycl::event operator()(const Internal::KernelPairDispatcher& pair,
+                                           sycl::queue& q,
+                                           const std::vector<sycl::event>& deps) const
+                    {
+                        SB_LOG_INFO("Axis reduction {}: {} segments of {} elements",
+                                    name_, span_.total_segments(), span_.extent);
+
+                        return pair.run(q, deps,
+                            [this]
+                            {
+                                require_finalize_keeps_width<
+                                    Finalize, typename Serial::Fold<Accum, T>::Wide>();
+
+                                Serial::reduce_axis<Accum>(in_, out_, span_, transform_, finalize_);
+                            },
+                            [this](sycl::queue& q2,
+                                   const std::vector<sycl::event>& deps2) -> sycl::event
+                            {
+                                // The geometry is planned at execution time; see include/SushiBLAS/engine/math/README.md.
+                                const Reduce::AxisPlan geometry =
+                                    Reduce::plan_axis(Device::profile_for(q2),
+                                                      span_.total_segments(), span_.extent);
+
+                                return Reduce::reduce_axis<Accum>(q2, in_, out_, span_, geometry,
+                                                                  transform_, finalize_, deps2);
+                            });
+                    }
+
+                private:
+                    /// @brief The segment geometry the fold walks.
+                    Reduce::AxisSpan span_;
+
+                    /// @brief The input's base address; null for an operand without storage.
+                    const T* in_;
+
+                    /// @brief The result's base address.
+                    T* out_;
+
+                    /// @brief The callable applied to each element before the fold.
+                    Transform transform_;
+
+                    /// @brief The callable applied once to each segment's fold.
+                    Finalize finalize_;
+
+                    /// @brief The operation name, for the log line.
+                    const char* name_;
             };
 
             /**
@@ -335,23 +523,10 @@ namespace SushiBLAS
                 {
                     using T = typename Tag::type;
 
-                    handle = recorder.record(meta, operands, "Axis reduction",
-                        [span = span, pT = static_cast<const T*>(read_T),
-                         pR = static_cast<T*>(write_R), transform = transform,
-                         finalize = finalize, name = name]
-                        (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                        {
-                            SB_LOG_INFO("Axis reduction {}: {} segments of {} elements",
-                                        name, span.total_segments(), span.extent);
-
-                            // The geometry is planned at execution time; see include/SushiBLAS/engine/math/README.md.
-                            const Reduce::AxisPlan geometry =
-                                Reduce::plan_axis(Device::profile_for(q), span.total_segments(),
-                                                  span.extent);
-
-                            return Reduce::reduce_axis<Accum>(q, pT, pR, span, geometry,
-                                                              transform, finalize, deps);
-                        });
+                    handle = recorder.record_pair(meta, operands, "Axis reduction",
+                        SpanReductionTask<Accum, T, Transform, Finalize>(
+                            span, static_cast<const T*>(read_T), static_cast<T*>(write_R),
+                            transform, finalize, name));
                 }
             };
         } // namespace Detail
@@ -359,9 +534,9 @@ namespace SushiBLAS
         /**
          * @brief Records a whole-tensor reduction whose result is an index in an INT64 scalar.
          * @param result Must be a scalar INT64 tensor.
-         * @param dispatch Builds the command group per input element type, as in execute_reduction.
-         * @param scratch_elements Per-work-group index partials to lease; zero leases nothing.
-         * @throws std::invalid_argument on an operand violation, or under FORCE_REFERENCE.
+         * @param dispatch Has the two paths Detail::ReductionTask names, over IndexedValue partials.
+         * @param scratch_elements Per-work-group partials to lease; zero leases nothing.
+         * @throws std::invalid_argument on an operand violation, an empty t, or a device-only tensor under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
@@ -370,7 +545,6 @@ namespace SushiBLAS
                                            Dispatcher&& dispatch,
                                            std::size_t scratch_elements = 0)
         {
-            recorder.require_sycl_path("Reduction", name);
             require_storage(t, name, "t");
             require_device_dtype(t, name, "t");
             require_storage(result, name, "result");
@@ -387,12 +561,13 @@ namespace SushiBLAS
 
             OperandSet operands;
             operands.reads(t).writes(result);
+            recorder.require_host_reachable(operands, "Reduction", name);
 
             // The partials are (value, index) pairs, 16 bytes for every element type served.
+            const std::size_t partials = leased_partials(recorder, scratch_elements);
             const ScratchBuffer scratch(recorder.get_scratch_pool(),
-                                        scratch_elements * K_INDEXED_PARTIAL_BYTES,
+                                        partials * K_INDEXED_PARTIAL_BYTES,
                                         t.storage->get_device_index());
-            void* scratch_ptr = scratch.data();
             operands.scratch(scratch);
 
             SushiRuntime::Graph::TaskMetadata meta;
@@ -404,8 +579,8 @@ namespace SushiBLAS
 
             // REAL_AND_INTEGRAL: finding the largest element needs an ordering, which complex types lack; see include/SushiBLAS/engine/math/README.md.
             const Detail::IndexReductionArm<std::remove_reference_t<Dispatcher>> arm{
-                recorder, meta, operands, dispatch, size, read_T, write_R,
-                scratch, scratch_ptr, scratch_elements, name, handle};
+                recorder, meta, operands, dispatch, size, read_T, write_R, scratch, partials,
+                name, handle};
             with_element_type<Domain::REAL_AND_INTEGRAL>(t.dtype, "Reduction", name, arm);
 
             return handle;
@@ -414,8 +589,9 @@ namespace SushiBLAS
         /**
          * @brief Records a whole-tensor reduction that counts elements into an INT64 scalar.
          * @param result Must be a scalar INT64 tensor.
+         * @param dispatch Has the two paths Detail::ReductionTask names, over INT64 partials.
          * @param scratch_elements Per-work-group partials to lease; zero leases nothing.
-         * @throws std::invalid_argument on an operand violation, or under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand violation, or a device-only tensor under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
@@ -425,7 +601,6 @@ namespace SushiBLAS
                                               Dispatcher&& dispatch,
                                               std::size_t scratch_elements = 0)
         {
-            recorder.require_sycl_path("Reduction", name);
             require_storage(t, name, "t");
             require_device_dtype(t, name, "t");
             require_storage(result, name, "result");
@@ -442,12 +617,13 @@ namespace SushiBLAS
             // Operands are declared by Tensor::region(), not by data(); see include/SushiBLAS/engine/math/README.md.
             OperandSet operands;
             operands.reads(t).writes(result);
+            recorder.require_host_reachable(operands, "Reduction", name);
 
             // Partials are INT64 whatever the input dtype, so the scratch is sized from sizeof(int64_t); see include/SushiBLAS/engine/math/README.md.
+            const std::size_t partials = leased_partials(recorder, scratch_elements);
             const ScratchBuffer scratch(recorder.get_scratch_pool(),
-                                        scratch_elements * sizeof(int64_t),
+                                        partials * sizeof(int64_t),
                                         reduction_device_index(t, result));
-            int64_t* scratch_ptr = static_cast<int64_t*>(scratch.data());
             operands.scratch(scratch);
 
             SushiRuntime::Graph::TaskMetadata meta;
@@ -459,18 +635,65 @@ namespace SushiBLAS
 
             // REAL only: an integer or complex tensor is rejected by name; see include/SushiBLAS/engine/math/README.md.
             const Detail::CountingReductionArm<std::remove_reference_t<Dispatcher>> arm{
-                recorder, meta, operands, dispatch, size, read_T, write_R,
-                scratch, scratch_ptr, scratch_elements, name, handle};
+                recorder, meta, operands, dispatch, size, read_T, write_R, scratch, partials,
+                name, handle};
             with_element_type<Domain::REAL>(t.dtype, "Reduction", name, arm);
 
             return handle;
         }
 
         /**
+         * @brief Folds a whole tensor as `finalize(fold(transform(t[i])), n)`, on the device or the host.
+         * @tparam Accum A Reduce accumulator: CompensatedSum, RunningProduct, NaNPropagatingMax.
+         * @tparam Finalize Returns its value in the type it is handed: double on the host path of a sum.
+         * @see include/SushiBLAS/engine/math/README.md
+         */
+        template<template<typename> class Accum, typename Transform, typename Finalize>
+        class FoldingReductionDispatch final
+        {
+            public:
+                /** @brief Holds the callable applied to each element and the one applied to the fold. */
+                FoldingReductionDispatch(Transform transform, Finalize finalize)
+                    : transform_(std::move(transform)), finalize_(std::move(finalize))
+                {
+
+                }
+
+                /** @brief Submits the fixed-order SYCL fold and returns its last event. */
+                template<typename T, typename W>
+                [[nodiscard]] sycl::event operator()(sycl::queue& q, const T* in, T* out,
+                                                     int64_t size, ReductionScratch<W> scratch,
+                                                     const std::vector<sycl::event>& deps) const
+                {
+                    return Reduce::reduce<Accum>(q, in, out, static_cast<std::size_t>(size),
+                                                 scratch.data, scratch.capacity,
+                                                 transform_, finalize_, deps);
+                }
+
+                /** @brief Runs the serial host fold in index order. */
+                template<typename T>
+                void reference(const T* in, T* out, int64_t size) const
+                {
+                    Detail::require_finalize_keeps_width<
+                        Finalize, typename Serial::Fold<Accum, T>::Wide>();
+
+                    Serial::reduce<Accum>(in, out, static_cast<std::size_t>(size), transform_,
+                                          finalize_);
+                }
+
+            private:
+                /// @brief The callable applied to each element before the fold.
+                Transform transform_;
+
+                /// @brief The callable applied once to the folded value.
+                Finalize finalize_;
+        };
+
+        /**
          * @brief Records a whole-tensor reduction as `result = finalize(fold(transform(t[i])), n)`.
          * @tparam Accum A Reduce accumulator: CompensatedSum, RunningProduct, NaNPropagatingMax.
          * @param transform Callable `(auto x) -> auto`, applied to each element before the fold.
-         * @param finalize Callable `(auto value, std::size_t n) -> auto`, applied once.
+         * @param finalize Callable `(auto value, std::size_t n) -> auto`, applied once; value is double on the host path of a sum.
          * @throws std::invalid_argument as execute_reduction does.
          * @see include/SushiBLAS/engine/math/README.md
          */
@@ -480,24 +703,16 @@ namespace SushiBLAS
                                              SushiRuntime::Graph::OpID op_id, Transform transform,
                                              Finalize finalize)
         {
-            recorder.require_sycl_path("Reduction", name);
             require_storage(t, name, "t");
             require_device_dtype(t, name, "t");
             require_storage(result, name, "result");
             require_device_dtype(result, name, "result");
 
-            const std::size_t partials = planned_partials_for(t);
-
-            auto dispatch = [transform, finalize](
-                sycl::queue& q, const auto* pT, auto* pR, int64_t size,
-                auto scratch, const std::vector<sycl::event>& deps)
-            {
-                return Reduce::reduce<Accum>(q, pT, pR, static_cast<std::size_t>(size),
-                                             scratch.data, scratch.capacity,
-                                             transform, finalize, deps);
-            };
-
-            return execute_reduction(recorder, t, result, name, op_id, dispatch, partials);
+            return execute_reduction(
+                recorder, t, result, name, op_id,
+                FoldingReductionDispatch<Accum, Transform, Finalize>(std::move(transform),
+                                                                     std::move(finalize)),
+                planned_partials_for(t));
         }
 
         /**
@@ -563,8 +778,8 @@ namespace SushiBLAS
         /**
          * @brief Records a segmented reduction over a span, one result per segment.
          * @param span The segment geometry, from axis_span_for or spatial_span_for.
-         * @param finalize Callable `(auto value, std::size_t n) -> auto`, applied once per segment.
-         * @throws std::invalid_argument on an operand violation, or under FORCE_REFERENCE.
+         * @param finalize Callable `(auto value, std::size_t n) -> auto`, applied once per segment; value is double on the host path of a sum.
+         * @throws std::invalid_argument on an operand violation, or a device-only tensor under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<template<typename> class Accum, typename Transform, typename Finalize>
@@ -574,7 +789,6 @@ namespace SushiBLAS
                                                   SushiRuntime::Graph::OpID op_id,
                                                   Transform transform, Finalize finalize)
         {
-            recorder.require_sycl_path("Axis reduction", name);
             require_storage(t, name, "t");
             require_device_dtype(t, name, "t");
             require_storage(result, name, "result");
@@ -620,7 +834,6 @@ namespace SushiBLAS
                                                   SushiRuntime::Graph::OpID op_id,
                                                   Transform transform, Finalize finalize)
         {
-            recorder.require_sycl_path("Axis reduction", name);
             require_storage(t, name, "t");
             require_device_dtype(t, name, "t");
             require_storage(result, name, "result");
