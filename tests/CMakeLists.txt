@@ -138,6 +138,7 @@ add_executable(sushiblas_tests
     functional/unit/test_reduction_determinism.cpp
     functional/unit/test_axis_reductions.cpp
     functional/unit/test_count_nonfinite.cpp
+    functional/unit/test_reduce_plans.cpp
 
     # --- Logic ---
     functional/unit/test_all.cpp
@@ -186,6 +187,12 @@ add_executable(sushiblas_tests
     # --- Support layer and scratch ---
     functional/unit/test_scratch_shelf.cpp
     functional/unit/test_launch_shapes.cpp
+    functional/unit/test_scratch_buffer.cpp
+
+    # --- Recorder, handles and the tensor factory ---
+    functional/unit/test_task_handle.cpp
+    functional/unit/test_task_recorder.cpp
+    functional/unit/test_tensor_factory.cpp
 
     # --- Integration ---
     functional/integration/test_framework_sim.cpp
@@ -196,6 +203,8 @@ add_executable(sushiblas_tests
     functional/regression/test_spatial_determinism.cpp
     functional/regression/test_io.cpp
     functional/regression/test_logger.cpp
+    functional/regression/test_operand_lifetime.cpp
+    functional/regression/test_task_dependencies.cpp
 )
 
 # --- Include Directories ---
