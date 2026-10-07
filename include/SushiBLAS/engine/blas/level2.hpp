@@ -27,69 +27,78 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
-    class Engine;
-
     /**
-     * @brief Records the BLAS Level 2 matrix-vector operations on the engine's task graph.
+     * @brief Records the Level 2 BLAS routines.
      * @see include/SushiBLAS/engine/blas/README.md
      */
-    class Level2 
+    class Level2
     {
-        protected:
-            explicit Level2(Engine& e) : engine_(e) {}
-            Engine& engine_;
-
         public:
             /**
              * @brief Computes y = alpha * op(A) * x + beta * y.
              * @param transA Uses A^T as op(A) when true.
              */
-            sycl::event gemv(const Tensor& A, const Tensor& x, Tensor& y,
-                             bool transA = false, double alpha = 1.0, double beta = 0.0);
+            TaskHandle gemv(const Tensor& A, const Tensor& x, Tensor& y,
+                            bool transA = false, double alpha = 1.0, double beta = 0.0);
 
             /**
              * @brief Computes the rank-1 update A = alpha * x * y^H + A.
              */
-            sycl::event ger(const Tensor& x, const Tensor& y, Tensor& A, double alpha = 1.0);
+            TaskHandle ger(const Tensor& x, const Tensor& y, Tensor& A, double alpha = 1.0);
 
             /**
              * @brief Computes y = alpha * A * x + beta * y for a symmetric A.
              * @param upper Reads the upper triangle of A when true, the lower when false.
              */
-            sycl::event symv(const Tensor& A, const Tensor& x, Tensor& y, 
-                             bool upper = false, double alpha = 1.0, double beta = 0.0);
+            TaskHandle symv(const Tensor& A, const Tensor& x, Tensor& y,
+                            bool upper = false, double alpha = 1.0, double beta = 0.0);
 
             /**
              * @brief Computes x = op(A) * x for a triangular A.
              * @param upper Treats A as upper triangular when true, lower when false.
              * @param unit_diag Treats the diagonal of A as all ones when true.
              */
-            sycl::event trmv(const Tensor& A, Tensor& x, 
-                             bool upper = false, bool transA = false, bool unit_diag = false);
+            TaskHandle trmv(const Tensor& A, Tensor& x,
+                            bool upper = false, bool transA = false, bool unit_diag = false);
 
             /**
              * @brief Solves op(A) * x = b for a triangular A, overwriting b with x.
              * @param upper Treats A as upper triangular when true, lower when false.
              * @param unit_diag Treats the diagonal of A as all ones when true.
              */
-            sycl::event trsv(const Tensor& A, Tensor& b, 
-                             bool upper = false, bool transA = false, bool unit_diag = false);
+            TaskHandle trsv(const Tensor& A, Tensor& b,
+                            bool upper = false, bool transA = false, bool unit_diag = false);
 
             /**
              * @brief Computes the symmetric rank-1 update A = alpha * x * x^H + A.
              * @param upper Updates the upper triangle when true, the lower when false.
              */
-            sycl::event syr(const Tensor& x, Tensor& A, bool upper = false, double alpha = 1.0);
+            TaskHandle syr(const Tensor& x, Tensor& A, bool upper = false, double alpha = 1.0);
 
             /**
              * @brief Computes the symmetric rank-2 update A = alpha * x * y^H + alpha * y * x^H + A.
              * @param upper Updates the upper triangle when true, the lower when false.
              */
-            sycl::event syr2(const Tensor& x, const Tensor& y, Tensor& A, bool upper = false, double alpha = 1.0);
+            TaskHandle syr2(const Tensor& x, const Tensor& y, Tensor& A, bool upper = false, double alpha = 1.0);
+
+        protected:
+            /** @brief Binds the level to the recorder its routines record through. */
+            explicit Level2(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
+
+            Level2(const Level2&) = default;
+            Level2& operator=(const Level2&) = delete;
+            Level2(Level2&&) = default;
+            Level2& operator=(Level2&&) = delete;
+            ~Level2() = default;
+
+        private:
+            /// @brief The recorder every routine of this level records through.
+            TaskRecorder& recorder_;
     };
-}
+} // namespace SushiBLAS

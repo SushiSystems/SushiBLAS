@@ -28,7 +28,6 @@
 #include <vector>
 #include <complex>
 #include <kernels/blas.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level3.hpp>
 #include <SushiBLAS/engine/blas/matrix_operand.hpp>
@@ -39,10 +38,10 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level3::trsm(const Tensor& A, Tensor& B,
-                      bool left_side, bool upper,
-                      bool transA, bool unit_diag,
-                      double alpha)
+    TaskHandle Level3::trsm(const Tensor& A, Tensor& B,
+                            bool left_side, bool upper,
+                            bool transA, bool unit_diag,
+                            double alpha)
     {
         // 1. Validation
         SB_THROW_IF(A.rank < 2 || B.rank < 2, "TRSM requires at least 2D tensors.");
@@ -74,11 +73,8 @@ namespace SushiBLAS
         void* rw_B = B.data_or_null();
 
         // B arrives as the right-hand sides and leaves as the solution X: read, then written.
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_A) reads.push_back(A.region());
-        if (rw_B) reads.push_back(B.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (rw_B) writes.push_back(B.region());
+        OperandSet operands;
+        operands.reads(A).updates(B);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl3.trsm";
@@ -90,8 +86,7 @@ namespace SushiBLAS
         meta.set_param(3, transA);
         meta.set_param(4, unit_diag);
 
-        return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
-            Internal::ReferenceOperands{read_A, rw_B},
+        return Internal::execute_blas_task(recorder_, meta, operands, A.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

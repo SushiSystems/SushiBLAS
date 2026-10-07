@@ -27,7 +27,6 @@
 
 #include <complex>
 #include <kernels/blas.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -36,7 +35,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level1::scal(double alpha, Tensor& x)
+    TaskHandle Level1::scal(double alpha, Tensor& x)
     {
         int64_t n, incx;
         Internal::get_vec_params(x, n, incx, "blas.lvl1.scal", "x");
@@ -44,10 +43,8 @@ namespace SushiBLAS
         void* rw_x = x.data_or_null();
 
         // In place: `x = alpha * x` reads every element it writes.
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (rw_x) reads.push_back(x.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (rw_x) writes.push_back(x.region());
+        OperandSet operands;
+        operands.updates(x);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl1.scal";
@@ -55,8 +52,7 @@ namespace SushiBLAS
         meta.op_id = "blas.lvl1.scal"_op;
         meta.set_param(0, alpha);
 
-        return Internal::execute_blas_task(engine_, meta, reads, writes, x.dtype,
-            Internal::ReferenceOperands{rw_x},
+        return Internal::execute_blas_task(recorder_, meta, operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

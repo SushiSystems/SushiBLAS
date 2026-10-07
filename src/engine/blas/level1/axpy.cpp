@@ -27,7 +27,6 @@
 
 #include <complex>
 #include <kernels/blas.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -36,7 +35,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level1::axpy(double alpha, const Tensor& x, Tensor& y)
+    TaskHandle Level1::axpy(double alpha, const Tensor& x, Tensor& y)
     {
         SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in AXPY.");
         int64_t n, incx, incy;
@@ -48,11 +47,8 @@ namespace SushiBLAS
         void* rw_y = y.data_or_null();
 
         // y is read before it is written, so it sits in both access sets; see src/README.md.
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_x) reads.push_back(x.region());
-        if (rw_y) reads.push_back(y.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (rw_y) writes.push_back(y.region());
+        OperandSet operands;
+        operands.reads(x).updates(y);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl1.axpy";
@@ -60,8 +56,7 @@ namespace SushiBLAS
         meta.op_id = "blas.lvl1.axpy"_op;
         meta.set_param(0, alpha);
 
-        return Internal::execute_blas_task(engine_, meta, reads, writes, x.dtype,
-            Internal::ReferenceOperands{read_x, rw_y},
+        return Internal::execute_blas_task(recorder_, meta, operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

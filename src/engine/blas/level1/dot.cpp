@@ -27,7 +27,6 @@
 
 #include <complex>
 #include <kernels/blas.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level1.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
@@ -37,7 +36,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level1::dot(const Tensor& x, const Tensor& y, Tensor& result)
+    TaskHandle Level1::dot(const Tensor& x, const Tensor& y, Tensor& result)
     {
         SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in DOT.");
         // A complex dtype computes the conjugated dot product (DOTC); see src/README.md.
@@ -53,23 +52,19 @@ namespace SushiBLAS
         const void* read_y = y.data_or_null();
         void* write_r = result.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_x) reads.push_back(x.region());
-        if (read_y) reads.push_back(y.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_r) writes.push_back(result.region());
+        OperandSet operands;
+        operands.reads(x).reads(y).writes(result);
 
         const ScratchBuffer scratch = Internal::allocate_level1_scratch(
-            engine_, x, static_cast<std::size_t>(n),
-            Kernels::SYCL::K_LEVEL1_PARTIAL_BYTES, writes);
+            recorder_, x, static_cast<std::size_t>(n),
+            Kernels::SYCL::K_LEVEL1_PARTIAL_BYTES, operands);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl1.dot";
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "blas.lvl1.dot"_op;
 
-        return Internal::execute_blas_task(engine_, meta, reads, writes, x.dtype,
-            Internal::ReferenceOperands{read_x, read_y, write_r},
+        return Internal::execute_blas_task(recorder_, meta, operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

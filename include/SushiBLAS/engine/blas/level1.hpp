@@ -27,76 +27,85 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
-    class Engine;
-
     /**
-     * @brief Records the BLAS Level 1 vector-vector operations on the engine's task graph.
+     * @brief Records the Level 1 BLAS routines.
      * @see include/SushiBLAS/engine/blas/README.md
      */
-    class Level1 
+    class Level1
     {
-        protected:
-            explicit Level1(Engine& e) : engine_(e) {}
-            Engine& engine_;
-
         public:
             /**
              * @brief Computes y = alpha * x + y.
              * @param alpha Taken as double and narrowed to the element type at the kernel boundary.
              * @see include/SushiBLAS/engine/blas/README.md
              */
-            sycl::event axpy(double alpha, const Tensor& x, Tensor& y);
+            TaskHandle axpy(double alpha, const Tensor& x, Tensor& y);
 
             /**
              * @brief Computes the unconjugated dot product x^T * y into result.
              * @param result Scalar output tensor.
              */
-            sycl::event dot(const Tensor& x, const Tensor& y, Tensor& result);
+            TaskHandle dot(const Tensor& x, const Tensor& y, Tensor& result);
 
             /**
              * @brief Scales every element of x by alpha.
              * @param alpha Taken as double and narrowed at the kernel boundary; see axpy.
              */
-            sycl::event scal(double alpha, Tensor& x);
+            TaskHandle scal(double alpha, Tensor& x);
 
             /**
              * @brief Copies every element of x into y.
              */
-            sycl::event copy(const Tensor& x, Tensor& y);
+            TaskHandle copy(const Tensor& x, Tensor& y);
 
             /**
              * @brief Exchanges the elements of x and y.
              */
-            sycl::event swap(Tensor& x, Tensor& y);
+            TaskHandle swap(Tensor& x, Tensor& y);
 
             /**
              * @brief Computes the Euclidean norm sqrt(sum(|x_i|^2)) into result.
              * @param result Scalar output tensor.
              * @see include/SushiBLAS/engine/blas/README.md
              */
-            sycl::event nrm2(const Tensor& x, Tensor& result);
+            TaskHandle nrm2(const Tensor& x, Tensor& result);
 
             /**
              * @brief Computes sum(|Re(x_i)| + |Im(x_i)|) into result.
              * @param result Scalar output tensor.
              */
-            sycl::event asum(const Tensor& x, Tensor& result);
+            TaskHandle asum(const Tensor& x, Tensor& result);
 
             /**
              * @brief Finds the smallest index i at which |Re(x_i)| + |Im(x_i)| is largest.
              * @see include/SushiBLAS/engine/blas/README.md
              */
-            sycl::event iamax(const Tensor& x, Tensor& result);
+            TaskHandle iamax(const Tensor& x, Tensor& result);
 
             /**
              * @brief Applies the plane rotation x_i = c * x_i + s * y_i, y_i = -s * x_i + c * y_i.
              * @param c Taken as double, like s, and narrowed at the kernel boundary; see axpy.
              */
-            sycl::event rot(Tensor& x, Tensor& y, double c, double s);
+            TaskHandle rot(Tensor& x, Tensor& y, double c, double s);
+
+        protected:
+            /** @brief Binds the level to the recorder its routines record through. */
+            explicit Level1(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
+
+            Level1(const Level1&) = default;
+            Level1& operator=(const Level1&) = delete;
+            Level1(Level1&&) = default;
+            Level1& operator=(Level1&&) = delete;
+            ~Level1() = default;
+
+        private:
+            /// @brief The recorder every routine of this level records through.
+            TaskRecorder& recorder_;
     };
-}
+} // namespace SushiBLAS

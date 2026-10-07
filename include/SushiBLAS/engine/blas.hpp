@@ -21,36 +21,36 @@
 
 /**
  * @file blas.hpp
- * @brief Declares BLASOps, the single access point for the Level 1, 2, 3 and sparse BLAS operations.
+ * @brief Declares BLASOps, the single access point for the Level 1, 2 and 3 BLAS operations.
  * @author Mustafa Garip
  */
 
 #pragma once
 
+#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/blas/level1.hpp>
 #include <SushiBLAS/engine/blas/level2.hpp>
 #include <SushiBLAS/engine/blas/level3.hpp>
-#include <SushiBLAS/engine/blas/sparse.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
-    class Engine;
-
     /**
      * @class BLASOps
-     * @brief A unified interface for all BLAS operations (Standard & Sparse).
-     * 
-     * This class inherits from Level1, Level2, Level3, and SparseBLAS to provide 
-     * a single point of access for all BLAS functionality within SushiBLAS.
+     * @brief Gives one point of access to the Level 1, 2 and 3 BLAS routines.
      */
-    class BLASOps : public Level1, public Level2, public Level3, public SparseBLAS
+    class BLASOps final : public Level1, public Level2, public Level3
     {
         public:
-            /**
-             * @brief Construct BLASOps with a reference to the engine.
-             * @param e The SushiBLAS engine.
-             */
-            explicit BLASOps(Engine& e) : Level1(e), Level2(e), Level3(e), SparseBLAS(e) {}
-    };
+            /** @brief Builds a view that records through recorder, which must outlive the view. */
+            explicit BLASOps(TaskRecorder& recorder) noexcept
+                : Level1(recorder), Level2(recorder), Level3(recorder)
+            {
 
+            }
+
+            /** @brief Builds a view that records on engine's own graph. */
+            explicit BLASOps(Engine& engine) noexcept : BLASOps(engine.get_recorder()) {}
+    };
 } // namespace SushiBLAS
