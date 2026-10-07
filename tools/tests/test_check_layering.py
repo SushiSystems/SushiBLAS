@@ -3,7 +3,7 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Tests the support, kernel, engine header and operation rules of the layering checker."""
+"""Tests the support, kernel, Engine, view and recorder rules of the layering checker."""
 
 from __future__ import annotations
 
@@ -20,14 +20,19 @@ from layering.check_layering import (  # noqa: E402
     Repository,
     known_notes,
     rule_engine_header_includes,
+    rule_graph_insertions,
     rule_kernel_includes,
     rule_operation_engine_calls,
+    rule_seam_engine_includes,
     rule_support_independence,
+    rule_task_dependencies,
+    rule_view_engine_calls,
 )
 
 K_KERNEL = "kernels/reference/add.hpp"
 K_SUPPORT = "include/SushiBLAS/support/launch_1d.hpp"
 K_ENGINE_INCLUDE = "#include <SushiBLAS/engine/task.hpp>\n"
+K_ENGINE_HEADER_INCLUDE = "#include <SushiBLAS/engine.hpp>\n"
 
 
 def _repository(folder: str, files: dict[str, str], known: tuple[KnownViolation, ...] = ()) -> Repository:
@@ -54,7 +59,11 @@ class RegistrationTest(unittest.TestCase):
                 "rule_support_independence",
                 "rule_kernel_includes",
                 "rule_engine_header_includes",
+                "rule_seam_engine_includes",
                 "rule_operation_engine_calls",
+                "rule_view_engine_calls",
+                "rule_graph_insertions",
+                "rule_task_dependencies",
             ],
         )
 
@@ -133,39 +142,180 @@ class KernelIncludesTest(unittest.TestCase):
 
 
 class EngineHeaderIncludesTest(unittest.TestCase):
-    """Checks that engine.hpp includes no operation family."""
+    """Checks that engine.hpp includes its four bricks and no view, seam or experimental header."""
 
-    def test_accepts_a_header_without_families(self) -> None:
-        """Reports nothing for an engine.hpp that includes the tensor and core headers."""
-        files = {"include/SushiBLAS/engine.hpp": "#include <SushiBLAS/tensor.hpp>\n"}
+    def test_accepts_the_bricks_engine_composes(self) -> None:
+        """Reports nothing for the tensor header and the four engine bricks."""
+        files = {
+            "include/SushiBLAS/engine.hpp": (
+                "#include <SushiBLAS/tensor.hpp>\n"
+                "#include <SushiBLAS/tensor_factory.hpp>\n"
+                "#include <SushiBLAS/engine/rng_stream.hpp>\n"
+                "#include <SushiBLAS/engine/scratch_pool.hpp>\n"
+                "#include <SushiBLAS/engine/task_recorder.hpp>\n"
+                "#include <SushiBLAS/engine/execution_mode.hpp>\n"
+            ),
+        }
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_engine_header_includes(_repository(folder, files))), [])
 
-    def test_reports_a_family_include(self) -> None:
-        """Reports an include of an operation-family header."""
-        files = {"include/SushiBLAS/engine.hpp": "#include <SushiBLAS/engine/math/random.hpp>\n"}
+    def test_reports_a_view_a_seam_io_and_experimental(self) -> None:
+        """Reports a family view, a dispatch seam, io.hpp and an experimental header."""
+        files = {
+            "include/SushiBLAS/engine.hpp": (
+                "#include <SushiBLAS/engine/math/random.hpp>\n"
+                "#include <SushiBLAS/engine/task.hpp>\n"
+                "#include <SushiBLAS/io.hpp>\n"
+                "#include <SushiBLAS/experimental/lapack/linalg.hpp>\n"
+            ),
+        }
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_engine_header_includes(_repository(folder, files)))
-            self.assertEqual([issue.message for issue in issues],
-                             ["layering violation: SushiBLAS/engine/math/random.hpp"])
+            self.assertEqual([issue.message for issue in issues], [
+                "layering violation: SushiBLAS/engine/math/random.hpp",
+                "layering violation: SushiBLAS/engine/task.hpp",
+                "layering violation: SushiBLAS/io.hpp",
+                "layering violation: SushiBLAS/experimental/lapack/linalg.hpp",
+            ])
+
+
+class SeamEngineIncludesTest(unittest.TestCase):
+    """Checks that only the views the umbrella lists include engine.hpp."""
+
+    K_UMBRELLA = "#include <SushiBLAS/engine.hpp>\n#include <SushiBLAS/engine/blas.hpp>\n"
+
+    def test_accepts_a_view_the_umbrella_lists(self) -> None:
+        """Reports nothing for a view header that includes engine.hpp."""
+        files = {
+            "include/SushiBLAS/SushiBLAS.h": self.K_UMBRELLA,
+            "include/SushiBLAS/engine/blas.hpp": K_ENGINE_HEADER_INCLUDE,
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(list(rule_seam_engine_includes(_repository(folder, files))), [])
+
+    def test_reports_a_seam_and_an_operation_source(self) -> None:
+        """Reports a dispatch seam and an operation source that include engine.hpp."""
+        files = {
+            "include/SushiBLAS/SushiBLAS.h": self.K_UMBRELLA,
+            "include/SushiBLAS/engine/blas/dispatch.hpp": K_ENGINE_HEADER_INCLUDE,
+            "src/engine/blas/level1/dot.cpp": K_ENGINE_HEADER_INCLUDE,
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            issues = list(rule_seam_engine_includes(_repository(folder, files)))
+            self.assertEqual([issue.path.name for issue in issues], ["dispatch.hpp", "dot.cpp"])
 
 
 class OperationEngineCallsTest(unittest.TestCase):
-    """Checks which Engine members an operation source calls."""
+    """Checks that an operation source calls nothing on an Engine."""
 
-    def test_accepts_get_graph(self) -> None:
-        """Reports nothing for a call to get_graph or for a call in a comment."""
-        files = {"src/engine/blas/a.cpp": "auto& g = engine_.get_graph();\n// engine_.get_mode();\n"}
+    def test_accepts_the_recorder_and_a_comment(self) -> None:
+        """Reports nothing for a recorder call or for an engine call in a comment."""
+        files = {"src/engine/blas/a.cpp": "recorder_.record(meta, operands, family, body);\n// engine_.get_mode();\n"}
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_operation_engine_calls(_repository(folder, files))), [])
 
-    def test_reports_another_member(self) -> None:
-        """Reports a call to get_mode through a reference and through a pointer."""
-        files = {"src/engine/blas/a.cpp": "engine_.get_mode();\nengine->create_tensor({});\n"}
+    def test_reports_every_member(self) -> None:
+        """Reports get_recorder through a reference and create_tensor through a pointer."""
+        files = {"src/engine/blas/a.cpp": "engine_.get_recorder();\nengine->create_tensor({});\n"}
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_operation_engine_calls(_repository(folder, files)))
             self.assertEqual([issue.message for issue in issues],
-                             ["layering violation: get_mode", "layering violation: create_tensor"])
+                             ["layering violation: get_recorder", "layering violation: create_tensor"])
+
+
+class ViewEngineCallsTest(unittest.TestCase):
+    """Checks which Engine members a public header calls."""
+
+    def test_accepts_get_recorder_and_get_rng(self) -> None:
+        """Reports nothing for the two members a view constructor reads."""
+        files = {"include/SushiBLAS/engine/math/random.hpp": "RandomOps(engine.get_recorder(), engine.get_rng())\n"}
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(list(rule_view_engine_calls(_repository(folder, files))), [])
+
+    def test_reports_another_member_and_skips_engine_hpp(self) -> None:
+        """Reports execute in a seam and nothing in engine.hpp itself."""
+        files = {
+            "include/SushiBLAS/engine/task.hpp": "engine.execute();\n",
+            "include/SushiBLAS/engine.hpp": "engine.execute();\n",
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            issues = list(rule_view_engine_calls(_repository(folder, files)))
+            self.assertEqual([(issue.path.name, issue.message) for issue in issues],
+                             [("task.hpp", "layering violation: execute")])
+
+
+class GraphInsertionsTest(unittest.TestCase):
+    """Checks that TaskRecorder is the only caller of the graph's add functions."""
+
+    def test_accepts_the_recorder_header_and_a_comment(self) -> None:
+        """Reports nothing for add_task in task_recorder.hpp or in a comment."""
+        files = {
+            "include/SushiBLAS/engine/task_recorder.hpp": "graph_->add_task(meta, reads, writes, work);\n",
+            "src/engine/logic/all.cpp": "// add_task(meta) is the recorder's call.\n",
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(list(rule_graph_insertions(_repository(folder, files))), [])
+
+    def test_reports_a_seam_and_a_source(self) -> None:
+        """Reports add_task in a dispatch seam and add_native in an operation source."""
+        files = {
+            "include/SushiBLAS/engine/logic/dispatch.hpp": "graph.add_task(meta, reads, writes, body);\n",
+            "src/engine/logic/all.cpp": "graph.add_native(reads, writes, work);\n",
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            issues = list(rule_graph_insertions(_repository(folder, files)))
+            self.assertEqual([issue.message for issue in issues],
+                             ["layering violation: add_task", "layering violation: add_native"])
+
+
+class TaskDependenciesTest(unittest.TestCase):
+    """Checks that a device task body orders its work behind the events it is given."""
+
+    def test_accepts_a_command_group_and_a_shortcut_that_name_their_dependencies(self) -> None:
+        """Reports nothing for a command group with depends_on and a fill that passes deps."""
+        files = {
+            "kernels/sycl/add.hpp": (
+                "return queue.submit([&](sycl::handler& h)\n"
+                "{\n"
+                "    h.depends_on(deps);\n"
+                "    h.parallel_for(range, body);\n"
+                "});\n"
+            ),
+            "src/engine/math/random/constant.cpp": "return q.fill(pT, value, size, deps);\n",
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(list(rule_task_dependencies(_repository(folder, files))), [])
+
+    def test_reports_a_command_group_and_a_shortcut_that_drop_them(self) -> None:
+        """Reports a command group without depends_on and a fill without deps."""
+        files = {
+            "kernels/sycl/add.hpp": (
+                "return queue.submit([&](sycl::handler& h)\n"
+                "{\n"
+                "    h.parallel_for(range, body);\n"
+                "});\n"
+            ),
+            "src/engine/math/random/constant.cpp": "return q.fill(pT, value, size);\n",
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            issues = list(rule_task_dependencies(_repository(folder, files)))
+            self.assertEqual([(issue.path.name, issue.message) for issue in issues],
+                             [("add.hpp", "layering violation: submit"),
+                              ("constant.cpp", "layering violation: fill")])
+
+    def test_accepts_a_second_stage_that_waits_on_the_first(self) -> None:
+        """Reports nothing for a command group that depends on an earlier stage's event."""
+        files = {
+            "include/SushiBLAS/support/reduce_1d.hpp": (
+                "return queue.submit([&](sycl::handler& h)\n"
+                "{\n"
+                "    h.depends_on(staged);\n"
+                "    h.single_task(fold);\n"
+                "});\n"
+            ),
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(list(rule_task_dependencies(_repository(folder, files))), [])
 
 
 if __name__ == "__main__":
