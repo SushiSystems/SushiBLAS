@@ -35,6 +35,12 @@ namespace SushiBLAS
     class Engine;
 
     /**
+     * @brief Holds the largest lambda RandomOps::poisson accepts.
+     * @see include/SushiBLAS/engine/math/README.md
+     */
+    inline constexpr double K_MAX_POISSON_LAMBDA = 1.0e7;
+
+    /**
      * @class RandomOps
      * @brief Random number generators for tensor initialization and statistics.
      * 
@@ -59,124 +65,127 @@ namespace SushiBLAS
             inline void seed(uint64_t s) { set_seed(s); }
 
             /**
-             * @brief Fill tensor with a constant value.
+             * @brief Fills a tensor with a constant value.
              * @param t Tensor to fill.
              * @param value The constant value.
-             * @return sycl::event.
+             * @return A default-constructed event; the fill runs at Engine::execute.
              */
             sycl::event constant(Tensor& t, double value);
 
             /**
-             * @brief Fill tensor with values from a uniform distribution [min, max).
-             * @param t Tensor to fill.
-             * @param min Minimum value (default 0.0).
-             * @param max Maximum value (default 1.0).
-             * @return sycl::event.
+             * @brief Fills a tensor from a uniform distribution on [min, max).
+             * @param t Tensor to fill; FLOAT32, FLOAT64, COMPLEX32 or COMPLEX64, contiguous.
+             * @param min Minimum value (default 0.0); finite, not above max; min == max fills min.
+             * @param max Maximum value (default 1.0); max - min finite in t's dtype.
+             * @throws std::invalid_argument unless the bounds are finite and ordered.
+             * @return A default-constructed event; the fill runs at Engine::execute.
              */
             sycl::event uniform(Tensor& t, double min = 0.0, double max = 1.0);
 
             /**
-             * @brief Fill tensor with values from a normal (Gaussian) distribution.
-             * @param t Tensor to fill.
-             * @param mean Mean of the distribution (default 0.0).
-             * @param stddev Standard deviation (default 1.0).
-             * @return sycl::event.
+             * @brief Fills a tensor from a normal distribution.
+             * @param mean Mean of the distribution; finite.
+             * @param stddev Standard deviation; finite and at least 0.
+             * @throws std::invalid_argument when mean or stddev breaks its rule, or t is HALF.
+             * @return A default-constructed event; the fill runs at Engine::execute.
              */
             sycl::event normal(Tensor& t, double mean = 0.0, double stddev = 1.0);
 
             /**
-             * @brief Fill tensor with values from a Log-Normal distribution.
-             * @param t Tensor to fill.
-             * @param mean Mean of the underlying normal distribution.
-             * @param stddev Standard deviation of the underlying normal distribution.
-             * @return sycl::event.
+             * @brief Fills a tensor from a log-normal distribution.
+             * @param mean Mean of the underlying normal distribution; finite.
+             * @param stddev Standard deviation of the underlying normal; finite and at least 0.
+             * @throws std::invalid_argument when mean or stddev breaks its rule, or t is not real.
+             * @return A default-constructed event; the fill runs at Engine::execute.
              */
             sycl::event log_normal(Tensor& t, double mean = 0.0, double stddev = 1.0);
 
             /**
-             * @brief Fill tensor with values from an Exponential distribution.
-             * @param t Tensor to fill.
-             * @param lambda Rate parameter (1/mean).
-             * @return sycl::event.
+             * @brief Fills a tensor from an exponential distribution.
+             * @param lambda Rate, one over the mean; finite and above 0.
+             * @throws std::invalid_argument when lambda breaks its rule or t is not real.
+             * @return A default-constructed event; the fill runs at Engine::execute.
              */
             sycl::event exponential(Tensor& t, double lambda = 1.0);
 
             /**
-             * @brief Fill tensor with values from a Poisson distribution.
-             * @param t Tensor to fill (should be an integer type or float).
-             * @param lambda Mean of the distribution.
-             * @return sycl::event.
+             * @brief Fills a tensor from a Poisson distribution, by Knuth below 10 and PTRS above.
+             * @param t Tensor to fill; FLOAT32 or FLOAT64, contiguous, on a device with fp64.
+             * @param lambda Mean of the distribution; finite and in [0, K_MAX_POISSON_LAMBDA].
+             * @throws std::invalid_argument when lambda or t breaks its rule.
+             * @return A default-constructed event; the fill runs at Engine::execute.
              */
             sycl::event poisson(Tensor& t, double lambda = 1.0);
 
             /**
-             * @brief Fill tensor with values from a Discrete Uniform distribution [min, max).
-             * @param t Tensor to fill.
-             * @param min Minimum value (inclusive).
-             * @param max Maximum value (exclusive).
-             * @return sycl::event.
+             * @brief Fills a tensor with integers drawn uniformly from the closed range [min, max].
+             * @param t Tensor to fill; FLOAT64, or FLOAT32 while |min| and |max| are at most 2^24.
+             * @param max Maximum value (inclusive); not below min.
+             * @throws std::invalid_argument when min > max, t is complex or FLOAT32 past 2^24.
+             * @return A default-constructed event; the fill runs at Engine::execute.
              */
             sycl::event discrete_uniform(Tensor& t, int32_t min, int32_t max);
 
             /**
              * @brief Fills a tensor from a truncated normal distribution.
-             * @param a Lower bound, in standard deviations.
-             * @param b Upper bound, in standard deviations.
+             * @param a Lower bound, in standard deviations; clamped to -40 before recording.
+             * @param b Upper bound, in standard deviations; clamped to 40 before recording.
+             * @throws std::invalid_argument when t is not FLOAT32 or FLOAT64.
+             * @throws std::runtime_error when a and b are not finite with a < b, or bound no mass in t's dtype.
              */
-            sycl::event truncated_normal(Tensor& t, double mean = 0.0, double stddev = 1.0, double a = -2.0, double b = 2.0);
+            sycl::event truncated_normal(Tensor& t, double mean = 0.0, double stddev = 1.0,
+                                         double a = -2.0, double b = 2.0);
 
             /**
-             * @brief Fill tensor with values from a Bernoulli distribution.
-             * @param t Tensor to fill.
-             * @param p Probability of success (1.0).
-             * @return sycl::event.
+             * @brief Fills a tensor from a Bernoulli distribution.
+             * @param t Tensor to fill; FLOAT32 or FLOAT64, contiguous.
+             * @param p Probability of a 1; within [0, 1].
+             * @throws std::invalid_argument when p is NaN or outside [0, 1], or t is complex.
+             * @return A default-constructed event; the fill runs at Engine::execute.
              */
             sycl::event bernoulli(Tensor& t, double p = 0.5);
 
             /**
-             * @brief Xavier/Glorot Uniform initialization.
-             * @param t Tensor to initialize.
-             * @param n_in Number of input features.
-             * @param n_out Number of output features.
-             * @return sycl::event.
+             * @brief Fills a tensor by Xavier (Glorot) uniform initialisation.
+             * @throws std::invalid_argument when n_in + n_out is not above 0 or t is not real.
+             * @return A default-constructed event; the fill runs at Engine::execute.
              */
             sycl::event xavier_uniform(Tensor& t, int64_t n_in, int64_t n_out);
 
             /**
-             * @brief Xavier/Glorot Normal initialization.
-             * @param t Tensor to initialize.
-             * @param n_in Number of input features.
-             * @param n_out Number of output features.
-             * @return sycl::event.
+             * @brief Fills a tensor by Xavier (Glorot) normal initialisation.
+             * @throws std::invalid_argument when n_in + n_out is not above 0 or t is not real.
+             * @return A default-constructed event; the fill runs at Engine::execute.
              */
             sycl::event xavier_normal(Tensor& t, int64_t n_in, int64_t n_out);
 
             /**
-             * @brief He (Kaiming) Uniform initialization.
-             * @param t Tensor to initialize.
-             * @param n_in Number of input features.
-             * @return sycl::event.
+             * @brief Fills a tensor by He (Kaiming) uniform initialisation.
+             * @throws std::invalid_argument when n_in is not above 0 or t is not real.
+             * @return A default-constructed event; the fill runs at Engine::execute.
              */
             sycl::event he_uniform(Tensor& t, int64_t n_in);
 
             /**
-             * @brief He (Kaiming) Normal initialization.
-             * @param t Tensor to initialize.
-             * @param n_in Number of input features.
-             * @return sycl::event.
+             * @brief Fills a tensor by He (Kaiming) normal initialisation.
+             * @throws std::invalid_argument when n_in is not above 0 or t is not real.
+             * @return A default-constructed event; the fill runs at Engine::execute.
              */
             sycl::event he_normal(Tensor& t, int64_t n_in);
 
             /**
              * @brief Fills a matrix with a random (semi-)orthogonal matrix scaled by gain.
              * @param t Must be rank 2, non-empty, and FLOAT32 or FLOAT64.
-             * @throws std::runtime_error if the tensor is not a non-empty real-valued matrix.
+             * @throws std::invalid_argument when t is not FLOAT32 or FLOAT64, has no storage or
+             * is not contiguous.
+             * @throws std::runtime_error when t is not a non-empty rank-2 tensor.
              * @see include/SushiBLAS/engine/math/README.md
              */
             sycl::event orthogonal(Tensor& t, double gain = 1.0);
 
             /**
              * @brief Permutes the elements of a tensor in place with a Fisher-Yates shuffle.
+             * @throws std::invalid_argument when t is INT32 or INT64.
              * @see include/SushiBLAS/engine/math/README.md
              */
             sycl::event shuffle(Tensor& t);

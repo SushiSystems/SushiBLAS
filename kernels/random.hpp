@@ -28,4 +28,6 @@
 #pragma once
 
 #include "kernels/sycl/random/philox.hpp"
+#include "kernels/sycl/random/poisson.hpp"
+#include "kernels/sycl/random/truncated_normal.hpp"
 #include "kernels/sycl/random/orthonormalize.hpp"

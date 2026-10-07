@@ -28,8 +28,10 @@
 #include <complex>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
+#include <SushiBLAS/engine/math/random/dispatch.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -45,6 +47,10 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = op_id;
         meta.set_param(0, value);
+
+        Dispatch::require_random_dtype(t, Dispatch::Domain::ALL, Dispatch::Sampling::MOVES_VALUES, "random.constant");
+        Dispatch::require_storage(t, "random.constant", "t");
+        Dispatch::require_contiguous(t, "random.constant", "t");
 
         const int64_t size = t.num_elements;
         void* ptr = t.data_or_null();

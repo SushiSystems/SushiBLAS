@@ -21,12 +21,14 @@
 
 /**
  * @file orthonormalize.hpp
- * @brief Defines the modified Gram-Schmidt kernel behind RandomOps::orthogonal.
+ * @brief Defines the work-group parallel Gram-Schmidt sweep behind RandomOps::orthogonal.
  * @author Mustafa Garip
  */
 
 #pragma once
 
+#include <vector>
+#include <cstddef>
 #include <cstdint>
 #include <sycl/sycl.hpp>
 
@@ -39,69 +41,174 @@ namespace SushiBLAS
             namespace Random
             {
                 /**
-                 * @brief Orthonormalises a strided set of vectors in place and scales them.
+                 * @brief Holds the strided layout of the vectors a sweep orthonormalises.
+                 * @see kernels/README.md
+                 */
+                struct VectorSet
+                {
+                    int64_t count = 0;       /**< Number of vectors. */
+                    int64_t length = 0;      /**< Elements per vector. */
+                    int64_t elem_stride = 0; /**< Element-to-element step within one vector. */
+                    int64_t vec_stride = 0;  /**< First-element-to-first-element step between vectors. */
+                };
+
+                /** @brief Holds the helpers of the orthonormalisation sweep. */
+                namespace Detail
+                {
+                    /** @brief Holds the largest work-group size of the sweep; the tree needs a power of two. */
+                    inline constexpr std::size_t K_ORTHO_MAX_GROUP = 64;
+
+                    /** @brief Holds how many Gram-Schmidt sweeps run before the vectors are normalised. */
+                    inline constexpr int K_ORTHO_SWEEPS = 2;
+
+                    /** @brief Returns the largest power of two at most K_ORTHO_MAX_GROUP that the device accepts. */
+                    inline std::size_t ortho_group_size(const sycl::queue& q)
+                    {
+                        const std::size_t device_max = q.get_device().get_info<sycl::info::device::max_work_group_size>();
+                        std::size_t group = K_ORTHO_MAX_GROUP;
+                        while (group > device_max)
+                            group /= 2;
+                        return group;
+                    }
+
+                    /** @brief Returns the squared norm at or below which a vector counts as zero. */
+                    template<typename T>
+                    inline constexpr T tiny_norm_sq()
+                    {
+                        return static_cast<T>(1e-12) * static_cast<T>(1e-12);
+                    }
+
+                    /**
+                     * @brief Sums two values across the work-group by a fixed pairwise tree in local memory.
+                     * @pre scratch holds 2 * group elements and group is a power of two.
+                     */
+                    template<typename T>
+                    inline void group_tree_sum2(const sycl::nd_item<1>& item, const sycl::local_accessor<T, 1>& scratch,
+                                                std::size_t group, T& first, T& second)
+                    {
+                        const std::size_t lid = item.get_local_id(0);
+                        scratch[lid] = first;
+                        scratch[group + lid] = second;
+                        sycl::group_barrier(item.get_group());
+
+                        for (std::size_t stride = group / 2; stride > 0; stride /= 2)
+                        {
+                            if (lid < stride)
+                            {
+                                scratch[lid] += scratch[lid + stride];
+                                scratch[group + lid] += scratch[group + lid + stride];
+                            }
+                            sycl::group_barrier(item.get_group());
+                        }
+
+                        first = scratch[0];
+                        second = scratch[group];
+                    }
+
+                    /**
+                     * @brief Projects vector @p i out of every later vector, one work-group per later vector.
+                     * @pre i + 1 < set.count.
+                     */
+                    template<typename T>
+                    inline sycl::event project_step(sycl::queue& q, const std::vector<sycl::event>& deps, T* p,
+                                                    const VectorSet& set, int64_t i, std::size_t group)
+                    {
+                        const std::size_t later = static_cast<std::size_t>(set.count - i - 1);
+
+                        return q.submit([&](sycl::handler& h)
+                        {
+                            h.depends_on(deps);
+                            sycl::local_accessor<T, 1> scratch(sycl::range<1>(2 * group), h);
+                            const VectorSet s = set;
+
+                            h.parallel_for(sycl::nd_range<1>(later * group, group), [=](sycl::nd_item<1> item)
+                            {
+                                const int64_t lid = static_cast<int64_t>(item.get_local_id(0));
+                                const int64_t step = static_cast<int64_t>(group);
+                                const T* vi = p + i * s.vec_stride;
+                                T* vm = p + (i + 1 + static_cast<int64_t>(item.get_group(0))) * s.vec_stride;
+
+                                T norm_sq = static_cast<T>(0);
+                                T dot = static_cast<T>(0);
+                                for (int64_t j = lid; j < s.length; j += step)
+                                {
+                                    const T a = vi[j * s.elem_stride];
+                                    norm_sq += a * a;
+                                    dot += a * vm[j * s.elem_stride];
+                                }
+                                group_tree_sum2(item, scratch, group, norm_sq, dot);
+
+                                const T coef = norm_sq > tiny_norm_sq<T>() ? dot / norm_sq : static_cast<T>(0);
+                                for (int64_t j = lid; j < s.length; j += step)
+                                {
+                                    vm[j * s.elem_stride] -= coef * vi[j * s.elem_stride];
+                                }
+                            });
+                        });
+                    }
+
+                    /**
+                     * @brief Scales every vector to norm @p gain, one work-group per vector.
+                     * @see kernels/README.md
+                     */
+                    template<typename T>
+                    inline sycl::event normalize_step(sycl::queue& q, const std::vector<sycl::event>& deps, T* p,
+                                                      const VectorSet& set, T gain, std::size_t group)
+                    {
+                        return q.submit([&](sycl::handler& h)
+                        {
+                            h.depends_on(deps);
+                            sycl::local_accessor<T, 1> scratch(sycl::range<1>(2 * group), h);
+                            const VectorSet s = set;
+
+                            h.parallel_for(sycl::nd_range<1>(static_cast<std::size_t>(s.count) * group, group),
+                                           [=](sycl::nd_item<1> item)
+                            {
+                                const int64_t lid = static_cast<int64_t>(item.get_local_id(0));
+                                const int64_t step = static_cast<int64_t>(group);
+                                T* v = p + static_cast<int64_t>(item.get_group(0)) * s.vec_stride;
+
+                                T norm_sq = static_cast<T>(0);
+                                T unused = static_cast<T>(0);
+                                for (int64_t j = lid; j < s.length; j += step)
+                                {
+                                    const T a = v[j * s.elem_stride];
+                                    norm_sq += a * a;
+                                }
+                                group_tree_sum2(item, scratch, group, norm_sq, unused);
+
+                                const T scale = norm_sq > tiny_norm_sq<T>() ? gain / sycl::sqrt(norm_sq) : gain;
+                                for (int64_t j = lid; j < s.length; j += step)
+                                {
+                                    v[j * s.elem_stride] *= scale;
+                                }
+                            });
+                        });
+                    }
+                } // namespace Detail
+
+                /**
+                 * @brief Orthonormalises a strided set of vectors in place and scales them by @p gain.
                  * @tparam T The real element type, float or double.
-                 * @param elem_stride Element-to-element step within one vector.
-                 * @param vec_stride First-element-to-first-element step between vectors.
+                 * @return The event of the last submitted kernel.
                  * @see kernels/README.md
                  */
                 template<typename T>
-                inline void orthonormalize_mgs(T* p, int64_t count, int64_t length,
-                                                int64_t elem_stride, int64_t vec_stride, T gain)
+                [[nodiscard]] inline sycl::event orthonormalize(sycl::queue& q, const std::vector<sycl::event>& deps,
+                                                                T* p, const VectorSet& set, T gain)
                 {
-                    // A norm at or below tiny leaves its vector unscaled; see kernels/README.md.
-                    const T tiny = static_cast<T>(1e-12);
+                    const std::size_t group = Detail::ortho_group_size(q);
+                    std::vector<sycl::event> chain = deps;
 
-                    for (int64_t i = 0; i < count; ++i)
+                    for (int sweep = 0; sweep < Detail::K_ORTHO_SWEEPS; ++sweep)
                     {
-                        T* vi = p + i * vec_stride;
-
-                        T norm_sq = static_cast<T>(0);
-                        for (int64_t j = 0; j < length; ++j)
+                        for (int64_t i = 0; i + 1 < set.count; ++i)
                         {
-                            T v = vi[j * elem_stride];
-                            norm_sq += v * v;
-                        }
-
-                        T norm = sycl::sqrt(norm_sq);
-                        if (norm > tiny)
-                        {
-                            T inv = static_cast<T>(1) / norm;
-                            for (int64_t j = 0; j < length; ++j)
-                            {
-                                vi[j * elem_stride] *= inv;
-                            }
-                        }
-
-                        // Project the now-unit v_i out of every vector still to be processed.
-                        for (int64_t m = i + 1; m < count; ++m)
-                        {
-                            T* vm = p + m * vec_stride;
-
-                            T dot = static_cast<T>(0);
-                            for (int64_t j = 0; j < length; ++j)
-                            {
-                                dot += vi[j * elem_stride] * vm[j * elem_stride];
-                            }
-
-                            for (int64_t j = 0; j < length; ++j)
-                            {
-                                vm[j * elem_stride] -= dot * vi[j * elem_stride];
-                            }
+                            chain = {Detail::project_step(q, chain, p, set, i, group)};
                         }
                     }
 
-                    if (gain != static_cast<T>(1))
-                    {
-                        for (int64_t i = 0; i < count; ++i)
-                        {
-                            T* vi = p + i * vec_stride;
-                            for (int64_t j = 0; j < length; ++j)
-                            {
-                                vi[j * elem_stride] *= gain;
-                            }
-                        }
-                    }
+                    return Detail::normalize_step(q, chain, p, set, gain, group);
                 }
 
             } // namespace Random

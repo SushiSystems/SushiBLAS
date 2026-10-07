@@ -25,8 +25,12 @@
  * @author Mustafa Garip
  */
 
+#include <array>
+#include <cmath>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 #include <kernels/random.hpp>
@@ -38,36 +42,33 @@ namespace SushiBLAS
 
     sycl::event RandomOps::poisson(Tensor& t, double lambda)
     {
-        return Dispatch::execute_random(engine_, t, "random.poisson", "random.poisson"_op, {lambda},
-            [lambda](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
+        if (!std::isfinite(lambda) || lambda < 0.0 || lambda > K_MAX_POISSON_LAMBDA)
+            Dispatch::Detail::throw_operand_error("random.poisson", "lambda",
+                                                  "is {}, outside [0, {}]", lambda,
+                                                  K_MAX_POISSON_LAMBDA);
+
+        if (t.storage && t.num_elements > 0 && !Device::profile_for(t.get_device()).supports_fp64)
+            Dispatch::Detail::throw_operand_error("random.poisson", "t",
+                                                  "lives on a device without fp64; random.poisson "
+                                                  "draws in double precision for every dtype");
+
+        const Kernels::SYCL::Random::PoissonParams params =
+            Kernels::SYCL::Random::make_poisson_params(lambda);
+
+        return Dispatch::execute_random<Dispatch::Domain::REAL>(
+            engine_, t, "random.poisson", "random.poisson"_op, {lambda},
+            [params](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset,
+                     int64_t size, auto* pT,
+                     const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (Core::is_complex_v<T>)
-                {
-                    SB_THROW_IF(true, "Unsupported data type for poisson operation.");
-                    return sycl::event();
-                }
-                else
-                {
-                    // Knuth's algorithm, capped at MAX_ITERS draws per element; see src/README.md.
-                    double L = sycl::exp(-lambda);
-                    constexpr int MAX_ITERS = 10000;
 
-                    return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i) -> T
-                    {
-                        int32_t k = 0;
-                        double running_p = 1.0;
-                        for (int attempt = 0; attempt < MAX_ITERS; ++attempt)
-                        {
-                            uint64_t draw_index = i * static_cast<uint64_t>(MAX_ITERS) + static_cast<uint64_t>(attempt);
-                            double u = Kernels::SYCL::Random::draw_uniform<double>(seed, offset, draw_index, 0.0, 1.0);
-                            running_p *= u;
-                            if (running_p <= L) break;
-                            ++k;
-                        }
-                        return static_cast<T>(k);
-                    });
-                }
+                return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i)
+                {
+                    const double draw =
+                        Kernels::SYCL::Random::draw_poisson(seed, offset, i, params);
+                    return std::array<T, 1>{static_cast<T>(draw)};
+                });
             });
     }
 } // namespace SushiBLAS

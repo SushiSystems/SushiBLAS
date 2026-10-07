@@ -28,8 +28,11 @@
 #pragma once
 
 #include <cmath>
+#include <string>
+#include <tuple>
 #include <vector>
 #include <complex>
+#include <cstddef>
 #include <type_traits>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
@@ -37,7 +40,9 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
-#include <SushiBLAS/engine/launch_1d.hpp>
+#include <SushiBLAS/engine/rng_stream.hpp>
+#include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -55,63 +60,171 @@ namespace SushiBLAS
         inline constexpr int K_RNG_OFFSET_PARAM = 7;
 
         /**
-         * @brief Distribution parameters a random op may record, i.e. the slots left over
+         * @brief Holds how many distribution parameters a random op may record: the slots left
          * once @ref K_RNG_SEED_PARAM and @ref K_RNG_OFFSET_PARAM are reserved.
          */
         inline constexpr size_t K_MAX_RNG_PARAMS = 6;
 
-        /**
-         * @brief Stamps the seed/offset pair a random task drew from into its metadata.
-         *
-         * @param meta The metadata block to annotate.
-         * @param seed The engine's current RNG seed.
-         * @param offset The per-task counter offset the engine handed out.
-         */
-        inline void set_rng_params(SushiRuntime::Graph::TaskMetadata& meta, uint64_t seed, uint64_t offset)
+        /// @brief Sets the engine stream's seed and rewinds its offset to zero.
+        inline void reseed(Engine& engine, uint64_t seed)
         {
-            static_assert(K_RNG_OFFSET_PARAM < static_cast<int>(SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS),
-                          "RNG metadata slots must fit inside TaskMetadata's inline parameter array.");
+            engine.rng().reseed(seed);
+        }
+
+        /// @brief Reserves @p count offsets on the engine's stream and returns where they start.
+        [[nodiscard]] inline RngPosition reserve_offsets(Engine& engine, uint64_t count)
+        {
+            return engine.rng().reserve(count);
+        }
+
+        /// @brief Stamps the seed and offset a random task draws from into its metadata.
+        inline void set_rng_params(SushiRuntime::Graph::TaskMetadata& meta, uint64_t seed,
+                                   uint64_t offset)
+        {
+            static_assert(K_RNG_OFFSET_PARAM <
+                              static_cast<int>(SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS),
+                          "RNG metadata slots must fit inside TaskMetadata's parameter array.");
             meta.set_param(K_RNG_SEED_PARAM, seed);
             meta.set_param(K_RNG_OFFSET_PARAM, offset);
         }
 
         /**
-         * @brief Submits one counter-based fill: `out[i] = draw(i)` for every i in [0, n).
-         * @param draw Callable `(uint64_t index) -> T`, inlined into a SYCL device kernel.
+         * @brief Names what a random op does with element values, which decides whether it accepts HALF.
          * @see include/SushiBLAS/engine/math/README.md
          */
-        template<typename T, typename Draw>
-        [[nodiscard]] inline sycl::event submit_random_fill(sycl::queue& q, const std::vector<sycl::event>& deps,
-                                                            int64_t n, T* out, Draw draw)
+        enum class Sampling : uint8_t
         {
+            DRAWS_VALUES, /**< Computes new values; HALF has too little mantissa and is refused. */
+            MOVES_VALUES  /**< Fills or permutes values; every dtype of its domain is accepted. */
+        };
+
+        /**
+         * @brief Reports whether a random op of @p domain and @p sampling accepts @p dtype.
+         * @see include/SushiBLAS/engine/math/README.md
+         */
+        [[nodiscard]] inline constexpr bool random_admits(Domain domain, Sampling sampling,
+                                                          Core::DataType dtype) noexcept
+        {
+            if (sampling == Sampling::DRAWS_VALUES && dtype == Core::DataType::HALF)
+                return false;
+            return domain_admits(domain, domain_of(dtype));
+        }
+
+        /**
+         * @brief Throws std::invalid_argument naming the op and t's dtype unless random_admits holds.
+         * @see include/SushiBLAS/engine/math/README.md
+         */
+        inline void require_random_dtype(const Tensor& t, Domain domain, Sampling sampling, const char* name)
+        {
+            if (random_admits(domain, sampling, t.dtype))
+                return;
+
+            constexpr Core::DataType k_dtypes[] = {
+                Core::DataType::HALF, Core::DataType::FLOAT32, Core::DataType::FLOAT64,
+                Core::DataType::COMPLEX32, Core::DataType::COMPLEX64,
+                Core::DataType::INT32, Core::DataType::INT64};
+
+            std::string accepted;
+            for (Core::DataType dtype : k_dtypes)
+            {
+                if (!random_admits(domain, sampling, dtype))
+                    continue;
+                if (!accepted.empty())
+                    accepted += ", ";
+                accepted += Core::to_string(dtype);
+            }
+
+            Detail::throw_operand_error(name, "t", "has dtype {}; {} accepts {} only",
+                                        Core::to_string(t.dtype), name, accepted);
+        }
+
+        /**
+         * @brief Submits one counter-based fill in blocks: `out[b*K + k] = draw_block(b)[k]` below n.
+         * @param draw_block Callable `(uint64_t block) -> std::array<T, K>`, inlined into a SYCL device kernel.
+         * @see include/SushiBLAS/engine/math/README.md
+         */
+        template<typename T, typename DrawBlock>
+        [[nodiscard]] inline sycl::event submit_random_fill(sycl::queue& q, const std::vector<sycl::event>& deps,
+                                                            int64_t n, T* out, DrawBlock draw_block)
+        {
+            constexpr std::size_t k_per_block = std::tuple_size<decltype(draw_block(uint64_t{0}))>::value;
+            const std::size_t count = static_cast<std::size_t>(n);
+            const std::size_t blocks = (count + k_per_block - 1) / k_per_block;
+
             return q.submit([&](sycl::handler& h)
             {
                 h.depends_on(deps);
-                Launch::indexed(h, q, static_cast<std::size_t>(n), [=](std::size_t i)
+                Launch::indexed(h, q, blocks, [=](std::size_t b)
                 {
-                    out[i] = draw(static_cast<uint64_t>(i));
+                    const auto values = draw_block(static_cast<uint64_t>(b));
+                    for (std::size_t k = 0; k < k_per_block; ++k)
+                    {
+                        const std::size_t i = b * k_per_block + k;
+                        if (i < count)
+                            out[i] = static_cast<T>(values[k]);
+                    }
                 });
             });
         }
 
+        namespace Detail
+        {
+            /**
+             * @brief Runs one random-fill task body for the element type of a with_element_type arm.
+             * @tparam Func The task body: `(T, queue&, seed, offset, size, T*, deps) -> sycl::event`.
+             */
+            template <typename Func>
+            struct RandomArm
+            {
+                /** @brief Holds the task body the arm calls. */
+                const Func& task_func;
+                /** @brief Holds the queue the fill is submitted to. */
+                sycl::queue& q;
+                /** @brief Holds the stream seed recorded with the task. */
+                uint64_t seed;
+                /** @brief Holds the stream offset recorded with the task. */
+                uint64_t offset;
+                /** @brief Holds the element count of the tensor. */
+                int64_t size;
+                /** @brief Holds the tensor's base address. */
+                void* ptr;
+                /** @brief Holds the events the fill depends on. */
+                const std::vector<sycl::event>& deps;
+                /** @brief Holds the operation name for messages. */
+                const char* name;
+                /** @brief Receives the event the task body returns. */
+                sycl::event& done;
+
+                /**
+                 * @brief Submits the fill for the element type named by the tag.
+                 * @throws std::runtime_error for HALF.
+                 */
+                template <typename Tag>
+                void operator()(Tag) const
+                {
+                    using T = typename Tag::type;
+                    if constexpr (std::is_same_v<T, sycl::half>)
+                        SB_THROW_IF(true, "RNG operation '{}' does not support dtype HALF.", name);
+                    else
+                        done = task_func(T{}, q, seed, offset, size, static_cast<T*>(ptr), deps);
+                }
+            };
+        } // namespace Detail
+
         /**
          * @brief Records a random-fill op and resolves the tensor's dtype to a typed pointer.
+         * @tparam Dom The element families the distribution draws; HALF is always refused.
          * @param params The distribution's parameters, recorded in metadata slots 0..n-1.
-         * @param task_func Submits the fill for one element type; whatever it submits runs on the device.
-         * @throws std::runtime_error for HALF, an integer or unrecognized dtype, or too many params.
+         * @param task_func Submits the fill for one element type of Dom; whatever it submits runs on the device.
+         * @throws std::invalid_argument for a dtype outside Dom, HALF, no storage or a non-contiguous t.
          * @see include/SushiBLAS/engine/math/README.md
          */
-        template<typename Func>
+        template<Domain Dom, typename Func>
         sycl::event execute_random(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, const std::vector<double>& params, Func&& task_func)
         {
-            // HALF and the integer dtypes are rejected at record time; see include/SushiBLAS/engine/math/README.md.
-            SB_THROW_IF(Core::is_integer_dtype(t.dtype) || t.dtype == Core::DataType::HALF,
-                        "RNG operation '{}' does not support dtype {}. A continuous "
-                        "distribution needs a fractional part to land in, which the integer "
-                        "types do not have, and more mantissa than HALF supplies for the "
-                        "inverse-CDF and Box-Muller transforms. Use RandomOps::constant for a "
-                        "deterministic fill of either.",
-                        name, Core::to_string(t.dtype));
+            require_random_dtype(t, Dom, Sampling::DRAWS_VALUES, name);
+            require_storage(t, name, "t");
+            require_contiguous(t, name, "t");
 
             const int64_t size = t.num_elements;
             void* ptr = t.data_or_null();
@@ -126,8 +239,9 @@ namespace SushiBLAS
             meta.op_id = op_id;
             set_task_params(meta, params, name, SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS - K_MAX_RNG_PARAMS);
 
-            const uint64_t seed = engine.get_seed();
-            const uint64_t offset = engine.get_and_increment_rng_offset();
+            const RngPosition position = reserve_offsets(engine, 1);
+            const uint64_t seed = position.seed;
+            const uint64_t offset = position.offset;
             set_rng_params(meta, seed, offset);
 
             engine.get_graph().add_task(meta, reads, writes,
@@ -135,27 +249,11 @@ namespace SushiBLAS
                 {
                     SB_LOG_INFO("RandomOps: {} ({} elements, seed: {}, offset: {})", name, size, seed, offset);
 
-                    switch (dtype)
-                    {
-                        case Core::DataType::FLOAT32:
-                            return task_func(float{}, q, seed, offset, size, static_cast<float*>(pT), deps);
-                        case Core::DataType::FLOAT64:
-                            return task_func(double{}, q, seed, offset, size, static_cast<double*>(pT), deps);
-                        case Core::DataType::COMPLEX32:
-                            return task_func(std::complex<float>{}, q, seed, offset, size, static_cast<std::complex<float>*>(pT), deps);
-                        case Core::DataType::COMPLEX64:
-                            return task_func(std::complex<double>{}, q, seed, offset, size, static_cast<std::complex<double>*>(pT), deps);
-                        // HALF and integers have no continuous draw here; see include/SushiBLAS/engine/math/README.md.
-                        case Core::DataType::HALF:
-                        case Core::DataType::INT32:
-                        case Core::DataType::INT64:
-                            SB_THROW_IF(true, "RNG operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                            return sycl::event();
-                        default:
-                            SB_THROW_IF(true, "RNG operation '{}' received an unrecognized dtype ({}).",
-                                        name, static_cast<int>(dtype));
-                            return sycl::event();
-                    }
+                    sycl::event done;
+                    const Detail::RandomArm<std::remove_reference_t<Func>> arm{
+                        task_func, q, seed, offset, size, pT, deps, name, done};
+                    with_element_type<Dom>(dtype, "RNG operation", name, arm);
+                    return done;
                 }
             );
             return sycl::event();

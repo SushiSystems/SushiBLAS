@@ -38,25 +38,28 @@ namespace SushiBLAS
 
     sycl::event RandomOps::bernoulli(Tensor& t, double p)
     {
-        return Dispatch::execute_random(engine_, t, "random.bernoulli", "random.bernoulli"_op, {p},
-            [p](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
+        if (!(p >= 0.0 && p <= 1.0))
+            Dispatch::Detail::throw_operand_error("random.bernoulli", "p",
+                                                  "is {}, expected within [0, 1]", p);
+
+        return Dispatch::execute_random<Dispatch::Domain::REAL>(
+            engine_, t, "random.bernoulli", "random.bernoulli"_op, {p},
+            [p](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset,
+                int64_t size, auto* pT,
+                const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (Core::is_complex_v<T>)
-                {
-                    SB_THROW_IF(true, "Unsupported data type for bernoulli operation.");
-                    return sycl::event();
-                }
-                else
-                {
-                    T pt = static_cast<T>(p);
+                const T pt = static_cast<T>(p);
 
-                    return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i) -> T
-                    {
-                        T u = Kernels::SYCL::Random::draw_uniform<T>(seed, offset, i, static_cast<T>(0.0), static_cast<T>(1.0));
-                        return (u <= pt) ? static_cast<T>(1.0) : static_cast<T>(0.0);
-                    });
-                }
+                return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t b)
+                {
+                    Kernels::SYCL::Random::DrawBlock<T> values =
+                        Kernels::SYCL::Random::uniform_block<T>(seed, offset, b, static_cast<T>(0.0),
+                                                                static_cast<T>(1.0));
+                    for (T& value : values)
+                        value = (value < pt) ? static_cast<T>(1.0) : static_cast<T>(0.0);
+                    return values;
+                });
             });
     }
 } // namespace SushiBLAS

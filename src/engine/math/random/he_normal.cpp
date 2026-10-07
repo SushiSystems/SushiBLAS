@@ -25,6 +25,7 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
@@ -38,25 +39,26 @@ namespace SushiBLAS
 
     sycl::event RandomOps::he_normal(Tensor& t, int64_t n_in)
     {
+        if (n_in <= 0)
+            Dispatch::Detail::throw_operand_error("random.he_normal", "n_in",
+                                                  "is {}, expected above 0", n_in);
+
         const double stddev = std::sqrt(2.0 / n_in);
-        return Dispatch::execute_random(engine_, t, "random.he_normal", "random.he_normal"_op, {static_cast<double>(n_in), stddev},
-            [stddev](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
+        return Dispatch::execute_random<Dispatch::Domain::REAL>(
+            engine_, t, "random.he_normal", "random.he_normal"_op,
+            {static_cast<double>(n_in), stddev},
+            [stddev](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset,
+                     int64_t size, auto* pT,
+                     const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (Core::is_complex_v<T>)
-                {
-                    SB_THROW_IF(true, "Unsupported data type for he_normal operation.");
-                    return sycl::event();
-                }
-                else
-                {
-                    T sd = static_cast<T>(stddev);
+                const T sd = static_cast<T>(stddev);
 
-                    return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i) -> T
-                    {
-                        return Kernels::SYCL::Random::draw_normal<T>(seed, offset, i, static_cast<T>(0.0), sd);
-                    });
-                }
+                return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t b)
+                {
+                    return Kernels::SYCL::Random::normal_block<T>(seed, offset, b,
+                                                                  static_cast<T>(0.0), sd);
+                });
             });
     }
 } // namespace SushiBLAS
