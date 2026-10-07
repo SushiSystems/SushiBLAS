@@ -28,6 +28,7 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cmath>
 #include <type_traits>
@@ -44,14 +45,19 @@ namespace SushiBLAS
                 /** @brief Holds the 32-bit multiply one Philox round is built from. */
                 namespace Detail
                 {
+                    /** @brief Splits the 64-bit product of @p a and @p b into @p hi and @p lo. */
                     inline void mulhilo32(uint32_t a, uint32_t b, uint32_t& hi, uint32_t& lo)
                     {
                         uint64_t product = static_cast<uint64_t>(a) * static_cast<uint64_t>(b);
                         hi = static_cast<uint32_t>(product >> 32);
                         lo = static_cast<uint32_t>(product);
                     }
-                }
+                } // namespace Detail
 
+                /**
+                 * @brief Returns the four words Philox4x32-10 maps the counter (c0..c3) to.
+                 * @see kernels/README.md
+                 */
                 inline std::array<uint32_t, 4> philox4x32_10(uint32_t key0, uint32_t key1,
                                                               uint32_t c0, uint32_t c1,
                                                               uint32_t c2, uint32_t c3)
@@ -79,59 +85,94 @@ namespace SushiBLAS
                     return {c0, c1, c2, c3};
                 }
 
-                /** @brief Maps a 32-bit word to the open interval (0,1), never exactly 0 or 1. */
-                inline float uniform01_float(uint32_t w)
+                /** @brief Returns the four words of block @p block of the (seed, offset) Philox stream. */
+                inline std::array<uint32_t, 4> philox_block(uint64_t seed, uint64_t offset, uint64_t block)
                 {
-                    return (static_cast<float>(w) + 0.5f) * (1.0f / 4294967296.0f);
+                    return philox4x32_10(static_cast<uint32_t>(seed), static_cast<uint32_t>(seed >> 32),
+                                         static_cast<uint32_t>(offset), static_cast<uint32_t>(offset >> 32),
+                                         static_cast<uint32_t>(block), static_cast<uint32_t>(block >> 32));
                 }
 
+                /** @brief Maps the top 24 bits of a word to [0, 1); 1 - 2^-24 is the largest result. */
+                inline float uniform01_float(uint32_t w)
+                {
+                    return static_cast<float>(w >> 8) * (1.0f / 16777216.0f);
+                }
+
+                /** @brief Maps the top 53 bits of two words to [0, 1); 1 - 2^-53 is the largest result. */
                 inline double uniform01_double(uint32_t w_hi, uint32_t w_lo)
                 {
                     uint64_t combined = (static_cast<uint64_t>(w_hi) << 32) | static_cast<uint64_t>(w_lo);
-                    return (static_cast<double>(combined) + 0.5) * (1.0 / 18446744073709551616.0);
+                    return static_cast<double>(combined >> 11) * (1.0 / 9007199254740992.0);
                 }
 
+                /**
+                 * @brief Holds how many draws of T one Philox block yields: four floats or two doubles.
+                 * @see kernels/README.md
+                 */
                 template<typename T>
-                inline T uniform01(const std::array<uint32_t, 4>& w, int pair)
+                inline constexpr std::size_t K_DRAWS_PER_BLOCK = std::is_same_v<T, double> ? 2 : 4;
+
+                /** @brief Holds the draws of T that one Philox block yields. */
+                template<typename T>
+                using DrawBlock = std::array<T, K_DRAWS_PER_BLOCK<T>>;
+
+                /** @brief Returns every uniform draw in [0, 1) that the words of one Philox block hold. */
+                template<typename T>
+                inline DrawBlock<T> uniform01_block(const std::array<uint32_t, 4>& w)
                 {
+                    DrawBlock<T> u{};
                     if constexpr (std::is_same_v<T, double>)
-                        return static_cast<T>(uniform01_double(w[pair * 2 + 1], w[pair * 2]));
+                    {
+                        u[0] = uniform01_double(w[1], w[0]);
+                        u[1] = uniform01_double(w[3], w[2]);
+                    }
                     else
-                        return static_cast<T>(uniform01_float(w[pair * 2]));
+                    {
+                        for (std::size_t k = 0; k < 4; ++k)
+                            u[k] = static_cast<T>(uniform01_float(w[k]));
+                    }
+                    return u;
                 }
 
                 /**
-                 * @brief Draws one uniform value between lo and hi from one Philox call.
+                 * @brief Draws K_DRAWS_PER_BLOCK uniform values in [lo, hi) from Philox block @p block.
+                 * @pre lo <= hi, both finite, and hi - lo finite; lo == hi fills lo.
                  * @see kernels/README.md
                  */
                 template<typename T>
-                inline T draw_uniform(uint64_t seed, uint64_t offset, uint64_t index, T lo, T hi)
+                inline DrawBlock<T> uniform_block(uint64_t seed, uint64_t offset, uint64_t block, T lo, T hi)
                 {
-                    auto w = philox4x32_10(static_cast<uint32_t>(seed), static_cast<uint32_t>(seed >> 32),
-                                           static_cast<uint32_t>(offset), static_cast<uint32_t>(offset >> 32),
-                                           static_cast<uint32_t>(index), static_cast<uint32_t>(index >> 32));
-                    T u = uniform01<T>(w, 0);
-                    return lo + u * (hi - lo);
+                    DrawBlock<T> values = uniform01_block<T>(philox_block(seed, offset, block));
+                    for (T& value : values)
+                    {
+                        const T scaled = lo + value * (hi - lo);
+                        // Rounding of lo + u * (hi - lo) can reach hi although u < 1.
+                        value = scaled < hi ? scaled : sycl::nextafter(hi, lo);
+                    }
+                    return values;
                 }
 
                 /**
-                 * @brief Draws one normal value by Box-Muller from one Philox call.
+                 * @brief Draws K_DRAWS_PER_BLOCK normal values from Philox block @p block by Box-Muller.
                  * @see kernels/README.md
                  */
                 template<typename T>
-                inline T draw_normal(uint64_t seed, uint64_t offset, uint64_t index, T mean, T stddev)
+                inline DrawBlock<T> normal_block(uint64_t seed, uint64_t offset, uint64_t block, T mean, T stddev)
                 {
-                    // MSVC only defines M_PI with _USE_MATH_DEFINES, so spell it out instead.
                     constexpr double TWO_PI = 6.283185307179586476925286766559;
 
-                    auto w = philox4x32_10(static_cast<uint32_t>(seed), static_cast<uint32_t>(seed >> 32),
-                                           static_cast<uint32_t>(offset), static_cast<uint32_t>(offset >> 32),
-                                           static_cast<uint32_t>(index), static_cast<uint32_t>(index >> 32));
-                    T u1 = uniform01<T>(w, 0);
-                    T u2 = uniform01<T>(w, 1);
-                    T r = sycl::sqrt(static_cast<T>(-2.0) * sycl::log(u1));
-                    T z0 = r * sycl::cos(static_cast<T>(TWO_PI) * u2);
-                    return mean + stddev * z0;
+                    const DrawBlock<T> u = uniform01_block<T>(philox_block(seed, offset, block));
+                    DrawBlock<T> values{};
+                    for (std::size_t pair = 0; pair < K_DRAWS_PER_BLOCK<T>; pair += 2)
+                    {
+                        // u lies in [0, 1), so 1 - u lies in (0, 1] and its logarithm is finite.
+                        const T r = sycl::sqrt(static_cast<T>(-2.0) * sycl::log(static_cast<T>(1.0) - u[pair]));
+                        const T theta = static_cast<T>(TWO_PI) * u[pair + 1];
+                        values[pair] = mean + stddev * r * sycl::cos(theta);
+                        values[pair + 1] = mean + stddev * r * sycl::sin(theta);
+                    }
+                    return values;
                 }
 
                 /**
@@ -142,9 +183,7 @@ namespace SushiBLAS
                 {
                     if (bound <= 1) return 0;
 
-                    auto w = philox4x32_10(static_cast<uint32_t>(seed), static_cast<uint32_t>(seed >> 32),
-                                           static_cast<uint32_t>(offset), static_cast<uint32_t>(offset >> 32),
-                                           static_cast<uint32_t>(index), static_cast<uint32_t>(index >> 32));
+                    auto w = philox_block(seed, offset, index);
                     uint64_t raw = (static_cast<uint64_t>(w[1]) << 32) | static_cast<uint64_t>(w[0]);
                     return raw % bound;
                 }

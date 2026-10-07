@@ -38,32 +38,41 @@ namespace SushiBLAS
 
     sycl::event RandomOps::normal(Tensor& t, double mean, double stddev)
     {
-        return Dispatch::execute_random(engine_, t, "random.normal", "random.normal"_op, {mean, stddev},
-            [mean, stddev](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
+        if (!std::isfinite(mean))
+            Dispatch::Detail::throw_operand_error("random.normal", "mean",
+                                                  "is {}, expected finite", mean);
+        if (!std::isfinite(stddev) || stddev < 0.0)
+            Dispatch::Detail::throw_operand_error("random.normal", "stddev",
+                                                  "is {}, expected finite and at least 0", stddev);
+
+        return Dispatch::execute_random<Dispatch::Domain::REAL_AND_COMPLEX>(
+            engine_, t, "random.normal", "random.normal"_op, {mean, stddev},
+            [mean, stddev](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset,
+                           int64_t size, auto* pT,
+                           const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-
                 if constexpr (Core::is_complex_v<T>)
                 {
                     using RealT = typename T::value_type;
-                    RealT m = static_cast<RealT>(mean);
-                    RealT sd = static_cast<RealT>(stddev) / static_cast<RealT>(std::sqrt(2.0));
+                    const RealT m = static_cast<RealT>(mean);
+                    const RealT sd =
+                        static_cast<RealT>(stddev) / static_cast<RealT>(std::sqrt(2.0));
                     RealT* pR = reinterpret_cast<RealT*>(pT);
-                    int64_t n = size * 2;
 
                     // A complex fill is one flat run of 2n real draws; see src/README.md.
-                    return Dispatch::submit_random_fill(q, deps, n, pR, [=](uint64_t i) -> RealT
+                    return Dispatch::submit_random_fill(q, deps, size * 2, pR, [=](uint64_t b)
                     {
-                        return Kernels::SYCL::Random::draw_normal<RealT>(seed, offset, i, m, sd);
+                        return Kernels::SYCL::Random::normal_block<RealT>(seed, offset, b, m, sd);
                     });
                 }
                 else
                 {
-                    T m = static_cast<T>(mean), sd = static_cast<T>(stddev);
+                    const T m = static_cast<T>(mean), sd = static_cast<T>(stddev);
 
-                    return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i) -> T
+                    return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t b)
                     {
-                        return Kernels::SYCL::Random::draw_normal<T>(seed, offset, i, m, sd);
+                        return Kernels::SYCL::Random::normal_block<T>(seed, offset, b, m, sd);
                     });
                 }
             });

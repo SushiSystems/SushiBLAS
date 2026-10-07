@@ -26,6 +26,7 @@
  */
 
 #include <vector>
+#include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -40,48 +41,32 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    namespace
-    {
-        template<typename T>
-        sycl::event orthogonal_dispatch(sycl::queue& q, T* p, int64_t count, int64_t length,
-                                         int64_t elem_stride, int64_t vec_stride, T gain,
-                                         const std::vector<sycl::event>& deps)
-        {
-            return q.submit([&](sycl::handler& h)
-            {
-                h.depends_on(deps);
-                h.single_task([=]()
-                {
-                    Kernels::SYCL::Random::orthonormalize_mgs(p, count, length, elem_stride, vec_stride, gain);
-                });
-            });
-        }
-    }
-
     sycl::event RandomOps::orthogonal(Tensor& t, double gain)
     {
         const char* name = "random.orthogonal";
 
-        SB_THROW_IF(t.rank != 2, "Operation '{}' requires a rank-2 tensor, got rank {}.", name, t.rank);
-        SB_THROW_IF(!t.storage, "Operation '{}' requires a tensor with allocated storage.", name);
-        SB_THROW_IF(Core::is_complex_dtype(t.dtype) || t.dtype == Core::DataType::HALF,
-                    "Operation '{}' does not support dtype {}: the Gram-Schmidt sweep needs a real inner "
-                    "product, and HALF loses orthogonality to rounding before the sweep finishes.",
-                    name, Core::to_string(t.dtype));
+        SB_THROW_IF(t.rank != 2, "Operation '{}' requires a rank-2 tensor, got rank {}.", name,
+                    t.rank);
+        Dispatch::require_random_dtype(t, Dispatch::Domain::REAL, Dispatch::Sampling::DRAWS_VALUES,
+                                       name);
 
         const int64_t rows = t.shape[0];
         const int64_t cols = t.shape[1];
-        SB_THROW_IF(rows <= 0 || cols <= 0, "Operation '{}' requires a non-empty matrix, got {}x{}.", name, rows, cols);
+        SB_THROW_IF(rows <= 0 || cols <= 0,
+                    "Operation '{}' requires a non-empty matrix, got {}x{}.", name, rows, cols);
+        Dispatch::require_storage(t, name, "t");
+        Dispatch::require_contiguous(t, name, "t");
 
         // The matrix is filled with N(0,1) before the sweep; see src/README.md.
         normal(t, 0.0, 1.0);
 
         // The shorter axis is orthonormalized, read through t.strides; see src/README.md.
         const bool by_rows = (rows <= cols);
-        const int64_t count = by_rows ? rows : cols;
-        const int64_t length = by_rows ? cols : rows;
-        const int64_t elem_stride = by_rows ? t.strides[1] : t.strides[0];
-        const int64_t vec_stride = by_rows ? t.strides[0] : t.strides[1];
+        Kernels::SYCL::Random::VectorSet set;
+        set.count = by_rows ? rows : cols;
+        set.length = by_rows ? cols : rows;
+        set.elem_stride = by_rows ? t.strides[1] : t.strides[0];
+        set.vec_stride = by_rows ? t.strides[0] : t.strides[1];
 
         void* ptr = t.data();
         std::vector<SushiRuntime::Core::ResourceRegion> rw = {t.region()};
@@ -93,23 +78,21 @@ namespace SushiBLAS
         meta.set_param(0, gain);
 
         engine_.get_graph().add_task(meta, rw, rw,
-            [dtype = t.dtype, ptr, count, length, elem_stride, vec_stride, gain, name]
-            (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            [dtype = t.dtype, ptr, set, gain, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
-                SB_LOG_INFO("RandomOps: {} ({} vectors of length {}, gain: {:.4f})", name, count, length, gain);
+                SB_LOG_INFO("RandomOps: {} ({} vectors of length {}, gain: {:.4f})", name, set.count, set.length, gain);
 
-                switch (dtype)
+                sycl::event done;
+                Dispatch::with_element_type<Dispatch::Domain::REAL>(dtype, "RNG operation", name, [&](auto tag)
                 {
-                    case Core::DataType::FLOAT32:
-                        return orthogonal_dispatch(q, static_cast<float*>(ptr), count, length,
-                                                   elem_stride, vec_stride, static_cast<float>(gain), deps);
-                    case Core::DataType::FLOAT64:
-                        return orthogonal_dispatch(q, static_cast<double*>(ptr), count, length,
-                                                   elem_stride, vec_stride, gain, deps);
-                    default:
-                        SB_THROW_IF(true, "Operation '{}' does not support dtype {}.", name, Core::to_string(dtype));
-                        return sycl::event();
-                }
+                    using T = typename decltype(tag)::type;
+                    if constexpr (std::is_same_v<T, sycl::half>)
+                        SB_THROW_IF(true, "RNG operation '{}' does not support dtype HALF.", name);
+                    else
+                        done = Kernels::SYCL::Random::orthonormalize(q, deps, static_cast<T*>(ptr), set,
+                                                                     static_cast<T>(gain));
+                });
+                return done;
             }
         );
 

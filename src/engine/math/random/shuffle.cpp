@@ -29,6 +29,7 @@
 #include <complex>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
@@ -71,6 +72,10 @@ namespace SushiBLAS
     {
         const char* name = "random.shuffle";
 
+        Dispatch::require_random_dtype(t, Dispatch::Domain::REAL_AND_COMPLEX, Dispatch::Sampling::MOVES_VALUES, name);
+        Dispatch::require_storage(t, name, "t");
+        Dispatch::require_contiguous(t, name, "t");
+
         const int64_t size = t.num_elements;
         void* ptr = t.data_or_null();
 
@@ -83,8 +88,9 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "random.shuffle"_op;
 
-        const uint64_t seed = engine_.get_seed();
-        const uint64_t offset = engine_.get_and_increment_rng_offset();
+        const RngPosition position = Dispatch::reserve_offsets(engine_, 1);
+        const uint64_t seed = position.seed;
+        const uint64_t offset = position.offset;
         Dispatch::set_rng_params(meta, seed, offset);
 
         engine_.get_graph().add_task(meta, rw, rw,
@@ -92,23 +98,13 @@ namespace SushiBLAS
             {
                 SB_LOG_INFO("RandomOps: {} ({} elements, seed: {}, offset: {})", name, size, seed, offset);
 
-                switch (dtype)
+                sycl::event done;
+                Dispatch::with_element_type<Dispatch::Domain::REAL_AND_COMPLEX>(dtype, "RNG operation", name, [&](auto tag)
                 {
-                    case Core::DataType::HALF:
-                        return shuffle_dispatch(q, static_cast<sycl::half*>(ptr), size, seed, offset, deps);
-                    case Core::DataType::FLOAT32:
-                        return shuffle_dispatch(q, static_cast<float*>(ptr), size, seed, offset, deps);
-                    case Core::DataType::FLOAT64:
-                        return shuffle_dispatch(q, static_cast<double*>(ptr), size, seed, offset, deps);
-                    case Core::DataType::COMPLEX32:
-                        return shuffle_dispatch(q, static_cast<std::complex<float>*>(ptr), size, seed, offset, deps);
-                    case Core::DataType::COMPLEX64:
-                        return shuffle_dispatch(q, static_cast<std::complex<double>*>(ptr), size, seed, offset, deps);
-                    default:
-                        SB_THROW_IF(true, "Operation '{}' received an unrecognized dtype ({}).",
-                                    name, static_cast<int>(dtype));
-                        return sycl::event();
-                }
+                    using T = typename decltype(tag)::type;
+                    done = shuffle_dispatch(q, static_cast<T*>(ptr), size, seed, offset, deps);
+                });
+                return done;
             }
         );
 

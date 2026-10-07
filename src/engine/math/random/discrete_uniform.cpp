@@ -25,8 +25,13 @@
  * @author Mustafa Garip
  */
 
+#include <array>
+#include <cstdint>
+#include <cstdlib>
+#include <algorithm>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 #include <kernels/random.hpp>
@@ -36,26 +41,38 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
+    namespace
+    {
+        /** @brief Holds 2^24, the largest magnitude below which FLOAT32 holds every integer. */
+        constexpr int64_t K_MAX_EXACT_FLOAT32_INTEGER = int64_t{1} << 24;
+    } // namespace
+
     sycl::event RandomOps::discrete_uniform(Tensor& t, int32_t min, int32_t max)
     {
-        return Dispatch::execute_random(engine_, t, "random.discrete_uniform", "random.discrete_uniform"_op, {static_cast<double>(min), static_cast<double>(max)},
+        if (min > max)
+            Dispatch::Detail::throw_operand_error("random.discrete_uniform", "min",
+                                                  "is {}, greater than max {}", min, max);
+
+        const int64_t magnitude = std::max(std::abs(static_cast<int64_t>(min)),
+                                           std::abs(static_cast<int64_t>(max)));
+        if (t.dtype == Core::DataType::FLOAT32 && magnitude > K_MAX_EXACT_FLOAT32_INTEGER)
+            Dispatch::Detail::throw_operand_error("random.discrete_uniform", "t",
+                                                  "is FLOAT32, which cannot hold every integer in "
+                                                  "[{}, {}]; the bound is {} in magnitude",
+                                                  min, max, K_MAX_EXACT_FLOAT32_INTEGER);
+
+        return Dispatch::execute_random<Dispatch::Domain::REAL>(engine_, t, "random.discrete_uniform", "random.discrete_uniform"_op, {static_cast<double>(min), static_cast<double>(max)},
             [min, max](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (Core::is_complex_v<T>)
-                {
-                    SB_THROW_IF(true, "Unsupported data type for discrete_uniform operation.");
-                    return sycl::event();
-                }
-                else
-                {
-                    T lo = static_cast<T>(min), hi = static_cast<T>(max) + static_cast<T>(1.0);
+                const int64_t lo = static_cast<int64_t>(min);
+                const uint64_t count = static_cast<uint64_t>(static_cast<int64_t>(max) - lo + 1);
 
-                    return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i) -> T
-                    {
-                        return sycl::floor(Kernels::SYCL::Random::draw_uniform<T>(seed, offset, i, lo, hi));
-                    });
-                }
+                return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i)
+                {
+                    const uint64_t pick = Kernels::SYCL::Random::draw_index(seed, offset, i, count);
+                    return std::array<T, 1>{static_cast<T>(lo + static_cast<int64_t>(pick))};
+                });
             });
     }
 } // namespace SushiBLAS

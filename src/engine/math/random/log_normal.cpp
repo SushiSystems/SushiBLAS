@@ -25,6 +25,7 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
@@ -38,24 +39,30 @@ namespace SushiBLAS
 
     sycl::event RandomOps::log_normal(Tensor& t, double mean, double stddev)
     {
-        return Dispatch::execute_random(engine_, t, "random.log_normal", "random.log_normal"_op, {mean, stddev},
-            [mean, stddev](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
+        if (!std::isfinite(mean))
+            Dispatch::Detail::throw_operand_error("random.log_normal", "mean",
+                                                  "is {}, expected finite", mean);
+        if (!std::isfinite(stddev) || stddev < 0.0)
+            Dispatch::Detail::throw_operand_error("random.log_normal", "stddev",
+                                                  "is {}, expected finite and at least 0", stddev);
+
+        return Dispatch::execute_random<Dispatch::Domain::REAL>(
+            engine_, t, "random.log_normal", "random.log_normal"_op, {mean, stddev},
+            [mean, stddev](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset,
+                           int64_t size, auto* pT,
+                           const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
-                if constexpr (Core::is_complex_v<T>)
-                {
-                    SB_THROW_IF(true, "Unsupported data type for log_normal operation.");
-                    return sycl::event();
-                }
-                else
-                {
-                    T m = static_cast<T>(mean), sd = static_cast<T>(stddev);
+                const T m = static_cast<T>(mean), sd = static_cast<T>(stddev);
 
-                    return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t i) -> T
-                    {
-                        return sycl::exp(Kernels::SYCL::Random::draw_normal<T>(seed, offset, i, m, sd));
-                    });
-                }
+                return Dispatch::submit_random_fill(q, deps, size, pT, [=](uint64_t b)
+                {
+                    Kernels::SYCL::Random::DrawBlock<T> values =
+                        Kernels::SYCL::Random::normal_block<T>(seed, offset, b, m, sd);
+                    for (T& value : values)
+                        value = sycl::exp(value);
+                    return values;
+                });
             });
     }
 } // namespace SushiBLAS
