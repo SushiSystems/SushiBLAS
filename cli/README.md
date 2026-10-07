@@ -63,6 +63,7 @@ not know, stops the command with one line naming the problem and exit code 1.
 |---------|----------------|
 | `sb build` / `test` / `run` / `clean` | Build, test, run, and clean the C++ project |
 | `sb docs` | Generate the Doxygen API reference into `docs/api-site/html/` |
+| `sb docs bundle` | Pack the published manual and the API reference for docs.sushisystems.io |
 | `sb config` | Show the resolved configuration |
 | `sb env` | Show the environment your builds run under |
 | `sb setup` | Provision what the build needs, then report readiness |
@@ -219,17 +220,23 @@ exit code 2. It is never taken as the target name or passed to the program.
 ## `sb clean` and `sb docs`
 
 ```bash
-sb clean       # remove the build/ tree
-sb docs        # generate the Doxygen API reference into docs/api-site/html/
+sb clean                         # remove the build/ tree
+sb docs                          # generate the Doxygen API reference into docs/api-site/html/
+sb docs bundle --release 1.2.3   # pack the documentation bundle into build/docs/bundle/
 ```
 
 `sb clean` exits 1 and names the directory when the tree is still there
 after the removal, for example because a running program holds a file in it.
 
-`sb docs` was `sb doxygen`. The old word still runs, hidden from the help, and
-names the new one on a terminal; it is removed after 2027-03-25.
+`sb docs` is a command group that `sushicore.docs_bundle` registers. Without a
+subcommand it generates the API reference and exits with Doxygen's code. `sb
+docs bundle` is its one subcommand.
 
-It runs Doxygen against the repo-root `Doxyfile`, which is committed, and opens
+`sb docs` was `sb doxygen`. The old word still runs, hidden from the help, and
+names the new one on a terminal; it is removed after 2027-03-25. It builds the
+reference only and takes no subcommand.
+
+Bare `sb docs` runs Doxygen against the repo-root `Doxyfile`, which is committed, and opens
 the reference with `docs/api/mainpage.md`.
 
 Output lands in `docs/api-site/html/`, and warnings — every public symbol
@@ -250,6 +257,16 @@ Linux, `brew install doxygen graphviz` on macOS) or point `doxygen_exe` in
 `cli/config.local.toml` at an existing binary. The command prints the right
 install line if it cannot find one. `sb setup` installs one with the rest of
 the build tools.
+
+`sb docs bundle --release X.Y.Z` writes `docs-bundle-X.Y.Z.tar.gz` and its
+`.sha256` file, the archive this repository publishes to docs.sushisystems.io.
+`docs/publish.toml` names the manual sections that go in and the pages that stay
+out. Because that file sets `api = true`, the command first runs the same
+Doxygen build as bare `sb docs`, then copies the XML from `docs/api-site/xml/`.
+`--release` is required and is three integers; leaving it out is a usage error
+with exit code 2. `--out` names another output folder. A page without a
+level-one heading, a page `docs/README.md` does not link, or a link to a file
+that does not exist stops the command with one line and exit code 1.
 
 ## `sb config` and `sb env` — diagnostics
 

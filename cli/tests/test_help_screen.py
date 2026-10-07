@@ -19,8 +19,8 @@ from sushiblas.cli import app
 
 K_GROUPS = {
     "Project": ["build", "test", "run", "clean"],
-    "Documentation": ["docs"],
     "Diagnostics": ["config", "env", "setup", "doctor", "link", "unlink"],
+    "Documentation": ["docs"],
 }
 K_RAW_COLOUR = re.compile(r"\[/?(green|red|yellow|cyan|blue|dim)\b")
 K_PACKAGE_DIR = Path(sushiblas.__file__).parent
