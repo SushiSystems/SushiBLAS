@@ -45,9 +45,9 @@ namespace SushiBLAS
                     "Spatial operation '{}' has a {} input and a {} output.",
                     NAME, Core::to_string(in.dtype), Core::to_string(out.dtype));
 
-        const Spatial::WindowSpan span = Spatial::window_span_for(in, g, out, NAME);
+        const Spatial::WindowSpan span = Spatial::pooling_span_for(in, g, out, NAME);
 
-        void* read_in = in.data_or_null();
+        const void* read_in = in.data_or_null();
         void* write_out = out.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
@@ -60,18 +60,18 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.pool_avg"_op;
 
-        const auto mode = engine_.get_mode();
-
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
             engine_, meta, reads, writes, in.dtype, "Spatial operation",
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_in, write_out},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
                 auto source = static_cast<const T*>(read_in);
                 auto destination = static_cast<T*>(write_out);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=] { Kernels::Reference::pool_avg<T>(span, source, destination); },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
@@ -90,9 +90,9 @@ namespace SushiBLAS
                     NAME, Core::to_string(dy.dtype), Core::to_string(dx.dtype));
 
         // dx plays the input role and dy the output role, as in the forward; see src/README.md.
-        const Spatial::WindowSpan span = Spatial::window_span_for(dx, g, dy, NAME);
+        const Spatial::WindowSpan span = Spatial::pooling_span_for(dx, g, dy, NAME);
 
-        void* read_dy = dy.data_or_null();
+        const void* read_dy = dy.data_or_null();
         void* write_dx = dx.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
@@ -105,18 +105,18 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.pool_avg_backward"_op;
 
-        const auto mode = engine_.get_mode();
-
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
             engine_, meta, reads, writes, dy.dtype, "Spatial operation",
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_dy, write_dx},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
                 auto source = static_cast<const T*>(read_dy);
                 auto destination = static_cast<T*>(write_dx);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=] { Kernels::Reference::pool_avg_backward<T>(span, source, destination); },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {

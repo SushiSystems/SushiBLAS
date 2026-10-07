@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
-#include <SushiBLAS/engine/spatial/geometry.hpp>
+#include <SushiBLAS/support/spatial_geometry.hpp>
 
 namespace SushiBLAS
 {

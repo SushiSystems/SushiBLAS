@@ -29,6 +29,7 @@
 #include <cstdint>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/task.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/engine/spatial/window.hpp>
 #include "kernels/spatial.hpp"
@@ -51,14 +52,17 @@ namespace SushiBLAS
                     "Spatial operation '{}' needs an INT64 index tensor; got {}.",
                     NAME, Core::to_string(indices.dtype));
 
-        const Spatial::WindowSpan span = Spatial::window_span_for(in, g, out, NAME);
+        const Spatial::WindowSpan span = Spatial::pooling_span_for(in, g, out, NAME);
 
-        SB_THROW_IF(indices.rank != out.rank || indices.num_elements != out.num_elements,
-                    "Spatial operation '{}' needs an index tensor shaped like its output "
-                    "({} elements); got {}.",
-                    NAME, out.num_elements, indices.num_elements);
+        // The kernels address indices with out's strides, so both must be dense and alike.
+        Dispatch::require_same_shape(indices, out, NAME, "indices", "out");
+        Dispatch::require_contiguous(out, NAME, "out");
+        Dispatch::require_contiguous(indices, NAME, "indices");
+        if (indices.layout != out.layout)
+            Dispatch::Detail::throw_operand_error(NAME, "indices",
+                                                  "has a different layout from 'out'");
 
-        void* read_in = in.data_or_null();
+        const void* read_in = in.data_or_null();
         void* write_out = out.data_or_null();
         void* write_indices = indices.data_or_null();
 
@@ -73,21 +77,21 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.pool_max"_op;
 
-        const auto mode = engine_.get_mode();
-
         // The switch runs on the value dtype; the index pointer is int64_t*; see src/README.md.
         auto* index_out = static_cast<int64_t*>(write_indices);
 
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
             engine_, meta, reads, writes, in.dtype, "Spatial operation",
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_in, write_out, write_indices},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
                 auto source = static_cast<const T*>(read_in);
                 auto destination = static_cast<T*>(write_out);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=] { Kernels::Reference::pool_max<T>(span, source, destination, index_out); },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {

@@ -29,7 +29,7 @@
 
 #include <cstdint>
 #include <limits>
-#include <SushiBLAS/engine/spatial/geometry.hpp>
+#include <SushiBLAS/support/spatial_geometry.hpp>
 
 namespace SushiBLAS
 {
@@ -38,7 +38,7 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-             * @brief Takes each window's maximum, and records where it came from.
+             * @brief Takes each window's maximum, or its first NaN, and records where it came from.
              * @param indices The argmax buffer's first element; laid out exactly like @p out.
              * @see kernels/README.md
              */
@@ -73,7 +73,8 @@ namespace SushiBLAS
                                                              + w_in * span.in_col_stride
                                                              + c * span.in_channel_stride];
 
-                                        if (candidate > best)
+                                        // The first live tap is taken; a NaN tap wins and stays.
+                                        if (best_index < 0 || (!(best != best) && (candidate > best || candidate != candidate)))
                                         {
                                             best = candidate;
                                             best_index = ((n * span.in_h + h_in) * span.in_w + w_in)
