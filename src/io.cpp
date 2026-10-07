@@ -522,7 +522,7 @@ namespace SushiBLAS
         for (int i = 0; i < t.rank; ++i)
             header.shape[i] = t.shape[i];
 
-        engine_.execute().wait();
+        engine_.execute();
 
         write_file(path, [&](std::ofstream& ofs)
         {
@@ -537,7 +537,7 @@ namespace SushiBLAS
     {
         require_dense_payload(t, "io.load");
 
-        engine_.execute().wait();
+        engine_.execute();
 
         std::ifstream ifs(path, std::ios::binary);
         SB_THROW_IF(!ifs.is_open(), "Failed to open file for reading: {}", path);
@@ -568,7 +568,7 @@ namespace SushiBLAS
     {
         require_dense_payload(t, "io.save_bin");
 
-        engine_.execute().wait();
+        engine_.execute();
 
         write_file(path, [&](std::ofstream& ofs)
         {
@@ -580,7 +580,7 @@ namespace SushiBLAS
     {
         require_dense_payload(t, "io.load_bin");
 
-        engine_.execute().wait();
+        engine_.execute();
 
         std::ifstream ifs(path, std::ios::binary);
         SB_THROW_IF(!ifs.is_open(), "Failed to open file: {}", path);
@@ -593,7 +593,7 @@ namespace SushiBLAS
         require_dense_payload(t, "io.save_npy");
         require_npy_layout(t, "io.save_npy");
 
-        engine_.execute().wait();
+        engine_.execute();
 
         const char magic[] = "\x93NUMPY";
         uint8_t major = 1;
@@ -641,7 +641,7 @@ namespace SushiBLAS
         require_dense_payload(t, "io.load_npy");
         require_npy_layout(t, "io.load_npy");
 
-        engine_.execute().wait();
+        engine_.execute();
 
         std::ifstream ifs(path, std::ios::binary);
         SB_THROW_IF(!ifs.is_open(), "Failed to open file for reading: {}", path);
@@ -669,7 +669,7 @@ namespace SushiBLAS
         require_dense_payload(t, "io.read");
         require_payload_bytes(t, bytes, "io.read");
 
-        engine_.execute().wait();
+        engine_.execute();
 
         if (bytes > 0)
             storage_queue(t).memcpy(dst, t.data(), bytes).wait();
@@ -680,7 +680,7 @@ namespace SushiBLAS
         require_dense_payload(t, "io.write");
         require_payload_bytes(t, bytes, "io.write");
 
-        engine_.execute().wait();
+        engine_.execute();
 
         if (bytes > 0)
             storage_queue(t).memcpy(t.data(), src, bytes).wait();
@@ -693,7 +693,7 @@ namespace SushiBLAS
 
     std::string IO::to_string(const Tensor& t, int precision, int edge_items)
     {
-        engine_.execute().wait();
+        engine_.execute();
 
         Dispatch::require_storage(t, "io.to_string", "t");
 
