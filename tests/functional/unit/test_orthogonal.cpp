@@ -73,7 +73,7 @@ TEST_F(Unit_OrthogonalTest, TallMatrixHasOrthonormalColumns)
 {
     // 8 rows cannot all be orthogonal in 4 dimensions, so the four columns are: Q^T Q = I(4).
     auto t = engine->create_tensor({8, 4});
-    engine->set_seed(2026);
+    engine->random().set_seed(2026);
     engine->random().orthogonal(t);
     engine->execute().wait();
 
@@ -85,7 +85,7 @@ TEST_F(Unit_OrthogonalTest, WideMatrixHasOrthonormalRows)
 {
     // 3x7, row-major: the short axis is the rows, so Q Q^T = I(3).
     auto t = engine->create_tensor({3, 7});
-    engine->set_seed(7);
+    engine->random().set_seed(7);
     engine->random().orthogonal(t);
     engine->execute().wait();
 
@@ -96,7 +96,7 @@ TEST_F(Unit_OrthogonalTest, WideMatrixHasOrthonormalRows)
 TEST_F(Unit_OrthogonalTest, SquareMatrixIsFullyOrthogonal)
 {
     auto t = engine->create_tensor({6, 6});
-    engine->set_seed(31337);
+    engine->random().set_seed(31337);
     engine->random().orthogonal(t);
     engine->execute().wait();
 
@@ -104,12 +104,25 @@ TEST_F(Unit_OrthogonalTest, SquareMatrixIsFullyOrthogonal)
     expect_orthonormal(m, 6, 6, /*elem_stride=*/6, /*vec_stride=*/1, 1.0f);
 }
 
+TEST_F(Unit_OrthogonalTest, SixtyFourSquareMatrixIsFullyOrthogonal)
+{
+    // 64 is the sweep's widest work-group, so every reduction runs the full tree.
+    constexpr int64_t kSide = 64;
+    auto t = engine->create_tensor({kSide, kSide});
+    engine->random().set_seed(20261006);
+    engine->random().orthogonal(t);
+    engine->execute().wait();
+
+    auto m = read_matrix(t);
+    expect_orthonormal(m, kSide, kSide, /*elem_stride=*/kSide, /*vec_stride=*/1, 1.0f);
+}
+
 TEST_F(Unit_OrthogonalTest, GainScalesTheGramDiagonalQuadratically)
 {
     // Q is scaled by gain, so Q^T Q is gain^2 I, the convention of PyTorch's orthogonal_.
     constexpr float kGain = 2.5f;
     auto t = engine->create_tensor({5, 5});
-    engine->set_seed(11);
+    engine->random().set_seed(11);
     engine->random().orthogonal(t, kGain);
     engine->execute().wait();
 
@@ -121,7 +134,7 @@ TEST_F(Unit_OrthogonalTest, ResultIsNotJustAGaussianFill)
 {
     // A Gaussian 6x6 has column norms near sqrt(6). See tests/functional/unit/README.md.
     auto t = engine->create_tensor({6, 6});
-    engine->set_seed(4242);
+    engine->random().set_seed(4242);
     engine->random().orthogonal(t);
     engine->execute().wait();
 
@@ -148,8 +161,14 @@ TEST_F(Unit_OrthogonalTest, RejectsInputsItCannotOrthonormalize)
     EXPECT_THROW(engine->random().orthogonal(cube), std::runtime_error);
 
     auto half_mat = engine->create_tensor({4, 4}, DataType::HALF);
-    EXPECT_THROW(engine->random().orthogonal(half_mat), std::runtime_error);
+    EXPECT_THROW(engine->random().orthogonal(half_mat), std::invalid_argument);
 
     auto complex_mat = engine->create_tensor({4, 4}, DataType::COMPLEX32);
-    EXPECT_THROW(engine->random().orthogonal(complex_mat), std::runtime_error);
+    EXPECT_THROW(engine->random().orthogonal(complex_mat), std::invalid_argument);
+}
+
+TEST_F(Unit_OrthogonalTest, RejectsAMatrixWithoutStorage)
+{
+    SushiBLAS::Tensor bare(SushiRuntime::sushi_ptr<SushiBLAS::Storage>(), {4, 4});
+    EXPECT_THROW(engine->random().orthogonal(bare), std::invalid_argument);
 }
