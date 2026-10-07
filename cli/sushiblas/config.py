@@ -37,8 +37,11 @@ _MODULE = ModuleConfig(PROFILE)
 find_project_root = _MODULE.find_project_root
 config_dir = _MODULE.config_dir
 
-#: Maps each field to its environment variable; `sb config` needs the reverse map.
-_ENV_OVERRIDES = PROFILE.env_overrides()
+#: Maps each field to its environment variable; `sb config` reads it for the reverse map.
+ENV_OVERRIDES = PROFILE.env_overrides()
+
+#: Names ENV_OVERRIDES under the attribute sushicore.diag.Diagnostics reads.
+_ENV_OVERRIDES = ENV_OVERRIDES
 
 
 @dataclass
@@ -54,8 +57,7 @@ class Config(StackConfig):
     # Empty means "../sushiruntime" relative to the project root, as in cmake/Runtime.cmake.
     sushiruntime_dir: str = ""
 
-    # Run defaults: sushiblas_example is a real target (examples/CMakeLists.txt).
-    target_bin: str = "sushiblas_example"
+    target_bin: str = PROFILE.default_target
 
     def runtime_dir(self, root: Path) -> Path:
         """Resolve the SushiRuntime checkout this build links against.

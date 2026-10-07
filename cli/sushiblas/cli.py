@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from collections.abc import Callable
+from typing import NoReturn, Optional
 
 import typer
 from sushicore import entry
@@ -19,9 +20,12 @@ from sushicore.typer_help import help_group
 from . import console
 from .aliases import K_ALIASES
 from .config import PROFILE, find_project_root, load_config
-from .services import project as project_svc
+from .services.build_type import BuildType
 from .services.diag import K_DIAGNOSTICS as K_DIAGNOSTICS_SERVICE
-from .services.project import BuildType, Suite
+from .services.errors import ProjectError
+from .services.project import ProjectService
+from .services.project_factory import create_project_service
+from .services.suite import Suite
 
 K_PROJECT = "Project"
 K_DOCUMENTATION = "Documentation"
@@ -42,21 +46,41 @@ app = typer.Typer(
 register_root_options(app, distribution=K_DISTRIBUTION)
 
 
+def _service() -> ProjectService:
+    """Returns a ProjectService that reports through this run's console."""
+    return create_project_service(console.current())
+
+
+def _exit_with(step: Callable[[], int]) -> NoReturn:
+    """Runs *step* and exits with its code, or prints a ProjectError and exits with its code."""
+    try:
+        code = step()
+    except ProjectError as error:
+        console.error(str(error))
+        raise typer.Exit(error.exit_code) from error
+    raise typer.Exit(code)
+
+
 @app.command(
     "build",
     rich_help_panel=K_PROJECT,
     epilog="sb build\n"
            "sb build --type debug  # Build with debug settings\n"
            "sb build --clean  # Start from an empty build tree\n"
+           "sb build --benchmarks  # Also build the benchmark programs\n"
            "sb build -D SB_LOG_LEVEL=INFO  # Pass a CMake cache variable through",
 )
 def build(
     type: BuildType = typer.Option(
-        BuildType.release, "--type", "-t", case_sensitive=False,
+        BuildType.RELEASE, "--type", "-t", case_sensitive=False,
         help="Build type: release | debug | relwithdebinfo. "
              "Changing it empties the build tree first."),
     clean: bool = typer.Option(
         False, "--clean", help="Delete the build tree before configuring."),
+    benchmarks: Optional[bool] = typer.Option(
+        None, "--benchmarks/--no-benchmarks",
+        help="Build the benchmark programs under benchmarks/, or stop building them. "
+             "Left out, the setting of the last build stays."),
     define: Optional[list[str]] = typer.Option(
         None, "--define", "-D", metavar="VAR=VALUE",
         help="Pass a CMake cache variable through to configure. Repeatable. "
@@ -70,7 +94,15 @@ def build(
     --clean to start over. A different --type also starts over: the tree
     is removed, and the variables with it.
     """
-    raise typer.Exit(project_svc.build(type, clean, define))
+    console.header("Project Build")
+
+    def step() -> int:
+        """Builds and announces success."""
+        rc = _service().build(type, clean, define, benchmarks)
+        console.success("Build completed successfully!")
+        return rc
+
+    _exit_with(step)
 
 
 @app.command(
@@ -83,7 +115,7 @@ def build(
 )
 def test(
     suite: Suite = typer.Option(
-        Suite.functional, "--suite", "-s", case_sensitive=False,
+        Suite.FUNCTIONAL, "--suite", "-s", case_sensitive=False,
         help="Which CTest label group to run ('all' runs every CTest test; "
              "'package' instead builds tests/package/ against an install "
              "prefix and is not included in 'all')."),
@@ -104,7 +136,16 @@ def test(
     of what find_package(SushiBLAS) hands a third party. It runs no CTest, so
     --filter and --repeat do not apply to it.
     """
-    raise typer.Exit(project_svc.test(suite, filter, repeat))
+    console.header("Project Test")
+
+    def step() -> int:
+        """Runs the suite; a package run that returns has passed."""
+        rc = _service().test(suite, filter, repeat)
+        if suite is Suite.PACKAGE:
+            console.success("Package consumer built and ran against the install prefix.")
+        return rc
+
+    _exit_with(step)
 
 
 @app.command(
@@ -113,7 +154,7 @@ def test(
     epilog="sb run sushiblas_example\n"
            "sb run --sort  # Pick an executable from a list\n"
            "sb run sushiblas_tests -- --gtest_filter='Unit_GEMMTest.*'  # Flags after -- go to it",
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    context_settings={"allow_extra_args": True},
 )
 def run(
     ctx: typer.Context,
@@ -123,7 +164,13 @@ def run(
         False, "--sort", help="Interactively pick an executable."),
 ) -> None:
     """Run a built executable. Args after `--` are forwarded to it."""
-    raise typer.Exit(project_svc.run(target=target, sort=sort, app_args=list(ctx.args)))
+    if target is not None and target.startswith("-"):
+        raise typer.BadParameter(
+            f"{target!r} is not a target; options for the program go after `--`.",
+            param_hint="TARGET",
+        )
+    console.header("Project Run")
+    _exit_with(lambda: _service().run(target=target, sort=sort, app_args=list(ctx.args)))
 
 
 @app.command(
@@ -133,7 +180,18 @@ def run(
 )
 def clean() -> None:
     """Remove the build/ tree."""
-    raise typer.Exit(project_svc.clean())
+    console.header("Project Clean")
+
+    def step() -> int:
+        """Removes the tree and says what happened."""
+        result = _service().clean()
+        if result.removed:
+            console.success(f"{result.tree} removed.")
+        else:
+            console.info(f"{result.tree} does not exist, nothing to clean.")
+        return 0
+
+    _exit_with(step)
 
 
 @app.command(
@@ -143,7 +201,8 @@ def clean() -> None:
 )
 def docs() -> None:
     """Generate the Doxygen API reference."""
-    raise typer.Exit(project_svc.docs())
+    console.header("Doxygen Generation")
+    _exit_with(lambda: _service().docs())
 
 
 K_ALIASES.command(app, "doxygen", docs, "sb doxygen")

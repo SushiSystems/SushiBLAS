@@ -3,23 +3,18 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Snapshots the build environment of the SushiBLAS CLI through sushicore's StackBuildEnv.
+"""Builds the snapshotter of the SushiBLAS build environment on sushicore's StackBuildEnv.
 
 See cli/sushiblas/README.md.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from sushicore.build_env import StackBuildEnv
 
-from . import console
-from .config import Config, PROFILE, find_project_root
-
-_ENV = StackBuildEnv(profile=PROFILE, console=console, find_root=find_project_root)
+from .config import PROFILE, find_project_root
 
 
-def load_build_env(cfg: Config, build_dir: Path) -> dict[str, str]:
-    """Return the environment for build/test/run subprocesses."""
-    return _ENV.load(cfg, build_dir)
+def create_build_env(console) -> StackBuildEnv:
+    """Returns the snapshotter of the environment build, test and run subprocesses inherit."""
+    return StackBuildEnv(profile=PROFILE, console=console, find_root=find_project_root)
