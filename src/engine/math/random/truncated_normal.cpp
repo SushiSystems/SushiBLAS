@@ -52,10 +52,12 @@ namespace SushiBLAS
     TaskHandle RandomOps::truncated_normal(Tensor& t, double mean, double stddev, double a,
                                            double b)
     {
-        SB_THROW_IF(!std::isfinite(a) || !std::isfinite(b) || !(a < b),
-                    "RandomOps::truncated_normal needs finite bounds with a < b, "
-                    "got a = {} and b = {}.",
-                    a, b);
+        recorder_.require_sycl_path("RNG operation", "random.truncated_normal");
+        Dispatch::require_operand(std::isfinite(a) && std::isfinite(b) && a < b,
+                                  "random.truncated_normal", "a",
+                                  "and b are {} and {}; truncated_normal needs finite bounds "
+                                  "with a < b",
+                                  a, b);
         Dispatch::require_random_dtype(t, Dispatch::Domain::REAL, Dispatch::Sampling::DRAWS_VALUES,
                                        "random.truncated_normal");
 
@@ -72,11 +74,10 @@ namespace SushiBLAS
         // hi is the bound nearer the mean, so no mass below hi means no mass in the interval.
         const bool massless = t.dtype == Core::DataType::FLOAT32 ? is_massless_below<float>(hi)
                                                                  : is_massless_below<double>(hi);
-        SB_THROW_IF(massless,
-                    "RandomOps::truncated_normal cannot draw between a = {} and b = {} "
-                    "in dtype {}: "
-                    "the normal distribution function rounds to zero there.",
-                    a, b, Core::to_string(t.dtype));
+        Dispatch::require_operand(!massless, "random.truncated_normal", "a",
+                                  "and b are {} and {}; in dtype {} the normal distribution "
+                                  "function rounds to zero between them",
+                                  a, b, Core::to_string(t.dtype));
 
         return Dispatch::execute_random<Dispatch::Domain::REAL>(
             recorder_, rng_, t, "random.truncated_normal", "random.truncated_normal"_op,

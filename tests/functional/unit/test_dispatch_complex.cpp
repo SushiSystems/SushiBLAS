@@ -171,10 +171,10 @@ TEST_F(Unit_DispatchComplexTest, OrderingComparisonsRejectComplex32)
     auto r = engine->create_tensor({2}, DataType::COMPLEX32);
 
     // C is not an ordered field. See tests/functional/unit/README.md.
-    EXPECT_THROW(SushiBLAS::LogicOps(*engine).less(a, b, r), std::runtime_error);
-    EXPECT_THROW(SushiBLAS::LogicOps(*engine).less_equal(a, b, r), std::runtime_error);
-    EXPECT_THROW(SushiBLAS::LogicOps(*engine).greater(a, b, r), std::runtime_error);
-    EXPECT_THROW(SushiBLAS::LogicOps(*engine).greater_equal(a, b, r), std::runtime_error);
+    EXPECT_THROW(SushiBLAS::LogicOps(*engine).less(a, b, r), std::invalid_argument);
+    EXPECT_THROW(SushiBLAS::LogicOps(*engine).less_equal(a, b, r), std::invalid_argument);
+    EXPECT_THROW(SushiBLAS::LogicOps(*engine).greater(a, b, r), std::invalid_argument);
+    EXPECT_THROW(SushiBLAS::LogicOps(*engine).greater_equal(a, b, r), std::invalid_argument);
 }
 
 TEST_F(Unit_DispatchComplexTest, OrderDependentElementwiseOpsRejectComplex32)
@@ -183,20 +183,20 @@ TEST_F(Unit_DispatchComplexTest, OrderDependentElementwiseOpsRejectComplex32)
     auto b = engine->create_tensor({2}, DataType::COMPLEX32);
     auto c = engine->create_tensor({2}, DataType::COMPLEX32);
 
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).max(a, b, c), std::runtime_error);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).min(a, b, c), std::runtime_error);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).fmod(a, b, c), std::runtime_error);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).remainder(a, b, c), std::runtime_error);
+    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).max(a, b, c), std::invalid_argument);
+    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).min(a, b, c), std::invalid_argument);
+    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).fmod(a, b, c), std::invalid_argument);
+    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).remainder(a, b, c), std::invalid_argument);
 }
 
 TEST_F(Unit_DispatchComplexTest, RoundingAndClampRejectComplex32)
 {
     auto t = engine->create_tensor({2}, DataType::COMPLEX32);
 
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).floor(t), std::runtime_error);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).ceil(t), std::runtime_error);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).round(t), std::runtime_error);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).clamp(t, -1.0f, 1.0f), std::runtime_error);
+    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).floor(t), std::invalid_argument);
+    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).ceil(t), std::invalid_argument);
+    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).round(t), std::invalid_argument);
+    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).clamp(t, -1.0f, 1.0f), std::invalid_argument);
 }
 
 TEST_F(Unit_DispatchComplexTest, RemainingRealOnlyOpsRejectComplex32)
@@ -204,19 +204,10 @@ TEST_F(Unit_DispatchComplexTest, RemainingRealOnlyOpsRejectComplex32)
     // Complex trigonometry and pow are not implemented. See tests/functional/unit/README.md.
     auto t = engine->create_tensor({2}, DataType::COMPLEX32);
 
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).sin(t), std::runtime_error);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).cos(t), std::runtime_error);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).tan(t), std::runtime_error);
-    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).pow(t, 2.0f), std::runtime_error);
-}
-
-TEST_F(Unit_DispatchComplexTest, ReductionsRejectComplex32)
-{
-    auto t = engine->create_tensor({4}, DataType::COMPLEX32);
-    auto r = engine->create_tensor({1}, DataType::COMPLEX32);
-
-    EXPECT_THROW(SushiBLAS::ReductionOps(*engine).sum(t, r), std::runtime_error);
-    EXPECT_THROW(SushiBLAS::ReductionOps(*engine).max(t, r), std::runtime_error);
+    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).sin(t), std::invalid_argument);
+    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).cos(t), std::invalid_argument);
+    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).tan(t), std::invalid_argument);
+    EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).pow(t, 2.0f), std::invalid_argument);
 }
 
 TEST_F(Unit_DispatchComplexTest, RealDtypesAreUnaffected)

@@ -34,6 +34,7 @@
 #include <complex>
 #include <cstddef>
 #include <type_traits>
+#include <initializer_list>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
@@ -212,12 +213,13 @@ namespace SushiBLAS
         template<Domain Dom, typename Func>
         TaskHandle execute_random(TaskRecorder& recorder, RngStream& stream, Tensor& t,
                                   const char* name, SushiRuntime::Graph::OpID op_id,
-                                  const std::vector<double>& params, Func&& task_func)
+                                  std::initializer_list<double> params, Func&& task_func)
         {
+            recorder.require_sycl_path("RNG operation", name);
             require_random_dtype(t, Dom, Sampling::DRAWS_VALUES, name);
             require_storage(t, name, "t");
+            require_device_dtype(t, name, "t");
             require_contiguous(t, name, "t");
-            recorder.require_sycl_path("RNG operation", name);
 
             const int64_t size = t.num_elements;
             void* ptr = t.data_or_null();

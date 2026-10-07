@@ -151,16 +151,16 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalRejectsBoundsItCannotHonour)
     auto t = engine->create_tensor({8});
     EXPECT_THROW(
         SushiBLAS::RandomOps(*engine).truncated_normal(t, 0.0, 1.0, 2.0, -2.0),
-        std::runtime_error);
+        std::invalid_argument);
     EXPECT_THROW(
         SushiBLAS::RandomOps(*engine).truncated_normal(t, 0.0, 1.0, 1.0, 1.0),
-        std::runtime_error);
+        std::invalid_argument);
     EXPECT_THROW(
         SushiBLAS::RandomOps(*engine).truncated_normal(t, 0.0, 1.0, 15.0, 20.0),
-        std::runtime_error);
+        std::invalid_argument);
     EXPECT_THROW(
         SushiBLAS::RandomOps(*engine).truncated_normal(t, 0.0, 1.0, -20.0, -15.0),
-        std::runtime_error);
+        std::invalid_argument);
 
     auto z = engine->create_tensor({8}, SushiBLAS::Core::DataType::COMPLEX32);
     EXPECT_THROW(

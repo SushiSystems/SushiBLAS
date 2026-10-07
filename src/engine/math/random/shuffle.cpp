@@ -71,8 +71,10 @@ namespace SushiBLAS
     {
         const char* name = "random.shuffle";
 
+        recorder_.require_sycl_path("RNG operation", name);
         Dispatch::require_random_dtype(t, Dispatch::Domain::REAL_AND_COMPLEX, Dispatch::Sampling::MOVES_VALUES, name);
         Dispatch::require_storage(t, name, "t");
+        Dispatch::require_device_dtype(t, name, "t");
         Dispatch::require_contiguous(t, name, "t");
 
         const int64_t size = t.num_elements;
@@ -87,7 +89,6 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "random.shuffle"_op;
 
-        recorder_.require_sycl_path("RNG operation", name);
         const RngPosition position = rng_.reserve(1);
         const uint64_t seed = position.seed;
         const uint64_t offset = position.offset;

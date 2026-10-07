@@ -73,11 +73,14 @@ namespace SushiBLAS
 
     TaskHandle LogicOps::all(const Tensor& t, Tensor& result)
     {
+        recorder_.require_sycl_path("Logic operation", "logic.all");
         Dispatch::require_storage(t, "logic.all", "t");
+        Dispatch::require_device_dtype(t, "logic.all", "t");
         Dispatch::require_storage(result, "logic.all", "result");
+        Dispatch::require_device_dtype(result, "logic.all", "result");
         Dispatch::require_contiguous(t, "logic.all", "t");
-        SB_THROW_IF(result.num_elements != 1, "Result tensor for 'all' must be a scalar (1 element).");
-        SB_THROW_IF(t.dtype != result.dtype, "Data types must match for logic operations.");
+        Dispatch::require_scalar(result, "logic.all", "result");
+        Dispatch::require_dtype(result, t.dtype, "logic.all", "result");
 
         int64_t size = t.num_elements;
         const void* read_T = t.data_or_null();
@@ -93,6 +96,8 @@ namespace SushiBLAS
         TaskHandle handle;
 
         // A truth test serves real and integer dtypes and refuses complex; see src/README.md.
+        Dispatch::require_domain<Dispatch::Domain::REAL_AND_INTEGRAL>(t.dtype, "Logic operation",
+                                                                      "logic.all");
         Dispatch::with_element_type<Dispatch::Domain::REAL_AND_INTEGRAL>(
             t.dtype, "Logic operation", meta.name, [&](auto tag)
         {

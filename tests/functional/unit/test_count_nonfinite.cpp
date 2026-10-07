@@ -218,7 +218,7 @@ namespace SushiBLAS
                     return static_cast<float>(host);
                 }
 
-                /** @brief The message of the `std::runtime_error` @p fn throws, or "". */
+                /** @brief The message of the `std::invalid_argument` @p fn throws, or "". */
                 template<typename Fn>
                 std::string message_of(Fn&& fn)
                 {
@@ -226,7 +226,7 @@ namespace SushiBLAS
                     {
                         fn();
                     }
-                    catch (const std::runtime_error& e)
+                    catch (const std::invalid_argument& e)
                     {
                         return std::string(e.what());
                     }

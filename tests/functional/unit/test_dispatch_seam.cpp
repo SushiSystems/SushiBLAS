@@ -26,12 +26,14 @@
  */
 
 #include <array>
+#include <cmath>
 #include <vector>
 #include <cstdint>
 #include <cstring>
 #include <string>
 #include <stdexcept>
 #include <type_traits>
+#include <initializer_list>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/engine/dispatch.hpp>
@@ -61,9 +63,127 @@ namespace
         std::memcpy(&bits, &value, sizeof(bits));
         return bits;
     }
+
+    /** @brief Absolute tolerance on a FLOAT32 or FLOAT64 result, as the fixed-value tests use. */
+    constexpr double K_REAL_TOLERANCE = 1e-4;
+
+    /** @brief Absolute tolerance on a HALF result: two units in the last place at magnitude 8. */
+    constexpr double K_HALF_TOLERANCE = 1.5625e-2;
+
+    /** @brief Lower clamp bound; it truncates to -1 for an integer element. */
+    constexpr double K_CLAMP_LOW = -1.3;
+
+    /** @brief Upper clamp bound; it truncates to 2 for an integer element. */
+    constexpr double K_CLAMP_HIGH = 2.7;
+
+    /** @brief Exponent of the pow case. */
+    constexpr double K_POW_EXPONENT = 3.0;
+
+    /** @brief Slope of the elu and leaky_relu cases; binary16 does not hold it exactly. */
+    constexpr double K_ALPHA = 0.3;
+
+    /** @brief Returns values as elements of T; every value given is exact in every dtype. */
+    template<typename T>
+    std::vector<T> exact_values(const std::vector<float>& values)
+    {
+        std::vector<T> typed;
+        typed.reserve(values.size());
+        for (float value : values)
+            typed.push_back(static_cast<T>(value));
+        return typed;
+    }
+
+    /** @brief Widens a HALF or FLOAT32 element to double. */
+    template<typename T>
+    double widen(T value)
+    {
+        return static_cast<double>(static_cast<float>(value));
+    }
+
+    /** @brief Returns a FLOAT64 element unchanged. */
+    inline double widen(double value)
+    {
+        return value;
+    }
 } // namespace
 
-class Unit_DispatchSeamTest : public SushiBLASTest {};
+class Unit_DispatchSeamTest : public SushiBLASTest
+{
+    protected:
+        /** @brief Expects clamp over T to equal the host clamp with narrowed bounds, bit for bit. */
+        template<typename T>
+        void expect_clamp_matches_host()
+        {
+            const std::vector<T> input = exact_values<T>({-3.0f, -1.0f, 0.0f, 2.0f, 3.0f, 5.0f});
+            auto t = create_initialized_tensor<T>({6}, input);
+
+            sb::ElementwiseOps(*engine).clamp(t, K_CLAMP_LOW, K_CLAMP_HIGH);
+            engine->execute();
+
+            const T low = sb::Dispatch::ElementScalar(K_CLAMP_LOW).as<T>();
+            const T high = sb::Dispatch::ElementScalar(K_CLAMP_HIGH).as<T>();
+            std::vector<T> expected = input;
+            for (T& value : expected)
+                value = value < low ? low : (high < value ? high : value);
+
+            const std::vector<T> actual = read_tensor<T>(t);
+            ASSERT_EQ(actual.size(), expected.size());
+            EXPECT_EQ(std::memcmp(actual.data(), expected.data(), actual.size() * sizeof(T)), 0)
+                << "clamp differs from the host clamp in dtype " << sb::Core::to_string(t.dtype);
+        }
+
+        /** @brief Expects out to hold formula(x[i]) at every index, within tolerance. */
+        template<typename T, typename Formula>
+        void expect_elements(const sb::Tensor& out, const std::vector<T>& x, double tolerance,
+                             const char* op, Formula&& formula)
+        {
+            const std::vector<T> actual = read_tensor<T>(out);
+            ASSERT_EQ(actual.size(), x.size());
+            for (size_t i = 0; i < x.size(); ++i)
+            {
+                EXPECT_NEAR(widen(actual[i]), formula(widen(x[i])), tolerance)
+                    << op << " differs at index " << i << " in dtype "
+                    << sb::Core::to_string(out.dtype);
+            }
+        }
+
+        /** @brief Expects pow, elu, leaky_relu and both backward passes to match the host over T. */
+        template<typename T>
+        void expect_real_scalar_ops_match_host(double tolerance)
+        {
+            const std::vector<T> x = exact_values<T>({-2.0f, -0.5f, 0.5f, 2.0f});
+            const std::vector<T> positive = exact_values<T>({0.5f, 1.0f, 1.5f, 2.0f});
+            const std::vector<T> ones = exact_values<T>({1.0f, 1.0f, 1.0f, 1.0f});
+            const double exponent = widen(sb::Dispatch::ElementScalar(K_POW_EXPONENT).as<T>());
+            const double alpha = widen(sb::Dispatch::ElementScalar(K_ALPHA).as<T>());
+
+            auto raised = create_initialized_tensor<T>({4}, positive);
+            auto elu = create_initialized_tensor<T>({4}, x);
+            auto leaky = create_initialized_tensor<T>({4}, x);
+            auto saved = create_initialized_tensor<T>({4}, x);
+            auto dy = create_initialized_tensor<T>({4}, ones);
+            auto elu_dx = engine->create_tensor({4}, get_sushiblas_dtype<T>());
+            auto leaky_dx = engine->create_tensor({4}, get_sushiblas_dtype<T>());
+
+            sb::ElementwiseOps(*engine).pow(raised, K_POW_EXPONENT);
+            sb::NonLinearOps(*engine).elu(elu, K_ALPHA);
+            sb::NonLinearOps(*engine).elu_backward(dy, saved, elu_dx, K_ALPHA);
+            sb::NonLinearOps(*engine).leaky_relu(leaky, K_ALPHA);
+            sb::NonLinearOps(*engine).leaky_relu_backward(dy, saved, leaky_dx, K_ALPHA);
+            engine->execute();
+
+            expect_elements(raised, positive, tolerance, "pow",
+                            [=](double v) { return std::pow(v, exponent); });
+            expect_elements(elu, x, tolerance, "elu",
+                            [=](double v) { return v > 0.0 ? v : alpha * (std::exp(v) - 1.0); });
+            expect_elements(elu_dx, x, tolerance, "elu_backward",
+                            [=](double v) { return v > 0.0 ? 1.0 : alpha * std::exp(v); });
+            expect_elements(leaky, x, tolerance, "leaky_relu",
+                            [=](double v) { return v > 0.0 ? v : v * alpha; });
+            expect_elements(leaky_dx, x, tolerance, "leaky_relu_backward",
+                            [=](double v) { return v > 0.0 ? 1.0 : alpha; });
+        }
+};
 
 TEST_F(Unit_DispatchSeamTest, FusesAConsumerFunctorIntoOneBinaryKernel)
 {
@@ -165,7 +285,7 @@ TEST_F(Unit_DispatchSeamTest, RealOnlyDomainRejectsComplexAtRecordTime)
         sb::Dispatch::execute_binary(
             engine->get_recorder(), a, b, c, "test.real_only", "test.real_only"_op,
             [](auto x, auto y) { return x + y; }),
-        std::runtime_error);
+        std::invalid_argument);
 }
 
 TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
@@ -324,20 +444,20 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
         sb::Dispatch::execute_zip_inplace(
             engine->get_recorder(), std::array{&four, &wide},
             "test.zip_dtype", "test.zip_dtype"_op, accumulate),
-        std::runtime_error);
+        std::invalid_argument);
 
     EXPECT_THROW(
         sb::Dispatch::execute_zip_inplace(
             engine->get_recorder(), std::array{&four, missing},
             "test.zip_null", "test.zip_null"_op, accumulate),
-        std::runtime_error);
+        std::invalid_argument);
 
     // Default domain is REAL, exactly as for execute_unary_inplace/execute_binary.
     EXPECT_THROW(
         sb::Dispatch::execute_zip_inplace(
             engine->get_recorder(), std::array{&cplx, &cplx},
             "test.zip_complex", "test.zip_complex"_op, accumulate),
-        std::runtime_error);
+        std::invalid_argument);
 }
 
 TEST_F(Unit_DispatchSeamTest, RngMetadataSlotsAreInRangeAndRoundTrip)
@@ -359,7 +479,7 @@ TEST_F(Unit_DispatchSeamTest, RngMetadataSlotsAreInRangeAndRoundTrip)
 TEST_F(Unit_DispatchSeamTest, DistributionParamsDoNotCollideWithTheRngSlots)
 {
     SushiRuntime::Graph::TaskMetadata meta;
-    const std::vector<double> params = {1.0, 2.0, 3.0, 4.0};
+    const std::initializer_list<double> params = {1.0, 2.0, 3.0, 4.0};
 
     sb::Dispatch::set_task_params(meta, params, "test.params",
                                   SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS - sb::Dispatch::K_MAX_RNG_PARAMS);
@@ -367,7 +487,7 @@ TEST_F(Unit_DispatchSeamTest, DistributionParamsDoNotCollideWithTheRngSlots)
 
     for (size_t i = 0; i < params.size(); ++i)
     {
-        EXPECT_DOUBLE_EQ(meta.get_param<double>(static_cast<int>(i)), params[i]);
+        EXPECT_DOUBLE_EQ(meta.get_param<double>(static_cast<int>(i)), params.begin()[i]);
     }
     EXPECT_EQ(meta.get_param<uint64_t>(sb::Dispatch::K_RNG_SEED_PARAM), 7u);
     EXPECT_EQ(meta.get_param<uint64_t>(sb::Dispatch::K_RNG_OFFSET_PARAM), 8u);
@@ -376,13 +496,50 @@ TEST_F(Unit_DispatchSeamTest, DistributionParamsDoNotCollideWithTheRngSlots)
 TEST_F(Unit_DispatchSeamTest, TooManyTaskParamsThrowsInsteadOfDroppingThem)
 {
     auto t = engine->create_tensor({4});
-    const std::vector<float> too_many(SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS + 1, 1.0f);
 
+    static_assert(SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS == 8, "the list below is one longer than the capacity");
     EXPECT_THROW(
         sb::Dispatch::execute_unary_inplace(
             engine->get_recorder(), t, "test.overflow", "test.overflow"_op,
-            [](auto x) { return x; }, too_many),
-        std::runtime_error);
+            [](auto x) { return x; },
+            {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}),
+        std::invalid_argument);
+}
+
+/**
+ * @brief Tests that every operation with a scalar parameter matches its host formula per dtype.
+ * @see tests/functional/unit/README.md
+ */
+TEST_F(Unit_DispatchSeamTest, ScalarOperationsMatchTheirHostFormula)
+{
+    expect_clamp_matches_host<sycl::half>();
+    expect_clamp_matches_host<float>();
+    expect_clamp_matches_host<double>();
+    expect_clamp_matches_host<int32_t>();
+    expect_clamp_matches_host<int64_t>();
+
+    expect_real_scalar_ops_match_host<sycl::half>(K_HALF_TOLERANCE);
+    expect_real_scalar_ops_match_host<float>(K_REAL_TOLERANCE);
+    expect_real_scalar_ops_match_host<double>(K_REAL_TOLERANCE);
+}
+
+/**
+ * @brief Tests that a fused update takes a functor bound to a scalar parameter.
+ * @see tests/functional/unit/README.md
+ */
+TEST_F(Unit_DispatchSeamTest, ABoundFunctorWorksInAFusedUpdate)
+{
+    auto y = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
+    auto x = create_initialized_tensor<float>({4}, {2.0f, 4.0f, 6.0f, 8.0f});
+
+    sb::Dispatch::execute_zip_inplace(
+        engine->get_recorder(), std::array{&y, &x}, "test.zip_bound", "test.zip_bound"_op,
+        sb::Dispatch::bind_scalars([](auto& yi, auto& xi, auto a) { yi = yi + a * xi; },
+                                   sb::Dispatch::ElementScalar(0.5)));
+    engine->execute();
+
+    verify_tensor(y, {2.0f, 4.0f, 6.0f, 8.0f}, K_REAL_TOLERANCE);
+    verify_tensor(x, {2.0f, 4.0f, 6.0f, 8.0f}, K_REAL_TOLERANCE);
 }
 
 /**
