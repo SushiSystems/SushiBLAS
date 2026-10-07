@@ -122,18 +122,18 @@ namespace SushiBLAS
 
     TaskHandle ElementwiseOps::convert(const Tensor& src, Tensor& dst)
     {
-        // The message names both dtypes; see src/README.md.
-        SB_THROW_IF(!Core::is_real_dtype(src.dtype) || !Core::is_real_dtype(dst.dtype),
-                    "Elementwise operation '{}' converts between the real floating-point "
-                    "types only (HALF, FLOAT32, FLOAT64), and was asked for {} -> {}. A "
-                    "complex operand has no single real value to narrow to, and a "
-                    "float-to-integer conversion is a rounding policy (truncate? "
-                    "round-half-even? saturate?) this layer has no basis to choose for "
-                    "you - an op that does it belongs under a name that states which.",
-                    K_NAME, Core::to_string(src.dtype), Core::to_string(dst.dtype));
+        recorder_.require_sycl_path("Elementwise operation", K_NAME);
+        Dispatch::require_operand(Core::is_real_dtype(src.dtype), K_NAME, "src",
+                                  "has dtype {}; convert reads HALF, FLOAT32 or FLOAT64",
+                                  Core::to_string(src.dtype));
+        Dispatch::require_operand(Core::is_real_dtype(dst.dtype), K_NAME, "dst",
+                                  "has dtype {}; convert writes HALF, FLOAT32 or FLOAT64",
+                                  Core::to_string(dst.dtype));
 
         Dispatch::require_storage(src, K_NAME, "src");
+        Dispatch::require_device_dtype(src, K_NAME, "src");
         Dispatch::require_storage(dst, K_NAME, "dst");
+        Dispatch::require_device_dtype(dst, K_NAME, "dst");
         Dispatch::require_contiguous(src, K_NAME, "src");
         Dispatch::require_contiguous(dst, K_NAME, "dst");
         Dispatch::require_same_shape(src, dst, K_NAME, "src", "dst");
@@ -143,11 +143,11 @@ namespace SushiBLAS
             return TaskHandle();
 
         // Overlapping operands race between work-items, so they are refused; see src/README.md.
-        SB_THROW_IF(src.region().overlaps(dst.region()),
-                    "Elementwise operation '{}': the source and destination overlap in memory. "
-                    "A converting copy reads {}-byte elements and writes {}-byte ones, so an "
-                    "overlap is a race between work-items, not an in-place update.",
-                    K_NAME, Core::bytes_per_element(src.dtype), Core::bytes_per_element(dst.dtype));
+        Dispatch::require_operand(!src.region().overlaps(dst.region()), K_NAME, "dst",
+                                  "overlaps the source in memory; a converting copy between "
+                                  "{}-byte and {}-byte elements cannot run in place",
+                                  Core::bytes_per_element(src.dtype),
+                                  Core::bytes_per_element(dst.dtype));
 
         const void* read_src = src.data();
         void* write_dst = dst.data();

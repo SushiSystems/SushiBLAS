@@ -30,6 +30,7 @@
 #include <vector>
 #include <complex>
 #include <cstddef>
+#include <initializer_list>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -41,6 +42,7 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/math/safe_math.hpp>
+#include <SushiBLAS/engine/math/elementwise/scalar_binding.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -49,24 +51,20 @@ namespace SushiBLAS
     namespace Dispatch
     {
         /**
-         * @brief Records an activation's forward pass `t[i] = op(t[i])`, or nothing when t is
-         * empty.
-         * @tparam Dom Defaults to Domain::REAL; REAL_AND_COMPLEX needs an op_func well-formed
-         * for it.
-         * @param op_func Callable `(auto x) -> auto`: device-copyable, by-value captures, no
-         * allocation, no throw.
-         * @throws std::invalid_argument if t holds elements without storage or is not contiguous,
-         * or under FORCE_REFERENCE.
-         * @throws std::runtime_error if the dtype falls outside Dom or params exceeds the inline
-         * capacity.
+         * @brief Records an activation's forward pass `t[i] = op(t[i])`, or nothing when t is empty.
+         * @tparam Dom Defaults to Domain::REAL; a wider domain needs an op_func well-formed for it.
+         * @param op_func Callable `(auto x) -> auto`, or a bind_scalars bundle of one.
+         * @throws std::invalid_argument on any operand violation, or under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
         TaskHandle execute_nonlinear_forward(TaskRecorder& recorder, Tensor& t, const char* name,
                                              SushiRuntime::Graph::OpID op_id, Func&& op_func,
-                                             const std::vector<Param>& params = {})
+                                             std::initializer_list<Param> params = {})
         {
+            recorder.require_sycl_path("Nonlinear operation", name);
             require_storage(t, name, "t");
+            require_device_dtype(t, name, "t");
             require_contiguous(t, name, "t");
             require_domain<Dom>(t.dtype, "Nonlinear operation", name);
 
@@ -99,7 +97,7 @@ namespace SushiBLAS
                         {
                             using T = typename decltype(tag)::type;
 
-                            Launch::map(h, q, n, vec_ok, op_func, (T*)ptr, (const T*)ptr);
+                            Launch::map(h, q, n, vec_ok, Detail::narrow_for(tag, op_func), (T*)ptr, (const T*)ptr);
                         });
                     });
                 });
@@ -108,20 +106,23 @@ namespace SushiBLAS
         /**
          * @brief Records an activation's backward pass `dx[i] = op(dy[i], x[i])`, or nothing when dx is empty.
          * @param x The saved forward input or output the derivative is taken against.
-         * @param op_func Callable `(auto dy, auto x) -> auto` under execute_nonlinear_forward's constraints.
-         * @throws std::invalid_argument on a missing storage, a non-contiguous operand, a shape or layout mismatch, or under FORCE_REFERENCE.
-         * @throws std::runtime_error on a dtype mismatch, a dtype outside Dom, or too many params.
+         * @param op_func Callable `(auto dy, auto x) -> auto`, or a bind_scalars bundle of one.
+         * @throws std::invalid_argument on any operand violation, or under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
         TaskHandle execute_nonlinear_backward(TaskRecorder& recorder, const Tensor& dy,
                                               const Tensor& x, Tensor& dx, const char* name,
                                               SushiRuntime::Graph::OpID op_id, Func&& op_func,
-                                              const std::vector<Param>& params = {})
+                                              std::initializer_list<Param> params = {})
         {
+            recorder.require_sycl_path("Nonlinear operation", name);
             require_storage(dy, name, "dy");
+            require_device_dtype(dy, name, "dy");
             require_storage(x, name, "x");
+            require_device_dtype(x, name, "x");
             require_storage(dx, name, "dx");
+            require_device_dtype(dx, name, "dx");
             require_contiguous(dy, name, "dy");
             require_contiguous(x, name, "x");
             require_contiguous(dx, name, "dx");
@@ -129,8 +130,8 @@ namespace SushiBLAS
             require_same_layout(dy, x, name, "dy", "x");
             require_same_shape(dy, dx, name, "dy", "dx");
             require_same_layout(dy, dx, name, "dy", "dx");
-            SB_THROW_IF(dy.dtype != x.dtype || dy.dtype != dx.dtype,
-                       "Tensor data types must match for backward operation.");
+            require_dtype(x, dy.dtype, name, "x");
+            require_dtype(dx, dy.dtype, name, "dx");
 
             require_domain<Dom>(x.dtype, "Nonlinear operation", name);
 
@@ -161,7 +162,7 @@ namespace SushiBLAS
                         {
                             using T = typename decltype(tag)::type;
 
-                            Launch::map(h, q, n, vec_ok, op_func, (T*)pDX_raw, (const T*)pDY_raw, (const T*)pX_raw);
+                            Launch::map(h, q, n, vec_ok, Detail::narrow_for(tag, op_func), (T*)pDX_raw, (const T*)pDY_raw, (const T*)pX_raw);
                         });
                     });
                 });

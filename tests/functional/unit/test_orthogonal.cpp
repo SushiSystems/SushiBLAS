@@ -155,10 +155,10 @@ TEST_F(Unit_OrthogonalTest, RejectsInputsItCannotOrthonormalize)
 {
     // Each shape or dtype the Gram-Schmidt sweep cannot handle is reported at the call site.
     auto vec = engine->create_tensor({16});
-    EXPECT_THROW(SushiBLAS::RandomOps(*engine).orthogonal(vec), std::runtime_error);
+    EXPECT_THROW(SushiBLAS::RandomOps(*engine).orthogonal(vec), std::invalid_argument);
 
     auto cube = engine->create_tensor({2, 3, 4});
-    EXPECT_THROW(SushiBLAS::RandomOps(*engine).orthogonal(cube), std::runtime_error);
+    EXPECT_THROW(SushiBLAS::RandomOps(*engine).orthogonal(cube), std::invalid_argument);
 
     auto half_mat = engine->create_tensor({4, 4}, DataType::HALF);
     EXPECT_THROW(SushiBLAS::RandomOps(*engine).orthogonal(half_mat), std::invalid_argument);

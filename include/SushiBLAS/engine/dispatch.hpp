@@ -33,10 +33,12 @@
 #include <complex>
 #include <utility>
 #include <type_traits>
+#include <initializer_list>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
@@ -83,18 +85,14 @@ namespace SushiBLAS
 
         /**
          * @brief Throws unless dtype is one Dom admits.
-         * @throws std::runtime_error naming family, name and dtype when the dtype falls outside Dom.
+         * @throws std::invalid_argument naming family, name and dtype when the dtype falls outside Dom.
          * @see include/SushiBLAS/engine/README.md
          */
         template<Domain Dom>
         inline void require_domain(Core::DataType dtype, const char* family, const char* name)
         {
-            SB_THROW_IF(!domain_admits(Dom, domain_of(dtype)),
-                        "{} '{}' does not support dtype {}. Complex operands need an ordering "
-                        "or a real-only builtin they do not provide; integer operands are "
-                        "accepted only where an integer element means something (copy, fill, "
-                        "the comparison and logic family, and the index reductions).",
-                        family, name, Core::to_string(dtype));
+            if (!domain_admits(Dom, domain_of(dtype)))
+                Detail::throw_dtype_error(family, name, dtype);
         }
 
         /**
@@ -234,22 +232,24 @@ namespace SushiBLAS
          * @brief Copies a parameter list into a task's inline metadata slots, starting at slot 0.
          * @tparam T The parameter element type; must fit in 64 bits.
          * @param reserved_slots Trailing slots the caller keeps for itself, which params must not reach.
+         * @throws std::invalid_argument if params and the reserved slots exceed the capacity.
          * @see include/SushiBLAS/engine/README.md
          */
         template<typename T>
-        inline void set_task_params(SushiRuntime::Graph::TaskMetadata& meta, const std::vector<T>& params,
-                                     const char* name, size_t reserved_slots = 0)
+        inline void set_task_params(SushiRuntime::Graph::TaskMetadata& meta,
+                                    std::initializer_list<T> params, const char* name,
+                                    std::size_t reserved_slots = 0)
         {
-            constexpr size_t k_capacity = SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS;
-            SB_THROW_IF(params.size() + reserved_slots > k_capacity,
-                        "Operation '{}' passes {} task parameters (+{} reserved) but TaskMetadata holds only {}; "
-                        "the excess would be silently dropped.",
-                        name, params.size(), reserved_slots, k_capacity);
+            constexpr std::size_t k_capacity = SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS;
+            if (params.size() + reserved_slots > k_capacity)
+                Detail::throw_operand_error(name, "params",
+                                            "lists {} task parameters (+{} reserved) but "
+                                            "TaskMetadata holds only {}",
+                                            params.size(), reserved_slots, k_capacity);
 
-            for (size_t i = 0; i < params.size(); ++i)
-            {
-                meta.set_param(static_cast<int>(i), params[i]);
-            }
+            int slot = 0;
+            for (const T& value : params)
+                meta.set_param(slot++, value);
         }
 
     } // namespace Dispatch

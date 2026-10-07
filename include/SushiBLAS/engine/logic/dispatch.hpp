@@ -30,6 +30,7 @@
 #include <vector>
 #include <complex>
 #include <cstddef>
+#include <initializer_list>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -51,22 +52,24 @@ namespace SushiBLAS
          * @brief Records a unary logic op `result[i] = op(x[i])`, or nothing when result is empty.
          * @param result Must match x in size and dtype.
          * @param op_func Callable `(auto x) -> auto`: device-copyable, by-value captures, no allocation, no throw.
-         * @throws std::invalid_argument on a missing storage, a non-contiguous operand, a shape or layout mismatch, or under FORCE_REFERENCE.
-         * @throws std::runtime_error on a dtype mismatch, a dtype outside Dom, or too many params.
+         * @throws std::invalid_argument on any operand violation, or under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/logic/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
         TaskHandle execute_logic_unary(TaskRecorder& recorder, const Tensor& x, Tensor& result,
                                        const char* name, SushiRuntime::Graph::OpID op_id,
-                                       Func&& op_func, const std::vector<Param>& params = {})
+                                       Func&& op_func, std::initializer_list<Param> params = {})
         {
+            recorder.require_sycl_path("Logic operation", name);
             require_storage(x, name, "x");
+            require_device_dtype(x, name, "x");
             require_storage(result, name, "result");
+            require_device_dtype(result, name, "result");
             require_contiguous(x, name, "x");
             require_contiguous(result, name, "result");
             require_same_shape(x, result, name, "x", "result");
             require_same_layout(x, result, name, "x", "result");
-            SB_THROW_IF(x.dtype != result.dtype, "Data types must match for logic operation.");
+            require_dtype(result, x.dtype, name, "result");
 
             require_domain<Dom>(x.dtype, "Logic operation", name);
 
@@ -108,18 +111,21 @@ namespace SushiBLAS
          * @tparam Dom Defaults to Domain::REAL, because `<` and `>` have no meaning on complex numbers.
          * @param result Must match the inputs in size and dtype.
          * @param op_func Callable `(auto x, auto y) -> auto` under execute_logic_unary's constraints.
-         * @throws std::invalid_argument on a missing storage, a non-contiguous operand, a shape or layout mismatch, or under FORCE_REFERENCE.
-         * @throws std::runtime_error on a dtype mismatch, a dtype outside Dom, or too many params.
+         * @throws std::invalid_argument on any operand violation, or under FORCE_REFERENCE.
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
         TaskHandle execute_logic_binary(TaskRecorder& recorder, const Tensor& A, const Tensor& B,
                                         Tensor& result, const char* name,
                                         SushiRuntime::Graph::OpID op_id, Func&& op_func,
-                                        const std::vector<Param>& params = {})
+                                        std::initializer_list<Param> params = {})
         {
+            recorder.require_sycl_path("Logic operation", name);
             require_storage(A, name, "A");
+            require_device_dtype(A, name, "A");
             require_storage(B, name, "B");
+            require_device_dtype(B, name, "B");
             require_storage(result, name, "result");
+            require_device_dtype(result, name, "result");
             require_contiguous(A, name, "A");
             require_contiguous(B, name, "B");
             require_contiguous(result, name, "result");
@@ -127,7 +133,8 @@ namespace SushiBLAS
             require_same_layout(A, B, name, "A", "B");
             require_same_shape(A, result, name, "A", "result");
             require_same_layout(A, result, name, "A", "result");
-            SB_THROW_IF(A.dtype != B.dtype || A.dtype != result.dtype, "Data types must match for logic operation.");
+            require_dtype(B, A.dtype, name, "B");
+            require_dtype(result, A.dtype, name, "result");
 
             require_domain<Dom>(A.dtype, "Logic operation", name);
 
@@ -169,19 +176,23 @@ namespace SushiBLAS
          * @param cond Nonzero selects A, zero selects B.
          * @param result Must match the inputs in size and dtype.
          * @param op_func Callable `(auto c, auto a, auto b) -> auto` under execute_logic_unary's constraints.
-         * @throws std::invalid_argument on a missing storage, a non-contiguous operand, a shape or layout mismatch, or under FORCE_REFERENCE.
-         * @throws std::runtime_error on a dtype mismatch, a dtype outside Dom, or too many params.
+         * @throws std::invalid_argument on any operand violation, or under FORCE_REFERENCE.
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
         TaskHandle execute_logic_ternary(TaskRecorder& recorder, const Tensor& cond, const Tensor& A,
                                          const Tensor& B, Tensor& result, const char* name,
                                          SushiRuntime::Graph::OpID op_id, Func&& op_func,
-                                         const std::vector<Param>& params = {})
+                                         std::initializer_list<Param> params = {})
         {
+            recorder.require_sycl_path("Logic operation", name);
             require_storage(cond, name, "cond");
+            require_device_dtype(cond, name, "cond");
             require_storage(A, name, "A");
+            require_device_dtype(A, name, "A");
             require_storage(B, name, "B");
+            require_device_dtype(B, name, "B");
             require_storage(result, name, "result");
+            require_device_dtype(result, name, "result");
             require_contiguous(cond, name, "cond");
             require_contiguous(A, name, "A");
             require_contiguous(B, name, "B");
@@ -192,7 +203,9 @@ namespace SushiBLAS
             require_same_layout(cond, B, name, "cond", "B");
             require_same_shape(cond, result, name, "cond", "result");
             require_same_layout(cond, result, name, "cond", "result");
-            SB_THROW_IF(cond.dtype != A.dtype || cond.dtype != B.dtype || cond.dtype != result.dtype, "Data types must match for logic operation.");
+            require_dtype(A, cond.dtype, name, "A");
+            require_dtype(B, cond.dtype, name, "B");
+            require_dtype(result, cond.dtype, name, "result");
 
             require_domain<Dom>(cond.dtype, "Logic operation", name);
 

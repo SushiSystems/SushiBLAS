@@ -48,6 +48,12 @@ namespace SushiBLAS
                 /** @brief Above it: the two-stage work-group tree plus an ordered fold. */
                 static constexpr int64_t kLarge = 1 << 18;
 
+                /** @brief The element count of the var, std and logsumexp case; two-stage too. */
+                static constexpr int64_t kMoments = 100000;
+
+                /** @brief How many times the var, std and logsumexp case runs each reduction. */
+                static constexpr int kMomentRuns = 10;
+
                 /**
                  * @brief Which reduction shape @p n will actually take on this device.
                  *
@@ -217,6 +223,32 @@ namespace SushiBLAS
             };
             expect_bitwise_stable(kSmall, op, multiplicative_value);
             expect_bitwise_stable(kLarge, op, multiplicative_value);
+        }
+
+        /**
+         * @brief Tests that var, std and logsumexp repeat to the bit in the two-stage shape.
+         */
+        TEST_F(Unit_ReductionDeterminism, TwoStageMomentsAreBitwiseStable)
+        {
+            ASSERT_TRUE(is_two_stage(kMoments))
+                << "kMoments must exercise the two-stage shape.";
+
+            auto var = [](Engine& e, const Tensor& t, Tensor& r)
+            {
+                SushiBLAS::ReductionOps(e).var(t, r);
+            };
+            auto std_dev = [](Engine& e, const Tensor& t, Tensor& r)
+            {
+                SushiBLAS::ReductionOps(e).std(t, r);
+            };
+            auto logsumexp = [](Engine& e, const Tensor& t, Tensor& r)
+            {
+                SushiBLAS::ReductionOps(e).logsumexp(t, r);
+            };
+
+            expect_bitwise_stable(kMoments, var, additive_value, kMomentRuns);
+            expect_bitwise_stable(kMoments, std_dev, additive_value, kMomentRuns);
+            expect_bitwise_stable(kMoments, logsumexp, additive_value, kMomentRuns);
         }
 
         /**

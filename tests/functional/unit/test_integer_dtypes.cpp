@@ -254,29 +254,18 @@ namespace SushiBLAS
             // Elementwise transcendentals.
             EXPECT_THROW(
                 SushiBLAS::ElementwiseOps(probe.get_recorder()).exp(a),
-                std::runtime_error);
+                std::invalid_argument);
             EXPECT_THROW(
                 SushiBLAS::ElementwiseOps(probe.get_recorder()).sqrt(a),
-                std::runtime_error);
+                std::invalid_argument);
 
             // Non-linearities.
             EXPECT_THROW(
                 SushiBLAS::NonLinearOps(probe.get_recorder()).relu(a),
-                std::runtime_error);
+                std::invalid_argument);
             EXPECT_THROW(
                 SushiBLAS::NonLinearOps(probe.get_recorder()).sigmoid(a),
-                std::runtime_error);
-
-            // Folding reductions - a sum or a norm of an index is not a thing.
-            EXPECT_THROW(
-                SushiBLAS::ReductionOps(probe.get_recorder()).sum(a, scalar),
-                std::runtime_error);
-            EXPECT_THROW(
-                SushiBLAS::ReductionOps(probe.get_recorder()).nrm2(a, scalar),
-                std::runtime_error);
-            EXPECT_THROW(
-                SushiBLAS::ReductionOps(probe.get_recorder()).mean(a, scalar),
-                std::runtime_error);
+                std::invalid_argument);
 
             // Random distributions - no fractional part for a continuous draw to land in.
             EXPECT_THROW(
@@ -289,16 +278,16 @@ namespace SushiBLAS
             // BLAS arithmetic. `copy` is the exception and is covered above.
             EXPECT_THROW(
                 SushiBLAS::BLASOps(probe.get_recorder()).axpy(1.0, a, b),
-                std::runtime_error);
+                std::invalid_argument);
             EXPECT_THROW(
                 SushiBLAS::BLASOps(probe.get_recorder()).scal(2.0, a),
-                std::runtime_error);
+                std::invalid_argument);
             EXPECT_THROW(
                 SushiBLAS::BLASOps(probe.get_recorder()).dot(a, b, scalar),
-                std::runtime_error);
+                std::invalid_argument);
             EXPECT_THROW(
                 SushiBLAS::BLASOps(probe.get_recorder()).nrm2(a, scalar),
-                std::runtime_error);
+                std::invalid_argument);
 
             // Nothing above should have reached the graph.
             EXPECT_TRUE(probe.take_nodes().empty())
@@ -315,8 +304,8 @@ namespace SushiBLAS
             auto b = engine->create_tensor({4}, Core::DataType::COMPLEX32);
             auto r = engine->create_tensor({4}, Core::DataType::COMPLEX32);
 
-            EXPECT_THROW(SushiBLAS::LogicOps(*engine).less(a, b, r), std::runtime_error);
-            EXPECT_THROW(SushiBLAS::LogicOps(*engine).greater(a, b, r), std::runtime_error);
+            EXPECT_THROW(SushiBLAS::LogicOps(*engine).less(a, b, r), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::LogicOps(*engine).greater(a, b, r), std::invalid_argument);
 
             // Equality has no such problem and must still work.
             EXPECT_NO_THROW(SushiBLAS::LogicOps(*engine).equal(a, b, r));

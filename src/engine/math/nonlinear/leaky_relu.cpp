@@ -28,7 +28,7 @@
 
 #include <SushiBLAS/engine/math/nonlinear.hpp>
 #include <SushiBLAS/engine/math/nonlinear/dispatch.hpp>
-#include <SushiBLAS/engine/math/elementwise/scalar.hpp>
+#include <SushiBLAS/engine/math/elementwise/scalar_binding.hpp>
 
 namespace SushiBLAS 
 {
@@ -36,17 +36,17 @@ namespace SushiBLAS
 
     TaskHandle NonLinearOps::leaky_relu(Tensor& t, double alpha) 
     {
-        const Dispatch::ElementScalar a(alpha);
-        return Dispatch::execute_nonlinear_forward(recorder_, t, "math.nonlinear.leaky_relu", "math.nonlinear.leaky_relu"_op, 
-            [a](auto x) { return Dispatch::greater_than_zero(x) ? x : x * a.as<decltype(x)>(); },
+        return Dispatch::execute_nonlinear_forward(recorder_, t, "math.nonlinear.leaky_relu", "math.nonlinear.leaky_relu"_op,
+            Dispatch::bind_scalars([](auto x, auto a) { return Dispatch::greater_than_zero(x) ? x : x * a; },
+                                   Dispatch::ElementScalar(alpha)),
             {alpha});
     }
 
     TaskHandle NonLinearOps::leaky_relu_backward(const Tensor& dy, const Tensor& x, Tensor& dx, double alpha)
     {
-        const Dispatch::ElementScalar a(alpha);
-        return Dispatch::execute_nonlinear_backward(recorder_, dy, x, dx, "math.nonlinear.leaky_relu_backward", "math.nonlinear.leaky_relu_backward"_op, 
-            [a](auto pdy, auto px) { return pdy * (Dispatch::greater_than_zero(px) ? decltype(px)(1) : a.as<decltype(px)>()); },
+        return Dispatch::execute_nonlinear_backward(recorder_, dy, x, dx, "math.nonlinear.leaky_relu_backward", "math.nonlinear.leaky_relu_backward"_op,
+            Dispatch::bind_scalars([](auto pdy, auto px, auto a) { return pdy * (Dispatch::greater_than_zero(px) ? decltype(px)(1) : a); },
+                                   Dispatch::ElementScalar(alpha)),
             {alpha});
     }
 } // namespace SushiBLAS

@@ -122,7 +122,7 @@ TYPED_TEST(Unit_ComplexNonlinearTest, EluRefusesComplex)
     using C = std::complex<TypeParam>;
     auto t = this->template create_initialized_tensor<C>({5}, probe_inputs<TypeParam>());
 
-    EXPECT_THROW(SushiBLAS::NonLinearOps(*this->engine).elu(t, K_ELU_ALPHA), std::runtime_error);
+    EXPECT_THROW(SushiBLAS::NonLinearOps(*this->engine).elu(t, K_ELU_ALPHA), std::invalid_argument);
 }
 
 /// @brief Runs the complex sqrt and log edge cases.

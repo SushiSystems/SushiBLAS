@@ -27,7 +27,7 @@
 
 #include <SushiBLAS/engine/math/elementwise.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
-#include <SushiBLAS/engine/math/elementwise/scalar.hpp>
+#include <SushiBLAS/engine/math/elementwise/scalar_binding.hpp>
 
 namespace SushiBLAS 
 {
@@ -35,9 +35,9 @@ namespace SushiBLAS
 
     TaskHandle ElementwiseOps::pow(Tensor& t, double exponent) 
     {
-        const Dispatch::ElementScalar e(exponent);
-        return Dispatch::execute_unary_inplace(recorder_, t, "math.ew.pow", "math.ew.pow"_op, 
-            [e](auto x) { return sycl::pow(x, e.as<decltype(x)>()); },
+        return Dispatch::execute_unary_inplace(recorder_, t, "math.ew.pow", "math.ew.pow"_op,
+            Dispatch::bind_scalars([](auto x, auto e) { return sycl::pow(x, e); },
+                                   Dispatch::ElementScalar(exponent)),
             {exponent});
     }
 } // namespace SushiBLAS

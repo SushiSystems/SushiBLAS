@@ -219,7 +219,7 @@ namespace SushiBLAS
 
             EXPECT_THROW(
                 SushiBLAS::ElementwiseOps(probe.get_recorder()).clamp(t, K_CLAMP_HIGH, K_CLAMP_LOW),
-                std::runtime_error);
+                std::invalid_argument);
             EXPECT_TRUE(probe.take_nodes().empty());
         }
 

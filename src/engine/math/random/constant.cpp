@@ -40,6 +40,8 @@ namespace SushiBLAS
 
     TaskHandle RandomOps::constant(Tensor& t, double value) 
     {
+        recorder_.require_sycl_path("RNG operation", "random.constant");
+
         auto op_id = "random.constant"_op;
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "random.constant";
@@ -49,6 +51,7 @@ namespace SushiBLAS
 
         Dispatch::require_random_dtype(t, Dispatch::Domain::ALL, Dispatch::Sampling::MOVES_VALUES, "random.constant");
         Dispatch::require_storage(t, "random.constant", "t");
+        Dispatch::require_device_dtype(t, "random.constant", "t");
         Dispatch::require_contiguous(t, "random.constant", "t");
 
         const int64_t size = t.num_elements;

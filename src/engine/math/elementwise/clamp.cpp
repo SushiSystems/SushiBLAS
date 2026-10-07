@@ -27,7 +27,7 @@
 
 #include <SushiBLAS/engine/math/elementwise.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
-#include <SushiBLAS/engine/math/elementwise/scalar.hpp>
+#include <SushiBLAS/engine/math/elementwise/scalar_binding.hpp>
 
 namespace SushiBLAS
 {
@@ -35,17 +35,15 @@ namespace SushiBLAS
 
     TaskHandle ElementwiseOps::clamp(Tensor& t, double min_val, double max_val)
     {
-        SB_THROW_IF(min_val > max_val,
-                    "Elementwise clamp: min_val {} is greater than max_val {}.", min_val, max_val);
-        const Dispatch::ElementScalar lo(min_val);
-        const Dispatch::ElementScalar hi(max_val);
+        recorder_.require_sycl_path("Elementwise operation", "math.ew.clamp");
+        Dispatch::require_operand(!(min_val > max_val), "math.ew.clamp", "min_val",
+                                  "is {}, above max_val {}", min_val, max_val);
+
         return Dispatch::execute_unary_inplace<Dispatch::Domain::REAL_AND_INTEGRAL>(
             recorder_, t, "math.ew.clamp", "math.ew.clamp"_op,
-            [lo, hi](auto x)
-            {
-                using T = decltype(x);
-                return sycl::clamp(x, lo.as<T>(), hi.as<T>());
-            },
+            Dispatch::bind_scalars([](auto x, auto lo, auto hi) { return sycl::clamp(x, lo, hi); },
+                                   Dispatch::ElementScalar(min_val),
+                                   Dispatch::ElementScalar(max_val)),
             {min_val, max_val});
     }
 } // namespace SushiBLAS

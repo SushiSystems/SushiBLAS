@@ -44,19 +44,17 @@ namespace SushiBLAS
     {
         const char* name = "random.orthogonal";
 
-        SB_THROW_IF(t.rank != 2, "Operation '{}' requires a rank-2 tensor, got rank {}.", name,
-                    t.rank);
+        recorder_.require_sycl_path("RNG operation", name);
+        Dispatch::require_rank(t, 2, name, "t");
         Dispatch::require_random_dtype(t, Dispatch::Domain::REAL, Dispatch::Sampling::DRAWS_VALUES,
                                        name);
 
         const int64_t rows = t.shape[0];
         const int64_t cols = t.shape[1];
-        SB_THROW_IF(rows <= 0 || cols <= 0,
-                    "Operation '{}' requires a non-empty matrix, got {}x{}.", name, rows, cols);
+        Dispatch::require_min_elements(t, 1, name, "t");
         Dispatch::require_storage(t, name, "t");
+        Dispatch::require_device_dtype(t, name, "t");
         Dispatch::require_contiguous(t, name, "t");
-
-        recorder_.require_sycl_path("RNG operation", name);
 
         // The matrix is filled with N(0,1) before the sweep; see src/README.md.
         normal(t, 0.0, 1.0);
