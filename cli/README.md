@@ -87,6 +87,7 @@ sb build                  # Release build (the default)
 sb build --type debug     # Debug build
 sb build --type relwithdebinfo
 sb build --clean          # delete the build tree first, then build from scratch
+sb build --benchmarks     # also build the benchmark programs (--no-benchmarks stops)
 ```
 
 The `--type` (`-t`) option accepts `release`, `debug`, or `relwithdebinfo`.
@@ -105,6 +106,10 @@ repeatable:
 sb build -D SB_LOG_LEVEL=INFO           # raise the compiled-in log level
 sb build -D SB_SYCL_TARGETS="spir64;nvptx64-nvidia-cuda"   # quote values with ';'
 ```
+
+Every `-D` is checked for the `VAR=VALUE` form before anything else happens;
+a malformed one exits 2 and leaves the build tree untouched, even with
+`--clean`.
 
 Cache variables persist in the build tree, so dropping the flag on a later run
 does **not** unset them — pass `VAR=` to clear one, or `--clean` to start over.
@@ -189,8 +194,9 @@ Run it before publishing anything that adds a public header or touches
 
 ## `sb run`
 
-Runs a built executable. With no target it runs the configured default
-(`sushiblas_example`).
+Runs a built executable. With no target it runs `target_bin`, whose default
+is the profile's `default_target` in `cli/sushiblas/config.py`; `sb config`
+prints the value in effect.
 
 ```bash
 sb run                                # run the default target
@@ -207,12 +213,18 @@ sb run sushiblas_tests -- --gtest_filter='Unit_GEMMTest.*'
 sb run sushiblas_tests -- --gtest_shuffle --gtest_break_on_failure
 ```
 
+An option `sb run` does not know, written before `--`, is a usage error with
+exit code 2. It is never taken as the target name or passed to the program.
+
 ## `sb clean` and `sb docs`
 
 ```bash
 sb clean       # remove the build/ tree
 sb docs        # generate the Doxygen API reference into docs/api-site/html/
 ```
+
+`sb clean` exits 1 and names the directory when the tree is still there
+after the removal, for example because a running program holds a file in it.
 
 `sb docs` was `sb doxygen`. The old word still runs, hidden from the help, and
 names the new one on a terminal; it is removed after 2027-03-25.

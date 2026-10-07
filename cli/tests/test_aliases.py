@@ -15,16 +15,23 @@ from typer.testing import CliRunner
 
 from sushiblas import cli
 from sushiblas.aliases import K_ALIASES
-from sushiblas.services import project
 
 K_OLD_SPELLINGS = {"sb doxygen": "sb docs"}
 K_DOCS_EXIT_CODE = 7
 
 
+class _DocsService:
+    """Stands in for the project service; docs returns a fixed code."""
+
+    def docs(self) -> int:
+        """Returns K_DOCS_EXIT_CODE."""
+        return K_DOCS_EXIT_CODE
+
+
 @pytest.mark.parametrize("word", ["docs", "doxygen"])
 def test_the_old_word_runs_the_new_command(monkeypatch, word):
     """`sb doxygen` reaches the same service call as `sb docs`."""
-    monkeypatch.setattr(project, "docs", lambda: K_DOCS_EXIT_CODE)
+    monkeypatch.setattr(cli, "_service", _DocsService)
     assert CliRunner().invoke(cli.app, [word]).exit_code == K_DOCS_EXIT_CODE
 
 

@@ -3,67 +3,357 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Runs SushiBLAS's build, test, run, clean and docs through sushicore's CMake driver.
-
-The compiler and vcpkg come from the config overrides, then the workspace `dependencies/`
-tree, then the machine tree under `~/.sushisystems`. The suites are the CTest labels that
-tests/CMakeLists.txt assigns from the GTest suite-name prefix. See cli/sushiblas/README.md.
-"""
+"""Runs SushiBLAS's build, test, run, clean and docs through sushicore's CMake driver."""
 
 from __future__ import annotations
 
-import enum
 import shutil
-from collections.abc import Sequence
+import typing
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
+from sushicore.build_env import StackBuildEnv
 from sushicore.cmake_cache import cached_value
 from sushicore.cmake_driver import CMakeDriver
+from sushicore.discovery import ExecutableIndex
 from sushicore.proc import Runner
-from sushicore.toolchain_args import c_compiler_for as _resolved_c_compiler
-from sushicore.toolchain_args import vcpkg_prefix as _vcpkg_prefix
+from sushicore.toolchain_args import c_compiler_for
+from sushicore.toolchain_args import vcpkg_prefix
 
-from .. import console
-from ..config import Config, PROFILE, find_project_root, load_config
-from ..env import load_build_env
-from . import discovery
+from ..config import Config
+from .build_type import K_CMAKE_BUILD_TYPE, BuildType
+from .errors import (
+    BuildTreeMissingError,
+    ExecutableNotFoundError,
+    InvalidDefineError,
+    RuntimeMissingError,
+    StepFailedError,
+    SuiteOptionError,
+    TreeNotRemovedError,
+)
+from .suite import K_SUITE_LABEL_REGEX, Suite
 
-
-class BuildType(str, enum.Enum):
-    """Names the build types `sb build --type` accepts."""
-
-    release = "release"
-    debug = "debug"
-    relwithdebinfo = "relwithdebinfo"
-
-
-class Suite(str, enum.Enum):
-    """Names the test suites `sb test --suite` accepts."""
-
-    # CTest labels that tests/CMakeLists.txt assigns from the GTest suite-name prefix.
-    unit = "unit"
-    regression = "regression"
-    integration = "integration"
-    functional = "functional"   # umbrella: unit + regression + integration
-    all = "all"
-
-    # Not a CTest label and not part of `all`; see :func:`test_package`.
-    package = "package"
+K_PACKAGE_CONSUMER = "sushiblas_package_consumer"
+K_BENCHMARKS_VARIABLE = "SB_BUILD_BENCHMARKS"
 
 
-# Maps each CTest-backed suite to its `ctest -L` regex; see cli/sushiblas/README.md.
-_SUITE_LABEL_REGEX = {
-    Suite.unit: "^unit$",
-    Suite.regression: "^regression$",
-    Suite.integration: "^integration$",
-    Suite.functional: "^(unit|integration|regression)$",
-}
+@dataclass(frozen=True, slots=True)
+class CleanResult:
+    """Describes what `clean` did to the build tree.
 
-_CMAKE_BUILD_TYPE = {
-    BuildType.release: "Release",
-    BuildType.debug: "Debug",
-    BuildType.relwithdebinfo: "RelWithDebInfo",
-}
+    Args:
+        tree: The build tree the command addressed.
+        removed: True when the tree existed and is now gone; False when there was none.
+    """
+
+    tree: Path
+    removed: bool
+
+
+def validate_defines(defines: Sequence[str] | None) -> list[str]:
+    """Returns the -D flags for *defines*.
+
+    Raises:
+        InvalidDefineError: An entry is not VAR=VALUE.
+    """
+    flags = []
+    for entry in defines or ():
+        if "=" not in entry:
+            raise InvalidDefineError(entry)
+        flags.append(f"-D{entry}")
+    return flags
+
+
+def benchmarks_flags(benchmarks: bool | None) -> list[str]:
+    """Returns the -D flag that switches the benchmark programs on or off.
+
+    Args:
+        benchmarks: True builds them, False stops building them, None leaves the cached value.
+    """
+    if benchmarks is None:
+        return []
+    return [f"-D{K_BENCHMARKS_VARIABLE}={'ON' if benchmarks else 'OFF'}"]
+
+
+@typing.final
+class ProjectService:
+    """Builds, tests, runs, cleans and documents one SushiBLAS checkout.
+
+    Failures raise a :class:`ProjectError`; finished steps return the child's exit code.
+    The console receives progress lines only.
+    """
+
+    def __init__(
+        self,
+        console,
+        runner: Runner,
+        driver: CMakeDriver,
+        index: ExecutableIndex,
+        build_env: StackBuildEnv,
+        find_root: Callable[[], Path],
+        load_config: Callable[[], Config],
+    ) -> None:
+        self._console = console
+        self._runner = runner
+        self._driver = driver
+        self._index = index
+        self._build_env = build_env
+        self._find_root = find_root
+        self._load_config = load_config
+
+    def build(
+        self,
+        build_type: BuildType,
+        clean: bool = False,
+        defines: Sequence[str] | None = None,
+        benchmarks: bool | None = None,
+    ) -> int:
+        """Configures and builds the project, replacing a tree it cannot reuse.
+
+        *benchmarks* switches the benchmark programs on or off; None keeps the cached value.
+
+        Raises:
+            InvalidDefineError: An entry of *defines* is not VAR=VALUE; nothing was touched.
+            RuntimeMissingError: The SushiRuntime sibling is absent.
+            TreeNotRemovedError: A tree that had to go is still there.
+            StepFailedError: Configure or compile failed.
+        """
+        define_flags = benchmarks_flags(benchmarks) + validate_defines(defines)
+        root = self._find_root()
+        cfg = self._load_config()
+        cmake_build_type = K_CMAKE_BUILD_TYPE[build_type]
+        build_dir = _build_dir(root)
+        _check_runtime(cfg, root)
+
+        if clean:
+            self._remove_tree(build_dir)
+
+        self._console.info(f"Runtime: {cfg.runtime_dir(root)}")
+        self._console.info(f"Compiler: {cfg.resolved_compiler(root)}")
+        env = self._build_env.load(cfg, build_dir)
+
+        fresh = self._driver.needs_configure(
+            build_dir,
+            cfg.generator,
+            root=root,
+            expect={"CMAKE_BUILD_TYPE": cmake_build_type},
+        )
+        if fresh:
+            if build_dir.is_dir():
+                self._console.info(
+                    "build/ was configured for another build type, generator or source path; "
+                    "starting from an empty tree.",
+                )
+                self._remove_tree(build_dir)
+            self._console.info(f"Configuring CMake... (type={build_type.value})")
+        else:
+            self._console.info("Reconfiguring in place...")
+
+        configure_args = self._configure_args(cfg, root, build_dir, cmake_build_type)
+        rc = self._driver.configure(configure_args + define_flags, cwd=root, env=env)
+        if rc != 0:
+            raise StepFailedError("CMake configure failed.", rc)
+        build_dir.mkdir(parents=True, exist_ok=True)
+
+        self._console.info("Building...")
+        rc = self._driver.compile(cfg, build_dir, cwd=root, env=env, config=cmake_build_type)
+        if rc != 0:
+            raise StepFailedError("Build failed.", rc)
+        return rc
+
+    def test(self, suite: Suite = Suite.FUNCTIONAL, filter: str | None = None,
+             repeat: int = 0) -> int:
+        """Runs the CTest label group of *suite*, or the package consumer, and returns ctest's code.
+
+        Raises:
+            BuildTreeMissingError: There is no build tree.
+            SuiteOptionError: *filter* or *repeat* was given with the package suite.
+            StepFailedError: A step of the package suite failed.
+        """
+        root = self._find_root()
+        cfg = self._load_config()
+        build_dir = _existing_build_dir(root)
+
+        if suite is Suite.PACKAGE:
+            if filter or repeat:
+                raise SuiteOptionError()
+            env = self._build_env.load(cfg, build_dir)
+            return self._test_package(cfg, root, build_dir, env)
+
+        env = self._build_env.load(cfg, build_dir)
+        if suite is Suite.ALL:
+            self._console.info(
+                "'all' covers every CTest test. The package suite is not among them "
+                "(it builds a separate project): run `sb test --suite package`.",
+            )
+
+        return self._driver.ctest_run(
+            cfg,
+            build_dir,
+            env,
+            label_regex=None if suite is Suite.ALL else K_SUITE_LABEL_REGEX[suite],
+            filter=filter,
+            repeat=repeat,
+        )
+
+    def run(self, target: str | None = None, sort: bool = False,
+            app_args: Sequence[str] = ()) -> int:
+        """Runs a built executable with *app_args* and returns its exit code.
+
+        Raises:
+            BuildTreeMissingError: There is no build tree.
+            ExecutableNotFoundError: *target*, or the configured default, matches nothing.
+        """
+        root = self._find_root()
+        cfg = self._load_config()
+        build_dir = _existing_build_dir(root)
+        env = self._build_env.load(cfg, build_dir)
+
+        exe = self._pick_executable(build_dir, target, sort, cfg.target_bin)
+        if exe is None:
+            return 1
+
+        self._console.info(f"Executing: {exe.name}")
+        self._console.console.print(f"[muted]{exe}[/muted]")
+        return self._runner.run([str(exe), *app_args], root, env)
+
+    def clean(self) -> CleanResult:
+        """Removes the build tree.
+
+        Raises:
+            TreeNotRemovedError: The tree is still there after the removal.
+        """
+        build_dir = _build_dir(self._find_root())
+        return CleanResult(build_dir, self._remove_tree(build_dir))
+
+    def docs(self) -> int:
+        """Generates the Doxygen API reference from the repository's Doxyfile."""
+        root = self._find_root()
+        cfg = self._load_config()
+        env = self._build_env.load(cfg, _build_dir(root))
+        (root / "docs").mkdir(exist_ok=True)
+        return self._driver.doxygen(cfg, root / "Doxyfile", root, env)
+
+    def _remove_tree(self, tree: Path) -> bool:
+        """Removes *tree* and returns whether it existed.
+
+        Raises:
+            TreeNotRemovedError: The tree is still there after the removal.
+        """
+        if not tree.is_dir():
+            return False
+        self._console.info(f"Removing {tree}...")
+        shutil.rmtree(tree, ignore_errors=True)
+        if tree.exists():
+            raise TreeNotRemovedError(tree)
+        return True
+
+    def _pick_executable(self, build_dir: Path, target: str | None, sort: bool,
+                         default: str) -> Path | None:
+        """Returns the executable to run; None when the interactive pick found none.
+
+        Raises:
+            ExecutableNotFoundError: *target*, or *default*, matches nothing.
+        """
+        if sort:
+            return self._index.select(build_dir, self._console)
+        if target:
+            exe = self._index.match(build_dir, target)
+            if exe is None:
+                raise ExecutableNotFoundError(f"Executable matching '{target}'")
+            return exe
+        exe = self._index.match(build_dir, default)
+        if exe is None:
+            raise ExecutableNotFoundError(f"Default target '{default}'")
+        return exe
+
+    def _configure_args(self, cfg: Config, root: Path, build_dir: Path,
+                        build_type: str) -> list[str]:
+        """Returns the cmake configure command line for this tree, without caller -D flags."""
+        args = [
+            self._driver.cmake(cfg), "-S", str(root), "-B", str(build_dir), "-G", cfg.generator,
+            f"-DCMAKE_BUILD_TYPE={build_type}",
+            f"-DSUSHIRUNTIME_DIR={cfg.runtime_dir(root)}",
+        ]
+        args += _toolchain_args(cfg, root)
+        if cfg.is_windows and (prefix := vcpkg_prefix(cfg, root)):
+            args.append(f"-DCMAKE_PREFIX_PATH={prefix}")
+        return args
+
+    def _test_package(self, cfg: Config, root: Path, build_dir: Path,
+                      env: dict[str, str]) -> int:
+        """Installs the package and builds and runs tests/package/ against the install prefix.
+
+        Raises:
+            StepFailedError: Install, configure, compile or the consumer run failed.
+            ExecutableNotFoundError: The consumer built but its executable is absent.
+        """
+        build_type = cached_value(build_dir, "CMAKE_BUILD_TYPE") or "Release"
+        prefix = build_dir / "package" / "prefix"
+        consumer = build_dir / "package" / "consumer"
+
+        # The install starts from an empty prefix, so a deleted header cannot satisfy an include.
+        self._remove_tree(prefix)
+
+        self._console.info(f"Installing to {prefix}...")
+        rc = self._runner.run(
+            [self._driver.cmake(cfg), "--install", str(build_dir),
+             "--prefix", str(prefix), "--config", build_type],
+            root,
+            env,
+        )
+        if rc != 0:
+            raise StepFailedError("Install failed; the package could not be staged.", rc)
+
+        prefix_path = str(prefix)
+        if extra_prefix := vcpkg_prefix(cfg, root):
+            prefix_path = f"{prefix_path};{extra_prefix}"
+
+        self._console.info("Configuring the out-of-tree consumer...")
+        configure = [
+            self._driver.cmake(cfg), "-S", str(root / "tests" / "package"), "-B", str(consumer),
+            "-G", cfg.generator,
+            "--no-warn-unused-cli",
+            f"-DCMAKE_BUILD_TYPE={build_type}",
+            f"-DCMAKE_PREFIX_PATH={prefix_path}",
+        ]
+        configure += _toolchain_args(cfg, root)
+        rc = self._driver.configure(configure, cwd=root, env=env)
+        if rc != 0:
+            raise StepFailedError(
+                "The consumer could not configure against the installed package.\n"
+                "  - a FATAL_ERROR above about leaked flags means the exported "
+                "interface carries development-only options; see "
+                "cmake/SushiBLASBuildPolicy.cmake.",
+                rc,
+            )
+
+        self._console.info("Building the consumer...")
+        rc = self._driver.compile(cfg, consumer, cwd=root, env=env, config=build_type)
+        if rc != 0:
+            raise StepFailedError(
+                "The consumer failed to compile against the installed headers.\n"
+                "  - a missing header means it is not covered by install(DIRECTORY) "
+                "in src/CMakeLists.txt.\n"
+                "  - the consumer compiles at C++20 while the library builds at "
+                "C++17, so a construct valid only in one of the two fails here.",
+                rc,
+            )
+
+        exe = self._index.match(consumer, K_PACKAGE_CONSUMER)
+        if exe is None:
+            raise ExecutableNotFoundError(f"The built consumer executable '{K_PACKAGE_CONSUMER}'")
+
+        if cfg.is_windows:
+            count = _deploy_consumer_dlls(cfg, root, prefix, exe.parent)
+            self._console.info(f"Deployed {count} shared libraries beside the consumer.")
+
+        self._console.info(f"Executing: {exe.name}")
+        rc = self._runner.run([str(exe)], consumer, env)
+        if rc != 0:
+            raise StepFailedError("The package consumer failed at runtime.", rc)
+        return rc
 
 
 def _build_dir(root: Path) -> Path:
@@ -71,50 +361,39 @@ def _build_dir(root: Path) -> Path:
     return root / "build"
 
 
-_RUNNER = Runner(console, PROFILE.program, catch_interrupt=True)
-_DRIVER = CMakeDriver(console, _RUNNER)
+def _existing_build_dir(root: Path) -> Path:
+    """Returns the build tree of the checkout at *root*.
+
+    Raises:
+        BuildTreeMissingError: The tree does not exist.
+    """
+    build_dir = _build_dir(root)
+    if not build_dir.is_dir():
+        raise BuildTreeMissingError()
+    return build_dir
 
 
-def _check_runtime(cfg: Config, root: Path) -> int:
-    """Fail early (with guidance) when the SushiRuntime sibling is missing.
+def _check_runtime(cfg: Config, root: Path) -> None:
+    """Checks that the SushiRuntime sibling holds a CMakeLists.txt.
 
-    SushiBLAS cannot configure without it (see cmake/Runtime.cmake) — the
-    runtime provides the SYCL target and the add_sycl_to_target command the
-    project's CMakeLists pulls in.
+    Raises:
+        RuntimeMissingError: It does not.
     """
     runtime = cfg.runtime_dir(root)
-    if (runtime / "CMakeLists.txt").is_file():
-        return 0
-    console.error(
-        f"SushiRuntime sibling not found at: {runtime}\n"
-        f"  - clone it next to this repo, or\n"
-        f"  - set sushiruntime_dir in cli/config.local.toml, or SUSHIRUNTIME_DIR in the env.")
-    return 1
+    if not (runtime / "CMakeLists.txt").is_file():
+        raise RuntimeMissingError(runtime)
 
 
 def _toolchain_args(cfg: Config, root: Path) -> list[str]:
-    """The compiler and host-tool flags every configure in this tree must share.
+    """Returns the compiler and host-tool -D flags both the project and package configures share.
 
-    Used by the project's own configure and by the package consumer's (see
-    :func:`test_package`). They are factored out rather than written twice
-    because the consumer configure is precisely where a missing one costs an
-    hour to diagnose: clang-cl's CMake platform module insists on a resource
-    compiler, and vcpkg's toolchain file is what puts hwloc and GoogleTest
-    where find_package can see them. A copy of this list would drift the moment
-    one of the two configures gained a flag.
-
-    CMAKE_PREFIX_PATH is deliberately absent: it is the one setting the two
-    configures legitimately disagree on, since the consumer must also see the
-    install prefix. Each caller sets its own.
-
-    @param cfg The resolved configuration.
-    @param root The project root.
-    @return The shared -D flags, in the order cmake should receive them.
+    CMAKE_PREFIX_PATH is not among them; each configure sets its own. See
+    cli/sushiblas/README.md.
     """
     cxx = cfg.resolved_compiler(root)
     args = [
         f"-DCMAKE_CXX_COMPILER={cxx}",
-        f"-DCMAKE_C_COMPILER={_resolved_c_compiler(cxx)}",
+        f"-DCMAKE_C_COMPILER={c_compiler_for(cxx)}",
     ]
     if cfg.is_windows:
         if cfg.ninja_exe:
@@ -132,275 +411,14 @@ def _toolchain_args(cfg: Config, root: Path) -> list[str]:
         ]
         if cfg.is_windows:
             args.append(f"-DVCPKG_TARGET_TRIPLET={cfg.vcpkg_triplet}")
-
     return args
 
 
-def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
-                    defines: Sequence[str] | None = None) -> list[str]:
-    """Returns the cmake configure command line for this tree.
-
-    Raises:
-        ValueError: An entry of *defines* is not VAR=VALUE.
-    """
-    runtime = cfg.runtime_dir(root)
-
-    args = [
-        _DRIVER.cmake(cfg), "-S", str(root), "-B", str(build_dir), "-G", cfg.generator,
-        f"-DCMAKE_BUILD_TYPE={build_type}",
-        f"-DSUSHIRUNTIME_DIR={runtime}",
-    ]
-    args += _toolchain_args(cfg, root)
-    if cfg.is_windows and (prefix := _vcpkg_prefix(cfg, root)):
-        args.append(f"-DCMAKE_PREFIX_PATH={prefix}")
-
-    # Caller-supplied cache variables come last, so no default set above outranks them.
-    for entry in defines or ():
-        if "=" not in entry:
-            raise ValueError(
-                f"-D expects VAR=VALUE, got {entry!r}. "
-                "Use VAR= to clear a variable.")
-        args.append(f"-D{entry}")
-
-    return args
-
-
-def build(build_type: BuildType, clean: bool = False,
-          defines: Sequence[str] | None = None) -> int:
-    """Configures and builds the project, replacing a tree it cannot reuse."""
-    console.header("Project Build")
-    root = find_project_root()
-    cfg = load_config()
-    cmake_build_type = _CMAKE_BUILD_TYPE[build_type]
-    build_dir = _build_dir(root)
-
-    if (rc := _check_runtime(cfg, root)) != 0:
-        return rc
-
-    if clean:
-        _DRIVER.clean_tree(build_dir)
-
-    console.info(f"Runtime: {cfg.runtime_dir(root)}")
-    console.info(f"Compiler: {cfg.resolved_compiler(root)}")
-
-    env = load_build_env(cfg, build_dir)
-
-    fresh = _DRIVER.needs_configure(build_dir, cfg.generator, root=root,
-                                    expect={"CMAKE_BUILD_TYPE": cmake_build_type})
-    if fresh:
-        if build_dir.is_dir():
-            console.info(
-                "build/ was configured for another build type, generator or source path; "
-                "starting from an empty tree.")
-            _DRIVER.clean_tree(build_dir)
-        console.info(f"Configuring CMake... (type={build_type.value})")
-    else:
-        console.info("Reconfiguring in place...")
-    try:
-        configure_args = _configure_args(cfg, root, build_dir, cmake_build_type, defines)
-    except ValueError as exc:
-        console.error(str(exc))
-        return 2
-
-    rc = _DRIVER.configure(configure_args, cwd=root, env=env)
-    if rc != 0:
-        console.error("CMake configure failed.")
-        return rc
-    build_dir.mkdir(parents=True, exist_ok=True)
-
-    console.info("Building...")
-    rc = _DRIVER.compile(cfg, build_dir, cwd=root, env=env, config=cmake_build_type)
-    if rc == 0:
-        console.success("Build completed successfully!")
-    else:
-        console.error("Build failed.")
-    return rc
-
-
-def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int = 0) -> int:
-    """Run the test suite via CTest labels.
-
-    For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
-    the binary directly: sb run sushiblas_tests -- --gtest_filter=Gemm.* --gtest_shuffle
-
-    ``package`` is the one suite that is not a CTest label; it delegates to
-    :func:`test_package`, which builds a separate project.
-    """
-    console.header("Project Test")
-    root = find_project_root()
-    cfg = load_config()
-    build_dir = _build_dir(root)
-    if not build_dir.is_dir():
-        console.error("build/ not found. Run `sb build` first.")
-        return 1
-
-    env = load_build_env(cfg, build_dir)
-
-    if suite is Suite.package:
-        if filter or repeat:
-            # Both are ctest knobs and this suite runs no ctest, so they are refused.
-            console.error("--filter and --repeat do not apply to the package suite.")
-            return 2
-        return test_package(cfg, root, build_dir, env)
-
-    if suite is Suite.all:
-        # `all` covers every CTest test, which leaves the package suite out.
-        console.info(
-            "'all' covers every CTest test. The package suite is not among them "
-            "(it builds a separate project): run `sb test --suite package`.")
-
-    return _DRIVER.ctest_run(
-        cfg, build_dir, env,
-        label_regex=None if suite is Suite.all else _SUITE_LABEL_REGEX[suite],
-        filter=filter, repeat=repeat)
-
-
-def _deploy_consumer_dlls(cfg: Config, root: Path, prefix: Path, dest: Path) -> None:
-    """Put the shared libraries the consumer needs beside its executable.
-
-    In-tree targets get these from a POST_BUILD copy (see tests/CMakeLists.txt);
-    a real out-of-tree consumer would deploy them itself, and this function is
-    this CLI standing in for that consumer. Without them the binary exits with
-    0xC0000135 before reaching main, which looks like a package failure and is
-    not one.
-
-    @param cfg The resolved configuration.
-    @param root The project root.
-    @param prefix The install prefix the package was installed to.
-    @param dest The directory holding the consumer executable.
-    """
-    if not cfg.is_windows:
-        return  # ELF consumers resolve via RPATH; nothing to stage.
-
+def _deploy_consumer_dlls(cfg: Config, root: Path, prefix: Path, dest: Path) -> int:
+    """Copies the Windows DLLs the consumer loads beside it and returns their count."""
     sources = list((prefix / "bin").glob("*.dll"))
-    if vcpkg_prefix := _vcpkg_prefix(cfg, root):
-        sources += list(Path(vcpkg_prefix, "bin").glob("hwloc*.dll"))
-
+    if extra_prefix := vcpkg_prefix(cfg, root):
+        sources += list(Path(extra_prefix, "bin").glob("hwloc*.dll"))
     for dll in sources:
         shutil.copy2(dll, dest / dll.name)
-    console.info(f"Deployed {len(sources)} shared libraries beside the consumer.")
-
-
-def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) -> int:
-    """Install the package and build tests/package/ against it, as a consumer would.
-
-    This is the only test in the repo that exercises what ``find_package(SushiBLAS)``
-    actually hands a third party, and it is the reason it cannot be a CTest label:
-    a package that works only when the source tree happens to be next to it is not
-    a package, so the consumer must configure from an install prefix with no access
-    to this tree. It also compiles the public headers at C++20 while the library
-    itself is built at C++17 - see tests/package/CMakeLists.txt for why that
-    difference is the point rather than an oversight.
-
-    Both intermediates live under build/, so `sb clean` reclaims them and nothing
-    lands in the source tree.
-
-    @param cfg The resolved configuration.
-    @param root The project root.
-    @param build_dir The project's own build tree, which must already be built.
-    @param env The snapshotted build environment.
-    @return 0 when the consumer builds and runs, non-zero otherwise.
-    """
-    build_type = cached_value(build_dir, "CMAKE_BUILD_TYPE") or "Release"
-    prefix = build_dir / "package" / "prefix"
-    consumer = build_dir / "package" / "consumer"
-
-    # The install starts from an empty prefix, so a deleted header cannot satisfy an include.
-    if prefix.is_dir():
-        shutil.rmtree(prefix, ignore_errors=True)
-
-    console.info(f"Installing to {prefix}...")
-    rc = _RUNNER.run([_DRIVER.cmake(cfg), "--install", str(build_dir),
-                      "--prefix", str(prefix), "--config", build_type], root, env)
-    if rc != 0:
-        console.error("Install failed; the package could not be staged.")
-        return rc
-
-    prefix_path = str(prefix)
-    if vcpkg_prefix := _vcpkg_prefix(cfg, root):
-        prefix_path = f"{prefix_path};{vcpkg_prefix}"
-
-    console.info("Configuring the out-of-tree consumer...")
-    configure = [
-        _DRIVER.cmake(cfg), "-S", str(root / "tests" / "package"), "-B", str(consumer),
-        "-G", cfg.generator,
-        # The CXX-only consumer leaves some shared flags unread; only that warning is silenced.
-        "--no-warn-unused-cli",
-        f"-DCMAKE_BUILD_TYPE={build_type}",
-        f"-DCMAKE_PREFIX_PATH={prefix_path}",
-    ]
-    configure += _toolchain_args(cfg, root)
-    rc = _DRIVER.configure(configure, cwd=root, env=env)
-    if rc != 0:
-        console.error(
-            "The consumer could not configure against the installed package.\n"
-            "  - a FATAL_ERROR above about leaked flags means the exported "
-            "interface carries development-only options; see "
-            "cmake/SushiBLASBuildPolicy.cmake.")
-        return rc
-
-    console.info("Building the consumer...")
-    rc = _DRIVER.compile(cfg, consumer, cwd=root, env=env, config=build_type)
-    if rc != 0:
-        console.error(
-            "The consumer failed to compile against the installed headers.\n"
-            "  - a missing header means it is not covered by install(DIRECTORY) "
-            "in src/CMakeLists.txt.\n"
-            "  - the consumer compiles at C++20 while the library builds at "
-            "C++17, so a construct valid only in one of the two fails here.")
-        return rc
-
-    exe = discovery.match_by_name(consumer, "sushiblas_package_consumer")
-    if exe is None:
-        console.error("Built the consumer but could not find its executable.")
-        return 1
-
-    _deploy_consumer_dlls(cfg, root, prefix, exe.parent)
-
-    console.info(f"Executing: {exe.name}")
-    rc = _RUNNER.run([str(exe)], consumer, env)
-    if rc == 0:
-        console.success("Package consumer built and ran against the install prefix.")
-    else:
-        console.error("The package consumer failed at runtime.")
-    return rc
-
-
-def run(target: str | None = None, sort: bool = False,
-        app_args: list[str] | None = None) -> int:
-    """Runs a built executable with *app_args* and returns its exit code."""
-    console.header("Project Run")
-    root = find_project_root()
-    cfg = load_config()
-    build_dir = _build_dir(root)
-    if not build_dir.is_dir():
-        console.error("build/ not found. Run `sb build` first.")
-        return 1
-
-    env = load_build_env(cfg, build_dir)
-
-    exe = discovery.resolve(build_dir, console, target=target, sort=sort, default=cfg.target_bin)
-    if exe is None:
-        return 1
-
-    console.info(f"Executing: {exe.name}")
-    console.console.print(f"[muted]{exe}[/muted]")
-    return _RUNNER.run([str(exe), *(app_args or [])], root, env)
-
-
-def clean() -> int:
-    """Removes the build tree."""
-    console.header("Project Clean")
-    _DRIVER.clean_tree(_build_dir(find_project_root()))
-    return 0
-
-
-def docs() -> int:
-    """Generates the Doxygen API reference from the repository's Doxyfile."""
-    console.header("Doxygen Generation")
-    root = find_project_root()
-    cfg = load_config()
-    env = load_build_env(cfg, _build_dir(root))
-    doxyfile = root / "Doxyfile"
-    (root / "docs").mkdir(exist_ok=True)
-    return _DRIVER.doxygen(cfg, doxyfile, root, env)
+    return len(sources)
