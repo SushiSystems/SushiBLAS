@@ -246,12 +246,9 @@ namespace SushiBLAS
         {
             auto a = engine->create_tensor({4}, Core::DataType::INT32);
             auto b = engine->create_tensor({4}, Core::DataType::INT32);
-            auto c = engine->create_tensor({4}, Core::DataType::INT32);
             auto scalar = engine->create_tensor({1}, Core::DataType::INT32);
 
-            // Elementwise arithmetic and transcendentals.
-            EXPECT_THROW(engine->elementwise().add(a, b, c), std::runtime_error);
-            EXPECT_THROW(engine->elementwise().mul(a, b, c), std::runtime_error);
+            // Elementwise transcendentals.
             EXPECT_THROW(engine->elementwise().exp(a), std::runtime_error);
             EXPECT_THROW(engine->elementwise().sqrt(a), std::runtime_error);
 
@@ -265,8 +262,8 @@ namespace SushiBLAS
             EXPECT_THROW(engine->reductions().mean(a, scalar), std::runtime_error);
 
             // Random distributions - no fractional part for a continuous draw to land in.
-            EXPECT_THROW(engine->random().uniform(a, 0.0, 1.0), std::runtime_error);
-            EXPECT_THROW(engine->random().normal(a, 0.0, 1.0), std::runtime_error);
+            EXPECT_THROW(engine->random().uniform(a, 0.0, 1.0), std::invalid_argument);
+            EXPECT_THROW(engine->random().normal(a, 0.0, 1.0), std::invalid_argument);
 
             // BLAS arithmetic. `copy` is the exception and is covered above.
             EXPECT_THROW(engine->blas().axpy(1.0, a, b), std::runtime_error);

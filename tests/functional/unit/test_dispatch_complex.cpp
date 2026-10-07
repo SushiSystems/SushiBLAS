@@ -221,7 +221,7 @@ TEST_F(Unit_DispatchComplexTest, ReductionsRejectComplex32)
 
 TEST_F(Unit_DispatchComplexTest, RealDtypesAreUnaffected)
 {
-    // max and min are Domain::REAL and must still work on a FLOAT32 tensor.
+    // max and min are Domain::REAL_AND_INTEGRAL and must still work on a FLOAT32 tensor.
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});
     auto c = engine->create_tensor({4});

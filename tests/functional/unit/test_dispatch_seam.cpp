@@ -43,6 +43,8 @@
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 #include "../../common/test_utils.hpp"
 
+namespace sb = SushiBLAS;
+
 using namespace SushiBLAS::Test;
 using namespace SushiRuntime::Graph::Literals;
 using SushiBLAS::Core::DataType;
@@ -309,7 +311,7 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
     // The message names the disagreeing operand; "sizes must match" is no help at N = 5.
     EXPECT_THROW(sb::Dispatch::execute_zip_inplace(*engine, std::array{&four, &eight},
                      "test.zip_size", "test.zip_size"_op, accumulate),
-                 std::runtime_error);
+                 std::invalid_argument);
 
     EXPECT_THROW(sb::Dispatch::execute_zip_inplace(*engine, std::array{&four, &wide},
                      "test.zip_dtype", "test.zip_dtype"_op, accumulate),

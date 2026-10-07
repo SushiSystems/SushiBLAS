@@ -34,7 +34,7 @@
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/engine/reduce_1d.hpp>
+#include <SushiBLAS/support/reduce_1d.hpp>
 #include "../../common/test_utils.hpp"
 
 namespace SushiBLAS
@@ -303,9 +303,9 @@ namespace SushiBLAS
         {
             constexpr int64_t kN = 8;
             auto arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context().get_allocator(),
+                TestEnvironment::get_context(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::Memory::Strategies::Shared::instance());
+                SushiRuntime::API::Residency::Shared);
 
             Tensor seed(arena, {kN}, Core::DataType::FLOAT32, 0);
             Tensor gradient(arena, {kN}, Core::DataType::FLOAT32, kN);

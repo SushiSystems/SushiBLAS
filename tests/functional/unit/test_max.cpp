@@ -25,8 +25,10 @@
  * @author Mustafa Garip
  */
 
-#include <gtest/gtest.h>
+#include <cmath>
+#include <limits>
 #include <vector>
+#include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
 
@@ -46,4 +48,23 @@ TEST_F(Unit_MaxTest, FloatForward)
     engine->execute().wait();
     
     verify_tensor(c, {2.00000f, 2.00000f, 4.00000f, 0.50000f});
+}
+
+/**
+ * @brief Tests that max returns NaN when either operand is NaN.
+ */
+TEST_F(Unit_MaxTest, NaNInEitherOperandPropagates)
+{
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    auto a = create_initialized_tensor<float>({3}, {nan, 1.0f, 2.0f});
+    auto b = create_initialized_tensor<float>({3}, {1.0f, nan, 3.0f});
+    auto c = engine->create_tensor({3});
+
+    engine->elementwise().max(a, b, c);
+    engine->execute().wait();
+
+    const std::vector<float> got = read_tensor<float>(c);
+    EXPECT_TRUE(std::isnan(got[0]));
+    EXPECT_TRUE(std::isnan(got[1]));
+    EXPECT_FLOAT_EQ(3.0f, got[2]);
 }
