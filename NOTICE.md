@@ -5,20 +5,24 @@ License 1.0.0; see `LICENSE`. The material below keeps its own licence.
 
 ## What ships in this repository
 
-Two third-party works have code or text in the tracked files: portBLAS and the Contributor
-Covenant. Random123 is listed with them because the tree does not record whether `philox.hpp`
-was adapted from its source. Licence texts live in `third_party/licenses/`, which holds
+Three third-party works have code or text in the tracked files: portBLAS, the Contributor
+Covenant and the reference BLAS that LAPACK distributes, whose Fortran the two rotation bricks
+were transcribed from. Random123 is listed with them because the tree does not record whether
+`philox.hpp` was adapted from its source. Licence texts live in `third_party/licenses/`, which holds
 `Apache-2.0.txt` today.
 
 | Work | Files here | Licence | Licence text |
 | --- | --- | --- | --- |
-| portBLAS, Copyright (C) Codeplay Software Limited | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syrk.hpp` | Apache-2.0 | `third_party/licenses/Apache-2.0.txt` |
+| portBLAS, Copyright (C) Codeplay Software Limited | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syrk.hpp`, `kernels/sycl/blas/level3/syr2k.hpp` | Apache-2.0 | `third_party/licenses/Apache-2.0.txt` |
 | Random123, Copyright 2010-2012, D. E. Shaw Research | `kernels/sycl/random/philox.hpp`, to the extent stated under "Algorithms written from a published reference" | BSD-3-Clause | not in `third_party/licenses/` |
+| Reference BLAS, as LAPACK distributes it | `include/SushiBLAS/kernels/blas/givens.hpp`, `include/SushiBLAS/kernels/blas/modified_givens.hpp`, to the extent stated under "Algorithms written from a published reference" | not read on this machine; LAPACK's licence file was not at hand | not in `third_party/licenses/` |
 | Contributor Covenant 2.1 | `docs/reference/CODE_OF_CONDUCT.md` | not read; the estate audit names CC BY 4.0 | not in `third_party/licenses/` |
 
 No other tracked file carries a third-party copyright line. Outside `LICENSE`, this file,
 `docs/`, `third_party/` and the fixtures under `tools/`, a search of every tracked file for
-`Copyright` finds a holder other than Sushi Systems only in the two portBLAS headers.
+`Copyright` found a holder other than Sushi Systems only in the two portBLAS headers on
+2026-10-07, before `syr2k.hpp` was written; that file carries the same portBLAS line, and the
+search was not repeated.
 
 ## Ported files
 
@@ -26,6 +30,7 @@ No other tracked file carries a third-party copyright line. Outside `LICENSE`, t
 | --- | --- | --- | --- |
 | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp` | portBLAS, https://github.com/codeplaysoftware/portBLAS, `src/operations/blas3/gemm_local.hpp` and `gemm_no_local.hpp` | no upstream commit is recorded in this tree; the repository was archived in January 2025 | Apache-2.0, Copyright (C) Codeplay Software Limited; text in `third_party/licenses/Apache-2.0.txt` |
 | `kernels/sycl/blas/level3/syrk.hpp` | The GEMM tiling above, composed for SYRK; portBLAS has no SYRK kernel | as above | Apache-2.0 for the tiling it carries over, as above |
+| `kernels/sycl/blas/level3/syr2k.hpp` | The same tiling with two register blocks, composed for SYR2K and HER2K | as above | Apache-2.0 for the tiling it carries over, as above |
 
 ```
 portBLAS / oneMath SYCL BLAS
@@ -36,15 +41,18 @@ Licensed under the Apache License, Version 2.0.
 The `LICENSE` file on portBLAS's `master` branch was read on 2026-10-07 and is the Apache License,
 Version 2.0. portBLAS continues at the UXL Foundation's generic-sycl-components,
 https://github.com/uxlfoundation/generic-sycl-components. The Sushi Systems licence covers the
-changes to these two files, not the upstream algorithm. The sections "Port notes" and "Not
+changes to these three files, not the upstream algorithm. The sections "Port notes" and "Not
 ported" below state what was changed.
 
-Lines 21 and 22 of both files' license block carry the upstream lines. This command, run from the
+Lines 21 and 22 of each file's license block carry the upstream lines. This command, run from the
 repository root, writes every license block in the repository and keeps them:
 
 ```
-python tools/licensing/write_license_block.py . --project "SushiBLAS - https://github.com/SushiSystems/SushiBLAS" --upstream "include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syrk.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md"
+python tools/licensing/write_license_block.py . --project "SushiBLAS - https://github.com/SushiSystems/SushiBLAS" --upstream "include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syrk.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syr2k.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md"
 ```
+
+The command was extended with the `syr2k.hpp` argument on 2026-10-07 and has not been run in
+that form.
 
 ## Algorithms written from a published reference
 
@@ -53,11 +61,19 @@ python tools/licensing/write_license_block.py . --project "SushiBLAS - https://g
 | `kernels/sycl/random/philox.hpp` | Philox4x32-10 from Salmon, Moraes, Dror and Shaw, "Parallel Random Numbers: As Easy as 1, 2, 3", SC'11; round constants checked against Random123, https://github.com/DEShawResearch/random123, `include/Random123/philox.h` | The paper carries no code licence. Random123 is BSD-3-Clause, Copyright 2010-2012, D. E. Shaw Research; its `LICENSE` on `main` was read on 2026-10-07 |
 | `kernels/sycl/random/poisson.hpp`, `poisson_ptrs` | Hoermann's transformed rejection with squeeze (PTRS), Insurance: Mathematics and Economics 12, 1993, as `kernels/README.md` cites it | A journal article; no code licence |
 | `kernels/sycl/random/poisson.hpp`, `poisson_knuth` | Knuth's multiplication loop for a Poisson draw, as `kernels/README.md` names it | A textbook algorithm; no code licence |
+| `include/SushiBLAS/kernels/blas/givens.hpp` | The `xROTG` algorithm LAPACK 3.10 introduced, transcribed from the reference BLAS sources `drotg.f90` and `zrotg.f90` as a web fetch returned them on 2026-10-07 | LAPACK's licence was not read; no copy of the sources or of the licence was on this machine |
+| `include/SushiBLAS/kernels/blas/modified_givens.hpp` | The modified Givens construction, transcribed from the reference BLAS source `drotmg.f` the same way | as above |
 
 Whether `philox.hpp` was written from the paper or adapted from the Random123 source is not
 recorded in the tree. The file holds the four Philox constants (`philox.hpp:65-68`) and no
 Random123 copyright line. If the owner states it was adapted from Random123, the BSD-3-Clause
 text goes into `third_party/licenses/` and its copyright line into the file's license block.
+
+The two rotation bricks are a different case: they were written from source text, through a fetch
+that passes the page through a summarising model, so they follow the reference BLAS line by line
+as far as that fetch was faithful. Neither file carries an upstream copyright line, and
+`third_party/licenses/` holds no LAPACK licence. Reading LAPACK's licence file and adding what it
+asks for is open in `docs/design/REMAINING_WORK.md`.
 
 ## Adapted text
 

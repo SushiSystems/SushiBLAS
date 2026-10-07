@@ -54,8 +54,8 @@ namespace SushiBLAS
          * @brief Returns the geometry of a CSR matrix operand.
          * @throws std::invalid_argument on an index base outside its type, a negative extent,
          *         entries without rows or columns, an array that is not a contiguous rank-1 tensor
-         *         of the length the shape needs, an index dtype that is not INT32 or INT64, differs
-         *         between the index arrays or is too narrow, or a value dtype the device lacks.
+         *         of the needed length, an index dtype that is not INT32 or INT64, differs between
+         *         the arrays or is too narrow; UnsupportedExecution on a dtype the device lacks.
          * @see include/SushiBLAS/engine/sparse/README.md
          */
         [[nodiscard]] inline SparseMatrixOperand describe_sparse_matrix(const SparseMatrix& A,

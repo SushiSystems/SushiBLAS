@@ -1,7 +1,9 @@
 # Spatial headers
 
-`include/SushiBLAS/engine/spatial` declares the span builders (`window.hpp`) that `SpatialOps` in
-`engine/spatial.hpp` runs on. The window geometry they use is in
+`include/SushiBLAS/engine/spatial` holds one file, `window.hpp`, which declares the span builders
+that `SpatialOps` in `engine/spatial.hpp` runs on: `require_valid_geometry`,
+`require_live_windows`, the two `window_span_for` forms, `pooling_span_for`, `column_span_for` and
+`tap_span_for`. Every check in it throws `std::invalid_argument`. The window geometry they use is in
 [../../support/README.md](../../support/README.md). The reasoning for
 `engine/spatial.hpp` itself is in [../README.md](../README.md).
 
@@ -29,15 +31,15 @@ documentation). What it can prove is that every window's *origin* lands inside t
 output row whose window starts at or past `in_h` reads nothing but padding, which is always a
 caller's arithmetic error and never a legitimate request.
 
-At `SB_THROW_IF(out_h > 0 && (out_h - 1) * g.stride_h - g.pad_top >= span.in_h,`: A window whose
+At the `require_operand` call on `(out_h - 1) * g.stride_h - g.pad_top >= span.in_h`: A window whose
 origin is at or past the last input row covers only padding. Legal arithmetic, never a legal
 request, and the shape it produces is plausible enough to survive every other check here.
 
 ### `window_span_for` from two operands
 
-The form every operation with an image output takes: pooling, upsampling, the channel copies, the
-affine. `H_o` and `W_o` come from `out`, which the caller sized with `output_extent` while the
-trailing padding it needs was still in scope.
+The form every operation with an image output takes: pooling, the window product, upsampling, the
+channel copies, the affine. `H_o` and `W_o` come from `out`, which the caller sized with
+`output_extent` while the trailing padding it needs was still in scope.
 
 ### `require_valid_geometry`
 
@@ -46,6 +48,14 @@ at record time. Kernel sizes, strides and dilations must be at least 1, and both
 0. A violation throws `std::invalid_argument` that names the field. The rule that both output
 extents are at least 1 belongs to `window_span_for` with stated extents, which checks it after this
 call.
+
+### `tap_span_for`
+
+Describes the per-channel tap tensor of `window_dot` and its two gradients. The tensor is rank 3,
+`[kernel_h, kernel_w, C]`, and the builder checks each extent against the geometry and the span's
+channel count, then returns the three strides as a `Spatial::TapSpan`. It reads the strides off
+the tensor, as `window_span_for` does, so a view is addressed correctly. `operand` is the
+tensor's name in the caller's signature, `weights` or `dweights`, for the message.
 
 ### `pooling_span_for`
 

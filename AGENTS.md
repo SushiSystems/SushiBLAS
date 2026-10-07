@@ -13,9 +13,10 @@ Load before working here: `sushiskills`, `repository-layout`, `cpp-code-style`,
   ctest directly. `cli/README.md` describes every command.
 - The library is built at C++17, as SushiRuntime is. A C++20 construct in a public header breaks
   the stack's ABI agreement.
-- `Engine` knows no individual operation, an operation class knows the task graph only through
-  `engine.get_graph()`, and a kernel knows nothing of `Engine`.
-  `docs/architecture/ARCHITECTURE.md` describes the layers.
+- `Engine` is a composition root that names no operation family, an operation view is built
+  from an `Engine` or a `TaskRecorder` and reaches the task graph only through the recorder, and
+  a kernel knows nothing of the recorder or `Engine`. `tools/layering/check_layering.py` checks
+  all three, and `docs/architecture/ARCHITECTURE.md` describes the layers.
 - Every operation has a reference kernel and a SYCL kernel, and an unsupported dtype throws.
   `docs/CONTRIBUTING.md`, section 5, states what a new operation carries.
 - `docs/README.md` indexes the manual. `docs/design/REMAINING_WORK.md` is the backlog and

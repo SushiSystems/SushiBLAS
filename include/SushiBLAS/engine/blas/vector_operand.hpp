@@ -47,9 +47,9 @@ namespace SushiBLAS
 
         /**
          * @brief Returns the geometry of a vector operand.
-         * @throws std::invalid_argument on missing storage, a dtype the tensor's device cannot
-         *         compute in, a non-contiguous tensor of rank above 1, or a rank-1 stride of
-         *         zero or less.
+         * @throws std::invalid_argument on missing storage, a non-contiguous tensor of rank
+         *         above 1, or a rank-1 stride of zero or less.
+         * @throws UnsupportedExecution on a dtype the tensor's device cannot compute in.
          */
         [[nodiscard]] inline VectorOperand describe_vector_operand(const Tensor& t, const char* op,
                                                                    const char* operand)

@@ -54,8 +54,8 @@ namespace SushiBLAS
 
         /**
          * @brief Returns the geometry of a dense matrix operand of rank 2 or more.
-         * @throws std::invalid_argument on rank < 2, missing storage, a non-contiguous tensor or
-         *         a dtype the tensor's device cannot compute in.
+         * @throws std::invalid_argument on rank < 2, missing storage or a non-contiguous tensor.
+         * @throws UnsupportedExecution on a dtype the tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/blas/README.md
          */
         [[nodiscard]] inline MatrixOperand describe_matrix_operand(const Tensor& t, const char* op,

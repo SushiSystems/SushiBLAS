@@ -1,8 +1,33 @@
 # Math headers
 
 `include/SushiBLAS/engine/math` declares the elementwise, non-linear, random and reduction operation
-classes, the executor of each family under `<family>/dispatch.hpp`, and the scalar helpers in
+views, the executor of each family under `<family>/dispatch.hpp`, and the scalar helpers in
 `safe_math.hpp`.
+
+| File | Declares |
+| --- | --- |
+| `elementwise.hpp` | `ElementwiseOps`, the per-element math operations |
+| `nonlinear.hpp` | `NonLinearOps`, the activation functions and their backward passes |
+| `random.hpp` | `RandomOps`, the random fills and initialisers |
+| `reductions.hpp` | `ReductionOps`, the whole-tensor and per-axis reductions |
+| `safe_math.hpp` | Scalar math helpers that stay well-formed for real and complex element types |
+| `elementwise/dispatch.hpp` | `execute_unary_inplace`, `execute_binary`, `execute_zip_inplace` |
+| `elementwise/map_task.hpp` | `MapTask` and `ZipTask`, the task bodies of the per-element seams |
+| `elementwise/scalar.hpp` | `ElementScalar`, a double parameter narrowed once to every element type |
+| `elementwise/scalar_binding.hpp` | `bind_scalars`, which narrows a functor's scalar parameters on the host |
+| `elementwise/read_binding.hpp` | `bind_reads`, which declares the tensors a functor reads at execution time |
+| `elementwise/wrapping_math.hpp` | The arithmetic functors that wrap modulo 2^N on integer element types |
+| `nonlinear/dispatch.hpp` | `execute_nonlinear_forward`, `execute_nonlinear_backward` |
+| `random/dispatch.hpp` | `execute_random`, `RandomFill`, `Sampling` and `require_random_dtype` |
+| `reductions/dispatch.hpp` | The reduction executors and the span builders they share |
+| `reductions/arg_reduction.hpp` | `ArgReductionDispatch`, the dispatcher of `argmax` and `argmin` |
+| `reductions/centred_reduction.hpp` | `CentredReductionDispatch`, the dispatcher of `var`, `std` and `logsumexp` |
+
+Every executor takes a `TaskRecorder&` as its first argument and returns a `TaskHandle`. A
+record-time refusal of an operand, a dtype or a parameter is `std::invalid_argument`; a
+device-only tensor under `FORCE_REFERENCE` and a dtype a tensor's device cannot compute in are
+`UnsupportedExecution`. Each family has a host path under `FORCE_REFERENCE`: a serial loop over
+the same functor the SYCL kernel runs.
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to. The header states the rule in one line and cites
@@ -22,7 +47,7 @@ gradients cast back up before they reach an optimiser that must not accumulate i
 **Why it lives here and not beside `copy`.** `Level1` is the BLAS level-1 surface, and reference
 BLAS has no converting copy at any level: every routine there is fixed to a single precision, which
 is why `?copy` carries one type letter and not two. Putting a routine that is not in the standard
-under `engine.blas()` would cost that accessor the only thing it means. What is left is the family
+on `BLASOps` would cost that view the only thing it means. What is left is the family
 this op already belongs to by shape: `dst[i]` is a function of `src[i]` and of nothing else, which
 is the sentence `ElementwiseOps` opens with. The only thing separating it from every other
 elementwise op is that its input and output element types differ, and that is a property of the
@@ -67,11 +92,65 @@ arena-packed fp32/fp16 pair this op exists to serve.
   shape and, at rank 2 or more, the same layout as `src`, and not overlap it: each work-item reads one element and writes another of a
   different width, so a partial overlap is a race no launch shape can fix.
 
-Returns: An empty sycl::event; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
 
 Throws `std::invalid_argument`, naming the offending operand, if it is storage-less or
-non-contiguous or if the two shapes or layouts disagree. Throws `std::runtime_error` naming both dtypes if
-either falls outside `Domain::REAL`, and if the operands overlap.
+non-contiguous, if the two shapes or layouts disagree, if its dtype falls outside `Domain::REAL`,
+and if the operands overlap. Throws `UnsupportedExecution` as `Dispatch::require_device_dtype` and
+`TaskRecorder::record_pair` state.
+
+### `ElementwiseOps::clamp`
+
+`min_val > max_val` throws `std::invalid_argument` when the call is recorded.
+
+## The per-element seam
+
+The executors in `elementwise/dispatch.hpp`, `nonlinear/dispatch.hpp` and `logic/dispatch.hpp`
+share one task body. Each checks its operands, declares them in an `OperandSet` and records a
+`Detail::MapTask` (one output from some inputs) or a `Detail::ZipTask` (N tensors advanced
+together) through `TaskRecorder::record_pair`. The functor the caller hands over is one of three
+things:
+
+- a bare callable over elements;
+- a `bind_scalars(fn, s0, s1, ...)` bundle, whose scalars the seam narrows to the element type on
+  the host and passes after the elements;
+- a `bind_reads(fn, read_as_element(t0), read_as<U>(t1), ...)` bundle, whose tensors the seam
+  checks, declares on the task and passes as typed pointers after the elements. `fn` may itself
+  be a `bind_scalars` bundle, and its scalars then come last.
+
+### `elementwise/map_task.hpp`
+
+`MapTask` and `ZipTask` hold the dtype, the base addresses, the element count and the functor. Under
+`FORCE_REFERENCE` the body runs `Serial::map` or `Serial::zip_inplace` on the host; under any other
+mode it submits one kernel through `Launch::map` or `Launch::zip_inplace`, with the launch shape
+planned from the queue's device. Both paths call the same functor, so the host path is not a second
+implementation of the operation. `make_map_task` builds a `MapTask` from the seam's arguments.
+
+### `elementwise/scalar_binding.hpp`
+
+`bind_scalars` returns a `ScalarBound`, which holds each scalar as an `ElementScalar` and stays on
+the host. Inside the `with_element_type` arm the seam calls `narrow_for(tag, op)`, which returns a
+`NarrowedOp<Fn, T, N>` holding the scalars in the element type `T`; that is what the kernel
+captures. A HALF or FLOAT32 kernel therefore carries no double. A plain functor passes through
+`narrow_for` unchanged.
+
+### `elementwise/read_binding.hpp`
+
+A functor that dereferences a tensor the seam does not know about, such as a per-channel table,
+reads memory the task never declared, and the graph is free to run the task that writes it at the
+same time. `bind_reads` closes that: `read_as_element(t)` names a tensor read as an array of the
+operation's own element type and `read_as<U>(t)` one read as an array of `U`. The seam then
+
+- checks each read with `ReadBound::require`: it must hold elements, have storage, hold the dtype
+  it was declared with and be contiguous, and its device must be able to compute in that dtype;
+- declares each read with `ReadBound::declare_into`, which refuses a read that overlaps a region
+  the task writes;
+- keeps only the base addresses in the task (`AddressedOp`) and hands the kernel a `ReadingOp`
+  typed for `T`.
+
+Declaring a read also retains its storage until the task is destroyed, and a device-only read is
+refused under `FORCE_REFERENCE` with the operands. A bare functor declares nothing:
+`require_declared_reads` and `declare_reads` are no-ops for it.
 
 ## `elementwise/dispatch.hpp`
 
@@ -79,7 +158,7 @@ either falls outside `Domain::REAL`, and if the operands overlap.
 
 An operand with zero elements is legal. Every executor in this header, in `nonlinear/dispatch.hpp`
 and in `logic/dispatch.hpp` runs its shape, layout, dtype and domain checks, then returns a default
-`sycl::event` without recording a task when the output holds no elements. A tensor with zero
+`TaskHandle` without recording a task when the output holds no elements. A tensor with zero
 elements needs no storage, and the executor never calls `data()` on it. `ElementwiseOps::convert`
 follows the same rule.
 
@@ -103,8 +182,9 @@ Warning: This is a low-level generic seam, not a convenience wrapper. `op_func` 
 SYCL device kernel, so it must be device-copyable and trivially copyable, must capture by value
 only, must not dereference host pointers or touch host-only state, must not allocate, and must not
 throw: none of which the compiler will always diagnose for you. Element type conversions are the
-functor's job: whatever it returns is assigned straight back into the tensor's storage. `params`
-exceeds the task metadata's inline capacity.
+functor's job: whatever it returns is assigned straight back into the tensor's storage. A tensor
+the functor reads goes through `bind_reads`, not through a captured pointer. A `params` list longer
+than the task metadata's inline capacity throws `std::invalid_argument`.
 
 ### `execute_binary`
 
@@ -131,7 +211,7 @@ launch and one pass over memory:
 
 ```cpp
 // theta, g, m, v and ema advanced together, in one kernel.
-Dispatch::execute_zip_inplace(engine, std::array{&theta, &g, &m, &v, &ema},
+Dispatch::execute_zip_inplace(engine.get_recorder(), std::array{&theta, &g, &m, &v, &ema},
     "optim.adamw", "optim.adamw"_op,
     [b1, b2, lr, wd, eps, inv_bc1, inv_bc2, decay]
     (auto& theta_i, auto& g_i, auto& m_i, auto& v_i, auto& ema_i)
@@ -166,9 +246,10 @@ against each other.
 - `tensors`: The tensors to advance together, in the order `op_func` expects them. None may be null;
   all must share one shape, layout and dtype.
 - `op_func`: Callable `(auto&...) -> void` taking exactly N lvalue references, invoked once per
-  element index on device.
+  element index, or a `bind_scalars` or `bind_reads` bundle of one.
 
-Returns: An empty sycl::event; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task, or a default one when the tensors hold no
+elements; the work is deferred until `Engine::execute()`.
 
 Warning: Same device-kernel constraints as `execute_binary:` `op_func` is inlined into the kernel,
 so it must be device-copyable, capture by value, hold no host pointers, allocate nothing and throw
@@ -179,10 +260,9 @@ handed to `op_func`, and written back, so a write through one operand is not vis
 operand that happens to name the same address. Disjoint views of one arena are fine; two views of
 the same bytes are not.
 
-Throws `std::invalid_argument` if a tensor is storage-less or non-contiguous, or if its shape or
-layout differs from operand 0's (the message names which one). Throws `std::runtime_error` if any
-tensor is null, if the dtypes disagree, if the dtype falls outside `Dom`, or if `params` exceeds
-the metadata's inline capacity.
+Throws `std::invalid_argument` if a tensor is null, storage-less or non-contiguous, if its shape,
+layout or dtype differs from operand 0's (the message names which one), if
+the dtype falls outside `Dom`, or if `params` exceeds the metadata's inline capacity.
 
 `execute_zip_inplace` declares every operand as both a read and a write: the functor may touch any
 of them, and nothing at this layer can tell which ones it actually did.
@@ -249,10 +329,21 @@ gain^2 I` when the matrix is wide and `Q^T Q = gain^2 I` when it is tall.
 
 ### `RandomOps::shuffle`
 
-A Fisher-Yates shuffle over the flat element sequence, driven by the engine's Philox stream: the
-output is always a permutation of the input, and replaying it from the same engine seed reproduces
+A Fisher-Yates shuffle over the flat element sequence, driven by the view's Philox stream: the
+output is always a permutation of the input, and replaying it from the same seed reproduces
 the same permutation. It accepts HALF, FLOAT32, FLOAT64, COMPLEX32 and COMPLEX64, since it moves
 elements rather than computing on them. INT32 and INT64 are refused when the call is recorded.
+
+### `RandomOps::poisson` on a device without fp64
+
+The kernel draws in double precision for every dtype, so `poisson` throws `UnsupportedExecution`
+at record time when `t` has elements and its device lacks the fp64 aspect, whatever the dtype of
+`t`.
+
+### `RandomOps::truncated_normal`
+
+Bounds that are not finite with `a < b`, and bounds that enclose no probability mass in `t`'s
+dtype, throw `std::invalid_argument`.
 
 ## `random/dispatch.hpp`
 
@@ -304,40 +395,65 @@ Returns: The submitted work's event.
 Warning: `draw_block` is inlined into a SYCL device kernel: it must be device-copyable, capture by
 value only, hold no host pointers, allocate nothing and throw nothing.
 
+### `serial_random_fill` and `RandomFill`
+
+`serial_random_fill` is the host path of the same fill: it walks the blocks in order on the
+host and writes what `draw_block` returns. `RandomFill` is the launcher a task body
+receives. It holds the task's `KernelPairDispatcher`, the queue and the dependencies, and
+`fill(n, out, draw_block)` runs `serial_random_fill` under `FORCE_REFERENCE` and
+`submit_random_fill` otherwise. A distribution writes `draw_block` once and gets both paths.
+
 ### `execute_random`
 
 The generic seam behind every `RandomOps` distribution. It owns the parts every distribution shares,
-graph bookkeeping, drawing a fresh counter offset from the engine so two tasks never reuse a Philox
-(key, counter) pair, and the dtype switch, and leaves the actual draw to the caller's functor.
+graph bookkeeping, reserving a fresh counter offset from the `RngStream` it is given so two tasks
+never reuse a Philox (key, counter) pair, and the dtype switch, and leaves the actual draw to the
+caller's functor.
 
+- `recorder`, `stream`: The recorder the task is recorded through and the stream it draws from.
+  `RandomOps` passes its own two references.
 - `Dom`: The element families the distribution draws, `Domain::REAL` or
   `Domain::REAL_AND_COMPLEX`. The task instantiates `task_func` only for the types `Dom` admits,
   so a distribution that refuses complex carries no complex branch.
 - `params`: The distribution's own parameters, recorded in metadata slots 0..n-1.
-- `task_func`: Callable `(auto scalar_type, sycl::queue&, uint64_t seed, uint64_t offset, int64_t
-  size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event`, generic over the runtime
-  dtype via `decltype(scalar_type)`.
+- `task_func`: Callable `(auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,
+  uint64_t offset, int64_t size, auto* pT) -> sycl::event`, generic over the runtime dtype via
+  `decltype(scalar_type)`. It returns what `fill(...)` returns.
 
-Returns: An empty sycl::event; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
 
-Warning: This is a low-level generic seam. Whatever `task_func` submits runs on the device: any
-nested lambda must be device-copyable, capture by value, hold no host pointers, allocate nothing and
-throw nothing. Draw through `Kernels::SYCL::Random` rather than a stateful host RNG.
+Warning: This is a low-level generic seam. The `draw_block` that `task_func` hands to `fill` runs
+on the device: it must be device-copyable, capture by value, hold no host pointers, allocate
+nothing and throw nothing. Draw through `Kernels::SYCL::Random` rather than a stateful host RNG.
 
 Throws `std::invalid_argument` through `require_random_dtype` for HALF, the integer dtypes and any
-dtype outside `Dom`, and for a tensor without storage or not contiguous. Throws
-`std::runtime_error` if `params` exceeds `K_MAX_RNG_PARAMS`. All of these fire at record time, so
-the caller sees the error on the line that queued the op and the graph never holds a task that
-cannot run.
+dtype outside `Dom`, for a tensor without storage or not contiguous, and if `params` exceeds
+`K_MAX_RNG_PARAMS`. Throws `UnsupportedExecution` for a dtype the device of `t` cannot compute in
+and for a device-only `t` under `FORCE_REFERENCE`. All of these fire at record time and before the
+offset is reserved, so a refused call does not move the stream.
 
 ## `reductions.hpp`
 
 ### `ReductionOps::max` and `ReductionOps::min`
 
 Both propagate NaN, as NumPy does: one NaN element anywhere makes the result NaN, on every device
-and launch shape. They fold through `Reduce::reduce` with a NaN-propagating accumulator local to
-each source file. An empty tensor gives `std::numeric_limits<T>::lowest()` for `max` and
-`std::numeric_limits<T>::max()` for `min`. `src/README.md` describes the accumulators.
+and launch shape. They fold through `execute_folding_reduction` with
+`Reduce::NaNPropagatingMax` and `Reduce::NaNPropagatingMin` from
+`<SushiBLAS/support/reduce_1d.hpp>`. An empty tensor throws `std::invalid_argument` when the call
+is recorded, as it does for `mean`, `argmax`, `argmin`, `var`, `std` and `logsumexp`.
+
+### `ReductionOps::argmax`, `argmin`
+
+Each records through `execute_index_reduction` with a `Dispatch::ArgReductionDispatch` over
+`Reduce::RunningArgMax` or `RunningArgMin`. The partials are (value, index) pairs, and the lowest
+index of the extreme value wins. `reductions/arg_reduction.hpp` holds the dispatcher.
+
+### `ReductionOps::var`, `std`, `logsumexp`
+
+Each records through `execute_reduction` with a `Dispatch::CentredReductionDispatch`, which runs
+two fixed-order stages: a first fold that yields a centre (the mean, or the maximum for
+`logsumexp`), then a compensated sum of terms taken against it. `reductions/centred_reduction.hpp`
+holds the dispatcher and the functors of the three operations.
 
 ### `ReductionOps::max_along`
 
@@ -349,6 +465,12 @@ and its row sum becomes exactly zero.
 
 Deterministic by construction, like every other folding reduction here; see
 `<SushiBLAS/support/reduce_axis.hpp>`.
+
+A NaN in a segment makes that segment's result NaN: the fold is `Reduce::NaNPropagatingMax`.
+
+### `ReductionOps::min_along`
+
+The per-axis minimum, through the same seam with `Reduce::NaNPropagatingMin`.
 
 ### `ReductionOps::sum_along`
 
@@ -417,9 +539,9 @@ this op reproducible.
   tell a caller their tensor had been screened when the question was never asked of it.
 - `result`: Scalar output tensor; must be rank-anything with exactly one element and dtype INT64.
 
-Returns: sycl::event.
+Returns: The `TaskHandle` of the recorded task.
 
-Throws `std::runtime_error` if `result` is not a scalar or not INT64, or if `t`'s dtype is not one
+Throws `std::invalid_argument` if `result` is not a scalar or not INT64, or if `t`'s dtype is not one
 of HALF / FLOAT32 / FLOAT64.
 
 ## `reductions/dispatch.hpp`
@@ -433,6 +555,11 @@ to free it would add two submissions to every reduction on every replay of the g
 exactly the launch cost the last two commits existed to remove. A buffer taken when the task is
 recorded costs nothing on any subsequent replay.
 
+The buffer is a `ScratchBuffer` leased from the recorder's `ScratchPool` on the device of the
+operand. The task holds the lease, so the block is lent for as long as the graph holds the task.
+`leased_partials` returns 0 under `FORCE_REFERENCE`, whose host fold stages nothing, so no block
+is leased in that mode.
+
 ### `execute_reduction`
 
 The generic seam behind every `ReductionOps` entry point. Unlike the elementwise and logic families,
@@ -442,28 +569,45 @@ Callers that want the library's own deterministic shape should reach for `execut
 instead, which is `execute_reduction` with that shape already filled in.
 
 - `result`: The scalar (single-element) output tensor; must share `t`'s dtype.
-- `dispatch`: A generic lambda with the signature `(sycl::queue& q, const auto* pT, auto* pR,
-  int64_t size, auto scratch, const std::vector<sycl::event>& deps) -> sycl::event`, instantiated
-  once per supported element type. `scratch` is a `ReductionScratch` of the same element type as
-  `pT`; it is spelled `auto` because a generic lambda deduces each parameter independently and so
-  cannot name that type in its own parameter list.
+- `dispatch`: A dispatcher object with two paths. The SYCL path is `sycl::event
+  operator()(sycl::queue& q, const T* in, Out* out, int64_t size, ReductionScratch<P> scratch,
+  const std::vector<sycl::event>& deps) const`; the host path is `void reference(const T* in,
+  Out* out, int64_t size) const`. A lambda has no `reference` and is refused by a `static_assert`
+  in `Detail::ReductionTask`: write a class, as `FoldingReductionDispatch` and
+  `CentredReductionDispatch` are.
 - `scratch_elements`: How many per-work-group partials the dispatcher wants room for. Zero, the
-  default, allocates nothing and hands the dispatcher an empty `ReductionScratch`, which is what
-  every single-pass reduction (argmax, var, logsumexp, ...) wants.
-  `SushiBLAS::Reduce::planned_partials` is how to compute it.
+  default, leases nothing and hands the dispatcher an empty `ReductionScratch`.
+  `planned_partials_for(t)` computes it from the device `t` lives on.
 
-Returns: An empty sycl::event; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
 
-Warning: This is a low-level generic seam. Whatever `dispatch` submits runs on the device, so any
-lambda it nests must be device-copyable, capture by value, hold no host pointers, allocate nothing
-and throw nothing. `dispatch` itself runs on the host at execution time and owns the
+Warning: This is a low-level generic seam. Whatever the SYCL path submits runs on the device, so
+any lambda it nests must be device-copyable, capture by value, hold no host pointers, allocate
+nothing and throw nothing. The SYCL path itself runs on the host at execution time and owns the
 `depends_on(deps)` call: dropping it silently breaks the graph's ordering guarantees.
 
-Throws `std::runtime_error` if `result` is not scalar, if the dtypes disagree, or if the dtype is
-one reductions do not support (HALF, FLOAT32 and FLOAT64 are; the complex types are not, since a
-reduction's operators need an ordering and an identity that `std::complex` does not supply).
+Throws `std::invalid_argument` if an operand has no storage, if `t` is not contiguous, if `result`
+is not scalar, if the dtypes disagree, or if the dtype is one reductions do not support (HALF,
+FLOAT32 and FLOAT64 are; the complex types are not, since a reduction's operators need an ordering
+and an identity that `std::complex` does not supply). Throws `UnsupportedExecution` for a dtype a
+tensor's device cannot compute in and for a device-only tensor under `FORCE_REFERENCE`; the
+refusal comes before the scratch is leased.
 
-At `std::vector<SushiRuntime::Core::ResourceRegion> reads = {t.region()};`: `Tensor::region()`,
+### `Detail::ReductionTask`
+
+The task body of the three whole-tensor executors. Under `FORCE_REFERENCE` it calls
+`dispatch.reference(in, out, size)` on the host; otherwise it calls the SYCL path with
+the leased scratch. `has_reference_path` is the trait its `static_assert` tests.
+
+### `finalize_keeps_width`
+
+The host fold of a sum runs in `double` whatever the element type, and hands `finalize` that
+`double`. A `finalize` that returns a narrower type would round the host result differently from
+the SYCL one, so `require_finalize_keeps_width` refuses it at compile time. Write `finalize` as
+`[](auto value, std::size_t n) { ... }` and return the type it is handed; the seam narrows the
+result once, on the store.
+
+At `operands.reads(t).writes(result);`: `Tensor::region()`,
 never the bare `data()` pointer. A region is keyed on the *allocation base* and narrowed to the
 view's byte interval; a bare pointer converts to the whole-buffer region of whatever it points at.
 For a tensor at offset zero those are the same thing, which is why this went unnoticed, but for two
@@ -473,10 +617,10 @@ that produced its input, and the result is a plausible wrong number with no erro
 SushiAI's first arena-packed training run lost exactly this way (a loss of -57 where ln 6 was
 expected).
 
-At `const std::size_t bpe = Core::bytes_per_element(t.dtype);`: scratch is a declared resource, not
-a hidden one. Each recorded reduction owns its own allocation today, so there is nothing for the
-tracker to order it against, but declaring it is what keeps that true if the scratch ever comes from
-a shared pool, and it is described by a precise region for the same reason the operands are.
+At `operands.scratch(scratch);`: scratch is a declared resource, not a hidden one. It comes from
+a pool, and a block goes back to the shelf only when the task that leased it is destroyed, so two
+tasks in one graph never hold the same block. It is declared as a write with its own region all
+the same, for the reason the operands are.
 
 ### `execute_index_reduction`
 
@@ -490,16 +634,18 @@ Here the input dtype and the result dtype are separate questions: the input may 
 ordering is defined on, and the result is an `int64_t` in an INT64 tensor, which is what an index
 is.
 
-- `dispatch`: A generic callable `(sycl::queue& q, const auto* pT, int64_t* pR, int64_t size, const
-  std::vector<sycl::event>& deps) -> sycl::event`, instantiated once per supported input element
-  type.
+- `dispatch`: A two-path dispatcher, as `execute_reduction` takes, whose output is `int64_t` and
+  whose partials are `Reduce::IndexedValue<T>`: a (value, index) pair, 16 bytes for every element
+  type served.
+- `scratch_elements`: Per-work-group partials to lease; zero leases nothing.
 
-Returns: An empty sycl::event; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
 
 Warning: Same device-kernel constraints as `execute_reduction`.
 
-Throws `std::runtime_error` if `result` is not a scalar, if it is not INT64, or if the input dtype
-is one an ordering is not defined on (the complex types).
+Throws `std::invalid_argument` if `t` is empty, if `result` is not a scalar, if it is not INT64, or
+if the input dtype is one an ordering is not defined on (the complex types). Throws
+`UnsupportedExecution` as `execute_reduction` does.
 
 `execute_index_reduction` dispatches over `Domain::REAL_AND_INTEGRAL`: "which element is largest"
 needs an ordering, which the complex types do not have and the integer types do.
@@ -507,12 +653,12 @@ needs an ordering, which the complex types do not have and the integer types do.
 ### `execute_counting_reduction`
 
 The third of this family's three executors, and the two it is not are the clearest way to say what
-it is. `execute_reduction` folds a tensor into a scalar of the *same* dtype and owns a scratch
-buffer of that dtype; `execute_index_reduction` answers with an `int64_t` and owns no scratch,
-because a serial scan for "which element" has no partials to stage. This one is the remaining
-corner: an `int64_t` answer *and* a partials buffer, because the question it serves, how many
-elements satisfy a predicate, is a fold over the whole tensor and wants the two-stage shape rather
-than one work-item walking every element.
+it is. `execute_reduction` folds a tensor into a scalar of the *same* dtype and leases a scratch
+of that dtype's accumulation type; `execute_index_reduction` answers with an `int64_t` index and
+stages (value, index) pairs. This one is the remaining corner: an `int64_t` answer that is a
+count, with `int64_t` partials, because the question it serves, how many elements satisfy a
+predicate, is a fold over the whole tensor and wants the two-stage shape rather than one work-item
+walking every element.
 
 They stay three rather than one because merging them means making the result element type a template
 parameter of a helper whose entire job is to hide the element type, and every call site would then
@@ -527,21 +673,19 @@ to have escaped: a count is only exact in fp32 below 2^24 and in fp16 below 2048
 past 65504 comes back as an infinity, so the tensors most worth counting are the ones whose count
 would be wrong.
 
-- `dispatch`: A generic callable `(sycl::queue& q, const auto* pT, int64_t* pR, int64_t size,
-  ReductionScratch<int64_t> scratch, const std::vector<sycl::event>& deps) -> sycl::event`,
-  instantiated once per supported input element type. `scratch` is spelled `auto` in a generic
-  lambda for the reason `execute_reduction` gives.
-- `scratch_elements`: How many per-work-group partials the dispatcher wants room for; zero allocates
-  nothing. `SushiBLAS::Reduce::planned_partials` is how to compute it.
+- `dispatch`: A two-path dispatcher, as `execute_reduction` takes, whose output is `int64_t` and
+  whose scratch is a `ReductionScratch<int64_t>`.
+- `scratch_elements`: How many per-work-group partials the dispatcher wants room for; zero leases
+  nothing. `planned_partials_for(t)` is how to compute it.
 
-Returns: An empty sycl::event; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
 
 Warning: Same device-kernel constraints as `execute_reduction`.
 
-Throws `std::runtime_error` if `result` is not a scalar, if it is not INT64, or if the input dtype
-is outside `Domain::REAL`.
+Throws `std::invalid_argument` if `result` is not a scalar, if it is not INT64, or if the input dtype
+is outside `Domain::REAL`. Throws `UnsupportedExecution` as `execute_reduction` does.
 
-At `std::vector<SushiRuntime::Core::ResourceRegion> reads = {t.region()};`: `Tensor::region()`,
+At `operands.reads(t).writes(result);`: `Tensor::region()`,
 never the bare `data()` pointer: the reason is spelled out at length under `execute_reduction`, and
 it is the same reason here.
 
@@ -556,8 +700,10 @@ scratch is sized from `sizeof(int64_t)` rather than from the tensor's element wi
 
 ### `execute_folding_reduction`
 
-The seam every order-sensitive reduction in the library goes through: `sum`, `mean`, `asum`, `nrm2`
-and `prod` are each one call to this, differing only in `Accum`, `transform` and `finalize`. That is
+The seam every order-sensitive reduction in the library goes through: `sum`, `mean`, `asum`, `nrm2`,
+`prod`, `max` and `min` are each one call to this, differing only in `Accum`, `transform` and
+`finalize`. It is `execute_reduction` with a `FoldingReductionDispatch`, whose SYCL path is
+`Reduce::reduce<Accum>` and whose host path is `Serial::reduce<Accum>`. That is
 the point: the part of a reduction that is hard to get right is the *combination order*, and putting
 it in five places is five chances to get it wrong. See `<SushiBLAS/support/reduce_1d.hpp>` for the
 shape and for why `sycl::reduction` and `sycl::reduce_over_group` are both unusable here.
@@ -569,27 +715,29 @@ the caller never sees an allocator.
 // A root-mean-square reduction a consumer could write, deterministic and
 // compensated, in one call and one kernel:
 Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(
-    engine, t, result, "nn.rms", "nn.rms"_op,
+    engine.get_recorder(), t, result, "nn.rms", "nn.rms"_op,
     [](auto x) { return x * x; },
     [](auto v, std::size_t n) { return sycl::sqrt(v / decltype(v)(n)); });
 ```
 
 - `Accum`: The accumulation policy: `SushiBLAS::Reduce::CompensatedSum` for anything additive,
-  `SushiBLAS::Reduce::RunningProduct` for a product.
+  `SushiBLAS::Reduce::RunningProduct` for a product, `SushiBLAS::Reduce::NaNPropagatingMax` or
+  `NaNPropagatingMin` for an extreme.
 - `result`: The scalar (single-element) output tensor; must share `t`'s dtype.
-- `transform`: Callable `(auto x) -> auto`, applied to each element before it is folded in. Pass the
-  identity for a plain sum.
+- `transform`: Callable `(auto x) -> auto`, applied to each element before it is folded in. Pass
+  `ReduceIdentityTransform{}` for a plain sum.
 - `finalize`: Callable `(auto value, std::size_t n) -> auto`, applied once to the folded result.
-  Pass the identity when there is nothing to do; it is folded into the last kernel either way, so
-  `mean` and `nrm2` cost no more launches than `sum`.
+  Pass `ReduceIdentityFinalize{}` when there is nothing to do; it is folded into the last kernel
+  either way, so `mean` and `nrm2` cost no more launches than `sum`. `value` is `double` on the
+  host path of a sum; see `finalize_keeps_width`.
 
-Returns: An empty sycl::event; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
 
 Warning: `transform` and `finalize` are inlined into a SYCL device kernel and carry the same
 constraints as every other functor in this family: device-copyable, capture by value, no host
 pointers, no allocation, no exceptions.
 
-Throws `std::invalid_argument` and `std::runtime_error` for the same reasons `execute_reduction`
+Throws `std::invalid_argument` and `UnsupportedExecution` for the same reasons `execute_reduction`
 does. The storage check runs before the partials are sized.
 
 At `const std::size_t partials =`: sized from the device the data lives on, which is the device the
@@ -618,7 +766,7 @@ than derive it a second time.
 
 Returns: The span describing every segment.
 
-Throws `std::runtime_error` if `t` is not rank 2, if `axis` is not 0 or 1, if `result` is not rank
+Throws `std::invalid_argument` if `t` is not rank 2, if `axis` is not 0 or 1, if `result` is not rank
 1, or if `result`'s length does not match the surviving extent.
 
 `const int kept = 1 - axis;` in `axis_span_for`: the axis that survives is the one that is not
@@ -644,21 +792,23 @@ a row-sliced view by name rather than reading past the end of one.
 
 Returns: The span describing every `(n, c)` fold.
 
-Throws `std::runtime_error` if `t` is not rank 4, if `result` is not rank 2, if `result`'s shape is
+Throws `std::invalid_argument` if `t` is not rank 4, if `result` is not rank 2, if `result`'s shape is
 not `[N, C]`, or if `t` is a row-sliced view whose H and W cannot be walked as one run.
 
 ### `execute_folding_span_reduction`
 
 The axis-wise counterpart of `execute_folding_reduction`, and the seam every axis reduction in the
-library goes through. `max_along` and `sum_along` are each one call to this, differing only in
-`Accum`; a per-axis mean is `Reduce::CompensatedSum` with `v / n` as its finalizer and a per-axis
-minimum is a four-line accumulator, neither of which re-cuts anything here.
+library goes through. `max_along`, `min_along` and `sum_along` are each one call to this,
+differing only in `Accum`; a per-axis mean is `Reduce::CompensatedSum` with `v / n` as its
+finalizer, which re-cuts nothing here. The task body is a `Detail::SpanReductionTask`: the SYCL
+path is the segmented launch of `<SushiBLAS/support/reduce_axis.hpp>`, and the host path folds
+each segment in index order.
 
 ```cpp
 // Row-wise maximum of a [rows, cols] tensor into a [rows] vector -
 // the shift a numerically honest log-softmax needs.
-Dispatch::execute_folding_axis_reduction<Reduce::RunningMax>(
-    engine, x, 1, row_max, "math.max_along", "math.max_along"_op,
+Dispatch::execute_folding_axis_reduction<Reduce::NaNPropagatingMax>(
+    engine.get_recorder(), x, 1, row_max, "math.max_along", "math.max_along"_op,
     Dispatch::ReduceIdentityTransform{}, Dispatch::ReduceIdentityFinalize{});
 ```
 
@@ -667,30 +817,30 @@ rather than an omission: a segmented reduction's work-groups never contribute to
 there are no partials to stage between two kernels. See `<SushiBLAS/support/reduce_axis.hpp>` for the
 two launch shapes and for the determinism argument, which is the same one `reduce_1d.hpp` makes.
 
-- `Accum`: The accumulation policy: `SushiBLAS::Reduce::RunningMax`,
-  `SushiBLAS::Reduce::CompensatedSum` for anything additive, `SushiBLAS::Reduce::RunningProduct` for
-  a product.
+- `Accum`: The accumulation policy: `SushiBLAS::Reduce::NaNPropagatingMax` or
+  `NaNPropagatingMin`, `SushiBLAS::Reduce::CompensatedSum` for anything additive,
+  `SushiBLAS::Reduce::RunningProduct` for a product.
 - `span`: The segment geometry, from `axis_span_for` or `spatial_span_for`. Nothing here re-derives
   it: `execute_folding_span_reduction` takes the layout as given and only owns the graph bookkeeping, the dtype switch
   and the launch.
 - `result`: The output tensor; must share `t`'s dtype.
 - `transform`: Callable `(auto x) -> auto`, applied to each element before it is folded in.
 - `finalize`: Callable `(auto value, std::size_t n) -> auto`, applied once per segment with `n` that
-  segment's element count.
+  segment's element count. `value` is `double` on the host path of a sum.
 
-Returns: An empty sycl::event; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
 
 Warning: `transform` and `finalize` are inlined into a SYCL device kernel and carry the same
 constraints as every other functor in this family: device-copyable, capture by value, no host
 pointers, no allocation, no exceptions.
 
-Throws `std::invalid_argument` if `t` or `result` holds elements but has no storage. Strided
-operands are accepted. Throws `std::runtime_error` if the dtypes disagree, or if the dtype is one
-reductions do not support
+Throws `std::invalid_argument` if `t` or `result` holds elements but has no storage, if the
+dtypes disagree, or if the dtype is one reductions do not support
 (HALF, FLOAT32 and FLOAT64 are; the complex types have no ordering or identity to fold with, and an
-integer result is what the index reductions answer with, not this).
+integer result is what the index reductions answer with, not this). Strided operands are
+accepted. Throws `UnsupportedExecution` as `execute_reduction` does.
 
-At `std::vector<SushiRuntime::Core::ResourceRegion> reads = {t.region()};`: `Tensor::region()`,
+At `operands.reads(t).writes(result);`: `Tensor::region()`,
 never the bare `data()` pointer, for exactly the reason spelled out under `execute_reduction`: a
 bare pointer widens to the whole-buffer region of whatever it points at, so two views inside one
 arena look like two different allocations, overlap() says false, and the tracker emits no edge at
@@ -712,8 +862,8 @@ fold forced: the geometry a segmented reduction runs on is no longer always deri
 and an axis number", but everything downstream of the span is identical, so the span is the seam and
 the axis is one way of building one.
 
-Throws `std::invalid_argument` if `t` or `result` holds elements but has no storage, and
-`std::runtime_error` for the reasons `axis_span_for` and `execute_folding_span_reduction` list.
+Throws `std::invalid_argument` for the reasons `axis_span_for` and
+`execute_folding_span_reduction` list.
 
 Warning: Same device-kernel constraints as `execute_folding_span_reduction`.
 

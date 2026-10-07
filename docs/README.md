@@ -7,7 +7,7 @@ to run its tests. This index reaches every other document.
 
 | Document | Holds |
 | --- | --- |
-| [Architecture](architecture/ARCHITECTURE.md) | The tensor and storage model, the engine, the execution modes, the dispatch helpers, the kernels, the SushiRuntime dependency and packaging |
+| [Architecture](architecture/ARCHITECTURE.md) | The layers, the execution modes, the tensor, storage and memory model, the engine, the recorder and the views, the dispatch seams and fusion hooks, the kernels and routines of each family, the SushiRuntime dependency, packaging and the exception types |
 
 ## Guides
 

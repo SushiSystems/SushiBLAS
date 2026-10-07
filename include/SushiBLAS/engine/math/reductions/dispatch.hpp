@@ -256,7 +256,7 @@ namespace SushiBLAS
          * @param result Must hold one element and share t's dtype.
          * @param dispatch Has the two paths Detail::ReductionTask names; its SYCL path must call `depends_on(deps)`.
          * @param scratch_elements Per-work-group partials to lease; zero leases nothing.
-         * @throws std::invalid_argument on an operand violation, or a device-only tensor under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand violation; UnsupportedExecution on a device-only tensor under FORCE_REFERENCE or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
@@ -536,7 +536,7 @@ namespace SushiBLAS
          * @param result Must be a scalar INT64 tensor.
          * @param dispatch Has the two paths Detail::ReductionTask names, over IndexedValue partials.
          * @param scratch_elements Per-work-group partials to lease; zero leases nothing.
-         * @throws std::invalid_argument on an operand violation, an empty t, or a device-only tensor under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand violation or an empty t; UnsupportedExecution on a device-only tensor under FORCE_REFERENCE or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
@@ -591,7 +591,7 @@ namespace SushiBLAS
          * @param result Must be a scalar INT64 tensor.
          * @param dispatch Has the two paths Detail::ReductionTask names, over INT64 partials.
          * @param scratch_elements Per-work-group partials to lease; zero leases nothing.
-         * @throws std::invalid_argument on an operand violation, or a device-only tensor under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand violation; UnsupportedExecution on a device-only tensor under FORCE_REFERENCE or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
@@ -779,7 +779,7 @@ namespace SushiBLAS
          * @brief Records a segmented reduction over a span, one result per segment.
          * @param span The segment geometry, from axis_span_for or spatial_span_for.
          * @param finalize Callable `(auto value, std::size_t n) -> auto`, applied once per segment; value is double on the host path of a sum.
-         * @throws std::invalid_argument on an operand violation, or a device-only tensor under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand violation; UnsupportedExecution on a device-only tensor under FORCE_REFERENCE or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<template<typename> class Accum, typename Transform, typename Finalize>

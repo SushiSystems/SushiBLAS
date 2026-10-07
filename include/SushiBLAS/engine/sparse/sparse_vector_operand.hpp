@@ -52,8 +52,8 @@ namespace SushiBLAS
          * @brief Returns the geometry of a sparse vector operand.
          * @throws std::invalid_argument on an index base outside its type, a negative size, an
          *         array that is not a contiguous rank-1 tensor with storage, an index dtype other
-         *         than INT32 or INT64 or too narrow for the size, arrays of different lengths, more
-         *         entries than the size, or a value dtype the device lacks.
+         *         than INT32 or INT64 or too narrow for the size, arrays of different lengths or
+         *         more entries than the size; UnsupportedExecution on a dtype the device lacks.
          * @see include/SushiBLAS/engine/sparse/README.md
          */
         [[nodiscard]] inline SparseVectorOperand describe_sparse_vector(const SparseVector& x,

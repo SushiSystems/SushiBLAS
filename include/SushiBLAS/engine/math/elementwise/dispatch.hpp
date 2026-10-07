@@ -56,8 +56,8 @@ namespace SushiBLAS
          * @brief Records a unary in-place elementwise op `t[i] = op(t[i])`, or nothing when t is empty.
          * @tparam Dom Defaults to Domain::REAL; a wider domain needs an op_func well-formed for it.
          * @param op_func Callable `(auto x) -> auto`, or a bind_scalars or bind_reads bundle of one.
-         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
-         *         or a device-only tensor under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand or declared-read violation, or too many params.
+         * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
@@ -96,8 +96,8 @@ namespace SushiBLAS
          * @brief Records a binary elementwise op `C[i] = op(A[i], B[i])`, or nothing when C is empty.
          * @param C May alias an input.
          * @param op_func Callable `(auto x, auto y) -> auto`, or a bind_scalars or bind_reads bundle of one.
-         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
-         *         or a device-only tensor under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand or declared-read violation, or too many params.
+         * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
@@ -147,8 +147,8 @@ namespace SushiBLAS
          * @brief Records a fused in-place op over N same-shaped tensors, or nothing when they are empty.
          * @param tensors None may be null; all must share one shape, layout and dtype, and none may overlap.
          * @param op_func Callable `(auto&...) -> void` over N lvalues, or a bind_scalars or bind_reads bundle of one.
-         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
-         *         or a device-only tensor under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand or declared-read violation, or too many params.
+         * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, std::size_t N, typename Func, typename Param = double>

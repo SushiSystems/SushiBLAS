@@ -4,10 +4,80 @@ Support code the functional tests include.
 
 | File | What it holds |
 | --- | --- |
-| `reference_reductions.hpp` | Serial reductions over a host vector, in namespace `ReferenceKernels` |
-| `test_environment.hpp` | The GoogleTest environment that owns the one `RuntimeContext` |
 | `test_main.cpp` | `main`: synchronous logging, the environment, then `RUN_ALL_TESTS` |
+| `test_environment.hpp` | The GoogleTest environment that owns the one `RuntimeContext` |
 | `test_utils.hpp` | Tensor fill and comparison helpers, the `SushiBLASTest` fixture, the suite macros |
+| `graph_probe.hpp` | `GraphProbe`, a task graph a test owns so it can read what its record calls added |
+| `reference_reductions.hpp` | Serial reductions over a host vector, in namespace `ReferenceKernels` |
+| `blas_flags.hpp` | The mappings from a test's bool parameters to the BLAS flag enumerations |
+| `blas_truth.hpp` | The double-precision truth a BLAS parity test measures both kernels against |
+| `blas_structured.hpp` | The conversions from a dense test matrix to CBLAS band and packed storage |
+| `packed_product_harness.hpp` | The problem, the data and the blockings the packed product tests share |
+| `sparse_samples.hpp` | The host matrices the sparse tests build from and the host products they expect |
+
+## graph_probe.hpp
+
+`Engine` has no accessor for its graph, so a test that asserts on what an operation declared
+cannot read it from an engine. `GraphProbe` owns a `ScratchPool`, a `TaskGraph` and a
+`TaskRecorder` over them on the shared test context. A test builds a view on
+`probe.get_recorder()`, records, and calls `take_nodes()`, which returns the nodes recorded
+since the last call and empties the graph. `execute()` compiles and runs what is recorded, as
+`Engine::execute` does. The constructor takes the execution mode the recorder records under.
+
+## blas_flags.hpp
+
+The BLAS suites are parameterised over `bool` values (transposed or not, upper or lower), and the
+public API takes `Core::Transpose`, `Core::Uplo`, `Core::Diag` and `Core::Side`. The four
+functions here map one to the other: `true` is `TRANS`, `UPPER`, `UNIT` and `LEFT`. A test names
+the flag it means at the call site and keeps its parameter list.
+
+## blas_truth.hpp
+
+The reference kernel sums in `double` and the SYCL kernel in the element type, so the two do not
+agree bit for bit on a rounded sum, and a comparison of one against the other cannot say which is
+off. Both are measured against a third value instead.
+
+`TruthSum` adds products of doubles and keeps the rounding error of each product and each
+addition, so its sum is what twice the working precision would give. `value()` returns the sum
+together with the magnitude behind it, the sum of the absolute values of the products.
+`rounding_bound(roundings, unit, magnitude)` is the largest error that many rounded operations
+can leave on a sum of that magnitude, and `unit_roundoff<Real>()` is the unit of the element
+type. A test asserts that each kernel lies within the bound of the truth.
+
+## blas_structured.hpp
+
+Builds the operands of the band and packed tests from a dense matrix given row by row:
+`in_layout` orders it for a layout, `to_band` and `to_triangle_band` lay it out as CBLAS band
+storage, and `to_packed` as CBLAS packed storage of one triangle. The expected result of a band or
+packed routine is then the result of its dense sibling on the same matrix.
+
+## packed_product_harness.hpp
+
+`GemmProblem<T>` owns the three operands of one batched GEMM in shared USM, with leading
+dimensions and batch strides larger than the extents, and runs the reference kernel, the packed
+kernel under a blocking a test chooses, and the kernel that takes no scratch on the same data.
+Each run returns the whole C buffer, padding included, so a test can check that no kernel wrote
+outside its matrices. C is filled with NaN before each run, so an element a kernel failed to
+write shows.
+
+The three blockings are the edges of the plan: every block one register block and one term deep,
+every block larger than any matrix, and a depth of 7 with two register blocks of rows and three
+of columns. Integer-valued data makes every sum exact, so the kernels can be compared bit for
+bit whatever order they add in.
+
+## sparse_samples.hpp
+
+`sample_matrix()` is a 4 x 5 matrix of seven entries with an empty row and no two values equal,
+listed out of row order so that assembly has to sort. `HostTriplets` holds a matrix as zero-based
+triplets; the expected product of a test is computed from them on the host in double, by a loop
+that shares no code with either kernel. `K_BOTH_BASES` and the list of execution modes are what
+every sparse suite runs over, and the typed suites cover every value dtype with both index
+widths.
+
+## The `Unit_Level2SyclParityTest` fixture
+
+`tests/functional/unit/test_level2_sycl_parity.cpp` runs GEMV and SYMV in a chosen execution mode
+and measures each against a `TruthSum`, as described under `blas_truth.hpp` above.
 
 ## test_utils.hpp
 

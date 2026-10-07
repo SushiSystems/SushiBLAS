@@ -2,18 +2,148 @@
 
 The kernels that are private to the library. An operation has a plain C++ kernel under
 `reference/`, which is the mathematical ground truth, and a SYCL kernel under `sycl/`, which runs
-on the device. The random kernels exist only under `sycl/`. GEMM's pair is not here: it is under
-`include/SushiBLAS/kernels/`, for the reason given under `kernels/blas.hpp` below.
+on the device. The random draws exist only under `sycl/`; the orthonormalisation sweep has both.
+GEMM's pair, the packed product and the access bricks the BLAS kernels read their operands through
+are not here: they are under `include/SushiBLAS/kernels/`, for the reason given under
+`kernels/blas.hpp` below.
 
 | Path | Holds |
 | --- | --- |
-| `blas.hpp` | The include of every BLAS kernel |
+| `blas.hpp`, `sparse.hpp`, `spatial.hpp`, `random.hpp` | The include of every kernel of one family |
 | `math.hpp` | No include |
-| `random.hpp` | The include of the SYCL random kernels |
-| `spatial.hpp` | The include of every spatial kernel |
-| `reference/blas/`, `sycl/blas/` | Levels 1 to 3; level 1 is one file per side, levels 2 and 3 one file per routine |
-| `reference/spatial/`, `sycl/spatial/` | im2col, col2im, pooling, upsampling, channel and broadcast copies |
+| `reference/blas/`, `sycl/blas/` | Levels 1 to 3. `level1.hpp` holds the vector routines of one side and the three rotation builders have a file each; levels 2 and 3 have one file per routine, and one per shared loop |
+| `sparse/` | `CsrPattern` and `IndexList`, how a kernel of either side reads a sparse operand |
+| `reference/sparse/`, `sycl/sparse/` | The sparse-dense level 1 routines, the CSR products and the triangular solve |
+| `reference/spatial/`, `sycl/spatial/` | im2col, col2im, pooling, the window product, upsampling, channel and broadcast copies |
+| `reference/random/` | The reference orthonormalisation sweep |
 | `sycl/random/` | Philox4x32-10, the Poisson and truncated normal draws, and the Gram-Schmidt sweep |
+
+## Files
+
+The include points:
+
+| File | Holds |
+| --- | --- |
+| `blas.hpp` | Includes every BLAS kernel, reference and SYCL |
+| `math.hpp` | Reserves the include point of the math kernels and includes nothing |
+| `random.hpp` | Includes the random kernels: the SYCL ones and the reference orthonormalisation |
+| `sparse.hpp` | Includes every sparse kernel, reference and SYCL |
+| `spatial.hpp` | Includes every spatial kernel, reference and SYCL |
+
+Dense BLAS, reference:
+
+| File | Holds |
+| --- | --- |
+| `reference/blas/level1/level1.hpp` | Defines the reference kernels of the BLAS level 1 routines |
+| `reference/blas/level1/rotg.hpp` | Defines the reference kernel of ROTG |
+| `reference/blas/level1/rotm.hpp` | Defines the reference kernel of ROTM |
+| `reference/blas/level1/rotmg.hpp` | Defines the reference kernel of ROTMG |
+| `reference/blas/level2/gbmv.hpp` | Defines the reference kernel of GBMV |
+| `reference/blas/level2/gemv.hpp` | Defines the reference kernel of GEMV |
+| `reference/blas/level2/ger.hpp` | Defines the reference kernel of GER, GERU and GERC |
+| `reference/blas/level2/sbmv.hpp` | Defines the reference kernel of SBMV and HBMV |
+| `reference/blas/level2/spmv.hpp` | Defines the reference kernel of SPMV and HPMV |
+| `reference/blas/level2/spr.hpp` | Defines the reference kernel of SPR and HPR |
+| `reference/blas/level2/spr2.hpp` | Defines the reference kernel of SPR2 and HPR2 |
+| `reference/blas/level2/symmetric_product.hpp` | Defines the reference symmetric matrix-vector product SBMV and SPMV share |
+| `reference/blas/level2/symv.hpp` | Defines the reference kernel of SYMV and HEMV |
+| `reference/blas/level2/syr.hpp` | Defines the reference kernel of SYR and HER |
+| `reference/blas/level2/syr2.hpp` | Defines the reference kernel of SYR2 and HER2 |
+| `reference/blas/level2/tbmv.hpp` | Defines the reference kernel of TBMV |
+| `reference/blas/level2/tbsv.hpp` | Defines the reference kernel of TBSV |
+| `reference/blas/level2/tpmv.hpp` | Defines the reference kernel of TPMV |
+| `reference/blas/level2/tpsv.hpp` | Defines the reference kernel of TPSV |
+| `reference/blas/level2/triangular_product.hpp` | Defines the reference triangular matrix-vector product TBMV and TPMV share |
+| `reference/blas/level2/triangular_solve.hpp` | Defines the reference triangular substitution TBSV and TPSV share |
+| `reference/blas/level2/trmv.hpp` | Defines the reference kernel of TRMV |
+| `reference/blas/level3/syr2k.hpp` | Defines the reference kernel of SYR2K and, under a conjugation policy, of HER2K |
+| `reference/blas/level3/syrk.hpp` | Defines the reference kernels of SYRK, single and batched |
+| `reference/blas/level3/trsm.hpp` | Defines the reference kernels of TRSM, single and batched |
+
+Dense BLAS, SYCL:
+
+| File | Holds |
+| --- | --- |
+| `sycl/blas/level1/level1.hpp` | Defines the SYCL kernels of the BLAS level 1 routines |
+| `sycl/blas/level1/rotg.hpp` | Defines the SYCL kernel of ROTG |
+| `sycl/blas/level1/rotm.hpp` | Defines the SYCL kernel of ROTM |
+| `sycl/blas/level1/rotmg.hpp` | Defines the SYCL kernel of ROTMG |
+| `sycl/blas/level2/gbmv.hpp` | Defines the SYCL kernel of GBMV |
+| `sycl/blas/level2/gemv.hpp` | Defines the SYCL kernel of GEMV |
+| `sycl/blas/level2/ger.hpp` | Defines the SYCL kernel of GER, GERU and GERC |
+| `sycl/blas/level2/row_reduction.hpp` | Defines the work-group-per-row reduction GEMV, SYMV and TRMV share |
+| `sycl/blas/level2/sbmv.hpp` | Defines the SYCL kernel of SBMV and HBMV |
+| `sycl/blas/level2/spmv.hpp` | Defines the SYCL kernel of SPMV and HPMV |
+| `sycl/blas/level2/spr.hpp` | Defines the SYCL kernel of SPR and HPR |
+| `sycl/blas/level2/spr2.hpp` | Defines the SYCL kernel of SPR2 and HPR2 |
+| `sycl/blas/level2/symmetric_product.hpp` | Defines the SYCL symmetric matrix-vector product SBMV and SPMV share |
+| `sycl/blas/level2/symv.hpp` | Defines the SYCL kernel of SYMV and HEMV |
+| `sycl/blas/level2/syr.hpp` | Defines the SYCL kernel of SYR and HER |
+| `sycl/blas/level2/syr2.hpp` | Defines the SYCL kernel of SYR2 and HER2 |
+| `sycl/blas/level2/tbmv.hpp` | Defines the SYCL kernel of TBMV |
+| `sycl/blas/level2/tbsv.hpp` | Defines the SYCL kernel of TBSV |
+| `sycl/blas/level2/tpmv.hpp` | Defines the SYCL kernel of TPMV |
+| `sycl/blas/level2/tpsv.hpp` | Defines the SYCL kernel of TPSV |
+| `sycl/blas/level2/triangular_product.hpp` | Defines the SYCL triangular matrix-vector product TBMV and TPMV share |
+| `sycl/blas/level2/triangular_solve.hpp` | Defines the SYCL triangular substitution TBSV and TPSV share |
+| `sycl/blas/level2/trmv.hpp` | Defines the SYCL kernel of TRMV: a snapshot of x, then one row product per element |
+| `sycl/blas/level3/syr2k.hpp` | Defines the SYCL kernel of SYR2K and, under a conjugation policy, of HER2K |
+| `sycl/blas/level3/syrk.hpp` | Defines the SYCL kernels of SYRK and HERK, their tile geometry and their packed store |
+| `sycl/blas/level3/triangular_plan.hpp` | Declares TriangularSolvePlan, the diagonal block size of a triangular solve on a device |
+| `sycl/blas/level3/triangular_system.hpp` | Declares TriangularSystem, the one substitution every side and flag of TRSM decodes to |
+| `sycl/blas/level3/trsm.hpp` | Defines the SYCL kernel of TRSM: a blocked substitution with parallel updates |
+
+Sparse:
+
+| File | Holds |
+| --- | --- |
+| `reference/sparse/level1.hpp` | Defines the reference kernels of the sparse-dense level 1 routines |
+| `reference/sparse/spmm.hpp` | Defines the reference kernel of the product of a sparse matrix and a dense matrix |
+| `reference/sparse/spmv.hpp` | Defines the reference kernel of the sparse matrix-vector product |
+| `reference/sparse/spsymv.hpp` | Defines the reference kernel of the symmetric and Hermitian sparse matrix-vector product |
+| `reference/sparse/sptrsv.hpp` | Defines the reference kernel of the sparse triangular solve |
+| `reference/sparse/structure.hpp` | Defines the host checks of the structure a sparse kernel takes on trust |
+| `sparse/csr_pattern.hpp` | Declares CsrPattern, how a kernel reads the rows and columns of a CSR matrix |
+| `sparse/index_list.hpp` | Declares IndexList, how a kernel reads the stored positions of a sparse vector |
+| `sycl/sparse/level1.hpp` | Defines the SYCL kernels of the sparse-dense level 1 routines |
+| `sycl/sparse/row_blocks.hpp` | Defines the row-block scatter that the transposed and the symmetric product share |
+| `sycl/sparse/spmm.hpp` | Defines the SYCL kernel of the product of a sparse matrix and a dense matrix |
+| `sycl/sparse/spmv.hpp` | Defines the SYCL kernel of the sparse matrix-vector product |
+| `sycl/sparse/spsymv.hpp` | Defines the SYCL kernel of the symmetric and Hermitian sparse matrix-vector product |
+| `sycl/sparse/sptrsv.hpp` | Defines the SYCL kernel of the sparse triangular solve |
+
+Spatial:
+
+| File | Holds |
+| --- | --- |
+| `reference/spatial/broadcast.hpp` | Defines the reference kernels of the three broadcast copies |
+| `reference/spatial/channels.hpp` | Defines the reference kernel that copies a run of channels |
+| `reference/spatial/col2im.hpp` | Defines the reference kernel of col2im |
+| `reference/spatial/im2col.hpp` | Defines the reference kernel of im2col |
+| `reference/spatial/pool_avg.hpp` | Defines the reference kernels of average pooling and its gradient |
+| `reference/spatial/pool_max.hpp` | Defines the reference kernels of max pooling and its gradient |
+| `reference/spatial/upsample.hpp` | Defines the reference kernels of nearest-neighbour upsampling and its gradient |
+| `reference/spatial/window_dot.hpp` | Defines the reference kernels of the per-channel weighted window sum and its input gradient |
+| `reference/spatial/window_dot_weights.hpp` | Defines the reference kernel of the weight gradient of the per-channel weighted window sum |
+| `sycl/spatial/broadcast.hpp` | Defines the SYCL kernels of the three broadcast copies |
+| `sycl/spatial/channels.hpp` | Defines the SYCL kernel that copies a run of channels |
+| `sycl/spatial/col2im.hpp` | Defines the SYCL kernel of col2im |
+| `sycl/spatial/im2col.hpp` | Defines the SYCL kernel of im2col |
+| `sycl/spatial/pool_avg.hpp` | Defines the SYCL kernels of average pooling and its gradient |
+| `sycl/spatial/pool_max.hpp` | Defines the SYCL kernels of max pooling and its gradient |
+| `sycl/spatial/upsample.hpp` | Defines the SYCL kernels of nearest-neighbour upsampling and its gradient |
+| `sycl/spatial/window_dot.hpp` | Defines the SYCL kernels of the per-channel weighted window sum and its input gradient |
+| `sycl/spatial/window_dot_weights.hpp` | Defines the SYCL kernel of the weight gradient of the per-channel weighted window sum |
+
+Random:
+
+| File | Holds |
+| --- | --- |
+| `reference/random/orthonormalize.hpp` | Defines the reference kernel of the orthonormalisation sweep |
+| `sycl/random/orthonormalize.hpp` | Defines the work-group parallel Gram-Schmidt sweep behind RandomOps::orthogonal |
+| `sycl/random/philox.hpp` | Defines Philox4x32-10 and the uniform, normal and index draws built on it |
+| `sycl/random/poisson.hpp` | Defines the Poisson draw: Knuth's product below lambda 10, Hoermann's PTRS above |
+| `sycl/random/truncated_normal.hpp` | Defines the truncated standard normal draw by bisection of the distribution function |
 
 `math.hpp` includes nothing. Until 2026-10-05 it carried, commented out and marked as planned, the
 includes of `kernels/reference/math/reductions/sum.hpp` and `kernels/sycl/math/reductions/sum.hpp`;
@@ -35,6 +165,12 @@ under `include/` and are installed, because `Dispatch::execute_gemm` in
 consumer's own epilogue functor. A template that a public seam instantiates cannot stay private.
 The rule is: a kernel that a public seam names lives under `include/SushiBLAS/kernels/`, split
 into `reference/` and `sycl/` the same way, and every other kernel stays here.
+
+### `kernels/sparse.hpp`
+
+`sparse.hpp` includes every sparse kernel by a quoted path relative to the repository root. They
+are private to this tree for the reason given under `kernels/blas.hpp` above: `SparseOps` is
+compiled into the library, and no public seam instantiates a sparse kernel.
 
 ### `kernels/reference/blas/level1/level1.hpp`
 
@@ -64,6 +200,37 @@ A ground truth that shares an implementation with the kernel it checks does not 
 `nrm2` folds an infinity or a NaN in unscaled, because such an element has no magnitude to be
 relative to. That saturates the sum, which is the answer BLAS gives.
 
+Every sum in this file is formed in `Kernels::ReferenceSum`: in `double` for HALF, FLOAT32 and
+COMPLEX32, and in a compensated `double` sum for FLOAT64 and COMPLEX64. The result is rounded to
+the element type once, on the store. `include/SushiBLAS/support/README.md`, under
+`reference_accumulator.hpp`, says why a reference sums wider than the kernel it judges. The other
+reference kernels that sum (`gemv`, `symv`, `trmv`, `gbmv`, the shared symmetric and triangular
+loops, `syrk`, `syr2k`, `trsm`, the sparse kernels, the orthonormalisation sweep and
+`window_dot_weights`) do the same.
+
+### `kernels/reference/blas/level1/rotg.hpp`, `rotm.hpp`, `rotmg.hpp`
+
+The three rotation builders have one file each on each side. The arithmetic is not in them: it is
+`givens_rotation` and `modified_givens` under `include/SushiBLAS/kernels/blas/`, shared with the
+SYCL kernels. The reference `rotg` passes a host square root, `Detail::HostRoot`, where the SYCL
+kernel passes `Detail::DeviceRoot`. `rotm` applies the transformation H that a five-element
+parameter array describes to every pair `(x_i, y_i)`; the SYCL kernel runs one work-item per pair.
+
+### `kernels/reference/blas/level2/symmetric_product.hpp`, `triangular_product.hpp`, `triangular_solve.hpp`
+
+Three loops written once over an access brick and shared by the band and the packed routines.
+`symmetric_product` is the matrix-vector product of a symmetric or Hermitian matrix of which one
+triangle is stored: `sbmv` and `hbmv` call it with a `BandAccess`, `spmv` and `hpmv` with a
+`PackedAccess`. `triangular_product` is `x = op(A) * x` in place, shared by `tbmv` and `tpmv`, and
+`triangular_solve` is the substitution shared by `tbsv` and `tpsv`. A brick answers `holds(r, c)`
+and bounds the stored part of a row, so each loop visits only what the storage holds. The dense
+routines `symv`, `trmv` and `trsv` keep their own kernels.
+
+`gbmv`, `spr` and `spr2` have a kernel each: `gbmv` reads a general band through `BandAccess`,
+and `spr`, `hpr`, `spr2` and `hpr2` write a packed triangle through `PackedAccess`. The
+conjugation policy, `Unconjugated` or `Conjugated`, is the only difference between a symmetric
+routine and its Hermitian sibling in every one of these files.
+
 ### `kernels/reference/blas/level2/trmv.hpp`
 
 `trmv` runs in place without a temporary copy of `x`. The effective triangle of op(A) sets the
@@ -79,6 +246,12 @@ same defect: the `COLUMN_MAJOR` arm was inverted, which made `layout` a no-op fo
 its end for some shapes. The identity that catches the defect is in
 `include/SushiBLAS/kernels/README.md`, under `reference/blas/level3/gemm.hpp`.
 
+### `kernels/reference/blas/level3/syr2k.hpp`
+
+`syr2k` computes `C = alpha * op(A) * Conj(op(B))^T + Conj(alpha) * op(B) * Conj(op(A))^T +
+beta * C` on one triangle of C. Under `Unconjugated` that is SYR2K and under `Conjugated` HER2K,
+whose `beta` is real and whose diagonal is stored real. A zero `beta` does not read the prior C.
+
 ### `kernels/reference/blas/level3/trsm.hpp`
 
 `trsm` also backs `Level2::trsv`, which is a TRSM with one right-hand-side column (n = 1); see
@@ -89,6 +262,42 @@ triangle of A is lower and by backward substitution when it is upper. The sectio
 `kernels/sycl/blas/level3/trsm.hpp` below derives the effective triangle. The right side is the
 same system transposed once more, row by row: X\*op(A) = alpha\*B is equivalent to
 op(A)^T \* X^T = alpha\*B^T.
+
+The solved elements are carried between steps in a `RunningSolution`, so a HALF solve does not
+round each element to HALF before a later row reads it. Where that needs a wide copy, the
+reference allocates it on the host, indexed like B.
+
+### `kernels/reference/random/orthonormalize.hpp`
+
+The reference of the sweep behind `RandomOps::orthogonal`: modified Gram-Schmidt in place over a
+`VectorSet`, vector `i` projected out of every later vector in ascending order,
+`K_ORTHONORMAL_SWEEPS` times, then each vector scaled to norm `gain`. The layout, the sweep count
+and `tiny_norm_sq` come from `<SushiBLAS/support/orthonormal_sweep.hpp>`, which the SYCL kernel
+reads too.
+
+### `kernels/sparse/csr_pattern.hpp`, `index_list.hpp`
+
+`CsrPattern` holds the shape, the index base and the two index arrays of a CSR matrix, and
+`row_begin`, `row_end` and `column` return zero-based values whatever the base and whether the
+indices are INT32 or INT64. `IndexList` does the same for the stored positions of a sparse
+vector. Both are in neither `reference/` nor `sycl/` because both sides read through them.
+
+### `kernels/reference/sparse/structure.hpp`
+
+`find_defect` walks the index arrays of a CSR matrix or a sparse vector and names the first rule
+they break as a `StructureDefect`: a first offset that is not the index base, a row that ends
+before it starts, a last offset that does not name the entry count, an index outside the operand,
+a position stored twice. A sparse kernel takes its structure on trust, because the record-time
+checks in `include/SushiBLAS/engine/sparse/` cannot read the arrays. The reference kernels call
+`find_defect` inside an `SB_ASSERT`, which aborts in a build without `NDEBUG` and is empty with
+it.
+
+### `kernels/reference/sparse/level1.hpp`, `spmv.hpp`, `spmm.hpp`, `spsymv.hpp`, `sptrsv.hpp`
+
+Plain loops in stored order. `spmv` and `spmm` go row by row; `spsymv` reads the one stored
+triangle and applies each off-diagonal entry on both sides, conjugated under `Conjugated` for
+`sphemv`; `sptrsv` solves a lower triangle from row 0 down and an upper one upwards, carrying the
+solution in a `RunningSolution`. The dot products sum in a `ReferenceSum`.
 
 ### `kernels/reference/spatial/broadcast.hpp`
 
@@ -152,7 +361,7 @@ The reference `im2col` is the specification of `im2col` and the answer
 `ExecutionMode::FORCE_REFERENCE` produces. It is a plain nest of loops in index order, because a
 reference kernel with an optimisation in it is a second implementation that can be wrong.
 
-`ExecutionMode::VERIFY` is not implemented; `Engine::set_mode` refuses it. The comparison is in
+`ExecutionMode` has no mode that runs both kernels. The comparison is in
 `tests/functional/unit/test_spatial_im2col.cpp`, which runs the two forced modes into two buffers
 and checks them bit for bit.
 
@@ -181,7 +390,6 @@ inner loop. The divisor is the window area, as in `pool_avg`.
 The running maximum in `pool_max` starts at the lowest finite value of `T`, never at zero. Padding
 is the absence of an element, and a maximum that starts at zero turns every all-negative border
 window into 0. That is a plausible number, and no shape or dtype assertion catches it.
-`Reduce::RunningMax` uses the same identity for the same reason.
 
 The first in-bounds tap is taken whatever its value, so a window whose every tap is -inf outputs
 -inf and records that tap's index.
@@ -224,6 +432,23 @@ numbers, and a `ConvGeometry` holds eight.
 `scale_h * scale_w` output elements that read it, in ascending `(dh, dw)` order. It scatters
 nothing and adds nothing twice, so it uses no atomic and two runs sum identically.
 
+### `kernels/reference/spatial/window_dot.hpp`, `window_dot_weights.hpp`
+
+`window_dot` is a per-channel weighted window sum: output element `(n, h_o, w_o, c)` sums
+`in * weights` over the taps of its window, each channel against its own taps, in ascending
+`(r, s)` order. A tap outside the input is skipped, which is what a zero padding would have
+contributed. The sum is formed in `Accumulator<T>` and rounded once on the store.
+
+`window_dot_backward` is a gather, like `col2im`: each input element finds the windows that read
+it by the divisibility test described under `kernels/reference/spatial/col2im.hpp` above, and
+sums `dy * weights` over them. Every element of `dx` is written.
+
+`window_dot_weights_backward` sums, for each tap of each channel, every output gradient times the
+input element that tap read. The terms are added in ascending `(n, h_o, w_o)` order, so the order
+depends only on the geometry. It is a fold of many terms into one value per tap, which is why the
+reference sums it in a `ReferenceSum` and the SYCL kernel runs it through
+`Reduce::reduce_segments`.
+
 ### `kernels/spatial.hpp`
 
 `spatial.hpp` includes every spatial kernel by a quoted path relative to the repository root. They
@@ -240,18 +465,18 @@ element. The reductions (`asum`, `nrm2`, `dot`, `dotc`, `iamax`) run through
 two-stage shape, and the same fixed combination order, as the whole-tensor reductions. `asum` and
 `dot` fold with `CompensatedSum`, `dotc` with `CompensatedComplexSum`, `nrm2` with
 `ScaledSumOfSquares` and `iamax` with `RunningArgMax`. A HALF input accumulates in FLOAT32 and is
-rounded once when the result is stored. The reference `asum`, `nrm2` and `dot` accumulate a HALF
-input in FLOAT32 too, through `Kernels::Accumulator`, so FORCE_REFERENCE and FORCE_SYCL agree on a
-long HALF vector. The serial loops these kernels replaced summed without compensation, so a result
-can differ from theirs in the last bits.
+rounded once when the result is stored. The reference `asum`, `nrm2` and `dot` accumulate in
+`double`, through `Kernels::ReferenceSum`, so on a long vector the two modes agree to the
+precision of the SYCL sum, not bit for bit. The serial loops these kernels replaced summed without
+compensation, so a result can differ from theirs in the last bits.
 
-Each kernel takes a scratch pointer and its size in bytes. The caller in
-`src/engine/blas/level1/` allocates it through `Internal::allocate_level1_scratch`
-(`engine/blas/utils.hpp`), on the device of x, sized as `Reduce::planned_partials` over the folded
-count (2n for a complex `nrm2`) times `K_LEVEL1_PARTIAL_BYTES`, the largest partial any of the five
-kernels stores (a `std::complex<double>` or an `IndexedValue<double>`, 16 bytes). Each kernel
-divides the bytes by its own partial size, and `partial_capacity` refuses at compile time a partial
-larger than the constant.
+Each kernel takes a scratch pointer and its size in bytes. The caller in `src/engine/blas/level1/`
+leases it through `Internal::allocate_level1_scratch` (`engine/blas/utils.hpp`), from the recorder's
+scratch pool on the device of x, sized as `Reduce::planned_partials` over the folded count (2n for a
+complex `nrm2`) times `K_LEVEL1_PARTIAL_BYTES`, the largest partial any of the five kernels stores
+(a `std::complex<double>` or an `IndexedValue<double>`, 16 bytes). Each kernel divides the bytes by
+its own partial size, and `partial_capacity` refuses at compile time a partial larger than the
+constant.
 
 The parallel kernels launch through `Launch::indexed`, not a bare `sycl::range<1>`, so they get
 the same device-dependent geometry as every elementwise operation: flat on a CPU, grid-stride on a
@@ -274,11 +499,11 @@ returned a wrong answer for complex input.
 
 ### `kernels/sycl/blas/level2/gemv.hpp`
 
-`gemv` and `symv` have two shapes. The per-item shape launches through `Launch::indexed`, so its
-grid is the one `<SushiBLAS/support/launch_1d.hpp>` plans for the device: flat on a CPU, and on a
-GPU a grid-stride loop capped at what the machine can hold resident. Each work-item reduces one
-whole row of `op(A)`. That reduction is why neither kernel can use `Launch::map`: the output at
-index `o` is a function of `in_len` inputs, not of `in[o]`.
+`gemv` and `symv` have two shapes, and `trmv` has the same two. The per-item shape launches through
+`Launch::indexed`, so its grid is the one `<SushiBLAS/support/launch_1d.hpp>` plans for the device:
+flat on a CPU, and on a GPU a grid-stride loop capped at what the machine can hold resident. Each
+work-item reduces one whole row of `op(A)`. That reduction is why neither kernel can use
+`Launch::map`: the output at index `o` is a function of `in_len` inputs, not of `in[o]`.
 
 The work-group shape, in `kernels/sycl/blas/level2/row_reduction.hpp`, gives each output element
 one work-group. Its work-items read the row at consecutive addresses, keep strided partial sums,
@@ -309,14 +534,47 @@ above: its index has two dimensions and `launch_1d.hpp` plans one-dimensional gr
 launched work-items return immediately. That inefficiency comes from which indices exist, and the
 launch geometry does not affect it.
 
+### `kernels/sycl/blas/level2/symv.hpp`, `syr2.hpp`
+
+`symv` serves SYMV and HEMV and `syr2` serves SYR2 and HER2: each takes the conjugation policy
+as a template parameter, as the reference kernels do. `symv` reads one triangle of A and has the
+two row shapes described under `kernels/sycl/blas/level2/gemv.hpp` above. `syr2` writes only the
+triangle `uplo` names and launches on a `sycl::range<2>` for the reason given under
+`kernels/sycl/blas/level2/ger.hpp` above.
+
 ### `kernels/sycl/blas/level2/trmv.hpp`
 
-In `trmv`, `x[i]` depends only on `x[k]` for `k` on one side of `i`. The effective triangle of
-op(A) picks the side: `eff_upper` means the support is k >= i. The kernel walks `i` from the open
-end towards the closed end, increasing for `eff_upper` and decreasing otherwise. Every `x[k]` a
-step needs is then still unwritten when the step runs, because the indices already overwritten lie
-outside the dependency range of the remaining steps. Each step reads what an earlier step left
-alone, so the steps cannot run in parallel, and `trmv` is one sequential task.
+`trmv` is two launches. The first copies `x` into a contiguous device scratch of `n` elements,
+one work-item per element (`Detail::TrmvSnapshot`). The second computes each row product
+`sum_k op(A)(i, k) * x(k)` from the snapshot and stores it into `x`, rounded once to `T`
+(`Detail::TrmvTerm`, `Detail::TrmvStore`). Every row reads the snapshot and no row reads `x`, so
+the rows are independent and run in parallel; the in-place hazard the reference kernel orders its
+walk around does not exist here. The scratch is leased at record time by `Level2::trmv` and no
+other task touches it.
+
+The row product has the two shapes `gemv` has. A row of op(A) is contiguous exactly when GEMV's
+row is, row-major without a transpose or column-major with one, and then
+`row_reduction_width` may give each row a work-group that folds its stored columns in a
+fixed-order tree (`Detail::reduce_row_windows_by_group` over a `Detail::TriangleRow`). Otherwise
+one work-item computes one row in ascending column order. The overload that takes `group_width`
+is there so a test can run both shapes on one input.
+
+### `kernels/sycl/blas/level2/symmetric_product.hpp`, `triangular_product.hpp`, `triangular_solve.hpp`
+
+The SYCL forms of the three shared loops described under
+`kernels/reference/blas/level2/symmetric_product.hpp` above. `symmetric_product` runs per
+work-item or per work-group by row, as `symv` does. `triangular_product` and `triangular_solve`
+are one sequential task each: row `i` of the product reads only elements of `x` that no earlier
+row has overwritten, and row `i` of the solve reads only elements already solved. `tbmv`, `tpmv`,
+`tbsv` and `tpsv` are therefore not parallel; `trmv` and `trsv` are, through their own kernels.
+
+### `kernels/sycl/blas/level3/syr2k.hpp`
+
+`syr2k` computes the two products of SYR2K, or of HER2K under `Conjugated`, on one triangle of C
+in a tiled kernel of its own. `Detail::Syr2kTileConfig` fits two register blocks, one per
+product, in the byte budget GEMM gives one. It stages its tiles in local memory and throws
+`std::runtime_error` at execute time when the device cannot host the work-group and the tiles.
+A zero `beta` does not read the prior C.
 
 ### `kernels/sycl/blas/level3/syrk.hpp`
 
@@ -330,8 +588,17 @@ composition are SushiBLAS work, not a port.
 `syrk` does not reuse GEMM's tile geometry. It owns `Detail::SyrkTileConfig`, so retuning GEMM's
 register block cannot retune SYRK without anyone seeing it. `include/SushiBLAS/support/README.md`,
 under `device_policy.hpp`, makes the same argument for keeping tile sizes out of the device
-profile. SYRK does not have GEMM's split between a local-memory and a no-local kernel. It always
-takes the local-memory shape, as it did before, and the split is a named follow-up in `NOTICE.md`.
+profile. SYRK does not have GEMM's split between a local-memory and a no-local kernel: its tiled
+kernel always takes the local-memory shape, and throws `std::runtime_error` at execute time when
+the device cannot host the tile's work-group.
+
+`syrk` has a second path. It plans the product with `plan_packed_product` and, when
+`packed_product_is_ready` holds for the scratch it was given, runs the packed product of
+`include/SushiBLAS/kernels/sycl/blas/level3/packed_product.hpp` with op(A) as the first factor
+and its transpose, conjugated under `Conjugated`, as the second. `Detail::SyrkStore` is the store
+of that launch: its `wants` skips a macro-block that lies wholly in the triangle C does not keep,
+and it writes `alpha * sum + beta * C` only where the triangle holds the element. HERK is the
+same kernel under `Conjugated`.
 
 `Detail::SyrkTileConfig` holds the fixed shape SYRK has always used: a 4x4 register block in an
 8x8 work-group. It is written out and not borrowed from `GemmLocalTile`, so GEMM's per-type
@@ -345,21 +612,82 @@ kernel's tuning an unseen change to the other's.
 
 The substitution in TRSM is sequential along one matrix dimension. Each of the `n` columns (left
 side) or `m` rows (right side) is an independent triangular solve against the same A, with no data
-hazard between them. `trsm` parallelises over that dimension: one work-item runs a full serial
-substitution for one column or row.
+hazard between them. `trsm` runs those in parallel, and it also cuts each substitution into
+diagonal blocks so that the work between blocks is parallel too.
 
-The kernel picks the direction of each substitution from `eff_lower`, the effective triangle,
-which is derived as follows. The left side solves op(A)\*X = alpha\*B column by column. Define
-`A_eff(i,k) = transA ? A(k,i) : A(i,k)`, which is op(A)(i,k). If A is upper and `transA` is set,
-op(A) = A^T is lower; if A is lower and `transA` is set, op(A) is upper. So op(A) is lower exactly
-when `transA` XOR lower(A), which is `eff_lower = transA ? upper : !upper`. With `eff_lower`
-known, forward substitution (lower) or backward substitution (upper) over `A_eff` applies
-directly, whatever the original transpose and layout.
+For each diagonal block the kernel makes two launches. `Detail::TriangularBlockSolve` runs one
+work-item per right-hand-side vector and batch entry, and solves the block's steps for that
+vector in order. `Detail::TriangularBlockUpdate` then runs one work-item per unknown that is not
+yet solved, and subtracts the block's solved terms from its running value. The update of one
+unknown does not depend on the update of another, which is where a solve with few right-hand
+sides gets its parallelism. Every launch is ordered behind the one before it. With one block of
+the whole order the kernel is the unblocked form: one launch, one substitution per work-item.
 
-The right side solves X\*op(A) = alpha\*B, which is equivalent to op(A)^T \* X^T = alpha\*B^T.
-That is the left-side system with one more transpose, so `eff_lower` uses `transA_row = !transA`
-in place of `transA`. The substitution walks A's `(p, q)` index against a row of B (fixed `i`,
-varying column) where the left side walks a column.
+The solved elements are carried in a `RunningSolution`. For HALF that needs a workspace of
+`batch_size * m * n` wide elements, which the operation leases at record time; for every other
+type the solution lives in B and the workspace is never read.
+
+### `kernels/sycl/blas/level3/triangular_system.hpp`
+
+`triangular_system` decodes the side, the triangle, the transpose and the diagonal flag of a TRSM
+call into one description, so the kernel has one substitution to write. A `TriangularSystem`
+names unknown `(s, v)` as step `s` of the substitution for vector `v`. `coefficient` reads the
+factor of unknown `t` in step `s`, `unknown` gives the offset of `(s, v)` in B, and `forward`
+says whether step `s` needs the steps below it.
+
+The left side solves op(A)\*X = alpha\*B column by column, so the order is `m`, the vectors are
+the `n` columns, and the coefficient access is that of op(A). op(A) is upper exactly when the
+transpose flag and `uplo == UPPER` differ in truth, and a lower op(A) is solved forward. The
+right side solves X\*op(A) = alpha\*B, which is op(A)^T \* X^T = alpha\*B^T: the same system
+with both accesses transposed, the order `n`, the vectors the `m` rows, and the direction
+reversed.
+
+### `kernels/sycl/blas/level3/triangular_plan.hpp`
+
+`plan_triangular_solve` chooses the block size on the host from the device profile, the order of
+the system and the number of independent substitutions, `streams` (vectors times batch size). A
+block is `K_CPU_SOLVE_BLOCK`, 256 steps, on a CPU and `K_GPU_SOLVE_BLOCK`, 128, elsewhere. The
+plan is one block of the whole order in two cases: when the substitutions alone fill the device
+(`streams` is at least the work-items the device keeps running at once), and when the system is
+too small to repay the extra launches, which is
+`order * (slots - streams) <= K_SOLVE_BREAK_EVEN_BLOCKS * block * slots`.
+
+### `kernels/sycl/sparse/row_blocks.hpp`
+
+A CSR product that is transposed, or symmetric from one stored triangle, scatters: one stored
+entry adds into an output element chosen by its column, and two rows can choose the same one.
+Giving each row a work-item would need an atomic add, whose combination order varies between
+runs. The kernels split the rows into blocks instead. `scatter_blocks` picks the count: the
+smallest of the work-items the device keeps running at once, `K_MAX_SCATTER_BLOCKS` = 256, and
+the count at which the partial sums reach `K_SCATTER_PARTIALS_PER_ENTRY` = 2 per stored entry,
+and never below 1. `block_first_row` cuts the rows so the blocks hold about the same number of
+entries. Block `b` alone writes its own slice of the scratch,
+`partials[b * outputs, (b + 1) * outputs)`, walking its rows in order. A second launch, one
+work-item per output, folds the blocks' partials in ascending block order and stores
+`alpha * sum + beta * y`. Ascending block order is ascending row order, so the sum has one fixed
+order on a given device.
+
+### `kernels/sycl/sparse/level1.hpp`, `spmv.hpp`, `spmm.hpp`, `spsymv.hpp`, `sptrsv.hpp`
+
+The level 1 routines run one work-item per stored entry. `axpyi`, `gthrz`, `sctr` and `roti`
+write the dense vector at stored positions, and their precondition is that no position is stored
+twice, so no two work-items write one element. The dot products fold through a compensated sum,
+as the dense `dot` does.
+
+`spmv` without a transpose gives each row of the output one work-item. With a transpose it
+scatters through `row_blocks.hpp`, and so does `spsymv` in every case. `spmm` gives each column
+of C one work-item, so no element has two writers. `sptrsv` is one work-item that solves the
+whole system in order, a lower triangle from row 0 down and an upper one upwards. It computes
+no dependency levels of the rows.
+
+### `kernels/sycl/spatial/window_dot.hpp`, `window_dot_weights.hpp`
+
+`window_dot` runs one work-item per output element and `window_dot_backward` one per input
+element, each summing its own terms in the order the reference kernel does. Neither file contains
+a `sycl::atomic_ref`. `window_dot_weights_backward` reduces, for each tap of each channel, the
+`N * H_o * W_o` terms of that tap's gradient through `Reduce::reduce_segments`: the taps are the
+segments, `Detail` functors open a tap's terms and store its sum, and the fold has the fixed
+order of the segmented reduction in `<SushiBLAS/support/reduce_axis.hpp>`.
 
 ### `kernels/sycl/random/orthonormalize.hpp`
 
@@ -380,7 +708,8 @@ that order, and the group combines the G partial sums by a fixed pairwise tree i
 G is 64, or the largest power of two the device accepts below that, so on one device the result
 is the same bits on every run.
 
-The sweep runs twice before the final scaling (`K_ORTHO_SWEEPS`). One modified Gram-Schmidt
+The sweep runs twice before the final scaling (`K_ORTHONORMAL_SWEEPS`, in
+`<SushiBLAS/support/orthonormal_sweep.hpp>`). One modified Gram-Schmidt
 sweep loses orthogonality in proportion to the matrix's condition number times the rounding
 unit; a second sweep over the already nearly orthogonal vectors brings the loss down to the
 rounding unit. That keeps a 64x64 FLOAT32 matrix inside the 1e-4 Gram tolerance of
@@ -444,7 +773,7 @@ and 64 attempts all fail with probability below 2^-64. If they do, the draw retu
 floor(lambda).
 
 Both methods compute in FLOAT64 whatever the tensor's dtype, so `RandomOps::poisson` throws
-`std::invalid_argument` at record time when the tensor's device lacks `aspect::fp64`.
+`UnsupportedExecution` at record time when the tensor's device lacks `aspect::fp64`.
 
 ### `kernels/sycl/random/truncated_normal.hpp`
 
