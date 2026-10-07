@@ -26,7 +26,6 @@
  */
 
 #include <cmath>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -37,14 +36,14 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event RandomOps::exponential(Tensor& t, double lambda)
+    TaskHandle RandomOps::exponential(Tensor& t, double lambda)
     {
         if (!std::isfinite(lambda) || !(lambda > 0.0))
             Dispatch::Detail::throw_operand_error("random.exponential", "lambda",
                                                   "is {}, expected finite and above 0", lambda);
 
         return Dispatch::execute_random<Dispatch::Domain::REAL>(
-            engine_, t, "random.exponential", "random.exponential"_op, {lambda},
+            recorder_, rng_, t, "random.exponential", "random.exponential"_op, {lambda},
             [lambda](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset,
                      int64_t size, auto* pT,
                      const std::vector<sycl::event>& deps) -> sycl::event

@@ -34,7 +34,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ReductionOps::logsumexp(const Tensor& t, Tensor& result) 
+    TaskHandle ReductionOps::logsumexp(const Tensor& t, Tensor& result) 
     {
         Dispatch::require_min_elements(t, 1, "math.logsumexp", "t");
 
@@ -64,6 +64,6 @@ namespace SushiBLAS
                 });
             });
         };
-        return Dispatch::execute_reduction(engine_, t, result, "math.logsumexp", "math.logsumexp"_op, dispatch);
+        return Dispatch::execute_reduction(recorder_, t, result, "math.logsumexp", "math.logsumexp"_op, dispatch);
     }
 } // namespace SushiBLAS

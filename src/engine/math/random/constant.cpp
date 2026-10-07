@@ -27,7 +27,6 @@
 
 #include <complex>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
@@ -39,7 +38,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event RandomOps::constant(Tensor& t, double value) 
+    TaskHandle RandomOps::constant(Tensor& t, double value) 
     {
         auto op_id = "random.constant"_op;
         SushiRuntime::Graph::TaskMetadata meta;
@@ -53,96 +52,81 @@ namespace SushiBLAS
         Dispatch::require_contiguous(t, "random.constant", "t");
 
         const int64_t size = t.num_elements;
-        void* ptr = t.data_or_null();
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (ptr) writes.push_back(t.region());
+
+        OperandSet operands;
+        operands.writes(t);
 
         switch (t.dtype)
         {
             case Core::DataType::HALF:
             {
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, value, pT = t.data_as<sycl::half>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                return recorder_.record(meta, operands, "RNG operation",
+                    [size, value, pT = t.data_as<sycl::half>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                     {
                         SB_LOG_INFO("RandomOps: constant ({} elements, value: {:.4f})", size, value);
                         return q.fill(pT, static_cast<sycl::half>(value), size, deps);
-                    }
-                );
-                break;
+                    });
             }
             case Core::DataType::FLOAT32:
             {
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, value, pT = t.data_as<float>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                return recorder_.record(meta, operands, "RNG operation",
+                    [size, value, pT = t.data_as<float>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                     {
                         SB_LOG_INFO("RandomOps: constant ({} elements, value: {:.4f})", size, value);
                         return q.fill(pT, static_cast<float>(value), size, deps);
-                    }
-                );
-                break;
+                    });
             }
             case Core::DataType::FLOAT64:
             {
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, value, pT = t.data_as<double>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                return recorder_.record(meta, operands, "RNG operation",
+                    [size, value, pT = t.data_as<double>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                     {
                         SB_LOG_INFO("RandomOps: constant ({} elements, value: {:.4f})", size, value);
                         return q.fill(pT, value, size, deps);
-                    }
-                );
-                break;
+                    });
             }
             case Core::DataType::COMPLEX32:
             {
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, value, pT = t.data_as<std::complex<float>>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                return recorder_.record(meta, operands, "RNG operation",
+                    [size, value, pT = t.data_as<std::complex<float>>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                     {
                         SB_LOG_INFO("RandomOps: constant complex32 ({} elements, value: {:.4f})", size, value);
                         return q.fill(pT, std::complex<float>(static_cast<float>(value), 0.0f), size, deps);
-                    }
-                );
-                break;
+                    });
             }
             case Core::DataType::COMPLEX64:
             {
-                engine_.get_graph().add_task(meta, reads, writes,
-                    [size, value, pT = t.data_as<std::complex<double>>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event 
+                return recorder_.record(meta, operands, "RNG operation",
+                    [size, value, pT = t.data_as<std::complex<double>>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                     {
                         SB_LOG_INFO("RandomOps: constant complex64 ({} elements, value: {:.4f})", size, value);
                         return q.fill(pT, std::complex<double>(value, 0.0), size, deps);
-                    }
-                );
-                break;
+                    });
             }
             // An integer tensor stores the truncated double; see src/README.md.
             case Core::DataType::INT32:
             {
-                engine_.get_graph().add_task(meta, reads, writes,
+                return recorder_.record(meta, operands, "RNG operation",
                     [size, value, pT = t.data_as<int32_t>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                     {
                         SB_LOG_INFO("RandomOps: constant int32 ({} elements, value: {:.4f})", size, value);
                         return q.fill(pT, static_cast<int32_t>(value), size, deps);
-                    }
-                );
-                break;
+                    });
             }
             case Core::DataType::INT64:
             {
-                engine_.get_graph().add_task(meta, reads, writes,
+                return recorder_.record(meta, operands, "RNG operation",
                     [size, value, pT = t.data_as<int64_t>()](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                     {
                         SB_LOG_INFO("RandomOps: constant int64 ({} elements, value: {:.4f})", size, value);
                         return q.fill(pT, static_cast<int64_t>(value), size, deps);
-                    }
-                );
-                break;
+                    });
             }
             default:
                 SB_THROW_IF(true, "Operation 'random.constant' does not support dtype {}.",
                             Core::to_string(t.dtype));
         }
 
-        return sycl::event();
+        return TaskHandle();
     }
 } // namespace SushiBLAS

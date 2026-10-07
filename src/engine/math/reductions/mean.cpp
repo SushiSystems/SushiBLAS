@@ -33,10 +33,10 @@ namespace SushiBLAS
     using namespace SushiRuntime::Graph::Literals;
 
     // The division by n is the finalizer of the fold; see src/README.md.
-    sycl::event ReductionOps::mean(const Tensor& t, Tensor& result)
+    TaskHandle ReductionOps::mean(const Tensor& t, Tensor& result)
     {
         return Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(
-            engine_, t, result, "math.mean", "math.mean"_op,
+            recorder_, t, result, "math.mean", "math.mean"_op,
             Dispatch::ReduceIdentityTransform{},
             [](auto value, std::size_t n)
             {

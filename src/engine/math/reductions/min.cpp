@@ -98,7 +98,7 @@ namespace SushiBLAS
         };
     } // namespace
 
-    sycl::event ReductionOps::min(const Tensor& t, Tensor& result)
+    TaskHandle ReductionOps::min(const Tensor& t, Tensor& result)
     {
         Dispatch::require_storage(t, "math.min", "t");
         const std::size_t partials = Dispatch::planned_partials_for(t);
@@ -125,7 +125,7 @@ namespace SushiBLAS
                                               Dispatch::ReduceIdentityTransform{},
                                               Dispatch::ReduceIdentityFinalize{}, deps);
         };
-        return Dispatch::execute_reduction(engine_, t, result, "math.min", "math.min"_op,
+        return Dispatch::execute_reduction(recorder_, t, result, "math.min", "math.min"_op,
                                            dispatch, partials);
     }
 } // namespace SushiBLAS

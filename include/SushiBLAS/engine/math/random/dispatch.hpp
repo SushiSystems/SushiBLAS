@@ -34,7 +34,6 @@
 #include <complex>
 #include <cstddef>
 #include <type_traits>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
@@ -42,7 +41,10 @@
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/rng_stream.hpp>
 #include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -64,18 +66,6 @@ namespace SushiBLAS
          * once @ref K_RNG_SEED_PARAM and @ref K_RNG_OFFSET_PARAM are reserved.
          */
         inline constexpr size_t K_MAX_RNG_PARAMS = 6;
-
-        /// @brief Sets the engine stream's seed and rewinds its offset to zero.
-        inline void reseed(Engine& engine, uint64_t seed)
-        {
-            engine.rng().reseed(seed);
-        }
-
-        /// @brief Reserves @p count offsets on the engine's stream and returns where they start.
-        [[nodiscard]] inline RngPosition reserve_offsets(Engine& engine, uint64_t count)
-        {
-            return engine.rng().reserve(count);
-        }
 
         /// @brief Stamps the seed and offset a random task draws from into its metadata.
         inline void set_rng_params(SushiRuntime::Graph::TaskMetadata& meta, uint64_t seed,
@@ -216,22 +206,24 @@ namespace SushiBLAS
          * @tparam Dom The element families the distribution draws; HALF is always refused.
          * @param params The distribution's parameters, recorded in metadata slots 0..n-1.
          * @param task_func Submits the fill for one element type of Dom; whatever it submits runs on the device.
-         * @throws std::invalid_argument for a dtype outside Dom, HALF, no storage or a non-contiguous t.
+         * @throws std::invalid_argument for a dtype outside Dom, HALF, no storage, a non-contiguous t, or under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom, typename Func>
-        sycl::event execute_random(Engine& engine, Tensor& t, const char* name, SushiRuntime::Graph::OpID op_id, const std::vector<double>& params, Func&& task_func)
+        TaskHandle execute_random(TaskRecorder& recorder, RngStream& stream, Tensor& t,
+                                  const char* name, SushiRuntime::Graph::OpID op_id,
+                                  const std::vector<double>& params, Func&& task_func)
         {
             require_random_dtype(t, Dom, Sampling::DRAWS_VALUES, name);
             require_storage(t, name, "t");
             require_contiguous(t, name, "t");
+            recorder.require_sycl_path("RNG operation", name);
 
             const int64_t size = t.num_elements;
             void* ptr = t.data_or_null();
 
-            std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-            std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-            if (ptr) writes.push_back(t.region());
+            OperandSet operands;
+            operands.writes(t);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -239,12 +231,12 @@ namespace SushiBLAS
             meta.op_id = op_id;
             set_task_params(meta, params, name, SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS - K_MAX_RNG_PARAMS);
 
-            const RngPosition position = reserve_offsets(engine, 1);
+            const RngPosition position = stream.reserve(1);
             const uint64_t seed = position.seed;
             const uint64_t offset = position.offset;
             set_rng_params(meta, seed, offset);
 
-            engine.get_graph().add_task(meta, reads, writes,
+            return recorder.record(meta, operands, "RNG operation",
                 [dtype=t.dtype, size, seed, offset, task_func, pT = ptr, name](sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("RandomOps: {} ({} elements, seed: {}, offset: {})", name, size, seed, offset);
@@ -254,9 +246,7 @@ namespace SushiBLAS
                         task_func, q, seed, offset, size, pT, deps, name, done};
                     with_element_type<Dom>(dtype, "RNG operation", name, arm);
                     return done;
-                }
-            );
-            return sycl::event();
+                });
         }
 
     } // namespace Dispatch

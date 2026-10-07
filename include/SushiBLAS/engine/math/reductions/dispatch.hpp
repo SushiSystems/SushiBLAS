@@ -29,8 +29,8 @@
 
 #include <vector>
 #include <cstddef>
+#include <type_traits>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/storage.hpp>
 #include <SushiBLAS/core/common.hpp>
@@ -38,8 +38,11 @@
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/support/reduce_1d.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/support/reduce_axis.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -93,32 +96,36 @@ namespace SushiBLAS
          * @param result Must hold one element and share t's dtype.
          * @param dispatch Builds the command group per element type and must call `depends_on(deps)`.
          * @param scratch_elements Per-work-group partials to allocate; zero allocates nothing.
-         * @throws std::invalid_argument if an operand holds elements without storage or t is not contiguous.
+         * @throws std::invalid_argument if an operand holds elements without storage, t is not contiguous, or under FORCE_REFERENCE.
          * @throws std::runtime_error if result is not scalar, the dtypes disagree, or the dtype is not real.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
-        sycl::event execute_reduction(Engine& engine, const Tensor& t, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Dispatcher&& dispatch, std::size_t scratch_elements = 0)
+        TaskHandle execute_reduction(TaskRecorder& recorder, const Tensor& t, Tensor& result,
+                                     const char* name, SushiRuntime::Graph::OpID op_id,
+                                     Dispatcher&& dispatch, std::size_t scratch_elements = 0)
         {
             require_storage(t, name, "t");
             require_storage(result, name, "result");
             require_contiguous(t, name, "t");
             SB_THROW_IF(result.num_elements != 1, "Result tensor for reduction '{}' must be a scalar (1 element).", name);
             SB_THROW_IF(t.dtype != result.dtype, "Data types must match for reduction operations.");
+            recorder.require_sycl_path("Reduction", name);
 
             int64_t size = t.num_elements;
             const void* read_T = t.data();
             void* write_R = result.data();
 
             // Operands are declared by Tensor::region(), not by data(); see include/SushiBLAS/engine/math/README.md.
-            std::vector<SushiRuntime::Core::ResourceRegion> reads = {t.region()};
-            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
+            OperandSet operands;
+            operands.reads(t).writes(result);
 
             // The scratch is declared as a resource with its own region; see include/SushiBLAS/engine/math/README.md.
-            const ScratchBuffer scratch(engine, scratch_elements * partial_bytes(t.dtype),
+            const ScratchBuffer scratch(recorder.get_scratch_pool(),
+                                        scratch_elements * partial_bytes(t.dtype),
                                         t.storage->get_device_index());
             void* scratch_ptr = scratch.data();
-            if (!scratch.is_empty()) writes.push_back(scratch.region());
+            operands.scratch(scratch);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -128,7 +135,7 @@ namespace SushiBLAS
             switch (t.dtype)
             {
                 case Core::DataType::HALF:
-                    engine.get_graph().add_task(meta, reads, writes,
+                    return recorder.record(meta, operands, "Reduction",
                         [size, pT=(const sycl::half*)read_T, pR=(sycl::half*)write_R, scratch,
                          pS=(float*)scratch_ptr, scratch_elements, dispatch, name]
                         (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
@@ -137,9 +144,8 @@ namespace SushiBLAS
                             return dispatch(q, pT, pR, size,
                                             ReductionScratch<float>{pS, scratch_elements}, deps);
                         });
-                    break;
                 case Core::DataType::FLOAT32:
-                    engine.get_graph().add_task(meta, reads, writes,
+                    return recorder.record(meta, operands, "Reduction",
                         [size, pT=(const float*)read_T, pR=(float*)write_R, scratch,
                          pS=(float*)scratch_ptr, scratch_elements, dispatch, name]
                         (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
@@ -148,9 +154,8 @@ namespace SushiBLAS
                             return dispatch(q, pT, pR, size,
                                             ReductionScratch<float>{pS, scratch_elements}, deps);
                         });
-                    break;
                 case Core::DataType::FLOAT64:
-                    engine.get_graph().add_task(meta, reads, writes,
+                    return recorder.record(meta, operands, "Reduction",
                         [size, pT=(const double*)read_T, pR=(double*)write_R, scratch,
                          pS=(double*)scratch_ptr, scratch_elements, dispatch, name]
                         (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
@@ -159,24 +164,181 @@ namespace SushiBLAS
                             return dispatch(q, pT, pR, size,
                                             ReductionScratch<double>{pS, scratch_elements}, deps);
                         });
-                    break;
                 default:
-                    SB_THROW_IF(true, "Reduction '{}' does not support dtype {}.", name, Core::to_string(t.dtype));
                     break;
             }
-            return sycl::event();
+
+            SB_THROW_IF(true, "Reduction '{}' does not support dtype {}.", name, Core::to_string(t.dtype));
+            return TaskHandle();
         }
+
+        namespace Detail
+        {
+            /**
+             * @brief Records an index reduction for the element type of a with_element_type arm.
+             * @tparam Dispatcher Callable `(queue&, const T*, int64_t*, int64_t, deps) -> sycl::event`.
+             * @see docs/reference/KNOWN_ISSUES.md
+             */
+            template<typename Dispatcher>
+            struct IndexReductionArm
+            {
+                /** @brief Holds the recorder the task is recorded through. */
+                TaskRecorder& recorder;
+                /** @brief Holds the metadata the task is recorded with. */
+                const SushiRuntime::Graph::TaskMetadata& meta;
+                /** @brief Holds the operands the task declares. */
+                const OperandSet& operands;
+                /** @brief Holds the command-group builder the task body calls. */
+                const Dispatcher& dispatch;
+                /** @brief Holds the element count of the input. */
+                int64_t size;
+                /** @brief Holds the input's base address. */
+                const void* read_T;
+                /** @brief Holds the address the index is written to. */
+                int64_t* write_R;
+                /** @brief Holds the operation name for messages. */
+                const char* name;
+                /** @brief Receives the handle of the recorded task. */
+                TaskHandle& handle;
+
+                /** @brief Records the task for the element type named by the tag. */
+                template<typename Tag>
+                void operator()(Tag) const
+                {
+                    using T = typename Tag::type;
+
+                    handle = recorder.record(meta, operands, "Reduction",
+                        [size = size, pT = static_cast<const T*>(read_T), write_R = write_R,
+                         dispatch = dispatch, name = name]
+                        (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                        {
+                            SB_LOG_INFO("Reduction {}: {} elements", name, size);
+                            return dispatch(q, pT, write_R, size, deps);
+                        });
+                }
+            };
+
+            /**
+             * @brief Records a counting reduction for the element type of a with_element_type arm.
+             * @tparam Dispatcher Callable `(queue&, const T*, int64_t*, int64_t,
+             *         ReductionScratch<int64_t>, deps) -> sycl::event`.
+             * @see docs/reference/KNOWN_ISSUES.md
+             */
+            template<typename Dispatcher>
+            struct CountingReductionArm
+            {
+                /** @brief Holds the recorder the task is recorded through. */
+                TaskRecorder& recorder;
+                /** @brief Holds the metadata the task is recorded with. */
+                const SushiRuntime::Graph::TaskMetadata& meta;
+                /** @brief Holds the operands the task declares. */
+                const OperandSet& operands;
+                /** @brief Holds the command-group builder the task body calls. */
+                const Dispatcher& dispatch;
+                /** @brief Holds the element count of the input. */
+                int64_t size;
+                /** @brief Holds the input's base address. */
+                const void* read_T;
+                /** @brief Holds the address the count is written to. */
+                int64_t* write_R;
+                /** @brief Holds the lease the task keeps until it is destroyed. */
+                const ScratchBuffer& scratch;
+                /** @brief Holds the base address of the leased partials, or null. */
+                int64_t* scratch_ptr;
+                /** @brief Holds how many partials the lease has room for. */
+                std::size_t scratch_elements;
+                /** @brief Holds the operation name for messages. */
+                const char* name;
+                /** @brief Receives the handle of the recorded task. */
+                TaskHandle& handle;
+
+                /** @brief Records the task for the element type named by the tag. */
+                template<typename Tag>
+                void operator()(Tag) const
+                {
+                    using T = typename Tag::type;
+
+                    handle = recorder.record(meta, operands, "Reduction",
+                        [size = size, pT = static_cast<const T*>(read_T), write_R = write_R,
+                         scratch = scratch, pS = scratch_ptr, scratch_elements = scratch_elements,
+                         dispatch = dispatch, name = name]
+                        (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                        {
+                            SB_LOG_INFO("Reduction {}: {} elements", name, size);
+                            return dispatch(q, pT, write_R, size,
+                                            ReductionScratch<int64_t>{pS, scratch_elements}, deps);
+                        });
+                }
+            };
+
+            /**
+             * @brief Records a segmented fold for the element type of a with_element_type arm.
+             * @tparam Accum The Reduce accumulator the fold runs in.
+             * @see docs/reference/KNOWN_ISSUES.md
+             */
+            template<template<typename> class Accum, typename Transform, typename Finalize>
+            struct SpanReductionArm
+            {
+                /** @brief Holds the recorder the task is recorded through. */
+                TaskRecorder& recorder;
+                /** @brief Holds the metadata the task is recorded with. */
+                const SushiRuntime::Graph::TaskMetadata& meta;
+                /** @brief Holds the operands the task declares. */
+                const OperandSet& operands;
+                /** @brief Holds the segment geometry the fold walks. */
+                const Reduce::AxisSpan& span;
+                /** @brief Holds the input's base address. */
+                const void* read_T;
+                /** @brief Holds the result's base address. */
+                void* write_R;
+                /** @brief Holds the callable applied to each element before the fold. */
+                const Transform& transform;
+                /** @brief Holds the callable applied once to each segment's fold. */
+                const Finalize& finalize;
+                /** @brief Holds the operation name for messages. */
+                const char* name;
+                /** @brief Receives the handle of the recorded task. */
+                TaskHandle& handle;
+
+                /** @brief Records the task for the element type named by the tag. */
+                template<typename Tag>
+                void operator()(Tag) const
+                {
+                    using T = typename Tag::type;
+
+                    handle = recorder.record(meta, operands, "Axis reduction",
+                        [span = span, pT = static_cast<const T*>(read_T),
+                         pR = static_cast<T*>(write_R), transform = transform,
+                         finalize = finalize, name = name]
+                        (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                        {
+                            SB_LOG_INFO("Axis reduction {}: {} segments of {} elements",
+                                        name, span.total_segments(), span.extent);
+
+                            // The geometry is planned at execution time; see include/SushiBLAS/engine/math/README.md.
+                            const Reduce::AxisPlan geometry =
+                                Reduce::plan_axis(Device::profile_for(q), span.total_segments(),
+                                                  span.extent);
+
+                            return Reduce::reduce_axis<Accum>(q, pT, pR, span, geometry,
+                                                              transform, finalize, deps);
+                        });
+                }
+            };
+        } // namespace Detail
 
         /**
          * @brief Records a whole-tensor reduction whose result is an index in an INT64 scalar.
          * @param result Must be a scalar INT64 tensor.
          * @param dispatch Builds the command group per input element type, as in execute_reduction.
-         * @throws std::invalid_argument if an operand holds elements without storage or t is not contiguous.
+         * @throws std::invalid_argument if an operand holds elements without storage, t is not contiguous, or under FORCE_REFERENCE.
          * @throws std::runtime_error if result is not an INT64 scalar or the input dtype is complex.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
-        sycl::event execute_index_reduction(Engine& engine, const Tensor& t, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Dispatcher&& dispatch)
+        TaskHandle execute_index_reduction(TaskRecorder& recorder, const Tensor& t, Tensor& result,
+                                           const char* name, SushiRuntime::Graph::OpID op_id,
+                                           Dispatcher&& dispatch)
         {
             require_storage(t, name, "t");
             require_storage(result, name, "result");
@@ -192,42 +354,38 @@ namespace SushiBLAS
             const void* read_T = t.data();
             int64_t* write_R = result.data_as<int64_t>();
 
-            std::vector<SushiRuntime::Core::ResourceRegion> reads = {t.region()};
-            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
+            OperandSet operands;
+            operands.reads(t).writes(result);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
             meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
             meta.op_id = op_id;
 
+            TaskHandle handle;
+
             // REAL_AND_INTEGRAL: finding the largest element needs an ordering, which complex types lack; see include/SushiBLAS/engine/math/README.md.
-            with_element_type<Domain::REAL_AND_INTEGRAL>(t.dtype, "Reduction", name,
-                [&](auto tag)
-            {
-                using T = typename decltype(tag)::type;
+            const Detail::IndexReductionArm<std::remove_reference_t<Dispatcher>> arm{
+                recorder, meta, operands, dispatch, size, read_T, write_R, name, handle};
+            with_element_type<Domain::REAL_AND_INTEGRAL>(t.dtype, "Reduction", name, arm);
 
-                engine.get_graph().add_task(meta, reads, writes,
-                    [size, pT = static_cast<const T*>(read_T), write_R, dispatch, name]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                    {
-                        SB_LOG_INFO("Reduction {}: {} elements", name, size);
-                        return dispatch(q, pT, write_R, size, deps);
-                    });
-            });
-
-            return sycl::event();
+            return handle;
         }
 
         /**
          * @brief Records a whole-tensor reduction that counts elements into an INT64 scalar.
          * @param result Must be a scalar INT64 tensor.
          * @param scratch_elements Per-work-group partials to allocate; zero allocates nothing.
-         * @throws std::invalid_argument if an operand holds elements without storage or t is not contiguous.
+         * @throws std::invalid_argument if an operand holds elements without storage, t is not contiguous, or under FORCE_REFERENCE.
          * @throws std::runtime_error if result is not an INT64 scalar or the input dtype is not real.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
-        sycl::event execute_counting_reduction(Engine& engine, const Tensor& t, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Dispatcher&& dispatch, std::size_t scratch_elements = 0)
+        TaskHandle execute_counting_reduction(TaskRecorder& recorder, const Tensor& t,
+                                              Tensor& result, const char* name,
+                                              SushiRuntime::Graph::OpID op_id,
+                                              Dispatcher&& dispatch,
+                                              std::size_t scratch_elements = 0)
         {
             require_storage(t, name, "t");
             require_storage(result, name, "result");
@@ -240,44 +398,37 @@ namespace SushiBLAS
                         "below 2^24 in FLOAT32 and below 2048 in HALF, and past 65504 a HALF "
                         "one is an infinity.",
                         name, Core::to_string(result.dtype));
+            recorder.require_sycl_path("Reduction", name);
 
             const int64_t size = t.num_elements;
             const void* read_T = t.data();
             int64_t* write_R = result.data_as<int64_t>();
 
             // Operands are declared by Tensor::region(), not by data(); see include/SushiBLAS/engine/math/README.md.
-            std::vector<SushiRuntime::Core::ResourceRegion> reads = {t.region()};
-            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
+            OperandSet operands;
+            operands.reads(t).writes(result);
 
             // Partials are INT64 whatever the input dtype, so the scratch is sized from sizeof(int64_t); see include/SushiBLAS/engine/math/README.md.
-            const ScratchBuffer scratch(engine, scratch_elements * sizeof(int64_t),
+            const ScratchBuffer scratch(recorder.get_scratch_pool(),
+                                        scratch_elements * sizeof(int64_t),
                                         t.storage->get_device_index());
             int64_t* scratch_ptr = static_cast<int64_t*>(scratch.data());
-            if (!scratch.is_empty()) writes.push_back(scratch.region());
+            operands.scratch(scratch);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
             meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
             meta.op_id = op_id;
 
+            TaskHandle handle;
+
             // REAL only: an integer or complex tensor is rejected by name; see include/SushiBLAS/engine/math/README.md.
-            with_element_type<Domain::REAL>(t.dtype, "Reduction", name,
-                [&](auto tag)
-            {
-                using T = typename decltype(tag)::type;
+            const Detail::CountingReductionArm<std::remove_reference_t<Dispatcher>> arm{
+                recorder, meta, operands, dispatch, size, read_T, write_R,
+                scratch, scratch_ptr, scratch_elements, name, handle};
+            with_element_type<Domain::REAL>(t.dtype, "Reduction", name, arm);
 
-                engine.get_graph().add_task(meta, reads, writes,
-                    [size, pT = static_cast<const T*>(read_T), write_R, scratch,
-                     pS = scratch_ptr, scratch_elements, dispatch, name]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                    {
-                        SB_LOG_INFO("Reduction {}: {} elements", name, size);
-                        return dispatch(q, pT, write_R, size,
-                                        ReductionScratch<int64_t>{pS, scratch_elements}, deps);
-                    });
-            });
-
-            return sycl::event();
+            return handle;
         }
 
         /**
@@ -290,7 +441,10 @@ namespace SushiBLAS
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<template<typename> class Accum, typename Transform, typename Finalize>
-        sycl::event execute_folding_reduction(Engine& engine, const Tensor& t, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Transform transform, Finalize finalize)
+        TaskHandle execute_folding_reduction(TaskRecorder& recorder, const Tensor& t,
+                                             Tensor& result, const char* name,
+                                             SushiRuntime::Graph::OpID op_id, Transform transform,
+                                             Finalize finalize)
         {
             require_storage(t, name, "t");
             require_storage(result, name, "result");
@@ -306,7 +460,7 @@ namespace SushiBLAS
                                              transform, finalize, deps);
             };
 
-            return execute_reduction(engine, t, result, name, op_id, dispatch, partials);
+            return execute_reduction(recorder, t, result, name, op_id, dispatch, partials);
         }
 
         /**
@@ -390,12 +544,16 @@ namespace SushiBLAS
          * @param span The segment geometry, from axis_span_for or spatial_span_for.
          * @param result Must share t's dtype.
          * @param finalize Callable `(auto value, std::size_t n) -> auto`, applied once per segment.
-         * @throws std::invalid_argument if an operand holds elements without storage.
+         * @throws std::invalid_argument if an operand holds elements without storage, or under FORCE_REFERENCE.
          * @throws std::runtime_error if the dtypes disagree or the dtype is not HALF, FLOAT32 or FLOAT64.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<template<typename> class Accum, typename Transform, typename Finalize>
-        sycl::event execute_folding_span_reduction(Engine& engine, const Tensor& t, const Reduce::AxisSpan& span, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Transform transform, Finalize finalize)
+        TaskHandle execute_folding_span_reduction(TaskRecorder& recorder, const Tensor& t,
+                                                  const Reduce::AxisSpan& span, Tensor& result,
+                                                  const char* name,
+                                                  SushiRuntime::Graph::OpID op_id,
+                                                  Transform transform, Finalize finalize)
         {
             require_storage(t, name, "t");
             require_storage(result, name, "result");
@@ -406,51 +564,37 @@ namespace SushiBLAS
             void* write_R = result.data();
 
             // Operands are declared by Tensor::region(), not by data(); see include/SushiBLAS/engine/math/README.md.
-            std::vector<SushiRuntime::Core::ResourceRegion> reads = {t.region()};
-            std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
+            OperandSet operands;
+            operands.reads(t).writes(result);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
             meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
             meta.op_id = op_id;
 
+            TaskHandle handle;
+
             // REAL only: a fold needs an ordering and an identity, and integers are not arithmetic here; see include/SushiBLAS/engine/math/README.md.
-            with_element_type<Domain::REAL>(t.dtype, "Axis reduction", name,
-                [&](auto tag)
-            {
-                using T = typename decltype(tag)::type;
+            const Detail::SpanReductionArm<Accum, Transform, Finalize> arm{
+                recorder, meta, operands, span, read_T, write_R, transform, finalize, name, handle};
+            with_element_type<Domain::REAL>(t.dtype, "Axis reduction", name, arm);
 
-                engine.get_graph().add_task(meta, reads, writes,
-                    [span, pT = static_cast<const T*>(read_T), pR = static_cast<T*>(write_R),
-                     transform, finalize, name]
-                    (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-                    {
-                        SB_LOG_INFO("Axis reduction {}: {} segments of {} elements",
-                                    name, span.total_segments(), span.extent);
-
-                        // The geometry is planned at execution time; see include/SushiBLAS/engine/math/README.md.
-                        const Reduce::AxisPlan geometry =
-                            Reduce::plan_axis(Device::profile_for(q), span.total_segments(),
-                                              span.extent);
-
-                        return Reduce::reduce_axis<Accum>(q, pT, pR, span, geometry,
-                                                          transform, finalize, deps);
-                    });
-            });
-
-            return sycl::event();
+            return handle;
         }
 
         /**
          * @brief Records a segmented reduction over one axis of a rank-2 tensor.
          * @param axis Which axis to fold away; see axis_span_for.
          * @param result Rank-1 tensor sharing t's dtype.
-         * @throws std::invalid_argument if an operand holds elements without storage.
+         * @throws std::invalid_argument if an operand holds elements without storage, or under FORCE_REFERENCE.
          * @throws std::runtime_error for the reasons axis_span_for and execute_folding_span_reduction list.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<template<typename> class Accum, typename Transform, typename Finalize>
-        sycl::event execute_folding_axis_reduction(Engine& engine, const Tensor& t, int axis, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Transform transform, Finalize finalize)
+        TaskHandle execute_folding_axis_reduction(TaskRecorder& recorder, const Tensor& t, int axis,
+                                                  Tensor& result, const char* name,
+                                                  SushiRuntime::Graph::OpID op_id,
+                                                  Transform transform, Finalize finalize)
         {
             require_storage(t, name, "t");
             require_storage(result, name, "result");
@@ -459,7 +603,7 @@ namespace SushiBLAS
 
             const Reduce::AxisSpan span = axis_span_for(t, axis, result, name);
 
-            return execute_folding_span_reduction<Accum>(engine, t, span, result, name, op_id,
+            return execute_folding_span_reduction<Accum>(recorder, t, span, result, name, op_id,
                                                          transform, finalize);
         }
 

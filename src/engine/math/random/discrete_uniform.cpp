@@ -29,7 +29,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <algorithm>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
@@ -47,7 +46,7 @@ namespace SushiBLAS
         constexpr int64_t K_MAX_EXACT_FLOAT32_INTEGER = int64_t{1} << 24;
     } // namespace
 
-    sycl::event RandomOps::discrete_uniform(Tensor& t, int32_t min, int32_t max)
+    TaskHandle RandomOps::discrete_uniform(Tensor& t, int32_t min, int32_t max)
     {
         if (min > max)
             Dispatch::Detail::throw_operand_error("random.discrete_uniform", "min",
@@ -61,7 +60,7 @@ namespace SushiBLAS
                                                   "[{}, {}]; the bound is {} in magnitude",
                                                   min, max, K_MAX_EXACT_FLOAT32_INTEGER);
 
-        return Dispatch::execute_random<Dispatch::Domain::REAL>(engine_, t, "random.discrete_uniform", "random.discrete_uniform"_op, {static_cast<double>(min), static_cast<double>(max)},
+        return Dispatch::execute_random<Dispatch::Domain::REAL>(recorder_, rng_, t, "random.discrete_uniform", "random.discrete_uniform"_op, {static_cast<double>(min), static_cast<double>(max)},
             [min, max](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset, int64_t size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);

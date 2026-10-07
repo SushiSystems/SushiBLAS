@@ -33,10 +33,10 @@ namespace SushiBLAS
     using namespace SushiRuntime::Graph::Literals;
 
     // Sum of magnitudes: the same fold as `sum` with `fabs` as the transform.
-    sycl::event ReductionOps::asum(const Tensor& t, Tensor& result)
+    TaskHandle ReductionOps::asum(const Tensor& t, Tensor& result)
     {
         return Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(
-            engine_, t, result, "math.asum", "math.asum"_op,
+            recorder_, t, result, "math.asum", "math.asum"_op,
             [](auto x) { return sycl::fabs(x); },
             Dispatch::ReduceIdentityFinalize{});
     }

@@ -33,10 +33,10 @@ namespace SushiBLAS
     using namespace SushiRuntime::Graph::Literals;
 
     // The product folds in a fixed order through RunningProduct; see src/README.md.
-    sycl::event ReductionOps::prod(const Tensor& t, Tensor& result)
+    TaskHandle ReductionOps::prod(const Tensor& t, Tensor& result)
     {
         return Dispatch::execute_folding_reduction<Reduce::RunningProduct>(
-            engine_, t, result, "math.prod", "math.prod"_op,
+            recorder_, t, result, "math.prod", "math.prod"_op,
             Dispatch::ReduceIdentityTransform{}, Dispatch::ReduceIdentityFinalize{});
     }
 } // namespace SushiBLAS

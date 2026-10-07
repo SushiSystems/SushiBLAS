@@ -33,10 +33,10 @@ namespace SushiBLAS
     using namespace SushiRuntime::Graph::Literals;
 
     // The sum is order-sensitive, so it goes through the folding seam; see src/README.md.
-    sycl::event ReductionOps::sum(const Tensor& t, Tensor& result)
+    TaskHandle ReductionOps::sum(const Tensor& t, Tensor& result)
     {
         return Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(
-            engine_, t, result, "math.sum", "math.sum"_op,
+            recorder_, t, result, "math.sum", "math.sum"_op,
             Dispatch::ReduceIdentityTransform{}, Dispatch::ReduceIdentityFinalize{});
     }
 } // namespace SushiBLAS

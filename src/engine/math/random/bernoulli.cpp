@@ -25,7 +25,6 @@
  * @author Mustafa Garip
  */
 
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -36,14 +35,14 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event RandomOps::bernoulli(Tensor& t, double p)
+    TaskHandle RandomOps::bernoulli(Tensor& t, double p)
     {
         if (!(p >= 0.0 && p <= 1.0))
             Dispatch::Detail::throw_operand_error("random.bernoulli", "p",
                                                   "is {}, expected within [0, 1]", p);
 
         return Dispatch::execute_random<Dispatch::Domain::REAL>(
-            engine_, t, "random.bernoulli", "random.bernoulli"_op, {p},
+            recorder_, rng_, t, "random.bernoulli", "random.bernoulli"_op, {p},
             [p](auto scalar_type, sycl::queue& q, uint64_t seed, uint64_t offset,
                 int64_t size, auto* pT,
                 const std::vector<sycl::event>& deps) -> sycl::event
