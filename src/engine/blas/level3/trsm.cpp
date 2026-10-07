@@ -31,6 +31,7 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level3.hpp>
+#include <SushiBLAS/engine/blas/matrix_operand.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -47,37 +48,29 @@ namespace SushiBLAS
         SB_THROW_IF(A.rank < 2 || B.rank < 2, "TRSM requires at least 2D tensors.");
         SB_THROW_IF(A.dtype != B.dtype, "Data type mismatch in TRSM operation.");
 
-        int32_t rA = A.rank, rB = B.rank;
-        int64_t m = B.shape[rB - 2];
-        int64_t n = B.shape[rB - 1];
+        const char* op = "blas.lvl3.trsm";
+        const Dispatch::MatrixOperand a = Dispatch::describe_matrix_operand(A, op, "A");
+        const Dispatch::MatrixOperand b = Dispatch::describe_matrix_operand(B, op, "B");
+        Dispatch::require_same_layout(a, b, op, "A", "B");
 
-        // A is expected to be a square matrix
-        int64_t a_rows = A.shape[rA - 2];
-        int64_t a_cols = A.shape[rA - 1];
-        SB_THROW_IF(a_rows != a_cols, "TRSM requires matrix A to be square.");
+        const int64_t m = b.rows;
+        const int64_t n = b.cols;
+        Dispatch::require_matrix_extent(a.cols, a.rows, "columns for a square A", op, "A");
+        Dispatch::require_matrix_extent(a.rows, left_side ? m : n,
+                                        left_side ? "rows against the rows of B"
+                                                  : "rows against the columns of B",
+                                        op, "A");
 
-        if (left_side)
-        {
-            SB_THROW_IF(a_rows != m, "Left-sided TRSM: dimensions of A must match rows of B.");
-        }
-        else
-        {
-            SB_THROW_IF(a_rows != n, "Right-sided TRSM: dimensions of A must match cols of B.");
-        }
+        const int64_t batch_size = b.batch_count;
+        const int64_t str_a = Dispatch::batch_stride(a, batch_size, op, "A");
+        const int64_t str_b = Dispatch::batch_stride(b, batch_size, op, "B");
+        Dispatch::require_same_batch_axes(A, a, B, b, op, "A", "B");
 
-        // Batch Extraction based on B
-        int64_t batch_size = 1;
-        for (int i = 0; i < rB - 2; ++i) batch_size *= B.shape[i];
+        const int64_t lda = a.leading_dimension;
+        const int64_t ldb = b.leading_dimension;
 
-        int64_t lda = (A.layout == Core::Layout::ROW_MAJOR) ? A.shape[rA - 1] : A.shape[rA - 2];
-        int64_t ldb = (B.layout == Core::Layout::ROW_MAJOR) ? B.shape[rB - 1] : B.shape[rB - 2];
-
-        int64_t str_a = (batch_size > 1) ? A.strides[rA - 3] : 0;
-        int64_t str_b = (batch_size > 1) ? B.strides[rB - 3] : 0;
-
-        // Capture data safely for asynchronous execution
-        auto layout = A.layout;
-        void* read_A = A.data_or_null();
+        const auto layout = b.layout;
+        const void* read_A = A.data_or_null();
         void* rw_B = B.data_or_null();
 
         // B arrives as the right-hand sides and leaves as the solution X: read, then written.
@@ -97,17 +90,17 @@ namespace SushiBLAS
         meta.set_param(3, transA);
         meta.set_param(4, unit_diag);
 
-        auto mode = engine_.get_mode();
-
         return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_A, rw_B},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 auto pA = static_cast<const T*>(read_A);
                 auto pB = static_cast<T*>(rw_B);
                 auto alpha_t = static_cast<T>(alpha);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=]
                     {
                         Kernels::Reference::trsm<T>(layout, left_side, upper, transA, unit_diag, m, n, alpha_t, pA, lda, str_a, pB, ldb, str_b, batch_size);

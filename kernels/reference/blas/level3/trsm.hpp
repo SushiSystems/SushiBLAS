@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
 
 namespace SushiBLAS
 {
@@ -46,6 +47,7 @@ namespace SushiBLAS
                       const T* a, int64_t lda,
                       T* b, int64_t ldb)
             {
+                using W = Accumulator<T>;
                 auto A_at = [&](int64_t r, int64_t c) -> T
                 {
                     return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
@@ -66,18 +68,18 @@ namespace SushiBLAS
                         {
                             for (int64_t i = 0; i < m; ++i)
                             {
-                                T sum = alpha * B_ref(i, j);
-                                for (int64_t k = 0; k < i; ++k) sum -= A_eff(i, k) * B_ref(k, j);
-                                B_ref(i, j) = unit_diag ? sum : sum / A_eff(i, i);
+                                W sum = W(alpha) * W(B_ref(i, j));
+                                for (int64_t k = 0; k < i; ++k) sum -= W(A_eff(i, k)) * W(B_ref(k, j));
+                                B_ref(i, j) = unit_diag ? T(sum) : T(sum / W(A_eff(i, i)));
                             }
                         }
                         else
                         {
                             for (int64_t i = m - 1; i >= 0; --i)
                             {
-                                T sum = alpha * B_ref(i, j);
-                                for (int64_t k = i + 1; k < m; ++k) sum -= A_eff(i, k) * B_ref(k, j);
-                                B_ref(i, j) = unit_diag ? sum : sum / A_eff(i, i);
+                                W sum = W(alpha) * W(B_ref(i, j));
+                                for (int64_t k = i + 1; k < m; ++k) sum -= W(A_eff(i, k)) * W(B_ref(k, j));
+                                B_ref(i, j) = unit_diag ? T(sum) : T(sum / W(A_eff(i, i)));
                             }
                         }
                     }
@@ -94,18 +96,18 @@ namespace SushiBLAS
                         {
                             for (int64_t p = 0; p < n; ++p)
                             {
-                                T sum = alpha * B_ref(i, p);
-                                for (int64_t q = 0; q < p; ++q) sum -= A_eff(p, q) * B_ref(i, q);
-                                B_ref(i, p) = unit_diag ? sum : sum / A_eff(p, p);
+                                W sum = W(alpha) * W(B_ref(i, p));
+                                for (int64_t q = 0; q < p; ++q) sum -= W(A_eff(p, q)) * W(B_ref(i, q));
+                                B_ref(i, p) = unit_diag ? T(sum) : T(sum / W(A_eff(p, p)));
                             }
                         }
                         else
                         {
                             for (int64_t p = n - 1; p >= 0; --p)
                             {
-                                T sum = alpha * B_ref(i, p);
-                                for (int64_t q = p + 1; q < n; ++q) sum -= A_eff(p, q) * B_ref(i, q);
-                                B_ref(i, p) = unit_diag ? sum : sum / A_eff(p, p);
+                                W sum = W(alpha) * W(B_ref(i, p));
+                                for (int64_t q = p + 1; q < n; ++q) sum -= W(A_eff(p, q)) * W(B_ref(i, q));
+                                B_ref(i, p) = unit_diag ? T(sum) : T(sum / W(A_eff(p, p)));
                             }
                         }
                     }

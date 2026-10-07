@@ -31,6 +31,7 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level3.hpp>
+#include <SushiBLAS/engine/blas/matrix_operand.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -46,33 +47,27 @@ namespace SushiBLAS
         SB_THROW_IF(A.rank < 2 || C.rank < 2, "SYRK requires at least 2D tensors.");
         SB_THROW_IF(A.dtype != C.dtype, "Data type mismatch in SYRK operation.");
 
-        int32_t rA = A.rank, rC = C.rank;
-        
-        // C must be strictly square n x n
-        int64_t n = C.shape[rC - 2];
-        SB_THROW_IF(C.shape[rC - 1] != n, "SYRK requires C to be a square matrix.");
+        const char* op = "blas.lvl3.syrk";
+        const Dispatch::MatrixOperand a = Dispatch::describe_matrix_operand(A, op, "A");
+        const Dispatch::MatrixOperand c = Dispatch::describe_matrix_operand(C, op, "C");
+        Dispatch::require_same_layout(a, c, op, "A", "C");
 
-        // Define inner k based on trans flag
-        int64_t inner_n = transA ? A.shape[rA - 1] : A.shape[rA - 2];
-        int64_t k       = transA ? A.shape[rA - 2] : A.shape[rA - 1];
-        
-        SB_THROW_IF(inner_n != n, "Dimension mismatch in SYRK: A does not match C dimension.");
+        const int64_t n = c.rows;
+        Dispatch::require_matrix_extent(c.cols, n, "columns for a square C", op, "C");
 
-        // Batch extraction
-        int64_t batch_size = 1;
-        for (int i = 0; i < rC - 2; ++i) batch_size *= C.shape[i];
+        const int64_t k = transA ? a.rows : a.cols;
+        Dispatch::require_matrix_extent(transA ? a.cols : a.rows, n, "rows in op(A)", op, "A");
 
-        // Lda / Ldc
-        int64_t lda = (A.layout == Core::Layout::ROW_MAJOR) ? A.shape[rA - 1] : A.shape[rA - 2];
-        int64_t ldc = (C.layout == Core::Layout::ROW_MAJOR) ? C.shape[rC - 1] : C.shape[rC - 2];
+        const int64_t batch_size = c.batch_count;
+        const int64_t str_a = Dispatch::batch_stride(a, batch_size, op, "A");
+        const int64_t str_c = Dispatch::batch_stride(c, batch_size, op, "C");
+        Dispatch::require_same_batch_axes(A, a, C, c, op, "A", "C");
 
-        // Strides
-        int64_t str_a = (batch_size > 1) ? A.strides[rA - 3] : 0;
-        int64_t str_c = (batch_size > 1) ? C.strides[rC - 3] : 0;
+        const int64_t lda = a.leading_dimension;
+        const int64_t ldc = c.leading_dimension;
 
-        // Capture data safely for asynchronous execution
-        auto layout = A.layout;
-        void* read_A = A.data_or_null();
+        const auto layout = c.layout;
+        const void* read_A = A.data_or_null();
         void* rw_C = C.data_or_null();
 
         // C is read-modify-write whatever beta is; see src/README.md.
@@ -91,10 +86,10 @@ namespace SushiBLAS
         meta.set_param(2, upper);
         meta.set_param(3, transA);
 
-        auto mode = engine_.get_mode();
-
         return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_A, rw_C},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
@@ -103,7 +98,7 @@ namespace SushiBLAS
                 auto alpha_t = static_cast<T>(alpha);
                 auto beta_t = static_cast<T>(beta);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=]
                     {
                         Kernels::Reference::syrk<T>(layout, upper, transA, n, k, alpha_t, pA, lda, str_a, beta_t, pC, ldc, str_c, batch_size);

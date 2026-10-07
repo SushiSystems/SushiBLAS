@@ -35,6 +35,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/kernels/sycl/blas/level3/gemm.hpp>
 
 namespace SushiBLAS
@@ -88,6 +89,7 @@ namespace SushiBLAS
                              T beta, T* c, int64_t ldc, int64_t str_c,
                              int64_t batch_size, const std::vector<sycl::event>& deps)
             {
+                using W = Accumulator<T>;
                 using Cfg = Detail::SyrkTileConfig<T>;
                 constexpr int64_t item_rows = Cfg::item_rows;
                 constexpr int64_t item_cols = Cfg::item_cols;
@@ -138,10 +140,10 @@ namespace SushiBLAS
                             : (row0 + block_m - 1 >= col0);
                         if (!tile_wanted) return;
 
-                        T acc[item_rows][item_cols];
+                        W acc[item_rows][item_cols];
                         for (int64_t ii = 0; ii < item_rows; ++ii)
                             for (int64_t jj = 0; jj < item_cols; ++jj)
-                                acc[ii][jj] = T(0);
+                                acc[ii][jj] = W(0);
 
                         for (int64_t k0 = 0; k0 < k; k0 += tile_k)
                         {
@@ -169,7 +171,7 @@ namespace SushiBLAS
                                     regb[jj] = tileB[kk * block_n + (local_col * item_cols + jj)];
                                 for (int64_t ii = 0; ii < item_rows; ++ii)
                                     for (int64_t jj = 0; jj < item_cols; ++jj)
-                                        acc[ii][jj] += rega[ii] * regb[jj];
+                                        acc[ii][jj] += W(rega[ii]) * W(regb[jj]);
                             }
 
                             sycl::group_barrier(item.get_group());
@@ -189,7 +191,9 @@ namespace SushiBLAS
                                 const int64_t c_idx = global_row * c_strides.row +
                                                       global_col * c_strides.col;
                                 // A zero beta must not read the prior value of C.
-                                C[c_idx] = (beta == T(0)) ? alpha * acc[ii][jj] : alpha * acc[ii][jj] + beta * C[c_idx];
+                                C[c_idx] = (beta == T(0))
+                                    ? T(W(alpha) * acc[ii][jj])
+                                    : T(W(alpha) * acc[ii][jj] + W(beta) * W(C[c_idx]));
                             }
                         }
                     });

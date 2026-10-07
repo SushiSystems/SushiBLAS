@@ -40,8 +40,8 @@ namespace SushiBLAS
     {
         SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in ROT.");
         int64_t n, incx, incy;
-        Internal::get_vec_params(x, n, incx);
-        int64_t ny; Internal::get_vec_params(y, ny, incy);
+        Internal::get_vec_params(x, n, incx, "blas.lvl1.rot", "x");
+        int64_t ny; Internal::get_vec_params(y, ny, incy, "blas.lvl1.rot", "y");
         SB_THROW_IF(n != ny, "ROT requires tensors of the same number of elements.");
 
         void* rw_x = x.data_or_null();
@@ -62,10 +62,10 @@ namespace SushiBLAS
         meta.set_param(0, c);
         meta.set_param(1, s);
 
-        auto mode = engine_.get_mode();
-
         return Internal::execute_blas_task(engine_, meta, reads, writes, x.dtype,
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{rw_x, rw_y},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 using Real = typename Kernels::Reference::RealOf<T>::type;
@@ -74,7 +74,7 @@ namespace SushiBLAS
                 auto c_t = static_cast<Real>(c);
                 auto s_t = static_cast<Real>(s);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=] { Kernels::Reference::rot<T>(n, pX, incx, pY, incy, c_t, s_t); },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {

@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
 
 namespace SushiBLAS
 {
@@ -50,9 +51,10 @@ namespace SushiBLAS
                     return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
                 };
 
+                using W = Accumulator<T>;
                 for (int64_t i = 0; i < m; ++i)
                     for (int64_t j = 0; j < n; ++j)
-                        A_ref(i, j) += alpha * x[i * incx] * y[j * incy];
+                        A_ref(i, j) = T(W(A_ref(i, j)) + W(alpha) * W(x[i * incx]) * W(y[j * incy]));
             }
 
         } // namespace Reference

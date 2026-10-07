@@ -36,7 +36,8 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiBLAS/engine/device_policy.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/kernels/blas/level3/gemm_epilogue.hpp>
 
 namespace SushiBLAS
@@ -136,7 +137,7 @@ namespace SushiBLAS
                     static constexpr int wg_items = wg_rows * wg_cols;
 
                     /** @brief Rows of C accumulated privately by one work-item. */
-                    static constexpr int item_rows = register_block_dim<T>(K_LOCAL_ACC_BYTES, 8);
+                    static constexpr int item_rows = register_block_dim<Accumulator<T>>(K_LOCAL_ACC_BYTES, 8);
 
                     /** @brief Columns of C accumulated privately by one work-item. */
                     static constexpr int item_cols = item_rows;
@@ -177,7 +178,7 @@ namespace SushiBLAS
                 struct GemmNoLocalTile
                 {
                     /** @brief Rows of C accumulated privately by one work-item. */
-                    static constexpr int item_rows = register_block_dim<T>(K_NO_LOCAL_ACC_BYTES, 4);
+                    static constexpr int item_rows = register_block_dim<Accumulator<T>>(K_NO_LOCAL_ACC_BYTES, 4);
 
                     /** @brief Columns of C accumulated privately by one work-item. */
                     static constexpr int item_cols = item_rows;
@@ -241,6 +242,7 @@ namespace SushiBLAS
                     int64_t batch_size, const std::vector<sycl::event>& deps,
                     Epilogue epilogue)
                 {
+                    using W = Accumulator<T>;
                     using Cfg = GemmLocalTile<T>;
 
                     SB_ASSERT(Device::profile_for(queue).max_work_group_size >=
@@ -283,10 +285,10 @@ namespace SushiBLAS
                             // Only C is __restrict__: a and b may alias; see include/SushiBLAS/kernels/README.md.
                             T* __restrict__ C = c + batch_id * str_c;
 
-                            T acc[Cfg::item_rows][Cfg::item_cols];
+                            W acc[Cfg::item_rows][Cfg::item_cols];
                             for (int ii = 0; ii < Cfg::item_rows; ++ii)
                                 for (int jj = 0; jj < Cfg::item_cols; ++jj)
-                                    acc[ii][jj] = T(0);
+                                    acc[ii][jj] = W(0);
 
                             // One local buffer and two barriers per K-step; see include/SushiBLAS/kernels/README.md.
                             for (int64_t k0 = 0; k0 < k; k0 += Cfg::tile_k)
@@ -329,7 +331,7 @@ namespace SushiBLAS
 
                                     for (int ii = 0; ii < Cfg::item_rows; ++ii)
                                         for (int jj = 0; jj < Cfg::item_cols; ++jj)
-                                            acc[ii][jj] += reg_a[ii] * reg_b[jj];
+                                            acc[ii][jj] += W(reg_a[ii]) * W(reg_b[jj]);
                                 }
 
                                 sycl::group_barrier(item.get_group());
@@ -350,8 +352,8 @@ namespace SushiBLAS
 
                                     // beta == 0 must not read the prior C value, which may be uninitialised; see include/SushiBLAS/kernels/README.md.
                                     const T value = (beta == T(0))
-                                        ? alpha * acc[ii][jj]
-                                        : alpha * acc[ii][jj] + beta * C[c_idx];
+                                        ? T(W(alpha) * acc[ii][jj])
+                                        : T(W(alpha) * acc[ii][jj] + W(beta) * W(C[c_idx]));
 
                                     C[c_idx] = epilogue(value, global_row, global_col);
                                 }
@@ -376,6 +378,7 @@ namespace SushiBLAS
                     int64_t batch_size, const std::vector<sycl::event>& deps,
                     Epilogue epilogue)
                 {
+                    using W = Accumulator<T>;
                     using Cfg = GemmNoLocalTile<T>;
 
                     const GroupShape group = group_shape(Device::work_group_size(profile));
@@ -415,10 +418,10 @@ namespace SushiBLAS
                             // Only C is __restrict__, because a and b may alias each other; see include/SushiBLAS/kernels/README.md.
                             T* __restrict__ C = c + batch_id * str_c;
 
-                            T acc[Cfg::item_rows][Cfg::item_cols];
+                            W acc[Cfg::item_rows][Cfg::item_cols];
                             for (int ii = 0; ii < Cfg::item_rows; ++ii)
                                 for (int jj = 0; jj < Cfg::item_cols; ++jj)
-                                    acc[ii][jj] = T(0);
+                                    acc[ii][jj] = W(0);
 
                             for (int64_t kk = 0; kk < k; ++kk)
                             {
@@ -435,7 +438,7 @@ namespace SushiBLAS
 
                                 for (int ii = 0; ii < Cfg::item_rows; ++ii)
                                     for (int jj = 0; jj < Cfg::item_cols; ++jj)
-                                        acc[ii][jj] += reg_a[ii] * reg_b[jj];
+                                        acc[ii][jj] += W(reg_a[ii]) * W(reg_b[jj]);
                             }
 
                             for (int ii = 0; ii < Cfg::item_rows; ++ii)
@@ -453,8 +456,8 @@ namespace SushiBLAS
 
                                     // beta == 0 must not read the prior C value, which may be uninitialised; see include/SushiBLAS/kernels/README.md.
                                     const T value = (beta == T(0))
-                                        ? alpha * acc[ii][jj]
-                                        : alpha * acc[ii][jj] + beta * C[c_idx];
+                                        ? T(W(alpha) * acc[ii][jj])
+                                        : T(W(alpha) * acc[ii][jj] + W(beta) * W(C[c_idx]));
 
                                     C[c_idx] = epilogue(value, global_row, global_col);
                                 }

@@ -32,7 +32,9 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiBLAS/engine/launch_1d.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/support/launch_1d.hpp>
+#include "kernels/sycl/blas/level2/row_reduction.hpp"
 
 namespace SushiBLAS
 {
@@ -41,7 +43,7 @@ namespace SushiBLAS
         namespace SYCL
         {
             /**
-             * @brief Computes GEMV, y = alpha*op(A)*x + beta*y, one work-item per output element.
+             * @brief Computes GEMV, y = alpha*op(A)*x + beta*y, per work-item or per work-group by output element.
              * @see kernels/README.md
              */
             template<typename T>
@@ -50,10 +52,35 @@ namespace SushiBLAS
                              const T* x, int64_t incx, T beta, T* y, int64_t incy,
                              const std::vector<sycl::event>& deps)
             {
+                using W = Accumulator<T>;
                 const int64_t out_len = transA ? n : m;
                 const int64_t in_len = transA ? m : n;
 
                 SB_LOG_INFO("SYCL GEMV: {}x{}", m, n);
+
+                const bool row_contiguous = (layout == Core::Layout::ROW_MAJOR) != transA;
+                const std::size_t width = (row_contiguous && out_len > 0)
+                    ? Detail::row_reduction_width(Device::profile_for(queue), in_len)
+                    : std::size_t{0};
+
+                if (width != 0)
+                {
+                    return queue.submit([&](sycl::handler& h)
+                    {
+                        h.depends_on(deps);
+                        // A row-contiguous op(A) holds element (o, k) at a[o * lda + k] in both layouts.
+                        Detail::reduce_rows_by_group<W>(h, out_len, in_len, width,
+                            [=](int64_t o, int64_t k) -> W
+                            {
+                                return W(a[o * lda + k]) * W(x[k * incx]);
+                            },
+                            [=](int64_t o, W sum)
+                            {
+                                y[o * incy] = (beta == T(0)) ? T(W(alpha) * sum)
+                                                             : T(W(alpha) * sum + W(beta) * W(y[o * incy]));
+                            });
+                    });
+                }
 
                 return queue.submit([&](sycl::handler& h)
                 {
@@ -65,13 +92,14 @@ namespace SushiBLAS
                         {
                             return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
                         };
-                        T sum(0);
+                        W sum(0);
                         for (int64_t k = 0; k < in_len; ++k)
                         {
                             T aval = transA ? A_at(k, o) : A_at(o, k);
-                            sum += aval * x[k * incx];
+                            sum += W(aval) * W(x[k * incx]);
                         }
-                        y[o * incy] = (beta == T(0)) ? alpha * sum : alpha * sum + beta * y[o * incy];
+                        y[o * incy] = (beta == T(0)) ? T(W(alpha) * sum)
+                                                     : T(W(alpha) * sum + W(beta) * W(y[o * incy]));
                     });
                 });
             }

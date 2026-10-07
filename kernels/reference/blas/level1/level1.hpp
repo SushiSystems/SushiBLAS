@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <utility>
 #include <type_traits>
+#include <SushiBLAS/support/accumulator.hpp>
 
 namespace SushiBLAS
 {
@@ -84,47 +85,60 @@ namespace SushiBLAS
                 }
             }
 
+            /**
+             * @brief Computes sum(|Re(x_i)| + |Im(x_i)|) in Accumulator precision, rounded once
+             *        on store.
+             */
             template<typename T>
             void asum(int64_t n, const T* x, int64_t incx, typename RealOf<T>::type* result)
             {
-                typename RealOf<T>::type sum(0);
-                for (int64_t i = 0; i < n; ++i) sum += abs1(x[i * incx]);
-                *result = sum;
+                using R = typename RealOf<T>::type;
+                using W = Accumulator<R>;
+
+                W sum(0);
+                for (int64_t i = 0; i < n; ++i)
+                    sum += static_cast<W>(abs1(x[i * incx]));
+                *result = static_cast<R>(sum);
             }
 
             /**
-             * @brief Computes the Euclidean norm in the scaling form xNRM2 specifies.
+             * @brief Computes the Euclidean norm in the scaling form xNRM2 specifies, in
+             *        Accumulator precision, rounded once on store.
              * @see kernels/README.md
              */
             template<typename T>
             void nrm2(int64_t n, const T* x, int64_t incx, typename RealOf<T>::type* result)
             {
                 using R = typename RealOf<T>::type;
+                using W = Accumulator<R>;
 
-                R scale(0), ssq(0);
+                W scale(0);
+                W ssq(0);
 
                 auto fold = [&scale, &ssq](R value)
                 {
-                    const R a = std::abs(value);
-                    if (a == R(0)) return;
+                    const W a = std::abs(static_cast<W>(value));
+                    if (a == W(0))
+                        return;
 
                     // A non-finite element is folded in unscaled; see kernels/README.md.
                     if (!std::isfinite(a))
                     {
-                        if (scale == R(0)) scale = R(1);
+                        if (scale == W(0))
+                            scale = W(1);
                         ssq += a * a;
                         return;
                     }
 
                     if (a > scale)
                     {
-                        const R r = scale / a;
-                        ssq = R(1) + ssq * r * r;
+                        const W r = scale / a;
+                        ssq = W(1) + ssq * r * r;
                         scale = a;
                     }
                     else
                     {
-                        const R r = a / scale;
+                        const W r = a / scale;
                         ssq += r * r;
                     }
                 };
@@ -144,16 +158,22 @@ namespace SushiBLAS
                 }
 
                 // scale is zero only when nothing was folded, in which case ssq is zero too.
-                *result = scale * static_cast<R>(std::sqrt(ssq));
+                *result = static_cast<R>(scale * std::sqrt(ssq));
             }
 
-            // Unconjugated dot product: result = sum(x_i * y_i).
+            /**
+             * @brief Computes the unconjugated dot product sum(x_i * y_i) in Accumulator
+             *        precision, rounded once on store.
+             */
             template<typename T>
             void dot(int64_t n, const T* x, int64_t incx, const T* y, int64_t incy, T* result)
             {
-                T sum(0);
-                for (int64_t i = 0; i < n; ++i) sum += x[i * incx] * y[i * incy];
-                *result = sum;
+                using W = Accumulator<T>;
+
+                W sum(0);
+                for (int64_t i = 0; i < n; ++i)
+                    sum += static_cast<W>(x[i * incx]) * static_cast<W>(y[i * incy]);
+                *result = static_cast<T>(sum);
             }
 
             // Conjugated dot product (DOTC): result = sum(conj(x_i) * y_i).

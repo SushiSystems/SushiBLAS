@@ -40,8 +40,8 @@ namespace SushiBLAS
     {
         SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in SWAP.");
         int64_t n, incx, incy;
-        Internal::get_vec_params(x, n, incx);
-        int64_t ny; Internal::get_vec_params(y, ny, incy);
+        Internal::get_vec_params(x, n, incx, "blas.lvl1.swap", "x");
+        int64_t ny; Internal::get_vec_params(y, ny, incy, "blas.lvl1.swap", "y");
         SB_THROW_IF(n != ny, "SWAP requires tensors of the same number of elements.");
 
         void* rw_x = x.data_or_null();
@@ -60,16 +60,16 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "blas.lvl1.swap"_op;
 
-        auto mode = engine_.get_mode();
-
         return Internal::execute_blas_task(engine_, meta, reads, writes, x.dtype,
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{rw_x, rw_y},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 auto pX = static_cast<T*>(rw_x);
                 auto pY = static_cast<T*>(rw_y);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=] { Kernels::Reference::swap<T>(n, pX, incx, pY, incy); },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {

@@ -30,6 +30,7 @@
 #include <complex>
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/kernels/blas/level3/gemm_epilogue.hpp>
 
 namespace SushiBLAS
@@ -52,6 +53,7 @@ namespace SushiBLAS
                     T beta, T* c, int64_t ldc,
                     Epilogue epilogue = Epilogue{})
             {
+                using W = Accumulator<T>;
                 const bool col_major = (layout == Core::Layout::COLUMN_MAJOR);
 
                 // Element (r, col) of the logical, post-transpose operand.
@@ -68,17 +70,17 @@ namespace SushiBLAS
                 {
                     for (int64_t j = 0; j < n; ++j)
                     {
-                        T sum(0);
+                        W sum(0);
                         for (int64_t l = 0; l < k; ++l)
-                            sum += A_at(i, l) * B_at(l, j);
+                            sum += W(A_at(i, l)) * W(B_at(l, j));
 
                         const int64_t idx = (layout == Core::Layout::ROW_MAJOR)
                             ? i * ldc + j
                             : i + j * ldc;
 
                         // beta == 0 must not read the prior C value, which may be uninitialised; see include/SushiBLAS/kernels/README.md.
-                        const T value = (beta == T(0)) ? alpha * sum
-                                                       : alpha * sum + beta * c[idx];
+                        const T value = (beta == T(0)) ? T(W(alpha) * sum)
+                                                       : T(W(alpha) * sum + W(beta) * W(c[idx]));
 
                         c[idx] = epilogue(value, i, j);
                     }

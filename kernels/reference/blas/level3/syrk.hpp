@@ -30,6 +30,7 @@
 #include <complex>
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
 
 namespace SushiBLAS
 {
@@ -47,6 +48,7 @@ namespace SushiBLAS
                       T alpha, const T* a, int64_t lda,
                       T beta, T* c, int64_t ldc)
             {
+                using W = Accumulator<T>;
                 const bool col_major = (layout == Core::Layout::COLUMN_MAJOR);
 
                 // Element (r, col) of the logical, post-transpose op(A).
@@ -63,15 +65,13 @@ namespace SushiBLAS
                             continue;
 
                         // The second factor is op(A)^T(l, j), which is op(A)(j, l).
-                        T sum(0);
+                        W sum(0);
                         for (int64_t l = 0; l < k; ++l)
-                            sum += A_at(i, l) * A_at(j, l);
+                            sum += W(A_at(i, l)) * W(A_at(j, l));
 
                         // A zero beta must not read the prior value of C.
-                        if (layout == Core::Layout::ROW_MAJOR)
-                            c[i * ldc + j] = (beta == T(0)) ? alpha * sum : alpha * sum + beta * c[i * ldc + j];
-                        else
-                            c[i + j * ldc] = (beta == T(0)) ? alpha * sum : alpha * sum + beta * c[i + j * ldc];
+                        T& out = (layout == Core::Layout::ROW_MAJOR) ? c[i * ldc + j] : c[i + j * ldc];
+                        out = (beta == T(0)) ? T(W(alpha) * sum) : T(W(alpha) * sum + W(beta) * W(out));
                     }
                 }
             }

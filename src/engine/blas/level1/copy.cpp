@@ -45,11 +45,11 @@ namespace SushiBLAS
                     "converts, use elementwise().convert(src, dst).",
                     Core::to_string(x.dtype), Core::to_string(y.dtype));
         int64_t n, incx, incy;
-        Internal::get_vec_params(x, n, incx);
-        int64_t ny; Internal::get_vec_params(y, ny, incy);
+        Internal::get_vec_params(x, n, incx, "blas.lvl1.copy", "x");
+        int64_t ny; Internal::get_vec_params(y, ny, incy, "blas.lvl1.copy", "y");
         SB_THROW_IF(n != ny, "COPY requires tensors of the same number of elements.");
 
-        void* read_x = x.data_or_null();
+        const void* read_x = x.data_or_null();
         void* write_y = y.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
@@ -62,17 +62,17 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "blas.lvl1.copy"_op;
 
-        auto mode = engine_.get_mode();
-
         // copy does no arithmetic, so it serves Domain::ALL; see src/README.md.
         return Internal::execute_blas_task<Dispatch::Domain::ALL>(engine_, meta, reads, writes, x.dtype,
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_x, write_y},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 auto pX = static_cast<const T*>(read_x);
                 auto pY = static_cast<T*>(write_y);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=] { Kernels::Reference::copy<T>(n, pX, incx, pY, incy); },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {

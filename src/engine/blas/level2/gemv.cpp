@@ -41,19 +41,22 @@ namespace SushiBLAS
                              bool transA, double alpha, double beta)
     {
         SB_THROW_IF(A.rank < 2, "GEMV requires A to be at least a 2D matrix.");
+        Internal::require_level2_matrix_rank(A, "blas.lvl2.gemv");
         SB_THROW_IF(A.dtype != x.dtype || A.dtype != y.dtype, "Data type mismatch in GEMV.");
 
         int32_t rA = A.rank;
+        Dispatch::require_storage(A, "blas.lvl2.gemv", "A");
+        Dispatch::require_contiguous(A, "blas.lvl2.gemv", "A");
         int64_t m = A.shape[rA - 2];
         int64_t n = A.shape[rA - 1];
 
         int64_t lda = (A.layout == Core::Layout::ROW_MAJOR) ? A.shape[rA - 1] : A.shape[rA - 2];
 
         int64_t nx, incx;
-        Internal::get_vec_params(x, nx, incx);
+        Internal::get_vec_params(x, nx, incx, "blas.lvl2.gemv", "x");
 
         int64_t ny, incy;
-        Internal::get_vec_params(y, ny, incy);
+        Internal::get_vec_params(y, ny, incy, "blas.lvl2.gemv", "y");
 
         int64_t expected_nx = transA ? m : n;
         int64_t expected_ny = transA ? n : m;
@@ -61,8 +64,8 @@ namespace SushiBLAS
         SB_THROW_IF(nx != expected_nx, "Dimension mismatch for vector x in GEMV.");
         SB_THROW_IF(ny != expected_ny, "Dimension mismatch for vector y in GEMV.");
 
-        void* read_A = A.data_or_null();
-        void* read_x = x.data_or_null();
+        const void* read_A = A.data_or_null();
+        const void* read_x = x.data_or_null();
         void* rw_y = y.data_or_null();
 
         // y is read whenever the caller's beta is non-zero; see src/README.md.
@@ -82,10 +85,11 @@ namespace SushiBLAS
         meta.set_param(2, beta);
 
         auto layout = A.layout;
-        auto mode = engine_.get_mode();
 
         return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_A, read_x, rw_y},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 auto pA = static_cast<const T*>(read_A);
@@ -94,7 +98,7 @@ namespace SushiBLAS
                 auto alpha_t = static_cast<T>(alpha);
                 auto beta_t = static_cast<T>(beta);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=] { Kernels::Reference::gemv<T>(layout, transA, m, n, alpha_t, pA, lda, px, incx, beta_t, py, incy); },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {

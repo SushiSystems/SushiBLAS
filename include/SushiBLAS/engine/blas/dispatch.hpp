@@ -38,6 +38,7 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
+#include <SushiBLAS/engine/blas/matrix_operand.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 #include <SushiBLAS/kernels/blas/level3/gemm_epilogue.hpp>
@@ -196,7 +197,9 @@ namespace SushiBLAS
          * @brief Records `C = epilogue(alpha * op(A) * op(B) + beta * C, row, col)` as one task.
          * @param C Must not overlap A or B.
          * @param epilogue Must be device-copyable, capture by value, and neither allocate nor throw.
+         * @return A default-constructed event; the task runs at Engine::execute.
          * @throws std::runtime_error on rank < 2, a dtype mismatch, or a dtype outside Dom.
+         * @throws std::invalid_argument on a non-contiguous operand, mixed layouts, or a shape or batch mismatch.
          * @see include/SushiBLAS/engine/blas/README.md
          */
         template<Domain Dom = Domain::REAL, typename Epilogue>
@@ -220,27 +223,33 @@ namespace SushiBLAS
                             name, Core::to_string(A.dtype));
             }
 
-            const int32_t rA = A.rank, rB = B.rank, rC = C.rank;
-            const int64_t m = C.shape[rC - 2];
-            const int64_t n = C.shape[rC - 1];
-            const int64_t k = transA ? A.shape[rA - 2] : A.shape[rA - 1];
+            const MatrixOperand a = describe_matrix_operand(A, name, "A");
+            const MatrixOperand b = describe_matrix_operand(B, name, "B");
+            const MatrixOperand c = describe_matrix_operand(C, name, "C");
+            require_same_layout(a, c, name, "A", "C");
+            require_same_layout(b, c, name, "B", "C");
 
-            // Batch & stride calculation.
-            int64_t batch_size = 1;
-            for (int i = 0; i < rC - 2; ++i) batch_size *= C.shape[i];
+            const int64_t m = c.rows;
+            const int64_t n = c.cols;
+            const int64_t k = transA ? a.rows : a.cols;
+            require_matrix_extent(transA ? a.cols : a.rows, m, "rows in op(A)", name, "A");
+            require_matrix_extent(transB ? b.cols : b.rows, k, "rows in op(B)", name, "B");
+            require_matrix_extent(transB ? b.rows : b.cols, n, "columns in op(B)", name, "B");
 
-            const int64_t lda = (A.layout == Core::Layout::ROW_MAJOR) ? A.shape[rA - 1] : A.shape[rA - 2];
-            const int64_t ldb = (B.layout == Core::Layout::ROW_MAJOR) ? B.shape[rB - 1] : B.shape[rB - 2];
-            const int64_t ldc = (C.layout == Core::Layout::ROW_MAJOR) ? C.shape[rC - 1] : C.shape[rC - 2];
+            const int64_t batch_size = c.batch_count;
+            const int64_t str_a = batch_stride(a, batch_size, name, "A");
+            const int64_t str_b = batch_stride(b, batch_size, name, "B");
+            const int64_t str_c = batch_stride(c, batch_size, name, "C");
+            require_same_batch_axes(A, a, C, c, name, "A", "C");
+            require_same_batch_axes(B, b, C, c, name, "B", "C");
 
-            const int64_t str_a = (batch_size > 1) ? A.strides[rA - 3] : 0;
-            const int64_t str_b = (batch_size > 1) ? B.strides[rB - 3] : 0;
-            const int64_t str_c = (batch_size > 1) ? C.strides[rC - 3] : 0;
+            const int64_t lda = a.leading_dimension;
+            const int64_t ldb = b.leading_dimension;
+            const int64_t ldc = c.leading_dimension;
 
-            // Capture data safely for asynchronous execution.
-            const auto layout = A.layout;
-            void* read_A = A.data_or_null();
-            void* read_B = B.data_or_null();
+            const auto layout = c.layout;
+            const void* read_A = A.data_or_null();
+            const void* read_B = B.data_or_null();
             void* rw_C = C.data_or_null();
 
             // C is declared as a read whenever beta is non-zero; see include/SushiBLAS/engine/blas/README.md.
@@ -266,10 +275,10 @@ namespace SushiBLAS
             meta.set_param(2, transA);
             meta.set_param(3, transB);
 
-            const auto mode = engine.get_mode();
-
             return Internal::execute_blas_task<Dom>(engine, meta, reads, writes, A.dtype,
-                [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                Internal::ReferenceOperands{read_A, read_B, rw_C},
+                [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                    sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     using T = decltype(scalar_type);
 
@@ -279,7 +288,7 @@ namespace SushiBLAS
                     auto alpha_t = static_cast<T>(alpha);
                     auto beta_t = static_cast<T>(beta);
 
-                    return Internal::dispatch_with_mode(mode, q, deps,
+                    return dispatcher.run(q, deps,
                         [=]
                         {
                             Kernels::Reference::gemm<T>(layout, transA, transB, m, n, k, alpha_t,

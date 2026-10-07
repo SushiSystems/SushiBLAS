@@ -41,20 +41,23 @@ namespace SushiBLAS
                              bool upper, bool transA, bool unit_diag)
     {
         SB_THROW_IF(A.rank < 2, "TRMV requires A to be at least a 2D matrix.");
+        Internal::require_level2_matrix_rank(A, "blas.lvl2.trmv");
         SB_THROW_IF(A.dtype != x.dtype, "Data type mismatch in TRMV.");
 
         int32_t rA = A.rank;
+        Dispatch::require_storage(A, "blas.lvl2.trmv", "A");
+        Dispatch::require_contiguous(A, "blas.lvl2.trmv", "A");
         int64_t n = A.shape[rA - 1]; // Triangular matrix must be n x n
         SB_THROW_IF(A.shape[rA - 2] != n, "TRMV requires A to be a square matrix.");
 
         int64_t lda = (A.layout == Core::Layout::ROW_MAJOR) ? A.shape[rA - 1] : A.shape[rA - 2];
 
         int64_t nx, incx;
-        Internal::get_vec_params(x, nx, incx);
+        Internal::get_vec_params(x, nx, incx, "blas.lvl2.trmv", "x");
 
         SB_THROW_IF(nx != n, "Dimension mismatch for vector x in TRMV.");
 
-        void* read_A = A.data_or_null();
+        const void* read_A = A.data_or_null();
         void* rw_x = x.data_or_null(); // TRMV overwrites x
 
         // `x = op(A) * x` is computed in place, so x is read as well as written.
@@ -73,16 +76,17 @@ namespace SushiBLAS
         meta.set_param(2, unit_diag);
 
         auto layout = A.layout;
-        auto mode = engine_.get_mode();
 
         return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_A, rw_x},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 auto pA = static_cast<const T*>(read_A);
                 auto px = static_cast<T*>(rw_x);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=] { Kernels::Reference::trmv<T>(layout, upper, transA, unit_diag, n, pA, lda, px, incx); },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
