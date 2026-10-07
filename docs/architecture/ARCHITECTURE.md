@@ -76,7 +76,7 @@ public `Core::format`, so the stack carries one copy and deletes it in one place
    │                          forwarder onto it                     │
    │                         dispatch_with_mode() — the             │  engine/task.hpp
    │                          AUTO/FORCE_SYCL/FORCE_REFERENCE/      │
-   │                          VERIFY triad                          │
+   │                          (VERIFY is refused)                   │
    ├──────────────────────┬───────────────────────────────────────┤
    │  kernels/reference/   │  kernels/sycl/                        │  the two kernels
    │  pure C++, ground     │  the hardware dispatcher, returns     │  every op has
@@ -86,7 +86,7 @@ public `Core::format`, so the stack carries one copy and deletes it in one place
    │                        ref-counted USM allocation              │  storage.hpp
    ├──────────────────────────────────────────────────────────────┤
    │  SushiRuntime           TaskGraph · RuntimeContext ·           │  the backbone —
-   │                          IAllocatorStrategy · Execution engine │  everything below
+   │                          Residency · Execution engine          │  everything below
    │                                                                 │  this line is not
    │                                                                 │  SushiBLAS's code
    └──────────────────────────────────────────────────────────────┘
@@ -110,17 +110,16 @@ operation between four modes:
 - **`FORCE_REFERENCE`** — always the pure-C++ reference kernel, run
   synchronously on the host after waiting on the task's dependencies. For
   debugging a suspected SYCL-kernel bug without touching a device at all.
-- **`VERIFY`** — runs the SYCL kernel, waits for it, then runs the reference
-  kernel over the same output buffer.
+- **`VERIFY`** — not implemented. `Engine::set_mode(ExecutionMode::VERIFY)`
+  throws `std::logic_error` and leaves the mode unchanged.
 
-  **It does not compare them.** The name promises more than the code delivers:
-  nothing in the library diffs the two results, so what `VERIFY` actually
-  produces is the *reference* answer, computed after the device's answer has
-  been thrown away. A test that runs under `VERIFY` and asserts nothing throws
-  would pass even if the two kernels disagreed on every element.
+  An earlier version ran the SYCL kernel and then the reference kernel over the
+  same output buffer and compared nothing. For an operation that reads its own
+  output (`axpy`, `scal`, `gemm` with `beta != 0` and others) that applied the
+  operation twice and returned a wrong result, so the mode now refuses to run.
 
-  A test that wants the comparison has to make it: run the same operation twice,
-  once under `FORCE_REFERENCE` and once under `FORCE_SYCL`, into two separate
+  A test that wants the comparison makes it: run the same operation twice, once
+  under `FORCE_REFERENCE` and once under `FORCE_SYCL`, into two separate
   tensors, and compare those. `tests/functional/unit/test_spatial_*.cpp` all do
   this, each in a case named `TheSyclKernelAgreesWithTheReferenceKernel`, and
   they compare raw bit patterns rather than using `EXPECT_FLOAT_EQ`.
@@ -141,23 +140,20 @@ sycl::event dispatch_with_mode(ExecutionMode mode, sycl::queue& q,
         return sycl::event();
     }
 
-    auto ev = sycl_fn(q, deps);
+    if (mode == ExecutionMode::AUTO || mode == ExecutionMode::FORCE_SYCL)
+        return sycl_fn(q, deps);
 
-    if (mode == ExecutionMode::VERIFY)
-    {
-        ev.wait();
-        reference_fn();
-    }
-    return ev;
+    throw std::logic_error("dispatch_with_mode: unhandled ExecutionMode");
 }
 ```
 
 Every BLAS-level op's `.cpp` file calls this once per dtype branch instead of
 hand-writing the triad — before `utils.hpp` existed, `gemm.cpp` and
 `syrk.cpp` each wrote out all three branches five times (once per `DataType`).
-Non-BLAS domains (elementwise, nonlinear, logic, reductions, random) follow
-the same pattern inline in their own `SushiBLAS::Dispatch` helpers under
-`include/SushiBLAS/engine/**/dispatch.hpp`.
+The elementwise, nonlinear, logic, reduction and random families do not read
+the mode; they always run the SYCL kernel. Their `SushiBLAS::Dispatch` helpers
+under `include/SushiBLAS/engine/**/dispatch.hpp` validate their operands through
+`engine/operand_check.hpp` before they record a task.
 
 ---
 
@@ -233,9 +229,11 @@ always naturally aligned for its own element type, since the allocation base is
 `Storage` (`storage.hpp`) is a `SushiRuntime::Core::RefCounted`, 64-byte
 aligned, holding the allocation's base pointer (private; reachable only through
 `allocation_base()`), its allocated `size_bytes` (rounded up to
-`DEFAULT_ALIGNMENT`), and the `SushiRuntime::Memory::USMAllocator` +
-`IAllocatorStrategy` (`Strategies::Shared` / `Device` / `Host`) it was
-allocated with. Being `RefCounted` (via `sushi_ptr`, SushiRuntime's intrusive
+`DEFAULT_ALIGNMENT`), and the `SushiRuntime::Execution::RuntimeContext` and
+`SushiRuntime::API::Residency` (`Shared` / `Device` / `Host`) it was allocated
+with. The context is a non-owning pointer and must outlive every `Storage`,
+as it must outlive `Engine`; the destructor frees the allocation through
+`RuntimeContext::free_usm`. Being `RefCounted` (via `sushi_ptr`, SushiRuntime's intrusive
 atomic-refcount smart pointer) is what lets two `Tensor` views share one
 allocation safely — the storage is freed only when the last `Tensor`
 referencing it is destroyed.
@@ -269,15 +267,17 @@ Engine(SushiRuntime::Execution::RuntimeContext& ctx,
 
 It owns a `SushiRuntime::Graph::TaskGraph` (constructed against the caller's
 `RuntimeContext`), the default tensor layout, the current `ExecutionMode`, and
-a random-number seed + atomic offset counter (`get_and_increment_rng_offset()`
-— every distribution draw gets a fresh, non-overlapping stream position, even
-under concurrent task submission). `set_seed()` rewinds that counter as well as
-setting the seed: the kernels mix `(seed, offset)` into Philox, so the seed
+an `RngStream` (`engine/rng_stream.hpp`): a random-number seed plus an atomic
+offset counter, reached through `Engine::rng()` by the random dispatch layer
+only. Every distribution draw reserves a fresh, non-overlapping stream position
+(`RngStream::reserve`), even under concurrent task submission. `reseed()`
+rewinds that counter as well as setting the seed: the kernels mix `(seed, offset)` into Philox, so the seed
 alone does not name a stream position, and re-seeding has to reproduce the
 stream or it is not a seed.
 
-- `create_tensor(dims[, dtype], strat)` allocates a `Storage` through the
-  given `IAllocatorStrategy` (default `Shared`) and wraps it in a `Tensor`.
+- `create_tensor(dims[, dtype], residency)` allocates a `Storage` in the given
+  `Residency` (default `Shared`) and wraps it in a `Tensor`. It rejects a
+  negative dimension and a size that overflows before it allocates.
 - `blas()` / `elementwise()` / `nonlinear()` / `logic()` / `reductions()` /
   `random()` / `io()` each return a small view object constructed with
   `*this` — none of them hold state beyond the `Engine&` reference, so calling
@@ -369,7 +369,7 @@ Every operation has exactly two kernel implementations:
 
 - **`kernels/reference/<category>/<op>.hpp`** — pure C++, templated on the
   scalar type, zero external dependencies. This is the mathematical ground
-  truth `VERIFY` mode checks against and `FORCE_REFERENCE` mode runs directly.
+  truth that `FORCE_REFERENCE` mode runs directly and that SYCL results are compared against.
   It must handle both `Layout` values.
 - **`kernels/sycl/<category>/<op>.hpp`** — the SYCL kernel. Takes a
   `sycl::queue&` and a `const std::vector<sycl::event>& deps` it must
@@ -520,7 +520,7 @@ expands the call through an `index_sequence` — a `span` would not do, and a
 trailing parameter pack would displace the `name` / `op_id` / `params` arguments
 every other executor in the family takes.
 
-### Launch geometry (`engine/launch_1d.hpp`)
+### Launch geometry (`support/launch_1d.hpp`)
 
 Every per-element kernel — elementwise, non-linear and logic — goes through two
 primitives in `namespace SushiBLAS::Launch` rather than calling `parallel_for`
@@ -556,7 +556,7 @@ retuning it is one edit instead of thirty-five.
 
 - **GEMM** (`include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`) — two kernel shapes behind one
   entry point, chosen at launch from the `Device::Profile` in
-  `include/SushiBLAS/engine/device_policy.hpp` and logged at `SB_LOG_INFO` so
+  `include/SushiBLAS/support/device_policy.hpp` and logged at `SB_LOG_INFO` so
   the choice is observable:
   - `Detail::gemm_local_tiled` — work-group-cooperative A/B staging through
     local memory, for devices with genuine scratchpad memory. The A tile's
@@ -577,7 +577,7 @@ retuning it is one edit instead of thirty-five.
   applied per element immediately before the store — the library's fusion hook for
   bias-add and activations, reachable from outside the library through
   `Dispatch::execute_gemm` (§7 above). The reference kernel takes the same
-  parameter, so `VERIFY` mode has a ground truth for a *fused* GEMM rather than
+  parameter, so `FORCE_REFERENCE` mode has a ground truth for a *fused* GEMM rather than
   declaring every one of them wrong. See the `@warning` on either for why an
   *activation* epilogue in a forward training pass is a silent-wrongness trap.
 - **SYRK** (`kernels/sycl/blas/level3/syrk.hpp`) — local-memory-tiled and
@@ -618,7 +618,7 @@ retuning it is one edit instead of thirty-five.
   performance-critical tier (Level3 GEMM/SYRK). Note these are the *BLAS* Level1
   ops (`engine.blas()`), which are separate from the whole-tensor reductions
   below.
-- **Whole-tensor folding reductions** (`engine/reduce_1d.hpp`) —
+- **Whole-tensor folding reductions** (`support/reduce_1d.hpp`) —
   `reductions().sum`/`mean`/`asum`/`nrm2`/`prod` do **not** use
   `sycl::reduction`. The spec fixes no combination order for it, floating-point
   addition is not associative, and this library links
@@ -680,7 +680,7 @@ retuning it is one edit instead of thirty-five.
   two-stage shape is 11.8× faster, and they cross at 16K. Both are deterministic,
   and the shape is a pure function of the device and the element count, so the
   threshold does not weaken the guarantee.
-- **Axis (segmented) reductions** (`engine/reduce_axis.hpp`) — the third launch
+- **Axis (segmented) reductions** (`support/reduce_axis.hpp`) — the third launch
   shape, alongside `launch_1d.hpp`'s per-element map and `reduce_1d.hpp`'s
   whole-tensor fold: N independent folds running side by side over one buffer,
   producing a **vector**. `reductions().max_along` and `sum_along` are each one
@@ -727,8 +727,8 @@ retuning it is one edit instead of thirty-five.
   reference implementation), replacing what was previously oneMKL's VSL
   backend. Every distribution op (`uniform`, `normal`, `log_normal`,
   `exponential`, `poisson`, `bernoulli`, `discrete_uniform`, the Xavier/He
-  initializers) is built on it, keyed by `Engine::get_seed()` and
-  `get_and_increment_rng_offset()` so concurrent draws never collide on the
+  initializers) is built on it, keyed by the seed and the offset that
+  `RngStream::reserve` hands out so concurrent draws never collide on the
   same stream position.
 
 - **Spatial** (`kernels/{reference,sycl}/spatial/`, reached through
@@ -741,7 +741,7 @@ retuning it is one edit instead of thirty-five.
   GEMM, and parameter ownership, training mode and differentiation belong to
   the layer above.
 
-  `Spatial::WindowSpan` (`engine/spatial/geometry.hpp`) is this domain's
+  `Spatial::WindowSpan` (`support/spatial_geometry.hpp`) is this domain's
   `Reduce::AxisSpan`, and exists for the same reason. It carries element counts
   and strides only, so the layout, the axis order and any non-unit stride a view
   inherited are resolved once on the host in `Spatial::window_span_for` and the

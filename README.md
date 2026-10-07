@@ -6,7 +6,7 @@ The manual is in [docs/README.md](docs/README.md).
 
 - **Operations are recorded, then run.** `Engine::create_tensor()` allocates a `Tensor`, which is shape, stride and dtype metadata over a ref-counted `Storage` backed by SushiRuntime USM. Calling an operation, such as `engine.blas().axpy(...)`, registers a task on the engine's `TaskGraph`. `engine.execute()` compiles and runs the graph.
 - **Every operation has two kernels.** A plain C++ reference kernel under `kernels/reference/` is the mathematical ground truth, and a SYCL kernel under `kernels/sycl/` runs on the device. GEMM's pair sits under `include/SushiBLAS/kernels/`, because the public `Dispatch::execute_gemm` seam instantiates it in a consumer's translation unit. The GEMM and SYRK tiling is ported from portBLAS; see [NOTICE.md](NOTICE.md).
-- **The execution mode is chosen at run time.** `Engine::set_mode()` selects `AUTO`, `FORCE_SYCL`, `FORCE_REFERENCE` or `VERIFY` for every later operation. `VERIFY` runs the SYCL kernel and then the reference kernel over the same output; it does not compare the two. See [the architecture, section 3](docs/architecture/ARCHITECTURE.md#3-executionmode-the-dispatch-triad).
+- **The execution mode is chosen at run time.** `Engine::set_mode()` selects `AUTO`, `FORCE_SYCL`, `FORCE_REFERENCE` or `VERIFY` for every later operation. `VERIFY` is not implemented and `set_mode` refuses it. See [the architecture, section 3](docs/architecture/ARCHITECTURE.md#3-executionmode-the-dispatch-triad).
 - **An unsupported dtype throws.** `HALF`, `FLOAT32`, `FLOAT64`, `COMPLEX32` and `COMPLEX64` are served across BLAS levels 1 to 3 and the nonlinear, logic and random families, dispatched from one `Core::DataType` switch. Where a dtype has no meaning for an operation, such as `max` on a complex tensor, the call throws and names the operation and the dtype.
 
 ## Requirements
@@ -128,7 +128,7 @@ ctest --test-dir build -L regression
 #include <SushiBLAS/SushiBLAS.h>
 
 sr::Execution::RuntimeContext ctx;
-sb::Engine engine(ctx, sb::Core::Layout::ROW_MAJOR);
+SushiBLAS::Engine engine(ctx, SushiBLAS::Core::Layout::ROW_MAJOR);
 
 auto A = engine.create_tensor({1024, 1024});   // FLOAT32, Shared USM, by default
 auto B = engine.create_tensor({1024, 1024});
@@ -164,20 +164,21 @@ include/SushiBLAS/     Public headers
   engine/               Per-domain operation interfaces and the public seams
     task.hpp              execute_typed_task and dispatch_with_mode
     dispatch.hpp          The Domain vocabulary shared by the Dispatch seams
-    device_policy.hpp     Device::Profile
-    launch_1d.hpp         The per-element launch shape
-    reduce_1d.hpp         The whole-tensor fold
-    reduce_axis.hpp       The segmented fold
+    rng_stream.hpp        RngStream: the seed and the offset counter
+    scratch.hpp           ScratchBuffer: a device scratch allocation
+    operand_check.hpp     The record-time operand checks
     blas/                 Level1, Level2, Level3, SparseBLAS (stub), utils.hpp
                            (execute_blas_task), dispatch.hpp (execute_gemm)
     logic/                LogicOps and its dispatch.hpp
     math/                 ElementwiseOps, NonLinearOps, ReductionOps, RandomOps,
                            their dispatch.hpp files and safe_math.hpp
-    spatial/              geometry.hpp, window.hpp
+    spatial/              window.hpp
     blas.hpp, spatial.hpp BLASOps and SpatialOps
   kernels/              The kernels a public seam instantiates in a consumer's
                          translation unit, and which are therefore installed:
                          GEMM's reference and SYCL pair and the two epilogue headers
+  support/              The layer below kernels and engine: launch_1d, reduce_1d,
+                         reduce_axis, device_policy, accumulator, spatial_geometry
   core/                 common.hpp (DataType, Layout), logger.hpp, format.hpp,
                          traits.hpp, export.hpp
   experimental/         Quarantined FFT and LAPACK declarations
@@ -190,6 +191,7 @@ kernels/                Private kernels, never installed
   reference/            Plain C++ kernels
   sycl/                 SYCL kernels
 examples/               example.cpp, io_example.cpp
+benchmarks/             bench_*.cpp, built with sb build --benchmarks
 tests/
   common/               Shared GoogleTest entry point and helpers
   functional/           unit, integration, regression

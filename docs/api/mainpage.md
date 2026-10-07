@@ -22,7 +22,7 @@ design lives in the prose docs, and those are the better place to start:
 | Call an operation | `SushiBLAS::Engine` — `engine.hpp` and the family headers under `engine/` |
 | Fuse several ops into one kernel | `SushiBLAS::Dispatch` — `engine/dispatch.hpp` and the five `*/dispatch.hpp` |
 | Attach an epilogue to a GEMM | `SushiBLAS::Dispatch::execute_gemm` — `engine/blas/dispatch.hpp` |
-| Write a deterministic reduction | `SushiBLAS::Reduce` — `engine/reduce_1d.hpp`, `engine/reduce_axis.hpp` |
+| Write a deterministic reduction | `SushiBLAS::Reduce` — `support/reduce_1d.hpp`, `support/reduce_axis.hpp` |
 
 ## Not in this reference
 

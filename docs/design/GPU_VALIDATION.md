@@ -35,7 +35,7 @@ If it fails here, everything below is moot; report the driver error rather than 
 
 ## 2. Confirm the device profile is what the kernels assume
 
-Every architecture decision in this library routes through `SushiBLAS::Device::Profile` (`include/SushiBLAS/engine/device_policy.hpp`). On the development CPU it reports `has_dedicated_local_memory = false`, which is why the GPU-shaped code paths were never selected there.
+Every architecture decision in this library routes through `SushiBLAS::Device::Profile` (`include/SushiBLAS/support/device_policy.hpp`). On the development CPU it reports `has_dedicated_local_memory = false`, which is why the GPU-shaped code paths were never selected there.
 
 On an NVIDIA GPU it should report `is_cpu = false`, `has_dedicated_local_memory = true`, `sub_group_size = 32`, `local_mem_bytes` of 48 KiB or more, and `compute_units` equal to the SM count.
 
@@ -58,7 +58,7 @@ On an NVIDIA GPU it should report `is_cpu = false`, `has_dedicated_local_memory 
 
 ### 3.1a When an axis reduction switches to a work-group per segment
 
-`Reduce::plan_axis` (`include/SushiBLAS/engine/reduce_axis.hpp`) picks between one work-item per segment and one work-group per segment. The rule is: take the cheap item-per-segment shape whenever there are already `compute_units × K_WAVES_PER_COMPUTE_UNIT` segments or more, and otherwise take the work-group shape only if each segment is at least one full group-width long.
+`Reduce::plan_axis` (`include/SushiBLAS/support/reduce_axis.hpp`) picks between one work-item per segment and one work-group per segment. The rule is: take the cheap item-per-segment shape whenever there are already `compute_units × K_WAVES_PER_COMPUTE_UNIT` segments or more, and otherwise take the work-group shape only if each segment is at least one full group-width long.
 
 The *floor* is an argument — a group whose segment is shorter than the group is idle lanes paying `log2(local)` pairs of barriers — but the **crossover is not measured on a GPU**, because there is no GPU here. Both shapes were measured for correctness and for bit-stability on the OpenCL CPU device, and both are exercised there by `Unit_AxisReductions` (which drives each kernel directly rather than relying on the planner to reach it).
 
@@ -98,7 +98,7 @@ Not an oversight. It could not be verified here, the win over a correctly bank-p
 
 ### 4.1 The 128-bit vector path
 
-`include/SushiBLAS/engine/launch_1d.hpp` issues `sycl::vec<T, W>` loads and stores where `Device::vector_width` says a wide access is worth it. **That function returns 1 on a CPU by design** — the OpenCL CPU backend already vectorises across work-items, and a hand-written `sycl::vec` competes with it for the same lanes. So on the development machine `vector_steps` was always 0 and **the wide pass never ran once**.
+`include/SushiBLAS/support/launch_1d.hpp` issues `sycl::vec<T, W>` loads and stores where `Device::vector_width` says a wide access is worth it. **That function returns 1 on a CPU by design** — the OpenCL CPU backend already vectorises across work-items, and a hand-written `sycl::vec` competes with it for the same lanes. So on the development machine `vector_steps` was always 0 and **the wide pass never ran once**.
 
 On a GPU it will run for every 4-byte and 8-byte elementwise, nonlinear and logic op. Check numerical agreement against a CPU run first; a wrong wide path is most likely to show up at a size that is not a multiple of the vector width, where the scalar tail takes over.
 

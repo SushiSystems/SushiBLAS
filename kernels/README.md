@@ -13,7 +13,7 @@ on the device. The random kernels exist only under `sycl/`. GEMM's pair is not h
 | `spatial.hpp` | The include of every spatial kernel |
 | `reference/blas/`, `sycl/blas/` | Levels 1 to 3; level 1 is one file per side, levels 2 and 3 one file per routine |
 | `reference/spatial/`, `sycl/spatial/` | im2col, col2im, pooling, upsampling, channel and broadcast copies |
-| `sycl/random/` | Philox4x32-10 and the modified Gram-Schmidt sweep |
+| `sycl/random/` | Philox4x32-10, the Poisson and truncated normal draws, and the Gram-Schmidt sweep |
 
 `math.hpp` includes nothing. Until 2026-10-05 it carried, commented out and marked as planned, the
 includes of `kernels/reference/math/reductions/sum.hpp` and `kernels/sycl/math/reductions/sum.hpp`;
@@ -152,8 +152,7 @@ The reference `im2col` is the specification of `im2col` and the answer
 `ExecutionMode::FORCE_REFERENCE` produces. It is a plain nest of loops in index order, because a
 reference kernel with an optimisation in it is a second implementation that can be wrong.
 
-`ExecutionMode::VERIFY` does not compare the two kernels, whatever its name suggests. It runs the
-device kernel and then overwrites the result with the reference one. The comparison is in
+`ExecutionMode::VERIFY` is not implemented; `Engine::set_mode` refuses it. The comparison is in
 `tests/functional/unit/test_spatial_im2col.cpp`, which runs the two forced modes into two buffers
 and checks them bit for bit.
 
@@ -184,6 +183,9 @@ is the absence of an element, and a maximum that starts at zero turns every all-
 window into 0. That is a plausible number, and no shape or dtype assertion catches it.
 `Reduce::RunningMax` uses the same identity for the same reason.
 
+The first in-bounds tap is taken whatever its value, so a window whose every tap is -inf outputs
+-inf and records that tap's index.
+
 A tie keeps the first element in scan order (`>`, not `>=`). The recorded index is then
 single-valued, and the equality test in `pool_max_backward` cannot match two taps of one window.
 PyTorch follows the same convention.
@@ -192,9 +194,12 @@ The recorded index is the logical flat position `((n*H + h)*W + w)*C + c`. A str
 this particular view would stop being comparable when the gradient arrives through an alias of the
 same image with different strides.
 
-A window with no in-bounds tap cannot occur, because `window_span_for` refuses an output extent
-whose last window starts past the input. Such a window would record index -1, which matches no
+A window with no in-bounds tap cannot occur, because `pooling_span_for` refuses any geometry that
+leaves one window entirely in the padding. Such a window would record index -1, which matches no
 pixel, and its gradient would be dropped and not misrouted.
+
+A NaN tap wins its window: the first NaN in scan order is the output and its index is recorded, and
+later taps do not replace it. The reference and SYCL kernels apply the same rule.
 
 `pool_max_backward` is a gather over the windows that could have selected each input pixel. It
 uses the same divisibility walk as `col2im`, with an equality test on the recorded index. The
@@ -230,9 +235,23 @@ are compiled into this library.
 ### `kernels/sycl/blas/level1/level1.hpp`
 
 The elementwise level 1 kernels (`axpy`, `copy`, `scal`, `swap`, `rot`) run one work-item per
-element. The reductions (`asum`, `nrm2`, `dot`, `iamax`) each run as one serial device task. Level
-1 vectors are small next to this library's level 3 workloads, so a tree reduction is not written
-yet. A profile that shows large-vector level 1 reductions would be the reason to write one.
+element. The reductions (`asum`, `nrm2`, `dot`, `dotc`, `iamax`) run through
+`Reduce::reduce_indexed` in `<SushiBLAS/support/reduce_1d.hpp>`, so they take the same single-pass or
+two-stage shape, and the same fixed combination order, as the whole-tensor reductions. `asum` and
+`dot` fold with `CompensatedSum`, `dotc` with `CompensatedComplexSum`, `nrm2` with
+`ScaledSumOfSquares` and `iamax` with `RunningArgMax`. A HALF input accumulates in FLOAT32 and is
+rounded once when the result is stored. The reference `asum`, `nrm2` and `dot` accumulate a HALF
+input in FLOAT32 too, through `Kernels::Accumulator`, so FORCE_REFERENCE and FORCE_SYCL agree on a
+long HALF vector. The serial loops these kernels replaced summed without compensation, so a result
+can differ from theirs in the last bits.
+
+Each kernel takes a scratch pointer and its size in bytes. The caller in
+`src/engine/blas/level1/` allocates it through `Internal::allocate_level1_scratch`
+(`engine/blas/utils.hpp`), on the device of x, sized as `Reduce::planned_partials` over the folded
+count (2n for a complex `nrm2`) times `K_LEVEL1_PARTIAL_BYTES`, the largest partial any of the five
+kernels stores (a `std::complex<double>` or an `IndexedValue<double>`, 16 bytes). Each kernel
+divides the bytes by its own partial size, and `partial_capacity` refuses at compile time a partial
+larger than the constant.
 
 The parallel kernels launch through `Launch::indexed`, not a bare `sycl::range<1>`, so they get
 the same device-dependent geometry as every elementwise operation: flat on a CPU, grid-stride on a
@@ -244,7 +263,7 @@ engages on a GPU and this project has no GPU device to measure it on.
 
 `nrm2` computes the scaling 2-norm through the library's own accumulator,
 `Reduce::ScaledSumOfSquares`, and holds no second copy of the algorithm.
-`include/SushiBLAS/engine/README.md`, under `ScaledSumOfSquares`, describes the accumulator and
+`include/SushiBLAS/support/README.md`, under `ScaledSumOfSquares`, describes the accumulator and
 says why `sqrt(sum(x*x))`, which this kernel once computed, is wrong at both ends of the range.
 The reference kernel computes the same norm a different way on purpose; see
 `kernels/reference/blas/level1/level1.hpp` above.
@@ -255,20 +274,27 @@ returned a wrong answer for complex input.
 
 ### `kernels/sycl/blas/level2/gemv.hpp`
 
-`gemv` launches through `Launch::indexed`, so its grid is the one
-`<SushiBLAS/engine/launch_1d.hpp>` plans for the device: flat on a CPU, and on a GPU a grid-stride
-loop capped at what the machine can hold resident. Each work-item still reduces one whole row of
-`op(A)`. That reduction is why `gemv` cannot use `Launch::map`: the output at index `o` is a
-function of `in_len` inputs, not of `in[o]`.
+`gemv` and `symv` have two shapes. The per-item shape launches through `Launch::indexed`, so its
+grid is the one `<SushiBLAS/support/launch_1d.hpp>` plans for the device: flat on a CPU, and on a
+GPU a grid-stride loop capped at what the machine can hold resident. Each work-item reduces one
+whole row of `op(A)`. That reduction is why neither kernel can use `Launch::map`: the output at
+index `o` is a function of `in_len` inputs, not of `in[o]`.
 
-The parallelism is one work-item per output element. That shape is right while `m` is large and
-wrong once `m` is small relative to the device: a 1xN GEMV is one work-item. The standard fix is a
-cooperative reduction with one row per work-group. It changes what each work-item computes, so it
-is a separate change from the launch geometry.
+The work-group shape, in `kernels/sycl/blas/level2/row_reduction.hpp`, gives each output element
+one work-group. Its work-items read the row at consecutive addresses, keep strided partial sums,
+and fold them in a halving tree of fixed order, so the same device repeats a result to the bit.
+`row_reduction_width` picks the shape: it takes the work-group shape when
+`Reduce::planned_partials` would split a one-dimensional reduction of the row's length into two
+stages on that device. On a CPU that means a row of at least `Reduce::K_CPU_TWO_STAGE_MIN_ELEMENTS`
+elements. `gemv` takes the work-group shape only when the row of `op(A)` is contiguous: row-major
+without a transpose, or column-major with one. In the other two cases the per-item shape already
+reads neighbouring addresses across neighbouring work-items. `symv` reads half of each row
+contiguously and half with stride `lda` in either shape, so it takes the work-group shape whenever
+the row is long enough.
 
 ### `kernels/sycl/blas/level2/ger.hpp`
 
-`ger` stays on a `sycl::range<2>`, unlike `gemv` and `symv`. `<SushiBLAS/engine/launch_1d.hpp>`
+`ger` stays on a `sycl::range<2>`, unlike `gemv` and `symv`. `<SushiBLAS/support/launch_1d.hpp>`
 plans one-dimensional geometries, and the index of `ger` has two dimensions: `A` is addressed by
 `(i, j)` under a runtime layout, and the two axes have different strides. Flattening the index to
 `i * n + j` to pass it through `Launch::indexed` would cost a division and a modulo per work-item,
@@ -302,7 +328,7 @@ operand-addressing helpers of `gemm.hpp` and adds the triangular output mask. Th
 composition are SushiBLAS work, not a port.
 
 `syrk` does not reuse GEMM's tile geometry. It owns `Detail::SyrkTileConfig`, so retuning GEMM's
-register block cannot retune SYRK without anyone seeing it. `include/SushiBLAS/engine/README.md`,
+register block cannot retune SYRK without anyone seeing it. `include/SushiBLAS/support/README.md`,
 under `device_policy.hpp`, makes the same argument for keeping tile sizes out of the device
 profile. SYRK does not have GEMM's split between a local-memory and a no-local kernel. It always
 takes the local-memory shape, as it did before, and the split is a named follow-up in `NOTICE.md`.
@@ -337,51 +363,101 @@ varying column) where the left side walks a column.
 
 ### `kernels/sycl/random/orthonormalize.hpp`
 
-`orthonormalize_mgs` backs `RandomOps::orthogonal`. Orthogonal weight initialisation is usually
+`orthonormalize` backs `RandomOps::orthogonal`. Orthogonal weight initialisation is usually
 written as "fill with N(0,1), take the Q of a QR decomposition". SushiBLAS has no QR (`LinalgOps`
-is quarantined and unimplemented), so `orthonormalize_mgs` computes the same Q directly. Modified
-Gram-Schmidt and Householder QR produce the same column space by different routes. MGS was chosen
-for two reasons. It is about a dozen lines and stores no reflectors. It also orthogonalises each
-vector against the updated vectors, not the originals, which keeps it accurate enough for
-initialisation on well-conditioned Gaussian input.
-
-`orthonormalize_mgs` is not a general QR. It returns Q, discards R, and has no pivoting or rank
+is quarantined and unimplemented), so `orthonormalize` computes the same Q by modified
+Gram-Schmidt. It is not a general QR: it returns Q, discards R, and has no pivoting or rank
 detection, which is why it is not exported as a linear-algebra primitive.
 
-`tiny` is the norm at or below which the sweep leaves a vector unscaled. Below it a vector is
-numerically indistinguishable from zero, and dividing by its norm would produce infinities. The
-Gaussian input this kernel is used with reaches that case with probability zero. The guard is
-there so that a case nobody expected does not fill a weight matrix with NaN.
+The work is spread over work-groups, not over one work-item. Step i is one kernel with one
+work-group per vector m > i. Each group computes `v_i . v_i` and `v_i . v_m` together and
+subtracts `(v_i . v_m) / (v_i . v_i) * v_i` from `v_m`. Vector i is not normalised during the
+sweep, so no group writes a vector another group reads in the same step. After the sweeps, one
+kernel with one group per vector scales each vector to norm `gain`.
+
+Every sum is deterministic. A work-item accumulates elements `lid, lid + G, lid + 2G, ...` in
+that order, and the group combines the G partial sums by a fixed pairwise tree in local memory.
+G is 64, or the largest power of two the device accepts below that, so on one device the result
+is the same bits on every run.
+
+The sweep runs twice before the final scaling (`K_ORTHO_SWEEPS`). One modified Gram-Schmidt
+sweep loses orthogonality in proportion to the matrix's condition number times the rounding
+unit; a second sweep over the already nearly orthogonal vectors brings the loss down to the
+rounding unit. That keeps a 64x64 FLOAT32 matrix inside the 1e-4 Gram tolerance of
+`tests/functional/unit/test_orthogonal.cpp`. The cost is 2 * (count - 1) project kernels and one
+scaling kernel per call.
+
+`tiny_norm_sq` is (1e-12)^2. A vector whose squared norm is at or below it is treated as zero: it
+is projected out of nothing and left unscaled except by `gain`, since dividing by its norm would
+produce infinities. The Gaussian input this kernel is used with reaches that case with
+probability zero.
 
 ### `kernels/sycl/random/philox.hpp`
 
 `philox.hpp` implements Philox4x32-10, a counter-based generator (Salmon, Moraes, Dror, Shaw,
 "Parallel Random Numbers: As Easy as 1, 2, 3", SC'11). It is stateless: the same (key, counter)
-pair always produces the same four words, so any element index can be drawn independently and in
+pair always produces the same four words, so any block can be drawn independently and in
 parallel with no shared state. The round constants were checked against the reference Random123
 implementation (DEShawResearch/random123, `include/Random123/philox.h`).
 
 The file replaces oneMKL's `philox4x32x10` (SB-2). The algorithm is unchanged; the backend is
 hand-written SYCL with no oneMKL dependency.
 
-`uniform01_float` and `uniform01_double` map a raw 32-bit or 64-bit word to the open interval
-(0,1) and never return exactly 0 or 1. Their callers take log(u): `log_normal` through Box-Muller,
-and the inverse CDF of `exponential`.
+`philox_block` computes one block with key = (seed_lo, seed_hi) and counter = (offset_lo,
+offset_hi, block_lo, block_hi); offset and block occupy separate words, so two tasks never share a
+(key, counter) pair, whatever their tensor sizes.
 
-`draw_uniform` makes one Philox call per element, with key = (seed_lo, seed_hi) and
-counter = (offset_lo, offset_hi, index_lo, index_hi). The counter's high word is the per-task
-`offset`. The old oneMKL `skip_ahead` call used offset\*size there. With the plain offset, two
-tasks that generate random numbers never share a (key, counter) pair, whatever their tensor sizes.
+`uniform01_float` takes the top 24 bits of a word and `uniform01_double` the top 53 bits of two
+words, so each result lies in [0,1) and is exactly representable: 1 is never returned, 0 can be.
+`uniform01_block` applies them to every word of a block, giving `K_DRAWS_PER_BLOCK` values: four
+FLOAT32 draws or two FLOAT64 draws. Callers that take a logarithm take it of 1 - u: Box-Muller in
+`normal_block` uses log(1 - u1), and `exponential` uses -log1p(-u). `uniform_block` returns the
+value just below hi when rounding of lo + u(hi - lo) would reach hi.
 
-`draw_normal` uses Box-Muller. One Philox call yields both uniforms for one Gaussian sample: word
-pair 0 gives u1 and word pair 1 gives u2. Only the cosine branch (z0) is used and z1 is discarded:
-the first version trades throughput for a shorter kernel.
+`normal_block` uses Box-Muller on consecutive uniform pairs and keeps both outputs, `r cos(theta)`
+and `r sin(theta)`. A block gives four FLOAT32 normals or two FLOAT64 normals.
+The file spells 2 pi out as a literal, because MSVC defines `M_PI` only under
+`_USE_MATH_DEFINES`.
 
 `draw_index` returns a uniformly distributed integer in [0, bound), drawn from the same
 (key, counter) scheme as the float generators. It uses integer arithmetic only. Fisher-Yates needs
 an index, and routing the index through a float would make the result of a shuffle depend on the
 device's fp64 support. The bias of the modulo is bounded by bound / 2^64, below one part in 10^13
 for any tensor that fits in memory, so a rejection loop would change nothing measurable.
+
+### `kernels/sycl/random/poisson.hpp`
+
+`draw_poisson` returns one Poisson count for one element. Each element owns
+`K_POISSON_BLOCKS_PER_ELEMENT` = 64 consecutive Philox blocks, starting at element * 64, so no two
+elements share a uniform draw.
+
+Below `K_POISSON_PTRS_MIN_LAMBDA` = 10, `poisson_knuth` multiplies FLOAT64 uniforms, two per
+block, until the product reaches exp(-lambda), and returns how many it multiplied before that. It
+stops after 128 uniforms; at lambda 10 a count of 128 has probability below 1e-80.
+
+From lambda 10 up, `poisson_ptrs` runs Hoermann's transformed rejection with squeeze (PTRS,
+Insurance: Mathematics and Economics 12, 1993), the method NumPy and TensorFlow use for large
+means. Each attempt reads one block for its two uniforms u and v. The constants a, b, 1/alpha and
+v_r depend only on lambda, so `make_poisson_params` computes them on the host once per call. The
+hat is tight for lambda >= 10, so an attempt is accepted with probability well above one half
+and 64 attempts all fail with probability below 2^-64. If they do, the draw returns
+floor(lambda).
+
+Both methods compute in FLOAT64 whatever the tensor's dtype, so `RandomOps::poisson` throws
+`std::invalid_argument` at record time when the tensor's device lacks `aspect::fp64`.
+
+### `kernels/sycl/random/truncated_normal.hpp`
+
+`draw_truncated_standard_normal` draws standard normal values inside [lo, hi] by inverting the
+distribution function. It maps one Philox block to uniforms in [Phi(lo), Phi(hi)) with
+`uniform_block`, then bisects [lo, hi] for each one, `std::numeric_limits<T>::digits` steps, until
+`standard_normal_cdf` meets the uniform. The bisection only narrows its interval, so a result
+never leaves [lo, hi].
+
+The caller keeps lo <= 0, mirroring an interval above zero, because Phi loses its precision near
+1. It also clamps both bounds to `K_TRUNCATED_NORMAL_MAX_BOUND` = 40 on the host: Phi(-40) is
+below the smallest double, so the clamp removes no mass, and a fixed step count over a bound such
+as -1e30 would otherwise end tens of orders of magnitude away from the mass.
 
 ### `kernels/sycl/spatial/broadcast.hpp`
 
