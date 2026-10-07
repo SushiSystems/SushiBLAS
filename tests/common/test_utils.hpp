@@ -35,6 +35,10 @@
 #include <complex>
 #include <algorithm>
 #include <memory>
+#include <random>
+#include <cstdint>
+#include <stdexcept>
+#include <type_traits>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/traits.hpp>
 #include "test_environment.hpp"
@@ -161,96 +165,189 @@ namespace SushiBLAS
             }
         }
 
+        namespace Detail
+        {
+            /**
+             * @brief Expects one scalar to match its expectation, treating NaN and infinity exactly.
+             * @param expected A NaN expects a NaN; an infinity expects the same infinity.
+             * @param tolerance Absolute tolerance for a finite expectation.
+             * @param part Names the compared part in the failure message.
+             */
+            inline void expect_scalar_near(double actual, double expected, double tolerance,
+                                           size_t index, const char* part)
+            {
+                if (std::isnan(expected))
+                    EXPECT_TRUE(std::isnan(actual)) << "Expected NaN (" << part << ") at index " << index << ", got " << actual;
+                else if (std::isinf(expected))
+                    EXPECT_EQ(actual, expected) << "Infinity mismatch (" << part << ") at index " << index;
+                else
+                    EXPECT_NEAR(actual, expected, tolerance) << "Mismatch (" << part << ") at index " << index;
+            }
+
+            /**
+             * @brief Widens a real or complex expectation to std::complex<double>.
+             * @tparam E float, double, std::complex<float> or std::complex<double>.
+             */
+            template <typename E>
+            std::complex<double> to_complex_double(const E& value)
+            {
+                if constexpr (Core::is_complex_v<E>)
+                    return std::complex<double>(static_cast<double>(value.real()), static_cast<double>(value.imag()));
+                else
+                    return std::complex<double>(static_cast<double>(value), 0.0);
+            }
+
+            /**
+             * @brief Widens a real host element to double.
+             * @tparam H A real tensor scalar type, sycl::half included.
+             */
+            template <typename H>
+            double to_double(const H& value)
+            {
+                if constexpr (std::is_same_v<H, sycl::half>)
+                    return static_cast<double>(static_cast<float>(value));
+                else
+                    return static_cast<double>(value);
+            }
+
+            /**
+             * @brief Copies a dense tensor of element type H to the host and compares every element.
+             * @tparam H The tensor's element type.
+             * @tparam E The expectation's element type; a real E expects a zero imaginary part.
+             */
+            template <typename H, typename E>
+            void compare_host_elements(const Tensor& tensor, const std::vector<E>& expected, double tolerance)
+            {
+                const size_t size = static_cast<size_t>(tensor.num_elements);
+                std::vector<H> host(size);
+                TestEnvironment::get_context().get_queue().memcpy(host.data(), tensor.data(), size * sizeof(H)).wait();
+
+                for (size_t i = 0; i < size; ++i)
+                {
+                    const std::complex<double> e = to_complex_double(expected[i]);
+                    if constexpr (Core::is_complex_v<H>)
+                    {
+                        expect_scalar_near(static_cast<double>(host[i].real()), e.real(), tolerance, i, "real");
+                        expect_scalar_near(static_cast<double>(host[i].imag()), e.imag(), tolerance, i, "imaginary");
+                    }
+                    else if constexpr (std::is_integral_v<H>)
+                        EXPECT_EQ(host[i], static_cast<H>(e.real())) << "Mismatch at index " << i;
+                    else
+                        expect_scalar_near(to_double(host[i]), e.real(), tolerance, i, "value");
+                }
+            }
+
+            /**
+             * @brief Compares a dense tensor against expectations, dispatching on its runtime dtype.
+             * @tparam E float, double, std::complex<float> or std::complex<double>.
+             */
+            template <typename E>
+            void verify_tensor_elements(const Tensor& tensor, const std::vector<E>& expected, double tolerance)
+            {
+                ASSERT_EQ(expected.size(), static_cast<size_t>(tensor.num_elements))
+                    << "verify_tensor: expected value count does not match tensor size.";
+
+                switch (tensor.dtype)
+                {
+                    case Core::DataType::HALF:      compare_host_elements<sycl::half>(tensor, expected, tolerance); break;
+                    case Core::DataType::FLOAT32:   compare_host_elements<float>(tensor, expected, tolerance); break;
+                    case Core::DataType::FLOAT64:   compare_host_elements<double>(tensor, expected, tolerance); break;
+                    case Core::DataType::COMPLEX32: compare_host_elements<std::complex<float>>(tensor, expected, tolerance); break;
+                    case Core::DataType::COMPLEX64: compare_host_elements<std::complex<double>>(tensor, expected, tolerance); break;
+                    case Core::DataType::INT32:     compare_host_elements<int32_t>(tensor, expected, tolerance); break;
+                    case Core::DataType::INT64:     compare_host_elements<int64_t>(tensor, expected, tolerance); break;
+                }
+            }
+        } // namespace Detail
+
         /**
-        * @brief Compares a tensor's contents against a flat host-side expected value list,
-        * dispatching on the tensor's runtime dtype. For complex dtypes, only the real part is
-        * checked (matching this codebase's existing test convention for real-valued expectations).
+        * @brief Compares a dense tensor against a flat host-side list of real expectations.
+        *
+        * A complex element must match on its real part and have a zero imaginary part. An integer
+        * element is compared exactly. A NaN expectation expects a NaN.
         */
         inline void verify_tensor(const Tensor& tensor, const std::vector<float>& expected, double tolerance = 1e-4)
         {
-            size_t size = static_cast<size_t>(tensor.num_elements);
-            ASSERT_EQ(expected.size(), size) << "verify_tensor: expected value count does not match tensor size.";
-
-            auto& q = TestEnvironment::get_context().get_queue();
-            std::vector<float> exp(expected.begin(), expected.end());
-
-            switch (tensor.dtype)
-            {
-                case Core::DataType::HALF:
-                {
-                    std::vector<sycl::half> host(size);
-                    q.memcpy(host.data(), tensor.data(), size * sizeof(sycl::half)).wait();
-                    for (size_t i = 0; i < size; ++i) EXPECT_NEAR(static_cast<float>(host[i]), exp[i], tolerance) << "Mismatch at index " << i;
-                    break;
-                }
-                case Core::DataType::FLOAT32:
-                {
-                    std::vector<float> host(size);
-                    q.memcpy(host.data(), tensor.data(), size * sizeof(float)).wait();
-                    for (size_t i = 0; i < size; ++i) EXPECT_NEAR(host[i], exp[i], tolerance) << "Mismatch at index " << i;
-                    break;
-                }
-                case Core::DataType::FLOAT64:
-                {
-                    std::vector<double> host(size);
-                    q.memcpy(host.data(), tensor.data(), size * sizeof(double)).wait();
-                    for (size_t i = 0; i < size; ++i) EXPECT_NEAR(host[i], exp[i], tolerance) << "Mismatch at index " << i;
-                    break;
-                }
-                case Core::DataType::COMPLEX32:
-                {
-                    std::vector<std::complex<float>> host(size);
-                    q.memcpy(host.data(), tensor.data(), size * sizeof(std::complex<float>)).wait();
-                    for (size_t i = 0; i < size; ++i) EXPECT_NEAR(host[i].real(), exp[i], tolerance) << "Mismatch (real) at index " << i;
-                    break;
-                }
-                case Core::DataType::COMPLEX64:
-                {
-                    std::vector<std::complex<double>> host(size);
-                    q.memcpy(host.data(), tensor.data(), size * sizeof(std::complex<double>)).wait();
-                    for (size_t i = 0; i < size; ++i) EXPECT_NEAR(host[i].real(), exp[i], tolerance) << "Mismatch (real) at index " << i;
-                    break;
-                }
-                // Integer elements are compared exactly, with no tolerance.
-                case Core::DataType::INT32:
-                {
-                    std::vector<int32_t> host(size);
-                    q.memcpy(host.data(), tensor.data(), size * sizeof(int32_t)).wait();
-                    for (size_t i = 0; i < size; ++i) EXPECT_EQ(host[i], static_cast<int32_t>(exp[i])) << "Mismatch at index " << i;
-                    break;
-                }
-                case Core::DataType::INT64:
-                {
-                    std::vector<int64_t> host(size);
-                    q.memcpy(host.data(), tensor.data(), size * sizeof(int64_t)).wait();
-                    for (size_t i = 0; i < size; ++i) EXPECT_EQ(host[i], static_cast<int64_t>(exp[i])) << "Mismatch at index " << i;
-                    break;
-                }
-            }
+            Detail::verify_tensor_elements(tensor, expected, tolerance);
         }
 
         /**
-        * @brief Random data generator for testing.
+        * @brief Compares a dense tensor against a flat host-side list of double or complex expectations.
+        * @tparam E double, std::complex<float> or std::complex<double>; a complex E checks both parts.
         */
+        template <typename E>
+        void verify_tensor(const Tensor& tensor, const std::vector<E>& expected, double tolerance = 1e-4)
+        {
+            Detail::verify_tensor_elements(tensor, expected, tolerance);
+        }
+
+        /**
+         * @brief Copies a dense tensor's elements into a host vector.
+         * @tparam T The tensor's element type.
+         * @throws std::invalid_argument when T does not map to the tensor's dtype.
+         */
+        template <typename T>
+        std::vector<T> read_tensor(const Tensor& tensor)
+        {
+            if (get_sushiblas_dtype<T>() != tensor.dtype)
+                throw std::invalid_argument("read_tensor: T does not match the tensor's dtype " +
+                                            std::string(Core::to_string(tensor.dtype)) + ".");
+
+            const size_t size = static_cast<size_t>(tensor.num_elements);
+            std::vector<T> host(size);
+            TestEnvironment::get_context().get_queue()
+                .memcpy(host.data(), tensor.data(), size * sizeof(T))
+                .wait();
+            return host;
+        }
+
+        /// @brief Holds the seed fill_random's generator starts from.
+        constexpr std::uint32_t K_FILL_RANDOM_SEED = 20261006u;
+
+        /**
+         * @brief Returns the generator fill_random draws from.
+         */
+        inline std::mt19937& fill_random_generator()
+        {
+            static std::mt19937 generator(K_FILL_RANDOM_SEED);
+            return generator;
+        }
+
+        /**
+         * @brief Restarts fill_random's generator from K_FILL_RANDOM_SEED.
+         */
+        inline void reset_fill_random_generator()
+        {
+            fill_random_generator().seed(K_FILL_RANDOM_SEED);
+        }
+
+        /**
+         * @brief Fills a dense tensor with uniform values drawn from fill_random_generator().
+         * @see tests/common/README.md
+         */
         template <typename T>
         void fill_random(Tensor& tensor, float min_val = -1.0f, float max_val = 1.0f)
         {
             size_t size = static_cast<size_t>(tensor.num_elements);
 
             std::vector<T> host_data(size);
+            std::uniform_real_distribution<float> distribution(min_val, max_val);
             for (size_t i = 0; i < size; ++i)
             {
-                auto get_rand = [&]() {
-                    float r = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-                    return min_val + r * (max_val - min_val);
+                auto get_rand = [&]()
+                {
+                    return distribution(fill_random_generator());
                 };
 
                 if constexpr (std::is_same_v<T, sycl::half>)
-                    host_data[i] = sycl::vec<float, 1>(get_rand()).convert<sycl::half, sycl::rounding_mode::automatic>()[0];
+                    host_data[i] = sycl::vec<float, 1>(get_rand())
+                                       .convert<sycl::half, sycl::rounding_mode::automatic>()[0];
                 else if constexpr (Core::is_complex_v<T>)
                 {
                     using BaseT = typename T::value_type;
-                    host_data[i] = T(static_cast<BaseT>(get_rand()), static_cast<BaseT>(get_rand()));
+                    const BaseT real_part = static_cast<BaseT>(get_rand());
+                    const BaseT imag_part = static_cast<BaseT>(get_rand());
+                    host_data[i] = T(real_part, imag_part);
                 }
                 else
                     host_data[i] = static_cast<T>(get_rand());
@@ -271,6 +368,7 @@ namespace SushiBLAS
                 void SetUp() override 
                 {
                     engine = std::make_unique<Engine>(TestEnvironment::get_context(), Core::Layout::ROW_MAJOR);
+                    reset_fill_random_generator();
                 }
 
                 void TearDown() override 

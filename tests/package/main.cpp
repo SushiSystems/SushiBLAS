@@ -36,6 +36,7 @@
 #include <SushiBLAS/engine/blas/dispatch.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 
+namespace sb = SushiBLAS;
 using namespace SushiRuntime::Graph::Literals;
 
 /**
