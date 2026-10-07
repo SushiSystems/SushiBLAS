@@ -25,6 +25,7 @@
  * @author Mustafa Garip
  */
 
+#include <vector>
 #include <complex>
 #include <iostream>
 #include <SushiBLAS/SushiBLAS.h>
@@ -40,10 +41,12 @@ int main()
 
         // 1. Create a tensor and fill it
         auto A = engine.create_tensor({2, 3});
-        float* data = A.data_as<float>();
+        std::vector<float> values(6);
 
         for (int i = 0; i < 6; ++i)
-            data[i] = static_cast<float>(i) * 1.5f;
+            values[i] = static_cast<float>(i) * 1.5f;
+
+        engine.io().from_vector(A, values);
 
         // 2. Demonstrate to_string()
         std::cout << "Step 2: Testing to_string()...\n";
@@ -64,9 +67,7 @@ int main()
         // 4. Test COMPLEX support again with new structure
         std::cout << "\nStep 4: Testing Complex Numbers with to_string()...\n";
         auto C = engine.create_tensor({2}, SushiBLAS::Core::DataType::COMPLEX32);
-        float* c_ptr = C.data_as<float>();
-        c_ptr[0] = 1.0f; c_ptr[1] = 2.0f; // (1+2j)
-        c_ptr[2] = -0.5f; c_ptr[3] = 0.0f; // -0.5
+        engine.io().from_vector(C, std::vector<std::complex<float>>{{1.0f, 2.0f}, {-0.5f, 0.0f}});
 
         std::cout << "Tensor C:\n" << engine.io().to_string(C) << std::endl;
 

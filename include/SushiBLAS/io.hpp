@@ -28,73 +28,196 @@
 #pragma once
 
 #include <string>
+#include <vector>
+#include <complex>
+#include <cstddef>
+#include <cstdint>
+#include <utility>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/core/common.hpp>
 
 namespace SushiBLAS
 {
     class Engine;
 
+    /** @brief Holds the host-type traits IO's templates use. */
+    namespace Detail
+    {
+        /**
+         * @brief Maps a host element type to the DataType a tensor of it carries.
+         * @tparam T One of float, double, sycl::half, std::complex<float>,
+         * std::complex<double>, int32_t, int64_t.
+         */
+        template<typename T> struct HostDataType;
+
+        /** @brief Maps float to FLOAT32. */
+        template<> struct HostDataType<float>
+        {
+            /** @brief The matching DataType. */
+            static constexpr Core::DataType K_VALUE = Core::DataType::FLOAT32;
+        };
+
+        /** @brief Maps double to FLOAT64. */
+        template<> struct HostDataType<double>
+        {
+            /** @brief The matching DataType. */
+            static constexpr Core::DataType K_VALUE = Core::DataType::FLOAT64;
+        };
+
+        /** @brief Maps sycl::half to HALF. */
+        template<> struct HostDataType<sycl::half>
+        {
+            /** @brief The matching DataType. */
+            static constexpr Core::DataType K_VALUE = Core::DataType::HALF;
+        };
+
+        /** @brief Maps std::complex<float> to COMPLEX32. */
+        template<> struct HostDataType<std::complex<float>>
+        {
+            /** @brief The matching DataType. */
+            static constexpr Core::DataType K_VALUE = Core::DataType::COMPLEX32;
+        };
+
+        /** @brief Maps std::complex<double> to COMPLEX64. */
+        template<> struct HostDataType<std::complex<double>>
+        {
+            /** @brief The matching DataType. */
+            static constexpr Core::DataType K_VALUE = Core::DataType::COMPLEX64;
+        };
+
+        /** @brief Maps int32_t to INT32. */
+        template<> struct HostDataType<int32_t>
+        {
+            /** @brief The matching DataType. */
+            static constexpr Core::DataType K_VALUE = Core::DataType::INT32;
+        };
+
+        /** @brief Maps int64_t to INT64. */
+        template<> struct HostDataType<int64_t>
+        {
+            /** @brief The matching DataType. */
+            static constexpr Core::DataType K_VALUE = Core::DataType::INT64;
+        };
+    } // namespace Detail
+
     /**
      * @class IO
      * @brief Input/Output operations for Tensors.
-     * 
+     *
      * This class provides methods to save, load, and display tensors. It supports
      * both native .sushi formats and NumPy .npy exports for interoperability.
      */
-    class IO 
+    class IO
     {
         public:
             /**
              * @brief Construct a new IO object.
              * @param e Reference to the parent Engine.
              */
-            explicit IO(Engine& e) : engine_(e) {}
+            explicit IO(Engine& e) : engine_(e)
+            {
+
+            }
 
             /**
              * @brief Save tensor in the native .sushi format.
-             * 
+             *
              * This includes a header with metadata (shape, dtype) followed by raw data.
-             * @param t The tensor to save.
+             * @param t The tensor to save; stored and contiguous.
              * @param path The filesystem path to save the file to.
+             * @throws std::invalid_argument when t is strided or has no storage.
+             * @throws std::runtime_error when a write fails; the partial file is removed.
              */
             void save(const Tensor& t, const std::string& path);
 
             /**
              * @brief Load a .sushi file into a tensor.
-             * 
-             * This will verify that the file metadata matches the tensor.
+             *
+             * Runs the recorded graph first, then verifies that the file metadata matches the
+             * tensor.
              * @param t The target tensor to load data into.
              * @param path The filesystem path of the .sushi file.
              */
             void load(Tensor& t, const std::string& path);
 
             /**
+             * @brief Runs the recorded graph, then copies the tensor's elements into host memory.
+             * @param t A stored, contiguous tensor; any residency.
+             * @param bytes Must equal num_elements times the dtype's element size.
+             * @throws std::invalid_argument when t breaks those rules or bytes differs.
+             */
+            void read(const Tensor& t, void* dst, size_t bytes);
+
+            /**
+             * @brief Runs the recorded graph, then copies host memory into the tensor's elements.
+             * @param t A stored, contiguous tensor; any residency.
+             * @param bytes Must equal num_elements times the dtype's element size.
+             * @throws std::invalid_argument when t breaks those rules or bytes differs.
+             */
+            void write(Tensor& t, const void* src, size_t bytes);
+
+            /**
+             * @brief Returns the tensor's elements as a host vector, after running the graph.
+             * @tparam T The host type matching t.dtype (see Detail::HostDataType).
+             * @throws std::invalid_argument when t's dtype is not T's, or read() rejects t.
+             */
+            template<typename T>
+            [[nodiscard]] std::vector<T> to_vector(const Tensor& t)
+            {
+                require_element_type(t, Detail::HostDataType<T>::K_VALUE, "io.to_vector");
+
+                std::vector<T> out(static_cast<size_t>(t.num_elements));
+                read(t, out.data(), out.size() * sizeof(T));
+                return out;
+            }
+
+            /**
+             * @brief Copies a host vector into the tensor's elements, after running the graph.
+             * @tparam T The host type matching t.dtype (see Detail::HostDataType).
+             * @throws std::invalid_argument when t's dtype is not T's, the sizes differ, or
+             * write() rejects t.
+             */
+            template<typename T>
+            void from_vector(Tensor& t, const std::vector<T>& values)
+            {
+                require_element_type(t, Detail::HostDataType<T>::K_VALUE, "io.from_vector");
+                write(t, values.data(), values.size() * sizeof(T));
+            }
+
+            /**
              * @brief Save tensor in NumPy .npy format.
-             * 
+             *
              * This allows the tensor to be loaded directly in Python using np.load().
-             * @param t The tensor to export.
+             * @param t The tensor to export; stored, contiguous, and not COLUMN_MAJOR at rank 3
+             * or more.
              * @param path The filesystem path to save the .npy file.
+             * @throws std::invalid_argument when t breaks one of those rules.
+             * @throws std::runtime_error when a write fails; the partial file is removed.
              */
             void save_npy(const Tensor& t, const std::string& path);
 
             /**
-             * @brief Load a NumPy .npy file into a tensor.
-             * 
-             * Parses the NumPy header and verifies compatibility with the target tensor.
-             * @param t The target tensor to load data into.
-             * @param path The filesystem path of the .npy file.
+             * @brief Runs the recorded graph, then loads a .npy file of version 1.0, 2.0 or 3.0.
+             *
+             * The header's descr, fortran_order and shape must match the tensor exactly.
+             * @param t A stored, contiguous tensor, not COLUMN_MAJOR at rank 3 or more.
+             * @throws std::invalid_argument when t breaks one of those rules.
+             * @throws std::runtime_error on another version, a malformed header or a mismatch.
+             * @see include/SushiBLAS/README.md
              */
             void load_npy(Tensor& t, const std::string& path);
 
             /**
              * @brief Raw binary save (no header).
-             * @param t The tensor to save.
+             * @param t The tensor to save; stored and contiguous.
              * @param path The filesystem path for the binary file.
+             * @throws std::runtime_error when a write fails; the partial file is removed.
              */
             void save_bin(const Tensor& t, const std::string& path);
 
             /**
-             * @brief Raw binary load (no header).
+             * @brief Raw binary load (no header), after running the recorded graph.
              * @param t The target tensor to load data into.
              * @param path The filesystem path of the binary file.
              */
@@ -110,6 +233,7 @@ namespace SushiBLAS
 
             /**
              * @brief Returns the tensor's content as a string in the format print() uses.
+             * @param t Any stored view; its elements are read through its strides.
              * @param precision Number of decimal places for numeric display.
              * @param edge_items Number of items shown at the edges of each dimension.
              */
@@ -117,12 +241,20 @@ namespace SushiBLAS
 
         private:
             /**
+             * @brief Throws unless t carries the data type a host element type maps to.
+             * @throws std::invalid_argument naming op on a mismatch.
+             */
+            static void require_element_type(const Tensor& t, Core::DataType expected,
+                                             const char* op);
+
+            /**
              * @brief Internal recursive printing engine for N-dimensional tensors.
              */
-            void print_recursive(std::ostream& os, const float* data, const int64_t* shape, 
-                                 const int64_t* strides, int rank, int current_dim, 
-                                 int64_t offset, int precision, int edge_items);
+            void print_recursive(std::ostream& os, const std::pair<double, double>* data,
+                                 const int64_t* shape, const int64_t* strides, int rank,
+                                 int current_dim, int64_t offset, int precision, int edge_items);
 
+            /// @brief The engine whose recorded graph runs before every transfer.
             Engine& engine_;
     };
 
