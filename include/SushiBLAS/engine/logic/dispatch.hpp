@@ -36,7 +36,8 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
-#include <SushiBLAS/engine/launch_1d.hpp>
+#include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -45,19 +46,28 @@ namespace SushiBLAS
     namespace Dispatch
     {
         /**
-         * @brief Records a unary logic op: `result[i] = op(x[i])`.
+         * @brief Records a unary logic op `result[i] = op(x[i])`, or nothing when result is empty.
          * @param result Must match x in size and dtype.
          * @param op_func Callable `(auto x) -> auto`: device-copyable, by-value captures, no allocation, no throw.
-         * @throws std::runtime_error on a size or dtype mismatch, a dtype outside Dom, or too many params.
+         * @throws std::invalid_argument on a missing storage, a non-contiguous operand, or a shape or layout mismatch.
+         * @throws std::runtime_error on a dtype mismatch, a dtype outside Dom, or too many params.
          * @see include/SushiBLAS/engine/logic/README.md
          */
-        template<Domain Dom = Domain::REAL, typename Func>
-        sycl::event execute_logic_unary(Engine& engine, const Tensor& x, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
+        template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
+        sycl::event execute_logic_unary(Engine& engine, const Tensor& x, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<Param>& params = {})
         {
-            SB_THROW_IF(x.num_elements != result.num_elements, "Tensor sizes must match for logic operation.");
+            require_storage(x, name, "x");
+            require_storage(result, name, "result");
+            require_contiguous(x, name, "x");
+            require_contiguous(result, name, "result");
+            require_same_shape(x, result, name, "x", "result");
+            require_same_layout(x, result, name, "x", "result");
             SB_THROW_IF(x.dtype != result.dtype, "Data types must match for logic operation.");
 
             require_domain<Dom>(x.dtype, "Logic operation", name);
+
+            if (result.num_elements == 0)
+                return sycl::event();
 
             int64_t size = x.num_elements;
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {x.region()};
@@ -91,19 +101,32 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Records a binary logic op: `result[i] = op(A[i], B[i])`.
+         * @brief Records a binary logic op `result[i] = op(A[i], B[i])`, or nothing when result is empty.
          * @tparam Dom Defaults to Domain::REAL, because `<` and `>` have no meaning on complex numbers.
          * @param result Must match the inputs in size and dtype.
          * @param op_func Callable `(auto x, auto y) -> auto` under execute_logic_unary's constraints.
-         * @throws std::runtime_error on a size or dtype mismatch, a dtype outside Dom, or too many params.
+         * @throws std::invalid_argument on a missing storage, a non-contiguous operand, or a shape or layout mismatch.
+         * @throws std::runtime_error on a dtype mismatch, a dtype outside Dom, or too many params.
          */
-        template<Domain Dom = Domain::REAL, typename Func>
-        sycl::event execute_logic_binary(Engine& engine, const Tensor& A, const Tensor& B, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
+        template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
+        sycl::event execute_logic_binary(Engine& engine, const Tensor& A, const Tensor& B, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<Param>& params = {})
         {
-            SB_THROW_IF(A.num_elements != B.num_elements || A.num_elements != result.num_elements, "Tensor sizes must match for logic operation.");
+            require_storage(A, name, "A");
+            require_storage(B, name, "B");
+            require_storage(result, name, "result");
+            require_contiguous(A, name, "A");
+            require_contiguous(B, name, "B");
+            require_contiguous(result, name, "result");
+            require_same_shape(A, B, name, "A", "B");
+            require_same_layout(A, B, name, "A", "B");
+            require_same_shape(A, result, name, "A", "result");
+            require_same_layout(A, result, name, "A", "result");
             SB_THROW_IF(A.dtype != B.dtype || A.dtype != result.dtype, "Data types must match for logic operation.");
 
             require_domain<Dom>(A.dtype, "Logic operation", name);
+
+            if (result.num_elements == 0)
+                return sycl::event();
 
             int64_t size = A.num_elements;
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {A.region(), B.region()};
@@ -137,19 +160,36 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Records a ternary logic op: `result[i] = op(cond[i], A[i], B[i])`.
+         * @brief Records a ternary logic op `result[i] = op(cond[i], A[i], B[i])`, or nothing when result is empty.
          * @param cond Nonzero selects A, zero selects B.
          * @param result Must match the inputs in size and dtype.
          * @param op_func Callable `(auto c, auto a, auto b) -> auto` under execute_logic_unary's constraints.
-         * @throws std::runtime_error on a size or dtype mismatch, a dtype outside Dom, or too many params.
+         * @throws std::invalid_argument on a missing storage, a non-contiguous operand, or a shape or layout mismatch.
+         * @throws std::runtime_error on a dtype mismatch, a dtype outside Dom, or too many params.
          */
-        template<Domain Dom = Domain::REAL, typename Func>
-        sycl::event execute_logic_ternary(Engine& engine, const Tensor& cond, const Tensor& A, const Tensor& B, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<float>& params = {})
+        template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
+        sycl::event execute_logic_ternary(Engine& engine, const Tensor& cond, const Tensor& A, const Tensor& B, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func, const std::vector<Param>& params = {})
         {
-            SB_THROW_IF(cond.num_elements != A.num_elements || cond.num_elements != B.num_elements || cond.num_elements != result.num_elements, "Tensor sizes must match for logic operation.");
+            require_storage(cond, name, "cond");
+            require_storage(A, name, "A");
+            require_storage(B, name, "B");
+            require_storage(result, name, "result");
+            require_contiguous(cond, name, "cond");
+            require_contiguous(A, name, "A");
+            require_contiguous(B, name, "B");
+            require_contiguous(result, name, "result");
+            require_same_shape(cond, A, name, "cond", "A");
+            require_same_layout(cond, A, name, "cond", "A");
+            require_same_shape(cond, B, name, "cond", "B");
+            require_same_layout(cond, B, name, "cond", "B");
+            require_same_shape(cond, result, name, "cond", "result");
+            require_same_layout(cond, result, name, "cond", "result");
             SB_THROW_IF(cond.dtype != A.dtype || cond.dtype != B.dtype || cond.dtype != result.dtype, "Data types must match for logic operation.");
 
             require_domain<Dom>(cond.dtype, "Logic operation", name);
+
+            if (result.num_elements == 0)
+                return sycl::event();
 
             int64_t size = cond.num_elements;
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {cond.region(), A.region(), B.region()};

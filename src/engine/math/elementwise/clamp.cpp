@@ -27,15 +27,25 @@
 
 #include <SushiBLAS/engine/math/elementwise.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+#include <SushiBLAS/engine/math/elementwise/scalar.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::clamp(Tensor& t, float min_val, float max_val) 
+    sycl::event ElementwiseOps::clamp(Tensor& t, double min_val, double max_val)
     {
-        return Dispatch::execute_unary_inplace(engine_, t, "math.ew.clamp", "math.ew.clamp"_op, 
-            [min_val, max_val](auto x) { return sycl::clamp(x, (decltype(x))min_val, (decltype(x))max_val); },
+        SB_THROW_IF(min_val > max_val,
+                    "Elementwise clamp: min_val {} is greater than max_val {}.", min_val, max_val);
+        const Dispatch::ElementScalar lo(min_val);
+        const Dispatch::ElementScalar hi(max_val);
+        return Dispatch::execute_unary_inplace<Dispatch::Domain::REAL_AND_INTEGRAL>(
+            engine_, t, "math.ew.clamp", "math.ew.clamp"_op,
+            [lo, hi](auto x)
+            {
+                using T = decltype(x);
+                return sycl::clamp(x, lo.as<T>(), hi.as<T>());
+            },
             {min_val, max_val});
     }
 } // namespace SushiBLAS

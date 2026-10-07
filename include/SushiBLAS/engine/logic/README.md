@@ -9,6 +9,12 @@ this page.
 
 ## `dispatch.hpp`
 
+### Empty operands
+
+Each executor checks shapes, layouts, dtypes and the domain, then returns a default `sycl::event`
+without recording a task when `result` holds no elements. A tensor with zero elements needs no
+storage. `include/SushiBLAS/engine/math/README.md` states the same rule for the elementwise family.
+
 ### `execute_logic_unary`
 
 Logic results are carried in the operand's own dtype (1 for true, 0 for false) rather than a
@@ -25,3 +31,10 @@ on complex numbers; these helpers used to supply a lexicographic stand-in, which
 on a COMPLEX32 tensor return a confident, well-formed, mathematically meaningless answer. The
 ordering ops now declare Domain::REAL, so a complex operand throws at record time instead of being
 quietly re-interpreted.
+
+## `logic.hpp`
+
+### `all` and `any` of an empty tensor
+
+An input with zero elements needs no storage. `all` still records its task and writes 1 to
+`result`, `any` writes 0: each is its reduction's identity, and the kernel reads no input element.

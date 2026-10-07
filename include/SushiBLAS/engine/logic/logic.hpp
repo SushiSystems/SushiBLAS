@@ -36,10 +36,9 @@ namespace SushiBLAS
 
     /**
      * @class LogicOps
-     * @brief Logical and comparison operations for tensors.
-     * 
-     * These operations are essential for masking, filtering, and 
-     * implementing conditional logic in computational graphs.
+     * @brief Records element-wise logical and comparison operations on contiguous tensors.
+     * @note Every operand must have storage and dense strides, and the operands of one call must
+     * share one shape: the library does not broadcast.
      */
     class LogicOps 
     {
@@ -51,7 +50,7 @@ namespace SushiBLAS
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param result Output tensor (1 if true, 0 if false).
-             * @return sycl::event representing the operation.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event equal(const Tensor& A, const Tensor& B, Tensor& result);
 
@@ -60,7 +59,7 @@ namespace SushiBLAS
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param result Output tensor (1 if true, 0 if false).
-             * @return sycl::event representing the operation.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event not_equal(const Tensor& A, const Tensor& B, Tensor& result);
 
@@ -69,7 +68,7 @@ namespace SushiBLAS
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param result Output tensor (1 if true, 0 if false).
-             * @return sycl::event representing the operation.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event greater(const Tensor& A, const Tensor& B, Tensor& result);
 
@@ -78,7 +77,7 @@ namespace SushiBLAS
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param result Output tensor (1 if true, 0 if false).
-             * @return sycl::event representing the operation.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event less(const Tensor& A, const Tensor& B, Tensor& result);
 
@@ -87,7 +86,7 @@ namespace SushiBLAS
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param result Output tensor (1 if true, 0 if false).
-             * @return sycl::event representing the operation.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event greater_equal(const Tensor& A, const Tensor& B, Tensor& result);
 
@@ -96,7 +95,7 @@ namespace SushiBLAS
              * @param A First input tensor.
              * @param B Second input tensor.
              * @param result Output tensor (1 if true, 0 if false).
-             * @return sycl::event representing the operation.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event less_equal(const Tensor& A, const Tensor& B, Tensor& result);
 
@@ -110,7 +109,7 @@ namespace SushiBLAS
              * @param A Input tensor A.
              * @param B Input tensor B.
              * @param out Output tensor (1 if both non-zero, else 0).
-             * @return sycl::event representing the operation.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event logical_and(const Tensor& A, const Tensor& B, Tensor& out);
 
@@ -119,7 +118,7 @@ namespace SushiBLAS
              * @param A Input tensor A.
              * @param B Input tensor B.
              * @param out Output tensor (1 if either non-zero, else 0).
-             * @return sycl::event representing the operation.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event logical_or(const Tensor& A, const Tensor& B, Tensor& out);
 
@@ -128,7 +127,7 @@ namespace SushiBLAS
              * @param A Input tensor A.
              * @param B Input tensor B.
              * @param out Output tensor (1 if exactly one is non-zero, else 0).
-             * @return sycl::event representing the operation.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event logical_xor(const Tensor& A, const Tensor& B, Tensor& out);
 
@@ -136,7 +135,7 @@ namespace SushiBLAS
              * @brief Element-wise logical NOT of a tensor.
              * @param A Input tensor.
              * @param out Output tensor (1 if zero, 0 if non-zero).
-             * @return sycl::event representing the operation.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event logical_not(const Tensor& A, Tensor& out);
 
@@ -144,7 +143,7 @@ namespace SushiBLAS
              * @brief Check if all elements are non-zero (Logical ALL reduction).
              * @param t Input tensor.
              * @param result Scalar output (1 if all true, else 0).
-             * @return sycl::event representing the operation.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event all(const Tensor& t, Tensor& result);
 
@@ -152,7 +151,7 @@ namespace SushiBLAS
              * @brief Check if any element is non-zero (Logical ANY reduction).
              * @param t Input tensor.
              * @param result Scalar output (1 if any true, else 0).
-             * @return sycl::event representing the operation.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event any(const Tensor& t, Tensor& result);
 

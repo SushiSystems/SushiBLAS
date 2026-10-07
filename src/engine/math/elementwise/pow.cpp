@@ -27,15 +27,17 @@
 
 #include <SushiBLAS/engine/math/elementwise.hpp>
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+#include <SushiBLAS/engine/math/elementwise/scalar.hpp>
 
 namespace SushiBLAS 
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::pow(Tensor& t, float exponent) 
+    sycl::event ElementwiseOps::pow(Tensor& t, double exponent) 
     {
+        const Dispatch::ElementScalar e(exponent);
         return Dispatch::execute_unary_inplace(engine_, t, "math.ew.pow", "math.ew.pow"_op, 
-            [exponent](auto x) { return sycl::pow(x, (decltype(x))exponent); },
+            [e](auto x) { return sycl::pow(x, e.as<decltype(x)>()); },
             {exponent});
     }
 } // namespace SushiBLAS

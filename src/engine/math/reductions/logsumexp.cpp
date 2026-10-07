@@ -36,29 +36,31 @@ namespace SushiBLAS
 
     sycl::event ReductionOps::logsumexp(const Tensor& t, Tensor& result) 
     {
+        Dispatch::require_min_elements(t, 1, "math.logsumexp", "t");
+
         auto dispatch = [](sycl::queue& q, const auto* pT, auto* pR, int64_t size,
                            [[maybe_unused]] auto scratch,
                            const std::vector<sycl::event>& deps)
         {
             using T = std::decay_t<decltype(*pT)>;
+            using W = Reduce::AccumulationOf<T>;
 
             return q.submit([&](sycl::handler& h) 
             {
                 h.depends_on(deps);
                 h.single_task([=]() 
                 {
-                    if (size == 0) return;
-                    T max_val = pT[0];
+                    W max_val = static_cast<W>(pT[0]);
                     for (int64_t i = 1; i < size; ++i) 
                     {
-                        if (pT[i] > max_val) max_val = pT[i];
+                        if (static_cast<W>(pT[i]) > max_val) max_val = static_cast<W>(pT[i]);
                     }
-                    T sum_exp = 0;
+                    W sum_exp = 0;
                     for (int64_t i = 0; i < size; ++i) 
                     {
-                        sum_exp += sycl::exp(pT[i] - max_val);
+                        sum_exp += sycl::exp(static_cast<W>(pT[i]) - max_val);
                     }
-                    *pR = max_val + sycl::log(sum_exp);
+                    *pR = static_cast<T>(max_val + sycl::log(sum_exp));
                 });
             });
         };

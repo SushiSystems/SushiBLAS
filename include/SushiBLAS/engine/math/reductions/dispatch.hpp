@@ -36,9 +36,11 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
-#include <SushiBLAS/engine/reduce_1d.hpp>
-#include <SushiBLAS/engine/reduce_axis.hpp>
-#include <SushiBLAS/engine/device_policy.hpp>
+#include <SushiBLAS/engine/scratch.hpp>
+#include <SushiBLAS/support/reduce_1d.hpp>
+#include <SushiBLAS/support/reduce_axis.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
@@ -48,7 +50,7 @@ namespace SushiBLAS
     {
         /**
          * @brief Holds a device buffer a reduction may stage per-work-group partials in.
-         * @tparam T The element type, matching the tensor being reduced.
+         * @tparam T The partial type: Reduce::AccumulationOf the element type, or INT64 for a count.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename T>
@@ -62,21 +64,50 @@ namespace SushiBLAS
         };
 
         /**
+         * @brief Returns the bytes one partial of a floating-point reduction over dtype takes.
+         * @return sizeof(Reduce::AccumulationOf<T>) for the element type T of dtype.
+         */
+        [[nodiscard]] inline std::size_t partial_bytes(Core::DataType dtype)
+        {
+            if (dtype == Core::DataType::HALF) return sizeof(Reduce::AccumulationOf<sycl::half>);
+            return Core::bytes_per_element(dtype);
+        }
+
+        /**
+         * @brief Returns the partials a whole-tensor reduction over t plans on t's own device.
+         * @return The partial count, or 0 when t holds no elements.
+         * @pre require_storage(t) has passed.
+         * @see include/SushiBLAS/engine/math/README.md
+         */
+        [[nodiscard]] inline std::size_t planned_partials_for(const Tensor& t)
+        {
+            if (t.num_elements <= 0)
+                return 0;
+
+            return Reduce::planned_partials(Device::profile_for(t.get_device()),
+                                            static_cast<std::size_t>(t.num_elements));
+        }
+
+        /**
          * @brief Records a whole-tensor reduction to a scalar result tensor.
          * @param result Must hold one element and share t's dtype.
          * @param dispatch Builds the command group per element type and must call `depends_on(deps)`.
          * @param scratch_elements Per-work-group partials to allocate; zero allocates nothing.
+         * @throws std::invalid_argument if an operand holds elements without storage or t is not contiguous.
          * @throws std::runtime_error if result is not scalar, the dtypes disagree, or the dtype is not real.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
         sycl::event execute_reduction(Engine& engine, const Tensor& t, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Dispatcher&& dispatch, std::size_t scratch_elements = 0)
         {
+            require_storage(t, name, "t");
+            require_storage(result, name, "result");
+            require_contiguous(t, name, "t");
             SB_THROW_IF(result.num_elements != 1, "Result tensor for reduction '{}' must be a scalar (1 element).", name);
             SB_THROW_IF(t.dtype != result.dtype, "Data types must match for reduction operations.");
 
             int64_t size = t.num_elements;
-            void* read_T = t.data();
+            const void* read_T = t.data();
             void* write_R = result.data();
 
             // Operands are declared by Tensor::region(), not by data(); see include/SushiBLAS/engine/math/README.md.
@@ -84,18 +115,10 @@ namespace SushiBLAS
             std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
 
             // The scratch is declared as a resource with its own region; see include/SushiBLAS/engine/math/README.md.
-            const std::size_t bpe = Core::bytes_per_element(t.dtype);
-            SushiRuntime::sushi_ptr<Storage> scratch;
-            void* scratch_ptr = nullptr;
-
-            if (scratch_elements > 0)
-            {
-                scratch = SushiRuntime::make_sushi<Storage>(
-                    engine.get_context().get_allocator(), scratch_elements * bpe,
-                    SushiRuntime::Memory::Strategies::Device::instance());
-                scratch_ptr = scratch->allocation_base();
-                writes.push_back({scratch_ptr, 0, scratch_elements * bpe});
-            }
+            const ScratchBuffer scratch(engine, scratch_elements * partial_bytes(t.dtype),
+                                        t.storage->get_device_index());
+            void* scratch_ptr = scratch.data();
+            if (!scratch.is_empty()) writes.push_back(scratch.region());
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -106,18 +129,18 @@ namespace SushiBLAS
             {
                 case Core::DataType::HALF:
                     engine.get_graph().add_task(meta, reads, writes,
-                        [size, pT=(sycl::half*)read_T, pR=(sycl::half*)write_R, scratch,
-                         pS=(sycl::half*)scratch_ptr, scratch_elements, dispatch, name]
+                        [size, pT=(const sycl::half*)read_T, pR=(sycl::half*)write_R, scratch,
+                         pS=(float*)scratch_ptr, scratch_elements, dispatch, name]
                         (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                         {
                             SB_LOG_INFO("Reduction {}: {} elements", name, size);
                             return dispatch(q, pT, pR, size,
-                                            ReductionScratch<sycl::half>{pS, scratch_elements}, deps);
+                                            ReductionScratch<float>{pS, scratch_elements}, deps);
                         });
                     break;
                 case Core::DataType::FLOAT32:
                     engine.get_graph().add_task(meta, reads, writes,
-                        [size, pT=(float*)read_T, pR=(float*)write_R, scratch,
+                        [size, pT=(const float*)read_T, pR=(float*)write_R, scratch,
                          pS=(float*)scratch_ptr, scratch_elements, dispatch, name]
                         (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                         {
@@ -128,7 +151,7 @@ namespace SushiBLAS
                     break;
                 case Core::DataType::FLOAT64:
                     engine.get_graph().add_task(meta, reads, writes,
-                        [size, pT=(double*)read_T, pR=(double*)write_R, scratch,
+                        [size, pT=(const double*)read_T, pR=(double*)write_R, scratch,
                          pS=(double*)scratch_ptr, scratch_elements, dispatch, name]
                         (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                         {
@@ -148,12 +171,16 @@ namespace SushiBLAS
          * @brief Records a whole-tensor reduction whose result is an index in an INT64 scalar.
          * @param result Must be a scalar INT64 tensor.
          * @param dispatch Builds the command group per input element type, as in execute_reduction.
+         * @throws std::invalid_argument if an operand holds elements without storage or t is not contiguous.
          * @throws std::runtime_error if result is not an INT64 scalar or the input dtype is complex.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
         sycl::event execute_index_reduction(Engine& engine, const Tensor& t, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Dispatcher&& dispatch)
         {
+            require_storage(t, name, "t");
+            require_storage(result, name, "result");
+            require_contiguous(t, name, "t");
             SB_THROW_IF(result.num_elements != 1,
                         "Result tensor for reduction '{}' must be a scalar (1 element).", name);
             SB_THROW_IF(result.dtype != Core::DataType::INT64,
@@ -162,7 +189,7 @@ namespace SushiBLAS
                         name, Core::to_string(result.dtype));
 
             const int64_t size = t.num_elements;
-            void* read_T = t.data();
+            const void* read_T = t.data();
             int64_t* write_R = result.data_as<int64_t>();
 
             std::vector<SushiRuntime::Core::ResourceRegion> reads = {t.region()};
@@ -195,12 +222,16 @@ namespace SushiBLAS
          * @brief Records a whole-tensor reduction that counts elements into an INT64 scalar.
          * @param result Must be a scalar INT64 tensor.
          * @param scratch_elements Per-work-group partials to allocate; zero allocates nothing.
+         * @throws std::invalid_argument if an operand holds elements without storage or t is not contiguous.
          * @throws std::runtime_error if result is not an INT64 scalar or the input dtype is not real.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
         sycl::event execute_counting_reduction(Engine& engine, const Tensor& t, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Dispatcher&& dispatch, std::size_t scratch_elements = 0)
         {
+            require_storage(t, name, "t");
+            require_storage(result, name, "result");
+            require_contiguous(t, name, "t");
             SB_THROW_IF(result.num_elements != 1,
                         "Result tensor for reduction '{}' must be a scalar (1 element).", name);
             SB_THROW_IF(result.dtype != Core::DataType::INT64,
@@ -211,7 +242,7 @@ namespace SushiBLAS
                         name, Core::to_string(result.dtype));
 
             const int64_t size = t.num_elements;
-            void* read_T = t.data();
+            const void* read_T = t.data();
             int64_t* write_R = result.data_as<int64_t>();
 
             // Operands are declared by Tensor::region(), not by data(); see include/SushiBLAS/engine/math/README.md.
@@ -219,18 +250,10 @@ namespace SushiBLAS
             std::vector<SushiRuntime::Core::ResourceRegion> writes = {result.region()};
 
             // Partials are INT64 whatever the input dtype, so the scratch is sized from sizeof(int64_t); see include/SushiBLAS/engine/math/README.md.
-            SushiRuntime::sushi_ptr<Storage> scratch;
-            int64_t* scratch_ptr = nullptr;
-
-            if (scratch_elements > 0)
-            {
-                const std::size_t bytes = scratch_elements * sizeof(int64_t);
-                scratch = SushiRuntime::make_sushi<Storage>(
-                    engine.get_context().get_allocator(), bytes,
-                    SushiRuntime::Memory::Strategies::Device::instance());
-                scratch_ptr = static_cast<int64_t*>(scratch->allocation_base());
-                writes.push_back({scratch->allocation_base(), 0, bytes});
-            }
+            const ScratchBuffer scratch(engine, scratch_elements * sizeof(int64_t),
+                                        t.storage->get_device_index());
+            int64_t* scratch_ptr = static_cast<int64_t*>(scratch.data());
+            if (!scratch.is_empty()) writes.push_back(scratch.region());
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -262,16 +285,17 @@ namespace SushiBLAS
          * @tparam Accum Reduce::CompensatedSum for anything additive, Reduce::RunningProduct for a product.
          * @param transform Callable `(auto x) -> auto`, applied to each element before the fold.
          * @param finalize Callable `(auto value, std::size_t n) -> auto`, applied once to the folded result.
+         * @throws std::invalid_argument for the same reasons execute_reduction does.
          * @throws std::runtime_error for the same reasons execute_reduction does.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<template<typename> class Accum, typename Transform, typename Finalize>
         sycl::event execute_folding_reduction(Engine& engine, const Tensor& t, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Transform transform, Finalize finalize)
         {
-            // Partials are sized from the device the data lives on; see include/SushiBLAS/engine/math/README.md.
-            const std::size_t partials =
-                Reduce::planned_partials(Device::profile_for(t.get_device()),
-                                         static_cast<std::size_t>(t.num_elements));
+            require_storage(t, name, "t");
+            require_storage(result, name, "result");
+
+            const std::size_t partials = planned_partials_for(t);
 
             auto dispatch = [transform, finalize](
                 sycl::queue& q, const auto* pT, auto* pR, int64_t size,
@@ -366,16 +390,19 @@ namespace SushiBLAS
          * @param span The segment geometry, from axis_span_for or spatial_span_for.
          * @param result Must share t's dtype.
          * @param finalize Callable `(auto value, std::size_t n) -> auto`, applied once per segment.
+         * @throws std::invalid_argument if an operand holds elements without storage.
          * @throws std::runtime_error if the dtypes disagree or the dtype is not HALF, FLOAT32 or FLOAT64.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<template<typename> class Accum, typename Transform, typename Finalize>
         sycl::event execute_folding_span_reduction(Engine& engine, const Tensor& t, const Reduce::AxisSpan& span, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Transform transform, Finalize finalize)
         {
+            require_storage(t, name, "t");
+            require_storage(result, name, "result");
             SB_THROW_IF(t.dtype != result.dtype,
                         "Data types must match for axis reduction '{}'.", name);
 
-            void* read_T = t.data();
+            const void* read_T = t.data();
             void* write_R = result.data();
 
             // Operands are declared by Tensor::region(), not by data(); see include/SushiBLAS/engine/math/README.md.
@@ -418,12 +445,15 @@ namespace SushiBLAS
          * @brief Records a segmented reduction over one axis of a rank-2 tensor.
          * @param axis Which axis to fold away; see axis_span_for.
          * @param result Rank-1 tensor sharing t's dtype.
+         * @throws std::invalid_argument if an operand holds elements without storage.
          * @throws std::runtime_error for the reasons axis_span_for and execute_folding_span_reduction list.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<template<typename> class Accum, typename Transform, typename Finalize>
         sycl::event execute_folding_axis_reduction(Engine& engine, const Tensor& t, int axis, Tensor& result, const char* name, SushiRuntime::Graph::OpID op_id, Transform transform, Finalize finalize)
         {
+            require_storage(t, name, "t");
+            require_storage(result, name, "result");
             SB_THROW_IF(t.dtype != result.dtype,
                         "Data types must match for axis reduction '{}'.", name);
 

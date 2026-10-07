@@ -25,38 +25,18 @@
  * @author Mustafa Garip
  */
 
-#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
-#include <limits>
 #include <type_traits>
 #include <SushiBLAS/engine/math/reductions.hpp>
+#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
 namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    namespace
-    {
-        template<typename T>
-        struct ArgMaxPair
-        {
-            T val;
-            int64_t idx;
-        };
-
-        template<typename T>
-        struct ArgMaxCombine
-        {
-            ArgMaxPair<T> operator()(const ArgMaxPair<T>& a, const ArgMaxPair<T>& b) const
-            {
-                if (a.val > b.val) return a;
-                if (a.val < b.val) return b;
-                return (a.idx < b.idx) ? a : b;
-            }
-        };
-    }
-
     sycl::event ReductionOps::argmax(const Tensor& t, Tensor& result)
     {
+        Dispatch::require_min_elements(t, 1, "math.argmax", "t");
+
         // A sequential scan gives the lowest index on a tie, stored as INT64; see src/README.md.
         auto dispatch = [](sycl::queue& q, const auto* pT, int64_t* pR, int64_t size,
                            const std::vector<sycl::event>& deps)
@@ -68,7 +48,6 @@ namespace SushiBLAS
                 h.depends_on(deps);
                 h.single_task([=]()
                 {
-                    if (size == 0) return;
                     T max_val = pT[0];
                     int64_t max_idx = 0;
                     for (int64_t i = 1; i < size; ++i)

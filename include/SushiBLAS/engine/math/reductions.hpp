@@ -36,11 +36,9 @@ namespace SushiBLAS
 
     /**
      * @class ReductionOps
-     * @brief Parallel tensor reduction operations.
-     * 
-     * These operations aggregate many elements into a single scalar value. 
-     * All results are returned as SYCL events as they are computed asynchronously 
-     * and stored in the provided scalar tensor.
+     * @brief Records reductions of a tensor into a scalar result tensor or along an axis.
+     * @note A whole-tensor reduction needs a contiguous operand with storage. The axis
+     * reductions honour strides. Var, std, logsumexp, argmax and argmin reject an empty tensor.
      */
     class ReductionOps 
     {
@@ -56,7 +54,7 @@ namespace SushiBLAS
              * Computes result = sum(t_i).
              * @param t Input tensor.
              * @param result Scalar output tensor.
-             * @return sycl::event representing task completion.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event sum(const Tensor& t, Tensor& result);
 
@@ -65,41 +63,45 @@ namespace SushiBLAS
              * Computes result = sum(t_i) / num_elements.
              * @param t Input tensor.
              * @param result Scalar output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event mean(const Tensor& t, Tensor& result);
 
             /** 
              * @brief Maximum value in the tensor.
-             * Finds result = max(t_i).
+             * Finds result = max(t_i). Any NaN element makes the result NaN; an empty tensor
+             * gives std::numeric_limits<T>::lowest().
              * @param t Input tensor.
              * @param result Scalar output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event max(const Tensor& t, Tensor& result);
 
             /** 
              * @brief Minimum value in the tensor.
-             * Finds result = min(t_i).
+             * Finds result = min(t_i). Any NaN element makes the result NaN; an empty tensor
+             * gives std::numeric_limits<T>::max().
              * @param t Input tensor.
              * @param result Scalar output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event min(const Tensor& t, Tensor& result);
 
             /** 
              * @brief Index of the maximum value.
              * @param t Input tensor.
-             * @param result Scalar output tensor (stores index as int64_t/float).
-             * @return sycl::event.
+             * @param result Scalar INT64 tensor; receives the lowest index of the maximum.
+             * @throws std::invalid_argument if t is empty.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event argmax(const Tensor& t, Tensor& result);
 
             /** 
              * @brief Index of the minimum value.
              * @param t Input tensor.
-             * @param result Scalar output tensor.
-             * @return sycl::event.
+             * @param result Scalar INT64 tensor; receives the lowest index of the minimum.
+             * @throws std::invalid_argument if t is empty.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event argmin(const Tensor& t, Tensor& result);
 
@@ -107,7 +109,8 @@ namespace SushiBLAS
              * @brief Variance of all elements.
              * @param t Input tensor.
              * @param result Scalar output tensor.
-             * @return sycl::event.
+             * @throws std::invalid_argument if t is empty.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event var(const Tensor& t, Tensor& result);
 
@@ -115,7 +118,8 @@ namespace SushiBLAS
              * @brief Standard Deviation of all elements.
              * @param t Input tensor.
              * @param result Scalar output tensor.
-             * @return sycl::event.
+             * @throws std::invalid_argument if t is empty.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event std(const Tensor& t, Tensor& result);
 
@@ -123,7 +127,7 @@ namespace SushiBLAS
              * @brief Product of all elements.
              * @param t Input tensor.
              * @param result Scalar output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event prod(const Tensor& t, Tensor& result);
 
@@ -133,7 +137,8 @@ namespace SushiBLAS
              * Used for numerical stability in softmax calculations.
              * @param t Input tensor.
              * @param result Scalar output tensor.
-             * @return sycl::event.
+             * @throws std::invalid_argument if t is empty.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event logsumexp(const Tensor& t, Tensor& result);
 
@@ -168,7 +173,7 @@ namespace SushiBLAS
              * @brief L1 Norm (Sum of absolute values).
              * @param t Input tensor.
              * @param result Scalar output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event asum(const Tensor& t, Tensor& result);
 
@@ -176,7 +181,7 @@ namespace SushiBLAS
              * @brief L2 Norm (Euclidean norm).
              * @param t Input tensor.
              * @param result Scalar output tensor.
-             * @return sycl::event.
+             * @return A default-constructed, already-complete event; the task runs at Engine::execute.
              */
             sycl::event nrm2(const Tensor& t, Tensor& result);
 

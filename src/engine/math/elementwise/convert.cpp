@@ -34,7 +34,8 @@
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiBLAS/engine/launch_1d.hpp>
+#include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/math/elementwise.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -126,38 +127,15 @@ namespace SushiBLAS
                     "you - an op that does it belongs under a name that states which.",
                     K_NAME, Core::to_string(src.dtype), Core::to_string(dst.dtype));
 
-        SB_THROW_IF(src.rank != dst.rank,
-                    "Elementwise operation '{}' copies element for element, so its operands "
-                    "must have the same shape: source is rank {}, destination is rank {}.",
-                    K_NAME, src.rank, dst.rank);
+        Dispatch::require_storage(src, K_NAME, "src");
+        Dispatch::require_storage(dst, K_NAME, "dst");
+        Dispatch::require_contiguous(src, K_NAME, "src");
+        Dispatch::require_contiguous(dst, K_NAME, "dst");
+        Dispatch::require_same_shape(src, dst, K_NAME, "src", "dst");
+        Dispatch::require_same_layout(src, dst, K_NAME, "src", "dst");
 
-        for (int32_t i = 0; i < src.rank; ++i)
-        {
-            SB_THROW_IF(src.shape[i] != dst.shape[i],
-                        "Elementwise operation '{}': source and destination disagree on "
-                        "dimension {} - source has {}, destination has {}. Reinterpreting "
-                        "the element count is what Tensor::reshape is for, and saying so "
-                        "explicitly is better than having a conversion do it invisibly.",
-                        K_NAME, i, src.shape[i], dst.shape[i]);
-        }
-
-        // The kernel's loop bound rests on equal element counts; see src/README.md.
-        SB_THROW_IF(src.num_elements != dst.num_elements,
-                    "Elementwise operation '{}': source holds {} elements, destination holds {}.",
-                    K_NAME, src.num_elements, dst.num_elements);
-
-        SB_THROW_IF(!src.storage, "Elementwise operation '{}': the source tensor has no storage.", K_NAME);
-        SB_THROW_IF(!dst.storage, "Elementwise operation '{}': the destination tensor has no storage.", K_NAME);
-
-        // The kernel walks a flat index, so a non-contiguous view is refused; see src/README.md.
-        SB_THROW_IF(!src.is_contiguous(),
-                    "Elementwise operation '{}': the source tensor is not contiguous. This op "
-                    "walks a flat index; an inner-axis slice does not have its elements there.",
-                    K_NAME);
-        SB_THROW_IF(!dst.is_contiguous(),
-                    "Elementwise operation '{}': the destination tensor is not contiguous. This "
-                    "op walks a flat index; an inner-axis slice does not have its elements there.",
-                    K_NAME);
+        if (dst.num_elements == 0)
+            return sycl::event();
 
         // Overlapping operands race between work-items, so they are refused; see src/README.md.
         SB_THROW_IF(src.region().overlaps(dst.region()),

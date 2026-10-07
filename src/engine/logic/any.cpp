@@ -31,6 +31,7 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/logic/logic.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -46,6 +47,15 @@ namespace SushiBLAS
         sycl::event any_dispatch(sycl::queue& queue, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps)
         {
             SB_LOG_INFO("Logic ANY: {} elements", size);
+            if (size == 0)
+            {
+                return queue.submit([&](sycl::handler& h)
+                {
+                    h.depends_on(deps);
+                    h.single_task([=]() { pR[0] = T(0); });
+                });
+            }
+
             return queue.submit([&](sycl::handler& h)
             {
                 h.depends_on(deps);
@@ -63,11 +73,14 @@ namespace SushiBLAS
 
     sycl::event LogicOps::any(const Tensor& t, Tensor& result)
     {
+        Dispatch::require_storage(t, "logic.any", "t");
+        Dispatch::require_storage(result, "logic.any", "result");
+        Dispatch::require_contiguous(t, "logic.any", "t");
         SB_THROW_IF(result.num_elements != 1, "Result tensor for 'any' must be a scalar (1 element).");
         SB_THROW_IF(t.dtype != result.dtype, "Data types must match for logic operations.");
 
         int64_t size = t.num_elements;
-        void* read_T = t.data_or_null();
+        const void* read_T = t.data_or_null();
         void* write_R = result.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
@@ -87,7 +100,7 @@ namespace SushiBLAS
             using T = typename decltype(tag)::type;
 
             engine_.get_graph().add_task(meta, reads, writes,
-                [size, pT = t.data_as<T>(), pR = result.data_as<T>()]
+                [size, pT = static_cast<const T*>(read_T), pR = result.data_as<T>()]
                 (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     return any_dispatch<T>(q, pT, pR, size, deps);

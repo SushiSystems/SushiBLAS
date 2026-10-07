@@ -28,22 +28,25 @@
 
 #include <SushiBLAS/engine/math/nonlinear.hpp>
 #include <SushiBLAS/engine/math/nonlinear/dispatch.hpp>
+#include <SushiBLAS/engine/math/elementwise/scalar.hpp>
 
 namespace SushiBLAS 
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event NonLinearOps::leaky_relu(Tensor& t, float alpha) 
+    sycl::event NonLinearOps::leaky_relu(Tensor& t, double alpha) 
     {
+        const Dispatch::ElementScalar a(alpha);
         return Dispatch::execute_nonlinear_forward(engine_, t, "math.nonlinear.leaky_relu", "math.nonlinear.leaky_relu"_op, 
-            [alpha](auto x) { return Dispatch::greater_than_zero(x) ? x : x * decltype(x)(alpha); },
+            [a](auto x) { return Dispatch::greater_than_zero(x) ? x : x * a.as<decltype(x)>(); },
             {alpha});
     }
 
-    sycl::event NonLinearOps::leaky_relu_backward(const Tensor& dy, const Tensor& x, Tensor& dx, float alpha)
+    sycl::event NonLinearOps::leaky_relu_backward(const Tensor& dy, const Tensor& x, Tensor& dx, double alpha)
     {
+        const Dispatch::ElementScalar a(alpha);
         return Dispatch::execute_nonlinear_backward(engine_, dy, x, dx, "math.nonlinear.leaky_relu_backward", "math.nonlinear.leaky_relu_backward"_op, 
-            [alpha](auto pdy, auto px) { return pdy * (Dispatch::greater_than_zero(px) ? decltype(px)(1) : decltype(px)(alpha)); },
+            [a](auto pdy, auto px) { return pdy * (Dispatch::greater_than_zero(px) ? decltype(px)(1) : a.as<decltype(px)>()); },
             {alpha});
     }
 } // namespace SushiBLAS

@@ -35,13 +35,13 @@ namespace SushiBLAS
 
     sycl::event NonLinearOps::sigmoid(Tensor& t) 
     {
-        return Dispatch::execute_nonlinear_forward(engine_, t, "math.nonlinear.sigmoid", "math.nonlinear.sigmoid"_op, 
+        return Dispatch::execute_nonlinear_forward<Dispatch::Domain::REAL_AND_COMPLEX>(engine_, t, "math.nonlinear.sigmoid", "math.nonlinear.sigmoid"_op, 
             [](auto x) { return decltype(x)(1) / (decltype(x)(1) + Dispatch::safe_exp(-x)); });
     }
 
     sycl::event NonLinearOps::sigmoid_backward(const Tensor& dy, const Tensor& y, Tensor& dx)
     {
-        return Dispatch::execute_nonlinear_backward(engine_, dy, y, dx, "math.nonlinear.sigmoid_backward", "math.nonlinear.sigmoid_backward"_op, 
+        return Dispatch::execute_nonlinear_backward<Dispatch::Domain::REAL_AND_COMPLEX>(engine_, dy, y, dx, "math.nonlinear.sigmoid_backward", "math.nonlinear.sigmoid_backward"_op, 
             [](auto pdy, auto py) { 
                 return pdy * py * (decltype(py)(1) - py); 
             });
