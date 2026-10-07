@@ -25,44 +25,27 @@
  * @author Mustafa Garip
  */
 
-#include <type_traits>
-#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 #include <SushiBLAS/engine/math/reductions.hpp>
+#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
+#include <SushiBLAS/engine/math/reductions/centred_reduction.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    TaskHandle ReductionOps::std(const Tensor& t, Tensor& result) 
+    TaskHandle ReductionOps::std(const Tensor& t, Tensor& result)
     {
+        recorder_.require_sycl_path("Reduction", "math.std");
         Dispatch::require_min_elements(t, 1, "math.std", "t");
+        Dispatch::require_storage(t, "math.std", "t");
 
-        auto dispatch = [](sycl::queue& q, const auto* pT, auto* pR, int64_t size,
-                           [[maybe_unused]] auto scratch,
-                           const std::vector<sycl::event>& deps)
-        {
-            using T = std::decay_t<decltype(*pT)>;
-            using W = Reduce::AccumulationOf<T>;
+        using DeviationDispatch = Dispatch::CentredReductionDispatch<
+            Reduce::CompensatedSum, Dispatch::MeanOfSum,
+            Dispatch::SquaredDeviation, Dispatch::RootOfMeanDeviations>;
 
-            return q.submit([&](sycl::handler& h) 
-            {
-                h.depends_on(deps);
-                h.single_task([=]() 
-                {
-                    W mean = 0;
-                    W M2 = 0;
-                    for (int64_t i = 0; i < size; ++i) 
-                    {
-                        W val = static_cast<W>(pT[i]);
-                        W delta = val - mean;
-                        mean += delta / static_cast<W>(i + 1);
-                        W delta2 = val - mean;
-                        M2 += delta * delta2;
-                    }
-                    *pR = static_cast<T>(sycl::sqrt(M2 / static_cast<W>(size))); // Population std
-                });
-            });
-        };
-        return Dispatch::execute_reduction(recorder_, t, result, "math.std", "math.std"_op, dispatch);
+        // One scratch element holds the mean; the rest are the partials of both stages.
+        return Dispatch::execute_reduction(recorder_, t, result, "math.std", "math.std"_op,
+                                           DeviationDispatch{},
+                                           Dispatch::planned_partials_for(t) + 1);
     }
 } // namespace SushiBLAS

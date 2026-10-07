@@ -25,10 +25,9 @@
  * @author Mustafa Garip
  */
 
-#include <limits>
-#include <type_traits>
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
+#include <SushiBLAS/engine/math/reductions/arg_reduction.hpp>
 
 namespace SushiBLAS
 {
@@ -36,33 +35,13 @@ namespace SushiBLAS
 
     TaskHandle ReductionOps::argmin(const Tensor& t, Tensor& result)
     {
+        recorder_.require_sycl_path("Reduction", "math.argmin");
         Dispatch::require_min_elements(t, 1, "math.argmin", "t");
+        Dispatch::require_storage(t, "math.argmin", "t");
 
-        // A sequential scan gives the lowest index on a tie, stored as INT64; see src/README.md.
-        auto dispatch = [](sycl::queue& q, const auto* pT, int64_t* pR, int64_t size,
-                           const std::vector<sycl::event>& deps)
-        {
-            using T = std::decay_t<decltype(*pT)>;
-
-            return q.submit([&](sycl::handler& h)
-            {
-                h.depends_on(deps);
-                h.single_task([=]()
-                {
-                    T min_val = pT[0];
-                    int64_t min_idx = 0;
-                    for (int64_t i = 1; i < size; ++i)
-                    {
-                        if (pT[i] < min_val)
-                        {
-                            min_val = pT[i];
-                            min_idx = i;
-                        }
-                    }
-                    *pR = min_idx;
-                });
-            });
-        };
-        return Dispatch::execute_index_reduction(recorder_, t, result, "math.argmin", "math.argmin"_op, dispatch);
+        return Dispatch::execute_index_reduction(
+            recorder_, t, result, "math.argmin", "math.argmin"_op,
+            Dispatch::ArgReductionDispatch<Reduce::RunningArgMin>{},
+            Dispatch::planned_partials_for(t));
     }
 } // namespace SushiBLAS

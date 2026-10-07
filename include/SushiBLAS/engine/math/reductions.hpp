@@ -37,8 +37,10 @@ namespace SushiBLAS
     /**
      * @class ReductionOps
      * @brief Records reductions of a tensor into a scalar result tensor or along an axis.
-     * @note A whole-tensor reduction needs a contiguous operand with storage. The axis
-     * reductions honour strides. Var, std, logsumexp, argmax and argmin reject an empty tensor.
+     * @note A whole-tensor reduction needs a contiguous operand. Sum, prod, asum, nrm2,
+     * count_nonfinite and sum_along of an empty tensor write their identity; every other
+     * reduction rejects an empty tensor. No reduction has a reference kernel, so none records
+     * under FORCE_REFERENCE.
      */
     class ReductionOps final
     {
@@ -69,26 +71,27 @@ namespace SushiBLAS
              * Computes result = sum(t_i) / num_elements.
              * @param t Input tensor.
              * @param result Scalar output tensor.
+             * @throws std::invalid_argument if t is empty.
              * @return The handle of the recorded task.
              */
             TaskHandle mean(const Tensor& t, Tensor& result);
 
-            /** 
+            /**
              * @brief Maximum value in the tensor.
-             * Finds result = max(t_i). Any NaN element makes the result NaN; an empty tensor
-             * gives std::numeric_limits<T>::lowest().
+             * Finds result = max(t_i). Any NaN element makes the result NaN.
              * @param t Input tensor.
              * @param result Scalar output tensor.
+             * @throws std::invalid_argument if t is empty.
              * @return The handle of the recorded task.
              */
             TaskHandle max(const Tensor& t, Tensor& result);
 
-            /** 
+            /**
              * @brief Minimum value in the tensor.
-             * Finds result = min(t_i). Any NaN element makes the result NaN; an empty tensor
-             * gives std::numeric_limits<T>::max().
+             * Finds result = min(t_i). Any NaN element makes the result NaN.
              * @param t Input tensor.
              * @param result Scalar output tensor.
+             * @throws std::invalid_argument if t is empty.
              * @return The handle of the recorded task.
              */
             TaskHandle min(const Tensor& t, Tensor& result);
@@ -137,31 +140,38 @@ namespace SushiBLAS
              */
             TaskHandle prod(const Tensor& t, Tensor& result);
 
-            /** 
-             * @brief Log-Sum-Exp reduction.
-             * Computes result = log(sum(exp(t_i - max(t)))).
-             * Used for numerical stability in softmax calculations.
-             * @param t Input tensor.
+            /**
+             * @brief Computes `max(t) + log(sum(exp(t_i - max(t))))`, the stable log-sum-exp.
              * @param result Scalar output tensor.
              * @throws std::invalid_argument if t is empty.
-             * @return The handle of the recorded task.
              */
             TaskHandle logsumexp(const Tensor& t, Tensor& result);
 
             /**
-             * @brief Computes the maximum along one axis of a rank-2 tensor.
+             * @brief Computes the maximum along one axis of a rank-2 tensor; a NaN in a segment
+             *        makes that segment's result NaN.
              * @param axis 0 for a per-column maximum, 1 for a per-row maximum.
              * @param result Rank-1 tensor of the surviving length, sharing t's dtype.
-             * @throws std::runtime_error on a rank, axis, length or dtype mismatch.
+             * @throws std::invalid_argument if t is empty or on a rank, axis, length or dtype mismatch.
              * @see include/SushiBLAS/engine/math/README.md
              */
             TaskHandle max_along(const Tensor& t, int axis, Tensor& result);
 
             /**
+             * @brief Computes the minimum along one axis of a rank-2 tensor; a NaN in a segment
+             *        makes that segment's result NaN.
+             * @param axis 0 for a per-column minimum, 1 for a per-row minimum.
+             * @param result Rank-1 tensor of the surviving length, sharing t's dtype.
+             * @throws std::invalid_argument if t is empty or on a rank, axis, length or dtype mismatch.
+             * @see include/SushiBLAS/engine/math/README.md
+             */
+            TaskHandle min_along(const Tensor& t, int axis, Tensor& result);
+
+            /**
              * @brief Computes the Neumaier-compensated sum along one axis of a rank-2 tensor.
              * @param axis 0 for column sums, 1 for row sums.
              * @param result Rank-1 tensor of the surviving length, sharing t's dtype.
-             * @throws std::runtime_error on a rank, axis, length or dtype mismatch.
+             * @throws std::invalid_argument on a rank, axis, length or dtype mismatch.
              * @see include/SushiBLAS/engine/math/README.md
              */
             TaskHandle sum_along(const Tensor& t, int axis, Tensor& result);
@@ -170,7 +180,7 @@ namespace SushiBLAS
              * @brief Computes the mean over the two spatial axes of an NHWC tensor: `[N, H, W, C] -> [N, C]`.
              * @param t Must be rank 4, NHWC, with rows contiguous with one another.
              * @param result Rank-2 `[N, C]` tensor sharing t's dtype.
-             * @throws std::runtime_error on a rank, shape, stride or dtype mismatch.
+             * @throws std::invalid_argument if t is empty or on a rank, shape, stride or dtype mismatch.
              * @see include/SushiBLAS/engine/math/README.md
              */
             TaskHandle mean_spatial(const Tensor& t, Tensor& result);
@@ -195,7 +205,7 @@ namespace SushiBLAS
              * @brief Counts the elements of t that are infinite or NaN into an INT64 scalar.
              * @param t Must be HALF, FLOAT32 or FLOAT64.
              * @param result Must hold exactly one element of dtype INT64.
-             * @throws std::runtime_error if result is not an INT64 scalar or t's dtype is not real.
+             * @throws std::invalid_argument if result is not an INT64 scalar or t's dtype is not real.
              * @see include/SushiBLAS/engine/math/README.md
              */
             TaskHandle count_nonfinite(const Tensor& t, Tensor& result);

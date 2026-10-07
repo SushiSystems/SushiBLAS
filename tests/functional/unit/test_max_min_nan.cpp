@@ -21,7 +21,7 @@
 
 /**
  * @file test_max_min_nan.cpp
- * @brief Tests reductions().max and min on NaN, infinite and signed-zero input.
+ * @brief Tests max, min, max_along and min_along on NaN, infinite and signed-zero input.
  * @author Mustafa Garip
  */
 
@@ -32,6 +32,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/support/reduce_axis.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
 #include "../../common/test_utils.hpp"
 
 using namespace SushiBLAS::Test;
@@ -52,6 +54,15 @@ namespace
 
     /// @brief Holds the absolute tolerance the finite expectations use.
     constexpr double K_TOLERANCE = 1e-6;
+
+    /// @brief Holds the row count of the axis case.
+    constexpr std::size_t K_AXIS_ROWS = 3;
+
+    /// @brief Holds the column count of the axis case, a multiple of no work-group width.
+    constexpr std::size_t K_AXIS_COLUMNS = 733;
+
+    /// @brief Holds a value no row of the axis case reduces to.
+    constexpr float K_UNWRITTEN = 99.0f;
 }
 
 class Unit_MaxMinNaNTest : public SushiBLASTest
@@ -161,4 +172,73 @@ TEST_F(Unit_MaxMinNaNTest, LargeInputWithoutNaNGivesTheExtremes)
     values.front() = 7.0f;
     values.back() = -4.0f;
     expect_max_min(values, 7.0f, -4.0f);
+}
+
+/**
+ * @brief Tests that a NaN makes its own row's extrema NaN in both launch shapes of the axis fold.
+ */
+TEST_F(Unit_MaxMinNaNTest, AxisExtremaPropagateNaN)
+{
+    namespace Reduce = SushiBLAS::Reduce;
+
+    // Row r holds r everywhere, r + 2 at column 5 and r - 2 at column 300; row 1 holds a NaN.
+    std::vector<float> values(K_AXIS_ROWS * K_AXIS_COLUMNS);
+    for (std::size_t r = 0; r < K_AXIS_ROWS; ++r)
+    {
+        for (std::size_t c = 0; c < K_AXIS_COLUMNS; ++c)
+            values[r * K_AXIS_COLUMNS + c] = static_cast<float>(r);
+        values[r * K_AXIS_COLUMNS + 5] = static_cast<float>(r) + 2.0f;
+        values[r * K_AXIS_COLUMNS + 300] = static_cast<float>(r) - 2.0f;
+    }
+    values[K_AXIS_COLUMNS + 421] = K_NAN;
+
+    const std::vector<float> expected_max = {2.0f, K_NAN, 4.0f};
+    const std::vector<float> expected_min = {-2.0f, K_NAN, 0.0f};
+
+    auto x = engine->create_tensor({static_cast<int64_t>(K_AXIS_ROWS),
+                                    static_cast<int64_t>(K_AXIS_COLUMNS)});
+    fill_tensor(x, values);
+
+    auto max = engine->create_tensor({static_cast<int64_t>(K_AXIS_ROWS)});
+    auto min = engine->create_tensor({static_cast<int64_t>(K_AXIS_ROWS)});
+    SushiBLAS::ReductionOps(*engine).max_along(x, 1, max);
+    SushiBLAS::ReductionOps(*engine).min_along(x, 1, min);
+    engine->execute();
+
+    verify_tensor(max, expected_max, K_TOLERANCE);
+    verify_tensor(min, expected_min, K_TOLERANCE);
+
+    auto& q = TestEnvironment::get_context().get_queue();
+    const std::size_t local = Reduce::group_width(SushiBLAS::Device::profile_for(q));
+    ASSERT_GT(local, 1u) << "the cooperative shape needs a group wider than one";
+
+    Reduce::AxisSpan span;
+    span.segments = K_AXIS_ROWS;
+    span.extent = K_AXIS_COLUMNS;
+    span.segment_stride = K_AXIS_COLUMNS;
+    span.element_stride = 1;
+    span.out_stride = 1;
+
+    const auto identity = [](float value) { return value; };
+    const auto keep = [](float value, [[maybe_unused]] std::size_t n) { return value; };
+
+    for (std::size_t width : {std::size_t{1}, local})
+    {
+        SCOPED_TRACE(width == 1 ? "item-per-segment shape" : "work-group tree");
+
+        auto shape_max = engine->create_tensor({static_cast<int64_t>(K_AXIS_ROWS)});
+        auto shape_min = engine->create_tensor({static_cast<int64_t>(K_AXIS_ROWS)});
+        fill_tensor(shape_max, std::vector<float>(K_AXIS_ROWS, K_UNWRITTEN));
+        fill_tensor(shape_min, std::vector<float>(K_AXIS_ROWS, K_UNWRITTEN));
+
+        Reduce::reduce_axis<Reduce::NaNPropagatingMax>(
+            q, x.data_as<float>(), shape_max.data_as<float>(), span,
+            Reduce::AxisPlan{width}, identity, keep, {}).wait();
+        Reduce::reduce_axis<Reduce::NaNPropagatingMin>(
+            q, x.data_as<float>(), shape_min.data_as<float>(), span,
+            Reduce::AxisPlan{width}, identity, keep, {}).wait();
+
+        verify_tensor(shape_max, expected_max, K_TOLERANCE);
+        verify_tensor(shape_min, expected_min, K_TOLERANCE);
+    }
 }

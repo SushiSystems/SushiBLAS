@@ -25,45 +25,27 @@
  * @author Mustafa Garip
  */
 
-#include <limits>
-#include <type_traits>
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
+#include <SushiBLAS/engine/math/reductions/centred_reduction.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    TaskHandle ReductionOps::logsumexp(const Tensor& t, Tensor& result) 
+    TaskHandle ReductionOps::logsumexp(const Tensor& t, Tensor& result)
     {
+        recorder_.require_sycl_path("Reduction", "math.logsumexp");
         Dispatch::require_min_elements(t, 1, "math.logsumexp", "t");
+        Dispatch::require_storage(t, "math.logsumexp", "t");
 
-        auto dispatch = [](sycl::queue& q, const auto* pT, auto* pR, int64_t size,
-                           [[maybe_unused]] auto scratch,
-                           const std::vector<sycl::event>& deps)
-        {
-            using T = std::decay_t<decltype(*pT)>;
-            using W = Reduce::AccumulationOf<T>;
+        using LogSumExpDispatch = Dispatch::CentredReductionDispatch<
+            Reduce::NaNPropagatingMax, Dispatch::ReduceIdentityFinalize,
+            Dispatch::ExpBelowCentre, Dispatch::LogPlusCentre>;
 
-            return q.submit([&](sycl::handler& h) 
-            {
-                h.depends_on(deps);
-                h.single_task([=]() 
-                {
-                    W max_val = static_cast<W>(pT[0]);
-                    for (int64_t i = 1; i < size; ++i) 
-                    {
-                        if (static_cast<W>(pT[i]) > max_val) max_val = static_cast<W>(pT[i]);
-                    }
-                    W sum_exp = 0;
-                    for (int64_t i = 0; i < size; ++i) 
-                    {
-                        sum_exp += sycl::exp(static_cast<W>(pT[i]) - max_val);
-                    }
-                    *pR = static_cast<T>(max_val + sycl::log(sum_exp));
-                });
-            });
-        };
-        return Dispatch::execute_reduction(recorder_, t, result, "math.logsumexp", "math.logsumexp"_op, dispatch);
+        // One scratch element holds the maximum; the rest are the partials of both stages.
+        return Dispatch::execute_reduction(recorder_, t, result, "math.logsumexp",
+                                           "math.logsumexp"_op, LogSumExpDispatch{},
+                                           Dispatch::planned_partials_for(t) + 1);
     }
 } // namespace SushiBLAS

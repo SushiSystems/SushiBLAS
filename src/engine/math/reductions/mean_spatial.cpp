@@ -35,6 +35,9 @@ namespace SushiBLAS
     // The fold is the one mean uses, over a span keyed by (n, c); see src/README.md.
     TaskHandle ReductionOps::mean_spatial(const Tensor& t, Tensor& result)
     {
+        recorder_.require_sycl_path("Axis reduction", "math.mean_spatial");
+        Dispatch::require_min_elements(t, 1, "math.mean_spatial", "t");
+
         const Reduce::AxisSpan span =
             Dispatch::spatial_span_for(t, result, "math.mean_spatial");
 

@@ -122,6 +122,7 @@ set(SUSHIBLAS_SOURCES
 
     # Math: Reductions along one axis (segmented; result is a vector)
     engine/math/reductions/max_along.cpp
+    engine/math/reductions/min_along.cpp
     engine/math/reductions/sum_along.cpp
 
     # Spatial: windowed and strided movement over an N-D grid
