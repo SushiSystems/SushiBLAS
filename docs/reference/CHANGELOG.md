@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-07 — build: Made the library follow the device targets SushiRuntime resolved, so a CUDA build of the runtime carries SushiBLAS kernels for the same card (`cmake/SyclTarget.cmake`).
 - 2026-10-07 — random: Made the dtype arm of execute_random a named class, which fixed the undefined HostKernel symbols that stopped the test executable from linking (`engine/math/random/dispatch.hpp`).
 - 2026-10-07 — logic: Made all and any of an empty tensor write their identity instead of dividing by zero in the SYCL reduction (`src/engine/logic/all.cpp`, `any.cpp`).
 - 2026-10-06 — random: Rejected invalid distribution parameters at record time, clamped truncated_normal bounds to 40 and made RngStream hand out the seed with the offset under one lock (`engine/rng_stream.hpp`).
