@@ -21,17 +21,22 @@
 
 /**
  * @file test_operand_check.cpp
- * @brief Tests the operand checks and the Tensor constructor and transpose guards.
+ * @brief Tests the operand checks, the scalar binding and the Tensor constructor and transpose guards.
  * @author Mustafa Garip
  */
 
 #include <array>
 #include <cstddef>
+#include <string>
 #include <cstdint>
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/engine/math/elementwise/scalar.hpp>
+#include <SushiBLAS/engine/math/elementwise/scalar_binding.hpp>
 #include "../../common/test_utils.hpp"
 
 namespace SushiBLAS
@@ -57,6 +62,22 @@ namespace SushiBLAS
                     int64_t n = 1;
                     for (auto d : dims) n *= d;
                     return Tensor(make_storage(n), dims, Core::DataType::FLOAT32, 0, layout);
+                }
+
+                /** @brief Returns the text of the std::invalid_argument a check throws, or "". */
+                template<typename Check>
+                static std::string message_of(const Check& check)
+                {
+                    try
+                    {
+                        check();
+                    }
+                    catch (const std::invalid_argument& error)
+                    {
+                        return error.what();
+                    }
+
+                    return std::string();
                 }
         };
 
@@ -188,6 +209,94 @@ namespace SushiBLAS
             // Shape {4, 2} keeps strides {4, 1}; dense row-major needs {2, 1}.
             auto t = make_tensor({4, 4}).slice(1, 0, 2);
             EXPECT_THROW(Dispatch::require_contiguous(t, "op", "x"), std::invalid_argument);
+        }
+
+        TEST_F(Unit_OperandCheckTest, RequireRankNamesBothRanks)
+        {
+            auto t = make_tensor({2, 3});
+            EXPECT_NO_THROW(Dispatch::require_rank(t, 2, "op", "x"));
+            EXPECT_THROW(Dispatch::require_rank(t, 1, "op", "x"), std::invalid_argument);
+            EXPECT_EQ(message_of([&] { Dispatch::require_rank(t, 1, "op", "x"); }),
+                      "op: operand 'x' has rank 2, expected 1");
+        }
+
+        TEST_F(Unit_OperandCheckTest, RequireScalarRejectsZeroAndTwoElements)
+        {
+            Tensor none(SushiRuntime::sushi_ptr<Storage>(), {0});
+            auto one = make_tensor({1});
+            auto two = make_tensor({2});
+            EXPECT_THROW(Dispatch::require_scalar(none, "op", "x"), std::invalid_argument);
+            EXPECT_NO_THROW(Dispatch::require_scalar(one, "op", "x"));
+            EXPECT_THROW(Dispatch::require_scalar(two, "op", "x"), std::invalid_argument);
+        }
+
+        TEST_F(Unit_OperandCheckTest, RequireExtentNamesTheExtent)
+        {
+            EXPECT_NO_THROW(Dispatch::require_extent(4, 4, "channels", "op", "x"));
+            EXPECT_THROW(Dispatch::require_extent(3, 4, "channels", "op", "x"),
+                         std::invalid_argument);
+            EXPECT_EQ(message_of([] { Dispatch::require_extent(3, 4, "channels", "op", "x"); }),
+                      "op: operand 'x' has 3 channels, expected 4");
+        }
+
+        TEST_F(Unit_OperandCheckTest, RequireOperandPassesItsFormatThrough)
+        {
+            EXPECT_NO_THROW(Dispatch::require_operand(true, "op", "x", "is {}", 7));
+            EXPECT_THROW(Dispatch::require_operand(false, "op", "x", "is {}", 7),
+                         std::invalid_argument);
+            EXPECT_EQ(message_of([] { Dispatch::require_operand(false, "op", "x", "is {}", 7); }),
+                      "op: operand 'x' is 7");
+        }
+
+        TEST_F(Unit_OperandCheckTest, ADtypeErrorIsAnInvalidArgument)
+        {
+            const auto raise = []
+            {
+                Dispatch::Detail::throw_dtype_error("Elementwise operation", "sqrt",
+                                                    Core::DataType::INT32);
+            };
+            EXPECT_THROW(raise(), std::invalid_argument);
+
+            const std::string message = message_of(raise);
+            EXPECT_NE(message.find("Elementwise operation"), std::string::npos);
+            EXPECT_NE(message.find("'sqrt'"), std::string::npos);
+            EXPECT_NE(message.find(Core::to_string(Core::DataType::INT32)), std::string::npos);
+        }
+
+        TEST_F(Unit_OperandCheckTest, RequireDeviceDtypeAcceptsWhatTheDeviceOffers)
+        {
+            auto narrow = make_tensor({4});
+            EXPECT_NO_THROW(Dispatch::require_device_dtype(narrow, "op", "x"));
+
+            Tensor detached(SushiRuntime::sushi_ptr<Storage>(), {4}, Core::DataType::FLOAT64);
+            EXPECT_NO_THROW(Dispatch::require_device_dtype(detached, "op", "x"));
+
+            // Eight FLOAT32 elements are the 32 bytes four FLOAT64 elements need.
+            Tensor wide(make_storage(8), {4}, Core::DataType::FLOAT64);
+            if (Device::profile_for(wide.get_device()).supports_fp64)
+                EXPECT_NO_THROW(Dispatch::require_device_dtype(wide, "op", "x"));
+            else
+                EXPECT_THROW(Dispatch::require_device_dtype(wide, "op", "x"),
+                             std::invalid_argument);
+        }
+
+        TEST_F(Unit_OperandCheckTest, ANarrowedOpHoldsOnlyTheElementType)
+        {
+            const auto clamp = [](auto x, auto low, auto high)
+            {
+                return x < low ? low : (x > high ? high : x);
+            };
+            const auto bound = Dispatch::bind_scalars(clamp, Dispatch::ElementScalar(0.0),
+                                                      Dispatch::ElementScalar(1.0));
+
+            EXPECT_LE(sizeof(bound.narrow<float>()), 3 * sizeof(float));
+            EXPECT_FLOAT_EQ(bound.narrow<float>()(3.0f), 1.0f);
+        }
+
+        TEST_F(Unit_OperandCheckTest, APlainFunctorPassesThroughNarrowFor)
+        {
+            const auto f = [](float x) { return x; };
+            EXPECT_EQ(&Dispatch::Detail::narrow_for(Dispatch::ElementTag<float>{}, f), &f);
         }
 
         TEST_F(Unit_OperandCheckTest, TensorRejectsNegativeDimension)

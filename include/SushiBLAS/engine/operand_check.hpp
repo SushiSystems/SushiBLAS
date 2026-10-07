@@ -33,6 +33,7 @@
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
 #include <SushiRuntime/core/span.hpp>
 
 namespace SushiBLAS
@@ -52,6 +53,24 @@ namespace SushiBLAS
             {
                 const std::string rule = Core::Detail::format(fmt, args...);
                 const std::string msg = Core::Detail::format("{}: operand '{}' {}", op, operand, rule);
+                SB_LOG_ERROR("Invalid operand: {}", msg);
+                throw std::invalid_argument(msg);
+            }
+
+            /**
+             * @brief Logs and throws std::invalid_argument naming an operation and the dtype it does not serve.
+             * @param family What kind of operation this is, such as "Elementwise operation".
+             * @see include/SushiBLAS/engine/README.md
+             */
+            [[noreturn]] inline void throw_dtype_error(const char* family, const char* name,
+                                                       Core::DataType dtype)
+            {
+                const std::string msg = Core::Detail::format(
+                    "{} '{}' does not support dtype {}. Complex operands need an ordering or a "
+                    "real-only builtin they do not provide; integer operands are accepted only "
+                    "where an integer element means something (copy, fill, the comparison and "
+                    "logic family, and the index reductions).",
+                    family, name, Core::to_string(dtype));
                 SB_LOG_ERROR("Invalid operand: {}", msg);
                 throw std::invalid_argument(msg);
             }
@@ -181,6 +200,79 @@ namespace SushiBLAS
                                                                                     : "column-major",
                                                 expected[i]);
             }
+        }
+
+        /**
+         * @brief Throws unless ok holds; the form for a rule no named check states.
+         * @param fmt Format of the violated rule, read after "operand '<operand>' ".
+         * @throws std::invalid_argument naming the operation, the operand and the rule.
+         * @see include/SushiBLAS/engine/README.md
+         */
+        template<typename... Args>
+        inline void require_operand(bool ok, const char* op, const char* operand, const char* fmt,
+                                    const Args&... args)
+        {
+            if (!ok)
+                Detail::throw_operand_error(op, operand, fmt, args...);
+        }
+
+        /**
+         * @brief Throws unless a tensor has the expected rank.
+         * @throws std::invalid_argument naming both ranks.
+         * @see include/SushiBLAS/engine/README.md
+         */
+        inline void require_rank(const Tensor& t, int32_t expected, const char* op,
+                                 const char* operand)
+        {
+            if (t.rank != expected)
+                Detail::throw_operand_error(op, operand, "has rank {}, expected {}", t.rank,
+                                            expected);
+        }
+
+        /**
+         * @brief Throws unless a tensor holds exactly one element.
+         * @throws std::invalid_argument naming the count.
+         * @see include/SushiBLAS/engine/README.md
+         */
+        inline void require_scalar(const Tensor& t, const char* op, const char* operand)
+        {
+            if (t.num_elements != 1)
+                Detail::throw_operand_error(op, operand,
+                                            "holds {} elements; a scalar holds exactly one",
+                                            t.num_elements);
+        }
+
+        /**
+         * @brief Throws unless an extent of an operand equals the one another operand fixes.
+         * @param what Names the extent in the message, such as "channels" or "rows".
+         * @throws std::invalid_argument naming both extents.
+         * @see include/SushiBLAS/engine/README.md
+         */
+        inline void require_extent(int64_t actual, int64_t expected, const char* what,
+                                   const char* op, const char* operand)
+        {
+            if (actual != expected)
+                Detail::throw_operand_error(op, operand, "has {} {}, expected {}", actual, what,
+                                            expected);
+        }
+
+        /**
+         * @brief Throws unless the device a tensor lives on can compute in the tensor's dtype.
+         * @throws std::invalid_argument for FLOAT64 or COMPLEX64 storage on a device without the
+         *         fp64 aspect.
+         * @see include/SushiBLAS/engine/README.md
+         */
+        inline void require_device_dtype(const Tensor& t, const char* op, const char* operand)
+        {
+            const bool needs_fp64 = t.dtype == Core::DataType::FLOAT64 ||
+                                    t.dtype == Core::DataType::COMPLEX64;
+            if (!needs_fp64 || !t.storage)
+                return;
+
+            if (!Device::profile_for(t.get_device()).supports_fp64)
+                Detail::throw_operand_error(op, operand,
+                                            "has dtype {} but lives on a device without the fp64 aspect",
+                                            Core::to_string(t.dtype));
         }
     } // namespace Dispatch
 } // namespace SushiBLAS
