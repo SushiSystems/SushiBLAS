@@ -34,7 +34,7 @@
 #include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/traits.hpp>
-#include <SushiBLAS/engine/device_policy.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
 
 namespace SushiBLAS
 {
@@ -42,7 +42,7 @@ namespace SushiBLAS
     {
         /**
          * @brief Holds the `sycl::vec` width the library considers for element type T; 1 for `std::complex`.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         template<typename T>
         inline constexpr int K_VECTOR_WIDTH =
@@ -52,7 +52,7 @@ namespace SushiBLAS
 
         /**
          * @brief Returns whether p can be the base address of a 128-bit access.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         [[nodiscard]] inline bool is_vector_aligned(const void* p) noexcept
         {
@@ -74,7 +74,7 @@ namespace SushiBLAS
 
         /**
          * @brief Reinterprets a dtype-erased pointer group as a typed one.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         template<typename T, std::size_t N>
         [[nodiscard]] inline std::array<T*, N> typed_ptrs(const std::array<void*, N>& raw) noexcept
@@ -105,7 +105,7 @@ namespace SushiBLAS
 
             /**
              * @brief Holds whether the launch is a flat `range<1>(n)` instead of a grid-stride loop.
-             * @see include/SushiBLAS/engine/README.md
+             * @see include/SushiBLAS/support/README.md
              */
             bool flat = false;
         };
@@ -114,7 +114,7 @@ namespace SushiBLAS
          * @brief Turns a device profile and an access width into a launch geometry.
          * @param width Elements per access: 1 for scalar, the `sycl::vec` width for a 128-bit path.
          * @return The geometry; Shape1D::vector_steps is 0 when width is 1.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         [[nodiscard]] inline Shape1D plan_for(const Device::Profile& p, std::size_t n,
                                               std::size_t width) noexcept
@@ -123,7 +123,7 @@ namespace SushiBLAS
             s.vector_steps = (width > 1) ? n / width : std::size_t{0};
             s.grid = Device::plan_1d(p, n, width);
 
-            // n == 0 stays on the grid-stride path, which is never empty; see include/SushiBLAS/engine/README.md.
+            // n == 0 stays on the grid-stride path, which is never empty; see include/SushiBLAS/support/README.md.
             s.flat = p.is_cpu && width == 1 && n > 0;
             return s;
         }
@@ -139,7 +139,7 @@ namespace SushiBLAS
             const Device::Profile& p = Device::profile_for(q);
             constexpr std::size_t width = static_cast<std::size_t>(K_VECTOR_WIDTH<T>);
 
-            // The wide path needs the compile-time and device widths to agree; see include/SushiBLAS/engine/README.md.
+            // The wide path needs the compile-time and device widths to agree; see include/SushiBLAS/support/README.md.
             const bool vectorize = (width > 1) && aligned &&
                                    (Device::vector_width(p, sizeof(T)) == width);
 
@@ -149,7 +149,7 @@ namespace SushiBLAS
         /**
          * @brief Decides the launch geometry for n indices, with no wide path.
          * @return The geometry, always with Shape1D::vector_steps == 0.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         [[nodiscard]] inline Shape1D plan_scalar(const sycl::queue& q, std::size_t n)
         {
@@ -161,7 +161,7 @@ namespace SushiBLAS
             /**
              * @brief Loads one whole vector from p at wide index v with a direct aligned access.
              * @pre p satisfies is_vector_aligned.
-             * @see include/SushiBLAS/engine/README.md
+             * @see include/SushiBLAS/support/README.md
              */
             template<typename T, int W>
             inline sycl::vec<T, W> load_wide(const T* p, std::size_t v)
@@ -236,7 +236,7 @@ namespace SushiBLAS
          * @param aligned Whether out and every input satisfy is_vector_aligned.
          * @param op Device-copyable, captures by value, holds no host pointer, allocates and throws nothing.
          * @param out May alias an input at the same index only.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         template<typename Func, typename T, typename... Ins>
         inline void map(sycl::handler& h, const sycl::queue& q, std::size_t n, bool aligned,
@@ -285,7 +285,7 @@ namespace SushiBLAS
                     }
                 }
 
-                // Covers everything without a wide pass, and only the sub-vector remainder after one; see include/SushiBLAS/engine/README.md.
+                // Covers everything without a wide pass, and only the sub-vector remainder after one; see include/SushiBLAS/support/README.md.
                 for (std::size_t i = tail + gid; i < n; i += stride)
                     out[i] = Detail::apply_values(op, in, i, seq_t{});
             });
@@ -295,7 +295,7 @@ namespace SushiBLAS
          * @brief Launches `op(t0[i], ..., tN-1[i])` over n elements with every slot writable.
          * @param ptrs The arrays to update, in the order op expects; they must not overlap each other.
          * @param op Callable `(auto&...) -> void` under the same device-kernel constraints as map.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         template<typename T, std::size_t N, typename Func>
         inline void zip_inplace(sycl::handler& h, const sycl::queue& q, std::size_t n, bool aligned,
@@ -361,7 +361,7 @@ namespace SushiBLAS
         /**
          * @brief Launches `op(i)` once for each index in `[0, n)`, with no wide path.
          * @param op Callable `(std::size_t i) -> void` under the same device-kernel constraints as map.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         template<typename Func>
         inline void indexed(sycl::handler& h, const sycl::queue& q, std::size_t n, Func op)
