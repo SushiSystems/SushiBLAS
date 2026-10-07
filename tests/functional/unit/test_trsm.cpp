@@ -62,7 +62,7 @@ TEST_F(Unit_TRSMTest, SimpleTRSM)
 
 TEST_F(Unit_TRSMTest, SimpleTRSMColumnMajor) 
 {
-    reinit_engine(sb::Core::Layout::COLUMN_MAJOR);
+    reinit_engine(SushiBLAS::Core::Layout::COLUMN_MAJOR);
     
     const int M = 2, N = 2;
     auto A = engine->create_tensor({M, M});

@@ -56,3 +56,63 @@ TEST_F(Unit_TRMVTest, SimpleTRMV)
     // X = A * X = [1, 2+4, 3+5+6] = [1, 6, 14].
     verify_tensor(X, {1, 6, 14});
 }
+
+namespace
+{
+    /// @brief Holds the value written into the triangle the operation must not read.
+    constexpr float K_POISON = 1000.0f;
+
+    /// @brief Holds L = [2 0 0; 1 3 0; 4 5 7] with its upper triangle poisoned.
+    const std::vector<float> K_LOWER = {2, K_POISON, K_POISON, 1, 3, K_POISON, 4, 5, 7};
+
+    /// @brief Holds U = [1 2 3; 0 4 5; 0 0 6] with its lower triangle poisoned.
+    const std::vector<float> K_UPPER = {1, 2, 3, K_POISON, 4, 5, K_POISON, K_POISON, 6};
+
+    /// @brief Holds the input vector every poisoned case multiplies.
+    const std::vector<float> K_X = {1, 2, 3};
+}
+
+class Unit_TRMVPoisonTest : public SushiBLASTest
+{
+    protected:
+        /**
+         * @brief Runs trmv on a 3x3 matrix and K_X and checks the product.
+         */
+        void expect_trmv(const std::vector<float>& matrix, bool upper, bool trans_a,
+                         const std::vector<float>& expected)
+        {
+            auto A = engine->create_tensor({3, 3});
+            auto X = engine->create_tensor({3});
+            fill_tensor(A, matrix);
+            fill_tensor(X, K_X);
+
+            engine->blas().trmv(A, X, upper, trans_a, false);
+            engine->execute().wait();
+
+            verify_tensor(X, expected);
+        }
+};
+
+TEST_F(Unit_TRMVPoisonTest, LowerNoTranspose)
+{
+    // L * [1 2 3] = [2, 1+6, 4+10+21].
+    expect_trmv(K_LOWER, false, false, {2, 7, 35});
+}
+
+TEST_F(Unit_TRMVPoisonTest, LowerTranspose)
+{
+    // L^T * [1 2 3] = [2+2+12, 6+15, 21].
+    expect_trmv(K_LOWER, false, true, {16, 21, 21});
+}
+
+TEST_F(Unit_TRMVPoisonTest, UpperNoTranspose)
+{
+    // U * [1 2 3] = [1+4+9, 8+15, 18].
+    expect_trmv(K_UPPER, true, false, {14, 23, 18});
+}
+
+TEST_F(Unit_TRMVPoisonTest, UpperTranspose)
+{
+    // U^T * [1 2 3] = [1, 2+8, 3+10+18].
+    expect_trmv(K_UPPER, true, true, {1, 10, 31});
+}

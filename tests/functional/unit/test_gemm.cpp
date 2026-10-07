@@ -156,10 +156,10 @@ namespace SushiBLAS
                 /**
                 * @brief A type- and reduction-length-appropriate comparison tolerance.
                 *
-                * Both implementations accumulate in T and differ only in summation
-                * order, so the gap they can open grows with the length of the reduction
-                * instead of staying fixed. That only matters for half, which has about
-                * three decimal digits to spend.
+                * Both implementations accumulate in float for half and in T otherwise.
+                * They differ only in summation order, so the gap they can open grows with
+                * the length of the reduction instead of staying fixed. That only matters
+                * for half, which has about three decimal digits to spend in the result.
                 */
                 [[nodiscard]] static double tolerance_for(Core::DataType dtype, int64_t k)
                 {
@@ -622,9 +622,9 @@ namespace SushiBLAS
                 constexpr int64_t kN = 3;
 
                 auto storage = SushiRuntime::make_sushi<Storage>(
-                    TestEnvironment::get_context().get_allocator(),
+                    TestEnvironment::get_context(),
                     static_cast<size_t>(2 * kN) * sizeof(float),
-                    SushiRuntime::Memory::Strategies::Shared::instance());
+                    SushiRuntime::API::Residency::Shared);
 
                 Tensor seed(storage, {kN}, Core::DataType::FLOAT32, 0);
                 Tensor bias(storage, {kN}, Core::DataType::FLOAT32, kN);
