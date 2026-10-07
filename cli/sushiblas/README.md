@@ -104,23 +104,6 @@ its sub-labels and not a label of its own, because a baked-in umbrella label doe
 `gtest_discover_tests` on current CMake; `tests/CMakeLists.txt` has the details. `all` selects
 everything and passes no `-L`. `package` is absent on purpose, since it runs no CTest.
 
-## services/device.py
-
-### K_DEVICE_SELECTOR
-
-`cpu` is `opencl:cpu`, the selector SushiRuntime's `sr run --asan` already pins and the one
-`docs/design/REMAINING_WORK.md` records for the validation runs. `cuda` is `cuda:*`, every
-device of the CUDA backend. There is no `gpu` name: no Sushi CLI defines one, and picking a
-backend order for it here would be a guess. `selector:<text>` covers every other device with
-the text passed through unchanged. A name is matched in any case; the `selector:` prefix is
-matched in lower case only.
-
-### with_device
-
-The function copies the environment and never writes `os.environ`, so the selector reaches the
-child and nothing else. It returns the value it replaced; `ProjectService` prints the override
-line from that, which keeps the mapping free of the console.
-
 ## services/project.py
 
 ### validate_defines

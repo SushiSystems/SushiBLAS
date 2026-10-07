@@ -25,14 +25,6 @@ outside a checkout failed for as long as the copies existed. The lifecycle now l
 `sushicore.cli_console.LazyConsole`. These tests pin that this CLI is wired to it, which is the
 part a shared implementation cannot check on its own.
 
-## test_device.py
-
-`--device` is the gate a GPU run goes through, so a wrong selector runs the suite on a device
-nobody asked for and reports it green. These tests pin every name of `K_DEVICE_SELECTOR`, the
-`selector:` passthrough, the refusal of anything else and the rule that `--device` outranks a
-selector in the environment. `test_project.py` checks that `sb test` and `sb run` hand the
-resulting environment to the child.
-
 ## test_suites.py
 
 `sb test` maps every suite to a `ctest -L` regex through `_SUITE_LABEL_REGEX`, with two

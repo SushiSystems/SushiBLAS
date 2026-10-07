@@ -36,16 +36,6 @@ class InvalidDefineError(ProjectError):
         )
 
 
-class InvalidDeviceError(ProjectError):
-    """Reports a --device value that names no device and is not a selector passthrough."""
-
-    def __init__(self, device: str, names: list[str]) -> None:
-        super().__init__(
-            f"--device expects {', '.join(names)} or selector:<text>, got {device!r}.",
-            K_EXIT_USAGE,
-        )
-
-
 class RuntimeMissingError(ProjectError):
     """Reports a SushiRuntime sibling checkout that holds no CMakeLists.txt."""
 

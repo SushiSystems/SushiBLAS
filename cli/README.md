@@ -166,35 +166,6 @@ For GoogleTest-level options CTest doesn't expose (per-case `--gtest_filter`,
 shuffling, break-on-failure), run the binary directly with `sb run` and pass
 flags after `--`.
 
-### Choosing the device
-
-`sb test` and `sb run` take `--device`, which sets `ONEAPI_DEVICE_SELECTOR` for
-the child process only. Your shell's environment is not changed.
-
-```bash
-sb test --device cpu                          # ONEAPI_DEVICE_SELECTOR=opencl:cpu
-sb test --device cuda                         # ONEAPI_DEVICE_SELECTOR=cuda:*
-sb test --device "selector:level_zero:gpu"    # the text after selector: as written
-sb run bench_gemm --device cuda               # the same option on a benchmark
-```
-
-| Value | `ONEAPI_DEVICE_SELECTOR` |
-|-------|--------------------------|
-| `cpu` | `opencl:cpu` |
-| `cuda` | `cuda:*` |
-| `selector:<text>` | `<text>`, unchanged |
-
-Any other value exits 2 before anything runs. There is no `gpu` name: write
-the backend out, for example `--device "selector:level_zero:gpu"`.
-
-Without `--device`, an `ONEAPI_DEVICE_SELECTOR` already in your environment
-reaches the child as it is, and with neither the SYCL runtime picks its default
-device. When both are present `--device` wins and `sb` prints one line naming
-the value it replaced.
-
-On `sb run` the option goes before `--`; after it, `--device` belongs to the
-program.
-
 ### `--suite package`
 
 The one suite that isn't a CTest label. It installs the package to
@@ -231,7 +202,6 @@ prints the value in effect.
 sb run                                # run the default target
 sb run sushiblas_example              # run a specific binary by name
 sb run --sort                         # interactively pick from the list of executables
-sb run bench_gemm --device cuda       # pick the SYCL device; see "Choosing the device"
 ```
 
 The target name is matched exactly first, then by substring. Anything after

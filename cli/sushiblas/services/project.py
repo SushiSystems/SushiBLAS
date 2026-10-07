@@ -23,7 +23,6 @@ from sushicore.toolchain_args import vcpkg_prefix
 
 from ..config import Config
 from .build_type import K_CMAKE_BUILD_TYPE, BuildType
-from .device import K_DEVICE_VARIABLE, device_selector, with_device
 from .errors import (
     BuildTreeMissingError,
     ExecutableNotFoundError,
@@ -164,18 +163,14 @@ class ProjectService:
         return rc
 
     def test(self, suite: Suite = Suite.FUNCTIONAL, filter: str | None = None,
-             repeat: int = 0, device: str | None = None) -> int:
+             repeat: int = 0) -> int:
         """Runs the CTest label group of *suite*, or the package consumer, and returns ctest's code.
 
-        *device* names the SYCL device the tests run on; None leaves the environment's choice.
-
         Raises:
-            InvalidDeviceError: *device* is not a value --device accepts; nothing was run.
             BuildTreeMissingError: There is no build tree.
             SuiteOptionError: *filter* or *repeat* was given with the package suite.
             StepFailedError: A step of the package suite failed.
         """
-        _check_device(device)
         root = self._find_root()
         cfg = self._load_config()
         build_dir = _existing_build_dir(root)
@@ -183,10 +178,10 @@ class ProjectService:
         if suite is Suite.PACKAGE:
             if filter or repeat:
                 raise SuiteOptionError()
-            env = self._device_env(self._build_env.load(cfg, build_dir), device)
+            env = self._build_env.load(cfg, build_dir)
             return self._test_package(cfg, root, build_dir, env)
 
-        env = self._device_env(self._build_env.load(cfg, build_dir), device)
+        env = self._build_env.load(cfg, build_dir)
         if suite is Suite.ALL:
             self._console.info(
                 "'all' covers every CTest test. The package suite is not among them "
@@ -203,21 +198,17 @@ class ProjectService:
         )
 
     def run(self, target: str | None = None, sort: bool = False,
-            app_args: Sequence[str] = (), device: str | None = None) -> int:
+            app_args: Sequence[str] = ()) -> int:
         """Runs a built executable with *app_args* and returns its exit code.
 
-        *device* names the SYCL device the program runs on; None leaves the environment's choice.
-
         Raises:
-            InvalidDeviceError: *device* is not a value --device accepts; nothing was run.
             BuildTreeMissingError: There is no build tree.
             ExecutableNotFoundError: *target*, or the configured default, matches nothing.
         """
-        _check_device(device)
         root = self._find_root()
         cfg = self._load_config()
         build_dir = _existing_build_dir(root)
-        env = self._device_env(self._build_env.load(cfg, build_dir), device)
+        env = self._build_env.load(cfg, build_dir)
 
         exe = self._pick_executable(build_dir, target, sort, cfg.target_bin)
         if exe is None:
@@ -243,16 +234,6 @@ class ProjectService:
         env = self._build_env.load(cfg, _build_dir(root))
         (root / "docs").mkdir(exist_ok=True)
         return self._driver.doxygen(cfg, root / "Doxyfile", root, env)
-
-    def _device_env(self, env: dict[str, str], device: str | None) -> dict[str, str]:
-        """Returns *env* with the selector of *device*, and says so when it replaced one."""
-        chosen = with_device(env, device)
-        if chosen.replaced is not None:
-            self._console.info(
-                f"--device overrides {K_DEVICE_VARIABLE}={chosen.replaced} from the environment "
-                f"with {chosen.variables[K_DEVICE_VARIABLE]}.",
-            )
-        return chosen.variables
 
     def _remove_tree(self, tree: Path) -> bool:
         """Removes *tree* and returns whether it existed.
@@ -390,16 +371,6 @@ def _existing_build_dir(root: Path) -> Path:
     if not build_dir.is_dir():
         raise BuildTreeMissingError()
     return build_dir
-
-
-def _check_device(device: str | None) -> None:
-    """Checks that *device* is absent or a value --device accepts.
-
-    Raises:
-        InvalidDeviceError: It is neither.
-    """
-    if device is not None:
-        device_selector(device)
 
 
 def _check_runtime(cfg: Config, root: Path) -> None:
