@@ -78,6 +78,9 @@ namespace SushiBLAS
             /** @brief True when the device supports double precision natively. */
             bool supports_fp64 = false;
 
+            /** @brief True when the device supports half precision natively. */
+            bool supports_fp16 = false;
+
             /** @brief Bytes of work-group local memory available to one group. */
             std::size_t local_mem_bytes = 0;
 
@@ -105,6 +108,7 @@ namespace SushiBLAS
                 Profile p;
                 p.is_cpu = d.is_cpu();
                 p.supports_fp64 = d.has(sycl::aspect::fp64);
+                p.supports_fp16 = d.has(sycl::aspect::fp16);
                 p.local_mem_bytes = static_cast<std::size_t>(
                     d.get_info<sycl::info::device::local_mem_size>());
                 p.max_work_group_size = static_cast<std::size_t>(

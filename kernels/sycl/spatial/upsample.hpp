@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/spatial_geometry.hpp>
 
 namespace SushiBLAS
@@ -147,21 +148,23 @@ namespace SushiBLAS
                             const int64_t h = nh % in_h;
                             const int64_t n = nh / in_h;
 
-                            T total_value = T(0);
+                            Accumulator<T> total_value = Accumulator<T>(0);
 
                             for (int64_t dh = 0; dh < sh; ++dh)
                             {
                                 for (int64_t dw = 0; dw < sw; ++dw)
                                 {
-                                    total_value += dy[n * out_batch_stride
-                                                    + (h * sh + dh) * out_row_stride
-                                                    + (w * sw + dw) * out_col_stride
-                                                    + c * out_channel_stride];
+                                    total_value += Accumulator<T>(
+                                        dy[n * out_batch_stride
+                                           + (h * sh + dh) * out_row_stride
+                                           + (w * sw + dw) * out_col_stride
+                                           + c * out_channel_stride]);
                                 }
                             }
 
                             dx[n * in_batch_stride + h * in_row_stride
-                               + w * in_col_stride + c * in_channel_stride] = total_value;
+                               + w * in_col_stride + c * in_channel_stride] =
+                                static_cast<T>(total_value);
                         }
                     });
                 });

@@ -28,6 +28,7 @@
 #pragma once
 
 #include <cstdint>
+#include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/spatial_geometry.hpp>
 
 namespace SushiBLAS
@@ -55,7 +56,7 @@ namespace SushiBLAS
                         {
                             for (int64_t c = 0; c < span.channels; ++c)
                             {
-                                T total = T(0);
+                                Accumulator<T> total = Accumulator<T>(0);
 
                                 for (int64_t r = 0; r < g.kernel_h; ++r)
                                 {
@@ -74,12 +75,15 @@ namespace SushiBLAS
                                         const int64_t row = (n * span.out_h + h_o) * span.out_w + w_o;
                                         const int64_t patch = (r * g.kernel_w + s) * span.channels + c;
 
-                                        total += in[row * cols.row_stride + patch * cols.element_stride];
+                                        total += Accumulator<T>(
+                                            in[row * cols.row_stride
+                                               + patch * cols.element_stride]);
                                     }
                                 }
 
                                 out[n * span.in_batch_stride + h * span.in_row_stride
-                                    + w * span.in_col_stride + c * span.in_channel_stride] = total;
+                                    + w * span.in_col_stride + c * span.in_channel_stride] =
+                                    static_cast<T>(total);
                             }
                         }
                     }

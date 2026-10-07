@@ -259,19 +259,25 @@ namespace SushiBLAS
         /**
          * @brief Throws unless the device a tensor lives on can compute in the tensor's dtype.
          * @throws std::invalid_argument for FLOAT64 or COMPLEX64 storage on a device without the
-         *         fp64 aspect.
+         *         fp64 aspect, and for HALF storage on a device without the fp16 aspect.
          * @see include/SushiBLAS/engine/README.md
          */
         inline void require_device_dtype(const Tensor& t, const char* op, const char* operand)
         {
             const bool needs_fp64 = t.dtype == Core::DataType::FLOAT64 ||
                                     t.dtype == Core::DataType::COMPLEX64;
-            if (!needs_fp64 || !t.storage)
+            const bool needs_fp16 = t.dtype == Core::DataType::HALF;
+            if ((!needs_fp64 && !needs_fp16) || !t.storage)
                 return;
 
-            if (!Device::profile_for(t.get_device()).supports_fp64)
+            const Device::Profile& profile = Device::profile_for(t.get_device());
+            if (needs_fp64 && !profile.supports_fp64)
                 Detail::throw_operand_error(op, operand,
                                             "has dtype {} but lives on a device without the fp64 aspect",
+                                            Core::to_string(t.dtype));
+            if (needs_fp16 && !profile.supports_fp16)
+                Detail::throw_operand_error(op, operand,
+                                            "has dtype {} but lives on a device without the fp16 aspect",
                                             Core::to_string(t.dtype));
         }
     } // namespace Dispatch

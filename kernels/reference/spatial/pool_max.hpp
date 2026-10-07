@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/spatial_geometry.hpp>
 
 namespace SushiBLAS
@@ -118,7 +119,7 @@ namespace SushiBLAS
                                 const int64_t mine =
                                     ((n * span.in_h + h) * span.in_w + w) * span.channels + c;
 
-                                T total = T(0);
+                                Accumulator<T> total = Accumulator<T>(0);
 
                                 for (int64_t r = 0; r < g.kernel_h; ++r)
                                 {
@@ -139,12 +140,13 @@ namespace SushiBLAS
                                                          + w_o * span.out_col_stride
                                                          + c * span.out_channel_stride;
 
-                                        if (indices[at] == mine) total += dy[at];
+                                        if (indices[at] == mine) total += Accumulator<T>(dy[at]);
                                     }
                                 }
 
                                 dx[n * span.in_batch_stride + h * span.in_row_stride
-                                   + w * span.in_col_stride + c * span.in_channel_stride] = total;
+                                   + w * span.in_col_stride + c * span.in_channel_stride] =
+                                    static_cast<T>(total);
                             }
                         }
                     }
