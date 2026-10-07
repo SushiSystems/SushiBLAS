@@ -30,6 +30,7 @@
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level1.hpp>
+#include <SushiBLAS/engine/scratch.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
@@ -42,13 +43,14 @@ namespace SushiBLAS
         // A complex dtype computes the conjugated dot product (DOTC); see src/README.md.
 
         int64_t n, incx, incy;
-        Internal::get_vec_params(x, n, incx);
+        Internal::get_vec_params(x, n, incx, "blas.lvl1.dot", "x");
         int64_t ny;
-        Internal::get_vec_params(y, ny, incy);
+        Internal::get_vec_params(y, ny, incy, "blas.lvl1.dot", "y");
         SB_THROW_IF(n != ny, "DOT requires tensors of the same number of elements.");
+        Internal::require_scalar_result(result, x.dtype, "blas.lvl1.dot");
 
-        void* read_x = x.data_or_null();
-        void* read_y = y.data_or_null();
+        const void* read_x = x.data_or_null();
+        const void* read_y = y.data_or_null();
         void* write_r = result.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
@@ -57,15 +59,19 @@ namespace SushiBLAS
         std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
         if (write_r) writes.push_back(result.region());
 
+        const ScratchBuffer scratch = Internal::allocate_level1_scratch(
+            engine_, x, static_cast<std::size_t>(n),
+            Kernels::SYCL::K_LEVEL1_PARTIAL_BYTES, writes);
+
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl1.dot";
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "blas.lvl1.dot"_op;
 
-        auto mode = engine_.get_mode();
-
         return Internal::execute_blas_task(engine_, meta, reads, writes, x.dtype,
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_x, read_y, write_r},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 auto pX = static_cast<const T*>(read_x);
@@ -74,20 +80,20 @@ namespace SushiBLAS
 
                 if constexpr (Core::is_complex_v<T>)
                 {
-                    return Internal::dispatch_with_mode(mode, q, deps,
+                    return dispatcher.run(q, deps,
                         [=] { Kernels::Reference::dotc<typename T::value_type>(n, pX, incx, pY, incy, pR); },
                         [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                         {
-                            return Kernels::SYCL::dotc<typename T::value_type>(q2, n, pX, incx, pY, incy, pR, deps2);
+                            return Kernels::SYCL::dotc<typename T::value_type>(q2, n, pX, incx, pY, incy, pR, scratch.data(), scratch.bytes(), deps2);
                         });
                 }
                 else
                 {
-                    return Internal::dispatch_with_mode(mode, q, deps,
+                    return dispatcher.run(q, deps,
                         [=] { Kernels::Reference::dot<T>(n, pX, incx, pY, incy, pR); },
                         [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                         {
-                            return Kernels::SYCL::dot<T>(q2, n, pX, incx, pY, incy, pR, deps2);
+                            return Kernels::SYCL::dot<T>(q2, n, pX, incx, pY, incy, pR, scratch.data(), scratch.bytes(), deps2);
                         });
                 }
             });

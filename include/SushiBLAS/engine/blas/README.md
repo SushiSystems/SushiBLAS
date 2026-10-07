@@ -198,13 +198,15 @@ auxiliary buffer before it returns the activated result, and it must declare tha
 `GemmEpilogue::writes`, or the backward pass that reads it races the GEMM that filled it and the
 spill buys nothing.
 
-Warning: Under `ExecutionMode::FORCE_REFERENCE` and `VERIFY`, `epilogue` is also invoked on the
-**host**, by `Kernels::Reference::gemm`. Any pointer it carries must therefore be host-readable in
-those modes, which shared USM is and device USM is not. That is the same constraint
+Warning: Under `ExecutionMode::FORCE_REFERENCE`, `epilogue` is also invoked on the **host**, by
+`Kernels::Reference::gemm`. Any pointer it carries must therefore be host-readable in that mode,
+which shared USM is and device USM is not. That is the same constraint
 `FORCE_REFERENCE` already places on the operands themselves.
 
 Throws `std::runtime_error` if any operand has rank < 2, if the dtypes disagree, if the dtype falls
-outside `Dom`, or if the dtype is one `execute_blas_task` does not support.
+outside `Dom`, or if the dtype is one `execute_blas_task` does not support. Throws
+`std::invalid_argument` on a non-contiguous operand, mixed layouts, a shape that does not conform
+or a batch count that does not match; see "Operand validation" below.
 
 At `SB_THROW_IF(Core::is_complex_dtype(A.dtype),`: rejected here, at record time, rather than at
 execution time: the caller learns from the call that recorded the mistake instead of from a later
@@ -259,8 +261,37 @@ the tensor's element type at the kernel boundary. See Level1::axpy for why.
 
 `Level3` provides an interface for standard BLAS Level 3 operations, which involve matrix-matrix
 computations. These operations are typically the most computationally intensive and benefit greatly
-from optimized implementations like oneMKL. All operations are executed asynchronously using the
-SushiBLAS task graph system.
+from optimized implementations like oneMKL. Each operation records one task on the graph and
+returns a default-constructed, already-complete `sycl::event`; the task runs when
+`Engine::execute()` runs, and that call blocks until it finishes.
+
+### Operand validation
+
+Every Level 3 operation reads its matrix operands through `matrix_operand.hpp`, so GEMM, SYRK and
+TRSM derive rank, batch count, rows, columns, leading dimension and layout the same way. The
+kernels take one layout and dense leading dimensions, so `describe_matrix_operand` rejects a
+non-contiguous operand (a transposed view, a slice) at record time, and `require_same_layout`
+rejects a call whose operands mix row-major and column-major.
+
+The output (C, or B for TRSM) sets the batch count of a call. An input with the same batch count is
+stepped matrix by matrix. An input of rank 2, or one whose batch axes hold a single matrix, is
+reused for every batch, and `batch_stride` reports a stride of 0 for it. Any other batch count
+throws. When an input and the output both hold more than one matrix, `require_same_batch_axes`
+also requires every axis before the last two to match: a `{2, 3, m, n}` input against a
+`{3, 2, m, n}` output throws, although both hold six matrices. GEMM also checks that op(A) is
+m x k and op(B) is k x n against C.
+
+The matrix A of a Level 2 operation (`gemv`, `ger`, `symv`, `syr`, `syr2`, `trmv`, `trsv`) has
+rank 2; `require_level2_matrix_rank` rejects a higher rank.
+
+Level 1 and Level 2 vectors must have a positive increment: a stride of 0 would make every write
+land on one element, from many work-items at once. The scalar results of `dot`, `asum`, `nrm2` and
+`iamax` must have storage, exactly one element and the dtype the kernel writes: the operand dtype
+for `dot`, its real component type for `asum` and `nrm2`, and INT64 for `iamax`.
+
+The BLAS layer throws two exception types: the checks in this section throw
+`std::invalid_argument`, while the older rank pre-checks, dtype-agreement checks and vector
+length checks throw `std::runtime_error`.
 
 ## `utils.hpp`
 
@@ -289,17 +320,27 @@ every site.
   to be well-formed for `std::complex` than an elementwise lambda is, and for `copy`, which moves
   elements without doing arithmetic to them and so passes Domain::ALL. Without it, a consumer's
   real-only GEMM epilogue is a compile error in the two arms that will never run.
-- `op_func`: A callable `(auto scalar_type, sycl::queue&, const std::vector<sycl::event>&) ->
-  sycl::event`, generic over the runtime dtype via `decltype(scalar_type)`.
+- `host_operands`: An `Internal::ReferenceOperands` listing every pointer the reference kernel
+  reads or writes.
+- `op_func`: A callable `(auto scalar_type, const Internal::KernelPairDispatcher&, sycl::queue&,
+  const std::vector<sycl::event>&) -> sycl::event`, generic over the runtime dtype via
+  `decltype(scalar_type)`.
 
 Returns: An empty sycl::event; the work is deferred until `Engine::execute()`.
 
-Throws `std::runtime_error` at record time if `dtype` falls outside `Dom`.
+Throws `std::runtime_error` at record time if `dtype` falls outside `Dom`. Throws
+`std::invalid_argument` at record time if the engine is in FORCE_REFERENCE and a listed pointer is
+device-only USM.
+
+ASUM, NRM2, IAMAX and DOT now size their partial-sum scratch whenever `x` has storage, in every
+mode, because the operation does not read the mode. Under FORCE_REFERENCE the scratch is allocated
+and left unused.
 
 ### `dispatch_with_mode`
 
-`Internal::dispatch_with_mode` used to live here and now lives in `<SushiBLAS/engine/task.hpp>`,
-which this header includes, so every call site that reached it through utils.hpp still does,
-unqualified and unchanged. It moved for the same reason the recorder did: the spatial domain needs
-the FORCE_REFERENCE / normal / VERIFY triad verbatim, and "BLAS utilities" is the wrong home for
-something two domains depend on.
+`Internal::dispatch_with_mode` lives in `<SushiBLAS/engine/task.hpp>`, which this header includes.
+No BLAS source calls it directly any more: each task body receives a
+`const Internal::KernelPairDispatcher&` and calls `dispatcher.run(q, deps, reference_fn, sycl_fn)`,
+and the mode inside the dispatcher is the one `execute_typed_task` read from the engine at record
+time. `include/SushiBLAS/engine/README.md`, section `task.hpp`, describes the dispatcher and the
+FORCE_REFERENCE guard.

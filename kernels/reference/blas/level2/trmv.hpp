@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
 
 namespace SushiBLAS
 {
@@ -52,32 +53,33 @@ namespace SushiBLAS
                 {
                     return transA ? A_at(k, i) : A_at(i, k);
                 };
+                using W = Accumulator<T>;
                 bool eff_upper = transA ? !upper : upper;
 
                 if (eff_upper)
                 {
                     for (int64_t i = 0; i < n; ++i)
                     {
-                        T sum(0);
+                        W sum(0);
                         for (int64_t k = i; k < n; ++k)
                         {
                             T aval = (k == i && unit_diag) ? T(1) : A_eff(i, k);
-                            sum += aval * x[k * incx];
+                            sum += W(aval) * W(x[k * incx]);
                         }
-                        x[i * incx] = sum;
+                        x[i * incx] = T(sum);
                     }
                 }
                 else
                 {
                     for (int64_t i = n - 1; i >= 0; --i)
                     {
-                        T sum(0);
+                        W sum(0);
                         for (int64_t k = 0; k <= i; ++k)
                         {
                             T aval = (k == i && unit_diag) ? T(1) : A_eff(i, k);
-                            sum += aval * x[k * incx];
+                            sum += W(aval) * W(x[k * incx]);
                         }
-                        x[i * incx] = sum;
+                        x[i * incx] = T(sum);
                     }
                 }
             }

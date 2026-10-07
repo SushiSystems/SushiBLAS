@@ -32,6 +32,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
 
 namespace SushiBLAS
 {
@@ -48,6 +49,7 @@ namespace SushiBLAS
                              int64_t n, const T* a, int64_t lda, T* x, int64_t incx,
                              const std::vector<sycl::event>& deps)
             {
+                using W = Accumulator<T>;
                 SB_LOG_INFO("SYCL TRMV: {}x{}", n, n);
 
                 return queue.submit([&](sycl::handler& h)
@@ -69,26 +71,26 @@ namespace SushiBLAS
                         {
                             for (int64_t i = 0; i < n; ++i)
                             {
-                                T sum(0);
+                                W sum(0);
                                 for (int64_t k = i; k < n; ++k)
                                 {
                                     T aval = (k == i && unit_diag) ? T(1) : A_eff(i, k);
-                                    sum += aval * x[k * incx];
+                                    sum += W(aval) * W(x[k * incx]);
                                 }
-                                x[i * incx] = sum;
+                                x[i * incx] = T(sum);
                             }
                         }
                         else
                         {
                             for (int64_t i = n - 1; i >= 0; --i)
                             {
-                                T sum(0);
+                                W sum(0);
                                 for (int64_t k = 0; k <= i; ++k)
                                 {
                                     T aval = (k == i && unit_diag) ? T(1) : A_eff(i, k);
-                                    sum += aval * x[k * incx];
+                                    sum += W(aval) * W(x[k * incx]);
                                 }
-                                x[i * incx] = sum;
+                                x[i * incx] = T(sum);
                             }
                         }
                     });

@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
 
 namespace SushiBLAS
 {
@@ -51,19 +52,21 @@ namespace SushiBLAS
                     return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
                 };
 
+                using W = Accumulator<T>;
                 int64_t out_len = transA ? n : m;
                 int64_t in_len = transA ? m : n;
 
                 for (int64_t o = 0; o < out_len; ++o)
                 {
-                    T sum(0);
+                    W sum(0);
                     for (int64_t k = 0; k < in_len; ++k)
                     {
                         T aval = transA ? A_at(k, o) : A_at(o, k);
-                        sum += aval * x[k * incx];
+                        sum += W(aval) * W(x[k * incx]);
                     }
                     // beta==0 must not read the (possibly uninitialized) prior y value.
-                    y[o * incy] = (beta == T(0)) ? alpha * sum : alpha * sum + beta * y[o * incy];
+                    y[o * incy] = (beta == T(0)) ? T(W(alpha) * sum)
+                                                 : T(W(alpha) * sum + W(beta) * W(y[o * incy]));
                 }
             }
 

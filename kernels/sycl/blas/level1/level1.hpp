@@ -28,13 +28,14 @@
 #pragma once
 
 #include <complex>
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/traits.hpp>
-#include <SushiBLAS/engine/launch_1d.hpp>
-#include <SushiBLAS/engine/reduce_1d.hpp>
+#include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/support/reduce_1d.hpp>
 #include <kernels/reference/blas/level1/level1.hpp>
 
 namespace SushiBLAS
@@ -120,106 +121,133 @@ namespace SushiBLAS
                 });
             }
 
-            template<typename T>
-            [[nodiscard]] sycl::event asum(sycl::queue& queue, int64_t n, const T* x, int64_t incx, typename Reference::RealOf<T>::type* result, const std::vector<sycl::event>& deps)
+            /**
+             * @brief Holds the bytes of scratch per work-group partial that every Level 1 reduction fits in.
+             * @see kernels/README.md
+             */
+            inline constexpr std::size_t K_LEVEL1_PARTIAL_BYTES = 16;
+
+            /**
+             * @brief Returns how many W partials fit in @p scratch_bytes.
+             * @tparam W The partial type; must fit in K_LEVEL1_PARTIAL_BYTES.
+             */
+            template<typename W>
+            [[nodiscard]] constexpr std::size_t partial_capacity(std::size_t scratch_bytes) noexcept
             {
-                return queue.submit([&](sycl::handler& h)
-                {
-                    h.depends_on(deps);
-                    h.single_task([=]()
-                    {
-                        typename Reference::RealOf<T>::type sum(0);
-                        for (int64_t i = 0; i < n; ++i) sum += Reference::abs1(x[i * incx]);
-                        *result = sum;
-                    });
-                });
+                static_assert(sizeof(W) <= K_LEVEL1_PARTIAL_BYTES,
+                              "A Level 1 partial outgrew K_LEVEL1_PARTIAL_BYTES.");
+                return scratch_bytes / sizeof(W);
+            }
+
+            /**
+             * @brief Computes the sum of magnitudes through Reduce::CompensatedSum.
+             * @param scratch Device scratch for the partials; may be null when scratch_bytes is zero.
+             * @note The result may differ in the last bits from a serial left-to-right sum.
+             * @see kernels/README.md
+             */
+            template<typename T>
+            [[nodiscard]] sycl::event asum(sycl::queue& queue, int64_t n, const T* x, int64_t incx, typename Reference::RealOf<T>::type* result, void* scratch, std::size_t scratch_bytes, const std::vector<sycl::event>& deps)
+            {
+                using R = typename Reference::RealOf<T>::type;
+                using W = Reduce::AccumulationOf<R>;
+
+                return Reduce::reduce_indexed<Reduce::CompensatedSum>(queue, static_cast<std::size_t>(n),
+                    [=](std::size_t i) { return static_cast<W>(Reference::abs1(x[static_cast<int64_t>(i) * incx])); },
+                    result, static_cast<W*>(scratch), partial_capacity<W>(scratch_bytes),
+                    [](W v, std::size_t) { return v; }, deps);
             }
 
             /**
              * @brief Computes the Euclidean norm through Reduce::ScaledSumOfSquares.
+             * @param scratch Device scratch for the partials; may be null when scratch_bytes is zero.
+             * @note On the two-stage shape the result may differ in the last bits from a serial fold.
              * @see kernels/README.md
              */
             template<typename T>
-            [[nodiscard]] sycl::event nrm2(sycl::queue& queue, int64_t n, const T* x, int64_t incx, typename Reference::RealOf<T>::type* result, const std::vector<sycl::event>& deps)
+            [[nodiscard]] sycl::event nrm2(sycl::queue& queue, int64_t n, const T* x, int64_t incx, typename Reference::RealOf<T>::type* result, void* scratch, std::size_t scratch_bytes, const std::vector<sycl::event>& deps)
             {
                 using R = typename Reference::RealOf<T>::type;
+                using W = Reduce::AccumulationOf<R>;
 
-                return queue.submit([&](sycl::handler& h)
-                {
-                    h.depends_on(deps);
-                    h.single_task([=]()
+                // A complex element contributes its real part, then its imaginary part.
+                constexpr std::size_t K_PARTS = Core::is_complex_v<T> ? 2 : 1;
+
+                return Reduce::reduce_indexed<Reduce::ScaledSumOfSquares>(queue, static_cast<std::size_t>(n) * K_PARTS,
+                    [=](std::size_t k) -> W
                     {
-                        Reduce::ScaledSumOfSquares<R> acc;
-                        for (int64_t i = 0; i < n; ++i)
-                        {
-                            const T v = x[i * incx];
-                            if constexpr (Core::is_complex_v<T>)
-                            {
-                                acc.accumulate(v.real());
-                                acc.accumulate(v.imag());
-                            }
-                            else
-                            {
-                                acc.accumulate(v);
-                            }
-                        }
-                        *result = acc.value();
-                    });
-                });
+                        const T v = x[static_cast<int64_t>(k / K_PARTS) * incx];
+                        if constexpr (Core::is_complex_v<T>)
+                            return static_cast<W>((k % 2 == 0) ? v.real() : v.imag());
+                        else
+                            return static_cast<W>(v);
+                    },
+                    result, static_cast<W*>(scratch), partial_capacity<W>(scratch_bytes),
+                    [](W v, std::size_t) { return v; }, deps);
             }
 
+            /**
+             * @brief Computes the real dot product through Reduce::CompensatedSum.
+             * @param scratch Device scratch for the partials; may be null when scratch_bytes is zero.
+             * @note The result may differ in the last bits from a serial left-to-right sum.
+             * @see kernels/README.md
+             */
             template<typename T>
-            [[nodiscard]] sycl::event dot(sycl::queue& queue, int64_t n, const T* x, int64_t incx, const T* y, int64_t incy, T* result, const std::vector<sycl::event>& deps)
+            [[nodiscard]] sycl::event dot(sycl::queue& queue, int64_t n, const T* x, int64_t incx, const T* y, int64_t incy, T* result, void* scratch, std::size_t scratch_bytes, const std::vector<sycl::event>& deps)
             {
-                return queue.submit([&](sycl::handler& h)
-                {
-                    h.depends_on(deps);
-                    h.single_task([=]()
+                using W = Reduce::AccumulationOf<T>;
+
+                return Reduce::reduce_indexed<Reduce::CompensatedSum>(queue, static_cast<std::size_t>(n),
+                    [=](std::size_t k)
                     {
-                        T sum(0);
-                        for (int64_t i = 0; i < n; ++i) sum += x[i * incx] * y[i * incy];
-                        *result = sum;
-                    });
-                });
+                        const int64_t i = static_cast<int64_t>(k);
+                        return static_cast<W>(x[i * incx]) * static_cast<W>(y[i * incy]);
+                    },
+                    result, static_cast<W*>(scratch), partial_capacity<W>(scratch_bytes),
+                    [](W v, std::size_t) { return v; }, deps);
             }
 
+            /**
+             * @brief Computes the conjugated dot product through Reduce::CompensatedComplexSum.
+             * @param scratch Device scratch for the partials; may be null when scratch_bytes is zero.
+             * @note The result may differ in the last bits from a serial left-to-right sum.
+             * @see kernels/README.md
+             */
             template<typename T>
-            [[nodiscard]] sycl::event dotc(sycl::queue& queue, int64_t n, const std::complex<T>* x, int64_t incx, const std::complex<T>* y, int64_t incy, std::complex<T>* result, const std::vector<sycl::event>& deps)
+            [[nodiscard]] sycl::event dotc(sycl::queue& queue, int64_t n, const std::complex<T>* x, int64_t incx, const std::complex<T>* y, int64_t incy, std::complex<T>* result, void* scratch, std::size_t scratch_bytes, const std::vector<sycl::event>& deps)
             {
-                return queue.submit([&](sycl::handler& h)
-                {
-                    h.depends_on(deps);
-                    h.single_task([=]()
+                using W = std::complex<T>;
+
+                return Reduce::reduce_indexed<Reduce::CompensatedComplexSum>(queue, static_cast<std::size_t>(n),
+                    [=](std::size_t k)
                     {
-                        std::complex<T> sum(0);
-                        for (int64_t i = 0; i < n; ++i) sum += std::conj(x[i * incx]) * y[i * incy];
-                        *result = sum;
-                    });
-                });
+                        const int64_t i = static_cast<int64_t>(k);
+                        return std::conj(x[i * incx]) * y[i * incy];
+                    },
+                    result, static_cast<W*>(scratch), partial_capacity<W>(scratch_bytes),
+                    [](W v, std::size_t) { return v; }, deps);
             }
 
+            /**
+             * @brief Finds the index of the largest magnitude through Reduce::RunningArgMax.
+             * @param scratch Device scratch for the partials; may be null when scratch_bytes is zero.
+             * @note Ties go to the lowest index; a NaN wins only at index 0, as in the reference kernel.
+             * @see kernels/README.md
+             */
             template<typename T>
-            [[nodiscard]] sycl::event iamax(sycl::queue& queue, int64_t n, const T* x, int64_t incx, int64_t* result, const std::vector<sycl::event>& deps)
+            [[nodiscard]] sycl::event iamax(sycl::queue& queue, int64_t n, const T* x, int64_t incx, int64_t* result, void* scratch, std::size_t scratch_bytes, const std::vector<sycl::event>& deps)
             {
-                return queue.submit([&](sycl::handler& h)
-                {
-                    h.depends_on(deps);
-                    h.single_task([=]()
+                using R = typename Reference::RealOf<T>::type;
+                using P = Reduce::IndexedValue<R>;
+
+                return Reduce::reduce_indexed<Reduce::RunningArgMax>(queue, static_cast<std::size_t>(n),
+                    [=](std::size_t k)
                     {
-                        int64_t best_idx = 0;
-                        typename Reference::RealOf<T>::type best_val(0);
-                        for (int64_t i = 0; i < n; ++i)
-                        {
-                            auto v = Reference::abs1(x[i * incx]);
-                            if (i == 0 || v > best_val)
-                            {
-                                best_val = v;
-                                best_idx = i;
-                            }
-                        }
-                        *result = best_idx;
-                    });
-                });
+                        const int64_t i = static_cast<int64_t>(k);
+                        return P{static_cast<R>(Reference::abs1(x[i * incx])), i};
+                    },
+                    result, static_cast<P*>(scratch), partial_capacity<P>(scratch_bytes),
+                    // An empty input answers index 0, as the reference kernel does.
+                    [](P v, std::size_t) { return v.index < 0 ? int64_t{0} : v.index; }, deps);
             }
 
         } // namespace SYCL

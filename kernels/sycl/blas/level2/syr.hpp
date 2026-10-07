@@ -32,6 +32,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
 
 namespace SushiBLAS
 {
@@ -48,6 +49,7 @@ namespace SushiBLAS
                             int64_t n, T alpha, const T* x, int64_t incx,
                             T* a, int64_t lda, const std::vector<sycl::event>& deps)
             {
+                using W = Accumulator<T>;
                 SB_LOG_INFO("SYCL SYR: {}x{}", n, n);
 
                 return queue.submit([&](sycl::handler& h)
@@ -59,7 +61,7 @@ namespace SushiBLAS
                         bool in_triangle = upper ? (j >= i) : (j <= i);
                         if (!in_triangle) return;
                         T& ref = (layout == Core::Layout::ROW_MAJOR) ? a[i * lda + j] : a[i + j * lda];
-                        ref += alpha * x[i * incx] * x[j * incx];
+                        ref = T(W(ref) + W(alpha) * W(x[i * incx]) * W(x[j * incx]));
                     });
                 });
             }

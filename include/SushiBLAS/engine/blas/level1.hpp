@@ -35,12 +35,8 @@ namespace SushiBLAS
     class Engine;
 
     /**
-     * @class Level1
-     * @brief Vector-Vector operations (BLAS Level 1).
-     * 
-     * This class provides an interface for standard BLAS Level 1 operations, 
-     * which involve scalar-vector and vector-vector computations. All operations 
-     * are executed asynchronously using the SushiBLAS task graph system.
+     * @brief Records the BLAS Level 1 vector-vector operations on the engine's task graph.
+     * @see include/SushiBLAS/engine/blas/README.md
      */
     class Level1 
     {

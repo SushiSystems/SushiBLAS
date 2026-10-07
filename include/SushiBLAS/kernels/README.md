@@ -2,6 +2,7 @@
 
 `include/SushiBLAS/kernels` holds the GEMM kernels and epilogues that a public seam instantiates in
 a consumer's translation unit: the reference kernel, the SYCL kernel and the two epilogue functors.
+The accumulator trait they share is in [../support/README.md](../support/README.md).
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to. The header states the rule in one line and cites
@@ -68,7 +69,7 @@ whenever m > k.
 
 - `Epilogue`: Functor applied per element immediately before the store, exactly as in
   `SushiBLAS::Kernels::SYCL::gemm` and with the same `(value, row, col)` contract. It is here so
-  that a *fused* GEMM has a ground truth at all: `VERIFY` mode and `FORCE_REFERENCE` are how this
+  that a *fused* GEMM has a ground truth at all: `FORCE_REFERENCE` mode is how this
   project judges a SYCL kernel, and a reference that dropped the epilogue would silently declare
   every fused result wrong. Defaults to `SushiBLAS::Kernels::GemmIdentityEpilogue`.
 
@@ -94,7 +95,7 @@ reading it back item_rows + item_cols times per K-step is the whole reason a til
 a CPU backend the "local memory" is the same cache the global pointer already reads through, so the
 staging copies the data twice and every group_barrier is a real rendezvous between OS threads buying
 nothing. portBLAS ships exactly this split; so does this file. The fact table both variants dispatch
-on lives in `<SushiBLAS/engine/device_policy.hpp>` and knows nothing about GEMM: tile sizes are
+on lives in `<SushiBLAS/support/device_policy.hpp>` and knows nothing about GEMM: tile sizes are
 chosen here, because only this file knows what its accumulator costs in registers.
 
 ### `Detail::OperandStrides`
