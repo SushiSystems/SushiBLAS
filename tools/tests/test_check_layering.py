@@ -97,6 +97,20 @@ class SupportIndependenceTest(unittest.TestCase):
             issues = list(rule_support_independence(_repository(folder, files)))
             self.assertEqual([issue.line for issue in issues], [1, 2, 3, 4])
 
+    def test_reports_the_sparse_operand_headers(self) -> None:
+        """Reports sparse_vector.hpp, sparse_matrix.hpp and sparse_builder.hpp, each on its line."""
+        files = {
+            K_SUPPORT: (
+                "#include <SushiBLAS/sparse_vector.hpp>\n"
+                "#include <SushiBLAS/sparse_matrix.hpp>\n"
+                "#include <SushiBLAS/sparse_builder.hpp>\n"
+                "#include <SushiBLAS/core/logger.hpp>\n"
+            ),
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            issues = list(rule_support_independence(_repository(folder, files)))
+            self.assertEqual([issue.line for issue in issues], [1, 2, 3])
+
 
 class KernelIncludesTest(unittest.TestCase):
     """Checks which includes a kernel may make."""
@@ -114,6 +128,20 @@ class KernelIncludesTest(unittest.TestCase):
                 "#include <SushiBLAS/engine.hpp>\n"
                 '#include "SushiBLAS/engine/task.hpp"\n'
                 "#include <SushiBLAS/tensor.hpp>\n"
+            ),
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            issues = list(rule_kernel_includes(_repository(folder, files)))
+            self.assertEqual([issue.line for issue in issues], [1, 2, 3])
+
+    def test_reports_the_sparse_operand_headers(self) -> None:
+        """Reports the three sparse operand headers and accepts a private kernel brick."""
+        files = {
+            "kernels/sycl/sparse/k.hpp": (
+                "#include <SushiBLAS/sparse_vector.hpp>\n"
+                "#include <SushiBLAS/sparse_matrix.hpp>\n"
+                "#include <SushiBLAS/sparse_builder.hpp>\n"
+                '#include "kernels/sparse/csr_pattern.hpp"\n'
             ),
         }
         with tempfile.TemporaryDirectory() as folder:

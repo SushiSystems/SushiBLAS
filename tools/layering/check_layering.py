@@ -38,11 +38,14 @@ K_RECORDER_HEADER = "include/SushiBLAS/engine/task_recorder.hpp"
 K_SOURCE_FOLDER = "src"
 K_OPERATION_FOLDER = "src/engine"
 K_KERNEL_FORBIDDEN_INCLUDE = re.compile(
-    r'^\s*#\s*include\s*[<"](SushiBLAS/(?:engine\.hpp|engine/[^>"]+|tensor\.hpp))[>"]'
+    r'^\s*#\s*include\s*[<"]'
+    r'(SushiBLAS/(?:engine\.hpp|engine/[^>"]+|tensor\.hpp'
+    r'|sparse_(?:vector|matrix|builder)\.hpp))[>"]'
 )
 K_SUPPORT_FORBIDDEN_INCLUDE = re.compile(
     r'^\s*#\s*include\s*[<"]'
-    r'(SushiBLAS/(?:engine\.hpp|engine/[^>"]+|kernels/[^>"]+|tensor\.hpp))[>"]'
+    r'(SushiBLAS/(?:engine\.hpp|engine/[^>"]+|kernels/[^>"]+|tensor\.hpp'
+    r'|sparse_(?:vector|matrix|builder)\.hpp))[>"]'
 )
 K_ENGINE_COMPOSED_INCLUDE = re.compile(
     r'^\s*#\s*include\s*[<"](SushiBLAS/(?:io\.hpp|experimental/[^>"]+|engine/[^>"]+))[>"]'
