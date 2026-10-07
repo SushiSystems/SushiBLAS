@@ -21,33 +21,41 @@
 
 /**
  * @file example.cpp
- * @brief Runs one 1024x1024 GEMM on shared memory with a column-major engine.
+ * @brief Fills two matrices, multiplies them with GEMM and prints one element of the result.
  * @author Mustafa Garip
  */
 
+#include <vector>
+#include <cstdint>
 #include <iostream>
 #include <SushiBLAS/SushiBLAS.h>
 
-int main() 
+namespace sb = SushiBLAS;
+
+int main()
 {
+    constexpr int64_t K_SIZE = 256;
+    constexpr float K_A_VALUE = 1.0f;
+    constexpr float K_B_VALUE = 2.0f;
+
     sr::Execution::RuntimeContext ctx;
-    sb::Engine sb(ctx, sb::Core::Layout::COLUMN_MAJOR);
+    sb::Engine engine(ctx, sb::Core::Layout::COLUMN_MAJOR);
 
-    SB_LOG_INFO("Creating tensors for GEMM...");
-    auto A = sb.create_tensor({1024, 1024}, sr::Memory::Strategies::Shared::instance());
-    auto B = sb.create_tensor({1024, 1024}, sr::Memory::Strategies::Shared::instance());
-    auto C = sb.create_tensor({1024, 1024}, sr::Memory::Strategies::Shared::instance());
+    auto A = engine.create_tensor({K_SIZE, K_SIZE});
+    auto B = engine.create_tensor({K_SIZE, K_SIZE});
+    auto C = engine.create_tensor({K_SIZE, K_SIZE});
 
-    SB_LOG_INFO("Executing GEMM operation...");
-    sb.blas().gemm(A, B, C);
+    const size_t count = static_cast<size_t>(K_SIZE * K_SIZE);
+    engine.io().from_vector(A, std::vector<float>(count, K_A_VALUE));
+    engine.io().from_vector(B, std::vector<float>(count, K_B_VALUE));
 
-    // Executing the queued tasks
-    sb.execute();
+    engine.blas().gemm(A, B, C);
 
-    // Synchronize to wait for GPU/CPU task completion
-    ctx.wait_all();
+    const std::vector<float> result = engine.io().to_vector<float>(C);
 
-    SB_LOG_INFO("SushiBLAS execution finished successfully.");
+    // Every element of C is K_SIZE * K_A_VALUE * K_B_VALUE.
+    std::cout << "C[0][0] = " << result[0] << " (expected " << K_SIZE * K_A_VALUE * K_B_VALUE
+              << ")\n";
 
-    return 0; 
+    return 0;
 }
