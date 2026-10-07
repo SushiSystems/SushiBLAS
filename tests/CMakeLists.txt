@@ -57,6 +57,15 @@ add_executable(sushiblas_tests
     functional/unit/test_syrk.cpp
     functional/unit/test_trsm.cpp
 
+    # --- BLAS value types, bricks and the complex routines ---
+    functional/unit/test_blas_types.cpp
+    functional/unit/test_blas_scalar.cpp
+    functional/unit/test_complex_arithmetic.cpp
+    functional/unit/test_operand_access.cpp
+    functional/unit/test_running_solution.cpp
+    functional/unit/test_reference_accumulator.cpp
+    functional/unit/test_blas_complex.cpp
+
     # --- Spatial (windowed movement over an N-D grid) ---
     functional/unit/test_spatial_geometry.cpp
     functional/unit/test_spatial_im2col.cpp
@@ -67,6 +76,7 @@ add_executable(sushiblas_tests
     functional/unit/test_spatial_channels.cpp
     functional/unit/test_spatial_broadcast.cpp
     functional/unit/test_mean_spatial.cpp
+    functional/unit/test_spatial_half.cpp
     functional/unit/test_channel_bias_epilogue.cpp
 
     # --- Nonlinear ---
@@ -91,6 +101,7 @@ add_executable(sushiblas_tests
     # --- Dispatch seam (the public SushiBLAS::Dispatch generic executors) ---
     functional/unit/test_dispatch_complex.cpp
     functional/unit/test_dispatch_seam.cpp
+    functional/unit/test_read_binding.cpp
 
     # --- Tensor views (every op family against a non-zero storage_offset) ---
     functional/unit/test_storage_offset.cpp
@@ -188,6 +199,7 @@ add_executable(sushiblas_tests
     functional/unit/test_scratch_shelf.cpp
     functional/unit/test_launch_shapes.cpp
     functional/unit/test_scratch_buffer.cpp
+    functional/unit/test_serial_loops.cpp
 
     # --- Recorder, handles and the tensor factory ---
     functional/unit/test_task_handle.cpp
@@ -205,6 +217,7 @@ add_executable(sushiblas_tests
     functional/regression/test_logger.cpp
     functional/regression/test_operand_lifetime.cpp
     functional/regression/test_task_dependencies.cpp
+    functional/regression/test_blas_symmetric_bits.cpp
 )
 
 # --- Include Directories ---
