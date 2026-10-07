@@ -349,5 +349,65 @@ namespace SushiBLAS
             EXPECT_TRUE(first.region().overlaps(first.region()));
         }
 
+        TEST_F(Unit_StorageOffsetTest, TheAllocationBaseIsAlignedForEveryResidency)
+        {
+            const SushiRuntime::API::Residency residencies[] = {
+                SushiRuntime::API::Residency::Shared,
+                SushiRuntime::API::Residency::Host,
+                SushiRuntime::API::Residency::Device};
+            const int64_t element_counts[] = {1, 7, 1000};
+
+            for (const SushiRuntime::API::Residency residency : residencies)
+            {
+                for (const int64_t count : element_counts)
+                {
+                    auto storage = SushiRuntime::make_sushi<Storage>(
+                        TestEnvironment::get_context(),
+                        static_cast<size_t>(count) * sizeof(float),
+                        residency);
+                    const Tensor t(storage, {count}, Core::DataType::FLOAT32);
+
+                    SCOPED_TRACE(::testing::Message() << "residency " << static_cast<int>(residency)
+                                                      << ", " << count << " elements");
+
+                    const auto base = reinterpret_cast<std::uintptr_t>(storage->allocation_base());
+                    EXPECT_EQ(base % K_STORAGE_ALIGNMENT, 0u);
+                    EXPECT_TRUE(t.is_aligned());
+                }
+            }
+        }
+
+        TEST_F(Unit_StorageOffsetTest, TheAllocatedSizeIsAMultipleOfTheAlignment)
+        {
+            auto one_byte = SushiRuntime::make_sushi<Storage>(TestEnvironment::get_context(), 1);
+            auto past_one_block =
+                SushiRuntime::make_sushi<Storage>(TestEnvironment::get_context(), 129);
+
+            EXPECT_EQ(one_byte->size_bytes(), 128u);
+            EXPECT_EQ(past_one_block->size_bytes(), 256u);
+        }
+
+        TEST_F(Unit_StorageOffsetTest, AViewOffTheBaseReportsItsOwnAlignment)
+        {
+            const int64_t n = 64;
+            auto storage = SushiRuntime::make_sushi<Storage>(
+                TestEnvironment::get_context(), static_cast<size_t>(n) * sizeof(float));
+            const Tensor whole(storage, {n}, Core::DataType::FLOAT32);
+
+            // One float past the base is 4 bytes in; 32 floats past it are 128 bytes in.
+            EXPECT_FALSE(whole.slice(0, 1, n).is_aligned());
+            EXPECT_TRUE(whole.slice(0, 32, n).is_aligned());
+        }
+
+        TEST_F(Unit_StorageOffsetTest, GetDeviceAnswersWithoutTheRegistry)
+        {
+            auto storage = SushiRuntime::make_sushi<Storage>(
+                TestEnvironment::get_context(), 4 * sizeof(float));
+            const Tensor t(storage, {4}, Core::DataType::FLOAT32);
+
+            auto& context = TestEnvironment::get_context();
+            EXPECT_EQ(t.get_device(), context.get_queue(storage->get_device_index()).get_device());
+        }
+
     } // namespace Test
 } // namespace SushiBLAS
