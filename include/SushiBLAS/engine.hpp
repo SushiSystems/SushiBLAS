@@ -27,7 +27,6 @@
 
 #pragma once
 
-#include <atomic>
 #include <SushiBLAS/io.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/storage.hpp>
@@ -35,6 +34,7 @@
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/engine/rng_stream.hpp>
 #include <SushiRuntime/SushiRuntime.h>
 #include <SushiBLAS/engine/logic/logic.hpp>
 #include <SushiBLAS/engine/math/random.hpp>
@@ -53,9 +53,9 @@ namespace SushiBLAS
     enum class ExecutionMode 
     {
         AUTO,              // Heuristic-based selection
-        FORCE_SYCL,        // Always use SYCL/MKL
+        FORCE_SYCL,        // Always use SYCL
         FORCE_REFERENCE,   // Always use Reference (CPU)
-        VERIFY             // Run both and compare (Debug mode)
+        VERIFY             // Not implemented; Engine::set_mode refuses it with std::logic_error
     };
 
     /**
@@ -80,8 +80,9 @@ namespace SushiBLAS
             /** 
              * @brief Set the execution mode. 
              * @param mode The desired execution mode.
+             * @throws std::logic_error if mode is ExecutionMode::VERIFY; the mode stays unchanged.
              */
-            void set_mode(ExecutionMode mode) { mode_ = mode; }
+            void set_mode(ExecutionMode mode);
 
             /** 
              * @brief Get the current execution mode. 
@@ -157,65 +158,68 @@ namespace SushiBLAS
 
             /**
              * @brief Execute all queued tasks in the graph.
-             * @return A sycl::event that can be used to synchronize with graph completion.
+             * @return An already-completed sycl::event; the call returns only after the graph has finished.
              */
             sycl::event execute()
             {
                 auto compiled = graph_.compile();
                 // An empty graph returns early; the execution engine throws on one; see include/SushiBLAS/README.md.
                 if (compiled.roots.empty()) return sycl::event();
-                return context_.get_execution_engine().execute(compiled);
+                context_.get_execution_engine().execute(compiled);
+                return sycl::event();
             }
 
             /** 
              * @brief Create a new FLOAT32 tensor with the specified dimensions.
              * @param dims The dimensions of the tensor.
-             * @param strat The allocation strategy (Shared, Device, or Host).
+             * @param residency The kind of USM to allocate (Shared, Device, or Host).
              * @return A new FLOAT32 Tensor object.
+             * @throws std::runtime_error on a negative dimension or an overflowing byte count.
              */
             Tensor create_tensor(std::initializer_list<int64_t> dims,
-                                 const SushiRuntime::Memory::IAllocatorStrategy& strat = SushiRuntime::Memory::Strategies::Shared::instance());
+                                 SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared);
 
             /** 
              * @brief Create a new tensor with the specified dimensions and data type.
              * @param dims The dimensions of the tensor.
              * @param dtype The data type of the tensor (e.g., FLOAT64, COMPLEX32).
-             * @param strat The allocation strategy (Shared, Device, or Host).
+             * @param residency The kind of USM to allocate (Shared, Device, or Host).
              * @return A new Tensor object.
+             * @throws std::runtime_error on a negative dimension or an overflowing byte count.
              */
             Tensor create_tensor(std::initializer_list<int64_t> dims,
                                  Core::DataType dtype,
-                                 const SushiRuntime::Memory::IAllocatorStrategy& strat = SushiRuntime::Memory::Strategies::Shared::instance());
+                                 SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared);
 
             /**
-             * @brief Sets the random seed and rewinds the counter offset to zero.
-             * @see include/SushiBLAS/README.md
+             * @brief Creates a FLOAT32 tensor whose dimensions are known only at run time.
+             * @param residency The kind of USM to allocate (Shared, Device, or Host).
+             * @throws std::runtime_error on a rank too high, a negative dimension or an overflowing byte count.
              */
-            void set_seed(uint64_t s)
-            {
-                seed_ = s;
-                rng_offset_.store(0, std::memory_order_relaxed);
-            }
+            Tensor create_tensor(const std::vector<int64_t>& dims,
+                                 SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared);
 
             /**
-             * @brief Get the current seed value.
-             * @return The seed value.
+             * @brief Creates a tensor of one data type whose dimensions are known only at run time.
+             * @param residency The kind of USM to allocate (Shared, Device, or Host).
+             * @throws std::runtime_error on a rank too high, a negative dimension or an overflowing byte count.
              */
-            uint64_t get_seed() const { return seed_; }
+            Tensor create_tensor(const std::vector<int64_t>& dims,
+                                 Core::DataType dtype,
+                                 SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared);
 
             /**
-             * @brief Returns the current RNG offset and increments it.
-             * @see include/SushiBLAS/README.md
+             * @brief Returns the random stream every random operation of this engine draws from.
+             * @see include/SushiBLAS/engine/README.md
              */
-            uint64_t get_and_increment_rng_offset() { return rng_offset_++; }
+            RngStream& rng() noexcept { return rng_; }
 
         private:
             SushiRuntime::Execution::RuntimeContext& context_;
             SushiRuntime::Graph::TaskGraph graph_;
             Core::Layout default_layout_;
             ExecutionMode mode_ = ExecutionMode::AUTO;
-            uint64_t seed_ = 0;
-            std::atomic<uint64_t> rng_offset_{0};
+            RngStream rng_;
     };
 
 } // namespace SushiBLAS
