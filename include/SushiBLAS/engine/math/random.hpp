@@ -129,6 +129,7 @@ namespace SushiBLAS
              * @param t Tensor to fill; FLOAT32 or FLOAT64, contiguous, on a device with fp64.
              * @param lambda Mean of the distribution; finite and in [0, K_MAX_POISSON_LAMBDA].
              * @throws std::invalid_argument when lambda or t breaks its rule.
+             * @throws UnsupportedExecution when the device of t lacks the fp64 aspect.
              * @return The handle of the recorded task.
              */
             TaskHandle poisson(Tensor& t, double lambda = 1.0);
@@ -146,8 +147,8 @@ namespace SushiBLAS
              * @brief Fills a tensor from a truncated normal distribution.
              * @param a Lower bound, in standard deviations; clamped to -40 before recording.
              * @param b Upper bound, in standard deviations; clamped to 40 before recording.
-             * @throws std::invalid_argument when t is not FLOAT32 or FLOAT64.
-             * @throws std::runtime_error when a and b are not finite with a < b, or bound no mass in t's dtype.
+             * @throws std::invalid_argument when t is not FLOAT32 or FLOAT64, when a and b are not
+             *         finite with a < b, or when they bound no mass in t's dtype.
              */
             TaskHandle truncated_normal(Tensor& t, double mean = 0.0, double stddev = 1.0,
                                         double a = -2.0, double b = 2.0);
@@ -192,9 +193,8 @@ namespace SushiBLAS
             /**
              * @brief Fills a matrix with a random (semi-)orthogonal matrix scaled by gain.
              * @param t Must be rank 2, non-empty, and FLOAT32 or FLOAT64.
-             * @throws std::invalid_argument when t is not FLOAT32 or FLOAT64, has no storage or
-             * is not contiguous.
-             * @throws std::runtime_error when t is not a non-empty rank-2 tensor.
+             * @throws std::invalid_argument when t is not a non-empty rank-2 FLOAT32 or FLOAT64
+             *         tensor, has no storage or is not contiguous.
              * @see include/SushiBLAS/engine/math/README.md
              */
             TaskHandle orthogonal(Tensor& t, double gain = 1.0);

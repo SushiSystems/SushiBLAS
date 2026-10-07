@@ -208,8 +208,8 @@ namespace SushiBLAS
          * @brief Records one dtype-dispatched BLAS task whose body runs a reference and SYCL pair.
          * @param op_func Callable taking a value of the element type, a const
          *        KernelPairDispatcher&, the queue and the dependencies.
-         * @throws std::invalid_argument at record time on a dtype outside Dom or an operand the
-         *         reference kernel cannot reach under FORCE_REFERENCE.
+         * @throws std::invalid_argument at record time on a dtype outside Dom.
+         * @throws UnsupportedExecution at record time, as TaskRecorder::record_pair states.
          * @see include/SushiBLAS/engine/blas/README.md
          */
         template<Dispatch::Domain Dom = Dispatch::Domain::REAL_AND_COMPLEX, typename Func>

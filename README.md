@@ -1,13 +1,17 @@
 # SushiBLAS
 
-SushiBLAS is a C++17 tensor and BLAS library built on [SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph. You create tensors and queue operations on them through an `Engine`; the runtime tracks the dependencies between the queued tasks and runs them on a CPU or a GPU through SYCL. No kernel calls a vendor math library: there is no oneMKL and no cuBLAS behind it.
+SushiBLAS is a C++17 tensor and BLAS library built on [SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph. You create tensors through an `Engine` and record operations on them through view objects built from it; the runtime tracks the dependencies between the recorded tasks and runs them on a CPU or a GPU through SYCL. No kernel calls a vendor math library: there is no oneMKL and no cuBLAS behind it.
+
+The v0.1.0 interface described here has been written and not yet built or run as a whole. This page says what the code does as written; it does not say that an operation has been verified or how fast it is.
 
 The manual is in [docs/README.md](docs/README.md).
 
-- **Operations are recorded, then run.** `Engine::create_tensor()` allocates a `Tensor`, which is shape, stride and dtype metadata over a ref-counted `Storage` backed by SushiRuntime USM. Calling an operation, such as `engine.blas().axpy(...)`, registers a task on the engine's `TaskGraph`. `engine.execute()` compiles and runs the graph.
-- **Every operation has two kernels.** A plain C++ reference kernel under `kernels/reference/` is the mathematical ground truth, and a SYCL kernel under `kernels/sycl/` runs on the device. GEMM's pair sits under `include/SushiBLAS/kernels/`, because the public `Dispatch::execute_gemm` seam instantiates it in a consumer's translation unit. The GEMM and SYRK tiling is ported from portBLAS; see [NOTICE.md](NOTICE.md).
-- **The execution mode is chosen at run time.** `Engine::set_mode()` selects `AUTO`, `FORCE_SYCL`, `FORCE_REFERENCE` or `VERIFY` for every later operation. `VERIFY` is not implemented and `set_mode` refuses it. See [the architecture, section 3](docs/architecture/ARCHITECTURE.md#3-executionmode-the-dispatch-triad).
-- **An unsupported dtype throws.** `HALF`, `FLOAT32`, `FLOAT64`, `COMPLEX32` and `COMPLEX64` are served across BLAS levels 1 to 3 and the nonlinear, logic and random families, dispatched from one `Core::DataType` switch. Where a dtype has no meaning for an operation, such as `max` on a complex tensor, the call throws and names the operation and the dtype.
+- **Operations are recorded, then run.** `Engine::create_tensor()` allocates a `Tensor`, which is shape, stride and dtype metadata over a ref-counted `Storage` backed by SushiRuntime USM. Calling an operation, such as `SushiBLAS::BLASOps(engine).axpy(...)`, records one task on the engine's graph and returns a `TaskHandle`. `engine.execute()` compiles the graph, runs it and returns when every task has finished.
+- **Eight operation families.** Dense BLAS levels 1 to 3 with the band, packed, rotation, complex and Hermitian routines; sparse BLAS over CSR; elementwise arithmetic; non-linear activations; logic and comparison; reductions; random generation; and spatial (windowed) operations. [The architecture, section 7](docs/architecture/ARCHITECTURE.md#7-kernels-reference-and-sycl) lists the routines.
+- **Every operation has a reference path and a SYCL kernel.** The BLAS, sparse and spatial families have a plain C++ reference kernel under `kernels/reference/` beside the SYCL kernel under `kernels/sycl/`. The other families run one functor two ways: inlined into a SYCL kernel, or in a serial host loop. The GEMM and SYRK tiling is ported from portBLAS; see [NOTICE.md](NOTICE.md).
+- **The execution mode is stamped on each task as it is recorded.** `Engine::set_mode()` selects `AUTO`, `FORCE_SYCL` or `FORCE_REFERENCE` for every later operation. See [the architecture, section 3](docs/architecture/ARCHITECTURE.md#3-execution-modes).
+- **A wrong call throws when it is recorded.** A wrong operand, flag or scalar throws `std::invalid_argument` and names the operation and the operand; a dtype with no meaning for an operation, such as `max` on a complex tensor, is one of those. An operation that cannot run under the mode or on the device throws `SushiBLAS::UnsupportedExecution`, which derives from it. See [the architecture, section 11](docs/architecture/ARCHITECTURE.md#11-exceptions).
+- **Fusion is written by the caller.** The `SushiBLAS::Dispatch` seams take a functor and run it as one kernel, and `Dispatch::execute_gemm` takes an epilogue applied to each element of the product. No pass fuses recorded tasks automatically.
 
 ## Requirements
 
@@ -130,63 +134,96 @@ ctest --test-dir build -L regression
 sr::Execution::RuntimeContext ctx;
 SushiBLAS::Engine engine(ctx, SushiBLAS::Core::Layout::ROW_MAJOR);
 
-auto A = engine.create_tensor({1024, 1024});   // FLOAT32, Shared USM, by default
+auto A = engine.create_tensor({1024, 1024});   // FLOAT32, shared USM, by default
 auto B = engine.create_tensor({1024, 1024});
 auto C = engine.create_tensor({1024, 1024});
 
-engine.random().uniform(A, 0.0f, 1.0f);
-engine.random().uniform(B, 0.0f, 1.0f);
+SushiBLAS::RandomOps random(engine);
+random.uniform(A, 0.0, 1.0);
+random.uniform(B, 0.0, 1.0);
 
-engine.blas().gemm(A, B, C);          // queues the task, does not run it yet
-engine.execute();                     // compiles and runs the graph
-ctx.wait_all();                       // block until device work completes
+SushiBLAS::BLASOps blas(engine);
+blas.gemm(A, B, C);        // records the task; nothing has run yet
+engine.execute();          // compiles the graph, runs it, returns when every task has finished
+
+const std::vector<float> result = SushiBLAS::IO(engine).to_vector<float>(C);
 ```
 
-The eight accessors of `Engine` are `blas()`, `elementwise()`, `nonlinear()`, `logic()`, `reductions()`, `random()`, `spatial()` and `io()`. Each returns a view object over the same engine and owns no state. Calling an operation on one queues a task on `engine.get_graph()`; nothing runs until `engine.execute()`.
+`Engine` owns the graph and has no accessor per operation family. A family is a view class built from the engine: `BLASOps`, `SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`, `SpatialOps` and `IO`. A view holds a reference and no other state. Each record call returns a `TaskHandle`, and nothing runs until `engine.execute()`.
 
 ```cpp
-engine.elementwise().add(A, B, C);           // C = A + B
-engine.nonlinear().relu(A);                  // in-place ReLU
-engine.logic().greater(A, B, mask);          // mask = A > B, element-wise
-engine.reductions().sum(A, total);           // total = sum(A)
-engine.blas().axpy(2.0f, x, y);              // y = 2*x + y
+using namespace SushiBLAS;
+
+ElementwiseOps(engine).add(A, B, C);             // C = A + B
+NonLinearOps(engine).relu(A);                    // in place
+LogicOps(engine).greater(A, B, mask);            // mask = 1 where A > B, else 0
+ReductionOps(engine).sum(A, total);              // total = sum(A)
+
+BLASOps blas(engine);
+blas.axpy(2.0, x, y);                                        // y = 2*x + y
+blas.gemv(A, x, y, Core::Transpose::TRANS, 1.0, 1.0);        // y = A^T x + y
+blas.trsm(A, B, Core::Side::LEFT, Core::Uplo::LOWER);        // solve A X = B, X replaces B
+
+engine.execute();
 ```
 
-`Tensor` is a metadata view (shape, strides, rank, `Core::DataType`, layout) over a ref-counted `Storage`. `transpose()`, `reshape()` and `slice()` return new `Tensor` views over the same storage and move no data. [The architecture](docs/architecture/ARCHITECTURE.md) describes each layer.
+The BLAS flags are the enumerations `Core::Transpose`, `Core::Uplo`, `Core::Diag` and `Core::Side`, and a scalar argument is a `BlasScalar`, which converts from a `double` or a `std::complex<double>`.
+
+`Tensor` is a metadata view (shape, strides, rank, `Core::DataType`, layout) over a ref-counted `Storage`. `transpose()`, `reshape()` and `slice()` return new `Tensor` views over the same storage and move no data. A recorded task keeps the storage of its operands alive until the graph drops it. [The architecture](docs/architecture/ARCHITECTURE.md) describes each layer.
 
 ## Project layout
 
 ```
 include/SushiBLAS/     Public headers
   SushiBLAS.h           The umbrella header
-  engine.hpp            The Engine facade: create_tensor(), set_mode(), execute()
-                         and the eight accessors
-  engine/               Per-domain operation interfaces and the public seams
-    task.hpp              execute_typed_task and dispatch_with_mode
+  engine.hpp            Engine: owns the scratch pool, the graph, the recorder, the
+                         tensor factory and the random stream; create_tensor(),
+                         set_mode(), execute()
+  engine/               The recorder, the seams and the operation views
+    task_recorder.hpp     TaskRecorder: the one caller of TaskGraph::add_task
+    operand_set.hpp       OperandSet: what a task reads, writes and retains
+    task_handle.hpp       TaskHandle: what a record call returns
+    execution_mode.hpp    ExecutionMode: AUTO, FORCE_SYCL, FORCE_REFERENCE
+    kernel_pair_dispatcher.hpp
+                          The mode switch a task body calls
+    task.hpp              execute_typed_task: one dtype-dispatched kernel-pair task
     dispatch.hpp          The Domain vocabulary shared by the Dispatch seams
-    rng_stream.hpp        RngStream: the seed and the offset counter
-    scratch.hpp           ScratchBuffer: a device scratch allocation
     operand_check.hpp     The record-time operand checks
-    blas/                 Level1, Level2, Level3, SparseBLAS (stub), utils.hpp
-                           (execute_blas_task), dispatch.hpp (execute_gemm)
+    rng_stream.hpp        RngStream: the seed and the offset counter
+    scratch.hpp, scratch_pool.hpp, scratch_shelf.hpp
+                          ScratchBuffer, the lease, and the pool it comes from
+    blas/                 Level1, Level2, Level3, BlasScalar (scalar.hpp), the operand
+                           describers, utils.hpp (execute_blas_task) and
+                           dispatch.hpp (execute_gemm)
+    sparse/               The record-time checks of the sparse operands
     logic/                LogicOps and its dispatch.hpp
     math/                 ElementwiseOps, NonLinearOps, ReductionOps, RandomOps,
                            their dispatch.hpp files and safe_math.hpp
     spatial/              window.hpp
-    blas.hpp, spatial.hpp BLASOps and SpatialOps
-  kernels/              The kernels a public seam instantiates in a consumer's
-                         translation unit, and which are therefore installed:
-                         GEMM's reference and SYCL pair and the two epilogue headers
-  support/              The layer below kernels and engine: launch_1d, reduce_1d,
-                         reduce_axis, device_policy, accumulator, spatial_geometry
-  core/                 common.hpp (DataType, Layout), logger.hpp, format.hpp,
-                         traits.hpp, export.hpp
+    blas.hpp, sparse.hpp, spatial.hpp
+                          BLASOps, SparseOps and SpatialOps
+  kernels/              The kernels and access policies a public seam instantiates in
+                         a consumer's translation unit, and which are therefore
+                         installed: GEMM's reference and SYCL kernels, the packed
+                         product and the epilogue headers
+  support/              The layer below kernels and engine: launch_1d, serial_1d,
+                         reduce_1d, reduce_axis, serial_reduce, device_policy,
+                         accumulator, reference_accumulator, spatial_geometry,
+                         sparse_assembly and three smaller headers
+  core/                 common.hpp (DataType, Layout), blas_types.hpp (Transpose,
+                         Uplo, Diag, Side), sparse_types.hpp (IndexBase), errors.hpp
+                         (UnsupportedExecution), logger.hpp, format.hpp, traits.hpp,
+                         export.hpp
   experimental/         Quarantined FFT and LAPACK declarations
   tensor.hpp            Tensor: shape, stride and dtype metadata over a Storage
-  storage.hpp           Storage: ref-counted USM allocation
-  io.hpp                Save, load and print (native, .npy, raw binary)
+  storage.hpp           Storage: ref-counted USM allocation, aligned to 128 bytes
+  tensor_factory.hpp    TensorFactory: allocates dense tensors from one context
+  sparse_matrix.hpp, sparse_vector.hpp, sparse_builder.hpp
+                        The CSR matrix, the sparse vector and the builder of both
+  io.hpp                Host transfer, save, load and print (native, .npy, raw binary)
   version.hpp           SUSHIBLAS_VERSION_* macros
-src/                    Implementations (engine/<domain>/<op>.cpp, engine.cpp, io.cpp)
+src/                    Implementations (engine/<domain>/<op>.cpp, engine.cpp, io.cpp,
+                         sparse_builder.cpp)
 kernels/                Private kernels, never installed
   reference/            Plain C++ kernels
   sycl/                 SYCL kernels

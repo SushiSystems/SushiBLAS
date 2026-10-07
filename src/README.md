@@ -1,21 +1,221 @@
 # src
 
 The translation units of the SushiBLAS library. Each file under `engine/` defines the methods of
-one operation: it checks the operands, declares the regions the task reads and writes, and records
-the task on the engine's graph. The kernels a task runs are in `kernels/` and under
+one operation: it checks the operands, declares the tensors the task reads and writes in an
+`OperandSet`, and records the task through the view's `TaskRecorder`. Every method returns the
+`TaskHandle` of the task it recorded. The kernels a task runs are in `kernels/` and under
 `include/SushiBLAS/kernels/`.
 
 | Path | Defines |
 | --- | --- |
-| `engine.cpp` | The `Engine` constructor and tensor creation |
+| `engine.cpp` | The `Engine` constructor and `Engine::execute` |
 | `io.cpp` | `IO`: the `.sushi`, raw binary and `.npy` readers and writers, and the text rendering |
-| `engine/blas/level1/`, `level2/`, `level3/` | `Level1`, `Level2` and `Level3`, one file per BLAS routine |
+| `sparse_builder.cpp` | The members of `SparseBuilder` that are not templates |
+| `engine/blas/level1/`, `level2/`, `level3/` | `Level1`, `Level2` and `Level3`, one file per BLAS routine; a routine and its Hermitian or conjugated sibling share a file |
+| `engine/sparse/` | `SparseOps`, one file per routine; `doti.cpp` holds the three dot products and `spsymv.cpp` also `sphemv` |
 | `engine/logic/` | `LogicOps`, one file per comparison, logical operation or truth reduction |
 | `engine/math/elementwise/` | `ElementwiseOps`, one file per operation |
 | `engine/math/nonlinear/` | `NonLinearOps`, one file per activation and its gradient |
 | `engine/math/random/` | `RandomOps`, one file per distribution or initialiser |
 | `engine/math/reductions/` | `ReductionOps`, one file per reduction |
-| `engine/spatial/` | `SpatialOps`: the window, pooling, channel and broadcast operations |
+| `engine/spatial/` | `SpatialOps`: the window, pooling, window product, channel and broadcast operations |
+
+## Files
+
+| File | Defines |
+| --- | --- |
+| `engine.cpp` | Defines the Engine constructor and Engine::execute |
+| `io.cpp` | Defines IO, which saves and loads tensors as .sushi, raw binary and .npy files and renders them as text |
+| `sparse_builder.cpp` | Defines the allocation, the host transfers and the dense compression of SparseBuilder |
+
+BLAS level 1:
+
+| File | Defines |
+| --- | --- |
+| `engine/blas/level1/asum.cpp` | Defines Level1::asum, which records the BLAS ASUM task |
+| `engine/blas/level1/axpy.cpp` | Defines Level1::axpy, which records the BLAS AXPY task |
+| `engine/blas/level1/copy.cpp` | Defines Level1::copy, which records the BLAS COPY task |
+| `engine/blas/level1/dot.cpp` | Defines Level1::dot, dotu and dotc, which record the BLAS DOT, DOTU and DOTC tasks |
+| `engine/blas/level1/iamax.cpp` | Defines Level1::iamax, which records the BLAS IAMAX task |
+| `engine/blas/level1/nrm2.cpp` | Defines Level1::nrm2, which records the BLAS NRM2 task |
+| `engine/blas/level1/rot.cpp` | Defines Level1::rot, which records the BLAS ROT task |
+| `engine/blas/level1/rotg.cpp` | Defines Level1::rotg, which records the BLAS ROTG task |
+| `engine/blas/level1/rotm.cpp` | Defines Level1::rotm, which records the BLAS ROTM task |
+| `engine/blas/level1/rotmg.cpp` | Defines Level1::rotmg, which records the BLAS ROTMG task |
+| `engine/blas/level1/scal.cpp` | Defines Level1::scal, which records the BLAS SCAL task |
+| `engine/blas/level1/swap.cpp` | Defines Level1::swap, which records the BLAS SWAP task |
+
+BLAS level 2:
+
+| File | Defines |
+| --- | --- |
+| `engine/blas/level2/gbmv.cpp` | Defines Level2::gbmv, which records the BLAS GBMV task |
+| `engine/blas/level2/gemv.cpp` | Defines Level2::gemv, which records the BLAS GEMV task |
+| `engine/blas/level2/ger.cpp` | Defines Level2::ger, Level2::geru and Level2::gerc, which record the BLAS GER, GERU and GERC tasks |
+| `engine/blas/level2/sbmv.cpp` | Defines Level2::sbmv and Level2::hbmv, which record the BLAS SBMV and HBMV tasks |
+| `engine/blas/level2/spmv.cpp` | Defines Level2::spmv and Level2::hpmv, which record the BLAS SPMV and HPMV tasks |
+| `engine/blas/level2/spr.cpp` | Defines Level2::spr and Level2::hpr, which record the BLAS SPR and HPR tasks |
+| `engine/blas/level2/spr2.cpp` | Defines Level2::spr2 and Level2::hpr2, which record the BLAS SPR2 and HPR2 tasks |
+| `engine/blas/level2/symv.cpp` | Defines Level2::symv and Level2::hemv, which record the BLAS SYMV and HEMV tasks |
+| `engine/blas/level2/syr.cpp` | Defines Level2::syr and Level2::her, which record the BLAS SYR and HER tasks |
+| `engine/blas/level2/syr2.cpp` | Defines Level2::syr2 and Level2::her2, which record the BLAS SYR2 and HER2 tasks |
+| `engine/blas/level2/tbmv.cpp` | Defines Level2::tbmv, which records the BLAS TBMV task |
+| `engine/blas/level2/tbsv.cpp` | Defines Level2::tbsv, which records the BLAS TBSV task |
+| `engine/blas/level2/tpmv.cpp` | Defines Level2::tpmv, which records the BLAS TPMV task |
+| `engine/blas/level2/tpsv.cpp` | Defines Level2::tpsv, which records the BLAS TPSV task |
+| `engine/blas/level2/trmv.cpp` | Defines Level2::trmv, which records the BLAS TRMV task |
+| `engine/blas/level2/trsv.cpp` | Defines Level2::trsv, which records the BLAS TRSV task |
+
+BLAS level 3:
+
+| File | Defines |
+| --- | --- |
+| `engine/blas/level3/gemm.cpp` | Defines Level3::gemm, which records the BLAS GEMM task |
+| `engine/blas/level3/symm.cpp` | Defines Level3::symm and Level3::hemm, which record the BLAS SYMM and HEMM tasks |
+| `engine/blas/level3/syr2k.cpp` | Defines Level3::syr2k and Level3::her2k, which record the BLAS SYR2K and HER2K tasks |
+| `engine/blas/level3/syrk.cpp` | Defines Level3::syrk and Level3::herk, which record the BLAS SYRK and HERK tasks |
+| `engine/blas/level3/trsm.cpp` | Defines Level3::trsm, which records the BLAS TRSM task |
+
+Sparse:
+
+| File | Defines |
+| --- | --- |
+| `engine/sparse/axpyi.cpp` | Defines SparseOps::axpyi, which records the sparse AXPYI task |
+| `engine/sparse/doti.cpp` | Defines SparseOps::doti, dotui and dotci, which record the sparse dot product tasks |
+| `engine/sparse/gthr.cpp` | Defines SparseOps::gthr, which records the sparse gather task |
+| `engine/sparse/gthrz.cpp` | Defines SparseOps::gthrz, which records the sparse gather-and-zero task |
+| `engine/sparse/roti.cpp` | Defines SparseOps::roti, which records the sparse plane rotation task |
+| `engine/sparse/sctr.cpp` | Defines SparseOps::sctr, which records the sparse scatter task |
+| `engine/sparse/spmm.cpp` | Defines SparseOps::spmm, which records the sparse-times-dense matrix product task |
+| `engine/sparse/spmv.cpp` | Defines SparseOps::spmv, which records the sparse matrix-vector product task |
+| `engine/sparse/spsymv.cpp` | Defines SparseOps::spsymv and sphemv, which record the one-triangle product tasks |
+| `engine/sparse/sptrsv.cpp` | Defines SparseOps::sptrsv, which records the sparse triangular solve task |
+
+Spatial:
+
+| File | Defines |
+| --- | --- |
+| `engine/spatial/broadcast.cpp` | Defines SpatialOps::channel_affine, broadcast_spatial and layout_convert, which record the three broadcast copies |
+| `engine/spatial/channels.cpp` | Defines SpatialOps::concat_channels and slice_channels, which record the copy of a run of channels |
+| `engine/spatial/col2im.cpp` | Defines SpatialOps::col2im, which records the scatter of a column matrix back onto an image |
+| `engine/spatial/im2col.cpp` | Defines the two SpatialOps::im2col overloads, which record the gather of image windows into a column matrix |
+| `engine/spatial/pool_avg.cpp` | Defines SpatialOps::pool_avg and pool_avg_backward, which record average pooling and its gradient |
+| `engine/spatial/pool_max.cpp` | Defines SpatialOps::pool_max, which records max pooling with its argmax indices |
+| `engine/spatial/pool_max_backward.cpp` | Defines SpatialOps::pool_max_backward, which records the gradient of max pooling |
+| `engine/spatial/upsample_nearest.cpp` | Defines SpatialOps::upsample_nearest and upsample_nearest_backward, which record nearest-neighbour upsampling and its gradient |
+| `engine/spatial/window_dot.cpp` | Defines SpatialOps::window_dot and window_dot_backward, which record the per-channel weighted window sum and its input gradient |
+| `engine/spatial/window_dot_weights_backward.cpp` | Defines SpatialOps::window_dot_weights_backward, which records the weight gradient of the per-channel weighted window sum |
+
+Logic:
+
+| File | Defines |
+| --- | --- |
+| `engine/logic/all.cpp` | Defines LogicOps::all, which records the reduction that tests whether every element is non-zero |
+| `engine/logic/any.cpp` | Defines LogicOps::any, which records the reduction that tests whether any element is non-zero |
+| `engine/logic/equal.cpp` | Defines LogicOps::equal, which records the elementwise equal task over two tensors |
+| `engine/logic/greater.cpp` | Defines LogicOps::greater, which records the elementwise greater task over two tensors |
+| `engine/logic/greater_equal.cpp` | Defines LogicOps::greater_equal, which records the elementwise greater_equal task over two tensors |
+| `engine/logic/less.cpp` | Defines LogicOps::less, which records the elementwise less task over two tensors |
+| `engine/logic/less_equal.cpp` | Defines LogicOps::less_equal, which records the elementwise less_equal task over two tensors |
+| `engine/logic/logical_and.cpp` | Defines LogicOps::logical_and, which records the elementwise logical_and task over two tensors |
+| `engine/logic/logical_not.cpp` | Defines LogicOps::logical_not, which records the elementwise logical_not task |
+| `engine/logic/logical_or.cpp` | Defines LogicOps::logical_or, which records the elementwise logical_or task over two tensors |
+| `engine/logic/logical_xor.cpp` | Defines LogicOps::logical_xor, which records the elementwise logical_xor task over two tensors |
+| `engine/logic/not_equal.cpp` | Defines LogicOps::not_equal, which records the elementwise not_equal task over two tensors |
+| `engine/logic/where.cpp` | Defines LogicOps::where, which records the elementwise choice between two tensors by a condition |
+
+Elementwise:
+
+| File | Defines |
+| --- | --- |
+| `engine/math/elementwise/abs.cpp` | Defines ElementwiseOps::abs, which records the in-place elementwise abs task |
+| `engine/math/elementwise/acos.cpp` | Defines ElementwiseOps::acos, which records the in-place elementwise acos task |
+| `engine/math/elementwise/acosh.cpp` | Defines ElementwiseOps::acosh, which records the in-place elementwise acosh task |
+| `engine/math/elementwise/add.cpp` | Defines ElementwiseOps::add, which records the elementwise add task over two tensors |
+| `engine/math/elementwise/asin.cpp` | Defines ElementwiseOps::asin, which records the in-place elementwise asin task |
+| `engine/math/elementwise/asinh.cpp` | Defines ElementwiseOps::asinh, which records the in-place elementwise asinh task |
+| `engine/math/elementwise/atan.cpp` | Defines ElementwiseOps::atan, which records the in-place elementwise atan task |
+| `engine/math/elementwise/atanh.cpp` | Defines ElementwiseOps::atanh, which records the in-place elementwise atanh task |
+| `engine/math/elementwise/ceil.cpp` | Defines ElementwiseOps::ceil, which records the in-place elementwise ceil task |
+| `engine/math/elementwise/clamp.cpp` | Defines ElementwiseOps::clamp, which records the in-place elementwise clamp task |
+| `engine/math/elementwise/convert.cpp` | Defines ElementwiseOps::convert, which records the dtype-converting copy between real tensors |
+| `engine/math/elementwise/cos.cpp` | Defines ElementwiseOps::cos, which records the in-place elementwise cos task |
+| `engine/math/elementwise/cosh.cpp` | Defines ElementwiseOps::cosh, which records the in-place elementwise cosh task |
+| `engine/math/elementwise/div.cpp` | Defines ElementwiseOps::div, which records the elementwise div task over two tensors |
+| `engine/math/elementwise/exp.cpp` | Defines ElementwiseOps::exp, which records the in-place elementwise exp task |
+| `engine/math/elementwise/floor.cpp` | Defines ElementwiseOps::floor, which records the in-place elementwise floor task |
+| `engine/math/elementwise/fmod.cpp` | Defines ElementwiseOps::fmod, which records the elementwise fmod task over two tensors |
+| `engine/math/elementwise/log.cpp` | Defines ElementwiseOps::log, which records the in-place elementwise log task |
+| `engine/math/elementwise/max.cpp` | Defines ElementwiseOps::max, which records the elementwise max task over two tensors |
+| `engine/math/elementwise/min.cpp` | Defines ElementwiseOps::min, which records the elementwise min task over two tensors |
+| `engine/math/elementwise/mul.cpp` | Defines ElementwiseOps::mul, which records the elementwise mul task over two tensors |
+| `engine/math/elementwise/neg.cpp` | Defines ElementwiseOps::neg, which records the in-place elementwise neg task |
+| `engine/math/elementwise/pow.cpp` | Defines ElementwiseOps::pow, which records the in-place elementwise pow task |
+| `engine/math/elementwise/reciprocal.cpp` | Defines ElementwiseOps::reciprocal, which records the in-place elementwise reciprocal task |
+| `engine/math/elementwise/remainder.cpp` | Defines ElementwiseOps::remainder, which records the elementwise remainder task over two tensors |
+| `engine/math/elementwise/round.cpp` | Defines ElementwiseOps::round, which records the in-place elementwise round task |
+| `engine/math/elementwise/sin.cpp` | Defines ElementwiseOps::sin, which records the in-place elementwise sin task |
+| `engine/math/elementwise/sinh.cpp` | Defines ElementwiseOps::sinh, which records the in-place elementwise sinh task |
+| `engine/math/elementwise/sqrt.cpp` | Defines ElementwiseOps::sqrt, which records the in-place elementwise sqrt task |
+| `engine/math/elementwise/square.cpp` | Defines ElementwiseOps::square, which records the in-place elementwise square task |
+| `engine/math/elementwise/sub.cpp` | Defines ElementwiseOps::sub, which records the elementwise sub task over two tensors |
+| `engine/math/elementwise/tan.cpp` | Defines ElementwiseOps::tan, which records the in-place elementwise tan task |
+
+Non-linear:
+
+| File | Defines |
+| --- | --- |
+| `engine/math/nonlinear/elu.cpp` | Defines NonLinearOps::elu and NonLinearOps::elu_backward, which record the elu activation and its gradient |
+| `engine/math/nonlinear/gelu.cpp` | Defines NonLinearOps::gelu and NonLinearOps::gelu_backward, which record the gelu activation and its gradient |
+| `engine/math/nonlinear/leaky_relu.cpp` | Defines NonLinearOps::leaky_relu and NonLinearOps::leaky_relu_backward, which record the leaky_relu activation and its gradient |
+| `engine/math/nonlinear/relu.cpp` | Defines NonLinearOps::relu and NonLinearOps::relu_backward, which record the relu activation and its gradient |
+| `engine/math/nonlinear/sigmoid.cpp` | Defines NonLinearOps::sigmoid and NonLinearOps::sigmoid_backward, which record the sigmoid activation and its gradient |
+| `engine/math/nonlinear/silu.cpp` | Defines NonLinearOps::silu and NonLinearOps::silu_backward, which record the silu activation and its gradient |
+| `engine/math/nonlinear/softplus.cpp` | Defines NonLinearOps::softplus and NonLinearOps::softplus_backward, which record the softplus activation and its gradient |
+| `engine/math/nonlinear/tanh.cpp` | Defines NonLinearOps::tanh and NonLinearOps::tanh_backward, which record the tanh activation and its gradient |
+
+Random:
+
+| File | Defines |
+| --- | --- |
+| `engine/math/random/bernoulli.cpp` | Defines RandomOps::bernoulli, which records the Bernoulli fill of a tensor |
+| `engine/math/random/constant.cpp` | Defines RandomOps::constant, which records the constant fill of a tensor |
+| `engine/math/random/discrete_uniform.cpp` | Defines RandomOps::discrete_uniform, which records the discrete uniform fill of a tensor |
+| `engine/math/random/exponential.cpp` | Defines RandomOps::exponential, which records the exponential fill of a tensor |
+| `engine/math/random/he_normal.cpp` | Defines RandomOps::he_normal, which records the He normal fill of a tensor |
+| `engine/math/random/he_uniform.cpp` | Defines RandomOps::he_uniform, which records the He uniform fill of a tensor |
+| `engine/math/random/log_normal.cpp` | Defines RandomOps::log_normal, which records the log-normal fill of a tensor |
+| `engine/math/random/normal.cpp` | Defines RandomOps::normal, which records the normal fill of a tensor |
+| `engine/math/random/orthogonal.cpp` | Defines RandomOps::orthogonal, which records the orthogonal initialisation of a matrix |
+| `engine/math/random/poisson.cpp` | Defines RandomOps::poisson, which records the Poisson fill of a tensor |
+| `engine/math/random/set_seed.cpp` | Defines RandomOps::set_seed, which reseeds the stream the view draws from |
+| `engine/math/random/shuffle.cpp` | Defines RandomOps::shuffle, which records the in-place shuffle of a tensor's elements |
+| `engine/math/random/truncated_normal.cpp` | Defines RandomOps::truncated_normal, which records the truncated normal fill of a tensor |
+| `engine/math/random/uniform.cpp` | Defines RandomOps::uniform, which records the uniform fill of a tensor |
+| `engine/math/random/xavier_normal.cpp` | Defines RandomOps::xavier_normal, which records the Xavier normal fill of a tensor |
+| `engine/math/random/xavier_uniform.cpp` | Defines RandomOps::xavier_uniform, which records the Xavier uniform fill of a tensor |
+
+Reductions:
+
+| File | Defines |
+| --- | --- |
+| `engine/math/reductions/argmax.cpp` | Defines ReductionOps::argmax, which records the argmax reduction |
+| `engine/math/reductions/argmin.cpp` | Defines ReductionOps::argmin, which records the argmin reduction |
+| `engine/math/reductions/asum.cpp` | Defines ReductionOps::asum, which records the sum-of-magnitudes reduction |
+| `engine/math/reductions/count_nonfinite.cpp` | Defines ReductionOps::count_nonfinite, which records the non-finite count reduction |
+| `engine/math/reductions/logsumexp.cpp` | Defines ReductionOps::logsumexp, which records the log-sum-exp reduction |
+| `engine/math/reductions/max.cpp` | Defines ReductionOps::max, which records the maximum reduction |
+| `engine/math/reductions/max_along.cpp` | Defines ReductionOps::max_along, which records the per-axis maximum reduction |
+| `engine/math/reductions/mean.cpp` | Defines ReductionOps::mean, which records the mean reduction |
+| `engine/math/reductions/mean_spatial.cpp` | Defines ReductionOps::mean_spatial, which records the spatial mean reduction |
+| `engine/math/reductions/min.cpp` | Defines ReductionOps::min, which records the minimum reduction |
+| `engine/math/reductions/min_along.cpp` | Defines ReductionOps::min_along, which records the minimum along one axis |
+| `engine/math/reductions/nrm2.cpp` | Defines ReductionOps::nrm2, which records the Euclidean norm reduction |
+| `engine/math/reductions/prod.cpp` | Defines ReductionOps::prod, which records the product reduction |
+| `engine/math/reductions/std.cpp` | Defines ReductionOps::std, which records the standard deviation reduction |
+| `engine/math/reductions/sum.cpp` | Defines ReductionOps::sum, which records the sum reduction |
+| `engine/math/reductions/sum_along.cpp` | Defines ReductionOps::sum_along, which records the per-axis sum reduction |
+| `engine/math/reductions/var.cpp` | Defines ReductionOps::var, which records the variance reduction |
 
 ## Notes by file
 
@@ -32,8 +232,8 @@ before it writes it, so `y` is an accumulator and not only a destination.
 ### `src/engine/blas/level1/copy.cpp`
 
 `Level1::copy` throws when the two dtypes differ. `?copy` is a BLAS routine, and every BLAS
-routine is fixed to one precision. The message names `elementwise().convert`, the converting copy,
-because a caller who wanted a conversion reaches this line.
+routine is fixed to one precision. The message names `ElementwiseOps::convert`, the converting
+copy, because a caller who wanted a conversion reaches this line.
 
 `copy` is the only BLAS operation recorded with `Domain::ALL`. It moves elements and does no
 arithmetic on them, so it can serve every element type, the integer ones included. An index tensor
@@ -41,8 +241,9 @@ that `iamax` or `argmax` produced can then be moved without passing through a fl
 
 ### `src/engine/blas/level1/dot.cpp`
 
-For complex dtypes `Level1::dot` computes the conjugated dot product (DOTC), as the earlier
-oneMKL-backed version did.
+`dot.cpp` defines `Level1::dot`, `dotu` and `dotc`. `dot` is defined for real tensors and throws
+`std::invalid_argument` for a complex one, naming `dotu` and `dotc`. `dotu` does not conjugate
+and `dotc` conjugates `x`. All three record through one helper in the file.
 
 ### `src/engine/blas/level1/iamax.cpp`
 
@@ -62,13 +263,18 @@ four-byte write, so the dependency tracker ordered nothing against the corruptio
 `Level1::rot` declares both operands as read and written. Each new `x_i` is built from the old
 `x_i` and `y_i`, and each new `y_i` likewise.
 
+### `src/engine/blas/level1/swap.cpp`
+
+`Level1::swap` declares both operands with `OperandSet::updates`: each is read and written, so
+each sits in both access sets.
+
 ### `src/engine/blas/level2/gemv.cpp`
 
-`Level2::gemv` declares a read of `y` whenever `beta` is non-zero, because
-`y = alpha * op(A) * x + beta * y` reads it then. The test is made on the caller's double, not on
-the value narrowed to the element type. A `beta` that is non-zero as a double and flushes to zero
-in the element type declares an edge the kernel does not need. It can never drop an edge the
-kernel does need.
+`Level2::gemv` declares a read of `y` whenever `beta` is non-zero, because `y = alpha * op(A) * x +
+beta * y` reads it then. The test is `BlasScalar::is_zero` on the caller's value, not on the value
+narrowed to the element type. A `beta` that is non-zero as a double and flushes to zero in the
+element type declares an edge the kernel does not need. It can never drop an edge the kernel does
+need.
 
 ### `src/engine/blas/level2/ger.cpp`
 
@@ -97,10 +303,14 @@ second copy of the substitution would add nothing.
 `trsv` passes `b` as an n x 1 matrix. A row-major row of that matrix has one element, so
 `ldb = 1`; a column-major column needs `ldb >= n`.
 
+`b` is declared with `updates`. Where `RunningSolution` needs a wide copy of the solution, the
+operation leases it with `Internal::allocate_blas_scratch` and hands it to the SYCL kernel.
+
 ### `src/engine/blas/level3/gemm.cpp`
 
 `Level3::gemm` calls the fused GEMM with nothing fused into it. That avoids a second copy of the
-shape derivation, the access set, the dtype switch and the three `ExecutionMode` branches.
+shape derivation, the access set, the scratch lease, the dtype switch and the choice between the
+reference and the SYCL kernel.
 `GemmIdentityEpilogue` inlines to its argument, so the kernel this file records is byte for byte
 the one it recorded when it called the kernel directly; see
 `include/SushiBLAS/engine/blas/README.md`, under `execute_gemm`.
@@ -116,9 +326,15 @@ beta term reads `C` when beta != 0, and the triangular mask leaves the opposite 
 even when beta == 0. A byte interval cannot express "one triangle", so the declaration that is
 true of the whole region is read and write.
 
+### `src/engine/blas/level3/syr2k.cpp`
+
+`Level3::syr2k` and `her2k` declare `C` with `updates` whatever `beta` is, for the reason given
+under `src/engine/blas/level3/syrk.cpp` above: one triangle of `C` is kept.
+
 ### `src/engine/logic/all.cpp`
 
-`LogicOps::all` uses `sycl::reduction`, which a floating-point sum in this library must not. The
+`LogicOps::all` uses `sycl::reduction` on its SYCL path, which a floating-point sum in this library
+must not. Under `FORCE_REFERENCE` it runs `all_reference`, a serial loop in the same file. The
 SYCL specification leaves the combination order of a reduction unspecified, and that matters only
 for a combiner whose result depends on the order. `all` reduces over two values, T(0) and T(1),
 under `minimum`, which is associative, commutative and exact on that domain, so every order gives
@@ -172,7 +388,8 @@ because the dispatch in `dispatch_destination` and `ElementwiseOps::convert` has
 during instantiation (see `include/SushiBLAS/engine/README.md`, under `execute_typed_task`), and
 an operation over two types is where that nesting would otherwise be written.
 
-`record_convert` launches through `Launch::indexed`. `Launch::map` has a `static_assert` that
+`record_convert` launches through `Launch::indexed` on the SYCL path, and runs the same functor
+through `Serial::indexed` under `FORCE_REFERENCE`. `Launch::map` has a `static_assert` that
 every operand shares one element type, and the assertion is correct: the wide pass of `map` loads
 and stores `sycl::vec<T, W>` at one width, and two operands of different widths have no common W.
 `convert` therefore gets the device split, flat on a CPU and grid-stride on a GPU, and no vector
@@ -197,11 +414,8 @@ is how a silent no-op gets in; `include/SushiBLAS/engine/blas/README.md`, under
 `execute_blas_task`, gives the same reason for its own.
 
 The dtype check in `ElementwiseOps::convert` names both dtypes in its message. The caller's first
-question is which one was wrong, and the pair is what was rejected.
-
-The element-count check is redundant after the shape check that precedes it. It is kept because
-the kernel's loop bound rests on equal element counts. If equal shapes ever stop implying equal
-counts, this assertion fires before the kernel runs off an operand.
+question is which one was wrong, and the pair is what was rejected. It throws
+`std::invalid_argument`, as every record-time check in this file does.
 
 `convert` refuses a non-contiguous operand by name. The kernel walks a flat index, so it would
 read a view whose elements are not laid out flatly at the wrong addresses, and nothing would
@@ -249,10 +463,13 @@ tall one. At most min(rows, cols) vectors can be mutually orthogonal. The result
 Q Q^T = gain^2 I in the first case and Q^T Q = gain^2 I in the second, the same convention as
 PyTorch's `orthogonal_`.
 
-The sweep itself is `Kernels::SYCL::Random::orthonormalize`, one work-group per vector; see
-`kernels/README.md`. It takes its steps from `t.strides`, not from arithmetic on rows and
-columns, so it is correct for `ROW_MAJOR` and `COLUMN_MAJOR` with no special case. A column-major matrix walks the
-two axes in the other order, and the transpose of an orthogonal matrix is orthogonal.
+The sweep itself is `Kernels::SYCL::Random::orthonormalize`, one work-group per vector, or
+`Kernels::Reference::Random::orthonormalize` under `FORCE_REFERENCE`; see `kernels/README.md`.
+`orthogonal` calls `TaskRecorder::require_host_reachable` before it records the fill, so a refused
+call records nothing and draws nothing. It takes its steps from `t.strides`, not from arithmetic on
+rows and columns, so it is correct for `ROW_MAJOR` and `COLUMN_MAJOR` with no special case. A
+column-major matrix walks the two axes in the other order, and the transpose of an orthogonal matrix
+is orthogonal.
 
 ### `src/engine/math/random/poisson.cpp`
 
@@ -261,13 +478,15 @@ time, computes the per-lambda constants once on the host with
 `Kernels::SYCL::Random::make_poisson_params`, and fills one element per work-item with
 `draw_poisson`. Below lambda 10 the draw is Knuth's multiplication loop; from 10 up it is
 Hoermann's PTRS. The math module README explains the bound and `kernels/README.md` the two
-methods.
+methods. It throws `UnsupportedExecution` when `t` has elements and its device lacks the fp64
+aspect.
 
 ### `src/engine/math/random/shuffle.cpp`
 
 `RandomOps::shuffle` runs Fisher-Yates sequentially. Each step draws its swap partner from a range
 that depends on the step index, so the permutation is uniform only if the steps happen in order. A
-`single_task` keeps that order on the device and leaves the tensor's data where it is. The
+`single_task` keeps that order on the device and leaves the tensor's data where it is; under
+`FORCE_REFERENCE` the same `FisherYates` functor runs on the host. The
 parallel alternative tags every element with a random key and sorts, which needs a second buffer
 of the full size and a device sort this library does not have.
 
@@ -285,15 +504,15 @@ describes: one flat run of 2n reals, read four FLOAT32 or two FLOAT64 values per
 
 ### `src/engine/math/reductions/argmax.cpp`
 
-`ReductionOps::argmax` scans sequentially, so its answer does not depend on any combination order.
-The scan visits indices in ascending order every time, the lowest-index maximum always wins a tie,
-and the result is reproducible to the bit. Whatever replaces the scan must keep that rule.
-`ArgMaxCombine`, defined in the same file, breaks ties on the index so that a tree reduction
-would give the same answer.
+`ReductionOps::argmax` folds (value, index) pairs through `Dispatch::ArgReductionDispatch` over
+`Reduce::RunningArgMax`, in the fixed-order shape of `Reduce::reduce_indexed`. The accumulator's
+order is total: the larger value wins, then the lower index, and its NaN rule is stated on
+`RunningArgMax::combine`. Because the order is total the combination order cannot change the
+answer, so the lowest-index maximum wins a tie on every device and launch shape. Under
+`FORCE_REFERENCE` the same accumulator folds in index order on the host.
 
-The scan is a single-threaded device loop. Custom reductions through `sycl::reduction` behave
-differently on the OpenCL and Level-Zero backends, and the tie-breaking rule must not change with
-the backend.
+It does not go through `sycl::reduction`: custom reductions behave differently on the OpenCL and
+Level-Zero backends, and the tie-breaking rule must not change with the backend.
 
 The result goes into an INT64 tensor through `execute_index_reduction`, not into a tensor of the
 input's dtype through `execute_reduction`. It was once stored as `static_cast<T>(idx)`, a float. A
@@ -303,10 +522,9 @@ ceiling is 2048.
 
 ### `src/engine/math/reductions/argmin.cpp`
 
-`ReductionOps::argmin` scans sequentially for the reasons given under
-`src/engine/math/reductions/argmax.cpp` above: the lowest-index minimum always wins a tie, and the
-result is reproducible to the bit. A tree reduction is equivalent only if its combiner breaks ties
-on the index, as `ArgMaxCombine` in `argmax.cpp` does.
+`ReductionOps::argmin` is `argmax` with `Reduce::RunningArgMin`: the lowest-index minimum always
+wins a tie, and the result does not depend on the combination order, for the reasons given under
+`src/engine/math/reductions/argmax.cpp` above.
 
 The result goes into an INT64 tensor through `execute_index_reduction`. The same section explains
 why a result stored in the input's dtype was wrong above 2^24, and above 2048 in HALF.
@@ -318,9 +536,11 @@ questions about this operation. The first is why the result is an INT64 count an
 the input's dtype. The second is why `asum`, which would almost have served, reports false
 positives on the mixed-precision input this operation exists for.
 
-The operation is one call to the counting seam with a predicate transform. `Reduce::reduce` gives
-it the library's fixed-order two-stage fold. The accumulation type is in that function's signature
-so that no operation has to write a second copy of the fold.
+The operation is one call to the counting seam with a dispatcher whose transform is a predicate.
+`Reduce::reduce` gives its SYCL path the library's fixed-order two-stage fold, and
+`Serial::reduce` gives its host path the same fold in index order, both over `Reduce::ExactSum`.
+The accumulation type is in those functions' signatures so that no operation has to write a
+second copy of the fold.
 
 The scratch is sized from the device the data lives on, as in `execute_folding_reduction`.
 `Reduce::plan` clamps to whatever scratch exists at launch, so a disagreement between the two
@@ -336,25 +556,22 @@ the suite tests the two separately.
 
 `ReductionOps::max` propagates NaN, as NumPy's `max` does: if any element is NaN, the result is
 NaN, whatever the element's position and whatever launch shape the device gets. It folds through
-`Reduce::reduce` in `include/SushiBLAS/support/reduce_1d.hpp` with `NaNPropagatingMax`, an
-accumulator local to `max.cpp`. `Reduce::RunningMax` cannot serve here: its `<` comparison is false
-against a NaN, so a NaN survives only when it arrives first. `NaNPropagatingMax` returns NaN from
+`Dispatch::execute_folding_reduction` with `Reduce::NaNPropagatingMax` from
+`include/SushiBLAS/support/reduce_1d.hpp`. A plain `<` comparison is false against a NaN, so
+under it a NaN would survive only when it arrives first. `NaNPropagatingMax` returns NaN from
 `combine` when either side is NaN and stops changing once `accumulate` has seen one, so every fold
 order gives NaN.
 
-An empty tensor writes `std::numeric_limits<T>::lowest()` of the element type. The dispatch writes
-it directly, because the fold accumulates a HALF input in FLOAT32 and FLOAT32's `lowest()` rounds to
-HALF's negative infinity.
+An empty tensor throws `std::invalid_argument` when the call is recorded.
 
 ### `src/engine/math/reductions/max_along.cpp`
 
-`ReductionOps::max_along` goes through the folding seam. The whole-tensor `max` in
-`src/engine/math/reductions/max.cpp` folds through the same shared machinery with a
-NaN-propagating accumulator, while `max_along` still uses `RunningMax`, so a NaN in an axis
-reduction is order-dependent. The axis family has one shape that serves every accumulator,
-because `sycl::reduction` has no segmented form. Because `maximum` is exactly associative,
-`max_along` is bit-reproducible for a stronger reason than the additive reductions are. See
-`include/SushiBLAS/support/README.md`, under `RunningMax`.
+`ReductionOps::max_along` goes through the folding seam with `Reduce::NaNPropagatingMax`, the
+accumulator the whole-tensor `max` uses, so a NaN in a segment makes that segment's result NaN
+and a per-axis maximum agrees with a whole-tensor one. The axis family has one shape that serves
+every accumulator, because `sycl::reduction` has no segmented form. `min_along.cpp` is the same
+call with `Reduce::NaNPropagatingMin`. See `include/SushiBLAS/support/README.md`, under
+`NaNPropagatingMax`.
 
 ### `src/engine/math/reductions/mean.cpp`
 
@@ -371,9 +588,8 @@ which `spatial_span_for` builds and the second segment axis of `AxisSpan` carrie
 
 ### `src/engine/math/reductions/min.cpp`
 
-`ReductionOps::min` mirrors `max` above, with `NaNPropagatingMin` local to `min.cpp`: any NaN
-element makes the result NaN in every fold order, and an empty tensor writes
-`std::numeric_limits<T>::max()` of the element type.
+`ReductionOps::min` mirrors `max` above, with `Reduce::NaNPropagatingMin`: any NaN element makes
+the result NaN in every fold order, and an empty tensor throws `std::invalid_argument`.
 
 ### `src/engine/math/reductions/nrm2.cpp`
 
@@ -479,6 +695,19 @@ The dtype that drives the switch is the value tensor's. The index pointer is cap
 In `SpatialOps::pool_max_backward`, `dx` takes the input role in the span, since it has the
 image's H, W and strides, and `dy` takes the output role. That is the assignment the forward made,
 so the geometry must be the forward's exactly.
+
+### `src/engine/spatial/window_dot.cpp`, `window_dot_weights_backward.cpp`
+
+`SpatialOps::window_dot` builds its span with the two-operand `window_span_for` and its taps with
+`tap_span_for`, and refuses an output that shares a byte with an input, because the kernel is a
+gather that reads while it writes.
+
+In `window_dot_backward`, `dx` takes the input role in the span and `dy` the output role, the
+assignment the forward made, so the geometry must be the forward's. In
+`window_dot_weights_backward`, `in` takes the input role and `dy` the output role for the same
+reason, and `dweights` is described by `tap_span_for` as `weights` is in the forward.
+
+All three are recorded with `Domain::REAL`.
 
 ### `src/engine/spatial/upsample_nearest.cpp`
 

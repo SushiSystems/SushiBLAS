@@ -253,6 +253,7 @@ namespace SushiBLAS
                  * @param element The dtype of the operation's elements.
                  * @throws std::invalid_argument for a read that is empty, has no storage, holds
                  *         another dtype than it was declared with, or is not contiguous.
+                 * @throws UnsupportedExecution for a read whose device cannot compute in its dtype.
                  */
                 void require(Core::DataType element, const char* name) const
                 {

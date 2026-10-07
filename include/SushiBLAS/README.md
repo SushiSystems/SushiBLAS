@@ -1,19 +1,33 @@
 # SushiBLAS public headers
 
 `include/SushiBLAS` holds every header a consumer of the library includes. `SushiBLAS.h` includes
-the core, storage, engine, tensor and version headers in one line.
+the core, storage, tensor, engine and version headers and every operation family in one line.
+
+| File | Declares |
+| --- | --- |
+| `SushiBLAS.h` | The one include a consumer needs |
+| `engine.hpp` | `Engine`, which owns one task graph and the bricks that record on it, and runs it |
+| `tensor_factory.hpp` | `TensorFactory`, which allocates dense tensors from one runtime context |
+| `tensor.hpp` | `Tensor`, a typed, strided view over a `Storage` |
+| `storage.hpp` | `Storage`, the reference-counted USM allocation, and `K_STORAGE_ALIGNMENT` |
+| `io.hpp` | `IO`, which saves, loads and displays tensors |
+| `sparse_matrix.hpp` | `SparseMatrix`, a matrix held in compressed sparse row form |
+| `sparse_vector.hpp` | `SparseVector`, the positions and values of a vector's stored entries |
+| `sparse_builder.hpp` | `SparseBuilder`, which builds both sparse containers from host data |
+| `version.hpp` | The version macros |
 
 | Folder | Holds | Reasoning |
 | --- | --- | --- |
 | `core/` | Element types, type traits, the format stand-in, the logger | [core/README.md](core/README.md) |
-| `engine/` | The dispatch seam, the operand checks, the task recorder | [engine/README.md](engine/README.md) |
-| `engine/blas/` | BLAS levels 1 to 3 and the GEMM executor | [engine/blas/README.md](engine/blas/README.md) |
+| `engine/` | The task recorder, the operand set and checks, the scratch pool, the dispatch seam, the operation views | [engine/README.md](engine/README.md) |
+| `engine/blas/` | BLAS levels 1 to 3, the operand describers and the GEMM executor | [engine/blas/README.md](engine/blas/README.md) |
 | `engine/logic/` | Comparison and logical operations | [engine/logic/README.md](engine/logic/README.md) |
 | `engine/math/` | Elementwise, non-linear, random and reduction operations | [engine/math/README.md](engine/math/README.md) |
+| `engine/sparse/` | The record-time checks and operand describers of the sparse operations | [engine/sparse/README.md](engine/sparse/README.md) |
 | `engine/spatial/` | Window span builders of the spatial operations | [engine/spatial/README.md](engine/spatial/README.md) |
 | `experimental/` | LAPACK and signal declarations that have no implementation | [experimental/README.md](experimental/README.md) |
-| `kernels/` | The GEMM kernels and epilogues a public seam instantiates | [kernels/README.md](kernels/README.md) |
-| `support/` | The accumulator trait, the device policy, the launch and reduction shapes, the window geometry | [support/README.md](support/README.md) |
+| `kernels/` | The GEMM kernels and epilogues a public seam instantiates, and the access bricks the BLAS kernels share | [kernels/README.md](kernels/README.md) |
+| `support/` | The accumulator traits, the device policy, the launch and reduction shapes, the serial host loops, the window geometry, the sparse assembly | [support/README.md](support/README.md) |
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to. The header states the rule in one line and cites
@@ -21,13 +35,34 @@ this page.
 
 ## `engine.hpp`
 
+### `Engine`
+
+`Engine` is a composition root. It holds the runtime context it was built on and owns five bricks:
+a `ScratchPool`, the `TaskGraph`, a `TaskRecorder` bound to that graph and pool, a `TensorFactory`
+and an `RngStream`. It declares no operation and has no accessor for the graph. An operation view
+(`BLASOps`, `SparseOps`, `SpatialOps`, `ElementwiseOps`, `NonLinearOps`, `ReductionOps`,
+`RandomOps`, `LogicOps`) is built from an `Engine&` or from the bricks it needs: `BLASOps
+blas(engine)` and `BLASOps blas(engine.get_recorder())` record on the same graph. Every operation
+of a view returns a `TaskHandle`, and the work runs in `Engine::execute()`.
+
+`set_mode` and `get_mode` forward to the recorder, and `get_layout` to the factory. `set_mode` is
+`noexcept`: `ExecutionMode` has the three enumerators `AUTO`, `FORCE_SYCL` and `FORCE_REFERENCE`,
+and none of them is refused.
+
 ### `Engine::execute`
 
-At `if (compiled.roots.empty()) return sycl::event();`: several io.cpp paths call execute()
-defensively (flush any pending device write before a host-side read) even when nothing was queued:
-e.g. a tensor filled directly through its host-visible pointer, no add_task involved.
-IExecutionEngine::execute() throws on a graph with no root nodes, so treat empty as an
-already-complete no-op instead.
+Returns `void` once every recorded task has finished. At `if (compiled.roots.empty()) return;`:
+several io.cpp paths call execute() defensively (flush any pending device write before a host-side
+read) even when nothing was queued: e.g. a tensor filled directly through its host-visible
+pointer, no add_task involved. IExecutionEngine::execute() throws on a graph with no root nodes,
+so an empty graph is a no-op instead.
+
+### The scratch pool
+
+`Engine::get_scratch_pool()` returns the `ScratchPool` operations lease device scratch from; the
+recorder hands the same pool out through `TaskRecorder::get_scratch_pool()`. The engine declares
+the pool before the graph, so the graph and the tasks it holds are destroyed before the pool is.
+[engine/README.md](engine/README.md) describes the pool, the shelf and the lease.
 
 ### `RngStream::reseed`
 
@@ -51,9 +86,38 @@ pair, even under concurrent submission. The sequence restarts at zero on `reseed
 
 ### `Engine::create_tensor`
 
-Each form takes its dimensions either as a braced list or as a `std::vector<int64_t>`. The braced
-list forwards to the vector form, so both check the rank, negative dimensions and byte overflow
-before they allocate. `Tensor::reshape` has the same two forms.
+Each form takes its dimensions either as a braced list or as a `SushiRuntime::span<const int64_t>`.
+Both forward to `TensorFactory::create`, so both check the rank, negative dimensions, byte overflow
+and the device index before they allocate. `Tensor::reshape` takes a braced list or a
+`std::vector<int64_t>`.
+
+## `tensor_factory.hpp`
+
+`TensorFactory` holds a runtime context and a default layout, and `create` allocates a dense
+tensor. `Engine::create_tensor` forwards to it, and `SparseBuilder` takes a factory, so it builds
+sparse operands without an `Engine`. `allocation_bytes` is the size check alone: it returns the
+byte count a shape and dtype need, and throws `std::runtime_error` on a rank above
+`Core::MAX_TENSOR_RANK`, a negative dimension or an overflowing count. A shape with a zero
+dimension needs 0 bytes, and `create` then returns a tensor without storage.
+
+## `sparse_matrix.hpp`, `sparse_vector.hpp`
+
+`SparseMatrix` is a CSR matrix: `rows`, `cols`, an `index_base`, and the three rank-1 tensors
+`row_offsets` (`rows + 1` entries), `column_indices` and `values`. `SparseVector` is a `size`, an
+`index_base` and the two rank-1 tensors `indices` and `values`. The index tensors are INT32 or
+INT64. Both are structs of public tensors and check nothing themselves: `SparseOps` checks an
+operand when a call is recorded, through the describers under `engine/sparse/`.
+
+## `sparse_builder.hpp`
+
+`SparseBuilder` builds both containers on one device queue from host data. `matrix_from_triplets`
+takes COO triplets, adds the values of a repeated (row, column) pair and orders each row by
+ascending column. `matrix_from_dense` stores every element of a contiguous rank-2 tensor that is
+not equal to zero, NaN included; its precondition is that no recorded task that writes the tensor
+is waiting to run. `vector_from_entries` checks its positions with
+`Sparse::require_distinct_positions`. The assembly is in `support/sparse_assembly.hpp`; the
+builder allocates through the factory and fills the tensors from the assembled arrays. Every
+refusal here is `std::runtime_error`.
 
 ## `io.hpp`
 
@@ -86,7 +150,16 @@ same memory. A COLUMN_MAJOR tensor of rank 3 or more is rejected, as it is in `s
 ### `Storage::get_context`, `get_residency`, `get_device_index`
 
 The context, residency and device index are fixed at construction and readable only through these
-accessors. `size_bytes` and `requested_bytes` remain public fields.
+accessors. `size_bytes()` returns the bytes allocated, which is the requested size rounded up to
+`K_STORAGE_ALIGNMENT`.
+
+### `K_STORAGE_ALIGNMENT`
+
+Every allocation base is a multiple of 128 bytes, and so is every allocation size. The constant is
+`SushiRuntime::Core::DEFAULT_ALIGNMENT`, and a `static_assert` beside it fails the build if the
+runtime's value stops being 128. `Tensor::is_aligned()` reports whether a view's first element sits
+on that boundary: a view at `storage_offset` 0 does, and a view at another offset is aligned to
+its element size only.
 
 ### `Storage::allocation_base`
 
@@ -104,7 +177,7 @@ uses of the base are identity ("which allocation is this?") and deallocation.
 ### `Tensor::storage_offset`
 
 Elements, never bytes. `data()` scales it by `bytes_per_element(dtype)`, so a view is by
-construction at a whole number of elements from a 64-byte-aligned allocation base and therefore
+construction at a whole number of elements from a 128-byte-aligned allocation base and therefore
 always naturally aligned for its own element type: an fp32 view cannot land on an odd byte. Anything
 that computes an offset (`slice()`, a memory planner packing an arena) must count in elements too,
 and a planner packing mixed dtypes into one allocation has to round each tensor's start up to a
@@ -169,7 +242,7 @@ that already has a layout.
 - `l`: The memory layout this view is *interpreted* under. It no longer decides the strides, but it
   still tells a BLAS driver how to read the view.
 
-Throws `std::runtime_error` If the rank is too high, a stride is negative, or the described elements
+Throws `std::runtime_error` if the rank is too high, a stride is negative, or the described elements
 reach past the end of `s`.
 
 The bounds check in the explicit-stride constructor uses `element_span()`, not `num_elements`: a

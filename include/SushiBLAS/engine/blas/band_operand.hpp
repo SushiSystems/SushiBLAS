@@ -56,8 +56,8 @@ namespace SushiBLAS
          * @brief Returns the geometry of a band operand with kl sub- and ku super-diagonals.
          * @param kl_name Names kl in a message, such as "kl" or "k"; ku_name names ku.
          * @throws std::invalid_argument on a tensor that is no contiguous rank-2 matrix with
-         *         storage its device can compute in, on a negative band width, or on fewer than
-         *         kl + ku + 1 elements per stored line.
+         *         storage, a negative band width, or fewer than kl + ku + 1 elements per line.
+         * @throws UnsupportedExecution on a dtype the tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/blas/README.md
          */
         [[nodiscard]] inline BandOperand describe_band_operand(const Tensor& t, int64_t kl,

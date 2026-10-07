@@ -37,8 +37,9 @@ namespace SushiBLAS
     {
         /**
          * @brief Throws unless a tensor is one stored element of the expected dtype.
-         * @throws std::invalid_argument on missing storage, another dtype, an element count
-         *         other than one, or a dtype the tensor's device cannot compute in.
+         * @throws std::invalid_argument on missing storage, another dtype or an element count
+         *         other than one.
+         * @throws UnsupportedExecution on a dtype the tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/blas/README.md
          */
         inline void require_scalar_operand(const Tensor& t, Core::DataType expected,

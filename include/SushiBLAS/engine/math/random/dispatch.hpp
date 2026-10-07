@@ -273,7 +273,7 @@ namespace SushiBLAS
          * @tparam Dom The element families the distribution draws; HALF is always refused.
          * @param params The distribution's parameters, recorded in metadata slots 0..n-1.
          * @param task_func Fills one element type of Dom through the RandomFill it is handed.
-         * @throws std::invalid_argument on an operand violation, or a device-only t under FORCE_REFERENCE; a refused call reserves no offset.
+         * @throws std::invalid_argument on an operand violation; UnsupportedExecution on a device-only t under FORCE_REFERENCE or a dtype its device cannot compute in. A refused call reserves no offset.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom, typename Func>

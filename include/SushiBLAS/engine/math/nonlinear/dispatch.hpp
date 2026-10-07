@@ -53,8 +53,8 @@ namespace SushiBLAS
          * @brief Records an activation's forward pass `t[i] = op(t[i])`, or nothing when t is empty.
          * @tparam Dom Defaults to Domain::REAL; a wider domain needs an op_func well-formed for it.
          * @param op_func Callable `(auto x) -> auto`, or a bind_scalars or bind_reads bundle of one.
-         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
-         *         or a device-only tensor under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand or declared-read violation, or too many params.
+         * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
@@ -93,8 +93,8 @@ namespace SushiBLAS
          * @brief Records an activation's backward pass `dx[i] = op(dy[i], x[i])`, or nothing when dx is empty.
          * @param x The saved forward input or output the derivative is taken against.
          * @param op_func Callable `(auto dy, auto x) -> auto`, or a bind_scalars or bind_reads bundle of one.
-         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
-         *         or a device-only tensor under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand or declared-read violation, or too many params.
+         * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>

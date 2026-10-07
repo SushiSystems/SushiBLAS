@@ -1,869 +1,909 @@
 # SushiBLAS Architecture
 
-This document describes how SushiBLAS is built, layer by layer. It is written
-for contributors who need an accurate mental model of the library — every
-class and file named here exists under `include/SushiBLAS/`, `src/`, or
-`kernels/`.
+This page describes how SushiBLAS is built, layer by layer, for a contributor who has to change
+it. Every class and file it names exists under `include/SushiBLAS/`, `src/` or `kernels/`. To use
+the library, the [root README](../../README.md) is enough.
 
-> If you only want to *use* the library, the top-level [README.md](../../README.md)
-> is enough. This document is about how the inside works.
+The page describes the tree as it is written at v0.1.0. That tree has not been built or run since
+the interface break began, so nothing here is a statement that an operation works or that one
+kernel is faster than another. No figure for speed appears on this page, because none has been
+measured on this code.
 
 ---
 
 ## 1. What SushiBLAS is
 
-SushiBLAS is a C++17 tensor and BLAS library layered on top of
-[SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph. It
-owns no execution engine, no scheduler, and no memory pool of its own — every
-one of those is SushiRuntime's. What SushiBLAS adds is a **domain layer**: a
-`Tensor` abstraction, an `Engine` facade that turns method calls into graph
-tasks, and a library of kernels (BLAS levels 1-3, elementwise arithmetic,
-non-linear activations, logical/comparison ops, reductions, and random
-generation) with zero dependency on a vendor math library.
+SushiBLAS is a C++17 tensor and BLAS library on
+[SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph. The scheduler, the
+execution engine and the USM allocator are SushiRuntime's. SushiBLAS adds a `Tensor`, an `Engine`
+that owns one graph, and eight operation families: dense BLAS, sparse BLAS, elementwise
+arithmetic, non-linear activations, logic and comparison, reductions, random generation and
+spatial (windowed) operations.
 
-Two design commitments shape every operation in the library:
+Two commitments shape every operation.
 
-1. **Every op is a SushiRuntime task, not a blocking call.** Calling
-   `engine.blas().gemm(A, B, C)` registers a task on the engine's `TaskGraph`
-   with `A`/`B` as reads and `C` as a write; it does not run anything.
-   SushiRuntime's dependency tracker infers ordering against every other
-   queued task from those reads/writes, exactly as it would for a hand-written
-   `TaskGraph::add_task` call. `engine.execute()` compiles and runs the graph.
-2. **No vendor math library, anywhere.** Every kernel is either pure C++
-   (`kernels/reference/`) or SushiBLAS's own SYCL (`kernels/sycl/`). GEMM and
-   SYRK use a local-memory-tiled kernel derived from portBLAS's tiling
-   algorithm (Apache-2.0, attributed in [`NOTICE.md`](../../NOTICE.md)); every
-   other operation — all of BLAS levels 1/2/3-TRSM, every elementwise/
-   nonlinear/logic/reduction op, and the Philox4x32-10 random backend — is
-   original SushiBLAS SYCL, written from scratch.
+1. **An operation is a recorded task.** `SushiBLAS::BLASOps(engine).gemm(A, B, C)` adds one task
+   to the engine's graph, with `A` and `B` declared as reads and `C` as a write, and returns a
+   `TaskHandle`. Nothing runs. SushiRuntime's dependency tracker orders the task against every
+   other recorded task from those declarations. `engine.execute()` compiles the graph, runs it and
+   returns when every task has finished.
+2. **No vendor math library.** Every kernel is plain C++ or SushiBLAS's own SYCL. The local-memory
+   tiling of GEMM and SYRK derives from portBLAS (Apache-2.0, attributed in
+   [`NOTICE.md`](../../NOTICE.md)); the rest is written here, the Philox4x32-10 random generator
+   included.
 
-The codebase targets C++17 — the same standard SushiRuntime is built to, and for
-a reason beyond tidiness. `SushiRuntime::span` (`core/span.hpp`) is `std::span` at
-C++20 and SushiRuntime's own shim below it, chosen on `__cplusplus`, and that choice
-reaches the compiled ABI. SushiBLAS at C++20 linked against a SushiRuntime at C++17
-put the two halves of one build on opposite sides of that branch. Nothing in
-SushiBLAS's own API changed when it moved: the two spans are the same type wherever
-`std::span` exists, and every span-taking entry point in these headers is **inline**,
-so the branch is re-decided in the consumer's own translation unit and never has to
-agree with a symbol somebody else compiled. That is what lets a consumer still on
-C++20 compile *and link* against this library unchanged, and `tests/package/` is
-built at C++20 to keep proving it. (SushiAI is at C++17 now and does not have that
-property — its span-taking exports are out-of-line, so the type reaches the mangled
-name; see its `INTEGRATION.md` §3.) The pieces C++20 had been supplying are C++17
-stand-ins now: `core/format.hpp` for `std::format` — shared with SushiAI through the
-public `Core::format`, so the stack carries one copy and deletes it in one place —
-`Core::Detail::SourceLocation` for `std::source_location`, and a value tag
-(`Dispatch::ElementTag`) where the dispatch seam used a templated lambda.
+The library is built at C++17, the standard SushiRuntime is built to. `SushiRuntime::span`
+(`core/span.hpp`) is `std::span` at C++20 and SushiRuntime's own type below it, chosen on
+`__cplusplus`, and that choice reaches SushiRuntime's compiled ABI. Every span-taking entry point
+in the SushiBLAS headers is inline, so the choice is made again in the consumer's translation
+unit and never has to agree with a symbol compiled elsewhere. That is what a consumer at C++20
+relies on. `tests/package/` is that consumer, set to C++20, and it has not been built against this
+tree. The
+pieces C++20 would supply are stand-ins: `core/format.hpp` for `std::format`,
+`Core::Detail::SourceLocation` for `std::source_location`, and the value tag `Dispatch::ElementTag`
+where a templated lambda would go.
 
 ---
 
 ## 2. The layered architecture
 
 ```
-   ┌──────────────────────────────────────────────────────────────┐
-   │  Engine                 create_tensor() · set_mode()         │  facade: owns the
-   │  (engine.hpp)           execute() · blas()/elementwise()/... │  RuntimeContext,
-   │                                                                │  TaskGraph, seed/RNG
-   ├──────────────────────────────────────────────────────────────┤
-   │  Per-domain op views    BLASOps(Level1+Level2+Level3+Sparse)  │  lightweight views —
-   │  (engine/*.hpp)         ElementwiseOps · NonLinearOps         │  no state of their
-   │                          LogicOps · ReductionOps · RandomOps  │  own, one Engine& each
-   │                          SpatialOps                            │
-   ├──────────────────────────────────────────────────────────────┤
-   │  Dispatch helpers       execute_typed_task() — runtime-dtype  │  engine/task.hpp
-   │                          switch over one add_task              │
-   │                         execute_blas_task() — the BLAS-named   │  engine/blas/utils.hpp
-   │                          forwarder onto it                     │
-   │                         dispatch_with_mode() — the             │  engine/task.hpp
-   │                          AUTO/FORCE_SYCL/FORCE_REFERENCE/      │
-   │                          (VERIFY is refused)                   │
-   ├──────────────────────┬───────────────────────────────────────┤
-   │  kernels/reference/   │  kernels/sycl/                        │  the two kernels
-   │  pure C++, ground     │  the hardware dispatcher, returns     │  every op has
-   │  truth, no deps       │  sycl::event                          │
-   ├──────────────────────┴───────────────────────────────────────┤
-   │  Tensor / Storage      shape+stride+dtype view over a          │  tensor.hpp,
-   │                        ref-counted USM allocation              │  storage.hpp
-   ├──────────────────────────────────────────────────────────────┤
-   │  SushiRuntime           TaskGraph · RuntimeContext ·           │  the backbone —
-   │                          Residency · Execution engine          │  everything below
-   │                                                                 │  this line is not
-   │                                                                 │  SushiBLAS's code
-   └──────────────────────────────────────────────────────────────┘
+   ┌────────────────────────────────────────────────────────────────┐
+   │  Engine                 composition root: owns the scratch     │  engine.hpp
+   │                         pool, the graph, the recorder, the     │
+   │                         tensor factory and the random stream   │
+   ├────────────────────────────────────────────────────────────────┤
+   │  Operation views        BLASOps · SparseOps · ElementwiseOps   │  engine/*.hpp
+   │                         NonLinearOps · LogicOps · ReductionOps │  built from an Engine
+   │                         RandomOps · SpatialOps · IO            │  or a TaskRecorder
+   ├────────────────────────────────────────────────────────────────┤
+   │  Seams                  Dispatch::execute_* and                │  engine/**/dispatch.hpp
+   │                         Internal::execute_typed_task: take a   │  engine/task.hpp
+   │                         TaskRecorder and an OperandSet, return │
+   │                         a TaskHandle                           │
+   ├────────────────────────────────────────────────────────────────┤
+   │  TaskRecorder           the one caller of TaskGraph::add_task; │  engine/task_recorder.hpp
+   │                         stamps the execution mode on the task  │
+   ├───────────────────────┬────────────────────────────────────────┤
+   │  Reference kernels    │  SYCL kernels                          │  kernels/,
+   │  plain C++ on the     │  take the queue and the dependency     │  include/SushiBLAS/kernels/
+   │  host                 │  events, return a sycl::event          │
+   ├───────────────────────┴────────────────────────────────────────┤
+   │  Support                launch and fold shapes, serial loops,  │  include/SushiBLAS/support/
+   │                         accumulators, the device policy        │
+   ├────────────────────────────────────────────────────────────────┤
+   │  Tensor / Storage       shape, stride and dtype over a         │  tensor.hpp, storage.hpp,
+   │                         ref-counted USM allocation             │  tensor_factory.hpp
+   ├────────────────────────────────────────────────────────────────┤
+   │  SushiRuntime           TaskGraph · RuntimeContext ·           │  not SushiBLAS's code
+   │                         Residency · execution engine           │
+   └────────────────────────────────────────────────────────────────┘
 ```
 
-Higher layers depend on lower ones; lower layers never depend up. SushiBLAS
-itself contributes only the top four boxes — the bottom box is a
-`SushiRuntime::SushiRuntime` link, resolved per [§8](#8-the-sushiruntime-dependency-d3).
+A layer depends on the layers below it and on none above. Four rules state what each layer may
+know, and `tools/layering/check_layering.py` checks them from the include lines and the call
+sites:
+
+- **`Engine` knows no operation.** `engine.hpp` includes the four bricks it composes
+  (`engine/rng_stream.hpp`, `engine/scratch_pool.hpp`, `engine/task_recorder.hpp`,
+  `engine/execution_mode.hpp`) and no view, seam or experimental header. It has no `blas()` or
+  `elementwise()` accessor.
+- **A view knows the engine only as a source of bricks.** A view's constructor takes an `Engine&`
+  and calls `get_recorder()` (and `get_rng()` for `RandomOps`), or takes the `TaskRecorder&`
+  directly. An operation source under `src/engine/` never includes `engine.hpp`.
+- **Only `TaskRecorder` inserts into the graph.** No seam, view or operation source calls
+  `TaskGraph::add_task`.
+- **A kernel knows neither `Engine` nor `Tensor`.** A header under `kernels/` or
+  `include/SushiBLAS/kernels/` includes no `engine/` header, no `tensor.hpp` and no sparse
+  operand header. It receives pointers, extents and strides. A support header obeys the same rule
+  and also includes no kernel.
 
 ---
 
-## 3. `ExecutionMode`: the dispatch triad
+## 3. Execution modes
 
-`Engine::set_mode(ExecutionMode)` (`engine.hpp`) switches every subsequent
-operation between four modes:
+`ExecutionMode` (`engine/execution_mode.hpp`) has three enumerators, and `Engine::set_mode` sets
+the mode of every operation recorded from then on.
 
-- **`AUTO`** — the default. Runs the SYCL kernel.
-- **`FORCE_SYCL`** — always the SYCL kernel (currently identical to `AUTO`;
-  the distinction exists for a future heuristic dispatcher that could pick a
-  different backend under `AUTO`).
-- **`FORCE_REFERENCE`** — always the pure-C++ reference kernel, run
-  synchronously on the host after waiting on the task's dependencies. For
-  debugging a suspected SYCL-kernel bug without touching a device at all.
-- **`VERIFY`** — not implemented. `Engine::set_mode(ExecutionMode::VERIFY)`
-  throws `std::logic_error` and leaves the mode unchanged.
+| Mode | What a task recorded under it runs |
+| --- | --- |
+| `AUTO` | The library's choice, which is the SYCL kernel. The default. |
+| `FORCE_SYCL` | The SYCL kernel. |
+| `FORCE_REFERENCE` | The reference path, on the host thread that executes the task. |
 
-  An earlier version ran the SYCL kernel and then the reference kernel over the
-  same output buffer and compared nothing. For an operation that reads its own
-  output (`axpy`, `scal`, `gemm` with `beta != 0` and others) that applied the
-  operation twice and returned a wrong result, so the mode now refuses to run.
+There is no `VERIFY` mode. `set_mode` is `noexcept` and accepts all three values.
 
-  A test that wants the comparison makes it: run the same operation twice, once
-  under `FORCE_REFERENCE` and once under `FORCE_SYCL`, into two separate
-  tensors, and compare those. `tests/functional/unit/test_spatial_*.cpp` all do
-  this, each in a case named `TheSyclKernelAgreesWithTheReferenceKernel`, and
-  they compare raw bit patterns rather than using `EXPECT_FLOAT_EQ`.
-
-The triad is implemented once, centrally, in
-`Internal::dispatch_with_mode()` (`engine/task.hpp`):
+**The mode belongs to the task.** `TaskRecorder::record_pair` builds an
+`Internal::KernelPairDispatcher` from the recorder's mode at the moment of the call and stores it
+in the task. Changing the mode afterwards changes later record calls only, so one graph can hold
+tasks of different modes:
 
 ```cpp
-template<typename ReferenceFn, typename SyclFn>
-sycl::event dispatch_with_mode(ExecutionMode mode, sycl::queue& q,
-                                const std::vector<sycl::event>& deps,
-                                ReferenceFn&& reference_fn, SyclFn&& sycl_fn)
+auto from_reference = engine.create_tensor({64, 64});
+auto from_sycl = engine.create_tensor({64, 64});
+
+BLASOps blas(engine);
+engine.set_mode(ExecutionMode::FORCE_REFERENCE);
+blas.gemm(A, B, from_reference);
+engine.set_mode(ExecutionMode::FORCE_SYCL);
+blas.gemm(A, B, from_sycl);
+engine.execute();
+```
+
+This is how the tests compare the two paths of an operation: the same call under each mode into
+two tensors, then a comparison of the tensors.
+
+`KernelPairDispatcher::run(q, deps, reference_fn, sycl_fn)` is the single mode switch. Under
+`FORCE_REFERENCE` it waits on the dependency events, calls `reference_fn` on the calling thread
+and returns an empty event. Otherwise it returns `sycl_fn(q, deps)`.
+
+**Every family has a reference path**, and what that path is differs by family:
+
+| Family | The reference path | Shared with the SYCL path |
+| --- | --- | --- |
+| Dense BLAS, sparse, spatial | A reference kernel under `kernels/reference/`, written separately from the SYCL kernel | The record-time checks |
+| Elementwise, non-linear, logic | `Serial::map` or `Serial::zip_inplace` (`support/serial_1d.hpp`): one loop in index order over the operation's functor | The functor, its narrowed scalars, its declared read pointers, the record-time checks |
+| Reductions | `Serial::reduce`, `reduce_indexed` or `reduce_axis` (`support/serial_reduce.hpp`): one fold in index order | The transform and finalize functors, and the accumulator class of every fold that is not a sum |
+| Random | The same `draw_block` functor in a loop over the blocks, through `Dispatch::RandomFill` | Philox, the mapping from words to draws, the `{seed, offset}` reservation |
+
+For the last three rows the two paths differ in the loop and, where the functor calls a math
+builtin, in the math library. A disagreement between the modes there points at a launch, indexing
+or chunking error, a race between work-items, a dropped dependency, or two math libraries rounding
+differently. It does not point at the formula: if the functor of `silu_backward` is wrong, both
+paths compute the same wrong number and agree. For those families the reference path is a second
+execution of one formula, and only the kernel pairs of the first row are two derivations.
+
+A sum is the one fold whose accumulator also differs: the host folds it in
+`Kernels::ReferenceSum` (`double`, compensated for FLOAT64), the device in `Reduce::CompensatedSum`
+over the element's accumulation type. The two therefore add in different orders and types and are
+not expected to agree to the bit.
+
+**`FORCE_REFERENCE` needs host-reachable operands.** A reference path dereferences its operands
+on the host, which `Residency::Device` storage does not allow. `OperandSet` notes a device-only
+operand as it is declared, and `TaskRecorder::require_host_reachable` throws
+`UnsupportedExecution` at record time, before any task or scratch exists. A tensor an epilogue or
+a functor declares through `reads` is part of the same operand set and is refused the same way.
+
+---
+
+## 4. `Tensor`, `Storage` and memory
+
+A `Tensor` (`tensor.hpp`) is metadata: `shape`, `strides`, `rank`, `dtype`, `layout`,
+`num_elements`, a `storage` pointer and a `storage_offset`. `transpose()`, `reshape()` and
+`slice()` return a new `Tensor` over the same `SushiRuntime::sushi_ptr<Storage>` and move no
+data. `MAX_TENSOR_RANK` is 6.
+
+`Core::DataType` is `HALF`, `FLOAT32`, `FLOAT64`, `COMPLEX32`, `COMPLEX64`, `INT32`, `INT64`, with
+the values 0 to 6 written out in `core/common.hpp`. The values are a file-format contract: none
+changes, and a new type is appended. `Core::bytes_per_element()` is the one mapping from a dtype
+to its width.
+
+**The integer types are index and mask types.** `iamax`, `argmax`, `argmin` and
+`count_nonfinite` answer with an `INT64` because an index or a count stored in a float is exact
+only up to the mantissa. Beyond those results the integer dtypes are served by `copy`,
+`constant`, the comparison and logic family, `io`, and the elementwise operations that have an
+integer meaning (`add`, `sub`, `mul`, `neg`, `abs`, `min`, `max`, `clamp`), whose arithmetic
+wraps. Every other operation rejects them by name at record time, through `Dispatch::Domain`
+([section 6](#6-the-dispatch-seams-and-the-fusion-hooks)).
+
+**Layout and the batch axis.** `Core::Layout` (`ROW_MAJOR`, `COLUMN_MAJOR`) is fixed at
+construction and describes the order inside one matrix. `Tensor::layout_strides()` is the single
+definition: the constructor lays a tensor out with it and `is_contiguous()` compares against it.
+For rank 3 and above the trailing two axes are the matrix and take the layout's order, and every
+leading batch axis is outermost in either layout, so a rank-3 `{b, m, n}` tensor has batch stride
+`m * n` under both. That matches how the batched BLAS drivers read `A.strides[rank - 3]` as the
+distance between matrices.
+
+**Offsets count elements.** `storage_offset` is in elements, and `data()` scales it by the
+element width, so a view is aligned for its own element type. A view that is not contiguous, such
+as a slice along an inner axis, keeps its parent's strides and is built through the
+stride-explicit constructor. `Tensor::element_span()` gives the distance from its first element
+to its last, `1 + sum((shape[i] - 1) * strides[i])`, which is what the capacity check and
+`region()` measure.
+
+An operation addresses a tensor through three accessors and never through the allocation base,
+which is private to `Storage`:
+
+| Accessor | Gives | Used for |
+| --- | --- | --- |
+| `data()` / `data_as<T>()` | The view's first element | Every kernel pointer |
+| `data_or_null()` | The same, or `nullptr` without storage | A source that tolerates an empty operand |
+| `region()` | The view's byte interval, keyed on the allocation base | Every declared read and write |
+
+`region()` is what lets a memory planner pack an arena. Two disjoint views of one allocation give
+regions that do not overlap, so the tracker does not order them, and two overlapping views are
+ordered.
+
+### Storage and alignment
+
+`Storage` (`storage.hpp`) owns one reference-counted USM allocation with a
+`SushiRuntime::API::Residency` (`Shared`, `Device` or `Host`) on one device queue of the
+`RuntimeContext`. Every allocation base is aligned to `K_STORAGE_ALIGNMENT`, 128 bytes, which is
+`SushiRuntime::Core::DEFAULT_ALIGNMENT` (a `static_assert` holds the two equal), and the allocated
+size is the requested size rounded up to that. The context is a non-owning pointer and must
+outlive every `Storage`. The allocation is freed when the last reference to the `Storage` goes.
+
+`TensorFactory` (`tensor_factory.hpp`) allocates dense tensors of one default layout from one
+context. `create(dims, dtype, residency, device_index)` checks the rank, the sign of each
+dimension, the byte count for overflow and the device index, and returns a tensor without storage
+when a dimension is 0. `Engine::create_tensor` forwards to it.
+
+### Retention
+
+A recorded task keeps its operands' storage alive. `OperandSet` takes one reference to the
+`Storage` of every tensor declared on it, in an `Internal::StorageKeepAlive` (six references
+inline, the rest on the heap), and `record_pair` copies that list into the task. The storage of a
+tensor the caller drops between the record call and `execute()` is therefore still referenced when
+the task runs. A pointer hidden inside a bare functor is not a declared operand: nothing retains it,
+orders against it, or checks it under `FORCE_REFERENCE`.
+
+### The scratch pool
+
+An operation that needs device scratch (the staged partials of a fold, the panels of a packed
+product, the wide solution of a substitution, the partial sums of a sparse scatter) leases it at
+record time and the task holds the lease by value.
+
+- `ScratchPool` (`engine/scratch_pool.hpp`) owns a reference-counted `Detail::ScratchShelf`
+  (`engine/scratch_shelf.hpp`) of idle device blocks per device queue. The engine owns one pool
+  and the recorder hands it out through `get_scratch_pool()`.
+- `ScratchBuffer` (`engine/scratch.hpp`) is the lease. The block goes back to the shelf when the
+  last copy of the handle is destroyed, which for a recorded task is when the graph drops the
+  task.
+- Blocks are pooled in six size classes from 128 to 4096 bytes, at most 64 idle blocks per class
+  and device. A larger request is allocated for the lease and freed when it ends.
+  `ScratchPool::trim()` frees the idle blocks.
+- `OperandSet::scratch(buffer)` declares the lease as a written region of the task and retains
+  its storage.
+
+Under `FORCE_REFERENCE` the reduction seams and `Internal::allocate_blas_scratch` lease nothing:
+a host fold stages no partials.
+
+---
+
+## 5. `Engine`, the recorder and the views
+
+`Engine` (`engine.hpp`) is the composition root a program constructs once on a
+`RuntimeContext`, with the layout of the tensors it creates. It owns, in this order, the
+`ScratchPool`, the `SushiRuntime::Graph::TaskGraph`, the `TaskRecorder` bound to both, the
+`TensorFactory` and the `RngStream`. Its interface is short:
+
+- `create_tensor(dims, dtype, residency, device_index)`, from a brace list or a span.
+- `set_mode` and `get_mode`, which forward to the recorder, and `get_layout`.
+- `get_recorder()`, `get_tensor_factory()`, `get_rng()`, `get_scratch_pool()` and `get_context()`.
+- `execute()`, which compiles the recorded graph and runs it through the context's execution
+  engine, returning when every task has finished. It returns nothing, and a graph with no root
+  returns at once. No thread may be recording on the engine while it runs.
+
+No accessor reaches the graph. The engine is not copyable or movable, and the context must
+outlive it and every tensor it creates.
+
+### `TaskRecorder`, `OperandSet` and `TaskHandle`
+
+`TaskRecorder` (`engine/task_recorder.hpp`) records tasks on one graph under one mode. It has one
+recording call:
+
+`record_pair(meta, operands, family, body)` checks host reachability, draws a registration index
+from the graph, and adds one task whose reads and writes are the operand set's regions. The body
+is a copyable callable `(const Internal::KernelPairDispatcher&, sycl::queue&, const
+std::vector<sycl::event>&) -> sycl::event` that must order its work behind the events it is
+given. On the SYCL side that means every command group calls `h.depends_on(deps)`;
+`check_layering.py` reports a command group without it.
+
+`OperandSet` (`engine/operand_set.hpp`) is how a task says what it touches, and it takes tensors,
+never raw regions:
+
+| Call | Declares |
+| --- | --- |
+| `reads(t)` | `t.region()` as a read |
+| `writes(t)` | `t.region()` as a write |
+| `updates(t)` | Both, for an operand changed in place |
+| `scratch(buffer)` | A leased scratch block as a write |
+| `merge(other)` | Every declaration of another set, such as an epilogue's |
+
+`reads`, `writes` and `updates` also retain the tensor's storage and note a device-only residency.
+`scratch` retains the block's storage, and `merge` carries over what the other set retained and
+noted. A tensor without storage adds nothing. Taking the region from `Tensor::region()` in one place is deliberate: a
+`ResourceRegion` converts from a bare pointer, a bare pointer names the whole allocation, and two
+views of one arena then look unrelated to the tracker, which emits no edge between them.
+
+`TaskHandle` (`engine/task_handle.hpp`) is what every record call returns: the identity of the
+recorder and the registration index of the task. A call that records nothing, such as an
+elementwise operation on an empty tensor, returns the default handle, for which `is_valid()` is
+false. The handle is a name for the task and gives no way to wait on it; `execute()` is the only
+way to run the graph.
+
+### Views
+
+A view is a small class of record calls bound to a recorder. Each has two constructors, one
+from an `Engine` and one from a `TaskRecorder` the caller owns:
+
+```cpp
+SushiRuntime::Graph::TaskGraph graph(ctx);
+ScratchPool pool(ctx);
+TaskRecorder recorder(graph, pool, ExecutionMode::FORCE_REFERENCE);
+
+const TaskHandle recorded = BLASOps(recorder).axpy(2.0, x, y);
+```
+
+`BLASOps(engine)` is the same view over `engine.get_recorder()`. A caller that builds its own
+recorder owns the graph and compiles and runs it as `Engine::execute` does. `RandomOps` also
+takes the `RngStream` it draws from, and `IO` (`io.hpp`) takes an `Engine`, because every host
+transfer runs the recorded graph first.
+
+| View | Header | Family |
+| --- | --- | --- |
+| `BLASOps` | `engine/blas.hpp` | Dense BLAS: `Level1`, `Level2` and `Level3` in one class |
+| `SparseOps` | `engine/sparse.hpp` | Sparse BLAS |
+| `ElementwiseOps` | `engine/math/elementwise.hpp` | Arithmetic and elementary functions, and `convert` |
+| `NonLinearOps` | `engine/math/nonlinear.hpp` | Activations and their backward forms |
+| `LogicOps` | `engine/logic/logic.hpp` | Comparisons, logical operations, `where`, `all`, `any` |
+| `ReductionOps` | `engine/math/reductions.hpp` | Whole-tensor and axis reductions |
+| `RandomOps` | `engine/math/random.hpp` | Distributions, initialisers, `shuffle`, `set_seed` |
+| `SpatialOps` | `engine/spatial.hpp` | Windowed and strided movement over NHWC tensors |
+| `IO` | `io.hpp` | Host transfer, `.sushi`, `.npy` and raw files, printing |
+
+A view holds a reference to its recorder, `RandomOps` one more to its stream, and no other
+state. It can be copied and cannot be re-bound.
+
+### The random stream
+
+`RngStream` (`engine/rng_stream.hpp`) is a seed and an offset counter under one mutex.
+`reserve(count)` returns the seed with the current offset and advances the counter, so two
+random tasks never share a Philox counter range, even when recorded from two threads.
+`reseed(seed)` sets the seed and rewinds the offset, so one seed followed by one sequence of calls
+draws the same numbers. `RandomOps::set_seed` calls it. The reservation is made at record time and
+captured by the task.
+
+---
+
+## 6. The dispatch seams and the fusion hooks
+
+A seam is the function a view method calls to record its task. Seams take a `TaskRecorder&` and
+return a `TaskHandle`. There are two kinds.
+
+**The kernel-pair seam** serves the dense BLAS, sparse and spatial families.
+`Internal::execute_typed_task<Dom>(recorder, meta, operands, dtype, family, op_func)`
+(`engine/task.hpp`) checks the dtype against the domain and records one task whose body switches
+on the runtime dtype and calls `op_func(T{}, dispatcher, q, deps)` with a value of the matching
+element type. `op_func` calls `dispatcher.run` with its reference kernel and its SYCL kernel.
+`Internal::execute_blas_task` (`engine/blas/utils.hpp`) is the same call with the family string
+`"BLAS operation"`. Section 5 of [CONTRIBUTING.md](../CONTRIBUTING.md) shows a whole operation
+written on it.
+
+**The functor seams** are the public `SushiBLAS::Dispatch::execute_*` functions. Each takes a
+caller-written functor, inlines it into one SYCL kernel, and runs the same functor in a serial
+host loop under `FORCE_REFERENCE`:
+
+| Header | Executors |
+| --- | --- |
+| `engine/math/elementwise/dispatch.hpp` | `execute_unary_inplace`, `execute_binary`, `execute_zip_inplace` |
+| `engine/math/nonlinear/dispatch.hpp` | `execute_nonlinear_forward`, `execute_nonlinear_backward` |
+| `engine/logic/dispatch.hpp` | `execute_logic_unary`, `execute_logic_binary`, `execute_logic_ternary` |
+| `engine/math/reductions/dispatch.hpp` | `execute_reduction`, `execute_index_reduction`, `execute_counting_reduction`, `execute_folding_reduction`, `execute_folding_span_reduction`, `execute_folding_axis_reduction` |
+| `engine/math/random/dispatch.hpp` | `execute_random` |
+| `engine/blas/dispatch.hpp` | `execute_gemm` |
+
+A functor that reaches a device is device-copyable and trivially copyable, captures by value,
+dereferences no host pointer, allocates nothing and throws nothing. The compiler does not
+diagnose all of these.
+
+**`Dispatch::Domain`** (`engine/dispatch.hpp`) is a bit set over element-type families: `REAL`,
+`COMPLEX`, `INTEGRAL` and the unions `REAL_AND_COMPLEX`, `REAL_AND_INTEGRAL` and `ALL`. It says
+which element types a functor may be instantiated for. `require_domain<Dom>` rejects a dtype
+outside the domain at record time with `std::invalid_argument`. `with_element_type<Dom>` is the
+dtype switch of the functor seams: an arm outside the domain is never instantiated, which is what
+lets a functor that is ill-formed for `std::complex` be dispatched on a runtime dtype. An arm is
+written as a generic lambda over `Dispatch::ElementTag<T>`, or, at C++20, as a templated lambda.
+`execute_typed_task` spells the same seven arms out in a named class, `Detail::TypedTaskBody`,
+because its body takes a value and returns an event.
+
+### The fusion hooks
+
+**No automatic fusion pass exists.** SushiBLAS does not inspect the graph, match a chain of
+operations or merge two tasks. Two recorded tasks are two launches. Fusion is something the
+caller writes: one functor that does the work of several operations, handed to one seam call.
+The library supplies the places to hand it to.
+
+*Composing a functor.* A consumer that wants `x * scale + shift` as one kernel writes it as one
+functor and calls `execute_unary_inplace` once. `execute_zip_inplace` does the same over N
+same-shaped tensors, each passed to the functor as an lvalue, so an optimiser step that reads and
+updates five tensors is one task. All N are declared as both read and written, since the seam
+cannot see which the functor touched.
+
+*`bind_scalars`* (`engine/math/elementwise/scalar_binding.hpp`) attaches scalar parameters to a
+functor. The scalars are `Dispatch::ElementScalar` values, narrowed on the host once per element
+type, and the functor receives them after its elements in that type. A HALF or FLOAT32 kernel
+then does no `double` arithmetic for a parameter the public signature takes as `double`.
+
+*`bind_reads`* (`engine/math/elementwise/read_binding.hpp`) declares the tensors a functor reads
+at execution time beyond the seam's own operands: a table, a gain, a mask. `read_as_element(t)`
+hands the functor a `const T*` in the operation's element type and `read_as<U>(t)` a `const U*`.
+The seam checks each declared read (storage, at least one element, the declared dtype,
+contiguous, no overlap with a tensor the operation writes), adds it to the operand set so the
+graph orders against it and retains it, and passes the functor only the pointer. The two bindings
+nest: `bind_reads(bind_scalars(fn, ...), ...)`, pointers before scalars.
+
+```cpp
+// Two scalars, narrowed on the host to the element type of each dtype arm.
+Dispatch::execute_unary_inplace(recorder, t, "nn.scale_shift", "nn.scale_shift"_op,
+    Dispatch::bind_scalars([](auto x, auto scale, auto shift) { return x * scale + shift; },
+                           Dispatch::ElementScalar(0.5), Dispatch::ElementScalar(1.0)));
+
+// A tensor the functor reads at execution time, declared so the graph orders against it.
+Dispatch::execute_binary(recorder, A, B, C, "nn.gated_add", "nn.gated_add"_op,
+    Dispatch::bind_reads([](auto a, auto b, const auto* g) { return a + b * g[0]; },
+                         Dispatch::read_as_element(gain)));
+```
+
+The `"..."_op` literal comes from `SushiRuntime::Graph::Literals`.
+
+*The GEMM epilogue.* `Dispatch::execute_gemm` records
+`C = epilogue(alpha * op(A) * op(B) + beta * C, row, col)` as one task. The epilogue is a functor
+`T operator()(T value, int64_t row, int64_t col) const`, applied to each finished element just
+before the store. The coordinates make a bias broadcast expressible, so a product, a bias-add and
+an activation are one task. `Level3::gemm` is this function with
+`Kernels::GemmIdentityEpilogue`, and the reference kernel takes the same parameter, so
+`FORCE_REFERENCE` runs a fused GEMM too.
+
+```cpp
+struct BiasRelu
 {
-    if (mode == ExecutionMode::FORCE_REFERENCE)
+    const float* bias;   // one value per column of C
+
+    template<typename T>
+    T operator()(T value, int64_t, int64_t col) const
     {
-        sycl::event::wait(deps);
-        reference_fn();
-        return sycl::event();
+        const T y = value + static_cast<T>(bias[col]);
+        return y > T(0) ? y : T(0);
     }
-
-    if (mode == ExecutionMode::AUTO || mode == ExecutionMode::FORCE_SYCL)
-        return sycl_fn(q, deps);
-
-    throw std::logic_error("dispatch_with_mode: unhandled ExecutionMode");
-}
-```
-
-Every BLAS-level op's `.cpp` file calls this once per dtype branch instead of
-hand-writing the triad — before `utils.hpp` existed, `gemm.cpp` and
-`syrk.cpp` each wrote out all three branches five times (once per `DataType`).
-The elementwise, nonlinear, logic, reduction and random families do not read
-the mode; they always run the SYCL kernel. Their `SushiBLAS::Dispatch` helpers
-under `include/SushiBLAS/engine/**/dispatch.hpp` validate their operands through
-`engine/operand_check.hpp` before they record a task.
-
----
-
-## 4. `Tensor` and `Storage`
-
-A `Tensor` (`tensor.hpp`) is metadata, not data: shape, strides, rank,
-`Core::DataType`, `Core::Layout`, and a `storage_offset` into a shared,
-ref-counted `Storage` (`storage.hpp`). Two tensors can point at the same
-`Storage` at different offsets — that's what makes `transpose()`, `reshape()`,
-and `slice()` zero-copy: each returns a new `Tensor` with adjusted
-shape/strides/offset over the *same* `SushiRuntime::sushi_ptr<Storage>`.
-
-A view that is **not** contiguous — a `slice()` along an inner axis — keeps its
-parent's strides, and is built through the stride-explicit `Tensor` constructor
-rather than the shape-derived one. `Tensor::element_span()` is what the capacity
-check and `region()` measure such a view by: `1 + sum((shape[i] - 1) *
-strides[i])`, the distance from its first element to its last, which for a
-contiguous tensor equals `num_elements` and for a strided one does not.
-
-```cpp
-struct Tensor
-{
-    std::array<int64_t, MAX_TENSOR_RANK> shape{};
-    std::array<int64_t, MAX_TENSOR_RANK> strides{};
-    int32_t rank = 0;
-    Core::DataType dtype = Core::DataType::FLOAT32;
-    Core::Layout layout = Core::Layout::ROW_MAJOR;
-    int64_t num_elements = 0;
-    SushiRuntime::sushi_ptr<Storage> storage;
-    int64_t storage_offset = 0;
 };
+
+// One task: the product, the bias broadcast and the ReLU.
+Dispatch::execute_gemm(recorder, X, W, Y,
+                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS, 1.0, 0.0,
+                       "nn.linear_relu", "nn.linear_relu"_op,
+                       Dispatch::gemm_epilogue(BiasRelu{bias.data_as<float>()}).reads(bias));
 ```
 
-`Core::DataType` is one of `HALF`, `FLOAT32`, `FLOAT64`, `COMPLEX32`,
-`COMPLEX64`, `INT32`, `INT64` (`core/common.hpp`); `MAX_TENSOR_RANK` is 6;
-`Core::bytes_per_element()` is the single dtype-to-width mapping every size
-calculation goes through.
+`Dispatch::gemm_epilogue(functor)` bundles the functor with the tensors it touches, and
+`.reads(t)` and `.writes(t)` declare them. `execute_gemm` merges those declarations into the
+task's operand set, so the bias is ordered against whatever writes it, retained until the task is
+dropped, and refused under `FORCE_REFERENCE` when it is device-only. A bare functor is accepted
+and declares nothing. `execute_gemm` defaults to `Domain::REAL`; an epilogue that is well-formed
+for `std::complex` passes `Domain::REAL_AND_COMPLEX`.
 
-**The integer types are not general-purpose arithmetic types.** They exist
-because some results are indices rather than numbers: `iamax`, `argmax` and
-`argmin` all answer "which element", and answering that into a float tensor
-meant either writing eight bytes into a four-byte element (`iamax`, which
-corrupted whatever a memory planner had packed next to it, and under-declared
-the write in `region()` so nothing ordered against the corruption) or rounding
-the index through a mantissa (`argmax`/`argmin`, exact only below 2^24). They
-are also the honest element type for a comparison result. So exactly one list of
-operations accepts them — `copy`, `constant`, the comparison and logic family,
-the index reductions, and `io` — and everything else rejects them by name at
-record time. See `Dispatch::Domain` in [§6](#6-the-dispatch-helpers-enginetaskhpp).
-`is_contiguous()` and `is_aligned()` (checked against
-`SushiRuntime::Core::DEFAULT_ALIGNMENT`) are used by the BLAS layer to decide
-whether a vector operand can be treated as a flat, unit-stride buffer.
-
-**Layout and the batch axis.** `Core::Layout` (`ROW_MAJOR` / `COLUMN_MAJOR`) is
-fixed per-tensor at construction and describes the memory order **inside one
-matrix**, not across the whole tensor. `Tensor::layout_strides()` is the single
-definition — the constructor lays tensors out with it and `is_contiguous()`
-checks against it, so the two cannot drift. For rank ≤ 2 it is the familiar
-rule (row-major strides grow from the last dimension inward, column-major from
-the first). For rank ≥ 3 the trailing two axes are the matrix and take the
-layout's order, while every leading batch axis is outermost and slowest-varying
-**in either layout** — a rank-3 `{b, m, n}` tensor has batch stride `m * n`
-whichever layout it carries. That is the only reading consistent with how the
-batch stride is consumed (`A.strides[rank - 3]` is handed to the GEMM/SYRK/TRSM
-drivers as the distance between slices) and with every batched BLAS API, which
-pairs a `stride_a` with a per-slice `lda`.
-
-**Offsets are element counts.** `storage_offset` is measured in elements, never
-bytes; `data()` scales it by `bytes_per_element(dtype)`. A view is therefore
-always naturally aligned for its own element type, since the allocation base is
-64-byte aligned and the offset is a whole number of elements.
-
-`Storage` (`storage.hpp`) is a `SushiRuntime::Core::RefCounted`, 64-byte
-aligned, holding the allocation's base pointer (private; reachable only through
-`allocation_base()`), its allocated `size_bytes` (rounded up to
-`DEFAULT_ALIGNMENT`), and the `SushiRuntime::Execution::RuntimeContext` and
-`SushiRuntime::API::Residency` (`Shared` / `Device` / `Host`) it was allocated
-with. The context is a non-owning pointer and must outlive every `Storage`,
-as it must outlive `Engine`; the destructor frees the allocation through
-`RuntimeContext::free_usm`. Being `RefCounted` (via `sushi_ptr`, SushiRuntime's intrusive
-atomic-refcount smart pointer) is what lets two `Tensor` views share one
-allocation safely — the storage is freed only when the last `Tensor`
-referencing it is destroyed.
-
-The base pointer is private on purpose. Most op families used to capture
-`tensor.storage->data_ptr` directly and so ignored `storage_offset` entirely: a
-view at a non-zero offset silently aliased the base of its allocation. Three
-accessors, all on `Tensor`, are what an operation may use instead, and between
-them they cover every case a driver has:
-
-| Accessor | Gives | Used by |
-|----------|-------|---------|
-| `data()` / `data_as<T>()` | the view's first element | every kernel pointer |
-| `data_or_null()` | the same, or `nullptr` with no storage | drivers tolerating a storage-less tensor |
-| `region()` | the view's byte interval, keyed on the allocation base | every `reads`/`writes` entry |
-
-`region()` is what makes an arena work: two disjoint views of one allocation
-produce non-overlapping `ResourceRegion`s, so the dependency tracker does not
-serialize them, while overlapping views still order correctly.
-
----
-
-## 5. `Engine`
-
-`Engine` (`engine.hpp`) is the facade every program constructs once:
-
-```cpp
-Engine(SushiRuntime::Execution::RuntimeContext& ctx,
-       Core::Layout layout = Core::Layout::ROW_MAJOR);
-```
-
-It owns a `SushiRuntime::Graph::TaskGraph` (constructed against the caller's
-`RuntimeContext`), the default tensor layout, the current `ExecutionMode`, and
-an `RngStream` (`engine/rng_stream.hpp`): a random-number seed plus an atomic
-offset counter, reached through `Engine::rng()` by the random dispatch layer
-only. Every distribution draw reserves a fresh, non-overlapping stream position
-(`RngStream::reserve`), even under concurrent task submission. `reseed()`
-rewinds that counter as well as setting the seed: the kernels mix `(seed, offset)` into Philox, so the seed
-alone does not name a stream position, and re-seeding has to reproduce the
-stream or it is not a seed.
-
-- `create_tensor(dims[, dtype], residency)` allocates a `Storage` in the given
-  `Residency` (default `Shared`) and wraps it in a `Tensor`. It rejects a
-  negative dimension and a size that overflows before it allocates.
-- `blas()` / `elementwise()` / `nonlinear()` / `logic()` / `reductions()` /
-  `random()` / `io()` each return a small view object constructed with
-  `*this` — none of them hold state beyond the `Engine&` reference, so calling
-  `engine.blas()` twice is free.
-- `execute()` compiles the graph and runs it via
-  `context_.get_execution_engine().execute(compiled)`. It treats a graph with
-  no queued tasks as an already-complete no-op (returning a default
-  `sycl::event`) rather than calling into `IExecutionEngine::execute()`, which
-  throws on an empty root set — several `io.cpp` code paths call `execute()`
-  defensively (flush any pending device write) even when nothing was queued.
-
-`Engine` is deliberately thin: it has no idea what "GEMM" or "ReLU" means.
-Every operation lives in a domain class (`BLASOps`, `ElementwiseOps`, ...)
-that takes an `Engine&` in its constructor and reaches back into
-`engine.get_graph()` / `engine.get_context()` to do its work.
-
----
-
-## 6. The dispatch helpers (`engine/task.hpp`)
-
-Two templates centralize what every op's `.cpp` file needs. Both live in
-`engine/task.hpp`; `engine/blas/utils.hpp` includes it and adds the BLAS-named
-forwarder plus the level-1 vector-parameter helper.
-
-**`execute_typed_task`** registers one task whose body switches on the
-tensor's *runtime* `Core::DataType` and calls a generic, templated closure
-with the matching compile-time scalar type:
-
-```cpp
-template<Dispatch::Domain Dom, typename Func>
-sycl::event execute_typed_task(Engine& engine, const TaskMetadata& meta,
-                               const std::vector<ResourceRegion>& reads,
-                               const std::vector<ResourceRegion>& writes,
-                               Core::DataType dtype, const char* family, Func&& op_func);
-```
-
-`family` is what the diagnostics call this kind of operation — `"BLAS operation"`,
-`"Spatial operation"`. It is a parameter because a second domain arrived: a
-`spatial.im2col` reported as a *BLAS* operation when its dtype is refused sends a
-reader to the wrong half of the library, and the alternative — a second copy of
-the seven-arm dtype switch — is seven arms to forget when a `DataType` is added.
-
-**`execute_blas_task`** is the same function with `"BLAS operation"` filled in.
-It is a one-line forwarder and it keeps its name because roughly forty BLAS call
-sites read better for it and because a BLAS op should not have to name its own
-family at every site:
-
-```cpp
-template<Dispatch::Domain Dom, typename Func>
-sycl::event execute_blas_task(Engine& engine, const TaskMetadata& meta,
-                               const std::vector<ResourceRegion>& reads,
-                               const std::vector<ResourceRegion>& writes,
-                               Core::DataType dtype, Func&& op_func);
-```
-
-`op_func` is called as `op_func(scalar_tag{}, queue, deps)`, where
-`scalar_tag` is one of `sycl::half{}`, `float{}`, `double{}`,
-`std::complex<float>{}`, `std::complex<double>{}`, `int32_t{}`, `int64_t{}` — so
-one `op_func` lambda, templated on its first parameter's type via `decltype`,
-implements every dtype without a hand-written switch at the call site. An
-unsupported dtype throws (`SB_THROW_IF`) rather than silently no-opping —
-matching every other "unsupported case" in the codebase (see
-[CONTRIBUTING.md](../CONTRIBUTING.md)'s error-handling convention).
-
-`execute_blas_task` also takes a leading `Dispatch::Domain` template parameter,
-defaulting to `REAL_AND_COMPLEX` — which is what every built-in BLAS *arithmetic*
-op wants and has always had. It exists for two callers. `Dispatch::execute_gemm`,
-whose functor is written by the *caller*: a real-only epilogue (`value > 0` has no
-meaning for `std::complex`) would otherwise be a compile error in the two arms
-that can never run. And `copy`, which passes `Domain::ALL` because it moves
-elements without doing arithmetic to them, and so is the one BLAS op that serves
-the integer dtypes. Same vocabulary, same meaning, as the math and logic
-families' `Domain`.
-
-**`dispatch_with_mode`** is the `ExecutionMode` triad from [§3](#3-executionmode-the-dispatch-triad).
-
-Together, a BLAS op's `.cpp` file is typically one `execute_blas_task` call
-whose `op_func` body is one `dispatch_with_mode` call per dtype branch,
-picking the matching `kernels::Reference::<op><T>` and
-`kernels::SYCL::<op><T>` function. This is what let the level1/level2/level3
-BLAS ports (17 ops, zero oneMKL) land as from-scratch kernels without
-duplicating the graph-registration or mode-dispatch boilerplate 17 times.
+Two warnings travel with the epilogue. An activation fused into the forward pass of training
+gives a wrong gradient unless the epilogue also writes its pre-activation value to a buffer the
+backward pass reads, declared through `.writes`; nothing throws when this is missing. And under
+`FORCE_REFERENCE` the epilogue runs on the host, so a pointer it carries must be host-readable.
 
 ---
 
 ## 7. Kernels: reference and SYCL
 
-Every operation has exactly two kernel implementations:
+A kernel is a function template on the element type that receives pointers, extents, strides and
+flags. The dense BLAS, sparse and spatial families have a kernel pair per operation:
 
-- **`kernels/reference/<category>/<op>.hpp`** — pure C++, templated on the
-  scalar type, zero external dependencies. This is the mathematical ground
-  truth that `FORCE_REFERENCE` mode runs directly and that SYCL results are compared against.
-  It must handle both `Layout` values.
-- **`kernels/sycl/<category>/<op>.hpp`** — the SYCL kernel. Takes a
-  `sycl::queue&` and a `const std::vector<sycl::event>& deps` it must
-  `depends_on(...)`, and returns the `sycl::event` for the submitted work.
+- **`kernels/reference/<family>/...`** is plain C++ with no dependency beyond the support
+  headers. It handles both `Core::Layout` values and states the result the operation is defined
+  to have.
+- **`kernels/sycl/<family>/...`** takes the `sycl::queue&` and a
+  `const std::vector<sycl::event>& deps`, makes every command group depend on `deps`, and returns
+  the event of its last submission.
 
-`<category>` today is `blas/{level1,level2,level3}` and `random` (the Philox
-PRNG backend, `kernels/sycl/random/philox.hpp`). The non-BLAS math domains
-(elementwise, nonlinear, logic, reductions) keep their kernels inline in
-`include/SushiBLAS/engine/math/*/dispatch.hpp` and
-`include/SushiBLAS/engine/logic/dispatch.hpp` rather than under `kernels/`,
-since each op there is a short generic lambda rather than a multi-case
-tiling kernel — the reference/SYCL split is the same, just colocated with the
-dispatch code instead of factored out.
+`kernels/` is private and never installed. A kernel a public seam instantiates in a consumer's
+translation unit cannot be private, so those live under `include/SushiBLAS/kernels/` and are
+installed: GEMM's reference and SYCL kernels with the packed product they share with SYRK, the
+epilogue headers, the access policies (`operand_access.hpp`, `symmetric_access.hpp`,
+`band_access.hpp`, `packed_access.hpp`, `conjugation.hpp`) and the two Givens headers.
 
-**GEMM's two kernels are the exception to `kernels/` being private.** They live
-under `include/SushiBLAS/kernels/{reference,sycl}/blas/level3/gemm.hpp`,
-mirroring the private tree's own path, and they are installed — because
-`Dispatch::execute_gemm` instantiates them in a *consumer's* translation unit
-with the consumer's own epilogue functor, and a template a public seam
-instantiates cannot stay private. The rule is exactly that narrow: a kernel a
-public seam names moves under `include/SushiBLAS/kernels/`; everything else
-stays in `kernels/`. The epilogue contract itself
-(`Kernels::GemmIdentityEpilogue`) sits in
-`include/SushiBLAS/kernels/blas/level3/gemm_epilogue.hpp`, under neither
-`reference/` nor `sycl/`, because both kernels and the seam name it.
+The elementwise, non-linear, logic, reduction and random families have no kernel pair. Their SYCL
+kernel is a launch primitive of the support layer around the operation's functor, and their
+reference path is the serial loop of [section 3](#3-execution-modes).
 
-Those six headers are public API, not implementation detail: `execute_binary`,
-`execute_unary_inplace`, `execute_zip_inplace`, `execute_nonlinear_forward` /
-`_backward`, `execute_logic_unary` / `_binary` / `_ternary`, `execute_reduction`,
-`execute_folding_reduction`, `execute_folding_axis_reduction`, `execute_random`
-and `execute_gemm` all live in
-`namespace SushiBLAS::Dispatch` and are installed. A downstream framework
-composes several math ops into one functor, hands it to one `execute_*` call,
-and gets a single fused SYCL kernel — the reason the seam exists, and the reason
-"the consumer never writes SYCL itself" stays true. See
-`include/SushiBLAS/engine/dispatch.hpp` for the shared vocabulary (`Domain`) and
-the constraints a device-inlined functor has to satisfy.
+### The support layer
 
-**`Domain` is a bit set over element-type families**, not a list of named
-combinations: `REAL`, `COMPLEX`, `INTEGRAL`, plus the unions `REAL_AND_COMPLEX`,
-`REAL_AND_INTEGRAL` and `ALL`. It answers "which element types may this functor
-be instantiated for", at compile time, because a generic lambda gives no
-SFINAE-visible signal that its body rejects `std::complex` (return-type deduction
-instantiates the body, which is not the immediate context). Two functions consume
-it. `Dispatch::require_domain<Dom>` rejects an out-of-domain dtype at **record**
-time, where the caller can still act on it. `Dispatch::with_element_type<Dom>` is
-the dtype switch itself — one switch, shared by the elementwise, non-linear and
-logic families and by `execute_index_reduction`, replacing the eight
-near-identical seven-arm switches those used to carry. A dtype outside the domain
-never instantiates its arm; it throws naming the family, the op and the dtype.
+`include/SushiBLAS/support/` sits below the kernels and the engine and includes neither.
+[Its README](../../include/SushiBLAS/support/README.md) holds the reasoning behind each header.
 
-**An arm may be written either way.** `with_element_type` calls it as
-`arm(Dispatch::ElementTag<T>{})` if it takes that tag — a plain generic lambda,
-`[&](auto tag) { using T = typename decltype(tag)::type; ... }`, which is what the
-library itself writes and the only spelling available at C++17 — and otherwise as
-`arm.template operator()<T>()`, which is what a C++20 templated lambda
-`[&]<typename T>(){ ... }` offers. Both were live before the move to C++17 and both
-still are, so the standard change took nothing away from a consumer. An arm that is
-neither gets a written-out `static_assert` naming both forms rather than a page of
-overload-resolution noise.
+| Header | Holds |
+| --- | --- |
+| `device_policy.hpp` | `Device::Profile`, probed once per device by `profile_for`: CPU or not, dedicated local memory, `fp64` and `fp16` support, local memory bytes, work-group and sub-group sizes, compute units, cache bytes. The launch geometry (`plan_1d`, `flat_work_group_size`, `vector_width`, `hosts_local_tile`). `Device::CacheBlocking`, the byte budgets a cache-blocked kernel sizes its blocks from |
+| `launch_1d.hpp` | `Launch::map`, `zip_inplace` and `indexed`: the device launch of every per-element kernel, a grid-stride `nd_range` with a 128-bit wide pass where the device wants one and every operand is 16-byte aligned |
+| `serial_1d.hpp` | `Serial::map`, `zip_inplace` and `indexed`: the same three shapes as one loop on the calling thread |
+| `reduce_1d.hpp` | `Reduce::reduce` and `reduce_indexed`, the fixed-order whole-tensor fold, and the accumulators: `CompensatedSum`, `CompensatedComplexSum`, `ScaledSumOfSquares`, `RunningProduct`, `NaNPropagatingMax`, `NaNPropagatingMin`, `ExactSum`, `RunningArgMax`, `RunningArgMin` |
+| `reduce_axis.hpp` | `Reduce::AxisSpan`, `reduce_axis` and `reduce_segments`: many folds side by side over one buffer |
+| `serial_reduce.hpp` | `Serial::reduce`, `reduce_indexed` and `reduce_axis`: the host folds |
+| `accumulator.hpp` | `AccumulatorOf<T>`: the type a device kernel sums `T` in, which is `T` except that HALF sums in FLOAT32 |
+| `reference_accumulator.hpp` | `ReferenceAccumulatorOf<T>` and `Kernels::ReferenceSum<T>`: a reference kernel sums a real type in `double` and a complex type in `std::complex<double>`, compensated where the wide type is the element type itself |
+| `running_solution.hpp` | `RunningSolution`: carries a substitution's solved elements in the accumulation type between steps |
+| `complex_arithmetic.hpp` | Conjugation, the four-product complex product and Smith's quotient, written so a device can run them |
+| `orthonormal_sweep.hpp` | The vector layout and the two-sweep constant the orthonormalisation kernels share |
+| `sparse_assembly.hpp` | `Sparse::assemble_csr` and its input checks, on the host |
+| `spatial_geometry.hpp` | `Spatial::ConvGeometry`, `output_extent`, `WindowSpan`, `ColumnSpan`, `TapSpan` |
 
-`execute_blas_task` spells its switch out by hand rather than calling
-`with_element_type`. Its functor is not an arm at all — it takes a *value* of the
-element type plus the queue and the dependency list and returns the submitted
-`sycl::event`, which is a different shape from the one-tag, void-returning arm this
-helper calls — and wrapping it to fit crashes this project's clang during
-instantiation. The arms and the domain rule are the same; the duplication is noted
-at both sites.
+**Cache blocking.** `Device::CacheBlocking` holds three byte budgets (the bytes the innermost
+loop keeps resident, the packed block the inner loops sweep again, and the block walked once per
+sweep), two thresholds below which a kernel does not pack, and the work-items a blocked launch
+starts per compute unit. `cache_blocking_for(cache_bytes)` derives the budgets from the cache a
+device reports, and from an assumed 256 KiB when it reports none. The values are starting points
+derived from cache sizes; none has been tuned against a measurement.
 
-**`ElementwiseOps::convert` is the one op that dispatches on two dtypes**, and it is
-the second site to spell its switch out by hand for that same compiler reason. It
-copies a tensor into another of a *different* element type — the thing nothing in this
-library could do before, since `Level1::copy` throws on a dtype mismatch and every
-other op shares one `DataType` across all its operands, so a mixed-precision layer
-above had no way to produce an fp16 view of an fp32 tensor at all. Two facts shape it.
-The cross product is bounded to `Domain::REAL` on **both** sides — nine arms, not the
-forty-nine a `with_element_type` nested inside a `with_element_type` would cost — and
-the pairs outside it throw at record time naming *both* dtypes, because a complex
-operand has no single real value to narrow to and a float-to-integer conversion is a
-rounding policy this layer cannot choose on the caller's behalf. And the switch is two
-plain, un-nested `switch` statements over ordinary function templates rather than
-nested generic lambdas, which is exactly the shape documented above as crashing this
-tree's clang. It lives in `ElementwiseOps` rather than beside `copy` because
-`engine.blas()` names the BLAS standard and no BLAS routine converts, while
-"`dst[i]` is a function of `src[i]` alone" is the sentence the elementwise family opens
-with. Converting a dtype to itself is legal and copies, so a policy holding its compute
-dtype as runtime data does not need a branch for the case where it equals the master
-dtype. There is no public `Dispatch::execute_convert` seam: every executor in that
-namespace is public because it takes a caller-written functor to fuse, and this op has
-none.
+**Determinism.** SushiBLAS links `sushiruntime_deterministic_fp` PUBLIC, and its kernels keep the
+order of every floating-point sum a function of the device, the element type and the extents.
+That is why the floating-point folds use `Reduce::reduce` and not `sycl::reduction`, whose
+combination order the SYCL specification leaves free, and why every backward in the spatial
+family and every sparse scatter is written without an atomic add. The design aim is a result
+that repeats bit for bit on one device; the regression tests that hold it have not been run on
+this tree. Two devices, or the two modes, may plan different shapes and differ in the last bits
+of a sum.
 
-**`execute_gemm`** (`engine/blas/dispatch.hpp`) is the BLAS family's only
-executor, and its functor is not a per-element operation but a GEMM *epilogue*:
-`T operator()(T value, int64_t row, int64_t col)`, applied to each element of C
-in the instant before it is stored. The coordinates are what make it more than an
-elementwise pass — with them a bias broadcast is expressible, so a bias-add plus
-an activation that would otherwise be two more kernel launches over the whole of
-C become zero. `Level3::gemm` *is* this function with
-`Kernels::GemmIdentityEpilogue`, so the fused and unfused paths cannot drift.
-It carries one warning that has to survive every retelling: **an activation
-epilogue in a forward training pass is silently wrong** unless it also spills its
-pre-activation, because the backward pass must differentiate at an input that no
-longer reached memory. Nothing throws and nothing produces NaN — the model just
-trains toward the wrong place. It is why cuBLASLt exposes `GELU_AUX_BIAS` and not
-merely `GELU_BIAS`.
+### Dense BLAS
 
-The seam declares A, B and C to the dependency tracker and **cannot** discover
-what the epilogue itself touches — the functor is an opaque callable, which is
-exactly what lets a consumer fuse without writing SYCL. An undeclared bias is
-therefore not a wrong dependency edge, it is *no* edge, and the graph is free to
-run the fused GEMM concurrently with whatever writes that bias: the same class of
-silent defect as the `execute_reduction` bare-pointer regression in §4, arriving
-by a different route. `Dispatch::gemm_epilogue(functor).reads(t).writes(t)`
-bundles the functor with the memory it touches into one value, and `execute_gemm`
-appends those regions to the task's access set. The bundle is a value rather than
-an extra defaulted parameter on purpose: the access set then travels wherever the
-functor travels — returned from a helper, chosen in a `switch` — instead of being
-a second argument that can be lost independently of the first, and an omitted
-defaulted argument is invisible in a diff whereas a functor without its operands
-is a thing you have to write. Operands are named as **tensors**, never as
-regions, because a `ResourceRegion` converts implicitly from a bare pointer and
-that conversion is precisely the mistake §4 documents; `GemmEpilogue::reads`
-calls `Tensor::region()` itself, so the wrong spelling is unavailable. A bare
-functor is still accepted and still declares nothing, so nothing that never
-declared anything changes behaviour — `Level3::gemm`'s identity epilogue
-included. `Unit_GEMMSeamTest`'s ordering cases assert on `in_degree` rather than
-on output values, for the reason §4 gives: with no edge the tasks may still come
-out in the right order by luck, so a correct answer proves nothing about
-ordering. Each has a control asserting an in-degree of 0 for the undeclared
-spelling, so the assertion cannot pass without the declaration doing the work.
-The `writes` direction is what makes an aux-buffer spill expressible at all; it
-does not by itself make a GELU epilogue correct, which additionally needs the
-consumer's backward rule to read that buffer.
+**Flags.** `core/blas_types.hpp` declares the four flag enumerations, with the CBLAS values:
 
-**`execute_zip_inplace`** is the variadic member of that set, and the one built
-for optimiser steps. It takes a `std::array<Tensor*, N>` of same-shaped tensors
-and calls the functor once per element index with an **lvalue reference to each**
-— `op(t0[i], t1[i], ..., tN-1[i])` — so one functor can read and update all N in
-a single pass over memory. An AdamW update (parameter decay, both moment
-updates, both bias corrections, the epsilon, the parameter step, an optional
-parameter EMA) is roughly seventeen recorded tasks when spelled as separate ops
-and exactly one through this seam. All N tensors are declared as both reads and
-writes on the graph, since nothing at this layer can tell which ones the functor
-touched; `Tensor::region()`'s precise byte interval keeps that from
-over-serialising disjoint views of one arena. N is a compile-time template
-parameter because the kernel stages one register per operand per element and
-expands the call through an `index_sequence` — a `span` would not do, and a
-trailing parameter pack would displace the `name` / `op_id` / `params` arguments
-every other executor in the family takes.
+| Enumeration | Enumerators |
+| --- | --- |
+| `Core::Transpose` | `NO_TRANS`, `TRANS`, `CONJ_TRANS` |
+| `Core::Uplo` | `UPPER`, `LOWER` |
+| `Core::Diag` | `NON_UNIT`, `UNIT` |
+| `Core::Side` | `LEFT`, `RIGHT` |
 
-### Launch geometry (`support/launch_1d.hpp`)
+A flag outside its enumeration throws `std::invalid_argument` at record time (`require_flag`).
 
-Every per-element kernel — elementwise, non-linear and logic — goes through two
-primitives in `namespace SushiBLAS::Launch` rather than calling `parallel_for`
-itself: `map` (`out[i] = op(in0[i], ...)`) and `zip_inplace`
-(`op(t0[i], ..., tN-1[i])`, every slot writable). Both own the launch shape, so
-retuning it is one edit instead of thirty-five.
+**Scalars.** `BlasScalar` (`engine/blas/scalar.hpp`) is the scalar argument of a BLAS call. It
+converts from `double` and from `std::complex<double>`, holds the value as given, and
+`as<T>()` rounds it once to the element type inside the task. A scalar with a non-zero imaginary
+part passed to a real tensor throws at record time (`require_real_scalar`). The scalars the
+standard defines as real (`rot`'s `c` and `s`, the `alpha` of `her`, `hpr` and `herk`, the `beta`
+of `herk` and `her2k`, and `ger`'s `alpha`) are `double`.
 
-- **Grid-stride `nd_range`, not a bare `sycl::range<1>`.** The geometry comes
-  from `Device::plan_1d`, and the loop's `i < n` test *is* the bounds check, so
-  there is no padded tail work-group. `Device::flat_work_group_size` picks the
-  group width: `work_group_size` on a GPU, and on a CPU the widest group that
-  still gives every hardware thread one, because a flat launch pays for
-  work-group *count* (each group is a scheduling unit) and never pays for the
-  barriers `work_group_size`'s small CPU answer is protecting against.
-- **128-bit accesses where the device wants them.** When
-  `Device::vector_width` returns more than 1 *and* every operand is 16-byte
-  aligned (checked on the host at record time, because a `Tensor` view is only
-  guaranteed to be aligned to its own element type), a wide pass loads and
-  stores `sycl::vec<T, W>` — but calls the functor once per scalar component, so
-  the functor contract stays scalar and every existing caller is unaffected. The
-  remainder falls to the scalar loop. Skipped for `std::complex`. Both passes
-  live in one kernel: when the wide path is not taken the wide loop's trip count
-  is zero and the scalar loop starts at element 0, so there is no second kernel
-  and no divergent branch.
-- **Determinism is preserved by construction.** The grid, the group width and
-  the scalar/wide split are pure functions of the device, the element type, `n`
-  and the operands' alignment. Every element is written exactly once by exactly
-  one work-item, from the same inputs, in the same arithmetic — which is what
-  keeps the byte-for-byte reproducibility `sushiruntime_deterministic_fp`
-  promises intact through this layer.
+```cpp
+auto Z = engine.create_tensor({8, 8}, Core::DataType::COMPLEX64);
+auto H = engine.create_tensor({8, 8}, Core::DataType::COMPLEX64);
+auto zx = engine.create_tensor({8}, Core::DataType::COMPLEX64);
+auto zy = engine.create_tensor({8}, Core::DataType::COMPLEX64);
 
-### Notable kernel designs
+BLASOps blas(engine);
+blas.herk(Z, H, Core::Uplo::UPPER, Core::Transpose::CONJ_TRANS, 1.0, 0.0);   // H = Z^H Z
+blas.axpy(std::complex<double>(0.0, 1.0), zx, zy);                           // zy = i*zx + zy
+blas.trsv(H, zx, Core::Uplo::UPPER, Core::Transpose::NO_TRANS, Core::Diag::NON_UNIT);
+```
 
-- **GEMM** (`include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`) — two kernel shapes behind one
-  entry point, chosen at launch from the `Device::Profile` in
-  `include/SushiBLAS/support/device_policy.hpp` and logged at `SB_LOG_INFO` so
-  the choice is observable:
-  - `Detail::gemm_local_tiled` — work-group-cooperative A/B staging through
-    local memory, for devices with genuine scratchpad memory. The A tile's
-    leading dimension is padded off a bank multiple; the arithmetic is spelled
-    out at the read site.
-  - `Detail::gemm_no_local` — no `local_accessor`, no barrier, a smaller
-    register block. What a CPU backend wants, where "local memory" is the same
-    cache the global pointer already reads through. A device that declares
-    scratchpad memory but cannot fit the tile or host the work-group falls back
-    here with a warning rather than failing the launch.
+**Routines.** The dtypes are HALF, FLOAT32, FLOAT64, COMPLEX32 and COMPLEX64 unless a row says
+otherwise.
 
-  The register block is derived from `sizeof(T)` against a byte budget
-  (`Detail::register_block_dim`), not fixed: 8×8 for 4-byte and narrower types,
-  4×4 for the wider ones. The four (layout, transpose) combinations are resolved
-  on the host into a row/column stride pair (`Detail::strides_for`), so the
-  innermost loop carries no layout branch and no extra instantiation. A trailing
-  `Epilogue` template parameter, defaulting to `Kernels::GemmIdentityEpilogue`, is
-  applied per element immediately before the store — the library's fusion hook for
-  bias-add and activations, reachable from outside the library through
-  `Dispatch::execute_gemm` (§7 above). The reference kernel takes the same
-  parameter, so `FORCE_REFERENCE` mode has a ground truth for a *fused* GEMM rather than
-  declaring every one of them wrong. See the `@warning` on either for why an
-  *activation* epilogue in a forward training pass is a silent-wrongness trap.
-- **SYRK** (`kernels/sycl/blas/level3/syrk.hpp`) — local-memory-tiled and
-  work-group-cooperative, composed from GEMM's operand-addressing primitives
-  (`Detail::strides_for`, `Detail::load_operand`) with the second operand set to
-  the input itself, plus a triangular output mask. It owns its tile geometry
-  (`Detail::SyrkTileConfig`) rather than sharing GEMM's, so retuning one cannot
-  silently retune the other. It has not been given GEMM's local/no-local split
-  yet — a named follow-up, not a regression.
+| Level | Routines |
+| --- | --- |
+| 1 | `axpy`, `scal`, `copy` (every dtype, the integers included), `swap`, `dot` (real only), `dotu`, `dotc`, `nrm2`, `asum`, `iamax` (zero-based `INT64` result), `rot`, `rotg`, `rotm` (real only), `rotmg` (FLOAT32 and FLOAT64) |
+| 2, general | `gemv`, `ger` (real only), `geru`, `gerc` |
+| 2, symmetric and Hermitian | `symv`, `hemv`, `syr`, `her`, `syr2`, `her2` |
+| 2, triangular | `trmv`, `trsv` |
+| 2, band | `gbmv`, `sbmv`, `hbmv`, `tbmv`, `tbsv` |
+| 2, packed | `spmv`, `hpmv`, `tpmv`, `tpsv`, `spr`, `hpr`, `spr2`, `hpr2` |
+| 3 | `gemm`, `symm`, `hemm`, `trsm`, `syrk`, `herk`, `syr2k`, `her2k` |
 
-  Both are `beta==0`-safe: they branch around reading `C` when `beta == T(0)`,
-  because `0 * NaN == NaN` in IEEE-754 and a freshly-allocated,
-  never-initialized `C` can decode as a HALF-precision NaN. See
-  [NOTICE.md](../../NOTICE.md) for the full attribution and the deliberate
-  simplifications versus upstream portBLAS (no double buffering, no vectorized
-  packet loads, no per-backend tuning table).
-- **TRSM / TRSV** (`kernels/{reference,sycl}/blas/level{2,3}/trsm.hpp`) — one
-  kernel serves both: `Level2::trsv` calls `Kernels::*::trsm<T>` with a
-  single-column right-hand side. The substitution direction (forward vs.
-  backward) is derived from an "effective triangle" trick: `A_eff(i,k) =
-  transA ? A(k,i) : A(i,k)` is exactly `op(A)(i,k)`, and `eff_lower = transA ?
-  upper : !upper` picks the walk direction — collapsing all four
-  upper/lower × trans/non-trans cases into one code path. Right-side TRSM is
-  the same system with the trans flag and the row/column roles swapped once
-  more. It runs as one sequential `single_task` (a genuine write-after-read
-  dependency between substitution steps rules out a parallel launch).
-- **TRMV** (`kernels/*/blas/level2/trmv.hpp`) — in-place (`x = op(A)*x`)
-  without a temporary buffer: walking the index from the "open end" of the
-  effective triangle toward the "closed end" guarantees every element a step
-  reads is still untouched when that step runs. Also a sequential
-  `single_task` for the same reason as TRSM.
-- **GEMV / GER / SYMV / SYR / SYR2** — embarrassingly parallel, one work-item
-  per output element; each output depends only on inputs, never on other
-  outputs.
-- **Level1 reductions** (`asum`/`nrm2`/`dot`/`iamax`) — serial `single_task`
-  kernels rather than a tree reduction. A deliberate correctness-first choice:
-  Level1 vectors are small relative to the library's actual
-  performance-critical tier (Level3 GEMM/SYRK). Note these are the *BLAS* Level1
-  ops (`engine.blas()`), which are separate from the whole-tensor reductions
-  below.
-- **Whole-tensor folding reductions** (`support/reduce_1d.hpp`) —
-  `reductions().sum`/`mean`/`asum`/`nrm2`/`prod` do **not** use
-  `sycl::reduction`. The spec fixes no combination order for it, floating-point
-  addition is not associative, and this library links
-  `sushiruntime_deterministic_fp` PUBLIC — so byte reproducibility was resting on
-  an implementation detail nobody had promised, one that happens to hold on an
-  OpenCL CPU and is far likelier to vary on the NVIDIA GPUs the project targets.
-  `Reduce::reduce` replaces it with a shape fixed entirely by the geometry: a
-  grid-strided serial pass per work-item using **Neumaier** compensation, a
-  hand-written halving tree over local memory (not `reduce_over_group`, whose
-  order the spec leaves equally free), then one task summing a fixed partial count
-  in ascending index order. `max`/`min`/`all`/`any` are left on `sycl::reduction`
-  deliberately — each carries a comment explaining why order cannot change its
-  value. `argmax`/`argmin` are a serial scan through
-  `Dispatch::execute_index_reduction`, which is a different seam from
-  `execute_reduction`: their answer is an index, so it goes into an **INT64**
-  result tensor rather than one sharing the input's dtype.
+`trmm` is not implemented. The Level 3 routines are batched above rank 2: the output sets the
+batch count, and an input of rank 2 is reused for every matrix. A Level 2 matrix has rank 2. A
+band operand is the band storage of the standard with its `kl`, `ku` or `k` stated in the call,
+and a packed operand is a rank-1 tensor of `n * (n + 1) / 2` elements. A Hermitian routine does
+not read the imaginary part of the diagonal and leaves an updated diagonal real.
 
-  **`count_nonfinite` is the third reduction executor**, alongside
-  `execute_reduction` (same dtype in and out, scratch of that dtype) and
-  `execute_index_reduction` (INT64 out, no scratch): `Dispatch::execute_counting_reduction`
-  is INT64 out *with* an INT64 partials buffer, because "how many elements are inf or
-  NaN" is a fold over the whole tensor rather than a scan. It exists for a
-  mixed-precision layer above, which must decide on device — with no host sync, or the
-  optimiser step drains the graph — whether to skip an update and halve the loss scale.
-  The count is INT64 rather than a flag in the input's dtype for the reason
-  `execute_index_reduction` was cut out at all: a count is exact in fp32 only below 2^24
-  and in fp16 only below 2048, and past 65504 a HALF count is an infinity, so the tensors
-  most worth counting are the ones whose count would be wrong. `asum` would nearly have
-  served — a sum of magnitudes is non-finite whenever any element is — and is rejected
-  because it accumulates in the *input's* dtype: a clean fp16 tensor whose running total
-  leaves binary16's range — eight elements of 20000 is enough — makes it report an overflow
-  that never happened, which in a loss-scaling loop halves the scale for ever on a run that
-  was fine. `Unit_CountNonFiniteTest.AsumReportsOverflowOnAHalfTensorThisOpCallsClean`
-  runs both ops on one tensor and asserts they disagree, so that argument is a measurement
-  rather than a claim. `Reduce::reduce` gained a second type parameter for it — the
-  accumulation type, deduced, equal to the element type for every pre-existing caller — so
-  the counting shape reuses the fixed-order two-stage fold instead of hand-writing a
-  second copy; the accumulator is `Reduce::ExactSum`, whose determinism holds for a
-  stronger reason than the floating-point ones (integer addition is exactly associative,
-  so no order can change the answer).
+**Operands are described once.** `matrix_operand.hpp`, `vector_operand.hpp`, `band_operand.hpp`,
+`packed_operand.hpp` and `scalar_operand.hpp` each turn a tensor into the extents, leading
+dimension and increment a kernel takes, and throw `std::invalid_argument` on a view the kernel
+cannot read (a non-contiguous matrix, a zero or negative increment, mixed layouts, a batch count
+that does not match). `task_metadata.hpp` records the scalars and flags in the task's metadata.
 
-  `nrm2` is the one folding reduction whose accumulator is not a plain sum.
-  `Reduce::ScaledSumOfSquares` carries a running scale and folds
-  `(x / scale)^2`, because `sqrt(sum(x*x))` overflows to infinity for any fp32
-  element past ~1.8e19 and underflows to zero below ~1e-22 — the first of which
-  is exactly what a gradient-norm clip is called on. Its `value()` is a finished
-  partial *norm* and its `combine` is `hypot`, which is what lets it fit
-  `Reduce::reduce`'s existing two-stage shape unchanged.
+**Kernel shapes.** These are the shapes as written; none is a claim about speed.
 
-  The per-work-group partials come from a scratch buffer allocated **once, at
-  task-record time**, from the engine's allocator, and captured by the task. That
-  is the right trade for a compile-once/replay library: a per-launch
-  `malloc_device` plus a `host_task` free would add two submissions to every
-  reduction on every replay. It is also a declared write region, so the tracker
-  can order reductions against it rather than have them race invisibly.
+- *Level 1.* The maps (`axpy`, `scal`, `copy`, `swap`, `rot`, `rotm`) launch through
+  `Launch::indexed`. `asum`, `nrm2`, `dot`, `dotu`, `dotc` and `iamax` fold through
+  `Reduce::reduce_indexed` with a leased scratch for the partials. `rotg` and `rotmg` are scalar
+  routines.
+- *GEMV, SYMV, HEMV, TRMV.* `row_reduction.hpp` launches one work-group per row for long rows and
+  one work-item per row otherwise, each folding in a fixed order. TRMV takes a snapshot of `x`
+  first, then computes one row product per element.
+- *TRSM and TRSV.* `trsm.hpp` is a blocked substitution: each diagonal block is solved for every
+  right-hand-side vector in parallel, then subtracted from the unknowns still to be solved in a
+  second parallel launch. `triangular_system.hpp` decodes every side and flag into one
+  substitution, and `triangular_plan.hpp` picks the block size from the device. TRSV calls the
+  same kernel with one right-hand side. The solved elements are carried in the accumulation type
+  between steps through `RunningSolution`, in a leased workspace when that type is wider than the
+  element.
+- *TBMV, TBSV, TPMV, TPSV.* One `single_task` each, through `triangular_product.hpp` and
+  `triangular_solve.hpp`.
+- *GEMM.* `Kernels::SYCL::gemm` chooses among three shapes from the `Device::Profile` and logs
+  the choice at `SB_LOG_INFO`. `gemm_local_tiled` stages tiles of A and B in work-group local
+  memory, for a device with dedicated local memory. `gemm_no_local` uses no local accessor and no
+  barrier. The packed product (`packed_product.hpp`, `packed_panel.hpp`,
+  `packed_micro_kernel.hpp`) packs panels of both operands into leased scratch and runs a
+  register-block micro-kernel over them, one work-item per worker; `selects_packed_product`
+  chooses it on a CPU device when the output spans at least four register blocks on each axis and
+  the operands hold at least the device's cache in bytes. Without the scratch, or when the plan is
+  not selected, the kernel falls back to one of the other two.
+- *SYMM and HEMM* run the GEMM kernels through `symmetric_access.hpp`, which reads the mirrored
+  triangle. *SYRK and HERK* use the packed product with a triangular store where the plan selects
+  it and a local-memory tile otherwise. *SYR2K and HER2K* use a local-memory tile. The tiled SYRK
+  and SYR2K throw `std::runtime_error` at execute time on a device that cannot host the tile.
 
-  A CPU below `K_CPU_TWO_STAGE_MIN_ELEMENTS` (16K) takes a single sequential pass
-  instead — measured, not assumed: at 1K the single pass is 1.5× faster, at 1M the
-  two-stage shape is 11.8× faster, and they cross at 16K. Both are deterministic,
-  and the shape is a pure function of the device and the element count, so the
-  threshold does not weaken the guarantee.
-- **Axis (segmented) reductions** (`support/reduce_axis.hpp`) — the third launch
-  shape, alongside `launch_1d.hpp`'s per-element map and `reduce_1d.hpp`'s
-  whole-tensor fold: N independent folds running side by side over one buffer,
-  producing a **vector**. `reductions().max_along` and `sum_along` are each one
-  call to `Dispatch::execute_folding_axis_reduction`, differing only in the
-  accumulation policy; a per-axis `mean` is `CompensatedSum` with `v / n` in the
-  finalizer slot and a per-axis `min` is a four-line accumulator, so neither
-  re-cuts the seam. An index-valued one (`argmax` along an axis) needs its own
-  executor, because its result dtype differs from its input's — exactly the way
-  `execute_index_reduction` is a separate twin of `execute_reduction` — but it
-  reuses `Dispatch::axis_span_for` for the geometry rather than deriving it
-  again.
+`beta` exactly zero skips reading the output in every routine that takes it, and the operand set
+declares the output as written only in that case.
 
-  It exists because a log-sum-exp shift has to be **per row**. Shifting a batch
-  by the batch's global maximum is exact in real arithmetic and wrong in
-  binary32: the invariance is destroyed by the exponential, not by the
-  subtraction, so a row about 104 below the batch maximum has every
-  `exp(x - global_max)` underflow to zero, a row sum of exactly zero, and a
-  log-softmax of `+inf`. See [GPU_VALIDATION.md §7](../design/GPU_VALIDATION.md) for the
-  before-and-after measurements.
+### Sparse BLAS
 
-  **`Reduce::AxisSpan` names no axis.** It carries five element counts — segment
-  count, extent, and three strides — so the axis, the `Core::Layout` and any
-  non-unit stride a view inherited are all resolved once on the host by
-  `axis_span_for`. Both axes of both layouts are the same kernel with different
-  numbers: no layout branch in the inner loop, no second instantiation.
+The sparse operands are plain structs of tensors, so they are views like any other:
 
-  **Two shapes, chosen by `Reduce::plan_axis` from where the parallelism is.**
-  One work-item per segment when there are already enough segments to fill the
-  machine (which is every row-wise reduction over a batch, on every device), and
-  one work-group per segment — grid-striding the segment, then the same
-  hand-written halving tree stage one of `Reduce::reduce` uses — when there are
-  too few segments and each is long enough to be worth the barriers. Both are
-  correct at every shape; neither requires the segment length to relate to the
-  work-group width. Unlike the whole-tensor fold this needs **no scratch
-  buffer**, and structurally so: a work-group's tree *is* its segment's answer,
-  so there are no partials to stage between two kernels.
+- `SparseMatrix` (`sparse_matrix.hpp`) is CSR as three rank-1 tensors, `row_offsets`
+  (`rows + 1` elements), `column_indices` and `values`, with `rows`, `cols` and an
+  `index_base`. The index tensors are `INT32` or `INT64` and share a dtype.
+- `SparseVector` (`sparse_vector.hpp`) is `indices` and `values` with a `size` and an
+  `index_base`, no position stored twice.
+- `Core::IndexBase` (`core/sparse_types.hpp`) is `ZERO` or `ONE`.
 
-  Determinism holds by the same argument the whole-tensor fold makes, and the
-  item-per-segment shape makes it more cheaply: one work-item folds one segment
-  in ascending index order, so there is no cross-work-item combination for the
-  specification to leave free.
-- **Random** (`kernels/sycl/random/philox.hpp`) — a hand-written
-  Philox4x32-10 counter-based PRNG (constants verified against the Random123
-  reference implementation), replacing what was previously oneMKL's VSL
-  backend. Every distribution op (`uniform`, `normal`, `log_normal`,
-  `exponential`, `poisson`, `bernoulli`, `discrete_uniform`, the Xavier/He
-  initializers) is built on it, keyed by the seed and the offset that
-  `RngStream::reserve` hands out so concurrent draws never collide on the
-  same stream position.
+`SparseBuilder` (`sparse_builder.hpp`) builds them from host data on one device of a
+`TensorFactory`. `matrix_from_triplets` takes COO arrays, adds the values of repeated
+`(row, column)` pairs and orders each row by ascending column. `matrix_from_dense` keeps every
+element that is not zero. `vector_from_entries` takes positions and values. The builder throws
+`std::runtime_error`, as the factory does.
 
-- **Spatial** (`kernels/{reference,sycl}/spatial/`, reached through
-  `Engine::spatial()`) — windowed and strided movement over an N-D grid. In
-  §3's vocabulary these are **gathers** (`im2col`, `col2im`,
-  `upsample_nearest`, the channel copies, `layout_convert`), **windowed
-  reductions** (`pool_max`, `pool_avg`) and **broadcasts** (`channel_affine`,
-  `broadcast_spatial`). The word "convolution" does not appear in the domain
-  and should not be added to it: a convolution is an `im2col` followed by a
-  GEMM, and parameter ownership, training mode and differentiation belong to
-  the layer above.
+```cpp
+const std::vector<int32_t> rows = {0, 0, 1, 2};
+const std::vector<int32_t> cols = {0, 2, 1, 2};
+const std::vector<float> values = {4.0f, 1.0f, 3.0f, 2.0f};
 
-  `Spatial::WindowSpan` (`support/spatial_geometry.hpp`) is this domain's
-  `Reduce::AxisSpan`, and exists for the same reason. It carries element counts
-  and strides only, so the layout, the axis order and any non-unit stride a view
-  inherited are resolved once on the host in `Spatial::window_span_for` and the
-  device sees none of them — one kernel per operation, no layout branch in the
-  inner loop, no second instantiation. Activations are NHWC throughout, but the
-  struct names no layout; adding NCHW later is a second stride assignment in
-  `window_span_for` and nothing else anywhere.
+SparseBuilder builder(engine.get_tensor_factory());
+const SparseMatrix S = builder.matrix_from_triplets(3, 3, rows, cols, values);
 
-  **Every backward in this domain is a gather, never an atomic scatter.** This is
-  the argument this section already makes for rejecting `sycl::reduction` in the
-  folding reductions, applied a second time rather than a new one. `col2im`
-  written the obvious way — walk the column matrix, add each entry into the pixel
-  it came from — needs a floating-point atomic add wherever windows overlap, and
-  the order in which those additions combine varies between runs. SushiBLAS links
-  `sushiruntime_deterministic_fp` PUBLIC, so that is not a trade the library may
-  make. Instead the loop nest is inverted: each *output* element finds the inputs
-  that contributed to it and sums them itself, in ascending `(r, s)` order. The
-  inversion is a divisibility test — pixel `h` is read by window row `h_o`
-  through tap `r` exactly when `h + pad_top - r * dilation_h` is non-negative and
-  divisible by `stride_h` — and `pool_max_backward` adds an equality test on the
-  recorded argmax index to the same walk.
+SparseOps sparse(engine);
+sparse.spmv(S, x, y);                                         // y = S x
+sparse.spmv(S, x, y, Core::Transpose::TRANS, 1.0, 1.0);       // y = S^T x + y
+```
 
-  The failure mode this guards is silent: an atomic add is correct to every
-  tolerance any functional test uses and differs only in the last bits, so
-  nothing in the unit tier would catch its return.
-  `tests/functional/regression/test_spatial_determinism.cpp` is the guard — five
-  cases, all with overlapping windows and inputs of deliberately mixed magnitude,
-  each run twice and compared bit for bit.
+`SparseOps` records thirteen routines:
 
-  `Reduce::AxisSpan` gained a second **segment** axis for this domain, and the
-  distinction between a segment axis and a folded one decides which loop changes.
-  Folding two axes at once needs nothing new: BatchNorm over NHWC is `[N*H*W, C]`,
-  a zero-copy rank-2 view whose axis 0 the existing five numbers already fold to
-  `[C]`. What those five numbers cannot express is a segment identified by a
-  *pair* — global average pooling's `[N,H,W,C] -> [N,C]` has one result per
-  `(n, c)`, whose input offset is `n * H*W*C + c`, and no single `segment_stride`
-  produces that from a single index. Hence `segments2` / `segment_stride2` and
-  the pair decomposition in `reduce_axis`. The fold order within a segment did
-  not move and no cross-segment combination was introduced, so the determinism
-  argument above is unchanged.
+| Kind | Routines |
+| --- | --- |
+| Sparse vector with dense vector | `axpyi`, `doti` (real only), `dotui`, `dotci`, `gthr`, `gthrz`, `sctr`, `roti` |
+| CSR matrix with dense vector | `spmv`, `spsymv`, `sphemv`, `sptrsv` |
+| CSR matrix with dense matrix | `spmm` |
 
-All five dtypes (including `HALF`) are implemented for every one of the 17
-from-scratch BLAS ops — a functional gain over oneMKL, which never supported
-`HALF` for several of these routines (SYRK's `HALF` case still throws; that is
-a pre-existing kernel-level limitation carried over, not a gap in the port).
+The record-time checks (`engine/sparse/`) cover the index base, the rank, length, stride and
+storage of each array, the index dtype and whether it can hold the largest index. They do not
+read the index values: a kernel takes the structure on trust, and
+`kernels/reference/sparse/structure.hpp` holds the host checks the reference kernels assert in a
+build without `NDEBUG`.
+
+**The scattering scheme.** A product with `NO_TRANS` gives each output row to one work-item,
+which adds that row's terms in stored order. A transposed product has no such owner: output `j`
+is column `j`, and every row scatters into the output. `kernels/sycl/sparse/row_blocks.hpp` makes
+that safe without atomic adds, in two stages. The rows are cut into consecutive blocks that hold
+equal shares of the stored entries, found by a binary search of the row offsets, and one
+work-item per block zero-fills a private slice of leased scratch and adds its rows' terms into
+it. A second launch then gives each output to one work-item, which adds that output's partial
+from every block in ascending block order and stores the result with `alpha` and `beta`. No
+element has two writers in either stage, and each output still receives its terms in ascending
+row order. `scatter_blocks` picks the block count as the smallest of the work-items the device
+keeps resident, two partial sums per stored entry, and 256. `spsymv` and `sphemv` use the same
+scheme, since each stored entry also contributes to its mirror. A transposed `spmm` gives each
+column of the result to one work-item, which scatters that column serially. `sptrsv` is one
+work-item.
+
+### Spatial
+
+`SpatialOps` moves numbers around an NHWC grid: gathers (`im2col`, `col2im`,
+`upsample_nearest`, `concat_channels`, `slice_channels`, `layout_convert`), windowed reductions
+(`pool_max`, `pool_avg`), broadcasts (`channel_affine`, `broadcast_spatial`), the backward form
+of each that has one, and the windowed product. The family serves `Domain::REAL`, except
+`concat_channels` and `slice_channels`, which move elements and serve every dtype. Parameter
+ownership, training mode and differentiation belong to the layer above.
+
+`Spatial::ConvGeometry` carries the kernel size, stride, dilation and the leading padding.
+`Spatial::window_span_for` (`engine/spatial/window.hpp`) resolves the operands' strides into a
+`WindowSpan` of element counts on the host, so a kernel carries no layout branch.
+
+**The windowed product.** `window_dot(in, weights, out, g)` sums each channel's window weighted
+by that channel's taps: `in` is `[N, H, W, C]`, `weights` is `[kernel_h, kernel_w, C]`, and a tap
+outside the input adds nothing. It is the per-channel (depthwise) product, computed without
+materialising a column matrix. `window_dot_backward` is the gradient with respect to the input
+and `window_dot_weights_backward` the gradient with respect to the taps.
+
+```cpp
+Spatial::ConvGeometry g;
+g.kernel_h = 3;
+g.kernel_w = 3;
+g.pad_top = 1;
+g.pad_left = 1;
+
+auto image = engine.create_tensor({1, 32, 32, 16});   // NHWC
+auto taps = engine.create_tensor({3, 3, 16});         // [kernel_h, kernel_w, C]
+auto out = engine.create_tensor({1, 32, 32, 16});
+
+SpatialOps(engine).window_dot(image, taps, out, g);
+```
+
+**Every backward is a gather.** `col2im` written as "each column entry adds into its pixel" needs
+a floating-point atomic add wherever windows overlap, and the order of those additions varies
+between runs. Each output element instead finds the inputs that contributed to it and sums them in
+a fixed order. `pool_max_backward` adds a test on the recorded index to the same walk. A HALF sum
+in these kernels is formed in FLOAT32 and rounded once, and HALF storage on a device without the
+`fp16` aspect is refused at record time.
+
+### Reductions
+
+`ReductionOps` folds a contiguous tensor into a one-element result tensor, or along an axis into
+a vector. The value reductions serve HALF, FLOAT32 and FLOAT64.
+
+| Operation | Result | Empty input | NaN |
+| --- | --- | --- | --- |
+| `sum`, `asum`, `nrm2` | Same dtype | Writes 0 | IEEE arithmetic: a NaN term gives NaN |
+| `prod` | Same dtype | Writes 1 | IEEE arithmetic: a NaN factor gives NaN |
+| `count_nonfinite` | `INT64` | Writes 0 | Counts every NaN and every infinity |
+| `sum_along` | Rank-1, same dtype | Writes 0 to every segment | IEEE arithmetic, per segment |
+| `mean`, `var`, `std`, `logsumexp` | Same dtype | Throws `std::invalid_argument` | IEEE arithmetic: a NaN term gives NaN |
+| `max`, `min` | Same dtype | Throws `std::invalid_argument` | Any NaN element makes the result NaN |
+| `max_along`, `min_along` | Rank-1, same dtype | Throws `std::invalid_argument` | A NaN makes its segment's result NaN |
+| `mean_spatial` | `[N, C]` from `[N, H, W, C]` | Throws `std::invalid_argument` | IEEE arithmetic, per segment |
+| `argmax`, `argmin` | `INT64` index | Throws `std::invalid_argument` | A total order, stated below |
+
+The zero-element rule is decided at record time, before either path runs, so both modes answer
+the same way. `var` and `std` are the population forms, dividing by `n`.
+
+`argmax` and `argmin` return the lowest index of the winning value under the total order of
+`Reduce::RunningArgMax`: a NaN at index 0 wins, a NaN at any other index loses to every element
+that is not a NaN, and ties go to the lower index. That is the answer of a serial scan that starts
+from element 0 and replaces its best only on a strictly greater value.
+
+**Shapes.** A whole-tensor fold is `Reduce::reduce`: a grid-strided pass per work-item, a
+hand-written halving tree per work-group, then one task that adds a fixed number of partials in
+ascending order. The partials live in a scratch leased at record time. `sum`, `mean` and `asum`
+use `CompensatedSum` (Neumaier), `nrm2` uses `ScaledSumOfSquares` so that squaring does not
+overflow or underflow, and a HALF input accumulates in FLOAT32. `var`, `std` and `logsumexp` are
+two fixed-order stages through `CentredReductionDispatch`: a centre (the mean, or the maximum),
+then a compensated sum around it. An axis reduction is `Reduce::reduce_axis` over an `AxisSpan`,
+which names no axis: `axis_span_for` resolves the axis, the layout and the strides on the host.
+`mean_spatial` is the one shape with a pair of segment axes. An axis fold stages no partials and
+leases no scratch.
+
+Each executor takes a dispatcher with two members, the SYCL fold and `reference`, the serial host
+fold. `execute_folding_reduction<Accum>` builds one from a transform and a finalize functor, and
+is the seam a consumer uses for a fold of its own.
+
+`LogicOps::all` and `any` are reductions too, and the one place a `sycl::reduction` remains: a
+minimum and a maximum over ones and zeros, whose value no combination order can change. On an
+empty tensor `all` writes 1 and `any` writes 0.
+
+### Random
+
+`kernels/sycl/random/philox.hpp` is a Philox4x32-10 counter-based generator. Every distribution
+is a pure function of `(seed, offset, block index)`, so a fill is reproducible however the work
+was scheduled. `RandomOps` has `constant`, `uniform`, `normal`, `log_normal`, `exponential`,
+`poisson`, `discrete_uniform`, `truncated_normal`, `bernoulli`, the Xavier and He initialisers,
+`orthogonal` and `shuffle`. A distribution that draws values refuses HALF and the integer dtypes
+at record time; `constant` and `shuffle` only move values. `poisson` draws in double precision
+for every dtype and throws `UnsupportedExecution` on a device without `fp64`, under every mode.
+
+The words Philox produces are the same on the host and on the device. A distribution that goes
+on through `log`, `sqrt`, `cos`, `exp` or `erfc` uses the math library of whichever side runs it,
+so the two modes are not expected to agree to the bit there.
+
+### `convert`
+
+`ElementwiseOps::convert(src, dst)` is the one operation whose operands may differ in dtype. It
+serves the nine pairs of HALF, FLOAT32 and FLOAT64, and a pair outside them throws at record time
+naming both dtypes. Converting a dtype to itself copies.
 
 ---
 
 ## 8. The SushiRuntime dependency (D3)
 
-SushiBLAS does not vendor SushiRuntime. `cmake/Runtime.cmake` resolves it
-through the same three-mode, layered pattern used stack-wide (sushiengine,
-sushiai):
+SushiBLAS does not vendor SushiRuntime. `cmake/Runtime.cmake` resolves it in three steps, the
+pattern the whole stack uses:
 
-1. **TARGET-guard** — if a superproject already brought in
-   `SushiRuntime::SushiRuntime` (e.g. building sushiblas and sushiruntime
-   together under a common parent), reuse it.
-2. **`find_package(SushiRuntime QUIET)`** — an installed package.
-3. **Sibling `add_subdirectory`** — the common case: `../sushiruntime` next to
-   this checkout (or `$SUSHISTACK_HOME/sushiruntime` inside a workspace),
-   added as a subdirectory.
+1. **A target guard.** If a superproject already defines `SushiRuntime::SushiRuntime`, that
+   target is used.
+2. **`find_package(SushiRuntime QUIET)`.** An installed package.
+3. **A sibling `add_subdirectory`.** `../sushiruntime` beside this checkout, or
+   `$SUSHISTACK_HOME/sushiruntime` inside a workspace.
 
-Whichever mode fires, every consumer downstream links the same namespaced
-alias, `SushiRuntime::SushiRuntime` — this is what lets `sushiblas`'s own
-`SUSHIRUNTIME_DIR` cache variable, the CLI's `sushiruntime_dir` config field,
-and an out-of-tree `find_package(SushiBLAS)` consumer all agree on one link
-line regardless of how the dependency was actually found. SushiBLAS also
-inherits SushiRuntime's `sushiruntime_deterministic_fp` contract transitively
-through this link — it does not need (or own) a copy of that guarantee.
+Whichever step succeeds, every consumer links the same namespaced target,
+`SushiRuntime::SushiRuntime`. SushiBLAS inherits SushiRuntime's
+`sushiruntime_deterministic_fp` contract through that link.
 
 ---
 
 ## 9. Quarantined surface (`include/SushiBLAS/experimental/`)
 
-`LinalgOps` (SVD/QR/eigendecomposition) and `TransformsOps` (FFT/DFT) are
-declared, header-only, under `include/SushiBLAS/experimental/` and are **not**
-exposed through the `Engine` facade — there is no `engine.linalg()` or
-`engine.signal()` accessor. This is a deliberate scope decision (D1): both
-classes were declaration-only with zero `.cpp` implementations and no
-callers, so relocating them out of the facade was a pure, zero-risk move.
-FFT/LAPACK backend strategy is a named follow-up, not solved here.
+`LinalgOps` (SVD, QR, eigendecomposition) and `TransformsOps` (FFT, DFT) are declared under
+`include/SushiBLAS/experimental/` and have no implementation. The umbrella header does not
+include them and no view reaches them. This is decision D1.
 
-`SparseBLAS` (`engine/blas/sparse.hpp`) is exposed through
-`engine.blas()` (it composes into `BLASOps` alongside Level1/2/3) but every
-method is still a `// TODO:` stub — no `SparseTensor`, no SpMV/SpMM. It exists
-as a placed-but-unimplemented extension point, not a quarantined one.
+`engine/blas/sparse.hpp` still declares an empty `SparseBLAS` class from before the sparse family
+existed. No header includes it, and the sparse family is `SparseOps` in `engine/sparse.hpp`.
 
 ---
 
 ## 10. Packaging
 
-SushiBLAS is `find_package`-able: `SushiBLAS::sushiblas` (a `STATIC` library,
-aliased in-tree and exported out-of-tree under the same name),
-`install(EXPORT)` / `export(EXPORT)`, a generated `SushiBLASConfig.cmake`
-(`SameMinorVersion` compatibility, pre-1.0), and a version-drift check between
-`include/SushiBLAS/version.hpp` and the CMake project version at configure
-time. `tests/package/` is a real out-of-tree consumer exercised in CI-shaped
-fashion (see [INTEGRATION.md](../guides/INTEGRATION.md)).
+SushiBLAS is found with `find_package`: `SushiBLAS::sushiblas` is a `STATIC` library, aliased
+in-tree and exported under the same name, with `install(EXPORT)`, `export(EXPORT)` and a
+generated `SushiBLASConfig.cmake` (`SameMinorVersion` compatibility before 1.0). The configure
+step checks `include/SushiBLAS/version.hpp` against the CMake project version. `tests/package/`
+is an out-of-tree consumer; see [the integration guide](../guides/INTEGRATION.md).
 
-Because `sushiblas` is a `STATIC` library, its build-policy targets
-(`sushiblas_warnings`, `sushiblas_perf`, `sushiblas_sanitizers`, composed by
-`sushiblas_apply_build_policy()` in `cmake/SushiBLASBuildPolicy.cmake`) pull
-flag *values* onto the real target via `target_compile_options`/
-`target_compile_definitions`/`target_link_options` +
-`$<TARGET_PROPERTY:...>`, never `target_link_libraries`. For a static
-library, `target_link_libraries(... PRIVATE policyTarget)` — even
-`$<BUILD_INTERFACE:...>`-wrapped — records the policy target's name in
-`INTERFACE_LINK_LIBRARIES` as `$<LINK_ONLY:...>`, which breaks
-`install(EXPORT)`/`export(EXPORT)` with "requires target X that is not in any
-export set." Pulling flag values instead never records a target name
-anywhere, so nothing leaks and nothing breaks the export.
+Because `sushiblas` is a `STATIC` library, its build-policy targets (`sushiblas_warnings`,
+`sushiblas_perf`, `sushiblas_sanitizers`, composed by `sushiblas_apply_build_policy()` in
+`cmake/SushiBLASBuildPolicy.cmake`) put flag values on the real target through
+`target_compile_options`, `target_compile_definitions`, `target_link_options` and
+`$<TARGET_PROPERTY:...>`, never through `target_link_libraries`. For a static library,
+`target_link_libraries(... PRIVATE policyTarget)` records the policy target's name in
+`INTERFACE_LINK_LIBRARIES` as `$<LINK_ONLY:...>`, which breaks the export with "requires target X
+that is not in any export set". Flag values record no target name.
 
-CMake module files that define SushiBLAS-specific functions
-(`SushiBLASBuildPolicy.cmake`, `SushiBLASCompilerWarnings.cmake`,
-`SushiBLASOptimization.cmake`, `SushiBLASSanitizers.cmake`) are prefixed with
-the program's full name. `Vcpkg.cmake`, `Toolchain.cmake`, and
-`SyclTarget.cmake` are not, because their logic is idempotent regardless of
-which sibling repo's copy loads first — see
-[CONTRIBUTING.md §4](../CONTRIBUTING.md#build-system-names) for the stack-wide naming
-rule this follows and the collision it exists to prevent.
+The CMake modules that define SushiBLAS-specific functions (`SushiBLASBuildPolicy.cmake`,
+`SushiBLASCompilerWarnings.cmake`, `SushiBLASOptimization.cmake`, `SushiBLASSanitizers.cmake`)
+carry the program's full name. `Vcpkg.cmake`, `Toolchain.cmake` and `SyclTarget.cmake` do not,
+because their logic gives the same result whichever sibling repository's copy loads first.
+[CONTRIBUTING.md, section 4](../CONTRIBUTING.md#build-system-names) states the naming rule.
+
+---
+
+## 11. Exceptions
+
+A record call throws before any task reaches the graph, so the failure names the line that asked
+for the operation. Four types cover the library:
+
+| Type | Base | Thrown when |
+| --- | --- | --- |
+| `std::invalid_argument` | `std::logic_error` | An operand, flag, scalar or parameter is wrong: missing storage, a dtype, rank, shape, layout, stride or length mismatch, a dtype outside the operation's domain, a flag outside its enumeration, a complex scalar for a real tensor, a bad window geometry |
+| `SushiBLAS::UnsupportedExecution` | `std::invalid_argument` | The operands are right and the operation cannot run under this mode or on this device: a device-only operand under `FORCE_REFERENCE`, FLOAT64 or COMPLEX64 storage on a device without `fp64`, HALF storage on a device without `fp16`, `poisson` on a device without `fp64` |
+| `std::runtime_error` | `std::exception` | Creation and I/O: a `Tensor` or `Storage` rule (rank above 6, a negative dimension, an overflowing size, a failed allocation, a view past its storage), `TensorFactory::create`, `SparseBuilder` and `Sparse::assemble_csr`, a scratch allocation, a file that cannot be read or written |
+| `SushiRuntime::Core::SushiException` | `std::runtime_error` | The runtime refused a graph or a run |
+
+`UnsupportedExecution` (`core/errors.hpp`) derives from `std::invalid_argument`, so a handler
+written for the base still catches it, and a caller that wants the two apart lists it first:
+
+```cpp
+try
+{
+    SushiBLAS::BLASOps(engine).gemm(A, B, C);
+}
+catch (const SushiBLAS::UnsupportedExecution& refusal)
+{
+    // The operands are right; this mode or this device cannot run the operation.
+    std::printf("%s\n", refusal.what());
+}
+catch (const std::invalid_argument& rejected)
+{
+    // An operand, a flag or a scalar is wrong.
+    std::printf("%s\n", rejected.what());
+}
+```
+
+Where each type comes from:
+
+- The operand checks of `engine/operand_check.hpp` (`require_storage`, `require_dtype`,
+  `require_same_shape`, `require_same_layout`, `require_same_element_count`,
+  `require_min_elements`, `require_contiguous`, `require_rank`, `require_scalar`,
+  `require_extent`, `require_operand`) throw `std::invalid_argument` with a message of the form
+  `<op>: operand '<name>' <rule>`. `require_device_dtype` throws `UnsupportedExecution`.
+- `Dispatch::require_domain` and `set_task_params` throw `std::invalid_argument`.
+- `TaskRecorder::require_host_reachable`, which `record_pair` calls, throws
+  `UnsupportedExecution`.
+- `SB_THROW_IF` (`core/logger.hpp`) throws `std::runtime_error`. It ends every dtype switch, so a
+  dtype that slipped past the record-time check cannot fall through to nothing.
+- `IO` throws `std::invalid_argument` for an operand rule (a strided tensor, a dtype or byte-count
+  mismatch) and `std::runtime_error` for a file.
+
+Every helper logs at error level before it throws.
+
+`Engine::execute` can throw what the graph compiler throws (`std::runtime_error` for a cycle),
+whatever the first failing task threw, a `SushiException` from the scheduler, and a
+`sycl::exception` for a device error. Two SYCL kernels throw `std::runtime_error` at execute
+time: the tiled SYRK and SYR2K, on a device that cannot host their local tile. An `IO` call that
+reads or writes a tensor runs `execute()` first and can throw any of these. `SB_ASSERT` is not an
+exception: it logs and aborts in a build without `NDEBUG`.
 
 ## Project layout
 
-See the top-level [README.md § Project layout](../../README.md#project-layout)
-for the full directory tree.
+See the [root README](../../README.md#project-layout) for the directory tree.

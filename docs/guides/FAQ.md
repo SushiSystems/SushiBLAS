@@ -11,10 +11,11 @@ tensors and queue operations on them through an `Engine`; the runtime tracks the
 between the queued tasks and runs them on a CPU or a GPU through SYCL. No kernel calls a vendor
 math library: there is no oneMKL and no cuBLAS behind it.
 
-Operations are recorded, then run. A call such as `engine.blas().gemm(A, B, C)` registers a task
-and runs nothing; `engine.execute()` compiles and runs the graph. `Engine` has eight accessors:
-`blas()`, `elementwise()`, `nonlinear()`, `logic()`, `reductions()`, `random()`, `spatial()` and
-`io()`. The [root README](../../README.md#how-it-works) has a complete example, and
+Operations are recorded, then run. A call such as `SushiBLAS::BLASOps(engine).gemm(A, B, C)`
+records a task and runs nothing; `engine.execute()` compiles and runs the graph. `Engine` has no
+accessor per operation family. A family is a view class built from the engine: `BLASOps`,
+`SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`,
+`SpatialOps` and `IO`. The [root README](../../README.md#how-it-works) has a complete example, and
 [the architecture](../architecture/ARCHITECTURE.md) describes each layer.
 
 ## What do I need to build SushiBLAS?
@@ -90,9 +91,11 @@ inherits, what it must supply and how to read common build errors.
 
 ## Does my own code need a SYCL compiler if I write no kernel?
 
-Yes. The kernels are compiled into the library, so your compiler never sees the GEMM kernel's
-source and produces no device code for it. The public headers still include `<sycl/sycl.hpp>`
-and use `sycl::event` and `sycl::device` in their signatures, so every translation unit that
+Yes. The kernels behind the view methods are compiled into the library, so a call such as
+`BLASOps::gemm` produces no device code in your translation unit. A call to a
+`SushiBLAS::Dispatch` seam does, because the seam inlines your functor into a kernel. The public
+headers include `<sycl/sycl.hpp>` and use `sycl::event` and `sycl::device` in their declarations
+in either case, so every translation unit that
 includes `<SushiBLAS/SushiBLAS.h>` needs a compiler that can parse those types. Linking
 `SushiBLAS::sushiblas` carries `-fsycl` as a `PUBLIC` compile and link option for that reason.
 
@@ -121,7 +124,7 @@ None of the GPU path has run on hardware yet. See
 
 SushiBLAS owns no execution engine, no scheduler and no memory pool; all three are
 SushiRuntime's. SushiBLAS adds a domain layer on top: the `Tensor` abstraction, the `Engine`
-facade that turns method calls into graph tasks, and the kernels. It does not vendor
+that owns one graph, the operation views that record tasks on it, and the kernels. It does not vendor
 SushiRuntime. The build looks for it in three places, in order: a target a superproject already
 brought in, an installed package through `find_package(SushiRuntime)`, then a sibling
 `../sushiruntime` checkout. [Section 8 of the architecture](../architecture/ARCHITECTURE.md#8-the-sushiruntime-dependency-d3)
@@ -135,11 +138,11 @@ repository's own CLI. The [glossary](../reference/GLOSSARY.md) defines these wor
 
 - No release is tagged. The version in the build files is 0.1.0, and the project is pre-1.0.
 - None of the GPU path has run on hardware.
-- `SparseBLAS` is reachable through `engine.blas()`, but every method is a stub: there is no
-  `SparseTensor`, no SpMV and no SpMM.
+- The v0.1.0 interface has been written and not yet built or run as a whole.
+- `trmm` is not implemented. Sparse matrices are CSR only.
 - `LinalgOps` (SVD, QR, eigendecomposition) and `TransformsOps` (FFT, DFT) are declared under
-  `include/SushiBLAS/experimental/` and are not exposed through `Engine`. There is no
-  `engine.linalg()` or `engine.signal()` accessor.
+  `include/SushiBLAS/experimental/` and have no implementation. The umbrella header does not
+  include them.
 
 Defects that are recorded and not yet fixed are in [known issues](../reference/KNOWN_ISSUES.md).
 The [changelog](../reference/CHANGELOG.md) lists what has changed.

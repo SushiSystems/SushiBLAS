@@ -1,12 +1,58 @@
 # GPU validation checklist
 
-**Status:** Open — no item below has run on GPU hardware; the first step is section 1.
+**Status:** Open — one GPU run exists, on the tree before the interface break (section 0); the tree after the break has run on no device, and sections 2 to 5 are still claims.
 
-Everything in this repository and in SushiAI was developed on a machine with **no usable GPU**. `sycl-ls` there reports exactly one device — a Ryzen CPU via Intel OpenCL — and there is no CUDA toolkit, so the NVIDIA path could not be compiled, let alone run.
+Until 2026-10-07 everything in this repository and in SushiAI was developed on a machine with **no usable GPU**: `sycl-ls` reported one device, a Ryzen CPU through Intel OpenCL, and the NVIDIA path could not be compiled. Sections 1 to 7 were written in that state. Section 0 records the one GPU run made since.
 
 That is not a small caveat, and it is the reason this file exists. Several changes were made *for* a GPU, justified by argument and by arithmetic, and validated only to the extent a CPU can validate them. This page separates what is known from what is merely believed, so the first person with real hardware knows exactly where to look.
 
-**Nothing below is a report of a passing test. It is a list of claims awaiting one.**
+**Outside section 0, nothing below is a report of a passing test. It is a list of claims awaiting one.**
+
+---
+
+## 0. The one GPU run
+
+| | |
+| --- | --- |
+| Date | 2026-10-07, at 14:15 and repeated at 14:53 |
+| Card | NVIDIA GeForce RTX 3080 Ti, as `sycl-ls` names it: `[cuda:gpu][cuda:0] NVIDIA CUDA BACKEND, NVIDIA GeForce RTX 3080 Ti 8.6 [CUDA 13.3]` |
+| Tree | commit `dd5cdfc`, before the first commit of the v0.1.0 work, in a CUDA build |
+| Result | 790 of 792 tests passed |
+| Skipped | `Regression_LoggerDeathTest.AssertWritesItsMessageBeforeAborting`, a death test that needs a debug build |
+| Failed | `Unit_Level2SyclParityTest.SymvMatchesReferenceLarge<float>` |
+
+The failure was a finding about the reference kernel. For n = 4096 and the lower triangle, at
+element 1148:
+
+| | Value | Error |
+| --- | --- | --- |
+| Exact, from the test's data | 400.839198 | |
+| SYCL kernel on the GPU | 400.839203 | 5e-6, the float nearest the exact value |
+| Reference kernel | 400.848022 | 8.8e-3 |
+| The test's allowance | | 8.1e-3 |
+
+The reference `symv` added 4096 `FLOAT32` products one after another in a `FLOAT32`, and a sum of
+that length may lose about `4096 * 2^-24 * sum(|term|)`, 0.42 for this row. The GPU kernel
+reduces the row in work-group partials and landed on the nearest float. The test passed on the
+CPU device because a row of 4096 is below the CPU's two-stage threshold there, so the SYCL kernel
+summed in the reference's order and shared its error. The three numbers were reproduced on the
+host from the test's data pattern.
+
+The fix is written and has not run. Every running sum of a reference BLAS kernel is now a
+`Kernels::ReferenceSum<T>`: double for `HALF`, `FLOAT32` and `COMPLEX32` terms, a compensated
+double sum for `FLOAT64` and `COMPLEX64` (`include/SushiBLAS/support/reference_accumulator.hpp`).
+The parity test compares each kernel with a double-precision truth under a bound derived from
+the term count (`tests/common/blas_truth.hpp`,
+`tests/functional/unit/test_level2_sycl_parity.cpp`).
+
+What the run does not show:
+
+- Which of the items of sections 2 to 5 it exercised was not recorded. A passing functional
+  suite shows that the GPU-shaped paths the tests reach gave the expected values; it measures no
+  bank conflict, no register spill and no crossover.
+- The tree after the break has not been built for, or run on, any device. Every kernel written
+  since, the 128-byte storage alignment and the reference fix above are unverified on the card.
+  [REMAINING_WORK.md](REMAINING_WORK.md) lists the run that settles them.
 
 ---
 
@@ -27,7 +73,7 @@ Two prerequisites the flag cannot check for you:
 
 Configure prints the active targets either way, so an unreachable device is a build-time fact rather than a runtime mystery.
 
-**Expected:** configure prints `SushiBLAS: AOT device targets = spir64;nvidia_gpu_sm_86`, and the build succeeds. **Never compiled on the development machine — this step is the first thing that could fail.**
+**Expected:** configure prints `SushiBLAS: AOT device targets = spir64;nvidia_gpu_sm_86`, and the build succeeds. The build of section 0 passed this step for the tree before the break; the tree after it has not been compiled for the target.
 
 If it fails here, everything below is moot; report the driver error rather than working around it.
 

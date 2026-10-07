@@ -1,8 +1,17 @@
 # Core headers
 
-`include/SushiBLAS/core` declares what the rest of the library is written in: the element types
-(`common.hpp`), the type traits (`traits.hpp`), the export macro (`export.hpp`), the `std::format`
-stand-in (`format.hpp`) and the logger (`logger.hpp`).
+`include/SushiBLAS/core` declares what the rest of the library is written in.
+
+| File | Declares |
+| --- | --- |
+| `common.hpp` | `Layout`, `DataType` and the helpers that classify and size an element type |
+| `blas_types.hpp` | The flags of a BLAS call: `Transpose`, `Uplo`, `Diag` and `Side` |
+| `sparse_types.hpp` | `IndexBase`, which says what value names the first row, column or position |
+| `errors.hpp` | `UnsupportedExecution`, the exception a mode or device refusal throws |
+| `traits.hpp` | The compile-time type traits the library shares |
+| `export.hpp` | `SUSHIBLAS_API`, the symbol visibility macro of each platform |
+| `format.hpp` | The C++17 stand-in for `std::format` that log and error messages use |
+| `logger.hpp` | The log levels, the two loggers and the `SB_LOG_*` and `SB_THROW_IF` macros |
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to. The header states the rule in one line and cites
@@ -20,12 +29,16 @@ index through a mantissa (which is what `argmax` did, silently losing exactness 
 also the right element type for a comparison result, which is a truth value and not a float.
 
 So only the operations for which an integer element means something accept them: `copy`, `constant`,
-the comparison and logic family, the index reductions, and `io`. Everything else, every elementwise
-transcendental, every non-linearity, every BLAS product, every folding reduction, rejects them by
-name at record time. That is deliberate and it is the *point*: a dtype that is quietly accepted and
-then silently mishandled is worse than one that is not accepted at all. See
+`add`, `sub`, `mul`, `neg`, `abs`, `min`, `max`, `clamp`, the sparse gathers and scatter, the
+channel copies, the comparison and logic family, the index reductions, and `io`. Everything else,
+every elementwise transcendental, every non-linearity, every BLAS product, every folding reduction,
+rejects them by name at record time. That is deliberate and it is the *point*: a dtype that is
+quietly accepted and then silently mishandled is worse than one that is not accepted at all. See
 `SushiBLAS::Dispatch::Domain`, which is how each op states which element types it will instantiate
 for.
+
+**The numeric values are a file-format contract.** Each enumerator is written out with its value,
+`HALF = 0` to `INT64 = 6`. No value changes, and a new element type is appended after the last.
 
 ### `to_string`
 
@@ -46,6 +59,38 @@ Tensor::data(), and io.cpp), which is three chances for a new dtype to be added 
 The `return 4;` after the switch in `bytes_per_element` is unreachable for any enumerator. It
 matches the shape of `to_string()`, which needs a trailing return for a `DataType` holding a value
 outside the enumeration.
+
+## `blas_types.hpp`
+
+### `Transpose`, `Uplo`, `Diag`, `Side`
+
+The enumerators carry the CBLAS numbers: `NO_TRANS`, `TRANS` and `CONJ_TRANS` are 111 to 113,
+`UPPER` and `LOWER` 121 and 122, `NON_UNIT` and `UNIT` 131 and 132, `LEFT` and `RIGHT` 141 and
+142. A value-initialised flag is therefore 0 and names nothing. `is_valid` reports that, and the
+record-time flag check in `engine/blas/argument_check.hpp` throws `std::invalid_argument` for it,
+so a flag a caller forgot to set never reads as `NO_TRANS` or `UPPER`. Each enumeration is one
+byte and fits one `TaskMetadata` slot. `is_transposed` and `is_conjugated` answer the two
+questions a kernel asks of a `Transpose`; for a real element type `CONJ_TRANS` is `TRANS`.
+
+## `sparse_types.hpp`
+
+### `IndexBase`
+
+`ZERO` is 221 and `ONE` is 222, so a value-initialised base is 0 and `is_valid` refuses it, as
+with the BLAS flags. `first_index` turns a base into the stored value that names row 0, column 0
+and position 0. The sparse operand describers carry that value to the kernel, which subtracts
+it on each read through `Kernels::Sparse::CsrPattern` and `IndexList`.
+
+## `errors.hpp`
+
+### `UnsupportedExecution`
+
+Thrown when an operation cannot run under the execution mode or on the device: a device-only
+operand under `FORCE_REFERENCE`, FLOAT64 or COMPLEX64 storage on a device without the fp64 aspect,
+HALF storage on a device without fp16. It derives from `std::invalid_argument`, so a `catch (const
+std::invalid_argument&)` still catches it, and a caller that wants to tell a refusal from a wrong
+operand puts `catch (const SushiBLAS::UnsupportedExecution&)` first. It is thrown at record time
+only, by `Dispatch::Detail::throw_execution_error` in `engine/operand_check.hpp`.
 
 ## `format.hpp`
 

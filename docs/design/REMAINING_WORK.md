@@ -1,101 +1,145 @@
 # Remaining work
 
-The single backlog of this repository. A defect that is already in the code is in
-[the known issues](../reference/KNOWN_ISSUES.md); this page holds what is to be done. Finding
-numbers refer to `docs/agent/2026_10_05_ESTATE_AUDIT/REPORT.md`.
+The single backlog of this repository. A defect or an unverified claim that is already in the
+tree is in [the known issues](../reference/KNOWN_ISSUES.md); this page holds what is to be done.
+Finding numbers such as C4 or L11 refer to `docs/agent/2026_10_05_ESTATE_AUDIT/REPORT.md`. A name
+such as `DESIGN_BLAS_L3`, `PLAN` or `PLAN_EXT` is a heading of `SPEC.md` or `PLAN.md` in
+`docs/agent/2026_10_07_V010/`.
 
-## Verification of the 2026-10-05 changes
+## First build and test of the v0.1.0 tree
 
-The tree of waves 0 to 9 was built with `sb build --benchmarks` and `sb test` passed 792 of 792 tests on
-the OpenCL CPU device (`ONEAPI_DEVICE_SELECTOR=opencl:cpu`), two of them after a fix to `all` and `any` of
-an empty tensor. The runtime picks an NVIDIA device first and the default build cannot reach it, so the
-device selector stays necessary on this machine.
+Every commit of the v0.1.0 work, from `0b9ec90` on, was written without a build. The last tree
+that was built and run is the one before it: 792 of 792 tests on the OpenCL CPU device, and 790
+of 792 on an RTX 3080 Ti.
 
-- Confirm that each new validation, parity and edge-case test fails on the old code and passes on the
-  new; no new test has been seen failing before its fix.
-- Re-point the `functional` CI job at a SushiRuntime revision that has the allocation interface.
-- Run the benchmarks on a device other than the CPU; the numbers of 2026-10-07 are from one Ryzen 5 7600X.
+- Run `sb build --benchmarks` and `sb test` on the OpenCL CPU device, the owner's first build of
+  this tree, and fix what it finds. It is the first compile of the tree as a whole since the
+  front-end sweep at `1746b03`, and the first link and run of anything this work wrote.
+- Repeat both on the CUDA build. It is the first ahead-of-time compile of every kernel of the
+  break, of `Kernels::multiply`, `divide` and `conjugate`, and the first run of the work-group
+  shapes of TRMV, `gbmv` and the band and packed symmetric products.
+- If the link fails on a `HostKernel` symbol, turn the generic lambda arms of `all.cpp`,
+  `any.cpp`, `shuffle.cpp` and `orthogonal.cpp` into named classes shaped like
+  `Detail::RandomArm`.
+- Raise any parity allowance of `test_random_reference.cpp` that proves too tight, with the
+  measured value beside it.
+- Compare `givens.hpp` and `modified_givens.hpp` with `drotg.f90`, `zrotg.f90` and `drotmg.f`
+  from a LAPACK checkout, and the two values of `Core::IndexBase` with the Sparse BLAS header.
+- Confirm that each validation, parity and edge-case test added since 2026-10-05 fails on the
+  old code and passes on the new; no new test has been seen failing before its fix.
+
+## Benchmarks and tuning
+
+- Run `bench_gemm_blocking` on the CPU device and tune the blocking of the packed GEMM by the
+  procedure of `DESIGN_GEMM_CPU`, section 10.4; it also answers the eight unknowns of its
+  section 10.3.
+- Run `bench_triangular` and settle the two solve block widths and whether a small TRMV needs a
+  serial arm (`DESIGN_BLAS_L3`, sections 8 and 13).
+- Run `bench_band_packed` and `bench_sparse`; neither has produced a number.
+- Decide from those runs whether `ScratchShelf` gets size classes above 4 KiB. A recorded
+  `trmv`, a packed GEMM and a scattering sparse product each lease more than the pool holds.
+- Run the benchmarks on a device other than the CPU; the numbers of 2026-10-07 are from one
+  Ryzen 5 7600X on the tree before the break.
 
 ## GPU validation
 
-Nothing has run on GPU hardware. [GPU_VALIDATION.md](GPU_VALIDATION.md) holds the steps and the
-expected results.
+One GPU run exists, on the tree before the break. [GPU_VALIDATION.md](GPU_VALIDATION.md) records
+it and holds the steps that have not run.
 
-- Build with `SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86"` on a machine with an NVIDIA GPU.
-- Confirm `Device::Profile` reports `has_dedicated_local_memory = true` there.
+- Run the functional suite of the tree after the break on the CUDA build, and confirm there that
+  both kernels of `Unit_Level2SyclParityTest` stay inside their bounds.
+- Confirm `Device::Profile` reports `has_dedicated_local_memory = true` on the card.
 - Measure the bank conflicts of the tiled GEMM and the register spill of its 8x8 block.
-- Run the 128-bit vector path and the grid-stride launch shape of `launch_1d.hpp`, which have
-  never executed.
+- Run the 128-bit vector path and the grid-stride launch shape of `launch_1d.hpp`.
 - Measure where an axis reduction should switch to one work-group per segment.
 - Run the determinism regressions of SushiAI on the GPU.
-- Build for an NVIDIA target on Windows to confirm that the nonlinear and elementwise complex kernels no
-  longer reach MSVC's `std::complex` functions; the replacement in `safe_math.hpp` was never compiled for
-  that target.
-- Run the group-per-row GEMV and SYMV paths on a device where they are chosen; on the CPU only a 4 x 16384
-  GEMV reaches them and SYMV never does.
+- Run the group-per-row GEMV and SYMV paths on a device where they are chosen; on the CPU only a
+  4 x 16384 GEMV reaches them and SYMV never does.
+- Confirm on a run that `Storage` receives 128-byte aligned device memory on CUDA, and on Level
+  Zero when a machine with it is at hand.
+- Measure the weight gradient of `window_dot`, whose terms each decode a window with two 64-bit
+  divisions.
 
 ## Kernels and reductions
 
-- Give SYRK the local and no-local kernel pair and an epilogue; it always takes the tiled shape.
-- Give SYRK GEMM's local-memory padding and store interleave by lifting them out of `gemm.hpp` into
-  shared helpers.
-- Keep the TRSM and TRSV solution values in `FLOAT32` between substitution steps for `HALF`; today each
-  element's sum is formed in `FLOAT32` and the values later steps reuse are read back as `HALF`. It
-  needs scratch the size of the right-hand side, so a kernel signature changes.
-- Parallelise the TRSM substitution and coalesce its right-side reads.
-- Give `max_along` and the other axis reductions a NaN-propagating accumulator in `reduce_1d.hpp`; only
-  the whole-tensor `max` and `min` propagate NaN.
-- Confirm whether `blas().nrm2` uses the scaled form that `reductions().nrm2` uses
+- Give SYRK an epilogue and a variant without local memory for a device that cannot host its
+  tile; `syr2k` and `her2k` stay on the local-memory shape on a CPU.
+- Give SYRK GEMM's local-memory padding and store interleave by lifting them out of `gemm.hpp`
+  into shared helpers.
+- Add `trmm`; `TrmvTerm` and `TriangleRow` are the bricks it starts from.
+- Add a `rot` that takes c and s as tensors, so `rotg` chains into it inside one graph.
+- Parallelise `tbmv` and `tbsv` after the dense forms have run, and coalesce the right-side
+  reads of TRSM.
+- Merge the three texts of the mirrored read of a symmetric matrix (`symv`, `SymmetricAccess`,
+  `symmetric_product`) into one brick, and express the dense `symv`, `trmv` and one-vector solve
+  through the structured algorithm bricks.
+- Move the reference rank updates onto `ReferenceAccumulator<T>` and give the parity tests a
+  complex truth.
+- Add an implicit `BlasScalar` from `std::complex<float>`, and `rotmg` for `HALF`.
+- Move the complex operators of the elementwise and nonlinear kernels onto `safe_mul` and
+  `safe_div`.
+- Confirm whether `BLASOps::nrm2` uses the scaled form that `ReductionOps::nrm2` uses
   (`Reduce::ScaledSumOfSquares`); the plain two-norm overflows above about 1e19 in `FLOAT32`.
 - Bring the batch feed into the compiled plan; it costs one extra dispatch round per step and
   needs an operand-address late binding that SushiRuntime does not offer.
-- Add batch support for tensors above rank 1 to the level 1 and level 2 BLAS operations
-  (13 `TODO` lines under `src/engine/blas/level1/` and `level2/`, one in `engine/blas/utils.hpp`).
-- Replace the `single_task` kernels of `argmax`, `argmin`, `logsumexp`, `std` and `var` with
-  parallel reductions (`src/engine/math/reductions/`).
-- Implement `SparseBLAS`: a sparse tensor type, SpMV, SpMM and the CSR format
-  (`include/SushiBLAS/engine/blas/sparse.hpp`).
-- Decide the backend of the quarantined FFT and LAPACK declarations
-  (`include/SushiBLAS/experimental/`).
-- Add complex scalars to the BLAS interface, the Hermitian routines (`hemv`, `her`, `herk`) and the
-  conjugate transpose.
+- Add batch support for tensors above rank 1 to the level 1 and level 2 BLAS operations.
+- Record a plan once: `Engine::execute` compiles and discards the graph on every call.
+- Add automatic kernel fusion as a pass over the recorded graph.
+- Write a parallel `shuffle` and then freeze the permutation a seed gives.
+- Design what SushiAI's gather-based loss asks for: broadcasting binaries, a concatenation along
+  a non-channel axis and a row gather with a gather-form backward (`DESIGN_YOLO26`,
+  section 14, point 10), with a general group count for `window_dot` and the softmax pair.
+- Give host `HALF` a conversion that rounds in the subnormal range.
 - Decide whether ELU accepts complex input; it is real-only today.
-- Move each of the 32 `TODO` lines out of the source once its item is on this page (C10).
+- Decide the backend of the quarantined FFT and LAPACK declarations
+  (`include/SushiBLAS/experimental/`), then implement them.
+
+## Sparse
+
+- Parallelise `sptrsv` by level scheduling: an analysis routine, a type for its result and a
+  solve that takes it.
+- Add `sptrsm`, a symmetric `spmm`, and a builder entry that keeps one triangle.
+- Assemble on the device, and add a recorded conversion from a dense tensor.
+- Give a long row a work-group, and parallelise the transposed `spmm` inside a column.
+- Add CSC and COO operands, sparse-sparse products and mixed index widths.
+- Add a structure check a caller can record, and a check that the operands of one call live on
+  one device.
+- Call one `SparseOps` routine from `tests/package/main.cpp`.
+- Decide whether the CSR `spmv` or the packed `spmv` is renamed, or both names stay
+  (`PLAN_EXT`, section 5, point 3). Owner decision.
 
 ## IO
 
-- Make `save` asynchronous through the task graph (`include/SushiBLAS/io.hpp`).
 - Split `IO` into one reader and writer per format over a shared host-copy helper, with a load
-  that returns a status (C4). The boundary needs the owner's approval.
+  that returns a status, and narrow it off `Engine&` in the same change (C4). The boundary needs
+  the owner's approval.
+- Make `save` asynchronous through the task graph (`include/SushiBLAS/io.hpp`).
+- Route `Shared` storage through the queue for a print and a save, or fix the fault in
+  SushiRuntime; today the host pointer is read.
+- Print a rank-0 tensor as its value and stop `to_vector` zero-filling before it reads.
 - Add tests for `Core::format`, the logger and the four CLI services (C18).
 
 ## Code shape
 
-- Decide how `engine.hpp` stops including every operation family: the seven entries of
-  `K_KNOWN_VIOLATIONS` are the facade's includes, and removing them makes every consumer include the
-  family headers it uses. Owner decision.
-- Give the BLAS layer one exception type: its rank, dtype and length pre-checks throw
-  `std::runtime_error` while the operand checks throw `std::invalid_argument`.
-- Decide what an empty tensor without storage means to the reduction executors; the elementwise, nonlinear
-  and logic executors treat it as a no-op.
-- Replace the positional `bool` flags of the BLAS calls (`trans`, `upper`, `unit`) with enum classes. This
-  changes every call site and the public interface.
+- Rename every enumerator to PascalCase (`DataType::Float32`, `Transpose::NoTrans`) and give
+  constants the `K_` prefix, in one sweep (`OWNER_DECISIONS_LATE`).
+- Delete `engine/blas/sparse.hpp` or move it under `experimental/`. Owner approval.
+- Move the recorder's identity counter into a source file.
+- Ask SushiRuntime for a public "run after" edge, `add_task` overloads that take a span of
+  regions and a small-buffer callable, and a statement of what concurrent `add_task` guarantees
+  (`DESIGN_RECORDER`, section 15).
 - Route every runtime dtype switch through one table; `constant.cpp` and
   `engine/math/reductions/dispatch.hpp` come first (C1).
-- Decide whether the execution mode is a library-wide contract, then give the five families a
-  reference path or make the mode throw there (C2). Owner decision.
 - Add categories, TRACE and FATAL to the logger and send log output to stderr (C3, C6).
-- Introduce one task-record builder for the 27 direct `add_task` sites (C7).
-- Narrow what the operation views need from `Engine`; the RNG stream already has its own class (C8).
 - Give reduction kernels one home (C9).
-- Split `level1.hpp` into one file per routine and lift operand addressing out of GEMM's
-  `Detail` namespace (C12).
+- Split the Level 1 kernel headers into one file per routine (C12).
 - Remove `core/export.hpp`, `kernels/math.hpp` and the `<numbers>` include (C13). Owner approval.
-- Run the source comment pass per module until `check_source_comments.py` prints nothing (C14).
+- Shorten the two comment blocks `check_source_comments.py` still reports, then drop
+  `--rule rule_license_block` from the check list of `AGENTS.md` (C14).
 - Split `test_regression.cpp` per defect and state every test tolerance (C17).
-- Add column-major and other-dtype cases to the reference tests of BLAS levels 1 and 2 and TRSM, and
-  raise the remaining single-case smoke tests to the edge cases the five edited ones now carry.
-- Decide where `benchmarks/` lives; it is a new top-level folder outside the layout.
+- Add column-major and other-dtype cases to the reference tests of BLAS levels 1 and 2 and TRSM,
+  and raise the remaining single-case smoke tests to the edge cases the five edited ones carry.
+- Give the eight older spatial operations the overlap check the `window_dot` triple has.
 
 ## Command line
 
@@ -108,45 +152,76 @@ expected results.
 
 ## Documentation
 
-- Split `architecture/ARCHITECTURE.md` by its ten sections and run the humanizer pass over it,
-  `guides/INTEGRATION.md` and `GPU_VALIDATION.md` (D12, D15).
-- Add a `README.md` to `kernels/`, `src/`, `include/SushiBLAS/`, `tests/` and `examples/`, and
-  move each folder's facts out of the architecture and contributing pages (D17).
+- Finish bringing the manual and the module READMEs to the recorder shape, and read every page
+  against the code once the tree has built. A rewrite was uncommitted in the working tree on
+  2026-10-07, and the known issues page names the seven pages a search still found stale that
+  day. `DESIGN_SUPPORT_MEMORY`, section 14.4, and `DESIGN_YOLO26`, section 12.5, list more stale
+  sentences.
+- Rewrite the `@brief` of the 82 unit test files that name a routine by the removed accessor
+  form (`elementwise().abs`), and the fourth fact and the closing paragraph of `AGENTS.md`.
+- Say in the READMEs of the band and packed routines and of the packed GEMM which "packed" is
+  meant.
+- Correct the four `@throws` lines that name `std::runtime_error` (`elementwise.hpp`,
+  `random.hpp`).
+- Re-point the nine test files that cite a merged design file at the work folder's `SPEC.md`
+  (`docs/agent/2026_10_07_V010/REPORT.md`, section 11).
+- Split `architecture/ARCHITECTURE.md` by its sections (D12), and run the humanizer pass over
+  `guides/INTEGRATION.md` and `GPU_VALIDATION.md` (D15).
+- Add a `README.md` to `tests/`, and move each folder's facts out of the architecture and
+  contributing pages into the folder READMEs (D17).
 - Write a design document for the public seam decisions the audit raised: SYCL types in the
   interface, exceptions against statuses, and why GEMM's kernels are installed (C15, C21).
 - Correct what the manual says about `sushicore` and PyPI once the published versions are known
   (licence L12).
-- Add the third-party licence texts that `NOTICE.md` marks unverified.
+- Read LAPACK's licence file and give `givens.hpp` and `modified_givens.hpp` the attribution it
+  asks for; both were transcribed from the reference BLAS and `NOTICE.md` records the licence as
+  unread.
+- Add the third-party licence texts that `NOTICE.md` marks unverified, and answer whether
+  `philox.hpp` was written from the paper or adapted from Random123 source; the second puts a
+  BSD-3-Clause text into `third_party/licenses/`. Owner's statement.
 
 ## Layout, needing the owner
 
-Each of these edits a file outside the documentation, so none was done with the tree.
-
-- Move the Doxygen main page to `docs/reference/` and the generated site out of `docs/`, in the
-  same change as `Doxyfile` and `.gitignore` (D19). Until then `check_docs_layout.py` reports
-  `docs/api`, `docs/api-site` and the name `mainpage.md`.
-- Move `Doxyfile` out of the root (L7). `check_version.py` now holds its version to CMake's.
-- Decide `src/` against `source/`, the home of `kernels/` and `examples/`, and the `functional/`
-  level of `tests/`, together with SushiRuntime (L8, L14).
+- Move `src/` to `source/` and give `kernels/`, `examples/` and `benchmarks/` a home inside the
+  layout, together with SushiRuntime, and decide the `functional/` level of `tests/` (L8, L14).
+- Move the Doxygen main page to `docs/reference/` and point the `Doxyfile` at the build tree,
+  where `sb docs` already writes (D19). Until then `check_docs_layout.py` reports `docs/api`, a
+  leftover `docs/api-site` and the name `mainpage.md`.
+- Move `Doxyfile` out of the root (L7).
 - Add `.clang-format`, `.editorconfig` and `.gitattributes`, and the missing `.gitignore` rules
   (L6, L18).
 - Decide where `SECURITY.md` and `CODE_OF_CONDUCT.md` live; GitHub reads them from the root,
   `docs/` or `.github/`, and they are now in `docs/reference/`.
-- Update the paths that `NOTICE.md`, `Doxyfile`, `.github/workflows/ci.yml` and
+- Update the paths that `Doxyfile`, `.github/workflows/ci.yml` and
   `tests/package/CMakeLists.txt` cite for documents that moved on 2026-10-05.
 - Delete the merged local branches `feature/sushicore_help_screen` and
   `feature/blas-spatial-domain`, and push main (L17).
 
 ## Continuous integration
 
-Workflow files change after the code programme, when the source comment checker can pass.
-
-- Install the CLI with `pip install -e cli` once `sushicore` 0.7.0 is published, and remove the
-  SushiStack checkout from the `cli` job and the dead candidate from `cli/tests/conftest.py`
-  (L2, L13, L15).
+- Remove the dead candidate path from `cli/tests/conftest.py` (L13, L15).
 - Remove `|| true` from the pyflakes step and correct the stale comments (L4, L5).
-- Add a Windows job, a checker job and a release workflow (L3).
+- Add a Windows functional job, and build through `sb` where the job calls cmake and ctest (L3).
+- Run the release workflow once before the tag depends on it.
 
 ## Release
 
-- Tag v0.1.0 and cut the Unreleased section under it (L11). Owner decision.
+In the order the tag needs them.
+
+- Tag SushiRuntime v0.4.0 with the aligned shared and device allocation and
+  `Graph::add_emitter` in it; both were uncommitted in the runtime's working tree on 2026-10-07.
+  Who cuts it, and when, is the owner's decision.
+- Pin the runtime: `find_dependency(SushiRuntime 0.4)` in `cmake/SushiBLASConfig.cmake.in`, the
+  same version in `cmake/Runtime.cmake`, and a version check of a sibling checkout (`PLAN`,
+  section 3).
+- Install without `include/SushiBLAS/experimental/` and make the package consumer test fail if
+  the installed tree holds that folder or a document among its headers (`PLAN`, section 3),
+  then run `sb test --suite package`.
+- Delete `CMakePresets.json` or rewrite it for the toolchain in use. Owner decision.
+- Migrate SushiAI onto the views, the enums and `BlasScalar`. The sushiai session does it, once,
+  after this tree has built.
+- Get CI green on the commit to be tagged, with the `functional` job on the tagged runtime.
+  Whether that is a release condition is the owner's decision.
+- Cut the changelog: rename `## Unreleased` to the release heading, which `check_version.py`
+  holds to `project()`.
+- Tag v0.1.0 (L11). Owner decision.

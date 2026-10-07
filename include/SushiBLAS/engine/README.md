@@ -1,11 +1,40 @@
 # Engine headers
 
-`include/SushiBLAS/engine` declares the operation families the `Engine` exposes and the shared
-machinery under them: the dispatch vocabulary (`dispatch.hpp`), the operand checks
-(`operand_check.hpp`) and the task recorder (`task.hpp`). The sub-folders `blas/`, `logic/`,
-`math/` and `spatial/` each have a README of their own. The device policy, the launch and
-reduction shapes and the window geometry are support headers; see
-[../support/README.md](../support/README.md).
+`include/SushiBLAS/engine` declares the operation views and the machinery they record through.
+The sub-folders `blas/`, `logic/`, `math/`, `sparse/` and `spatial/` each have a README of their
+own. The device policy, the launch and reduction shapes, the serial host loops and the window
+geometry are support headers; see [../support/README.md](../support/README.md).
+
+| File | Declares |
+| --- | --- |
+| `task_recorder.hpp` | `TaskRecorder`, the one caller of `TaskGraph::add_task` in SushiBLAS |
+| `task_handle.hpp` | `TaskHandle`, the value a record call returns for the task it recorded |
+| `operand_set.hpp` | `OperandSet`, the tensors one task reads and writes, and the storage it retains |
+| `execution_mode.hpp` | `ExecutionMode`, which names the kernel a recorded task runs |
+| `kernel_pair_dispatcher.hpp` | `KernelPairDispatcher`, which runs one kernel of a reference and SYCL pair |
+| `task.hpp` | `execute_typed_task`, the recorder of one dtype-dispatched task that runs a kernel pair |
+| `dispatch.hpp` | What every dispatch family shares: the element domain and the dtype switch |
+| `operand_check.hpp` | The record-time checks an operation runs on its tensor operands |
+| `scratch.hpp` | `ScratchBuffer`, the lease on one pooled device scratch block |
+| `scratch_pool.hpp` | `ScratchPool`, the owner of the device scratch blocks an `Engine` lends |
+| `scratch_shelf.hpp` | The shelf of idle device scratch blocks and the block it lends |
+| `rng_stream.hpp` | `RngStream`, the seed and counter offset random operations draw from |
+| `blas.hpp` | `BLASOps`, the view that records every dense BLAS operation |
+| `sparse.hpp` | `SparseOps`, the view that records the sparse BLAS operations |
+| `spatial.hpp` | `SpatialOps`, the windowed and strided movement operations over an NHWC grid |
+
+The other five views are declared one folder down: `ElementwiseOps`, `NonLinearOps`, `RandomOps`
+and `ReductionOps` in `math/`, `LogicOps` in `logic/`.
+
+## How an operation is recorded
+
+Every view holds a `TaskRecorder&` and nothing else of the engine; `RandomOps` also holds the
+`RngStream&`. A view is built from an `Engine&` or from the recorder itself. An operation checks
+its operands, declares them in an `OperandSet`, and hands the set, a `TaskMetadata` and a task
+body to the recorder, directly or through a seam (`execute_typed_task`, `execute_blas_task`, an
+executor of `Dispatch`). It returns the `TaskHandle` of the recorded task. Nothing runs until
+`Engine::execute()`. An operation that has nothing to do, such as one over a tensor without
+elements, records no task and returns a default `TaskHandle`, for which `is_valid()` is false.
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to. The header states the rule in one line and cites
@@ -69,7 +98,8 @@ the compile-time domain is known but the arm has not been chosen yet.
 
 ### `require_domain`
 
-`with_element_type` would reject it too, but not until the task runs, which is a worse place to find
+Throws `std::invalid_argument` through `Detail::throw_dtype_error`. `with_element_type` would
+reject it too, but not until the task runs, which is a worse place to find
 out: by then the graph is recorded, the caller is inside `Engine::execute()`, and the failure is
 attributed to a submission rather than to the line that queued it. This is the same question asked
 at record time, where a caller can still act on the answer.
@@ -126,7 +156,8 @@ Dispatch::with_element_type<Dom>(dtype, "Elementwise operation", name,
   element type in `Dom`.
 
 Throws `std::runtime_error` naming `family`, `name` and `dtype` when the dtype falls outside `Dom`,
-or is not an element type at all.
+or is not an element type at all. An executor calls `require_domain` first, at record time, so a
+caller sees `std::invalid_argument` there and this throw is not reached.
 
 ### `Detail::arm_takes_tag`
 
@@ -160,25 +191,30 @@ all.
 ### `set_task_params`
 
 `TaskMetadata::set_param` silently ignores an out-of-range index, so a caller that writes past
-`K_MAX_PARAMS` loses the value with no diagnostic at all. This wrapper turns that into a loud
-failure at record time (P1: fail loudly, never silently).
+`K_MAX_PARAMS` loses the value with no diagnostic at all. This wrapper throws
+`std::invalid_argument` at record time instead (P1: fail loudly, never silently).
 
 ## `operand_check.hpp`
 
 The record-time checks an operation runs on its tensor operands before it records a task. Each
-function checks one rule and throws `std::invalid_argument` with a message of the form
-`<op>: operand '<name>' <rule>`, so the failure points at the call that queued the operation
-instead of at a kernel that read past a view. They live in `SushiBLAS::Dispatch` beside the dtype
-checks of `dispatch.hpp`.
+function checks one rule and throws with a message that names the operation, so the failure
+points at the call that queued the operation instead of at a kernel that read past a view. They
+live in `SushiBLAS::Dispatch` beside the dtype checks of `dispatch.hpp`.
 
-| Function | Rule |
-| --- | --- |
-| `require_storage` | A tensor with `num_elements > 0` has storage. |
-| `require_dtype` | The tensor holds the expected dtype. |
-| `require_same_shape` | Two tensors have the same rank and the same size in every dimension. |
-| `require_same_element_count` | Two tensors hold the same number of elements. |
-| `require_min_elements` | The tensor holds at least the stated number of elements. |
-| `require_contiguous` | The strides are the dense strides `Tensor::layout_strides` gives for the shape under the tensor's layout. |
+| Function | Rule | Throws |
+| --- | --- | --- |
+| `require_storage` | A tensor with `num_elements > 0` has storage. | `std::invalid_argument` |
+| `require_dtype` | The tensor holds the expected dtype. | `std::invalid_argument` |
+| `require_same_shape` | Two tensors have the same rank and the same size in every dimension. | `std::invalid_argument` |
+| `require_same_layout` | Two tensors have the same layout. | `std::invalid_argument` |
+| `require_same_element_count` | Two tensors hold the same number of elements. | `std::invalid_argument` |
+| `require_min_elements` | The tensor holds at least the stated number of elements. | `std::invalid_argument` |
+| `require_contiguous` | The strides are the dense strides `Tensor::layout_strides` gives for the shape under the tensor's layout. | `std::invalid_argument` |
+| `require_rank` | The tensor has the stated rank. | `std::invalid_argument` |
+| `require_scalar` | The tensor holds exactly one element. | `std::invalid_argument` |
+| `require_extent` | A named extent has the expected value. | `std::invalid_argument` |
+| `require_operand` | A rule the caller states and has already evaluated holds. | `std::invalid_argument` |
+| `require_device_dtype` | The tensor's device can compute in its dtype: fp64 for FLOAT64 and COMPLEX64, fp16 for HALF. | `UnsupportedExecution` |
 
 ### `require_contiguous`
 
@@ -189,21 +225,99 @@ by a non-zero index. It rejects a zero or negative stride in any other dimension
 view, and a slice that narrows an inner dimension. A slice along the outermost dimension keeps
 dense strides and passes. An empty tensor passes, since no element is read.
 
-### `Detail::throw_operand_error`
+### `Detail::throw_operand_error`, `throw_execution_error`, `throw_dtype_error`
 
-Logs the message at error level and throws it, so every check reports in the same shape.
+Each logs its message at error level and throws it, so every check reports in the same shape.
+`throw_operand_error` throws `std::invalid_argument` as `<op>: operand '<name>' <rule>`.
+`throw_execution_error` throws `UnsupportedExecution` as `<op>: <refusal>`; it takes no operand
+name, because the recorder's refusal has none to give: an `OperandSet` knows that one of its
+tensors is device-only, not which. `throw_dtype_error` throws `std::invalid_argument` naming the
+family, the operation and the dtype it does not serve. `core/README.md` says how
+`UnsupportedExecution` relates to `std::invalid_argument`.
+
+## `execution_mode.hpp`
+
+`ExecutionMode` has three enumerators. `AUTO` lets the library choose, and it chooses the SYCL
+kernel. `FORCE_SYCL` runs the SYCL kernel. `FORCE_REFERENCE` runs the reference path on the host:
+a reference kernel where the operation has one, and a serial loop over the operation's own
+functor in the elementwise, non-linear, logic, random and reduction families. The mode is a
+property of the recorder, read once per record call and fixed in the task; changing it later does
+not change a task already recorded.
+
+## `task_recorder.hpp`
+
+`TaskRecorder` is the only caller of `TaskGraph::add_task` in SushiBLAS. It is bound to one graph
+and one `ScratchPool`, and holds the execution mode. `Engine` owns one; a test or a layer above
+may build its own over a graph it owns.
+
+### `TaskRecorder::record_pair`
+
+Takes a `TaskMetadata`, an `OperandSet`, the family name for diagnostics, and a body callable as
+`(const Internal::KernelPairDispatcher&, sycl::queue&, const std::vector<sycl::event>&) ->
+sycl::event`. It first calls `require_host_reachable`. It then wraps the body in a
+`Detail::RecordedPairTask` with a dispatcher that holds the current mode and with the set's
+`StorageKeepAlive`, reserves a registration index on the graph, adds the task with the set's read
+and write regions, and returns a `TaskHandle` of its own identity and that index.
+
+### `TaskRecorder::require_host_reachable`
+
+Under `FORCE_REFERENCE`, throws `UnsupportedExecution` when `OperandSet::has_device_only_operand()`
+is true, that is, when a declared tensor's storage has `Residency::Device`. The host reference
+path would otherwise dereference device-only USM. Under any other mode it returns at once. The
+message is `<name>: <family> cannot run under FORCE_REFERENCE: an operand is device-only USM,
+which the host reference kernel cannot dereference`. It is public for the caller that must refuse
+before a side effect: `execute_random` calls it before it reserves a stream offset, and the
+reduction executors before they lease scratch.
+
+### `Detail::RecordedPairTask`
+
+The callable stored in the graph. It holds the body, the dispatcher and one reference to each
+distinct storage the task declared, so an operand's allocation stays alive until the graph drops
+the task even if the caller's `Tensor` is destroyed first.
+
+## `task_handle.hpp`
+
+`TaskHandle` names one task a recorder recorded, or none. It holds the recorder's identity, a
+process-wide counter value that is never 0, and the registration index the recorder stamped on the
+graph node. A default handle has identity 0 and `is_valid()` false. Two handles are equal when
+both fields are. The handle exposes no event and no way to wait: the work finishes in
+`Engine::execute()`.
+
+## `operand_set.hpp`
+
+`OperandSet` is what an operation declares about one task. `reads`, `writes` and `updates` take a
+tensor, append its `Tensor::region()` to the read list, the write list or both, and retain its
+storage; a tensor without storage adds nothing. `scratch` declares a `ScratchBuffer` as written
+and retains its block's storage. `merge` adds another set's declarations, which is how a GEMM
+epilogue's operands join the task's. The recorder reads the two region lists for the dependency
+tracker, `retained()` for the keep-alive, and `has_device_only_operand()` for the refusal under
+`FORCE_REFERENCE`.
+
+### `Internal::StorageKeepAlive`
+
+Holds one reference per distinct `Storage`. The first six sit in an inline array and a seventh
+spills to a `std::vector`, so the common task allocates nothing for it. Retaining a storage twice
+holds it once.
+
+## `kernel_pair_dispatcher.hpp`
+
+`Internal::KernelPairDispatcher` holds the execution mode the recorder had when the task was
+recorded. A task body calls `dispatcher.run(q, deps, reference_fn, sycl_fn)`. Under
+`FORCE_REFERENCE` it waits on the dependencies, calls `reference_fn` on the calling thread and
+returns an empty event; under `AUTO` and `FORCE_SYCL` it returns what `sycl_fn(q, deps)` returns.
+It is the one place the two branches are written.
 
 ## `rng_stream.hpp`
 
-`RngStream` holds the counter-based random stream of one `Engine`: a seed and an offset counter,
-both guarded by one `std::mutex`. The engine owns one by value and hands it out through
-`Engine::rng()`. Random operations never call it directly; they go through `Dispatch::reseed` and
-`Dispatch::reserve_offsets` in `<SushiBLAS/engine/math/random/dispatch.hpp>`, so an operation
-source still knows the engine only through `get_graph()`.
+`RngStream` holds one counter-based random stream: a seed and an offset counter, both guarded by
+one `std::mutex`. The engine owns one by value and hands it out through `Engine::get_rng()`. A
+`RandomOps` view holds a reference to a stream, the engine's or one the caller built, and passes
+it to `Dispatch::execute_random` in `<SushiBLAS/engine/math/random/dispatch.hpp>`, which reserves
+the offset of each task. No random operation reaches the engine.
 
 - `reseed(seed)` stores the seed and rewinds the offset to zero under the lock, so one seed
   followed by one call sequence always draws the same numbers. It is what
-  `engine.random().set_seed(...)` runs.
+  `RandomOps::set_seed` runs.
 - `seed()` returns the current seed.
 - `reserve(count)` returns an `RngPosition` holding the seed and the current offset, then adds
   `count` to the offset, all under the lock. Every random task reserves one offset, so tasks
@@ -214,13 +328,34 @@ The lock is taken once per recorded random operation, never inside a kernel.
 
 ## `scratch.hpp`
 
-`ScratchBuffer` owns a device-resident `Storage` allocation for the partial results of one
-operation, through a shared `sushi_ptr`. A task lambda captures the handle by value, so the
-allocation lives until the graph drops the task. The constructor takes the device index of the
-operand's storage, so the scratch sits on the device the partials were planned for. A size of 0
-allocates nothing and `data()` is null. `region()` is the write region the task declares for the
-scratch. The reduction seams in `engine/math/reductions/dispatch.hpp` and
-`Internal::allocate_level1_scratch` use it; none of them builds a `Storage` for scratch itself.
+`ScratchBuffer` leases one device scratch block from a `ScratchPool`. The constructor takes the
+pool, a byte count and the device index of the operand's storage, so the scratch sits on the
+device the work was planned for. A size of 0 leases nothing and `data()` is null. Copies share
+the block through a handle count; a task body captures the buffer by value, and the block goes
+back to the shelf when the last copy is destroyed, which is when the graph drops the task.
+`bytes()` is what the caller asked for, not the size of the block. `region()` is the write region
+a task declares for the scratch, and `OperandSet::scratch` declares it and retains the block's
+storage. The reduction executors in `engine/math/reductions/dispatch.hpp` and
+`Internal::allocate_blas_scratch` in `engine/blas/utils.hpp` lease through it; none of them
+builds a `Storage` for scratch itself.
+
+## `scratch_pool.hpp`
+
+`ScratchPool` owns the shelf through a shared pointer, and a lent block holds the shelf too, so
+the shelf outlives the pool for as long as a lease is out. `idle_block_count()` reports how many
+blocks sit idle and `trim()` frees them; neither touches a block out on lease. `Engine` owns one
+pool and its recorder hands it to operations through `TaskRecorder::get_scratch_pool()`.
+
+## `scratch_shelf.hpp`
+
+`Detail::ScratchShelf` keeps idle blocks per device queue and per size class. There are six
+classes, 128 bytes to 4096 bytes in powers of two, and a request is rounded up to the smallest
+class that holds it. `take` hands out an idle block of that class or allocates a new
+`Residency::Device` storage. A request above 4096 bytes is allocated at its own size and freed
+when it comes back. `give_back` keeps at most 64 idle blocks per class per device and frees the
+rest. The idle lists are reserved to that ceiling when the shelf is built, so returning a block
+never allocates. One `std::mutex` guards the lists; it is taken at record time and when a task
+is destroyed, never inside a kernel.
 
 ## `spatial.hpp`
 
@@ -232,7 +367,11 @@ numbers around a grid.
 Every operation in this domain has both a pure-C++ reference kernel and a SYCL one, and the
 reference is the specification. The two are held to each other by this domain's unit tests, which
 run `ExecutionMode::FORCE_SYCL` and `ExecutionMode::FORCE_REFERENCE` into two tensors and compare
-them. `ExecutionMode::VERIFY` is not implemented, and `Engine::set_mode` refuses it.
+them. `ExecutionMode` has no mode that runs both.
+
+Every operation returns a `TaskHandle` and checks its operands when the call is recorded. A wrong
+rank, dtype or extent throws `std::invalid_argument`. A dtype the operand's device cannot compute
+in, or a device-only operand under `FORCE_REFERENCE`, throws `UnsupportedExecution`.
 
 **Every backward here is a gather, never an atomic scatter.** SushiBLAS links
 `sushiruntime_deterministic_fp` PUBLIC, and a floating-point atomic add has a combination order that
@@ -308,6 +447,27 @@ Each pixel gathers `dy / area` from every window that covered it. Kept separate 
 `pool_max_backward` rather than folded behind a mode flag: the two share a loop shape and nothing
 else, since one selects through a recorded index and this one broadcasts a constant.
 
+### `SpatialOps::window_dot`
+
+`out[n, h_o, w_o, c]` is the sum over the window's taps `(r, s)` of `in[n, h_in, w_in, c] *
+weights[r, s, c]`: each channel is weighted by its own `[kernel_h, kernel_w]` taps and no channel
+reads another. A tap that falls outside the input adds nothing. `weights` is rank 3, `[kernel_h,
+kernel_w, C]`, and `out` states `H_o` and `W_o` through its own extents. The domain is real, and
+the sum is carried in `Accumulator<T>`. `out` may share no byte with `in` or `weights`, because
+the kernel reads them while it writes.
+
+### `SpatialOps::window_dot_backward`
+
+The gradient with respect to the input. Each input element gathers `dy * weights` from every
+window that read it, in a fixed order, so overlapping windows need no atomic add. Every element
+of `dx` is written. `g` and `weights` must be the ones the forward used.
+
+### `SpatialOps::window_dot_weights_backward`
+
+The gradient with respect to the taps. `dweights[r, s, c]` is the sum, over every output position,
+of `dy` times the input element that tap read there. Each tap gathers its own sum, so this is not
+a scatter either. `dweights` may share no byte with `dy` or `in`.
+
 ### `SpatialOps::upsample_nearest`
 
 `out[n, h_o, w_o, c] = in[n, h_o / scale_h, w_o / scale_w, c]`.
@@ -372,48 +532,39 @@ the trade PyTorch's `channels_last` makes.
 
 This is `engine/blas/utils.hpp`'s `execute_blas_task` with the one thing that was BLAS-specific
 about it, the word "BLAS" in its diagnostics, lifted into a parameter. `execute_blas_task` still
-exists, still says "BLAS operation", and forwards to the mode-aware overload here.
+exists, still says "BLAS operation", and forwards here.
 
 The move happened because a second domain arrived. `spatial.im2col` reported as a "BLAS operation"
 when its dtype is refused sends a reader to the wrong half of the library, and the alternative, a
 second copy of the seven-arm dtype switch, is seven arms to forget when a `DataType` is added.
 
-The include list is `blas/utils.hpp`'s, minus what only the vector helper needed.
-`<SushiBLAS/engine.hpp>` is included outright rather than forward-declared: both templates in
-`task.hpp` need `Engine` complete (they call `get_graph()`, `get_mode()` and `get_context()`), and a forward declaration that only works because every includer happens to have
-pulled `engine.hpp` first is a trap rather than a decoupling.
+The header includes the recorder, the operand set and the dispatcher, and not
+`<SushiBLAS/engine.hpp>`: the seam takes a `TaskRecorder&` and never sees an `Engine`.
 
 ### `execute_typed_task`
 
-One `add_task` whose body is a `Detail::TypedTaskBody`: one `switch (dtype)` that calls the
-operation's closure with a value of the element type. An unsupported dtype fails loudly at record
-time (P1 corollary), never silently no-ops. There are two overloads.
-
-The first takes `op_func` as `(auto scalar_type, sycl::queue&, const std::vector<sycl::event>&) ->
-sycl::event`. It knows nothing of the execution mode. No operation in `src/engine` uses it now;
-`tests/functional/unit/test_dispatch_seam.cpp` still records through it.
-
-The second takes a `ReferenceOperands` list before `op_func`, and `op_func` takes a
-`const KernelPairDispatcher&` after the scalar. At record time it reads `Engine::get_mode()` once,
-runs `require_host_reachable` on the listed pointers, and fixes the mode inside the dispatcher the
-body receives. Every BLAS and spatial operation records through it, so none of them calls
-`get_mode()`, which the layering rule "an operation knows the engine only through `get_graph()`"
-forbids.
+Calls `Dispatch::require_domain<Dom>` and then `TaskRecorder::record_pair` with a
+`Detail::TypedTaskBody`: one `switch (dtype)` that calls the operation's closure with a value of
+the element type. An unsupported dtype fails at record time (P1 corollary), never silently
+no-ops. Its arguments are the recorder, the `TaskMetadata`, the `OperandSet`, the dtype, the
+family and `op_func`, which is callable as `(auto scalar_type, const KernelPairDispatcher&,
+sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`. The BLAS, sparse and spatial
+operations record through it, so none of them reads the execution mode: the dispatcher the body
+receives already holds it.
 
 - `Dom`: Which element types to instantiate `op_func` for, in exactly the sense `Dispatch::Domain`
   defines for the math and logic families. It defaults to REAL_AND_COMPLEX because that is what
   every built-in BLAS *arithmetic* op wants; the parameter exists for callers whose functor is
   written outside this library and is therefore no more likely to be well-formed for `std::complex`
-  than an elementwise lambda is, and for movement ops like `copy` and the whole spatial family,
-  which relocate elements without doing arithmetic to them and so pass `Domain::ALL`.
+  than an elementwise lambda is, and for operations that pass another domain: `window_dot` passes
+  `Domain::REAL`.
 - `family`: What kind of operation this is, for diagnostics: "BLAS operation", "Spatial operation".
-- `host_operands` (second overload): every pointer the reference kernel reads or writes. A null
-  entry, an operand without storage, is skipped.
+  A string literal, because the task body keeps the pointer.
 
-Returns: An empty sycl::event; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
 
-Throws `std::runtime_error` at record time if `dtype` falls outside `Dom`, and the second overload
-throws `std::invalid_argument` at record time as `require_host_reachable` describes.
+Throws `std::invalid_argument` at record time if `dtype` falls outside `Dom`, and
+`UnsupportedExecution` at record time as `TaskRecorder::require_host_reachable` describes.
 
 At `switch (dtype)`: spelled out rather than routed through Dispatch::with_element_type, which is
 what the elementwise, non-linear and logic families use. `op_func` takes a *value* of the element
@@ -428,30 +579,4 @@ The `SB_THROW_IF(true, ...)` that ends the dtype switch is unreachable in practi
 `require_domain` rejected the dtype at record time. A switch that can fall through to nothing is how
 a silent no-op gets in, so it ends in a throw rather than in a default return.
 
-### `dispatch_with_mode`
-
-The one implementation of the FORCE_REFERENCE / SYCL branch. Under FORCE_REFERENCE it waits on the
-dependencies and runs the reference kernel on the host; under AUTO and FORCE_SYCL it submits the
-SYCL kernel. It never sees VERIFY, which `Engine::set_mode` refuses; a mode it does not handle
-throws `std::logic_error`. Its only caller is `KernelPairDispatcher::run`.
-
-### `KernelPairDispatcher`
-
-Holds the execution mode `execute_typed_task` read at record time. A task body calls
-`dispatcher.run(q, deps, reference_fn, sycl_fn)`, which forwards to `dispatch_with_mode`. Changing
-the engine's mode after an operation is recorded does not change how that operation runs.
-
-### `ReferenceOperands`
-
-The list of pointers an operation's reference kernel dereferences on the host, built in the
-operation's recording step from the `data_or_null()` values it already holds:
-`Internal::ReferenceOperands{read_A, read_B, rw_C}`.
-
-### `require_host_reachable`
-
-Under FORCE_REFERENCE, asks `sycl::get_pointer_type` about each listed pointer in the context of
-every device queue of the engine's runtime context. If one reports `usm::alloc::device`, it throws
-`std::invalid_argument` naming the family and the operation, before the task reaches the graph.
-Without this check the reference kernel dereferenced device-only USM on the host. Under any other
-mode it returns at once. A GEMM epilogue's declared operands are regions, not pointers, so they are
-not checked.
+`Detail::TypedTaskBody::operator()` throws `std::runtime_error` from that last statement.

@@ -6,6 +6,67 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-07 — engine: Added `UnsupportedExecution`, derived from std::invalid_argument, and threw it for every mode or device refusal at record time (`core/errors.hpp`, `engine/operand_check.hpp`, `engine/task_recorder.hpp`).
+- 2026-10-07 — core: Froze the numeric values of `Core::DataType` as a file-format contract and pinned them with a test (`core/common.hpp`, `tests/functional/unit/test_blas_types.cpp`).
+- 2026-10-07 — blas: Added symm, hemm, syr2k and her2k to Level3 (`engine/blas/level3.hpp`, `symm.cpp`, `syr2k.cpp`, `kernels/blas/symmetric_access.hpp`).
+- 2026-10-07 — blas: Added the band routines gbmv, sbmv, hbmv, tbmv and tbsv on CBLAS band storage (`engine/blas/level2.hpp`, `kernels/blas/band_access.hpp`, `engine/blas/band_operand.hpp`).
+- 2026-10-07 — blas: Added the packed routines spmv, hpmv, tpmv, tpsv, spr, hpr, spr2 and hpr2 (`engine/blas/level2.hpp`, `kernels/blas/packed_access.hpp`, `engine/blas/packed_operand.hpp`).
+- 2026-10-07 — blas: Added rotg, rotm and rotmg, which take and return their scalars in one-element tensors (`engine/blas/level1.hpp`, `kernels/blas/givens.hpp`, `modified_givens.hpp`).
+- 2026-10-07 — blas: Breaking change: Computed TRMV as one product per row from a snapshot of x on the SYCL path, which changes the signature of Kernels::SYCL::trmv (`kernels/sycl/blas/level2/trmv.hpp`, `row_reduction.hpp`).
+- 2026-10-07 — blas: Solved TRSV and TRSM in diagonal blocks with parallel updates on the SYCL path, which changes backward-substitution results in the last bits (`kernels/sycl/blas/level3/trsm.hpp`, `triangular_plan.hpp`).
+- 2026-10-07 — kernels: Added gemm_accessed, which reads GEMM operands through access bricks (`kernels/sycl/blas/level3/gemm.hpp`, `kernels/reference/blas/level3/gemm.hpp`).
+- 2026-10-07 — bench: Added bench_band_packed, bench_sparse and bench_triangular (`benchmarks/bench_band_packed.cpp`, `bench_sparse.cpp`, `bench_triangular.cpp`).
+- 2026-10-07 — blas: Added a cache-blocked, panel-packed GEMM kernel for CPU devices, selected by Device::Profile (`kernels/sycl/blas/level3/packed_product.hpp`, `gemm_packed.hpp`, `engine/blas/dispatch.hpp`).
+- 2026-10-07 — blas: Moved SYRK, HERK, SYMM and HEMM on CPU devices onto the packed product (`kernels/sycl/blas/level3/syrk.hpp`, `gemm_accessed_packed.hpp`, `src/engine/blas/level3/symm.cpp`).
+- 2026-10-07 — support: Added `Device::CacheBlocking` and the cache size and blocking fields of `Device::Profile` (`support/device_policy.hpp`, `kernels/blas/level3/packed_product_plan.hpp`).
+- 2026-10-07 — bench: Added bench_gemm_blocking, which sweeps the blocking of the packed GEMM, and Bench::time_iterations (`benchmarks/bench_gemm_blocking.cpp`, `bench_common.hpp`).
+- 2026-10-07 — engine: Breaking change: Removed `TaskRecorder::record` and `require_sycl_path` and gave the elementwise, nonlinear and logic seams a serial host path under FORCE_REFERENCE (`engine/task_recorder.hpp`, `map_task.hpp`).
+- 2026-10-07 — math: Gave every reduction a serial host fold under FORCE_REFERENCE (`reductions/dispatch.hpp`, `reductions/centred_reduction.hpp`, `reductions/arg_reduction.hpp`).
+- 2026-10-07 — math: Breaking change: Gave every random operation a host path under FORCE_REFERENCE over the same Philox counters, which changes the task-body signature of execute_random (`random/dispatch.hpp`).
+- 2026-10-07 — math: Breaking change: Added a reference orthonormalisation and moved VectorSet out of Kernels::SYCL::Random into a shared header (`support/orthonormal_sweep.hpp`, `kernels/reference/random/orthonormalize.hpp`).
+- 2026-10-07 — math: Made the functor seams declare and check the tensors a bind_reads bundle names (`elementwise/dispatch.hpp`, `nonlinear/dispatch.hpp`, `logic/dispatch.hpp`).
+- 2026-10-07 — spatial: Added window_dot, window_dot_backward and window_dot_weights_backward, the per-channel weighted window sum and its gradients (`engine/spatial.hpp`, `src/engine/spatial/window_dot.cpp`).
+- 2026-10-07 — sparse: Added SparseOps with eight sparse-dense level 1 routines, spmv, spsymv, sphemv, spmm and sptrsv over CSR matrices (`engine/sparse.hpp`, `src/engine/sparse/`, `kernels/sycl/sparse/`, `kernels/reference/sparse/`).
+- 2026-10-07 — sparse: Added SparseVector, SparseMatrix, Core::IndexBase and SparseBuilder, which adds repeated triplets (`sparse_vector.hpp`, `sparse_matrix.hpp`, `sparse_builder.hpp`, `core/sparse_types.hpp`).
+- 2026-10-07 — tools: Refused the sparse operand headers in kernels and support headers (`tools/layering/check_layering.py`).
+- 2026-10-07 — support: Added the serial host loops Serial::map, zip, indexed and reduce, the host siblings of the Launch and Reduce launches (`support/serial_1d.hpp`, `support/serial_reduce.hpp`).
+- 2026-10-07 — math: Added Dispatch::bind_reads, which declares the tensors an element functor reads and hands them to it as typed pointers (`elementwise/read_binding.hpp`).
+- 2026-10-07 — spatial: Formed the HALF sums of col2im, pool_max_backward, pool_avg and upsample_nearest_backward in FLOAT32, which changes their HALF results (`kernels/sycl/spatial/`, `kernels/reference/spatial/`).
+- 2026-10-07 — support: Added Reduce::reduce_segments and folded HALF axis reductions in FLOAT32, which changes the HALF results of sum_along and mean_spatial (`support/reduce_axis.hpp`).
+- 2026-10-07 — engine: Refused HALF storage on a device without the fp16 aspect at record time and added Device::Profile::supports_fp16 (`engine/operand_check.hpp`, `support/device_policy.hpp`).
+- 2026-10-07 — tests: Moved the BLAS tests onto the enums and compared each kernel with a double-precision truth under a bound from the term count (`tests/common/blas_truth.hpp`, `blas_flags.hpp`).
+- 2026-10-07 — blas: Breaking change: Replaced every positional bool of the BLAS calls with Transpose, Uplo, Diag or Side, with no default for Uplo or Side, and took scalars as BlasScalar (`engine/blas/`, `core/blas_types.hpp`).
+- 2026-10-07 — blas: Breaking change: Made dot and ger refuse complex tensors and added dotu, dotc, geru and gerc (`engine/blas/level1.hpp`, `engine/blas/level2.hpp`).
+- 2026-10-07 — blas: Added the Hermitian routines hemv, her, her2 and herk (`engine/blas/level2.hpp`, `engine/blas/level3.hpp`).
+- 2026-10-07 — kernels: Breaking change: Replaced the bool flags of the BLAS kernels with the enums and added a conjugation policy and CONJ_TRANS through the operand access (`kernels/blas/conjugation.hpp`, `operand_access.hpp`).
+- 2026-10-07 — blas: Summed the reference kernels of dot, asum, gemv, symv, trmv, gemm, syrk and trsm in a wider type, which changes their FORCE_REFERENCE results in the last bits (`support/reference_accumulator.hpp`).
+- 2026-10-07 — blas: Carried the running solution of a HALF TRSM in FLOAT32 between substitution steps (`support/running_solution.hpp`, `kernels/sycl/blas/level3/trsm.hpp`).
+- 2026-10-07 — math: Breaking change: Threw std::invalid_argument in place of std::runtime_error for every record-time operand violation of the elementwise, nonlinear, logic and random families (`engine/dispatch.hpp`, `operand_check.hpp`).
+- 2026-10-07 — math: Breaking change: Took the parameter lists of the elementwise, nonlinear, logic and random seams as brace lists in place of std::vector and narrowed scalar parameters on the host (`elementwise/scalar_binding.hpp`).
+- 2026-10-07 — tests: Added tests of the recorder, the handle, the tensor factory, the scratch lease and operand lifetime (`test_task_recorder.cpp`, `test_task_handle.cpp`, `test_tensor_factory.cpp`, `test_scratch_buffer.cpp`).
+- 2026-10-07 — math: Ran var, std, logsumexp, argmax and argmin as fixed-order parallel reductions, which changes the last bits of var and std (`reductions/centred_reduction.hpp`, `reductions/arg_reduction.hpp`).
+- 2026-10-07 — math: Breaking change: Made mean, max and min refuse a zero-element tensor, made sum, prod, count, asum and nrm2 return their identity for one, and added min_along (`reductions/dispatch.hpp`, `min_along.cpp`).
+- 2026-10-07 — support: Breaking change: Made max_along propagate NaN and removed `Reduce::RunningMax` (`support/reduce_1d.hpp`, `src/engine/math/reductions/max_along.cpp`).
+- 2026-10-07 — spatial: Breaking change: Threw std::invalid_argument in place of std::runtime_error for every refused operand (`src/engine/spatial/`, `engine/spatial/window.hpp`).
+- 2026-10-07 — io: Printed and loaded without a full-size staging copy, in 4 MiB chunks for device storage, so a load whose read fails after its length check leaves a partial tensor (`src/io.cpp`).
+- 2026-10-07 — storage: Aligned every tensor allocation to 128 bytes through the aligned entry points of SushiRuntime's RuntimeContext (`storage.hpp`, `tensor.hpp`).
+- 2026-10-07 — tests: Moved 709 accessor calls onto view constructions and added `Test::GraphProbe` for a test that inspects the graph (`tests/common/graph_probe.hpp`).
+- 2026-10-07 — blas: Added the vector operand, argument and metadata bricks and checked in describe_matrix_operand that the device computes in the dtype (`vector_operand.hpp`, `argument_check.hpp`, `task_metadata.hpp`).
+- 2026-10-07 — blas: Breaking change: Recorded BLAS through the recorder, built `BLASOps` from an Engine or a TaskRecorder and removed its SparseBLAS base (`engine/blas.hpp`, `engine/blas/dispatch.hpp`, `engine/blas/utils.hpp`).
+- 2026-10-07 — spatial: Breaking change: Recorded the spatial family through the recorder and removed the Engine constructor of the experimental views (`engine/spatial.hpp`, `experimental/lapack/linalg.hpp`, `signal/transforms.hpp`).
+- 2026-10-07 — math: Breaking change: Recorded reductions and random through the recorder and removed `Dispatch::reseed` and `Dispatch::reserve_offsets` (`reductions/dispatch.hpp`, `random/dispatch.hpp`).
+- 2026-10-07 — math: Breaking change: Recorded elementwise, nonlinear and logic through the recorder, with the recorder as each seam's first argument and a TaskHandle from every record call (`elementwise/dispatch.hpp`).
+- 2026-10-07 — engine: Breaking change: Made `Engine` a composition root and removed `get_graph`, the view accessors and the event `execute` returned, so a caller writes BLASOps(engine).gemm (`engine.hpp`, `src/engine.cpp`).
+- 2026-10-07 — engine: Breaking change: Removed `ExecutionMode::VERIFY`, renamed `Engine::rng` to `get_rng` and removed the two create_tensor overloads that took a residency without a dtype (`engine/execution_mode.hpp`, `engine.hpp`).
+- 2026-10-07 — engine: Added TaskRecorder, TaskHandle, OperandSet and TensorFactory, so a recorded task keeps the storage of its operands alive (`engine/task_recorder.hpp`, `tensor_factory.hpp`).
+- 2026-10-07 — engine: Breaking change: Leased scratch from a pool the engine owns, which changes the constructor of ScratchBuffer, and replaced the size field of Storage with size_bytes() (`engine/scratch.hpp`, `engine/scratch_pool.hpp`).
+- 2026-10-07 — blas: Added the flag enums with the CBLAS values, `BlasScalar` and the conjugation, operand access, reference sum and running solution bricks (`core/blas_types.hpp`, `engine/blas/scalar.hpp`).
+- 2026-10-07 — engine: Added rank, extent, scalar and device dtype checks (`engine/operand_check.hpp`).
+- 2026-10-07 — support: Breaking change: Added launch-shape overloads of Launch::map, zip_inplace and indexed and removed Device::Profile::global_mem_cache_line (`support/launch_1d.hpp`, `device_policy.hpp`).
+- 2026-10-07 — tools: Checked views, seams and task dependencies in the layering checker and emptied its known-violations table (`tools/layering/check_layering.py`).
+- 2026-10-07 — tools: Checked the release heading of the changelog against project() in the version checker (`tools/versioning/check_version.py`, `tools/tests/test_check_version.py`).
+- 2026-10-07 — cli: Wrote the generated API site under build/docs/api-site instead of docs/api-site (`cli/sushiblas/services/project.py`).
+- 2026-10-07 — docs: Stated that an empty SB_SYCL_TARGETS follows the device targets of SushiRuntime (`cli/README.md`).
 - 2026-10-07 — cli: Pinned with tests that `sb docs bundle` writes the archive of the checkout and reads the XML folder of the Doxyfile (`cli/tests/test_cli.py`).
 - 2026-10-07 — ci: Fixed the release job to pass the sibling token to the called CI, and ignored the generated API XML (`.github/workflows/release.yml`, `.gitignore`).
 - 2026-10-07 — ci: Added the release job that builds the documentation bundle after CI and attaches it to the tag's release (`.github/workflows/release.yml`, `ci.yml`).
@@ -25,13 +86,13 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 - 2026-10-06 — blas: Accumulated HALF in FLOAT32 in GEMM, SYRK, TRMV, GER, SYR, SYR2 and the reductions through one trait (`support/accumulator.hpp`).
 - 2026-10-06 — blas: Gave GEMV and SYMV a work-group per row for long rows (`kernels/sycl/blas/level2/row_reduction.hpp`).
 - 2026-10-06 — engine: Moved the execution mode and a host-pointer guard for FORCE_REFERENCE into the dispatch seam (`engine/task.hpp`).
-- 2026-10-06 — engine: Moved the RNG stream out of Engine into its own class (`engine/rng_stream.hpp`, `engine.hpp`).
-- 2026-10-06 — layout: Moved the helper headers shared by kernels and engine into a support layer (`include/SushiBLAS/support/`).
+- 2026-10-06 — engine: Breaking change: Moved the RNG stream out of Engine into its own class (`engine/rng_stream.hpp`, `engine.hpp`).
+- 2026-10-06 — layout: Breaking change: Moved the helper headers shared by kernels and engine into a support layer (`include/SushiBLAS/support/`).
 - 2026-10-06 — math: Made empty tensors no-ops, added INT32 and INT64 arithmetic and took scalar parameters as double (`engine/math/elementwise/`).
 - 2026-10-06 — math: Made max and min propagate NaN and rewrote the complex math of the kernels without std::complex functions (`max.cpp`, `safe_math.hpp`).
 - 2026-10-06 — random: Added PTRS Poisson up to lambda 1e7, a parallel orthogonal and four values per Philox block, which changes every stream (`kernels/sycl/random/`).
 - 2026-10-06 — api: Added vector shapes, host transfer through IO, a full .npy header check and const-correct tensor accessors (`io.hpp`, `tensor.hpp`).
-- 2026-10-06 — api: Removed the global namespace alias sb (`include/SushiBLAS/core/common.hpp`).
+- 2026-10-06 — api: Breaking change: Removed the global namespace alias sb (`include/SushiBLAS/core/common.hpp`).
 - 2026-10-06 — cli: Validated -D before deleting the build tree, verified clean and rejected unknown run options (`cli/sushiblas/services/`).
 - 2026-10-06 — bench: Added four benchmark programs, built with `sb build --benchmarks` (`benchmarks/`, `cli/sushiblas/cli.py`).
 - 2026-10-06 — tests: Strengthened the shared helpers and the normal, uniform, symv, trmv, trsv and elementary-function tests (`tests/common/test_utils.hpp`).

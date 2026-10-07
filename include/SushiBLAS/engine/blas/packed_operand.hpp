@@ -70,9 +70,9 @@ namespace SushiBLAS
 
         /**
          * @brief Returns the geometry of a packed triangle operand.
-         * @throws std::invalid_argument on missing storage, a dtype the tensor's device cannot
-         *         compute in, a rank other than 1, a strided view, or an element count that is
-         *         not n * (n + 1) / 2 for any n.
+         * @throws std::invalid_argument on missing storage, a rank other than 1, a strided view,
+         *         or an element count that is not n * (n + 1) / 2 for any n.
+         * @throws UnsupportedExecution on a dtype the tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/blas/README.md
          */
         [[nodiscard]] inline PackedOperand describe_packed_operand(const Tensor& t, const char* op,

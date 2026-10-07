@@ -5,6 +5,194 @@ One file per operation or seam, each a GoogleTest translation unit built on the 
 is written the way it is: the defect it pins, the number it was measured against, the quirk of
 the machine it ran on. Shared reasoning comes first, then one section per file in path order.
 
+A test builds its operation views on the fixture's engine, as in `BLASOps(*engine)`, or on a
+`GraphProbe` when it asserts on the recorded graph; `tests/common/README.md` describes both. A
+refusal at record time is asserted as `std::invalid_argument`, and a mode or device refusal as
+`SushiBLAS::UnsupportedExecution`.
+
+The files this page has no section for are described by the table below and by their own source
+comments. The table gives the `@brief` of each file, with an operation named by its view. The files added on 2026-10-07, and the changes
+made to the older ones that day, had not been built or run when this page was written.
+
+## Files
+
+| File | Tests |
+| --- | --- |
+| `test_abs.cpp` | Tests ElementwiseOps::abs against fixed expected values |
+| `test_acos.cpp` | Tests ElementwiseOps::acos against fixed expected values |
+| `test_acosh.cpp` | Tests ElementwiseOps::acosh against fixed expected values |
+| `test_add.cpp` | Tests ElementwiseOps::add against fixed expected values |
+| `test_all.cpp` | Tests LogicOps::all against fixed expected values |
+| `test_any.cpp` | Tests LogicOps::any against fixed expected values |
+| `test_asin.cpp` | Tests ElementwiseOps::asin against fixed expected values |
+| `test_asinh.cpp` | Tests ElementwiseOps::asinh against fixed expected values |
+| `test_asum.cpp` | Tests BLASOps::asum against fixed expected values |
+| `test_atan.cpp` | Tests ElementwiseOps::atan against fixed expected values |
+| `test_atanh.cpp` | Tests ElementwiseOps::atanh against fixed expected values |
+| `test_axis_reductions.cpp` | Tests the axis reductions, the plan they launch from and both of their kernels |
+| `test_axpy.cpp` | Tests BLASOps::axpy against fixed expected values |
+| `test_band_access.cpp` | Tests the offsets, the band test and the column ranges of BandAccess |
+| `test_blas_band.cpp` | Tests the band routines against hand-computed results, their dense siblings and each other's kernels |
+| `test_blas_complex.cpp` | Tests the conjugating BLAS routines, CONJ_TRANS and their forwards on a real tensor |
+| `test_blas_half_accumulation.cpp` | Tests that HALF GEMM, SYRK, GEMV, DOT, ASUM and NRM2 accumulate in FLOAT32 on both kernels, and that HALF TRSM and TRSV carry their solution in FLOAT32 |
+| `test_blas_packed.cpp` | Tests the packed routines against hand-computed results, their dense siblings and each other's kernels |
+| `test_blas_scalar.cpp` | Tests BlasScalar: what converts to it, what it narrows to and what it reports |
+| `test_blas_structured_validation.cpp` | Tests what the band, packed and rotation routines refuse at record time, and the forwards of the Hermitian routines on a real tensor |
+| `test_blas_types.cpp` | Tests the numbers and the size of DataType and of the BLAS flags, and the flag queries |
+| `test_blas_validation.cpp` | Tests the record-time operand checks of the BLAS operations and of tensor creation |
+| `test_ceil.cpp` | Tests ElementwiseOps::ceil against fixed expected values |
+| `test_channel_bias_epilogue.cpp` | Tests ChannelBiasEpilogue's stride pair through Dispatch::execute_gemm |
+| `test_clamp.cpp` | Tests ElementwiseOps::clamp against fixed expected values |
+| `test_complex_arithmetic.cpp` | Tests the conjugation, product and quotient bricks on real and complex values |
+| `test_complex_nonlinear.cpp` | Tests complex sigmoid, tanh, sqrt and log against hand values, and elu's refusal |
+| `test_constant.cpp` | Tests that RandomOps::constant fills a tensor of every supported dtype with one value |
+| `test_convert.cpp` | Tests ElementwiseOps::convert between the real dtypes, its refusals and its ordering |
+| `test_copy.cpp` | Tests BLASOps::copy against fixed expected values |
+| `test_cos.cpp` | Tests ElementwiseOps::cos against fixed expected values |
+| `test_cosh.cpp` | Tests ElementwiseOps::cosh against fixed expected values |
+| `test_count_nonfinite.cpp` | Tests ReductionOps::count_nonfinite, its refusals and its ordering in the graph |
+| `test_dispatch_complex.cpp` | Tests which elementwise and logic operations compute on COMPLEX32 and which refuse it |
+| `test_dispatch_seam.cpp` | Tests the public Dispatch seam with functors written outside the library |
+| `test_distributions.cpp` | Tests the log-normal, exponential, Poisson, Bernoulli, discrete and truncated draws |
+| `test_div.cpp` | Tests ElementwiseOps::div against fixed expected values |
+| `test_dot.cpp` | Tests BLASOps::dot against fixed expected values |
+| `test_elu.cpp` | Tests NonLinearOps::elu and elu_backward against fixed expected values |
+| `test_empty_tensors.cpp` | Tests what elementwise, non-linear, logic and reduction ops do with an empty tensor |
+| `test_equal.cpp` | Tests LogicOps::equal against fixed expected values |
+| `test_execution_mode.cpp` | Tests how the engine's execution mode selects and refuses kernels |
+| `test_exp.cpp` | Tests ElementwiseOps::exp against fixed expected values |
+| `test_floor.cpp` | Tests ElementwiseOps::floor against fixed expected values |
+| `test_fmod.cpp` | Tests ElementwiseOps::fmod against fixed expected values |
+| `test_functor_reference.cpp` | Tests that the functor seams give the same result on the host path as on the SYCL path |
+| `test_gelu.cpp` | Tests NonLinearOps::gelu and gelu_backward against fixed expected values |
+| `test_gemm.cpp` | Tests gemm against the reference kernel, hand-computed results and its epilogue seam |
+| `test_gemv.cpp` | Tests BLASOps::gemv against fixed expected values |
+| `test_ger.cpp` | Tests BLASOps::ger against fixed expected values |
+| `test_givens.cpp` | Tests the Givens rotation and the modified Givens transformation bricks |
+| `test_greater.cpp` | Tests LogicOps::greater against fixed expected values |
+| `test_greater_equal.cpp` | Tests LogicOps::greater_equal against fixed expected values |
+| `test_host_transfer.cpp` | Tests IO's host transfer calls, load ordering, the .npy reader and the text of a tensor |
+| `test_iamax.cpp` | Tests that BLASOps::iamax returns the zero-based index of the largest magnitude as INT64 |
+| `test_initializers.cpp` | Tests the Xavier and He initializers of RandomOps |
+| `test_integer_arithmetic.cpp` | Tests integer elementwise arithmetic, wrap-around included, and double scalars |
+| `test_integer_dtypes.cpp` | Tests which operations serve INT32 and INT64 tensors and which refuse them |
+| `test_launch_shapes.cpp` | Tests the shape-taking launch primitives and the local tile fit check |
+| `test_leaky_relu.cpp` | Tests NonLinearOps::leaky_relu and leaky_relu_backward against fixed expected values |
+| `test_less.cpp` | Tests LogicOps::less against fixed expected values |
+| `test_less_equal.cpp` | Tests LogicOps::less_equal against fixed expected values |
+| `test_level1_parallel_reductions.cpp` | Tests the Level 1 reductions on the deterministic machinery and HALF accumulation |
+| `test_level1_reference.cpp` | Tests the BLAS Level 1 reference kernels against hand-computed results |
+| `test_level2_reference.cpp` | Tests the BLAS Level 2 reference kernels against hand-computed results |
+| `test_level2_sycl_parity.cpp` | Tests that the GEMV and SYMV kernels stay within their rounding bound of a double-precision truth, and that the SYCL kernels repeat to the bit |
+| `test_log.cpp` | Tests ElementwiseOps::log against fixed expected values |
+| `test_logical_and.cpp` | Tests LogicOps::logical_and against fixed expected values |
+| `test_logical_not.cpp` | Tests LogicOps::logical_not against fixed expected values |
+| `test_logical_or.cpp` | Tests LogicOps::logical_or against fixed expected values |
+| `test_logical_xor.cpp` | Tests LogicOps::logical_xor against fixed expected values |
+| `test_math_validation.cpp` | Tests the operand checks and numeric edge cases of the elementwise, nonlinear and reduction ops |
+| `test_max.cpp` | Tests ElementwiseOps::max against fixed expected values |
+| `test_max_min_nan.cpp` | Tests max, min, max_along and min_along on NaN, infinite and signed-zero input |
+| `test_mean_spatial.cpp` | Tests ReductionOps::mean_spatial and the single-axis reductions that share its span |
+| `test_min.cpp` | Tests ElementwiseOps::min against fixed expected values |
+| `test_mul.cpp` | Tests ElementwiseOps::mul against fixed expected values |
+| `test_neg.cpp` | Tests ElementwiseOps::neg against fixed expected values |
+| `test_normal.cpp` | Tests RandomOps::normal's sample moments, spread and seed determinism |
+| `test_not_equal.cpp` | Tests LogicOps::not_equal against fixed expected values |
+| `test_nrm2.cpp` | Tests BLASOps::nrm2 against fixed expected values |
+| `test_operand_access.cpp` | Tests OperandAccess: the strides of each layout and transpose, and the read it gives |
+| `test_operand_check.cpp` | Tests the operand checks, the scalar binding and the Tensor constructor and transpose guards |
+| `test_orthogonal.cpp` | Tests that RandomOps::orthogonal fills a matrix with orthonormal rows or columns |
+| `test_packed_access.cpp` | Tests the offsets, the triangle test and the column ranges of PackedAccess |
+| `test_packed_micro_kernel.cpp` | Tests the micro-kernel of a packed product on one register block per accumulation type |
+| `test_packed_panel.cpp` | Tests pack_panel, which copies a block of op(X) into unit-stride micro-panels |
+| `test_packed_product.cpp` | Tests the packed product kernel against the reference GEMM under injected blockings |
+| `test_packed_product_plan.cpp` | Tests the register block, the default blocking and the plan of a packed product |
+| `test_packed_symm.cpp` | Tests SYMM and HEMM on the packed product against the reference kernel |
+| `test_packed_syrk.cpp` | Tests SYRK and HERK on the packed product against the reference kernel |
+| `test_pow.cpp` | Tests ElementwiseOps::pow against fixed expected values |
+| `test_random_large_lambda.cpp` | Tests the Poisson draw for lambda in the PTRS range and its reproducibility |
+| `test_random_reference.cpp` | Tests that each random operation draws one stream under both forced modes |
+| `test_read_binding.cpp` | Tests bind_reads, the bundle that declares the tensors an element functor reads |
+| `test_reciprocal.cpp` | Tests ElementwiseOps::reciprocal against fixed expected values |
+| `test_reduce_plans.cpp` | Tests the plan-taking forms of Reduce::reduce and Reduce::reduce_indexed |
+| `test_reduce_segments.cpp` | Tests Reduce::reduce_segments in both launch shapes and the axis fold that runs on it |
+| `test_reduction_determinism.cpp` | Tests that the folding reductions repeat to the bit and sum accurately |
+| `test_reductions.cpp` | Tests each reduction's results and refusals, and that its host and SYCL paths agree |
+| `test_reference_accumulator.cpp` | Tests the type and the running sum a reference kernel accumulates in |
+| `test_reference_mode_guard.cpp` | Tests that FORCE_REFERENCE refuses device-only USM and runs on host-reachable USM |
+| `test_relu.cpp` | Tests NonLinearOps::relu and relu_backward against fixed expected values |
+| `test_remainder.cpp` | Tests ElementwiseOps::remainder against fixed expected values |
+| `test_rng_stream.cpp` | Tests RngStream's reseed, offset reservation, thread safety and seed determinism |
+| `test_rot.cpp` | Tests BLASOps::rot against fixed expected values |
+| `test_rotg.cpp` | Tests rotg against hand-computed rotations, across both kernels and inside a graph |
+| `test_rotm.cpp` | Tests rotm on each flag, on strided and empty vectors, across kernels and after rotmg |
+| `test_rotmg.cpp` | Tests rotmg on its four outcomes, on both rescalings and across both kernels |
+| `test_round.cpp` | Tests ElementwiseOps::round against fixed expected values |
+| `test_running_solution.cpp` | Tests RunningSolution: where it keeps a solved element and what it rounds |
+| `test_runtime_shapes.cpp` | Tests create_tensor and reshape with dimensions held in a std::vector |
+| `test_scal.cpp` | Tests BLASOps::scal against fixed expected values |
+| `test_scratch_buffer.cpp` | Tests ScratchBuffer, the lease on one pooled device scratch block |
+| `test_scratch_shelf.cpp` | Tests the shelf of idle device scratch blocks and its size classes |
+| `test_serial_loops.cpp` | Tests the serial host loops and folds against the launch shapes and accumulators they mirror |
+| `test_shuffle.cpp` | Tests that RandomOps::shuffle permutes its input and repeats for one seed and offset |
+| `test_sigmoid.cpp` | Tests NonLinearOps::sigmoid and sigmoid_backward against fixed expected values |
+| `test_silu.cpp` | Tests NonLinearOps::silu and silu_backward against fixed expected values |
+| `test_sin.cpp` | Tests ElementwiseOps::sin against fixed expected values |
+| `test_sinh.cpp` | Tests ElementwiseOps::sinh against fixed expected values |
+| `test_softplus.cpp` | Tests NonLinearOps::softplus and softplus_backward against fixed expected values |
+| `test_sparse_assembly.cpp` | Tests assemble_csr and require_distinct_positions on host triplets and positions |
+| `test_sparse_builder.cpp` | Tests the sparse vectors and CSR matrices SparseBuilder makes from host data |
+| `test_sparse_level1.cpp` | Tests the sparse-dense level 1 routines of SparseOps against values worked out by hand |
+| `test_sparse_spmm.cpp` | Tests SparseOps::spmm column by column against host products, on both layouts |
+| `test_sparse_spmv.cpp` | Tests SparseOps::spmv and the transposed SYCL kernel against host products |
+| `test_sparse_spsymv.cpp` | Tests SparseOps::spsymv, sphemv and their SYCL kernel against mirrored host products |
+| `test_sparse_sptrsv.cpp` | Tests SparseOps::sptrsv against triangular systems whose solution is known |
+| `test_sparse_structure.cpp` | Tests find_defect on the arrays of a CSR matrix and on the positions of a sparse vector |
+| `test_sparse_types.cpp` | Tests IndexBase, the two sparse operands, the kernel index views and accumulator_bytes |
+| `test_sparse_validation.cpp` | Tests the record-time operand checks of the sparse operations |
+| `test_spatial_broadcast.cpp` | Tests SpatialOps::channel_affine, broadcast_spatial and layout_convert |
+| `test_spatial_channels.cpp` | Tests SpatialOps::concat_channels and slice_channels |
+| `test_spatial_col2im.cpp` | Tests SpatialOps::col2im against overlap counts and the reference kernel |
+| `test_spatial_geometry.cpp` | Tests output_extent, the window span and the default ConvGeometry without a device |
+| `test_spatial_half.cpp` | Tests that the spatial kernels sum HALF terms in FLOAT32 and agree across both modes |
+| `test_spatial_im2col.cpp` | Tests SpatialOps::im2col's gather order, padding, dilation and refusals |
+| `test_spatial_pool_avg.cpp` | Tests SpatialOps::pool_avg and pool_avg_backward |
+| `test_spatial_pool_max.cpp` | Tests SpatialOps::pool_max and pool_max_backward |
+| `test_spatial_random_io_validation.cpp` | Tests the record-time checks of spatial geometry, random fills and IO |
+| `test_spatial_upsample.cpp` | Tests SpatialOps::upsample_nearest and upsample_nearest_backward |
+| `test_spatial_window_dot.cpp` | Tests the per-channel weighted window sum and its two gradients in both forced modes |
+| `test_sqrt.cpp` | Tests ElementwiseOps::sqrt against fixed expected values |
+| `test_square.cpp` | Tests ElementwiseOps::square against fixed expected values |
+| `test_storage_offset.cpp` | Tests every operation family on views at a non-zero storage offset |
+| `test_structured_operands.cpp` | Tests the record-time checks on a band, a packed and a scalar operand |
+| `test_sub.cpp` | Tests ElementwiseOps::sub against fixed expected values |
+| `test_sum_edge_cases.cpp` | Tests ReductionOps::sum, mean, max and min on edge-case inputs |
+| `test_swap.cpp` | Tests BLASOps::swap against fixed expected values |
+| `test_symm.cpp` | Tests symm and hemm against hand-computed products, gemm on the full matrix and refusals |
+| `test_symmetric_access.cpp` | Tests SymmetricAccess reads of both triangles, both layouts and both conjugation policies |
+| `test_symv.cpp` | Tests BLASOps::symv against fixed expected values |
+| `test_syr.cpp` | Tests BLASOps::syr against fixed expected values |
+| `test_syr2.cpp` | Tests BLASOps::syr2 against fixed expected values |
+| `test_syr2k.cpp` | Tests syr2k and her2k against hand-computed updates, a host integer loop, a truth and refusals |
+| `test_syrk.cpp` | Tests BLASOps::syrk against the reference kernel over dtypes, layouts and triangles |
+| `test_syrk_trsm_parity.cpp` | Tests SYRK and TRSM SYCL kernels against the reference ones at multi-tile sizes |
+| `test_tan.cpp` | Tests ElementwiseOps::tan against fixed expected values |
+| `test_tanh.cpp` | Tests NonLinearOps::tanh and tanh_backward against fixed expected values |
+| `test_task_handle.cpp` | Tests TaskHandle: validity, equality and the handle of a call that records nothing |
+| `test_task_recorder.cpp` | Tests TaskRecorder: the graph and pool it is bound to, and what each mode records |
+| `test_tensor_const_access.cpp` | Tests that Tensor's const and non-const data accessors return matching pointers |
+| `test_tensor_factory.cpp` | Tests TensorFactory and Engine::create_tensor: shapes, layout, device index and size |
+| `test_tensor_view.cpp` | Tests that a tensor view's offset and strides lead to the elements it occupies |
+| `test_triangular_parallel.cpp` | Tests the blocked TRSV and TRSM kernel and the parallel TRMV kernel against exact integer systems, a double-precision truth and each other |
+| `test_triangular_plan.cpp` | Tests the block plan of a triangular solve and the decoding of a TRSM call into one substitution |
+| `test_trmv.cpp` | Tests BLASOps::trmv against fixed expected values |
+| `test_trsm.cpp` | Tests BLASOps::trsm in row-major and column-major layouts |
+| `test_trsm_reference.cpp` | Tests the TRSM reference kernel against hand-computed solutions |
+| `test_trsv.cpp` | Tests BLASOps::trsv on a 3x3 lower-triangular system |
+| `test_uniform.cpp` | Tests RandomOps::uniform's bounds, sample moments, spread and seed determinism |
+| `test_unsupported_execution.cpp` | Tests which record-time refusals throw UnsupportedExecution and which do not |
+| `test_where.cpp` | Tests LogicOps::where against fixed expected values |
+
 ## Shared reasoning
 
 ### Expectations are worked out by hand
@@ -15,12 +203,17 @@ are wrong the same way. That is how an inverted `COLUMN_MAJOR` addressing arm in
 for months: the SYCL kernel and the reference kernel had the identical defect, so the
 differential tests agreed.
 
-### Comparing two kernels outside VERIFY mode
+### Comparing two kernels under the two forced modes
 
 The `TheSyclKernelAgreesWithTheReferenceKernel` tests fill two buffers under
 `ExecutionMode::FORCE_SYCL` and `ExecutionMode::FORCE_REFERENCE` and compare them. That is how
-the library checks kernel agreement: `ExecutionMode::VERIFY` is not implemented, and
-`Engine::set_mode` throws `std::logic_error` when asked for it.
+the library checks kernel agreement: `ExecutionMode` has no mode that runs both, and
+`Engine::set_mode` is `noexcept`.
+
+A kernel that sums is not compared this way. The reference sums in `double` and the SYCL
+kernel in the element type, so the BLAS parity tests measure each against a `TruthSum` within a
+rounding bound; see `blas_truth.hpp` in `tests/common/README.md`. A kernel that only moves
+elements is still compared bit for bit.
 
 ### Comparing floats by bit pattern
 
@@ -224,7 +417,7 @@ which `count_nonfinite` can then find.
 smallest subnormal and must flush to zero. 1e-7 is not, and must land on a subnormal and not be
 flushed with it.
 
-`NonFiniteValuesSurviveTheConversion`: this pairing makes `reductions().count_nonfinite`
+`NonFiniteValuesSurviveTheConversion`: this pairing makes `ReductionOps::count_nonfinite`
 meaningful on a converted tensor. If a cast quietly turned a NaN into a number, screening the
 fp16 copy would say the fp32 original was clean.
 
@@ -668,7 +861,7 @@ shape the device kernel adds the same values in the same order as `naive`, so wi
 compensation the two are bit-identical and `EXPECT_LT` fails outright.
 
 `TwoStageTreeAgreesWithTheSequentialPass`: `Reduce::reduce` picks its shape from the device, so
-on the machine these were written on the public `reductions().sum` path only reaches the
+on the machine these were written on the public `ReductionOps::sum` path only reaches the
 two-stage kernel above 16K elements and the sequential one below. The test calls both at the
 same small size, by handing the two-stage path a scratch buffer it would not otherwise get, so
 the work-group tree is checked against an answer that does not depend on it. The tree is the
@@ -799,8 +992,8 @@ silently produce a differently shaped answer.
 
 `TheSyclKernelAgreesWithTheReferenceKernel` compares bit-exact, not near. im2col only ever
 copies an element or writes a zero, so the two kernels must produce the same bits or one of
-them is addressing memory differently from the other. See "Comparing two kernels outside VERIFY
-mode" for why the comparison is made in the test.
+them is addressing memory differently from the other. See "Comparing two kernels under the two
+forced modes" for why the comparison is made in the test.
 
 ## test_spatial_pool_avg.cpp
 
@@ -905,7 +1098,8 @@ With x = `[1, 2, 3]`, `x * x^T` is
 [3 6 9]
 ```
 
-and since `upper=false` only the lower triangle of A is updated, so A in row-major order is
+and since the call passes `Core::Uplo::LOWER` only the lower triangle of A is updated, so A in
+row-major order is
 
 ```
 [1 0 0]

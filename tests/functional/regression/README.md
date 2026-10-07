@@ -10,6 +10,47 @@ which `tests/CMakeLists.txt` turns into the `regression` CTest label.
 | `test_logger.cpp` | The logger writes every line before an assertion aborts or a shutdown returns |
 | `test_regression.cpp` | One sentinel per fixed defect in the BLAS, RNG, tensor and reduction paths |
 | `test_spatial_determinism.cpp` | The spatial backward kernels give the same bits on every run |
+| `test_task_dependencies.cpp` | A recorded task body orders its device work behind the events it is given |
+| `test_operand_lifetime.cpp` | A recorded task keeps its operands and its scratch allocated until it has run |
+| `test_sparse_recording.cpp` | A recorded sparse task waits for its dependencies, keeps its operands and is ordered behind the task that wrote them |
+| `test_blas_symmetric_bits.cpp` | The unconjugated reference kernels equal a plain host loop bit for bit |
+
+None of the four files added on 2026-10-07 had been built or run when this page was written.
+
+## test_task_dependencies.cpp
+
+`ARecordedBodyWaitsForItsDependencies`: a task body receives the events of the tasks it depends
+on and must order its own device work behind them. A body that submits without them runs when
+the queue pleases, and the result is right only by luck. `tools/layering/check_layering.py`
+checks the same rule in the source, under `rule_task_dependencies`.
+
+## test_operand_lifetime.cpp
+
+A task holds raw pointers into its operands, and the recorder retains the storage behind them
+(`OperandSet`, `Internal::StorageKeepAlive`). The fixture counts the context's live USM
+allocations around the record and execute calls. `ATaskKeepsItsInputAllocatedUntilItHasRun`
+destroys an input tensor after the record call and checks its allocation lives until the task
+ran. `AnEpilogueOperandIsKept` does the same for a tensor declared through
+`Dispatch::gemm_epilogue`. `AScratchReturnsToThePoolWithItsTask` runs a reduction twice and
+checks that its scratch block is idle in the pool after the first run and lent again in the
+second.
+
+## test_sparse_recording.cpp
+
+The same three properties for a sparse task, whose operand is three tensors and not one:
+`ARecordedBodyWaitsForItsDependencies`, `AMatrixDestroyedBeforeExecuteIsKept`, and
+`AProductIsOrderedBehindTheTaskThatWroteItsValues`, which asserts on the recorded graph that a
+product depends on the task that wrote the matrix's `values` and on no task it reads nothing
+from. `TheSameCallsReplayIntoASecondGraph`
+records the same calls through a second recorder.
+
+## test_blas_symmetric_bits.cpp
+
+The conjugation policy turned each symmetric kernel into a template that also serves its
+Hermitian sibling. Under `Unconjugated` the kernel must do what it did before: the same
+operations in the same order. Each test (`dot`, `ger`, `symv`, `syr`, `syr2`, `syrk`, `trsm`)
+runs the reference kernel beside a plain host loop written out in the test and compares the two
+bit for bit.
 
 ## test_regression.cpp
 
@@ -45,7 +86,8 @@ A*B     = [[3,2],[7,4],[11,6]]  column-major [3,7,11,2,4,6],  ldc = 3
 
 ### SetSeedRewindsTheRngStream
 
-`Engine::set_seed()` set the seed and left the RNG offset where earlier draws had pushed it. The
+Setting the seed, now `RandomOps::set_seed`, set the seed and left the RNG offset where earlier
+draws had pushed it. The
 offset only grows, and every RNG kernel mixes (seed, offset) into Philox, so re-seeding an engine
 that had already drawn did not reproduce its stream. Two generators seeded alike on one engine
 produced different data.
@@ -85,7 +127,8 @@ A_i = (i+1) * I(2)     B_i = {{1,2},{3,4}} + i     C_i = A_i * B_i
 `ger`, and `gemv` with beta != 0, declared their accumulator write-only while reading it. The
 order still came out right because the tracker inserts a write-after-write edge anyway, so the
 defect was latent and no behavioural test could see it. The test reads the recorded graph
-instead: `take_nodes()` returns what the driver declared.
+instead: it records through a `GraphProbe` (`tests/common/graph_probe.hpp`), whose `take_nodes()`
+returns what the operation declared.
 
 `gemv` with beta == 0 overwrites y completely and must stay a pure write. A read it does not
 perform would cost the scheduler a false edge.
@@ -103,8 +146,8 @@ base and carries the view's byte interval. Two views of one arena got two differ
 free to run before the op that produced its input.
 
 This happened in practice. SushiAI's first arena-packed training run reported a loss of -57 where
-ln 6 was expected: `reductions().max` raced the `bias_add` feeding it, and `blas().scal` beat
-`reductions().sum` to the loss.
+ln 6 was expected: the `max` reduction raced the `bias_add` feeding it, and the BLAS `scal` beat
+the `sum` reduction to the loss.
 
 The test asserts on the recorded graph and not on the answer. Without the edge the two tasks may
 still run in the right order by luck, and a test that passes by luck guards nothing. The

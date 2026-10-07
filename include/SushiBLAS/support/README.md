@@ -1,11 +1,25 @@
 # Support headers
 
 `include/SushiBLAS/support` holds the shared machinery that kernels and the `Engine` layer both
-build on: the accumulator trait (`accumulator.hpp`), the device policy (`device_policy.hpp`), the
-per-element launch (`launch_1d.hpp`), the two reduction shapes (`reduce_1d.hpp`,
-`reduce_axis.hpp`) and the window geometry (`spatial_geometry.hpp`). It is the lowest layer: a
-support header includes only `SushiBLAS/core/`, other support headers, SYCL and the standard
-library, and `tools/layering/check_layering.py` enforces that under `rule_support_independence`.
+build on. It is the lowest layer: a support header includes only `SushiBLAS/core/`, other support
+headers, SYCL and the standard library, and `tools/layering/check_layering.py` enforces that under
+`rule_support_independence`.
+
+| File | Declares |
+| --- | --- |
+| `accumulator.hpp` | `AccumulatorOf`, the type a BLAS kernel accumulates an element type in |
+| `reference_accumulator.hpp` | `ReferenceAccumulatorOf` and `ReferenceSum`, the type and the running sum of a reference kernel |
+| `running_solution.hpp` | `RunningSolution`, which carries a substitution's solution unrounded |
+| `complex_arithmetic.hpp` | The conjugation, product and quotient a SYCL device can run on any element type |
+| `device_policy.hpp` | `Profile`, `CacheBlocking` and the launch geometry a kernel dispatches on |
+| `launch_1d.hpp` | The launch primitives every per-element kernel shares: `map`, `zip_inplace`, `indexed` |
+| `serial_1d.hpp` | The serial host loops that are the reference path of those three launch shapes |
+| `reduce_1d.hpp` | The deterministic whole-tensor reduction and the accumulators it folds with |
+| `reduce_axis.hpp` | The segmented reduction: many independent folds, one result each |
+| `serial_reduce.hpp` | The serial host folds that are the reference path of both reductions |
+| `orthonormal_sweep.hpp` | The vector layout and the constants the orthonormalisation kernels of both back ends share |
+| `spatial_geometry.hpp` | `ConvGeometry`, `WindowSpan`, `ColumnSpan`, `TapSpan` and `output_extent` |
+| `sparse_assembly.hpp` | The host-side assembly of CSR arrays from triplets, and its input checks |
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to. The header states the rule in one line and cites
@@ -26,6 +40,43 @@ the element is stored. GEMM's epilogue still receives a `T`. TRSM and TRSV read 
 elements they already stored, so those are rounded to `T` before a later row or column uses them.
 For every type but HALF the widening is the identity and the kernels run the same operations in the
 same order as before. `Reduce::Accumulation` and `Reduce::AccumulationOf` alias this trait.
+
+## `reference_accumulator.hpp`
+
+### `ReferenceAccumulatorOf`
+
+A reference kernel sums a real element type in `double` and a complex one in
+`std::complex<double>`, whatever the element type. The reference is the specification the SYCL
+kernel is compared against, so its sum is wider than the one under test wherever a wider type
+exists.
+
+### `ReferenceSum`
+
+The running sum of a reference kernel. For HALF, FLOAT32 and COMPLEX32 the wide type already
+holds more bits than the element, and the sum is a plain `double` sum. For FLOAT64 and COMPLEX64
+the wide type is the element type itself, so `ReferenceSum` keeps the rounding error of every
+addition with TwoSum and adds it back when the sum is read. The two differences TwoSum takes are
+exact only under strict IEEE arithmetic, which the library builds with.
+
+## `running_solution.hpp`
+
+### `RunningSolution`
+
+A triangular substitution reads the elements it has already solved. `RunningSolution` carries
+them in `Accumulator<T>` between steps and stores each one rounded to `T` in the right-hand side
+as well, so a later row reads the unrounded value. For every type but HALF `Accumulator<T>` is
+`T` and the solution lives in the right-hand side itself. For HALF it needs a workspace of one
+`float` per element, which `K_NEEDS_WORKSPACE` reports and
+`Internal::running_solution_bytes` sizes at record time.
+
+## `complex_arithmetic.hpp`
+
+`std::complex` multiplication and division are host library calls on some toolchains, and a SYCL
+device cannot call them. This header spells both on the real and imaginary parts: the product by
+the four-product formula, the quotient by Smith's algorithm, which returns NaN components for a
+zero divisor. Each has a real overload that is the plain operator, so a kernel template calls one
+name for every element type. `RealType<T>` names the real component type, and the conjugation
+helpers return a real value unchanged.
 
 ## `device_policy.hpp`
 
@@ -64,6 +115,18 @@ maximum occupancy.
 A plain aggregate of answers, queried once and cached. Everything here comes straight from
 `sycl::info::device` except `has_dedicated_local_memory`, which is a judgement the raw query cannot
 make on its own: see that field.
+
+### `CacheBlocking`
+
+The byte budgets and thresholds a cache-blocked kernel sizes itself from, held in the profile as
+`Profile::blocking`. `cache_blocking_for(cache_bytes)` derives them from the cache size the device
+reports: a quarter for the block the inner loops sweep again, half for the block walked once per
+sweep, and the whole of it as `min_operand_bytes`, the operand size below which a kernel does not
+pack. A device that reports no cache gets `K_ASSUMED_CACHE_BYTES`, 256 KiB. `inner_bytes` is
+seven eighths of `K_ASSUMED_INNER_CACHE_BYTES`, 32 KiB, for every device: the probe reads one
+cache size, `global_mem_cache_size`, and does not derive `inner_bytes` from it.
+The packed GEMM reads these through `Kernels::plan_packed_product`; nothing in this header knows
+what a GEMM is.
 
 ### `Profile::has_dedicated_local_memory`
 
@@ -201,6 +264,14 @@ binary on the same device. Every element is written exactly once, by exactly one
 same inputs, in the same arithmetic. So the byte-for-byte reproducibility
 `sushiruntime_deterministic_fp` promises survives this header intact, which matters, because a
 training framework above compares checkpoints for bit-equality.
+
+Each primitive has two forms. One takes a `Shape1D` the caller already planned; the other takes
+the queue and plans the shape from its device. The shape form is what lets a test, or a caller
+that has planned once for several launches, run a kernel in a shape the planner would not pick
+for that size.
+
+Under `FORCE_REFERENCE` none of this runs: the same functor is called by the loops of
+`serial_1d.hpp`.
 
 ### `K_VECTOR_WIDTH`
 
@@ -613,26 +684,22 @@ rounds away, and multiplication's rounding error is not of that shape. What this
 `CompensatedSum`, and the only reason it is spelled the same way, is the fixed combination order,
 which is what the determinism argument actually rests on.
 
-### `RunningMax`
+### `NaNPropagatingMax`, `NaNPropagatingMin`
 
-**Not what the whole-tensor `max` uses.** `ReductionOps::max` folds through `reduce_1d.hpp` with its
-own accumulator, `NaNPropagatingMax` in `max.cpp`, so a NaN in the input gives NaN whatever the
-combination order. This class serves the *segmented* seam
-(`Dispatch::execute_folding_axis_reduction`), which is one shape for every axis reduction and needs
-an accumulator. The fold is fixed, so a per-axis maximum is bit-reproducible for a stronger reason
-than the additive reductions are.
+The accumulators of every maximum and minimum in the library: `ReductionOps::max` and `min` through
+the whole-tensor seam, `max_along` and `min_along` through the segmented one. Once a NaN is folded
+the result is NaN, and `combine` returns NaN when either side is NaN, so the answer does not depend
+on the combination order and a per-axis extreme agrees with a whole-tensor one on NaN. `combine`
+also orders the two zeros, `+0` over `-0` for the maximum and `-0` over `+0` for the minimum, so it
+gives the same result with its arguments swapped.
 
-**Selection keeps the left operand unless the right compares greater**, like `sycl::maximum`. Every
-comparison against a NaN is false, so a NaN in the input does not propagate through this class and
-which value survives meeting one depends on the order. A per-axis maximum and a whole-tensor maximum
-therefore disagree on NaN; the whole-tensor `max` and `min` propagate it.
+### `NaNPropagatingMax::identity`, `NaNPropagatingMin::identity`
 
-### `RunningMax::identity`
-
-Negative infinity when `T` has one, otherwise the lowest finite value of `T`. Folding it in against
-any value, negative infinity included, is a no-op, so a segment of negative infinities answers
-negative infinity rather than `lowest()`. Not `constexpr`, because the `std::numeric_limits` members
-of `sycl::half` are not: the same reason `ScaledSumOfSquares::min_scale` is a function.
+Negative infinity for the maximum and positive infinity for the minimum when `T` has one,
+otherwise `lowest()` and `max()`. Folding the identity in against any value is a no-op, so a
+segment of negative infinities answers negative infinity rather than `lowest()`. Not `constexpr`,
+because the `std::numeric_limits` members of `sycl::half` are not: the same reason
+`ScaledSumOfSquares::min_scale` is a function.
 
 ### `ExactSum`
 
@@ -672,9 +739,9 @@ Splitting `A` off costs the existing callers nothing (both are deduced, and both
 lets the counting reductions share this shape rather than hand-write a second copy of a two-stage
 fold.
 
-- `Accum`: The accumulation policy, `CompensatedSum`, `RunningProduct` or `ExactSum`. A class
-  template on the *accumulation* type, supplying `identity()`, `combine(a, b)`, `accumulate(x)` and
-  `value()`.
+- `Accum`: The accumulation policy, `CompensatedSum`, `RunningProduct`, `NaNPropagatingMax`,
+  `NaNPropagatingMin` or `ExactSum`. A class template on the *accumulation* type, supplying
+  `identity()`, `combine(a, b)`, `accumulate(x)` and `value()`.
 - `T`: The input element type, deduced from `in`.
 - `A`: The accumulation and result type, deduced from `out` and `partials`. Equal to `T` for every
   reduction whose answer is a value of the thing it reduced.
@@ -743,8 +810,8 @@ Names the type a reduction over `T` accumulates in. It is `T` for every type exc
 which accumulates in `float`: HALF has 11 significant bits and a largest finite value of 65504, so a
 running HALF sum of 60000 and 60000 is already an infinity. `reduce` folds in `AccumulationOf<A>`
 and rounds to `A` once, when it stores the result. `Dispatch::execute_reduction` sizes a HALF
-reduction's partials for `float` through `Dispatch::partial_bytes`, and the hand-written `var`, `std`
-and `logsumexp` kernels compute in `AccumulationOf<T>` as well.
+reduction's partials for `float` through `Dispatch::partial_bytes`, and the two stages of `var`,
+`std` and `logsumexp` fold in `AccumulationOf<T>` as well.
 
 ### `CompensatedComplexSum`
 
@@ -754,7 +821,13 @@ overloads. `combine` is plain complex addition, as `CompensatedSum::combine` is 
 
 ### `IndexedValue`
 
-A value and the index it was read from. `index` is -1 only in `RunningArgMax::identity`.
+A value and the index it was read from. `index` is -1 only in the identity of `RunningArgMax` and
+`RunningArgMin`.
+
+### `RunningArgMin`
+
+The running (value, index) minimum, under the NaN rule `RunningArgMax` uses. `argmin` and the
+host and SYCL paths of `Dispatch::ArgReductionDispatch` fold with it.
 
 ### `RunningArgMax`
 
@@ -894,6 +967,15 @@ same thing.
 
 Returns: The geometry; `AxisPlan::cooperative` says which shape.
 
+### `reduce_segments`
+
+The segmented fold with the reads and the store left to the caller. It reduces each of `segments`
+index ranges `[0, extent)` to one value: `open(segment)` returns a cursor, the cursor returns
+term `k` of that segment in the type `W` the accumulator folds in, and `store(segment, value)` is
+called once per segment. `reduce_axis` is this with a cursor that walks an `AxisSpan` and a store
+that writes `out[s]`. `Kernels::SYCL::window_dot_weights_backward` calls it directly, because a
+tap's terms are products of two tensors and not elements of one.
+
 ### `reduce_axis`
 
 Computes `out[s] = finalize(fold(transform(in[s][k])), extent)` for every segment `s`, where `fold`
@@ -905,9 +987,9 @@ element of its own contributes `Accum<T>{}.value()`, which is the accumulator's 
 construction, and combining the identity changes nothing. `plan_axis` declines that shape below one
 full pass for cost, not correctness.
 
-- `Accum`: The accumulation policy (`CompensatedSum`, `RunningMax`, `RunningProduct`), a class
-  template on the element type supplying `identity()`, `combine(a, b)`, `accumulate(x)` and
-  `value()`.
+- `Accum`: The accumulation policy (`CompensatedSum`, `NaNPropagatingMax`, `NaNPropagatingMin`,
+  `RunningProduct`), a class template on the element type supplying `identity()`, `combine(a, b)`,
+  `accumulate(x)` and `value()`.
 - `span`: The segment layout, in element counts.
 - `in`: The input array; fold `s` starts at `in + (s / segments) * segment_stride2 + (s % segments)
   * segment_stride`, which is `in + s * segment_stride` whenever there is no second segment axis.
@@ -950,6 +1032,46 @@ The lane loop in the work-group branch of `reduce_axis` walks a stride-`local` s
 lane `l` owns positions `l`, `l + local`, `l + 2*local`, and so on. Which positions those are comes
 only from the geometry, so it is the same on every run, and consecutive lanes read consecutive
 addresses at every step.
+
+## `serial_1d.hpp`
+
+`Serial::map`, `Serial::zip_inplace` and `Serial::indexed` are the host loops behind
+`FORCE_REFERENCE` for every kernel that launches through `launch_1d.hpp`. Each takes the functor
+its `Launch` sibling would launch and calls it once per element, in index order, on one thread.
+There is no second implementation of an operation to keep in step: the reference path and the
+SYCL path differ only in who calls the functor. The functor contract is the device one, so a
+functor that runs on the device runs here.
+
+## `serial_reduce.hpp`
+
+The host folds behind `FORCE_REFERENCE` for `reduce`, `reduce_indexed` and `reduce_axis`:
+`Serial::reduce`, `Serial::reduce_indexed` and `Serial::reduce_axis`, each one ascending walk.
+
+### `Serial::Fold`
+
+Folds on the host in the accumulator the SYCL path uses, in the type the SYCL path folds in
+(`Reduce::AccumulationOf<A>`). The specialisation for `Reduce::CompensatedSum` is the exception:
+a sum is folded in `Kernels::ReferenceSum`, that is, in `double` whatever the element type. So
+`finalize` is handed a `double` on the host path of a sum, and must return its value in the type
+it is handed; `Dispatch::Detail::require_finalize_keeps_width` refuses at compile time one that
+does not. The result is converted to the stored type once, on the store.
+
+## `orthonormal_sweep.hpp`
+
+`VectorSet` is the strided layout of the vectors `RandomOps::orthogonal` orthonormalises: a count,
+a length, the step between elements of one vector and the step between vectors.
+`K_ORTHONORMAL_SWEEPS` is 2, the number of modified Gram-Schmidt sweeps, and `tiny_norm_sq` is
+the squared norm at or below which a vector counts as zero. The reference and the SYCL kernel
+read all three from here, so the two back ends cannot disagree on them.
+
+## `sparse_assembly.hpp`
+
+Host code that knows no tensor and no engine. `Sparse::assemble_csr` turns COO triplets into the
+three arrays of a CSR matrix, `HostCsr`: each (row, column) pair once, by ascending column in a
+row, with the values of a repeated pair added in input order through `Kernels::ReferenceSum`.
+`require_distinct_positions` checks the stored positions of a sparse vector. Both throw
+`std::runtime_error`, as does the check that an index type can hold a count. `SparseBuilder` is
+the caller.
 
 ## `spatial_geometry.hpp`
 
@@ -1000,6 +1122,12 @@ The struct names no layout. Every caller in the convolutional stack builds it fr
 
 All strides are element counts and all are non-negative, which `Tensor`'s stride-explicit
 constructor already guarantees.
+
+### `TapSpan`
+
+How the per-channel tap tensor of `window_dot`, `[kernel_h, kernel_w, channels]`, is addressed:
+three strides in elements. It is its own struct for the reason `ColumnSpan` is: a rank-3 operand
+beside rank-4 ones. `Spatial::tap_span_for` builds it from a tensor.
 
 ### `ColumnSpan`
 

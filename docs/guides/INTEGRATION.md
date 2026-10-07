@@ -14,18 +14,26 @@ This is the opposite of SushiRuntime's integration story, and it matters:
 when you write
 
 ```cpp
-engine.blas().gemm(A, B, C);
+SushiBLAS::BLASOps(engine).gemm(A, B, C);
 ```
 
 that call resolves to a function already compiled into `libsushiblas.a` —
 your compiler does not see the GEMM kernel's source, does not instantiate a
 device lambda, and produces no device code of its own for it. `Level3::gemm`
-is an ordinary (if asynchronous) library call.
+is an ordinary library call that records a task and returns a `TaskHandle`;
+the task runs when you call `engine.execute()`.
+
+The exception is the `SushiBLAS::Dispatch` seams (`execute_binary`,
+`execute_gemm` and the others listed in
+[the architecture, section 6](../architecture/ARCHITECTURE.md#6-the-dispatch-seams-and-the-fusion-hooks)).
+They are templates that inline your functor into a kernel, so a call to one
+does instantiate device code in your translation unit. That is also why the
+GEMM kernels are installed under `include/SushiBLAS/kernels/`.
 
 What you *do* still need a SYCL-capable compiler for: **the public headers
-include `<sycl/sycl.hpp>` directly** and use `sycl::event`/`sycl::device` in
-their own signatures (`Tensor::get_device()`, every `BLASOps`/`ElementwiseOps`
-method returns `sycl::event`). A translation unit that includes
+include `<sycl/sycl.hpp>` directly** and use `sycl::queue`/`sycl::event`/`sycl::device`
+in their own declarations (`Tensor::get_device()`, the task bodies in
+`engine/task_recorder.hpp`). A translation unit that includes
 `<SushiBLAS/SushiBLAS.h>` needs a compiler that can parse those types, even
 though it never submits a kernel of its own. This is why linking
 `SushiBLAS::sushiblas` still carries `-fsycl` as a `PUBLIC` compile/link

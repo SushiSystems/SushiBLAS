@@ -1,7 +1,16 @@
 # Logic headers
 
-`include/SushiBLAS/engine/logic` declares `LogicOps` (`logic.hpp`) and the logic executors of the
-dispatch seam (`dispatch.hpp`).
+`include/SushiBLAS/engine/logic` declares the comparison and logical operations.
+
+| File | Declares |
+| --- | --- |
+| `logic.hpp` | `LogicOps`, the view that records the comparison and logical operations |
+| `dispatch.hpp` | `execute_logic_unary`, `execute_logic_binary`, `execute_logic_ternary` and the comparison helpers they share |
+
+Every executor takes a `TaskRecorder&` and returns a `TaskHandle`. The three executors record the
+same `Detail::MapTask` the elementwise family does, so they accept a `bind_reads` bundle and have
+the serial host path under `FORCE_REFERENCE`; `include/SushiBLAS/engine/math/README.md` describes
+both under "The per-element seam".
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to. The header states the rule in one line and cites
@@ -11,7 +20,7 @@ this page.
 
 ### Empty operands
 
-Each executor checks shapes, layouts, dtypes and the domain, then returns a default `sycl::event`
+Each executor checks shapes, layouts, dtypes and the domain, then returns a default `TaskHandle`
 without recording a task when `result` holds no elements. A tensor with zero elements needs no
 storage. `include/SushiBLAS/engine/math/README.md` states the same rule for the elementwise family.
 
@@ -23,6 +32,10 @@ dedicated boolean tensor type, so `result` must match `x`.
 Warning: This is a low-level generic seam. `op_func` is inlined into a SYCL device kernel: it must
 be device-copyable, capture by value only, hold no host pointers, allocate nothing and throw
 nothing.
+
+Throws `std::invalid_argument` on an operand or declared-read violation or too many `params`, and
+`UnsupportedExecution` on a device-only tensor under `FORCE_REFERENCE` or a dtype a tensor's
+device cannot compute in.
 
 ### Ordering helpers
 

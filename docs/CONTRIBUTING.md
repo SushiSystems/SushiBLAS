@@ -208,69 +208,184 @@ symbols: the public C++ API is already scoped by the `SushiBLAS` namespace.
 
 ## 5. Adding a new operation
 
-Every operation (BLAS, elementwise, non-linear, logic, reduction) follows the
-same shape, regardless of category:
+An operation is a view method, a seam call with an `OperandSet`, the code that
+runs under each execution mode, and tests in both modes. Sections 5 and 6 of
+[the architecture](architecture/ARCHITECTURE.md#5-engine-the-recorder-and-the-views)
+describe the recorder and the seams this section names. What the operation
+carries depends on its family.
 
-### Directory structure
+### A kernel-pair operation (dense BLAS, sparse, spatial)
 
-- **Reference kernel**: `kernels/reference/<category>/<sub-category>/<op>.hpp`
-- **SYCL kernel**: `kernels/sycl/<category>/<sub-category>/<op>.hpp`
-- **Engine driver**: `src/engine/<category>/<sub-category>/<op>.cpp`
-- **Test**: `tests/functional/unit/test_<op>.cpp`
+| Piece | Where |
+| --- | --- |
+| View method, returning `TaskHandle`, with its `@throws` lines | The family's view header: `engine/blas/level<N>.hpp`, `engine/sparse.hpp`, `engine/spatial.hpp` |
+| Operation source | `src/engine/<family>/<op>.cpp`, listed in `src/CMakeLists.txt` |
+| Reference kernel | `kernels/reference/<family>/<op>.hpp` |
+| SYCL kernel | `kernels/sycl/<family>/<op>.hpp` |
+| Both kernels' include line | The family's kernel header: `kernels/blas.hpp`, `kernels/sparse.hpp`, `kernels/spatial.hpp` |
+| Test | `tests/functional/unit/test_<op>.cpp`, listed in `tests/CMakeLists.txt` |
 
-(Non-BLAS math/logic domains keep their kernels inline in a public
-`SushiBLAS::Dispatch` helper under `include/SushiBLAS/engine/**/dispatch.hpp`
-rather than under `kernels/` — see
-[the architecture, section 7](architecture/ARCHITECTURE.md#7-kernels-reference-and-sycl) — but the
-driver/test split is identical.)
+The operation source has four steps. This is `src/engine/blas/level1/axpy.cpp`:
 
-### Reference kernel rules
+```cpp
+TaskHandle Level1::axpy(BlasScalar alpha, const Tensor& x, Tensor& y)
+{
+    const char* const op = "blas.lvl1.axpy";
 
-- Pure C++, **zero external library dependencies** (no oneMKL, no vendor
-  math library, ever).
-- The mathematical ground truth: correctness is judged against this, not the
-  other way around.
-- Templated on the scalar type `T` to support every `Core::DataType` the op
-  claims to handle.
-- Must handle both `Core::Layout` values (row-major and column-major).
+    // 1. Record-time checks, each naming the operation and the operand.
+    Dispatch::require_dtype(y, x.dtype, op, "y");
+    Dispatch::require_real_scalar(alpha, x.dtype, op, "alpha");
+    const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
+    const Dispatch::VectorOperand vy = Dispatch::describe_vector_operand(y, op, "y");
+    Dispatch::require_same_element_count(x, y, op, "x", "y");
 
-### SYCL kernel rules
+    // 2. The operand set: what the task reads and writes, as tensors.
+    OperandSet operands;
+    operands.reads(x).updates(y);
 
-- Takes the `sycl::queue&` it must submit to and a
-  `const std::vector<sycl::event>& deps` it must `depends_on(...)`; returns
-  the submitted work's `sycl::event`.
-- If a dtype genuinely cannot be supported on a code path (a hardware or
-  algorithmic limitation, not an oversight), throw a descriptive
-  `SB_THROW_IF` rather than a silent fallback.
+    const Internal::BlasMetadata meta =
+        Internal::BlasMetadata(op, "blas.lvl1.axpy"_op).scalar(alpha);
 
-### Engine driver rules (`src/engine/...`)
+    // 3. Everything the body needs, captured by value.
+    const int64_t n = vx.length;
+    const int64_t incx = vx.increment;
+    const int64_t incy = vy.increment;
+    const void* read_x = x.data_or_null();
+    void* rw_y = y.data_or_null();
 
-The driver is the orchestrator between SushiRuntime's `TaskGraph` and the two
-kernels. It should:
+    // 4. The seam call: one task, one kernel pair.
+    return Internal::execute_blas_task(recorder_, meta.get(), operands, x.dtype,
+        [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+            sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+        {
+            using T = decltype(scalar_type);
+            auto pX = static_cast<const T*>(read_x);
+            auto pY = static_cast<T*>(rw_y);
+            const T alpha_t = alpha.as<T>();
 
-- Validate inputs with `SB_THROW_IF` — rank/shape compatibility, dtype
-  support, non-null storage — before queuing anything.
-- Capture raw pointers from `Tensor` objects safely for the asynchronous
-  closure, and compute any auxiliary parameters (strides, offsets, batch
-  sizes) up front.
-- Use `Internal::execute_blas_task` (for BLAS-shaped ops) or the equivalent
-  domain dispatch helper to register the task and switch on the runtime
-  dtype — do not hand-write a new `add_task`/`switch(dtype)` pair when the
-  existing helper already fits.
-- Dispatch through `Internal::dispatch_with_mode` (`engine/task.hpp`) for the
-  `FORCE_REFERENCE`/normal/`VERIFY` triad — never hand-write the triad
-  per op.
+            return dispatcher.run(q, deps,
+                [=]
+                {
+                    Kernels::Reference::axpy<T>(n, alpha_t, pX, incx, pY, incy);
+                },
+                [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                {
+                    return Kernels::SYCL::axpy<T>(q2, n, alpha_t, pX, incx, pY, incy, deps2);
+                });
+        });
+}
+```
 
-### Testing standards
+The numbered comments are this page's and are not in the source file.
 
-- **Typed tests** across every supported `Core::DataType` the op claims.
-- Type-appropriate tolerances (`SB_ASSERT_TENSOR_NEAR` / `EXPECT_TENSOR_NEAR`)
-  — do not compare floating-point results for bitwise equality.
-- Run the operation under `FORCE_SYCL` and under `FORCE_REFERENCE` into two
-  tensors and compare them, so the SYCL kernel is checked against its
-  reference. `VERIFY` does not compare the two kernels.
-- Cover more than one shape: square, rectangular, and vector, and (for BLAS
-  ops) both memory layouts.
+**1. Check at record time.** Every operand rule goes through
+`engine/operand_check.hpp` or the family's describers (`engine/blas/*_operand.hpp`,
+`engine/blas/argument_check.hpp`, `engine/sparse/`, `engine/spatial/window.hpp`),
+which throw `std::invalid_argument` with the operation and the operand named. A
+refusal by mode or device is `UnsupportedExecution`: `require_device_dtype`
+throws it, the describers call it, and the recorder throws it for a device-only
+operand under `FORCE_REFERENCE`. Do not write `SB_THROW_IF` for an operand
+rule; it throws `std::runtime_error`. A new rule that two operations share is a
+new function in `operand_check.hpp` or in the family's check header, not a copy.
+
+**2. Declare every tensor in the `OperandSet`.** `reads` for an input, `writes`
+for an output that is only written, `updates` for one changed in place, and
+`scratch` for a leased `ScratchBuffer`. Pass tensors, never a region built from
+a pointer. An output that is read only when a scalar is non-zero (`beta`) is
+declared `writes` when the scalar is zero and `updates` otherwise. The set is
+also what keeps the storage alive and what `FORCE_REFERENCE` is checked
+against, so a tensor left out of it is unordered, unretained and unchecked.
+
+**3. Capture by value.** The body runs later and may run more than once. It
+holds extents, strides, flags and the pointers `data_or_null()` returned. It
+holds no `Tensor`, no reference to a local and no reference to the view.
+
+**4. Call the seam.** `Internal::execute_blas_task` for dense BLAS,
+`Internal::execute_typed_task` with the family string for sparse and spatial.
+Pass the `Dispatch::Domain` when the operation does not serve the default,
+which is `REAL_AND_COMPLEX` for both: `Domain::ALL` for a copy, `Domain::REAL`
+for a routine with no complex meaning. Inside the body, `dispatcher.run` takes the
+reference kernel and the SYCL kernel. An operation source never reads the
+execution mode, never includes `engine.hpp` and never calls
+`TaskGraph::add_task`; `tools/layering/check_layering.py` reports the last two.
+
+**The reference kernel** is plain C++ with no dependency beyond the support
+headers. It handles both `Core::Layout` values, is templated on the element
+type, and forms its sums in `Kernels::ReferenceSum<T>`
+(`support/reference_accumulator.hpp`). It is written to be read: an
+optimisation in it is a second implementation that can be wrong.
+
+**The SYCL kernel** takes the `sycl::queue&` and a
+`const std::vector<sycl::event>& deps` and returns the event of its last
+submission. Every command group calls `h.depends_on(deps)`, and a second
+launch depends on the event of the first. It launches through `Launch::` or
+`Reduce::` where one of their shapes fits, forms its sums in
+`Kernels::Accumulator<T>` (HALF in FLOAT32, `support/accumulator.hpp`), and
+keeps the order of every floating-point sum a function of the device and the
+extents: no atomic add, no `sycl::reduction`. Scratch it needs is leased by the
+operation source at record time and passed in.
+
+Neither kernel includes an `engine/` header or `tensor.hpp`. A kernel that a
+public `Dispatch` seam instantiates in a consumer's translation unit goes under
+`include/SushiBLAS/kernels/`; every other kernel stays in `kernels/`.
+
+### A functor operation (elementwise, non-linear, logic, reductions, random)
+
+These families have no kernel files. The operation is a view method and a
+source that hands one functor to the family's `Dispatch::execute_*` seam. The
+seam runs the checks, builds the `OperandSet`, and runs the functor in a SYCL
+kernel or, under `FORCE_REFERENCE`, in a serial host loop. This is
+`src/engine/math/elementwise/add.cpp`:
+
+```cpp
+TaskHandle ElementwiseOps::add(const Tensor& A, const Tensor& B, Tensor& C)
+{
+    return Dispatch::execute_binary<Dispatch::Domain::ALL>(
+        recorder_, A, B, C, "math.ew.add", "math.ew.add"_op,
+        [](auto x, auto y) { return Dispatch::wrapping_add(x, y); });
+}
+```
+
+- State the `Domain` the functor is well-formed for. The default is
+  `Domain::REAL`. A functor instantiated for complex uses the `safe_*` helpers
+  of `engine/math/safe_math.hpp`, and one instantiated for the integers uses
+  `engine/math/elementwise/wrapping_math.hpp`.
+- The functor reaches a device: it is trivially copyable, captures by value,
+  holds no host pointer, allocates nothing and throws nothing.
+- A scalar parameter is bound with `Dispatch::bind_scalars` as a
+  `Dispatch::ElementScalar` and also listed in the seam's `params`, which
+  records it in the task metadata. Do not capture a `double` in the functor.
+- A tensor the functor reads beyond the seam's operands is declared with
+  `Dispatch::bind_reads`. A pointer captured in the functor is not declared.
+- A reduction passes a dispatcher with both members, the SYCL fold and
+  `reference`, or calls `execute_folding_reduction` with an accumulator, a
+  transform and a finalize functor.
+- An operation that needs a check its seam does not make (a parameter range, a
+  second dtype) makes it in the source, through `operand_check.hpp`, before the
+  seam call.
+
+### Tests
+
+- **Typed tests** over every `Core::DataType` the operation serves.
+- **A hand-computed expectation** for at least one case. Comparing the two
+  modes is a differential check, and it passes when both paths are wrong the
+  same way. For a functor operation the two modes share the formula, so only a
+  hand-computed value tests it.
+- **Both modes.** Record the operation under `FORCE_SYCL` and under
+  `FORCE_REFERENCE` into two tensors and compare them. Use
+  `SB_ASSERT_TENSOR_NEAR` or `EXPECT_TENSOR_NEAR` with a tolerance for the
+  dtype, and compare bits only where the two paths are defined to agree.
+- **Each record-time refusal**, asserting the type: `std::invalid_argument`
+  for a wrong operand, `SushiBLAS::UnsupportedExecution` for a mode or device
+  refusal.
+- **Ordering on in-degree.** A test that the task is ordered against another
+  asserts on the node's `in_degree` through `GraphProbe`
+  (`tests/common/graph_probe.hpp`), not on an output value.
+- **More than one shape**: square, rectangular, a vector, an empty operand,
+  and for BLAS both layouts and each flag value.
+
+[`tests/functional/unit/README.md`](../tests/functional/unit/README.md) holds
+the reasoning behind these rules.
 
 ---
 

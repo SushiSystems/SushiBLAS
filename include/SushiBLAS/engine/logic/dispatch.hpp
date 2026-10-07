@@ -51,8 +51,8 @@ namespace SushiBLAS
          * @brief Records a unary logic op `result[i] = op(x[i])`, or nothing when result is empty.
          * @param result Must match x in size and dtype.
          * @param op_func Callable `(auto x) -> auto`, or a bind_reads bundle of one: device-copyable, by-value captures, no allocation, no throw.
-         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
-         *         or a device-only tensor under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand or declared-read violation, or too many params.
+         * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/logic/README.md
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
@@ -97,8 +97,8 @@ namespace SushiBLAS
          * @tparam Dom Defaults to Domain::REAL, because `<` and `>` have no meaning on complex numbers.
          * @param result Must match the inputs in size and dtype.
          * @param op_func Callable `(auto x, auto y) -> auto`, or a bind_reads bundle of one, under execute_logic_unary's constraints.
-         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
-         *         or a device-only tensor under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand or declared-read violation, or too many params.
+         * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
         TaskHandle execute_logic_binary(TaskRecorder& recorder, const Tensor& A, const Tensor& B,
@@ -149,8 +149,8 @@ namespace SushiBLAS
          * @param cond Nonzero selects A, zero selects B.
          * @param result Must match the inputs in size and dtype.
          * @param op_func Callable `(auto c, auto a, auto b) -> auto`, or a bind_reads bundle of one, under execute_logic_unary's constraints.
-         * @throws std::invalid_argument on an operand or declared-read violation, too many params,
-         *         or a device-only tensor under FORCE_REFERENCE.
+         * @throws std::invalid_argument on an operand or declared-read violation, or too many params.
+         * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
          */
         template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
         TaskHandle execute_logic_ternary(TaskRecorder& recorder, const Tensor& cond, const Tensor& A,
