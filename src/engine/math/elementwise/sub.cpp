@@ -33,9 +33,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::sub(const Tensor& A, const Tensor& B, Tensor& C) 
+    TaskHandle ElementwiseOps::sub(const Tensor& A, const Tensor& B, Tensor& C) 
     {
-        return Dispatch::execute_binary<Dispatch::Domain::ALL>(engine_, A, B, C, "math.ew.sub", "math.ew.sub"_op, 
+        return Dispatch::execute_binary<Dispatch::Domain::ALL>(recorder_, A, B, C, "math.ew.sub", "math.ew.sub"_op, 
             [](auto x, auto y) { return Dispatch::wrapping_sub(x, y); });
     }
 } // namespace SushiBLAS

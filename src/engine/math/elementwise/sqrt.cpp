@@ -32,9 +32,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::sqrt(Tensor& t) 
+    TaskHandle ElementwiseOps::sqrt(Tensor& t) 
     {
-        return Dispatch::execute_unary_inplace<Dispatch::Domain::REAL_AND_COMPLEX>(engine_, t, "math.ew.sqrt", "math.ew.sqrt"_op, 
+        return Dispatch::execute_unary_inplace<Dispatch::Domain::REAL_AND_COMPLEX>(recorder_, t, "math.ew.sqrt", "math.ew.sqrt"_op, 
             [](auto x) { return Dispatch::safe_sqrt(x); });
     }
 } // namespace SushiBLAS

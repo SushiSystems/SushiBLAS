@@ -33,9 +33,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::neg(Tensor& t) 
+    TaskHandle ElementwiseOps::neg(Tensor& t) 
     {
-        return Dispatch::execute_unary_inplace<Dispatch::Domain::ALL>(engine_, t, "math.ew.neg", "math.ew.neg"_op, 
+        return Dispatch::execute_unary_inplace<Dispatch::Domain::ALL>(recorder_, t, "math.ew.neg", "math.ew.neg"_op, 
             [](auto x) { return Dispatch::wrapping_neg(x); });
     }
 } // namespace SushiBLAS

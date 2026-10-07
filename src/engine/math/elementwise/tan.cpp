@@ -32,9 +32,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::tan(Tensor& t) 
+    TaskHandle ElementwiseOps::tan(Tensor& t) 
     {
-        return Dispatch::execute_unary_inplace(engine_, t, "math.ew.tan", "math.ew.tan"_op, 
+        return Dispatch::execute_unary_inplace(recorder_, t, "math.ew.tan", "math.ew.tan"_op, 
             [](auto x) { return sycl::tan(x); });
     }
 } // namespace SushiBLAS

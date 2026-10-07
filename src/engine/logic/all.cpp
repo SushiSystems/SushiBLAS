@@ -28,9 +28,9 @@
 
 #include <vector>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/logic/logic.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
@@ -71,7 +71,7 @@ namespace SushiBLAS
         }
     }
 
-    sycl::event LogicOps::all(const Tensor& t, Tensor& result)
+    TaskHandle LogicOps::all(const Tensor& t, Tensor& result)
     {
         Dispatch::require_storage(t, "logic.all", "t");
         Dispatch::require_storage(result, "logic.all", "result");
@@ -81,17 +81,16 @@ namespace SushiBLAS
 
         int64_t size = t.num_elements;
         const void* read_T = t.data_or_null();
-        void* write_R = result.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_T) reads.push_back(t.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_R) writes.push_back(result.region());
+        OperandSet operands;
+        operands.reads(t).writes(result);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "logic.all";
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "logic.all"_op;
+
+        TaskHandle handle;
 
         // A truth test serves real and integer dtypes and refuses complex; see src/README.md.
         Dispatch::with_element_type<Dispatch::Domain::REAL_AND_INTEGRAL>(
@@ -99,13 +98,13 @@ namespace SushiBLAS
         {
             using T = typename decltype(tag)::type;
 
-            engine_.get_graph().add_task(meta, reads, writes,
+            handle = recorder_.record(meta, operands, "Logic operation",
                 [size, pT = static_cast<const T*>(read_T), pR = result.data_as<T>()]
                 (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     return all_dispatch<T>(q, pT, pR, size, deps);
                 });
         });
-        return sycl::event();
+        return handle;
     }
 } // namespace SushiBLAS

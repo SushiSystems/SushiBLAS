@@ -32,9 +32,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::div(const Tensor& A, const Tensor& B, Tensor& C) 
+    TaskHandle ElementwiseOps::div(const Tensor& A, const Tensor& B, Tensor& C) 
     {
-        return Dispatch::execute_binary<Dispatch::Domain::REAL_AND_COMPLEX>(engine_, A, B, C, "math.ew.div", "math.ew.div"_op, 
+        return Dispatch::execute_binary<Dispatch::Domain::REAL_AND_COMPLEX>(recorder_, A, B, C, "math.ew.div", "math.ew.div"_op, 
             [](auto x, auto y) { return x / y; });
     }
 } // namespace SushiBLAS

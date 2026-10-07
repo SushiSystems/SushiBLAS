@@ -33,9 +33,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event LogicOps::logical_and(const Tensor& A, const Tensor& B, Tensor& result) 
+    TaskHandle LogicOps::logical_and(const Tensor& A, const Tensor& B, Tensor& result) 
     {
-        return Dispatch::execute_logic_binary<Dispatch::Domain::ALL>(engine_, A, B, result, "logic.and", "logic.and"_op, 
+        return Dispatch::execute_logic_binary<Dispatch::Domain::ALL>(recorder_, A, B, result, "logic.and", "logic.and"_op, 
             [](auto x, auto y) { return (Dispatch::logic_not_zero(x) && Dispatch::logic_not_zero(y)) ? decltype(x)(1) : decltype(x)(0); });
     }
 } // namespace SushiBLAS

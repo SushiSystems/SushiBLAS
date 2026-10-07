@@ -32,9 +32,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::cos(Tensor& t) 
+    TaskHandle ElementwiseOps::cos(Tensor& t) 
     {
-        return Dispatch::execute_unary_inplace(engine_, t, "math.ew.cos", "math.ew.cos"_op, 
+        return Dispatch::execute_unary_inplace(recorder_, t, "math.ew.cos", "math.ew.cos"_op, 
             [](auto x) { return sycl::cos(x); });
     }
 } // namespace SushiBLAS

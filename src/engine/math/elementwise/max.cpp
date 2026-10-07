@@ -33,10 +33,10 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event ElementwiseOps::max(const Tensor& A, const Tensor& B, Tensor& C)
+    TaskHandle ElementwiseOps::max(const Tensor& A, const Tensor& B, Tensor& C)
     {
         return Dispatch::execute_binary<Dispatch::Domain::REAL_AND_INTEGRAL>(
-            engine_, A, B, C, "math.ew.max", "math.ew.max"_op,
+            recorder_, A, B, C, "math.ew.max", "math.ew.max"_op,
             [](auto x, auto y)
             {
                 using T = decltype(x);
