@@ -30,7 +30,10 @@
 #include <complex>
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
+#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
+#include <SushiBLAS/kernels/blas/operand_access.hpp>
 
 namespace SushiBLAS
 {
@@ -39,23 +42,22 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-             * @brief Computes SYRK, C = alpha*op(A)*op(A)^T + beta*C, on one triangle of C.
+             * @brief Computes C = alpha*op(A)*Conj(op(A))^T + beta*C on one triangle of C.
+             * @tparam Conj Unconjugated for SYRK, Conjugated for HERK.
+             * @tparam Scalar The type of alpha and beta: T, or its real component for HERK.
+             * @param beta Exactly zero skips reading C.
              * @see kernels/README.md
              */
-            template<typename T>
-            void syrk(Core::Layout layout, bool upper, bool trans,
+            template<typename T, typename Conj = Unconjugated, typename Scalar = T>
+            void syrk(Core::Layout layout, Core::Uplo uplo, Core::Transpose trans,
                       int64_t n, int64_t k,
-                      T alpha, const T* a, int64_t lda,
-                      T beta, T* c, int64_t ldc)
+                      Scalar alpha, const T* a, int64_t lda,
+                      Scalar beta, T* c, int64_t ldc)
             {
-                using W = Accumulator<T>;
-                const bool col_major = (layout == Core::Layout::COLUMN_MAJOR);
-
-                // Element (r, col) of the logical, post-transpose op(A).
-                auto A_at = [&](int64_t r, int64_t col) -> T
-                {
-                    return (trans != col_major) ? a[r + col * lda] : a[r * lda + col];
-                };
+                using RW = ReferenceAccumulator<T>;
+                using RWS = ReferenceAccumulator<Scalar>;
+                const bool upper = (uplo == Core::Uplo::UPPER);
+                const OperandAccess op_a = operand_access(layout, trans, lda);
 
                 for (int64_t i = 0; i < n; ++i)
                 {
@@ -64,33 +66,40 @@ namespace SushiBLAS
                         if ((upper && j < i) || (!upper && j > i))
                             continue;
 
-                        // The second factor is op(A)^T(l, j), which is op(A)(j, l).
-                        W sum(0);
+                        // The second factor is op(A)(j, l), conjugated under Conjugated.
+                        ReferenceSum<T> sum;
                         for (int64_t l = 0; l < k; ++l)
-                            sum += W(A_at(i, l)) * W(A_at(j, l));
+                            sum.add(RW(op_a.at(a, i, l)) * Conj::apply(RW(op_a.at(a, j, l))));
 
                         // A zero beta must not read the prior value of C.
                         T& out = (layout == Core::Layout::ROW_MAJOR) ? c[i * ldc + j] : c[i + j * ldc];
-                        out = (beta == T(0)) ? T(W(alpha) * sum) : T(W(alpha) * sum + W(beta) * W(out));
+                        const RW updated = (beta == Scalar(0))
+                            ? RW(RWS(alpha) * sum.value())
+                            : RW(RWS(alpha) * sum.value() + RWS(beta) * RW(out));
+                        out = T((i == j) ? Conj::diagonal(updated) : updated);
                     }
                 }
             }
 
             /**
-            * @brief Batch SYRK reference implementation.
-            */
-            template<typename T>
-            void syrk(Core::Layout layout, bool upper, bool trans,
+             * @brief Computes a batch of rank-k updates with the reference kernel.
+             * @tparam Conj Unconjugated for SYRK, Conjugated for HERK.
+             * @tparam Scalar The type of alpha and beta: T, or its real component for HERK.
+             * @param str_a Element stride between consecutive A matrices; str_c likewise.
+             * @see kernels/README.md
+             */
+            template<typename T, typename Conj = Unconjugated, typename Scalar = T>
+            void syrk(Core::Layout layout, Core::Uplo uplo, Core::Transpose trans,
                       int64_t n, int64_t k,
-                      T alpha, const T* a, int64_t lda, int64_t str_a,
-                      T beta, T* c, int64_t ldc, int64_t str_c,
-                      int64_t batch_size) 
+                      Scalar alpha, const T* a, int64_t lda, int64_t str_a,
+                      Scalar beta, T* c, int64_t ldc, int64_t str_c,
+                      int64_t batch_size)
             {
-                for (int64_t b_idx = 0; b_idx < batch_size; ++b_idx) 
+                for (int64_t b_idx = 0; b_idx < batch_size; ++b_idx)
                 {
-                    syrk(layout, upper, trans, n, k, alpha, 
-                         a + b_idx * str_a, lda, 
-                         beta, c + b_idx * str_c, ldc);
+                    syrk<T, Conj>(layout, uplo, trans, n, k, alpha,
+                                  a + b_idx * str_a, lda,
+                                  beta, c + b_idx * str_c, ldc);
                 }
             }
 

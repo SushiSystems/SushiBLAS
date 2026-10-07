@@ -21,7 +21,7 @@
 
 /**
  * @file ger.hpp
- * @brief Defines the reference kernel of GER.
+ * @brief Defines the reference kernel of GER, GERU and GERC.
  * @author Mustafa Garip
  */
 
@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
 
 namespace SushiBLAS
 {
@@ -38,9 +39,10 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-            * @brief Pure C++ reference GER (unconjugated rank-1 update): A += alpha * x * y^T.
-            */
-            template<typename T>
+             * @brief Computes the rank-1 update A += alpha * x * Conj(y)^T.
+             * @tparam Conj Unconjugated for ger and geru, Conjugated for gerc.
+             */
+            template<typename T, typename Conj = Unconjugated>
             void ger(Core::Layout layout, int64_t m, int64_t n,
                      T alpha, const T* x, int64_t incx,
                      const T* y, int64_t incy,
@@ -54,7 +56,8 @@ namespace SushiBLAS
                 using W = Accumulator<T>;
                 for (int64_t i = 0; i < m; ++i)
                     for (int64_t j = 0; j < n; ++j)
-                        A_ref(i, j) = T(W(A_ref(i, j)) + W(alpha) * W(x[i * incx]) * W(y[j * incy]));
+                        A_ref(i, j) = T(W(A_ref(i, j)) +
+                                        W(alpha) * W(x[i * incx]) * Conj::apply(W(y[j * incy])));
             }
 
         } // namespace Reference

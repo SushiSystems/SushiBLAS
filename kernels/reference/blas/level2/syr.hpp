@@ -21,15 +21,19 @@
 
 /**
  * @file syr.hpp
- * @brief Defines the reference kernel of SYR.
+ * @brief Defines the reference kernel of SYR and HER.
  * @author Mustafa Garip
  */
 
 #pragma once
 
 #include <cstdint>
+#include <type_traits>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
 
 namespace SushiBLAS
 {
@@ -38,26 +42,37 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-            * @brief Pure C++ reference SYR: A += alpha * x * x^T, only the
-            * requested triangle written.
-            */
-            template<typename T>
-            void syr(Core::Layout layout, bool upper, int64_t n,
-                     T alpha, const T* x, int64_t incx,
+             * @brief Computes SYR or HER, A += alpha * x * Conj(x)^T, in the triangle uplo names.
+             * @tparam Conj Unconjugated (syr) or Conjugated (her, which stores a real diagonal).
+             * @tparam Scalar The type of alpha: T for syr, the real component type of T for her.
+             */
+            template<typename T, typename Conj = Unconjugated, typename Scalar = T>
+            void syr(Core::Layout layout, Core::Uplo uplo, int64_t n,
+                     Scalar alpha, const T* x, int64_t incx,
                      T* a, int64_t lda)
             {
+                static_assert(std::is_same_v<Scalar, T> || std::is_same_v<Scalar, RealType<T>>,
+                              "alpha is a T for SYR and the real component type of T for HER.");
+
+                using W = Accumulator<T>;
+                using WS = Accumulator<Scalar>;
+
                 auto A_ref = [&](int64_t r, int64_t c) -> T&
                 {
                     return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
                 };
+                const bool upper = (uplo == Core::Uplo::UPPER);
 
-                using W = Accumulator<T>;
                 for (int64_t i = 0; i < n; ++i)
                 {
                     int64_t jstart = upper ? i : 0;
                     int64_t jend = upper ? n : i + 1;
                     for (int64_t j = jstart; j < jend; ++j)
-                        A_ref(i, j) = T(W(A_ref(i, j)) + W(alpha) * W(x[i * incx]) * W(x[j * incx]));
+                    {
+                        const W updated = W(A_ref(i, j)) +
+                            WS(alpha) * W(x[i * incx]) * Conj::apply(W(x[j * incx]));
+                        A_ref(i, j) = T((i == j) ? Conj::diagonal(updated) : updated);
+                    }
                 }
             }
 

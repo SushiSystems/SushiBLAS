@@ -29,7 +29,9 @@
 
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
+#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/kernels/blas/operand_access.hpp>
 
 namespace SushiBLAS
 {
@@ -42,44 +44,39 @@ namespace SushiBLAS
              * @see kernels/README.md
              */
             template<typename T>
-            void trmv(Core::Layout layout, bool upper, bool transA, bool unit_diag,
+            void trmv(Core::Layout layout, Core::Uplo uplo, Core::Transpose trans, Core::Diag diag,
                       int64_t n, const T* a, int64_t lda, T* x, int64_t incx)
             {
-                auto A_at = [&](int64_t r, int64_t c) -> T
-                {
-                    return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
-                };
-                auto A_eff = [&](int64_t i, int64_t k) -> T
-                {
-                    return transA ? A_at(k, i) : A_at(i, k);
-                };
-                using W = Accumulator<T>;
-                bool eff_upper = transA ? !upper : upper;
+                using RW = ReferenceAccumulator<T>;
+
+                const OperandAccess access = operand_access(layout, trans, lda);
+                const bool unit_diag = (diag == Core::Diag::UNIT);
+                const bool eff_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::UPPER);
 
                 if (eff_upper)
                 {
                     for (int64_t i = 0; i < n; ++i)
                     {
-                        W sum(0);
+                        ReferenceSum<T> sum;
                         for (int64_t k = i; k < n; ++k)
                         {
-                            T aval = (k == i && unit_diag) ? T(1) : A_eff(i, k);
-                            sum += W(aval) * W(x[k * incx]);
+                            T aval = (k == i && unit_diag) ? T(1) : access.at(a, i, k);
+                            sum.add(RW(aval) * RW(x[k * incx]));
                         }
-                        x[i * incx] = T(sum);
+                        x[i * incx] = T(sum.value());
                     }
                 }
                 else
                 {
                     for (int64_t i = n - 1; i >= 0; --i)
                     {
-                        W sum(0);
+                        ReferenceSum<T> sum;
                         for (int64_t k = 0; k <= i; ++k)
                         {
-                            T aval = (k == i && unit_diag) ? T(1) : A_eff(i, k);
-                            sum += W(aval) * W(x[k * incx]);
+                            T aval = (k == i && unit_diag) ? T(1) : access.at(a, i, k);
+                            sum.add(RW(aval) * RW(x[k * incx]));
                         }
-                        x[i * incx] = T(sum);
+                        x[i * incx] = T(sum.value());
                     }
                 }
             }

@@ -36,8 +36,11 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/kernels/blas/operand_access.hpp>
 #include <SushiBLAS/kernels/blas/level3/gemm_epilogue.hpp>
 
 namespace SushiBLAS
@@ -49,43 +52,16 @@ namespace SushiBLAS
             namespace Detail
             {
                 /**
-                 * @brief Holds how far one row step and one column step move in an operand.
-                 * @see include/SushiBLAS/kernels/README.md
-                 */
-                struct OperandStrides
-                {
-                    /** @brief Elements to advance to move down one row. */
-                    int64_t row = 1;
-
-                    /** @brief Elements to advance to move right one column. */
-                    int64_t col = 1;
-                };
-
-                /**
-                 * @brief Resolves a (layout, transpose) pair into a row/column stride pair.
-                 * @return The strides to index the operand with as `p[row * s.row + col * s.col]`.
-                 * @see include/SushiBLAS/kernels/README.md
-                 */
-                [[nodiscard]] inline constexpr OperandStrides strides_for(Core::Layout layout,
-                                                                          bool transposed,
-                                                                          int64_t ld) noexcept
-                {
-                    const bool column_indexed =
-                        transposed != (layout == Core::Layout::COLUMN_MAJOR);
-                    return column_indexed ? OperandStrides{1, ld} : OperandStrides{ld, 1};
-                }
-
-                /**
                  * @brief Returns one operand element, or zero for coordinates outside the matrix.
                  * @see include/SushiBLAS/kernels/README.md
                  */
                 template<typename T>
                 [[nodiscard]] inline T load_operand(const T* p, int64_t row, int64_t col,
                                                     int64_t rows, int64_t cols,
-                                                    OperandStrides s) noexcept
+                                                    OperandAccess s) noexcept
                 {
                     if (row >= rows || col >= cols) return T(0);
-                    return p[row * s.row + col * s.col];
+                    return s.at(p, row, col);
                 }
 
                 /**
@@ -236,19 +212,18 @@ namespace SushiBLAS
                 [[nodiscard]] sycl::event gemm_local_tiled(
                     sycl::queue& queue,
                     int64_t m, int64_t n, int64_t k,
-                    T alpha, const T* a, OperandStrides a_strides, int64_t str_a,
-                    const T* b, OperandStrides b_strides, int64_t str_b,
-                    T beta, T* c, OperandStrides c_strides, int64_t str_c,
+                    T alpha, const T* a, OperandAccess a_access, int64_t str_a,
+                    const T* b, OperandAccess b_access, int64_t str_b,
+                    T beta, T* c, OperandAccess c_access, int64_t str_c,
                     int64_t batch_size, const std::vector<sycl::event>& deps,
                     Epilogue epilogue)
                 {
                     using W = Accumulator<T>;
                     using Cfg = GemmLocalTile<T>;
 
-                    SB_ASSERT(Device::profile_for(queue).max_work_group_size >=
-                                  static_cast<std::size_t>(Cfg::wg_items),
-                              "gemm_local_tiled launched on a device that cannot host its work-group");
-                    SB_ASSERT(Device::profile_for(queue).local_mem_bytes >= Cfg::local_mem_bytes(),
+                    SB_ASSERT(Device::hosts_local_tile(Device::profile_for(queue),
+                                                       {Cfg::local_mem_bytes(),
+                                                        static_cast<std::size_t>(Cfg::wg_items)}),
                               "gemm_local_tiled launched on a device that cannot host its local tile");
 
                     const int64_t m_groups = group_count(m, Cfg::block_m);
@@ -301,7 +276,7 @@ namespace SushiBLAS
                                     const int r = idx / Cfg::tile_k;
                                     const int kk = idx % Cfg::tile_k;
                                     tile_a[r * Cfg::tile_a_ld + kk] =
-                                        load_operand(A, row0 + r, k0 + kk, m, k, a_strides);
+                                        load_operand(A, row0 + r, k0 + kk, m, k, a_access);
                                 }
                                 for (int idx = local_linear;
                                      idx < Cfg::tile_k * Cfg::block_n;
@@ -310,7 +285,7 @@ namespace SushiBLAS
                                     const int kk = idx / Cfg::block_n;
                                     const int cc = idx % Cfg::block_n;
                                     tile_b[idx] =
-                                        load_operand(B, k0 + kk, col0 + cc, k, n, b_strides);
+                                        load_operand(B, k0 + kk, col0 + cc, k, n, b_access);
                                 }
 
                                 sycl::group_barrier(item.get_group());
@@ -331,7 +306,7 @@ namespace SushiBLAS
 
                                     for (int ii = 0; ii < Cfg::item_rows; ++ii)
                                         for (int jj = 0; jj < Cfg::item_cols; ++jj)
-                                            acc[ii][jj] += W(reg_a[ii]) * W(reg_b[jj]);
+                                            acc[ii][jj] += multiply(W(reg_a[ii]), W(reg_b[jj]));
                                 }
 
                                 sycl::group_barrier(item.get_group());
@@ -347,13 +322,13 @@ namespace SushiBLAS
                                     const int64_t global_col = col0 + local_col + jj * Cfg::wg_cols;
                                     if (global_col >= n) continue;
 
-                                    const int64_t c_idx = global_row * c_strides.row +
-                                                          global_col * c_strides.col;
+                                    const int64_t c_idx = c_access.index(global_row, global_col);
 
                                     // beta == 0 must not read the prior C value, which may be uninitialised; see include/SushiBLAS/kernels/README.md.
                                     const T value = (beta == T(0))
-                                        ? T(W(alpha) * acc[ii][jj])
-                                        : T(W(alpha) * acc[ii][jj] + W(beta) * W(C[c_idx]));
+                                        ? T(multiply(W(alpha), acc[ii][jj]))
+                                        : T(multiply(W(alpha), acc[ii][jj]) +
+                                            multiply(W(beta), W(C[c_idx])));
 
                                     C[c_idx] = epilogue(value, global_row, global_col);
                                 }
@@ -372,9 +347,9 @@ namespace SushiBLAS
                 [[nodiscard]] sycl::event gemm_no_local(
                     sycl::queue& queue, const Device::Profile& profile,
                     int64_t m, int64_t n, int64_t k,
-                    T alpha, const T* a, OperandStrides a_strides, int64_t str_a,
-                    const T* b, OperandStrides b_strides, int64_t str_b,
-                    T beta, T* c, OperandStrides c_strides, int64_t str_c,
+                    T alpha, const T* a, OperandAccess a_access, int64_t str_a,
+                    const T* b, OperandAccess b_access, int64_t str_b,
+                    T beta, T* c, OperandAccess c_access, int64_t str_c,
                     int64_t batch_size, const std::vector<sycl::event>& deps,
                     Epilogue epilogue)
                 {
@@ -431,14 +406,14 @@ namespace SushiBLAS
                                 // load_operand's zero fill is the tail guard, so no remainder loop is needed; see include/SushiBLAS/kernels/README.md.
                                 for (int ii = 0; ii < Cfg::item_rows; ++ii)
                                     reg_a[ii] = load_operand(A, row0 + ii * wg_rows, kk,
-                                                             m, k, a_strides);
+                                                             m, k, a_access);
                                 for (int jj = 0; jj < Cfg::item_cols; ++jj)
                                     reg_b[jj] = load_operand(B, kk, col0 + jj * wg_cols,
-                                                             k, n, b_strides);
+                                                             k, n, b_access);
 
                                 for (int ii = 0; ii < Cfg::item_rows; ++ii)
                                     for (int jj = 0; jj < Cfg::item_cols; ++jj)
-                                        acc[ii][jj] += W(reg_a[ii]) * W(reg_b[jj]);
+                                        acc[ii][jj] += multiply(W(reg_a[ii]), W(reg_b[jj]));
                             }
 
                             for (int ii = 0; ii < Cfg::item_rows; ++ii)
@@ -451,13 +426,13 @@ namespace SushiBLAS
                                     const int64_t global_col = col0 + jj * wg_cols;
                                     if (global_col >= n) continue;
 
-                                    const int64_t c_idx = global_row * c_strides.row +
-                                                          global_col * c_strides.col;
+                                    const int64_t c_idx = c_access.index(global_row, global_col);
 
                                     // beta == 0 must not read the prior C value, which may be uninitialised; see include/SushiBLAS/kernels/README.md.
                                     const T value = (beta == T(0))
-                                        ? T(W(alpha) * acc[ii][jj])
-                                        : T(W(alpha) * acc[ii][jj] + W(beta) * W(C[c_idx]));
+                                        ? T(multiply(W(alpha), acc[ii][jj]))
+                                        : T(multiply(W(alpha), acc[ii][jj]) +
+                                            multiply(W(beta), W(C[c_idx])));
 
                                     C[c_idx] = epilogue(value, global_row, global_col);
                                 }
@@ -476,7 +451,7 @@ namespace SushiBLAS
              */
             template<typename T, typename Epilogue = GemmIdentityEpilogue>
             [[nodiscard]] sycl::event gemm(sycl::queue& queue, Core::Layout layout,
-                            bool transA, bool transB,
+                            Core::Transpose transA, Core::Transpose transB,
                             int64_t m, int64_t n, int64_t k,
                             T alpha, const T* a, int64_t lda, int64_t str_a,
                             const T* b, int64_t ldb, int64_t str_b,
@@ -484,22 +459,23 @@ namespace SushiBLAS
                             int64_t batch_size, const std::vector<sycl::event>& deps,
                             Epilogue epilogue = Epilogue{})
             {
-                const Detail::OperandStrides a_strides = Detail::strides_for(layout, transA, lda);
-                const Detail::OperandStrides b_strides = Detail::strides_for(layout, transB, ldb);
+                const OperandAccess a_access = operand_access(layout, transA, lda);
+                const OperandAccess b_access = operand_access(layout, transB, ldb);
 
                 // C is never transposed in BLAS, so it only ever sees the layout.
-                const Detail::OperandStrides c_strides = Detail::strides_for(layout, false, ldc);
+                const OperandAccess c_access =
+                    operand_access(layout, Core::Transpose::NO_TRANS, ldc);
 
                 using LocalCfg = Detail::GemmLocalTile<T>;
                 constexpr std::size_t local_bytes = LocalCfg::local_mem_bytes();
                 constexpr std::size_t local_items = static_cast<std::size_t>(LocalCfg::wg_items);
 
                 const Device::Profile& profile = Device::profile_for(queue);
-                const bool tile_fits = profile.local_mem_bytes >= local_bytes;
-                const bool group_fits = profile.max_work_group_size >= local_items;
+                const Device::LocalTileDemand local_demand{local_bytes, local_items};
+                const bool tile_hosted = Device::hosts_local_tile(profile, local_demand);
 
                 // Both variants are instantiated here, whichever branch runs; see include/SushiBLAS/kernels/README.md.
-                if (profile.has_dedicated_local_memory && tile_fits && group_fits)
+                if (profile.has_dedicated_local_memory && tile_hosted)
                 {
                     SB_LOG_INFO("SYCL GEMM [local_tiled]: batch={} {}x{}x{} block={}x{} tile_k={} local={}B",
                                 batch_size, m, n, k,
@@ -507,9 +483,9 @@ namespace SushiBLAS
 
                     return Detail::gemm_local_tiled<T>(
                         queue, m, n, k,
-                        alpha, a, a_strides, str_a,
-                        b, b_strides, str_b,
-                        beta, c, c_strides, str_c,
+                        alpha, a, a_access, str_a,
+                        b, b_access, str_b,
+                        beta, c, c_access, str_c,
                         batch_size, deps, epilogue);
                 }
 
@@ -526,9 +502,9 @@ namespace SushiBLAS
 
                 return Detail::gemm_no_local<T>(
                     queue, profile, m, n, k,
-                    alpha, a, a_strides, str_a,
-                    b, b_strides, str_b,
-                    beta, c, c_strides, str_c,
+                    alpha, a, a_access, str_a,
+                    b, b_access, str_b,
+                    beta, c, c_access, str_c,
                     batch_size, deps, epilogue);
             }
 

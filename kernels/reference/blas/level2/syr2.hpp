@@ -21,7 +21,7 @@
 
 /**
  * @file syr2.hpp
- * @brief Defines the reference kernel of SYR2.
+ * @brief Defines the reference kernel of SYR2 and HER2.
  * @author Mustafa Garip
  */
 
@@ -29,7 +29,9 @@
 
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
 
 namespace SushiBLAS
 {
@@ -37,29 +39,54 @@ namespace SushiBLAS
     {
         namespace Reference
         {
+            namespace Detail
+            {
+                /** @brief Returns the SYR2 term alpha * (x_i * y_j + y_i * x_j). */
+                template<typename W>
+                [[nodiscard]] inline W rank2_term(Unconjugated, W alpha, W xi, W yj, W yi, W xj)
+                {
+                    return alpha * (xi * yj + yi * xj);
+                }
+
+                /** @brief Returns the HER2 term, which conjugates y_j, x_j and the second alpha. */
+                template<typename W>
+                [[nodiscard]] inline W rank2_term(Conjugated, W alpha, W xi, W yj, W yi, W xj)
+                {
+                    return alpha * xi * Conjugated::apply(yj) +
+                           Conjugated::apply(alpha) * yi * Conjugated::apply(xj);
+                }
+            } // namespace Detail
+
             /**
-            * @brief Pure C++ reference SYR2: A += alpha*(x*y^T + y*x^T), only
-            * the requested triangle written.
-            */
-            template<typename T>
-            void syr2(Core::Layout layout, bool upper, int64_t n,
+             * @brief Computes SYR2 or HER2, A(i, j) += rank2_term, in the triangle uplo names.
+             * @tparam Conj Unconjugated (syr2) or Conjugated (her2, which stores a real diagonal).
+             */
+            template<typename T, typename Conj = Unconjugated>
+            void syr2(Core::Layout layout, Core::Uplo uplo, int64_t n,
                       T alpha, const T* x, int64_t incx,
                       const T* y, int64_t incy,
                       T* a, int64_t lda)
             {
+                using W = Accumulator<T>;
+
                 auto A_ref = [&](int64_t r, int64_t c) -> T&
                 {
                     return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
                 };
+                const bool upper = (uplo == Core::Uplo::UPPER);
 
-                using W = Accumulator<T>;
                 for (int64_t i = 0; i < n; ++i)
                 {
                     int64_t jstart = upper ? i : 0;
                     int64_t jend = upper ? n : i + 1;
                     for (int64_t j = jstart; j < jend; ++j)
-                        A_ref(i, j) = T(W(A_ref(i, j)) + W(alpha) * (W(x[i * incx]) * W(y[j * incy]) +
-                                                                 W(y[i * incy]) * W(x[j * incx])));
+                    {
+                        const W term = Detail::rank2_term(Conj{}, W(alpha),
+                                                          W(x[i * incx]), W(y[j * incy]),
+                                                          W(y[i * incy]), W(x[j * incx]));
+                        const W updated = W(A_ref(i, j)) + term;
+                        A_ref(i, j) = T((i == j) ? Conj::diagonal(updated) : updated);
+                    }
                 }
             }
 
