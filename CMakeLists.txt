@@ -90,6 +90,11 @@ endif()
 add_subdirectory(src)
 add_subdirectory(examples)
 
+option(SB_BUILD_BENCHMARKS "Build the benchmark programs under benchmarks/" OFF)
+if(SB_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
+endif()
+
 # --- Package files (SB-6) ---
 # Written after add_subdirectory(src) so the sushiblas/SushiRuntime::SushiRuntime
 # targets it references already exist.
