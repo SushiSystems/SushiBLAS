@@ -31,8 +31,8 @@
 #include <cstddef>
 #include <algorithm>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/engine/reduce_1d.hpp>
-#include <SushiBLAS/engine/device_policy.hpp>
+#include <SushiBLAS/support/reduce_1d.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
 
 namespace SushiBLAS
 {
@@ -40,7 +40,7 @@ namespace SushiBLAS
     {
         /**
          * @brief Holds where one segmented reduction's inputs and outputs live, in element counts.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         struct AxisSpan
         {
@@ -61,7 +61,7 @@ namespace SushiBLAS
 
             /**
              * @brief Holds the number of groups of segments; 1 when there is one segment axis.
-             * @see include/SushiBLAS/engine/README.md
+             * @see include/SushiBLAS/support/README.md
              */
             std::size_t segments2 = 1;
 
@@ -97,7 +97,7 @@ namespace SushiBLAS
         /**
          * @brief Picks between the two segmented shapes for segments folds of extent elements on p.
          * @return The geometry; AxisPlan::cooperative says which shape.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         [[nodiscard]] inline AxisPlan plan_axis(const Device::Profile& p,
                                                 std::size_t segments,
@@ -123,7 +123,7 @@ namespace SushiBLAS
          * @param transform Callable `(T) -> T`, applied to each element before the fold.
          * @param finalize Callable `(T value, std::size_t n) -> T`, applied once per segment.
          * @return The event for the submitted kernel.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         template<template<typename> class Accum, typename T,
                  typename Transform, typename Finalize>
@@ -142,7 +142,7 @@ namespace SushiBLAS
 
             if (!geometry.cooperative())
             {
-                // One work-item folds one whole segment; see include/SushiBLAS/engine/README.md.
+                // One work-item folds one whole segment; see include/SushiBLAS/support/README.md.
                 const Device::Grid1D grid = Device::plan_1d(Device::profile_for(queue), total);
                 const std::size_t stride = grid.stride();
 
@@ -153,9 +153,9 @@ namespace SushiBLAS
                     {
                         for (std::size_t s = it.get_global_id(0); s < total; s += stride)
                         {
-                            // The segment is folded in ascending index order and no other work-item touches it; see include/SushiBLAS/engine/README.md.
+                            // The segment is folded in ascending index order and no other work-item touches it; see include/SushiBLAS/support/README.md.
                             Accum<T> acc;
-                            // One division per fold; a segments2 == 1 kernel is not worth a second instantiation, see include/SushiBLAS/engine/README.md.
+                            // One division per fold; a segments2 == 1 kernel is not worth a second instantiation, see include/SushiBLAS/support/README.md.
                             const std::size_t s2 = s / segments;
                             const std::size_t s1 = s % segments;
                             const T* base = in + s2 * segment_stride2 + s1 * segment_stride;
@@ -183,12 +183,12 @@ namespace SushiBLAS
                     const std::size_t s = it.get_group(0);
                     const std::size_t lid = it.get_local_id(0);
 
-                    // One division per fold; a segments2 == 1 kernel is not worth a second instantiation, see include/SushiBLAS/engine/README.md.
+                    // One division per fold; a segments2 == 1 kernel is not worth a second instantiation, see include/SushiBLAS/support/README.md.
                     const std::size_t s2 = s / segments;
                     const std::size_t s1 = s % segments;
                     const T* base = in + s2 * segment_stride2 + s1 * segment_stride;
 
-                    // Lane l owns positions l, l + local, l + 2*local, fixed by the geometry; see include/SushiBLAS/engine/README.md.
+                    // Lane l owns positions l, l + local, l + 2*local, fixed by the geometry; see include/SushiBLAS/support/README.md.
                     Accum<T> acc;
                     for (std::size_t k = lid; k < extent; k += local)
                         acc.accumulate(transform(base[k * element_stride]));
@@ -197,7 +197,7 @@ namespace SushiBLAS
 
                     sycl::group_barrier(it.get_group());
 
-                    // A fixed-order halving tree; local is a power of two; see include/SushiBLAS/engine/README.md.
+                    // A fixed-order halving tree; local is a power of two; see include/SushiBLAS/support/README.md.
                     for (std::size_t off = local / 2; off > 0; off >>= 1)
                     {
                         if (lid < off) tile[lid] = Accum<T>::combine(tile[lid], tile[lid + off]);

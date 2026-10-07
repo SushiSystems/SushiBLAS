@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* geometry.hpp                                                           */
+/* spatial_geometry.hpp                                                   */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -20,7 +20,7 @@
 /**************************************************************************/
 
 /**
- * @file geometry.hpp
+ * @file spatial_geometry.hpp
  * @brief Declares the window geometry of a spatial operation and the extents it implies.
  * @author Mustafa Garip
  */
@@ -35,7 +35,7 @@ namespace SushiBLAS
     {
         /**
          * @brief Holds a 2-D sliding window: its size, step, spacing and origin.
-         * @see include/SushiBLAS/engine/spatial/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         struct ConvGeometry
         {
@@ -62,7 +62,7 @@ namespace SushiBLAS
          * @param pad_before Implicit zeros before index 0.
          * @param pad_after Implicit zeros after the last index.
          * @param dilation Spacing between taps; 1 for an undilated window.
-         * @see include/SushiBLAS/engine/spatial/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         [[nodiscard]] constexpr int64_t output_extent(int64_t in,
                                                       int64_t pad_before, int64_t pad_after,
@@ -80,7 +80,7 @@ namespace SushiBLAS
 
         /**
          * @brief Holds where one spatial operation's input and output live, in element counts.
-         * @see include/SushiBLAS/engine/spatial/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         struct WindowSpan
         {
@@ -151,7 +151,7 @@ namespace SushiBLAS
 
         /**
          * @brief Holds how an im2col matrix is addressed: a row stride and an element stride.
-         * @see include/SushiBLAS/engine/spatial/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         struct ColumnSpan
         {

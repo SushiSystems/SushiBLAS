@@ -41,7 +41,7 @@ namespace SushiBLAS
     {
         /**
          * @brief Holds the number of resident work-groups per compute unit a launch aims for.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         inline constexpr std::size_t K_WAVES_PER_COMPUTE_UNIT = 8;
 
@@ -62,7 +62,7 @@ namespace SushiBLAS
 
         /**
          * @brief Holds the device properties a kernel is allowed to dispatch on.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         struct Profile
         {
@@ -71,7 +71,7 @@ namespace SushiBLAS
 
             /**
              * @brief Holds whether scratchpad memory is physically separate storage.
-             * @see include/SushiBLAS/engine/README.md
+             * @see include/SushiBLAS/support/README.md
              */
             bool has_dedicated_local_memory = false;
 
@@ -123,7 +123,7 @@ namespace SushiBLAS
                 p.has_dedicated_local_memory = declares_local && !p.is_cpu &&
                                                p.local_mem_bytes > 0;
 
-                // The widest sub-group is kept; a zero width is guarded; see include/SushiBLAS/engine/README.md.
+                // The widest sub-group is kept; a zero width is guarded; see include/SushiBLAS/support/README.md.
                 const std::vector<std::size_t> widths =
                     d.get_info<sycl::info::device::sub_group_sizes>();
                 p.sub_group_size = widths.empty()
@@ -141,11 +141,11 @@ namespace SushiBLAS
         /**
          * @brief Returns the cached Profile of a device, probing it on first sight.
          * @return A reference valid for the rest of the process.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         inline const Profile& profile_for(const sycl::device& d)
         {
-            // The cache is a deque for stable references and is never freed; see include/SushiBLAS/engine/README.md.
+            // The cache is a deque for stable references and is never freed; see include/SushiBLAS/support/README.md.
             static std::deque<std::pair<sycl::device, Profile>>* cache =
                 new std::deque<std::pair<sycl::device, Profile>>();
             static std::mutex guard;
@@ -182,7 +182,7 @@ namespace SushiBLAS
 
         /**
          * @brief Holds the launch geometry of a one-dimensional grid-stride kernel.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         struct Grid1D
         {
@@ -212,7 +212,7 @@ namespace SushiBLAS
         /**
          * @brief Returns the work-group size a flat, barrier-free 1-D launch uses.
          * @return A size the device accepts; never zero.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         [[nodiscard]] inline std::size_t flat_work_group_size(const Profile& p,
                                                               std::size_t n) noexcept
@@ -225,7 +225,7 @@ namespace SushiBLAS
             const std::size_t wanted = std::clamp(per_thread, floor_size,
                                                   p.max_work_group_size);
 
-            // Only whole sub-groups are kept; a partial trailing sub-group is dead lanes; see include/SushiBLAS/engine/README.md.
+            // Only whole sub-groups are kept; a partial trailing sub-group is dead lanes; see include/SushiBLAS/support/README.md.
             const std::size_t whole = (wanted / p.sub_group_size) * p.sub_group_size;
             return whole ? whole : std::size_t{1};
         }
@@ -234,7 +234,7 @@ namespace SushiBLAS
          * @brief Plans a grid-stride launch over n elements.
          * @param unroll Elements each work-item handles per stride step: 1 for scalar, 4 for 128-bit accesses.
          * @return A geometry whose global size is a non-zero multiple of the local size, even for n == 0.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         [[nodiscard]] inline Grid1D plan_1d(const Profile& p, std::size_t n,
                                             std::size_t unroll = 1) noexcept
@@ -244,7 +244,7 @@ namespace SushiBLAS
 
             const std::size_t to_cover = (n + per_group - 1) / per_group;
 
-            // A CPU grid covers the whole problem; a GPU grid is capped; see include/SushiBLAS/engine/README.md.
+            // A CPU grid covers the whole problem; a GPU grid is capped; see include/SushiBLAS/support/README.md.
             std::size_t groups = to_cover;
             if (!p.is_cpu)
             {
@@ -259,7 +259,7 @@ namespace SushiBLAS
         /**
          * @brief Returns how many elements of element_bytes to load in one access.
          * @return A `sycl::vec` width of 1, 2, 4 or 8; always 1 on a CPU.
-         * @see include/SushiBLAS/engine/README.md
+         * @see include/SushiBLAS/support/README.md
          */
         [[nodiscard]] inline std::size_t vector_width(const Profile& p,
                                                       std::size_t element_bytes) noexcept
