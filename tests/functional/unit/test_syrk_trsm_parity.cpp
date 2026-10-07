@@ -70,12 +70,12 @@ namespace SushiBLAS
                     copy_contents(C_actual, C_expected);
 
                     engine->set_mode(ExecutionMode::FORCE_SYCL);
-                    engine->blas().syrk(A, C_actual, upper, trans_a, 1.5, 0.5);
-                    engine->execute().wait();
+                    SushiBLAS::BLASOps(*engine).syrk(A, C_actual, upper, trans_a, 1.5, 0.5);
+                    engine->execute();
 
                     engine->set_mode(ExecutionMode::FORCE_REFERENCE);
-                    engine->blas().syrk(A, C_expected, upper, trans_a, 1.5, 0.5);
-                    engine->execute().wait();
+                    SushiBLAS::BLASOps(*engine).syrk(A, C_expected, upper, trans_a, 1.5, 0.5);
+                    engine->execute();
 
                     SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, K_TOLERANCE, T);
                 }
@@ -98,12 +98,14 @@ namespace SushiBLAS
                     copy_contents(B_actual, B_expected);
 
                     engine->set_mode(ExecutionMode::FORCE_SYCL);
-                    engine->blas().trsm(A, B_actual, left_side, upper, trans_a, unit_diag, 1.5);
-                    engine->execute().wait();
+                    SushiBLAS::BLASOps(*engine).trsm(
+                        A, B_actual, left_side, upper, trans_a, unit_diag, 1.5);
+                    engine->execute();
 
                     engine->set_mode(ExecutionMode::FORCE_REFERENCE);
-                    engine->blas().trsm(A, B_expected, left_side, upper, trans_a, unit_diag, 1.5);
-                    engine->execute().wait();
+                    SushiBLAS::BLASOps(*engine).trsm(
+                        A, B_expected, left_side, upper, trans_a, unit_diag, 1.5);
+                    engine->execute();
 
                     SB_ASSERT_TENSOR_NEAR(B_actual, B_expected, K_TOLERANCE, T);
                 }

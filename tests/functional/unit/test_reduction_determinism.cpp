@@ -108,7 +108,7 @@ namespace SushiBLAS
                                                host.size() * sizeof(float)).wait();
 
                         op(eng, t, res);
-                        eng.execute().wait();
+                        eng.execute();
 
                         const float got = scalar(res);
                         if (r == 0)
@@ -171,35 +171,50 @@ namespace SushiBLAS
 
         TEST_F(Unit_ReductionDeterminism, SumIsBitwiseStable)
         {
-            auto op = [](Engine& e, const Tensor& t, Tensor& r) { e.reductions().sum(t, r); };
+            auto op = [](Engine& e, const Tensor& t, Tensor& r)
+            {
+                SushiBLAS::ReductionOps(e).sum(t, r);
+            };
             expect_bitwise_stable(kSmall, op, additive_value);
             expect_bitwise_stable(kLarge, op, additive_value);
         }
 
         TEST_F(Unit_ReductionDeterminism, MeanIsBitwiseStable)
         {
-            auto op = [](Engine& e, const Tensor& t, Tensor& r) { e.reductions().mean(t, r); };
+            auto op = [](Engine& e, const Tensor& t, Tensor& r)
+            {
+                SushiBLAS::ReductionOps(e).mean(t, r);
+            };
             expect_bitwise_stable(kSmall, op, additive_value);
             expect_bitwise_stable(kLarge, op, additive_value);
         }
 
         TEST_F(Unit_ReductionDeterminism, AsumIsBitwiseStable)
         {
-            auto op = [](Engine& e, const Tensor& t, Tensor& r) { e.reductions().asum(t, r); };
+            auto op = [](Engine& e, const Tensor& t, Tensor& r)
+            {
+                SushiBLAS::ReductionOps(e).asum(t, r);
+            };
             expect_bitwise_stable(kSmall, op, additive_value);
             expect_bitwise_stable(kLarge, op, additive_value);
         }
 
         TEST_F(Unit_ReductionDeterminism, Nrm2IsBitwiseStable)
         {
-            auto op = [](Engine& e, const Tensor& t, Tensor& r) { e.reductions().nrm2(t, r); };
+            auto op = [](Engine& e, const Tensor& t, Tensor& r)
+            {
+                SushiBLAS::ReductionOps(e).nrm2(t, r);
+            };
             expect_bitwise_stable(kSmall, op, additive_value);
             expect_bitwise_stable(kLarge, op, additive_value);
         }
 
         TEST_F(Unit_ReductionDeterminism, ProdIsBitwiseStable)
         {
-            auto op = [](Engine& e, const Tensor& t, Tensor& r) { e.reductions().prod(t, r); };
+            auto op = [](Engine& e, const Tensor& t, Tensor& r)
+            {
+                SushiBLAS::ReductionOps(e).prod(t, r);
+            };
             expect_bitwise_stable(kSmall, op, multiplicative_value);
             expect_bitwise_stable(kLarge, op, multiplicative_value);
         }
@@ -220,8 +235,8 @@ namespace SushiBLAS
                 .memcpy(t.data(), host.data(), host.size() * sizeof(float)).wait();
 
             auto res = engine->create_tensor({1});
-            engine->reductions().sum(t, res);
-            engine->execute().wait();
+            SushiBLAS::ReductionOps(*engine).sum(t, res);
+            engine->execute();
 
             EXPECT_FLOAT_EQ(kHead + static_cast<float>(kOnes), scalar(res))
                 << "Naive summation returns " << kHead << " here, because every 1.0 falls "
@@ -241,8 +256,8 @@ namespace SushiBLAS
 
                 auto t = filled(n, 0.1f);
                 auto res = engine->create_tensor({1});
-                engine->reductions().sum(t, res);
-                engine->execute().wait();
+                SushiBLAS::ReductionOps(*engine).sum(t, res);
+                engine->execute();
 
                 // 0.1f is 0.100000001490116..., and n copies of it sum to n times that.
                 const double exact = static_cast<double>(n) * static_cast<double>(0.1f);

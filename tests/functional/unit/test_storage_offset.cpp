@@ -67,7 +67,7 @@ namespace SushiBLAS
 
                     // Poisons the view too; each test writes its inputs first.
                     auto& q = TestEnvironment::get_context().get_queue();
-                    q.memset(storage->allocation_base(), kPoisonByte, storage->size_bytes).wait();
+                    q.memset(storage->allocation_base(), kPoisonByte, storage->size_bytes()).wait();
 
                     return Tensor(storage, dims, dtype, kPad, engine->get_layout());
                 }
@@ -82,7 +82,7 @@ namespace SushiBLAS
                 ::testing::AssertionResult padding_intact(const Tensor& v, const char* what) const
                 {
                     const size_t bpe = Core::bytes_per_element(v.dtype);
-                    const size_t total = v.storage->size_bytes;
+                    const size_t total = v.storage->size_bytes();
                     const size_t head = static_cast<size_t>(v.storage_offset) * bpe;
                     const size_t tail = head + static_cast<size_t>(v.num_elements) * bpe;
 
@@ -112,8 +112,8 @@ namespace SushiBLAS
             fill_tensor(x, {1, 2, 3, 4});
             fill_tensor(y, {10, 20, 30, 40});
 
-            engine->blas().axpy(2.0, x, y);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).axpy(2.0, x, y);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(y, std::vector<float>({12, 24, 36, 48}), 1e-5);
             EXPECT_TRUE(padding_intact(x, "axpy x"));
@@ -125,8 +125,8 @@ namespace SushiBLAS
             auto x = offset_view({4});
             fill_tensor(x, {1, 2, 3, 4});
 
-            engine->blas().scal(3.0, x);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).scal(3.0, x);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(x, std::vector<float>({3, 6, 9, 12}), 1e-5);
             EXPECT_TRUE(padding_intact(x, "scal x"));
@@ -139,8 +139,8 @@ namespace SushiBLAS
             fill_tensor(x, {5, 6, 7, 8});
             fill_tensor(y, {0, 0, 0, 0});
 
-            engine->blas().copy(x, y);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).copy(x, y);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(y, std::vector<float>({5, 6, 7, 8}), 1e-5);
             EXPECT_TRUE(padding_intact(x, "copy x"));
@@ -157,8 +157,9 @@ namespace SushiBLAS
             fill_tensor(x, {1, 1, 1});
             fill_tensor(y, {100, 200});
 
-            engine->blas().gemv(A, x, y, /*transA=*/false, /*alpha=*/1.0, /*beta=*/2.0);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).gemv(
+                A, x, y, /*transA=*/false, /*alpha=*/1.0, /*beta=*/2.0);
+            engine->execute();
 
             // A*x = {6, 15}; + 2*{100, 200} = {206, 415}
             EXPECT_TENSOR_NEAR(y, std::vector<float>({206, 415}), 1e-4);
@@ -176,8 +177,8 @@ namespace SushiBLAS
             fill_tensor(y, {10, 20, 30});
             fill_tensor(A, {1, 1, 1, 1, 1, 1});
 
-            engine->blas().ger(x, y, A, /*alpha=*/1.0);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).ger(x, y, A, /*alpha=*/1.0);
+            engine->execute();
 
             // A += x y^T = {{10,20,30},{20,40,60}}
             EXPECT_TENSOR_NEAR(A, std::vector<float>({11, 21, 31, 21, 41, 61}), 1e-4);
@@ -195,8 +196,8 @@ namespace SushiBLAS
             fill_tensor(B, {1, 0, 0, 1});
             fill_tensor(C, {0, 0, 0, 0});
 
-            engine->blas().gemm(A, B, C);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).gemm(A, B, C);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(C, std::vector<float>({1, 2, 3, 4}), 1e-4);
             EXPECT_TRUE(padding_intact(A, "gemm A"));
@@ -213,9 +214,9 @@ namespace SushiBLAS
             fill_tensor(B, {10, 10, 10, 10});
             fill_tensor(C, {0, 0, 0, 0});
 
-            engine->elementwise().add(A, B, C);   // binary seam
-            engine->elementwise().neg(C);         // unary in-place seam
-            engine->execute().wait();
+            SushiBLAS::ElementwiseOps(*engine).add(A, B, C);   // binary seam
+            SushiBLAS::ElementwiseOps(*engine).neg(C);         // unary in-place seam
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(C, std::vector<float>({-11, -12, -13, -14}), 1e-5);
             EXPECT_TRUE(padding_intact(A, "add A"));
@@ -228,8 +229,8 @@ namespace SushiBLAS
             auto t = offset_view({4});
             fill_tensor(t, {-2, -1, 1, 2});
 
-            engine->nonlinear().relu(t);          // forward seam
-            engine->execute().wait();
+            SushiBLAS::NonLinearOps(*engine).relu(t);          // forward seam
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(t, std::vector<float>({0, 0, 1, 2}), 1e-5);
             EXPECT_TRUE(padding_intact(t, "relu t"));
@@ -244,8 +245,8 @@ namespace SushiBLAS
             fill_tensor(x, {-2, -1, 1, 2});
             fill_tensor(dx, {0, 0, 0, 0});
 
-            engine->nonlinear().relu_backward(dy, x, dx);
-            engine->execute().wait();
+            SushiBLAS::NonLinearOps(*engine).relu_backward(dy, x, dx);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(dx, std::vector<float>({0, 0, 1, 1}), 1e-5);
             EXPECT_TRUE(padding_intact(dy, "relu_backward dy"));
@@ -262,8 +263,8 @@ namespace SushiBLAS
             fill_tensor(B, {2, 2, 2, 2});
             fill_tensor(R, {0, 0, 0, 0});
 
-            engine->logic().greater(A, B, R);
-            engine->execute().wait();
+            SushiBLAS::LogicOps(*engine).greater(A, B, R);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(R, std::vector<float>({0, 1, 1, 1}), 1e-5);
             EXPECT_TRUE(padding_intact(A, "greater A"));
@@ -278,8 +279,8 @@ namespace SushiBLAS
             fill_tensor(t, {1, 2, 3, 4});
             fill_tensor(r, {0});
 
-            engine->reductions().sum(t, r);
-            engine->execute().wait();
+            SushiBLAS::ReductionOps(*engine).sum(t, r);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(r, std::vector<float>({10}), 1e-5);
             EXPECT_TRUE(padding_intact(t, "sum t"));
@@ -291,9 +292,9 @@ namespace SushiBLAS
             auto c = offset_view({8});
             auto u = offset_view({8});
 
-            engine->random().constant(c, 7.0);    // the q.fill path
-            engine->random().uniform(u, 0.0, 1.0); // the Philox dispatch path
-            engine->execute().wait();
+            SushiBLAS::RandomOps(*engine).constant(c, 7.0);    // the q.fill path
+            SushiBLAS::RandomOps(*engine).uniform(u, 0.0, 1.0); // the Philox dispatch path
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(c, std::vector<float>(8, 7.0f), 1e-6);
             EXPECT_TRUE(padding_intact(c, "constant"));

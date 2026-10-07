@@ -44,9 +44,9 @@ TEST_F(Unit_AXPYTest, SimpleAXPY)
     fill_tensor(Y, {4, 5, 6});
 
     SB_LOG_INFO("Submitting AXPY.");
-    engine->blas().axpy(2.0f, X, Y);
+    SushiBLAS::BLASOps(*engine).axpy(2.0f, X, Y);
     
-    engine->execute().wait();
+    engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: 2 * X + Y = {2+4, 4+5, 6+6} = {6, 9, 12}

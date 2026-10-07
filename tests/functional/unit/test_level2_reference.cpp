@@ -78,8 +78,8 @@ namespace SushiBLAS
             auto x = create_initialized_tensor<float>({3}, {1.0f, 0.0f, -1.0f});
             auto y = create_initialized_tensor<float>({2}, {10.0f, 20.0f});
 
-            engine->blas().gemv(A, x, y, false, 2.0, 0.5);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).gemv(A, x, y, false, 2.0, 0.5);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
         }
@@ -92,8 +92,8 @@ namespace SushiBLAS
             auto x = create_initialized_tensor<float>({2}, {2.0f, -1.0f});
             auto y = create_initialized_tensor<float>({3}, {0.0f, 0.0f, 0.0f});
 
-            engine->blas().gemv(A, x, y, true, 1.0, 0.0);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).gemv(A, x, y, true, 1.0, 0.0);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
         }
@@ -107,8 +107,8 @@ namespace SushiBLAS
             auto y = create_initialized_tensor<float>({3}, {3.0f, -1.0f, 0.5f});
             auto A = create_initialized_tensor<float>({2, 3}, std::vector<float>(6, 1.0f));
 
-            engine->blas().ger(x, y, A, 2.0);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).ger(x, y, A, 2.0);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(A, K_EXPECTED, K_TOLERANCE);
         }
@@ -123,8 +123,8 @@ namespace SushiBLAS
             auto x = create_initialized_tensor<float>({3}, {1.0f, -1.0f, 2.0f});
             auto y = create_initialized_tensor<float>({3}, {0.0f, 0.0f, 0.0f});
 
-            engine->blas().symv(A, x, y, true, 1.0, 0.0);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).symv(A, x, y, true, 1.0, 0.0);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
         }
@@ -139,8 +139,8 @@ namespace SushiBLAS
             auto x = create_initialized_tensor<float>({3}, {1.0f, -1.0f, 2.0f});
             auto y = create_initialized_tensor<float>({3}, {1.0f, 1.0f, 1.0f});
 
-            engine->blas().symv(A, x, y, false, 2.0, 1.0);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).symv(A, x, y, false, 2.0, 1.0);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
         }
@@ -156,8 +156,8 @@ namespace SushiBLAS
                                                                K_POISON, 0.0f, 0.0f,
                                                                K_POISON, K_POISON, 0.0f});
 
-            engine->blas().syr(x, A, true, 1.0);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).syr(x, A, true, 1.0);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(A, K_EXPECTED, K_TOLERANCE);
         }
@@ -173,8 +173,8 @@ namespace SushiBLAS
                                                                1.0f, 1.0f, K_POISON,
                                                                1.0f, 1.0f, 1.0f});
 
-            engine->blas().syr(x, A, false, 2.0);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).syr(x, A, false, 2.0);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(A, K_EXPECTED, K_TOLERANCE);
         }
@@ -191,8 +191,8 @@ namespace SushiBLAS
                                                                K_POISON, 0.0f, 0.0f,
                                                                K_POISON, K_POISON, 0.0f});
 
-            engine->blas().syr2(x, y, A, true, 1.0);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).syr2(x, y, A, true, 1.0);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(A, K_EXPECTED, K_TOLERANCE);
         }
@@ -209,8 +209,8 @@ namespace SushiBLAS
                                                                0.0f, 0.0f, K_POISON,
                                                                0.0f, 0.0f, 0.0f});
 
-            engine->blas().syr2(x, y, A, false, 0.5);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).syr2(x, y, A, false, 0.5);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(A, K_EXPECTED, K_TOLERANCE);
         }
@@ -222,8 +222,8 @@ namespace SushiBLAS
             auto A = create_initialized_tensor<float>({3, 3}, upper_matrix());
             auto x = create_initialized_tensor<float>({3}, {1.0f, 1.0f, 2.0f});
 
-            engine->blas().trmv(A, x, true, false, false);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trmv(A, x, true, false, false);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
@@ -235,8 +235,8 @@ namespace SushiBLAS
             auto A = create_initialized_tensor<float>({3, 3}, upper_matrix());
             auto x = create_initialized_tensor<float>({3}, {1.0f, 1.0f, 2.0f});
 
-            engine->blas().trmv(A, x, true, true, false);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trmv(A, x, true, true, false);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
@@ -248,8 +248,8 @@ namespace SushiBLAS
             auto A = create_initialized_tensor<float>({3, 3}, upper_matrix());
             auto x = create_initialized_tensor<float>({3}, {1.0f, 1.0f, 2.0f});
 
-            engine->blas().trmv(A, x, true, false, true);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trmv(A, x, true, false, true);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
@@ -261,8 +261,8 @@ namespace SushiBLAS
             auto A = create_initialized_tensor<float>({3, 3}, lower_matrix());
             auto x = create_initialized_tensor<float>({3}, {1.0f, 1.0f, 2.0f});
 
-            engine->blas().trmv(A, x, false, false, false);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trmv(A, x, false, false, false);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
@@ -274,8 +274,8 @@ namespace SushiBLAS
             auto A = create_initialized_tensor<float>({3, 3}, lower_matrix());
             auto x = create_initialized_tensor<float>({3}, {1.0f, 1.0f, 2.0f});
 
-            engine->blas().trmv(A, x, false, true, false);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trmv(A, x, false, true, false);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
@@ -287,8 +287,8 @@ namespace SushiBLAS
             auto A = create_initialized_tensor<float>({3, 3}, lower_matrix());
             auto x = create_initialized_tensor<float>({3}, {1.0f, 1.0f, 2.0f});
 
-            engine->blas().trmv(A, x, false, true, true);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trmv(A, x, false, true, true);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
@@ -300,8 +300,8 @@ namespace SushiBLAS
             auto A = create_initialized_tensor<float>({3, 3}, upper_matrix());
             auto b = create_initialized_tensor<float>({3}, {9.0f, 14.0f, 12.0f});
 
-            engine->blas().trsv(A, b, true, false, false);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trsv(A, b, true, false, false);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
         }
@@ -313,8 +313,8 @@ namespace SushiBLAS
             auto A = create_initialized_tensor<float>({3, 3}, upper_matrix());
             auto b = create_initialized_tensor<float>({3}, {1.0f, 6.0f, 20.0f});
 
-            engine->blas().trsv(A, b, true, true, false);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trsv(A, b, true, true, false);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
         }
@@ -326,8 +326,8 @@ namespace SushiBLAS
             auto A = create_initialized_tensor<float>({3, 3}, upper_matrix());
             auto b = create_initialized_tensor<float>({3}, {9.0f, 11.0f, 2.0f});
 
-            engine->blas().trsv(A, b, true, false, true);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trsv(A, b, true, false, true);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
         }
@@ -339,8 +339,8 @@ namespace SushiBLAS
             auto A = create_initialized_tensor<float>({3, 3}, lower_matrix());
             auto b = create_initialized_tensor<float>({3}, {1.0f, 6.0f, 20.0f});
 
-            engine->blas().trsv(A, b, false, false, false);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trsv(A, b, false, false, false);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
         }
@@ -352,8 +352,8 @@ namespace SushiBLAS
             auto A = create_initialized_tensor<float>({3, 3}, lower_matrix());
             auto b = create_initialized_tensor<float>({3}, {9.0f, 14.0f, 12.0f});
 
-            engine->blas().trsv(A, b, false, true, false);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trsv(A, b, false, true, false);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
         }
@@ -365,8 +365,8 @@ namespace SushiBLAS
             auto A = create_initialized_tensor<float>({3, 3}, lower_matrix());
             auto b = create_initialized_tensor<float>({3}, {9.0f, 11.0f, 2.0f});
 
-            engine->blas().trsv(A, b, false, true, true);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trsv(A, b, false, true, true);
+            engine->execute();
 
             EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
         }

@@ -39,8 +39,8 @@ TEST_F(Unit_TanhTest, Forward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {0.0f, 1.0f, -1.0f, 2.0f});
     
-    engine->nonlinear().tanh(t);
-    engine->execute().wait();
+    SushiBLAS::NonLinearOps(*engine).tanh(t);
+    engine->execute();
     
     verify_tensor(t, {0.0f, 0.761594f, -0.761594f, 0.964028f});
 }
@@ -55,8 +55,8 @@ TEST_F(Unit_TanhTest, Backward)
     fill_tensor(y, {0.0f, 0.761594f, -0.761594f, 0.964028f});
     fill_tensor(dx, {0.0f, 0.0f, 0.0f, 0.0f});
     
-    engine->nonlinear().tanh_backward(dy, y, dx);
-    engine->execute().wait();
+    SushiBLAS::NonLinearOps(*engine).tanh_backward(dy, y, dx);
+    engine->execute();
     
     verify_tensor(dx, {1.0f, 0.419974f, 0.419974f, 0.070651f});
 }

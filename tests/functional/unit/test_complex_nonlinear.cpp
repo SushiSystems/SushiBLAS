@@ -96,8 +96,8 @@ TYPED_TEST(Unit_ComplexNonlinearTest, SigmoidMatchesHostReference)
     using C = std::complex<TypeParam>;
     auto t = this->template create_initialized_tensor<C>({5}, probe_inputs<TypeParam>());
 
-    this->engine->nonlinear().sigmoid(t);
-    this->engine->execute().wait();
+    SushiBLAS::NonLinearOps(*this->engine).sigmoid(t);
+    this->engine->execute();
 
     auto expected = this->template create_initialized_tensor<C>(
         {5}, host_expected<TypeParam>([](const C& x) { return C(1) / (C(1) + std::exp(-x)); }));
@@ -109,8 +109,8 @@ TYPED_TEST(Unit_ComplexNonlinearTest, TanhMatchesHostReference)
     using C = std::complex<TypeParam>;
     auto t = this->template create_initialized_tensor<C>({5}, probe_inputs<TypeParam>());
 
-    this->engine->nonlinear().tanh(t);
-    this->engine->execute().wait();
+    SushiBLAS::NonLinearOps(*this->engine).tanh(t);
+    this->engine->execute();
 
     auto expected = this->template create_initialized_tensor<C>(
         {5}, host_expected<TypeParam>([](const C& x) { return std::tanh(x); }));
@@ -122,7 +122,7 @@ TYPED_TEST(Unit_ComplexNonlinearTest, EluRefusesComplex)
     using C = std::complex<TypeParam>;
     auto t = this->template create_initialized_tensor<C>({5}, probe_inputs<TypeParam>());
 
-    EXPECT_THROW(this->engine->nonlinear().elu(t, K_ELU_ALPHA), std::runtime_error);
+    EXPECT_THROW(SushiBLAS::NonLinearOps(*this->engine).elu(t, K_ELU_ALPHA), std::runtime_error);
 }
 
 /// @brief Runs the complex sqrt and log edge cases.
@@ -140,8 +140,8 @@ TEST_F(Unit_ComplexSqrtLogTest, SqrtOfInfiniteImaginaryPartIsInfinite)
     const double inf = std::numeric_limits<double>::infinity();
     auto t = create_initialized_tensor<C>({2}, {C(4.0, inf), C(-4.0, inf)});
 
-    engine->elementwise().sqrt(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).sqrt(t);
+    engine->execute();
 
     const std::vector<C> got = read_tensor<C>(t);
     for (const C& z : got)
@@ -159,8 +159,8 @@ TEST_F(Unit_ComplexSqrtLogTest, LogNearTheUnitCircleKeepsItsRealPart)
     using C = std::complex<double>;
     auto t = create_initialized_tensor<C>({1}, {C(1.0, 1e-4)});
 
-    engine->elementwise().log(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).log(t);
+    engine->execute();
 
     const C got = read_tensor<C>(t)[0];
     EXPECT_NEAR(5.0e-9 - 2.5e-17, got.real(), 1e-22);

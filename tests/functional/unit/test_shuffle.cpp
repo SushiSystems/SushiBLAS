@@ -47,9 +47,9 @@ class Unit_ShuffleTest : public SushiBLASTest
             auto t = engine->create_tensor({N});
             fill_tensor(t, src);
 
-            engine->random().set_seed(seed);
-            engine->random().shuffle(t);
-            engine->execute().wait();
+            SushiBLAS::RandomOps(*engine).set_seed(seed);
+            SushiBLAS::RandomOps(*engine).shuffle(t);
+            engine->execute();
 
             std::vector<float> out(N);
             auto& q = TestEnvironment::get_context().get_queue();
@@ -111,10 +111,10 @@ TEST_F(Unit_ShuffleTest, ConsecutiveShufflesOnOneEngineDiffer)
     fill_tensor(a, src);
     fill_tensor(b, src);
 
-    engine->random().set_seed(99);
-    engine->random().shuffle(a);
-    engine->random().shuffle(b);
-    engine->execute().wait();
+    SushiBLAS::RandomOps(*engine).set_seed(99);
+    SushiBLAS::RandomOps(*engine).shuffle(a);
+    SushiBLAS::RandomOps(*engine).shuffle(b);
+    engine->execute();
 
     std::vector<float> ha(N), hb(N);
     auto& q = TestEnvironment::get_context().get_queue();
@@ -134,9 +134,9 @@ TEST_F(Unit_ShuffleTest, PermutesHalfPrecisionToo)
     auto t = engine->create_tensor({kSmall}, SushiBLAS::Core::DataType::HALF);
     fill_tensor(t, src);
 
-    engine->random().set_seed(5);
-    engine->random().shuffle(t);
-    engine->execute().wait();
+    SushiBLAS::RandomOps(*engine).set_seed(5);
+    SushiBLAS::RandomOps(*engine).shuffle(t);
+    engine->execute();
 
     std::vector<sycl::half> out(kSmall);
     auto& q = TestEnvironment::get_context().get_queue();

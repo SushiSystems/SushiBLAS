@@ -71,8 +71,8 @@ TYPED_TEST(Unit_ReductionOpsTyped, Sum)
     auto t = this->template create_initialized_tensor<T>({100}, data);
     auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
 
-    this->engine->reductions().sum(t, res);
-    this->engine->execute().wait();
+    SushiBLAS::ReductionOps(*this->engine).sum(t, res);
+    this->engine->execute();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -86,8 +86,8 @@ TYPED_TEST(Unit_ReductionOpsTyped, Mean)
     auto t = this->template create_initialized_tensor<T>({100}, data);
     auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
 
-    this->engine->reductions().mean(t, res);
-    this->engine->execute().wait();
+    SushiBLAS::ReductionOps(*this->engine).mean(t, res);
+    this->engine->execute();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -102,8 +102,8 @@ TYPED_TEST(Unit_ReductionOpsTyped, Max)
     auto t = this->template create_initialized_tensor<T>({100}, data);
     auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
 
-    this->engine->reductions().max(t, res);
-    this->engine->execute().wait();
+    SushiBLAS::ReductionOps(*this->engine).max(t, res);
+    this->engine->execute();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -118,8 +118,8 @@ TYPED_TEST(Unit_ReductionOpsTyped, Min)
     auto t = this->template create_initialized_tensor<T>({100}, data);
     auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
 
-    this->engine->reductions().min(t, res);
-    this->engine->execute().wait();
+    SushiBLAS::ReductionOps(*this->engine).min(t, res);
+    this->engine->execute();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -136,8 +136,8 @@ TYPED_TEST(Unit_ReductionOpsTyped, ArgMax)
     // The index is INT64 and is compared exactly. See tests/functional/unit/README.md.
     auto res = this->engine->create_tensor({1}, Core::DataType::INT64);
 
-    this->engine->reductions().argmax(t, res);
-    this->engine->execute().wait();
+    SushiBLAS::ReductionOps(*this->engine).argmax(t, res);
+    this->engine->execute();
 
     EXPECT_TENSOR_NEAR(res, {static_cast<float>(expected)}, 0.0);
 }
@@ -154,8 +154,8 @@ TYPED_TEST(Unit_ReductionOpsTyped, ArgMin)
     // INT64 for the same reason as ArgMax above.
     auto res = this->engine->create_tensor({1}, Core::DataType::INT64);
 
-    this->engine->reductions().argmin(t, res);
-    this->engine->execute().wait();
+    SushiBLAS::ReductionOps(*this->engine).argmin(t, res);
+    this->engine->execute();
 
     EXPECT_TENSOR_NEAR(res, {static_cast<float>(expected)}, 0.0);
 }
@@ -169,8 +169,8 @@ TYPED_TEST(Unit_ReductionOpsTyped, Var)
     auto t = this->template create_initialized_tensor<T>({5}, data);
     auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
 
-    this->engine->reductions().var(t, res);
-    this->engine->execute().wait();
+    SushiBLAS::ReductionOps(*this->engine).var(t, res);
+    this->engine->execute();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -184,8 +184,8 @@ TYPED_TEST(Unit_ReductionOpsTyped, Std)
     auto t = this->template create_initialized_tensor<T>({5}, data);
     auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
 
-    this->engine->reductions().std(t, res);
-    this->engine->execute().wait();
+    SushiBLAS::ReductionOps(*this->engine).std(t, res);
+    this->engine->execute();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -199,8 +199,8 @@ TYPED_TEST(Unit_ReductionOpsTyped, Prod)
     auto t = this->template create_initialized_tensor<T>({5}, data);
     auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
 
-    this->engine->reductions().prod(t, res);
-    this->engine->execute().wait();
+    SushiBLAS::ReductionOps(*this->engine).prod(t, res);
+    this->engine->execute();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -214,8 +214,8 @@ TYPED_TEST(Unit_ReductionOpsTyped, LogSumExp)
     auto t = this->template create_initialized_tensor<T>({3}, data);
     auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
 
-    this->engine->reductions().logsumexp(t, res);
-    this->engine->execute().wait();
+    SushiBLAS::ReductionOps(*this->engine).logsumexp(t, res);
+    this->engine->execute();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -229,8 +229,8 @@ TYPED_TEST(Unit_ReductionOpsTyped, Asum)
     auto t = this->template create_initialized_tensor<T>({5}, data);
     auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
 
-    this->engine->reductions().asum(t, res);
-    this->engine->execute().wait();
+    SushiBLAS::ReductionOps(*this->engine).asum(t, res);
+    this->engine->execute();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -244,8 +244,8 @@ TYPED_TEST(Unit_ReductionOpsTyped, Nrm2)
     auto t = this->template create_initialized_tensor<T>({4}, data);
     auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
 
-    this->engine->reductions().nrm2(t, res);
-    this->engine->execute().wait();
+    SushiBLAS::ReductionOps(*this->engine).nrm2(t, res);
+    this->engine->execute();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }

@@ -74,9 +74,10 @@ TEST_F(Unit_DispatchSeamTest, FusesAConsumerFunctorIntoOneBinaryKernel)
     fill_tensor(b, {2.0f, 4.0f, 6.0f, 8.0f});
 
     // mul, add and div in one functor: one task where the public API records three.
-    sb::Dispatch::execute_binary(*engine, a, b, c, "test.fused_binary", "test.fused_binary"_op,
+    sb::Dispatch::execute_binary(
+        engine->get_recorder(), a, b, c, "test.fused_binary", "test.fused_binary"_op,
         [](auto x, auto y) { return (x * y + decltype(x)(1)) / decltype(x)(2); });
-    engine->execute().wait();
+    engine->execute();
 
     verify_tensor(c, {1.5f, 4.5f, 9.5f, 16.5f});
 }
@@ -87,9 +88,10 @@ TEST_F(Unit_DispatchSeamTest, FusesAConsumerFunctorIntoOneUnaryKernel)
     fill_tensor(t, {0.0f, 1.0f, 2.0f, 3.0f});
 
     // A consumer's own softplus-like activation, written against safe_math.
-    sb::Dispatch::execute_unary_inplace(*engine, t, "test.fused_unary", "test.fused_unary"_op,
+    sb::Dispatch::execute_unary_inplace(
+        engine->get_recorder(), t, "test.fused_unary", "test.fused_unary"_op,
         [](auto x) { return sb::Dispatch::safe_log(decltype(x)(1) + sb::Dispatch::safe_exp(x)); });
-    engine->execute().wait();
+    engine->execute();
 
     verify_tensor(t, {0.693147f, 1.313262f, 2.126928f, 3.048587f}, 1e-4);
 }
@@ -104,9 +106,9 @@ TEST_F(Unit_DispatchSeamTest, ConsumerFunctorCanOptIntoComplex)
 
     // (1+i)(i) + (1+i) = 2i and (2-i)(1+i) + (2-i) = 5.
     sb::Dispatch::execute_binary<sb::Dispatch::Domain::REAL_AND_COMPLEX>(
-        *engine, a, b, c, "test.fused_complex", "test.fused_complex"_op,
+        engine->get_recorder(), a, b, c, "test.fused_complex", "test.fused_complex"_op,
         [](auto x, auto y) { return x * y + x; });
-    engine->execute().wait();
+    engine->execute();
 
     auto expected = create_initialized_tensor<cf>({2}, {cf(0.0f, 2.0f), cf(5.0f, 0.0f)});
     SB_ASSERT_TENSOR_NEAR(c, expected, 1e-4, cf);
@@ -121,17 +123,19 @@ TEST_F(Unit_DispatchSeamTest, ConsumerCanDriveTheLogicAndReductionSeamsToo)
     fill_tensor(b, {3.0f, 3.0f, 3.0f, 3.0f});
 
     // "within 2 of b" - a predicate SushiBLAS does not ship.
-    sb::Dispatch::execute_logic_binary(*engine, a, b, mask, "test.near", "test.near"_op,
+    sb::Dispatch::execute_logic_binary(
+        engine->get_recorder(), a, b, mask, "test.near", "test.near"_op,
         [](auto x, auto y)
         {
             auto d = x - y;
             return (d < decltype(x)(0) ? -d : d) <= decltype(x)(2) ? decltype(x)(1) : decltype(x)(0);
         });
-    engine->execute().wait();
+    engine->execute();
     verify_tensor(mask, {1.0f, 1.0f, 1.0f, 0.0f});
 
     auto total = engine->create_tensor({1});
-    sb::Dispatch::execute_reduction(*engine, mask, total, "test.count", "test.count"_op,
+    sb::Dispatch::execute_reduction(
+        engine->get_recorder(), mask, total, "test.count", "test.count"_op,
         [](sycl::queue& q, const auto* pT, auto* pR, int64_t size,
            [[maybe_unused]] auto scratch,
            const std::vector<sycl::event>& deps)
@@ -146,7 +150,7 @@ TEST_F(Unit_DispatchSeamTest, ConsumerCanDriveTheLogicAndReductionSeamsToo)
                     [=](sycl::id<1> idx, auto& reducer) { reducer.combine(pT[idx[0]]); });
             });
         });
-    engine->execute().wait();
+    engine->execute();
     verify_tensor(total, {3.0f});
 }
 
@@ -158,8 +162,9 @@ TEST_F(Unit_DispatchSeamTest, RealOnlyDomainRejectsComplexAtRecordTime)
 
     // The default domain is REAL. See tests/functional/unit/README.md.
     EXPECT_THROW(
-        sb::Dispatch::execute_binary(*engine, a, b, c, "test.real_only", "test.real_only"_op,
-                                     [](auto x, auto y) { return x + y; }),
+        sb::Dispatch::execute_binary(
+            engine->get_recorder(), a, b, c, "test.real_only", "test.real_only"_op,
+            [](auto x, auto y) { return x + y; }),
         std::runtime_error);
 }
 
@@ -198,7 +203,7 @@ TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
     auto th_steps = seeded(th0), m_steps = seeded(m0), v_steps = seeded(v0), ema_steps = seeded(th0);
 
     // g is an operand although the functor only reads it. See tests/functional/unit/README.md.
-    sb::Dispatch::execute_zip_inplace(*engine,
+    sb::Dispatch::execute_zip_inplace(engine->get_recorder(),
         std::array{&th_fused, &g, &m_fused, &v_fused, &ema_fused},
         "test.adamw_fused", "test.adamw_fused"_op,
         [b1, b2, lr, wd, eps, inv_bc1, inv_bc2, ema_decay]
@@ -218,30 +223,30 @@ TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
     auto eps_vec = engine->create_tensor({k_n});
     fill_tensor(eps_vec, std::vector<float>(static_cast<size_t>(k_n), eps));
 
-    engine->blas().scal(static_cast<double>(b1), m_steps);
-    engine->blas().axpy(static_cast<double>(1.0f - b1), g, m_steps);
+    SushiBLAS::BLASOps(*engine).scal(static_cast<double>(b1), m_steps);
+    SushiBLAS::BLASOps(*engine).axpy(static_cast<double>(1.0f - b1), g, m_steps);
 
-    engine->blas().copy(g, scratch_a);
-    engine->elementwise().square(scratch_a);
-    engine->blas().scal(static_cast<double>(b2), v_steps);
-    engine->blas().axpy(static_cast<double>(1.0f - b2), scratch_a, v_steps);
+    SushiBLAS::BLASOps(*engine).copy(g, scratch_a);
+    SushiBLAS::ElementwiseOps(*engine).square(scratch_a);
+    SushiBLAS::BLASOps(*engine).scal(static_cast<double>(b2), v_steps);
+    SushiBLAS::BLASOps(*engine).axpy(static_cast<double>(1.0f - b2), scratch_a, v_steps);
 
-    engine->blas().copy(v_steps, scratch_a);
-    engine->blas().scal(static_cast<double>(inv_bc2), scratch_a);
-    engine->elementwise().sqrt(scratch_a);
-    engine->elementwise().add(scratch_a, eps_vec, scratch_a);
+    SushiBLAS::BLASOps(*engine).copy(v_steps, scratch_a);
+    SushiBLAS::BLASOps(*engine).scal(static_cast<double>(inv_bc2), scratch_a);
+    SushiBLAS::ElementwiseOps(*engine).sqrt(scratch_a);
+    SushiBLAS::ElementwiseOps(*engine).add(scratch_a, eps_vec, scratch_a);
 
-    engine->blas().copy(m_steps, scratch_b);
-    engine->blas().scal(static_cast<double>(inv_bc1), scratch_b);
-    engine->elementwise().div(scratch_b, scratch_a, scratch_b);
+    SushiBLAS::BLASOps(*engine).copy(m_steps, scratch_b);
+    SushiBLAS::BLASOps(*engine).scal(static_cast<double>(inv_bc1), scratch_b);
+    SushiBLAS::ElementwiseOps(*engine).div(scratch_b, scratch_a, scratch_b);
 
-    engine->blas().scal(static_cast<double>(1.0f - lr * wd), th_steps);
-    engine->blas().axpy(static_cast<double>(-lr), scratch_b, th_steps);
+    SushiBLAS::BLASOps(*engine).scal(static_cast<double>(1.0f - lr * wd), th_steps);
+    SushiBLAS::BLASOps(*engine).axpy(static_cast<double>(-lr), scratch_b, th_steps);
 
-    engine->blas().scal(static_cast<double>(ema_decay), ema_steps);
-    engine->blas().axpy(static_cast<double>(1.0f - ema_decay), th_steps, ema_steps);
+    SushiBLAS::BLASOps(*engine).scal(static_cast<double>(ema_decay), ema_steps);
+    SushiBLAS::BLASOps(*engine).axpy(static_cast<double>(1.0f - ema_decay), th_steps, ema_steps);
 
-    engine->execute().wait();
+    engine->execute();
 
     SB_ASSERT_TENSOR_NEAR(m_fused, m_steps, 1e-6, float);
     SB_ASSERT_TENSOR_NEAR(v_fused, v_steps, 1e-6, float);
@@ -268,7 +273,7 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
         fill_tensor(b, seed);
         fill_tensor(c, seed);
 
-        sb::Dispatch::execute_zip_inplace(*engine, std::array{&a, &b, &c},
+        sb::Dispatch::execute_zip_inplace(engine->get_recorder(), std::array{&a, &b, &c},
             "test.zip_determinism", "test.zip_determinism"_op,
             [](auto& x, auto& y, auto& z)
             {
@@ -277,7 +282,7 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
                 y = y - x * T(0.25);
                 z = sb::Dispatch::safe_sqrt(x * x + y * y);
             });
-        engine->execute().wait();
+        engine->execute();
 
         std::vector<float> out(static_cast<size_t>(k_n) * 3);
         auto& q = SushiBLAS::Test::TestEnvironment::get_context().get_queue();
@@ -309,22 +314,30 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
     auto accumulate = [](auto& x, auto& y) { x = x + y; };
 
     // The message names the disagreeing operand; "sizes must match" is no help at N = 5.
-    EXPECT_THROW(sb::Dispatch::execute_zip_inplace(*engine, std::array{&four, &eight},
-                     "test.zip_size", "test.zip_size"_op, accumulate),
-                 std::invalid_argument);
+    EXPECT_THROW(
+        sb::Dispatch::execute_zip_inplace(
+            engine->get_recorder(), std::array{&four, &eight},
+            "test.zip_size", "test.zip_size"_op, accumulate),
+        std::invalid_argument);
 
-    EXPECT_THROW(sb::Dispatch::execute_zip_inplace(*engine, std::array{&four, &wide},
-                     "test.zip_dtype", "test.zip_dtype"_op, accumulate),
-                 std::runtime_error);
+    EXPECT_THROW(
+        sb::Dispatch::execute_zip_inplace(
+            engine->get_recorder(), std::array{&four, &wide},
+            "test.zip_dtype", "test.zip_dtype"_op, accumulate),
+        std::runtime_error);
 
-    EXPECT_THROW(sb::Dispatch::execute_zip_inplace(*engine, std::array{&four, missing},
-                     "test.zip_null", "test.zip_null"_op, accumulate),
-                 std::runtime_error);
+    EXPECT_THROW(
+        sb::Dispatch::execute_zip_inplace(
+            engine->get_recorder(), std::array{&four, missing},
+            "test.zip_null", "test.zip_null"_op, accumulate),
+        std::runtime_error);
 
     // Default domain is REAL, exactly as for execute_unary_inplace/execute_binary.
-    EXPECT_THROW(sb::Dispatch::execute_zip_inplace(*engine, std::array{&cplx, &cplx},
-                     "test.zip_complex", "test.zip_complex"_op, accumulate),
-                 std::runtime_error);
+    EXPECT_THROW(
+        sb::Dispatch::execute_zip_inplace(
+            engine->get_recorder(), std::array{&cplx, &cplx},
+            "test.zip_complex", "test.zip_complex"_op, accumulate),
+        std::runtime_error);
 }
 
 TEST_F(Unit_DispatchSeamTest, RngMetadataSlotsAreInRangeAndRoundTrip)
@@ -366,8 +379,9 @@ TEST_F(Unit_DispatchSeamTest, TooManyTaskParamsThrowsInsteadOfDroppingThem)
     const std::vector<float> too_many(SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS + 1, 1.0f);
 
     EXPECT_THROW(
-        sb::Dispatch::execute_unary_inplace(*engine, t, "test.overflow", "test.overflow"_op,
-                                            [](auto x) { return x; }, too_many),
+        sb::Dispatch::execute_unary_inplace(
+            engine->get_recorder(), t, "test.overflow", "test.overflow"_op,
+            [](auto x) { return x; }, too_many),
         std::runtime_error);
 }
 
@@ -386,8 +400,9 @@ TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
     try
     {
         (void)sb::Internal::execute_typed_task<sb::Dispatch::Domain::REAL>(
-            *engine, meta, {}, {}, t.dtype, "Spatial operation",
-            [](auto, sycl::queue&, const std::vector<sycl::event>&) -> sycl::event
+            engine->get_recorder(), meta, SushiBLAS::OperandSet(), t.dtype, "Spatial operation",
+            [](auto, const sb::Internal::KernelPairDispatcher&, sycl::queue&,
+               const std::vector<sycl::event>&) -> sycl::event
             {
                 return sycl::event();
             });

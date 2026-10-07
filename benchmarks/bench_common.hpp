@@ -98,8 +98,6 @@ namespace SushiBLAS::Bench
                 return "FORCE_SYCL";
             case ExecutionMode::FORCE_REFERENCE:
                 return "FORCE_REFERENCE";
-            case ExecutionMode::VERIFY:
-                return "VERIFY";
         }
         return "UNKNOWN";
     }
@@ -154,11 +152,11 @@ namespace SushiBLAS::Bench
         switch (tensor.dtype)
         {
             case Core::DataType::FLOAT32:
-                engine.io().from_vector(tensor,
+                SushiBLAS::IO(engine).from_vector(tensor,
                                         std::vector<float>(count, static_cast<float>(value)));
                 return;
             case Core::DataType::FLOAT64:
-                engine.io().from_vector(tensor, std::vector<double>(count, value));
+                SushiBLAS::IO(engine).from_vector(tensor, std::vector<double>(count, value));
                 return;
             default:
                 throw std::invalid_argument("benchmark dtype is neither FLOAT32 nor FLOAT64");

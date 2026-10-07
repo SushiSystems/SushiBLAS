@@ -42,8 +42,8 @@ TEST_F(Unit_FmodTest, FloatForward)
     fill_tensor(a, {1.0f, 2.0f, -3.0f, 0.5f});
     fill_tensor(b, {2.0f, 0.5f, 4.0f, -1.5f});
     
-    engine->elementwise().fmod(a, b, c);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).fmod(a, b, c);
+    engine->execute();
     
     verify_tensor(c, {1.00000f, 0.00000f, -3.00000f, 0.50000f});
 }

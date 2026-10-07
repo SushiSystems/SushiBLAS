@@ -42,8 +42,8 @@ TEST_F(Unit_SinTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
-    engine->elementwise().sin(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).sin(t);
+    engine->execute();
     
     verify_tensor(t, {0.84147f, 0.90930f, -0.14112f, 0.47943f});
 }
@@ -80,8 +80,8 @@ TEST_F(Unit_SinTest, ZeroInSingleElement)
     auto t = engine->create_tensor({1});
     fill_tensor(t, {0.0f});
 
-    engine->elementwise().sin(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).sin(t);
+    engine->execute();
 
     // sin(0) is 0.
     verify_tensor(t, std::vector<double>{0.0}, K_FLOAT32_TOLERANCE);
@@ -92,8 +92,8 @@ TEST_F(Unit_SinTest, PositiveInfinity)
     auto t = engine->create_tensor({1});
     fill_tensor(t, {K_INF});
 
-    engine->elementwise().sin(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).sin(t);
+    engine->execute();
 
     verify_tensor(t, {K_NAN});
 }
@@ -103,8 +103,8 @@ TEST_F(Unit_SinTest, ThousandElements)
     auto t = engine->create_tensor({static_cast<int64_t>(K_LARGE_SIZE)});
     fill_tensor(t, std::vector<float>(K_LARGE_SIZE, K_LARGE_INPUT));
 
-    engine->elementwise().sin(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).sin(t);
+    engine->execute();
 
     verify_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
@@ -114,8 +114,8 @@ TEST_F(Unit_SinTest, Float64)
     auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::FLOAT64);
     fill_tensor(t, {-1.0f, 0.0f, 0.5f, 2.0f});
 
-    engine->elementwise().sin(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).sin(t);
+    engine->execute();
 
     verify_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
 }

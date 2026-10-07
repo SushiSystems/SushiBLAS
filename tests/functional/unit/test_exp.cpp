@@ -42,8 +42,8 @@ TEST_F(Unit_ExpTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
-    engine->elementwise().exp(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).exp(t);
+    engine->execute();
     
     verify_tensor(t, {2.71828f, 7.38906f, 0.04979f, 1.64872f});
 }
@@ -77,8 +77,8 @@ TEST_F(Unit_ExpTest, ZeroInSingleElement)
     auto t = engine->create_tensor({1});
     fill_tensor(t, {0.0f});
 
-    engine->elementwise().exp(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).exp(t);
+    engine->execute();
 
     // exp(0) is 1.
     verify_tensor(t, std::vector<double>{1.0}, K_FLOAT32_TOLERANCE);
@@ -89,8 +89,8 @@ TEST_F(Unit_ExpTest, PositiveInfinity)
     auto t = engine->create_tensor({1});
     fill_tensor(t, {K_INF});
 
-    engine->elementwise().exp(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).exp(t);
+    engine->execute();
 
     verify_tensor(t, {K_INF});
 }
@@ -100,8 +100,8 @@ TEST_F(Unit_ExpTest, ThousandElements)
     auto t = engine->create_tensor({static_cast<int64_t>(K_LARGE_SIZE)});
     fill_tensor(t, std::vector<float>(K_LARGE_SIZE, K_LARGE_INPUT));
 
-    engine->elementwise().exp(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).exp(t);
+    engine->execute();
 
     verify_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
@@ -111,8 +111,8 @@ TEST_F(Unit_ExpTest, Float64)
     auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::FLOAT64);
     fill_tensor(t, {-1.0f, 0.0f, 0.5f, 2.0f});
 
-    engine->elementwise().exp(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).exp(t);
+    engine->execute();
 
     verify_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
 }

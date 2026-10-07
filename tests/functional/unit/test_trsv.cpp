@@ -48,9 +48,9 @@ TEST_F(Unit_TRSVTest, SimpleTRSV)
 
     SB_LOG_INFO("Submitting TRSV.");
     // upper=false, transA=false, unit_diag=false
-    engine->blas().trsv(A, b, false, false, false);
+    SushiBLAS::BLASOps(*engine).trsv(A, b, false, false, false);
     
-    engine->execute().wait();
+    engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: b solved to x = [1, 1, 1]
@@ -86,8 +86,8 @@ class Unit_TRSVPoisonTest : public SushiBLASTest
             fill_tensor(A, matrix);
             fill_tensor(b, rhs);
 
-            engine->blas().trsv(A, b, upper, trans_a, false);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).trsv(A, b, upper, trans_a, false);
+            engine->execute();
 
             verify_tensor(b, K_SOLUTION);
         }

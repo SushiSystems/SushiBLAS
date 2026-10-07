@@ -34,6 +34,7 @@
 #include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 #include "../../common/test_utils.hpp"
+#include "../../common/graph_probe.hpp"
 
 namespace SushiBLAS
 {
@@ -113,8 +114,8 @@ namespace SushiBLAS
                     auto b = this->template create_initialized_tensor<Int>({4}, Case::b());
                     auto c = this->engine->create_tensor({4}, get_sushiblas_dtype<Int>());
 
-                    op(this->engine->elementwise(), a, b, c);
-                    this->engine->execute().wait();
+                    op(SushiBLAS::ElementwiseOps(*this->engine), a, b, c);
+                    this->engine->execute();
                     return read_tensor<Int>(c);
                 }
         };
@@ -184,9 +185,9 @@ namespace SushiBLAS
             auto n = this->template create_initialized_tensor<Int>({3}, {5, -3, k_min});
             auto m = this->template create_initialized_tensor<Int>({3}, {5, -3, k_min});
 
-            this->engine->elementwise().neg(n);
-            this->engine->elementwise().abs(m);
-            this->engine->execute().wait();
+            SushiBLAS::ElementwiseOps(*this->engine).neg(n);
+            SushiBLAS::ElementwiseOps(*this->engine).abs(m);
+            this->engine->execute();
 
             EXPECT_EQ((std::vector<Int>{-5, 3, k_min}), read_tensor<Int>(n));
             EXPECT_EQ((std::vector<Int>{5, 3, k_min}), read_tensor<Int>(m));
@@ -200,8 +201,8 @@ namespace SushiBLAS
             using Int = TypeParam;
             auto t = this->template create_initialized_tensor<Int>({3}, {-10, 0, 10});
 
-            this->engine->elementwise().clamp(t, K_CLAMP_LOW, K_CLAMP_HIGH);
-            this->engine->execute().wait();
+            SushiBLAS::ElementwiseOps(*this->engine).clamp(t, K_CLAMP_LOW, K_CLAMP_HIGH);
+            this->engine->execute();
 
             EXPECT_EQ((std::vector<Int>{-2, 0, 7}), read_tensor<Int>(t));
         }
@@ -211,12 +212,15 @@ namespace SushiBLAS
          */
         TYPED_TEST(Unit_IntegerArithmeticTest, ClampRejectsAnInvertedRange)
         {
+            GraphProbe probe;
+
             using Int = TypeParam;
             auto t = this->template create_initialized_tensor<Int>({3}, {-10, 0, 10});
 
-            EXPECT_THROW(this->engine->elementwise().clamp(t, K_CLAMP_HIGH, K_CLAMP_LOW),
-                         std::runtime_error);
-            EXPECT_TRUE(this->engine->get_graph().take_nodes().empty());
+            EXPECT_THROW(
+                SushiBLAS::ElementwiseOps(probe.get_recorder()).clamp(t, K_CLAMP_HIGH, K_CLAMP_LOW),
+                std::runtime_error);
+            EXPECT_TRUE(probe.take_nodes().empty());
         }
 
         /**
@@ -231,12 +235,12 @@ namespace SushiBLAS
             auto c = this->engine->create_tensor({2}, get_sushiblas_dtype<Int>());
 
             Dispatch::execute_binary<Dispatch::Domain::REAL_AND_INTEGRAL>(
-                *this->engine, a, b, c, "test.safe_ew_add", "test.safe_ew_add"_op,
+                this->engine->get_recorder(), a, b, c, "test.safe_ew_add", "test.safe_ew_add"_op,
                 [](auto x, auto y)
                 {
                     return Dispatch::safe_ew_add(x, y);
                 });
-            this->engine->execute().wait();
+            this->engine->execute();
 
             EXPECT_EQ((std::vector<Int>{Case::K_MIN, 12}), read_tensor<Int>(c));
         }
@@ -251,8 +255,8 @@ namespace SushiBLAS
         {
             auto t = create_initialized_tensor<double>({2}, {1.0, 1.5});
 
-            engine->elementwise().clamp(t, K_FINE_LOW, K_FINE_HIGH);
-            engine->execute().wait();
+            SushiBLAS::ElementwiseOps(*engine).clamp(t, K_FINE_LOW, K_FINE_HIGH);
+            engine->execute();
 
             const std::vector<double> got = read_tensor<double>(t);
             EXPECT_DOUBLE_EQ(K_FINE_LOW, got[0]);

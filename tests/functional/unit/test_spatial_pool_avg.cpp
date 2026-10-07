@@ -89,7 +89,7 @@ namespace SushiBLAS
             g.pad_left = 1;
 
             auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
-            engine->spatial().pool_avg(in, out, g);
+            SushiBLAS::SpatialOps(*engine).pool_avg(in, out, g);
             engine->execute();
 
             const float* got = out.data_as<float>();
@@ -115,7 +115,7 @@ namespace SushiBLAS
             g.stride_w = 2;
 
             auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
-            engine->spatial().pool_avg(in, out, g);
+            SushiBLAS::SpatialOps(*engine).pool_avg(in, out, g);
             engine->execute();
 
             const float* got = out.data_as<float>();
@@ -137,7 +137,7 @@ namespace SushiBLAS
                                          12, 16});
             auto dx = engine->create_tensor({1, 4, 4, 1}, Core::DataType::FLOAT32);
 
-            engine->spatial().pool_avg_backward(dy, dx, g);
+            SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
             engine->execute();
 
             // Non-overlapping quadrants, each receiving its window's dy/4.
@@ -162,7 +162,7 @@ namespace SushiBLAS
                                          3, 4});
             auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::FLOAT32);
 
-            engine->spatial().pool_avg_backward(dy, dx, g);
+            SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
             engine->execute();
 
             const float* got = dx.data_as<float>();
@@ -185,7 +185,7 @@ namespace SushiBLAS
             auto dy = uniform(1, 4, 4, 1, 1.0f);
             auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::FLOAT32);
 
-            engine->spatial().pool_avg_backward(dy, dx, g);
+            SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
             engine->execute();
 
             const float* got = dx.data_as<float>();
@@ -195,7 +195,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialPoolAvgTest, TheSyclKernelAgreesWithTheReferenceKernel)
         {
-            // VERIFY is not implemented; the two forced modes are compared here. See tests/functional/unit/README.md.
+            // The two forced modes are compared here. See tests/functional/unit/README.md.
             const int64_t N = 2, H = 7, W = 5, C = 3;
 
             auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
@@ -219,11 +219,11 @@ namespace SushiBLAS
             auto from_device = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
 
             engine->set_mode(ExecutionMode::FORCE_REFERENCE);
-            engine->spatial().pool_avg(in, from_reference, g);
+            SushiBLAS::SpatialOps(*engine).pool_avg(in, from_reference, g);
             engine->execute();
 
             engine->set_mode(ExecutionMode::FORCE_SYCL);
-            engine->spatial().pool_avg(in, from_device, g);
+            SushiBLAS::SpatialOps(*engine).pool_avg(in, from_device, g);
             engine->execute();
 
             const float* expected = from_reference.data_as<float>();

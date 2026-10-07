@@ -41,8 +41,8 @@ TEST_F(Unit_DistributionsTest, LogNormal)
 {
     const int N = 100;
     auto t = engine->create_tensor({N});
-    engine->random().log_normal(t, 0.0, 1.0);
-    engine->execute().wait();
+    SushiBLAS::RandomOps(*engine).log_normal(t, 0.0, 1.0);
+    engine->execute();
     
     // Log-normal distribution produces positive values.
     const float* ptr = t.data_as<float>();
@@ -55,8 +55,8 @@ TEST_F(Unit_DistributionsTest, Exponential)
 {
     const int N = 100;
     auto t = engine->create_tensor({N});
-    engine->random().exponential(t, 1.0);
-    engine->execute().wait();
+    SushiBLAS::RandomOps(*engine).exponential(t, 1.0);
+    engine->execute();
     
     // Exponential distribution produces non-negative values.
     const float* ptr = t.data_as<float>();
@@ -69,8 +69,8 @@ TEST_F(Unit_DistributionsTest, Poisson)
 {
     const int N = 100;
     auto t = engine->create_tensor({N});
-    engine->random().poisson(t, 5.0);
-    engine->execute().wait();
+    SushiBLAS::RandomOps(*engine).poisson(t, 5.0);
+    engine->execute();
     
     // Poisson distribution produces non-negative integer values.
     const float* ptr = t.data_as<float>();
@@ -84,8 +84,8 @@ TEST_F(Unit_DistributionsTest, Bernoulli)
 {
     const int N = 100;
     auto t = engine->create_tensor({N});
-    engine->random().bernoulli(t, 0.5);
-    engine->execute().wait();
+    SushiBLAS::RandomOps(*engine).bernoulli(t, 0.5);
+    engine->execute();
     
     // Bernoulli distribution produces only 0.0 or 1.0.
     const float* ptr = t.data_as<float>();
@@ -98,8 +98,8 @@ TEST_F(Unit_DistributionsTest, DiscreteUniform)
 {
     const int N = 100;
     auto t = engine->create_tensor({N});
-    engine->random().discrete_uniform(t, 0, 10);
-    engine->execute().wait();
+    SushiBLAS::RandomOps(*engine).discrete_uniform(t, 0, 10);
+    engine->execute();
     
     // Discrete uniform produces integer values in [min, max].
     const float* ptr = t.data_as<float>();
@@ -114,9 +114,9 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalStaysInsideItsBounds)
 {
     const int N = 4096;
     auto t = engine->create_tensor({N});
-    engine->random().set_seed(20261005);
-    engine->random().truncated_normal(t, 1.0, 0.5, -1.0, 1.5);
-    engine->execute().wait();
+    SushiBLAS::RandomOps(*engine).set_seed(20261005);
+    SushiBLAS::RandomOps(*engine).truncated_normal(t, 1.0, 0.5, -1.0, 1.5);
+    engine->execute();
 
     // The bounds count standard deviations: 1.0 + 0.5 * [-1.0, 1.5] is [0.5, 1.75], exact in float.
     const float* ptr = t.data_as<float>();
@@ -130,9 +130,9 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalFollowsTheTruncatedLawInTheUpperTa
 {
     const int N = 65536;
     auto t = engine->create_tensor({N});
-    engine->random().set_seed(20261005);
-    engine->random().truncated_normal(t, 0.0, 1.0, 1.0, 3.0);
-    engine->execute().wait();
+    SushiBLAS::RandomOps(*engine).set_seed(20261005);
+    SushiBLAS::RandomOps(*engine).truncated_normal(t, 0.0, 1.0, 1.0, 3.0);
+    engine->execute();
 
     const float* ptr = t.data_as<float>();
     double sum = 0.0;
@@ -149,22 +149,32 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalFollowsTheTruncatedLawInTheUpperTa
 TEST_F(Unit_DistributionsTest, TruncatedNormalRejectsBoundsItCannotHonour)
 {
     auto t = engine->create_tensor({8});
-    EXPECT_THROW(engine->random().truncated_normal(t, 0.0, 1.0, 2.0, -2.0), std::runtime_error);
-    EXPECT_THROW(engine->random().truncated_normal(t, 0.0, 1.0, 1.0, 1.0), std::runtime_error);
-    EXPECT_THROW(engine->random().truncated_normal(t, 0.0, 1.0, 15.0, 20.0), std::runtime_error);
-    EXPECT_THROW(engine->random().truncated_normal(t, 0.0, 1.0, -20.0, -15.0), std::runtime_error);
+    EXPECT_THROW(
+        SushiBLAS::RandomOps(*engine).truncated_normal(t, 0.0, 1.0, 2.0, -2.0),
+        std::runtime_error);
+    EXPECT_THROW(
+        SushiBLAS::RandomOps(*engine).truncated_normal(t, 0.0, 1.0, 1.0, 1.0),
+        std::runtime_error);
+    EXPECT_THROW(
+        SushiBLAS::RandomOps(*engine).truncated_normal(t, 0.0, 1.0, 15.0, 20.0),
+        std::runtime_error);
+    EXPECT_THROW(
+        SushiBLAS::RandomOps(*engine).truncated_normal(t, 0.0, 1.0, -20.0, -15.0),
+        std::runtime_error);
 
     auto z = engine->create_tensor({8}, SushiBLAS::Core::DataType::COMPLEX32);
-    EXPECT_THROW(engine->random().truncated_normal(z, 0.0, 1.0, -2.0, 2.0), std::invalid_argument);
+    EXPECT_THROW(
+        SushiBLAS::RandomOps(*engine).truncated_normal(z, 0.0, 1.0, -2.0, 2.0),
+        std::invalid_argument);
 }
 
 TEST_F(Unit_DistributionsTest, TruncatedNormalDrawsAFarLowerBoundAsTheHalfOpenLaw)
 {
     const int N = 65536;
     auto t = engine->create_tensor({N});
-    engine->random().set_seed(20261007);
-    engine->random().truncated_normal(t, 0.0, 1.0, -1.0e30, 2.0);
-    engine->execute().wait();
+    SushiBLAS::RandomOps(*engine).set_seed(20261007);
+    SushiBLAS::RandomOps(*engine).truncated_normal(t, 0.0, 1.0, -1.0e30, 2.0);
+    engine->execute();
 
     const float* ptr = t.data_as<float>();
     double sum = 0.0;
@@ -182,7 +192,7 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalDrawsAFarLowerBoundAsTheHalfOpenLa
 TEST_F(Unit_DistributionsTest, EveryDistributionRejectsAnInvalidParameterAtRecordTime)
 {
     auto t = engine->create_tensor({4, 4});
-    auto rng = engine->random();
+    SushiBLAS::RandomOps rng(*engine);
     const double nan = std::numeric_limits<double>::quiet_NaN();
     const double inf = std::numeric_limits<double>::infinity();
 
@@ -217,7 +227,7 @@ TEST_F(Unit_DistributionsTest, EveryDistributionRejectsAnInvalidParameterAtRecor
 TEST_F(Unit_DistributionsTest, EveryDistributionRejectsAnUnsupportedDtypeAtRecordTime)
 {
     using SushiBLAS::Core::DataType;
-    auto rng = engine->random();
+    SushiBLAS::RandomOps rng(*engine);
 
     // No execute() follows, so a throw here comes from the recording call itself.
     for (DataType dtype : {DataType::HALF, DataType::COMPLEX32, DataType::COMPLEX64})

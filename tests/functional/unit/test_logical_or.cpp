@@ -42,8 +42,8 @@ TEST_F(Unit_Logical_orTest, FloatForward)
     fill_tensor(a, {1.0f, 0.0f, 3.0f, 0.0f});
     fill_tensor(b, {1.0f, 1.0f, 0.0f, 0.0f});
     
-    engine->logic().logical_or(a, b, c);
-    engine->execute().wait();
+    SushiBLAS::LogicOps(*engine).logical_or(a, b, c);
+    engine->execute();
     
     verify_tensor(c, {1.00000f, 1.00000f, 1.00000f, 0.00000f});
 }

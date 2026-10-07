@@ -46,30 +46,31 @@ int main()
         for (int i = 0; i < 6; ++i)
             values[i] = static_cast<float>(i) * 1.5f;
 
-        engine.io().from_vector(A, values);
+        SushiBLAS::IO(engine).from_vector(A, values);
 
         // 2. Demonstrate to_string()
         std::cout << "Step 2: Testing to_string()...\n";
-        std::string s = engine.io().to_string(A, 2);
+        std::string s = SushiBLAS::IO(engine).to_string(A, 2);
         std::cout << "Tensor A string representation:\n" << s << std::endl;
 
         // 3. Demonstrate save_npy/load_npy
         std::cout << "Step 3: Testing save_npy() and load_npy()...\n";
         std::string npy_path = "io_test.npy";
-        engine.io().save_npy(A, npy_path);
+        SushiBLAS::IO(engine).save_npy(A, npy_path);
         
         auto B = engine.create_tensor({2, 3});
-        engine.io().load_npy(B, npy_path);
+        SushiBLAS::IO(engine).load_npy(B, npy_path);
 
         std::cout << "Loaded Tensor B from " << npy_path << ":\n";
-        engine.io().print(B, 2);
+        SushiBLAS::IO(engine).print(B, 2);
 
         // 4. Test COMPLEX support again with new structure
         std::cout << "\nStep 4: Testing Complex Numbers with to_string()...\n";
         auto C = engine.create_tensor({2}, SushiBLAS::Core::DataType::COMPLEX32);
-        engine.io().from_vector(C, std::vector<std::complex<float>>{{1.0f, 2.0f}, {-0.5f, 0.0f}});
+        SushiBLAS::IO(engine).from_vector(
+            C, std::vector<std::complex<float>>{{1.0f, 2.0f}, {-0.5f, 0.0f}});
 
-        std::cout << "Tensor C:\n" << engine.io().to_string(C) << std::endl;
+        std::cout << "Tensor C:\n" << SushiBLAS::IO(engine).to_string(C) << std::endl;
 
         std::cout << "Example completed successfully.\n";
     }

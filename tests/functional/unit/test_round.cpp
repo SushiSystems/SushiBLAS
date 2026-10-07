@@ -39,8 +39,8 @@ TEST_F(Unit_RoundTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.1f, 2.9f, -3.2f, 0.0f});
     
-    engine->elementwise().round(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).round(t);
+    engine->execute();
     
     verify_tensor(t, {1.00000f, 3.00000f, -3.00000f, 0.00000f});
 }

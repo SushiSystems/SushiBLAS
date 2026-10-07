@@ -46,12 +46,12 @@ int main()
     auto C = engine.create_tensor({K_SIZE, K_SIZE});
 
     const size_t count = static_cast<size_t>(K_SIZE * K_SIZE);
-    engine.io().from_vector(A, std::vector<float>(count, K_A_VALUE));
-    engine.io().from_vector(B, std::vector<float>(count, K_B_VALUE));
+    SushiBLAS::IO(engine).from_vector(A, std::vector<float>(count, K_A_VALUE));
+    SushiBLAS::IO(engine).from_vector(B, std::vector<float>(count, K_B_VALUE));
 
-    engine.blas().gemm(A, B, C);
+    SushiBLAS::BLASOps(engine).gemm(A, B, C);
 
-    const std::vector<float> result = engine.io().to_vector<float>(C);
+    const std::vector<float> result = SushiBLAS::IO(engine).to_vector<float>(C);
 
     // Every element of C is K_SIZE * K_A_VALUE * K_B_VALUE.
     std::cout << "C[0][0] = " << result[0] << " (expected " << K_SIZE * K_A_VALUE * K_B_VALUE

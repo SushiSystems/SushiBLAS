@@ -64,7 +64,7 @@ namespace SushiBLAS
             auto B = engine->create_tensor({4, 2});
             auto C = engine->create_tensor({2, 2});
 
-            EXPECT_THROW(engine->blas().gemm(A, B, C), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
         }
 
         TEST_F(Unit_BlasValidationTest, GemmRejectsMixedLayouts)
@@ -75,7 +75,7 @@ namespace SushiBLAS
             const Tensor B(row_major_B.storage, {2, 2}, Core::DataType::FLOAT32, 0,
                            Core::Layout::COLUMN_MAJOR);
 
-            EXPECT_THROW(engine->blas().gemm(A, B, C), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
         }
 
         TEST_F(Unit_BlasValidationTest, GemmRejectsBatchCountMismatch)
@@ -84,7 +84,7 @@ namespace SushiBLAS
             auto B = engine->create_tensor({2, 2, 2});
             auto C = engine->create_tensor({2, 2, 2});
 
-            EXPECT_THROW(engine->blas().gemm(A, B, C), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
         }
 
         TEST_F(Unit_BlasValidationTest, GemmRejectsTransposedView)
@@ -94,7 +94,7 @@ namespace SushiBLAS
             auto B = engine->create_tensor({2, 2});
             auto C = engine->create_tensor({3, 2});
 
-            EXPECT_THROW(engine->blas().gemm(A, B, C), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
         }
 
         TEST_F(Unit_BlasValidationTest, GemmBroadcastsRankTwoBOverBatchedA)
@@ -103,8 +103,8 @@ namespace SushiBLAS
             auto B = create_initialized_tensor<float>({2, 2}, K_SHARED_B);
             auto C = engine->create_tensor({2, 2, 2});
 
-            engine->blas().gemm(A, B, C);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).gemm(A, B, C);
+            engine->execute();
 
             verify_tensor(C, K_BROADCAST_C, K_TOLERANCE);
         }
@@ -114,7 +114,7 @@ namespace SushiBLAS
             auto A = engine->create_tensor({3, 2});
             auto C = engine->create_tensor({3, 2});
 
-            EXPECT_THROW(engine->blas().syrk(A, C), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syrk(A, C), std::invalid_argument);
         }
 
         TEST_F(Unit_BlasValidationTest, TrsmRejectsNonSquareA)
@@ -122,7 +122,7 @@ namespace SushiBLAS
             auto A = engine->create_tensor({2, 3});
             auto B = engine->create_tensor({2, 2});
 
-            EXPECT_THROW(engine->blas().trsm(A, B), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trsm(A, B), std::invalid_argument);
         }
 
         TEST_F(Unit_BlasValidationTest, DotRejectsResultOfWrongDtype)
@@ -131,7 +131,7 @@ namespace SushiBLAS
             auto y = engine->create_tensor({4});
             auto result = engine->create_tensor({1}, Core::DataType::HALF);
 
-            EXPECT_THROW(engine->blas().dot(x, y, result), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).dot(x, y, result), std::invalid_argument);
         }
 
         TEST_F(Unit_BlasValidationTest, ScalarResultsRejectMoreThanOneElement)
@@ -141,10 +141,10 @@ namespace SushiBLAS
             auto wide = engine->create_tensor({2});
             auto wide_index = engine->create_tensor({2}, Core::DataType::INT64);
 
-            EXPECT_THROW(engine->blas().dot(x, y, wide), std::invalid_argument);
-            EXPECT_THROW(engine->blas().asum(x, wide), std::invalid_argument);
-            EXPECT_THROW(engine->blas().nrm2(x, wide), std::invalid_argument);
-            EXPECT_THROW(engine->blas().iamax(x, wide_index), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).dot(x, y, wide), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).asum(x, wide), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).nrm2(x, wide), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).iamax(x, wide_index), std::invalid_argument);
         }
 
         TEST_F(Unit_BlasValidationTest, GemmRejectsBatchAxesThatDifferWithEqualProduct)
@@ -153,7 +153,7 @@ namespace SushiBLAS
             auto B = engine->create_tensor({2, 2});
             auto C = engine->create_tensor({3, 2, 2, 2});
 
-            EXPECT_THROW(engine->blas().gemm(A, B, C), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
         }
 
         TEST_F(Unit_BlasValidationTest, SyrkAndTrsmRejectBatchAxesThatDiffer)
@@ -161,8 +161,8 @@ namespace SushiBLAS
             auto A = engine->create_tensor({2, 3, 2, 2});
             auto C = engine->create_tensor({6, 2, 2});
 
-            EXPECT_THROW(engine->blas().syrk(A, C), std::invalid_argument);
-            EXPECT_THROW(engine->blas().trsm(A, C), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syrk(A, C), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trsm(A, C), std::invalid_argument);
         }
 
         TEST_F(Unit_BlasValidationTest, GemmBroadcastsOperandHoldingOneMatrix)
@@ -171,8 +171,8 @@ namespace SushiBLAS
             auto B = create_initialized_tensor<float>({1, 2, 2}, K_SHARED_B);
             auto C = engine->create_tensor({2, 2, 2});
 
-            engine->blas().gemm(A, B, C);
-            engine->execute().wait();
+            SushiBLAS::BLASOps(*engine).gemm(A, B, C);
+            engine->execute();
 
             verify_tensor(C, K_BROADCAST_C, K_TOLERANCE);
         }
@@ -183,19 +183,19 @@ namespace SushiBLAS
             auto x = engine->create_tensor({3});
             auto y = engine->create_tensor({3});
 
-            EXPECT_THROW(engine->blas().gemv(A, x, y), std::invalid_argument);
-            EXPECT_THROW(engine->blas().ger(x, y, A), std::invalid_argument);
-            EXPECT_THROW(engine->blas().symv(A, x, y), std::invalid_argument);
-            EXPECT_THROW(engine->blas().syr(x, A), std::invalid_argument);
-            EXPECT_THROW(engine->blas().syr2(x, y, A), std::invalid_argument);
-            EXPECT_THROW(engine->blas().trmv(A, x), std::invalid_argument);
-            EXPECT_THROW(engine->blas().trsv(A, x), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemv(A, x, y), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).ger(x, y, A), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).symv(A, x, y), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syr(x, A), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syr2(x, y, A), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trmv(A, x), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trsv(A, x), std::invalid_argument);
         }
 
         TEST_F(Unit_BlasValidationTest, TensorCreationRejectsNegativeDimension)
         {
-            EXPECT_THROW(engine->create_tensor({-1, 4}), std::runtime_error);
-            EXPECT_THROW(engine->create_tensor({4, -1}, Core::DataType::FLOAT64),
+            EXPECT_THROW((void)engine->create_tensor({-1, 4}), std::runtime_error);
+            EXPECT_THROW((void)engine->create_tensor({4, -1}, Core::DataType::FLOAT64),
                          std::runtime_error);
         }
 
@@ -203,8 +203,8 @@ namespace SushiBLAS
         {
             constexpr int64_t K_HUGE = int64_t{1} << 40;
 
-            EXPECT_THROW(engine->create_tensor({K_HUGE, K_HUGE}), std::runtime_error);
-            EXPECT_THROW(engine->create_tensor({int64_t{1} << 62}, Core::DataType::FLOAT64),
+            EXPECT_THROW((void)engine->create_tensor({K_HUGE, K_HUGE}), std::runtime_error);
+            EXPECT_THROW((void)engine->create_tensor({int64_t{1} << 62}, Core::DataType::FLOAT64),
                          std::runtime_error);
         }
 
@@ -216,7 +216,7 @@ namespace SushiBLAS
             Tensor x(parent.storage, dims, strides, Core::DataType::FLOAT32, 0,
                      Core::Layout::ROW_MAJOR);
 
-            EXPECT_THROW(engine->blas().scal(2.0, x), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(*engine).scal(2.0, x), std::invalid_argument);
         }
     } // namespace Test
 } // namespace SushiBLAS

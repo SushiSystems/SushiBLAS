@@ -77,7 +77,7 @@ namespace SushiBLAS
             auto cols = filled_cols(N * out_h * out_w, 3 * 3 * C, 1.0f);
             auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
 
-            engine->spatial().col2im(cols, dx, g, out_h, out_w);
+            SushiBLAS::SpatialOps(*engine).col2im(cols, dx, g, out_h, out_w);
             engine->execute();
 
             const float* got = dx.data_as<float>();
@@ -116,7 +116,7 @@ namespace SushiBLAS
             auto cols = filled_cols(out_h * out_w, 2 * 2 * C, 1.0f);
             auto dx = engine->create_tensor({1, H, W, C}, Core::DataType::FLOAT32);
 
-            engine->spatial().col2im(cols, dx, g, out_h, out_w);
+            SushiBLAS::SpatialOps(*engine).col2im(cols, dx, g, out_h, out_w);
             engine->execute();
 
             // Non-overlapping 2x2 tiles: every pixel is read exactly once.
@@ -146,7 +146,7 @@ namespace SushiBLAS
             for (int64_t i = 0; i < dx.num_elements; ++i)
                 seed[i] = sentinel;
 
-            engine->spatial().col2im(cols, dx, g, out_h, out_w);
+            SushiBLAS::SpatialOps(*engine).col2im(cols, dx, g, out_h, out_w);
             engine->execute();
 
             const float* got = dx.data_as<float>();
@@ -161,7 +161,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialCol2ImTest, TheSyclKernelAgreesWithTheReferenceKernel)
         {
-            // VERIFY is not implemented; the two forced modes are compared here. See tests/functional/unit/README.md.
+            // The two forced modes are compared here. See tests/functional/unit/README.md.
             Spatial::ConvGeometry g;
             g.kernel_h = 3;
             g.kernel_w = 2;
@@ -185,11 +185,11 @@ namespace SushiBLAS
             auto from_device = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
 
             engine->set_mode(ExecutionMode::FORCE_REFERENCE);
-            engine->spatial().col2im(cols, from_reference, g, out_h, out_w);
+            SushiBLAS::SpatialOps(*engine).col2im(cols, from_reference, g, out_h, out_w);
             engine->execute();
 
             engine->set_mode(ExecutionMode::FORCE_SYCL);
-            engine->spatial().col2im(cols, from_device, g, out_h, out_w);
+            SushiBLAS::SpatialOps(*engine).col2im(cols, from_device, g, out_h, out_w);
             engine->execute();
 
             const float* expected = from_reference.data_as<float>();

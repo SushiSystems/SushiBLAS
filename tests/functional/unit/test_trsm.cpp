@@ -51,9 +51,9 @@ TEST_F(Unit_TRSMTest, SimpleTRSM)
 
     SB_LOG_INFO("Submitting standard TRSM.");
     // Left=true, Upper=false, TransA=false, UnitDiag=false, alpha=1.0
-    engine->blas().trsm(A, B, true, false, false, false, 1.0f);
+    SushiBLAS::BLASOps(*engine).trsm(A, B, true, false, false, false, 1.0f);
     
-    engine->execute().wait();
+    engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // A * X = B solves to X = [2 3; 1 2], which overwrites B. See tests/functional/unit/README.md.
@@ -76,9 +76,9 @@ TEST_F(Unit_TRSMTest, SimpleTRSMColumnMajor)
 
     SB_LOG_INFO("Submitting Column-Major TRSM.");
     // Left=true, Upper=true, TransA=false, UnitDiag=false, alpha=1.0
-    engine->blas().trsm(A, B, true, true, false, false, 1.0f);
+    SushiBLAS::BLASOps(*engine).trsm(A, B, true, true, false, false, 1.0f);
     
-    engine->execute().wait();
+    engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // X is [1 1.25; 2 3.5], stored column-major. See tests/functional/unit/README.md.

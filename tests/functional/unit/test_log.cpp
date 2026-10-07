@@ -42,8 +42,8 @@ TEST_F(Unit_LogTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, 3.0f, 4.0f});
     
-    engine->elementwise().log(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).log(t);
+    engine->execute();
     
     verify_tensor(t, {0.00000f, 0.693147f, 1.098612f, 1.386294f});
 }
@@ -80,8 +80,8 @@ TEST_F(Unit_LogTest, ZeroInSingleElement)
     auto t = engine->create_tensor({1});
     fill_tensor(t, {0.0f});
 
-    engine->elementwise().log(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).log(t);
+    engine->execute();
 
     // log(0) is -inf.
     verify_tensor(t, std::vector<double>{-K_INF}, K_FLOAT32_TOLERANCE);
@@ -92,8 +92,8 @@ TEST_F(Unit_LogTest, NegativeInputIsNaN)
     auto t = engine->create_tensor({1});
     fill_tensor(t, {-1.0f});
 
-    engine->elementwise().log(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).log(t);
+    engine->execute();
 
     // log(-1) is outside the real domain.
     verify_tensor(t, {K_NAN});
@@ -104,8 +104,8 @@ TEST_F(Unit_LogTest, PositiveInfinity)
     auto t = engine->create_tensor({1});
     fill_tensor(t, {K_INF});
 
-    engine->elementwise().log(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).log(t);
+    engine->execute();
 
     verify_tensor(t, {K_INF});
 }
@@ -115,8 +115,8 @@ TEST_F(Unit_LogTest, ThousandElements)
     auto t = engine->create_tensor({static_cast<int64_t>(K_LARGE_SIZE)});
     fill_tensor(t, std::vector<float>(K_LARGE_SIZE, K_LARGE_INPUT));
 
-    engine->elementwise().log(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).log(t);
+    engine->execute();
 
     verify_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
@@ -126,8 +126,8 @@ TEST_F(Unit_LogTest, Float64)
     auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::FLOAT64);
     fill_tensor(t, {0.5f, 1.0f, 4.0f, 10.0f});
 
-    engine->elementwise().log(t);
-    engine->execute().wait();
+    SushiBLAS::ElementwiseOps(*engine).log(t);
+    engine->execute();
 
     verify_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
 }

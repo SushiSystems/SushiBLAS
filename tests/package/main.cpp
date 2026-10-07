@@ -77,7 +77,7 @@ int main()
     auto x = engine.create_tensor({N});
     auto y = engine.create_tensor({N});
 
-    engine.blas().axpy(2.0f, x, y);
+    SushiBLAS::BLASOps(engine).axpy(2.0f, x, y);
     engine.execute();
     ctx.wait_all();
 
@@ -96,7 +96,8 @@ int main()
     q.memcpy(a.data(), host_a.data(), N * sizeof(float)).wait();
     q.memcpy(b.data(), host_b.data(), N * sizeof(float)).wait();
 
-    sb::Dispatch::execute_binary(engine, a, b, c, "consumer.fused", "consumer.fused"_op,
+    sb::Dispatch::execute_binary(
+        engine.get_recorder(), a, b, c, "consumer.fused", "consumer.fused"_op,
         [](auto p, auto r) { return (p * r + decltype(p)(1)) / decltype(p)(2); });
     engine.execute();
     ctx.wait_all();
@@ -118,7 +119,7 @@ int main()
     }
 
     // One consumer-authored functor advances three tensors in a single task.
-    sb::Dispatch::execute_zip_inplace(engine, std::array{&a, &b, &c},
+    sb::Dispatch::execute_zip_inplace(engine.get_recorder(), std::array{&a, &b, &c},
         "consumer.zip", "consumer.zip"_op,
         [](auto& p, auto& r, auto& s)
         {
@@ -162,7 +163,8 @@ int main()
     q.memcpy(row_bias.data(), host_row_bias.data(), host_row_bias.size() * sizeof(float)).wait();
     q.memcpy(col_bias.data(), host_col_bias.data(), host_col_bias.size() * sizeof(float)).wait();
 
-    sb::Dispatch::execute_gemm(engine, gemm_a, gemm_b, gemm_c, false, false, 1.0, 0.0,
+    sb::Dispatch::execute_gemm(
+        engine.get_recorder(), gemm_a, gemm_b, gemm_c, false, false, 1.0, 0.0,
         "consumer.linear_relu", "consumer.linear_relu"_op,
         ConsumerBiasRelu{row_bias.data_as<float>(), col_bias.data_as<float>()});
     engine.execute();
