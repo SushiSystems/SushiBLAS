@@ -196,6 +196,7 @@ add_executable(sushiblas_tests
     # --- Operand validation and execution modes ---
     functional/unit/test_operand_check.cpp
     functional/unit/test_execution_mode.cpp
+    functional/unit/test_unsupported_execution.cpp
     functional/unit/test_blas_validation.cpp
     functional/unit/test_math_validation.cpp
     functional/unit/test_spatial_random_io_validation.cpp

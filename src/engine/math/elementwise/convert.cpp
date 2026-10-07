@@ -73,7 +73,7 @@ namespace SushiBLAS
          * @brief Records the task for one concrete (source, destination) type pair.
          * @param operands Must declare the source as read and the destination as written.
          * @return The handle of the recorded task.
-         * @throws std::invalid_argument under FORCE_REFERENCE when an operand is device-only USM.
+         * @throws UnsupportedExecution under FORCE_REFERENCE when an operand is device-only USM.
          * @see src/README.md
          */
         template<typename Src, typename Dst>
@@ -112,7 +112,7 @@ namespace SushiBLAS
          * @brief Selects the destination type at runtime for a fixed source type.
          * @return The handle of the recorded task.
          * @throws std::runtime_error if @p dst_dtype is outside `Domain::REAL`.
-         * @throws std::invalid_argument under FORCE_REFERENCE when an operand is device-only USM.
+         * @throws UnsupportedExecution under FORCE_REFERENCE when an operand is device-only USM.
          * @see src/README.md
          */
         template<typename Src>

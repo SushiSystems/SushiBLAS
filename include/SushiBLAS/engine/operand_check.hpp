@@ -32,6 +32,7 @@
 #include <stdexcept>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiRuntime/core/span.hpp>
@@ -55,6 +56,21 @@ namespace SushiBLAS
                 const std::string msg = Core::Detail::format("{}: operand '{}' {}", op, operand, rule);
                 SB_LOG_ERROR("Invalid operand: {}", msg);
                 throw std::invalid_argument(msg);
+            }
+
+            /**
+             * @brief Logs and throws UnsupportedExecution naming the operation and the refusal.
+             * @param fmt Format of what the mode or the device refuses; args fill its placeholders.
+             * @see include/SushiBLAS/engine/README.md
+             */
+            template<typename... Args>
+            [[noreturn]] inline void throw_execution_error(const char* op, const char* fmt,
+                                                           const Args&... args)
+            {
+                const std::string refusal = Core::Detail::format(fmt, args...);
+                const std::string msg = Core::Detail::format("{}: {}", op, refusal);
+                SB_LOG_ERROR("Unsupported execution: {}", msg);
+                throw UnsupportedExecution(msg);
             }
 
             /**
@@ -258,7 +274,7 @@ namespace SushiBLAS
 
         /**
          * @brief Throws unless the device a tensor lives on can compute in the tensor's dtype.
-         * @throws std::invalid_argument for FLOAT64 or COMPLEX64 storage on a device without the
+         * @throws UnsupportedExecution for FLOAT64 or COMPLEX64 storage on a device without the
          *         fp64 aspect, and for HALF storage on a device without the fp16 aspect.
          * @see include/SushiBLAS/engine/README.md
          */
@@ -272,13 +288,15 @@ namespace SushiBLAS
 
             const Device::Profile& profile = Device::profile_for(t.get_device());
             if (needs_fp64 && !profile.supports_fp64)
-                Detail::throw_operand_error(op, operand,
-                                            "has dtype {} but lives on a device without the fp64 aspect",
-                                            Core::to_string(t.dtype));
+                Detail::throw_execution_error(op,
+                                              "operand '{}' has dtype {} but lives on a device "
+                                              "without the fp64 aspect",
+                                              operand, Core::to_string(t.dtype));
             if (needs_fp16 && !profile.supports_fp16)
-                Detail::throw_operand_error(op, operand,
-                                            "has dtype {} but lives on a device without the fp16 aspect",
-                                            Core::to_string(t.dtype));
+                Detail::throw_execution_error(op,
+                                              "operand '{}' has dtype {} but lives on a device "
+                                              "without the fp16 aspect",
+                                              operand, Core::to_string(t.dtype));
         }
     } // namespace Dispatch
 } // namespace SushiBLAS

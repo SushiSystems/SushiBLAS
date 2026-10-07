@@ -21,13 +21,14 @@
 
 /**
  * @file test_blas_types.cpp
- * @brief Tests the BLAS flag enumerations: their numbers, their size and their queries.
+ * @brief Tests the numbers and the size of DataType and of the BLAS flags, and the flag queries.
  * @author Mustafa Garip
  */
 
 #include <cstdint>
 #include <string>
 #include <gtest/gtest.h>
+#include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 
 namespace SushiBLAS
@@ -141,6 +142,32 @@ namespace SushiBLAS
             EXPECT_EQ(std::string(Core::to_string(Core::Uplo{})), "UNKNOWN");
             EXPECT_EQ(std::string(Core::to_string(Core::Diag{})), "UNKNOWN");
             EXPECT_EQ(std::string(Core::to_string(Core::Side{})), "UNKNOWN");
+        }
+
+        TEST(Unit_DataType, EveryEnumeratorKeepsItsFileFormatNumber)
+        {
+            static_assert(static_cast<int>(Core::DataType::HALF) == 0, "HALF is 0.");
+            static_assert(static_cast<int>(Core::DataType::FLOAT32) == 1, "FLOAT32 is 1.");
+            static_assert(static_cast<int>(Core::DataType::FLOAT64) == 2, "FLOAT64 is 2.");
+            static_assert(static_cast<int>(Core::DataType::COMPLEX32) == 3, "COMPLEX32 is 3.");
+            static_assert(static_cast<int>(Core::DataType::COMPLEX64) == 4, "COMPLEX64 is 4.");
+            static_assert(static_cast<int>(Core::DataType::INT32) == 5, "INT32 is 5.");
+            static_assert(static_cast<int>(Core::DataType::INT64) == 6, "INT64 is 6.");
+
+            EXPECT_EQ(static_cast<int>(Core::DataType::HALF), 0);
+            EXPECT_EQ(static_cast<int>(Core::DataType::FLOAT32), 1);
+            EXPECT_EQ(static_cast<int>(Core::DataType::FLOAT64), 2);
+            EXPECT_EQ(static_cast<int>(Core::DataType::COMPLEX32), 3);
+            EXPECT_EQ(static_cast<int>(Core::DataType::COMPLEX64), 4);
+            EXPECT_EQ(static_cast<int>(Core::DataType::INT32), 5);
+            EXPECT_EQ(static_cast<int>(Core::DataType::INT64), 6);
+        }
+
+        TEST(Unit_DataType, IsOneByte)
+        {
+            static_assert(sizeof(Core::DataType) == 1, "DataType is one byte.");
+
+            EXPECT_EQ(sizeof(Core::DataType), 1u);
         }
     } // namespace Test
 } // namespace SushiBLAS

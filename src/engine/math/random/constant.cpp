@@ -47,7 +47,7 @@ namespace SushiBLAS
         /**
          * @brief Records the fill of size elements of T with value, on the device or on the host.
          * @return The handle of the recorded task.
-         * @throws std::invalid_argument under FORCE_REFERENCE when the tensor is device-only USM.
+         * @throws UnsupportedExecution under FORCE_REFERENCE when the tensor is device-only USM.
          */
         template<typename T>
         TaskHandle record_fill(TaskRecorder& recorder, const SushiRuntime::Graph::TaskMetadata& meta,

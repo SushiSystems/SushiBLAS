@@ -28,17 +28,15 @@
 #pragma once
 
 #include <atomic>
-#include <string>
 #include <vector>
 #include <cstdint>
 #include <utility>
-#include <stdexcept>
 #include <type_traits>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiRuntime/graph/task_graph.hpp>
@@ -134,7 +132,7 @@ namespace SushiBLAS
 
             /**
              * @brief Throws as record_pair() would, for a caller that must refuse before a side effect.
-             * @throws std::invalid_argument under FORCE_REFERENCE when a declared tensor is
+             * @throws UnsupportedExecution under FORCE_REFERENCE when a declared tensor is
              *         device-only USM.
              */
             void require_host_reachable(const OperandSet& operands, const char* family,
@@ -143,12 +141,11 @@ namespace SushiBLAS
                 if (mode_ != ExecutionMode::FORCE_REFERENCE || !operands.has_device_only_operand())
                     return;
 
-                const std::string message = std::string(family) + " '" + name +
-                                            "' cannot run under FORCE_REFERENCE: an operand is "
-                                            "device-only USM, which the host reference kernel "
-                                            "cannot dereference.";
-                SB_LOG_ERROR("Invalid operand: {}", message);
-                throw std::invalid_argument(message);
+                Dispatch::Detail::throw_execution_error(
+                    name,
+                    "{} cannot run under FORCE_REFERENCE: an operand is device-only USM, which "
+                    "the host reference kernel cannot dereference",
+                    family);
             }
 
             /**
@@ -156,7 +153,7 @@ namespace SushiBLAS
              * @param body Callable `(const Internal::KernelPairDispatcher&, sycl::queue&,
              *        const std::vector<sycl::event>&) -> sycl::event`, copyable, callable more
              *        than once, and ordering its work behind the events it is given.
-             * @throws std::invalid_argument under FORCE_REFERENCE when a declared tensor is
+             * @throws UnsupportedExecution under FORCE_REFERENCE when a declared tensor is
              *         device-only USM; no task is recorded.
              */
             template<typename Body>
