@@ -232,7 +232,7 @@ class ProjectService:
         root = self._find_root()
         cfg = self._load_config()
         env = self._build_env.load(cfg, _build_dir(root))
-        (root / "docs").mkdir(exist_ok=True)
+        (_build_dir(root) / "docs" / "api-site").mkdir(parents=True, exist_ok=True)
         return self._driver.doxygen(cfg, root / "Doxyfile", root, env)
 
     def _remove_tree(self, tree: Path) -> bool:

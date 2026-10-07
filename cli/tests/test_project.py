@@ -53,10 +53,11 @@ class _Console:
 
 
 class _Driver:
-    """Stands in for the CMake driver: reports a tree to replace and fails to configure."""
+    """Stands in for the driver: asks for a configure, fails it, and lets Doxygen succeed."""
 
     def __init__(self) -> None:
         self.configured: list[list[str]] = []
+        self.documented: list[tuple[Path, Path]] = []
 
     def cmake(self, cfg) -> str:
         """Returns the executable name the configure line starts with."""
@@ -70,6 +71,11 @@ class _Driver:
         """Records the command line and fails, so the build stops before it compiles."""
         self.configured.append(list(args))
         return K_CONFIGURE_FAILED
+
+    def doxygen(self, cfg, doxyfile: Path, cwd: Path, env=None) -> int:
+        """Records the Doxyfile and the working directory and succeeds."""
+        self.documented.append((doxyfile, cwd))
+        return 0
 
 
 class _Index:
@@ -327,6 +333,15 @@ def test_package_suite_refuses_ctest_options(parts):
     with pytest.raises(SuiteOptionError) as raised:
         service.test(Suite.PACKAGE, filter="Gemm.*")
     assert raised.value.exit_code == K_EXIT_USAGE
+
+
+def test_docs_creates_the_site_folder_under_the_build_tree(parts, checkout):
+    """docs makes build/docs/api-site and hands the driver the root Doxyfile."""
+    console, driver, service = parts
+    assert service.docs() == 0
+    assert (checkout / "build" / "docs" / "api-site").is_dir()
+    assert not (checkout / "docs").exists()
+    assert driver.documented == [(checkout / "Doxyfile", checkout)]
 
 
 def test_an_interrupted_child_ends_in_exit_code_130(tmp_path, monkeypatch):
