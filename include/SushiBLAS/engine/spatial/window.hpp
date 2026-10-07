@@ -21,7 +21,7 @@
 
 /**
  * @file window.hpp
- * @brief Declares the builders of a Spatial::WindowSpan and a Spatial::ColumnSpan from tensors.
+ * @brief Declares the builders of the Spatial window, column and tap spans from tensors.
  * @author Mustafa Garip
  */
 
@@ -205,6 +205,25 @@ namespace SushiBLAS
             Dispatch::require_extent(cols.shape[1], span.patch_elements(), "columns", name, "cols");
 
             return ColumnSpan{cols.strides[0], cols.strides[1]};
+        }
+
+        /**
+         * @brief Describes a per-channel tap tensor's addressing and checks its extents.
+         * @param operand The tensor's name in the caller's signature, for the message.
+         * @throws std::invalid_argument when taps is not rank 3 or not `kernel_h` by `kernel_w` by
+         *         `span.channels`.
+         * @see include/SushiBLAS/engine/spatial/README.md
+         */
+        [[nodiscard]] inline TapSpan tap_span_for(const Tensor& taps, const WindowSpan& span,
+                                                  const char* name, const char* operand)
+        {
+            Dispatch::require_rank(taps, 3, name, operand);
+            Dispatch::require_extent(taps.shape[0], span.geometry.kernel_h, "rows", name, operand);
+            Dispatch::require_extent(taps.shape[1], span.geometry.kernel_w, "columns", name,
+                                     operand);
+            Dispatch::require_extent(taps.shape[2], span.channels, "channels", name, operand);
+
+            return TapSpan{taps.strides[0], taps.strides[1], taps.strides[2]};
         }
 
     } // namespace Spatial

@@ -28,6 +28,7 @@
 #pragma once
 
 #include <cstdint>
+#include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/spatial_geometry.hpp>
 
 namespace SushiBLAS
@@ -44,7 +45,7 @@ namespace SushiBLAS
             void pool_avg(const Spatial::WindowSpan& span, const T* in, T* out)
             {
                 const Spatial::ConvGeometry& g = span.geometry;
-                const T area = static_cast<T>(g.kernel_h * g.kernel_w);
+                const Accumulator<T> area = static_cast<Accumulator<T>>(g.kernel_h * g.kernel_w);
 
                 for (int64_t n = 0; n < span.batch; ++n)
                 {
@@ -54,7 +55,7 @@ namespace SushiBLAS
                         {
                             for (int64_t c = 0; c < span.channels; ++c)
                             {
-                                T total = T(0);
+                                Accumulator<T> total = Accumulator<T>(0);
 
                                 for (int64_t r = 0; r < g.kernel_h; ++r)
                                 {
@@ -66,16 +67,17 @@ namespace SushiBLAS
                                         const int64_t w_in = w_o * g.stride_w - g.pad_left + s * g.dilation_w;
                                         if (w_in < 0 || w_in >= span.in_w) continue;
 
-                                        total += in[n * span.in_batch_stride
-                                                  + h_in * span.in_row_stride
-                                                  + w_in * span.in_col_stride
-                                                  + c * span.in_channel_stride];
+                                        total += Accumulator<T>(
+                                            in[n * span.in_batch_stride
+                                               + h_in * span.in_row_stride
+                                               + w_in * span.in_col_stride
+                                               + c * span.in_channel_stride]);
                                     }
                                 }
 
                                 out[n * span.out_batch_stride + h_o * span.out_row_stride
                                     + w_o * span.out_col_stride + c * span.out_channel_stride] =
-                                    total / area;
+                                    static_cast<T>(total / area);
                             }
                         }
                     }
@@ -91,7 +93,7 @@ namespace SushiBLAS
             void pool_avg_backward(const Spatial::WindowSpan& span, const T* dy, T* dx)
             {
                 const Spatial::ConvGeometry& g = span.geometry;
-                const T area = static_cast<T>(g.kernel_h * g.kernel_w);
+                const Accumulator<T> area = static_cast<Accumulator<T>>(g.kernel_h * g.kernel_w);
 
                 for (int64_t n = 0; n < span.batch; ++n)
                 {
@@ -101,7 +103,7 @@ namespace SushiBLAS
                         {
                             for (int64_t c = 0; c < span.channels; ++c)
                             {
-                                T total = T(0);
+                                Accumulator<T> total = Accumulator<T>(0);
 
                                 for (int64_t r = 0; r < g.kernel_h; ++r)
                                 {
@@ -117,15 +119,17 @@ namespace SushiBLAS
                                         const int64_t w_o = w_num / g.stride_w;
                                         if (w_o >= span.out_w) continue;
 
-                                        total += dy[n * span.out_batch_stride
-                                                  + h_o * span.out_row_stride
-                                                  + w_o * span.out_col_stride
-                                                  + c * span.out_channel_stride] / area;
+                                        total += Accumulator<T>(
+                                            dy[n * span.out_batch_stride
+                                               + h_o * span.out_row_stride
+                                               + w_o * span.out_col_stride
+                                               + c * span.out_channel_stride]) / area;
                                     }
                                 }
 
                                 dx[n * span.in_batch_stride + h * span.in_row_stride
-                                   + w * span.in_col_stride + c * span.in_channel_stride] = total;
+                                   + w * span.in_col_stride + c * span.in_channel_stride] =
+                                    static_cast<T>(total);
                             }
                         }
                     }

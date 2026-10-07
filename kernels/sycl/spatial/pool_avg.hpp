@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/spatial_geometry.hpp>
 
 namespace SushiBLAS
@@ -52,7 +53,7 @@ namespace SushiBLAS
                 if (total <= 0) return sycl::event();
 
                 const Spatial::ConvGeometry g = span.geometry;
-                const T area = static_cast<T>(g.kernel_h * g.kernel_w);
+                const Accumulator<T> area = static_cast<Accumulator<T>>(g.kernel_h * g.kernel_w);
                 const int64_t channels = span.channels;
                 const int64_t out_h = span.out_h;
                 const int64_t out_w = span.out_w;
@@ -88,7 +89,7 @@ namespace SushiBLAS
                             const int64_t h_o = nh % out_h;
                             const int64_t n = nh / out_h;
 
-                            T total_value = T(0);
+                            Accumulator<T> total_value = Accumulator<T>(0);
 
                             for (int64_t r = 0; r < g.kernel_h; ++r)
                             {
@@ -100,13 +101,15 @@ namespace SushiBLAS
                                     const int64_t w_in = w_o * g.stride_w - g.pad_left + s * g.dilation_w;
                                     if (w_in < 0 || w_in >= in_w) continue;
 
-                                    total_value += in[n * in_batch_stride + h_in * in_row_stride
-                                                    + w_in * in_col_stride + c * in_channel_stride];
+                                    total_value += Accumulator<T>(
+                                        in[n * in_batch_stride + h_in * in_row_stride
+                                           + w_in * in_col_stride + c * in_channel_stride]);
                                 }
                             }
 
                             out[n * out_batch_stride + h_o * out_row_stride
-                                + w_o * out_col_stride + c * out_channel_stride] = total_value / area;
+                                + w_o * out_col_stride + c * out_channel_stride] =
+                                static_cast<T>(total_value / area);
                         }
                     });
                 });
@@ -124,7 +127,7 @@ namespace SushiBLAS
                 if (total <= 0) return sycl::event();
 
                 const Spatial::ConvGeometry g = span.geometry;
-                const T area = static_cast<T>(g.kernel_h * g.kernel_w);
+                const Accumulator<T> area = static_cast<Accumulator<T>>(g.kernel_h * g.kernel_w);
                 const int64_t channels = span.channels;
                 const int64_t out_h = span.out_h;
                 const int64_t out_w = span.out_w;
@@ -160,7 +163,7 @@ namespace SushiBLAS
                             const int64_t h = nh % in_h;
                             const int64_t n = nh / in_h;
 
-                            T total_value = T(0);
+                            Accumulator<T> total_value = Accumulator<T>(0);
 
                             for (int64_t r = 0; r < g.kernel_h; ++r)
                             {
@@ -176,14 +179,16 @@ namespace SushiBLAS
                                     const int64_t w_o = w_num / g.stride_w;
                                     if (w_o >= out_w) continue;
 
-                                    total_value += dy[n * out_batch_stride + h_o * out_row_stride
-                                                    + w_o * out_col_stride
-                                                    + c * out_channel_stride] / area;
+                                    total_value += Accumulator<T>(
+                                        dy[n * out_batch_stride + h_o * out_row_stride
+                                           + w_o * out_col_stride
+                                           + c * out_channel_stride]) / area;
                                 }
                             }
 
                             dx[n * in_batch_stride + h * in_row_stride
-                               + w * in_col_stride + c * in_channel_stride] = total_value;
+                               + w * in_col_stride + c * in_channel_stride] =
+                                static_cast<T>(total_value);
                         }
                     });
                 });

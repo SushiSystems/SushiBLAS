@@ -328,5 +328,31 @@ namespace SushiBLAS
             EXPECT_THROW(t.transpose(0, 2), std::runtime_error);
         }
 
+        TEST_F(Unit_OperandCheckTest, RequireDeviceDtypeAcceptsHalfWhereTheDeviceOffersIt)
+        {
+            Tensor detached(SushiRuntime::sushi_ptr<Storage>(), {4}, Core::DataType::HALF);
+            EXPECT_NO_THROW(Dispatch::require_device_dtype(detached, "op", "x"));
+
+            // Two FLOAT32 elements are the 8 bytes four HALF elements need.
+            Tensor half(make_storage(2), {4}, Core::DataType::HALF);
+            const auto check = [&] { Dispatch::require_device_dtype(half, "op", "x"); };
+            if (Device::profile_for(half.get_device()).supports_fp16)
+            {
+                EXPECT_NO_THROW(check());
+            }
+            else
+            {
+                EXPECT_THROW(check(), std::invalid_argument);
+                EXPECT_NE(message_of(check).find("fp16"), std::string::npos);
+            }
+        }
+
+        TEST_F(Unit_OperandCheckTest, TheProfileReportsTheFp16AspectOfItsDevice)
+        {
+            const sycl::queue& q = TestEnvironment::get_context().get_queue();
+            EXPECT_EQ(Device::profile_for(q).supports_fp16,
+                      q.get_device().has(sycl::aspect::fp16));
+        }
+
     } // namespace Test
 } // namespace SushiBLAS

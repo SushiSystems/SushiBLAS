@@ -161,5 +161,19 @@ namespace SushiBLAS
             int64_t element_stride = 1;
         };
 
+        /**
+         * @brief Holds how a per-channel tap tensor `[kernel_h, kernel_w, channels]` is addressed.
+         * @see include/SushiBLAS/support/README.md
+         */
+        struct TapSpan
+        {
+            /** @brief Elements between vertically adjacent taps. */
+            int64_t row_stride = 0;
+            /** @brief Elements between horizontally adjacent taps. */
+            int64_t col_stride = 0;
+            /** @brief Elements between adjacent channels of one tap. */
+            int64_t channel_stride = 1;
+        };
+
     } // namespace Spatial
 } // namespace SushiBLAS
