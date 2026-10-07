@@ -18,11 +18,9 @@ differential tests agreed.
 ### Comparing two kernels outside VERIFY mode
 
 The `TheSyclKernelAgreesWithTheReferenceKernel` tests fill two buffers under
-`ExecutionMode::FORCE_SYCL` and `ExecutionMode::FORCE_REFERENCE` and compare them. They do not
-run under `ExecutionMode::VERIFY`. VERIFY submits the device kernel and then runs the reference
-kernel over the same output buffer, so the reference answer is what survives and a disagreement
-leaves no trace (see `Internal::dispatch_with_mode`). Whatever the enum's comment says, VERIFY
-is not an assertion.
+`ExecutionMode::FORCE_SYCL` and `ExecutionMode::FORCE_REFERENCE` and compare them. That is how
+the library checks kernel agreement: `ExecutionMode::VERIFY` is not implemented, and
+`Engine::set_mode` throws `std::logic_error` when asked for it.
 
 ### Comparing floats by bit pattern
 
@@ -171,7 +169,8 @@ only in the axis it was broadcast along, and a swapped stride pair fails one of 
 
 `TheSameEpilogueAppliesOnTheReferencePath`: the reference kernel is this operation's
 specification and invokes the epilogue on the host, so an addressing arm that only works in the
-SYCL instantiation would make VERIFY mode declare every fused GEMM wrong. The row orientation
+SYCL instantiation would make every FORCE_SYCL against FORCE_REFERENCE comparison of a fused
+GEMM disagree. The row orientation
 is the one pinned here, since nothing else in the library exercises that arm.
 
 `AZeroBiasIsTheIdentityEpilogue` checks that the fusion hook costs nothing when it does
@@ -443,9 +442,9 @@ jointly.
 and the ReLU clamps the three negatives to zero.
 
 `ExecuteGemmAppliesTheSameEpilogueOnTheReferencePath`: the reference kernel is this operation's
-specification, so it has to apply the epilogue too. Otherwise VERIFY mode would declare every
-fused GEMM wrong, and FORCE_REFERENCE would quietly compute a different function from
-FORCE_SYCL.
+specification, so it has to apply the epilogue too. Otherwise FORCE_REFERENCE would quietly
+compute a different function from FORCE_SYCL, and every comparison of the two modes on a fused
+GEMM would disagree.
 
 `ExecuteGemmWithTheIdentityEpilogueIsPlainGemm` asserts what `Level3::gemm` now is: the unfused
 entry point and the seam with the identity must agree element for element, or the delegation in
@@ -759,7 +758,7 @@ all-ones case cannot tell a wrong set of the right size from the right one.
 
 ## test_spatial_geometry.cpp
 
-The file is device-free by construction: `geometry.hpp` includes `<cstdint>` and nothing else,
+The file is device-free by construction: `spatial_geometry.hpp` includes `<cstdint>` and nothing else,
 so this file links no SYCL and needs no Engine. That is the property the header exists to have.
 SushiAI's host-lane shape inference shares this arithmetic and must not inherit the device
 stack to get it.
