@@ -127,7 +127,7 @@ namespace SushiBLAS
                     }
                 }
 
-                /** @brief The message of the `std::runtime_error` @p fn throws, or "" if it does not. */
+                /** @brief The message of the `std::exception` @p fn throws, or "" if it does not. */
                 template<typename Fn>
                 std::string message_of(Fn&& fn)
                 {
@@ -135,7 +135,7 @@ namespace SushiBLAS
                     {
                         fn();
                     }
-                    catch (const std::runtime_error& e)
+                    catch (const std::exception& e)
                     {
                         return std::string(e.what());
                     }
@@ -354,6 +354,29 @@ namespace SushiBLAS
             EXPECT_TRUE(engine->get_graph().take_nodes().empty());
         }
 
+        /**
+         * @brief Tests that converting between row- and column-major rank-2 tensors throws.
+         */
+        TEST_F(Unit_ConvertTest, DisagreeingLayoutsThrow)
+        {
+            constexpr int64_t kRows = 2;
+            constexpr int64_t kCols = 3;
+            constexpr size_t kElements = static_cast<size_t>(kRows * kCols);
+
+            auto f32 = SushiRuntime::make_sushi<Storage>(TestEnvironment::get_context(),
+                                                         kElements * sizeof(float),
+                                                         SushiRuntime::API::Residency::Shared);
+            auto f16 = SushiRuntime::make_sushi<Storage>(TestEnvironment::get_context(),
+                                                         kElements * sizeof(sycl::half),
+                                                         SushiRuntime::API::Residency::Shared);
+
+            Tensor row_major(f32, {kRows, kCols}, Core::DataType::FLOAT32, 0, Core::Layout::ROW_MAJOR);
+            Tensor col_major(f16, {kRows, kCols}, Core::DataType::HALF, 0, Core::Layout::COLUMN_MAJOR);
+
+            EXPECT_THROW(engine->elementwise().convert(row_major, col_major), std::invalid_argument);
+            EXPECT_TRUE(engine->get_graph().take_nodes().empty());
+        }
+
         TEST_F(Unit_ConvertTest, DisagreeingShapesThrowNamingWhatDisagreed)
         {
             auto src = engine->create_tensor({3, 4}, Core::DataType::FLOAT32);
@@ -379,7 +402,7 @@ namespace SushiBLAS
 
             ASSERT_FALSE(inner.is_contiguous());
             const std::string msg = message_of([&]{ engine->elementwise().convert(inner, dst); });
-            EXPECT_NE(std::string::npos, msg.find("contiguous")) << msg;
+            EXPECT_NE(std::string::npos, msg.find("strided")) << msg;
         }
 
         /**
@@ -390,9 +413,9 @@ namespace SushiBLAS
         {
             constexpr int64_t kN = 8;
             auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context().get_allocator(),
+                TestEnvironment::get_context(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::Memory::Strategies::Shared::instance());
+                SushiRuntime::API::Residency::Shared);
 
             // Two FLOAT32 views four elements apart over eight elements share the middle four.
             Tensor a(storage, {kN}, Core::DataType::FLOAT32, 0);
@@ -410,9 +433,9 @@ namespace SushiBLAS
         {
             constexpr int64_t kN = 4;
             auto arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context().get_allocator(),
+                TestEnvironment::get_context(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::Memory::Strategies::Shared::instance());
+                SushiRuntime::API::Residency::Shared);
 
             Tensor seed(arena, {kN}, Core::DataType::FLOAT32, 0);
             Tensor src(arena, {kN}, Core::DataType::FLOAT32, kN);
@@ -435,9 +458,9 @@ namespace SushiBLAS
         {
             constexpr int64_t kN = 4;
             auto arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context().get_allocator(),
+                TestEnvironment::get_context(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::Memory::Strategies::Shared::instance());
+                SushiRuntime::API::Residency::Shared);
 
             auto src = engine->create_tensor({kN}, Core::DataType::FLOAT32);
             Tensor dst(arena, {kN}, Core::DataType::FLOAT32, kN);
@@ -465,13 +488,13 @@ namespace SushiBLAS
             constexpr int64_t kN = 8;
 
             auto f32_arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context().get_allocator(),
+                TestEnvironment::get_context(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::Memory::Strategies::Shared::instance());
+                SushiRuntime::API::Residency::Shared);
             auto f16_arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context().get_allocator(),
+                TestEnvironment::get_context(),
                 static_cast<size_t>(2 * kN) * sizeof(sycl::half),
-                SushiRuntime::Memory::Strategies::Shared::instance());
+                SushiRuntime::API::Residency::Shared);
 
             Tensor src_a(f32_arena, {kN}, Core::DataType::FLOAT32, 0);
             Tensor src_b(f32_arena, {kN}, Core::DataType::FLOAT32, kN);
@@ -500,13 +523,13 @@ namespace SushiBLAS
             constexpr int64_t kN = 4;
 
             auto f32_arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context().get_allocator(),
+                TestEnvironment::get_context(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::Memory::Strategies::Shared::instance());
+                SushiRuntime::API::Residency::Shared);
             auto f16_arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context().get_allocator(),
+                TestEnvironment::get_context(),
                 static_cast<size_t>(2 * kN) * sizeof(sycl::half),
-                SushiRuntime::Memory::Strategies::Shared::instance());
+                SushiRuntime::API::Residency::Shared);
 
             Tensor head(f32_arena, {kN}, Core::DataType::FLOAT32, 0);
             Tensor tail(f32_arena, {kN}, Core::DataType::FLOAT32, kN);

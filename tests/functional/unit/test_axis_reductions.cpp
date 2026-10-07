@@ -32,8 +32,8 @@
 #include <cstddef>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/engine/reduce_axis.hpp>
-#include <SushiBLAS/engine/device_policy.hpp>
+#include <SushiBLAS/support/reduce_axis.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 #include "../../common/test_utils.hpp"
 
@@ -229,9 +229,9 @@ namespace SushiBLAS
             constexpr int64_t kElements = 12;
 
             auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context().get_allocator(),
+                TestEnvironment::get_context(),
                 static_cast<size_t>(2 * kElements) * sizeof(float),
-                SushiRuntime::Memory::Strategies::Shared::instance());
+                SushiRuntime::API::Residency::Shared);
 
             Tensor head(storage, {3, 4}, Core::DataType::FLOAT32, 0);
             Tensor tail(storage, {3, 4}, Core::DataType::FLOAT32, kElements);
@@ -255,9 +255,9 @@ namespace SushiBLAS
             constexpr int64_t kElements = 12;
 
             auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context().get_allocator(),
+                TestEnvironment::get_context(),
                 static_cast<size_t>(2 * kElements) * sizeof(float),
-                SushiRuntime::Memory::Strategies::Shared::instance());
+                SushiRuntime::API::Residency::Shared);
 
             Tensor source(storage, {3, 4}, Core::DataType::FLOAT32, 0);
             Tensor packed(storage, {3, 4}, Core::DataType::FLOAT32, kElements);

@@ -31,8 +31,8 @@
 #include <cstddef>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/engine/reduce_1d.hpp>
-#include <SushiBLAS/engine/device_policy.hpp>
+#include <SushiBLAS/support/reduce_1d.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
 #include "../../common/test_utils.hpp"
 
 namespace SushiBLAS
