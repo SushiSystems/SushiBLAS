@@ -31,12 +31,13 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
 
+namespace sb = SushiBLAS;
 using namespace SushiBLAS::Test;
 
 class Integration_DependencyStressTest : public SushiBLASTest {};
 
 /**
- * @brief Tests that one written tensor read by 5000 independent tasks executes.
+ * @brief Tests that 5000 readers of one written tensor all see the written value.
  * @see tests/functional/integration/README.md
  */
 TEST_F(Integration_DependencyStressTest, ManyReadersOneWriter) 
@@ -81,12 +82,15 @@ TEST_F(Integration_DependencyStressTest, ManyReadersOneWriter)
     std::chrono::duration<double, std::milli> duration = end - start;
     SB_LOG_INFO("ManyReadersOneWriter took: {} ms", duration.count());
     
-    EXPECT_GT(duration.count(), 0.0);
+    // writer = 32 * 2 * 2 = 128 everywhere; every reader = 32 * 128 * 2 = 8192.
+    const std::vector<float> K_EXPECTED_READER(N * N, 8192.0f);
+    for (int i = 0; i < num_readers; ++i)
+        verify_tensor(reader_outputs[i], K_EXPECTED_READER, 0.0);
     SB_LOG_INFO("ManyReadersOneWriter finished test body.");
 }
 
 /**
- * @brief Tests that 3000 independent GEMMs on distinct tensors execute.
+ * @brief Tests that 3000 independent GEMMs on distinct tensors each produce their own result.
  * @see tests/functional/integration/README.md
  */
 TEST_F(Integration_DependencyStressTest, ShardCollisionStress) 
@@ -96,6 +100,8 @@ TEST_F(Integration_DependencyStressTest, ShardCollisionStress)
     
     const int num_ops = 3000;
     const int N = 8;
+    const float K_B_VALUE = 0.5f;
+    const auto a_value_of = [](int i) { return static_cast<float>(i % 251 + 1); };
     
     std::vector<sb::Tensor> As, Bs, Cs;
     for (int i = 0; i < num_ops; ++i) 
@@ -103,7 +109,8 @@ TEST_F(Integration_DependencyStressTest, ShardCollisionStress)
         As.push_back(engine->create_tensor({N, N}));
         Bs.push_back(engine->create_tensor({N, N}));
         Cs.push_back(engine->create_tensor({N, N}));
-        // Skipping fill_tensor for performance, we just want to stress the tracker
+        fill_tensor(As[i], std::vector<float>(N * N, a_value_of(i)));
+        fill_tensor(Bs[i], std::vector<float>(N * N, K_B_VALUE));
     }
     
     SB_LOG_INFO("Enqueueing {} completely independent GEMM operations...", num_ops);
@@ -120,6 +127,8 @@ TEST_F(Integration_DependencyStressTest, ShardCollisionStress)
     std::chrono::duration<double, std::milli> duration = end - start;
     SB_LOG_INFO("ShardCollisionStress took: {} ms", duration.count());
     
-    EXPECT_GT(duration.count(), 0.0);
+    // Every element of C_i is N * a_i * K_B_VALUE = 4 * a_i, exact in float.
+    for (int i = 0; i < num_ops; ++i)
+        verify_tensor(Cs[i], std::vector<float>(N * N, N * a_value_of(i) * K_B_VALUE), 0.0);
     SB_LOG_INFO("ShardCollisionStress finished test body.");
 }

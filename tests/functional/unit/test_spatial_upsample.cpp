@@ -209,7 +209,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialUpsampleTest, TheSyclKernelAgreesWithTheReferenceKernel)
         {
-            // VERIFY mode would not compare the two kernels. See tests/functional/unit/README.md.
+            // VERIFY is not implemented; the two forced modes are compared here. See tests/functional/unit/README.md.
             const int64_t N = 2, H = 5, W = 3, C = 3;
             const int64_t scale_h = 3, scale_w = 2;
             const int64_t out_h = H * scale_h, out_w = W * scale_w;

@@ -172,7 +172,7 @@ namespace SushiBLAS
                 GTEST_SKIP() << "Device USM is host-readable on this device; "
                                 "the test proves nothing here.";
 
-            const auto& device = SushiRuntime::Memory::Strategies::Device::instance();
+            const auto device = SushiRuntime::API::Residency::Device;
             const std::vector<float> values{1.0f, 2.0f, 3.0f, 4.0f};
 
             const std::string path = temp_path("device.bin");

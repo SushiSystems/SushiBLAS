@@ -229,7 +229,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialChannelsTest, TheSyclKernelAgreesWithTheReferenceKernel)
         {
-            // VERIFY mode would not compare the two kernels. See tests/functional/unit/README.md.
+            // VERIFY is not implemented; the two forced modes are compared here. See tests/functional/unit/README.md.
             const int64_t N = 2, H = 3, W = 4, C = 3, WIDE = 7, OFFSET = 2;
 
             auto src = patterned(N, H, W, C, 5);

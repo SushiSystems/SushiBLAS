@@ -26,7 +26,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <SushiBLAS/engine/spatial/geometry.hpp>
+#include <SushiBLAS/support/spatial_geometry.hpp>
 
 namespace SushiBLAS
 {
