@@ -263,9 +263,9 @@ namespace SushiBLAS
 
             // source and packed are disjoint views of one allocation; packed is not at offset zero.
             auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context().get_allocator(),
+                TestEnvironment::get_context(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::Memory::Strategies::Shared::instance());
+                SushiRuntime::API::Residency::Shared);
 
             Tensor source(storage, {kN}, Core::DataType::FLOAT32, 0);
             Tensor packed(storage, {kN}, Core::DataType::FLOAT32, kN);
@@ -391,7 +391,7 @@ namespace SushiBLAS
             const std::vector<std::complex<float>> data = {{3.0f, 4.0f}};
 
             auto x = create_initialized_tensor<std::complex<float>>({1}, data);
-            auto result = engine->create_tensor({1}, Core::DataType::COMPLEX32);
+            auto result = engine->create_tensor({1}, Core::DataType::FLOAT32);
 
             engine->blas().nrm2(x, result);
             engine->execute().wait();

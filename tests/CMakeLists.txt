@@ -154,6 +154,35 @@ add_executable(sushiblas_tests
     functional/unit/test_not_equal.cpp
     functional/unit/test_where.cpp
 
+    # --- Operand validation and execution modes ---
+    functional/unit/test_operand_check.cpp
+    functional/unit/test_execution_mode.cpp
+    functional/unit/test_blas_validation.cpp
+    functional/unit/test_math_validation.cpp
+    functional/unit/test_spatial_random_io_validation.cpp
+
+    # --- Reference kernels and SYCL parity ---
+    functional/unit/test_level1_reference.cpp
+    functional/unit/test_level2_reference.cpp
+    functional/unit/test_trsm_reference.cpp
+    functional/unit/test_syrk_trsm_parity.cpp
+    functional/unit/test_level1_parallel_reductions.cpp
+    functional/unit/test_level2_sycl_parity.cpp
+
+    # --- Empty tensors, integer arithmetic, host transfer, runtime shapes ---
+    functional/unit/test_empty_tensors.cpp
+    functional/unit/test_integer_arithmetic.cpp
+    functional/unit/test_host_transfer.cpp
+    functional/unit/test_runtime_shapes.cpp
+    functional/unit/test_random_large_lambda.cpp
+    functional/unit/test_sum_edge_cases.cpp
+    functional/unit/test_max_min_nan.cpp
+    functional/unit/test_complex_nonlinear.cpp
+    functional/unit/test_blas_half_accumulation.cpp
+    functional/unit/test_reference_mode_guard.cpp
+    functional/unit/test_tensor_const_access.cpp
+    functional/unit/test_rng_stream.cpp
+
     # --- Integration ---
     functional/integration/test_framework_sim.cpp
     functional/integration/test_dependency_stress.cpp

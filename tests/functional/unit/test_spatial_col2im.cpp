@@ -161,7 +161,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialCol2ImTest, TheSyclKernelAgreesWithTheReferenceKernel)
         {
-            // VERIFY mode would not compare the two kernels. See tests/functional/unit/README.md.
+            // VERIFY is not implemented; the two forced modes are compared here. See tests/functional/unit/README.md.
             Spatial::ConvGeometry g;
             g.kernel_h = 3;
             g.kernel_w = 2;

@@ -32,12 +32,13 @@
 #include "../../common/test_utils.hpp"
 #include <iostream>
 
+namespace sb = SushiBLAS;
 using namespace SushiBLAS::Test;
 
 class Integration_FrameworkSimTest : public SushiBLASTest {};
 
 /**
- * @brief Tests a chain of ten GEMMs, each followed by ReLU except the last.
+ * @brief Tests a chain of ten GEMMs, each followed by ReLU except the last, against a host-computed result.
  * @see tests/functional/integration/README.md
  */
 TEST_F(Integration_FrameworkSimTest, DeepForwardPass) 
@@ -51,6 +52,12 @@ TEST_F(Integration_FrameworkSimTest, DeepForwardPass)
     fill_tensor(X, std::vector<float>(batch_size * features, 1.0f));
     SB_LOG_INFO("Sim: X tensor created with shape {}x{}", batch_size, features);
     
+    // Even columns of W hold +K_WEIGHT and odd columns -K_WEIGHT, so ReLU zeroes the odd ones.
+    const float K_WEIGHT = 0.01f;
+    std::vector<float> alternating_weights(features * features);
+    for (int i = 0; i < features * features; ++i)
+        alternating_weights[i] = ((i % features) % 2 == 0) ? K_WEIGHT : -K_WEIGHT;
+
     std::vector<sb::Tensor> weights;
     std::vector<sb::Tensor> activations;
     
@@ -60,8 +67,7 @@ TEST_F(Integration_FrameworkSimTest, DeepForwardPass)
     {
         auto W = engine->create_tensor({features, features});
         
-        // Just fill with small values to prevent explosion
-        fill_tensor(W, std::vector<float>(features * features, 0.01f));
+        fill_tensor(W, alternating_weights);
         weights.push_back(W);
         
         auto H = engine->create_tensor({batch_size, features});
@@ -95,13 +101,21 @@ TEST_F(Integration_FrameworkSimTest, DeepForwardPass)
     
     std::cout << "[Framework Sim] Deep Forward Pass (10 Layers " << batch_size << "x" << features << ") Took: " << duration.count() << " ms\n";
     
-    // Verify sizes
-    EXPECT_EQ(activations.back().shape[0], batch_size);
-    EXPECT_EQ(activations.back().shape[1], features);
+    // Layer 0 sums all features; later layers see only the even half that survived ReLU.
+    double magnitude = static_cast<double>(features) * static_cast<double>(K_WEIGHT);
+    for (int i = 1; i < num_layers; ++i)
+        magnitude *= static_cast<double>(features / 2) * static_cast<double>(K_WEIGHT);
+
+    // The last layer has no ReLU, so its odd columns stay negative.
+    std::vector<float> expected(batch_size * features);
+    for (int i = 0; i < batch_size * features; ++i)
+        expected[i] = static_cast<float>(((i % features) % 2 == 0) ? magnitude : -magnitude);
+
+    verify_tensor(activations.back(), expected, magnitude * 1e-3);
 }
 
 /**
- * @brief Tests 24 independent GEMM and ReLU pairs submitted to one graph.
+ * @brief Tests 24 independent GEMM and ReLU pairs submitted to one graph against their exact results.
  * @see tests/functional/integration/README.md
  */
 TEST_F(Integration_FrameworkSimTest, ParallelBatchedInference) 
@@ -111,6 +125,10 @@ TEST_F(Integration_FrameworkSimTest, ParallelBatchedInference)
     const int m = 256;
     const int n = 512;
     const int k = 256;
+
+    // Model i has X = i + 1 and W = +2 for even i, -2 for odd i, so ReLU zeroes the odd models.
+    const auto input_of = [](int i) { return static_cast<float>(i + 1); };
+    const auto weight_of = [](int i) { return (i % 2 == 0) ? 2.0f : -2.0f; };
     
     std::vector<sb::Tensor> inputs;
     std::vector<sb::Tensor> weights;
@@ -119,11 +137,11 @@ TEST_F(Integration_FrameworkSimTest, ParallelBatchedInference)
     for (int i = 0; i < num_models; ++i) 
     {
         auto X = engine->create_tensor({m, k});
-        fill_tensor(X, std::vector<float>(m * k, 1.0f));
+        fill_tensor(X, std::vector<float>(m * k, input_of(i)));
         inputs.push_back(X);
         
         auto W = engine->create_tensor({k, n});
-        fill_tensor(W, std::vector<float>(k * n, 2.0f));
+        fill_tensor(W, std::vector<float>(k * n, weight_of(i)));
         weights.push_back(W);
         
         auto Y = engine->create_tensor({m, n});
@@ -149,9 +167,11 @@ TEST_F(Integration_FrameworkSimTest, ParallelBatchedInference)
     
     std::cout << "[Framework Sim] Parallel Inference (" << num_models << " models) Took: " << duration.count() << " ms\n";
     
-    for (int i = 0; i < num_models; ++i) 
+    // Every element of Y_i is relu(k * input_of(i) * weight_of(i)), exact in float.
+    for (int i = 0; i < num_models; ++i)
     {
-        EXPECT_EQ(outputs[i].shape[0], m);
-        EXPECT_EQ(outputs[i].shape[1], n);
+        const float pre_activation = static_cast<float>(k) * input_of(i) * weight_of(i);
+        const float expected = pre_activation > 0.0f ? pre_activation : 0.0f;
+        verify_tensor(outputs[i], std::vector<float>(m * n, expected), 0.0);
     }
 }

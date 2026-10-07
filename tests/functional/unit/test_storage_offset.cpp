@@ -61,9 +61,9 @@ namespace SushiBLAS
 
                     const size_t bpe = Core::bytes_per_element(dtype);
                     auto storage = SushiRuntime::make_sushi<Storage>(
-                        TestEnvironment::get_context().get_allocator(),
+                        TestEnvironment::get_context(),
                         static_cast<size_t>(kPad + n + kPad) * bpe,
-                        SushiRuntime::Memory::Strategies::Shared::instance());
+                        SushiRuntime::API::Residency::Shared);
 
                     // Poisons the view too; each test writes its inputs first.
                     auto& q = TestEnvironment::get_context().get_queue();
@@ -334,9 +334,9 @@ namespace SushiBLAS
         {
             // Disjoint views of one arena must not alias. See tests/functional/unit/README.md.
             auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context().get_allocator(),
+                TestEnvironment::get_context(),
                 32 * sizeof(float),
-                SushiRuntime::Memory::Strategies::Shared::instance());
+                SushiRuntime::API::Residency::Shared);
 
             Tensor first(storage, {8}, Core::DataType::FLOAT32, 0);
             Tensor second(storage, {8}, Core::DataType::FLOAT32, 8);

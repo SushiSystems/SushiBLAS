@@ -188,7 +188,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialIm2ColTest, TheSyclKernelAgreesWithTheReferenceKernel)
         {
-            // VERIFY mode would not compare the two kernels. See tests/functional/unit/README.md.
+            // VERIFY is not implemented; the two forced modes are compared here. See tests/functional/unit/README.md.
             auto in = ramp(2, 7, 5, 3);
 
             Spatial::ConvGeometry g;
