@@ -64,16 +64,34 @@ arena-packed fp32/fp16 pair this op exists to serve.
 
 - `src`: The tensor to read. Must be contiguous and have storage.
 - `dst`: The tensor to overwrite, in its own dtype. Must be contiguous, have storage, have the same
-  shape as `src`, and not overlap it: each work-item reads one element and writes another of a
+  shape and, at rank 2 or more, the same layout as `src`, and not overlap it: each work-item reads one element and writes another of a
   different width, so a partial overlap is a race no launch shape can fix.
 
 Returns: An empty sycl::event; the work is deferred until `Engine::execute()`.
 
-Throws `std::runtime_error` naming both dtypes if either falls outside `Domain::REAL`; naming both
-shapes if they disagree; naming the offending operand if it is storage-less, non-contiguous, or
-overlaps the other.
+Throws `std::invalid_argument`, naming the offending operand, if it is storage-less or
+non-contiguous or if the two shapes or layouts disagree. Throws `std::runtime_error` naming both dtypes if
+either falls outside `Domain::REAL`, and if the operands overlap.
 
 ## `elementwise/dispatch.hpp`
+
+### Empty operands
+
+An operand with zero elements is legal. Every executor in this header, in `nonlinear/dispatch.hpp`
+and in `logic/dispatch.hpp` runs its shape, layout, dtype and domain checks, then returns a default
+`sycl::event` without recording a task when the output holds no elements. A tensor with zero
+elements needs no storage, and the executor never calls `data()` on it. `ElementwiseOps::convert`
+follows the same rule.
+
+### Integer operands
+
+`add`, `sub`, `mul`, `neg` and `abs` accept every dtype (`Domain::ALL`); `min`, `max` and `clamp`
+accept the real and integer dtypes (`Domain::REAL_AND_INTEGRAL`); on a floating dtype `min` and
+`max` return NaN when either operand is NaN, as the reductions do. Division, `fmod`, `remainder`,
+`pow` and the transcendental ops refuse the integer dtypes. Integer arithmetic goes through
+`elementwise/wrapping_math.hpp`: each functor converts to the unsigned type of the same width,
+operates there and converts back, so an overflow wraps modulo 2^32 or 2^64 instead of being
+undefined behaviour. `abs` of the most negative integer returns that integer.
 
 ### `execute_unary_inplace`
 
@@ -146,7 +164,7 @@ against each other.
   Domain::REAL_AND_COMPLEX only when `op_func` is well-formed for `std::complex` (see
   safe_math.hpp).
 - `tensors`: The tensors to advance together, in the order `op_func` expects them. None may be null;
-  all must agree on element count and dtype.
+  all must share one shape, layout and dtype.
 - `op_func`: Callable `(auto&...) -> void` taking exactly N lvalue references, invoked once per
   element index on device.
 
@@ -161,26 +179,39 @@ handed to `op_func`, and written back, so a write through one operand is not vis
 operand that happens to name the same address. Disjoint views of one arena are fine; two views of
 the same bytes are not.
 
-Throws `std::runtime_error` if any tensor is null, if the tensors disagree on element count or dtype
-(the message names which one disagreed), if the dtype falls outside `Dom`, or if `params` exceeds
+Throws `std::invalid_argument` if a tensor is storage-less or non-contiguous, or if its shape or
+layout differs from operand 0's (the message names which one). Throws `std::runtime_error` if any
+tensor is null, if the dtypes disagree, if the dtype falls outside `Dom`, or if `params` exceeds
 the metadata's inline capacity.
 
 `execute_zip_inplace` declares every operand as both a read and a write: the functor may touch any
 of them, and nothing at this layer can tell which ones it actually did.
 
+## `elementwise/scalar.hpp`
+
+### `ElementScalar`
+
+A scalar parameter of an elementwise or non-linear op (`pow`'s exponent, `clamp`'s bounds, the
+`leaky_relu` and `elu` alpha) is a `double` in the public signature. `ElementScalar` narrows it on
+the host, once, to `sycl::half`, `float`, `double`, `int32_t` and `int64_t`, and the kernel reads
+the member for its element type through `as<T>()`. A HALF or FLOAT32 kernel therefore does no
+double arithmetic. The HALF member is the `double` rounded to binary32, then to binary16. Narrowing to an integer type saturates to the type's range, truncates toward
+zero and maps NaN to 0. The task metadata records the `double` as given.
+
 ## `nonlinear/dispatch.hpp`
 
 ### `execute_nonlinear_forward`
 
-The generic seam behind every `NonLinearOps` forward entry point. Unlike the elementwise family this
-instantiates all five dtypes unconditionally, because every activation in this library is expressed
-through the complex-tolerant `safe_*` helpers and is therefore well-formed for complex element types
-too.
+The generic seam behind every `NonLinearOps` forward entry point. Like the elementwise executors it
+defaults to `Domain::REAL`; `sigmoid` and `tanh` opt into `Domain::REAL_AND_COMPLEX`. A consumer
+passes `Domain::REAL_AND_COMPLEX` only when its functor is written against the complex-tolerant
+`safe_*` helpers.
 
 Warning: This is a low-level generic seam. `op_func` is inlined into a SYCL device kernel: it must
 be device-copyable, capture by value only, hold no host pointers, allocate nothing and throw
-nothing. Write its body against `<SushiBLAS/engine/math/safe_math.hpp>` rather than the raw `sycl::`
-math builtins, or it will fail to compile for the complex dtypes.
+nothing. A functor instantiated for the complex dtypes is written against
+`<SushiBLAS/engine/math/safe_math.hpp>` rather than the raw `sycl::` math builtins, or it fails to
+compile for them.
 
 ### `execute_nonlinear_backward`
 
@@ -192,18 +223,36 @@ Warning: Same device-kernel constraints as `execute_nonlinear_forward`.
 
 ## `random.hpp`
 
+### `K_MAX_POISSON_LAMBDA`
+
+`RandomOps::poisson` accepts lambda up to 1e7. Below lambda 10 the kernel runs Knuth's
+multiplication loop; from 10 up it runs Hoermann's transformed rejection with squeeze (PTRS,
+"The transformed rejection method for generating Poisson random variables", Insurance:
+Mathematics and Economics 12, 1993). Hoermann states PTRS for lambda >= 10 and puts no upper
+limit on it, so the bound comes from the arithmetic:
+
+- The acceptance test compares `k log(lambda) - lgamma(k + 1)` against `lambda` in double. At
+  lambda = 1e7 both sides are near 1.5e8, and the double rounding error there is about 3e-8,
+  far below the gap the test resolves.
+- FLOAT32 holds every integer up to 2^24, about 1.68e7. A draw at lambda = 1e7 lies within 50
+  standard deviations (about 1.6e5) of the mean with certainty for practical purposes, so a
+  FLOAT32 result still holds the exact count.
+
+Knuth's loop stops when the running product reaches `exp(-lambda)`; below 10 that is at least
+4.5e-5, far from underflow.
+
 ### `RandomOps::orthogonal`
 
-Draws N(0,1) and orthonormalizes by modified Gram-Schmidt, which produces the same Q a QR
-decomposition would. Only the shorter axis can be orthonormal, so the result satisfies `Q Q^T =
+Draws N(0,1) and orthonormalizes by two modified Gram-Schmidt sweeps, which produce the same Q a
+QR decomposition would. Only the shorter axis can be orthonormal, so the result satisfies `Q Q^T =
 gain^2 I` when the matrix is wide and `Q^T Q = gain^2 I` when it is tall.
 
 ### `RandomOps::shuffle`
 
 A Fisher-Yates shuffle over the flat element sequence, driven by the engine's Philox stream: the
 output is always a permutation of the input, and replaying it from the same engine seed reproduces
-the same permutation. Every dtype is supported, since it moves elements rather than computing on
-them.
+the same permutation. It accepts HALF, FLOAT32, FLOAT64, COMPLEX32 and COMPLEX64, since it moves
+elements rather than computing on them. INT32 and INT64 are refused when the call is recorded.
 
 ## `random/dispatch.hpp`
 
@@ -220,27 +269,40 @@ zero offset in its metadata. The kernels themselves were unaffected (they captur
 value, not through the metadata), so the bug never changed a number: it only blanked the record of
 which draw a task made.
 
+### `Sampling` and `require_random_dtype`
+
+Every random op names the element families it serves as a `Dispatch::Domain` and says whether it
+draws new values or only moves existing ones. `Sampling::DRAWS_VALUES` refuses HALF on top of the
+domain: HALF has too little mantissa for the inverse-CDF and Box-Muller transforms.
+`Sampling::MOVES_VALUES` accepts every dtype of the domain; `shuffle` and `constant` use it.
+
+`require_random_dtype` throws `std::invalid_argument` with one message for all of them: the op,
+the operand `t`, its dtype and the dtypes the op accepts. The distributions call it through
+`execute_random`; `shuffle`, `constant`, `orthogonal` and `truncated_normal` call it directly,
+before any other work.
+
 ### `submit_random_fill`
 
 Every distribution in this library has that shape: the value at an index is a pure function of the
 index, because a counter-based generator is what makes a fill reproducible from `(seed, offset,
-index)` regardless of how the work was scheduled. Each of the twelve `RandomOps` entry points used
-to spell the submission out for itself: `q.submit`, `depends_on(deps)`, and a bare
-`parallel_for(sycl::range<1>(size), ...)`. That last part is the one that mattered: it was the
-runtime's default geometry, not this library's, and it was the same twelve times over.
+index)` regardless of how the work was scheduled.
 
-The launch now comes from `SushiBLAS::Launch::indexed`, so a distribution gets the same
-device-dependent shape as an elementwise op and gets it without knowing that shape exists.
-`SushiBLAS::Launch::map` is not the right primitive here despite the contiguous write, because there
-is no input array to read: the "input" is the index itself.
+One work-item computes one Philox block and writes every value the block yields: `draw_block(b)`
+returns a `std::array<T, K>` and the fill writes it to `out[b*K .. b*K + K - 1]`, stopping at `n`.
+A uniform or normal fill gets four FLOAT32 or two FLOAT64 values per block, so it uses all four
+32-bit words of the block. Poisson and `discrete_uniform` return a one-element array, because
+their per-element draw needs a variable number of words or all of them.
+
+The launch comes from `SushiBLAS::Launch::indexed` over blocks, so a distribution gets the same
+device-dependent shape as an elementwise op without knowing that shape exists.
 
 - `deps`: Events this submission must depend on.
-- `draw`: Callable `(uint64_t index) -> T`, invoked once per element on device.
+- `draw_block`: Callable `(uint64_t block) -> std::array<T, K>`, invoked once per block on device.
 
 Returns: The submitted work's event.
 
-Warning: `draw` is inlined into a SYCL device kernel: it must be device-copyable, capture by value
-only, hold no host pointers, allocate nothing and throw nothing.
+Warning: `draw_block` is inlined into a SYCL device kernel: it must be device-copyable, capture by
+value only, hold no host pointers, allocate nothing and throw nothing.
 
 ### `execute_random`
 
@@ -248,6 +310,9 @@ The generic seam behind every `RandomOps` distribution. It owns the parts every 
 graph bookkeeping, drawing a fresh counter offset from the engine so two tasks never reuse a Philox
 (key, counter) pair, and the dtype switch, and leaves the actual draw to the caller's functor.
 
+- `Dom`: The element families the distribution draws, `Domain::REAL` or
+  `Domain::REAL_AND_COMPLEX`. The task instantiates `task_func` only for the types `Dom` admits,
+  so a distribution that refuses complex carries no complex branch.
 - `params`: The distribution's own parameters, recorded in metadata slots 0..n-1.
 - `task_func`: Callable `(auto scalar_type, sycl::queue&, uint64_t seed, uint64_t offset, int64_t
   size, auto* pT, const std::vector<sycl::event>& deps) -> sycl::event`, generic over the runtime
@@ -257,23 +322,22 @@ Returns: An empty sycl::event; the work is deferred until `Engine::execute()`.
 
 Warning: This is a low-level generic seam. Whatever `task_func` submits runs on the device: any
 nested lambda must be device-copyable, capture by value, hold no host pointers, allocate nothing and
-throw nothing. Draw through `Kernels::SYCL::Random` rather than a stateful host RNG: the
-counter-based generator is what makes a fill reproducible from (seed, offset, index) alone,
-independent of how the work is scheduled.
+throw nothing. Draw through `Kernels::SYCL::Random` rather than a stateful host RNG.
 
-Throws `std::runtime_error` for HALF (too little mantissa for the distributions' inverse-CDF and
-Box-Muller transforms), for an unrecognized dtype, or if `params` exceeds `K_MAX_RNG_PARAMS`.
-
-At `SB_THROW_IF(Core::is_integer_dtype(t.dtype) || t.dtype == Core::DataType::HALF,`: at record
-time, not inside the task. The dtype switch in the task rejects an unsupported dtype too, but only
-once the graph is executing, by which point the caller is several frames away from the line that
-queued the op and the graph already holds a task that can never run.
-
-At `case Core::DataType::HALF:`: HALF has too little mantissa for the inverse-CDF and Box-Muller
-transforms; the integer dtypes have no fractional part for a continuous distribution to land in at
-all. `RandomOps::constant` serves both of those and does not come through here.
+Throws `std::invalid_argument` through `require_random_dtype` for HALF, the integer dtypes and any
+dtype outside `Dom`, and for a tensor without storage or not contiguous. Throws
+`std::runtime_error` if `params` exceeds `K_MAX_RNG_PARAMS`. All of these fire at record time, so
+the caller sees the error on the line that queued the op and the graph never holds a task that
+cannot run.
 
 ## `reductions.hpp`
+
+### `ReductionOps::max` and `ReductionOps::min`
+
+Both propagate NaN, as NumPy does: one NaN element anywhere makes the result NaN, on every device
+and launch shape. They fold through `Reduce::reduce` with a NaN-propagating accumulator local to
+each source file. An empty tensor gives `std::numeric_limits<T>::lowest()` for `max` and
+`std::numeric_limits<T>::max()` for `min`. `src/README.md` describes the accumulators.
 
 ### `ReductionOps::max_along`
 
@@ -284,7 +348,7 @@ log-sum-exp needs: shifting a batch by its *global* maximum is exact in real ari
 and its row sum becomes exactly zero.
 
 Deterministic by construction, like every other folding reduction here; see
-`<SushiBLAS/engine/reduce_axis.hpp>`.
+`<SushiBLAS/support/reduce_axis.hpp>`.
 
 ### `ReductionOps::sum_along`
 
@@ -301,7 +365,7 @@ strides[3]` and no single segment stride produces that from one index. Folding b
 one run of `H * W` elements is the easy half; the pair is the reason this exists.
 
 Neumaier-compensated and deterministic like every other folding reduction here: the division is the
-finalizer, so it costs the same launch as the sum would; see `<SushiBLAS/engine/reduce_axis.hpp>`.
+finalizer, so it costs the same launch as the sum would; see `<SushiBLAS/support/reduce_axis.hpp>`.
 
 ### `ReductionOps::count_nonfinite`
 
@@ -345,7 +409,7 @@ decide whether to throw a training step away.
 **Deterministic**, like every folding reduction here, and for a stronger reason. The fold is
 `Reduce::ExactSum` over integers, which is exactly associative and exactly commutative, so no
 combination order can change the answer at all; the fixed-order shape of
-`<SushiBLAS/engine/reduce_1d.hpp>` is inherited from the shared seam rather than being what makes
+`<SushiBLAS/support/reduce_1d.hpp>` is inherited from the shared seam rather than being what makes
 this op reproducible.
 
 - `t`: Input tensor; HALF, FLOAT32 or FLOAT64. The integer and complex dtypes throw by name rather
@@ -495,7 +559,7 @@ scratch is sized from `sizeof(int64_t)` rather than from the tensor's element wi
 The seam every order-sensitive reduction in the library goes through: `sum`, `mean`, `asum`, `nrm2`
 and `prod` are each one call to this, differing only in `Accum`, `transform` and `finalize`. That is
 the point: the part of a reduction that is hard to get right is the *combination order*, and putting
-it in five places is five chances to get it wrong. See `<SushiBLAS/engine/reduce_1d.hpp>` for the
+it in five places is five chances to get it wrong. See `<SushiBLAS/support/reduce_1d.hpp>` for the
 shape and for why `sycl::reduction` and `sycl::reduce_over_group` are both unusable here.
 
 It sizes and requests the partials scratch itself, from the device the tensor's storage lives on, so
@@ -525,7 +589,8 @@ Warning: `transform` and `finalize` are inlined into a SYCL device kernel and ca
 constraints as every other functor in this family: device-copyable, capture by value, no host
 pointers, no allocation, no exceptions.
 
-Throws `std::runtime_error` for the same reasons `execute_reduction` does.
+Throws `std::invalid_argument` and `std::runtime_error` for the same reasons `execute_reduction`
+does. The storage check runs before the partials are sized.
 
 At `const std::size_t partials =`: sized from the device the data lives on, which is the device the
 scheduler routes the task to. Should the two ever disagree, Reduce::plan clamps to whatever scratch
@@ -599,7 +664,7 @@ Dispatch::execute_folding_axis_reduction<Reduce::RunningMax>(
 
 **It asks for no scratch**, unlike `execute_folding_reduction`, and that is a property of the shape
 rather than an omission: a segmented reduction's work-groups never contribute to a shared answer, so
-there are no partials to stage between two kernels. See `<SushiBLAS/engine/reduce_axis.hpp>` for the
+there are no partials to stage between two kernels. See `<SushiBLAS/support/reduce_axis.hpp>` for the
 two launch shapes and for the determinism argument, which is the same one `reduce_1d.hpp` makes.
 
 - `Accum`: The accumulation policy: `SushiBLAS::Reduce::RunningMax`,
@@ -619,7 +684,9 @@ Warning: `transform` and `finalize` are inlined into a SYCL device kernel and ca
 constraints as every other functor in this family: device-copyable, capture by value, no host
 pointers, no allocation, no exceptions.
 
-Throws `std::runtime_error` if the dtypes disagree, or if the dtype is one reductions do not support
+Throws `std::invalid_argument` if `t` or `result` holds elements but has no storage. Strided
+operands are accepted. Throws `std::runtime_error` if the dtypes disagree, or if the dtype is one
+reductions do not support
 (HALF, FLOAT32 and FLOAT64 are; the complex types have no ordering or identity to fold with, and an
 integer result is what the index reductions answer with, not this).
 
@@ -645,6 +712,9 @@ fold forced: the geometry a segmented reduction runs on is no longer always deri
 and an axis number", but everything downstream of the span is identical, so the span is the seam and
 the axis is one way of building one.
 
+Throws `std::invalid_argument` if `t` or `result` holds elements but has no storage, and
+`std::runtime_error` for the reasons `axis_span_for` and `execute_folding_span_reduction` list.
+
 Warning: Same device-kernel constraints as `execute_folding_span_reduction`.
 
 ## `safe_math.hpp`
@@ -655,8 +725,14 @@ The problem these solve: an op functor handed to a Dispatch executor is a generi
 instantiated once per dtype the executor's Domain admits. A body written as `sycl::exp(x)` is fine
 for HALF/FLOAT32/FLOAT64 and a hard compile error for `std::complex`, because the SYCL math builtins
 only accept device scalar types. Writing `safe_exp(x)` instead picks `sycl::exp` for real scalars
-and `std::exp` for complex ones by overload resolution, so one functor covers
+and the complex overload for complex ones by overload resolution, so one functor covers
 Domain::REAL_AND_COMPLEX without any `if constexpr` at the call site.
+
+The complex overloads of `safe_exp`, `safe_tanh`, `safe_log`, `safe_sqrt`, `safe_erf` and
+`safe_abs` compute on the real and imaginary parts with `sycl::` real math only. They never call
+the `std::` complex functions, because MSVC implements those through host-only helpers
+(`_FExp`, `_FSinh`) that a SYCL device cannot call. `safe_exp` and `safe_tanh` return a zero
+imaginary part unchanged, sign included, when the input's imaginary part is zero.
 
 Only operations with an unambiguous complex meaning appear here. There is deliberately no `safe_max`
 / `safe_floor` / `safe_clamp`: those need a total order on the element type, complex numbers do not

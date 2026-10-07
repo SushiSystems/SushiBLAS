@@ -6,7 +6,41 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-07 — random: Made the dtype arm of execute_random a named class, which fixed the undefined HostKernel symbols that stopped the test executable from linking (`engine/math/random/dispatch.hpp`).
+- 2026-10-07 — logic: Made all and any of an empty tensor write their identity instead of dividing by zero in the SYCL reduction (`src/engine/logic/all.cpp`, `any.cpp`).
+- 2026-10-06 — random: Rejected invalid distribution parameters at record time, clamped truncated_normal bounds to 40 and made RngStream hand out the seed with the offset under one lock (`engine/rng_stream.hpp`).
+- 2026-10-06 — random: Rejected poisson on a device without fp64 and orthogonal on a tensor without storage (`src/engine/math/random/poisson.cpp`, `orthogonal.cpp`).
+- 2026-10-06 — math: Made elementwise max and min propagate NaN, made clamp reject an inverted range and fixed complex sqrt and log at the edges (`max.cpp`, `clamp.cpp`, `safe_math.hpp`).
+- 2026-10-06 — math: Fixed max and min returning the lowest finite value for an infinite input and the HALF level 1 reference kernels summing in HALF (`max.cpp`, `kernels/reference/blas/level1/`).
+- 2026-10-06 — io: Copied through the tensor's own device queue, rejected malformed .npy headers and refused column-major rank 3 the same way on save and load (`src/io.cpp`).
+- 2026-10-06 — blas: Ran the five level 1 reductions on many work-items through one shared reduction and a `ScratchBuffer` (`support/reduce_1d.hpp`, `engine/scratch.hpp`).
+- 2026-10-06 — blas: Accumulated HALF in FLOAT32 in GEMM, SYRK, TRMV, GER, SYR, SYR2 and the reductions through one trait (`support/accumulator.hpp`).
+- 2026-10-06 — blas: Gave GEMV and SYMV a work-group per row for long rows (`kernels/sycl/blas/level2/row_reduction.hpp`).
+- 2026-10-06 — engine: Moved the execution mode and a host-pointer guard for FORCE_REFERENCE into the dispatch seam (`engine/task.hpp`).
+- 2026-10-06 — engine: Moved the RNG stream out of Engine into its own class (`engine/rng_stream.hpp`, `engine.hpp`).
+- 2026-10-06 — layout: Moved the helper headers shared by kernels and engine into a support layer (`include/SushiBLAS/support/`).
+- 2026-10-06 — math: Made empty tensors no-ops, added INT32 and INT64 arithmetic and took scalar parameters as double (`engine/math/elementwise/`).
+- 2026-10-06 — math: Made max and min propagate NaN and rewrote the complex math of the kernels without std::complex functions (`max.cpp`, `safe_math.hpp`).
+- 2026-10-06 — random: Added PTRS Poisson up to lambda 1e7, a parallel orthogonal and four values per Philox block, which changes every stream (`kernels/sycl/random/`).
+- 2026-10-06 — api: Added vector shapes, host transfer through IO, a full .npy header check and const-correct tensor accessors (`io.hpp`, `tensor.hpp`).
+- 2026-10-06 — api: Removed the global namespace alias sb (`include/SushiBLAS/core/common.hpp`).
+- 2026-10-06 — cli: Validated -D before deleting the build tree, verified clean and rejected unknown run options (`cli/sushiblas/services/`).
+- 2026-10-06 — bench: Added four benchmark programs, built with `sb build --benchmarks` (`benchmarks/`, `cli/sushiblas/cli.py`).
+- 2026-10-06 — tests: Strengthened the shared helpers and the normal, uniform, symv, trmv, trsv and elementary-function tests (`tests/common/test_utils.hpp`).
 - 2026-10-06 — licence: Restored the three-section license box and named both holders in the copyright line of every source file (`tools/licensing/write_license_block.py`, `tools/documentation/check_source_comments.py`).
+- 2026-10-05 — storage: Ported Storage and create_tensor to RuntimeContext allocation and Residency, and rejected negative and overflowing sizes (`storage.hpp`, `src/engine.cpp`).
+- 2026-10-05 — engine: Made set_mode throw std::logic_error for VERIFY, which applied in-place operations twice (`src/engine.cpp`, `engine/task.hpp`).
+- 2026-10-05 — engine: Added operand checks that reject missing storage, shape or layout mismatch and non-contiguous views at record time (`engine/operand_check.hpp`).
+- 2026-10-05 — tensor: Rejected negative dimensions, overflowing sizes and bad `transpose` indices, and checked the rank before writing strides (`include/SushiBLAS/tensor.hpp`).
+- 2026-10-05 — blas: Checked GEMM, SYRK and TRSM shapes, batch axes and layouts through one matrix operand, and rejected level 2 matrices above rank 2 (`engine/blas/matrix_operand.hpp`, `dispatch.hpp`).
+- 2026-10-05 — blas: Validated the result tensor of dot, asum, nrm2 and iamax and rejected vectors with stride 0 (`engine/blas/utils.hpp`, `src/engine/blas/level1/`).
+- 2026-10-05 — math: Made the elementwise, logic, nonlinear and reduction executors reject mismatched or strided operands, and limited six nonlinear operations to real dtypes (`engine/math/*/dispatch.hpp`).
+- 2026-10-05 — math: Fixed `softplus` overflow, `CompensatedSum` turning infinity into NaN, and the missing result of var, std, logsumexp, argmax and argmin on an empty tensor (`softplus.cpp`, `reduce_1d.hpp`).
+- 2026-10-05 — spatial: Validated `ConvGeometry`, rejected all-padding pool windows and made `pool_max` propagate NaN and require contiguous indices (`engine/spatial/window.hpp`, `pool_max.cpp`).
+- 2026-10-05 — random: Built `uniform01` from 24 or 53 bits so it never returns 1, which changes every seeded stream, and rejected a poisson lambda above 700 (`kernels/sycl/random/philox.hpp`, `poisson.cpp`).
+- 2026-10-05 — io: Zeroed the `.sushi` header, checked writes, removed partial files and read strided views by stride in `to_string` (`src/io.cpp`).
+- 2026-10-05 — tools: Made `check_layering.py` check this repository's kernel, engine and operation layers, with 62 known violations in one table (`tools/layering/check_layering.py`).
+- 2026-10-05 — tests: Added reference tests for BLAS levels 1 and 2 and TRSM, SYRK and TRSM parity tests, validation tests, and real assertions in both integration tests (`tests/functional/`).
 - 2026-10-05 — docs: Moved design reasoning out of source comments into folder READMEs and gave every source file its file block (`include/SushiBLAS/`, `src/`, `kernels/`, `tests/`, `cli/`).
 - 2026-10-05 — random: Made `truncated_normal` draw inside its bounds by inverting the normal distribution, and reject unordered or zero-mass bounds and complex dtypes at record time (`src/engine/math/random/truncated_normal.cpp`).
 - 2026-10-05 — core: Made `SB_ASSERT` flush the asynchronous logger before it aborts (`include/SushiBLAS/core/logger.hpp`, `tests/functional/regression/test_logger.cpp`).

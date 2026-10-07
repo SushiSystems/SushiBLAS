@@ -152,7 +152,7 @@ jobs:
 #   entire synchronisation surface is (a) core/logger.hpp's AsyncLogger, whose
 #   worker thread + mutex/cv queue is the one thing TSan would have to chew on
 #   and which no target in this tree ever instantiates, (b) a one-shot
-#   lock_guard around a static device-profile cache in engine/device_policy.hpp,
+#   lock_guard around a static device-profile cache in support/device_policy.hpp,
 #   and (c) a single std::atomic counter in engine.hpp. Every worker thread the
 #   kernels actually run on belongs to SushiRuntime, whose own CI already
 #   instruments them. There is also no gate to turn TSan on with —

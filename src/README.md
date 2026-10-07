@@ -233,8 +233,9 @@ arms follow: the caller states a value, and the tensor's dtype decides how it is
 ### `src/engine/math/random/normal.cpp`
 
 `RandomOps::normal` draws the real and imaginary halves of a complex tensor as one flat run of 2n
-reals. The index a component is drawn from is its position in that run, which keeps a complex
-fill reproducible element for element.
+reals. The position of a component in that run fixes the Philox block and word it is drawn from,
+which keeps a complex fill reproducible element for element. Both Box-Muller outputs of a uniform
+pair are used: a block yields four FLOAT32 or two FLOAT64 normals.
 
 ### `src/engine/math/random/orthogonal.cpp`
 
@@ -248,16 +249,19 @@ tall one. At most min(rows, cols) vectors can be mutually orthogonal. The result
 Q Q^T = gain^2 I in the first case and Q^T Q = gain^2 I in the second, the same convention as
 PyTorch's `orthogonal_`.
 
-The sweep takes its steps from `t.strides`, not from arithmetic on rows and columns, so it is
-correct for `ROW_MAJOR` and `COLUMN_MAJOR` with no special case. A column-major matrix walks the
+The sweep itself is `Kernels::SYCL::Random::orthonormalize`, one work-group per vector; see
+`kernels/README.md`. It takes its steps from `t.strides`, not from arithmetic on rows and
+columns, so it is correct for `ROW_MAJOR` and `COLUMN_MAJOR` with no special case. A column-major matrix walks the
 two axes in the other order, and the transpose of an orthogonal matrix is orthogonal.
 
 ### `src/engine/math/random/poisson.cpp`
 
-`RandomOps::poisson` uses Knuth's algorithm: it multiplies uniform draws until the running product
-drops below exp(-lambda), and counts the draws. `MAX_ITERS` caps the count at 10000 for a very
-large lambda. Each draw is one Philox call keyed on a per-element attempt counter, so it never
-repeats a uniform draw used elsewhere.
+`RandomOps::poisson` checks lambda against [0, `K_MAX_POISSON_LAMBDA`] = [0, 1e7] at record
+time, computes the per-lambda constants once on the host with
+`Kernels::SYCL::Random::make_poisson_params`, and fills one element per work-item with
+`draw_poisson`. Below lambda 10 the draw is Knuth's multiplication loop; from 10 up it is
+Hoermann's PTRS. The math module README explains the bound and `kernels/README.md` the two
+methods.
 
 ### `src/engine/math/random/shuffle.cpp`
 
@@ -277,7 +281,7 @@ earlier writers.
 ### `src/engine/math/random/uniform.cpp`
 
 `RandomOps::uniform` fills a complex tensor as `src/engine/math/random/normal.cpp` above
-describes: one flat run of 2n reals, so the draw index of a component is its position in that run.
+describes: one flat run of 2n reals, read four FLOAT32 or two FLOAT64 values per Philox block.
 
 ### `src/engine/math/reductions/argmax.cpp`
 
@@ -330,25 +334,27 @@ the suite tests the two separately.
 
 ### `src/engine/math/reductions/max.cpp`
 
-`ReductionOps::max` uses `sycl::reduction`, unlike the summation reductions beside it. The SYCL
-specification does not fix the order in which a reduction combines its partials. That is a hazard
-for `+`: floating-point addition is not associative, so the order shows in the bits of the result
-and can change with the launch configuration. `maximum` is exactly associative and exactly
-commutative. Every combination order yields the same value, and a hand-written fixed-order tree
-would only be slower.
+`ReductionOps::max` propagates NaN, as NumPy's `max` does: if any element is NaN, the result is
+NaN, whatever the element's position and whatever launch shape the device gets. It folds through
+`Reduce::reduce` in `include/SushiBLAS/support/reduce_1d.hpp` with `NaNPropagatingMax`, an
+accumulator local to `max.cpp`. `Reduce::RunningMax` cannot serve here: its `<` comparison is false
+against a NaN, so a NaN survives only when it arrives first. `NaNPropagatingMax` returns NaN from
+`combine` when either side is NaN and stops changing once `accumulate` has seen one, so every fold
+order gives NaN.
 
-The input can still make the result depend on the order. `sycl::maximum` selects with `<`, and
-every comparison against a NaN is false, so which operand survives a NaN depends on the order. No
-reduction shape available here fixes that. Screening the input does.
+An empty tensor writes `std::numeric_limits<T>::lowest()` of the element type. The dispatch writes
+it directly, because the fold accumulates a HALF input in FLOAT32 and FLOAT32's `lowest()` rounds to
+HALF's negative infinity.
 
 ### `src/engine/math/reductions/max_along.cpp`
 
-`ReductionOps::max_along` goes through the folding seam, where the whole-tensor `max` in
-`src/engine/math/reductions/max.cpp` uses `sycl::reduction`. The reason is the shape of the
-result. `sycl::reduction` reduces to a scalar and has no segmented form, so the axis family has
-one shape that serves every accumulator. Because `maximum` is exactly associative, `max_along` is
-bit-reproducible for a stronger reason than the additive reductions are. See
-`include/SushiBLAS/engine/README.md`, under `RunningMax`.
+`ReductionOps::max_along` goes through the folding seam. The whole-tensor `max` in
+`src/engine/math/reductions/max.cpp` folds through the same shared machinery with a
+NaN-propagating accumulator, while `max_along` still uses `RunningMax`, so a NaN in an axis
+reduction is order-dependent. The axis family has one shape that serves every accumulator,
+because `sycl::reduction` has no segmented form. Because `maximum` is exactly associative,
+`max_along` is bit-reproducible for a stronger reason than the additive reductions are. See
+`include/SushiBLAS/support/README.md`, under `RunningMax`.
 
 ### `src/engine/math/reductions/mean.cpp`
 
@@ -365,17 +371,15 @@ which `spatial_span_for` builds and the second segment axis of `AxisSpan` carrie
 
 ### `src/engine/math/reductions/min.cpp`
 
-`ReductionOps::min` uses `sycl::reduction` for the reasons given under
-`src/engine/math/reductions/max.cpp` above. `minimum` is exactly associative and exactly
-commutative, so the unspecified combination order cannot change the value. The one remaining
-sensitivity to order is which operand survives a NaN, and that depends on the input and not on
-the launch.
+`ReductionOps::min` mirrors `max` above, with `NaNPropagatingMin` local to `min.cpp`: any NaN
+element makes the result NaN in every fold order, and an empty tensor writes
+`std::numeric_limits<T>::max()` of the element type.
 
 ### `src/engine/math/reductions/nrm2.cpp`
 
 `ReductionOps::nrm2` computes the scaling 2-norm that BLAS's xNRM2 specifies. An earlier version
 computed `sqrt(sum(x*x))`. The call has no transform and no finalizer, because the squaring and
-the square root are safe only inside a running scale. `include/SushiBLAS/engine/README.md`, under
+the square root are safe only inside a running scale. `include/SushiBLAS/support/README.md`, under
 `ScaledSumOfSquares`, describes the algorithm and says why it belongs in the accumulator. The
 launch count did not change: one launch on the single-pass shape and two on the two-stage one.
 
@@ -389,7 +393,7 @@ correction recovers the bits an addition rounds off and does nothing for a multi
 ### `src/engine/math/reductions/sum.cpp`
 
 `ReductionOps::sum` depends on the combination order, so it goes through the folding seam and not
-`sycl::reduction`. `include/SushiBLAS/engine/README.md`, under `reduce_1d.hpp`, says why the
+`sycl::reduction`. `include/SushiBLAS/support/README.md`, under `reduce_1d.hpp`, says why the
 unspecified order is a correctness problem for `+` and not for `max`. `sum` has no transform and
 no finalizer. The other reductions on the folding seam are this call with a transform, a
 finalizer or a different accumulator added.
@@ -495,7 +499,7 @@ the assignment the forward made. The scales must therefore be the forward's.
 fell through for HALF and wrote a header with an empty `descr` and a payload numpy could not read:
 a corrupt file with no error at either end.
 
-The text rendering prints integers through the same float pipeline as every other dtype, which is
-lossy past 2^24 for INT32 and past 2^53 for INT64. That is acceptable for a dump a person reads
+The text rendering decodes every element to double before printing it. INT32 survives that
+exactly; INT64 loses precision past 2^53. That is acceptable for a dump a person reads
 and nowhere else. `IO::save_npy` writes the raw bytes, so no saved value passes through the text
 rendering.

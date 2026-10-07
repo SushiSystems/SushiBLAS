@@ -21,7 +21,7 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | Launch shape | How a kernel maps work onto the device: per element (`launch_1d.hpp`), a whole-tensor fold (`reduce_1d.hpp`) or a segmented fold (`reduce_axis.hpp`) |
 | Segment | The run of elements an axis reduction folds into one output element |
 | Accumulation policy | A type such as `Reduce::CompensatedSum` or `Reduce::RunningMax` that states how a fold combines values |
-| Device profile | `Device::Profile`, the facts about a device that a kernel dispatches on, probed once per device (`engine/device_policy.hpp`) |
+| Device profile | `Device::Profile`, the facts about a device that a kernel dispatches on, probed once per device (`support/device_policy.hpp`) |
 | Register block | The square of accumulators one GEMM work-item keeps in registers; 8x8 for 4-byte and narrower element types, 4x4 for wider ones |
 | Tile | The block of an operand a GEMM work-group stages in local memory |
 | AOT target | A device target compiled ahead of time through `SB_SYCL_TARGETS`, as opposed to SPIR-V compiled by the runtime |
