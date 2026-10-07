@@ -29,6 +29,7 @@
 
 #include <array>
 #include <vector>
+#include <utility>
 #include <cstdint>
 #include <stdexcept>
 #include <algorithm>
@@ -162,7 +163,7 @@ namespace SushiBLAS
         Tensor(SushiRuntime::sushi_ptr<Storage> s, SushiRuntime::span<const int64_t> dims,
                Core::DataType d = Core::DataType::FLOAT32,
                int64_t offset = 0, Core::Layout l = Core::Layout::ROW_MAJOR)
-            : Tensor(s, dims, layout_strides(dims, l), d, offset, l) {}
+            : Tensor(std::move(s), dims, layout_strides(dims, l), d, offset, l) {}
 
         /**
          * @brief Creates a Tensor view whose strides are given instead of derived from its shape.
@@ -174,7 +175,7 @@ namespace SushiBLAS
         Tensor(SushiRuntime::sushi_ptr<Storage> s, SushiRuntime::span<const int64_t> dims,
                const std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK>& strides_in,
                Core::DataType d, int64_t offset, Core::Layout l)
-            : dtype(d), layout(l), storage(s), storage_offset(offset)
+            : dtype(d), layout(l), storage(std::move(s)), storage_offset(offset)
         {
             SB_THROW_IF(dims.size() > SushiBLAS::Core::MAX_TENSOR_RANK, "Rank {} exceeds limit of {}", dims.size(), SushiBLAS::Core::MAX_TENSOR_RANK);
             rank = static_cast<int32_t>(dims.size());
@@ -215,7 +216,7 @@ namespace SushiBLAS
         Tensor(SushiRuntime::sushi_ptr<Storage> s, std::initializer_list<int64_t> dims, 
                Core::DataType d = Core::DataType::FLOAT32,
                int64_t offset = 0, Core::Layout l = Core::Layout::ROW_MAJOR)
-            : Tensor(s, SushiRuntime::span<const int64_t>(dims.begin(), dims.end()), d, offset, l) {}
+            : Tensor(std::move(s), SushiRuntime::span<const int64_t>(dims.begin(), dims.end()), d, offset, l) {}
 
         /**
          * @brief Get the hardware device (GPU/CPU) where this tensor lives.
@@ -224,10 +225,7 @@ namespace SushiBLAS
         inline sycl::device get_device() const
         {
             SB_THROW_IF(!storage, "Tensor has no valid storage/context");
-            SushiRuntime::Execution::RuntimeContext& context = storage->get_context();
-            const int index = context.context_index_for_ptr(storage->allocation_base());
-            SB_THROW_IF(index < 0, "Tensor storage is not known to its runtime context");
-            return context.get_queue(static_cast<size_t>(index)).get_device();
+            return storage->get_context().get_queue(storage->get_device_index()).get_device();
         }
 
         /**
@@ -337,22 +335,18 @@ namespace SushiBLAS
 
 
         /**
-         * @brief Check if the data pointer is correctly aligned for high performance.
-         * @return True if aligned, false otherwise.
+         * @brief Returns whether the first element sits on a K_STORAGE_ALIGNMENT boundary.
+         * @return True for every view at storage_offset 0; a view at another offset is aligned
+         *         to its element size only.
+         * @throws std::runtime_error if the tensor has no storage.
          */
-        bool is_aligned() const 
+        bool is_aligned() const
         {
-            SB_THROW_IF(data() == nullptr, "Alignment check on a tensor with no data pointer (Storage might be null)");
-            return (reinterpret_cast<uintptr_t>(data()) % SushiRuntime::Core::DEFAULT_ALIGNMENT == 0);
+            return reinterpret_cast<std::uintptr_t>(data()) % K_STORAGE_ALIGNMENT == 0;
         }
 
         /**
-         * @brief Swap two dimensions of the tensor (e.g., for matrix transpose).
-         * 
-         * This is a "view" operation; it does not move data in memory.
-         * @param dim0 The first dimension index.
-         * @param dim1 The second dimension index.
-         * @return A new Tensor view with swapped dimensions.
+         * @brief Returns a view with two dimensions swapped; no element moves.
          * @throws std::runtime_error if either index is negative or not below the rank.
          */
         Tensor transpose(int32_t dim0, int32_t dim1) const 
@@ -378,7 +372,7 @@ namespace SushiBLAS
          */
         Tensor reshape(std::initializer_list<int64_t> new_dims) const
         {
-            return reshape(std::vector<int64_t>(new_dims));
+            return reshape_to(SushiRuntime::span<const int64_t>(new_dims.begin(), new_dims.end()));
         }
 
         /**
@@ -388,24 +382,7 @@ namespace SushiBLAS
          */
         Tensor reshape(const std::vector<int64_t>& new_dims) const
         {
-            SushiRuntime::span<const int64_t> dims_span(new_dims.data(), new_dims.size());
-
-            int64_t new_len = 1;
-            for (size_t i = 0; i < new_dims.size(); ++i)
-            {
-                SB_THROW_IF(new_dims[i] < 0, "Dimension {} is negative ({})", i, new_dims[i]);
-                new_len = Detail::checked_multiply(new_len, new_dims[i], "Element count");
-            }
-
-            SB_THROW_IF(new_len != this->num_elements, 
-                        "Element count mismatch. Current: {}, New: {}", 
-                        this->num_elements, new_len);
-
-            SB_THROW_IF(!is_contiguous(), "Tensor must be contiguous for this operation");
-
-            SB_LOG_DEBUG("Tensor Reshaped: elements={}", new_len);
-
-            return Tensor(this->storage, dims_span, this->dtype, this->storage_offset, this->layout);
+            return reshape_to(SushiRuntime::span<const int64_t>(new_dims.data(), new_dims.size()));
         }
 
         /**
@@ -449,6 +426,31 @@ namespace SushiBLAS
             SB_THROW_IF(storage->allocation_base() == nullptr, "Accessing data of a tensor with no data pointer");
 
             return static_cast<char*>(storage->allocation_base()) + (storage_offset * static_cast<int64_t>(Core::bytes_per_element(dtype)));
+        }
+
+        /**
+         * @brief Returns a view of the same elements under new_dims.
+         * @throws std::runtime_error on an element count mismatch, a negative dimension or a
+         *         strided tensor.
+         */
+        Tensor reshape_to(SushiRuntime::span<const int64_t> new_dims) const
+        {
+            int64_t new_len = 1;
+            for (size_t i = 0; i < new_dims.size(); ++i)
+            {
+                SB_THROW_IF(new_dims[i] < 0, "Dimension {} is negative ({})", i, new_dims[i]);
+                new_len = Detail::checked_multiply(new_len, new_dims[i], "Element count");
+            }
+
+            SB_THROW_IF(new_len != this->num_elements,
+                        "Element count mismatch. Current: {}, New: {}",
+                        this->num_elements, new_len);
+
+            SB_THROW_IF(!is_contiguous(), "Tensor must be contiguous for this operation");
+
+            SB_LOG_DEBUG("Tensor Reshaped: elements={}", new_len);
+
+            return Tensor(this->storage, new_dims, this->dtype, this->storage_offset, this->layout);
         }
     };
 } // namespace SushiBLAS
