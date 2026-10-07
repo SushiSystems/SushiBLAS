@@ -145,7 +145,7 @@ namespace SushiBLAS
                     Tensor A = filled({m, n}, data, K_SEED_A);
                     Tensor x = filled({n}, data, K_SEED_X);
                     Tensor y = filled({m}, data, K_SEED_Y);
-                    SushiBLAS::BLASOps(*engine).gemv(A, x, y, Core::Transpose::NO_TRANS,
+                    SushiBLAS::BLASOps(*engine).gemv(A, x, y, Core::Transpose::NoTrans,
                                                      data.alpha, data.beta);
                     engine->execute();
                     return read_back(y);
@@ -209,7 +209,7 @@ namespace SushiBLAS
                 /** @brief Returns the unit roundoff of the type the kernel of mode sums T in. */
                 [[nodiscard]] static double summing_unit(ExecutionMode mode) noexcept
                 {
-                    return mode == ExecutionMode::FORCE_REFERENCE
+                    return mode == ExecutionMode::ForceReference
                                ? unit_roundoff<Kernels::ReferenceAccumulator<T>>()
                                : unit_roundoff<Kernels::Accumulator<T>>();
                 }
@@ -218,7 +218,7 @@ namespace SushiBLAS
                 [[nodiscard]] static std::size_t roundings(ExecutionMode mode,
                                                            int64_t len) noexcept
                 {
-                    const bool compensated = mode == ExecutionMode::FORCE_REFERENCE &&
+                    const bool compensated = mode == ExecutionMode::ForceReference &&
                                              Kernels::ReferenceSum<T>::K_IS_COMPENSATED;
                     return (compensated ? K_COMPENSATED_ROUNDINGS : static_cast<std::size_t>(len)) +
                            K_FIXED_ROUNDINGS;
@@ -297,8 +297,8 @@ namespace SushiBLAS
                 }
 
                 /// @brief The two modes every truth case runs in.
-                static constexpr ExecutionMode K_MODES[] = {ExecutionMode::FORCE_REFERENCE,
-                                                            ExecutionMode::FORCE_SYCL};
+                static constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
+                                                            ExecutionMode::ForceSycl};
         };
 
         /// @brief Element types the parity tests run on.
@@ -347,15 +347,15 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_Level2SyclParityTest, GemvRepeatsToTheBit)
         {
-            const auto first = this->run_gemv(ExecutionMode::FORCE_SYCL, K_WIDE_ROWS, K_WIDE_COLS);
-            const auto second = this->run_gemv(ExecutionMode::FORCE_SYCL, K_WIDE_ROWS, K_WIDE_COLS);
+            const auto first = this->run_gemv(ExecutionMode::ForceSycl, K_WIDE_ROWS, K_WIDE_COLS);
+            const auto second = this->run_gemv(ExecutionMode::ForceSycl, K_WIDE_ROWS, K_WIDE_COLS);
             this->expect_same_bits(first, second);
         }
 
         TYPED_TEST(Unit_Level2SyclParityTest, SymvRepeatsToTheBit)
         {
-            const auto first = this->run_symv(ExecutionMode::FORCE_SYCL, K_LARGE_N, true);
-            const auto second = this->run_symv(ExecutionMode::FORCE_SYCL, K_LARGE_N, true);
+            const auto first = this->run_symv(ExecutionMode::ForceSycl, K_LARGE_N, true);
+            const auto second = this->run_symv(ExecutionMode::ForceSycl, K_LARGE_N, true);
             this->expect_same_bits(first, second);
         }
     } // namespace Test

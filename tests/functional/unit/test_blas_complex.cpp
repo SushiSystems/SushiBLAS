@@ -88,19 +88,19 @@ namespace SushiBLAS
         constexpr int64_t K_CASE_BATCH = 3;
 
         /// @brief Both element orders a tensor can have.
-        constexpr std::array<Core::Layout, 2> K_CASE_LAYOUTS = {Core::Layout::ROW_MAJOR,
-                                                                Core::Layout::COLUMN_MAJOR};
+        constexpr std::array<Core::Layout, 2> K_CASE_LAYOUTS = {Core::Layout::RowMajor,
+                                                                Core::Layout::ColumnMajor};
 
         /// @brief Both kernels an operation has.
-        constexpr std::array<ExecutionMode, 2> K_CASE_MODES = {ExecutionMode::FORCE_REFERENCE,
-                                                               ExecutionMode::FORCE_SYCL};
+        constexpr std::array<ExecutionMode, 2> K_CASE_MODES = {ExecutionMode::ForceReference,
+                                                               ExecutionMode::ForceSycl};
 
         /// @brief Both triangles a symmetric, Hermitian or triangular call can name.
-        constexpr std::array<Core::Uplo, 2> K_CASE_TRIANGLES = {Core::Uplo::UPPER,
-                                                                Core::Uplo::LOWER};
+        constexpr std::array<Core::Uplo, 2> K_CASE_TRIANGLES = {Core::Uplo::Upper,
+                                                                Core::Uplo::Lower};
 
         /// @brief Both sides a triangular matrix can stand on.
-        constexpr std::array<Core::Side, 2> K_CASE_SIDES = {Core::Side::LEFT, Core::Side::RIGHT};
+        constexpr std::array<Core::Side, 2> K_CASE_SIDES = {Core::Side::Left, Core::Side::Right};
 
         /**
          * @brief Builds the operands of a BLAS call from seeded data, records the call and reads
@@ -128,7 +128,7 @@ namespace SushiBLAS
                 [[nodiscard]] static constexpr OperandForm
                 on_conjugated_copy(Core::Transpose trans) noexcept
                 {
-                    return Core::is_conjugated(trans) ? OperandForm{Core::Transpose::TRANS, true}
+                    return Core::is_conjugated(trans) ? OperandForm{Core::Transpose::Trans, true}
                                                       : as_given(trans);
                 }
 
@@ -411,7 +411,7 @@ namespace SushiBLAS
                                          triangular_values(K_CASE_ORDER, a));
                     Tensor x = vector_of(random_values(K_CASE_ORDER));
 
-                    SushiBLAS::BLASOps(*engine).trmv(A, x, uplo, a.trans, Core::Diag::NON_UNIT);
+                    SushiBLAS::BLASOps(*engine).trmv(A, x, uplo, a.trans, Core::Diag::NonUnit);
                     engine->execute();
                     return read_row_ordered(x);
                 }
@@ -423,7 +423,7 @@ namespace SushiBLAS
                                          triangular_values(K_CASE_ORDER, a));
                     Tensor b = vector_of(random_values(K_CASE_ORDER));
 
-                    SushiBLAS::BLASOps(*engine).trsv(A, b, uplo, a.trans, Core::Diag::NON_UNIT);
+                    SushiBLAS::BLASOps(*engine).trsv(A, b, uplo, a.trans, Core::Diag::NonUnit);
                     engine->execute();
                     return read_row_ordered(b);
                 }
@@ -432,13 +432,13 @@ namespace SushiBLAS
                 [[nodiscard]] std::vector<T> run_trsm(Core::Side side, Core::Uplo uplo,
                                                       const OperandForm& a)
                 {
-                    const int64_t order = (side == Core::Side::LEFT) ? K_CASE_ROWS : K_CASE_COLS;
+                    const int64_t order = (side == Core::Side::Left) ? K_CASE_ROWS : K_CASE_COLS;
                     Tensor A = matrix_of(order, order, triangular_values(order, a));
                     Tensor B = matrix_of(K_CASE_ROWS, K_CASE_COLS,
                                          random_values(K_CASE_ROWS * K_CASE_COLS));
 
                     SushiBLAS::BLASOps(*engine).trsm(A, B, side, uplo, a.trans,
-                                                     Core::Diag::NON_UNIT, scalar(alpha()));
+                                                     Core::Diag::NonUnit, scalar(alpha()));
                     engine->execute();
                     return read_row_ordered(B);
                 }
@@ -479,9 +479,9 @@ namespace SushiBLAS
                 {
                     for (const Core::Layout layout : K_CASE_LAYOUTS)
                     {
-                        start(layout, ExecutionMode::FORCE_REFERENCE);
+                        start(layout, ExecutionMode::ForceReference);
                         const std::vector<T> reference = call();
-                        start(layout, ExecutionMode::FORCE_SYCL);
+                        start(layout, ExecutionMode::ForceSycl);
                         const std::vector<T> device = call();
 
                         expect_near(device, reference, parity_tolerance());
@@ -530,7 +530,7 @@ namespace SushiBLAS
                                                          int64_t cols) const
                 {
                     return static_cast<std::size_t>(
-                        (engine->get_layout() == Core::Layout::ROW_MAJOR) ? r * cols + c
+                        (engine->get_layout() == Core::Layout::RowMajor) ? r * cols + c
                                                                           : r + c * rows);
                 }
 
@@ -567,7 +567,7 @@ namespace SushiBLAS
                 [[nodiscard]] static std::vector<T> keep_triangle(std::vector<T> full, int64_t n,
                                                                   Core::Uplo uplo)
                 {
-                    const bool upper = (uplo == Core::Uplo::UPPER);
+                    const bool upper = (uplo == Core::Uplo::Upper);
                     for (int64_t r = 0; r < n; ++r)
                     {
                         for (int64_t c = 0; c < n; ++c)
@@ -611,7 +611,7 @@ namespace SushiBLAS
 
             for (const Core::Layout layout : K_CASE_LAYOUTS)
             {
-                this->start(layout, ExecutionMode::FORCE_REFERENCE);
+                this->start(layout, ExecutionMode::ForceReference);
                 Tensor x_tensor = this->vector_of(x);
                 Tensor y_tensor = this->vector_of(y);
                 Tensor result = this->vector_of(std::vector<T>(1));
@@ -634,7 +634,7 @@ namespace SushiBLAS
 
             for (const Core::Layout layout : K_CASE_LAYOUTS)
             {
-                this->start(layout, ExecutionMode::FORCE_REFERENCE);
+                this->start(layout, ExecutionMode::ForceReference);
                 Tensor x_tensor = this->vector_of(x);
                 Tensor y_tensor = this->vector_of(y);
                 Tensor result = this->vector_of(std::vector<T>(1));
@@ -658,7 +658,7 @@ namespace SushiBLAS
 
             for (const Core::Layout layout : K_CASE_LAYOUTS)
             {
-                this->start(layout, ExecutionMode::FORCE_REFERENCE);
+                this->start(layout, ExecutionMode::ForceReference);
                 Tensor x_tensor = this->vector_of(x);
                 Tensor y_tensor = this->vector_of(y);
                 Tensor A = this->matrix_of(2, 3, std::vector<T>(6, z(1, 0)));
@@ -682,7 +682,7 @@ namespace SushiBLAS
 
             for (const Core::Layout layout : K_CASE_LAYOUTS)
             {
-                this->start(layout, ExecutionMode::FORCE_REFERENCE);
+                this->start(layout, ExecutionMode::ForceReference);
                 Tensor x_tensor = this->vector_of(x);
                 Tensor y_tensor = this->vector_of(y);
                 Tensor A = this->matrix_of(2, 3, std::vector<T>(6, z(1, 0)));
@@ -709,7 +709,7 @@ namespace SushiBLAS
             {
                 for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 {
-                    this->start(layout, ExecutionMode::FORCE_REFERENCE);
+                    this->start(layout, ExecutionMode::ForceReference);
                     Tensor A = this->matrix_of(3, 3, TestFixture::with_imaginary_diagonal(
                         TestFixture::keep_triangle(hermitian, 3, uplo), 3));
                     Tensor x_tensor = this->vector_of(x);
@@ -739,7 +739,7 @@ namespace SushiBLAS
             {
                 for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 {
-                    this->start(layout, ExecutionMode::FORCE_REFERENCE);
+                    this->start(layout, ExecutionMode::ForceReference);
                     Tensor A = this->matrix_of(3, 3, TestFixture::with_imaginary_diagonal(
                         TestFixture::keep_triangle(hermitian, 3, uplo), 3));
                     Tensor x_tensor = this->vector_of(x);
@@ -769,7 +769,7 @@ namespace SushiBLAS
             {
                 for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 {
-                    this->start(layout, ExecutionMode::FORCE_REFERENCE);
+                    this->start(layout, ExecutionMode::ForceReference);
                     Tensor x_tensor = this->vector_of(x);
                     Tensor A = this->matrix_of(3, 3, TestFixture::with_imaginary_diagonal(
                         TestFixture::keep_triangle(ones, 3, uplo), 3));
@@ -799,7 +799,7 @@ namespace SushiBLAS
             {
                 for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 {
-                    this->start(layout, ExecutionMode::FORCE_REFERENCE);
+                    this->start(layout, ExecutionMode::ForceReference);
                     Tensor x_tensor = this->vector_of(x);
                     Tensor y_tensor = this->vector_of(y);
                     Tensor A = this->matrix_of(2, 2, TestFixture::with_imaginary_diagonal(
@@ -832,12 +832,12 @@ namespace SushiBLAS
             {
                 for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 {
-                    this->start(layout, ExecutionMode::FORCE_REFERENCE);
+                    this->start(layout, ExecutionMode::ForceReference);
                     Tensor A = this->matrix_of(2, 3, a);
                     Tensor C = this->matrix_of(2, 2, TestFixture::with_imaginary_diagonal(
                         TestFixture::keep_triangle(prior, 2, uplo), 2));
 
-                    SushiBLAS::BLASOps(*this->engine).herk(A, C, uplo, Core::Transpose::NO_TRANS,
+                    SushiBLAS::BLASOps(*this->engine).herk(A, C, uplo, Core::Transpose::NoTrans,
                                                            2.0, 3.0);
                     this->engine->execute();
 
@@ -865,12 +865,12 @@ namespace SushiBLAS
             {
                 for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 {
-                    this->start(layout, ExecutionMode::FORCE_REFERENCE);
+                    this->start(layout, ExecutionMode::ForceReference);
                     Tensor A = this->matrix_of(3, 2, a);
                     Tensor C = this->matrix_of(2, 2, TestFixture::with_imaginary_diagonal(
                         TestFixture::keep_triangle(prior, 2, uplo), 2));
 
-                    SushiBLAS::BLASOps(*this->engine).herk(A, C, uplo, Core::Transpose::CONJ_TRANS,
+                    SushiBLAS::BLASOps(*this->engine).herk(A, C, uplo, Core::Transpose::ConjTrans,
                                                            2.0, 3.0);
                     this->engine->execute();
 
@@ -886,11 +886,11 @@ namespace SushiBLAS
         {
             using Pair = std::array<Core::Transpose, 2>;
             const std::array<Pair, 5> pairs = {
-                Pair{Core::Transpose::CONJ_TRANS, Core::Transpose::NO_TRANS},
-                Pair{Core::Transpose::NO_TRANS, Core::Transpose::CONJ_TRANS},
-                Pair{Core::Transpose::CONJ_TRANS, Core::Transpose::CONJ_TRANS},
-                Pair{Core::Transpose::CONJ_TRANS, Core::Transpose::TRANS},
-                Pair{Core::Transpose::TRANS, Core::Transpose::CONJ_TRANS}};
+                Pair{Core::Transpose::ConjTrans, Core::Transpose::NoTrans},
+                Pair{Core::Transpose::NoTrans, Core::Transpose::ConjTrans},
+                Pair{Core::Transpose::ConjTrans, Core::Transpose::ConjTrans},
+                Pair{Core::Transpose::ConjTrans, Core::Transpose::Trans},
+                Pair{Core::Transpose::Trans, Core::Transpose::ConjTrans}};
 
             for (const Pair& pair : pairs)
             {
@@ -910,7 +910,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_BlasComplex, BatchedGemmConjTransEqualsTransOnAConjugatedCopy)
         {
-            const Core::Transpose conj = Core::Transpose::CONJ_TRANS;
+            const Core::Transpose conj = Core::Transpose::ConjTrans;
 
             this->expect_calls_agree(
                 [&]
@@ -927,7 +927,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_BlasComplex, GemvConjTransEqualsTransOnAConjugatedCopy)
         {
-            const Core::Transpose conj = Core::Transpose::CONJ_TRANS;
+            const Core::Transpose conj = Core::Transpose::ConjTrans;
 
             this->expect_calls_agree(
                 [&] { return this->run_gemv(TestFixture::as_given(conj)); },
@@ -936,7 +936,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_BlasComplex, TrmvConjTransEqualsTransOnAConjugatedCopy)
         {
-            const Core::Transpose conj = Core::Transpose::CONJ_TRANS;
+            const Core::Transpose conj = Core::Transpose::ConjTrans;
 
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
             {
@@ -948,7 +948,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_BlasComplex, TrsvConjTransEqualsTransOnAConjugatedCopy)
         {
-            const Core::Transpose conj = Core::Transpose::CONJ_TRANS;
+            const Core::Transpose conj = Core::Transpose::ConjTrans;
 
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
             {
@@ -960,7 +960,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_BlasComplex, TrsmConjTransEqualsTransOnAConjugatedCopy)
         {
-            const Core::Transpose conj = Core::Transpose::CONJ_TRANS;
+            const Core::Transpose conj = Core::Transpose::ConjTrans;
 
             for (const Core::Side side : K_CASE_SIDES)
             {
@@ -1014,7 +1014,7 @@ namespace SushiBLAS
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
             {
                 for (const Core::Transpose trans :
-                     {Core::Transpose::NO_TRANS, Core::Transpose::CONJ_TRANS})
+                     {Core::Transpose::NoTrans, Core::Transpose::ConjTrans})
                 {
                     this->expect_modes_agree(
                         [&] { return this->run_herk(&Level3::herk, uplo, trans); });
@@ -1024,8 +1024,8 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_BlasComplex, GemmConjTransMatchesAcrossModes)
         {
-            const Core::Transpose conj = Core::Transpose::CONJ_TRANS;
-            const Core::Transpose none = Core::Transpose::NO_TRANS;
+            const Core::Transpose conj = Core::Transpose::ConjTrans;
+            const Core::Transpose none = Core::Transpose::NoTrans;
 
             this->expect_modes_agree(
                 [&]
@@ -1049,14 +1049,14 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_BlasComplex, GemvConjTransMatchesAcrossModes)
         {
-            const Core::Transpose conj = Core::Transpose::CONJ_TRANS;
+            const Core::Transpose conj = Core::Transpose::ConjTrans;
 
             this->expect_modes_agree([&] { return this->run_gemv(TestFixture::as_given(conj)); });
         }
 
         TYPED_TEST(Unit_BlasComplex, TrmvConjTransMatchesAcrossModes)
         {
-            const Core::Transpose conj = Core::Transpose::CONJ_TRANS;
+            const Core::Transpose conj = Core::Transpose::ConjTrans;
 
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 this->expect_modes_agree(
@@ -1065,7 +1065,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_BlasComplex, TrsvConjTransMatchesAcrossModes)
         {
-            const Core::Transpose conj = Core::Transpose::CONJ_TRANS;
+            const Core::Transpose conj = Core::Transpose::ConjTrans;
 
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 this->expect_modes_agree(
@@ -1074,7 +1074,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_BlasComplex, TrsmConjTransMatchesAcrossModes)
         {
-            const Core::Transpose conj = Core::Transpose::CONJ_TRANS;
+            const Core::Transpose conj = Core::Transpose::ConjTrans;
 
             for (const Core::Side side : K_CASE_SIDES)
                 for (const Core::Uplo uplo : K_CASE_TRIANGLES)
@@ -1116,7 +1116,7 @@ namespace SushiBLAS
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
             {
                 for (const Core::Transpose trans :
-                     {Core::Transpose::NO_TRANS, Core::Transpose::TRANS})
+                     {Core::Transpose::NoTrans, Core::Transpose::Trans})
                 {
                     expect_calls_give_the_same_bits(
                         [&] { return run_herk(&Level3::herk, uplo, trans); },
@@ -1129,8 +1129,8 @@ namespace SushiBLAS
         {
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 expect_calls_give_the_same_bits(
-                    [&] { return run_herk(&Level3::herk, uplo, Core::Transpose::CONJ_TRANS); },
-                    [&] { return run_herk(&Level3::syrk, uplo, Core::Transpose::TRANS); });
+                    [&] { return run_herk(&Level3::herk, uplo, Core::Transpose::ConjTrans); },
+                    [&] { return run_herk(&Level3::syrk, uplo, Core::Transpose::Trans); });
         }
 
         TEST_F(Unit_BlasRealForwards, DotuAndDotcGiveTheBitsOfDot)
@@ -1153,9 +1153,9 @@ namespace SushiBLAS
 
         TEST_F(Unit_BlasRealForwards, GemmUnderConjTransGivesTheBitsOfGemmUnderTrans)
         {
-            const OperandForm conj = as_given(Core::Transpose::CONJ_TRANS);
-            const OperandForm trans = as_given(Core::Transpose::TRANS);
-            const OperandForm none = as_given(Core::Transpose::NO_TRANS);
+            const OperandForm conj = as_given(Core::Transpose::ConjTrans);
+            const OperandForm trans = as_given(Core::Transpose::Trans);
+            const OperandForm none = as_given(Core::Transpose::NoTrans);
 
             expect_calls_give_the_same_bits([&] { return run_gemm(conj, none, {}); },
                                             [&] { return run_gemm(trans, none, {}); });

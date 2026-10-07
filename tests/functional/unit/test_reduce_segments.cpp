@@ -506,11 +506,11 @@ namespace SushiBLAS
             if (!queue().get_device().has(sycl::aspect::fp16))
                 GTEST_SKIP() << "the device does not report the fp16 aspect";
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
 
             Tensor map = engine->create_tensor({1, K_MAP_SIDE, K_MAP_SIDE, K_MAP_CHANNELS},
-                                               Core::DataType::HALF);
-            Tensor means = engine->create_tensor({1, K_MAP_CHANNELS}, Core::DataType::HALF);
+                                               Core::DataType::Half);
+            Tensor means = engine->create_tensor({1, K_MAP_CHANNELS}, Core::DataType::Half);
             fill_tensor(map, std::vector<float>(static_cast<std::size_t>(map.num_elements),
                                                 K_MAP_VALUE));
 

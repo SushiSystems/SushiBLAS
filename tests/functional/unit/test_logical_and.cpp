@@ -21,7 +21,7 @@
 
 /**
  * @file test_logical_and.cpp
- * @brief Tests logic().logical_and against fixed expected values.
+ * @brief Tests LogicOps::logical_and against fixed expected values.
  * @author Mustafa Garip
  */
 

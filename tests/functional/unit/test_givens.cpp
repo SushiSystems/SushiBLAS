@@ -109,10 +109,10 @@ namespace SushiBLAS
             /** @brief Names how z of a real rotation is rebuilt from its other values. */
             enum class RebuildValue : std::uint8_t
             {
-                ZERO,          /**< z is 0. */
-                ONE,           /**< z is 1. */
-                SINE,          /**< z is s. */
-                INVERSE_COSINE /**< z is 1 / c. */
+                Zero,          /**< z is 0. */
+                One,           /**< z is 1. */
+                Sine,          /**< z is s. */
+                InverseCosine /**< z is 1 / c. */
             };
 
             /** @brief Holds one row of the real table of the design, section 10.2. */
@@ -307,13 +307,13 @@ namespace SushiBLAS
             using R = TypeParam;
 
             const RealRotationRow rows[] = {
-                {3.0, 4.0, 5.0, 3.0, 5.0, 4.0, 5.0, RebuildValue::INVERSE_COSINE},
-                {4.0, 3.0, 5.0, 4.0, 5.0, 3.0, 5.0, RebuildValue::SINE},
-                {-4.0, 3.0, -5.0, -4.0, -5.0, 3.0, -5.0, RebuildValue::SINE},
-                {3.0, -4.0, -5.0, 3.0, -5.0, -4.0, -5.0, RebuildValue::INVERSE_COSINE},
-                {0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, RebuildValue::ZERO},
-                {0.0, 2.0, 2.0, 0.0, 1.0, 1.0, 1.0, RebuildValue::ONE},
-                {2.0, 0.0, 2.0, 1.0, 1.0, 0.0, 1.0, RebuildValue::ZERO}};
+                {3.0, 4.0, 5.0, 3.0, 5.0, 4.0, 5.0, RebuildValue::InverseCosine},
+                {4.0, 3.0, 5.0, 4.0, 5.0, 3.0, 5.0, RebuildValue::Sine},
+                {-4.0, 3.0, -5.0, -4.0, -5.0, 3.0, -5.0, RebuildValue::Sine},
+                {3.0, -4.0, -5.0, 3.0, -5.0, -4.0, -5.0, RebuildValue::InverseCosine},
+                {0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, RebuildValue::Zero},
+                {0.0, 2.0, 2.0, 0.0, 1.0, 1.0, 1.0, RebuildValue::One},
+                {2.0, 0.0, 2.0, 1.0, 1.0, 0.0, 1.0, RebuildValue::Zero}};
 
             for (const RealRotationRow& row : rows)
             {
@@ -327,16 +327,16 @@ namespace SushiBLAS
                 R z = R(0);
                 switch (row.z)
                 {
-                    case RebuildValue::ZERO:
+                    case RebuildValue::Zero:
                         z = R(0);
                         break;
-                    case RebuildValue::ONE:
+                    case RebuildValue::One:
                         z = R(1);
                         break;
-                    case RebuildValue::SINE:
+                    case RebuildValue::Sine:
                         z = s;
                         break;
-                    case RebuildValue::INVERSE_COSINE:
+                    case RebuildValue::InverseCosine:
                         z = R(1) / c;
                         break;
                 }

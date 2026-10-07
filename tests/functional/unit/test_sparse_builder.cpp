@@ -61,7 +61,7 @@ namespace SushiBLAS
             using Wide = std::vector<std::complex<double>>;
 
             /// @brief The two layouts a dense tensor is compressed from.
-            constexpr Layout K_BOTH_LAYOUTS[2] = {Layout::ROW_MAJOR, Layout::COLUMN_MAJOR};
+            constexpr Layout K_BOTH_LAYOUTS[2] = {Layout::RowMajor, Layout::ColumnMajor};
 
             /// @brief Length of the dense vector the sparse vectors of this file compress.
             constexpr int64_t K_VECTOR_SIZE = 8;
@@ -104,7 +104,7 @@ namespace SushiBLAS
                 const Kernels::CsrPattern<Index> pattern{
                     A.rows, A.cols, A.nnz(), Core::first_index(base),
                     A.row_offsets.data_as<Index>(), A.column_indices.data_as<Index>()};
-                EXPECT_EQ(find_defect(pattern), StructureDefect::NONE);
+                EXPECT_EQ(find_defect(pattern), StructureDefect::None);
             }
 
             /** @brief Expects a matrix to hold the 4 x 5 sample, stored in Index with base. */
@@ -178,7 +178,7 @@ namespace SushiBLAS
                  */
                 [[nodiscard]] Tensor dense_tensor(int64_t rows, int64_t cols, const Wide& by_rows)
                 {
-                    const bool row_major = engine->get_layout() == Layout::ROW_MAJOR;
+                    const bool row_major = engine->get_layout() == Layout::RowMajor;
                     std::vector<T> elements(by_rows.size());
                     for (int64_t i = 0; i < rows; ++i)
                     {
@@ -225,7 +225,7 @@ namespace SushiBLAS
             using T = typename TypeParam::Value;
             using Index = typename TypeParam::IndexType;
 
-            const SparseMatrix A = this->build(sample_matrix<T>(), IndexBase::ZERO);
+            const SparseMatrix A = this->build(sample_matrix<T>(), IndexBase::Zero);
 
             EXPECT_EQ(A.row_offsets.rank, 1);
             EXPECT_EQ(A.column_indices.rank, 1);
@@ -289,14 +289,14 @@ namespace SushiBLAS
 
             for (const Layout layout : K_BOTH_LAYOUTS)
             {
-                SCOPED_TRACE(layout == Layout::ROW_MAJOR ? "row-major" : "column-major");
+                SCOPED_TRACE(layout == Layout::RowMajor ? "row-major" : "column-major");
                 this->reinit_engine(layout);
                 const Tensor dense = this->dense_tensor(4, 5, sample_by_rows<T>());
 
                 for (const IndexBase base : K_BOTH_BASES)
                 {
-                    expect_sample<T, int32_t>(this->compress(dense, DataType::INT32, base), base);
-                    expect_sample<T, int64_t>(this->compress(dense, DataType::INT64, base), base);
+                    expect_sample<T, int32_t>(this->compress(dense, DataType::Int32, base), base);
+                    expect_sample<T, int64_t>(this->compress(dense, DataType::Int64, base), base);
                 }
             }
         }
@@ -313,7 +313,7 @@ namespace SushiBLAS
             {
                 this->reinit_engine(layout);
                 const SparseMatrix A = this->compress(this->dense_tensor(2, 2, by_rows),
-                                                      DataType::INT64, IndexBase::ZERO);
+                                                      DataType::Int64, IndexBase::Zero);
 
                 ASSERT_EQ(A.nnz(), 2);
                 EXPECT_EQ(read_tensor<int64_t>(A.row_offsets), (std::vector<int64_t>{0, 1, 2}));
@@ -328,14 +328,14 @@ namespace SushiBLAS
         TYPED_TEST(Unit_SparseBuilder, ADenseTensorWithoutElementsGivesAMatrixWithoutEntries)
         {
             const SparseMatrix no_rows = this->compress(this->dense_without_elements(0, 5),
-                                                        DataType::INT64, IndexBase::ONE);
+                                                        DataType::Int64, IndexBase::One);
             EXPECT_EQ(no_rows.rows, 0);
             EXPECT_EQ(no_rows.cols, 5);
             EXPECT_EQ(no_rows.nnz(), 0);
             EXPECT_EQ(read_tensor<int64_t>(no_rows.row_offsets), std::vector<int64_t>(1, 1));
 
             const SparseMatrix no_columns = this->compress(this->dense_without_elements(5, 0),
-                                                           DataType::INT64, IndexBase::ONE);
+                                                           DataType::Int64, IndexBase::One);
             EXPECT_EQ(no_columns.rows, 5);
             EXPECT_EQ(no_columns.cols, 0);
             EXPECT_EQ(no_columns.nnz(), 0);
@@ -369,7 +369,7 @@ namespace SushiBLAS
 
                 const Kernels::IndexList<Index> list{x.nnz(), x.size, Core::first_index(base),
                                                      x.indices.data_as<Index>()};
-                EXPECT_EQ(find_defect(list), StructureDefect::NONE);
+                EXPECT_EQ(find_defect(list), StructureDefect::None);
             }
         }
 
@@ -377,7 +377,7 @@ namespace SushiBLAS
         {
             const Wide values = {{10.0, 0.0}, {20.0, 0.0}, {30.0, 0.0}};
 
-            EXPECT_THROW((void)this->build_vector({6, 1}, values, IndexBase::ZERO),
+            EXPECT_THROW((void)this->build_vector({6, 1}, values, IndexBase::Zero),
                          std::runtime_error);
         }
 
@@ -385,7 +385,7 @@ namespace SushiBLAS
         {
             const Wide values = {{10.0, 0.0}, {20.0, 0.0}, {30.0, 0.0}};
 
-            EXPECT_THROW((void)this->build_vector({6, 1, 6}, values, IndexBase::ZERO),
+            EXPECT_THROW((void)this->build_vector({6, 1, 6}, values, IndexBase::Zero),
                          std::runtime_error);
         }
 
@@ -427,7 +427,7 @@ namespace SushiBLAS
             const Tensor dense =
                 create_initialized_tensor<float>({K_LARGE_ROWS, K_LARGE_COLS}, host);
             const SparseBuilder builder(engine->get_tensor_factory());
-            const SparseMatrix A = builder.matrix_from_dense(dense, DataType::INT32);
+            const SparseMatrix A = builder.matrix_from_dense(dense, DataType::Int32);
 
             ASSERT_EQ(A.nnz(), static_cast<int64_t>(columns.size()));
             EXPECT_EQ(read_tensor<int32_t>(A.row_offsets), offsets);
@@ -459,7 +459,7 @@ namespace SushiBLAS
             const SparseBuilder builder(engine->get_tensor_factory());
             const Tensor dense = create_initialized_tensor<float>({2, 2}, {1.0f, 0.0f, 0.0f, 2.0f});
 
-            EXPECT_THROW((void)builder.matrix_from_dense(dense, DataType::FLOAT32),
+            EXPECT_THROW((void)builder.matrix_from_dense(dense, DataType::Float32),
                          std::runtime_error);
         }
 
@@ -470,7 +470,7 @@ namespace SushiBLAS
                 create_initialized_tensor<float>({4, 4}, std::vector<float>(16, 1.0f));
 
             const int64_t dims[2] = {2, 2};
-            std::array<int64_t, Core::MAX_TENSOR_RANK> strides{};
+            std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides{};
             strides[0] = 8;
             strides[1] = 2;
             const Tensor view(parent.storage, SushiRuntime::span<const int64_t>(dims, 2), strides,
@@ -488,7 +488,7 @@ namespace SushiBLAS
             const std::vector<float> values = {10.0f, 20.0f, 30.0f};
 
             EXPECT_THROW((void)sample_from(builder, outside), std::runtime_error);
-            EXPECT_THROW((void)builder.matrix_from_dense(dense, DataType::INT64, outside),
+            EXPECT_THROW((void)builder.matrix_from_dense(dense, DataType::Int64, outside),
                          std::runtime_error);
             EXPECT_THROW((void)builder.vector_from_entries(K_VECTOR_SIZE, positions, values,
                                                            outside),
@@ -501,7 +501,7 @@ namespace SushiBLAS
             const SparseBuilder builder(engine->get_tensor_factory(),
                                         SushiRuntime::API::Residency::Shared, last);
 
-            const SparseMatrix A = sample_from(builder, IndexBase::ZERO);
+            const SparseMatrix A = sample_from(builder, IndexBase::Zero);
             EXPECT_EQ(A.row_offsets.storage->get_device_index(), last);
             EXPECT_EQ(A.column_indices.storage->get_device_index(), last);
             EXPECT_EQ(A.values.storage->get_device_index(), last);
@@ -518,7 +518,7 @@ namespace SushiBLAS
             const SparseBuilder builder(engine->get_tensor_factory(),
                                         SushiRuntime::API::Residency::Shared, past);
 
-            EXPECT_THROW((void)sample_from(builder, IndexBase::ZERO), std::runtime_error);
+            EXPECT_THROW((void)sample_from(builder, IndexBase::Zero), std::runtime_error);
         }
     } // namespace Test
 } // namespace SushiBLAS

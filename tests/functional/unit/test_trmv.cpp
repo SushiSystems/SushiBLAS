@@ -21,7 +21,7 @@
 
 /**
  * @file test_trmv.cpp
- * @brief Tests blas().trmv against fixed expected values.
+ * @brief Tests BLASOps::trmv against fixed expected values.
  * @author Mustafa Garip
  */
 
@@ -48,9 +48,9 @@ TEST_F(Unit_TRMVTest, SimpleTRMV)
     fill_tensor(X, {1, 1, 1});
 
     SB_LOG_INFO("Submitting TRMV.");
-    SushiBLAS::BLASOps(*engine).trmv(A, X, SushiBLAS::Core::Uplo::LOWER,
-                                     SushiBLAS::Core::Transpose::NO_TRANS,
-                                     SushiBLAS::Core::Diag::NON_UNIT);
+    SushiBLAS::BLASOps(*engine).trmv(A, X, SushiBLAS::Core::Uplo::Lower,
+                                     SushiBLAS::Core::Transpose::NoTrans,
+                                     SushiBLAS::Core::Diag::NonUnit);
     
     engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
@@ -89,7 +89,7 @@ class Unit_TRMVPoisonTest : public SushiBLASTest
             fill_tensor(X, K_X);
 
             SushiBLAS::BLASOps(*engine).trmv(A, X, uplo_of(upper), transpose_of(trans_a),
-                                             SushiBLAS::Core::Diag::NON_UNIT);
+                                             SushiBLAS::Core::Diag::NonUnit);
             engine->execute();
 
             verify_tensor(X, expected);

@@ -119,7 +119,7 @@ namespace SushiBLAS
                 gemm_accessed(m, n, k,
                               alpha, a, operand_access(layout, transA, lda),
                               b, operand_access(layout, transB, ldb),
-                              beta, c, operand_access(layout, Core::Transpose::NO_TRANS, ldc),
+                              beta, c, operand_access(layout, Core::Transpose::NoTrans, ldc),
                               epilogue);
             }
 
@@ -142,7 +142,7 @@ namespace SushiBLAS
                 gemm_accessed(m, n, k,
                               alpha, a, operand_access(layout, transA, lda), str_a,
                               b, operand_access(layout, transB, ldb), str_b,
-                              beta, c, operand_access(layout, Core::Transpose::NO_TRANS, ldc),
+                              beta, c, operand_access(layout, Core::Transpose::NoTrans, ldc),
                               str_c, batch_size, epilogue);
             }
         } // namespace Reference

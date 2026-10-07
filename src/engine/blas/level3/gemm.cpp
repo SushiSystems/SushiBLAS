@@ -40,7 +40,7 @@ namespace SushiBLAS
                             BlasScalar alpha, BlasScalar beta)
     {
         // REAL_AND_COMPLEX is named because the seam defaults to REAL; see src/README.md.
-        return Dispatch::execute_gemm<Dispatch::Domain::REAL_AND_COMPLEX>(
+        return Dispatch::execute_gemm<Dispatch::Domain::RealAndComplex>(
             recorder_, A, B, C, transA, transB, alpha, beta,
             "blas.lvl3.gemm", "blas.lvl3.gemm"_op,
             Kernels::GemmIdentityEpilogue{});

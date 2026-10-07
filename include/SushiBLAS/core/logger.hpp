@@ -61,7 +61,7 @@
 
 /**
  * @def SB_ACTIVE_LOG_LEVEL
- * @brief Names the compiled-in log level as a SushiBLAS::Core::LogType enumerator.
+ * @brief Names the compiled-in log level: OFF, ERR, WARN, INFO or DEBUG.
  * @see include/SushiBLAS/core/README.md
  */
 #ifndef SB_ACTIVE_LOG_LEVEL
@@ -72,6 +72,19 @@
     #endif
 #endif
 
+/**
+ * @def SB_LOG_TYPE_OF
+ * @brief Expands a level name of SB_ACTIVE_LOG_LEVEL to its SushiBLAS::Core::LogType enumerator.
+ * @see include/SushiBLAS/core/README.md
+ */
+#define SB_LOG_TYPE_OF_OFF Off
+#define SB_LOG_TYPE_OF_ERR Err
+#define SB_LOG_TYPE_OF_WARN Warn
+#define SB_LOG_TYPE_OF_INFO Info
+#define SB_LOG_TYPE_OF_DEBUG Debug
+#define SB_LOG_TYPE_OF_JOIN(level) SB_LOG_TYPE_OF_##level
+#define SB_LOG_TYPE_OF(level) SB_LOG_TYPE_OF_JOIN(level)
+
 namespace SushiBLAS 
 {
     namespace Core
@@ -81,11 +94,11 @@ namespace SushiBLAS
          */
         enum class LogType : int 
         {
-            OFF   = 0, /**< Logging is disabled */
-            ERR   = 1, /**< Only error messages */
-            WARN  = 2, /**< Warnings and errors */
-            INFO  = 3, /**< Info, warnings and errors */
-            DEBUG = 4  /**< All messages including debug */
+            Off   = 0, /**< Logging is disabled */
+            Err   = 1, /**< Only error messages */
+            Warn  = 2, /**< Warnings and errors */
+            Info  = 3, /**< Info, warnings and errors */
+            Debug = 4  /**< All messages including debug */
         };
 
         /**
@@ -96,9 +109,9 @@ namespace SushiBLAS
          * the call.
          */
         #if SB_ENABLE_LOGGING
-            inline constexpr LogType ACTIVE_LOG_LEVEL = LogType::SB_ACTIVE_LOG_LEVEL;
+            inline constexpr LogType K_ACTIVE_LOG_LEVEL = LogType::SB_LOG_TYPE_OF(SB_ACTIVE_LOG_LEVEL);
         #else
-            inline constexpr LogType ACTIVE_LOG_LEVEL = LogType::OFF;
+            inline constexpr LogType K_ACTIVE_LOG_LEVEL = LogType::Off;
         #endif
 
         /**
@@ -131,7 +144,7 @@ namespace SushiBLAS
                                 auto log_entry = std::move(queue_.front());
                                 lock.unlock(); // Unlock while writing to file/terminal
 
-                                FILE* stream = (log_entry.first <= LogType::ERR) ? stderr : stdout;
+                                FILE* stream = (log_entry.first <= LogType::Err) ? stderr : stdout;
 
                                 #ifdef _WIN32
                                     _lock_file(stream);
@@ -202,7 +215,7 @@ namespace SushiBLAS
                     void enqueue(LogType level, std::string&& msg) 
                     {
                         std::lock_guard<std::mutex> lock(sync_mutex_);
-                        FILE* stream = (level <= LogType::ERR) ? stderr : stdout;
+                        FILE* stream = (level <= LogType::Err) ? stderr : stdout;
                         #ifdef _WIN32
                             _lock_file(stream);
                             fputs(msg.c_str(), stream);
@@ -352,7 +365,7 @@ namespace SushiBLAS
             template<LogType Level, typename... Args>
             inline void log_if(std::string_view prefix, const SourceLocation& loc, std::string_view fmt, Args&&... args)
             {
-                if constexpr (ACTIVE_LOG_LEVEL >= Level)
+                if constexpr (K_ACTIVE_LOG_LEVEL >= Level)
                 {
                     log_base(Level, prefix, loc, fmt, std::forward<Args>(args)...);
                 }
@@ -384,19 +397,19 @@ namespace SushiBLAS
     // The macros take (...) so the format string binds to log_if's fmt parameter; see include/SushiBLAS/core/README.md.
     #if SB_ENABLE_LOGGING
         #define SB_LOG_ERROR(...) \
-            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::ERR>("ERROR", SB_CURRENT_LOCATION, __VA_ARGS__)
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::Err>("ERROR", SB_CURRENT_LOCATION, __VA_ARGS__)
 
         /** @brief Logs a message at warning level. */
         #define SB_LOG_WARN(...) \
-            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::WARN>("WARN", SB_CURRENT_LOCATION, __VA_ARGS__)
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::Warn>("WARN", SB_CURRENT_LOCATION, __VA_ARGS__)
 
         /** @brief Logs a message at info level. */
         #define SB_LOG_INFO(...) \
-            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::INFO>("INFO", SB_CURRENT_LOCATION, __VA_ARGS__)
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::Info>("INFO", SB_CURRENT_LOCATION, __VA_ARGS__)
 
         /** @brief Logs a message at debug level. */
         #define SB_LOG_DEBUG(...) \
-            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::DEBUG>("DEBUG", SB_CURRENT_LOCATION, __VA_ARGS__)
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::Debug>("DEBUG", SB_CURRENT_LOCATION, __VA_ARGS__)
     #else
         #define SB_LOG_ERROR(...) ((void)0)
         #define SB_LOG_WARN(...)  ((void)0)

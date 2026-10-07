@@ -66,7 +66,7 @@ int main()
 
         // 4. Test COMPLEX support again with new structure
         std::cout << "\nStep 4: Testing Complex Numbers with to_string()...\n";
-        auto C = engine.create_tensor({2}, SushiBLAS::Core::DataType::COMPLEX32);
+        auto C = engine.create_tensor({2}, SushiBLAS::Core::DataType::Complex32);
         SushiBLAS::IO(engine).from_vector(
             C, std::vector<std::complex<float>>{{1.0f, 2.0f}, {-0.5f, 0.0f}});
 

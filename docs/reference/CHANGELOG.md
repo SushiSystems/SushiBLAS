@@ -6,6 +6,8 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-07 — core: Breaking change: Renamed every enumerator to PascalCase and every namespace-scope and class-scope constant to K_UPPER_SNAKE (`tools/naming/sushiblas_0_1_0.tsv`, `core/common.hpp`, `core/blas_types.hpp`).
+- 2026-10-07 — core: Added `SB_LOG_TYPE_OF`, which expands a level name of `SB_ACTIVE_LOG_LEVEL` to its `LogType` enumerator (`core/logger.hpp`).
 - 2026-10-07 — engine: Added `UnsupportedExecution`, derived from std::invalid_argument, and threw it for every mode or device refusal at record time (`core/errors.hpp`, `engine/operand_check.hpp`, `engine/task_recorder.hpp`).
 - 2026-10-07 — core: Froze the numeric values of `Core::DataType` as a file-format contract and pinned them with a test (`core/common.hpp`, `tests/functional/unit/test_blas_types.cpp`).
 - 2026-10-07 — blas: Added symm, hemm, syr2k and her2k to Level3 (`engine/blas/level3.hpp`, `symm.cpp`, `syr2k.cpp`, `kernels/blas/symmetric_access.hpp`).

@@ -63,8 +63,8 @@ namespace SushiBLAS
                 SB_LOG_INFO("SYCL SPTRSV: order {}, {} entries", pattern.rows, pattern.nnz);
 
                 const int64_t n = pattern.rows;
-                const bool lower = (uplo == Core::Uplo::LOWER);
-                const bool unit_diag = (diag == Core::Diag::UNIT);
+                const bool lower = (uplo == Core::Uplo::Lower);
+                const bool unit_diag = (diag == Core::Diag::Unit);
                 const bool transposed = Core::is_transposed(trans);
                 const bool conjugated = Core::is_conjugated(trans);
 

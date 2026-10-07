@@ -152,8 +152,8 @@ namespace SushiBLAS
             for (std::size_t shift = 0; shift < parts.values.size(); ++shift)
             {
                 SCOPED_TRACE(shift);
-                expect_sample(assemble<int32_t, float>(rotated(parts, shift), IndexBase::ZERO),
-                              IndexBase::ZERO);
+                expect_sample(assemble<int32_t, float>(rotated(parts, shift), IndexBase::Zero),
+                              IndexBase::Zero);
             }
         }
 
@@ -224,7 +224,7 @@ namespace SushiBLAS
         {
             const HostTriplets<float> host = integer_valued_matrix<float>(
                 K_ORDERED_ROWS, K_ORDERED_COLS, K_ORDERED_PER_ROW, K_ORDERED_SEED);
-            const HostCsr<int32_t, float> csr = assemble<int32_t, float>(host, IndexBase::ZERO);
+            const HostCsr<int32_t, float> csr = assemble<int32_t, float>(host, IndexBase::Zero);
 
             // Sums of integers in [-3, 3] are exact, so the dense image has one value per pair.
             const std::size_t cols = static_cast<std::size_t>(host.cols);

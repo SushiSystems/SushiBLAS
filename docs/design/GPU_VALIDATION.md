@@ -93,7 +93,7 @@ On an NVIDIA GPU it should report `is_cpu = false`, `has_dedicated_local_memory 
 
 ### 3.1 GEMM bank-conflict arithmetic
 
-`include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp` uses a padded tile (`tile_k + 1 = 17`) and a **strided ownership lattice** rather than contiguous ownership. The reasoning, for 32 banks of 4 bytes with an 8×8 register block:
+`include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp` uses a padded tile (`K_TILE_K + 1 = 17`) and a **strided ownership lattice** rather than contiguous ownership. The reasoning, for 32 banks of 4 bytes with an 8×8 register block:
 
 - a 32-lane sub-group spans only 4 distinct `local_row`, so the 8 lanes sharing one are a broadcast rather than a conflict;
 - contiguous ownership strides `8 × 16 = 128`, and `128 mod 32 == 0` puts all four on one bank — a 4-way conflict;

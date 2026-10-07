@@ -60,7 +60,7 @@ namespace SushiBLAS
 
                 using W = Accumulator<T>;
                 using WS = Accumulator<Scalar>;
-                const bool upper = (uplo == Core::Uplo::UPPER);
+                const bool upper = (uplo == Core::Uplo::Upper);
                 SB_LOG_INFO("SYCL SYR: {}x{}", n, n);
 
                 return queue.submit([&](sycl::handler& h)
@@ -73,7 +73,7 @@ namespace SushiBLAS
                         bool in_triangle = upper ? (j >= i) : (j <= i);
                         if (!in_triangle)
                             return;
-                        T& ref = (layout == Core::Layout::ROW_MAJOR) ? a[i * lda + j]
+                        T& ref = (layout == Core::Layout::RowMajor) ? a[i * lda + j]
                                                                      : a[i + j * lda];
                         const W updated = W(ref) + multiply(multiply(WS(alpha), W(x[i * incx])),
                                                             Conj::apply(W(x[j * incx])));

@@ -21,7 +21,7 @@
 
 /**
  * @file test_any.cpp
- * @brief Tests logic().any against fixed expected values.
+ * @brief Tests LogicOps::any against fixed expected values.
  * @author Mustafa Garip
  */
 

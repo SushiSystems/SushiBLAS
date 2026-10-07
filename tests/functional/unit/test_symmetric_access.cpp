@@ -65,11 +65,11 @@ namespace SushiBLAS
                                                    -1.0f, -1.0f, 6.0f};
 
             /// @brief The two layouts every run-time case reads in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::ROW_MAJOR,
-                                                  Core::Layout::COLUMN_MAJOR};
+            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
+                                                  Core::Layout::ColumnMajor};
 
             /// @brief The two triangles every run-time case stores.
-            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::UPPER, Core::Uplo::LOWER};
+            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
 
             /** @brief Returns the value that marks an element no read may return. */
             template<typename T>
@@ -86,7 +86,7 @@ namespace SushiBLAS
             /** @brief Returns whether (r, c) lies in the stored triangle. */
             [[nodiscard]] constexpr bool is_stored(Core::Uplo uplo, int64_t r, int64_t c) noexcept
             {
-                return uplo == Core::Uplo::UPPER ? r <= c : r >= c;
+                return uplo == Core::Uplo::Upper ? r <= c : r >= c;
             }
 
             /**
@@ -99,7 +99,7 @@ namespace SushiBLAS
                                                          Value value)
             {
                 const Kernels::OperandAccess at = Kernels::operand_access(
-                    layout, Core::Transpose::NO_TRANS, K_LEADING_DIMENSION);
+                    layout, Core::Transpose::NoTrans, K_LEADING_DIMENSION);
                 std::vector<T> array(static_cast<std::size_t>(K_ORDER * K_LEADING_DIMENSION),
                                      poison<T>());
                 for (int64_t r = 0; r < K_ORDER; ++r)
@@ -139,7 +139,7 @@ namespace SushiBLAS
                         {
                             const int64_t low = std::min(r, c);
                             const int64_t high = std::max(r, c);
-                            const int64_t expected = uplo == Core::Uplo::UPPER
+                            const int64_t expected = uplo == Core::Uplo::Upper
                                                          ? 10 * low + high + 1
                                                          : 10 * high + low + 1;
                             EXPECT_EQ(access.at(array.data(), r, c), static_cast<float>(expected))
@@ -231,7 +231,7 @@ namespace SushiBLAS
         TEST(Unit_SymmetricAccess, IsAConstantExpression)
         {
             constexpr auto access = Kernels::symmetric_access<Kernels::Unconjugated>(
-                Core::Layout::ROW_MAJOR, Core::Uplo::UPPER, K_CONSTANT_ORDER);
+                Core::Layout::RowMajor, Core::Uplo::Upper, K_CONSTANT_ORDER);
 
             static_assert(access.at(K_CONSTANT_MATRIX, 0, 2) == 3.0f,
                           "A stored element is read where it lies.");

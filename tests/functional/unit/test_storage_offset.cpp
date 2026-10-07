@@ -40,21 +40,21 @@ namespace SushiBLAS
         {
             protected:
                 /** @brief Elements of poison placed before and after every view. */
-                static constexpr int64_t kPad = 16;
+                static constexpr int64_t K_PAD = 16;
 
                 /** @brief Byte pattern the padding is filled with. */
-                static constexpr int kPoisonByte = 0x5A;
+                static constexpr int K_POISON_BYTE = 0x5A;
 
                 /**
-                 * @brief A tensor that is a view at element `kPad` of an over-sized,
+                 * @brief A tensor that is a view at element `K_PAD` of an over-sized,
                  *        fully poisoned allocation.
                  *
-                 * The allocation holds `kPad + n + kPad` elements, so there is poison on
+                 * The allocation holds `K_PAD + n + K_PAD` elements, so there is poison on
                  * both sides of the view: the head catches an operation that ignored the
                  * offset, the tail catches one that ran off the end.
                  */
                 Tensor offset_view(std::initializer_list<int64_t> dims,
-                                   Core::DataType dtype = Core::DataType::FLOAT32)
+                                   Core::DataType dtype = Core::DataType::Float32)
                 {
                     int64_t n = 1;
                     for (auto d : dims) n *= d;
@@ -62,14 +62,14 @@ namespace SushiBLAS
                     const size_t bpe = Core::bytes_per_element(dtype);
                     auto storage = SushiRuntime::make_sushi<Storage>(
                         TestEnvironment::get_context(),
-                        static_cast<size_t>(kPad + n + kPad) * bpe,
+                        static_cast<size_t>(K_PAD + n + K_PAD) * bpe,
                         SushiRuntime::API::Residency::Shared);
 
                     // Poisons the view too; each test writes its inputs first.
                     auto& q = TestEnvironment::get_context().get_queue();
-                    q.memset(storage->allocation_base(), kPoisonByte, storage->size_bytes()).wait();
+                    q.memset(storage->allocation_base(), K_POISON_BYTE, storage->size_bytes()).wait();
 
-                    return Tensor(storage, dims, dtype, kPad, engine->get_layout());
+                    return Tensor(storage, dims, dtype, K_PAD, engine->get_layout());
                 }
 
                 /**
@@ -93,7 +93,7 @@ namespace SushiBLAS
                     for (size_t i = 0; i < total; ++i)
                     {
                         if (i >= head && i < tail) continue;
-                        if (host[i] != static_cast<unsigned char>(kPoisonByte))
+                        if (host[i] != static_cast<unsigned char>(K_POISON_BYTE))
                         {
                             return ::testing::AssertionFailure()
                                 << what << ": byte " << i << " of the allocation was written, but the view "
@@ -158,7 +158,7 @@ namespace SushiBLAS
             fill_tensor(y, {100, 200});
 
             SushiBLAS::BLASOps(*engine).gemv(
-                A, x, y, Core::Transpose::NO_TRANS, /*alpha=*/1.0, /*beta=*/2.0);
+                A, x, y, Core::Transpose::NoTrans, /*alpha=*/1.0, /*beta=*/2.0);
             engine->execute();
 
             // A*x = {6, 15}; + 2*{100, 200} = {206, 415}
@@ -314,12 +314,12 @@ namespace SushiBLAS
         TEST_F(Unit_StorageOffsetTest, OffsetIsCountedInElementsNotBytes)
         {
             // storage_offset counts elements, not bytes. See tests/functional/unit/README.md.
-            auto f64 = offset_view({4}, Core::DataType::FLOAT64);
+            auto f64 = offset_view({4}, Core::DataType::Float64);
 
             const auto* base = static_cast<const char*>(f64.storage->allocation_base());
             const auto* view = static_cast<const char*>(f64.data());
 
-            EXPECT_EQ(view - base, kPad * static_cast<int64_t>(sizeof(double)))
+            EXPECT_EQ(view - base, K_PAD * static_cast<int64_t>(sizeof(double)))
                 << "storage_offset must be scaled by the element width, not used as a byte count.";
             EXPECT_EQ(reinterpret_cast<std::uintptr_t>(view) % sizeof(double), 0u)
                 << "an element-counted offset over an aligned allocation is always naturally aligned.";
@@ -327,7 +327,7 @@ namespace SushiBLAS
             // And the region handed to the dependency tracker describes the same bytes.
             const auto region = f64.region();
             EXPECT_EQ(region.base, f64.storage->allocation_base());
-            EXPECT_EQ(region.offset, static_cast<size_t>(kPad) * sizeof(double));
+            EXPECT_EQ(region.offset, static_cast<size_t>(K_PAD) * sizeof(double));
             EXPECT_EQ(region.length, 4u * sizeof(double));
         }
 
@@ -339,9 +339,9 @@ namespace SushiBLAS
                 32 * sizeof(float),
                 SushiRuntime::API::Residency::Shared);
 
-            Tensor first(storage, {8}, Core::DataType::FLOAT32, 0);
-            Tensor second(storage, {8}, Core::DataType::FLOAT32, 8);
-            Tensor overlapping(storage, {8}, Core::DataType::FLOAT32, 4);
+            Tensor first(storage, {8}, Core::DataType::Float32, 0);
+            Tensor second(storage, {8}, Core::DataType::Float32, 8);
+            Tensor overlapping(storage, {8}, Core::DataType::Float32, 4);
 
             EXPECT_FALSE(first.region().overlaps(second.region()));
             EXPECT_TRUE(first.region().overlaps(overlapping.region()));
@@ -365,7 +365,7 @@ namespace SushiBLAS
                         TestEnvironment::get_context(),
                         static_cast<size_t>(count) * sizeof(float),
                         residency);
-                    const Tensor t(storage, {count}, Core::DataType::FLOAT32);
+                    const Tensor t(storage, {count}, Core::DataType::Float32);
 
                     SCOPED_TRACE(::testing::Message() << "residency " << static_cast<int>(residency)
                                                       << ", " << count << " elements");
@@ -392,7 +392,7 @@ namespace SushiBLAS
             const int64_t n = 64;
             auto storage = SushiRuntime::make_sushi<Storage>(
                 TestEnvironment::get_context(), static_cast<size_t>(n) * sizeof(float));
-            const Tensor whole(storage, {n}, Core::DataType::FLOAT32);
+            const Tensor whole(storage, {n}, Core::DataType::Float32);
 
             // One float past the base is 4 bytes in; 32 floats past it are 128 bytes in.
             EXPECT_FALSE(whole.slice(0, 1, n).is_aligned());
@@ -403,7 +403,7 @@ namespace SushiBLAS
         {
             auto storage = SushiRuntime::make_sushi<Storage>(
                 TestEnvironment::get_context(), 4 * sizeof(float));
-            const Tensor t(storage, {4}, Core::DataType::FLOAT32);
+            const Tensor t(storage, {4}, Core::DataType::Float32);
 
             auto& context = TestEnvironment::get_context();
             EXPECT_EQ(t.get_device(), context.get_queue(storage->get_device_index()).get_device());

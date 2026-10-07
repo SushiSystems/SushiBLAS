@@ -46,7 +46,7 @@ blas(engine)` and `BLASOps blas(engine.get_recorder())` record on the same graph
 of a view returns a `TaskHandle`, and the work runs in `Engine::execute()`.
 
 `set_mode` and `get_mode` forward to the recorder, and `get_layout` to the factory. `set_mode` is
-`noexcept`: `ExecutionMode` has the three enumerators `AUTO`, `FORCE_SYCL` and `FORCE_REFERENCE`,
+`noexcept`: `ExecutionMode` has the three enumerators `Auto`, `ForceSycl` and `ForceReference`,
 and none of them is refused.
 
 ### `Engine::execute`
@@ -97,7 +97,7 @@ and the device index before they allocate. `Tensor::reshape` takes a braced list
 tensor. `Engine::create_tensor` forwards to it, and `SparseBuilder` takes a factory, so it builds
 sparse operands without an `Engine`. `allocation_bytes` is the size check alone: it returns the
 byte count a shape and dtype need, and throws `std::runtime_error` on a rank above
-`Core::MAX_TENSOR_RANK`, a negative dimension or an overflowing count. A shape with a zero
+`Core::K_MAX_TENSOR_RANK`, a negative dimension or an overflowing count. A shape with a zero
 dimension needs 0 bytes, and `create` then returns a tensor without storage.
 
 ## `sparse_matrix.hpp`, `sparse_vector.hpp`

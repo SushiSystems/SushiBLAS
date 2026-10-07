@@ -121,8 +121,8 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.concat_channels"_op;
 
-        // A copy does no arithmetic, so it serves Domain::ALL; see src/README.md.
-        return Internal::execute_typed_task<Dispatch::Domain::ALL>(
+        // A copy does no arithmetic, so it serves Domain::All; see src/README.md.
+        return Internal::execute_typed_task<Dispatch::Domain::All>(
             recorder_, meta, operands, src.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
@@ -171,7 +171,7 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.slice_channels"_op;
 
-        return Internal::execute_typed_task<Dispatch::Domain::ALL>(
+        return Internal::execute_typed_task<Dispatch::Domain::All>(
             recorder_, meta, operands, src.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

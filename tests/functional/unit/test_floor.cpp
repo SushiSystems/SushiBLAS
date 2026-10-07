@@ -21,7 +21,7 @@
 
 /**
  * @file test_floor.cpp
- * @brief Tests elementwise().floor against fixed expected values.
+ * @brief Tests ElementwiseOps::floor against fixed expected values.
  * @author Mustafa Garip
  */
 

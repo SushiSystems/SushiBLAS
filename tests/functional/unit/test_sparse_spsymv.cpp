@@ -63,13 +63,13 @@ namespace SushiBLAS
             constexpr std::uint32_t K_EXACT_SEED = 20261007u;
 
             /// @brief The two triangles a one-triangle product reads.
-            constexpr Core::Uplo K_BOTH_TRIANGLES[2] = {Core::Uplo::LOWER, Core::Uplo::UPPER};
+            constexpr Core::Uplo K_BOTH_TRIANGLES[2] = {Core::Uplo::Lower, Core::Uplo::Upper};
 
             /** @brief Selects which of the two one-triangle products a case records. */
             enum class Mirror : std::uint8_t
             {
-                SYMMETRIC, /**< spsymv: the mirror of an entry is the entry. */
-                HERMITIAN  /**< sphemv: the mirror of an entry is its conjugate. */
+                Symmetric, /**< spsymv: the mirror of an entry is the entry. */
+                Hermitian  /**< sphemv: the mirror of an entry is its conjugate. */
             };
 
             /**
@@ -152,8 +152,8 @@ namespace SushiBLAS
                                                      std::complex<double> alpha, const Wide& x,
                                                      std::complex<double> beta, const Wide& y)
             {
-                const bool lower = (uplo == Core::Uplo::LOWER);
-                const bool hermitian = (mirror == Mirror::HERMITIAN);
+                const bool lower = (uplo == Core::Uplo::Lower);
+                const bool hermitian = (mirror == Mirror::Hermitian);
 
                 Wide sums(y.size(), std::complex<double>(0.0, 0.0));
                 for (std::size_t k = 0; k < triangle.values.size(); ++k)
@@ -238,7 +238,7 @@ namespace SushiBLAS
                     Tensor ty = vector_of(y);
 
                     SparseOps ops(*engine);
-                    if (mirror == Mirror::HERMITIAN)
+                    if (mirror == Mirror::Hermitian)
                         ops.sphemv(A, tx, ty, uplo, BlasScalar(alpha), BlasScalar(beta));
                     else
                         ops.spsymv(A, tx, ty, uplo, BlasScalar(alpha), BlasScalar(beta));
@@ -263,7 +263,7 @@ namespace SushiBLAS
                 [[nodiscard]] static HostTriplets<T> sample_triangle(Core::Uplo uplo)
                 {
                     const HostTriplets<T> lower = symmetric_sample_lower<T>();
-                    return uplo == Core::Uplo::LOWER ? lower : transpose_of(lower);
+                    return uplo == Core::Uplo::Lower ? lower : transpose_of(lower);
                 }
         };
 
@@ -289,10 +289,10 @@ namespace SushiBLAS
                     for (const Core::Uplo uplo : K_BOTH_TRIANGLES)
                     {
                         const auto triangle = this->sample_triangle(uplo);
-                        this->expect_near(this->run(mode, Mirror::SYMMETRIC, triangle, base, uplo,
+                        this->expect_near(this->run(mode, Mirror::Symmetric, triangle, base, uplo,
                                                     one, x, zero, zeros),
                                           plain, 0.0);
-                        this->expect_near(this->run(mode, Mirror::SYMMETRIC, triangle, base, uplo,
+                        this->expect_near(this->run(mode, Mirror::Symmetric, triangle, base, uplo,
                                                     two, x, minus_one, ones),
                                           scaled, 0.0);
                     }
@@ -314,8 +314,8 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 for (const Core::Uplo uplo : K_BOTH_TRIANGLES)
-                    this->expect_near(this->run(mode, Mirror::SYMMETRIC, full,
-                                                Core::IndexBase::ZERO, uplo, one, x, zero, zeros),
+                    this->expect_near(this->run(mode, Mirror::Symmetric, full,
+                                                Core::IndexBase::Zero, uplo, one, x, zero, zeros),
                                       expected, 0.0);
             }
         }
@@ -337,8 +337,8 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 for (const Core::IndexBase base : K_BOTH_BASES)
-                    this->expect_near(this->run(mode, Mirror::SYMMETRIC, poisoned, base,
-                                                Core::Uplo::LOWER, one, x, zero, zeros),
+                    this->expect_near(this->run(mode, Mirror::Symmetric, poisoned, base,
+                                                Core::Uplo::Lower, one, x, zero, zeros),
                                       expected, 0.0);
             }
         }
@@ -354,10 +354,10 @@ namespace SushiBLAS
 
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
-                for (const Mirror mirror : {Mirror::SYMMETRIC, Mirror::HERMITIAN})
+                for (const Mirror mirror : {Mirror::Symmetric, Mirror::Hermitian})
                     this->expect_near(this->run(mode, mirror,
-                                                this->sample_triangle(Core::Uplo::LOWER),
-                                                Core::IndexBase::ZERO, Core::Uplo::LOWER, one, x,
+                                                this->sample_triangle(Core::Uplo::Lower),
+                                                Core::IndexBase::Zero, Core::Uplo::Lower, one, x,
                                                 zero, poisoned),
                                       expected, 0.0);
             }
@@ -388,11 +388,11 @@ namespace SushiBLAS
             {
                 for (const Core::IndexBase base : K_BOTH_BASES)
                 {
-                    this->expect_near(this->run(mode, Mirror::HERMITIAN, lower, base,
-                                                Core::Uplo::LOWER, one, x, zero, zeros),
+                    this->expect_near(this->run(mode, Mirror::Hermitian, lower, base,
+                                                Core::Uplo::Lower, one, x, zero, zeros),
                                       {{4.0, 1.0}, {1.0, 5.0}}, K_SAMPLE_TOLERANCE);
-                    this->expect_near(this->run(mode, Mirror::SYMMETRIC, lower, base,
-                                                Core::Uplo::LOWER, one, x, zero, zeros),
+                    this->expect_near(this->run(mode, Mirror::Symmetric, lower, base,
+                                                Core::Uplo::Lower, one, x, zero, zeros),
                                       {{0.0, 10.0}, {1.0, 5.0}}, K_SAMPLE_TOLERANCE);
                 }
             }
@@ -416,10 +416,10 @@ namespace SushiBLAS
                 {
                     const auto triangle = this->sample_triangle(uplo);
                     const std::vector<T> symmetric =
-                        this->run(mode, Mirror::SYMMETRIC, triangle, Core::IndexBase::ZERO, uplo,
+                        this->run(mode, Mirror::Symmetric, triangle, Core::IndexBase::Zero, uplo,
                                   two, x, minus_one, ones);
                     const std::vector<T> hermitian =
-                        this->run(mode, Mirror::HERMITIAN, triangle, Core::IndexBase::ZERO, uplo,
+                        this->run(mode, Mirror::Hermitian, triangle, Core::IndexBase::Zero, uplo,
                                   two, x, minus_one, ones);
 
                     ASSERT_EQ(symmetric.size(), hermitian.size());
@@ -448,13 +448,13 @@ namespace SushiBLAS
             for (const Core::Uplo uplo : K_BOTH_TRIANGLES)
             {
                 const HostTriplets<T> triangle =
-                    uplo == Core::Uplo::LOWER ? lower : transpose_of(lower);
-                const Wide expected = host_mirrored_product(triangle, uplo, Mirror::SYMMETRIC, one,
+                    uplo == Core::Uplo::Lower ? lower : transpose_of(lower);
+                const Wide expected = host_mirrored_product(triangle, uplo, Mirror::Symmetric, one,
                                                             x, minus_one, y);
 
                 for (const ExecutionMode mode : K_BOTH_MODES)
-                    this->expect_near(this->run(mode, Mirror::SYMMETRIC, triangle,
-                                                Core::IndexBase::ZERO, uplo, one, x, minus_one, y),
+                    this->expect_near(this->run(mode, Mirror::Symmetric, triangle,
+                                                Core::IndexBase::Zero, uplo, one, x, minus_one, y),
                                       expected, 0.0);
             }
         }
@@ -467,13 +467,13 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 this->engine->set_mode(mode);
-                const SparseMatrix A = this->build(empty, Core::IndexBase::ZERO);
+                const SparseMatrix A = this->build(empty, Core::IndexBase::Zero);
                 const Tensor x = this->engine->create_tensor({0}, get_sushiblas_dtype<T>());
                 Tensor y = this->engine->create_tensor({0}, get_sushiblas_dtype<T>());
 
                 SparseOps ops(*this->engine);
-                EXPECT_NO_THROW(ops.spsymv(A, x, y, Core::Uplo::LOWER));
-                EXPECT_NO_THROW(ops.sphemv(A, x, y, Core::Uplo::UPPER));
+                EXPECT_NO_THROW(ops.spsymv(A, x, y, Core::Uplo::Lower));
+                EXPECT_NO_THROW(ops.sphemv(A, x, y, Core::Uplo::Upper));
                 EXPECT_NO_THROW(this->engine->execute());
             }
         }
@@ -503,8 +503,8 @@ namespace SushiBLAS
             const Wide expected = {one, {2048.0, 0.0}, one, {-2048.0, 0.0}};
 
             for (const ExecutionMode mode : K_BOTH_MODES)
-                expect_near(run(mode, Mirror::SYMMETRIC, lower, Core::IndexBase::ZERO,
-                                Core::Uplo::LOWER, one, ones, zero, zeros),
+                expect_near(run(mode, Mirror::Symmetric, lower, Core::IndexBase::Zero,
+                                Core::Uplo::Lower, one, ones, zero, zeros),
                             expected, 0.0);
         }
 
@@ -519,7 +519,7 @@ namespace SushiBLAS
                                                                   const std::vector<float>& x,
                                                                   std::size_t blocks)
                 {
-                    const Core::IndexBase base = Core::IndexBase::ZERO;
+                    const Core::IndexBase base = Core::IndexBase::Zero;
                     const SparseBuilder builder(engine->get_tensor_factory());
                     const SparseMatrix A = builder.matrix_from_triplets(
                         lower.rows, lower.cols, stored_indices<int32_t>(lower.row_indices, base),
@@ -533,7 +533,7 @@ namespace SushiBLAS
                         A.rows, A.cols, A.nnz(), 0, A.row_offsets.data_as<int32_t>(),
                         A.column_indices.data_as<int32_t>()};
                     Kernels::SYCL::spsymv<float, int32_t>(
-                        TestEnvironment::get_context().get_queue(), Core::Uplo::LOWER, pattern,
+                        TestEnvironment::get_context().get_queue(), Core::Uplo::Lower, pattern,
                         A.values.data_as<float>(), 1.0f, tx.data_as<float>(), 1, 0.0f,
                         ty.data_as<float>(), 1, partials.data_as<float>(), blocks, {}).wait();
                     return read_tensor<float>(ty);
@@ -555,7 +555,7 @@ namespace SushiBLAS
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> zero(0.0, 0.0);
             const Wide expected =
-                host_mirrored_product(lower, Core::Uplo::LOWER, Mirror::SYMMETRIC, one, wide_x,
+                host_mirrored_product(lower, Core::Uplo::Lower, Mirror::Symmetric, one, wide_x,
                                       zero, Wide(x.size(), zero));
 
             const std::size_t block_counts[6] = {1, 2, 3, 7, 64, 256};

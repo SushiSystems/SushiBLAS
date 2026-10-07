@@ -45,12 +45,12 @@ namespace SushiBLAS
              */
             enum class StructureDefect : uint8_t
             {
-                NONE,               /**< The structure keeps every rule. */
-                FIRST_OFFSET,       /**< The first row offset is not the index base. */
-                DECREASING_OFFSET,  /**< A row ends before it starts. */
-                LAST_OFFSET,        /**< The last row offset does not name the entry count. */
-                INDEX_OUT_OF_RANGE, /**< A column or a position lies outside the operand. */
-                REPEATED_INDEX      /**< A sparse vector stores one position twice. */
+                None,               /**< The structure keeps every rule. */
+                FirstOffset,       /**< The first row offset is not the index base. */
+                DecreasingOffset,  /**< A row ends before it starts. */
+                LastOffset,        /**< The last row offset does not name the entry count. */
+                IndexOutOfRange, /**< A column or a position lies outside the operand. */
+                RepeatedIndex      /**< A sparse vector stores one position twice. */
             };
 
             /**
@@ -62,25 +62,25 @@ namespace SushiBLAS
             [[nodiscard]] StructureDefect find_defect(const CsrPattern<Index>& pattern) noexcept
             {
                 if (pattern.row_begin(0) != 0)
-                    return StructureDefect::FIRST_OFFSET;
+                    return StructureDefect::FirstOffset;
 
                 for (int64_t row = 0; row < pattern.rows; ++row)
                 {
                     if (pattern.row_end(row) < pattern.row_begin(row))
-                        return StructureDefect::DECREASING_OFFSET;
+                        return StructureDefect::DecreasingOffset;
                 }
 
                 if (pattern.row_begin(pattern.rows) != pattern.nnz)
-                    return StructureDefect::LAST_OFFSET;
+                    return StructureDefect::LastOffset;
 
                 for (int64_t entry = 0; entry < pattern.nnz; ++entry)
                 {
                     const int64_t column = pattern.column(entry);
                     if (column < 0 || column >= pattern.cols)
-                        return StructureDefect::INDEX_OUT_OF_RANGE;
+                        return StructureDefect::IndexOutOfRange;
                 }
 
-                return StructureDefect::NONE;
+                return StructureDefect::None;
             }
 
             /**
@@ -96,13 +96,13 @@ namespace SushiBLAS
                 {
                     const int64_t position = positions.at(entry);
                     if (position < 0 || position >= positions.extent)
-                        return StructureDefect::INDEX_OUT_OF_RANGE;
+                        return StructureDefect::IndexOutOfRange;
                     if (seen[static_cast<std::size_t>(position)])
-                        return StructureDefect::REPEATED_INDEX;
+                        return StructureDefect::RepeatedIndex;
                     seen[static_cast<std::size_t>(position)] = true;
                 }
 
-                return StructureDefect::NONE;
+                return StructureDefect::None;
             }
         } // namespace Reference
     } // namespace Kernels

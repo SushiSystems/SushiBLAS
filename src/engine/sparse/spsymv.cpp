@@ -155,7 +155,7 @@ namespace SushiBLAS
             Dispatch::require_vector_length(vx, a.rows, "the order of A", op, "x");
             Dispatch::require_vector_length(vy, a.rows, "the order of A", op, "y");
 
-            if (A.row_offsets.dtype == Core::DataType::INT32)
+            if (A.row_offsets.dtype == Core::DataType::Int32)
                 return record_spsymv_task<int32_t, Conj>(recorder, op, op_id, A, a, x, vx.increment,
                                                          y, vy.increment, uplo, alpha, beta);
             return record_spsymv_task<int64_t, Conj>(recorder, op, op_id, A, a, x, vx.increment, y,

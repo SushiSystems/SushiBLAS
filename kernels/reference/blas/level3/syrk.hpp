@@ -56,7 +56,7 @@ namespace SushiBLAS
             {
                 using RW = ReferenceAccumulator<T>;
                 using RWS = ReferenceAccumulator<Scalar>;
-                const bool upper = (uplo == Core::Uplo::UPPER);
+                const bool upper = (uplo == Core::Uplo::Upper);
                 const OperandAccess op_a = operand_access(layout, trans, lda);
 
                 for (int64_t i = 0; i < n; ++i)
@@ -72,7 +72,7 @@ namespace SushiBLAS
                             sum.add(RW(op_a.at(a, i, l)) * Conj::apply(RW(op_a.at(a, j, l))));
 
                         // A zero beta must not read the prior value of C.
-                        T& out = (layout == Core::Layout::ROW_MAJOR) ? c[i * ldc + j] : c[i + j * ldc];
+                        T& out = (layout == Core::Layout::RowMajor) ? c[i * ldc + j] : c[i + j * ldc];
                         const RW updated = (beta == Scalar(0))
                             ? RW(RWS(alpha) * sum.value())
                             : RW(RWS(alpha) * sum.value() + RWS(beta) * RW(out));

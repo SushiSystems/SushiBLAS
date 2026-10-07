@@ -76,22 +76,22 @@ namespace SushiBLAS
             [[nodiscard]] constexpr Core::DataType dtype_named_by() noexcept
             {
                 if constexpr (std::is_same_v<U, sycl::half>)
-                    return Core::DataType::HALF;
+                    return Core::DataType::Half;
                 else if constexpr (std::is_same_v<U, float>)
-                    return Core::DataType::FLOAT32;
+                    return Core::DataType::Float32;
                 else if constexpr (std::is_same_v<U, double>)
-                    return Core::DataType::FLOAT64;
+                    return Core::DataType::Float64;
                 else if constexpr (std::is_same_v<U, std::complex<float>>)
-                    return Core::DataType::COMPLEX32;
+                    return Core::DataType::Complex32;
                 else if constexpr (std::is_same_v<U, std::complex<double>>)
-                    return Core::DataType::COMPLEX64;
+                    return Core::DataType::Complex64;
                 else if constexpr (std::is_same_v<U, std::int32_t>)
-                    return Core::DataType::INT32;
+                    return Core::DataType::Int32;
                 else
                 {
                     static_assert(std::is_same_v<U, std::int64_t>,
                                   "A typed read names one of the seven element types.");
-                    return Core::DataType::INT64;
+                    return Core::DataType::Int64;
                 }
             }
 

@@ -21,7 +21,7 @@
 
 /**
  * @file test_swap.cpp
- * @brief Tests blas().swap against fixed expected values.
+ * @brief Tests BLASOps::swap against fixed expected values.
  * @author Mustafa Garip
  */
 

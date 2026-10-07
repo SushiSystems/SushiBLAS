@@ -79,12 +79,12 @@ namespace SushiBLAS
             constexpr double K_MODE_ULPS = 2.0;
 
             /// @brief Both kernels an operation has.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::FORCE_REFERENCE,
-                                                 ExecutionMode::FORCE_SYCL};
+            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
+                                                 ExecutionMode::ForceSycl};
 
             /// @brief Both element orders an engine can create tensors in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::ROW_MAJOR,
-                                                  Core::Layout::COLUMN_MAJOR};
+            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
+                                                  Core::Layout::ColumnMajor};
 
             /** @brief Holds the four scalars one call of rotmg receives. */
             struct Operands
@@ -116,9 +116,9 @@ namespace SushiBLAS
             /** @brief Returns the name of a mode and a layout for a failure message. */
             [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
             {
-                return std::string(mode == ExecutionMode::FORCE_SYCL ? "FORCE_SYCL"
+                return std::string(mode == ExecutionMode::ForceSycl ? "FORCE_SYCL"
                                                                      : "FORCE_REFERENCE") +
-                       (layout == Core::Layout::ROW_MAJOR ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
+                       (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
             }
 
             /** @brief Returns whether the test device computes in T. */
@@ -361,10 +361,10 @@ namespace SushiBLAS
 
             for (const Core::Layout layout : K_LAYOUTS)
             {
-                SCOPED_TRACE(layout == Core::Layout::ROW_MAJOR ? "ROW_MAJOR" : "COLUMN_MAJOR");
-                this->start(layout, ExecutionMode::FORCE_REFERENCE);
+                SCOPED_TRACE(layout == Core::Layout::RowMajor ? "ROW_MAJOR" : "COLUMN_MAJOR");
+                this->start(layout, ExecutionMode::ForceReference);
                 const auto reference = this->transform(calls);
-                this->start(layout, ExecutionMode::FORCE_SYCL);
+                this->start(layout, ExecutionMode::ForceSycl);
                 const auto device = this->transform(calls);
 
                 ASSERT_EQ(device.size(), reference.size());

@@ -50,7 +50,7 @@ namespace SushiBLAS
         {
             public:
                 /** @brief Builds an empty graph whose recorder records under mode. */
-                explicit GraphProbe(ExecutionMode mode = ExecutionMode::AUTO)
+                explicit GraphProbe(ExecutionMode mode = ExecutionMode::Auto)
                     : scratch_pool_(TestEnvironment::get_context()),
                       graph_(TestEnvironment::get_context()),
                       recorder_(graph_, scratch_pool_, mode)

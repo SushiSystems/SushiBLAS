@@ -21,7 +21,7 @@
 
 /**
  * @file test_exp.cpp
- * @brief Tests elementwise().exp against fixed expected values.
+ * @brief Tests ElementwiseOps::exp against fixed expected values.
  * @author Mustafa Garip
  */
 
@@ -108,7 +108,7 @@ TEST_F(Unit_ExpTest, ThousandElements)
 
 TEST_F(Unit_ExpTest, Float64)
 {
-    auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::FLOAT64);
+    auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::Float64);
     fill_tensor(t, {-1.0f, 0.0f, 0.5f, 2.0f});
 
     SushiBLAS::ElementwiseOps(*engine).exp(t);

@@ -59,7 +59,7 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.pool_avg"_op;
 
-        return Internal::execute_typed_task<Dispatch::Domain::REAL>(
+        return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, meta, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
@@ -102,7 +102,7 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.pool_avg_backward"_op;
 
-        return Internal::execute_typed_task<Dispatch::Domain::REAL>(
+        return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, meta, operands, dy.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

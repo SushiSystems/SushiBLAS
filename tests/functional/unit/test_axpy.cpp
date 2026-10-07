@@ -21,7 +21,7 @@
 
 /**
  * @file test_axpy.cpp
- * @brief Tests blas().axpy against fixed expected values.
+ * @brief Tests BLASOps::axpy against fixed expected values.
  * @author Mustafa Garip
  */
 

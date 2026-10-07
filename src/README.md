@@ -235,7 +235,7 @@ before it writes it, so `y` is an accumulator and not only a destination.
 routine is fixed to one precision. The message names `ElementwiseOps::convert`, the converting
 copy, because a caller who wanted a conversion reaches this line.
 
-`copy` is the only BLAS operation recorded with `Domain::ALL`. It moves elements and does no
+`copy` is the only BLAS operation recorded with `Domain::All`. It moves elements and does no
 arithmetic on them, so it can serve every element type, the integer ones included. An index tensor
 that `iamax` or `argmax` produced can then be moved without passing through a float.
 
@@ -315,7 +315,7 @@ reference and the SYCL kernel.
 the one it recorded when it called the kernel directly; see
 `include/SushiBLAS/engine/blas/README.md`, under `execute_gemm`.
 
-`gemm` passes `REAL_AND_COMPLEX` explicitly. The seam defaults to `REAL`, because an epilogue a
+`gemm` passes `RealAndComplex` explicitly. The seam defaults to `Real`, because an epilogue a
 caller writes is usually real only. Plain GEMM has supported all five dtypes since SB-2, and the
 identity epilogue is well-formed for each of them.
 
@@ -334,7 +334,7 @@ under `src/engine/blas/level3/syrk.cpp` above: one triangle of `C` is kept.
 ### `src/engine/logic/all.cpp`
 
 `LogicOps::all` uses `sycl::reduction` on its SYCL path, which a floating-point sum in this library
-must not. Under `FORCE_REFERENCE` it runs `all_reference`, a serial loop in the same file. The
+must not. Under `ForceReference` it runs `all_reference`, a serial loop in the same file. The
 SYCL specification leaves the combination order of a reduction unspecified, and that matters only
 for a combiner whose result depends on the order. `all` reduces over two values, T(0) and T(1),
 under `minimum`, which is associative, commutative and exact on that domain, so every order gives
@@ -346,7 +346,7 @@ seeds itself from whatever the result tensor already holds and folds it into the
 over a tensor of ones returned 0 whenever the caller reused a result that had held 0, and returned
 whatever the allocator left behind when the result had never been written.
 
-`all` is recorded with `Domain::REAL_AND_INTEGRAL`. A truth test means as much on an integer
+`all` is recorded with `Domain::RealAndIntegral`. A truth test means as much on an integer
 tensor as on a float one, and an integer element carries the 1 or 0 this family produces without
 a conversion. Complex is excluded: `logic_not_zero` would work on it, but `sycl::minimum` and
 `sycl::maximum` over `std::complex` do not, and a reduction needs an ordering.
@@ -364,7 +364,7 @@ change a bit of the answer.
 The reduction is created with `initialize_to_identity`, as in `all`. Without it, `any` over a
 tensor of zeros returned 1 whenever the caller reused a result that had held 1.
 
-`any` is recorded with `Domain::REAL_AND_INTEGRAL` and switches on the dtype through
+`any` is recorded with `Domain::RealAndIntegral` and switches on the dtype through
 `Dispatch::with_element_type`, both for the reasons given under `src/engine/logic/all.cpp`.
 
 ### `src/engine/math/elementwise/convert.cpp`
@@ -389,7 +389,7 @@ during instantiation (see `include/SushiBLAS/engine/README.md`, under `execute_t
 an operation over two types is where that nesting would otherwise be written.
 
 `record_convert` launches through `Launch::indexed` on the SYCL path, and runs the same functor
-through `Serial::indexed` under `FORCE_REFERENCE`. `Launch::map` has a `static_assert` that
+through `Serial::indexed` under `ForceReference`. `Launch::map` has a `static_assert` that
 every operand shares one element type, and the assertion is correct: the wide pass of `map` loads
 and stores `sycl::vec<T, W>` at one width, and two operands of different widths have no common W.
 `convert` therefore gets the device split, flat on a CPU and grid-stride on a GPU, and no vector
@@ -464,10 +464,10 @@ Q Q^T = gain^2 I in the first case and Q^T Q = gain^2 I in the second, the same 
 PyTorch's `orthogonal_`.
 
 The sweep itself is `Kernels::SYCL::Random::orthonormalize`, one work-group per vector, or
-`Kernels::Reference::Random::orthonormalize` under `FORCE_REFERENCE`; see `kernels/README.md`.
+`Kernels::Reference::Random::orthonormalize` under `ForceReference`; see `kernels/README.md`.
 `orthogonal` calls `TaskRecorder::require_host_reachable` before it records the fill, so a refused
 call records nothing and draws nothing. It takes its steps from `t.strides`, not from arithmetic on
-rows and columns, so it is correct for `ROW_MAJOR` and `COLUMN_MAJOR` with no special case. A
+rows and columns, so it is correct for `RowMajor` and `ColumnMajor` with no special case. A
 column-major matrix walks the two axes in the other order, and the transpose of an orthogonal matrix
 is orthogonal.
 
@@ -486,7 +486,7 @@ aspect.
 `RandomOps::shuffle` runs Fisher-Yates sequentially. Each step draws its swap partner from a range
 that depends on the step index, so the permutation is uniform only if the steps happen in order. A
 `single_task` keeps that order on the device and leaves the tensor's data where it is; under
-`FORCE_REFERENCE` the same `FisherYates` functor runs on the host. The
+`ForceReference` the same `FisherYates` functor runs on the host. The
 parallel alternative tags every element with a random key and sorts, which needs a second buffer
 of the full size and a device sort this library does not have.
 
@@ -509,7 +509,7 @@ describes: one flat run of 2n reals, read four FLOAT32 or two FLOAT64 values per
 order is total: the larger value wins, then the lower index, and its NaN rule is stated on
 `RunningArgMax::combine`. Because the order is total the combination order cannot change the
 answer, so the lowest-index maximum wins a tie on every device and launch shape. Under
-`FORCE_REFERENCE` the same accumulator folds in index order on the host.
+`ForceReference` the same accumulator folds in index order on the host.
 
 It does not go through `sycl::reduction`: custom reductions behave differently on the OpenCL and
 Level-Zero backends, and the tie-breaking rule must not change with the backend.
@@ -655,7 +655,7 @@ of one shared grid, so there is no second extent derived from a window.
 `span.channels` stays at the source's channel count and neither kernel reads it. The width of the
 copy travels as an explicit argument.
 
-The channel copies are recorded with `Domain::ALL`. They move elements and do no arithmetic on
+The channel copies are recorded with `Domain::All`. They move elements and do no arithmetic on
 them, so every element type the library has can be copied.
 
 ### `src/engine/spatial/col2im.cpp`
@@ -707,7 +707,7 @@ assignment the forward made, so the geometry must be the forward's. In
 `window_dot_weights_backward`, `in` takes the input role and `dy` the output role for the same
 reason, and `dweights` is described by `tap_span_for` as `weights` is in the forward.
 
-All three are recorded with `Domain::REAL`.
+All three are recorded with `Domain::Real`.
 
 ### `src/engine/spatial/upsample_nearest.cpp`
 

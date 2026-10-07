@@ -39,7 +39,7 @@ int main()
     constexpr float K_B_VALUE = 2.0f;
 
     sr::Execution::RuntimeContext ctx;
-    sb::Engine engine(ctx, sb::Core::Layout::COLUMN_MAJOR);
+    sb::Engine engine(ctx, sb::Core::Layout::ColumnMajor);
 
     auto A = engine.create_tensor({K_SIZE, K_SIZE});
     auto B = engine.create_tensor({K_SIZE, K_SIZE});

@@ -59,7 +59,7 @@ namespace SushiBLAS
                 SB_LOG_INFO("SYCL TPSV: {}x{}", n, n);
 
                 const PackedAccess access = packed_access(layout, uplo, trans, n);
-                const bool unit_diag = (diag == Core::Diag::UNIT);
+                const bool unit_diag = (diag == Core::Diag::Unit);
                 return Detail::triangular_solve(queue, access, access.is_upper(), unit_diag, n, ap,
                                                 x, incx, work, deps);
             }

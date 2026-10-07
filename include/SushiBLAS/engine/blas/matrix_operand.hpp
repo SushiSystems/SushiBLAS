@@ -49,7 +49,7 @@ namespace SushiBLAS
             int64_t cols = 0;                                /**< Size of the last axis. */
             int64_t leading_dimension = 0;                   /**< Distance between rows (row-major) or columns (column-major). */
             int64_t matrix_elements = 0;                     /**< Elements in one matrix of the batch. */
-            Core::Layout layout = Core::Layout::ROW_MAJOR;   /**< Order of the elements within one matrix. */
+            Core::Layout layout = Core::Layout::RowMajor;   /**< Order of the elements within one matrix. */
         };
 
         /**
@@ -75,7 +75,7 @@ namespace SushiBLAS
             m.cols = t.shape[t.rank - 1];
             m.layout = t.layout;
             m.matrix_elements = m.rows * m.cols;
-            m.leading_dimension = (t.layout == Core::Layout::ROW_MAJOR) ? m.cols : m.rows;
+            m.leading_dimension = (t.layout == Core::Layout::RowMajor) ? m.cols : m.rows;
 
             for (int32_t i = 0; i < t.rank - 2; ++i)
                 m.batch_count *= t.shape[i];
@@ -141,10 +141,10 @@ namespace SushiBLAS
                 Detail::throw_operand_error(op, operand_a,
                                             "is {}, but '{}' is {}; every operand of one call must "
                                             "share a layout",
-                                            a.layout == Core::Layout::ROW_MAJOR ? "row-major"
+                                            a.layout == Core::Layout::RowMajor ? "row-major"
                                                                                 : "column-major",
                                             operand_b,
-                                            b.layout == Core::Layout::ROW_MAJOR ? "row-major"
+                                            b.layout == Core::Layout::RowMajor ? "row-major"
                                                                                 : "column-major");
         }
 

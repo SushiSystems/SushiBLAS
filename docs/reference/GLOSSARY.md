@@ -15,13 +15,13 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | Storage | A ref-counted SushiRuntime USM allocation, aligned to 128 bytes, that one or more tensors view |
 | Task graph | SushiRuntime's `TaskGraph`. An operation call records one task onto it through the task recorder; `engine.execute()` compiles and runs the engine's own |
 | Record time | The moment an operation call adds its task to the graph, before anything runs. Input checks throw here |
-| Dtype | A member of `Core::DataType`: `HALF`, `FLOAT32`, `FLOAT64`, `COMPLEX32`, `COMPLEX64`, `INT32`, `INT64`, numbered 0 to 6. The numbers are a file-format contract and a new type is appended |
-| Domain | `Dispatch::Domain`, the dtype families an operation admits: `REAL`, `COMPLEX`, `INTEGRAL` and their unions |
-| Layout | `Core::Layout`, `ROW_MAJOR` or `COLUMN_MAJOR`; how a matrix operand is addressed |
+| Dtype | A member of `Core::DataType`: `Half`, `Float32`, `Float64`, `Complex32`, `Complex64`, `Int32`, `Int64`, numbered 0 to 6. The numbers are a file-format contract and a new type is appended |
+| Domain | `Dispatch::Domain`, the dtype families an operation admits: `Real`, `Complex`, `Integral` and their unions |
+| Layout | `Core::Layout`, `RowMajor` or `ColumnMajor`; how a matrix operand is addressed |
 | Reference kernel | The plain C++ implementation of an operation, under `kernels/reference/`. The BLAS, sparse and spatial families have one per operation |
-| Reference path | What runs on the host under `FORCE_REFERENCE`: the reference kernel where an operation has one, and for the elementwise, nonlinear, logic, reduction and random families a serial loop over the same functor, fold or Philox counters as the SYCL kernel |
+| Reference path | What runs on the host under `ForceReference`: the reference kernel where an operation has one, and for the elementwise, nonlinear, logic, reduction and random families a serial loop over the same functor, fold or Philox counters as the SYCL kernel |
 | SYCL kernel | The device implementation of an operation, under `kernels/sycl/` |
-| Execution mode | `ExecutionMode`: `AUTO` and `FORCE_SYCL` run the SYCL kernel, `FORCE_REFERENCE` runs the reference path on the host. A task keeps the mode its recorder held when it was recorded |
+| Execution mode | `ExecutionMode`: `Auto` and `ForceSycl` run the SYCL kernel, `ForceReference` runs the reference path on the host. A task keeps the mode its recorder held when it was recorded |
 | Dispatch helper | `Internal::execute_typed_task` in `engine/task.hpp` records a task through the recorder and switches on the dtype; `Internal::KernelPairDispatcher` runs the reference or the SYCL kernel of a pair by the recorded mode |
 | Dispatch seam | The public `SushiBLAS::Dispatch` functions that take a recorder and a caller-written functor and record it as one task, such as `execute_binary` and `execute_gemm` |
 | Declared read | A tensor a caller's functor reads at execution time, named through `Dispatch::bind_reads` so the graph orders the task after its writers and keeps the storage (`engine/math/elementwise/read_binding.hpp`) |

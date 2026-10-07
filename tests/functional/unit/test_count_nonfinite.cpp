@@ -21,7 +21,7 @@
 
 /**
  * @file test_count_nonfinite.cpp
- * @brief Tests reductions().count_nonfinite, its refusals and its ordering in the graph.
+ * @brief Tests ReductionOps::count_nonfinite, its refusals and its ordering in the graph.
  * @author Mustafa Garip
  */
 
@@ -45,7 +45,7 @@ namespace SushiBLAS
         namespace
         {
             /** @brief A size the CPU folds in one sequential pass. */
-            constexpr int64_t kSmall = 1024;
+            constexpr int64_t K_SMALL = 1024;
 
             /**
              * @brief A size past the CPU's two-stage threshold.
@@ -55,9 +55,9 @@ namespace SushiBLAS
              * the partials - three more places for an element to be dropped than the
              * single-pass shape has.
              */
-            constexpr int64_t kLarge = 20000;
+            constexpr int64_t K_LARGE = 20000;
 
-            static_assert(kLarge > static_cast<int64_t>(Reduce::K_CPU_TWO_STAGE_MIN_ELEMENTS),
+            static_assert(K_LARGE > static_cast<int64_t>(Reduce::K_CPU_TWO_STAGE_MIN_ELEMENTS),
                           "kLarge must reach the two-stage shape or half of this file tests "
                           "the same kernel twice.");
         }
@@ -86,7 +86,7 @@ namespace SushiBLAS
                 {
                     auto t = this->template create_initialized_tensor<T>(
                         {static_cast<int64_t>(data.size())}, data);
-                    auto result = this->engine->create_tensor({1}, Core::DataType::INT64);
+                    auto result = this->engine->create_tensor({1}, Core::DataType::Int64);
 
                     SushiBLAS::ReductionOps(*this->engine).count_nonfinite(t, result);
                     this->engine->execute();
@@ -107,8 +107,8 @@ namespace SushiBLAS
          */
         TYPED_TEST(Unit_CountNonFiniteTyped, ACleanTensorCountsZero)
         {
-            EXPECT_EQ(0, this->count(this->clean(kSmall)));
-            EXPECT_EQ(0, this->count(this->clean(kLarge)));
+            EXPECT_EQ(0, this->count(this->clean(K_SMALL)));
+            EXPECT_EQ(0, this->count(this->clean(K_LARGE)));
         }
 
         /**
@@ -119,11 +119,11 @@ namespace SushiBLAS
         {
             using T = TypeParam;
 
-            auto positive = this->clean(kSmall);
+            auto positive = this->clean(K_SMALL);
             positive[17] = this->inf();
             EXPECT_EQ(1, this->count(positive));
 
-            auto negative = this->clean(kSmall);
+            auto negative = this->clean(K_SMALL);
             negative[17] = static_cast<T>(-this->inf());
             EXPECT_EQ(1, this->count(negative));
         }
@@ -134,7 +134,7 @@ namespace SushiBLAS
          */
         TYPED_TEST(Unit_CountNonFiniteTyped, ANaNIsCounted)
         {
-            auto data = this->clean(kSmall);
+            auto data = this->clean(K_SMALL);
             data[17] = this->nan();
             EXPECT_EQ(1, this->count(data));
         }
@@ -146,16 +146,16 @@ namespace SushiBLAS
         TYPED_TEST(Unit_CountNonFiniteTyped, ASingleBadElementIsFoundAtAnyIndexIncludingTheLast)
         {
             const std::vector<size_t> where = {0,
-                                               static_cast<size_t>(kLarge) / 2,
-                                               static_cast<size_t>(kLarge) - 1};
+                                               static_cast<size_t>(K_LARGE) / 2,
+                                               static_cast<size_t>(K_LARGE) - 1};
 
             for (size_t index : where)
             {
-                auto with_inf = this->clean(kLarge);
+                auto with_inf = this->clean(K_LARGE);
                 with_inf[index] = this->inf();
                 EXPECT_EQ(1, this->count(with_inf)) << "an infinity at index " << index;
 
-                auto with_nan = this->clean(kLarge);
+                auto with_nan = this->clean(K_LARGE);
                 with_nan[index] = this->nan();
                 EXPECT_EQ(1, this->count(with_nan)) << "a NaN at index " << index;
             }
@@ -169,11 +169,11 @@ namespace SushiBLAS
         {
             using T = TypeParam;
 
-            auto data = this->clean(kLarge);
+            auto data = this->clean(K_LARGE);
             data[0] = this->inf();
             data[1] = static_cast<T>(-this->inf());
             data[9999] = this->nan();
-            data[static_cast<size_t>(kLarge) - 1] = this->inf();
+            data[static_cast<size_t>(K_LARGE) - 1] = this->inf();
 
             EXPECT_EQ(4, this->count(data));
         }
@@ -185,13 +185,13 @@ namespace SushiBLAS
         TYPED_TEST(Unit_CountNonFiniteTyped, BothLaunchShapesGiveTheSameCount)
         {
             // `small` is a macro for `char` in <rpcndr.h>. See tests/functional/unit/README.md.
-            auto below = this->clean(kSmall);
+            auto below = this->clean(K_SMALL);
             below[0] = this->nan();
-            below[static_cast<size_t>(kSmall) - 1] = this->inf();
+            below[static_cast<size_t>(K_SMALL) - 1] = this->inf();
 
-            auto above = this->clean(kLarge);
+            auto above = this->clean(K_LARGE);
             above[0] = this->nan();
-            above[static_cast<size_t>(kLarge) - 1] = this->inf();
+            above[static_cast<size_t>(K_LARGE) - 1] = this->inf();
 
             EXPECT_EQ(2, this->count(below)) << "the single-pass shape";
             EXPECT_EQ(2, this->count(above)) << "the two-stage shape";
@@ -243,8 +243,8 @@ namespace SushiBLAS
             const std::vector<sycl::half> values(8, static_cast<sycl::half>(20000.0f));
 
             auto t = create_initialized_tensor<sycl::half>({8}, values);
-            auto count = engine->create_tensor({1}, Core::DataType::INT64);
-            auto total = engine->create_tensor({1}, Core::DataType::HALF);
+            auto count = engine->create_tensor({1}, Core::DataType::Int64);
+            auto total = engine->create_tensor({1}, Core::DataType::Half);
 
             SushiBLAS::ReductionOps(*engine).count_nonfinite(t, count);
             SushiBLAS::ReductionOps(*engine).asum(t, total);
@@ -268,10 +268,10 @@ namespace SushiBLAS
         {
             GraphProbe probe;
 
-            auto result = engine->create_tensor({1}, Core::DataType::INT64);
+            auto result = engine->create_tensor({1}, Core::DataType::Int64);
 
-            for (Core::DataType dtype : {Core::DataType::INT32, Core::DataType::INT64,
-                                         Core::DataType::COMPLEX32, Core::DataType::COMPLEX64})
+            for (Core::DataType dtype : {Core::DataType::Int32, Core::DataType::Int64,
+                                         Core::DataType::Complex32, Core::DataType::Complex64})
             {
                 auto t = engine->create_tensor({4}, dtype);
                 const std::string msg = message_of(
@@ -289,14 +289,14 @@ namespace SushiBLAS
 
         TEST_F(Unit_CountNonFiniteTest, TheResultTensorMustBeAnInt64Scalar)
         {
-            auto t = engine->create_tensor({4}, Core::DataType::FLOAT32);
+            auto t = engine->create_tensor({4}, Core::DataType::Float32);
 
-            auto wrong_dtype = engine->create_tensor({1}, Core::DataType::FLOAT32);
+            auto wrong_dtype = engine->create_tensor({1}, Core::DataType::Float32);
             const std::string dtype_msg = message_of(
                 [&]{ SushiBLAS::ReductionOps(*engine).count_nonfinite(t, wrong_dtype); });
             EXPECT_NE(std::string::npos, dtype_msg.find("INT64")) << dtype_msg;
 
-            auto not_scalar = engine->create_tensor({2}, Core::DataType::INT64);
+            auto not_scalar = engine->create_tensor({2}, Core::DataType::Int64);
             const std::string scalar_msg = message_of(
                 [&]{ SushiBLAS::ReductionOps(*engine).count_nonfinite(t, not_scalar); });
             EXPECT_NE(std::string::npos, scalar_msg.find("scalar")) << scalar_msg;
@@ -316,9 +316,9 @@ namespace SushiBLAS
                 static_cast<size_t>(2 * kN) * sizeof(float),
                 SushiRuntime::API::Residency::Shared);
 
-            Tensor seed(arena, {kN}, Core::DataType::FLOAT32, 0);
-            Tensor gradient(arena, {kN}, Core::DataType::FLOAT32, kN);
-            auto count = engine->create_tensor({1}, Core::DataType::INT64);
+            Tensor seed(arena, {kN}, Core::DataType::Float32, 0);
+            Tensor gradient(arena, {kN}, Core::DataType::Float32, kN);
+            auto count = engine->create_tensor({1}, Core::DataType::Int64);
 
             fill_tensor(seed, std::vector<float>(static_cast<size_t>(kN), 3.0f));
 
@@ -342,8 +342,8 @@ namespace SushiBLAS
         TEST_F(Unit_CountNonFiniteTest, AnOverflowProducedInsideTheGraphIsFound)
         {
             auto big = create_initialized_tensor<float>({4}, {1e30f, 1.0f, 1.0f, 1.0f});
-            auto squared = engine->create_tensor({4}, Core::DataType::FLOAT32);
-            auto count = engine->create_tensor({1}, Core::DataType::INT64);
+            auto squared = engine->create_tensor({4}, Core::DataType::Float32);
+            auto count = engine->create_tensor({1}, Core::DataType::Int64);
 
             // 1e30 * 1e30 overflows binary32; the other three stay at 1.
             SushiBLAS::ElementwiseOps(*engine).mul(big, big, squared);

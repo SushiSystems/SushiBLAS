@@ -21,7 +21,7 @@
 
 /**
  * @file test_spatial_channels.cpp
- * @brief Tests spatial().concat_channels and slice_channels.
+ * @brief Tests SpatialOps::concat_channels and slice_channels.
  * @author Mustafa Garip
  */
 
@@ -59,7 +59,7 @@ namespace SushiBLAS
                 Tensor image(int64_t n, int64_t h, int64_t w, int64_t c,
                              std::initializer_list<float> values)
                 {
-                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::FLOAT32);
+                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::Float32);
                     float* p = t.data_as<float>();
                     int64_t i = 0;
                     for (float v : values) p[i++] = v;
@@ -69,7 +69,7 @@ namespace SushiBLAS
                 /** @brief A rank-4 NHWC float tensor whose every element is @p value. */
                 Tensor filled(int64_t n, int64_t h, int64_t w, int64_t c, float value)
                 {
-                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::FLOAT32);
+                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::Float32);
                     float* p = t.data_as<float>();
                     for (int64_t i = 0; i < t.num_elements; ++i) p[i] = value;
                     return t;
@@ -78,7 +78,7 @@ namespace SushiBLAS
                 /** @brief A rank-4 NHWC float tensor filled with a reproducible pattern. */
                 Tensor patterned(int64_t n, int64_t h, int64_t w, int64_t c, int64_t seed)
                 {
-                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::FLOAT32);
+                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::Float32);
                     float* p = t.data_as<float>();
                     for (int64_t i = 0; i < t.num_elements; ++i)
                         p[i] = static_cast<float>(((i + seed) * 37) % 23) - 11.0f;
@@ -206,13 +206,13 @@ namespace SushiBLAS
                                              8, 9, 10, 11,    12, 13, 14, 15});
 
             const std::vector<int64_t> dims = {1, 2, 2, 2};
-            std::array<int64_t, Core::MAX_TENSOR_RANK> strides{};
+            std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides{};
             strides[0] = 16;   // one image
             strides[1] = 8;    // one row of two four-channel pixels
             strides[2] = 4;    // one four-channel pixel
             strides[3] = 2;    // every other channel
 
-            const Tensor view(parent.storage, dims, strides, Core::DataType::FLOAT32,
+            const Tensor view(parent.storage, dims, strides, Core::DataType::Float32,
                               parent.storage_offset, parent.layout);
 
             auto dst = filled(1, 2, 2, 2, -1.0f);
@@ -237,11 +237,11 @@ namespace SushiBLAS
             auto from_reference = patterned(N, H, W, WIDE, 13);
             auto from_device = patterned(N, H, W, WIDE, 13);
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             SushiBLAS::SpatialOps(*engine).concat_channels(src, from_reference, OFFSET);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
             SushiBLAS::SpatialOps(*engine).concat_channels(src, from_device, OFFSET);
             engine->execute();
 
@@ -255,11 +255,11 @@ namespace SushiBLAS
             auto sliced_reference = filled(N, H, W, C, 0.0f);
             auto sliced_device = filled(N, H, W, C, 0.0f);
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             SushiBLAS::SpatialOps(*engine).slice_channels(from_reference, OFFSET, sliced_reference);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
             SushiBLAS::SpatialOps(*engine).slice_channels(from_reference, OFFSET, sliced_device);
             engine->execute();
 
@@ -299,16 +299,16 @@ namespace SushiBLAS
 
             SushiBLAS::SpatialOps spatial(*engine);
 
-            auto rank3 = engine->create_tensor({1, 4, 4}, Core::DataType::FLOAT32);
+            auto rank3 = engine->create_tensor({1, 4, 4}, Core::DataType::Float32);
             auto pooled = filled(1, 2, 2, 1, 0.0f);
             expect_named([&] { spatial.pool_avg(rank3, pooled, g); }, "spatial.pool_avg", "in");
 
             auto picture = filled(1, 4, 4, 1, 1.0f);
-            auto wide_cols = engine->create_tensor({4, 4}, Core::DataType::FLOAT64);
+            auto wide_cols = engine->create_tensor({4, 4}, Core::DataType::Float64);
             expect_named([&] { spatial.im2col(picture, wide_cols, g, 2, 2); },
                          "spatial.im2col", "cols");
 
-            auto narrow_indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT32);
+            auto narrow_indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Int32);
             expect_named([&] { spatial.pool_max(picture, pooled, narrow_indices, g); },
                          "spatial.pool_max", "indices");
 

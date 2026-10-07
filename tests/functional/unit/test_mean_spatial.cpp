@@ -21,7 +21,7 @@
 
 /**
  * @file test_mean_spatial.cpp
- * @brief Tests reductions().mean_spatial and the single-axis reductions that share its span.
+ * @brief Tests ReductionOps::mean_spatial and the single-axis reductions that share its span.
  * @author Mustafa Garip
  */
 

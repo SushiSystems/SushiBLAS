@@ -34,7 +34,7 @@ namespace SushiBLAS
 
     TaskHandle LogicOps::greater(const Tensor& A, const Tensor& B, Tensor& result) 
     {
-        return Dispatch::execute_logic_binary<Dispatch::Domain::REAL_AND_INTEGRAL>(recorder_, A, B, result, "logic.greater", "logic.greater"_op, 
+        return Dispatch::execute_logic_binary<Dispatch::Domain::RealAndIntegral>(recorder_, A, B, result, "logic.greater", "logic.greater"_op, 
             [](auto x, auto y) { return Dispatch::logic_greater(x, y) ? decltype(x)(1) : decltype(x)(0); });
     }
 } // namespace SushiBLAS

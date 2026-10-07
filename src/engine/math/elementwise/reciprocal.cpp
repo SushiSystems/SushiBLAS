@@ -35,7 +35,7 @@ namespace SushiBLAS
 
     TaskHandle ElementwiseOps::reciprocal(Tensor& t) 
     {
-        return Dispatch::execute_unary_inplace<Dispatch::Domain::REAL_AND_COMPLEX>(recorder_, t, "math.ew.reciprocal", "math.ew.reciprocal"_op, 
+        return Dispatch::execute_unary_inplace<Dispatch::Domain::RealAndComplex>(recorder_, t, "math.ew.reciprocal", "math.ew.reciprocal"_op, 
             [](auto x) { return (decltype(x))1 / x; });
     }
 } // namespace SushiBLAS

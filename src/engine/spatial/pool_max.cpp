@@ -45,7 +45,7 @@ namespace SushiBLAS
         Dispatch::require_dtype(out, in.dtype, NAME, "out");
 
         // The argmax buffer must be INT64; see src/README.md.
-        Dispatch::require_dtype(indices, Core::DataType::INT64, NAME, "indices");
+        Dispatch::require_dtype(indices, Core::DataType::Int64, NAME, "indices");
 
         Dispatch::require_device_dtype(in, NAME, "in");
         Dispatch::require_device_dtype(out, NAME, "out");
@@ -76,7 +76,7 @@ namespace SushiBLAS
         // The switch runs on the value dtype; the index pointer is int64_t*; see src/README.md.
         auto* index_out = static_cast<int64_t*>(write_indices);
 
-        return Internal::execute_typed_task<Dispatch::Domain::REAL>(
+        return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, meta, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

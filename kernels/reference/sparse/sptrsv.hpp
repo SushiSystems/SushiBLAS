@@ -59,12 +59,12 @@ namespace SushiBLAS
                 using W = Accumulator<T>;
                 using RW = ReferenceAccumulator<T>;
 
-                SB_ASSERT(find_defect(pattern) == StructureDefect::NONE,
+                SB_ASSERT(find_defect(pattern) == StructureDefect::None,
                           "sptrsv was given a CSR structure that breaks its contract");
 
                 const int64_t n = pattern.rows;
-                const bool lower = (uplo == Core::Uplo::LOWER);
-                const bool unit_diag = (diag == Core::Diag::UNIT);
+                const bool lower = (uplo == Core::Uplo::Lower);
+                const bool unit_diag = (diag == Core::Diag::Unit);
                 const bool conjugated = Core::is_conjugated(trans);
 
                 std::vector<W> wide(RunningSolution<T>::K_NEEDS_WORKSPACE

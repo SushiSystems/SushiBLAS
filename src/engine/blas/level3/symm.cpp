@@ -74,7 +74,7 @@ namespace SushiBLAS
             Dispatch::require_same_layout(b, c, op, "B", "C");
             Dispatch::require_square(a, op, "A");
 
-            const bool left = (side == Core::Side::LEFT);
+            const bool left = (side == Core::Side::Left);
             const int64_t m = c.rows;
             const int64_t n = c.cols;
             Dispatch::require_matrix_extent(a.rows, left ? m : n,
@@ -129,9 +129,9 @@ namespace SushiBLAS
                     const Kernels::SymmetricAccess<Policy> at_a =
                         Kernels::symmetric_access<Policy>(layout, uplo, lda);
                     const Kernels::OperandAccess at_b =
-                        Kernels::operand_access(layout, Core::Transpose::NO_TRANS, ldb);
+                        Kernels::operand_access(layout, Core::Transpose::NoTrans, ldb);
                     const Kernels::OperandAccess at_c =
-                        Kernels::operand_access(layout, Core::Transpose::NO_TRANS, ldc);
+                        Kernels::operand_access(layout, Core::Transpose::NoTrans, ldc);
                     const Kernels::GemmIdentityEpilogue identity{};
 
                     return dispatcher.run(q, deps,

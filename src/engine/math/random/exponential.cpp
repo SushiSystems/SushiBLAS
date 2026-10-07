@@ -42,7 +42,7 @@ namespace SushiBLAS
             Dispatch::Detail::throw_operand_error("random.exponential", "lambda",
                                                   "is {}, expected finite and above 0", lambda);
 
-        return Dispatch::execute_random<Dispatch::Domain::REAL>(
+        return Dispatch::execute_random<Dispatch::Domain::Real>(
             recorder_, rng_, t, "random.exponential", "random.exponential"_op, {lambda},
             [lambda](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,
                      uint64_t offset, int64_t size, auto* pT) -> sycl::event

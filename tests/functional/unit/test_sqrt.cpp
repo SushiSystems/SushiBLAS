@@ -21,7 +21,7 @@
 
 /**
  * @file test_sqrt.cpp
- * @brief Tests elementwise().sqrt against fixed expected values.
+ * @brief Tests ElementwiseOps::sqrt against fixed expected values.
  * @author Mustafa Garip
  */
 
@@ -123,7 +123,7 @@ TEST_F(Unit_SqrtTest, ThousandElements)
 
 TEST_F(Unit_SqrtTest, Float64)
 {
-    auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::FLOAT64);
+    auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::Float64);
     fill_tensor(t, {0.25f, 1.0f, 2.0f, 9.0f});
 
     SushiBLAS::ElementwiseOps(*engine).sqrt(t);

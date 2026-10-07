@@ -46,7 +46,7 @@ namespace SushiBLAS
             using Core::Uplo;
 
             /// @brief Holds the two band storages every case runs under.
-            constexpr Layout K_LAYOUTS[] = {Layout::COLUMN_MAJOR, Layout::ROW_MAJOR};
+            constexpr Layout K_LAYOUTS[] = {Layout::ColumnMajor, Layout::RowMajor};
 
             /// @brief Holds the rows of the worked matrix of the design, section 2.1.
             constexpr int64_t K_WORKED_ROWS = 4;
@@ -104,13 +104,13 @@ namespace SushiBLAS
             /** @brief Returns the name of a layout for a failure message. */
             [[nodiscard]] constexpr const char* layout_name(Layout layout) noexcept
             {
-                return (layout == Layout::ROW_MAJOR) ? "row-major" : "column-major";
+                return (layout == Layout::RowMajor) ? "row-major" : "column-major";
             }
 
             /** @brief Returns the band storage of the worked matrix under a layout. */
             [[nodiscard]] constexpr const double* worked_storage(Layout layout) noexcept
             {
-                return (layout == Layout::COLUMN_MAJOR) ? K_WORKED_COLUMN_MAJOR
+                return (layout == Layout::ColumnMajor) ? K_WORKED_COLUMN_MAJOR
                                                         : K_WORKED_ROW_MAJOR;
             }
 
@@ -118,7 +118,7 @@ namespace SushiBLAS
             [[nodiscard]] constexpr int64_t worked_slots(Layout layout) noexcept
             {
                 return K_WORKED_LINE *
-                       ((layout == Layout::COLUMN_MAJOR) ? K_WORKED_COLS : K_WORKED_ROWS);
+                       ((layout == Layout::ColumnMajor) ? K_WORKED_COLS : K_WORKED_ROWS);
             }
 
             /** @brief Returns element (i, j) of the worked matrix, which names its own place. */
@@ -150,11 +150,11 @@ namespace SushiBLAS
             {
                 const int64_t m = 5, n = 7, kl = 1, ku = 2, ld = 5;
                 const Kernels::BandAccess a =
-                    Kernels::band_access(layout, Transpose::NO_TRANS, kl, ku, ld);
+                    Kernels::band_access(layout, Transpose::NoTrans, kl, ku, ld);
                 const Kernels::BandAccess t =
-                    Kernels::band_access(layout, Transpose::TRANS, kl, ku, ld);
+                    Kernels::band_access(layout, Transpose::Trans, kl, ku, ld);
                 const Kernels::BandAccess h =
-                    Kernels::band_access(layout, Transpose::CONJ_TRANS, kl, ku, ld);
+                    Kernels::band_access(layout, Transpose::ConjTrans, kl, ku, ld);
                 if (a.conjugated || t.conjugated || !h.conjugated)
                     return false;
 
@@ -172,7 +172,7 @@ namespace SushiBLAS
                             first = j;
                         end = j + 1;
 
-                        const int64_t expected = (layout == Layout::COLUMN_MAJOR)
+                        const int64_t expected = (layout == Layout::ColumnMajor)
                                                      ? j * ld + (ku + i - j)
                                                      : i * ld + (kl + j - i);
                         if (a.index(i, j) != expected || t.index(j, i) != expected ||
@@ -213,12 +213,12 @@ namespace SushiBLAS
             {
                 const int64_t n = 6, k = 2, ld = 3;
                 const Kernels::BandAccess a =
-                    Kernels::triangle_band_access(layout, uplo, Transpose::NO_TRANS, k, ld);
+                    Kernels::triangle_band_access(layout, uplo, Transpose::NoTrans, k, ld);
                 for (int64_t i = 0; i < n; ++i)
                 {
                     for (int64_t j = 0; j < n; ++j)
                     {
-                        const bool stored = (uplo == Uplo::UPPER) ? (j >= i && j - i <= k)
+                        const bool stored = (uplo == Uplo::Upper) ? (j >= i && j - i <= k)
                                                                   : (i >= j && i - j <= k);
                         if (a.holds(i, j) != stored)
                             return false;
@@ -226,11 +226,11 @@ namespace SushiBLAS
                             continue;
 
                         int64_t expected = 0;
-                        if (layout == Layout::COLUMN_MAJOR)
-                            expected = (uplo == Uplo::UPPER) ? j * ld + (k + i - j)
+                        if (layout == Layout::ColumnMajor)
+                            expected = (uplo == Uplo::Upper) ? j * ld + (k + i - j)
                                                              : j * ld + (i - j);
                         else
-                            expected = (uplo == Uplo::UPPER) ? i * ld + (j - i)
+                            expected = (uplo == Uplo::Upper) ? i * ld + (j - i)
                                                              : i * ld + (k + j - i);
                         if (a.index(i, j) != expected)
                             return false;
@@ -279,18 +279,18 @@ namespace SushiBLAS
          */
         TEST(Unit_BandAccess, TheMappingIsTheCblasFormula)
         {
-            static_assert(band_matches_cblas(Layout::COLUMN_MAJOR),
+            static_assert(band_matches_cblas(Layout::ColumnMajor),
                           "The column-major band mapping is the CBLAS one.");
-            static_assert(band_matches_cblas(Layout::ROW_MAJOR),
+            static_assert(band_matches_cblas(Layout::RowMajor),
                           "The row-major band mapping is the CBLAS one.");
 
-            static_assert(triangle_band_matches_cblas(Layout::COLUMN_MAJOR, Uplo::UPPER),
+            static_assert(triangle_band_matches_cblas(Layout::ColumnMajor, Uplo::Upper),
                           "A column-major upper triangle band is the LAPACK one.");
-            static_assert(triangle_band_matches_cblas(Layout::COLUMN_MAJOR, Uplo::LOWER),
+            static_assert(triangle_band_matches_cblas(Layout::ColumnMajor, Uplo::Lower),
                           "A column-major lower triangle band is the LAPACK one.");
-            static_assert(triangle_band_matches_cblas(Layout::ROW_MAJOR, Uplo::UPPER),
+            static_assert(triangle_band_matches_cblas(Layout::RowMajor, Uplo::Upper),
                           "A row-major upper triangle band is the CBLAS one.");
-            static_assert(triangle_band_matches_cblas(Layout::ROW_MAJOR, Uplo::LOWER),
+            static_assert(triangle_band_matches_cblas(Layout::RowMajor, Uplo::Lower),
                           "A row-major lower triangle band is the CBLAS one.");
 
             SUCCEED();
@@ -305,7 +305,7 @@ namespace SushiBLAS
             {
                 SCOPED_TRACE(layout_name(layout));
 
-                const Kernels::BandAccess access = worked_access(layout, Transpose::NO_TRANS);
+                const Kernels::BandAccess access = worked_access(layout, Transpose::NoTrans);
                 const double* p = worked_storage(layout);
 
                 int stored = 0;
@@ -339,14 +339,14 @@ namespace SushiBLAS
         {
             for (const Layout layout : K_LAYOUTS)
             {
-                const Kernels::BandAccess plain = worked_access(layout, Transpose::NO_TRANS);
+                const Kernels::BandAccess plain = worked_access(layout, Transpose::NoTrans);
                 const double* p = worked_storage(layout);
 
                 EXPECT_EQ(K_WORKED_LOWER, plain.lower);
                 EXPECT_EQ(K_WORKED_UPPER, plain.upper);
                 EXPECT_FALSE(plain.conjugated);
 
-                for (const Transpose trans : {Transpose::TRANS, Transpose::CONJ_TRANS})
+                for (const Transpose trans : {Transpose::Trans, Transpose::ConjTrans})
                 {
                     SCOPED_TRACE(::testing::Message()
                                  << layout_name(layout) << ", " << Core::to_string(trans));
@@ -354,7 +354,7 @@ namespace SushiBLAS
                     const Kernels::BandAccess op = worked_access(layout, trans);
                     EXPECT_EQ(K_WORKED_UPPER, op.lower);
                     EXPECT_EQ(K_WORKED_LOWER, op.upper);
-                    EXPECT_EQ(trans == Transpose::CONJ_TRANS, op.conjugated);
+                    EXPECT_EQ(trans == Transpose::ConjTrans, op.conjugated);
 
                     for (int64_t i = 0; i < K_WORKED_ROWS; ++i)
                     {
@@ -395,9 +395,9 @@ namespace SushiBLAS
                     complex_storage[slot] = std::complex<double>(real_storage[slot],
                                                                  static_cast<double>(slot + 1));
 
-                const Kernels::BandAccess plain = worked_access(layout, Transpose::NO_TRANS);
-                const Kernels::BandAccess trans = worked_access(layout, Transpose::TRANS);
-                const Kernels::BandAccess conj = worked_access(layout, Transpose::CONJ_TRANS);
+                const Kernels::BandAccess plain = worked_access(layout, Transpose::NoTrans);
+                const Kernels::BandAccess trans = worked_access(layout, Transpose::Trans);
+                const Kernels::BandAccess conj = worked_access(layout, Transpose::ConjTrans);
                 const std::complex<double>* p = complex_storage.data();
 
                 for (int64_t i = 0; i < K_WORKED_ROWS; ++i)
@@ -440,11 +440,11 @@ namespace SushiBLAS
 
                     const int64_t ld = band.lower + band.upper + 1;
                     expect_column_ranges_match_a_scan(
-                        Kernels::band_access(layout, Transpose::NO_TRANS, band.lower, band.upper,
+                        Kernels::band_access(layout, Transpose::NoTrans, band.lower, band.upper,
                                              ld),
                         band.rows, band.cols, band.lower, band.upper);
                     expect_column_ranges_match_a_scan(
-                        Kernels::band_access(layout, Transpose::TRANS, band.lower, band.upper, ld),
+                        Kernels::band_access(layout, Transpose::Trans, band.lower, band.upper, ld),
                         band.cols, band.rows, band.upper, band.lower);
                 }
             }
@@ -460,10 +460,10 @@ namespace SushiBLAS
             constexpr int64_t k = 2;
             constexpr int64_t ld = 4;
 
-            const DiagonalLine lines[] = {{Layout::COLUMN_MAJOR, Uplo::UPPER, k},
-                                          {Layout::COLUMN_MAJOR, Uplo::LOWER, 0},
-                                          {Layout::ROW_MAJOR, Uplo::UPPER, 0},
-                                          {Layout::ROW_MAJOR, Uplo::LOWER, k}};
+            const DiagonalLine lines[] = {{Layout::ColumnMajor, Uplo::Upper, k},
+                                          {Layout::ColumnMajor, Uplo::Lower, 0},
+                                          {Layout::RowMajor, Uplo::Upper, 0},
+                                          {Layout::RowMajor, Uplo::Lower, k}};
 
             for (const DiagonalLine& line : lines)
             {
@@ -471,7 +471,7 @@ namespace SushiBLAS
                                                   << Core::to_string(line.uplo));
 
                 const Kernels::BandAccess access = Kernels::triangle_band_access(
-                    line.layout, line.uplo, Transpose::NO_TRANS, k, ld);
+                    line.layout, line.uplo, Transpose::NoTrans, k, ld);
                 for (int64_t i = 0; i < n; ++i)
                     EXPECT_EQ(i * ld + line.offset, access.index(i, i)) << "at diagonal " << i;
             }
@@ -490,7 +490,7 @@ namespace SushiBLAS
                 SCOPED_TRACE(layout_name(layout));
 
                 const Kernels::BandAccess access = Kernels::band_access(
-                    layout, Transpose::NO_TRANS, K_WORKED_LOWER, K_WORKED_UPPER, ld);
+                    layout, Transpose::NoTrans, K_WORKED_LOWER, K_WORKED_UPPER, ld);
 
                 for (int64_t i = 0; i < K_WORKED_ROWS; ++i)
                 {
@@ -499,7 +499,7 @@ namespace SushiBLAS
                         if (!is_in_band(i, j, K_WORKED_LOWER, K_WORKED_UPPER))
                             continue;
 
-                        const int64_t line = (layout == Layout::COLUMN_MAJOR) ? j : i;
+                        const int64_t line = (layout == Layout::ColumnMajor) ? j : i;
                         const int64_t index = access.index(i, j);
                         EXPECT_EQ(line, index / ld) << "at (" << i << ", " << j << ")";
                         EXPECT_GE(index % ld, 0) << "at (" << i << ", " << j << ")";
@@ -521,7 +521,7 @@ namespace SushiBLAS
                 SCOPED_TRACE(layout_name(layout));
 
                 const Kernels::BandAccess access =
-                    Kernels::band_access(layout, Transpose::NO_TRANS, 0, 0, 1);
+                    Kernels::band_access(layout, Transpose::NoTrans, 0, 0, 1);
                 for (int64_t i = 0; i < n; ++i)
                 {
                     EXPECT_EQ(i, access.index(i, i));

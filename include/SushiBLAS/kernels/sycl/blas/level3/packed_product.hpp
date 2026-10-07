@@ -137,9 +137,9 @@ namespace SushiBLAS
                                 const int64_t depth =
                                     (left < plan_.block_depth) ? left : plan_.block_depth;
 
-                                pack_panel<T, Block::K_ROWS, PanelLines::ROWS>(
+                                pack_panel<T, Block::K_ROWS, PanelLines::Rows>(
                                     A, a_access_, row0, rows, term0, depth, a_panel);
-                                pack_panel<T, Block::K_COLS, PanelLines::COLUMNS>(
+                                pack_panel<T, Block::K_COLS, PanelLines::Columns>(
                                     B, b_access_, col0, cols, term0, depth, b_panel);
 
                                 const int64_t a_micro = depth * Block::K_PARTS * Block::K_ROWS;

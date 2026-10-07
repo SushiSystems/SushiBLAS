@@ -147,7 +147,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, ArgMax)
     auto t = this->template create_initialized_tensor<T>({100}, data);
 
     // The index is INT64 and is compared exactly. See tests/functional/unit/README.md.
-    auto res = this->engine->create_tensor({1}, Core::DataType::INT64);
+    auto res = this->engine->create_tensor({1}, Core::DataType::Int64);
 
     SushiBLAS::ReductionOps(*this->engine).argmax(t, res);
     this->engine->execute();
@@ -165,7 +165,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, ArgMin)
     auto t = this->template create_initialized_tensor<T>({100}, data);
 
     // INT64 for the same reason as ArgMax above.
-    auto res = this->engine->create_tensor({1}, Core::DataType::INT64);
+    auto res = this->engine->create_tensor({1}, Core::DataType::Int64);
 
     SushiBLAS::ReductionOps(*this->engine).argmin(t, res);
     this->engine->execute();
@@ -580,7 +580,7 @@ namespace
     {
         ModeResults<Out> results;
 
-        for (ExecutionMode mode : {ExecutionMode::FORCE_REFERENCE, ExecutionMode::FORCE_SYCL})
+        for (ExecutionMode mode : {ExecutionMode::ForceReference, ExecutionMode::ForceSycl})
         {
             engine.set_mode(mode);
 
@@ -595,7 +595,7 @@ namespace
             engine.execute();
 
             std::vector<Out>& written =
-                mode == ExecutionMode::FORCE_REFERENCE ? results.reference : results.device;
+                mode == ExecutionMode::ForceReference ? results.reference : results.device;
             written = read_tensor<Out>(result);
         }
 
@@ -775,8 +775,8 @@ class Unit_ReductionOps : public SushiBLASTest
         {
             SCOPED_TRACE(name);
 
-            GraphProbe on_host(ExecutionMode::FORCE_REFERENCE);
-            GraphProbe on_device(ExecutionMode::FORCE_SYCL);
+            GraphProbe on_host(ExecutionMode::ForceReference);
+            GraphProbe on_device(ExecutionMode::ForceSycl);
             ReductionOps host_reductions(on_host.get_recorder());
             ReductionOps device_reductions(on_device.get_recorder());
 
@@ -794,7 +794,7 @@ class Unit_ReductionOps : public SushiBLASTest
         {
             try
             {
-                return engine->create_tensor(dims, Core::DataType::FLOAT32,
+                return engine->create_tensor(dims, Core::DataType::Float32,
                                              SushiRuntime::API::Residency::Device);
             }
             catch (const std::exception&)
@@ -822,8 +822,8 @@ class Unit_ReductionOps : public SushiBLASTest
                                 int64_t expected_min)
         {
             auto t = create_initialized_tensor<T>({static_cast<int64_t>(values.size())}, values);
-            auto at_max = engine->create_tensor({1}, Core::DataType::INT64);
-            auto at_min = engine->create_tensor({1}, Core::DataType::INT64);
+            auto at_max = engine->create_tensor({1}, Core::DataType::Int64);
+            auto at_min = engine->create_tensor({1}, Core::DataType::Int64);
 
             SushiBLAS::ReductionOps(*engine).argmax(t, at_max);
             SushiBLAS::ReductionOps(*engine).argmin(t, at_min);
@@ -862,7 +862,7 @@ TEST_F(Unit_ReductionOps, NonRealDtypesAreRefusedByName)
 {
     SushiBLAS::ReductionOps reductions(*engine);
 
-    for (Core::DataType dtype : {Core::DataType::INT32, Core::DataType::INT64})
+    for (Core::DataType dtype : {Core::DataType::Int32, Core::DataType::Int64})
     {
         SCOPED_TRACE(Core::to_string(dtype));
 
@@ -875,9 +875,9 @@ TEST_F(Unit_ReductionOps, NonRealDtypesAreRefusedByName)
         EXPECT_NE(std::string::npos, refusal_of([&] { reductions.mean(t, result); }).find(name));
     }
 
-    auto z = engine->create_tensor({4}, Core::DataType::COMPLEX32);
-    auto z_result = engine->create_tensor({1}, Core::DataType::COMPLEX32);
-    const std::string complex_name = Core::to_string(Core::DataType::COMPLEX32);
+    auto z = engine->create_tensor({4}, Core::DataType::Complex32);
+    auto z_result = engine->create_tensor({1}, Core::DataType::Complex32);
+    const std::string complex_name = Core::to_string(Core::DataType::Complex32);
 
     EXPECT_NE(std::string::npos,
               refusal_of([&] { reductions.sum(z, z_result); }).find(complex_name));
@@ -897,11 +897,11 @@ TEST_F(Unit_ReductionOps, ADeviceOnlyOperandIsRefusedOnEverySeam)
         GTEST_SKIP() << "the device hands out no device-only USM";
 
     auto scalar = engine->create_tensor({1});
-    auto index = engine->create_tensor({1}, Core::DataType::INT64);
+    auto index = engine->create_tensor({1}, Core::DataType::Int64);
     auto per_row = engine->create_tensor({2});
     auto per_channel = engine->create_tensor({1, 3});
 
-    GraphProbe on_host(ExecutionMode::FORCE_REFERENCE);
+    GraphProbe on_host(ExecutionMode::ForceReference);
     ReductionOps refused(on_host.get_recorder());
 
     // One call per seam: folding, centred, index, counting, and the span seam twice.
@@ -913,7 +913,7 @@ TEST_F(Unit_ReductionOps, ADeviceOnlyOperandIsRefusedOnEverySeam)
     expect_mode_refusal("mean_spatial", [&] { refused.mean_spatial(*image, per_channel); });
     EXPECT_TRUE(on_host.take_nodes().empty());
 
-    GraphProbe on_device(ExecutionMode::FORCE_SYCL);
+    GraphProbe on_device(ExecutionMode::ForceSycl);
     ReductionOps recorded(on_device.get_recorder());
 
     EXPECT_NO_THROW(recorded.sum(*t, scalar));
@@ -979,10 +979,10 @@ TEST_F(Unit_ReductionOps, AReferenceReductionLeasesNoScratch)
 
     auto total = engine->create_tensor({1});
     auto variance = engine->create_tensor({1});
-    auto index = engine->create_tensor({1}, Core::DataType::INT64);
-    auto count = engine->create_tensor({1}, Core::DataType::INT64);
+    auto index = engine->create_tensor({1}, Core::DataType::Int64);
+    auto count = engine->create_tensor({1}, Core::DataType::Int64);
 
-    GraphProbe probe(ExecutionMode::FORCE_REFERENCE);
+    GraphProbe probe(ExecutionMode::ForceReference);
     ReductionOps reductions(probe.get_recorder());
 
     auto& context = TestEnvironment::get_context();
@@ -1014,7 +1014,7 @@ TEST_F(Unit_ReductionOps, AHostMeanDividesBeforeItNarrows)
     const float divided_first = 8388610.0f;
     const float narrowed_first = 8388611.0f;
 
-    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+    engine->set_mode(ExecutionMode::ForceReference);
 
     auto t = create_initialized_tensor<float>({3}, values);
     auto image = create_initialized_tensor<float>({1, 3, 1, 1}, values);

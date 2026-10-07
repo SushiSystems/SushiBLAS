@@ -121,8 +121,11 @@ it and holds the steps that have not run.
 
 ## Code shape
 
-- Rename every enumerator to PascalCase (`DataType::Float32`, `Transpose::NoTrans`) and give
-  constants the `K_` prefix, in one sweep (`OWNER_DECISIONS_LATE`).
+- Rename the function-local `constexpr` values that are not spelled `K_UPPER_SNAKE`, or rule
+  that a local keeps `snake_case`; the naming sweep left 136 of them
+  (`tools/naming/sushiblas_0_1_0.tsv` lists what it renamed).
+- Reword the comments and the failure messages that still spell an enumerator or a constant
+  by its old bare name (`FORCE_REFERENCE`, `kLarge`); the sweep changed qualified names only.
 - Delete `engine/blas/sparse.hpp` or move it under `experimental/`. Owner approval.
 - Move the recorder's identity counter into a source file.
 - Ask SushiRuntime for a public "run after" edge, `add_task` overloads that take a span of
@@ -157,14 +160,10 @@ it and holds the steps that have not run.
   2026-10-07, and the known issues page names the seven pages a search still found stale that
   day. `DESIGN_SUPPORT_MEMORY`, section 14.4, and `DESIGN_YOLO26`, section 12.5, list more stale
   sentences.
-- Rewrite the `@brief` of the 82 unit test files that name a routine by the removed accessor
-  form (`elementwise().abs`), and the fourth fact and the closing paragraph of `AGENTS.md`.
 - Say in the READMEs of the band and packed routines and of the packed GEMM which "packed" is
   meant.
 - Correct the four `@throws` lines that name `std::runtime_error` (`elementwise.hpp`,
   `random.hpp`).
-- Re-point the nine test files that cite a merged design file at the work folder's `SPEC.md`
-  (`docs/agent/2026_10_07_V010/REPORT.md`, section 11).
 - Split `architecture/ARCHITECTURE.md` by its sections (D12), and run the humanizer pass over
   `guides/INTEGRATION.md` and `GPU_VALIDATION.md` (D15).
 - Add a `README.md` to `tests/`, and move each folder's facts out of the architecture and

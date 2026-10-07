@@ -43,15 +43,15 @@ namespace SushiBLAS
 
         TEST(Unit_BlasTypes, EveryEnumeratorCarriesItsCblasNumber)
         {
-            EXPECT_EQ(static_cast<int>(Core::Transpose::NO_TRANS), 111);
-            EXPECT_EQ(static_cast<int>(Core::Transpose::TRANS), 112);
-            EXPECT_EQ(static_cast<int>(Core::Transpose::CONJ_TRANS), 113);
-            EXPECT_EQ(static_cast<int>(Core::Uplo::UPPER), 121);
-            EXPECT_EQ(static_cast<int>(Core::Uplo::LOWER), 122);
-            EXPECT_EQ(static_cast<int>(Core::Diag::NON_UNIT), 131);
-            EXPECT_EQ(static_cast<int>(Core::Diag::UNIT), 132);
-            EXPECT_EQ(static_cast<int>(Core::Side::LEFT), 141);
-            EXPECT_EQ(static_cast<int>(Core::Side::RIGHT), 142);
+            EXPECT_EQ(static_cast<int>(Core::Transpose::NoTrans), 111);
+            EXPECT_EQ(static_cast<int>(Core::Transpose::Trans), 112);
+            EXPECT_EQ(static_cast<int>(Core::Transpose::ConjTrans), 113);
+            EXPECT_EQ(static_cast<int>(Core::Uplo::Upper), 121);
+            EXPECT_EQ(static_cast<int>(Core::Uplo::Lower), 122);
+            EXPECT_EQ(static_cast<int>(Core::Diag::NonUnit), 131);
+            EXPECT_EQ(static_cast<int>(Core::Diag::Unit), 132);
+            EXPECT_EQ(static_cast<int>(Core::Side::Left), 141);
+            EXPECT_EQ(static_cast<int>(Core::Side::Right), 142);
         }
 
         TEST(Unit_BlasTypes, EveryFlagIsOneByte)
@@ -69,15 +69,15 @@ namespace SushiBLAS
 
         TEST(Unit_BlasTypes, IsValidAcceptsEveryEnumerator)
         {
-            EXPECT_TRUE(Core::is_valid(Core::Transpose::NO_TRANS));
-            EXPECT_TRUE(Core::is_valid(Core::Transpose::TRANS));
-            EXPECT_TRUE(Core::is_valid(Core::Transpose::CONJ_TRANS));
-            EXPECT_TRUE(Core::is_valid(Core::Uplo::UPPER));
-            EXPECT_TRUE(Core::is_valid(Core::Uplo::LOWER));
-            EXPECT_TRUE(Core::is_valid(Core::Diag::NON_UNIT));
-            EXPECT_TRUE(Core::is_valid(Core::Diag::UNIT));
-            EXPECT_TRUE(Core::is_valid(Core::Side::LEFT));
-            EXPECT_TRUE(Core::is_valid(Core::Side::RIGHT));
+            EXPECT_TRUE(Core::is_valid(Core::Transpose::NoTrans));
+            EXPECT_TRUE(Core::is_valid(Core::Transpose::Trans));
+            EXPECT_TRUE(Core::is_valid(Core::Transpose::ConjTrans));
+            EXPECT_TRUE(Core::is_valid(Core::Uplo::Upper));
+            EXPECT_TRUE(Core::is_valid(Core::Uplo::Lower));
+            EXPECT_TRUE(Core::is_valid(Core::Diag::NonUnit));
+            EXPECT_TRUE(Core::is_valid(Core::Diag::Unit));
+            EXPECT_TRUE(Core::is_valid(Core::Side::Left));
+            EXPECT_TRUE(Core::is_valid(Core::Side::Right));
         }
 
         TEST(Unit_BlasTypes, IsValidRefusesAValueInitialisedFlag)
@@ -111,29 +111,29 @@ namespace SushiBLAS
 
         TEST(Unit_BlasTypes, IsTransposedHoldsForBothTransposes)
         {
-            EXPECT_FALSE(Core::is_transposed(Core::Transpose::NO_TRANS));
-            EXPECT_TRUE(Core::is_transposed(Core::Transpose::TRANS));
-            EXPECT_TRUE(Core::is_transposed(Core::Transpose::CONJ_TRANS));
+            EXPECT_FALSE(Core::is_transposed(Core::Transpose::NoTrans));
+            EXPECT_TRUE(Core::is_transposed(Core::Transpose::Trans));
+            EXPECT_TRUE(Core::is_transposed(Core::Transpose::ConjTrans));
         }
 
         TEST(Unit_BlasTypes, IsConjugatedHoldsForTheConjugateTransposeOnly)
         {
-            EXPECT_FALSE(Core::is_conjugated(Core::Transpose::NO_TRANS));
-            EXPECT_FALSE(Core::is_conjugated(Core::Transpose::TRANS));
-            EXPECT_TRUE(Core::is_conjugated(Core::Transpose::CONJ_TRANS));
+            EXPECT_FALSE(Core::is_conjugated(Core::Transpose::NoTrans));
+            EXPECT_FALSE(Core::is_conjugated(Core::Transpose::Trans));
+            EXPECT_TRUE(Core::is_conjugated(Core::Transpose::ConjTrans));
         }
 
         TEST(Unit_BlasTypes, ToStringNamesEveryEnumerator)
         {
-            EXPECT_EQ(std::string(Core::to_string(Core::Transpose::NO_TRANS)), "NO_TRANS");
-            EXPECT_EQ(std::string(Core::to_string(Core::Transpose::TRANS)), "TRANS");
-            EXPECT_EQ(std::string(Core::to_string(Core::Transpose::CONJ_TRANS)), "CONJ_TRANS");
-            EXPECT_EQ(std::string(Core::to_string(Core::Uplo::UPPER)), "UPPER");
-            EXPECT_EQ(std::string(Core::to_string(Core::Uplo::LOWER)), "LOWER");
-            EXPECT_EQ(std::string(Core::to_string(Core::Diag::NON_UNIT)), "NON_UNIT");
-            EXPECT_EQ(std::string(Core::to_string(Core::Diag::UNIT)), "UNIT");
-            EXPECT_EQ(std::string(Core::to_string(Core::Side::LEFT)), "LEFT");
-            EXPECT_EQ(std::string(Core::to_string(Core::Side::RIGHT)), "RIGHT");
+            EXPECT_EQ(std::string(Core::to_string(Core::Transpose::NoTrans)), "NO_TRANS");
+            EXPECT_EQ(std::string(Core::to_string(Core::Transpose::Trans)), "TRANS");
+            EXPECT_EQ(std::string(Core::to_string(Core::Transpose::ConjTrans)), "CONJ_TRANS");
+            EXPECT_EQ(std::string(Core::to_string(Core::Uplo::Upper)), "UPPER");
+            EXPECT_EQ(std::string(Core::to_string(Core::Uplo::Lower)), "LOWER");
+            EXPECT_EQ(std::string(Core::to_string(Core::Diag::NonUnit)), "NON_UNIT");
+            EXPECT_EQ(std::string(Core::to_string(Core::Diag::Unit)), "UNIT");
+            EXPECT_EQ(std::string(Core::to_string(Core::Side::Left)), "LEFT");
+            EXPECT_EQ(std::string(Core::to_string(Core::Side::Right)), "RIGHT");
         }
 
         TEST(Unit_BlasTypes, ToStringNamesAValueOutsideTheEnumerationUnknown)
@@ -146,21 +146,21 @@ namespace SushiBLAS
 
         TEST(Unit_DataType, EveryEnumeratorKeepsItsFileFormatNumber)
         {
-            static_assert(static_cast<int>(Core::DataType::HALF) == 0, "HALF is 0.");
-            static_assert(static_cast<int>(Core::DataType::FLOAT32) == 1, "FLOAT32 is 1.");
-            static_assert(static_cast<int>(Core::DataType::FLOAT64) == 2, "FLOAT64 is 2.");
-            static_assert(static_cast<int>(Core::DataType::COMPLEX32) == 3, "COMPLEX32 is 3.");
-            static_assert(static_cast<int>(Core::DataType::COMPLEX64) == 4, "COMPLEX64 is 4.");
-            static_assert(static_cast<int>(Core::DataType::INT32) == 5, "INT32 is 5.");
-            static_assert(static_cast<int>(Core::DataType::INT64) == 6, "INT64 is 6.");
+            static_assert(static_cast<int>(Core::DataType::Half) == 0, "HALF is 0.");
+            static_assert(static_cast<int>(Core::DataType::Float32) == 1, "FLOAT32 is 1.");
+            static_assert(static_cast<int>(Core::DataType::Float64) == 2, "FLOAT64 is 2.");
+            static_assert(static_cast<int>(Core::DataType::Complex32) == 3, "COMPLEX32 is 3.");
+            static_assert(static_cast<int>(Core::DataType::Complex64) == 4, "COMPLEX64 is 4.");
+            static_assert(static_cast<int>(Core::DataType::Int32) == 5, "INT32 is 5.");
+            static_assert(static_cast<int>(Core::DataType::Int64) == 6, "INT64 is 6.");
 
-            EXPECT_EQ(static_cast<int>(Core::DataType::HALF), 0);
-            EXPECT_EQ(static_cast<int>(Core::DataType::FLOAT32), 1);
-            EXPECT_EQ(static_cast<int>(Core::DataType::FLOAT64), 2);
-            EXPECT_EQ(static_cast<int>(Core::DataType::COMPLEX32), 3);
-            EXPECT_EQ(static_cast<int>(Core::DataType::COMPLEX64), 4);
-            EXPECT_EQ(static_cast<int>(Core::DataType::INT32), 5);
-            EXPECT_EQ(static_cast<int>(Core::DataType::INT64), 6);
+            EXPECT_EQ(static_cast<int>(Core::DataType::Half), 0);
+            EXPECT_EQ(static_cast<int>(Core::DataType::Float32), 1);
+            EXPECT_EQ(static_cast<int>(Core::DataType::Float64), 2);
+            EXPECT_EQ(static_cast<int>(Core::DataType::Complex32), 3);
+            EXPECT_EQ(static_cast<int>(Core::DataType::Complex64), 4);
+            EXPECT_EQ(static_cast<int>(Core::DataType::Int32), 5);
+            EXPECT_EQ(static_cast<int>(Core::DataType::Int64), 6);
         }
 
         TEST(Unit_DataType, IsOneByte)

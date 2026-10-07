@@ -100,29 +100,29 @@ namespace SushiBLAS
 
         TEST(Unit_SparseTypes, IndexBaseKeepsItsValuesInOneByte)
         {
-            EXPECT_EQ(static_cast<int>(IndexBase::ZERO), 221);
-            EXPECT_EQ(static_cast<int>(IndexBase::ONE), 222);
+            EXPECT_EQ(static_cast<int>(IndexBase::Zero), 221);
+            EXPECT_EQ(static_cast<int>(IndexBase::One), 222);
             EXPECT_EQ(sizeof(IndexBase), std::size_t{1});
         }
 
         TEST(Unit_SparseTypes, IsValidRefusesAValueOutsideTheEnumeration)
         {
-            EXPECT_TRUE(Core::is_valid(IndexBase::ZERO));
-            EXPECT_TRUE(Core::is_valid(IndexBase::ONE));
+            EXPECT_TRUE(Core::is_valid(IndexBase::Zero));
+            EXPECT_TRUE(Core::is_valid(IndexBase::One));
             EXPECT_FALSE(Core::is_valid(static_cast<IndexBase>(0)));
             EXPECT_FALSE(Core::is_valid(static_cast<IndexBase>(255)));
         }
 
         TEST(Unit_SparseTypes, FirstIndexIsTheStoredValueOfPositionZero)
         {
-            EXPECT_EQ(Core::first_index(IndexBase::ZERO), 0);
-            EXPECT_EQ(Core::first_index(IndexBase::ONE), 1);
+            EXPECT_EQ(Core::first_index(IndexBase::Zero), 0);
+            EXPECT_EQ(Core::first_index(IndexBase::One), 1);
         }
 
         TEST(Unit_SparseTypes, ToStringNamesBothBasesAndAnUnknownValue)
         {
-            EXPECT_STREQ(Core::to_string(IndexBase::ZERO), "ZERO");
-            EXPECT_STREQ(Core::to_string(IndexBase::ONE), "ONE");
+            EXPECT_STREQ(Core::to_string(IndexBase::Zero), "ZERO");
+            EXPECT_STREQ(Core::to_string(IndexBase::One), "ONE");
             EXPECT_STREQ(Core::to_string(static_cast<IndexBase>(0)), "UNKNOWN");
         }
 
@@ -132,7 +132,7 @@ namespace SushiBLAS
 
             EXPECT_EQ(vector.size, 0);
             EXPECT_EQ(vector.nnz(), 0);
-            EXPECT_EQ(vector.index_base, IndexBase::ZERO);
+            EXPECT_EQ(vector.index_base, IndexBase::Zero);
         }
 
         TEST(Unit_SparseTypes, ADefaultSparseMatrixIsEmptyAndZeroBased)
@@ -142,19 +142,19 @@ namespace SushiBLAS
             EXPECT_EQ(matrix.rows, 0);
             EXPECT_EQ(matrix.cols, 0);
             EXPECT_EQ(matrix.nnz(), 0);
-            EXPECT_EQ(matrix.index_base, IndexBase::ZERO);
+            EXPECT_EQ(matrix.index_base, IndexBase::Zero);
         }
 
         TEST(Unit_SparseTypes, ASparseVectorReportsTheDtypesOfItsTensors)
         {
             SparseVector vector;
             vector.size = 8;
-            vector.indices = tensor_without_storage(3, DataType::INT32);
-            vector.values = tensor_without_storage(3, DataType::COMPLEX64);
+            vector.indices = tensor_without_storage(3, DataType::Int32);
+            vector.values = tensor_without_storage(3, DataType::Complex64);
 
             EXPECT_EQ(vector.nnz(), 3);
-            EXPECT_EQ(vector.dtype(), DataType::COMPLEX64);
-            EXPECT_EQ(vector.index_dtype(), DataType::INT32);
+            EXPECT_EQ(vector.dtype(), DataType::Complex64);
+            EXPECT_EQ(vector.index_dtype(), DataType::Int32);
         }
 
         TEST(Unit_SparseTypes, ASparseMatrixReportsTheDtypesOfItsTensors)
@@ -162,13 +162,13 @@ namespace SushiBLAS
             SparseMatrix matrix;
             matrix.rows = 4;
             matrix.cols = 5;
-            matrix.row_offsets = tensor_without_storage(5, DataType::INT64);
-            matrix.column_indices = tensor_without_storage(7, DataType::INT32);
-            matrix.values = tensor_without_storage(7, DataType::HALF);
+            matrix.row_offsets = tensor_without_storage(5, DataType::Int64);
+            matrix.column_indices = tensor_without_storage(7, DataType::Int32);
+            matrix.values = tensor_without_storage(7, DataType::Half);
 
             EXPECT_EQ(matrix.nnz(), 7);
-            EXPECT_EQ(matrix.dtype(), DataType::HALF);
-            EXPECT_EQ(matrix.index_dtype(), DataType::INT64);
+            EXPECT_EQ(matrix.dtype(), DataType::Half);
+            EXPECT_EQ(matrix.index_dtype(), DataType::Int64);
         }
 
         TEST(Unit_SparseTypes, ACsrPatternSubtractsItsFirstIndex)
@@ -186,9 +186,9 @@ namespace SushiBLAS
         TEST(Unit_SparseTypes, AccumulatorBytesIsTheSizeOfTheAccumulatorOfEachDtype)
         {
             const AccumulatorSize sizes[7] = {
-                {DataType::HALF, 4},      {DataType::FLOAT32, 4},    {DataType::FLOAT64, 8},
-                {DataType::COMPLEX32, 8}, {DataType::COMPLEX64, 16}, {DataType::INT32, 0},
-                {DataType::INT64, 0}};
+                {DataType::Half, 4},      {DataType::Float32, 4},    {DataType::Float64, 8},
+                {DataType::Complex32, 8}, {DataType::Complex64, 16}, {DataType::Int32, 0},
+                {DataType::Int64, 0}};
 
             for (const AccumulatorSize& size : sizes)
                 EXPECT_EQ(Internal::accumulator_bytes(size.dtype), size.bytes)

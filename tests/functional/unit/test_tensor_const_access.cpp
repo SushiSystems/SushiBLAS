@@ -67,13 +67,13 @@ namespace SushiBLAS
 
         TEST_F(Unit_TensorConstAccessTest, ConstAndMutableAccessorsShareAnAddress)
         {
-            Tensor t = engine->create_tensor({4, 8}, Core::DataType::FLOAT32);
+            Tensor t = engine->create_tensor({4, 8}, Core::DataType::Float32);
             expect_same_addresses(t);
         }
 
         TEST_F(Unit_TensorConstAccessTest, ConstAndMutableAccessorsShareAnAddressOnAnOffsetView)
         {
-            Tensor t = engine->create_tensor({4, 8}, Core::DataType::FLOAT32);
+            Tensor t = engine->create_tensor({4, 8}, Core::DataType::Float32);
             Tensor view = t.slice(0, 1, 3);
             ASSERT_GT(view.storage_offset, 0);
             expect_same_addresses(view);

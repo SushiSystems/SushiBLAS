@@ -9,7 +9,7 @@ The manual is in [docs/README.md](docs/README.md).
 - **Operations are recorded, then run.** `Engine::create_tensor()` allocates a `Tensor`, which is shape, stride and dtype metadata over a ref-counted `Storage` backed by SushiRuntime USM. Calling an operation, such as `SushiBLAS::BLASOps(engine).axpy(...)`, records one task on the engine's graph and returns a `TaskHandle`. `engine.execute()` compiles the graph, runs it and returns when every task has finished.
 - **Eight operation families.** Dense BLAS levels 1 to 3 with the band, packed, rotation, complex and Hermitian routines; sparse BLAS over CSR; elementwise arithmetic; non-linear activations; logic and comparison; reductions; random generation; and spatial (windowed) operations. [The architecture, section 7](docs/architecture/ARCHITECTURE.md#7-kernels-reference-and-sycl) lists the routines.
 - **Every operation has a reference path and a SYCL kernel.** The BLAS, sparse and spatial families have a plain C++ reference kernel under `kernels/reference/` beside the SYCL kernel under `kernels/sycl/`. The other families run one functor two ways: inlined into a SYCL kernel, or in a serial host loop. The GEMM and SYRK tiling is ported from portBLAS; see [NOTICE.md](NOTICE.md).
-- **The execution mode is stamped on each task as it is recorded.** `Engine::set_mode()` selects `AUTO`, `FORCE_SYCL` or `FORCE_REFERENCE` for every later operation. See [the architecture, section 3](docs/architecture/ARCHITECTURE.md#3-execution-modes).
+- **The execution mode is stamped on each task as it is recorded.** `Engine::set_mode()` selects `Auto`, `ForceSycl` or `ForceReference` for every later operation. See [the architecture, section 3](docs/architecture/ARCHITECTURE.md#3-execution-modes).
 - **A wrong call throws when it is recorded.** A wrong operand, flag or scalar throws `std::invalid_argument` and names the operation and the operand; a dtype with no meaning for an operation, such as `max` on a complex tensor, is one of those. An operation that cannot run under the mode or on the device throws `SushiBLAS::UnsupportedExecution`, which derives from it. See [the architecture, section 11](docs/architecture/ARCHITECTURE.md#11-exceptions).
 - **Fusion is written by the caller.** The `SushiBLAS::Dispatch` seams take a functor and run it as one kernel, and `Dispatch::execute_gemm` takes an epilogue applied to each element of the product. No pass fuses recorded tasks automatically.
 
@@ -132,7 +132,7 @@ ctest --test-dir build -L regression
 #include <SushiBLAS/SushiBLAS.h>
 
 sr::Execution::RuntimeContext ctx;
-SushiBLAS::Engine engine(ctx, SushiBLAS::Core::Layout::ROW_MAJOR);
+SushiBLAS::Engine engine(ctx, SushiBLAS::Core::Layout::RowMajor);
 
 auto A = engine.create_tensor({1024, 1024});   // FLOAT32, shared USM, by default
 auto B = engine.create_tensor({1024, 1024});
@@ -161,8 +161,8 @@ ReductionOps(engine).sum(A, total);              // total = sum(A)
 
 BLASOps blas(engine);
 blas.axpy(2.0, x, y);                                        // y = 2*x + y
-blas.gemv(A, x, y, Core::Transpose::TRANS, 1.0, 1.0);        // y = A^T x + y
-blas.trsm(A, B, Core::Side::LEFT, Core::Uplo::LOWER);        // solve A X = B, X replaces B
+blas.gemv(A, x, y, Core::Transpose::Trans, 1.0, 1.0);        // y = A^T x + y
+blas.trsm(A, B, Core::Side::Left, Core::Uplo::Lower);        // solve A X = B, X replaces B
 
 engine.execute();
 ```

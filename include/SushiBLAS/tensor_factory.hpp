@@ -52,7 +52,7 @@ namespace SushiBLAS
              * @param layout Memory layout of every tensor the factory creates.
              */
             explicit TensorFactory(SushiRuntime::Execution::RuntimeContext& context,
-                                   Core::Layout layout = Core::Layout::ROW_MAJOR) noexcept
+                                   Core::Layout layout = Core::Layout::RowMajor) noexcept
                 : context_(&context), layout_(layout)
             {
 
@@ -80,8 +80,8 @@ namespace SushiBLAS
             [[nodiscard]] static std::size_t allocation_bytes(SushiRuntime::span<const int64_t> dims,
                                                               Core::DataType dtype)
             {
-                SB_THROW_IF(dims.size() > Core::MAX_TENSOR_RANK, "Rank {} exceeds limit of {}",
-                            dims.size(), Core::MAX_TENSOR_RANK);
+                SB_THROW_IF(dims.size() > Core::K_MAX_TENSOR_RANK, "Rank {} exceeds limit of {}",
+                            dims.size(), Core::K_MAX_TENSOR_RANK);
 
                 int64_t elements = 1;
                 for (std::size_t axis = 0; axis < dims.size(); ++axis)
@@ -102,7 +102,7 @@ namespace SushiBLAS
              */
             [[nodiscard]] Tensor create(
                 SushiRuntime::span<const int64_t> dims,
-                Core::DataType dtype = Core::DataType::FLOAT32,
+                Core::DataType dtype = Core::DataType::Float32,
                 SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared,
                 std::size_t device_index = 0) const
             {

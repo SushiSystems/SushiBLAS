@@ -21,7 +21,7 @@
 
 /**
  * @file test_trsv.cpp
- * @brief Tests blas().trsv on a 3x3 lower-triangular system.
+ * @brief Tests BLASOps::trsv on a 3x3 lower-triangular system.
  * @author Mustafa Garip
  */
 
@@ -48,9 +48,9 @@ TEST_F(Unit_TRSVTest, SimpleTRSV)
     fill_tensor(b, {1, 3, 8});
 
     SB_LOG_INFO("Submitting TRSV.");
-    SushiBLAS::BLASOps(*engine).trsv(A, b, SushiBLAS::Core::Uplo::LOWER,
-                                     SushiBLAS::Core::Transpose::NO_TRANS,
-                                     SushiBLAS::Core::Diag::NON_UNIT);
+    SushiBLAS::BLASOps(*engine).trsv(A, b, SushiBLAS::Core::Uplo::Lower,
+                                     SushiBLAS::Core::Transpose::NoTrans,
+                                     SushiBLAS::Core::Diag::NonUnit);
     
     engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
@@ -89,7 +89,7 @@ class Unit_TRSVPoisonTest : public SushiBLASTest
             fill_tensor(b, rhs);
 
             SushiBLAS::BLASOps(*engine).trsv(A, b, uplo_of(upper), transpose_of(trans_a),
-                                             SushiBLAS::Core::Diag::NON_UNIT);
+                                             SushiBLAS::Core::Diag::NonUnit);
             engine->execute();
 
             verify_tensor(b, K_SOLUTION);

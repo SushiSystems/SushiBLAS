@@ -47,7 +47,7 @@ namespace SushiBLAS
         int64_t cols = 0;
 
         /** @brief The stored value that names row 0 and column 0. */
-        Core::IndexBase index_base = Core::IndexBase::ZERO;
+        Core::IndexBase index_base = Core::IndexBase::Zero;
 
         /** @brief Where each row starts among the entries: rank 1, rows + 1 INT32 or INT64. */
         Tensor row_offsets;

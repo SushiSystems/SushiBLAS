@@ -21,7 +21,7 @@
 
 /**
  * @file set_seed.cpp
- * @brief Defines RandomOps::set_seed, which sets the engine's random seed.
+ * @brief Defines RandomOps::set_seed, which sets the seed of the view's stream.
  * @author Mustafa Garip
  */
 

@@ -169,7 +169,7 @@ namespace SushiBLAS
                     queue, plan, m, n, k,
                     alpha, a, operand_access(layout, transA, lda), str_a,
                     b, operand_access(layout, transB, ldb), str_b,
-                    beta, c, operand_access(layout, Core::Transpose::NO_TRANS, ldc), str_c,
+                    beta, c, operand_access(layout, Core::Transpose::NoTrans, ldc), str_c,
                     batch_size, scratch, deps, epilogue);
             }
         } // namespace SYCL

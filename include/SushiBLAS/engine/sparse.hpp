@@ -139,7 +139,7 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
             TaskHandle spmv(const SparseMatrix& A, const Tensor& x, Tensor& y,
-                            Core::Transpose trans = Core::Transpose::NO_TRANS,
+                            Core::Transpose trans = Core::Transpose::NoTrans,
                             BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
 
             /**
@@ -167,7 +167,7 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
             TaskHandle spmm(const SparseMatrix& A, const Tensor& B, Tensor& C,
-                            Core::Transpose trans = Core::Transpose::NO_TRANS,
+                            Core::Transpose trans = Core::Transpose::NoTrans,
                             BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
 
             /**
@@ -177,8 +177,8 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand or a flag the call does not accept.
              */
             TaskHandle sptrsv(const SparseMatrix& A, Tensor& b, Core::Uplo uplo,
-                              Core::Transpose trans = Core::Transpose::NO_TRANS,
-                              Core::Diag diag = Core::Diag::NON_UNIT);
+                              Core::Transpose trans = Core::Transpose::NoTrans,
+                              Core::Diag diag = Core::Diag::NonUnit);
 
         private:
             /// @brief The recorder every operation of this view records through.

@@ -44,7 +44,7 @@ namespace SushiBLAS
 
         const double limit = std::sqrt(6.0 / (n_in + n_out));
 
-        return Dispatch::execute_random<Dispatch::Domain::REAL>(
+        return Dispatch::execute_random<Dispatch::Domain::Real>(
             recorder_, rng_, t, "random.xavier_uniform", "random.xavier_uniform"_op,
             {static_cast<double>(n_in), static_cast<double>(n_out), limit},
             [limit](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,

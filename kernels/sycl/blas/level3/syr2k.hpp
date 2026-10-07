@@ -60,34 +60,34 @@ namespace SushiBLAS
                 struct Syr2kTileConfig
                 {
                     /** @brief Rows of C accumulated privately by one work-item. */
-                    static constexpr int64_t item_rows =
+                    static constexpr int64_t K_ITEM_ROWS =
                         register_block_dim<Accumulator<T>>(K_LOCAL_ACC_BYTES / 2, 4);
 
                     /** @brief Columns of C accumulated privately by one work-item. */
-                    static constexpr int64_t item_cols = item_rows;
+                    static constexpr int64_t K_ITEM_COLS = K_ITEM_ROWS;
 
                     /** @brief Work-items down the row axis of a work-group. */
-                    static constexpr int64_t wg_rows = 8;
+                    static constexpr int64_t K_WG_ROWS = 8;
 
                     /** @brief Work-items across the column axis of a work-group. */
-                    static constexpr int64_t wg_cols = 8;
+                    static constexpr int64_t K_WG_COLS = 8;
 
                     /** @brief Work-items per work-group. */
-                    static constexpr int64_t wg_items = wg_rows * wg_cols;
+                    static constexpr int64_t K_WG_ITEMS = K_WG_ROWS * K_WG_COLS;
 
                     /** @brief Rows of C covered by one work-group. */
-                    static constexpr int64_t block_m = item_rows * wg_rows;
+                    static constexpr int64_t K_BLOCK_M = K_ITEM_ROWS * K_WG_ROWS;
 
                     /** @brief Columns of C covered by one work-group. */
-                    static constexpr int64_t block_n = item_cols * wg_cols;
+                    static constexpr int64_t K_BLOCK_N = K_ITEM_COLS * K_WG_COLS;
 
                     /** @brief K-extent staged into local memory per iteration. */
-                    static constexpr int64_t tile_k = 16;
+                    static constexpr int64_t K_TILE_K = 16;
 
                     /** @brief Returns the bytes of local memory the four tiles of a group take. */
                     [[nodiscard]] static constexpr std::size_t local_mem_bytes() noexcept
                     {
-                        return 2 * static_cast<std::size_t>(block_m * tile_k + tile_k * block_n) *
+                        return 2 * static_cast<std::size_t>(K_BLOCK_M * K_TILE_K + K_TILE_K * K_BLOCK_N) *
                                sizeof(T);
                     }
                 };
@@ -114,14 +114,14 @@ namespace SushiBLAS
                 using W = Accumulator<T>;
                 using WS = Accumulator<Scalar>;
                 using Cfg = Detail::Syr2kTileConfig<T>;
-                constexpr int64_t item_rows = Cfg::item_rows;
-                constexpr int64_t item_cols = Cfg::item_cols;
-                constexpr int64_t wg_rows = Cfg::wg_rows;
-                constexpr int64_t wg_cols = Cfg::wg_cols;
-                constexpr int64_t wg_items = Cfg::wg_items;
-                constexpr int64_t block_m = Cfg::block_m;
-                constexpr int64_t block_n = Cfg::block_n;
-                constexpr int64_t tile_k = Cfg::tile_k;
+                constexpr int64_t item_rows = Cfg::K_ITEM_ROWS;
+                constexpr int64_t item_cols = Cfg::K_ITEM_COLS;
+                constexpr int64_t wg_rows = Cfg::K_WG_ROWS;
+                constexpr int64_t wg_cols = Cfg::K_WG_COLS;
+                constexpr int64_t wg_items = Cfg::K_WG_ITEMS;
+                constexpr int64_t block_m = Cfg::K_BLOCK_M;
+                constexpr int64_t block_n = Cfg::K_BLOCK_N;
+                constexpr int64_t tile_k = Cfg::K_TILE_K;
 
                 const Device::Profile& profile = Device::profile_for(queue);
                 const Device::LocalTileDemand demand{Cfg::local_mem_bytes(),
@@ -132,13 +132,13 @@ namespace SushiBLAS
                             demand.local_bytes, demand.work_group_items,
                             profile.local_mem_bytes, profile.max_work_group_size);
 
-                const bool upper = (uplo == Core::Uplo::UPPER);
+                const bool upper = (uplo == Core::Uplo::Upper);
                 const OperandAccess a_rows = operand_access(layout, trans, lda);
                 const OperandAccess b_rows = operand_access(layout, trans, ldb);
                 const OperandAccess a_cols = a_rows.transposed();
                 const OperandAccess b_cols = b_rows.transposed();
                 const OperandAccess c_access =
-                    operand_access(layout, Core::Transpose::NO_TRANS, ldc);
+                    operand_access(layout, Core::Transpose::NoTrans, ldc);
 
                 const int64_t row_groups = Detail::group_count(n, block_m);
                 const int64_t col_groups = Detail::group_count(n, block_n);

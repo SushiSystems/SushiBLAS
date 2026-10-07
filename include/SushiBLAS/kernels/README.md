@@ -36,7 +36,7 @@ this page.
 
 A row step, a column step and a conjugation flag, resolved once on the host by `operand_access`
 from a layout, a `Core::Transpose` and a leading dimension. `at(p, r, c)` returns element (r, c)
-of op(X), conjugated when the operand was given as `CONJ_TRANS`. A kernel written against it
+of op(X), conjugated when the operand was given as `ConjTrans`. A kernel written against it
 carries no layout branch and no transpose branch in its inner loop, and `transposed()` gives the
 access of the transpose without going back to the flags. The four (layout, transposed) cases are
 two stride pairs; the table is under `Detail::strides_for` below.
@@ -169,7 +169,7 @@ whenever m > k.
 
 - `Epilogue`: Functor applied per element immediately before the store, exactly as in
   `SushiBLAS::Kernels::SYCL::gemm` and with the same `(value, row, col)` contract. It is here so
-  that a *fused* GEMM has a ground truth at all: `FORCE_REFERENCE` mode is how this
+  that a *fused* GEMM has a ground truth at all: `ForceReference` mode is how this
   project judges a SYCL kernel, and a reference that dropped the epilogue would silently declare
   every fused result wrong. Defaults to `SushiBLAS::Kernels::GemmIdentityEpilogue`.
 
@@ -191,7 +191,7 @@ from a Device::Profile. See NOTICE.md's "Deviations" note for what this port sti
 upstream and why none of it is a correctness concern.
 
 Why two kernels and not one. On a device with real scratchpad memory, staging an A/B tile there and
-reading it back item_rows + item_cols times per K-step is the whole reason a tiled GEMM is fast. On
+reading it back K_ITEM_ROWS + K_ITEM_COLS times per K-step is the whole reason a tiled GEMM is fast. On
 a CPU backend the "local memory" is the same cache the global pointer already reads through, so the
 staging copies the data twice and every group_barrier is a real rendezvous between OS threads buying
 nothing. portBLAS ships exactly this split; so does this file. The fact table both variants dispatch
@@ -207,8 +207,8 @@ innermost loop of every kernel in the file without adding a single template inst
 ### `Detail::strides_for`
 
 The full table, verified element for element against `Kernels::Reference::gemm` (which is this
-operation's specification). "Transposed" is `Core::is_transposed(trans)`, which holds for `TRANS`
-and `CONJ_TRANS`:
+operation's specification). "Transposed" is `Core::is_transposed(trans)`, which holds for `Trans`
+and `ConjTrans`:
 
 | layout       | transposed | row stride | col stride |
 |--------------|------------|------------|------------|
@@ -297,7 +297,7 @@ unaliased is sound. `a` and `b` are deliberately NOT qualified: a caller computi
 one pointer for both, which is legal, and __restrict__ on both would make it undefined behaviour. Do
 not "fix" this by adding it.
 
-At `for (int64_t k0 = 0; k0 < k; k0 += Cfg::tile_k)`: no double buffering, deliberately. Alternating
+At `for (int64_t k0 = 0; k0 < k; k0 += Cfg::K_TILE_K)`: no double buffering, deliberately. Alternating
 between two local buffers would elide one of the two barriers in the K-step loop, but the win over a
 correctly bank-padded single-buffered kernel is modest, and this project has no GPU to measure it
 on: the only reachable device is an OpenCL CPU, which takes the no-local variant and has no barriers
@@ -305,34 +305,34 @@ to elide. Restructuring a barrier sequence that cannot be verified is the wrong 
 stated omission beats an unmeasurable optimisation.
 
 Bank-conflict arithmetic for the A read, worked out for float (32 banks of 4 bytes) at this file's
-widest configuration: item_rows = item_cols = 8, wg_rows = wg_cols = 8, tile_k = 16, tile_a_ld = 17.
+widest configuration: K_ITEM_ROWS = K_ITEM_COLS = 8, K_WG_ROWS = K_WG_COLS = 8, K_TILE_K = 16, K_TILE_A_LD = 17.
 
-A work-group's linear local id is local_row * wg_cols + local_col, so a 32-lane sub-group spans 32 /
-wg_cols = 4 distinct local_row values. The 8 lanes sharing a local_row read the identical address
+A work-group's linear local id is local_row * K_WG_COLS + local_col, so a 32-lane sub-group spans 32 /
+K_WG_COLS = 4 distinct local_row values. The 8 lanes sharing a local_row read the identical address
 and are served by a broadcast, so only those 4 matter.
 
-tile_a_ld = 16 (unpadded): stride 16 floats, 16 mod 32 == 16, banks {0, 16, 0, 16}: 2-way.
+K_TILE_A_LD = 16 (unpadded): stride 16 floats, 16 mod 32 == 16, banks {0, 16, 0, 16}: 2-way.
 
-Contiguous ownership (the shape this kernel started from): stride item_rows * tile_k == 8 * 16 ==
+Contiguous ownership (the shape this kernel started from): stride K_ITEM_ROWS * K_TILE_K == 8 * 16 ==
 128, and 128 mod 32 == 0, so all 4 land on one bank: 4-way.
 
-tile_a_ld = 17 (this code): stride 17 floats and gcd(17, 32) == 1, so the 4 lanes take banks {0, 17,
+K_TILE_A_LD = 17 (this code): stride 17 floats and gcd(17, 32) == 1, so the 4 lanes take banks {0, 17,
 2, 19}: all distinct, conflict-free. It holds on AMD's 64-lane sub-groups too, where the 8 distinct
 local_row give {0,17,2,19,4,21,6,23}.
 
 The B read needs no padding: the strided ownership puts neighbouring local_col on neighbouring
 floats, so a sub-group's 8 distinct local_col cover 8 consecutive banks. Contiguous ownership would
-have spaced them item_cols == 8 apart: banks {0, 8, 16, 24} twice, a 2-way conflict.
+have spaced them K_ITEM_COLS == 8 apart: banks {0, 8, 16, 24} twice, a 2-way conflict.
 
 Register-block ownership is therefore a strided lattice, not a contiguous block: work-item
-(local_row, local_col) owns tile rows local_row + ii*wg_rows and tile columns local_col +
-jj*wg_cols. Neighbouring work-items touch neighbouring elements, which is what makes these reads
+(local_row, local_col) owns tile rows local_row + ii*K_WG_ROWS and tile columns local_col +
+jj*K_WG_COLS. Neighbouring work-items touch neighbouring elements, which is what makes these reads
 conflict-free and the C store coalesced.
 
-The staging loops in `gemm_local_tiled` are cooperative: the whole group fills `block_m x tile_k` of
-A and `tile_k x block_n` of B, each work-item taking a grid-strided share.
+The staging loops in `gemm_local_tiled` are cooperative: the whole group fills `K_BLOCK_M x K_TILE_K` of
+A and `K_TILE_K x K_BLOCK_N` of B, each work-item taking a grid-strided share.
 
-The `kk` loop in `gemm_local_tiled` sums the full `tile_k` width rather than clamping to the true
+The `kk` loop in `gemm_local_tiled` sums the full `K_TILE_K` width rather than clamping to the true
 remainder on the last tile. The out-of-range elements the staging loops wrote are zero, so the sum
 is still exact.
 
@@ -343,12 +343,12 @@ uninitialised. This matches standard BLAS semantics.
 
 This is the variant a CPU backend wants. Its "local memory" is the same cache the global pointer
 already reads through, so the tiling the other variant does would copy every element twice and pay a
-real thread rendezvous per K-step for the privilege. Reuse still happens, an item_rows x item_cols
-register block reads (item_rows + item_cols) operand elements per (item_rows * item_cols) FMAs, it
+real thread rendezvous per K-step for the privilege. Reuse still happens, an K_ITEM_ROWS x K_ITEM_COLS
+register block reads (K_ITEM_ROWS + K_ITEM_COLS) operand elements per (K_ITEM_ROWS * K_ITEM_COLS) FMAs, it
 just happens out of cache instead of out of scratchpad.
 
 At `const int64_t row0 =`: same strided-lattice ownership as the local-tiled variant: this
-work-item's rows are row0 + ii*wg_rows and its columns col0 + jj*wg_cols. The reason is different
+work-item's rows are row0 + ii*K_WG_ROWS and its columns col0 + jj*K_WG_COLS. The reason is different
 here, there is no local memory to conflict on, but the payoff is the same and matters more. A CPU
 backend vectorises across neighbouring work-items, so neighbouring items reading and writing
 neighbouring addresses is what turns the B load and the C store into contiguous vector accesses

@@ -32,13 +32,13 @@ set_property(CACHE SB_LOG_LEVEL PROPERTY STRINGS ${_sb_log_levels})
 if(NOT SB_LOG_LEVEL IN_LIST _sb_log_levels)
     message(FATAL_ERROR
         "SB_LOG_LEVEL is '${SB_LOG_LEVEL}'. Expected one of: ${_sb_log_levels}. "
-        "These are the SushiBLAS::Core::LogType enumerator names, plus 'auto' for the "
+        "SB_LOG_TYPE_OF maps each to its SushiBLAS::Core::LogType enumerator, plus 'auto' for the "
         "per-build-type default.")
 endif()
 
 # Applies the configured log level to one target.
 #
-# PUBLIC, unlike the warning/sanitizer policy: ACTIVE_LOG_LEVEL is an `inline constexpr`
+# PUBLIC, unlike the warning/sanitizer policy: K_ACTIVE_LOG_LEVEL is an `inline constexpr`
 # variable in a header every consumer compiles, so the library and everything linking it
 # have to agree on its value or they are an ODR violation waiting to be noticed. The
 # definition is a value, not a target name, so it travels through install(EXPORT)

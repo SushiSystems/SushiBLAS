@@ -18,7 +18,7 @@ the `SparseBuilder` are in [../../README.md](../../README.md); `Core::IndexBase`
 `SparseOps` is a view over a `TaskRecorder`, built from the recorder or from an `Engine&`, as every
 other view is. It derives from nothing and no class derives from it. Each routine returns a
 `TaskHandle` and records through `Internal::execute_typed_task` under the family name "Sparse
-operation", so a sparse task refuses a device-only operand under `FORCE_REFERENCE` as a dense one
+operation", so a sparse task refuses a device-only operand under `ForceReference` as a dense one
 does. The three arrays of a matrix and the two of a vector are declared on the task's `OperandSet`
 as the tensors they are.
 

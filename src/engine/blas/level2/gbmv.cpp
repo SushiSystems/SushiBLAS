@@ -59,7 +59,7 @@ namespace SushiBLAS
 
         // The band storage fixes one extent of A; the vector along the other axis gives the rest.
         const bool transposed = Core::is_transposed(trans);
-        if (a.layout == Core::Layout::COLUMN_MAJOR)
+        if (a.layout == Core::Layout::ColumnMajor)
             Dispatch::require_vector_length(transposed ? vy : vx, a.lines, "the columns of A", op,
                                             transposed ? "y" : "x");
         else

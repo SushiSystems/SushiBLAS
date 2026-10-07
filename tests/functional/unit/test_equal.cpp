@@ -21,7 +21,7 @@
 
 /**
  * @file test_equal.cpp
- * @brief Tests logic().equal against fixed expected values.
+ * @brief Tests LogicOps::equal against fixed expected values.
  * @author Mustafa Garip
  */
 

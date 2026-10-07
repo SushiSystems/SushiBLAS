@@ -76,7 +76,7 @@ namespace SushiBLAS
          */
         [[nodiscard]] inline std::size_t partial_bytes(Core::DataType dtype)
         {
-            if (dtype == Core::DataType::HALF) return sizeof(Reduce::AccumulationOf<sycl::half>);
+            if (dtype == Core::DataType::Half) return sizeof(Reduce::AccumulationOf<sycl::half>);
             return Core::bytes_per_element(dtype);
         }
 
@@ -116,7 +116,7 @@ namespace SushiBLAS
         [[nodiscard]] inline std::size_t leased_partials(const TaskRecorder& recorder,
                                                          std::size_t planned) noexcept
         {
-            return recorder.get_mode() == ExecutionMode::FORCE_REFERENCE ? std::size_t{0}
+            return recorder.get_mode() == ExecutionMode::ForceReference ? std::size_t{0}
                                                                           : planned;
         }
 
@@ -271,7 +271,7 @@ namespace SushiBLAS
             require_contiguous(t, name, "t");
             require_scalar(result, name, "result");
             require_dtype(result, t.dtype, name, "result");
-            require_domain<Domain::REAL>(t.dtype, "Reduction", name);
+            require_domain<Domain::Real>(t.dtype, "Reduction", name);
 
             int64_t size = t.num_elements;
             const void* read_T = t.data_or_null();
@@ -298,18 +298,18 @@ namespace SushiBLAS
 
             switch (t.dtype)
             {
-                case Core::DataType::HALF:
+                case Core::DataType::Half:
                     return recorder.record_pair(meta, operands, "Reduction",
                         Detail::ReductionTask<sycl::half, float, sycl::half, D>(
                             static_cast<const sycl::half*>(read_T),
                             static_cast<sycl::half*>(write_R), size, scratch, partials, dispatch,
                             name));
-                case Core::DataType::FLOAT32:
+                case Core::DataType::Float32:
                     return recorder.record_pair(meta, operands, "Reduction",
                         Detail::ReductionTask<float, float, float, D>(
                             static_cast<const float*>(read_T), static_cast<float*>(write_R), size,
                             scratch, partials, dispatch, name));
-                case Core::DataType::FLOAT64:
+                case Core::DataType::Float64:
                     return recorder.record_pair(meta, operands, "Reduction",
                         Detail::ReductionTask<double, double, double, D>(
                             static_cast<const double*>(read_T), static_cast<double*>(write_R),
@@ -551,8 +551,8 @@ namespace SushiBLAS
             require_device_dtype(result, name, "result");
             require_contiguous(t, name, "t");
             require_scalar(result, name, "result");
-            require_dtype(result, Core::DataType::INT64, name, "result");
-            require_domain<Domain::REAL_AND_INTEGRAL>(t.dtype, "Reduction", name);
+            require_dtype(result, Core::DataType::Int64, name, "result");
+            require_domain<Domain::RealAndIntegral>(t.dtype, "Reduction", name);
             require_min_elements(t, 1, name, "t");
 
             const int64_t size = t.num_elements;
@@ -581,7 +581,7 @@ namespace SushiBLAS
             const Detail::IndexReductionArm<std::remove_reference_t<Dispatcher>> arm{
                 recorder, meta, operands, dispatch, size, read_T, write_R, scratch, partials,
                 name, handle};
-            with_element_type<Domain::REAL_AND_INTEGRAL>(t.dtype, "Reduction", name, arm);
+            with_element_type<Domain::RealAndIntegral>(t.dtype, "Reduction", name, arm);
 
             return handle;
         }
@@ -607,8 +607,8 @@ namespace SushiBLAS
             require_device_dtype(result, name, "result");
             require_contiguous(t, name, "t");
             require_scalar(result, name, "result");
-            require_dtype(result, Core::DataType::INT64, name, "result");
-            require_domain<Domain::REAL>(t.dtype, "Reduction", name);
+            require_dtype(result, Core::DataType::Int64, name, "result");
+            require_domain<Domain::Real>(t.dtype, "Reduction", name);
 
             const int64_t size = t.num_elements;
             const void* read_T = t.data_or_null();
@@ -637,7 +637,7 @@ namespace SushiBLAS
             const Detail::CountingReductionArm<std::remove_reference_t<Dispatcher>> arm{
                 recorder, meta, operands, dispatch, size, read_T, write_R, scratch, partials,
                 name, handle};
-            with_element_type<Domain::REAL>(t.dtype, "Reduction", name, arm);
+            with_element_type<Domain::Real>(t.dtype, "Reduction", name, arm);
 
             return handle;
         }
@@ -794,7 +794,7 @@ namespace SushiBLAS
             require_storage(result, name, "result");
             require_device_dtype(result, name, "result");
             require_dtype(result, t.dtype, name, "result");
-            require_domain<Domain::REAL>(t.dtype, "Axis reduction", name);
+            require_domain<Domain::Real>(t.dtype, "Axis reduction", name);
 
             if (result.num_elements == 0)
                 return TaskHandle();
@@ -816,7 +816,7 @@ namespace SushiBLAS
             // REAL only: a fold needs an ordering and an identity, and integers are not arithmetic here; see include/SushiBLAS/engine/math/README.md.
             const Detail::SpanReductionArm<Accum, Transform, Finalize> arm{
                 recorder, meta, operands, span, read_T, write_R, transform, finalize, name, handle};
-            with_element_type<Domain::REAL>(t.dtype, "Axis reduction", name, arm);
+            with_element_type<Domain::Real>(t.dtype, "Axis reduction", name, arm);
 
             return handle;
         }

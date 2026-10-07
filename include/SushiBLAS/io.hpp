@@ -55,49 +55,49 @@ namespace SushiBLAS
         template<> struct HostDataType<float>
         {
             /** @brief The matching DataType. */
-            static constexpr Core::DataType K_VALUE = Core::DataType::FLOAT32;
+            static constexpr Core::DataType K_VALUE = Core::DataType::Float32;
         };
 
         /** @brief Maps double to FLOAT64. */
         template<> struct HostDataType<double>
         {
             /** @brief The matching DataType. */
-            static constexpr Core::DataType K_VALUE = Core::DataType::FLOAT64;
+            static constexpr Core::DataType K_VALUE = Core::DataType::Float64;
         };
 
         /** @brief Maps sycl::half to HALF. */
         template<> struct HostDataType<sycl::half>
         {
             /** @brief The matching DataType. */
-            static constexpr Core::DataType K_VALUE = Core::DataType::HALF;
+            static constexpr Core::DataType K_VALUE = Core::DataType::Half;
         };
 
         /** @brief Maps std::complex<float> to COMPLEX32. */
         template<> struct HostDataType<std::complex<float>>
         {
             /** @brief The matching DataType. */
-            static constexpr Core::DataType K_VALUE = Core::DataType::COMPLEX32;
+            static constexpr Core::DataType K_VALUE = Core::DataType::Complex32;
         };
 
         /** @brief Maps std::complex<double> to COMPLEX64. */
         template<> struct HostDataType<std::complex<double>>
         {
             /** @brief The matching DataType. */
-            static constexpr Core::DataType K_VALUE = Core::DataType::COMPLEX64;
+            static constexpr Core::DataType K_VALUE = Core::DataType::Complex64;
         };
 
         /** @brief Maps int32_t to INT32. */
         template<> struct HostDataType<int32_t>
         {
             /** @brief The matching DataType. */
-            static constexpr Core::DataType K_VALUE = Core::DataType::INT32;
+            static constexpr Core::DataType K_VALUE = Core::DataType::Int32;
         };
 
         /** @brief Maps int64_t to INT64. */
         template<> struct HostDataType<int64_t>
         {
             /** @brief The matching DataType. */
-            static constexpr Core::DataType K_VALUE = Core::DataType::INT64;
+            static constexpr Core::DataType K_VALUE = Core::DataType::Int64;
         };
     } // namespace Detail
 

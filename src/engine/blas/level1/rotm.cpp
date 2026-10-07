@@ -71,7 +71,7 @@ namespace SushiBLAS
         void* rw_y = y.data_or_null();
         const void* read_param = param.data_or_null();
 
-        return Internal::execute_blas_task<Dispatch::Domain::REAL>(
+        return Internal::execute_blas_task<Dispatch::Domain::Real>(
             recorder_, meta.get(), operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

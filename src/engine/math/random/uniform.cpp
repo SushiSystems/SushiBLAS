@@ -51,7 +51,7 @@ namespace SushiBLAS
 
     TaskHandle RandomOps::uniform(Tensor& t, double min, double max)
     {
-        const bool single = t.dtype == Core::DataType::FLOAT32 || t.dtype == Core::DataType::COMPLEX32;
+        const bool single = t.dtype == Core::DataType::Float32 || t.dtype == Core::DataType::Complex32;
         const bool drawable = std::isfinite(min) && std::isfinite(max)
                               && (single ? is_drawable_interval<float>(min, max)
                                          : is_drawable_interval<double>(min, max));
@@ -61,7 +61,7 @@ namespace SushiBLAS
                                                   "bounds with min <= max and a finite width in {}",
                                                   min, max, Core::to_string(t.dtype));
 
-        return Dispatch::execute_random<Dispatch::Domain::REAL_AND_COMPLEX>(recorder_, rng_, t, "random.uniform", "random.uniform"_op, {min, max},
+        return Dispatch::execute_random<Dispatch::Domain::RealAndComplex>(recorder_, rng_, t, "random.uniform", "random.uniform"_op, {min, max},
             [min, max](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,
                        uint64_t offset, int64_t size, auto* pT) -> sycl::event
             {

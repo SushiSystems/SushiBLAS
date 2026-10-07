@@ -44,7 +44,7 @@ namespace SushiBLAS
 
         const double stddev = std::sqrt(2.0 / (n_in + n_out));
 
-        return Dispatch::execute_random<Dispatch::Domain::REAL>(
+        return Dispatch::execute_random<Dispatch::Domain::Real>(
             recorder_, rng_, t, "random.xavier_normal", "random.xavier_normal"_op,
             {static_cast<double>(n_in), static_cast<double>(n_out), stddev},
             [stddev](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,

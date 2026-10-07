@@ -121,7 +121,6 @@ namespace SushiBLAS
             /**
              * @brief Returns how far a part of one updated element may lie from the reference.
              * @param terms The terms of each sum; alpha is 1, beta 0 and operand parts at most 1.
-             * @see docs/agent/2026_10_07_V010/DESIGN_GEMM_CPU.md
              */
             template<typename T>
             [[nodiscard]] double parity_bound(int64_t terms) noexcept
@@ -243,8 +242,8 @@ namespace SushiBLAS
                             a_.get(), second, str_a_, c_.get(), str_c_,
                             scratch.get() + K_PACKED_TEST_SCRATCH_SKEW, {},
                             Kernels::SYCL::Detail::SyrkStore<T, Conj, Scalar>(
-                                uplo_ == Core::Uplo::UPPER, alpha, beta,
-                                Kernels::operand_access(layout_, Core::Transpose::NO_TRANS, ldc_)))
+                                uplo_ == Core::Uplo::Upper, alpha, beta,
+                                Kernels::operand_access(layout_, Core::Transpose::NoTrans, ldc_)))
                             .wait();
 
                         return std::vector<T>(c_.get(), c_.get() + c_.size());
@@ -264,10 +263,10 @@ namespace SushiBLAS
                         if (major >= n_ || minor >= n_)
                             return false;
 
-                        const bool row_major = (layout_ == Core::Layout::ROW_MAJOR);
+                        const bool row_major = (layout_ == Core::Layout::RowMajor);
                         const int64_t row = row_major ? major : minor;
                         const int64_t col = row_major ? minor : major;
-                        return (uplo_ == Core::Uplo::UPPER) ? (col >= row) : (col <= row);
+                        return (uplo_ == Core::Uplo::Upper) ? (col >= row) : (col <= row);
                     }
 
                     /** @brief Returns the index of diagonal element i in the C buffer. */
@@ -280,7 +279,7 @@ namespace SushiBLAS
                     /** @brief Returns the padded leading dimension of a rows x cols matrix. */
                     [[nodiscard]] int64_t leading(int64_t rows, int64_t cols) const noexcept
                     {
-                        return ((layout_ == Core::Layout::COLUMN_MAJOR) ? rows : cols) +
+                        return ((layout_ == Core::Layout::ColumnMajor) ? rows : cols) +
                                K_PACKED_TEST_LD_PADDING;
                     }
 
@@ -288,7 +287,7 @@ namespace SushiBLAS
                     [[nodiscard]] int64_t stride(int64_t rows, int64_t cols,
                                                  int64_t ld) const noexcept
                     {
-                        return ld * ((layout_ == Core::Layout::COLUMN_MAJOR) ? cols : rows) +
+                        return ld * ((layout_ == Core::Layout::ColumnMajor) ? cols : rows) +
                                K_PACKED_TEST_BATCH_GAP;
                     }
 
@@ -410,13 +409,13 @@ namespace SushiBLAS
 
                     auto& context = TestEnvironment::get_context();
 
-                    engine->set_mode(ExecutionMode::FORCE_SYCL);
+                    engine->set_mode(ExecutionMode::ForceSycl);
                     const std::size_t live_before = context.live_usm_count();
                     record(A, sycl_result);
                     EXPECT_EQ(context.live_usm_count(), live_before + 1);
                     engine->execute();
 
-                    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                    engine->set_mode(ExecutionMode::ForceReference);
                     record(A, reference_result);
                     engine->execute();
 
@@ -434,16 +433,16 @@ namespace SushiBLAS
         /** @brief Tests SYRK on both triangles, transposes and layouts for exact parity. */
         TYPED_TEST(Unit_PackedSyrk, BothTrianglesEqualTheReferenceOnExactData)
         {
-            for (const Core::Layout layout : {Core::Layout::ROW_MAJOR, Core::Layout::COLUMN_MAJOR})
+            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
             {
-                for (const Core::Uplo uplo : {Core::Uplo::UPPER, Core::Uplo::LOWER})
+                for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
                 {
-                    for (const Core::Transpose trans : {Core::Transpose::NO_TRANS,
-                                                        Core::Transpose::TRANS})
+                    for (const Core::Transpose trans : {Core::Transpose::NoTrans,
+                                                        Core::Transpose::Trans})
                     {
-                        SCOPED_TRACE(layout == Core::Layout::ROW_MAJOR ? "row-major"
+                        SCOPED_TRACE(layout == Core::Layout::RowMajor ? "row-major"
                                                                        : "column-major");
-                        SCOPED_TRACE(uplo == Core::Uplo::UPPER ? "upper" : "lower");
+                        SCOPED_TRACE(uplo == Core::Uplo::Upper ? "upper" : "lower");
                         SCOPED_TRACE(Core::to_string(trans));
                         SyrkProblem<TypeParam> problem(this->queue(), layout, uplo, trans,
                                                        K_EXACT_ORDER, K_EXACT_TERMS);
@@ -464,17 +463,17 @@ namespace SushiBLAS
             {
                 using Scalar = Kernels::RealType<TypeParam>;
 
-                for (const Core::Layout layout : {Core::Layout::ROW_MAJOR,
-                                                  Core::Layout::COLUMN_MAJOR})
+                for (const Core::Layout layout : {Core::Layout::RowMajor,
+                                                  Core::Layout::ColumnMajor})
                 {
-                    for (const Core::Uplo uplo : {Core::Uplo::UPPER, Core::Uplo::LOWER})
+                    for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
                     {
-                        for (const Core::Transpose trans : {Core::Transpose::NO_TRANS,
-                                                            Core::Transpose::CONJ_TRANS})
+                        for (const Core::Transpose trans : {Core::Transpose::NoTrans,
+                                                            Core::Transpose::ConjTrans})
                         {
-                            SCOPED_TRACE(layout == Core::Layout::ROW_MAJOR ? "row-major"
+                            SCOPED_TRACE(layout == Core::Layout::RowMajor ? "row-major"
                                                                            : "column-major");
-                            SCOPED_TRACE(uplo == Core::Uplo::UPPER ? "upper" : "lower");
+                            SCOPED_TRACE(uplo == Core::Uplo::Upper ? "upper" : "lower");
                             SCOPED_TRACE(Core::to_string(trans));
                             SyrkProblem<TypeParam> problem(this->queue(), layout, uplo, trans,
                                                            K_EXACT_ORDER, K_EXACT_TERMS);
@@ -542,9 +541,9 @@ namespace SushiBLAS
                 GTEST_SKIP() << "no order up to " << K_LARGEST_SEAM_ORDER
                              << " selects the packed kernel; cache_bytes=" << profile.cache_bytes;
 
-            for (const Core::Uplo uplo : {Core::Uplo::UPPER, Core::Uplo::LOWER})
+            for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
             {
-                SCOPED_TRACE(uplo == Core::Uplo::UPPER ? "upper" : "lower");
+                SCOPED_TRACE(uplo == Core::Uplo::Upper ? "upper" : "lower");
 
                 this->expect_seam_parity(s, [&](const Tensor& A, Tensor& C)
                 {

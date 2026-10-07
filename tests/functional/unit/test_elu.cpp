@@ -21,7 +21,7 @@
 
 /**
  * @file test_elu.cpp
- * @brief Tests nonlinear().elu and elu_backward against fixed expected values.
+ * @brief Tests NonLinearOps::elu and elu_backward against fixed expected values.
  * @author Mustafa Garip
  */
 

@@ -9,7 +9,7 @@
 
 Every executor takes a `TaskRecorder&` and returns a `TaskHandle`. The three executors record the
 same `Detail::MapTask` the elementwise family does, so they accept a `bind_reads` bundle and have
-the serial host path under `FORCE_REFERENCE`; `include/SushiBLAS/engine/math/README.md` describes
+the serial host path under `ForceReference`; `include/SushiBLAS/engine/math/README.md` describes
 both under "The per-element seam".
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
@@ -34,7 +34,7 @@ be device-copyable, capture by value only, hold no host pointers, allocate nothi
 nothing.
 
 Throws `std::invalid_argument` on an operand or declared-read violation or too many `params`, and
-`UnsupportedExecution` on a device-only tensor under `FORCE_REFERENCE` or a dtype a tensor's
+`UnsupportedExecution` on a device-only tensor under `ForceReference` or a dtype a tensor's
 device cannot compute in.
 
 ### Ordering helpers
@@ -42,7 +42,7 @@ device cannot compute in.
 The ordering helpers have no complex overloads, on purpose. `<`, `<=`, `>` and `>=` have no meaning
 on complex numbers; these helpers used to supply a lexicographic stand-in, which made `less(a, b)`
 on a COMPLEX32 tensor return a confident, well-formed, mathematically meaningless answer. The
-ordering ops now declare Domain::REAL, so a complex operand throws at record time instead of being
+ordering ops now declare Domain::Real, so a complex operand throws at record time instead of being
 quietly re-interpreted.
 
 ## `logic.hpp`

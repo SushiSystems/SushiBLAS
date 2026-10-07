@@ -51,7 +51,7 @@ namespace SushiBLAS
                 void SetUp() override
                 {
                     SushiBLASTest::SetUp();
-                    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                    engine->set_mode(ExecutionMode::ForceReference);
                 }
 
                 /** @brief Returns U = [[1,2,3],[0,4,5],[0,0,6]] with its lower part poisoned. */
@@ -95,7 +95,7 @@ namespace SushiBLAS
                     const int64_t b_cols = left_side ? 2 : 3;
 
                     auto A = create_initialized_tensor<float>({3, 3}, a_values);
-                    auto B = engine->create_tensor({b_rows, b_cols}, Core::DataType::FLOAT32);
+                    auto B = engine->create_tensor({b_rows, b_cols}, Core::DataType::Float32);
                     fill_tensor(B, b_values);
 
                     SushiBLAS::BLASOps(*engine).trsm(

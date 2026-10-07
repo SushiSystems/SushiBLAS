@@ -21,7 +21,7 @@
 
 /**
  * @file test_gemv.cpp
- * @brief Tests blas().gemv against fixed expected values.
+ * @brief Tests BLASOps::gemv against fixed expected values.
  * @author Mustafa Garip
  */
 

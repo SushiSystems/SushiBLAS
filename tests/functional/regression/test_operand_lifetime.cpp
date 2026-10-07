@@ -56,7 +56,7 @@ namespace SushiBLAS
         /** @brief Tests that an input destroyed after the record call lives until the task ran. */
         TEST_F(Regression_OperandLifetime, ATaskKeepsItsInputAllocatedUntilItHasRun)
         {
-            auto out = engine->create_tensor({4}, Core::DataType::FLOAT32);
+            auto out = engine->create_tensor({4}, Core::DataType::Float32);
             std::size_t live_with_input = 0;
 
             {
@@ -80,17 +80,17 @@ namespace SushiBLAS
         {
             auto A = create_initialized_tensor<float>({3, 2}, {1, 0, 0, 1, 1, 1});
             auto B = create_initialized_tensor<float>({2, 3}, {1, 2, 3, 4, 5, 6});
-            auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+            auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
             std::size_t live_with_bias = 0;
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
             {
                 const Tensor bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
                 live_with_bias = live_allocations();
 
                 const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
-                Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NO_TRANS,
-                                       Core::Transpose::NO_TRANS, 1.0, 0.0,
+                Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NoTrans,
+                                       Core::Transpose::NoTrans, 1.0, 0.0,
                                        "test.gemm_kept_epilogue",
                                        "test.gemm_kept_epilogue"_op,
                                        Dispatch::gemm_epilogue(epilogue).reads(bias));
@@ -115,7 +115,7 @@ namespace SushiBLAS
 
             auto values = create_initialized_tensor<float>(
                 {K_ELEMENTS}, std::vector<float>(static_cast<std::size_t>(K_ELEMENTS), 1.0f));
-            auto total = engine->create_tensor({1}, Core::DataType::FLOAT32);
+            auto total = engine->create_tensor({1}, Core::DataType::Float32);
 
             ScratchPool& pool = engine->get_scratch_pool();
             const std::size_t outstanding_before = live_allocations() - pool.idle_block_count();

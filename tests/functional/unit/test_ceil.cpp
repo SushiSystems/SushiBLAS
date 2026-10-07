@@ -21,7 +21,7 @@
 
 /**
  * @file test_ceil.cpp
- * @brief Tests elementwise().ceil against fixed expected values.
+ * @brief Tests ElementwiseOps::ceil against fixed expected values.
  * @author Mustafa Garip
  */
 

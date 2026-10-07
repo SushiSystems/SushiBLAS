@@ -60,7 +60,7 @@ namespace SushiBLAS
 
             ASSERT_EQ(t.rank, static_cast<int32_t>(K_DIMS.size()));
             EXPECT_EQ(t.num_elements, K_ELEMENTS);
-            EXPECT_EQ(t.dtype, Core::DataType::FLOAT32);
+            EXPECT_EQ(t.dtype, Core::DataType::Float32);
             for (size_t i = 0; i < K_DIMS.size(); ++i)
             {
                 EXPECT_EQ(t.shape[i], K_DIMS[i]) << "axis " << i;
@@ -70,9 +70,9 @@ namespace SushiBLAS
 
         TEST_F(Unit_RuntimeShapes, CreateTensorTakesAVectorShapeAndDtype)
         {
-            const Tensor t = engine->create_tensor(K_DIMS, Core::DataType::FLOAT64);
+            const Tensor t = engine->create_tensor(K_DIMS, Core::DataType::Float64);
 
-            EXPECT_EQ(t.dtype, Core::DataType::FLOAT64);
+            EXPECT_EQ(t.dtype, Core::DataType::Float64);
             EXPECT_EQ(t.num_elements, K_ELEMENTS);
         }
 

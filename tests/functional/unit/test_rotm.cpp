@@ -67,12 +67,12 @@ namespace SushiBLAS
             constexpr double K_FULL_PARAM[K_PARAMETERS] = {-1.0, 0.5, -0.25, 0.75, 1.25};
 
             /// @brief Both kernels an operation has.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::FORCE_REFERENCE,
-                                                 ExecutionMode::FORCE_SYCL};
+            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
+                                                 ExecutionMode::ForceSycl};
 
             /// @brief Both element orders an engine can create tensors in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::ROW_MAJOR,
-                                                  Core::Layout::COLUMN_MAJOR};
+            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
+                                                  Core::Layout::ColumnMajor};
 
             /** @brief Holds one parameter array and what it makes of x = [1, 2], y = [3, 4]. */
             struct RotmRow
@@ -92,9 +92,9 @@ namespace SushiBLAS
             /** @brief Returns the name of a mode and a layout for a failure message. */
             [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
             {
-                return std::string(mode == ExecutionMode::FORCE_SYCL ? "FORCE_SYCL"
+                return std::string(mode == ExecutionMode::ForceSycl ? "FORCE_SYCL"
                                                                      : "FORCE_REFERENCE") +
-                       (layout == Core::Layout::ROW_MAJOR ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
+                       (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
             }
 
             /** @brief Returns whether the test device computes in T. */
@@ -181,7 +181,7 @@ namespace SushiBLAS
                 [[nodiscard]] static Tensor every_second_element(const Tensor& parent)
                 {
                     const int64_t dims[] = {parent.num_elements / 2};
-                    std::array<int64_t, Core::MAX_TENSOR_RANK> strides{};
+                    std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides{};
                     strides[0] = 2;
                     return Tensor(parent.storage, SushiRuntime::span<const int64_t>(dims, 1),
                                   strides, parent.dtype, 0, parent.layout);
@@ -358,7 +358,7 @@ namespace SushiBLAS
 
             for (const Core::Layout layout : K_LAYOUTS)
             {
-                SCOPED_TRACE(layout == Core::Layout::ROW_MAJOR ? "ROW_MAJOR" : "COLUMN_MAJOR");
+                SCOPED_TRACE(layout == Core::Layout::RowMajor ? "ROW_MAJOR" : "COLUMN_MAJOR");
                 std::vector<T> results[2][2];
 
                 for (std::size_t mode = 0; mode < 2; ++mode)

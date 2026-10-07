@@ -87,13 +87,13 @@ namespace SushiBLAS
         {
             switch (dtype)
             {
-                case Core::DataType::FLOAT32:   return "<f4";
-                case Core::DataType::FLOAT64:   return "<f8";
-                case Core::DataType::COMPLEX32: return "<c8";
-                case Core::DataType::COMPLEX64: return "<c16";
-                case Core::DataType::HALF:      return "<f2";
-                case Core::DataType::INT32:     return "<i4";
-                case Core::DataType::INT64:     return "<i8";
+                case Core::DataType::Float32:   return "<f4";
+                case Core::DataType::Float64:   return "<f8";
+                case Core::DataType::Complex32: return "<c8";
+                case Core::DataType::Complex64: return "<c16";
+                case Core::DataType::Half:      return "<f2";
+                case Core::DataType::Int32:     return "<i4";
+                case Core::DataType::Int64:     return "<i8";
                 default:
                     SB_THROW_IF(true, "Dtype {} has no .npy descriptor.", Core::to_string(dtype));
                     return "";
@@ -300,7 +300,7 @@ namespace SushiBLAS
                         "File {} holds .npy dtype '{}'; the tensor it is loaded into needs '{}'.",
                         path, header.descr, expected_descr);
 
-            const bool column_major = t.layout == Core::Layout::COLUMN_MAJOR;
+            const bool column_major = t.layout == Core::Layout::ColumnMajor;
 
             // At rank 0 and 1 C and Fortran order lay the elements out identically.
             SB_THROW_IF(t.rank >= 2 && header.fortran_order != column_major,
@@ -474,7 +474,7 @@ namespace SushiBLAS
         void require_npy_layout(const Tensor& t, const char* op)
         {
             // Batch axes of a COLUMN_MAJOR tensor are outermost (tensor.hpp), not Fortran order.
-            if (t.layout == Core::Layout::COLUMN_MAJOR && t.rank >= 3)
+            if (t.layout == Core::Layout::ColumnMajor && t.rank >= 3)
                 Dispatch::Detail::throw_operand_error(
                     op, "t",
                     "is COLUMN_MAJOR with rank {}; its batch axes are outermost, so its memory is "
@@ -488,26 +488,26 @@ namespace SushiBLAS
         {
             switch (dtype)
             {
-                case Core::DataType::HALF:
+                case Core::DataType::Half:
                     return {static_cast<double>(static_cast<float>(
                                 reinterpret_cast<const sycl::half*>(buf)[index])), 0.0};
-                case Core::DataType::FLOAT32:
+                case Core::DataType::Float32:
                     return {reinterpret_cast<const float*>(buf)[index], 0.0};
-                case Core::DataType::FLOAT64:
+                case Core::DataType::Float64:
                     return {reinterpret_cast<const double*>(buf)[index], 0.0};
-                case Core::DataType::COMPLEX32:
+                case Core::DataType::Complex32:
                 {
                     const float* c = reinterpret_cast<const float*>(buf) + index * 2;
                     return {c[0], c[1]};
                 }
-                case Core::DataType::COMPLEX64:
+                case Core::DataType::Complex64:
                 {
                     const double* c = reinterpret_cast<const double*>(buf) + index * 2;
                     return {c[0], c[1]};
                 }
-                case Core::DataType::INT32:
+                case Core::DataType::Int32:
                     return {static_cast<double>(reinterpret_cast<const int32_t*>(buf)[index]), 0.0};
-                case Core::DataType::INT64:
+                case Core::DataType::Int64:
                     return {static_cast<double>(reinterpret_cast<const int64_t*>(buf)[index]), 0.0};
                 default:
                     SB_THROW_IF(true, "Cannot render a tensor of dtype {} as text.",
@@ -728,7 +728,7 @@ namespace SushiBLAS
         char magic[6] = "SUSHI";
         uint32_t version = K_SUSHI_FORMAT_VERSION;
         int32_t rank;
-        int64_t shape[Core::MAX_TENSOR_RANK];
+        int64_t shape[Core::K_MAX_TENSOR_RANK];
         int32_t dtype;
         int32_t layout;
     };
@@ -831,7 +831,7 @@ namespace SushiBLAS
         dict += npy_descr(t.dtype);
 
         dict += "', 'fortran_order': ";
-        dict += (t.layout == Core::Layout::COLUMN_MAJOR) ? "True" : "False";
+        dict += (t.layout == Core::Layout::ColumnMajor) ? "True" : "False";
         dict += ", 'shape': (";
 
         for (int i = 0; i < t.rank; ++i)
@@ -932,13 +932,13 @@ namespace SushiBLAS
 
         ss << "], dtype=";
 
-        if (t.dtype == Core::DataType::HALF) ss << "f16";
-        else if (t.dtype == Core::DataType::FLOAT32) ss << "f32";
-        else if (t.dtype == Core::DataType::FLOAT64) ss << "f64";
-        else if (t.dtype == Core::DataType::COMPLEX32) ss << "c32";
-        else if (t.dtype == Core::DataType::COMPLEX64) ss << "c64";
-        else if (t.dtype == Core::DataType::INT32) ss << "i32";
-        else if (t.dtype == Core::DataType::INT64) ss << "i64";
+        if (t.dtype == Core::DataType::Half) ss << "f16";
+        else if (t.dtype == Core::DataType::Float32) ss << "f32";
+        else if (t.dtype == Core::DataType::Float64) ss << "f64";
+        else if (t.dtype == Core::DataType::Complex32) ss << "c32";
+        else if (t.dtype == Core::DataType::Complex64) ss << "c64";
+        else if (t.dtype == Core::DataType::Int32) ss << "i32";
+        else if (t.dtype == Core::DataType::Int64) ss << "i64";
 
         ss << "):" << std::endl;
         ss << std::fixed << std::setprecision(precision);

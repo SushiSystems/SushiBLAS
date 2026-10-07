@@ -78,7 +78,7 @@ namespace SushiBLAS
                                                                     int64_t ld) noexcept
         {
             const bool column_indexed =
-                Core::is_transposed(trans) != (layout == Core::Layout::COLUMN_MAJOR);
+                Core::is_transposed(trans) != (layout == Core::Layout::ColumnMajor);
             return column_indexed ? OperandAccess{1, ld, Core::is_conjugated(trans)}
                                   : OperandAccess{ld, 1, Core::is_conjugated(trans)};
         }

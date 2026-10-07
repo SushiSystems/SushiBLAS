@@ -43,13 +43,13 @@ namespace SushiBLAS
         namespace
         {
             /// @brief The forced modes every case runs in.
-            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::FORCE_SYCL,
-                                                        ExecutionMode::FORCE_REFERENCE};
+            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceSycl,
+                                                        ExecutionMode::ForceReference};
 
             /** @brief Returns the name a failure message gives a forced mode. */
             const char* forced_mode_name(ExecutionMode mode) noexcept
             {
-                return mode == ExecutionMode::FORCE_REFERENCE ? "FORCE_REFERENCE" : "FORCE_SYCL";
+                return mode == ExecutionMode::ForceReference ? "FORCE_REFERENCE" : "FORCE_SYCL";
             }
 
             /** @brief Returns the bit pattern of a HALF value. */
@@ -70,7 +70,7 @@ namespace SushiBLAS
                 /** @brief Returns the tensor the given forced mode writes. */
                 [[nodiscard]] Tensor& in(ExecutionMode mode) noexcept
                 {
-                    return mode == ExecutionMode::FORCE_REFERENCE ? reference : device;
+                    return mode == ExecutionMode::ForceReference ? reference : device;
                 }
 
                 const char* operation = ""; /**< The operation's name in a failure message. */
@@ -104,7 +104,7 @@ namespace SushiBLAS
                 [[nodiscard]] Tensor half_filled(std::initializer_list<int64_t> dims,
                                                  ValueAt value_at)
                 {
-                    Tensor t = engine->create_tensor(dims, Core::DataType::HALF);
+                    Tensor t = engine->create_tensor(dims, Core::DataType::Half);
 
                     std::vector<sycl::half> host(static_cast<std::size_t>(t.num_elements));
                     for (int64_t i = 0; i < t.num_elements; ++i)
@@ -157,7 +157,7 @@ namespace SushiBLAS
                 [[nodiscard]] Tensor nchw_view(const Tensor& base, int64_t n, int64_t h, int64_t w,
                                                int64_t c)
                 {
-                    std::array<int64_t, Core::MAX_TENSOR_RANK> s{};
+                    std::array<int64_t, Core::K_MAX_TENSOR_RANK> s{};
                     s[0] = c * h * w;
                     s[1] = w;
                     s[2] = 1;
@@ -166,7 +166,7 @@ namespace SushiBLAS
                     const int64_t dims[4] = {n, h, w, c};
                     return Tensor(base.storage,
                                   SushiRuntime::span<const int64_t>(dims, dims + 4), s,
-                                  Core::DataType::HALF, base.storage_offset, base.layout);
+                                  Core::DataType::Half, base.storage_offset, base.layout);
                 }
 
                 /**
@@ -244,7 +244,7 @@ namespace SushiBLAS
                 // Windows 1, 2 and 3 select pixel 2, which gathers them as 3, 2, 1.
                 Tensor in = half_tensor({1, 1, 5, 1}, {0, 0, 9, 0, 0});
                 Tensor out = half_zeros({1, 1, 5, 1});
-                Tensor indices = engine->create_tensor({1, 1, 5, 1}, Core::DataType::INT64);
+                Tensor indices = engine->create_tensor({1, 1, 5, 1}, Core::DataType::Int64);
                 Tensor dy = half_tensor({1, 1, 5, 1}, {0, 1, 1, 2048, 0});
                 Tensor dx = half_zeros({1, 1, 5, 1});
 
@@ -364,8 +364,8 @@ namespace SushiBLAS
             ModeOutputs convert = half_outputs("layout_convert", {N, H, W, C});
 
             ModeOutputs indices;
-            indices.reference = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::INT64);
-            indices.device = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::INT64);
+            indices.reference = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Int64);
+            indices.device = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Int64);
 
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
@@ -414,7 +414,7 @@ namespace SushiBLAS
 
                 Tensor in = half_tensor({1, 1, 2, 1}, {-60000, -65504});
                 Tensor out = half_zeros({1, 1, 1, 1});
-                Tensor indices = engine->create_tensor({1, 1, 1, 1}, Core::DataType::INT64);
+                Tensor indices = engine->create_tensor({1, 1, 1, 1}, Core::DataType::Int64);
 
                 SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
                 engine->execute();

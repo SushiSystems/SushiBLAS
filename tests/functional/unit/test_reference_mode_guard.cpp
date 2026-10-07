@@ -71,7 +71,7 @@ class Unit_ReferenceModeGuardTest : public SushiBLASTest
         {
             try
             {
-                Tensor t = engine->create_tensor(dims, Core::DataType::FLOAT32,
+                Tensor t = engine->create_tensor(dims, Core::DataType::Float32,
                                                  SushiRuntime::API::Residency::Device);
                 const sycl::context context =
                     TestEnvironment::get_context().get_queue().get_context();
@@ -132,7 +132,7 @@ TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceGemmRefusesADeviceOperand)
     const Tensor b = make_shared_b();
     Tensor c = engine->create_tensor({2, 2});
 
-    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+    engine->set_mode(ExecutionMode::ForceReference);
     try
     {
         SushiBLAS::BLASOps(*engine).gemm(*a, b, c);
@@ -155,9 +155,9 @@ TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceRefusesADeviceOperandDeclaredB
     Tensor c = engine->create_tensor({2, 2});
     const Kernels::ChannelBiasEpilogue epilogue{bias->data(), 0, 1};
 
-    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
-    EXPECT_THROW(Dispatch::execute_gemm(engine->get_recorder(), a, b, c, Core::Transpose::NO_TRANS,
-                                        Core::Transpose::NO_TRANS, 1.0, 0.0,
+    engine->set_mode(ExecutionMode::ForceReference);
+    EXPECT_THROW(Dispatch::execute_gemm(engine->get_recorder(), a, b, c, Core::Transpose::NoTrans,
+                                        Core::Transpose::NoTrans, 1.0, 0.0,
                                         "test.gemm_device_bias", "test.gemm_device_bias"_op,
                                         Dispatch::gemm_epilogue(epilogue).reads(*bias)),
                  std::invalid_argument);
@@ -168,8 +168,8 @@ TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceGemmOnSharedOperandsMatchesSyc
     const Tensor a = make_shared_a();
     const Tensor b = make_shared_b();
 
-    const std::vector<float> reference = run_gemm(ExecutionMode::FORCE_REFERENCE, a, b);
-    const std::vector<float> device = run_gemm(ExecutionMode::FORCE_SYCL, a, b);
+    const std::vector<float> reference = run_gemm(ExecutionMode::ForceReference, a, b);
+    const std::vector<float> device = run_gemm(ExecutionMode::ForceSycl, a, b);
 
     ASSERT_EQ(K_PRODUCT.size(), reference.size());
     ASSERT_EQ(K_PRODUCT.size(), device.size());
@@ -187,7 +187,7 @@ TEST_F(Unit_ReferenceModeGuardTest, ForceSyclGemmRunsOnADeviceOperand)
         GTEST_SKIP() << "This device offers no device-only USM.";
     const Tensor b = make_shared_b();
 
-    const std::vector<float> result = run_gemm(ExecutionMode::FORCE_SYCL, *a, b);
+    const std::vector<float> result = run_gemm(ExecutionMode::ForceSycl, *a, b);
 
     ASSERT_EQ(K_PRODUCT.size(), result.size());
     for (std::size_t i = 0; i < K_PRODUCT.size(); ++i)

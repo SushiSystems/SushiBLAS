@@ -21,7 +21,7 @@
 
 /**
  * @file test_log.cpp
- * @brief Tests elementwise().log against fixed expected values.
+ * @brief Tests ElementwiseOps::log against fixed expected values.
  * @author Mustafa Garip
  */
 
@@ -123,7 +123,7 @@ TEST_F(Unit_LogTest, ThousandElements)
 
 TEST_F(Unit_LogTest, Float64)
 {
-    auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::FLOAT64);
+    auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::Float64);
     fill_tensor(t, {0.5f, 1.0f, 4.0f, 10.0f});
 
     SushiBLAS::ElementwiseOps(*engine).log(t);

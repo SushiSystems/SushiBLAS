@@ -67,7 +67,7 @@ namespace SushiBLAS
                 SB_LOG_INFO("SYCL SPR: {}x{}", n, n);
 
                 const PackedAccess access =
-                    packed_access(layout, uplo, Core::Transpose::NO_TRANS, n);
+                    packed_access(layout, uplo, Core::Transpose::NoTrans, n);
 
                 return queue.submit([&](sycl::handler& h)
                 {

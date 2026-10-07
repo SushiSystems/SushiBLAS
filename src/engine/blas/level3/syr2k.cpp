@@ -143,7 +143,7 @@ namespace SushiBLAS
     {
         const char* const op = "blas.lvl3.syr2k";
         if (Core::is_complex_dtype(A.dtype))
-            Dispatch::require_transpose_not(trans, Core::Transpose::CONJ_TRANS, op, "her2k");
+            Dispatch::require_transpose_not(trans, Core::Transpose::ConjTrans, op, "her2k");
 
         return record_syr2k<Kernels::Unconjugated>(recorder_, op, "blas.lvl3.syr2k"_op,
                                                    A, B, C, uplo, trans, alpha, beta);
@@ -156,7 +156,7 @@ namespace SushiBLAS
             return syr2k(A, B, C, uplo, trans, alpha, beta);
 
         const char* const op = "blas.lvl3.her2k";
-        Dispatch::require_transpose_not(trans, Core::Transpose::TRANS, op, "syr2k");
+        Dispatch::require_transpose_not(trans, Core::Transpose::Trans, op, "syr2k");
 
         return record_syr2k<Kernels::Conjugated>(recorder_, op, "blas.lvl3.her2k"_op,
                                                  A, B, C, uplo, trans, alpha, BlasScalar(beta));

@@ -123,7 +123,7 @@ namespace SushiBLAS
             Dispatch::require_vector_length(vy, sx.size, "the size of x", op, "y");
             Internal::require_scalar_result(result, x.values.dtype, op);
 
-            if (x.indices.dtype == Core::DataType::INT32)
+            if (x.indices.dtype == Core::DataType::Int32)
                 return record_doti_task<int32_t, Conj>(recorder, op, op_id, x, sx, y, vy.increment,
                                                        result);
             return record_doti_task<int64_t, Conj>(recorder, op, op_id, x, sx, y, vy.increment,

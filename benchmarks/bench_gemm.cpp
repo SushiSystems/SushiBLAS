@@ -40,7 +40,7 @@ namespace
     const std::vector<int64_t> K_DEFAULT_SIZES = {128, 512, 1024, 2048};
 
     /// @brief Data types timed for every size.
-    const std::vector<DataType> K_DTYPES = {DataType::FLOAT32, DataType::FLOAT64};
+    const std::vector<DataType> K_DTYPES = {DataType::Float32, DataType::Float64};
 
     /// @brief Value written into every element of A.
     constexpr double K_A_VALUE = 1.0;
@@ -71,7 +71,7 @@ namespace
         const std::vector<int64_t> sizes = Bench::parse_sizes(argc, argv, K_DEFAULT_SIZES);
 
         SushiRuntime::Execution::RuntimeContext context;
-        SushiBLAS::Engine engine(context, SushiBLAS::Core::Layout::COLUMN_MAJOR);
+        SushiBLAS::Engine engine(context, SushiBLAS::Core::Layout::ColumnMajor);
         Bench::print_environment(engine);
 
         const Bench::ResultTable table("GFLOP/s");

@@ -44,7 +44,7 @@ namespace SushiBLAS
         int64_t size = 0;
 
         /** @brief The stored value that names position 0. */
-        Core::IndexBase index_base = Core::IndexBase::ZERO;
+        Core::IndexBase index_base = Core::IndexBase::Zero;
 
         /** @brief One position per stored entry: rank 1, INT32 or INT64, no position twice. */
         Tensor indices;

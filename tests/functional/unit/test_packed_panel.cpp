@@ -238,7 +238,7 @@ namespace SushiBLAS
                     {
                         for (int64_t i = 0; i < K_COUNT; ++i)
                         {
-                            const W expected = (Lines == PanelLines::ROWS)
+                            const W expected = (Lines == PanelLines::Rows)
                                 ? source_value<T>(K_FIRST + i, K_TERM_FIRST + l)
                                 : source_value<T>(K_TERM_FIRST + l, K_FIRST + i);
                             EXPECT_EQ(panel[packed_offset<T>(i, l, K_DEPTH, plane)],
@@ -273,10 +273,10 @@ namespace SushiBLAS
             using T = TypeParam;
 
             const StoredSource<T> source = row_major_source<T>(K_SOURCE_ROWS);
-            const auto panel = pack_common<T, PanelLines::ROWS>(source.elements, source.access);
+            const auto panel = pack_common<T, PanelLines::Rows>(source.elements, source.access);
 
             ASSERT_EQ(panel.size(), static_cast<std::size_t>(panel_reals<T>(K_COUNT, K_DEPTH)) + 1);
-            expect_common_panel<T, PanelLines::ROWS>(panel);
+            expect_common_panel<T, PanelLines::Rows>(panel);
         }
 
         /** @brief Tests that the storage order of the source does not change the panel. */
@@ -288,13 +288,13 @@ namespace SushiBLAS
             const StoredSource<T> by_columns = column_major_source<T>(K_SOURCE_ROWS);
 
             const auto rows_of_rows =
-                pack_common<T, PanelLines::ROWS>(by_rows.elements, by_rows.access);
+                pack_common<T, PanelLines::Rows>(by_rows.elements, by_rows.access);
             const auto rows_of_columns =
-                pack_common<T, PanelLines::ROWS>(by_columns.elements, by_columns.access);
+                pack_common<T, PanelLines::Rows>(by_columns.elements, by_columns.access);
             const auto columns_of_rows =
-                pack_common<T, PanelLines::COLUMNS>(by_rows.elements, by_rows.access);
+                pack_common<T, PanelLines::Columns>(by_rows.elements, by_rows.access);
             const auto columns_of_columns =
-                pack_common<T, PanelLines::COLUMNS>(by_columns.elements, by_columns.access);
+                pack_common<T, PanelLines::Columns>(by_columns.elements, by_columns.access);
 
             EXPECT_EQ(rows_of_rows, rows_of_columns);
             EXPECT_EQ(columns_of_rows, columns_of_columns);
@@ -306,8 +306,8 @@ namespace SushiBLAS
             using T = TypeParam;
 
             for (const StoredSource<T>& source : both_storage_orders<T>(K_SOURCE_ROWS))
-                expect_common_panel<T, PanelLines::COLUMNS>(
-                    pack_common<T, PanelLines::COLUMNS>(source.elements, source.access));
+                expect_common_panel<T, PanelLines::Columns>(
+                    pack_common<T, PanelLines::Columns>(source.elements, source.access));
         }
 
         /** @brief Tests that an access brick whose only member is `at` is packed. */
@@ -318,13 +318,13 @@ namespace SushiBLAS
             const StoredSource<T> source = row_major_source<T>(K_SOURCE_ROWS);
             const AtOnlyAccess at_only;
 
-            const auto rows_by_at = pack_common<T, PanelLines::ROWS>(source.elements, at_only);
+            const auto rows_by_at = pack_common<T, PanelLines::Rows>(source.elements, at_only);
             const auto rows_by_access =
-                pack_common<T, PanelLines::ROWS>(source.elements, source.access);
+                pack_common<T, PanelLines::Rows>(source.elements, source.access);
             const auto columns_by_at =
-                pack_common<T, PanelLines::COLUMNS>(source.elements, at_only);
+                pack_common<T, PanelLines::Columns>(source.elements, at_only);
             const auto columns_by_access =
-                pack_common<T, PanelLines::COLUMNS>(source.elements, source.access);
+                pack_common<T, PanelLines::Columns>(source.elements, source.access);
 
             EXPECT_EQ(rows_by_at, rows_by_access);
             EXPECT_EQ(columns_by_at, columns_by_access);
@@ -341,8 +341,8 @@ namespace SushiBLAS
                 Kernels::OperandAccess conjugated = source.access;
                 conjugated.conjugated = true;
 
-                const auto plain = pack_common<T, PanelLines::ROWS>(source.elements, source.access);
-                const auto flipped = pack_common<T, PanelLines::ROWS>(source.elements, conjugated);
+                const auto plain = pack_common<T, PanelLines::Rows>(source.elements, source.access);
+                const auto flipped = pack_common<T, PanelLines::Rows>(source.elements, conjugated);
 
                 ASSERT_EQ(plain.size(), flipped.size());
                 for (std::size_t i = 0; i + 1 < plain.size(); ++i)
@@ -361,7 +361,7 @@ namespace SushiBLAS
 
             const int64_t depth = 2;
             const StoredSource<T> source = row_major_source<T>(K_SOURCE_ROWS);
-            const auto panel = pack_guarded<T, PanelLines::ROWS>(source.elements, source.access, 0,
+            const auto panel = pack_guarded<T, PanelLines::Rows>(source.elements, source.access, 0,
                                                                  K_WIDTH, 0, depth);
 
             ASSERT_EQ(panel.size(), static_cast<std::size_t>(depth * parts_of<W>() * K_WIDTH) + 1);
@@ -386,7 +386,7 @@ namespace SushiBLAS
 
             const StoredSource<T> source = row_major_source<T>(K_SOURCE_ROWS);
             const std::vector<R> panel =
-                pack_guarded<T, PanelLines::ROWS>(source.elements, source.access, 0, K_WIDTH, 0, 1);
+                pack_guarded<T, PanelLines::Rows>(source.elements, source.access, 0, K_WIDTH, 0, 1);
 
             for (int64_t i = 0; i < K_WIDTH; ++i)
                 EXPECT_EQ(panel[static_cast<std::size_t>(i)], static_cast<R>(10 * i))
@@ -403,7 +403,7 @@ namespace SushiBLAS
             {
                 for (const int64_t count : {K_COUNT, K_WHOLE_PANEL_ROWS})
                 {
-                    const auto panel = pack_guarded<T, PanelLines::ROWS>(
+                    const auto panel = pack_guarded<T, PanelLines::Rows>(
                         source.elements, source.access, 0, count, K_TERM_FIRST, K_DEPTH);
 
                     ASSERT_EQ(panel.size(),
@@ -423,9 +423,9 @@ namespace SushiBLAS
 
             for (const StoredSource<T>& source : both_storage_orders<T>(K_SOURCE_ROWS))
             {
-                const auto no_lines = pack_guarded<T, PanelLines::ROWS>(
+                const auto no_lines = pack_guarded<T, PanelLines::Rows>(
                     source.elements, source.access, K_FIRST, 0, K_TERM_FIRST, K_DEPTH);
-                const auto no_terms = pack_guarded<T, PanelLines::ROWS>(
+                const auto no_terms = pack_guarded<T, PanelLines::Rows>(
                     source.elements, source.access, K_FIRST, K_COUNT, K_TERM_FIRST, 0);
 
                 ASSERT_EQ(no_lines.size(), std::size_t{1});

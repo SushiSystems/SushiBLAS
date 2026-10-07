@@ -150,10 +150,10 @@ namespace SushiBLAS
                 return;
 
             Detail::throw_operand_error(op, operand_a, "has layout {}, but '{}' has layout {}",
-                                        a.layout == Core::Layout::ROW_MAJOR ? "row-major"
+                                        a.layout == Core::Layout::RowMajor ? "row-major"
                                                                             : "column-major",
                                         operand_b,
-                                        b.layout == Core::Layout::ROW_MAJOR ? "row-major"
+                                        b.layout == Core::Layout::RowMajor ? "row-major"
                                                                             : "column-major");
         }
 
@@ -212,7 +212,7 @@ namespace SushiBLAS
                                                 "has stride {} in dimension {}, dense {} needs {}; "
                                                 "the operation does not accept strided views",
                                                 t.strides[i], i,
-                                                t.layout == Core::Layout::ROW_MAJOR ? "row-major"
+                                                t.layout == Core::Layout::RowMajor ? "row-major"
                                                                                     : "column-major",
                                                 expected[i]);
             }
@@ -280,9 +280,9 @@ namespace SushiBLAS
          */
         inline void require_device_dtype(const Tensor& t, const char* op, const char* operand)
         {
-            const bool needs_fp64 = t.dtype == Core::DataType::FLOAT64 ||
-                                    t.dtype == Core::DataType::COMPLEX64;
-            const bool needs_fp16 = t.dtype == Core::DataType::HALF;
+            const bool needs_fp64 = t.dtype == Core::DataType::Float64 ||
+                                    t.dtype == Core::DataType::Complex64;
+            const bool needs_fp16 = t.dtype == Core::DataType::Half;
             if ((!needs_fp64 && !needs_fp16) || !t.storage)
                 return;
 

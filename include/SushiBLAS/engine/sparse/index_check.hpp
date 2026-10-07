@@ -96,7 +96,7 @@ namespace SushiBLAS
                                             "has {} of dtype {}; they are INT32 or INT64", part,
                                             Core::to_string(array.dtype));
 
-            const int64_t limit = (array.dtype == Core::DataType::INT32)
+            const int64_t limit = (array.dtype == Core::DataType::Int32)
                 ? static_cast<int64_t>(std::numeric_limits<int32_t>::max())
                 : std::numeric_limits<int64_t>::max();
             if (largest > limit)

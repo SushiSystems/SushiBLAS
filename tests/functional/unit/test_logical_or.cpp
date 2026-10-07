@@ -21,7 +21,7 @@
 
 /**
  * @file test_logical_or.cpp
- * @brief Tests logic().logical_or against fixed expected values.
+ * @brief Tests LogicOps::logical_or against fixed expected values.
  * @author Mustafa Garip
  */
 

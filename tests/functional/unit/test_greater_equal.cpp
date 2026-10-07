@@ -21,7 +21,7 @@
 
 /**
  * @file test_greater_equal.cpp
- * @brief Tests logic().greater_equal against fixed expected values.
+ * @brief Tests LogicOps::greater_equal against fixed expected values.
  * @author Mustafa Garip
  */
 

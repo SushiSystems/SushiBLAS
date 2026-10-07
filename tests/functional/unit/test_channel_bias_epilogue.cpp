@@ -89,14 +89,14 @@ namespace SushiBLAS
             // (0, 1): the channel is the column. See tests/functional/unit/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());
             auto B = create_initialized_tensor<float>({2, 3}, b_values());
-            auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+            auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
             auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
 
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
-            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NO_TRANS,
-                                   Core::Transpose::NO_TRANS, 1.0, 0.0,
+            engine->set_mode(ExecutionMode::ForceSycl);
+            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NoTrans,
+                                   Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.gemm_channel_bias_col",
                                    "test.gemm_channel_bias_col"_op,
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));
@@ -113,14 +113,14 @@ namespace SushiBLAS
             // (1, 0): the channel is the row, as in NCHW. See tests/functional/unit/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());
             auto B = create_initialized_tensor<float>({2, 3}, b_values());
-            auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+            auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
             auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
 
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 1, 0};
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
-            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NO_TRANS,
-                                   Core::Transpose::NO_TRANS, 1.0, 0.0,
+            engine->set_mode(ExecutionMode::ForceSycl);
+            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NoTrans,
+                                   Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.gemm_channel_bias_row",
                                    "test.gemm_channel_bias_row"_op,
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));
@@ -137,14 +137,14 @@ namespace SushiBLAS
             // The reference kernel runs the epilogue too. See tests/functional/unit/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());
             auto B = create_initialized_tensor<float>({2, 3}, b_values());
-            auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+            auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
             auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
 
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 1, 0};
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
-            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NO_TRANS,
-                                   Core::Transpose::NO_TRANS, 1.0, 0.0,
+            engine->set_mode(ExecutionMode::ForceReference);
+            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NoTrans,
+                                   Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.gemm_channel_bias_row_ref",
                                    "test.gemm_channel_bias_row_ref"_op,
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));
@@ -160,20 +160,20 @@ namespace SushiBLAS
             // Every element of A*B is strictly positive. See tests/functional/unit/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, {1, 2, 3, 4, 5, 6});
             auto B = create_initialized_tensor<float>({2, 3}, {1, 2, 3, 4, 5, 6});
-            auto fused = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
-            auto plain = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+            auto fused = engine->create_tensor({3, 3}, Core::DataType::Float32);
+            auto plain = engine->create_tensor({3, 3}, Core::DataType::Float32);
             auto bias = create_initialized_tensor<float>({3}, {0.0f, 0.0f, 0.0f});
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
-            Dispatch::execute_gemm(engine->get_recorder(), A, B, fused, Core::Transpose::NO_TRANS,
-                                   Core::Transpose::NO_TRANS, 1.5, 0.0,
+            engine->set_mode(ExecutionMode::ForceSycl);
+            Dispatch::execute_gemm(engine->get_recorder(), A, B, fused, Core::Transpose::NoTrans,
+                                   Core::Transpose::NoTrans, 1.5, 0.0,
                                    "test.gemm_zero_channel_bias",
                                    "test.gemm_zero_channel_bias"_op,
                                    Dispatch::gemm_epilogue(
                                        Kernels::ChannelBiasEpilogue{bias.data(), 0, 1})
                                        .reads(bias));
-            Dispatch::execute_gemm(engine->get_recorder(), A, B, plain, Core::Transpose::NO_TRANS,
-                                   Core::Transpose::NO_TRANS, 1.5, 0.0,
+            Dispatch::execute_gemm(engine->get_recorder(), A, B, plain, Core::Transpose::NoTrans,
+                                   Core::Transpose::NoTrans, 1.5, 0.0,
                                    "test.gemm_zero_identity",
                                    "test.gemm_zero_identity"_op,
                                    Kernels::GemmIdentityEpilogue{});
@@ -199,14 +199,14 @@ namespace SushiBLAS
             // The in-degree counts the bias edge alone. See tests/functional/unit/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());
             auto B = create_initialized_tensor<float>({2, 3}, b_values());
-            auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+            auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
             auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
-            auto bias = engine->create_tensor({3}, Core::DataType::FLOAT32);
+            auto bias = engine->create_tensor({3}, Core::DataType::Float32);
 
             SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(seed, seed, bias);
 
-            Dispatch::execute_gemm(probe.get_recorder(), A, B, C, Core::Transpose::NO_TRANS,
-                                   Core::Transpose::NO_TRANS, 1.0, 0.0,
+            Dispatch::execute_gemm(probe.get_recorder(), A, B, C, Core::Transpose::NoTrans,
+                                   Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.gemm_channel_bias_declared",
                                    "test.gemm_channel_bias_declared"_op,
                                    Dispatch::gemm_epilogue(
@@ -227,16 +227,16 @@ namespace SushiBLAS
             // The GEMM must see the produced bias values. See tests/functional/unit/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());
             auto B = create_initialized_tensor<float>({2, 3}, b_values());
-            auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+            auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
             auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
-            auto bias = engine->create_tensor({3}, Core::DataType::FLOAT32);
+            auto bias = engine->create_tensor({3}, Core::DataType::Float32);
 
             // bias = seed*seed = [1, 4, 9], a value no uninitialised buffer would hold.
             SushiBLAS::ElementwiseOps(*engine).mul(seed, seed, bias);
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
-            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NO_TRANS,
-                                   Core::Transpose::NO_TRANS, 1.0, 0.0,
+            engine->set_mode(ExecutionMode::ForceSycl);
+            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NoTrans,
+                                   Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.gemm_channel_bias_produced",
                                    "test.gemm_channel_bias_produced"_op,
                                    Dispatch::gemm_epilogue(

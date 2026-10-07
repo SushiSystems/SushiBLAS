@@ -234,7 +234,7 @@ namespace SushiBLAS
             auto b = this->template create_initialized_tensor<Int>({2}, {1, 5});
             auto c = this->engine->create_tensor({2}, get_sushiblas_dtype<Int>());
 
-            Dispatch::execute_binary<Dispatch::Domain::REAL_AND_INTEGRAL>(
+            Dispatch::execute_binary<Dispatch::Domain::RealAndIntegral>(
                 this->engine->get_recorder(), a, b, c, "test.safe_ew_add", "test.safe_ew_add"_op,
                 [](auto x, auto y)
                 {

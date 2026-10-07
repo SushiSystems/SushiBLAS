@@ -21,7 +21,7 @@
 
 /**
  * @file test_acos.cpp
- * @brief Tests elementwise().acos against fixed expected values.
+ * @brief Tests ElementwiseOps::acos against fixed expected values.
  * @author Mustafa Garip
  */
 

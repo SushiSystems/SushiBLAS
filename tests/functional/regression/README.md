@@ -63,7 +63,7 @@ would catch a return of the restriction.
 
 ### GemmColumnMajorOperandsUseColumnStrides
 
-GEMM and SYRK read a `COLUMN_MAJOR` A and B with row-major indexing: `a[row*lda + col]` where the
+GEMM and SYRK read a `ColumnMajor` A and B with row-major indexing: `a[row*lda + col]` where the
 standard says `a[row + col*lda]`. That had two consequences.
 
 - `layout` was a no-op for both operands, so a column-major GEMM computed the wrong product.

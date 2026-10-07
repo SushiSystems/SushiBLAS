@@ -41,7 +41,7 @@ namespace
     const std::vector<int64_t> K_DEFAULT_SIZES = {1024, 4096, 8192};
 
     /// @brief Data types timed for every order.
-    const std::vector<DataType> K_DTYPES = {DataType::FLOAT32, DataType::FLOAT64};
+    const std::vector<DataType> K_DTYPES = {DataType::Float32, DataType::Float64};
 
     /// @brief Off-diagonals on each side of the diagonal in every band matrix timed.
     constexpr int64_t K_BAND = 8;
@@ -84,8 +84,8 @@ namespace
         const double band_elements = order * static_cast<double>(2 * K_BAND + 1);
         const double triangle_band_elements = order * static_cast<double>(K_BAND + 1);
         const double unit = K_ELEMENTS_PER_MEGAELEMENT;
-        const auto no_trans = SushiBLAS::Core::Transpose::NO_TRANS;
-        const auto unit_diag = SushiBLAS::Core::Diag::UNIT;
+        const auto no_trans = SushiBLAS::Core::Transpose::NoTrans;
+        const auto unit_diag = SushiBLAS::Core::Diag::Unit;
 
         table.print_row("gemv", dtype, n,
                         Bench::measure(engine, [&]() { blas.gemv(dense, x, y); }),
@@ -95,55 +95,55 @@ namespace
                         band_elements, unit);
 
         table.print_row("symv", dtype, n,
-                        Bench::measure(engine, [&]() { blas.symv(dense, x, y, Uplo::UPPER); }),
+                        Bench::measure(engine, [&]() { blas.symv(dense, x, y, Uplo::Upper); }),
                         dense_elements, unit);
         table.print_row("sbmv", dtype, n,
                         Bench::measure(engine, [&]()
-                                       { blas.sbmv(triangle_band, x, y, Uplo::UPPER, K_BAND); }),
+                                       { blas.sbmv(triangle_band, x, y, Uplo::Upper, K_BAND); }),
                         band_elements, unit);
         table.print_row("spmv", dtype, n,
-                        Bench::measure(engine, [&]() { blas.spmv(packed, x, y, Uplo::UPPER); }),
+                        Bench::measure(engine, [&]() { blas.spmv(packed, x, y, Uplo::Upper); }),
                         dense_elements, unit);
 
         table.print_row("trmv", dtype, n,
                         Bench::measure(engine, [&]()
-                                       { blas.trmv(dense, x, Uplo::UPPER, no_trans, unit_diag); }),
+                                       { blas.trmv(dense, x, Uplo::Upper, no_trans, unit_diag); }),
                         triangle_elements, unit);
         table.print_row("tbmv", dtype, n,
                         Bench::measure(engine, [&]()
                                        {
-                                           blas.tbmv(triangle_band, x, Uplo::UPPER, K_BAND,
+                                           blas.tbmv(triangle_band, x, Uplo::Upper, K_BAND,
                                                      no_trans, unit_diag);
                                        }),
                         triangle_band_elements, unit);
         table.print_row("tpmv", dtype, n,
                         Bench::measure(engine, [&]()
-                                       { blas.tpmv(packed, x, Uplo::UPPER, no_trans, unit_diag); }),
+                                       { blas.tpmv(packed, x, Uplo::Upper, no_trans, unit_diag); }),
                         triangle_elements, unit);
 
         table.print_row("trsv", dtype, n,
                         Bench::measure(engine, [&]()
-                                       { blas.trsv(dense, x, Uplo::UPPER, no_trans, unit_diag); }),
+                                       { blas.trsv(dense, x, Uplo::Upper, no_trans, unit_diag); }),
                         triangle_elements, unit);
         table.print_row("tbsv", dtype, n,
                         Bench::measure(engine, [&]()
                                        {
-                                           blas.tbsv(triangle_band, x, Uplo::UPPER, K_BAND,
+                                           blas.tbsv(triangle_band, x, Uplo::Upper, K_BAND,
                                                      no_trans, unit_diag);
                                        }),
                         triangle_band_elements, unit);
         table.print_row("tpsv", dtype, n,
                         Bench::measure(engine, [&]()
-                                       { blas.tpsv(packed, x, Uplo::UPPER, no_trans, unit_diag); }),
+                                       { blas.tpsv(packed, x, Uplo::Upper, no_trans, unit_diag); }),
                         triangle_elements, unit);
 
         table.print_row("syr", dtype, n,
                         Bench::measure(engine, [&]()
-                                       { blas.syr(y, dense, Uplo::UPPER, K_UPDATE_SCALE); }),
+                                       { blas.syr(y, dense, Uplo::Upper, K_UPDATE_SCALE); }),
                         triangle_elements, unit);
         table.print_row("spr", dtype, n,
                         Bench::measure(engine, [&]()
-                                       { blas.spr(y, packed, Uplo::UPPER, K_UPDATE_SCALE); }),
+                                       { blas.spr(y, packed, Uplo::Upper, K_UPDATE_SCALE); }),
                         triangle_elements, unit);
     }
 
@@ -153,7 +153,7 @@ namespace
         const std::vector<int64_t> sizes = Bench::parse_sizes(argc, argv, K_DEFAULT_SIZES);
 
         SushiRuntime::Execution::RuntimeContext context;
-        SushiBLAS::Engine engine(context, SushiBLAS::Core::Layout::COLUMN_MAJOR);
+        SushiBLAS::Engine engine(context, SushiBLAS::Core::Layout::ColumnMajor);
         Bench::print_environment(engine);
 
         const Bench::ResultTable table("Melem/s");

@@ -63,35 +63,35 @@ namespace SushiBLAS
             };
 
             /// @brief Holds the four packed storages every case runs under.
-            constexpr PackedStorage K_STORAGES[] = {{Layout::COLUMN_MAJOR, Uplo::UPPER},
-                                                    {Layout::COLUMN_MAJOR, Uplo::LOWER},
-                                                    {Layout::ROW_MAJOR, Uplo::UPPER},
-                                                    {Layout::ROW_MAJOR, Uplo::LOWER}};
+            constexpr PackedStorage K_STORAGES[] = {{Layout::ColumnMajor, Uplo::Upper},
+                                                    {Layout::ColumnMajor, Uplo::Lower},
+                                                    {Layout::RowMajor, Uplo::Upper},
+                                                    {Layout::RowMajor, Uplo::Lower}};
 
             /** @brief Returns the name of a layout for a failure message. */
             [[nodiscard]] constexpr const char* layout_name(Layout layout) noexcept
             {
-                return (layout == Layout::ROW_MAJOR) ? "row-major" : "column-major";
+                return (layout == Layout::RowMajor) ? "row-major" : "column-major";
             }
 
             /** @brief Returns the row of the element a CBLAS walk visits at (line, along). */
             [[nodiscard]] constexpr int64_t walked_row(Layout layout, int64_t line,
                                                        int64_t along) noexcept
             {
-                return (layout == Layout::ROW_MAJOR) ? line : along;
+                return (layout == Layout::RowMajor) ? line : along;
             }
 
             /** @brief Returns the column of the element a CBLAS walk visits at (line, along). */
             [[nodiscard]] constexpr int64_t walked_col(Layout layout, int64_t line,
                                                        int64_t along) noexcept
             {
-                return (layout == Layout::ROW_MAJOR) ? along : line;
+                return (layout == Layout::RowMajor) ? along : line;
             }
 
             /** @brief Returns whether (i, j) lies in a triangle of a square matrix. */
             [[nodiscard]] constexpr bool is_in_triangle(Uplo uplo, int64_t i, int64_t j) noexcept
             {
-                return (uplo == Uplo::UPPER) ? (i <= j) : (i >= j);
+                return (uplo == Uplo::Upper) ? (i <= j) : (i >= j);
             }
 
             /**
@@ -101,14 +101,14 @@ namespace SushiBLAS
             [[nodiscard]] constexpr double worked_element(Uplo uplo, int64_t i, int64_t j) noexcept
             {
                 constexpr double upper[3][3] = {{1.0, 2.0, 3.0}, {0.0, 4.0, 5.0}, {0.0, 0.0, 6.0}};
-                return (uplo == Uplo::UPPER) ? upper[i][j] : upper[j][i];
+                return (uplo == Uplo::Upper) ? upper[i][j] : upper[j][i];
             }
 
             /** @brief Returns the packed array of the worked triangle of one storage. */
             [[nodiscard]] constexpr const double* worked_storage(const PackedStorage& s) noexcept
             {
-                const bool by_rows = (s.layout == Layout::ROW_MAJOR);
-                const bool growing = (s.uplo == Uplo::UPPER) != by_rows;
+                const bool by_rows = (s.layout == Layout::RowMajor);
+                const bool growing = (s.uplo == Uplo::Upper) != by_rows;
                 return growing ? K_WORKED_GROWING : K_WORKED_SHRINKING;
             }
 
@@ -120,10 +120,10 @@ namespace SushiBLAS
             {
                 const int64_t n = 5;
                 const Kernels::PackedAccess a =
-                    Kernels::packed_access(layout, uplo, Transpose::NO_TRANS, n);
+                    Kernels::packed_access(layout, uplo, Transpose::NoTrans, n);
                 const Kernels::PackedAccess t =
-                    Kernels::packed_access(layout, uplo, Transpose::TRANS, n);
-                const bool upper = (uplo == Uplo::UPPER);
+                    Kernels::packed_access(layout, uplo, Transpose::Trans, n);
+                const bool upper = (uplo == Uplo::Upper);
                 if (a.is_upper() != upper || t.is_upper() == upper)
                     return false;
 
@@ -132,8 +132,8 @@ namespace SushiBLAS
                 {
                     for (int64_t along = 0; along < n; ++along)
                     {
-                        const int64_t i = (layout == Layout::ROW_MAJOR) ? line : along;
-                        const int64_t j = (layout == Layout::ROW_MAJOR) ? along : line;
+                        const int64_t i = (layout == Layout::RowMajor) ? line : along;
+                        const int64_t j = (layout == Layout::RowMajor) ? along : line;
                         const bool stored = upper ? (i <= j) : (i >= j);
                         if (a.holds(i, j) != stored || t.holds(j, i) != stored)
                             return false;
@@ -162,13 +162,13 @@ namespace SushiBLAS
          */
         TEST(Unit_PackedAccess, TheMappingIsTheCblasOrder)
         {
-            static_assert(packed_matches_cblas(Layout::COLUMN_MAJOR, Uplo::UPPER),
+            static_assert(packed_matches_cblas(Layout::ColumnMajor, Uplo::Upper),
                           "A column-major upper packed triangle is the CBLAS one.");
-            static_assert(packed_matches_cblas(Layout::COLUMN_MAJOR, Uplo::LOWER),
+            static_assert(packed_matches_cblas(Layout::ColumnMajor, Uplo::Lower),
                           "A column-major lower packed triangle is the CBLAS one.");
-            static_assert(packed_matches_cblas(Layout::ROW_MAJOR, Uplo::UPPER),
+            static_assert(packed_matches_cblas(Layout::RowMajor, Uplo::Upper),
                           "A row-major upper packed triangle is the CBLAS one.");
-            static_assert(packed_matches_cblas(Layout::ROW_MAJOR, Uplo::LOWER),
+            static_assert(packed_matches_cblas(Layout::RowMajor, Uplo::Lower),
                           "A row-major lower packed triangle is the CBLAS one.");
 
             SUCCEED();
@@ -189,7 +189,7 @@ namespace SushiBLAS
                                  << Core::to_string(storage.uplo) << ", order " << n);
 
                     const Kernels::PackedAccess access = Kernels::packed_access(
-                        storage.layout, storage.uplo, Transpose::NO_TRANS, n);
+                        storage.layout, storage.uplo, Transpose::NoTrans, n);
                     EXPECT_EQ(n, access.order);
 
                     int64_t next = 0;
@@ -226,7 +226,7 @@ namespace SushiBLAS
                                                   << Core::to_string(storage.uplo));
 
                 const Kernels::PackedAccess access = Kernels::packed_access(
-                    storage.layout, storage.uplo, Transpose::NO_TRANS, K_WORKED_ORDER);
+                    storage.layout, storage.uplo, Transpose::NoTrans, K_WORKED_ORDER);
                 const double* p = worked_storage(storage);
 
                 for (int64_t i = 0; i < K_WORKED_ORDER; ++i)
@@ -256,13 +256,13 @@ namespace SushiBLAS
             for (const PackedStorage& storage : K_STORAGES)
             {
                 const Kernels::PackedAccess plain = Kernels::packed_access(
-                    storage.layout, storage.uplo, Transpose::NO_TRANS, K_WORKED_ORDER);
+                    storage.layout, storage.uplo, Transpose::NoTrans, K_WORKED_ORDER);
                 const double* p = worked_storage(storage);
 
-                EXPECT_EQ(storage.uplo == Uplo::UPPER, plain.is_upper());
+                EXPECT_EQ(storage.uplo == Uplo::Upper, plain.is_upper());
                 EXPECT_FALSE(plain.conjugated);
 
-                for (const Transpose trans : {Transpose::TRANS, Transpose::CONJ_TRANS})
+                for (const Transpose trans : {Transpose::Trans, Transpose::ConjTrans})
                 {
                     SCOPED_TRACE(::testing::Message()
                                  << layout_name(storage.layout) << ", "
@@ -271,8 +271,8 @@ namespace SushiBLAS
 
                     const Kernels::PackedAccess op = Kernels::packed_access(
                         storage.layout, storage.uplo, trans, K_WORKED_ORDER);
-                    EXPECT_EQ(storage.uplo != Uplo::UPPER, op.is_upper());
-                    EXPECT_EQ(trans == Transpose::CONJ_TRANS, op.conjugated);
+                    EXPECT_EQ(storage.uplo != Uplo::Upper, op.is_upper());
+                    EXPECT_EQ(trans == Transpose::ConjTrans, op.conjugated);
                     EXPECT_EQ(K_WORKED_ORDER, op.order);
 
                     for (int64_t i = 0; i < K_WORKED_ORDER; ++i)
@@ -304,7 +304,7 @@ namespace SushiBLAS
 
             for (const PackedStorage& storage : K_STORAGES)
             {
-                for (const Transpose trans : {Transpose::NO_TRANS, Transpose::TRANS})
+                for (const Transpose trans : {Transpose::NoTrans, Transpose::Trans})
                 {
                     SCOPED_TRACE(::testing::Message()
                                  << layout_name(storage.layout) << ", "
@@ -313,7 +313,7 @@ namespace SushiBLAS
 
                     const Kernels::PackedAccess access =
                         Kernels::packed_access(storage.layout, storage.uplo, trans, n);
-                    const bool upper = (storage.uplo == Uplo::UPPER) != Core::is_transposed(trans);
+                    const bool upper = (storage.uplo == Uplo::Upper) != Core::is_transposed(trans);
 
                     for (int64_t i = 0; i < n; ++i)
                     {
@@ -343,11 +343,11 @@ namespace SushiBLAS
                         std::complex<double>(real_storage[slot], static_cast<double>(slot + 1));
 
                 const Kernels::PackedAccess plain = Kernels::packed_access(
-                    storage.layout, storage.uplo, Transpose::NO_TRANS, K_WORKED_ORDER);
+                    storage.layout, storage.uplo, Transpose::NoTrans, K_WORKED_ORDER);
                 const Kernels::PackedAccess trans = Kernels::packed_access(
-                    storage.layout, storage.uplo, Transpose::TRANS, K_WORKED_ORDER);
+                    storage.layout, storage.uplo, Transpose::Trans, K_WORKED_ORDER);
                 const Kernels::PackedAccess conj = Kernels::packed_access(
-                    storage.layout, storage.uplo, Transpose::CONJ_TRANS, K_WORKED_ORDER);
+                    storage.layout, storage.uplo, Transpose::ConjTrans, K_WORKED_ORDER);
                 const std::complex<double>* p = complex_storage;
 
                 for (int64_t i = 0; i < K_WORKED_ORDER; ++i)
@@ -377,7 +377,7 @@ namespace SushiBLAS
         {
             for (const PackedStorage& storage : K_STORAGES)
             {
-                for (const Transpose trans : {Transpose::NO_TRANS, Transpose::CONJ_TRANS})
+                for (const Transpose trans : {Transpose::NoTrans, Transpose::ConjTrans})
                 {
                     SCOPED_TRACE(::testing::Message()
                                  << layout_name(storage.layout) << ", "

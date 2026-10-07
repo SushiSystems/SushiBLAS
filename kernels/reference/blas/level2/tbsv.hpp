@@ -50,8 +50,8 @@ namespace SushiBLAS
                       int64_t n, int64_t k, const T* a, int64_t lda, T* x, int64_t incx)
             {
                 const BandAccess access = triangle_band_access(layout, uplo, trans, k, lda);
-                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::UPPER);
-                const bool unit_diag = (diag == Core::Diag::UNIT);
+                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
+                const bool unit_diag = (diag == Core::Diag::Unit);
                 Detail::triangular_solve(access, op_upper, unit_diag, n, a, x, incx);
             }
         } // namespace Reference

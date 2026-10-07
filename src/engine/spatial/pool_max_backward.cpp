@@ -43,7 +43,7 @@ namespace SushiBLAS
         static constexpr const char* NAME = "spatial.pool_max_backward";
 
         Dispatch::require_dtype(dx, dy.dtype, NAME, "dx");
-        Dispatch::require_dtype(indices, Core::DataType::INT64, NAME, "indices");
+        Dispatch::require_dtype(indices, Core::DataType::Int64, NAME, "indices");
 
         Dispatch::require_device_dtype(dy, NAME, "dy");
         Dispatch::require_device_dtype(indices, NAME, "indices");
@@ -74,7 +74,7 @@ namespace SushiBLAS
 
         const auto* index_in = static_cast<const int64_t*>(read_indices);
 
-        return Internal::execute_typed_task<Dispatch::Domain::REAL>(
+        return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, meta, operands, dy.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

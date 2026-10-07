@@ -21,7 +21,7 @@
 
 /**
  * @file test_spatial_pool_max.cpp
- * @brief Tests spatial().pool_max and pool_max_backward.
+ * @brief Tests SpatialOps::pool_max and pool_max_backward.
  * @author Mustafa Garip
  */
 
@@ -56,7 +56,7 @@ namespace SushiBLAS
                 Tensor image(int64_t n, int64_t h, int64_t w, int64_t c,
                              std::initializer_list<float> values)
                 {
-                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::FLOAT32);
+                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::Float32);
                     float* p = t.data_as<float>();
                     int64_t i = 0;
                     for (float v : values) p[i++] = v;
@@ -104,8 +104,8 @@ namespace SushiBLAS
             g.pad_left = 1;
 
             // Padding above and left only puts the first window outside the top-left corner.
-            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
-            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
+            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
+            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Int64);
 
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
             engine->execute();
@@ -120,8 +120,8 @@ namespace SushiBLAS
         TEST_F(Unit_SpatialPoolMaxTest, ThePoolTakesTheWindowMaximum)
         {
             auto in = four_by_four();
-            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
-            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
+            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
+            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Int64);
 
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, two_by_two_stride_two());
             engine->execute();
@@ -137,8 +137,8 @@ namespace SushiBLAS
         {
             // The index is the logical flat NHWC position. See tests/functional/unit/README.md.
             auto in = four_by_four();
-            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
-            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
+            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
+            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Int64);
 
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, two_by_two_stride_two());
             engine->execute();
@@ -155,8 +155,8 @@ namespace SushiBLAS
             // A tie goes to the first tap in scan order. See tests/functional/unit/README.md.
             auto in = image(1, 2, 2, 1, {5, 5,
                                          5, 5});
-            auto out = engine->create_tensor({1, 1, 1, 1}, Core::DataType::FLOAT32);
-            auto indices = engine->create_tensor({1, 1, 1, 1}, Core::DataType::INT64);
+            auto out = engine->create_tensor({1, 1, 1, 1}, Core::DataType::Float32);
+            auto indices = engine->create_tensor({1, 1, 1, 1}, Core::DataType::Int64);
 
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, two_by_two_stride_two());
             engine->execute();
@@ -168,18 +168,18 @@ namespace SushiBLAS
         TEST_F(Unit_SpatialPoolMaxTest, TheBackwardRoutesEachGradientToItsArgmaxAndNowhereElse)
         {
             auto in = four_by_four();
-            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
-            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
+            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
+            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Int64);
 
             const Spatial::ConvGeometry g = two_by_two_stride_two();
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
             engine->execute();
 
-            auto dy = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
+            auto dy = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
             float* d = dy.data_as<float>();
             d[0] = 10.0f; d[1] = 20.0f; d[2] = 30.0f; d[3] = 40.0f;
 
-            auto dx = engine->create_tensor({1, 4, 4, 1}, Core::DataType::FLOAT32);
+            auto dx = engine->create_tensor({1, 4, 4, 1}, Core::DataType::Float32);
             SushiBLAS::SpatialOps(*engine).pool_max_backward(dy, indices, dx, g);
             engine->execute();
 
@@ -205,8 +205,8 @@ namespace SushiBLAS
             g.kernel_h = 2;
             g.kernel_w = 2;
 
-            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
-            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::INT64);
+            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
+            auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Int64);
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
             engine->execute();
 
@@ -214,11 +214,11 @@ namespace SushiBLAS
             for (int64_t k = 0; k < 4; ++k)
                 ASSERT_EQ(selected[k], 4) << "window " << k << " must select the centre pixel";
 
-            auto dy = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
+            auto dy = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
             float* d = dy.data_as<float>();
             d[0] = 1.0f; d[1] = 2.0f; d[2] = 3.0f; d[3] = 4.0f;
 
-            auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::FLOAT32);
+            auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::Float32);
             SushiBLAS::SpatialOps(*engine).pool_max_backward(dy, indices, dx, g);
             engine->execute();
 
@@ -232,7 +232,7 @@ namespace SushiBLAS
             // The two forced modes are compared here. See tests/functional/unit/README.md.
             const int64_t N = 2, H = 7, W = 5, C = 3;
 
-            auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            auto in = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             float* p = in.data_as<float>();
             for (int64_t i = 0; i < in.num_elements; ++i)
                 p[i] = static_cast<float>((i * 37) % 23) - 11.0f;
@@ -249,16 +249,16 @@ namespace SushiBLAS
             const int64_t out_h = Spatial::output_extent(H, 1, 1, 2, 3, 2);
             const int64_t out_w = Spatial::output_extent(W, 1, 1, 1, 2, 1);
 
-            auto out_ref = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
-            auto idx_ref = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::INT64);
-            auto out_dev = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
-            auto idx_dev = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::INT64);
+            auto out_ref = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Float32);
+            auto idx_ref = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Int64);
+            auto out_dev = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Float32);
+            auto idx_dev = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Int64);
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             SushiBLAS::SpatialOps(*engine).pool_max(in, out_ref, idx_ref, g);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
             SushiBLAS::SpatialOps(*engine).pool_max(in, out_dev, idx_dev, g);
             engine->execute();
 

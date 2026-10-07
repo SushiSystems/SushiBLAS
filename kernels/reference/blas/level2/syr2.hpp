@@ -71,9 +71,9 @@ namespace SushiBLAS
 
                 auto A_ref = [&](int64_t r, int64_t c) -> T&
                 {
-                    return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
+                    return (layout == Core::Layout::RowMajor) ? a[r * lda + c] : a[r + c * lda];
                 };
-                const bool upper = (uplo == Core::Uplo::UPPER);
+                const bool upper = (uplo == Core::Uplo::Upper);
 
                 for (int64_t i = 0; i < n; ++i)
                 {

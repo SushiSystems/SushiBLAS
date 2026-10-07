@@ -236,23 +236,23 @@ namespace SushiBLAS
             const Wide x = counting(4, 1.0);
             const Wide plain = reals({2, 7, 23, 59});
             const Wide transposed = reals({28, 18, 43, 32});
-            const Core::Diag diag = Core::Diag::NON_UNIT;
+            const Core::Diag diag = Core::Diag::NonUnit;
 
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 for (const Core::IndexBase base : K_BOTH_BASES)
                 {
-                    this->expect_near(this->run(mode, lower, base, Core::Uplo::LOWER,
-                                                Core::Transpose::NO_TRANS, diag, plain),
+                    this->expect_near(this->run(mode, lower, base, Core::Uplo::Lower,
+                                                Core::Transpose::NoTrans, diag, plain),
                                       x, K_SOLVE_TOLERANCE);
-                    this->expect_near(this->run(mode, lower, base, Core::Uplo::LOWER,
-                                                Core::Transpose::TRANS, diag, transposed),
+                    this->expect_near(this->run(mode, lower, base, Core::Uplo::Lower,
+                                                Core::Transpose::Trans, diag, transposed),
                                       x, K_SOLVE_TOLERANCE);
-                    this->expect_near(this->run(mode, upper, base, Core::Uplo::UPPER,
-                                                Core::Transpose::NO_TRANS, diag, transposed),
+                    this->expect_near(this->run(mode, upper, base, Core::Uplo::Upper,
+                                                Core::Transpose::NoTrans, diag, transposed),
                                       x, K_SOLVE_TOLERANCE);
-                    this->expect_near(this->run(mode, upper, base, Core::Uplo::UPPER,
-                                                Core::Transpose::TRANS, diag, plain),
+                    this->expect_near(this->run(mode, upper, base, Core::Uplo::Upper,
+                                                Core::Transpose::Trans, diag, plain),
                                       x, K_SOLVE_TOLERANCE);
                 }
             }
@@ -274,12 +274,12 @@ namespace SushiBLAS
 
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
-                this->expect_near(this->run(mode, lower, Core::IndexBase::ZERO, Core::Uplo::LOWER,
-                                            Core::Transpose::NO_TRANS, Core::Diag::UNIT,
+                this->expect_near(this->run(mode, lower, Core::IndexBase::Zero, Core::Uplo::Lower,
+                                            Core::Transpose::NoTrans, Core::Diag::Unit,
                                             reals({1, 3, 11, 31})),
                                   x, K_SOLVE_TOLERANCE);
-                this->expect_near(this->run(mode, lower, Core::IndexBase::ZERO, Core::Uplo::LOWER,
-                                            Core::Transpose::TRANS, Core::Diag::UNIT,
+                this->expect_near(this->run(mode, lower, Core::IndexBase::Zero, Core::Uplo::Lower,
+                                            Core::Transpose::Trans, Core::Diag::Unit,
                                             reals({27, 14, 31, 4})),
                                   x, K_SOLVE_TOLERANCE);
             }
@@ -297,13 +297,13 @@ namespace SushiBLAS
 
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
-                this->expect_near(this->run(mode, poisoned, Core::IndexBase::ZERO,
-                                            Core::Uplo::LOWER, Core::Transpose::NO_TRANS,
-                                            Core::Diag::NON_UNIT, reals({2, 7, 23, 59})),
+                this->expect_near(this->run(mode, poisoned, Core::IndexBase::Zero,
+                                            Core::Uplo::Lower, Core::Transpose::NoTrans,
+                                            Core::Diag::NonUnit, reals({2, 7, 23, 59})),
                                   x, K_SOLVE_TOLERANCE);
-                this->expect_near(this->run(mode, poisoned, Core::IndexBase::ZERO,
-                                            Core::Uplo::LOWER, Core::Transpose::TRANS,
-                                            Core::Diag::NON_UNIT, reals({28, 18, 43, 32})),
+                this->expect_near(this->run(mode, poisoned, Core::IndexBase::Zero,
+                                            Core::Uplo::Lower, Core::Transpose::Trans,
+                                            Core::Diag::NonUnit, reals({28, 18, 43, 32})),
                                   x, K_SOLVE_TOLERANCE);
             }
         }
@@ -322,14 +322,14 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 for (const Core::Transpose trans :
-                     {Core::Transpose::NO_TRANS, Core::Transpose::TRANS})
+                     {Core::Transpose::NoTrans, Core::Transpose::Trans})
                 {
                     const std::vector<T> first =
-                        this->run(mode, listed, Core::IndexBase::ZERO, Core::Uplo::LOWER, trans,
-                                  Core::Diag::NON_UNIT, b);
+                        this->run(mode, listed, Core::IndexBase::Zero, Core::Uplo::Lower, trans,
+                                  Core::Diag::NonUnit, b);
                     const std::vector<T> second =
-                        this->run(mode, reversed, Core::IndexBase::ZERO, Core::Uplo::LOWER, trans,
-                                  Core::Diag::NON_UNIT, b);
+                        this->run(mode, reversed, Core::IndexBase::Zero, Core::Uplo::Lower, trans,
+                                  Core::Diag::NonUnit, b);
 
                     ASSERT_EQ(first.size(), second.size());
                     EXPECT_EQ(std::memcmp(first.data(), second.data(), first.size() * sizeof(T)),
@@ -352,12 +352,12 @@ namespace SushiBLAS
                 {
                     const SparseMatrix A =
                         this->matrix_of_arrays(2, 2, offsets, columns, values, base);
-                    this->expect_near(this->solve(mode, A, Core::Uplo::LOWER,
-                                                  Core::Transpose::NO_TRANS, Core::Diag::NON_UNIT,
+                    this->expect_near(this->solve(mode, A, Core::Uplo::Lower,
+                                                  Core::Transpose::NoTrans, Core::Diag::NonUnit,
                                                   reals({2, 7})),
                                       x, K_SOLVE_TOLERANCE);
-                    this->expect_near(this->solve(mode, A, Core::Uplo::LOWER,
-                                                  Core::Transpose::TRANS, Core::Diag::NON_UNIT,
+                    this->expect_near(this->solve(mode, A, Core::Uplo::Lower,
+                                                  Core::Transpose::Trans, Core::Diag::NonUnit,
                                                   reals({4, 6})),
                                       x, K_SOLVE_TOLERANCE);
                 }
@@ -380,14 +380,14 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 const std::vector<T> conjugated =
-                    this->run(mode, lower, Core::IndexBase::ZERO, Core::Uplo::LOWER,
-                              Core::Transpose::CONJ_TRANS, Core::Diag::NON_UNIT, b);
+                    this->run(mode, lower, Core::IndexBase::Zero, Core::Uplo::Lower,
+                              Core::Transpose::ConjTrans, Core::Diag::NonUnit, b);
                 const std::vector<T> of_conjugate =
-                    this->run(mode, conjugate, Core::IndexBase::ZERO, Core::Uplo::LOWER,
-                              Core::Transpose::TRANS, Core::Diag::NON_UNIT, b);
+                    this->run(mode, conjugate, Core::IndexBase::Zero, Core::Uplo::Lower,
+                              Core::Transpose::Trans, Core::Diag::NonUnit, b);
                 const std::vector<T> plain =
-                    this->run(mode, lower, Core::IndexBase::ZERO, Core::Uplo::LOWER,
-                              Core::Transpose::TRANS, Core::Diag::NON_UNIT, b);
+                    this->run(mode, lower, Core::IndexBase::Zero, Core::Uplo::Lower,
+                              Core::Transpose::Trans, Core::Diag::NonUnit, b);
 
                 Wide expected(of_conjugate.size());
                 for (std::size_t i = 0; i < expected.size(); ++i)
@@ -414,16 +414,16 @@ namespace SushiBLAS
 
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
-                for (const Core::Uplo uplo : {Core::Uplo::LOWER, Core::Uplo::UPPER})
-                    this->expect_near(this->run(mode, one_entry, Core::IndexBase::ZERO, uplo,
-                                                Core::Transpose::NO_TRANS, Core::Diag::NON_UNIT,
+                for (const Core::Uplo uplo : {Core::Uplo::Lower, Core::Uplo::Upper})
+                    this->expect_near(this->run(mode, one_entry, Core::IndexBase::Zero, uplo,
+                                                Core::Transpose::NoTrans, Core::Diag::NonUnit,
                                                 reals({2})),
                                       reals({0.5}), K_SOLVE_TOLERANCE);
 
                 this->engine->set_mode(mode);
-                const SparseMatrix A = this->build(empty, Core::IndexBase::ZERO);
+                const SparseMatrix A = this->build(empty, Core::IndexBase::Zero);
                 Tensor b = this->engine->create_tensor({0}, get_sushiblas_dtype<T>());
-                EXPECT_NO_THROW(SparseOps(*this->engine).sptrsv(A, b, Core::Uplo::LOWER));
+                EXPECT_NO_THROW(SparseOps(*this->engine).sptrsv(A, b, Core::Uplo::Lower));
                 EXPECT_NO_THROW(this->engine->execute());
             }
         }
@@ -453,8 +453,8 @@ namespace SushiBLAS
             }
 
             for (const ExecutionMode mode : K_BOTH_MODES)
-                this->expect_near(this->run(mode, lower, Core::IndexBase::ZERO, Core::Uplo::LOWER,
-                                            Core::Transpose::NO_TRANS, Core::Diag::NON_UNIT, b),
+                this->expect_near(this->run(mode, lower, Core::IndexBase::Zero, Core::Uplo::Lower,
+                                            Core::Transpose::NoTrans, Core::Diag::NonUnit, b),
                                   x, 0.0);
         }
 
@@ -479,8 +479,8 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 const std::vector<sycl::half> x =
-                    run(mode, lower, Core::IndexBase::ZERO, Core::Uplo::LOWER,
-                        Core::Transpose::NO_TRANS, Core::Diag::NON_UNIT, reals({1, 1}));
+                    run(mode, lower, Core::IndexBase::Zero, Core::Uplo::Lower,
+                        Core::Transpose::NoTrans, Core::Diag::NonUnit, reals({1, 1}));
 
                 ASSERT_EQ(x.size(), 2u);
                 EXPECT_NEAR(static_cast<double>(static_cast<float>(x[1])), 0.0,

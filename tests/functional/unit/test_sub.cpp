@@ -21,7 +21,7 @@
 
 /**
  * @file test_sub.cpp
- * @brief Tests elementwise().sub against fixed expected values.
+ * @brief Tests ElementwiseOps::sub against fixed expected values.
  * @author Mustafa Garip
  */
 

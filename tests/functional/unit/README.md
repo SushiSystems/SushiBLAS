@@ -199,14 +199,14 @@ made to the older ones that day, had not been built or run when this page was wr
 
 Where a file says its expectations are hand-computed, they do not come from another path in
 this library. A differential oracle agrees with the code under test in every case where both
-are wrong the same way. That is how an inverted `COLUMN_MAJOR` addressing arm in GEMM survived
+are wrong the same way. That is how an inverted `ColumnMajor` addressing arm in GEMM survived
 for months: the SYCL kernel and the reference kernel had the identical defect, so the
 differential tests agreed.
 
 ### Comparing two kernels under the two forced modes
 
 The `TheSyclKernelAgreesWithTheReferenceKernel` tests fill two buffers under
-`ExecutionMode::FORCE_SYCL` and `ExecutionMode::FORCE_REFERENCE` and compare them. That is how
+`ExecutionMode::ForceSycl` and `ExecutionMode::ForceReference` and compare them. That is how
 the library checks kernel agreement: `ExecutionMode` has no mode that runs both, and
 `Engine::set_mode` is `noexcept`.
 
@@ -259,7 +259,7 @@ The file holds three fixtures, which the removed separator lines used to mark: t
 every dtype a reduction serves (`Unit_AxisReductionsTyped`), and layout, shape, rejection and
 the two kernels (`Unit_AxisReductions`).
 
-`kRowMajor` holds small whole numbers on purpose. They are exact in HALF as well as in the
+`K_ROW_MAJOR` holds small whole numbers on purpose. They are exact in HALF as well as in the
 wider types, so one expectation serves every dtype and a mismatch is a real disagreement, not a
 rounding difference.
 
@@ -302,7 +302,7 @@ seam.
 
 `NonRealDtypesAreRefusedByName`: a fold needs an ordering and an identity, which `std::complex`
 does not have, and an integer tensor is not an arithmetic type in this library. It is the same
-`Domain::REAL` rule the whole-tensor reductions carry.
+`Domain::Real` rule the whole-tensor reductions carry.
 
 `TheCooperativeTreeAgreesWithTheItemPerSegmentFold`: `plan_axis` picks one shape per input, so
 on any single machine the public operations only ever reach one of the two kernels for a given
@@ -749,7 +749,7 @@ cheap to assert, and a memory planner sizes an arena from them.
 `ConstantFillsAnIntegerTensorExactly`: the value is stored exactly, well past where a float
 would have started rounding.
 
-`CopyMovesIntegerElements`: `copy` is the one BLAS operation that takes `Domain::ALL`, because
+`CopyMovesIntegerElements`: `copy` is the one BLAS operation that takes `Domain::All`, because
 it does no arithmetic to what it moves.
 
 `ComparisonsWorkOnIntegerTensors`: the results are 1 and 0, which is what an integer element
@@ -841,7 +841,7 @@ their period, so the product stays finite and non-zero at every size used and th
 observable in it.
 
 `BothShapesAreReachedHere` guards the file's own premise. If a retune ever moved the CPU
-threshold past `kLarge`, every case would silently test the sequential path twice and the
+threshold past `K_LARGE`, every case would silently test the sequential path twice and the
 parallel one never, and still pass.
 
 `CompensatedSumRecoversASmallTailUnderALargeHead` shows the accuracy Neumaier compensation buys
@@ -1098,7 +1098,7 @@ With x = `[1, 2, 3]`, `x * x^T` is
 [3 6 9]
 ```
 
-and since the call passes `Core::Uplo::LOWER` only the lower triangle of A is updated, so A in
+and since the call passes `Core::Uplo::Lower` only the lower triangle of A is updated, so A in
 row-major order is
 
 ```

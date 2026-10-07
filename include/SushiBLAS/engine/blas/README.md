@@ -27,7 +27,7 @@ so one view records all three levels.
 Every routine returns a `TaskHandle`. A flag is a `Core::Transpose`, `Core::Uplo`, `Core::Diag` or
 `Core::Side`, never a `bool`, and a scalar that may be complex is a `BlasScalar`. Every record-time
 refusal of an operand, a flag or a scalar is `std::invalid_argument`; a dtype the operand's
-device cannot compute in and a device-only operand under `FORCE_REFERENCE` are
+device cannot compute in and a device-only operand under `ForceReference` are
 `UnsupportedExecution`.
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
@@ -95,7 +95,7 @@ reads that buffer afterwards needs an edge for exactly the same reason the bias'
 ```cpp
 // One launch, and the task that writes `bias` is ordered before it.
 Dispatch::execute_gemm(engine.get_recorder(), X, W, Y,
-                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS, 1.0, 0.0,
+                       Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                        "nn.linear_relu", "nn.linear_relu"_op,
                        Dispatch::gemm_epilogue(BiasRelu{bias.data_as<float>()})
                            .reads(bias));
@@ -111,7 +111,7 @@ caller holding memory no `Tensor` describes needs a new overload rather than a w
 one.
 
 Declaring an operand also retains its storage for the life of the task and lets the recorder see
-it: a device-only tensor declared on an epilogue is refused under `FORCE_REFERENCE` as an operand
+it: a device-only tensor declared on an epilogue is refused under `ForceReference` as an operand
 of the GEMM is. A bare functor that hides a pointer gets neither.
 
 - `Epilogue`: The epilogue functor type; the same contract `execute_gemm` states for a bare one,
@@ -177,7 +177,7 @@ struct BiasRelu
 };
 
 Dispatch::execute_gemm(engine.get_recorder(), X, W, Y,
-                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS, 1.0, 0.0,
+                       Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                        "nn.linear_relu", "nn.linear_relu"_op,
                        Dispatch::gemm_epilogue(BiasRelu{bias.data_as<float>()})
                            .reads(bias));
@@ -187,10 +187,10 @@ The `.reads(bias)` is not decoration. Without it the task declares A, B and C an
 `bias` is a resource this GEMM never mentions, and the graph is free to run the task that writes it
 at the same time. See `GemmEpilogue`.
 
-- `Dom`: Which element types to instantiate `epilogue` for. Defaults to Domain::REAL, exactly as
+- `Dom`: Which element types to instantiate `epilogue` for. Defaults to Domain::Real, exactly as
   `execute_binary` does and for the same reason: a functor written for real scalars always compiles
   under it, while `std::complex` has no ordering, so the `value > 0` at the heart of every
-  activation is ill-formed for it. Pass Domain::REAL_AND_COMPLEX only when `epilogue` is well-formed for `std::complex`: `Level3::gemm` does, because the identity epilogue is.
+  activation is ill-formed for it. Pass Domain::RealAndComplex only when `epilogue` is well-formed for `std::complex`: `Level3::gemm` does, because the identity epilogue is.
 - `Epilogue`: The epilogue functor type, deduced, or a `GemmEpilogue` wrapping one. The functor must
   provide `T operator()(T value, int64_t row, int64_t col) const` for every element type inside
   `Dom`: a template or generic-lambda call operator is the usual spelling, since the dtype is a
@@ -229,19 +229,19 @@ auxiliary buffer before it returns the activated result, and it must declare tha
 `GemmEpilogue::writes`, or the backward pass that reads it races the GEMM that filled it and the
 spill buys nothing.
 
-Warning: Under `ExecutionMode::FORCE_REFERENCE`, `epilogue` is also invoked on the **host**, by
+Warning: Under `ExecutionMode::ForceReference`, `epilogue` is also invoked on the **host**, by
 `Kernels::Reference::gemm`. Any pointer it carries must therefore be host-readable in that mode,
 which shared USM is and device USM is not. That is the same constraint
-`FORCE_REFERENCE` already places on the operands themselves. The recorder enforces it for a tensor
+`ForceReference` already places on the operands themselves. The recorder enforces it for a tensor
 declared through `gemm_epilogue` and cannot for a pointer a bare functor hides.
 
 Throws `std::invalid_argument` on a flag outside its enumeration, dtypes that disagree, a complex
-scalar for a real dtype, a complex dtype under `Domain::REAL`, an operand of rank below 2 or
+scalar for a real dtype, a complex dtype under `Domain::Real`, an operand of rank below 2 or
 without storage, a non-contiguous operand, mixed layouts, a shape that does not conform or a batch
 count that does not match; see "Operand validation" below. Throws `UnsupportedExecution` as
 `describe_matrix_operand` and `TaskRecorder::record_pair` state.
 
-At the `if constexpr (Dom == Domain::REAL)` block: a complex tensor is rejected here, at record
+At the `if constexpr (Dom == Domain::Real)` block: a complex tensor is rejected here, at record
 time, rather than at execution time: the caller learns from the call that recorded the mistake
 instead of from a later Engine::execute() that names a task it did not write.
 
@@ -257,7 +257,7 @@ A, B and C are the whole of it.
 
 At `Internal::allocate_packed_product_scratch(...)`: the panels the packed CPU kernel stages are
 leased here and declared on the same set. The buffer is empty when the device profile of C does
-not select the packed kernel, and under `FORCE_REFERENCE`.
+not select the packed kernel, and under `ForceReference`.
 
 At `const auto kernel_epilogue = Detail::epilogue_functor(epilogue);`: the functor alone, never the
 bundle. A GemmEpilogue owns an `OperandSet`, whose vectors are not device-copyable, and the kernel
@@ -427,7 +427,7 @@ the trait through utils.hpp still compiles: spell it `Core::is_complex_v<T>`.
 
 `allocate_blas_scratch` leases device scratch from the recorder's pool on the device of an anchor
 operand and declares it on the task's `OperandSet`. It returns an empty buffer when the anchor has
-no storage, when the byte count is zero, and under `FORCE_REFERENCE`, where no SYCL kernel reads
+no storage, when the byte count is zero, and under `ForceReference`, where no SYCL kernel reads
 the scratch. It reads the mode from the recorder, not from an engine. `allocate_level1_scratch`
 sizes the partials of a Level 1 reduction from `Reduce::planned_partials` and forwards;
 `asum`, `dot`, `iamax` and `nrm2` use it. `allocate_packed_product_scratch` sizes the panels of the
@@ -452,7 +452,7 @@ every site.
   every built-in BLAS *arithmetic* op wants and has always had; the parameter exists for
   `Dispatch::execute_gemm`, whose functor is written by the *caller* and is therefore no more likely
   to be well-formed for `std::complex` than an elementwise lambda is, and for `copy`, which moves
-  elements without doing arithmetic to them and so passes Domain::ALL. Without it, a consumer's
+  elements without doing arithmetic to them and so passes Domain::All. Without it, a consumer's
   real-only GEMM epilogue is a compile error in the two arms that will never run.
 - `operands`: The `OperandSet` the operation declared: every tensor the task reads or writes, and
   its scratch.

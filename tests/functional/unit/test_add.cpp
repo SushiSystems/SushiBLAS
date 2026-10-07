@@ -21,7 +21,7 @@
 
 /**
  * @file test_add.cpp
- * @brief Tests elementwise().add against fixed expected values.
+ * @brief Tests ElementwiseOps::add against fixed expected values.
  * @author Mustafa Garip
  */
 

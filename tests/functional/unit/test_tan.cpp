@@ -21,7 +21,7 @@
 
 /**
  * @file test_tan.cpp
- * @brief Tests elementwise().tan against fixed expected values.
+ * @brief Tests ElementwiseOps::tan against fixed expected values.
  * @author Mustafa Garip
  */
 

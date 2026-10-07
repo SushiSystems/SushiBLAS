@@ -79,14 +79,14 @@ namespace SushiBLAS
             constexpr int64_t K_LARGEST_SEAM_ORDER = 768;
 
             /// @brief Holds the two storage orders every exact-data test runs in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::ROW_MAJOR,
-                                                  Core::Layout::COLUMN_MAJOR};
+            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
+                                                  Core::Layout::ColumnMajor};
 
             /// @brief Holds the two sides A can stand on.
-            constexpr Core::Side K_SIDES[] = {Core::Side::LEFT, Core::Side::RIGHT};
+            constexpr Core::Side K_SIDES[] = {Core::Side::Left, Core::Side::Right};
 
             /// @brief Holds the two triangles A can be stored in.
-            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::UPPER, Core::Uplo::LOWER};
+            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
 
             /**
              * @brief Holds the relative error of storing a part of T: 2^-11 for HALF, the unit
@@ -101,12 +101,12 @@ namespace SushiBLAS
             /** @brief Names the routine a seam case records. */
             enum class Routine : std::uint8_t
             {
-                SYMM, /**< The symmetric product. */
-                HEMM  /**< The Hermitian product. */
+                Symm, /**< The symmetric product. */
+                Hemm  /**< The Hermitian product. */
             };
 
             /// @brief Holds the two routines the seam test records.
-            constexpr Routine K_ROUTINES[] = {Routine::SYMM, Routine::HEMM};
+            constexpr Routine K_ROUTINES[] = {Routine::Symm, Routine::Hemm};
 
             /** @brief Holds one injected blocking and the compute units it is planned for. */
             struct InjectedBlocking
@@ -130,13 +130,13 @@ namespace SushiBLAS
             /** @brief Returns the name of a layout for a failure message. */
             [[nodiscard]] const char* layout_name(Core::Layout layout) noexcept
             {
-                return layout == Core::Layout::ROW_MAJOR ? "row-major" : "column-major";
+                return layout == Core::Layout::RowMajor ? "row-major" : "column-major";
             }
 
             /** @brief Returns the name of a routine for a failure message. */
             [[nodiscard]] const char* routine_name(Routine routine) noexcept
             {
-                return routine == Routine::SYMM ? "symm" : "hemm";
+                return routine == Routine::Symm ? "symm" : "hemm";
             }
 
             /** @brief Returns the real and the imaginary part of value; a real T has no second. */
@@ -178,7 +178,6 @@ namespace SushiBLAS
              * @param terms The terms of each sum.
              * @param alpha_abs The absolute value of alpha; operand parts are at most 1.
              * @param added_abs The largest magnitude added to the product.
-             * @see docs/agent/2026_10_07_V010/DESIGN_GEMM_CPU.md
              */
             template<typename T>
             [[nodiscard]] double parity_bound(int64_t terms, double alpha_abs,
@@ -252,16 +251,16 @@ namespace SushiBLAS
                      */
                     SymmetricProblem(sycl::queue& q, Core::Layout layout, Core::Side side,
                                      Core::Uplo uplo, int64_t m, int64_t n)
-                        : queue_(q), left_(side == Core::Side::LEFT), m_(m), n_(n),
+                        : queue_(q), left_(side == Core::Side::Left), m_(m), n_(n),
                           order_(left_ ? m : n),
                           lda_(order_ + K_PACKED_TEST_LD_PADDING),
-                          ldb_(((layout == Core::Layout::COLUMN_MAJOR) ? m : n) +
+                          ldb_(((layout == Core::Layout::ColumnMajor) ? m : n) +
                                K_PACKED_TEST_LD_PADDING),
                           str_a_(lda_ * order_ + K_PACKED_TEST_BATCH_GAP),
-                          str_b_(ldb_ * ((layout == Core::Layout::COLUMN_MAJOR) ? n : m) +
+                          str_b_(ldb_ * ((layout == Core::Layout::ColumnMajor) ? n : m) +
                                  K_PACKED_TEST_BATCH_GAP),
                           at_a_(Kernels::symmetric_access<Conj>(layout, uplo, lda_)),
-                          at_b_(Kernels::operand_access(layout, Core::Transpose::NO_TRANS, ldb_)),
+                          at_b_(Kernels::operand_access(layout, Core::Transpose::NoTrans, ldb_)),
                           a_(q, static_cast<std::size_t>(str_a_)),
                           b_(q, static_cast<std::size_t>(str_b_)),
                           c_(q, static_cast<std::size_t>(str_b_)),
@@ -447,7 +446,7 @@ namespace SushiBLAS
                                       const Tensor& B, Tensor& C, Core::Side side, Core::Uplo uplo)
             {
                 SushiBLAS::BLASOps ops(engine);
-                return routine == Routine::HEMM ? ops.hemm(A, B, C, side, uplo)
+                return routine == Routine::Hemm ? ops.hemm(A, B, C, side, uplo)
                                                 : ops.symm(A, B, C, side, uplo);
             }
         } // namespace
@@ -529,17 +528,17 @@ namespace SushiBLAS
                     Tensor sycl_result = this->engine->create_tensor({s, s}, dtype);
                     Tensor reference_result = this->engine->create_tensor({s, s}, dtype);
 
-                    this->engine->set_mode(ExecutionMode::FORCE_SYCL);
+                    this->engine->set_mode(ExecutionMode::ForceSycl);
                     const std::size_t live_before_sycl = context.live_usm_count();
                     record_product(*this->engine, routine, A, B, sycl_result, side,
-                                   Core::Uplo::UPPER);
+                                   Core::Uplo::Upper);
                     EXPECT_EQ(context.live_usm_count(), live_before_sycl + 1);
                     this->engine->execute();
 
-                    this->engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                    this->engine->set_mode(ExecutionMode::ForceReference);
                     const std::size_t live_before_reference = context.live_usm_count();
                     record_product(*this->engine, routine, A, B, reference_result, side,
-                                   Core::Uplo::UPPER);
+                                   Core::Uplo::Upper);
                     EXPECT_EQ(context.live_usm_count(), live_before_reference);
                     this->engine->execute();
 

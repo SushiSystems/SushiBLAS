@@ -41,7 +41,7 @@ namespace SushiBLAS
             Dispatch::Detail::throw_operand_error("random.bernoulli", "p",
                                                   "is {}, expected within [0, 1]", p);
 
-        return Dispatch::execute_random<Dispatch::Domain::REAL>(
+        return Dispatch::execute_random<Dispatch::Domain::Real>(
             recorder_, rng_, t, "random.bernoulli", "random.bernoulli"_op, {p},
             [p](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed, uint64_t offset,
                 int64_t size, auto* pT) -> sycl::event

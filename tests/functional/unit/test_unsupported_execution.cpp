@@ -47,9 +47,9 @@ namespace SushiBLAS
             /** @brief Names how a call ended. */
             enum class Outcome : std::uint8_t
             {
-                RETURNED,              /**< The call threw nothing. */
-                UNSUPPORTED_EXECUTION, /**< The call threw UnsupportedExecution. */
-                INVALID_ARGUMENT       /**< The call threw another std::invalid_argument. */
+                Returned,              /**< The call threw nothing. */
+                UnsupportedExecution, /**< The call threw UnsupportedExecution. */
+                InvalidArgument       /**< The call threw another std::invalid_argument. */
             };
 
             /** @brief Returns how call ended; any other exception leaves the test. */
@@ -62,20 +62,20 @@ namespace SushiBLAS
                 }
                 catch (const UnsupportedExecution&)
                 {
-                    return Outcome::UNSUPPORTED_EXECUTION;
+                    return Outcome::UnsupportedExecution;
                 }
                 catch (const std::invalid_argument&)
                 {
-                    return Outcome::INVALID_ARGUMENT;
+                    return Outcome::InvalidArgument;
                 }
 
-                return Outcome::RETURNED;
+                return Outcome::Returned;
             }
 
             /** @brief Returns how a call that needs a device aspect ends, given the aspect. */
             [[nodiscard]] constexpr Outcome outcome_on(bool device_has_aspect) noexcept
             {
-                return device_has_aspect ? Outcome::RETURNED : Outcome::UNSUPPORTED_EXECUTION;
+                return device_has_aspect ? Outcome::Returned : Outcome::UnsupportedExecution;
             }
         } // namespace
 
@@ -104,14 +104,14 @@ namespace SushiBLAS
 
             EXPECT_THROW(raise(), UnsupportedExecution);
             EXPECT_THROW(raise(), std::invalid_argument);
-            EXPECT_EQ(outcome_of(raise), Outcome::UNSUPPORTED_EXECUTION);
+            EXPECT_EQ(outcome_of(raise), Outcome::UnsupportedExecution);
         }
 
         TEST(Unit_UnsupportedExecution, APlainInvalidArgumentIsNotCaughtAsIt)
         {
             const auto raise = [] { throw std::invalid_argument("wrong operand"); };
 
-            EXPECT_EQ(outcome_of(raise), Outcome::INVALID_ARGUMENT);
+            EXPECT_EQ(outcome_of(raise), Outcome::InvalidArgument);
         }
 
         TEST(Unit_UnsupportedExecution, TheExecutionHelperThrowsItNamingTheOperation)
@@ -121,7 +121,7 @@ namespace SushiBLAS
                 Dispatch::Detail::throw_execution_error("op", "cannot run under {}", "a mode");
             };
 
-            EXPECT_EQ(outcome_of(raise), Outcome::UNSUPPORTED_EXECUTION);
+            EXPECT_EQ(outcome_of(raise), Outcome::UnsupportedExecution);
             try
             {
                 raise();
@@ -141,11 +141,11 @@ namespace SushiBLAS
             const auto wrong_dtype = []
             {
                 Dispatch::Detail::throw_dtype_error("Elementwise operation", "sqrt",
-                                                    Core::DataType::INT32);
+                                                    Core::DataType::Int32);
             };
 
-            EXPECT_EQ(outcome_of(wrong_operand), Outcome::INVALID_ARGUMENT);
-            EXPECT_EQ(outcome_of(wrong_dtype), Outcome::INVALID_ARGUMENT);
+            EXPECT_EQ(outcome_of(wrong_operand), Outcome::InvalidArgument);
+            EXPECT_EQ(outcome_of(wrong_dtype), Outcome::InvalidArgument);
         }
 
         /** @brief Records calls on an engine and reports how each one ended. */
@@ -160,7 +160,7 @@ namespace SushiBLAS
                 {
                     try
                     {
-                        Tensor t = engine->create_tensor(dims, Core::DataType::FLOAT32,
+                        Tensor t = engine->create_tensor(dims, Core::DataType::Float32,
                                                          SushiRuntime::API::Residency::Device);
                         const sycl::context context =
                             TestEnvironment::get_context().get_queue().get_context();
@@ -183,24 +183,24 @@ namespace SushiBLAS
             const Tensor b = engine->create_tensor({3, 2});
             Tensor c = engine->create_tensor({2, 2});
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             const Outcome outcome =
                 outcome_of([&] { SushiBLAS::BLASOps(*engine).gemm(*a, b, c); });
 
-            EXPECT_EQ(outcome, Outcome::UNSUPPORTED_EXECUTION);
+            EXPECT_EQ(outcome, Outcome::UnsupportedExecution);
         }
 
         TEST_F(Unit_UnsupportedExecutionSites, AWrongDtypeUnderForceReferenceIsNotARefusal)
         {
             const Tensor a = engine->create_tensor({2, 3});
-            const Tensor b = engine->create_tensor({3, 2}, Core::DataType::INT32);
+            const Tensor b = engine->create_tensor({3, 2}, Core::DataType::Int32);
             Tensor c = engine->create_tensor({2, 2});
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             const Outcome outcome =
                 outcome_of([&] { SushiBLAS::BLASOps(*engine).gemm(a, b, c); });
 
-            EXPECT_EQ(outcome, Outcome::INVALID_ARGUMENT);
+            EXPECT_EQ(outcome, Outcome::InvalidArgument);
         }
 
         TEST_F(Unit_UnsupportedExecutionSites, AWrongRankIsNotARefusal)
@@ -212,13 +212,13 @@ namespace SushiBLAS
             const Outcome outcome =
                 outcome_of([&] { SushiBLAS::BLASOps(*engine).gemm(a, b, c); });
 
-            EXPECT_EQ(outcome, Outcome::INVALID_ARGUMENT);
+            EXPECT_EQ(outcome, Outcome::InvalidArgument);
         }
 
         TEST_F(Unit_UnsupportedExecutionSites, ADtypeTheDeviceLacksIsARefusal)
         {
-            const Tensor wide = engine->create_tensor({4}, Core::DataType::FLOAT64);
-            const Tensor half = engine->create_tensor({4}, Core::DataType::HALF);
+            const Tensor wide = engine->create_tensor({4}, Core::DataType::Float64);
+            const Tensor half = engine->create_tensor({4}, Core::DataType::Half);
 
             EXPECT_EQ(outcome_of([&] { Dispatch::require_device_dtype(wide, "op", "x"); }),
                       outcome_on(Device::profile_for(wide.get_device()).supports_fp64));
@@ -232,7 +232,7 @@ namespace SushiBLAS
 
             const Outcome outcome =
                 outcome_of([&] { SushiBLAS::RandomOps(*engine).poisson(t, 1.0); });
-            if (outcome == Outcome::RETURNED)
+            if (outcome == Outcome::Returned)
                 engine->execute();
 
             EXPECT_EQ(outcome, outcome_on(Device::profile_for(t.get_device()).supports_fp64));

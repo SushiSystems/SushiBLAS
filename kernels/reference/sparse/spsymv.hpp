@@ -57,11 +57,11 @@ namespace SushiBLAS
             {
                 using RW = ReferenceAccumulator<T>;
 
-                SB_ASSERT(find_defect(pattern) == StructureDefect::NONE,
+                SB_ASSERT(find_defect(pattern) == StructureDefect::None,
                           "spsymv was given a CSR structure that breaks its contract");
 
                 const int64_t n = pattern.rows;
-                const bool lower = (uplo == Core::Uplo::LOWER);
+                const bool lower = (uplo == Core::Uplo::Lower);
                 const bool keeps_y = !(beta == T(0));
 
                 // sums[i] collects row i of the whole matrix: its stored entries and their mirrors.

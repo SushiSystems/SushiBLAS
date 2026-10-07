@@ -21,7 +21,7 @@
 
 /**
  * @file test_asum.cpp
- * @brief Tests blas().asum against fixed expected values.
+ * @brief Tests BLASOps::asum against fixed expected values.
  * @author Mustafa Garip
  */
 

@@ -63,33 +63,33 @@ namespace SushiBLAS
                 struct SyrkTileConfig
                 {
                     /** @brief Rows of C accumulated privately by one work-item. */
-                    static constexpr int64_t item_rows = 4;
+                    static constexpr int64_t K_ITEM_ROWS = 4;
 
                     /** @brief Columns of C accumulated privately by one work-item. */
-                    static constexpr int64_t item_cols = 4;
+                    static constexpr int64_t K_ITEM_COLS = 4;
 
                     /** @brief Work-items down the row axis of a work-group. */
-                    static constexpr int64_t wg_rows = 8;
+                    static constexpr int64_t K_WG_ROWS = 8;
 
                     /** @brief Work-items across the column axis of a work-group. */
-                    static constexpr int64_t wg_cols = 8;
+                    static constexpr int64_t K_WG_COLS = 8;
 
                     /** @brief Rows of C covered by one work-group. */
-                    static constexpr int64_t block_m = item_rows * wg_rows;
+                    static constexpr int64_t K_BLOCK_M = K_ITEM_ROWS * K_WG_ROWS;
 
                     /** @brief Columns of C covered by one work-group. */
-                    static constexpr int64_t block_n = item_cols * wg_cols;
+                    static constexpr int64_t K_BLOCK_N = K_ITEM_COLS * K_WG_COLS;
 
                     /** @brief K-extent staged into local memory per iteration. */
-                    static constexpr int64_t tile_k = 16;
+                    static constexpr int64_t K_TILE_K = 16;
 
                     /** @brief Work-items per work-group. */
-                    static constexpr int64_t wg_items = wg_rows * wg_cols;
+                    static constexpr int64_t K_WG_ITEMS = K_WG_ROWS * K_WG_COLS;
 
                     /** @brief Returns the local memory one work-group needs, in bytes. */
                     [[nodiscard]] static constexpr std::size_t local_mem_bytes() noexcept
                     {
-                        return static_cast<std::size_t>(block_m * tile_k + tile_k * block_n) *
+                        return static_cast<std::size_t>(K_BLOCK_M * K_TILE_K + K_TILE_K * K_BLOCK_N) *
                                sizeof(T);
                     }
                 };
@@ -177,21 +177,21 @@ namespace SushiBLAS
                 using W = Accumulator<T>;
                 using WS = Accumulator<Scalar>;
                 using Cfg = Detail::SyrkTileConfig<T>;
-                constexpr int64_t item_rows = Cfg::item_rows;
-                constexpr int64_t item_cols = Cfg::item_cols;
-                constexpr int64_t wg_rows = Cfg::wg_rows;
-                constexpr int64_t wg_cols = Cfg::wg_cols;
-                constexpr int64_t block_m = Cfg::block_m;
-                constexpr int64_t block_n = Cfg::block_n;
-                constexpr int64_t tile_k = Cfg::tile_k;
+                constexpr int64_t item_rows = Cfg::K_ITEM_ROWS;
+                constexpr int64_t item_cols = Cfg::K_ITEM_COLS;
+                constexpr int64_t wg_rows = Cfg::K_WG_ROWS;
+                constexpr int64_t wg_cols = Cfg::K_WG_COLS;
+                constexpr int64_t block_m = Cfg::K_BLOCK_M;
+                constexpr int64_t block_n = Cfg::K_BLOCK_N;
+                constexpr int64_t tile_k = Cfg::K_TILE_K;
 
-                const bool upper = (uplo == Core::Uplo::UPPER);
+                const bool upper = (uplo == Core::Uplo::Upper);
 
                 // The second factor is read through the transpose of op(A)'s access.
                 const OperandAccess a_access = operand_access(layout, trans, lda);
                 const OperandAccess b_access = a_access.transposed();
                 const OperandAccess c_access =
-                    operand_access(layout, Core::Transpose::NO_TRANS, ldc);
+                    operand_access(layout, Core::Transpose::NoTrans, ldc);
 
                 const Device::Profile& profile = Device::profile_for(queue);
                 const PackedProductPlan packed =
@@ -214,7 +214,7 @@ namespace SushiBLAS
                 }
 
                 const Device::LocalTileDemand demand{Cfg::local_mem_bytes(),
-                                                     static_cast<std::size_t>(Cfg::wg_items)};
+                                                     static_cast<std::size_t>(Cfg::K_WG_ITEMS)};
                 SB_THROW_IF(!Device::hosts_local_tile(profile, demand),
                             "SYCL SYRK stages {} B of local memory in {}-item work-groups; the "
                             "device offers {} B and {}.",

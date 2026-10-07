@@ -326,7 +326,7 @@ namespace SushiBLAS
                             a_.get(), Kernels::operand_access(layout_, transA_, lda_), str_a_,
                             b_.get(), Kernels::operand_access(layout_, transB_, ldb_), str_b_,
                             beta, c_.get(),
-                            Kernels::operand_access(layout_, Core::Transpose::NO_TRANS, ldc_),
+                            Kernels::operand_access(layout_, Core::Transpose::NoTrans, ldc_),
                             str_c_, batch_size_, scratch.get() + K_PACKED_TEST_SCRATCH_SKEW, {},
                             epilogue).wait();
                     }
@@ -360,14 +360,14 @@ namespace SushiBLAS
                 /** @brief Returns the padded leading dimension of a rows x cols matrix. */
                 [[nodiscard]] int64_t leading(int64_t rows, int64_t cols) const noexcept
                 {
-                    return ((layout_ == Core::Layout::COLUMN_MAJOR) ? rows : cols) +
+                    return ((layout_ == Core::Layout::ColumnMajor) ? rows : cols) +
                            K_PACKED_TEST_LD_PADDING;
                 }
 
                 /** @brief Returns the elements between two matrices of a batch. */
                 [[nodiscard]] int64_t stride(int64_t rows, int64_t cols, int64_t ld) const noexcept
                 {
-                    return ld * ((layout_ == Core::Layout::COLUMN_MAJOR) ? cols : rows) +
+                    return ld * ((layout_ == Core::Layout::ColumnMajor) ? cols : rows) +
                            K_PACKED_TEST_BATCH_GAP;
                 }
 

@@ -43,16 +43,16 @@ namespace SushiBLAS
         {
             protected:
                 /** @brief Below `K_CPU_TWO_STAGE_MIN_ELEMENTS`: the single sequential pass. */
-                static constexpr int64_t kSmall = 4096;
+                static constexpr int64_t K_SMALL = 4096;
 
                 /** @brief Above it: the two-stage work-group tree plus an ordered fold. */
-                static constexpr int64_t kLarge = 1 << 18;
+                static constexpr int64_t K_LARGE = 1 << 18;
 
                 /** @brief The element count of the var, std and logsumexp case; two-stage too. */
-                static constexpr int64_t kMoments = 100000;
+                static constexpr int64_t K_MOMENTS = 100000;
 
                 /** @brief How many times the var, std and logsumexp case runs each reduction. */
-                static constexpr int kMomentRuns = 10;
+                static constexpr int K_MOMENT_RUNS = 10;
 
                 /**
                  * @brief Which reduction shape @p n will actually take on this device.
@@ -165,12 +165,12 @@ namespace SushiBLAS
             auto& q = TestEnvironment::get_context().get_queue();
             const Device::Profile& p = Device::profile_for(q);
 
-            EXPECT_TRUE(is_two_stage(kLarge))
+            EXPECT_TRUE(is_two_stage(K_LARGE))
                 << "kLarge must exercise the two-stage shape.";
 
             if (p.is_cpu)
             {
-                EXPECT_FALSE(is_two_stage(kSmall))
+                EXPECT_FALSE(is_two_stage(K_SMALL))
                     << "kSmall must exercise the single-pass shape on a CPU.";
             }
         }
@@ -181,8 +181,8 @@ namespace SushiBLAS
             {
                 SushiBLAS::ReductionOps(e).sum(t, r);
             };
-            expect_bitwise_stable(kSmall, op, additive_value);
-            expect_bitwise_stable(kLarge, op, additive_value);
+            expect_bitwise_stable(K_SMALL, op, additive_value);
+            expect_bitwise_stable(K_LARGE, op, additive_value);
         }
 
         TEST_F(Unit_ReductionDeterminism, MeanIsBitwiseStable)
@@ -191,8 +191,8 @@ namespace SushiBLAS
             {
                 SushiBLAS::ReductionOps(e).mean(t, r);
             };
-            expect_bitwise_stable(kSmall, op, additive_value);
-            expect_bitwise_stable(kLarge, op, additive_value);
+            expect_bitwise_stable(K_SMALL, op, additive_value);
+            expect_bitwise_stable(K_LARGE, op, additive_value);
         }
 
         TEST_F(Unit_ReductionDeterminism, AsumIsBitwiseStable)
@@ -201,8 +201,8 @@ namespace SushiBLAS
             {
                 SushiBLAS::ReductionOps(e).asum(t, r);
             };
-            expect_bitwise_stable(kSmall, op, additive_value);
-            expect_bitwise_stable(kLarge, op, additive_value);
+            expect_bitwise_stable(K_SMALL, op, additive_value);
+            expect_bitwise_stable(K_LARGE, op, additive_value);
         }
 
         TEST_F(Unit_ReductionDeterminism, Nrm2IsBitwiseStable)
@@ -211,8 +211,8 @@ namespace SushiBLAS
             {
                 SushiBLAS::ReductionOps(e).nrm2(t, r);
             };
-            expect_bitwise_stable(kSmall, op, additive_value);
-            expect_bitwise_stable(kLarge, op, additive_value);
+            expect_bitwise_stable(K_SMALL, op, additive_value);
+            expect_bitwise_stable(K_LARGE, op, additive_value);
         }
 
         TEST_F(Unit_ReductionDeterminism, ProdIsBitwiseStable)
@@ -221,8 +221,8 @@ namespace SushiBLAS
             {
                 SushiBLAS::ReductionOps(e).prod(t, r);
             };
-            expect_bitwise_stable(kSmall, op, multiplicative_value);
-            expect_bitwise_stable(kLarge, op, multiplicative_value);
+            expect_bitwise_stable(K_SMALL, op, multiplicative_value);
+            expect_bitwise_stable(K_LARGE, op, multiplicative_value);
         }
 
         /**
@@ -230,7 +230,7 @@ namespace SushiBLAS
          */
         TEST_F(Unit_ReductionDeterminism, TwoStageMomentsAreBitwiseStable)
         {
-            ASSERT_TRUE(is_two_stage(kMoments))
+            ASSERT_TRUE(is_two_stage(K_MOMENTS))
                 << "kMoments must exercise the two-stage shape.";
 
             auto var = [](Engine& e, const Tensor& t, Tensor& r)
@@ -246,9 +246,9 @@ namespace SushiBLAS
                 SushiBLAS::ReductionOps(e).logsumexp(t, r);
             };
 
-            expect_bitwise_stable(kMoments, var, additive_value, kMomentRuns);
-            expect_bitwise_stable(kMoments, std_dev, additive_value, kMomentRuns);
-            expect_bitwise_stable(kMoments, logsumexp, additive_value, kMomentRuns);
+            expect_bitwise_stable(K_MOMENTS, var, additive_value, K_MOMENT_RUNS);
+            expect_bitwise_stable(K_MOMENTS, std_dev, additive_value, K_MOMENT_RUNS);
+            expect_bitwise_stable(K_MOMENTS, logsumexp, additive_value, K_MOMENT_RUNS);
         }
 
         /**
@@ -282,7 +282,7 @@ namespace SushiBLAS
          */
         TEST_F(Unit_ReductionDeterminism, CompensatedSumBeatsNaiveSummationOnRepeatedTenths)
         {
-            for (int64_t n : {kSmall, kLarge})
+            for (int64_t n : {K_SMALL, K_LARGE})
             {
                 SCOPED_TRACE(is_two_stage(n) ? "two-stage shape" : "single-pass shape");
 

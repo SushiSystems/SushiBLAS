@@ -21,7 +21,7 @@
 
 /**
  * @file test_leaky_relu.cpp
- * @brief Tests nonlinear().leaky_relu and leaky_relu_backward against fixed expected values.
+ * @brief Tests NonLinearOps::leaky_relu and leaky_relu_backward against fixed expected values.
  * @author Mustafa Garip
  */
 

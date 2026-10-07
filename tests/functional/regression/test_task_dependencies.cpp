@@ -101,7 +101,7 @@ namespace SushiBLAS
                 [[nodiscard]] Tensor vector_of(const std::vector<float>& values)
                 {
                     Tensor tensor = engine->create_tensor({static_cast<int64_t>(values.size())},
-                                                          Core::DataType::FLOAT32);
+                                                          Core::DataType::Float32);
                     fill_tensor(tensor, values);
                     return tensor;
                 }
@@ -117,7 +117,7 @@ namespace SushiBLAS
                 {
                     SCOPED_TRACE(seam);
 
-                    GraphProbe probe(ExecutionMode::FORCE_SYCL);
+                    GraphProbe probe(ExecutionMode::ForceSycl);
                     ASSERT_TRUE(record(probe.get_recorder()).is_valid());
 
                     const auto nodes = probe.take_nodes();
@@ -214,8 +214,8 @@ namespace SushiBLAS
 
             {
                 // A 1x1 window gathers each pixel into its own row, so the columns equal the image.
-                auto image = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
-                auto columns = engine->create_tensor({4, 1}, Core::DataType::FLOAT32);
+                auto image = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
+                auto columns = engine->create_tensor({4, 1}, Core::DataType::Float32);
                 fill_tensor(image, ramp);
                 fill_tensor(columns, {0.0f, 0.0f, 0.0f, 0.0f});
                 const Spatial::ConvGeometry unit_window;

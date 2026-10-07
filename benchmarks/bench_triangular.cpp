@@ -52,13 +52,13 @@ namespace
     const std::vector<int64_t> K_DEFAULT_SIZES = {256, 1024, 4096};
 
     /// @brief Data types timed for every size.
-    const std::vector<DataType> K_DTYPES = {DataType::FLOAT32, DataType::FLOAT64};
+    const std::vector<DataType> K_DTYPES = {DataType::Float32, DataType::Float64};
 
     /// @brief Diagonal block widths the direct TRSV rows time below the matrix order.
     const std::vector<int64_t> K_BLOCK_WIDTHS = {32, 64, 128, 256, 512, 1024};
 
     /// @brief Memory layout of every tensor of this program.
-    constexpr Layout K_LAYOUT = Layout::COLUMN_MAJOR;
+    constexpr Layout K_LAYOUT = Layout::ColumnMajor;
 
     /// @brief Right-hand-side columns of the narrow TRSM rows.
     constexpr int64_t K_NARROW_COLUMNS = 8;
@@ -134,10 +134,10 @@ namespace
         SushiBLAS::Tensor tensor = engine.create_tensor({n, n}, dtype);
         switch (dtype)
         {
-            case DataType::FLOAT32:
+            case DataType::Float32:
                 fill_unit_lower_as<float>(engine, tensor, n);
                 return tensor;
-            case DataType::FLOAT64:
+            case DataType::Float64:
                 fill_unit_lower_as<double>(engine, tensor, n);
                 return tensor;
             default:
@@ -179,19 +179,19 @@ namespace
 
         const Bench::Timing symm = Bench::measure(engine, [&]()
         {
-            SushiBLAS::BLASOps(engine).symm(a, b, c, Side::LEFT, Uplo::LOWER);
+            SushiBLAS::BLASOps(engine).symm(a, b, c, Side::Left, Uplo::Lower);
         });
         table.print_row("symm", dtype, n, symm, 2.0 * cube, Bench::K_FLOPS_PER_GIGAFLOP);
 
         const Bench::Timing syrk = Bench::measure(engine, [&]()
         {
-            SushiBLAS::BLASOps(engine).syrk(g, c, Uplo::LOWER);
+            SushiBLAS::BLASOps(engine).syrk(g, c, Uplo::Lower);
         });
         table.print_row("syrk", dtype, n, syrk, cube, Bench::K_FLOPS_PER_GIGAFLOP);
 
         const Bench::Timing syr2k = Bench::measure(engine, [&]()
         {
-            SushiBLAS::BLASOps(engine).syr2k(g, h, c, Uplo::LOWER);
+            SushiBLAS::BLASOps(engine).syr2k(g, h, c, Uplo::Lower);
         });
         table.print_row("syr2k", dtype, n, syr2k, 2.0 * cube, Bench::K_FLOPS_PER_GIGAFLOP);
     }
@@ -204,7 +204,7 @@ namespace
         const ModeScope scope(engine, mode);
         const Bench::Timing timing = Bench::measure(engine, [&]()
         {
-            SushiBLAS::BLASOps(engine).trmv(a, x, Uplo::LOWER);
+            SushiBLAS::BLASOps(engine).trmv(a, x, Uplo::Lower);
         });
         table.print_row(label, dtype, n, timing, as_factor(n) * as_factor(n),
                         Bench::K_FLOPS_PER_GIGAFLOP);
@@ -218,7 +218,7 @@ namespace
         const ModeScope scope(engine, mode);
         const Bench::Timing timing = Bench::measure(engine, [&]()
         {
-            SushiBLAS::BLASOps(engine).trsv(a, x, Uplo::LOWER);
+            SushiBLAS::BLASOps(engine).trsv(a, x, Uplo::Lower);
         });
         table.print_row(label, dtype, n, timing, as_factor(n) * as_factor(n),
                         Bench::K_FLOPS_PER_GIGAFLOP);
@@ -231,7 +231,7 @@ namespace
         SushiBLAS::Tensor b = constant_matrix(engine, dtype, n, columns, K_ONE);
         const Bench::Timing timing = Bench::measure(engine, [&]()
         {
-            SushiBLAS::BLASOps(engine).trsm(a, b, Side::LEFT, Uplo::LOWER);
+            SushiBLAS::BLASOps(engine).trsm(a, b, Side::Left, Uplo::Lower);
         });
         table.print_row(label, dtype, n, timing, as_factor(n) * as_factor(n) * as_factor(columns),
                         Bench::K_FLOPS_PER_GIGAFLOP);
@@ -257,8 +257,8 @@ namespace
         // FLOAT32 and FLOAT64 accumulate in their own type, so the kernel reads no workspace.
         const Bench::Timing timing = Bench::time_iterations([&]()
         {
-            Kernels::SYCL::trsm<T>(queue, plan, K_LAYOUT, Side::LEFT, Uplo::LOWER,
-                                   Transpose::NO_TRANS, Diag::NON_UNIT, n, columns, T(1), pa, n,
+            Kernels::SYCL::trsm<T>(queue, plan, K_LAYOUT, Side::Left, Uplo::Lower,
+                                   Transpose::NoTrans, Diag::NonUnit, n, columns, T(1), pa, n,
                                    0, pb, n, 0, 1, nullptr, {}).wait();
         });
         table.print_row(label.c_str(), a.dtype, n, timing,
@@ -294,10 +294,10 @@ namespace
     {
         switch (a.dtype)
         {
-            case DataType::FLOAT32:
+            case DataType::Float32:
                 bench_solve_kernels_as<float>(queue, engine, table, n, a);
                 return;
-            case DataType::FLOAT64:
+            case DataType::Float64:
                 bench_solve_kernels_as<double>(queue, engine, table, n, a);
                 return;
             default:
@@ -312,10 +312,10 @@ namespace
         const SushiBLAS::Tensor a = unit_lower(engine, dtype, n);
 
         bench_products(engine, table, dtype, n, a);
-        bench_trmv(engine, table, dtype, n, a, ExecutionMode::FORCE_SYCL, "trmv");
-        bench_trmv(engine, table, dtype, n, a, ExecutionMode::FORCE_REFERENCE, "trmv ref");
-        bench_trsv(engine, table, dtype, n, a, ExecutionMode::FORCE_SYCL, "trsv");
-        bench_trsv(engine, table, dtype, n, a, ExecutionMode::FORCE_REFERENCE, "trsv ref");
+        bench_trmv(engine, table, dtype, n, a, ExecutionMode::ForceSycl, "trmv");
+        bench_trmv(engine, table, dtype, n, a, ExecutionMode::ForceReference, "trmv ref");
+        bench_trsv(engine, table, dtype, n, a, ExecutionMode::ForceSycl, "trsv");
+        bench_trsv(engine, table, dtype, n, a, ExecutionMode::ForceReference, "trsv ref");
         bench_trsm(engine, table, dtype, n, a, K_NARROW_COLUMNS, "trsm r=8");
         bench_trsm(engine, table, dtype, n, a, n, "trsm r=n");
         bench_solve_kernels(queue, engine, table, n, a);

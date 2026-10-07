@@ -28,7 +28,7 @@ since the last call and empties the graph. `execute()` compiles and runs what is
 
 The BLAS suites are parameterised over `bool` values (transposed or not, upper or lower), and the
 public API takes `Core::Transpose`, `Core::Uplo`, `Core::Diag` and `Core::Side`. The four
-functions here map one to the other: `true` is `TRANS`, `UPPER`, `UNIT` and `LEFT`. A test names
+functions here map one to the other: `true` is `Trans`, `Upper`, `Unit` and `Left`. A test names
 the flag it means at the call site and keeps its parameter list.
 
 ## blas_truth.hpp

@@ -107,7 +107,7 @@ namespace SushiBLAS
         const Dispatch::VectorOperand vy = Dispatch::describe_vector_operand(y, K_OP, "y");
         Dispatch::require_vector_length(vy, sx.size, "the size of x", K_OP, "y");
 
-        if (x.indices.dtype == Core::DataType::INT32)
+        if (x.indices.dtype == Core::DataType::Int32)
             return record_axpyi<int32_t>(recorder_, alpha, x, sx, y, vy.increment);
         return record_axpyi<int64_t>(recorder_, alpha, x, sx, y, vy.increment);
     }

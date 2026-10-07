@@ -49,7 +49,7 @@ namespace SushiBLAS
                       int64_t n, const T* ap, T* x, int64_t incx)
             {
                 const PackedAccess access = packed_access(layout, uplo, trans, n);
-                const bool unit_diag = (diag == Core::Diag::UNIT);
+                const bool unit_diag = (diag == Core::Diag::Unit);
                 Detail::triangular_product(access, access.is_upper(), unit_diag, n, ap, x, incx);
             }
         } // namespace Reference

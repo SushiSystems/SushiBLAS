@@ -50,7 +50,7 @@ namespace SushiBLAS
             {
                 auto A_ref = [&](int64_t r, int64_t c) -> T&
                 {
-                    return (layout == Core::Layout::ROW_MAJOR) ? a[r * lda + c] : a[r + c * lda];
+                    return (layout == Core::Layout::RowMajor) ? a[r * lda + c] : a[r + c * lda];
                 };
 
                 using W = Accumulator<T>;

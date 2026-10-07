@@ -21,7 +21,7 @@
 
 /**
  * @file test_logical_xor.cpp
- * @brief Tests logic().logical_xor against fixed expected values.
+ * @brief Tests LogicOps::logical_xor against fixed expected values.
  * @author Mustafa Garip
  */
 

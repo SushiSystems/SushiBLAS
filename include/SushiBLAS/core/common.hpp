@@ -37,8 +37,8 @@ namespace SushiBLAS
         /** @brief Memory layout strategies. */
         enum class Layout : uint8_t
         {
-            ROW_MAJOR,
-            COLUMN_MAJOR
+            RowMajor,
+            ColumnMajor
         };
 
 
@@ -49,17 +49,17 @@ namespace SushiBLAS
          */
         enum class DataType : uint8_t
         {
-            HALF = 0,      /**< A 16-bit IEEE float. */
-            FLOAT32 = 1,   /**< A 32-bit IEEE float. */
-            FLOAT64 = 2,   /**< A 64-bit IEEE float. */
-            COMPLEX32 = 3, /**< A complex number of two 32-bit floats. */
-            COMPLEX64 = 4, /**< A complex number of two 64-bit floats. */
-            INT32 = 5,     /**< A signed 32-bit integer. */
-            INT64 = 6      /**< A signed 64-bit integer. */
+            Half = 0,      /**< A 16-bit IEEE float. */
+            Float32 = 1,   /**< A 32-bit IEEE float. */
+            Float64 = 2,   /**< A 64-bit IEEE float. */
+            Complex32 = 3, /**< A complex number of two 32-bit floats. */
+            Complex64 = 4, /**< A complex number of two 64-bit floats. */
+            Int32 = 5,     /**< A signed 32-bit integer. */
+            Int64 = 6      /**< A signed 64-bit integer. */
         };
 
         /** @brief Maximum number of supported tensor ranks. */
-        inline constexpr size_t MAX_TENSOR_RANK = 6;
+        inline constexpr size_t K_MAX_TENSOR_RANK = 6;
 
         /**
          * @brief Returns the name of a DataType for diagnostics, or "UNKNOWN" outside the enumeration.
@@ -69,19 +69,19 @@ namespace SushiBLAS
         {
             switch (dtype)
             {
-                case DataType::HALF:
+                case DataType::Half:
                     return "HALF";
-                case DataType::FLOAT32:
+                case DataType::Float32:
                     return "FLOAT32";
-                case DataType::FLOAT64:
+                case DataType::Float64:
                     return "FLOAT64";
-                case DataType::COMPLEX32:
+                case DataType::Complex32:
                     return "COMPLEX32";
-                case DataType::COMPLEX64:
+                case DataType::Complex64:
                     return "COMPLEX64";
-                case DataType::INT32:
+                case DataType::Int32:
                     return "INT32";
-                case DataType::INT64:
+                case DataType::Int64:
                     return "INT64";
             }
             return "UNKNOWN";
@@ -95,7 +95,7 @@ namespace SushiBLAS
          */
         inline constexpr bool is_complex_dtype(DataType dtype)
         {
-            return dtype == DataType::COMPLEX32 || dtype == DataType::COMPLEX64;
+            return dtype == DataType::Complex32 || dtype == DataType::Complex64;
         }
 
         /**
@@ -104,7 +104,7 @@ namespace SushiBLAS
          */
         inline constexpr bool is_integer_dtype(DataType dtype)
         {
-            return dtype == DataType::INT32 || dtype == DataType::INT64;
+            return dtype == DataType::Int32 || dtype == DataType::Int64;
         }
 
         /**
@@ -126,19 +126,19 @@ namespace SushiBLAS
         {
             switch (dtype)
             {
-                case DataType::HALF:
+                case DataType::Half:
                     return 2;
-                case DataType::FLOAT32:
+                case DataType::Float32:
                     return 4;
-                case DataType::FLOAT64:
+                case DataType::Float64:
                     return 8;
-                case DataType::COMPLEX32:
+                case DataType::Complex32:
                     return 8;
-                case DataType::COMPLEX64:
+                case DataType::Complex64:
                     return 16;
-                case DataType::INT32:
+                case DataType::Int32:
                     return 4;
-                case DataType::INT64:
+                case DataType::Int64:
                     return 8;
             }
             // Reached only by a DataType holding a value outside the enumeration; see include/SushiBLAS/core/README.md.

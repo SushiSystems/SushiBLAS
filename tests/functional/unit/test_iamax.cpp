@@ -21,7 +21,7 @@
 
 /**
  * @file test_iamax.cpp
- * @brief Tests that blas().iamax returns the zero-based index of the largest magnitude as INT64.
+ * @brief Tests that BLASOps::iamax returns the zero-based index of the largest magnitude as INT64.
  * @author Mustafa Garip
  */
 
@@ -50,7 +50,7 @@ class Unit_IAMAXTest : public SushiBLASTest {};
 TEST_F(Unit_IAMAXTest, SimpleIAMAX)
 {
     auto X = engine->create_tensor({4});
-    auto R = engine->create_tensor({1}, SushiBLAS::Core::DataType::INT64);
+    auto R = engine->create_tensor({1}, SushiBLAS::Core::DataType::Int64);
 
     fill_tensor(X, {1.0f, -5.0f, 3.0f, 2.0f});
 
@@ -64,7 +64,7 @@ TEST_F(Unit_IAMAXTest, SimpleIAMAX)
 TEST_F(Unit_IAMAXTest, TiesGoToTheLowestIndex)
 {
     auto X = engine->create_tensor({5});
-    auto R = engine->create_tensor({1}, SushiBLAS::Core::DataType::INT64);
+    auto R = engine->create_tensor({1}, SushiBLAS::Core::DataType::Int64);
 
     fill_tensor(X, {2.0f, -7.0f, 1.0f, 7.0f, 0.0f});
 
@@ -84,10 +84,10 @@ TEST_F(Unit_IAMAXTest, RejectsAResultTensorTooNarrowToHoldTheIndex)
     auto X = engine->create_tensor({4});
     fill_tensor(X, {1.0f, -5.0f, 3.0f, 2.0f});
 
-    for (auto dtype : {SushiBLAS::Core::DataType::FLOAT32,
-                       SushiBLAS::Core::DataType::FLOAT64,
-                       SushiBLAS::Core::DataType::INT32,
-                       SushiBLAS::Core::DataType::HALF})
+    for (auto dtype : {SushiBLAS::Core::DataType::Float32,
+                       SushiBLAS::Core::DataType::Float64,
+                       SushiBLAS::Core::DataType::Int32,
+                       SushiBLAS::Core::DataType::Half})
     {
         auto R = engine->create_tensor({1}, dtype);
         EXPECT_THROW(SushiBLAS::BLASOps(*engine).iamax(X, R), std::invalid_argument)

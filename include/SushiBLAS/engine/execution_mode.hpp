@@ -37,8 +37,8 @@ namespace SushiBLAS
      */
     enum class ExecutionMode : std::uint8_t
     {
-        AUTO,           /**< Lets the library choose; it chooses the SYCL kernel. */
-        FORCE_SYCL,     /**< Runs the SYCL kernel. */
-        FORCE_REFERENCE /**< Runs the reference path on the host: a reference kernel, or a serial loop over the operation's functor. */
+        Auto,           /**< Lets the library choose; it chooses the SYCL kernel. */
+        ForceSycl,     /**< Runs the SYCL kernel. */
+        ForceReference /**< Runs the reference path on the host: a reference kernel, or a serial loop over the operation's functor. */
     };
 } // namespace SushiBLAS

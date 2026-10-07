@@ -61,7 +61,7 @@ namespace SushiBLAS
             [[nodiscard]] StructureDefect defect_of(const std::vector<int32_t>& offsets,
                                                     const std::vector<int32_t>& columns)
             {
-                return find_defect(sample_pattern(offsets, columns, IndexBase::ZERO));
+                return find_defect(sample_pattern(offsets, columns, IndexBase::Zero));
             }
 
             /** @brief Returns the defect of stored positions in a vector of K_VECTOR_EXTENT. */
@@ -83,7 +83,7 @@ namespace SushiBLAS
                 const std::vector<Index> columns = stored_indices<Index>(sample_columns(), base);
 
                 EXPECT_EQ(find_defect(sample_pattern(offsets, columns, base)),
-                          StructureDefect::NONE)
+                          StructureDefect::None)
                     << "base " << Core::to_string(base);
             }
         } // namespace
@@ -100,25 +100,25 @@ namespace SushiBLAS
         TEST(Unit_SparseStructure, AFirstOffsetOtherThanTheBaseIsReported)
         {
             EXPECT_EQ(defect_of({1, 2, 2, 5, 7}, {0, 3, 1, 2, 4, 0, 4}),
-                      StructureDefect::FIRST_OFFSET);
+                      StructureDefect::FirstOffset);
         }
 
         TEST(Unit_SparseStructure, ARowThatEndsBeforeItStartsIsReported)
         {
             EXPECT_EQ(defect_of({0, 3, 2, 5, 7}, {0, 3, 1, 2, 4, 0, 4}),
-                      StructureDefect::DECREASING_OFFSET);
+                      StructureDefect::DecreasingOffset);
         }
 
         TEST(Unit_SparseStructure, ALastOffsetOtherThanTheEntryCountIsReported)
         {
             EXPECT_EQ(defect_of({0, 2, 2, 5, 6}, {0, 3, 1, 2, 4, 0, 4}),
-                      StructureDefect::LAST_OFFSET);
+                      StructureDefect::LastOffset);
         }
 
         TEST(Unit_SparseStructure, AColumnPastTheLastIsReported)
         {
             EXPECT_EQ(defect_of({0, 2, 2, 5, 7}, {0, 3, 1, 2, 5, 0, 4}),
-                      StructureDefect::INDEX_OUT_OF_RANGE);
+                      StructureDefect::IndexOutOfRange);
         }
 
         TEST(Unit_SparseStructure, AColumnBelowTheBaseIsReported)
@@ -126,39 +126,39 @@ namespace SushiBLAS
             const std::vector<int32_t> offsets = {1, 3, 3, 6, 8};
             const std::vector<int32_t> columns = {1, 4, 2, 3, 5, 0, 5};
 
-            EXPECT_EQ(find_defect(sample_pattern(offsets, columns, IndexBase::ONE)),
-                      StructureDefect::INDEX_OUT_OF_RANGE);
+            EXPECT_EQ(find_defect(sample_pattern(offsets, columns, IndexBase::One)),
+                      StructureDefect::IndexOutOfRange);
         }
 
         TEST(Unit_SparseStructure, UnsortedColumnsAreNotADefect)
         {
-            EXPECT_EQ(defect_of({0, 2, 2, 5, 7}, {3, 0, 4, 1, 2, 4, 0}), StructureDefect::NONE);
+            EXPECT_EQ(defect_of({0, 2, 2, 5, 7}, {3, 0, 4, 1, 2, 4, 0}), StructureDefect::None);
         }
 
         TEST(Unit_SparseStructure, ARepeatedPairIsNotADefect)
         {
-            EXPECT_EQ(defect_of({0, 2, 2, 5, 7}, {3, 3, 1, 2, 2, 0, 4}), StructureDefect::NONE);
+            EXPECT_EQ(defect_of({0, 2, 2, 5, 7}, {3, 3, 1, 2, 2, 0, 4}), StructureDefect::None);
         }
 
         TEST(Unit_SparseStructure, DistinctPositionsInsideTheVectorKeepEveryRule)
         {
-            EXPECT_EQ(defect_of_positions({6, 1, 4}, IndexBase::ZERO), StructureDefect::NONE);
-            EXPECT_EQ(defect_of_positions({7, 2, 5}, IndexBase::ONE), StructureDefect::NONE);
-            EXPECT_EQ(defect_of_positions({}, IndexBase::ZERO), StructureDefect::NONE);
+            EXPECT_EQ(defect_of_positions({6, 1, 4}, IndexBase::Zero), StructureDefect::None);
+            EXPECT_EQ(defect_of_positions({7, 2, 5}, IndexBase::One), StructureDefect::None);
+            EXPECT_EQ(defect_of_positions({}, IndexBase::Zero), StructureDefect::None);
         }
 
         TEST(Unit_SparseStructure, APositionOutsideTheVectorIsReported)
         {
-            EXPECT_EQ(defect_of_positions({6, 8, 4}, IndexBase::ZERO),
-                      StructureDefect::INDEX_OUT_OF_RANGE);
-            EXPECT_EQ(defect_of_positions({7, 0, 5}, IndexBase::ONE),
-                      StructureDefect::INDEX_OUT_OF_RANGE);
+            EXPECT_EQ(defect_of_positions({6, 8, 4}, IndexBase::Zero),
+                      StructureDefect::IndexOutOfRange);
+            EXPECT_EQ(defect_of_positions({7, 0, 5}, IndexBase::One),
+                      StructureDefect::IndexOutOfRange);
         }
 
         TEST(Unit_SparseStructure, APositionStoredTwiceIsReported)
         {
-            EXPECT_EQ(defect_of_positions({6, 1, 6}, IndexBase::ZERO),
-                      StructureDefect::REPEATED_INDEX);
+            EXPECT_EQ(defect_of_positions({6, 1, 6}, IndexBase::Zero),
+                      StructureDefect::RepeatedIndex);
         }
     } // namespace Test
 } // namespace SushiBLAS

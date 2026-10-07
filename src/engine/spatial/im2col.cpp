@@ -39,20 +39,20 @@ namespace SushiBLAS
 
     namespace
     {
-        constexpr const char* IM2COL_NAME = "spatial.im2col";
+        constexpr const char* K_IM2COL_NAME = "spatial.im2col";
     }
 
     TaskHandle SpatialOps::im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g,
                                   int64_t out_h, int64_t out_w)
     {
-        Dispatch::require_dtype(cols, in.dtype, IM2COL_NAME, "cols");
+        Dispatch::require_dtype(cols, in.dtype, K_IM2COL_NAME, "cols");
 
-        Dispatch::require_device_dtype(in, IM2COL_NAME, "in");
-        Dispatch::require_device_dtype(cols, IM2COL_NAME, "cols");
+        Dispatch::require_device_dtype(in, K_IM2COL_NAME, "in");
+        Dispatch::require_device_dtype(cols, K_IM2COL_NAME, "cols");
 
         // The column matrix has no image shape, so the extents are passed in; see src/README.md.
-        const Spatial::WindowSpan span = Spatial::window_span_for(in, g, out_h, out_w, IM2COL_NAME);
-        const Spatial::ColumnSpan column = Spatial::column_span_for(cols, span, IM2COL_NAME);
+        const Spatial::WindowSpan span = Spatial::window_span_for(in, g, out_h, out_w, K_IM2COL_NAME);
+        const Spatial::ColumnSpan column = Spatial::column_span_for(cols, span, K_IM2COL_NAME);
 
         const void* read_in = in.data_or_null();
         void* write_cols = cols.data_or_null();
@@ -61,11 +61,11 @@ namespace SushiBLAS
         operands.reads(in).writes(cols);
 
         SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = IM2COL_NAME;
+        meta.name = K_IM2COL_NAME;
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.im2col"_op;
 
-        return Internal::execute_typed_task<Dispatch::Domain::REAL>(
+        return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, meta, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
@@ -86,11 +86,11 @@ namespace SushiBLAS
 
     TaskHandle SpatialOps::im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g)
     {
-        Dispatch::require_rank(in, 4, IM2COL_NAME, "in");
-        Dispatch::require_rank(cols, 2, IM2COL_NAME, "cols");
+        Dispatch::require_rank(in, 4, K_IM2COL_NAME, "in");
+        Dispatch::require_rank(cols, 2, K_IM2COL_NAME, "cols");
 
         const int64_t batch = in.shape[0];
-        Dispatch::require_operand(batch > 0 && cols.shape[0] % batch == 0, IM2COL_NAME, "cols",
+        Dispatch::require_operand(batch > 0 && cols.shape[0] % batch == 0, K_IM2COL_NAME, "cols",
                                   "has {} rows, which {} images cannot share evenly",
                                   cols.shape[0], batch);
         const int64_t windows_per_image = cols.shape[0] / batch;
@@ -98,7 +98,7 @@ namespace SushiBLAS
         // This overload assumes symmetric padding; see src/README.md.
         const int64_t out_w = Spatial::output_extent(in.shape[2], g.pad_left, g.pad_left,
                                                      g.dilation_w, g.kernel_w, g.stride_w);
-        Dispatch::require_operand(out_w > 0 && windows_per_image % out_w == 0, IM2COL_NAME, "cols",
+        Dispatch::require_operand(out_w > 0 && windows_per_image % out_w == 0, K_IM2COL_NAME, "cols",
                                   "asks for {} windows per image, which {} output columns do not "
                                   "divide",
                                   windows_per_image, out_w);

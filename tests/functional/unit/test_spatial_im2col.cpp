@@ -21,7 +21,7 @@
 
 /**
  * @file test_spatial_im2col.cpp
- * @brief Tests spatial().im2col's gather order, padding, dilation and refusals.
+ * @brief Tests SpatialOps::im2col's gather order, padding, dilation and refusals.
  * @author Mustafa Garip
  */
 
@@ -59,7 +59,7 @@ namespace SushiBLAS
                 /** @brief An NHWC tensor holding 0, 1, 2, ... in memory order. */
                 Tensor ramp(int64_t n, int64_t h, int64_t w, int64_t c)
                 {
-                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::FLOAT32);
+                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::Float32);
                     float* p = t.data_as<float>();
                     for (int64_t i = 0; i < t.num_elements; ++i)
                         p[i] = static_cast<float>(i);
@@ -71,7 +71,7 @@ namespace SushiBLAS
         {
             // A 1x1 window's columns are the input reshaped. See tests/functional/unit/README.md.
             auto in = ramp(2, 3, 4, 5);
-            auto cols = engine->create_tensor({2 * 3 * 4, 5}, Core::DataType::FLOAT32);
+            auto cols = engine->create_tensor({2 * 3 * 4, 5}, Core::DataType::Float32);
 
             Spatial::ConvGeometry g;   // 1x1, stride 1, dilation 1, no pad
             SushiBLAS::SpatialOps(*engine).im2col(in, cols, g);
@@ -86,7 +86,7 @@ namespace SushiBLAS
         {
             // 2x2 stride 1 gives 4 windows of 8 entries each. See tests/functional/unit/README.md.
             auto in = ramp(1, 3, 3, 2);
-            auto cols = engine->create_tensor({4, 8}, Core::DataType::FLOAT32);
+            auto cols = engine->create_tensor({4, 8}, Core::DataType::Float32);
 
             Spatial::ConvGeometry g;
             g.kernel_h = 2;
@@ -115,7 +115,7 @@ namespace SushiBLAS
         {
             // Padding is a parameter, not a padded copy. See tests/functional/unit/README.md.
             auto in = ramp(1, 2, 2, 1);
-            auto cols = engine->create_tensor({4, 9}, Core::DataType::FLOAT32);
+            auto cols = engine->create_tensor({4, 9}, Core::DataType::Float32);
 
             Spatial::ConvGeometry g;
             g.kernel_h = 3;
@@ -137,7 +137,7 @@ namespace SushiBLAS
         TEST_F(Unit_SpatialIm2ColTest, DilationSpacesTheTapsWithoutMovingTheWindows)
         {
             auto in = ramp(1, 5, 5, 1);
-            auto cols = engine->create_tensor({1, 9}, Core::DataType::FLOAT32);
+            auto cols = engine->create_tensor({1, 9}, Core::DataType::Float32);
 
             Spatial::ConvGeometry g;
             g.kernel_h = 3;
@@ -160,7 +160,7 @@ namespace SushiBLAS
         {
             // The two-operand overload has no pad_right. See tests/functional/unit/README.md.
             auto in = ramp(1, 3, 3, 1);
-            auto cols = engine->create_tensor({9, 4}, Core::DataType::FLOAT32);
+            auto cols = engine->create_tensor({9, 4}, Core::DataType::Float32);
 
             Spatial::ConvGeometry g;
             g.kernel_h = 2;
@@ -205,14 +205,14 @@ namespace SushiBLAS
             const int64_t rows = 2 * out_h * out_w;
             const int64_t width = 3 * 2 * 3;
 
-            auto from_reference = engine->create_tensor({rows, width}, Core::DataType::FLOAT32);
-            auto from_device = engine->create_tensor({rows, width}, Core::DataType::FLOAT32);
+            auto from_reference = engine->create_tensor({rows, width}, Core::DataType::Float32);
+            auto from_device = engine->create_tensor({rows, width}, Core::DataType::Float32);
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             SushiBLAS::SpatialOps(*engine).im2col(in, from_reference, g, out_h, out_w);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
             SushiBLAS::SpatialOps(*engine).im2col(in, from_device, g, out_h, out_w);
             engine->execute();
 
@@ -226,7 +226,7 @@ namespace SushiBLAS
         TEST_F(Unit_SpatialIm2ColTest, AColumnMatrixOfTheWrongShapeIsRefusedByName)
         {
             auto in = ramp(1, 4, 4, 2);
-            auto cols = engine->create_tensor({9, 7}, Core::DataType::FLOAT32);   // 7 != 2*2*2
+            auto cols = engine->create_tensor({9, 7}, Core::DataType::Float32);   // 7 != 2*2*2
 
             Spatial::ConvGeometry g;
             g.kernel_h = 2;
@@ -248,8 +248,8 @@ namespace SushiBLAS
 
         TEST_F(Unit_SpatialIm2ColTest, ARankThatIsNotFourIsRefusedAtRecordTime)
         {
-            auto in = engine->create_tensor({4, 4, 2}, Core::DataType::FLOAT32);
-            auto cols = engine->create_tensor({16, 8}, Core::DataType::FLOAT32);
+            auto in = engine->create_tensor({4, 4, 2}, Core::DataType::Float32);
+            auto cols = engine->create_tensor({16, 8}, Core::DataType::Float32);
 
             EXPECT_THROW(SushiBLAS::SpatialOps(*engine).im2col(in, cols, Spatial::ConvGeometry{}),
                          std::exception);

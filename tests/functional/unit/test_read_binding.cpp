@@ -87,8 +87,8 @@ namespace SushiBLAS
 
         TEST_F(Unit_ReadBinding, PointersFollowTheElementsInBoundOrder)
         {
-            const Tensor a = engine->create_tensor({K_ELEMENTS}, Core::DataType::FLOAT32);
-            const Tensor b = engine->create_tensor({K_ELEMENTS}, Core::DataType::INT64);
+            const Tensor a = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
+            const Tensor b = engine->create_tensor({K_ELEMENTS}, Core::DataType::Int64);
 
             double seen_element = 0.0;
             const float* seen_first = nullptr;
@@ -114,7 +114,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_ReadBinding, AnElementReadTakesTheOperationsType)
         {
-            const Tensor a = engine->create_tensor({K_ELEMENTS}, Core::DataType::FLOAT32);
+            const Tensor a = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
 
             const auto fn = [](auto element, auto pointer) -> const void*
             {
@@ -134,7 +134,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_ReadBinding, BoundScalarsComeAfterThePointers)
         {
-            const Tensor a = engine->create_tensor({K_ELEMENTS}, Core::DataType::FLOAT32);
+            const Tensor a = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
 
             float seen_element = 0.0f;
             const float* seen_pointer = nullptr;
@@ -174,7 +174,7 @@ namespace SushiBLAS
             SushiRuntime::Execution::RuntimeContext& context = TestEnvironment::get_context();
             const std::size_t live_baseline = context.live_usm_count();
 
-            std::optional<Tensor> a(engine->create_tensor({K_ELEMENTS}, Core::DataType::FLOAT32));
+            std::optional<Tensor> a(engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32));
             ASSERT_EQ(context.live_usm_count(), live_baseline + 1);
 
             const auto addressed =
@@ -196,54 +196,54 @@ namespace SushiBLAS
                 return element;
             };
 
-            const Tensor dense = engine->create_tensor({K_ELEMENTS}, Core::DataType::FLOAT32);
-            const Tensor empty = engine->create_tensor({0}, Core::DataType::FLOAT32);
-            const Tensor wide = engine->create_tensor({K_ELEMENTS}, Core::DataType::FLOAT64);
+            const Tensor dense = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
+            const Tensor empty = engine->create_tensor({0}, Core::DataType::Float32);
+            const Tensor wide = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float64);
             const Tensor strided =
-                engine->create_tensor({K_ELEMENTS, K_ELEMENTS}, Core::DataType::FLOAT32)
+                engine->create_tensor({K_ELEMENTS, K_ELEMENTS}, Core::DataType::Float32)
                     .slice(1, 0, 2);
 
             EXPECT_NO_THROW(Dispatch::bind_reads(fn, Dispatch::read_as_element(dense))
-                                .require(Core::DataType::FLOAT32, K_OPERATION));
+                                .require(Core::DataType::Float32, K_OPERATION));
             EXPECT_NO_THROW(Dispatch::bind_reads(fn, Dispatch::read_as<float>(dense))
-                                .require(Core::DataType::INT64, K_OPERATION));
+                                .require(Core::DataType::Int64, K_OPERATION));
 
             EXPECT_TRUE(names_read(message_of([&]()
             {
                 Dispatch::bind_reads(fn, Dispatch::read_as_element(empty))
-                    .require(Core::DataType::FLOAT32, K_OPERATION);
+                    .require(Core::DataType::Float32, K_OPERATION);
             }), 0));
 
             EXPECT_TRUE(names_read(message_of([&]()
             {
                 Dispatch::bind_reads(fn, Dispatch::read_as<float>(wide))
-                    .require(Core::DataType::FLOAT64, K_OPERATION);
+                    .require(Core::DataType::Float64, K_OPERATION);
             }), 0));
 
             EXPECT_TRUE(names_read(message_of([&]()
             {
                 Dispatch::bind_reads(fn, Dispatch::read_as_element(dense))
-                    .require(Core::DataType::INT32, K_OPERATION);
+                    .require(Core::DataType::Int32, K_OPERATION);
             }), 0));
 
             EXPECT_TRUE(names_read(message_of([&]()
             {
                 Dispatch::bind_reads(fn, Dispatch::read_as_element(strided))
-                    .require(Core::DataType::FLOAT32, K_OPERATION);
+                    .require(Core::DataType::Float32, K_OPERATION);
             }), 0));
 
             EXPECT_TRUE(names_read(message_of([&]()
             {
                 Dispatch::bind_reads(fn_of_two, Dispatch::read_as_element(dense),
                                      Dispatch::read_as_element(empty))
-                    .require(Core::DataType::FLOAT32, K_OPERATION);
+                    .require(Core::DataType::Float32, K_OPERATION);
             }), 1));
         }
 
         TEST_F(Unit_ReadBinding, AReadMayNotOverlapAWrittenRegion)
         {
             const auto fn = [](float element, const float*) { return element; };
-            const Tensor a = engine->create_tensor({K_ELEMENTS}, Core::DataType::FLOAT32);
+            const Tensor a = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
             const auto bound = Dispatch::bind_reads(fn, Dispatch::read_as_element(a));
 
             OperandSet writing;
@@ -268,7 +268,7 @@ namespace SushiBLAS
             const auto fn = [](float element) { return element; };
             OperandSet operands;
 
-            Dispatch::Detail::require_declared_reads(fn, Core::DataType::FLOAT32, K_OPERATION);
+            Dispatch::Detail::require_declared_reads(fn, Core::DataType::Float32, K_OPERATION);
             Dispatch::Detail::declare_reads(fn, operands, K_OPERATION);
 
             EXPECT_EQ(&Dispatch::Detail::task_functor(fn), &fn);

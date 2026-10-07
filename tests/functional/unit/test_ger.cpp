@@ -21,7 +21,7 @@
 
 /**
  * @file test_ger.cpp
- * @brief Tests blas().ger against fixed expected values.
+ * @brief Tests BLASOps::ger against fixed expected values.
  * @author Mustafa Garip
  */
 

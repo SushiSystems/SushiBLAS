@@ -65,7 +65,7 @@ namespace SushiBLAS
         template<typename T, typename Visit>
         void for_each_dense_element(const Tensor& dense, Visit visit)
         {
-            const bool row_major = dense.layout == Core::Layout::ROW_MAJOR;
+            const bool row_major = dense.layout == Core::Layout::RowMajor;
             const int64_t lines = row_major ? dense.shape[0] : dense.shape[1];
             const int64_t line_length = row_major ? dense.shape[1] : dense.shape[0];
             if (lines == 0 || line_length == 0)
@@ -224,26 +224,26 @@ namespace SushiBLAS
                     "A sparse matrix cannot index with {}; its index dtype is INT32 or INT64.",
                     Core::to_string(index_dtype));
 
-        const bool narrow = index_dtype == Core::DataType::INT32;
+        const bool narrow = index_dtype == Core::DataType::Int32;
         switch (dense.dtype)
         {
-            case Core::DataType::HALF:
+            case Core::DataType::Half:
                 return narrow ? compress_dense<sycl::half, int32_t>(dense, base)
                               : compress_dense<sycl::half, int64_t>(dense, base);
-            case Core::DataType::FLOAT32:
+            case Core::DataType::Float32:
                 return narrow ? compress_dense<float, int32_t>(dense, base)
                               : compress_dense<float, int64_t>(dense, base);
-            case Core::DataType::FLOAT64:
+            case Core::DataType::Float64:
                 return narrow ? compress_dense<double, int32_t>(dense, base)
                               : compress_dense<double, int64_t>(dense, base);
-            case Core::DataType::COMPLEX32:
+            case Core::DataType::Complex32:
                 return narrow ? compress_dense<std::complex<float>, int32_t>(dense, base)
                               : compress_dense<std::complex<float>, int64_t>(dense, base);
-            case Core::DataType::COMPLEX64:
+            case Core::DataType::Complex64:
                 return narrow ? compress_dense<std::complex<double>, int32_t>(dense, base)
                               : compress_dense<std::complex<double>, int64_t>(dense, base);
-            case Core::DataType::INT32:
-            case Core::DataType::INT64:
+            case Core::DataType::Int32:
+            case Core::DataType::Int64:
                 break;
         }
 

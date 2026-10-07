@@ -42,7 +42,7 @@ namespace SushiBLAS
                 /** @brief Returns a FLOAT32 vector of four elements allocated by engine. */
                 [[nodiscard]] static Tensor vector_of_four(Engine& engine)
                 {
-                    return engine.create_tensor({4}, Core::DataType::FLOAT32);
+                    return engine.create_tensor({4}, Core::DataType::Float32);
                 }
         };
 
@@ -98,9 +98,9 @@ namespace SushiBLAS
         {
             GraphProbe probe;
 
-            auto a = engine->create_tensor({0, 3}, Core::DataType::FLOAT32);
-            auto b = engine->create_tensor({0, 3}, Core::DataType::FLOAT32);
-            auto c = engine->create_tensor({0, 3}, Core::DataType::FLOAT32);
+            auto a = engine->create_tensor({0, 3}, Core::DataType::Float32);
+            auto b = engine->create_tensor({0, 3}, Core::DataType::Float32);
+            auto c = engine->create_tensor({0, 3}, Core::DataType::Float32);
 
             const TaskHandle handle = SushiBLAS::ElementwiseOps(probe.get_recorder()).add(a, b, c);
 
@@ -112,7 +112,7 @@ namespace SushiBLAS
         /** @brief Tests that the first handles of two engines compare unequal. */
         TEST_F(Unit_TaskHandleTest, HandlesOfTwoRecordersDiffer)
         {
-            Engine other(TestEnvironment::get_context(), Core::Layout::ROW_MAJOR);
+            Engine other(TestEnvironment::get_context(), Core::Layout::RowMajor);
 
             auto a = vector_of_four(*engine);
             auto b = vector_of_four(*engine);

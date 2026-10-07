@@ -21,7 +21,7 @@
 
 /**
  * @file test_nrm2.cpp
- * @brief Tests blas().nrm2 against fixed expected values.
+ * @brief Tests BLASOps::nrm2 against fixed expected values.
  * @author Mustafa Garip
  */
 

@@ -36,25 +36,25 @@ namespace SushiBLAS
         /** @brief Returns TRANS for true and NO_TRANS for false. */
         [[nodiscard]] constexpr Core::Transpose transpose_of(bool transposed) noexcept
         {
-            return transposed ? Core::Transpose::TRANS : Core::Transpose::NO_TRANS;
+            return transposed ? Core::Transpose::Trans : Core::Transpose::NoTrans;
         }
 
         /** @brief Returns UPPER for true and LOWER for false. */
         [[nodiscard]] constexpr Core::Uplo uplo_of(bool upper) noexcept
         {
-            return upper ? Core::Uplo::UPPER : Core::Uplo::LOWER;
+            return upper ? Core::Uplo::Upper : Core::Uplo::Lower;
         }
 
         /** @brief Returns UNIT for true and NON_UNIT for false. */
         [[nodiscard]] constexpr Core::Diag diag_of(bool unit) noexcept
         {
-            return unit ? Core::Diag::UNIT : Core::Diag::NON_UNIT;
+            return unit ? Core::Diag::Unit : Core::Diag::NonUnit;
         }
 
         /** @brief Returns LEFT for true and RIGHT for false. */
         [[nodiscard]] constexpr Core::Side side_of(bool left) noexcept
         {
-            return left ? Core::Side::LEFT : Core::Side::RIGHT;
+            return left ? Core::Side::Left : Core::Side::Right;
         }
     } // namespace Test
 } // namespace SushiBLAS

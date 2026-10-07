@@ -47,8 +47,8 @@ namespace SushiBLAS
                  */
                 enum class PanelLines : std::uint8_t
                 {
-                    ROWS,   /**< A line is a row and a term a column: the first factor. */
-                    COLUMNS /**< A line is a column and a term a row: the second factor. */
+                    Rows,   /**< A line is a row and a term a column: the first factor. */
+                    Columns /**< A line is a column and a term a row: the second factor. */
                 };
 
                 /**
@@ -68,7 +68,7 @@ namespace SushiBLAS
                 [[nodiscard]] constexpr bool has_adjacent_lines(const OperandAccess& access,
                                                                 PanelLines lines) noexcept
                 {
-                    return ((lines == PanelLines::ROWS) ? access.row : access.col) == 1;
+                    return ((lines == PanelLines::Rows) ? access.row : access.col) == 1;
                 }
 
                 /**
@@ -79,7 +79,7 @@ namespace SushiBLAS
                 [[nodiscard]] inline T panel_element(const T* x, const Access& access,
                                                      int64_t line, int64_t term) noexcept
                 {
-                    if constexpr (Lines == PanelLines::ROWS)
+                    if constexpr (Lines == PanelLines::Rows)
                         return access.at(x, line, term);
                     else
                         return access.at(x, term, line);

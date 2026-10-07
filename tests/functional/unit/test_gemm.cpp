@@ -56,7 +56,7 @@ namespace SushiBLAS
                 * Unit_GEMMKernelTest for the absolute, hand-computed pins that can.
                 */
                 void test_accuracy(int64_t m, int64_t n, int64_t k,
-                                   Core::Layout layout = Core::Layout::ROW_MAJOR,
+                                   Core::Layout layout = Core::Layout::RowMajor,
                                    bool transA = false, bool transB = false,
                                    double alpha = 1.0, double beta = 0.0)
                 {
@@ -81,12 +81,12 @@ namespace SushiBLAS
                     // Both C buffers must start identical. See tests/functional/unit/README.md.
                     seed_output(C_actual, C_expected, beta == 0.0);
 
-                    engine->set_mode(ExecutionMode::FORCE_SYCL);
+                    engine->set_mode(ExecutionMode::ForceSycl);
                     SushiBLAS::BLASOps(*engine).gemm(A, B, C_actual, transpose_of(transA),
                                                      transpose_of(transB), alpha, beta);
                     engine->execute();
 
-                    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                    engine->set_mode(ExecutionMode::ForceReference);
                     SushiBLAS::BLASOps(*engine).gemm(A, B, C_expected, transpose_of(transA),
                                                      transpose_of(transB), alpha, beta);
                     engine->execute();
@@ -104,7 +104,7 @@ namespace SushiBLAS
                 void test_batched(int64_t batch, int64_t m, int64_t n, int64_t k,
                                   double alpha = 1.0, double beta = 0.0)
                 {
-                    reinit_engine(Core::Layout::ROW_MAJOR);
+                    reinit_engine(Core::Layout::RowMajor);
 
                     const auto dtype = get_sushiblas_dtype<T>();
 
@@ -117,14 +117,14 @@ namespace SushiBLAS
                     fill_random<T>(B);
                     seed_output(C_actual, C_expected, beta == 0.0);
 
-                    engine->set_mode(ExecutionMode::FORCE_SYCL);
-                    SushiBLAS::BLASOps(*engine).gemm(A, B, C_actual, Core::Transpose::NO_TRANS,
-                                                     Core::Transpose::NO_TRANS, alpha, beta);
+                    engine->set_mode(ExecutionMode::ForceSycl);
+                    SushiBLAS::BLASOps(*engine).gemm(A, B, C_actual, Core::Transpose::NoTrans,
+                                                     Core::Transpose::NoTrans, alpha, beta);
                     engine->execute();
 
-                    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
-                    SushiBLAS::BLASOps(*engine).gemm(A, B, C_expected, Core::Transpose::NO_TRANS,
-                                                     Core::Transpose::NO_TRANS, alpha, beta);
+                    engine->set_mode(ExecutionMode::ForceReference);
+                    SushiBLAS::BLASOps(*engine).gemm(A, B, C_expected, Core::Transpose::NoTrans,
+                                                     Core::Transpose::NoTrans, alpha, beta);
                     engine->execute();
 
                     SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tolerance_for(dtype, k), T);
@@ -169,7 +169,7 @@ namespace SushiBLAS
                 */
                 [[nodiscard]] static double tolerance_for(Core::DataType dtype, int64_t k)
                 {
-                    if (dtype == Core::DataType::HALF)
+                    if (dtype == Core::DataType::Half)
                         return 1e-2 * static_cast<double>(1 + k / 8);
                     return 1e-4;
                 }
@@ -185,7 +185,7 @@ namespace SushiBLAS
 
             TYPED_TEST(Unit_GEMMTest, SmallMatrixColMajor)
             {
-                this->test_accuracy(4, 4, 4, Core::Layout::COLUMN_MAJOR);
+                this->test_accuracy(4, 4, 4, Core::Layout::ColumnMajor);
             }
 
             TYPED_TEST(Unit_GEMMTest, Rectangular)
@@ -195,7 +195,7 @@ namespace SushiBLAS
 
             TYPED_TEST(Unit_GEMMTest, RectangularColMajor)
             {
-                this->test_accuracy(8, 16, 4, Core::Layout::COLUMN_MAJOR);
+                this->test_accuracy(8, 16, 4, Core::Layout::ColumnMajor);
             }
 
             /**
@@ -209,7 +209,7 @@ namespace SushiBLAS
 
             TYPED_TEST(Unit_GEMMTest, RaggedOnEveryAxisColMajor)
             {
-                this->test_accuracy(37, 23, 13, Core::Layout::COLUMN_MAJOR);
+                this->test_accuracy(37, 23, 13, Core::Layout::ColumnMajor);
             }
 
             /**
@@ -238,37 +238,37 @@ namespace SushiBLAS
 
             TYPED_TEST(Unit_GEMMTest, NoTransposeScaled)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::ROW_MAJOR, false, false, 1.5, 0.5);
+                this->test_accuracy(17, 19, 11, Core::Layout::RowMajor, false, false, 1.5, 0.5);
             }
 
             TYPED_TEST(Unit_GEMMTest, TransposeA)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::ROW_MAJOR, true, false, 1.5, 0.5);
+                this->test_accuracy(17, 19, 11, Core::Layout::RowMajor, true, false, 1.5, 0.5);
             }
 
             TYPED_TEST(Unit_GEMMTest, TransposeB)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::ROW_MAJOR, false, true, 1.5, 0.5);
+                this->test_accuracy(17, 19, 11, Core::Layout::RowMajor, false, true, 1.5, 0.5);
             }
 
             TYPED_TEST(Unit_GEMMTest, TransposeBoth)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::ROW_MAJOR, true, true, 1.5, 0.5);
+                this->test_accuracy(17, 19, 11, Core::Layout::RowMajor, true, true, 1.5, 0.5);
             }
 
             TYPED_TEST(Unit_GEMMTest, TransposeBothColMajor)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::COLUMN_MAJOR, true, true, 1.5, 0.5);
+                this->test_accuracy(17, 19, 11, Core::Layout::ColumnMajor, true, true, 1.5, 0.5);
             }
 
             TYPED_TEST(Unit_GEMMTest, TransposeAColMajor)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::COLUMN_MAJOR, true, false, 1.5, 0.5);
+                this->test_accuracy(17, 19, 11, Core::Layout::ColumnMajor, true, false, 1.5, 0.5);
             }
 
             TYPED_TEST(Unit_GEMMTest, TransposeBColMajor)
             {
-                this->test_accuracy(17, 19, 11, Core::Layout::COLUMN_MAJOR, false, true, 1.5, 0.5);
+                this->test_accuracy(17, 19, 11, Core::Layout::ColumnMajor, false, true, 1.5, 0.5);
             }
 
             /**
@@ -277,7 +277,7 @@ namespace SushiBLAS
              */
             TYPED_TEST(Unit_GEMMTest, BetaZeroNeverReadsC)
             {
-                this->test_accuracy(37, 23, 13, Core::Layout::ROW_MAJOR, false, false, 1.0, 0.0);
+                this->test_accuracy(37, 23, 13, Core::Layout::RowMajor, false, false, 1.0, 0.0);
             }
 
             TYPED_TEST(Unit_GEMMTest, Batched)
@@ -300,8 +300,8 @@ namespace SushiBLAS
                     /** @brief Row-major strides for an operand of leading dimension @p ld. */
                     [[nodiscard]] static Kernels::OperandAccess row_major(int64_t ld)
                     {
-                        return Kernels::operand_access(Core::Layout::ROW_MAJOR,
-                                                       Core::Transpose::NO_TRANS, ld);
+                        return Kernels::operand_access(Core::Layout::RowMajor,
+                                                       Core::Transpose::NoTrans, ld);
                     }
 
                     /** @brief Copies a tensor's contents out to a host vector. */
@@ -319,9 +319,9 @@ namespace SushiBLAS
                 // A (2x3) = [[1,2,3],[4,5,6]], B (3x2) = [[1,0],[0,1],[1,1]].
                 auto A = create_initialized_tensor<float>({2, 3}, {1, 2, 3, 4, 5, 6});
                 auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 0, 1, 1, 1});
-                auto C = engine->create_tensor({2, 2}, Core::DataType::FLOAT32);
+                auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::FORCE_SYCL);
+                engine->set_mode(ExecutionMode::ForceSycl);
                 SushiBLAS::BLASOps(*engine).gemm(A, B, C);
                 engine->execute();
 
@@ -331,14 +331,14 @@ namespace SushiBLAS
 
             TEST_F(Unit_GEMMKernelTest, ColumnMajorMatchesHandComputedResult)
             {
-                reinit_engine(Core::Layout::COLUMN_MAJOR);
+                reinit_engine(Core::Layout::ColumnMajor);
 
                 // The same problem, stored column-major. See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({2, 3}, {1, 4, 2, 5, 3, 6});
                 auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 1, 0, 1, 1});
-                auto C = engine->create_tensor({2, 2}, Core::DataType::FLOAT32);
+                auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::FORCE_SYCL);
+                engine->set_mode(ExecutionMode::ForceSycl);
                 SushiBLAS::BLASOps(*engine).gemm(A, B, C);
                 engine->execute();
 
@@ -349,13 +349,13 @@ namespace SushiBLAS
             TEST_F(Unit_GEMMKernelTest, ColumnMajorReferenceMatchesHandComputedResult)
             {
                 // The oracle is pinned to the same numbers. See tests/functional/unit/README.md.
-                reinit_engine(Core::Layout::COLUMN_MAJOR);
+                reinit_engine(Core::Layout::ColumnMajor);
 
                 auto A = create_initialized_tensor<float>({2, 3}, {1, 4, 2, 5, 3, 6});
                 auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 1, 0, 1, 1});
-                auto C = engine->create_tensor({2, 2}, Core::DataType::FLOAT32);
+                auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                engine->set_mode(ExecutionMode::ForceReference);
                 SushiBLAS::BLASOps(*engine).gemm(A, B, C);
                 engine->execute();
 
@@ -367,11 +367,11 @@ namespace SushiBLAS
                 // A is stored 3x2 as the transpose of op(A). See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, {1, 4, 2, 5, 3, 6});
                 auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 0, 1, 1, 1});
-                auto C = engine->create_tensor({2, 2}, Core::DataType::FLOAT32);
+                auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::FORCE_SYCL);
-                SushiBLAS::BLASOps(*engine).gemm(A, B, C, Core::Transpose::TRANS,
-                                                 Core::Transpose::NO_TRANS);
+                engine->set_mode(ExecutionMode::ForceSycl);
+                SushiBLAS::BLASOps(*engine).gemm(A, B, C, Core::Transpose::Trans,
+                                                 Core::Transpose::NoTrans);
                 engine->execute();
 
                 EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 5, 10, 11}), 1e-5);
@@ -411,7 +411,7 @@ namespace SushiBLAS
                 // 2*(A*B), plus both biases, clamped at 0. See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({2, 2}, {1, 2, 3, 4});
                 auto B = create_initialized_tensor<float>({2, 3}, {1, 0, -1, 0, 1, -1});
-                auto C = engine->create_tensor({2, 3}, Core::DataType::FLOAT32);
+                auto C = engine->create_tensor({2, 3}, Core::DataType::Float32);
                 auto row_bias = create_initialized_tensor<float>({2}, {0.0f, 1.0f});
                 auto col_bias = create_initialized_tensor<float>({3}, {0.5f, -1.0f, 5.0f});
 
@@ -420,8 +420,8 @@ namespace SushiBLAS
                                                 static_cast<const float*>(col_bias.data())};
 
                 Kernels::SYCL::gemm<float>(
-                    q, Core::Layout::ROW_MAJOR, Core::Transpose::NO_TRANS,
-                    Core::Transpose::NO_TRANS, 2, 3, 2,
+                    q, Core::Layout::RowMajor, Core::Transpose::NoTrans,
+                    Core::Transpose::NoTrans, 2, 3, 2,
                     2.0f, static_cast<const float*>(A.data()), 2, 0,
                     static_cast<const float*>(B.data()), 3, 0,
                     0.0f, static_cast<float*>(C.data()), 3, 0,
@@ -459,16 +459,16 @@ namespace SushiBLAS
             {
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
                 auto row_bias = create_initialized_tensor<float>({3}, {0.0f, -6.0f, 5.0f});
                 auto col_bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
 
                 const BiasReluEpilogue epilogue{row_bias.data_as<float>(),
                                                 col_bias.data_as<float>()};
 
-                engine->set_mode(ExecutionMode::FORCE_SYCL);
+                engine->set_mode(ExecutionMode::ForceSycl);
                 Dispatch::execute_gemm(engine->get_recorder(), A, B, C,
-                                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bias_relu", "test.gemm_bias_relu"_op,
                                        epilogue);
@@ -482,16 +482,16 @@ namespace SushiBLAS
                 // The reference kernel applies the epilogue. See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
                 auto row_bias = create_initialized_tensor<float>({3}, {0.0f, -6.0f, 5.0f});
                 auto col_bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
 
                 const BiasReluEpilogue epilogue{row_bias.data_as<float>(),
                                                 col_bias.data_as<float>()};
 
-                engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                engine->set_mode(ExecutionMode::ForceReference);
                 Dispatch::execute_gemm(engine->get_recorder(), A, B, C,
-                                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bias_relu_ref", "test.gemm_bias_relu_ref"_op,
                                        epilogue);
@@ -503,17 +503,17 @@ namespace SushiBLAS
             TEST_F(Unit_GEMMSeamTest, ExecuteGemmWithTheIdentityEpilogueIsPlainGemm)
             {
                 // Level3::gemm is the seam with the identity. See tests/functional/unit/README.md.
-                auto A = engine->create_tensor({13, 7}, Core::DataType::FLOAT32);
-                auto B = engine->create_tensor({7, 11}, Core::DataType::FLOAT32);
-                auto via_api = engine->create_tensor({13, 11}, Core::DataType::FLOAT32);
-                auto via_seam = engine->create_tensor({13, 11}, Core::DataType::FLOAT32);
+                auto A = engine->create_tensor({13, 7}, Core::DataType::Float32);
+                auto B = engine->create_tensor({7, 11}, Core::DataType::Float32);
+                auto via_api = engine->create_tensor({13, 11}, Core::DataType::Float32);
+                auto via_seam = engine->create_tensor({13, 11}, Core::DataType::Float32);
                 fill_random<float>(A);
                 fill_random<float>(B);
 
-                SushiBLAS::BLASOps(*engine).gemm(A, B, via_api, Core::Transpose::NO_TRANS,
-                                                 Core::Transpose::NO_TRANS, 1.5, 0.0);
+                SushiBLAS::BLASOps(*engine).gemm(A, B, via_api, Core::Transpose::NoTrans,
+                                                 Core::Transpose::NoTrans, 1.5, 0.0);
                 Dispatch::execute_gemm(engine->get_recorder(), A, B, via_seam,
-                                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.5, 0.0,
                                        "test.gemm_identity", "test.gemm_identity"_op,
                                        Kernels::GemmIdentityEpilogue{});
@@ -590,15 +590,15 @@ namespace SushiBLAS
 
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
                 auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
-                auto bias = engine->create_tensor({3}, Core::DataType::FLOAT32);
+                auto bias = engine->create_tensor({3}, Core::DataType::Float32);
 
                 // The in-degree counts the bias edge alone. See tests/functional/unit/README.md.
                 SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(seed, seed, bias);
 
                 Dispatch::execute_gemm(probe.get_recorder(), A, B, C,
-                                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_declared_bias", "test.gemm_declared_bias"_op,
                                        Dispatch::gemm_epilogue(
@@ -619,14 +619,14 @@ namespace SushiBLAS
                 // The same functor passed bare gets no edge. See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
                 auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
-                auto bias = engine->create_tensor({3}, Core::DataType::FLOAT32);
+                auto bias = engine->create_tensor({3}, Core::DataType::Float32);
 
                 SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(seed, seed, bias);
 
                 Dispatch::execute_gemm(probe.get_recorder(), A, B, C,
-                                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bare_bias", "test.gemm_bare_bias"_op,
                                        BiasColumnEpilogue{bias.data_as<float>()});
@@ -652,19 +652,19 @@ namespace SushiBLAS
                     static_cast<size_t>(2 * kN) * sizeof(float),
                     SushiRuntime::API::Residency::Shared);
 
-                Tensor seed(storage, {kN}, Core::DataType::FLOAT32, 0);
-                Tensor bias(storage, {kN}, Core::DataType::FLOAT32, kN);
+                Tensor seed(storage, {kN}, Core::DataType::Float32, 0);
+                Tensor bias(storage, {kN}, Core::DataType::Float32, kN);
 
                 fill_tensor(seed, {1.0f, 2.0f, 3.0f});
 
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
 
                 SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(seed, seed, bias);
 
                 Dispatch::execute_gemm(probe.get_recorder(), A, B, C,
-                                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_arena_bias", "test.gemm_arena_bias"_op,
                                        Dispatch::gemm_epilogue(
@@ -686,13 +686,13 @@ namespace SushiBLAS
                 // Only a declared write orders the aux reader. See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
                 auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
-                auto aux = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
-                auto consumer = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto aux = engine->create_tensor({3, 3}, Core::DataType::Float32);
+                auto consumer = engine->create_tensor({3, 3}, Core::DataType::Float32);
 
                 Dispatch::execute_gemm(probe.get_recorder(), A, B, C,
-                                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_spill", "test.gemm_spill"_op,
                                        Dispatch::gemm_epilogue(
@@ -718,13 +718,13 @@ namespace SushiBLAS
                 // An undeclared aux write gets no edge. See tests/functional/unit/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
-                auto C = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
                 auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
-                auto aux = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
-                auto consumer = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto aux = engine->create_tensor({3, 3}, Core::DataType::Float32);
+                auto consumer = engine->create_tensor({3, 3}, Core::DataType::Float32);
 
                 Dispatch::execute_gemm(probe.get_recorder(), A, B, C,
-                                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_spill_bare", "test.gemm_spill_bare"_op,
                                        BiasSpillEpilogue{bias.data_as<float>(),
@@ -744,17 +744,17 @@ namespace SushiBLAS
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
                 auto bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
-                auto bare = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
-                auto declared = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+                auto bare = engine->create_tensor({3, 3}, Core::DataType::Float32);
+                auto declared = engine->create_tensor({3, 3}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::FORCE_SYCL);
+                engine->set_mode(ExecutionMode::ForceSycl);
                 Dispatch::execute_gemm(engine->get_recorder(), A, B, bare,
-                                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bias_bare", "test.gemm_bias_bare"_op,
                                        BiasColumnEpilogue{bias.data_as<float>()});
                 Dispatch::execute_gemm(engine->get_recorder(), A, B, declared,
-                                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+                                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bias_declared", "test.gemm_bias_declared"_op,
                                        Dispatch::gemm_epilogue(
@@ -784,17 +784,17 @@ namespace SushiBLAS
                 constexpr int64_t m = 37, n = 45, k = 23;
                 constexpr float alpha = 1.5f;
 
-                auto A = engine->create_tensor({m, k}, Core::DataType::FLOAT32);
-                auto B = engine->create_tensor({k, n}, Core::DataType::FLOAT32);
-                auto C = engine->create_tensor({m, n}, Core::DataType::FLOAT32);
+                auto A = engine->create_tensor({m, k}, Core::DataType::Float32);
+                auto B = engine->create_tensor({k, n}, Core::DataType::Float32);
+                auto C = engine->create_tensor({m, n}, Core::DataType::Float32);
                 fill_random<float>(A);
                 fill_random<float>(B);
 
                 const std::vector<float> host_a = download(A);
                 const std::vector<float> host_b = download(B);
                 std::vector<float> expected(static_cast<std::size_t>(m * n), 0.0f);
-                Kernels::Reference::gemm<float>(Core::Layout::ROW_MAJOR, Core::Transpose::NO_TRANS,
-                                                Core::Transpose::NO_TRANS, m, n, k,
+                Kernels::Reference::gemm<float>(Core::Layout::RowMajor, Core::Transpose::NoTrans,
+                                                Core::Transpose::NoTrans, m, n, k,
                                                 alpha, host_a.data(), k, host_b.data(), n,
                                                 0.0f, expected.data(), n);
 
@@ -820,20 +820,20 @@ namespace SushiBLAS
                 using Cfg = Kernels::SYCL::Detail::GemmLocalTile<float>;
 
                 if (profile.local_mem_bytes < Cfg::local_mem_bytes() ||
-                    profile.max_work_group_size < static_cast<std::size_t>(Cfg::wg_items))
+                    profile.max_work_group_size < static_cast<std::size_t>(Cfg::K_WG_ITEMS))
                     GTEST_SKIP() << "device cannot host the local-tiled work-group";
 
-                auto A = engine->create_tensor({m, k}, Core::DataType::FLOAT32);
-                auto B = engine->create_tensor({k, n}, Core::DataType::FLOAT32);
-                auto C = engine->create_tensor({m, n}, Core::DataType::FLOAT32);
+                auto A = engine->create_tensor({m, k}, Core::DataType::Float32);
+                auto B = engine->create_tensor({k, n}, Core::DataType::Float32);
+                auto C = engine->create_tensor({m, n}, Core::DataType::Float32);
                 fill_random<float>(A);
                 fill_random<float>(B);
 
                 const std::vector<float> host_a = download(A);
                 const std::vector<float> host_b = download(B);
                 std::vector<float> expected(static_cast<std::size_t>(m * n), 0.0f);
-                Kernels::Reference::gemm<float>(Core::Layout::ROW_MAJOR, Core::Transpose::NO_TRANS,
-                                                Core::Transpose::NO_TRANS, m, n, k,
+                Kernels::Reference::gemm<float>(Core::Layout::RowMajor, Core::Transpose::NoTrans,
+                                                Core::Transpose::NoTrans, m, n, k,
                                                 alpha, host_a.data(), k, host_b.data(), n,
                                                 0.0f, expected.data(), n);
 
@@ -857,35 +857,35 @@ namespace SushiBLAS
                 using Cfg = Kernels::SYCL::Detail::GemmLocalTile<float>;
 
                 if (profile.local_mem_bytes < Cfg::local_mem_bytes() ||
-                    profile.max_work_group_size < static_cast<std::size_t>(Cfg::wg_items))
+                    profile.max_work_group_size < static_cast<std::size_t>(Cfg::K_WG_ITEMS))
                     GTEST_SKIP() << "device cannot host the local-tiled work-group";
 
                 // A is stored k x m and used transposed; B is stored n x k likewise.
-                auto A = engine->create_tensor({k, m}, Core::DataType::FLOAT32);
-                auto B = engine->create_tensor({n, k}, Core::DataType::FLOAT32);
-                auto C = engine->create_tensor({m, n}, Core::DataType::FLOAT32);
+                auto A = engine->create_tensor({k, m}, Core::DataType::Float32);
+                auto B = engine->create_tensor({n, k}, Core::DataType::Float32);
+                auto C = engine->create_tensor({m, n}, Core::DataType::Float32);
                 fill_random<float>(A);
                 fill_random<float>(B);
 
                 const std::vector<float> host_a = download(A);
                 const std::vector<float> host_b = download(B);
                 std::vector<float> expected(static_cast<std::size_t>(m * n), 0.0f);
-                Kernels::Reference::gemm<float>(Core::Layout::COLUMN_MAJOR, Core::Transpose::TRANS,
-                                                Core::Transpose::TRANS, m, n, k,
+                Kernels::Reference::gemm<float>(Core::Layout::ColumnMajor, Core::Transpose::Trans,
+                                                Core::Transpose::Trans, m, n, k,
                                                 1.0f, host_a.data(), k, host_b.data(), n,
                                                 0.0f, expected.data(), m);
 
                 Kernels::SYCL::Detail::gemm_local_tiled<float>(
                     q, m, n, k,
                     1.0f, static_cast<const float*>(A.data()),
-                    Kernels::operand_access(Core::Layout::COLUMN_MAJOR,
-                                            Core::Transpose::TRANS, k), 0,
+                    Kernels::operand_access(Core::Layout::ColumnMajor,
+                                            Core::Transpose::Trans, k), 0,
                     static_cast<const float*>(B.data()),
-                    Kernels::operand_access(Core::Layout::COLUMN_MAJOR,
-                                            Core::Transpose::TRANS, n), 0,
+                    Kernels::operand_access(Core::Layout::ColumnMajor,
+                                            Core::Transpose::Trans, n), 0,
                     0.0f, static_cast<float*>(C.data()),
-                    Kernels::operand_access(Core::Layout::COLUMN_MAJOR,
-                                            Core::Transpose::NO_TRANS, m), 0,
+                    Kernels::operand_access(Core::Layout::ColumnMajor,
+                                            Core::Transpose::NoTrans, m), 0,
                     1, {}, Kernels::GemmIdentityEpilogue{}).wait();
 
                 EXPECT_TENSOR_NEAR(C, expected, 1e-4);
@@ -897,13 +897,13 @@ namespace SushiBLAS
                 constexpr int64_t ld = 7;
 
                 const auto row_plain = Kernels::operand_access(
-                    Core::Layout::ROW_MAJOR, Core::Transpose::NO_TRANS, ld);
+                    Core::Layout::RowMajor, Core::Transpose::NoTrans, ld);
                 const auto row_trans = Kernels::operand_access(
-                    Core::Layout::ROW_MAJOR, Core::Transpose::TRANS, ld);
+                    Core::Layout::RowMajor, Core::Transpose::Trans, ld);
                 const auto col_plain = Kernels::operand_access(
-                    Core::Layout::COLUMN_MAJOR, Core::Transpose::NO_TRANS, ld);
+                    Core::Layout::ColumnMajor, Core::Transpose::NoTrans, ld);
                 const auto col_trans = Kernels::operand_access(
-                    Core::Layout::COLUMN_MAJOR, Core::Transpose::TRANS, ld);
+                    Core::Layout::ColumnMajor, Core::Transpose::Trans, ld);
 
                 EXPECT_EQ(row_plain.row, ld);
                 EXPECT_EQ(row_plain.col, 1);

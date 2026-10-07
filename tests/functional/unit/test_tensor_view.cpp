@@ -77,10 +77,10 @@ namespace SushiBLAS
                  */
                 void expect_view_addresses_its_elements(const Tensor& view,
                                                         const std::vector<float>& buffer,
-                                                        const std::array<int64_t, Core::MAX_TENSOR_RANK>& parent_strides,
+                                                        const std::array<int64_t, Core::K_MAX_TENSOR_RANK>& parent_strides,
                                                         int64_t start, int32_t dim)
                 {
-                    std::array<int64_t, Core::MAX_TENSOR_RANK> idx{};
+                    std::array<int64_t, Core::K_MAX_TENSOR_RANK> idx{};
 
                     for (int64_t flat = 0; flat < view.num_elements; ++flat)
                     {
@@ -151,10 +151,10 @@ namespace SushiBLAS
         TEST_F(Unit_TensorViewTest, SliceAlongEachAxisAddressesItsElementsColumnMajor)
         {
             constexpr int64_t kRows = 4, kCols = 4;
-            reinit_engine(Core::Layout::COLUMN_MAJOR);
+            reinit_engine(Core::Layout::ColumnMajor);
 
             auto parent = engine->create_tensor({kRows, kCols});
-            ASSERT_EQ(Core::Layout::COLUMN_MAJOR, parent.layout);
+            ASSERT_EQ(Core::Layout::ColumnMajor, parent.layout);
             fill_with_indices(parent);
 
             const auto buffer = read_allocation(parent, static_cast<size_t>(kRows * kCols));
@@ -280,7 +280,7 @@ namespace SushiBLAS
         {
             auto parent = engine->create_tensor({4, 4});
 
-            using Strides = std::array<int64_t, Core::MAX_TENSOR_RANK>;
+            using Strides = std::array<int64_t, Core::K_MAX_TENSOR_RANK>;
 
             const std::vector<int64_t> dims = {4, 4};
             const Strides contiguous = {4, 1};
@@ -288,15 +288,15 @@ namespace SushiBLAS
             const Strides too_wide = {64, 1};
 
             EXPECT_NO_THROW((void)Tensor(parent.storage, dims, contiguous,
-                                         Core::DataType::FLOAT32, 0, Core::Layout::ROW_MAJOR));
+                                         Core::DataType::Float32, 0, Core::Layout::RowMajor));
 
             EXPECT_THROW((void)Tensor(parent.storage, dims, negative,
-                                      Core::DataType::FLOAT32, 0, Core::Layout::ROW_MAJOR),
+                                      Core::DataType::Float32, 0, Core::Layout::RowMajor),
                          std::runtime_error);
 
             // The span exceeds capacity; the count does not. See tests/functional/unit/README.md.
             EXPECT_THROW((void)Tensor(parent.storage, dims, too_wide,
-                                      Core::DataType::FLOAT32, 0, Core::Layout::ROW_MAJOR),
+                                      Core::DataType::Float32, 0, Core::Layout::RowMajor),
                          std::runtime_error);
         }
 

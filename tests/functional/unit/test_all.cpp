@@ -21,7 +21,7 @@
 
 /**
  * @file test_all.cpp
- * @brief Tests logic().all against fixed expected values.
+ * @brief Tests LogicOps::all against fixed expected values.
  * @author Mustafa Garip
  */
 

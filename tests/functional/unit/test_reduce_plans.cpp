@@ -71,8 +71,8 @@ namespace SushiBLAS
                 /** @brief Returns the exact INT64 sum of the first n values under geometry. */
                 int64_t planned_sum(const Tensor& in, std::size_t n, const Reduce::Plan& geometry)
                 {
-                    auto out = engine->create_tensor({1}, Core::DataType::INT64);
-                    auto partials = engine->create_tensor({8}, Core::DataType::INT64);
+                    auto out = engine->create_tensor({1}, Core::DataType::Int64);
+                    auto partials = engine->create_tensor({8}, Core::DataType::Int64);
                     fill_tensor(out, {static_cast<float>(K_UNWRITTEN)});
 
                     Reduce::reduce<Reduce::ExactSum>(
@@ -89,8 +89,8 @@ namespace SushiBLAS
                 int64_t planned_argmax(const Tensor& in, std::size_t n,
                                        const Reduce::Plan& geometry)
                 {
-                    auto out = engine->create_tensor({1}, Core::DataType::INT64);
-                    auto partials = engine->create_tensor({8}, Core::DataType::INT64);
+                    auto out = engine->create_tensor({1}, Core::DataType::Int64);
+                    auto partials = engine->create_tensor({8}, Core::DataType::Int64);
                     fill_tensor(out, {static_cast<float>(K_UNWRITTEN)});
 
                     // Eight INT64 elements are the 64 bytes four candidates take.

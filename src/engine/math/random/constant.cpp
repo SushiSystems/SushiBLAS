@@ -80,7 +80,7 @@ namespace SushiBLAS
         meta.op_id = op_id;
         meta.set_param(0, value);
 
-        Dispatch::require_random_dtype(t, Dispatch::Domain::ALL, Dispatch::Sampling::MOVES_VALUES, "random.constant");
+        Dispatch::require_random_dtype(t, Dispatch::Domain::All, Dispatch::Sampling::MovesValues, "random.constant");
         Dispatch::require_storage(t, "random.constant", "t");
         Dispatch::require_device_dtype(t, "random.constant", "t");
         Dispatch::require_contiguous(t, "random.constant", "t");
@@ -92,25 +92,25 @@ namespace SushiBLAS
 
         switch (t.dtype)
         {
-            case Core::DataType::HALF:
+            case Core::DataType::Half:
                 return record_fill(recorder_, meta, operands, t.data_as<sycl::half>(),
                                    static_cast<sycl::half>(value), size);
-            case Core::DataType::FLOAT32:
+            case Core::DataType::Float32:
                 return record_fill(recorder_, meta, operands, t.data_as<float>(),
                                    static_cast<float>(value), size);
-            case Core::DataType::FLOAT64:
+            case Core::DataType::Float64:
                 return record_fill(recorder_, meta, operands, t.data_as<double>(), value, size);
-            case Core::DataType::COMPLEX32:
+            case Core::DataType::Complex32:
                 return record_fill(recorder_, meta, operands, t.data_as<std::complex<float>>(),
                                    std::complex<float>(static_cast<float>(value), 0.0f), size);
-            case Core::DataType::COMPLEX64:
+            case Core::DataType::Complex64:
                 return record_fill(recorder_, meta, operands, t.data_as<std::complex<double>>(),
                                    std::complex<double>(value, 0.0), size);
             // An integer tensor stores the truncated double; see src/README.md.
-            case Core::DataType::INT32:
+            case Core::DataType::Int32:
                 return record_fill(recorder_, meta, operands, t.data_as<int32_t>(),
                                    static_cast<int32_t>(value), size);
-            case Core::DataType::INT64:
+            case Core::DataType::Int64:
                 return record_fill(recorder_, meta, operands, t.data_as<int64_t>(),
                                    static_cast<int64_t>(value), size);
             default:

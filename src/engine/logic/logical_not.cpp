@@ -34,7 +34,7 @@ namespace SushiBLAS
 
     TaskHandle LogicOps::logical_not(const Tensor& A, Tensor& result) 
     {
-        return Dispatch::execute_logic_unary<Dispatch::Domain::ALL>(recorder_, A, result, "logic.not", "logic.not"_op, 
+        return Dispatch::execute_logic_unary<Dispatch::Domain::All>(recorder_, A, result, "logic.not", "logic.not"_op, 
             [](auto x) { return Dispatch::logic_not_zero(x) ? decltype(x)(0) : decltype(x)(1); });
     }
 } // namespace SushiBLAS

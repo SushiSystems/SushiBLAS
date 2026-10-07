@@ -34,7 +34,7 @@ namespace SushiBLAS
 
     TaskHandle ElementwiseOps::square(Tensor& t) 
     {
-        return Dispatch::execute_unary_inplace<Dispatch::Domain::REAL_AND_COMPLEX>(recorder_, t, "math.ew.square", "math.ew.square"_op, 
+        return Dispatch::execute_unary_inplace<Dispatch::Domain::RealAndComplex>(recorder_, t, "math.ew.square", "math.ew.square"_op, 
             [](auto x) { return x * x; });
     }
 } // namespace SushiBLAS

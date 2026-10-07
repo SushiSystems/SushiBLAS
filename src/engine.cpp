@@ -37,7 +37,7 @@ namespace SushiBLAS
           recorder_(graph_, scratch_pool_), tensor_factory_(context, layout)
     {
         SB_LOG_INFO("SushiBLAS Engine initialized with {} layout.",
-                    layout == Core::Layout::ROW_MAJOR ? "Row-Major" : "Column-Major");
+                    layout == Core::Layout::RowMajor ? "Row-Major" : "Column-Major");
     }
 
     void Engine::execute()
