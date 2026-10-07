@@ -56,3 +56,63 @@ TEST_F(Unit_TRSVTest, SimpleTRSV)
     // Expected: b solved to x = [1, 1, 1]
     verify_tensor(b, {1, 1, 1});
 }
+
+namespace
+{
+    /// @brief Holds the value written into the triangle the operation must not read.
+    constexpr float K_POISON = 1000.0f;
+
+    /// @brief Holds L = [2 0 0; 1 3 0; 4 5 7] with its upper triangle poisoned.
+    const std::vector<float> K_LOWER = {2, K_POISON, K_POISON, 1, 3, K_POISON, 4, 5, 7};
+
+    /// @brief Holds U = [1 2 3; 0 4 5; 0 0 6] with its lower triangle poisoned.
+    const std::vector<float> K_UPPER = {1, 2, 3, K_POISON, 4, 5, K_POISON, K_POISON, 6};
+
+    /// @brief Holds the solution every poisoned case must recover.
+    const std::vector<float> K_SOLUTION = {1, 2, 3};
+}
+
+class Unit_TRSVPoisonTest : public SushiBLASTest
+{
+    protected:
+        /**
+         * @brief Solves op(A) x = rhs on a 3x3 matrix and expects K_SOLUTION.
+         */
+        void expect_trsv(const std::vector<float>& matrix, bool upper, bool trans_a,
+                         const std::vector<float>& rhs)
+        {
+            auto A = engine->create_tensor({3, 3});
+            auto b = engine->create_tensor({3});
+            fill_tensor(A, matrix);
+            fill_tensor(b, rhs);
+
+            engine->blas().trsv(A, b, upper, trans_a, false);
+            engine->execute().wait();
+
+            verify_tensor(b, K_SOLUTION);
+        }
+};
+
+TEST_F(Unit_TRSVPoisonTest, LowerNoTranspose)
+{
+    // L * [1 2 3] = [2, 7, 35].
+    expect_trsv(K_LOWER, false, false, {2, 7, 35});
+}
+
+TEST_F(Unit_TRSVPoisonTest, LowerTranspose)
+{
+    // L^T * [1 2 3] = [16, 21, 21].
+    expect_trsv(K_LOWER, false, true, {16, 21, 21});
+}
+
+TEST_F(Unit_TRSVPoisonTest, UpperNoTranspose)
+{
+    // U * [1 2 3] = [14, 23, 18].
+    expect_trsv(K_UPPER, true, false, {14, 23, 18});
+}
+
+TEST_F(Unit_TRSVPoisonTest, UpperTranspose)
+{
+    // U^T * [1 2 3] = [1, 10, 31].
+    expect_trsv(K_UPPER, true, true, {1, 10, 31});
+}

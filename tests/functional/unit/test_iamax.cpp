@@ -90,7 +90,7 @@ TEST_F(Unit_IAMAXTest, RejectsAResultTensorTooNarrowToHoldTheIndex)
                        SushiBLAS::Core::DataType::HALF})
     {
         auto R = engine->create_tensor({1}, dtype);
-        EXPECT_THROW(engine->blas().iamax(X, R), std::runtime_error)
+        EXPECT_THROW(engine->blas().iamax(X, R), std::invalid_argument)
             << "iamax must refuse a " << SushiBLAS::Core::to_string(dtype)
             << " result rather than write an int64_t into it.";
     }
