@@ -27,7 +27,6 @@
 
 #include <complex>
 #include <kernels/blas.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -36,7 +35,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level1::swap(Tensor& x, Tensor& y)
+    TaskHandle Level1::swap(Tensor& x, Tensor& y)
     {
         SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in SWAP.");
         int64_t n, incx, incy;
@@ -48,20 +47,15 @@ namespace SushiBLAS
         void* rw_y = y.data_or_null();
 
         // Both operands are read and written - a swap is the definition of read-modify-write.
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (rw_x) reads.push_back(x.region());
-        if (rw_y) reads.push_back(y.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (rw_x) writes.push_back(x.region());
-        if (rw_y) writes.push_back(y.region());
+        OperandSet operands;
+        operands.updates(x).updates(y);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl1.swap";
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "blas.lvl1.swap"_op;
 
-        return Internal::execute_blas_task(engine_, meta, reads, writes, x.dtype,
-            Internal::ReferenceOperands{rw_x, rw_y},
+        return Internal::execute_blas_task(recorder_, meta, operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

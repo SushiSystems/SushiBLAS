@@ -27,7 +27,6 @@
 
 #include <complex>
 #include <kernels/blas.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level2.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
@@ -37,8 +36,8 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level2::trmv(const Tensor& A, Tensor& x,
-                             bool upper, bool transA, bool unit_diag)
+    TaskHandle Level2::trmv(const Tensor& A, Tensor& x,
+                            bool upper, bool transA, bool unit_diag)
     {
         SB_THROW_IF(A.rank < 2, "TRMV requires A to be at least a 2D matrix.");
         Internal::require_level2_matrix_rank(A, "blas.lvl2.trmv");
@@ -61,11 +60,8 @@ namespace SushiBLAS
         void* rw_x = x.data_or_null(); // TRMV overwrites x
 
         // `x = op(A) * x` is computed in place, so x is read as well as written.
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_A) reads.push_back(A.region());
-        if (rw_x) reads.push_back(x.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (rw_x) writes.push_back(x.region());
+        OperandSet operands;
+        operands.reads(A).updates(x);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl2.trmv";
@@ -77,8 +73,7 @@ namespace SushiBLAS
 
         auto layout = A.layout;
 
-        return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
-            Internal::ReferenceOperands{read_A, rw_x},
+        return Internal::execute_blas_task(recorder_, meta, operands, A.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

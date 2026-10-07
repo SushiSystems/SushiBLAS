@@ -27,7 +27,6 @@
 
 #include <complex>
 #include <kernels/blas.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level1.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
@@ -38,7 +37,7 @@ namespace SushiBLAS
     using namespace SushiRuntime::Graph::Literals;
 
     // The result tensor must be INT64, because the result is an index; see src/README.md.
-    sycl::event Level1::iamax(const Tensor& x, Tensor& result)
+    TaskHandle Level1::iamax(const Tensor& x, Tensor& result)
     {
         Internal::require_scalar_result(result, Core::DataType::INT64, "blas.lvl1.iamax");
 
@@ -48,22 +47,19 @@ namespace SushiBLAS
         const void* read_x = x.data_or_null();
         void* write_r = result.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_x) reads.push_back(x.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_r) writes.push_back(result.region());
+        OperandSet operands;
+        operands.reads(x).writes(result);
 
         const ScratchBuffer scratch = Internal::allocate_level1_scratch(
-            engine_, x, static_cast<std::size_t>(n),
-            Kernels::SYCL::K_LEVEL1_PARTIAL_BYTES, writes);
+            recorder_, x, static_cast<std::size_t>(n),
+            Kernels::SYCL::K_LEVEL1_PARTIAL_BYTES, operands);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl1.iamax";
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "blas.lvl1.iamax"_op;
 
-        return Internal::execute_blas_task(engine_, meta, reads, writes, x.dtype,
-            Internal::ReferenceOperands{read_x, write_r},
+        return Internal::execute_blas_task(recorder_, meta, operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

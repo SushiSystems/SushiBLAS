@@ -27,7 +27,6 @@
 
 #include <complex>
 #include <kernels/blas.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level2.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
@@ -37,7 +36,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level2::syr(const Tensor& x, Tensor& A, bool upper, double alpha)
+    TaskHandle Level2::syr(const Tensor& x, Tensor& A, bool upper, double alpha)
     {
         SB_THROW_IF(A.rank < 2, "SYR requires A to be at least a 2D matrix.");
         Internal::require_level2_matrix_rank(A, "blas.lvl2.syr");
@@ -60,11 +59,8 @@ namespace SushiBLAS
         void* rw_A = A.data_or_null();
 
         // A is read-modify-write, and only the selected triangle is touched; see src/README.md.
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_x) reads.push_back(x.region());
-        if (rw_A) reads.push_back(A.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (rw_A) writes.push_back(A.region());
+        OperandSet operands;
+        operands.reads(x).updates(A);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl2.syr";
@@ -75,8 +71,7 @@ namespace SushiBLAS
 
         auto layout = A.layout;
 
-        return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
-            Internal::ReferenceOperands{read_x, rw_A},
+        return Internal::execute_blas_task(recorder_, meta, operands, A.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

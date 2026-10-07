@@ -28,7 +28,6 @@
 #include <vector>
 #include <complex>
 #include <kernels/blas.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level3.hpp>
 #include <SushiBLAS/engine/blas/matrix_operand.hpp>
@@ -39,9 +38,9 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level3::syrk(const Tensor& A, Tensor& C, 
-                      bool upper, bool transA, 
-                      double alpha, double beta) 
+    TaskHandle Level3::syrk(const Tensor& A, Tensor& C,
+                            bool upper, bool transA,
+                            double alpha, double beta)
     {
         // 1. Validation
         SB_THROW_IF(A.rank < 2 || C.rank < 2, "SYRK requires at least 2D tensors.");
@@ -71,11 +70,8 @@ namespace SushiBLAS
         void* rw_C = C.data_or_null();
 
         // C is read-modify-write whatever beta is; see src/README.md.
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_A) reads.push_back(A.region());
-        if (rw_C) reads.push_back(C.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (rw_C) writes.push_back(C.region());
+        OperandSet operands;
+        operands.reads(A).updates(C);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl3.syrk";
@@ -86,8 +82,7 @@ namespace SushiBLAS
         meta.set_param(2, upper);
         meta.set_param(3, transA);
 
-        return Internal::execute_blas_task(engine_, meta, reads, writes, A.dtype,
-            Internal::ReferenceOperands{read_A, rw_C},
+        return Internal::execute_blas_task(recorder_, meta, operands, A.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

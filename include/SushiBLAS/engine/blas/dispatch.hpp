@@ -32,11 +32,13 @@
 #include <utility>
 #include <type_traits>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/matrix_operand.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
@@ -60,22 +62,18 @@ namespace SushiBLAS
         class GemmEpilogue
         {
             public:
-                /**
-                 * @brief Wraps @p functor, declaring nothing yet.
-                 * @param functor The epilogue functor.
-                 */
+                /** @brief Wraps functor, declaring nothing yet. */
                 explicit GemmEpilogue(Epilogue functor) : functor_(std::move(functor)) {}
 
                 /**
-                 * @brief Declares that the epilogue reads @p operand.
-                 *
-                 * @param operand The tensor the functor dereferences.
+                 * @brief Declares that the epilogue reads operand.
                  * @return `*this`, so declarations chain.
-                 * @throws std::runtime_error if @p operand has no storage.
+                 * @throws std::runtime_error if operand has no storage.
                  */
                 GemmEpilogue& reads(const Tensor& operand)
                 {
-                    reads_.push_back(declared_region(operand, "reads"));
+                    require_declared_storage(operand, "reads");
+                    operands_.reads(operand);
                     return *this;
                 }
 
@@ -87,44 +85,47 @@ namespace SushiBLAS
                  */
                 GemmEpilogue& writes(const Tensor& operand)
                 {
-                    writes_.push_back(declared_region(operand, "writes"));
+                    require_declared_storage(operand, "writes");
+                    operands_.writes(operand);
                     return *this;
                 }
 
-                /** @brief The functor itself - the only part that reaches the device. */
+                /** @brief Returns the functor itself, the only part that reaches the device. */
                 [[nodiscard]] const Epilogue& functor() const noexcept { return functor_; }
 
-                /** @brief The regions declared through @ref reads. */
-                [[nodiscard]] const std::vector<SushiRuntime::Core::ResourceRegion>&
-                read_regions() const noexcept { return reads_; }
+                /** @brief Returns the tensors declared through reads() and writes(). */
+                [[nodiscard]] const OperandSet& operands() const noexcept { return operands_; }
 
-                /** @brief The regions declared through @ref writes. */
+                /** @brief Returns the regions declared through reads(). */
                 [[nodiscard]] const std::vector<SushiRuntime::Core::ResourceRegion>&
-                write_regions() const noexcept { return writes_; }
+                read_regions() const noexcept { return operands_.read_regions(); }
+
+                /** @brief Returns the regions declared through writes(). */
+                [[nodiscard]] const std::vector<SushiRuntime::Core::ResourceRegion>&
+                write_regions() const noexcept { return operands_.write_regions(); }
 
             private:
                 /**
-                 * @brief Returns the region of operand, refusing one that keys on no allocation.
+                 * @brief Refuses an operand whose region keys on no allocation.
                  * @param direction "reads" or "writes", for the message.
                  * @throws std::runtime_error if operand has no storage.
                  * @see include/SushiBLAS/engine/blas/README.md
                  */
-                [[nodiscard]] static SushiRuntime::Core::ResourceRegion
-                declared_region(const Tensor& operand, const char* direction)
+                static void require_declared_storage(const Tensor& operand, const char* direction)
                 {
-                    const SushiRuntime::Core::ResourceRegion region = operand.region();
-                    SB_THROW_IF(!region.valid(),
+                    SB_THROW_IF(!operand.region().valid(),
                                 "A GEMM epilogue declared a tensor it {}, but that tensor has no "
                                 "storage. Its region keys on no allocation, so the declaration "
                                 "would order it against nothing - which is the silent hazard "
                                 "declaring it was meant to close.",
                                 direction);
-                    return region;
                 }
 
+                /// @brief The epilogue functor.
                 Epilogue functor_;
-                std::vector<SushiRuntime::Core::ResourceRegion> reads_;
-                std::vector<SushiRuntime::Core::ResourceRegion> writes_;
+
+                /// @brief The tensors the functor dereferences, with their storage retained.
+                OperandSet operands_;
         };
 
         /**
@@ -167,29 +168,17 @@ namespace SushiBLAS
              * @see include/SushiBLAS/engine/blas/README.md
              */
             template<typename Epilogue>
-            inline void append_epilogue_access(const Epilogue&,
-                                               std::vector<SushiRuntime::Core::ResourceRegion>&,
-                                               std::vector<SushiRuntime::Core::ResourceRegion>&) noexcept
+            inline void append_epilogue_access(const Epilogue&, OperandSet&) noexcept
             {
+
             }
 
-            /**
-             * @brief Appends a bundle's declared operands to a task's access set.
-             *
-             * @tparam Epilogue The wrapped functor type.
-             * @param bundle The bundle whose declarations to copy.
-             * @param reads The task's read set, appended to.
-             * @param writes The task's write set, appended to.
-             */
+            /** @brief Adds a bundle's declared operands to a task's operand set. */
             template<typename Epilogue>
             inline void append_epilogue_access(const GemmEpilogue<Epilogue>& bundle,
-                                               std::vector<SushiRuntime::Core::ResourceRegion>& reads,
-                                               std::vector<SushiRuntime::Core::ResourceRegion>& writes)
+                                               OperandSet& operands)
             {
-                reads.insert(reads.end(),
-                             bundle.read_regions().begin(), bundle.read_regions().end());
-                writes.insert(writes.end(),
-                              bundle.write_regions().begin(), bundle.write_regions().end());
+                operands.merge(bundle.operands());
             }
         } // namespace Detail
 
@@ -197,16 +186,16 @@ namespace SushiBLAS
          * @brief Records `C = epilogue(alpha * op(A) * op(B) + beta * C, row, col)` as one task.
          * @param C Must not overlap A or B.
          * @param epilogue Must be device-copyable, capture by value, and neither allocate nor throw.
-         * @return A default-constructed event; the task runs at Engine::execute.
+         * @return The handle of the recorded task; the handle of no task when nothing was recorded.
          * @throws std::runtime_error on rank < 2, a dtype mismatch, or a dtype outside Dom.
          * @throws std::invalid_argument on a non-contiguous operand, mixed layouts, or a shape or batch mismatch.
          * @see include/SushiBLAS/engine/blas/README.md
          */
         template<Domain Dom = Domain::REAL, typename Epilogue>
-        sycl::event execute_gemm(Engine& engine, const Tensor& A, const Tensor& B, Tensor& C,
-                                 bool transA, bool transB, double alpha, double beta,
-                                 const char* name, SushiRuntime::Graph::OpID op_id,
-                                 Epilogue epilogue)
+        TaskHandle execute_gemm(TaskRecorder& recorder, const Tensor& A, const Tensor& B, Tensor& C,
+                                bool transA, bool transB, double alpha, double beta,
+                                const char* name, SushiRuntime::Graph::OpID op_id,
+                                Epilogue epilogue)
         {
             SB_THROW_IF(A.rank < 2 || B.rank < 2 || C.rank < 2,
                         "GEMM operation '{}' requires at least 2D tensors.", name);
@@ -253,15 +242,14 @@ namespace SushiBLAS
             void* rw_C = C.data_or_null();
 
             // C is declared as a read whenever beta is non-zero; see include/SushiBLAS/engine/blas/README.md.
-            std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-            if (read_A) reads.push_back(A.region());
-            if (read_B) reads.push_back(B.region());
-            if (rw_C && beta != 0.0) reads.push_back(C.region());
-            std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-            if (rw_C) writes.push_back(C.region());
+            OperandSet operands;
+            operands.reads(A).reads(B);
+            if (beta != 0.0)
+                operands.reads(C);
+            operands.writes(C);
 
-            // The epilogue's declared operands join the access set here; see include/SushiBLAS/engine/blas/README.md.
-            Detail::append_epilogue_access(epilogue, reads, writes);
+            // The epilogue's declared operands join the operand set here; see include/SushiBLAS/engine/blas/README.md.
+            Detail::append_epilogue_access(epilogue, operands);
 
             // Only the functor enters the kernel closure, not the bundle; see include/SushiBLAS/engine/blas/README.md.
             const auto kernel_epilogue = Detail::epilogue_functor(epilogue);
@@ -275,8 +263,7 @@ namespace SushiBLAS
             meta.set_param(2, transA);
             meta.set_param(3, transB);
 
-            return Internal::execute_blas_task<Dom>(engine, meta, reads, writes, A.dtype,
-                Internal::ReferenceOperands{read_A, read_B, rw_C},
+            return Internal::execute_blas_task<Dom>(recorder, meta, operands, A.dtype,
                 [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                     sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {

@@ -27,7 +27,6 @@
 
 #include <complex>
 #include <kernels/blas.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/blas/level1.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -36,7 +35,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    sycl::event Level1::copy(const Tensor& x, Tensor& y)
+    TaskHandle Level1::copy(const Tensor& x, Tensor& y)
     {
         // A dtype mismatch stays an error and names the converting copy; see src/README.md.
         SB_THROW_IF(x.dtype != y.dtype,
@@ -52,10 +51,8 @@ namespace SushiBLAS
         const void* read_x = x.data_or_null();
         void* write_y = y.data_or_null();
 
-        std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
-        if (read_x) reads.push_back(x.region());
-        std::vector<SushiRuntime::Core::ResourceRegion> writes = {};
-        if (write_y) writes.push_back(y.region());
+        OperandSet operands;
+        operands.reads(x).writes(y);
 
         SushiRuntime::Graph::TaskMetadata meta;
         meta.name = "blas.lvl1.copy";
@@ -63,8 +60,7 @@ namespace SushiBLAS
         meta.op_id = "blas.lvl1.copy"_op;
 
         // copy does no arithmetic, so it serves Domain::ALL; see src/README.md.
-        return Internal::execute_blas_task<Dispatch::Domain::ALL>(engine_, meta, reads, writes, x.dtype,
-            Internal::ReferenceOperands{read_x, write_y},
+        return Internal::execute_blas_task<Dispatch::Domain::ALL>(recorder_, meta, operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

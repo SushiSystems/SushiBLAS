@@ -32,13 +32,15 @@
 #include <complex>
 #include <utility>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/support/reduce_1d.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
@@ -119,45 +121,43 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Allocates the partials scratch a Level 1 reduction over x plans on x's device,
-         *        and appends its write region to writes.
+         * @brief Leases the partials scratch a Level 1 reduction over x plans on x's device,
+         *        and declares it in operands.
          * @param elements Values the reduction folds: n, or 2n for a complex nrm2.
          * @param partial_bytes Bytes one partial takes.
          * @return The scratch, empty when x has no storage or nothing is planned.
          */
         [[nodiscard]] inline ScratchBuffer allocate_level1_scratch(
-            Engine& engine, const Tensor& x, std::size_t elements, std::size_t partial_bytes,
-            std::vector<SushiRuntime::Core::ResourceRegion>& writes)
+            TaskRecorder& recorder, const Tensor& x, std::size_t elements,
+            std::size_t partial_bytes, OperandSet& operands)
         {
             if (!x.storage || elements == 0)
                 return ScratchBuffer();
 
             const std::size_t partials =
                 Reduce::planned_partials(Device::profile_for(x.get_device()), elements);
-            ScratchBuffer scratch(engine, partials * partial_bytes, x.storage->get_device_index());
-            if (!scratch.is_empty())
-                writes.push_back(scratch.region());
+            ScratchBuffer scratch(recorder.get_scratch_pool(), partials * partial_bytes,
+                                  x.storage->get_device_index());
+            operands.scratch(scratch);
             return scratch;
         }
 
         /**
          * @brief Records one dtype-dispatched BLAS task whose body runs a reference and SYCL kernel pair.
-         * @param host_operands Every pointer the reference kernel reads or writes.
          * @param op_func Callable taking a scalar of the element type, a const KernelPairDispatcher&,
          *        the queue and the dependencies.
-         * @throws std::runtime_error at record time if dtype falls outside Dom.
-         * @throws std::invalid_argument at record time, as require_host_reachable states.
+         * @throws At record time as Dispatch::require_domain states, if dtype falls outside Dom.
+         * @throws std::invalid_argument at record time, as TaskRecorder::record_pair states.
          * @see include/SushiBLAS/engine/blas/README.md
          */
         template<Dispatch::Domain Dom = Dispatch::Domain::REAL_AND_COMPLEX, typename Func>
-        sycl::event execute_blas_task(Engine& engine, const SushiRuntime::Graph::TaskMetadata& meta,
-                                       const std::vector<SushiRuntime::Core::ResourceRegion>& reads,
-                                       const std::vector<SushiRuntime::Core::ResourceRegion>& writes,
-                                       Core::DataType dtype, const ReferenceOperands& host_operands,
-                                       Func&& op_func)
+        TaskHandle execute_blas_task(TaskRecorder& recorder,
+                                     const SushiRuntime::Graph::TaskMetadata& meta,
+                                     const OperandSet& operands, Core::DataType dtype,
+                                     Func&& op_func)
         {
-            return execute_typed_task<Dom>(engine, meta, reads, writes, dtype, "BLAS operation",
-                                           host_operands, std::forward<Func>(op_func));
+            return execute_typed_task<Dom>(recorder, meta, operands, dtype, "BLAS operation",
+                                           std::forward<Func>(op_func));
         }
-    }
-}
+    } // namespace Internal
+} // namespace SushiBLAS
