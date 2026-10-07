@@ -31,6 +31,11 @@ K_PROJECT = "Project"
 K_DOCUMENTATION = "Documentation"
 K_DIAGNOSTICS = "Diagnostics"
 K_DISTRIBUTION = "sushiblas-cli"
+K_DEVICE_HELP = (
+    "SYCL device for the child process: cpu | cuda | selector:<text>, where <text> is an "
+    "ONEAPI_DEVICE_SELECTOR value passed through as written. It outranks an "
+    "ONEAPI_DEVICE_SELECTOR already in the environment."
+)
 
 _help_group = help_group(console.current)
 
@@ -111,7 +116,8 @@ def build(
     epilog="sb test\n"
            "sb test --suite unit\n"
            "sb test --filter 'Gemm.*'  # Match Suite.Case test names\n"
-           "sb test --repeat 5  # Re-run each test until one fails",
+           "sb test --repeat 5  # Re-run each test until one fails\n"
+           "sb test --device cpu  # Run on the OpenCL CPU device",
 )
 def test(
     suite: Suite = typer.Option(
@@ -125,6 +131,8 @@ def test(
         0, "--repeat", "-r", min=0,
         help="Re-run each test up to N times, stopping on the first failure "
              "(ctest --repeat until-fail). Handy for hunting flaky tests."),
+    device: Optional[str] = typer.Option(
+        None, "--device", metavar="DEVICE", help=K_DEVICE_HELP),
 ) -> None:
     """Run the test suite via CTest labels.
 
@@ -140,7 +148,7 @@ def test(
 
     def step() -> int:
         """Runs the suite; a package run that returns has passed."""
-        rc = _service().test(suite, filter, repeat)
+        rc = _service().test(suite, filter, repeat, device)
         if suite is Suite.PACKAGE:
             console.success("Package consumer built and ran against the install prefix.")
         return rc
@@ -153,6 +161,7 @@ def test(
     rich_help_panel=K_PROJECT,
     epilog="sb run sushiblas_example\n"
            "sb run --sort  # Pick an executable from a list\n"
+           "sb run bench_gemm --device cuda  # Run a benchmark on the CUDA device\n"
            "sb run sushiblas_tests -- --gtest_filter='Unit_GEMMTest.*'  # Flags after -- go to it",
     context_settings={"allow_extra_args": True},
 )
@@ -162,6 +171,8 @@ def run(
         None, help="Executable name to run (exact, then substring match)."),
     sort: bool = typer.Option(
         False, "--sort", help="Interactively pick an executable."),
+    device: Optional[str] = typer.Option(
+        None, "--device", metavar="DEVICE", help=K_DEVICE_HELP),
 ) -> None:
     """Run a built executable. Args after `--` are forwarded to it."""
     if target is not None and target.startswith("-"):
@@ -170,7 +181,8 @@ def run(
             param_hint="TARGET",
         )
     console.header("Project Run")
-    _exit_with(lambda: _service().run(target=target, sort=sort, app_args=list(ctx.args)))
+    _exit_with(lambda: _service().run(
+        target=target, sort=sort, app_args=list(ctx.args), device=device))
 
 
 @app.command(

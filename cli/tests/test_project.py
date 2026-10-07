@@ -18,11 +18,13 @@ from typer.testing import CliRunner
 from sushiblas import cli
 from sushiblas.services import project
 from sushiblas.services.build_type import BuildType
+from sushiblas.services.device import K_DEVICE_VARIABLE
 from sushiblas.services.errors import (
     K_EXIT_USAGE,
     BuildTreeMissingError,
     ExecutableNotFoundError,
     InvalidDefineError,
+    InvalidDeviceError,
     StepFailedError,
     SuiteOptionError,
     TreeNotRemovedError,
@@ -34,6 +36,7 @@ K_CONFIGURE_FAILED = 9
 K_CHILD_EXIT = 7
 K_INTERRUPTED = 130
 K_EXECUTABLE = "sushiblas_example"
+K_CALLER_SELECTOR = "level_zero:0"
 
 
 class _Console:
@@ -57,6 +60,7 @@ class _Driver:
 
     def __init__(self) -> None:
         self.configured: list[list[str]] = []
+        self.ctest_environments: list[dict[str, str]] = []
 
     def cmake(self, cfg) -> str:
         """Returns the executable name the configure line starts with."""
@@ -71,6 +75,11 @@ class _Driver:
         self.configured.append(list(args))
         return K_CONFIGURE_FAILED
 
+    def ctest_run(self, cfg, build_dir: Path, env, **_) -> int:
+        """Records the environment ctest would run under and reports success."""
+        self.ctest_environments.append(dict(env))
+        return 0
+
 
 class _Index:
     """Finds one executable, named K_EXECUTABLE, directly under the build tree."""
@@ -82,11 +91,14 @@ class _Index:
 
 
 class _BuildEnv:
-    """Returns an empty environment without running a shell."""
+    """Returns a fixed environment, empty unless a test fills it, without running a shell."""
+
+    def __init__(self) -> None:
+        self.variables: dict[str, str] = {}
 
     def load(self, cfg, build_dir: Path) -> dict[str, str]:
-        """Returns no variables."""
-        return {}
+        """Returns a copy of the variables the test set."""
+        return dict(self.variables)
 
 
 class _Config:
@@ -135,6 +147,24 @@ def parts(checkout):
         load_config=_Config,
     )
     return console, driver, service
+
+
+@pytest.fixture
+def device_parts(checkout):
+    """Returns the console, driver and build environment and the service built on them."""
+    console = _Console()
+    driver = _Driver()
+    build_env = _BuildEnv()
+    service = ProjectService(
+        console=console,
+        runner=Runner(_Console(), "sb", catch_interrupt=True),
+        driver=driver,
+        index=_Index(),
+        build_env=build_env,
+        find_root=lambda: checkout,
+        load_config=_Config,
+    )
+    return console, driver, build_env, service
 
 
 def _child_exits_with(monkeypatch, code: int) -> list[list[str]]:
@@ -319,6 +349,139 @@ def test_run_command_rejects_a_mistyped_option(monkeypatch, args):
     monkeypatch.setattr(cli, "_service", no_service)
     result = CliRunner().invoke(cli.app, args)
     assert result.exit_code == K_EXIT_USAGE
+
+
+def _child_environments(monkeypatch) -> list[dict[str, str]]:
+    """Makes every child process exit 0 and returns the list of environments they ran under."""
+    environments: list[dict[str, str]] = []
+
+    def fake_run(cmd, **kwargs):
+        """Records the environment of *cmd* and reports success."""
+        environments.append(dict(kwargs["env"]))
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(sushicore.proc.subprocess, "run", fake_run)
+    return environments
+
+
+def test_test_leaves_the_environment_alone_without_a_device(device_parts):
+    """No --device: ctest runs under what the build environment held, selector included."""
+    console, driver, build_env, service = device_parts
+    build_env.variables = {K_DEVICE_VARIABLE: K_CALLER_SELECTOR}
+    assert service.test(Suite.UNIT) == 0
+    assert driver.ctest_environments == [{K_DEVICE_VARIABLE: K_CALLER_SELECTOR}]
+    assert console.lines == []
+
+
+def test_test_sets_no_selector_without_a_device_or_a_variable(device_parts):
+    """No --device and no variable: the child environment carries no selector."""
+    console, driver, build_env, service = device_parts
+    assert service.test(Suite.UNIT) == 0
+    assert driver.ctest_environments == [{}]
+
+
+def test_test_runs_ctest_under_the_selector_of_the_device(device_parts):
+    """--device puts its selector in ctest's environment and says nothing when none was set."""
+    console, driver, build_env, service = device_parts
+    assert service.test(Suite.UNIT, device="cpu") == 0
+    assert driver.ctest_environments == [{K_DEVICE_VARIABLE: "opencl:cpu"}]
+    assert console.lines == []
+
+
+def test_test_says_once_that_the_device_outranks_the_environment(device_parts):
+    """--device wins over a selector in the environment, and one line names both values."""
+    console, driver, build_env, service = device_parts
+    build_env.variables = {K_DEVICE_VARIABLE: K_CALLER_SELECTOR}
+    assert service.test(Suite.UNIT, device="cuda") == 0
+    assert driver.ctest_environments == [{K_DEVICE_VARIABLE: "cuda:*"}]
+    said = console.texts("info")
+    assert len(said) == 1
+    assert K_CALLER_SELECTOR in said[0] and "cuda:*" in said[0]
+
+
+def test_test_rejects_a_bad_device_before_anything_runs(device_parts, checkout):
+    """An unknown --device raises with exit 2, even where there is no build tree to report."""
+    console, driver, build_env, service = device_parts
+    (checkout / "build").rmdir()
+    with pytest.raises(InvalidDeviceError) as raised:
+        service.test(Suite.UNIT, device="gpu")
+    assert raised.value.exit_code == K_EXIT_USAGE
+    assert driver.ctest_environments == []
+
+
+def test_run_starts_the_program_under_the_selector_of_the_device(
+    device_parts, checkout, monkeypatch
+):
+    """run passes the raw selector to the child and reports the one it replaced."""
+    console, driver, build_env, service = device_parts
+    build_env.variables = {K_DEVICE_VARIABLE: K_CALLER_SELECTOR}
+    (checkout / "build" / K_EXECUTABLE).write_text("")
+    environments = _child_environments(monkeypatch)
+    assert service.run(device="selector:level_zero:gpu") == 0
+    assert environments == [{K_DEVICE_VARIABLE: "level_zero:gpu"}]
+    overrides = [text for text in console.texts("info") if "--device overrides" in text]
+    assert len(overrides) == 1
+
+
+def test_run_leaves_the_environment_alone_without_a_device(device_parts, checkout, monkeypatch):
+    """No --device: the program runs under the selector the caller set."""
+    console, driver, build_env, service = device_parts
+    build_env.variables = {K_DEVICE_VARIABLE: K_CALLER_SELECTOR}
+    (checkout / "build" / K_EXECUTABLE).write_text("")
+    environments = _child_environments(monkeypatch)
+    assert service.run() == 0
+    assert environments == [{K_DEVICE_VARIABLE: K_CALLER_SELECTOR}]
+    assert not [text for text in console.texts("info") if "--device" in text]
+
+
+def test_run_rejects_a_bad_device_before_it_looks_for_the_program(device_parts):
+    """An unknown --device raises with exit 2 before the missing executable is noticed."""
+    console, driver, build_env, service = device_parts
+    with pytest.raises(InvalidDeviceError):
+        service.run(device="selector:")
+
+
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        (["test", "--device", "cpu"], "cpu"),
+        (["test"], None),
+        (["run", "--device", "selector:cuda:0"], "selector:cuda:0"),
+        (["run", "bench_gemm", "--device", "cuda", "--", "--size", "64"], "cuda"),
+        (["run"], None),
+    ],
+)
+def test_commands_forward_the_device_option(monkeypatch, args, expected):
+    """test and run hand --device to the service as typed, and None when it is left out."""
+    received = []
+
+    class _Service:
+        def test(self, suite, filter, repeat, device):
+            received.append(device)
+            return 0
+
+        def run(self, target, sort, app_args, device):
+            received.append(device)
+            return 0
+
+    monkeypatch.setattr(cli, "_service", lambda: _Service())
+    monkeypatch.setattr(cli, "console", _Console())
+    result = CliRunner().invoke(cli.app, args)
+    assert result.exit_code == 0
+    assert received == [expected]
+
+
+@pytest.mark.parametrize("command", ["test", "run"])
+def test_commands_exit_two_on_a_bad_device(device_parts, monkeypatch, command):
+    """A --device that names nothing prints one error line and exits 2."""
+    console, driver, build_env, service = device_parts
+    monkeypatch.setattr(cli, "_service", lambda: service)
+    printed = _Console()
+    monkeypatch.setattr(cli, "console", printed)
+    result = CliRunner().invoke(cli.app, [command, "--device", "gpu"])
+    assert result.exit_code == K_EXIT_USAGE
+    assert len(printed.texts("error")) == 1
+    assert "'gpu'" in printed.texts("error")[0]
 
 
 def test_package_suite_refuses_ctest_options(parts):
