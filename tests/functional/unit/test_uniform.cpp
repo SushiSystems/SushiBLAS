@@ -21,10 +21,13 @@
 
 /**
  * @file test_uniform.cpp
- * @brief Tests that random().uniform draws inside its bounds.
+ * @brief Tests random().uniform's bounds, sample moments, spread and seed determinism.
  * @author Mustafa Garip
  */
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
@@ -32,17 +35,104 @@
 
 using namespace SushiBLAS::Test;
 
-class Unit_UniformTest : public SushiBLASTest {};
-
-TEST_F(Unit_UniformTest, Float32) 
+namespace
 {
-    const int N = 100;
-    auto t = engine->create_tensor({N});
-    engine->random().uniform(t, 0.0, 1.0);
-    engine->execute().wait();
-    const float* ptr = t.data_as<float>();
-    for (int i = 0; i < N; ++i) {
-        EXPECT_GE(ptr[i], 0.0f);
-        EXPECT_LE(ptr[i], 1.0f);
-    }
+    /// @brief Holds the number of draws each statistical test takes.
+    constexpr int64_t K_DRAWS = 100000;
+
+    /// @brief Holds the lower bound of the range.
+    constexpr double K_MIN = -2.0;
+
+    /// @brief Holds the upper bound of the range.
+    constexpr double K_MAX = 6.0;
+
+    /// @brief Holds the distribution's mean: (-2 + 6) / 2.
+    constexpr double K_EXPECTED_MEAN = 2.0;
+
+    /// @brief Holds the distribution's variance: 8^2 / 12.
+    constexpr double K_EXPECTED_VARIANCE = 5.333333;
+
+    /// @brief Holds four standard errors of the sample mean: 4 * sqrt(64 / 12) / sqrt(100000).
+    constexpr double K_MEAN_BOUND = 0.029212;
+
+    /// @brief Holds four standard errors of the sample variance: 4 * sqrt((8^4 / 80 - (64 / 12)^2) / 100000).
+    constexpr double K_VARIANCE_BOUND = 0.060340;
+
+    /// @brief Holds the band at each end the samples must reach: 1% of the range width.
+    constexpr double K_EDGE_BAND = 0.08;
+
+    /// @brief Holds the seed the determinism tests share.
+    constexpr uint64_t K_SEED = 20261006;
+
+    /// @brief Holds a seed different from K_SEED.
+    constexpr uint64_t K_OTHER_SEED = 7;
+}
+
+class Unit_UniformTest : public SushiBLASTest
+{
+    protected:
+        /**
+         * @brief Draws K_DRAWS uniform samples of type T and returns them widened to double.
+         * @tparam T float or double.
+         */
+        template <typename T>
+        std::vector<double> draw(uint64_t seed)
+        {
+            auto t = engine->create_tensor({K_DRAWS}, get_sushiblas_dtype<T>());
+            engine->random().set_seed(seed);
+            engine->random().uniform(t, K_MIN, K_MAX);
+            engine->execute().wait();
+            const std::vector<T> host = read_tensor<T>(t);
+            return std::vector<double>(host.begin(), host.end());
+        }
+
+        /**
+         * @brief Expects the samples to stay in [K_MIN, K_MAX), fill the range and match its moments.
+         */
+        static void expect_uniform_statistics(const std::vector<double>& samples)
+        {
+            double sum = 0.0;
+            for (double v : samples)
+            {
+                ASSERT_GE(v, K_MIN);
+                ASSERT_LT(v, K_MAX);
+                sum += v;
+            }
+            const double mean = sum / static_cast<double>(samples.size());
+
+            double squares = 0.0;
+            for (double v : samples)
+                squares += (v - mean) * (v - mean);
+            const double variance = squares / static_cast<double>(samples.size() - 1);
+
+            const auto [lowest, highest] = std::minmax_element(samples.begin(), samples.end());
+
+            EXPECT_NEAR(mean, K_EXPECTED_MEAN, K_MEAN_BOUND);
+            EXPECT_NEAR(variance, K_EXPECTED_VARIANCE, K_VARIANCE_BOUND);
+            EXPECT_LT(*lowest, *highest) << "The fill is constant.";
+            EXPECT_LT(*lowest, K_MIN + K_EDGE_BAND);
+            EXPECT_GT(*highest, K_MAX - K_EDGE_BAND);
+        }
+};
+
+TEST_F(Unit_UniformTest, Float32StaysInRangeAndMatchesItsMoments)
+{
+    expect_uniform_statistics(draw<float>(K_SEED));
+}
+
+TEST_F(Unit_UniformTest, Float64StaysInRangeAndMatchesItsMoments)
+{
+    expect_uniform_statistics(draw<double>(K_SEED));
+}
+
+TEST_F(Unit_UniformTest, EqualSeedsDrawEqualSamples)
+{
+    const std::vector<double> first = draw<float>(K_SEED);
+    const std::vector<double> second = draw<float>(K_SEED);
+    EXPECT_EQ(first, second);
+}
+
+TEST_F(Unit_UniformTest, DifferentSeedsDrawDifferentSamples)
+{
+    EXPECT_NE(draw<float>(K_SEED), draw<float>(K_OTHER_SEED));
 }

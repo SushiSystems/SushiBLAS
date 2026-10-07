@@ -25,7 +25,10 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
+#include <limits>
 #include <vector>
+#include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
@@ -152,5 +155,96 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalRejectsBoundsItCannotHonour)
     EXPECT_THROW(engine->random().truncated_normal(t, 0.0, 1.0, -20.0, -15.0), std::runtime_error);
 
     auto z = engine->create_tensor({8}, SushiBLAS::Core::DataType::COMPLEX32);
-    EXPECT_THROW(engine->random().truncated_normal(z, 0.0, 1.0, -2.0, 2.0), std::runtime_error);
+    EXPECT_THROW(engine->random().truncated_normal(z, 0.0, 1.0, -2.0, 2.0), std::invalid_argument);
+}
+
+TEST_F(Unit_DistributionsTest, TruncatedNormalDrawsAFarLowerBoundAsTheHalfOpenLaw)
+{
+    const int N = 65536;
+    auto t = engine->create_tensor({N});
+    engine->random().set_seed(20261007);
+    engine->random().truncated_normal(t, 0.0, 1.0, -1.0e30, 2.0);
+    engine->execute().wait();
+
+    const float* ptr = t.data_as<float>();
+    double sum = 0.0;
+    for (int i = 0; i < N; ++i) {
+        ASSERT_FALSE(std::isnan(ptr[i])) << "Sample " << i << " is NaN.";
+        EXPECT_LE(ptr[i], 2.0f) << "Sample " << i << " is above the upper bound.";
+        sum += static_cast<double>(ptr[i]);
+    }
+
+    // N(0, 1) cut above 2: mean -pdf(2) / cdf(2) = -0.055248, variance 0.886452.
+    const double standard_error = std::sqrt(0.886452 / N);
+    EXPECT_NEAR(sum / N, -0.055248, 4.0 * standard_error);
+}
+
+TEST_F(Unit_DistributionsTest, EveryDistributionRejectsAnInvalidParameterAtRecordTime)
+{
+    auto t = engine->create_tensor({4, 4});
+    auto rng = engine->random();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double inf = std::numeric_limits<double>::infinity();
+
+    // No execute() follows, so a throw here comes from the recording call itself.
+    EXPECT_THROW(rng.exponential(t, 0.0), std::invalid_argument);
+    EXPECT_THROW(rng.exponential(t, -1.0), std::invalid_argument);
+    EXPECT_THROW(rng.exponential(t, inf), std::invalid_argument);
+    EXPECT_THROW(rng.exponential(t, nan), std::invalid_argument);
+
+    EXPECT_THROW(rng.normal(t, 0.0, -1.0), std::invalid_argument);
+    EXPECT_THROW(rng.normal(t, 0.0, nan), std::invalid_argument);
+    EXPECT_THROW(rng.normal(t, inf, 1.0), std::invalid_argument);
+
+    EXPECT_THROW(rng.log_normal(t, 0.0, -1.0), std::invalid_argument);
+    EXPECT_THROW(rng.log_normal(t, 0.0, inf), std::invalid_argument);
+    EXPECT_THROW(rng.log_normal(t, nan, 1.0), std::invalid_argument);
+
+    EXPECT_THROW(rng.bernoulli(t, nan), std::invalid_argument);
+    EXPECT_THROW(rng.bernoulli(t, -0.5), std::invalid_argument);
+    EXPECT_THROW(rng.bernoulli(t, 1.5), std::invalid_argument);
+
+    EXPECT_THROW(rng.he_uniform(t, 0), std::invalid_argument);
+    EXPECT_THROW(rng.he_normal(t, -4), std::invalid_argument);
+    EXPECT_THROW(rng.xavier_uniform(t, 0, 0), std::invalid_argument);
+    EXPECT_THROW(rng.xavier_normal(t, 2, -2), std::invalid_argument);
+
+    // A zero stddev is a valid degenerate law, so recording it succeeds.
+    EXPECT_NO_THROW(rng.normal(t, 1.0, 0.0));
+    EXPECT_NO_THROW(rng.log_normal(t, 1.0, 0.0));
+}
+
+TEST_F(Unit_DistributionsTest, EveryDistributionRejectsAnUnsupportedDtypeAtRecordTime)
+{
+    using SushiBLAS::Core::DataType;
+    auto rng = engine->random();
+
+    // No execute() follows, so a throw here comes from the recording call itself.
+    for (DataType dtype : {DataType::HALF, DataType::COMPLEX32, DataType::COMPLEX64})
+    {
+        auto t = engine->create_tensor({4, 4}, dtype);
+        EXPECT_THROW(rng.log_normal(t), std::invalid_argument);
+        EXPECT_THROW(rng.exponential(t), std::invalid_argument);
+        EXPECT_THROW(rng.poisson(t), std::invalid_argument);
+        EXPECT_THROW(rng.bernoulli(t), std::invalid_argument);
+        EXPECT_THROW(rng.discrete_uniform(t, 0, 10), std::invalid_argument);
+        EXPECT_THROW(rng.truncated_normal(t), std::invalid_argument);
+        EXPECT_THROW(rng.xavier_uniform(t, 4, 4), std::invalid_argument);
+        EXPECT_THROW(rng.xavier_normal(t, 4, 4), std::invalid_argument);
+        EXPECT_THROW(rng.he_uniform(t, 4), std::invalid_argument);
+        EXPECT_THROW(rng.he_normal(t, 4), std::invalid_argument);
+        EXPECT_THROW(rng.orthogonal(t), std::invalid_argument);
+    }
+
+    // uniform and normal draw complex values, so only HALF is refused.
+    auto half = engine->create_tensor({4}, DataType::HALF);
+    EXPECT_THROW(rng.uniform(half), std::invalid_argument);
+    EXPECT_THROW(rng.normal(half), std::invalid_argument);
+
+    // shuffle moves values, so it refuses only the integer dtypes.
+    for (DataType dtype : {DataType::INT32, DataType::INT64})
+    {
+        auto t = engine->create_tensor({4}, dtype);
+        EXPECT_THROW(rng.shuffle(t), std::invalid_argument);
+    }
 }

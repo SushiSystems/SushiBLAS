@@ -47,7 +47,7 @@ class Unit_ShuffleTest : public SushiBLASTest
             auto t = engine->create_tensor({N});
             fill_tensor(t, src);
 
-            engine->set_seed(seed);
+            engine->random().set_seed(seed);
             engine->random().shuffle(t);
             engine->execute().wait();
 
@@ -111,7 +111,7 @@ TEST_F(Unit_ShuffleTest, ConsecutiveShufflesOnOneEngineDiffer)
     fill_tensor(a, src);
     fill_tensor(b, src);
 
-    engine->set_seed(99);
+    engine->random().set_seed(99);
     engine->random().shuffle(a);
     engine->random().shuffle(b);
     engine->execute().wait();
@@ -134,7 +134,7 @@ TEST_F(Unit_ShuffleTest, PermutesHalfPrecisionToo)
     auto t = engine->create_tensor({kSmall}, SushiBLAS::Core::DataType::HALF);
     fill_tensor(t, src);
 
-    engine->set_seed(5);
+    engine->random().set_seed(5);
     engine->random().shuffle(t);
     engine->execute().wait();
 
