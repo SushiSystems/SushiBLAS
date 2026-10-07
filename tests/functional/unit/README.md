@@ -160,7 +160,7 @@ made to the older ones that day, had not been built or run when this page was wr
 | `test_spatial_pool_max.cpp` | Tests SpatialOps::pool_max and pool_max_backward |
 | `test_spatial_random_io_validation.cpp` | Tests the record-time checks of spatial geometry, random fills and IO |
 | `test_spatial_upsample.cpp` | Tests SpatialOps::upsample_nearest and upsample_nearest_backward |
-| `test_spatial_window_dot.cpp` | Tests the per-channel weighted window sum and its two gradients in both forced modes |
+| `test_spatial_window_dot.cpp` | Tests the per-channel weighted window sum and its two gradients in both forced modes; a `HALF` result below 2^-13 may sit one unit in the last place under the device's, because the host conversion truncates there |
 | `test_sqrt.cpp` | Tests ElementwiseOps::sqrt against fixed expected values |
 | `test_square.cpp` | Tests ElementwiseOps::square against fixed expected values |
 | `test_storage_offset.cpp` | Tests every operation family on views at a non-zero storage offset |

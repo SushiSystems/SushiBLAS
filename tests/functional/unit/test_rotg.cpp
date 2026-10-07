@@ -67,8 +67,8 @@ namespace SushiBLAS
             /// @brief Preset of every tensor a call must overwrite.
             constexpr double K_POISON = 999.0;
 
-            /// @brief Units in the last place the two kernels may differ by.
-            constexpr double K_MODE_ULPS = 2.0;
+            /// @brief Units in the last place the two kernels may differ by: three a device square root may be off by, one for the quotient.
+            constexpr double K_MODE_ULPS = 4.0;
 
             /// @brief Length of the vectors whose dot product feeds a rotation.
             constexpr int64_t K_DOT_LENGTH = 3;

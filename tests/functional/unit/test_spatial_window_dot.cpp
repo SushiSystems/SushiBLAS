@@ -352,6 +352,31 @@ namespace SushiBLAS
                         << quantity << " element " << i;
             }
 
+            /// @brief Magnitude below which the host conversion to HALF truncates where a device rounds.
+            constexpr double K_HOST_HALF_TRUNCATION_LIMIT = 0x1p-13;
+
+            /**
+             * @brief Returns whether a reference and a device element hold the same bits.
+             * @note A HALF pair below K_HOST_HALF_TRUNCATION_LIMIT may differ by one unit in the
+             *       last place, the device above the reference.
+             * @see tests/functional/unit/README.md
+             */
+            template<typename T>
+            bool holds_equal_bits(const T& reference, const T& device)
+            {
+                if (std::memcmp(&reference, &device, sizeof(T)) == 0)
+                    return true;
+                if (!std::is_same_v<T, sycl::half>)
+                    return false;
+
+                std::uint16_t reference_bits = 0;
+                std::uint16_t device_bits = 0;
+                std::memcpy(&reference_bits, &reference, sizeof(reference_bits));
+                std::memcpy(&device_bits, &device, sizeof(device_bits));
+                return std::fabs(Detail::to_double(device)) < K_HOST_HALF_TRUNCATION_LIMIT &&
+                       device_bits == static_cast<std::uint16_t>(reference_bits + 1);
+            }
+
             /** @brief Expects two results to hold the same bits, element for element. */
             template<typename T>
             void expect_equal_bits(const std::vector<T>& reference, const std::vector<T>& device,
@@ -359,7 +384,7 @@ namespace SushiBLAS
             {
                 ASSERT_EQ(reference.size(), device.size()) << quantity;
                 for (std::size_t i = 0; i < reference.size(); ++i)
-                    EXPECT_EQ(std::memcmp(&reference[i], &device[i], sizeof(T)), 0)
+                    EXPECT_TRUE(holds_equal_bits(reference[i], device[i]))
                         << quantity << " element " << i << ": reference "
                         << Detail::to_double(reference[i]) << ", device "
                         << Detail::to_double(device[i]);

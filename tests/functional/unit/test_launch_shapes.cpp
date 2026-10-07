@@ -27,6 +27,7 @@
 
 #include <new>
 #include <array>
+#include <complex>
 #include <limits>
 #include <vector>
 #include <cstddef>
@@ -271,31 +272,32 @@ namespace SushiBLAS
         /** @brief Tests that a type of vector width one writes every element of a shape that asks for a wide pass. */
         TEST_F(Unit_LaunchShapes, AWidthOneTypeIgnoresAWidePass)
         {
+            using Element = std::complex<float>;
             sycl::queue& q = queue();
-            if (!Device::profile_for(q).supports_fp64)
-                GTEST_SKIP() << "The test device has no double precision.";
 
-            ASSERT_EQ(Launch::K_VECTOR_WIDTH<double>, 1);
+            ASSERT_EQ(Launch::K_VECTOR_WIDTH<Element>, 1);
 
             const std::size_t n = K_LARGE_COUNT;
-            SharedArray<double> in(q, n);
-            SharedArray<double> out(q, n);
-            std::vector<double> want(n);
+            SharedArray<Element> in(q, n);
+            SharedArray<Element> out(q, n);
+            std::vector<Element> want(n);
             for (std::size_t i = 0; i < n; ++i)
             {
-                in.get()[i] = value_at<double>(i);
-                out.get()[i] = -1.0;
-                want[i] = value_at<double>(i) + 1.0;
+                in.get()[i] = Element(value_at<float>(i), 2.0f);
+                out.get()[i] = Element(-1.0f, -1.0f);
+                want[i] = Element(value_at<float>(i) + 1.0f, 2.0f);
             }
 
             Launch::Shape1D shape = gpu_like_shape(q, n, 1);
             shape.vector_steps = n / 4;
 
-            const double* in_ptr = in.get();
-            double* out_ptr = out.get();
+            const Element* in_ptr = in.get();
+            Element* out_ptr = out.get();
             q.submit([&](sycl::handler& h)
             {
-                Launch::map(h, shape, n, [](double x) { return x + 1.0; }, out_ptr, in_ptr);
+                Launch::map(h, shape, n,
+                            [](Element x) { return Element(x.real() + 1.0f, x.imag()); },
+                            out_ptr, in_ptr);
             }).wait();
 
             EXPECT_EQ(count_mismatches(out.get(), want), std::size_t{0});
