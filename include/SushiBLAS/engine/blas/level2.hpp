@@ -28,77 +28,137 @@
 #pragma once
 
 #include <SushiBLAS/tensor.hpp>
-#include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiBLAS/engine/blas/scalar.hpp>
 
 namespace SushiBLAS
 {
     /**
-     * @brief Records the Level 2 BLAS routines.
+     * @brief Records the BLAS Level 2 matrix-vector operations through a task recorder.
      * @see include/SushiBLAS/engine/blas/README.md
      */
     class Level2
     {
         public:
             /**
-             * @brief Computes y = alpha * op(A) * x + beta * y.
-             * @param transA Uses A^T as op(A) when true.
+             * @brief Records y = alpha * op(A) * x + beta * y.
+             * @param beta Exactly zero skips reading y.
+             * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
             TaskHandle gemv(const Tensor& A, const Tensor& x, Tensor& y,
-                            bool transA = false, double alpha = 1.0, double beta = 0.0);
+                            Core::Transpose trans = Core::Transpose::NO_TRANS,
+                            BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
 
             /**
-             * @brief Computes the rank-1 update A = alpha * x * y^H + A.
+             * @brief Records the rank-1 update A = alpha * x * y^T + A of a real matrix.
+             * @throws std::invalid_argument on a complex operand, or one the call does not accept.
              */
             TaskHandle ger(const Tensor& x, const Tensor& y, Tensor& A, double alpha = 1.0);
 
             /**
-             * @brief Computes y = alpha * A * x + beta * y for a symmetric A.
-             * @param upper Reads the upper triangle of A when true, the lower when false.
+             * @brief Records the unconjugated rank-1 update A = alpha * x * y^T + A.
+             * @throws std::invalid_argument on an operand or a scalar the call does not accept.
              */
-            TaskHandle symv(const Tensor& A, const Tensor& x, Tensor& y,
-                            bool upper = false, double alpha = 1.0, double beta = 0.0);
+            TaskHandle geru(const Tensor& x, const Tensor& y, Tensor& A, BlasScalar alpha = 1.0);
 
             /**
-             * @brief Computes x = op(A) * x for a triangular A.
-             * @param upper Treats A as upper triangular when true, lower when false.
-             * @param unit_diag Treats the diagonal of A as all ones when true.
+             * @brief Records the conjugated rank-1 update A = alpha * x * y^H + A.
+             * @throws std::invalid_argument on an operand or a scalar the call does not accept.
              */
-            TaskHandle trmv(const Tensor& A, Tensor& x,
-                            bool upper = false, bool transA = false, bool unit_diag = false);
+            TaskHandle gerc(const Tensor& x, const Tensor& y, Tensor& A, BlasScalar alpha = 1.0);
 
             /**
-             * @brief Solves op(A) * x = b for a triangular A, overwriting b with x.
-             * @param upper Treats A as upper triangular when true, lower when false.
-             * @param unit_diag Treats the diagonal of A as all ones when true.
+             * @brief Records y = alpha * A * x + beta * y for a symmetric A.
+             * @param uplo The triangle of A that is read.
+             * @param beta Exactly zero skips reading y.
+             * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
-            TaskHandle trsv(const Tensor& A, Tensor& b,
-                            bool upper = false, bool transA = false, bool unit_diag = false);
+            TaskHandle symv(const Tensor& A, const Tensor& x, Tensor& y, Core::Uplo uplo,
+                            BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
 
             /**
-             * @brief Computes the symmetric rank-1 update A = alpha * x * x^H + A.
-             * @param upper Updates the upper triangle when true, the lower when false.
+             * @brief Records y = alpha * A * x + beta * y for a Hermitian A.
+             * @param uplo The triangle of A that is read; its diagonal's imaginary part is not.
+             * @param beta Exactly zero skips reading y.
+             * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
-            TaskHandle syr(const Tensor& x, Tensor& A, bool upper = false, double alpha = 1.0);
+            TaskHandle hemv(const Tensor& A, const Tensor& x, Tensor& y, Core::Uplo uplo,
+                            BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
 
             /**
-             * @brief Computes the symmetric rank-2 update A = alpha * x * y^H + alpha * y * x^H + A.
-             * @param upper Updates the upper triangle when true, the lower when false.
+             * @brief Records x = op(A) * x for a triangular A.
+             * @throws std::invalid_argument on an operand or a flag the call does not accept.
              */
-            TaskHandle syr2(const Tensor& x, const Tensor& y, Tensor& A, bool upper = false, double alpha = 1.0);
+            TaskHandle trmv(const Tensor& A, Tensor& x, Core::Uplo uplo,
+                            Core::Transpose trans = Core::Transpose::NO_TRANS,
+                            Core::Diag diag = Core::Diag::NON_UNIT);
+
+            /**
+             * @brief Records the solution of op(A) * x = b for a triangular A, overwriting b.
+             * @param b Contiguous.
+             * @throws std::invalid_argument on an operand or a flag the call does not accept.
+             */
+            TaskHandle trsv(const Tensor& A, Tensor& b, Core::Uplo uplo,
+                            Core::Transpose trans = Core::Transpose::NO_TRANS,
+                            Core::Diag diag = Core::Diag::NON_UNIT);
+
+            /**
+             * @brief Records the symmetric rank-1 update A = alpha * x * x^T + A.
+             * @param uplo The triangle of A that is updated.
+             * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
+             */
+            TaskHandle syr(const Tensor& x, Tensor& A, Core::Uplo uplo, BlasScalar alpha = 1.0);
+
+            /**
+             * @brief Records the Hermitian rank-1 update A = alpha * x * x^H + A.
+             * @param uplo The triangle of A that is updated; its diagonal is left real.
+             * @throws std::invalid_argument on an operand or a flag the call does not accept.
+             */
+            TaskHandle her(const Tensor& x, Tensor& A, Core::Uplo uplo, double alpha = 1.0);
+
+            /**
+             * @brief Records the symmetric rank-2 update A = alpha * x * y^T + alpha * y * x^T + A.
+             * @param uplo The triangle of A that is updated.
+             * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
+             */
+            TaskHandle syr2(const Tensor& x, const Tensor& y, Tensor& A, Core::Uplo uplo,
+                            BlasScalar alpha = 1.0);
+
+            /**
+             * @brief Records the Hermitian rank-2 update
+             *        A = alpha * x * y^H + conj(alpha) * y * x^H + A.
+             * @param uplo The triangle of A that is updated; its diagonal is left real.
+             * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
+             */
+            TaskHandle her2(const Tensor& x, const Tensor& y, Tensor& A, Core::Uplo uplo,
+                            BlasScalar alpha = 1.0);
 
         protected:
-            /** @brief Binds the level to the recorder its routines record through. */
-            explicit Level2(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
+            /** @brief Binds the recorder every operation records on; it must outlive this view. */
+            explicit Level2(TaskRecorder& recorder) noexcept
+                : recorder_(recorder)
+            {
 
-            Level2(const Level2&) = default;
+            }
+
+            /** @brief Copies the binding. */
+            Level2(const Level2&) noexcept = default;
+
+            /** @brief Moves the binding. */
+            Level2(Level2&&) noexcept = default;
+
+            /** @brief Refused: a view cannot be re-bound. */
             Level2& operator=(const Level2&) = delete;
-            Level2(Level2&&) = default;
+
+            /** @brief Refused: a view cannot be re-bound. */
             Level2& operator=(Level2&&) = delete;
+
+            /** @brief Destroys the view; the recorder is not owned. */
             ~Level2() = default;
 
         private:
-            /// @brief The recorder every routine of this level records through.
+            /// @brief The recorder every operation of this level records on.
             TaskRecorder& recorder_;
     };
 } // namespace SushiBLAS

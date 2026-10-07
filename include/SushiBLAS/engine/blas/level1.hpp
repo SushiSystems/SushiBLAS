@@ -28,84 +28,116 @@
 #pragma once
 
 #include <SushiBLAS/tensor.hpp>
-#include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiBLAS/engine/blas/scalar.hpp>
 
 namespace SushiBLAS
 {
     /**
-     * @brief Records the Level 1 BLAS routines.
+     * @brief Records the BLAS Level 1 vector-vector operations through a task recorder.
      * @see include/SushiBLAS/engine/blas/README.md
      */
     class Level1
     {
         public:
             /**
-             * @brief Computes y = alpha * x + y.
-             * @param alpha Taken as double and narrowed to the element type at the kernel boundary.
-             * @see include/SushiBLAS/engine/blas/README.md
+             * @brief Records y = alpha * x + y.
+             * @throws std::invalid_argument on an operand or a scalar the call does not accept.
              */
-            TaskHandle axpy(double alpha, const Tensor& x, Tensor& y);
+            TaskHandle axpy(BlasScalar alpha, const Tensor& x, Tensor& y);
 
             /**
-             * @brief Computes the unconjugated dot product x^T * y into result.
-             * @param result Scalar output tensor.
+             * @brief Records x = alpha * x.
+             * @throws std::invalid_argument on an operand or a scalar the call does not accept.
              */
-            TaskHandle dot(const Tensor& x, const Tensor& y, Tensor& result);
+            TaskHandle scal(BlasScalar alpha, Tensor& x);
 
             /**
-             * @brief Scales every element of x by alpha.
-             * @param alpha Taken as double and narrowed at the kernel boundary; see axpy.
-             */
-            TaskHandle scal(double alpha, Tensor& x);
-
-            /**
-             * @brief Copies every element of x into y.
+             * @brief Records a copy of every element of x into y.
+             * @throws std::invalid_argument on an operand the call does not accept.
              */
             TaskHandle copy(const Tensor& x, Tensor& y);
 
             /**
-             * @brief Exchanges the elements of x and y.
+             * @brief Records an exchange of the elements of x and y.
+             * @throws std::invalid_argument on an operand the call does not accept.
              */
             TaskHandle swap(Tensor& x, Tensor& y);
 
             /**
-             * @brief Computes the Euclidean norm sqrt(sum(|x_i|^2)) into result.
-             * @param result Scalar output tensor.
-             * @see include/SushiBLAS/engine/blas/README.md
+             * @brief Records the dot product x^T * y of two real vectors into result.
+             * @param result Scalar tensor of the operands' dtype.
+             * @throws std::invalid_argument on a complex operand, or one the call does not accept.
+             */
+            TaskHandle dot(const Tensor& x, const Tensor& y, Tensor& result);
+
+            /**
+             * @brief Records the unconjugated dot product x^T * y into result.
+             * @param result Scalar tensor of the operands' dtype.
+             * @throws std::invalid_argument on an operand the call does not accept.
+             */
+            TaskHandle dotu(const Tensor& x, const Tensor& y, Tensor& result);
+
+            /**
+             * @brief Records the conjugated dot product x^H * y into result.
+             * @param result Scalar tensor of the operands' dtype.
+             * @throws std::invalid_argument on an operand the call does not accept.
+             */
+            TaskHandle dotc(const Tensor& x, const Tensor& y, Tensor& result);
+
+            /**
+             * @brief Records the Euclidean norm sqrt(sum(|x_i|^2)) into result.
+             * @param result Scalar tensor of the real component type of x.
+             * @throws std::invalid_argument on an operand the call does not accept.
              */
             TaskHandle nrm2(const Tensor& x, Tensor& result);
 
             /**
-             * @brief Computes sum(|Re(x_i)| + |Im(x_i)|) into result.
-             * @param result Scalar output tensor.
+             * @brief Records sum(|Re(x_i)| + |Im(x_i)|) into result.
+             * @param result Scalar tensor of the real component type of x.
+             * @throws std::invalid_argument on an operand the call does not accept.
              */
             TaskHandle asum(const Tensor& x, Tensor& result);
 
             /**
-             * @brief Finds the smallest index i at which |Re(x_i)| + |Im(x_i)| is largest.
-             * @see include/SushiBLAS/engine/blas/README.md
+             * @brief Records the smallest index at which |Re(x_i)| + |Im(x_i)| is largest.
+             * @param result Scalar INT64 tensor; the index is zero-based.
+             * @throws std::invalid_argument on an operand the call does not accept.
              */
             TaskHandle iamax(const Tensor& x, Tensor& result);
 
             /**
-             * @brief Applies the plane rotation x_i = c * x_i + s * y_i, y_i = -s * x_i + c * y_i.
-             * @param c Taken as double, like s, and narrowed at the kernel boundary; see axpy.
+             * @brief Records the plane rotation x_i = c * x_i + s * y_i, y_i = c * y_i - s * x_i.
+             * @param c Real for every dtype, as is s.
+             * @throws std::invalid_argument on an operand the call does not accept.
              */
             TaskHandle rot(Tensor& x, Tensor& y, double c, double s);
 
         protected:
-            /** @brief Binds the level to the recorder its routines record through. */
-            explicit Level1(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
+            /** @brief Binds the recorder every operation records on; it must outlive this view. */
+            explicit Level1(TaskRecorder& recorder) noexcept
+                : recorder_(recorder)
+            {
 
-            Level1(const Level1&) = default;
+            }
+
+            /** @brief Copies the binding. */
+            Level1(const Level1&) noexcept = default;
+
+            /** @brief Moves the binding. */
+            Level1(Level1&&) noexcept = default;
+
+            /** @brief Refused: a view cannot be re-bound. */
             Level1& operator=(const Level1&) = delete;
-            Level1(Level1&&) = default;
+
+            /** @brief Refused: a view cannot be re-bound. */
             Level1& operator=(Level1&&) = delete;
+
+            /** @brief Destroys the view; the recorder is not owned. */
             ~Level1() = default;
 
         private:
-            /// @brief The recorder every routine of this level records through.
+            /// @brief The recorder every operation of this level records on.
             TaskRecorder& recorder_;
     };
 } // namespace SushiBLAS

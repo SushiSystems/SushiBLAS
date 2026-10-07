@@ -25,10 +25,16 @@
  * @author Mustafa Garip
  */
 
+#include <SushiBLAS/engine/blas/level1.hpp>
+
+#include <vector>
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
-#include <SushiBLAS/engine/blas/level1.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/engine/blas/task_metadata.hpp>
+#include <SushiBLAS/engine/blas/vector_operand.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
@@ -37,25 +43,26 @@ namespace SushiBLAS
 
     TaskHandle Level1::swap(Tensor& x, Tensor& y)
     {
-        SB_THROW_IF(x.dtype != y.dtype, "Data type mismatch in SWAP.");
-        int64_t n, incx, incy;
-        Internal::get_vec_params(x, n, incx, "blas.lvl1.swap", "x");
-        int64_t ny; Internal::get_vec_params(y, ny, incy, "blas.lvl1.swap", "y");
-        SB_THROW_IF(n != ny, "SWAP requires tensors of the same number of elements.");
+        const char* const op = "blas.lvl1.swap";
 
-        void* rw_x = x.data_or_null();
-        void* rw_y = y.data_or_null();
+        Dispatch::require_dtype(y, x.dtype, op, "y");
+        const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
+        const Dispatch::VectorOperand vy = Dispatch::describe_vector_operand(y, op, "y");
+        Dispatch::require_same_element_count(x, y, op, "x", "y");
 
-        // Both operands are read and written - a swap is the definition of read-modify-write.
+        // x and y are each read and written, so both sit in both access sets; see src/README.md.
         OperandSet operands;
         operands.updates(x).updates(y);
 
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "blas.lvl1.swap";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.lvl1.swap"_op;
+        const Internal::BlasMetadata meta(op, "blas.lvl1.swap"_op);
 
-        return Internal::execute_blas_task(recorder_, meta, operands, x.dtype,
+        const int64_t n = vx.length;
+        const int64_t incx = vx.increment;
+        const int64_t incy = vy.increment;
+        void* rw_x = x.data_or_null();
+        void* rw_y = y.data_or_null();
+
+        return Internal::execute_blas_task(recorder_, meta.get(), operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
@@ -64,11 +71,14 @@ namespace SushiBLAS
                 auto pY = static_cast<T*>(rw_y);
 
                 return dispatcher.run(q, deps,
-                    [=] { Kernels::Reference::swap<T>(n, pX, incx, pY, incy); },
+                    [=]
+                    {
+                        Kernels::Reference::swap<T>(n, pX, incx, pY, incy);
+                    },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
                         return Kernels::SYCL::swap<T>(q2, n, pX, incx, pY, incy, deps2);
                     });
             });
     }
-}
+} // namespace SushiBLAS

@@ -30,16 +30,18 @@
 #include <vector>
 #include <cstdint>
 #include <utility>
-#include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
-#include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
-#include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
+#include <SushiBLAS/engine/blas/scalar.hpp>
+#include <SushiBLAS/engine/blas/task_metadata.hpp>
+#include <SushiBLAS/engine/blas/argument_check.hpp>
 #include <SushiBLAS/engine/blas/matrix_operand.hpp>
 #include <SushiRuntime/core/resource_region.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
@@ -51,10 +53,8 @@ namespace SushiBLAS
 {
     namespace Dispatch
     {
-        // The access set travels in the epilogue, so it cannot be lost; see include/SushiBLAS/engine/blas/README.md.
-
         /**
-         * @brief Holds a GEMM epilogue functor together with the regions it reads and writes.
+         * @brief Holds a GEMM epilogue functor together with the tensors it reads and writes.
          * @tparam Epilogue The functor type, under the contract execute_gemm states for a bare one.
          * @see include/SushiBLAS/engine/blas/README.md
          */
@@ -63,12 +63,16 @@ namespace SushiBLAS
         {
             public:
                 /** @brief Wraps functor, declaring nothing yet. */
-                explicit GemmEpilogue(Epilogue functor) : functor_(std::move(functor)) {}
+                explicit GemmEpilogue(Epilogue functor)
+                    : functor_(std::move(functor))
+                {
+
+                }
 
                 /**
                  * @brief Declares that the epilogue reads operand.
                  * @return `*this`, so declarations chain.
-                 * @throws std::runtime_error if operand has no storage.
+                 * @throws std::invalid_argument if operand has no storage.
                  */
                 GemmEpilogue& reads(const Tensor& operand)
                 {
@@ -80,8 +84,7 @@ namespace SushiBLAS
                 /**
                  * @brief Declares that the epilogue writes operand.
                  * @return `*this`, so declarations chain.
-                 * @throws std::runtime_error if operand has no storage.
-                 * @see include/SushiBLAS/engine/blas/README.md
+                 * @throws std::invalid_argument if operand has no storage.
                  */
                 GemmEpilogue& writes(const Tensor& operand)
                 {
@@ -90,35 +93,44 @@ namespace SushiBLAS
                     return *this;
                 }
 
-                /** @brief Returns the functor itself, the only part that reaches the device. */
-                [[nodiscard]] const Epilogue& functor() const noexcept { return functor_; }
+                /** @brief Returns the functor, the only part that reaches the device. */
+                [[nodiscard]] const Epilogue& functor() const noexcept
+                {
+                    return functor_;
+                }
 
-                /** @brief Returns the tensors declared through reads() and writes(). */
-                [[nodiscard]] const OperandSet& operands() const noexcept { return operands_; }
+                /** @brief Returns the tensors declared through reads and writes. */
+                [[nodiscard]] const OperandSet& operands() const noexcept
+                {
+                    return operands_;
+                }
 
-                /** @brief Returns the regions declared through reads(). */
+                /** @brief Returns the regions declared through reads. */
                 [[nodiscard]] const std::vector<SushiRuntime::Core::ResourceRegion>&
-                read_regions() const noexcept { return operands_.read_regions(); }
+                read_regions() const noexcept
+                {
+                    return operands_.read_regions();
+                }
 
-                /** @brief Returns the regions declared through writes(). */
+                /** @brief Returns the regions declared through writes. */
                 [[nodiscard]] const std::vector<SushiRuntime::Core::ResourceRegion>&
-                write_regions() const noexcept { return operands_.write_regions(); }
+                write_regions() const noexcept
+                {
+                    return operands_.write_regions();
+                }
 
             private:
                 /**
-                 * @brief Refuses an operand whose region keys on no allocation.
+                 * @brief Throws if a declared tensor has no storage, so its region keys on nothing.
                  * @param direction "reads" or "writes", for the message.
-                 * @throws std::runtime_error if operand has no storage.
-                 * @see include/SushiBLAS/engine/blas/README.md
                  */
                 static void require_declared_storage(const Tensor& operand, const char* direction)
                 {
-                    SB_THROW_IF(!operand.region().valid(),
-                                "A GEMM epilogue declared a tensor it {}, but that tensor has no "
-                                "storage. Its region keys on no allocation, so the declaration "
-                                "would order it against nothing - which is the silent hazard "
-                                "declaring it was meant to close.",
-                                direction);
+                    if (!operand.storage)
+                        Detail::throw_operand_error("Dispatch::GemmEpilogue", direction,
+                                                    "was given a tensor without storage; its "
+                                                    "region keys on no allocation, so the "
+                                                    "declaration would order it against nothing");
                 }
 
                 /// @brief The epilogue functor.
@@ -140,22 +152,14 @@ namespace SushiBLAS
 
         namespace Detail
         {
-            /**
-             * @brief The functor of a bare epilogue: itself.
-             * @tparam Epilogue The epilogue functor type.
-             * @param epilogue The epilogue.
-             * @return @p epilogue.
-             */
+            /** @brief Returns the functor of a bare epilogue: itself. */
             template<typename Epilogue>
             [[nodiscard]] inline const Epilogue& epilogue_functor(const Epilogue& epilogue) noexcept
             {
                 return epilogue;
             }
 
-            /**
-             * @brief Returns the functor a GemmEpilogue bundle carries.
-             * @see include/SushiBLAS/engine/blas/README.md
-             */
+            /** @brief Returns the functor a GemmEpilogue bundle carries. */
             template<typename Epilogue>
             [[nodiscard]] inline const Epilogue&
             epilogue_functor(const GemmEpilogue<Epilogue>& bundle) noexcept
@@ -163,10 +167,7 @@ namespace SushiBLAS
                 return bundle.functor();
             }
 
-            /**
-             * @brief Adds nothing, because a bare epilogue declares no operands.
-             * @see include/SushiBLAS/engine/blas/README.md
-             */
+            /** @brief Adds nothing, because a bare epilogue declares no operands. */
             template<typename Epilogue>
             inline void append_epilogue_access(const Epilogue&, OperandSet&) noexcept
             {
@@ -185,31 +186,34 @@ namespace SushiBLAS
         /**
          * @brief Records `C = epilogue(alpha * op(A) * op(B) + beta * C, row, col)` as one task.
          * @param C Must not overlap A or B.
-         * @param epilogue Must be device-copyable, capture by value, and neither allocate nor throw.
-         * @return The handle of the recorded task; the handle of no task when nothing was recorded.
-         * @throws std::runtime_error on rank < 2, a dtype mismatch, or a dtype outside Dom.
-         * @throws std::invalid_argument on a non-contiguous operand, mixed layouts, or a shape or batch mismatch.
+         * @param epilogue Must be device-copyable, capture by value, and never allocate or throw.
+         * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
+         * @warning A bare functor that hides a pointer is neither kept alive nor host-checked.
          * @see include/SushiBLAS/engine/blas/README.md
          */
         template<Domain Dom = Domain::REAL, typename Epilogue>
         TaskHandle execute_gemm(TaskRecorder& recorder, const Tensor& A, const Tensor& B, Tensor& C,
-                                bool transA, bool transB, double alpha, double beta,
+                                Core::Transpose transA, Core::Transpose transB,
+                                BlasScalar alpha, BlasScalar beta,
                                 const char* name, SushiRuntime::Graph::OpID op_id,
                                 Epilogue epilogue)
         {
-            SB_THROW_IF(A.rank < 2 || B.rank < 2 || C.rank < 2,
-                        "GEMM operation '{}' requires at least 2D tensors.", name);
-            SB_THROW_IF(A.dtype != B.dtype || A.dtype != C.dtype,
-                        "Data type mismatch in GEMM operation '{}'.", name);
+            require_flag(transA, name, "transA");
+            require_flag(transB, name, "transB");
+            require_dtype(B, A.dtype, name, "B");
+            require_dtype(C, A.dtype, name, "C");
+            require_real_scalar(alpha, A.dtype, name, "alpha");
+            require_real_scalar(beta, A.dtype, name, "beta");
 
             if constexpr (Dom == Domain::REAL)
             {
-                // A dtype outside the domain is rejected at record time; see include/SushiBLAS/engine/blas/README.md.
-                SB_THROW_IF(Core::is_complex_dtype(A.dtype),
-                            "GEMM operation '{}' is not declared for complex tensors (dtype {}): its "
-                            "epilogue was instantiated for real scalars only. Pass "
-                            "Domain::REAL_AND_COMPLEX if the epilogue is well-formed for std::complex.",
-                            name, Core::to_string(A.dtype));
+                if (Core::is_complex_dtype(A.dtype))
+                    Detail::throw_operand_error(name, "A",
+                                                "has dtype {}, but the epilogue of this call was "
+                                                "declared for real tensors; pass "
+                                                "Domain::REAL_AND_COMPLEX when the epilogue is "
+                                                "well-formed for std::complex",
+                                                Core::to_string(A.dtype));
             }
 
             const MatrixOperand a = describe_matrix_operand(A, name, "A");
@@ -218,12 +222,14 @@ namespace SushiBLAS
             require_same_layout(a, c, name, "A", "C");
             require_same_layout(b, c, name, "B", "C");
 
+            const bool a_transposed = Core::is_transposed(transA);
+            const bool b_transposed = Core::is_transposed(transB);
             const int64_t m = c.rows;
             const int64_t n = c.cols;
-            const int64_t k = transA ? a.rows : a.cols;
-            require_matrix_extent(transA ? a.cols : a.rows, m, "rows in op(A)", name, "A");
-            require_matrix_extent(transB ? b.cols : b.rows, k, "rows in op(B)", name, "B");
-            require_matrix_extent(transB ? b.rows : b.cols, n, "columns in op(B)", name, "B");
+            const int64_t k = a_transposed ? a.rows : a.cols;
+            require_matrix_extent(a_transposed ? a.cols : a.rows, m, "rows in op(A)", name, "A");
+            require_matrix_extent(b_transposed ? b.cols : b.rows, k, "rows in op(B)", name, "B");
+            require_matrix_extent(b_transposed ? b.rows : b.cols, n, "columns in op(B)", name, "B");
 
             const int64_t batch_size = c.batch_count;
             const int64_t str_a = batch_stride(a, batch_size, name, "A");
@@ -232,38 +238,31 @@ namespace SushiBLAS
             require_same_batch_axes(A, a, C, c, name, "A", "C");
             require_same_batch_axes(B, b, C, c, name, "B", "C");
 
+            // C is read unless beta is zero; see include/SushiBLAS/engine/blas/README.md.
+            OperandSet operands;
+            operands.reads(A).reads(B);
+            if (beta.is_zero())
+                operands.writes(C);
+            else
+                operands.updates(C);
+            Detail::append_epilogue_access(epilogue, operands);
+
+            // Only the functor enters the kernel closure, never the bundle and its operand set.
+            const auto kernel_epilogue = Detail::epilogue_functor(epilogue);
+
+            const Internal::BlasMetadata meta = Internal::BlasMetadata(name, op_id)
+                                                    .scalar(alpha).scalar(beta)
+                                                    .flag(transA).flag(transB);
+
             const int64_t lda = a.leading_dimension;
             const int64_t ldb = b.leading_dimension;
             const int64_t ldc = c.leading_dimension;
-
-            const auto layout = c.layout;
+            const Core::Layout layout = c.layout;
             const void* read_A = A.data_or_null();
             const void* read_B = B.data_or_null();
             void* rw_C = C.data_or_null();
 
-            // C is declared as a read whenever beta is non-zero; see include/SushiBLAS/engine/blas/README.md.
-            OperandSet operands;
-            operands.reads(A).reads(B);
-            if (beta != 0.0)
-                operands.reads(C);
-            operands.writes(C);
-
-            // The epilogue's declared operands join the operand set here; see include/SushiBLAS/engine/blas/README.md.
-            Detail::append_epilogue_access(epilogue, operands);
-
-            // Only the functor enters the kernel closure, not the bundle; see include/SushiBLAS/engine/blas/README.md.
-            const auto kernel_epilogue = Detail::epilogue_functor(epilogue);
-
-            SushiRuntime::Graph::TaskMetadata meta;
-            meta.name = name;
-            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-            meta.op_id = op_id;
-            meta.set_param(0, alpha);
-            meta.set_param(1, beta);
-            meta.set_param(2, transA);
-            meta.set_param(3, transB);
-
-            return Internal::execute_blas_task<Dom>(recorder, meta, operands, A.dtype,
+            return Internal::execute_blas_task<Dom>(recorder, meta.get(), operands, A.dtype,
                 [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                     sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {
@@ -272,24 +271,25 @@ namespace SushiBLAS
                     auto pA = static_cast<const T*>(read_A);
                     auto pB = static_cast<const T*>(read_B);
                     auto pC = static_cast<T*>(rw_C);
-                    auto alpha_t = static_cast<T>(alpha);
-                    auto beta_t = static_cast<T>(beta);
+                    const T alpha_t = alpha.as<T>();
+                    const T beta_t = beta.as<T>();
 
                     return dispatcher.run(q, deps,
                         [=]
                         {
                             Kernels::Reference::gemm<T>(layout, transA, transB, m, n, k, alpha_t,
                                                         pA, lda, str_a, pB, ldb, str_b,
-                                                        beta_t, pC, ldc, str_c, batch_size, kernel_epilogue);
+                                                        beta_t, pC, ldc, str_c, batch_size,
+                                                        kernel_epilogue);
                         },
                         [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                         {
-                            return Kernels::SYCL::gemm<T>(q2, layout, transA, transB, m, n, k, alpha_t,
-                                                          pA, lda, str_a, pB, ldb, str_b,
-                                                          beta_t, pC, ldc, str_c, batch_size, deps2, kernel_epilogue);
+                            return Kernels::SYCL::gemm<T>(q2, layout, transA, transB, m, n, k,
+                                                          alpha_t, pA, lda, str_a, pB, ldb, str_b,
+                                                          beta_t, pC, ldc, str_c, batch_size,
+                                                          deps2, kernel_epilogue);
                         });
                 });
         }
-
     } // namespace Dispatch
 } // namespace SushiBLAS

@@ -28,56 +28,84 @@
 #pragma once
 
 #include <SushiBLAS/tensor.hpp>
-#include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiBLAS/engine/blas/scalar.hpp>
 
 namespace SushiBLAS
 {
     /**
-     * @brief Records the Level 3 BLAS routines.
+     * @brief Records the BLAS Level 3 matrix-matrix operations through a task recorder.
      * @see include/SushiBLAS/engine/blas/README.md
      */
     class Level3
     {
         public:
             /**
-             * @brief Computes C = alpha * op(A) * op(B) + beta * C, batched when the operands have rank > 2.
+             * @brief Records C = alpha * op(A) * op(B) + beta * C, batched above rank 2.
+             * @param C Must not overlap A or B.
+             * @param beta Exactly zero skips reading C.
+             * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
             TaskHandle gemm(const Tensor& A, const Tensor& B, Tensor& C,
-                            bool transA = false, bool transB = false,
-                            double alpha = 1.0, double beta = 0.0);
+                            Core::Transpose transA = Core::Transpose::NO_TRANS,
+                            Core::Transpose transB = Core::Transpose::NO_TRANS,
+                            BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
 
             /**
-             * @brief Solves a triangular system with multiple right-hand sides, overwriting B with X.
-             * @param left_side Solves op(A) * X = alpha * B when true, X * op(A) = alpha * B when false.
-             * @param upper Treats A as upper triangular when true, lower when false.
+             * @brief Records the solution of a triangular system, overwriting B with X.
+             * @param side LEFT solves op(A) * X = alpha * B, RIGHT solves X * op(A) = alpha * B.
+             * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
-            TaskHandle trsm(const Tensor& A, Tensor& B,
-                            bool left_side = true, bool upper = false,
-                            bool transA = false, bool unit_diag = false,
-                            double alpha = 1.0);
+            TaskHandle trsm(const Tensor& A, Tensor& B, Core::Side side, Core::Uplo uplo,
+                            Core::Transpose trans = Core::Transpose::NO_TRANS,
+                            Core::Diag diag = Core::Diag::NON_UNIT, BlasScalar alpha = 1.0);
 
             /**
-             * @brief Computes the symmetric rank-k update of C from A.
-             * @param upper Stores the result in the upper triangle of C when true, the lower when false.
-             * @param transA Computes alpha * A^T * A + beta * C when true, alpha * A * A^T + beta * C when false.
+             * @brief Records the symmetric rank-k update C = alpha * op(A) * op(A)^T + beta * C.
+             * @param uplo The triangle of C that is updated.
+             * @param trans NO_TRANS or TRANS; CONJ_TRANS only for a real tensor, where it is TRANS.
+             * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
-            TaskHandle syrk(const Tensor& A, Tensor& C,
-                            bool upper = false, bool transA = false,
+            TaskHandle syrk(const Tensor& A, Tensor& C, Core::Uplo uplo,
+                            Core::Transpose trans = Core::Transpose::NO_TRANS,
+                            BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
+
+            /**
+             * @brief Records the Hermitian rank-k update C = alpha * op(A) * op(A)^H + beta * C.
+             * @param uplo The triangle of C that is updated; its diagonal is left real.
+             * @param trans NO_TRANS or CONJ_TRANS for a complex tensor.
+             * @throws std::invalid_argument on an operand or a flag the call does not accept.
+             */
+            TaskHandle herk(const Tensor& A, Tensor& C, Core::Uplo uplo,
+                            Core::Transpose trans = Core::Transpose::NO_TRANS,
                             double alpha = 1.0, double beta = 0.0);
 
         protected:
-            /** @brief Binds the level to the recorder its routines record through. */
-            explicit Level3(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
+            /** @brief Binds the recorder every operation records on; it must outlive this view. */
+            explicit Level3(TaskRecorder& recorder) noexcept
+                : recorder_(recorder)
+            {
 
-            Level3(const Level3&) = default;
+            }
+
+            /** @brief Copies the binding. */
+            Level3(const Level3&) noexcept = default;
+
+            /** @brief Moves the binding. */
+            Level3(Level3&&) noexcept = default;
+
+            /** @brief Refused: a view cannot be re-bound. */
             Level3& operator=(const Level3&) = delete;
-            Level3(Level3&&) = default;
+
+            /** @brief Refused: a view cannot be re-bound. */
             Level3& operator=(Level3&&) = delete;
+
+            /** @brief Destroys the view; the recorder is not owned. */
             ~Level3() = default;
 
         private:
-            /// @brief The recorder every routine of this level records through.
+            /// @brief The recorder every operation of this level records on.
             TaskRecorder& recorder_;
     };
 } // namespace SushiBLAS

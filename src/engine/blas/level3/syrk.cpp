@@ -21,87 +21,128 @@
 
 /**
  * @file syrk.cpp
- * @brief Defines Level3::syrk, which records the BLAS SYRK task.
+ * @brief Defines Level3::syrk and Level3::herk, which record the BLAS SYRK and HERK tasks.
  * @author Mustafa Garip
  */
+
+#include <SushiBLAS/engine/blas/level3.hpp>
 
 #include <vector>
 #include <complex>
 #include <kernels/blas.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
-#include <SushiBLAS/engine/blas/level3.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/blas/task_metadata.hpp>
+#include <SushiBLAS/engine/blas/argument_check.hpp>
 #include <SushiBLAS/engine/blas/matrix_operand.hpp>
-#include <SushiRuntime/core/resource_region.hpp>
+#include <SushiBLAS/kernels/blas/conjugation.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    TaskHandle Level3::syrk(const Tensor& A, Tensor& C,
-                            bool upper, bool transA,
+    namespace
+    {
+        /**
+         * @brief Records C = alpha * op(A) * op(A)^T + beta * C, or its Hermitian form.
+         * @tparam Conj Kernels::Unconjugated for SYRK, Kernels::Conjugated for HERK.
+         */
+        template<typename Conj>
+        TaskHandle record_syrk(TaskRecorder& recorder, const char* op,
+                               SushiRuntime::Graph::OpID op_id,
+                               const Tensor& A, Tensor& C,
+                               Core::Uplo uplo, Core::Transpose trans,
+                               BlasScalar alpha, BlasScalar beta)
+        {
+            Dispatch::require_flag(uplo, op, "uplo");
+            Dispatch::require_flag(trans, op, "trans");
+            Dispatch::require_dtype(C, A.dtype, op, "C");
+            Dispatch::require_real_scalar(alpha, A.dtype, op, "alpha");
+            Dispatch::require_real_scalar(beta, A.dtype, op, "beta");
+
+            const Dispatch::MatrixOperand a = Dispatch::describe_matrix_operand(A, op, "A");
+            const Dispatch::MatrixOperand c = Dispatch::describe_matrix_operand(C, op, "C");
+            Dispatch::require_same_layout(a, c, op, "A", "C");
+            Dispatch::require_square(c, op, "C");
+
+            const bool transposed = Core::is_transposed(trans);
+            const int64_t n = c.rows;
+            const int64_t k = transposed ? a.rows : a.cols;
+            Dispatch::require_matrix_extent(transposed ? a.cols : a.rows, n, "rows in op(A)", op,
+                                            "A");
+
+            const int64_t batch_size = c.batch_count;
+            const int64_t str_a = Dispatch::batch_stride(a, batch_size, op, "A");
+            const int64_t str_c = Dispatch::batch_stride(c, batch_size, op, "C");
+            Dispatch::require_same_batch_axes(A, a, C, c, op, "A", "C");
+
+            // C is read-modify-write whatever beta is; see src/README.md.
+            OperandSet operands;
+            operands.reads(A).updates(C);
+
+            const Internal::BlasMetadata meta = Internal::BlasMetadata(op, op_id)
+                                                    .scalar(alpha).scalar(beta)
+                                                    .flag(uplo).flag(trans);
+
+            const Core::Layout layout = c.layout;
+            const int64_t lda = a.leading_dimension;
+            const int64_t ldc = c.leading_dimension;
+            const void* read_A = A.data_or_null();
+            void* rw_C = C.data_or_null();
+
+            return Internal::execute_blas_task(recorder, meta.get(), operands, A.dtype,
+                [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                    sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+                {
+                    using T = decltype(scalar_type);
+                    using Policy = Kernels::ConjugationFor<T, Conj>;
+                    using Scalar = Kernels::RankUpdateScalar<T, Policy>;
+                    auto pA = static_cast<const T*>(read_A);
+                    auto pC = static_cast<T*>(rw_C);
+                    const Scalar alpha_s = alpha.as<Scalar>();
+                    const Scalar beta_s = beta.as<Scalar>();
+
+                    return dispatcher.run(q, deps,
+                        [=]
+                        {
+                            Kernels::Reference::syrk<T, Policy>(layout, uplo, trans, n, k, alpha_s,
+                                                                pA, lda, str_a, beta_s, pC, ldc,
+                                                                str_c, batch_size);
+                        },
+                        [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
+                        {
+                            return Kernels::SYCL::syrk<T, Policy>(q2, layout, uplo, trans, n, k,
+                                                                  alpha_s, pA, lda, str_a, beta_s,
+                                                                  pC, ldc, str_c, batch_size,
+                                                                  deps2);
+                        });
+                });
+        }
+    } // namespace
+
+    TaskHandle Level3::syrk(const Tensor& A, Tensor& C, Core::Uplo uplo, Core::Transpose trans,
+                            BlasScalar alpha, BlasScalar beta)
+    {
+        const char* const op = "blas.lvl3.syrk";
+        if (Core::is_complex_dtype(A.dtype))
+            Dispatch::require_transpose_not(trans, Core::Transpose::CONJ_TRANS, op, "herk");
+
+        return record_syrk<Kernels::Unconjugated>(recorder_, op, "blas.lvl3.syrk"_op,
+                                                  A, C, uplo, trans, alpha, beta);
+    }
+
+    TaskHandle Level3::herk(const Tensor& A, Tensor& C, Core::Uplo uplo, Core::Transpose trans,
                             double alpha, double beta)
     {
-        // 1. Validation
-        SB_THROW_IF(A.rank < 2 || C.rank < 2, "SYRK requires at least 2D tensors.");
-        SB_THROW_IF(A.dtype != C.dtype, "Data type mismatch in SYRK operation.");
+        if (!Core::is_complex_dtype(A.dtype))
+            return syrk(A, C, uplo, trans, alpha, beta);
 
-        const char* op = "blas.lvl3.syrk";
-        const Dispatch::MatrixOperand a = Dispatch::describe_matrix_operand(A, op, "A");
-        const Dispatch::MatrixOperand c = Dispatch::describe_matrix_operand(C, op, "C");
-        Dispatch::require_same_layout(a, c, op, "A", "C");
+        const char* const op = "blas.lvl3.herk";
+        Dispatch::require_transpose_not(trans, Core::Transpose::TRANS, op, "syrk");
 
-        const int64_t n = c.rows;
-        Dispatch::require_matrix_extent(c.cols, n, "columns for a square C", op, "C");
-
-        const int64_t k = transA ? a.rows : a.cols;
-        Dispatch::require_matrix_extent(transA ? a.cols : a.rows, n, "rows in op(A)", op, "A");
-
-        const int64_t batch_size = c.batch_count;
-        const int64_t str_a = Dispatch::batch_stride(a, batch_size, op, "A");
-        const int64_t str_c = Dispatch::batch_stride(c, batch_size, op, "C");
-        Dispatch::require_same_batch_axes(A, a, C, c, op, "A", "C");
-
-        const int64_t lda = a.leading_dimension;
-        const int64_t ldc = c.leading_dimension;
-
-        const auto layout = c.layout;
-        const void* read_A = A.data_or_null();
-        void* rw_C = C.data_or_null();
-
-        // C is read-modify-write whatever beta is; see src/README.md.
-        OperandSet operands;
-        operands.reads(A).updates(C);
-
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "blas.lvl3.syrk";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.lvl3.syrk"_op;
-        meta.set_param(0, alpha);
-        meta.set_param(1, beta);
-        meta.set_param(2, upper);
-        meta.set_param(3, transA);
-
-        return Internal::execute_blas_task(recorder_, meta, operands, A.dtype,
-            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
-                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
-            {
-                using T = decltype(scalar_type);
-
-                auto pA = static_cast<const T*>(read_A);
-                auto pC = static_cast<T*>(rw_C);
-                auto alpha_t = static_cast<T>(alpha);
-                auto beta_t = static_cast<T>(beta);
-
-                return dispatcher.run(q, deps,
-                    [=]
-                    {
-                        Kernels::Reference::syrk<T>(layout, upper, transA, n, k, alpha_t, pA, lda, str_a, beta_t, pC, ldc, str_c, batch_size);
-                    },
-                    [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
-                    {
-                        return Kernels::SYCL::syrk<T>(q2, layout, upper, transA, n, k, alpha_t, pA, lda, str_a, beta_t, pC, ldc, str_c, batch_size, deps2);
-                    });
-            });
+        return record_syrk<Kernels::Conjugated>(recorder_, op, "blas.lvl3.herk"_op,
+                                                A, C, uplo, trans,
+                                                BlasScalar(alpha), BlasScalar(beta));
     }
 } // namespace SushiBLAS

@@ -25,71 +25,82 @@
  * @author Mustafa Garip
  */
 
+#include <SushiBLAS/engine/blas/level2.hpp>
+
+#include <vector>
+#include <cstddef>
 #include <complex>
 #include <kernels/blas.hpp>
+#include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
-#include <SushiBLAS/engine/blas/level2.hpp>
-#include <SushiRuntime/core/resource_region.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/blas/task_metadata.hpp>
+#include <SushiBLAS/engine/blas/argument_check.hpp>
+#include <SushiBLAS/engine/blas/matrix_operand.hpp>
+#include <SushiBLAS/engine/blas/vector_operand.hpp>
+#include <SushiBLAS/support/accumulator.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    TaskHandle Level2::trsv(const Tensor& A, Tensor& b,
-                            bool upper, bool transA, bool unit_diag)
+    TaskHandle Level2::trsv(const Tensor& A, Tensor& b, Core::Uplo uplo, Core::Transpose trans,
+                            Core::Diag diag)
     {
-        SB_THROW_IF(A.rank < 2, "TRSV requires A to be at least a 2D matrix.");
-        Internal::require_level2_matrix_rank(A, "blas.lvl2.trsv");
-        SB_THROW_IF(A.dtype != b.dtype, "Data type mismatch in TRSV.");
+        const char* const op = "blas.lvl2.trsv";
 
-        int32_t rA = A.rank;
-        Dispatch::require_storage(A, "blas.lvl2.trsv", "A");
-        Dispatch::require_contiguous(A, "blas.lvl2.trsv", "A");
-        int64_t n = A.shape[rA - 1]; // Triangular matrix must be n x n
-        SB_THROW_IF(A.shape[rA - 2] != n, "TRSV requires A to be a square matrix.");
+        Dispatch::require_flag(uplo, op, "uplo");
+        Dispatch::require_flag(trans, op, "trans");
+        Dispatch::require_flag(diag, op, "diag");
+        Dispatch::require_dtype(b, A.dtype, op, "b");
 
-        int64_t lda = (A.layout == Core::Layout::ROW_MAJOR) ? A.shape[rA - 1] : A.shape[rA - 2];
-        // b is an n x 1 matrix: ldb is 1 in row-major and n in column-major; see src/README.md.
-        int64_t ldb = (A.layout == Core::Layout::ROW_MAJOR) ? 1 : n;
+        const Dispatch::MatrixOperand a = Dispatch::describe_matrix_operand(A, op, "A");
+        Dispatch::require_unbatched(a, op, "A");
+        Dispatch::require_square(a, op, "A");
+        const Dispatch::VectorOperand vb = Dispatch::describe_vector_operand(b, op, "b");
+        Dispatch::require_unit_increment(vb, op, "b");
+        Dispatch::require_vector_length(vb, a.cols, "the order of A", op, "b");
 
-        int64_t nb, incb;
-        Internal::get_vec_params(b, nb, incb, "blas.lvl2.trsv", "b");
-        SB_THROW_IF(nb != n, "Dimension mismatch for vector b in TRSV.");
-        SB_THROW_IF(incb != 1, "TRSV requires a contiguous vector b.");
+        const int64_t n = a.cols;
 
-        const void* read_A = A.data_or_null();
-        void* rw_b = b.data_or_null(); // TRSV overwrites b
-
-        // b arrives as the right-hand side and leaves as the solution: read, then written.
         OperandSet operands;
         operands.reads(A).updates(b);
+        const ScratchBuffer work = Internal::allocate_blas_scratch(
+            recorder_, b,
+            Internal::running_solution_bytes(A.dtype) * static_cast<std::size_t>(n), operands);
 
-        SushiRuntime::Graph::TaskMetadata meta;
-        meta.name = "blas.lvl2.trsv";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
-        meta.op_id = "blas.lvl2.trsv"_op;
-        meta.set_param(0, upper);
-        meta.set_param(1, transA);
-        meta.set_param(2, unit_diag);
+        const Internal::BlasMetadata meta =
+            Internal::BlasMetadata(op, "blas.lvl2.trsv"_op).flag(uplo).flag(trans).flag(diag);
 
-        auto layout = A.layout;
+        const Core::Layout layout = a.layout;
+        const int64_t lda = a.leading_dimension;
+        // b is an n x 1 matrix: ldb is 1 in row-major and n in column-major; see src/README.md.
+        const int64_t ldb = (layout == Core::Layout::ROW_MAJOR) ? 1 : n;
+        const void* read_A = A.data_or_null();
+        void* rw_b = b.data_or_null();
 
-        return Internal::execute_blas_task(recorder_, meta, operands, A.dtype,
+        return Internal::execute_blas_task(recorder_, meta.get(), operands, A.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
                 auto pA = static_cast<const T*>(read_A);
                 auto pb = static_cast<T*>(rw_b);
-                T one(1);
 
                 return dispatcher.run(q, deps,
-                    [=] { Kernels::Reference::trsm<T>(layout, true, upper, transA, unit_diag, n, 1, one, pA, lda, pb, ldb); },
+                    [=]
+                    {
+                        Kernels::Reference::trsm<T>(layout, Core::Side::LEFT, uplo, trans, diag,
+                                                    n, 1, T(1), pA, lda, pb, ldb);
+                    },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
-                        return Kernels::SYCL::trsm<T>(q2, layout, true, upper, transA, unit_diag, n, 1, one, pA, lda, 0, pb, ldb, 0, 1, deps2);
+                        return Kernels::SYCL::trsm<T>(
+                            q2, layout, Core::Side::LEFT, uplo, trans, diag, n, 1, T(1), pA, lda,
+                            0, pb, ldb, 0, 1,
+                            static_cast<Kernels::Accumulator<T>*>(work.data()), deps2);
                     });
             });
     }
-}
+} // namespace SushiBLAS
