@@ -6,13 +6,14 @@ the core, storage, engine, tensor and version headers in one line.
 | Folder | Holds | Reasoning |
 | --- | --- | --- |
 | `core/` | Element types, type traits, the format stand-in, the logger | [core/README.md](core/README.md) |
-| `engine/` | The dispatch seam, the device policy, the launch and reduction shapes | [engine/README.md](engine/README.md) |
+| `engine/` | The dispatch seam, the operand checks, the task recorder | [engine/README.md](engine/README.md) |
 | `engine/blas/` | BLAS levels 1 to 3 and the GEMM executor | [engine/blas/README.md](engine/blas/README.md) |
 | `engine/logic/` | Comparison and logical operations | [engine/logic/README.md](engine/logic/README.md) |
 | `engine/math/` | Elementwise, non-linear, random and reduction operations | [engine/math/README.md](engine/math/README.md) |
-| `engine/spatial/` | Window geometry of the spatial operations | [engine/spatial/README.md](engine/spatial/README.md) |
+| `engine/spatial/` | Window span builders of the spatial operations | [engine/spatial/README.md](engine/spatial/README.md) |
 | `experimental/` | LAPACK and signal declarations that have no implementation | [experimental/README.md](experimental/README.md) |
 | `kernels/` | The GEMM kernels and epilogues a public seam instantiates | [kernels/README.md](kernels/README.md) |
+| `support/` | The accumulator trait, the device policy, the launch and reduction shapes, the window geometry | [support/README.md](support/README.md) |
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to. The header states the rule in one line and cites
@@ -28,7 +29,7 @@ e.g. a tensor filled directly through its host-visible pointer, no add_task invo
 IExecutionEngine::execute() throws on a graph with no root nodes, so treat empty as an
 already-complete no-op instead.
 
-### `Engine::set_seed`
+### `RngStream::reseed`
 
 Rewinds the counter offset to zero as well as setting the seed. Every RNG kernel mixes `(seed,
 offset)` into Philox, so the seed alone does not name a stream position: setting the seed while
@@ -43,16 +44,53 @@ the old behaviour. Nothing is therefore exposed to opt out of the reset; if a us
 it belongs as a distinct named method (`advance_rng_stream()`), never as a side effect of setting a
 seed.
 
-### `Engine::get_and_increment_rng_offset`
+### `RngStream::reserve`
 
 Every distribution draw takes a fresh position so two tasks never reuse a Philox (key, counter)
-pair, even under concurrent submission. The sequence restarts at zero on `set_seed`.
+pair, even under concurrent submission. The sequence restarts at zero on `reseed`.
+
+### `Engine::create_tensor`
+
+Each form takes its dimensions either as a braced list or as a `std::vector<int64_t>`. The braced
+list forwards to the vector form, so both check the rank, negative dimensions and byte overflow
+before they allocate. `Tensor::reshape` has the same two forms.
+
+## `io.hpp`
+
+### `IO::read`, `IO::write`, `IO::to_vector`, `IO::from_vector`
+
+These four calls move a tensor's elements between host memory and its storage. Each one first runs
+the recorded graph with `Engine::execute()`, then copies through the context's queue, so a
+`Residency::Device` tensor works the same way as a shared one. The tensor must have storage and be
+contiguous, and the host byte count must equal `num_elements * bytes_per_element(dtype)`. The typed
+helpers also check that `T` maps to the tensor's dtype through `Detail::HostDataType`. Every
+violation throws `std::invalid_argument`.
+
+### Loads run the recorded graph first
+
+`load`, `load_bin` and `load_npy` call `Engine::execute()` before they write, so a task recorded
+earlier that writes the same tensor finishes before the file's data arrives and cannot overwrite it.
+
+### `IO::load_npy`
+
+The reader accepts format versions 1.0, 2.0 and 3.0. Version 1.0 stores the header length in two
+little-endian bytes; 2.0 and 3.0 store it in four. It rejects a header longer than 1 MiB. It parses
+the whole header dictionary and requires the `descr`, `fortran_order` and `shape` keys, no others.
+`descr` must equal the descriptor `save_npy` writes for the tensor's dtype, and `shape` must equal
+the tensor's shape exactly. `fortran_order` must be `True` for a COLUMN_MAJOR tensor of rank 2 and
+`False` for a ROW_MAJOR tensor of rank 2 or more. At rank 0 and 1 either value is accepted, because both orders give the
+same memory. A COLUMN_MAJOR tensor of rank 3 or more is rejected, as it is in `save_npy`.
 
 ## `storage.hpp`
 
+### `Storage::get_context`, `get_residency`, `get_device_index`
+
+The context, residency and device index are fixed at construction and readable only through these
+accessors. `size_bytes` and `requested_bytes` remain public fields.
+
 ### `Storage::allocation_base`
 
-Returns: The pointer the allocator handed back, or nullptr before construction completed.
+Returns: The pointer the runtime context handed back, or nullptr before construction completed.
 
 Warning: This is the *allocation* base, never a tensor's data. Handing this pointer to a kernel
 silently ignores `Tensor::storage_offset`, so a tensor that is a view at a non-zero offset reads or
@@ -72,6 +110,14 @@ that computes an offset (`slice()`, a memory planner packing an arena) must coun
 and a planner packing mixed dtypes into one allocation has to round each tensor's start up to a
 multiple of its own element width itself; `Tensor` cannot do it for the planner, because by the time
 a Tensor exists the offset has already been chosen.
+
+### `Tensor::data`, `data_as`, `data_or_null`
+
+Each accessor has two overloads, picked by the constness of the Tensor. A non-const Tensor returns
+`void*` / `T*`; a const Tensor, or a `const Tensor&`, returns `const void*` / `const T*`. Both point
+at the same address, `storage_offset` elements past the allocation base. A pointer a task writes
+through must therefore come from a non-const Tensor, and a pointer read from a const Tensor goes to
+a kernel as an input. `data_or_null()` returns nullptr instead of throwing when there is no storage.
 
 ### `Tensor::layout_strides`
 

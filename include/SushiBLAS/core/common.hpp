@@ -146,5 +146,3 @@ namespace SushiBLAS
 
     } // namespace Core
 } // namespace SushiBLAS
-
-namespace sb = SushiBLAS;

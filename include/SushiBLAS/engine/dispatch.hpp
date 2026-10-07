@@ -36,7 +36,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiBLAS/engine/device_policy.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
 #include <SushiRuntime/graph/task_types.hpp>
 
 namespace SushiBLAS

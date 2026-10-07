@@ -21,41 +21,89 @@
 
 /**
  * @file engine.cpp
- * @brief Defines the Engine constructor and its tensor creation.
+ * @brief Defines the Engine constructor, its mode setter and its tensor creation.
  * @author Mustafa Garip
  */
 
 #include <SushiBLAS/engine.hpp>
 
-namespace SushiBLAS 
+#include <vector>
+#include <stdexcept>
+
+namespace SushiBLAS
 {
-    Engine::Engine(SushiRuntime::Execution::RuntimeContext& ctx, Core::Layout layout) 
-        : context_(ctx), graph_(ctx), default_layout_(layout) 
+    namespace
     {
-        SB_LOG_INFO("SushiBLAS Engine initialized with {} layout.", 
+        /**
+         * @brief Returns the byte count a dense tensor of dims and dtype needs.
+         * @throws std::runtime_error on a negative dimension or an overflowing count.
+         */
+        [[nodiscard]] size_t checked_allocation_bytes(const std::vector<int64_t>& dims,
+                                                      Core::DataType dtype)
+        {
+            SB_THROW_IF(dims.size() > Core::MAX_TENSOR_RANK, "Rank {} exceeds limit of {}",
+                        dims.size(), Core::MAX_TENSOR_RANK);
+
+            int64_t elements = 1;
+            size_t axis = 0;
+
+            for (const int64_t d : dims)
+            {
+                SB_THROW_IF(d < 0, "Dimension {} is negative ({})", axis, d);
+                elements = Detail::checked_multiply(elements, d, "Element count");
+                ++axis;
+            }
+
+            const int64_t bpe = static_cast<int64_t>(Core::bytes_per_element(dtype));
+            return static_cast<size_t>(Detail::checked_multiply(elements, bpe, "Byte size"));
+        }
+    } // namespace
+
+    Engine::Engine(SushiRuntime::Execution::RuntimeContext& ctx, Core::Layout layout)
+        : context_(ctx), graph_(ctx), default_layout_(layout)
+    {
+        SB_LOG_INFO("SushiBLAS Engine initialized with {} layout.",
                     layout == Core::Layout::ROW_MAJOR ? "Row-Major" : "Column-Major");
     }
 
-    Tensor Engine::create_tensor(std::initializer_list<int64_t> dims,
-                                 const SushiRuntime::Memory::IAllocatorStrategy& strat)
+    void Engine::set_mode(ExecutionMode mode)
     {
-        return create_tensor(dims, Core::DataType::FLOAT32, strat);
+        if (mode == ExecutionMode::VERIFY)
+            throw std::logic_error("ExecutionMode::VERIFY is not implemented. Run the operation "
+                                   "once under ExecutionMode::FORCE_REFERENCE and once under "
+                                   "ExecutionMode::FORCE_SYCL and compare the results.");
+        mode_ = mode;
+    }
+
+    Tensor Engine::create_tensor(std::initializer_list<int64_t> dims,
+                                 SushiRuntime::API::Residency residency)
+    {
+        return create_tensor(std::vector<int64_t>(dims), Core::DataType::FLOAT32, residency);
     }
 
     Tensor Engine::create_tensor(std::initializer_list<int64_t> dims,
                                  Core::DataType dtype,
-                                 const SushiRuntime::Memory::IAllocatorStrategy& strat)
+                                 SushiRuntime::API::Residency residency)
     {
-        size_t elements = 1;
+        return create_tensor(std::vector<int64_t>(dims), dtype, residency);
+    }
 
-        for (auto d : dims)
-            elements *= d;
-        
-        const size_t bpe = Core::bytes_per_element(dtype);
+    Tensor Engine::create_tensor(const std::vector<int64_t>& dims,
+                                 SushiRuntime::API::Residency residency)
+    {
+        return create_tensor(dims, Core::DataType::FLOAT32, residency);
+    }
 
-        auto storage = SushiRuntime::make_sushi<Storage>(context_.get_allocator(), elements * bpe, strat);
-        
-        return Tensor(storage, dims, dtype, 0, default_layout_);
+    Tensor Engine::create_tensor(const std::vector<int64_t>& dims,
+                                 Core::DataType dtype,
+                                 SushiRuntime::API::Residency residency)
+    {
+        const size_t bytes = checked_allocation_bytes(dims, dtype);
+
+        auto storage = SushiRuntime::make_sushi<Storage>(context_, bytes, residency);
+
+        return Tensor(storage, SushiRuntime::span<const int64_t>(dims.data(), dims.size()), dtype,
+                      0, default_layout_);
     }
 
 } // namespace SushiBLAS
