@@ -3,11 +3,28 @@
 SushiBLAS is Copyright (c) 2026-present Mustafa Garip & Sushi Systems and licensed under the PolyForm Noncommercial
 License 1.0.0; see `LICENSE`. The material below keeps its own licence.
 
+## What ships in this repository
+
+Two third-party works have code or text in the tracked files: portBLAS and the Contributor
+Covenant. Random123 is listed with them because the tree does not record whether `philox.hpp`
+was adapted from its source. Licence texts live in `third_party/licenses/`, which holds
+`Apache-2.0.txt` today.
+
+| Work | Files here | Licence | Licence text |
+| --- | --- | --- | --- |
+| portBLAS, Copyright (C) Codeplay Software Limited | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syrk.hpp` | Apache-2.0 | `third_party/licenses/Apache-2.0.txt` |
+| Random123, Copyright 2010-2012, D. E. Shaw Research | `kernels/sycl/random/philox.hpp`, to the extent stated under "Algorithms written from a published reference" | BSD-3-Clause | not in `third_party/licenses/` |
+| Contributor Covenant 2.1 | `docs/reference/CODE_OF_CONDUCT.md` | not read; the estate audit names CC BY 4.0 | not in `third_party/licenses/` |
+
+No other tracked file carries a third-party copyright line. Outside `LICENSE`, this file,
+`docs/`, `third_party/` and the fixtures under `tools/`, a search of every tracked file for
+`Copyright` finds a holder other than Sushi Systems only in the two portBLAS headers.
+
 ## Ported files
 
 | File | Source | Version | Licence |
 | --- | --- | --- | --- |
-| `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp` | portBLAS, https://github.com/codeplaysoftware/portBLAS, `src/operations/blas3/gemm_local.hpp` and `gemm_no_local.hpp` | unverified; the repository was archived in January 2025 | Apache-2.0, Copyright (C) Codeplay Software Limited; text in `third_party/licenses/Apache-2.0.txt` |
+| `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp` | portBLAS, https://github.com/codeplaysoftware/portBLAS, `src/operations/blas3/gemm_local.hpp` and `gemm_no_local.hpp` | no upstream commit is recorded in this tree; the repository was archived in January 2025 | Apache-2.0, Copyright (C) Codeplay Software Limited; text in `third_party/licenses/Apache-2.0.txt` |
 | `kernels/sycl/blas/level3/syrk.hpp` | The GEMM tiling above, composed for SYRK; portBLAS has no SYRK kernel | as above | Apache-2.0 for the tiling it carries over, as above |
 
 ```
@@ -16,53 +33,61 @@ Copyright (C) Codeplay Software Limited.
 Licensed under the Apache License, Version 2.0.
 ```
 
-portBLAS continues at the UXL Foundation's generic-sycl-components,
+The `LICENSE` file on portBLAS's `master` branch was read on 2026-10-07 and is the Apache License,
+Version 2.0. portBLAS continues at the UXL Foundation's generic-sycl-components,
 https://github.com/uxlfoundation/generic-sycl-components. The Sushi Systems licence covers the
 changes to these two files, not the upstream algorithm. The sections "Port notes" and "Not
 ported" below state what was changed.
 
-The license block of both files carries the upstream lines. This command writes every license
-block in the repository and keeps them:
+Lines 21 and 22 of both files' license block carry the upstream lines. This command, run from the
+repository root, writes every license block in the repository and keeps them:
 
 ```
-python D:/Projects/sushiskills/tools/licensing/write_license_block.py D:/Projects/sushiblas --project "SushiBLAS - https://github.com/SushiSystems/SushiBLAS" --upstream "include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syrk.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md"
+python tools/licensing/write_license_block.py . --project "SushiBLAS - https://github.com/SushiSystems/SushiBLAS" --upstream "include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syrk.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md"
 ```
 
 ## Algorithms written from a published reference
 
 | File | Reference | Licence of the reference |
 | --- | --- | --- |
-| `kernels/sycl/random/philox.hpp` | Philox4x32-10 from Salmon, Moraes, Dror and Shaw, "Parallel Random Numbers: As Easy as 1, 2, 3", SC'11; round constants checked against Random123, https://github.com/DEShawResearch/random123, `include/Random123/philox.h` | unverified |
+| `kernels/sycl/random/philox.hpp` | Philox4x32-10 from Salmon, Moraes, Dror and Shaw, "Parallel Random Numbers: As Easy as 1, 2, 3", SC'11; round constants checked against Random123, https://github.com/DEShawResearch/random123, `include/Random123/philox.h` | The paper carries no code licence. Random123 is BSD-3-Clause, Copyright 2010-2012, D. E. Shaw Research; its `LICENSE` on `main` was read on 2026-10-07 |
+| `kernels/sycl/random/poisson.hpp`, `poisson_ptrs` | Hoermann's transformed rejection with squeeze (PTRS), Insurance: Mathematics and Economics 12, 1993, as `kernels/README.md` cites it | A journal article; no code licence |
+| `kernels/sycl/random/poisson.hpp`, `poisson_knuth` | Knuth's multiplication loop for a Poisson draw, as `kernels/README.md` names it | A textbook algorithm; no code licence |
 
 Whether `philox.hpp` was written from the paper or adapted from the Random123 source is not
-recorded in the tree.
+recorded in the tree. The file holds the four Philox constants (`philox.hpp:65-68`) and no
+Random123 copyright line. If the owner states it was adapted from Random123, the BSD-3-Clause
+text goes into `third_party/licenses/` and its copyright line into the file's license block.
 
 ## Adapted text
 
 | File | Source | Version | Licence |
 | --- | --- | --- | --- |
-| `docs/CODE_OF_CONDUCT.md` | Contributor Covenant, https://www.contributor-covenant.org/version/2/1/code_of_conduct.html | 2.1 | unverified; the audit names CC BY 4.0 |
+| `docs/reference/CODE_OF_CONDUCT.md` | Contributor Covenant, https://www.contributor-covenant.org/version/2/1/code_of_conduct.html | 2.1 | unverified; the audit names CC BY 4.0 |
 
-## Third-party components
+The file's "Attribution" section names the Covenant and its version. The Covenant's 2.1 text,
+fetched on 2026-10-07, states no licence in its body.
+
+## Third-party components that do not ship
 
 Nothing is vendored, nothing is fetched at configure time and no binary is redistributed. The
 build and the command line interface resolve these from the machine; none of their files sits
-in this repository, and no licence below was read from its source.
+in this repository. The licence column says where each licence was read.
 
 | Component | Used by | Source | Version | Licence |
 | --- | --- | --- | --- | --- |
-| SushiRuntime | `cmake/Runtime.cmake` | https://github.com/SushiSystems/SushiRuntime | sibling checkout or installed package, not pinned | Sushi Systems' own; see that repository's `LICENSE` |
-| SYCL headers and runtime, Intel oneAPI DPC++ | every `<sycl/...>` include, `CMakePresets.json` | https://github.com/intel/llvm | not pinned | unverified |
-| oneTBB | `CMakePresets.json` library path | Intel oneAPI | not pinned | unverified |
-| GoogleTest | `tests/CMakeLists.txt` | https://github.com/google/googletest | not pinned | unverified; the audit names BSD-3-Clause |
-| hwloc | through SushiRuntime, from vcpkg on Windows (`cmake/Vcpkg.cmake`) | https://github.com/open-mpi/hwloc | not pinned | unverified; the audit names BSD-3-Clause |
-| sushicore | `cli/pyproject.toml` | PyPI | >=0.7.0 | Sushi Systems' own; see that package's licence |
-| typer | `cli/pyproject.toml` | PyPI | >=0.12 | unverified; the audit names MIT |
-| rich | `cli/pyproject.toml` | PyPI | >=13.0 | unverified; the audit names MIT |
-| tomli | `cli/pyproject.toml`, Python below 3.11 | PyPI | >=2.0 | unverified; the audit names MIT |
-| setuptools | `cli/pyproject.toml`, build backend | PyPI | >=61.0 | unverified |
-| pytest, pyflakes | `.github/workflows/ci.yml` | PyPI | not pinned | unverified |
-| `intel/oneapi-basekit` container image | `.github/workflows/ci.yml` | Docker Hub | `latest` | unverified; the audit names the Intel EULA |
+| SushiRuntime | `cmake/Runtime.cmake` | https://github.com/SushiSystems/SushiRuntime | sibling checkout or installed package, not pinned | PolyForm Noncommercial 1.0.0, from the sibling checkout's `LICENSE` |
+| SYCL headers and runtime, Intel oneAPI DPC++ | every `<sycl/...>` include; `intel-oneapi-compiler-dpcpp-cpp` from Intel's apt repository in `.github/actions/setup-oneapi/action.yml`; `CMakePresets.json` | https://github.com/intel/llvm | not pinned | unverified |
+| oneTBB | `CMakePresets.json` include and library paths | Intel oneAPI | not pinned | unverified |
+| GoogleTest | `tests/CMakeLists.txt`; `libgtest-dev` in `.github/actions/setup-oneapi/action.yml` | https://github.com/google/googletest | not pinned | BSD-3-Clause, Copyright 2008, Google Inc., from the workspace's vcpkg `share/gtest/copyright` |
+| hwloc | through SushiRuntime, from vcpkg on Windows (`cmake/Vcpkg.cmake`); `libhwloc-dev` in `.github/actions/setup-oneapi/action.yml` | https://github.com/open-mpi/hwloc | not pinned | a BSD licence, from the workspace's vcpkg `share/hwloc/copyright`; the audit names BSD-3-Clause |
+| sushicore | `cli/pyproject.toml` | PyPI | >=0.7.0 | Sushi Systems' own; the 0.5.0 installed on this machine declares Apache-2.0, and no 0.7.0 or later was read |
+| typer | `cli/pyproject.toml` | PyPI | >=0.12 | MIT, from the metadata of the installed 0.20.0 |
+| rich | `cli/pyproject.toml` | PyPI | >=13.0 | MIT, from the metadata of the installed 15.0.0 |
+| tomli | `cli/pyproject.toml`, Python below 3.11 | PyPI | >=2.0 | MIT, from the metadata of the installed 2.4.0 |
+| setuptools | `cli/pyproject.toml`, build backend | PyPI | >=61.0 | MIT, from the metadata of the installed 82.0.1 |
+| pytest | `.github/workflows/ci.yml`, `cli/tests/` | PyPI | not pinned | MIT, from the metadata of the installed 9.1.1 |
+| pyflakes | `.github/workflows/ci.yml` | PyPI | not pinned | unverified; not installed on this machine |
 
 ## Port notes
 

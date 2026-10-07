@@ -10,6 +10,7 @@ repository copies this folder whole; a rule is fixed here first and copied out.
 | `documentation/check_docs_layout.py` | `docs/` entries, required documents, document names, work folders, status lines, design ceiling, links under `docs/`, reachability from `docs/README.md`, READMEs under `modules/<tier>/`, archive candidates | Repository root |
 | `documentation/check_changelog.py` | Headings and entry shape, releases kept live, length, one sentence, nesting, cited places | Repository root |
 | `layering/check_layering.py` | Declared tiers, upward includes, reaches into another module's `source/`; `support/` headers including Engine, `engine/`, `kernels/` or the tensor header; kernels including Engine, `engine/` or the tensor header; `engine.hpp` including an operation family; operation sources calling an Engine member other than `get_graph`. Entries in `K_KNOWN_VIOLATIONS` print as notes, a stale entry fails | Repository root |
+| `versioning/check_version.py` | `version.hpp`, `Doxyfile`, `cli/pyproject.toml`, `sushi-module.toml` and `README.md` against `project()` in the root `CMakeLists.txt` | Repository root |
 | `licensing/write_license_block.py` | Nothing; writes the license block of `source-comments` into every tracked source file, or lists the files that lack it with `--report` | Repository root, `--project` |
 | `tests/` | Unit tests for the checker rules; run `python -m unittest discover -s tools/tests` | |
 

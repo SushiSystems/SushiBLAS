@@ -194,5 +194,7 @@ jobs:
         run: python tools/documentation/check_changelog.py .
       - name: python tools/layering/check_layering.py .
         run: python tools/layering/check_layering.py .
+      - name: python tools/versioning/check_version.py .
+        run: python tools/versioning/check_version.py .
       - name: python -m unittest discover -s tools/tests
         run: python -m unittest discover -s tools/tests

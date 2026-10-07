@@ -19,7 +19,7 @@
 # fresh checkout. SushiRuntime commits its own for the same reason.
 PROJECT_NAME           = "SushiBLAS"
 PROJECT_BRIEF          = "SYCL tensor and BLAS engine — C++ API reference"
-PROJECT_NUMBER         = "v1 (unreleased)"
+PROJECT_NUMBER         = "0.1.0"
 
 OUTPUT_DIRECTORY       = docs/api-site
 HTML_OUTPUT            = html

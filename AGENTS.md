@@ -28,6 +28,7 @@ python tools/documentation/check_docs_layout.py .
 python tools/documentation/check_changelog.py .
 python tools/documentation/check_source_comments.py . --rule rule_license_block
 python tools/layering/check_layering.py .
+python tools/versioning/check_version.py .
 python -m unittest discover -s tools/tests
 ```
 

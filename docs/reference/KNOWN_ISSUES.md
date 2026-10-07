@@ -41,7 +41,7 @@ is not a defect is in [the backlog](../design/REMAINING_WORK.md).
 | Issue | Where |
 | --- | --- |
 | `docs/api/` and `docs/api-site/` are not part of the documentation tree, and `mainpage.md` is not named in upper snake case; `check_docs_layout.py` reports all three | `Doxyfile`, `docs/api/mainpage.md` |
-| `Doxyfile` sits in the root, where the layout forbids it, and states the version as "v1 (unreleased)" against 0.1.0 in the build files | `Doxyfile` |
+| `Doxyfile` sits in the root, where the layout forbids it | `Doxyfile` |
 | The source folder is `src/` where the layout names `source/`, and `kernels/` and `examples/` are top-level folders outside the layout | repository root |
 | `tests/` has a `functional/` level over unit, integration and regression, and a `package/` folder the layout does not name | `tests/` |
 | The root lacks `.clang-format`, `.editorconfig` and `.gitattributes` | repository root |
@@ -66,4 +66,3 @@ is not a defect is in [the backlog](../design/REMAINING_WORK.md).
 | --- | --- |
 | No release was ever tagged, and the Unreleased section holds 88 entries | `docs/reference/CHANGELOG.md` |
 | `cli/pyproject.toml` requires `sushicore>=0.7.0`; the sushicore repository is tagged up to v0.4.0 | `cli/pyproject.toml` |
-| The CMake version and the CLI package version are two literals that nothing checks against each other | `CMakeLists.txt`, `cli/pyproject.toml` |

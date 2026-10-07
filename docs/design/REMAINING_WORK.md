@@ -125,7 +125,7 @@ Each of these edits a file outside the documentation, so none was done with the 
 - Move the Doxygen main page to `docs/reference/` and the generated site out of `docs/`, in the
   same change as `Doxyfile` and `.gitignore` (D19). Until then `check_docs_layout.py` reports
   `docs/api`, `docs/api-site` and the name `mainpage.md`.
-- Move `Doxyfile` out of the root and take its version from CMake (L7, L11).
+- Move `Doxyfile` out of the root (L7). `check_version.py` now holds its version to CMake's.
 - Decide `src/` against `source/`, the home of `kernels/` and `examples/`, and the `functional/`
   level of `tests/`, together with SushiRuntime (L8, L14).
 - Add `.clang-format`, `.editorconfig` and `.gitattributes`, and the missing `.gitignore` rules
@@ -150,4 +150,3 @@ Workflow files change after the code programme, when the source comment checker 
 ## Release
 
 - Tag v0.1.0 and cut the Unreleased section under it (L11). Owner decision.
-- Check the CLI package version against the CMake version (L16).
