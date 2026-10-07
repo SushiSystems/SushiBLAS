@@ -14,6 +14,7 @@ to run its tests. This index reaches every other document.
 | Document | Holds |
 | --- | --- |
 | [Integration](guides/INTEGRATION.md) | How another CMake project consumes SushiBLAS and what it must supply |
+| [FAQ](guides/FAQ.md) | The questions a newcomer asks, each answered from this manual |
 | [The CLI](../cli/README.md) | Every `sb` command and option; the CLI's own README |
 
 ## Reference
