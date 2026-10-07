@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-07 — cli: Pinned with tests that `sb docs bundle` writes the archive of the checkout and reads the XML folder of the Doxyfile (`cli/tests/test_cli.py`).
 - 2026-10-07 — ci: Fixed the release job to pass the sibling token to the called CI, and ignored the generated API XML (`.github/workflows/release.yml`, `.gitignore`).
 - 2026-10-07 — ci: Added the release job that builds the documentation bundle after CI and attaches it to the tag's release (`.github/workflows/release.yml`, `ci.yml`).
 - 2026-10-07 — cli: Added `sb docs bundle`, made `docs` a command group registered from SushiCore, and added the publish list (`cli/sushiblas/cli.py`, `docs/publish.toml`, `Doxyfile`).
