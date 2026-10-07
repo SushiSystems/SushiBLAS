@@ -121,7 +121,7 @@ The options SushiBLAS itself defines:
 |--------|---------|--------------|
 | `SB_LOG_LEVEL` | `auto` | Compiled-in log level: `auto`, `OFF`, `ERR`, `WARN`, `INFO`, `DEBUG`. `auto` means WARN for a release build and DEBUG for a debug build. |
 | `SB_NATIVE_ARCH` | `OFF` | Build for the host CPU's own instruction set. |
-| `SB_SYCL_TARGETS` | *(empty)* | AOT device targets; empty means SPIR-V/JIT only. |
+| `SB_SYCL_TARGETS` | *(empty)* | AOT device targets; empty means the targets SushiRuntime resolved. |
 | `SB_SYCL_DEVICE_FLAGS` | *(empty)* | Extra flags for the device compilation pass. |
 
 `SB_LOG_LEVEL` is the one to reach for when debugging: a release build logs at
