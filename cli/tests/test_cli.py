@@ -20,9 +20,19 @@ import sushiblas.console
 from sushiblas import cli
 
 K_VISIBLE_COMMANDS = [
-    "build", "clean", "config", "docs", "doctor", "env", "link", "run", "setup", "test", "unlink",
+    "build", "clean", "config", "docs", "docs bundle", "doctor", "env", "link", "run", "setup",
+    "test", "unlink",
 ]
 K_ENVIRONMENT = ("SUSHI_CLI_THEME", "SUSHI_CLI_ICONS", "SUSHI_CLI_COLOR", "SUSHISTACK_HOME")
+K_DOCS_EXIT_CODE = 6
+
+
+class _DocsService:
+    """Stands in for the project service; docs returns a fixed code."""
+
+    def docs(self) -> int:
+        """Returns K_DOCS_EXIT_CODE."""
+        return K_DOCS_EXIT_CODE
 
 
 @pytest.fixture
@@ -113,3 +123,23 @@ def test_config_and_env_are_not_declared_in_this_package():
     registered = {info.name: info.callback.__module__ for info in cli.app.registered_commands}
     assert registered["config"] == "sushicore.diag_commands"
     assert registered["env"] == "sushicore.diag_commands"
+
+
+def test_docs_runs_the_api_build_and_bundle_is_its_subcommand(monkeypatch, tmp_path):
+    """`sb docs` still builds the reference, and `sb docs bundle` asks for a release."""
+    monkeypatch.setattr(cli, "_service", _DocsService)
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path)
+    runner = CliRunner()
+    built = runner.invoke(cli.app, ["docs"])
+    assert built.exit_code == K_DOCS_EXIT_CODE
+    assert "Doxygen Generation" in built.output
+    assert runner.invoke(cli.app, ["doxygen"]).exit_code == K_DOCS_EXIT_CODE
+    missing = runner.invoke(cli.app, ["docs", "bundle"])
+    assert missing.exit_code == 2
+    assert "--release" in missing.output
+
+
+def test_the_api_source_reads_the_xml_doxygen_writes_under_the_site_folder(monkeypatch, tmp_path):
+    """The bundle takes the API reference from docs/api-site/xml below the repository root."""
+    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path)
+    assert cli._api_source().xml_dir == tmp_path / "docs" / "api-site" / "xml"

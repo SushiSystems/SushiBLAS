@@ -8,11 +8,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import NoReturn, Optional
 
 import typer
 from sushicore import entry
 from sushicore.diag_commands import register_diagnostic_commands
+from sushicore.docs_bundle import ApiSource, register_docs_commands
 from sushicore.provision.commands import ModuleProvision, register_provision_commands
 from sushicore.root_options import register_root_options
 from sushicore.typer_help import help_group
@@ -31,6 +33,7 @@ K_PROJECT = "Project"
 K_DOCUMENTATION = "Documentation"
 K_DIAGNOSTICS = "Diagnostics"
 K_DISTRIBUTION = "sushiblas-cli"
+K_API_XML = Path("docs") / "api-site" / "xml"
 
 _help_group = help_group(console.current)
 
@@ -51,14 +54,18 @@ def _service() -> ProjectService:
     return create_project_service(console.current())
 
 
-def _exit_with(step: Callable[[], int]) -> NoReturn:
-    """Runs *step* and exits with its code, or prints a ProjectError and exits with its code."""
+def _code_of(step: Callable[[], int]) -> int:
+    """Returns the code *step* returns, or prints a ProjectError and returns its code."""
     try:
-        code = step()
+        return step()
     except ProjectError as error:
         console.error(str(error))
-        raise typer.Exit(error.exit_code) from error
-    raise typer.Exit(code)
+        return error.exit_code
+
+
+def _exit_with(step: Callable[[], int]) -> NoReturn:
+    """Runs *step* and exits with its code, or prints a ProjectError and exits with its code."""
+    raise typer.Exit(_code_of(step))
 
 
 @app.command(
@@ -194,18 +201,33 @@ def clean() -> None:
     _exit_with(step)
 
 
-@app.command(
-    "docs",
-    rich_help_panel=K_DOCUMENTATION,
-    epilog="sb docs",
-)
-def docs() -> None:
-    """Generate the Doxygen API reference."""
+def _build_api_reference() -> int:
+    """Prints the header, generates the Doxygen API reference and returns the exit code."""
     console.header("Doxygen Generation")
-    _exit_with(lambda: _service().docs())
+    return _code_of(lambda: _service().docs())
 
 
-K_ALIASES.command(app, "doxygen", docs, "sb doxygen")
+def _api_source() -> ApiSource:
+    """Returns how `sb` builds the API reference and where Doxygen leaves its XML."""
+    return ApiSource(build=_build_api_reference, xml_dir=find_project_root() / K_API_XML)
+
+
+def _docs_alias() -> None:
+    """Builds the API reference; the callback behind the old spelling `sb doxygen`."""
+    raise typer.Exit(_build_api_reference())
+
+
+register_docs_commands(
+    app,
+    program=PROFILE.program,
+    panel=K_DOCUMENTATION,
+    project_root=find_project_root,
+    api=_api_source,
+    report=lambda line: console.success(line),
+    group_cls=_help_group,
+)
+
+K_ALIASES.command(app, "doxygen", _docs_alias, "sb doxygen")
 
 register_diagnostic_commands(
     app, K_DIAGNOSTICS_SERVICE, program=PROFILE.program, panel=K_DIAGNOSTICS)

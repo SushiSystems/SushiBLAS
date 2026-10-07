@@ -1,0 +1,9 @@
+name = "sushiblas"
+title = "SushiBLAS"
+summary = "SushiBLAS is a C++17 tensor and BLAS library built on SushiRuntime's task graph."
+sections = ["guides", "architecture", "reference"]
+exclude = [
+    "reference/CODE_OF_CONDUCT.md",
+    "reference/SECURITY.md",
+]
+api = true

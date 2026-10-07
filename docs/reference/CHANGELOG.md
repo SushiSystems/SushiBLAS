@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-07 — cli: Added `sb docs bundle`, made `docs` a command group registered from SushiCore, and added the publish list (`cli/sushiblas/cli.py`, `docs/publish.toml`, `Doxyfile`).
 - 2026-10-07 — docs: Added the frequently asked questions page (`docs/guides/FAQ.md`).
 - 2026-10-07 — tools: Added a checker that holds every copy of the version to `project()` and set the Doxyfile to 0.1.0 (`tools/versioning/check_version.py`).
 - 2026-10-07 — licence: Listed the third-party works that ship and where each licence text lives (`NOTICE.md`).
