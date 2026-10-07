@@ -6,6 +6,9 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-07 — cli: Added `--device` to `sb test` and `sb run`, which picks the SYCL device for the child process (`cli/sushiblas/services/device.py`).
+- 2026-10-07 — tools: Added a checker that holds every copy of the version to `project()` and set the Doxyfile to 0.1.0 (`tools/versioning/check_version.py`).
+- 2026-10-07 — licence: Listed the third-party works that ship and where each licence text lives (`NOTICE.md`).
 - 2026-10-07 — build: Made the library follow the device targets SushiRuntime resolved, so a CUDA build of the runtime carries SushiBLAS kernels for the same card (`cmake/SyclTarget.cmake`).
 - 2026-10-07 — random: Made the dtype arm of execute_random a named class, which fixed the undefined HostKernel symbols that stopped the test executable from linking (`engine/math/random/dispatch.hpp`).
 - 2026-10-07 — logic: Made all and any of an empty tensor write their identity instead of dividing by zero in the SYCL reduction (`src/engine/logic/all.cpp`, `any.cpp`).
