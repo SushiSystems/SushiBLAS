@@ -23,6 +23,7 @@ _deps/
 # without it, so ignoring it made the documented command impossible in a fresh
 # checkout. Only its generated output is ignored.
 docs/api-site/html/
+docs/api-site/xml/
 docs/api-site/doxygen-warnings.log
 html/
 latex/
