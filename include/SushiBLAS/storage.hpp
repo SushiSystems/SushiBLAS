@@ -46,12 +46,6 @@ namespace SushiBLAS
     class alignas(64) Storage : public SushiRuntime::Core::RefCounted
     {
         public:
-            /** @brief The total number of bytes allocated in memory. */
-            size_t size_bytes = 0;         
-            
-            /** @brief The number of bytes that the user actually asked for. */
-            size_t requested_bytes = 0;
-
             /**
              * @brief Allocates aligned memory of n_bytes from a runtime context, with a residency.
              * @param ctx          Runtime context that performs the allocation; must outlive this Storage.
@@ -64,19 +58,19 @@ namespace SushiBLAS
                     size_t n_bytes,
                     SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared,
                     size_t device_index = 0)
-                : requested_bytes(n_bytes), context_(&ctx), residency_(residency), device_index_(device_index)
+                : context_(&ctx), residency_(residency), device_index_(device_index)
             {
                 SB_THROW_IF(n_bytes == 0, "Requested size cannot be zero");
 
-                size_bytes = n_bytes;
+                size_bytes_ = n_bytes;
                 // Align to modern HPC alignment
-                if (size_bytes % SushiRuntime::Core::DEFAULT_ALIGNMENT != 0) 
+                if (size_bytes_ % SushiRuntime::Core::DEFAULT_ALIGNMENT != 0) 
                 {
-                    size_bytes += SushiRuntime::Core::DEFAULT_ALIGNMENT - (size_bytes % SushiRuntime::Core::DEFAULT_ALIGNMENT);
+                    size_bytes_ += SushiRuntime::Core::DEFAULT_ALIGNMENT - (size_bytes_ % SushiRuntime::Core::DEFAULT_ALIGNMENT);
                 }
 
-                data_ptr_ = allocate_usm(*context_, size_bytes, residency_, device_index_);
-                SB_THROW_IF(!data_ptr_, "Allocation failed for {} bytes", size_bytes);
+                data_ptr_ = allocate_usm(*context_, size_bytes_, residency_, device_index_);
+                SB_THROW_IF(!data_ptr_, "Allocation failed for {} bytes", size_bytes_);
             }
 
             Storage(const Storage&) = delete;
@@ -107,6 +101,9 @@ namespace SushiBLAS
 
             /** @brief Returns the device queue that owns the allocation. */
             [[nodiscard]] size_t get_device_index() const noexcept { return device_index_; }
+
+            /** @brief Returns the allocated size in bytes: the requested size rounded up to DEFAULT_ALIGNMENT. */
+            [[nodiscard]] size_t size_bytes() const noexcept { return size_bytes_; }
 
         protected:
             /**
@@ -142,6 +139,9 @@ namespace SushiBLAS
                 }
                 return nullptr;
             }
+
+            /** @brief The allocated size in bytes, read through size_bytes(). */
+            size_t size_bytes_ = 0;
 
             /** @brief The base address of the allocation, read through allocation_base(). */
             void* data_ptr_ = nullptr;

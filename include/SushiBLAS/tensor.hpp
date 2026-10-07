@@ -203,9 +203,9 @@ namespace SushiBLAS
                 const int64_t end_elements = Detail::checked_add(storage_offset, span, "Storage end");
                 size_t required_bytes = static_cast<size_t>(Detail::checked_multiply(end_elements, bpe, "Byte size"));
 
-                SB_THROW_IF(required_bytes > storage->size_bytes,
+                SB_THROW_IF(required_bytes > storage->size_bytes(),
                             "Storage capacity exceeded! Required: {} bytes, Available: {} bytes",
-                            required_bytes, storage->size_bytes);
+                            required_bytes, storage->size_bytes());
             }
         }
 
