@@ -131,8 +131,7 @@ namespace SushiBLAS
          * @param family What kind of operation this is, for diagnostics; a string literal.
          * @param op_func Callable taking a scalar of the element type, a const
          *        KernelPairDispatcher&, the queue and the dependencies.
-         * @throws At record time as Dispatch::require_domain states, if dtype falls outside Dom.
-         * @throws std::invalid_argument at record time, as TaskRecorder::record_pair states.
+         * @throws std::invalid_argument at record time on a dtype outside Dom; UnsupportedExecution as TaskRecorder::record_pair states.
          * @see include/SushiBLAS/engine/README.md
          */
         template<Dispatch::Domain Dom = Dispatch::Domain::REAL_AND_COMPLEX, typename Func>

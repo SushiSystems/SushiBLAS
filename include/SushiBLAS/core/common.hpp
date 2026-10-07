@@ -44,17 +44,18 @@ namespace SushiBLAS
 
         /**
          * @brief Enumerates the element types a tensor can hold.
+         * @warning The values are a file-format contract: none changes, and a new type is appended.
          * @see include/SushiBLAS/core/README.md
          */
         enum class DataType : uint8_t
         {
-            HALF,
-            FLOAT32,
-            FLOAT64,
-            COMPLEX32,
-            COMPLEX64,
-            INT32,
-            INT64
+            HALF = 0,      /**< A 16-bit IEEE float. */
+            FLOAT32 = 1,   /**< A 32-bit IEEE float. */
+            FLOAT64 = 2,   /**< A 64-bit IEEE float. */
+            COMPLEX32 = 3, /**< A complex number of two 32-bit floats. */
+            COMPLEX64 = 4, /**< A complex number of two 64-bit floats. */
+            INT32 = 5,     /**< A signed 32-bit integer. */
+            INT64 = 6      /**< A signed 64-bit integer. */
         };
 
         /** @brief Maximum number of supported tensor ranks. */

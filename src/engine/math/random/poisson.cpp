@@ -47,9 +47,10 @@ namespace SushiBLAS
                                                   K_MAX_POISSON_LAMBDA);
 
         if (t.storage && t.num_elements > 0 && !Device::profile_for(t.get_device()).supports_fp64)
-            Dispatch::Detail::throw_operand_error("random.poisson", "t",
-                                                  "lives on a device without fp64; random.poisson "
-                                                  "draws in double precision for every dtype");
+            Dispatch::Detail::throw_execution_error("random.poisson",
+                                                    "operand 't' lives on a device without fp64; "
+                                                    "random.poisson draws in double precision "
+                                                    "for every dtype");
 
         const Kernels::SYCL::Random::PoissonParams params =
             Kernels::SYCL::Random::make_poisson_params(lambda);
