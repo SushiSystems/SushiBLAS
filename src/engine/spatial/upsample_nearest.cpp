@@ -29,6 +29,7 @@
 #include <vector>
 #include <cstdint>
 #include <SushiBLAS/engine/task.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/engine/spatial/window.hpp>
 #include "kernels/spatial.hpp"
@@ -42,7 +43,7 @@ namespace SushiBLAS
         /**
          * @brief Builds the span for an upsample from its two rank-4 operands.
          * @return The span, in element counts, with both operands' strides filled in.
-         * @throws std::runtime_error when a rank is not 4, a scale is not positive, or the
+         * @throws std::invalid_argument when a rank is not 4, a scale is not positive, or the
          *         extents are not the exact scaled multiples.
          * @see src/README.md
          */
@@ -50,18 +51,12 @@ namespace SushiBLAS
                                               int64_t scale_h, int64_t scale_w,
                                               const char* name)
         {
-            SB_THROW_IF(in.rank != 4,
-                        "Spatial operation '{}' needs a rank-4 NHWC input; got rank {}.",
-                        name, in.rank);
-            SB_THROW_IF(out.rank != 4,
-                        "Spatial operation '{}' needs a rank-4 NHWC output; got rank {}.",
-                        name, out.rank);
-            SB_THROW_IF(scale_h <= 0,
-                        "Spatial operation '{}' needs a positive vertical scale; got {}.",
-                        name, scale_h);
-            SB_THROW_IF(scale_w <= 0,
-                        "Spatial operation '{}' needs a positive horizontal scale; got {}.",
-                        name, scale_w);
+            Dispatch::require_rank(in, 4, name, "in");
+            Dispatch::require_rank(out, 4, name, "out");
+            Dispatch::require_operand(scale_h > 0, name, "scale_h",
+                                      "is {}; a scale must be positive", scale_h);
+            Dispatch::require_operand(scale_w > 0, name, "scale_w",
+                                      "is {}; a scale must be positive", scale_w);
 
             Spatial::WindowSpan span;
             span.batch = in.shape[0];
@@ -71,20 +66,10 @@ namespace SushiBLAS
             span.out_h = out.shape[1];
             span.out_w = out.shape[2];
 
-            SB_THROW_IF(out.shape[0] != span.batch,
-                        "Spatial operation '{}' has {} input images and {} output images.",
-                        name, span.batch, out.shape[0]);
-            SB_THROW_IF(out.shape[3] != span.channels,
-                        "Spatial operation '{}' has {} input channels and {} output channels.",
-                        name, span.channels, out.shape[3]);
-            SB_THROW_IF(span.out_h != span.in_h * scale_h,
-                        "Spatial operation '{}' scales {} input rows by {}, which is {} output "
-                        "rows, but the output has {}.",
-                        name, span.in_h, scale_h, span.in_h * scale_h, span.out_h);
-            SB_THROW_IF(span.out_w != span.in_w * scale_w,
-                        "Spatial operation '{}' scales {} input columns by {}, which is {} output "
-                        "columns, but the output has {}.",
-                        name, span.in_w, scale_w, span.in_w * scale_w, span.out_w);
+            Dispatch::require_extent(out.shape[0], span.batch, "images", name, "out");
+            Dispatch::require_extent(out.shape[3], span.channels, "channels", name, "out");
+            Dispatch::require_extent(span.out_h, span.in_h * scale_h, "rows", name, "out");
+            Dispatch::require_extent(span.out_w, span.in_w * scale_w, "columns", name, "out");
 
             span.in_batch_stride = in.strides[0];
             span.in_row_stride = in.strides[1];
@@ -105,9 +90,10 @@ namespace SushiBLAS
     {
         static constexpr const char* NAME = "spatial.upsample_nearest";
 
-        SB_THROW_IF(in.dtype != out.dtype,
-                    "Spatial operation '{}' has a {} input and a {} output.",
-                    NAME, Core::to_string(in.dtype), Core::to_string(out.dtype));
+        Dispatch::require_dtype(out, in.dtype, NAME, "out");
+
+        Dispatch::require_device_dtype(in, NAME, "in");
+        Dispatch::require_device_dtype(out, NAME, "out");
 
         const Spatial::WindowSpan span = upsample_span_for(in, out, scale_h, scale_w, NAME);
 
@@ -151,9 +137,10 @@ namespace SushiBLAS
     {
         static constexpr const char* NAME = "spatial.upsample_nearest_backward";
 
-        SB_THROW_IF(dy.dtype != dx.dtype,
-                    "Spatial operation '{}' has a {} output gradient and a {} input gradient.",
-                    NAME, Core::to_string(dy.dtype), Core::to_string(dx.dtype));
+        Dispatch::require_dtype(dx, dy.dtype, NAME, "dx");
+
+        Dispatch::require_device_dtype(dy, NAME, "dy");
+        Dispatch::require_device_dtype(dx, NAME, "dx");
 
         // dx plays the input role and dy the output role, as in the forward; see src/README.md.
         const Spatial::WindowSpan span = upsample_span_for(dx, dy, scale_h, scale_w, NAME);

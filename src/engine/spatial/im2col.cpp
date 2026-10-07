@@ -28,6 +28,7 @@
 
 #include <vector>
 #include <SushiBLAS/engine/task.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/engine/spatial/window.hpp>
 #include "kernels/spatial.hpp"
@@ -44,9 +45,10 @@ namespace SushiBLAS
     TaskHandle SpatialOps::im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g,
                                   int64_t out_h, int64_t out_w)
     {
-        SB_THROW_IF(in.dtype != cols.dtype,
-                    "Spatial operation '{}' has a {} input and a {} column matrix.",
-                    IM2COL_NAME, Core::to_string(in.dtype), Core::to_string(cols.dtype));
+        Dispatch::require_dtype(cols, in.dtype, IM2COL_NAME, "cols");
+
+        Dispatch::require_device_dtype(in, IM2COL_NAME, "in");
+        Dispatch::require_device_dtype(cols, IM2COL_NAME, "cols");
 
         // The column matrix has no image shape, so the extents are passed in; see src/README.md.
         const Spatial::WindowSpan span = Spatial::window_span_for(in, g, out_h, out_w, IM2COL_NAME);
@@ -84,25 +86,22 @@ namespace SushiBLAS
 
     TaskHandle SpatialOps::im2col(const Tensor& in, Tensor& cols, const Spatial::ConvGeometry& g)
     {
-        SB_THROW_IF(in.rank != 4, "Spatial operation '{}' needs a rank-4 NHWC input; got rank {}.",
-                    IM2COL_NAME, in.rank);
-        SB_THROW_IF(cols.rank != 2,
-                    "Spatial operation '{}' needs a rank-2 column matrix; got rank {}.",
-                    IM2COL_NAME, cols.rank);
+        Dispatch::require_rank(in, 4, IM2COL_NAME, "in");
+        Dispatch::require_rank(cols, 2, IM2COL_NAME, "cols");
 
         const int64_t batch = in.shape[0];
-        SB_THROW_IF(batch <= 0 || cols.shape[0] % batch != 0,
-                    "Spatial operation '{}' cannot split {} column rows across {} images.",
-                    IM2COL_NAME, cols.shape[0], batch);
+        Dispatch::require_operand(batch > 0 && cols.shape[0] % batch == 0, IM2COL_NAME, "cols",
+                                  "has {} rows, which {} images cannot share evenly",
+                                  cols.shape[0], batch);
         const int64_t windows_per_image = cols.shape[0] / batch;
 
         // This overload assumes symmetric padding; see src/README.md.
         const int64_t out_w = Spatial::output_extent(in.shape[2], g.pad_left, g.pad_left,
                                                      g.dilation_w, g.kernel_w, g.stride_w);
-        SB_THROW_IF(out_w <= 0 || windows_per_image % out_w != 0,
-                    "Spatial operation '{}' derived {} output columns, which does not divide the "
-                    "{} windows per image the column matrix asks for.",
-                    IM2COL_NAME, out_w, windows_per_image);
+        Dispatch::require_operand(out_w > 0 && windows_per_image % out_w == 0, IM2COL_NAME, "cols",
+                                  "asks for {} windows per image, which {} output columns do not "
+                                  "divide",
+                                  windows_per_image, out_w);
         const int64_t out_h = windows_per_image / out_w;
 
         return im2col(in, cols, g, out_h, out_w);

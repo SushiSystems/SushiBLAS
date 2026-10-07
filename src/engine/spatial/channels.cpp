@@ -29,6 +29,7 @@
 #include <vector>
 #include <cstdint>
 #include <SushiBLAS/engine/task.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include "kernels/spatial.hpp"
 
@@ -41,7 +42,7 @@ namespace SushiBLAS
         /**
          * @brief Checks a channel copy's operands and lays out how to address them.
          * @return The span both kernels address the operands through.
-         * @throws std::runtime_error when the ranks, dtypes or `N`/`H`/`W` extents disagree,
+         * @throws std::invalid_argument when the ranks, dtypes or `N`/`H`/`W` extents disagree,
          *         or the range runs past either tensor's channel count.
          * @see src/README.md
          */
@@ -50,34 +51,27 @@ namespace SushiBLAS
                                               int64_t src_channel_offset,
                                               int64_t dst_channel_offset, int64_t count)
         {
-            SB_THROW_IF(src.rank != 4 || dst.rank != 4,
-                        "Spatial operation '{}' needs two rank-4 tensors, got rank {} and rank {}.",
-                        name, src.rank, dst.rank);
+            Dispatch::require_rank(src, 4, name, "src");
+            Dispatch::require_rank(dst, 4, name, "dst");
 
-            SB_THROW_IF(src.dtype != dst.dtype,
-                        "Spatial operation '{}' has a {} source and a {} destination.",
-                        name, Core::to_string(src.dtype), Core::to_string(dst.dtype));
+            Dispatch::require_dtype(dst, src.dtype, name, "dst");
 
-            SB_THROW_IF(src.shape[0] != dst.shape[0] || src.shape[1] != dst.shape[1]
-                        || src.shape[2] != dst.shape[2],
-                        "Spatial operation '{}' has a [{}, {}, {}] source grid and a "
-                        "[{}, {}, {}] destination grid; N, H and W must agree.",
-                        name, src.shape[0], src.shape[1], src.shape[2],
-                        dst.shape[0], dst.shape[1], dst.shape[2]);
+            Dispatch::require_extent(dst.shape[0], src.shape[0], "images", name, "dst");
+            Dispatch::require_extent(dst.shape[1], src.shape[1], "rows", name, "dst");
+            Dispatch::require_extent(dst.shape[2], src.shape[2], "columns", name, "dst");
 
-            SB_THROW_IF(count < 0,
-                        "Spatial operation '{}' was asked for a negative channel count ({}).",
-                        name, count);
+            Dispatch::require_operand(count >= 0, name, "count",
+                                      "is {}; a channel count cannot be negative", count);
 
-            SB_THROW_IF(src_channel_offset < 0 || src_channel_offset + count > src.shape[3],
-                        "Spatial operation '{}' reads channels [{}, {}) of a source that has "
-                        "{} channels.",
-                        name, src_channel_offset, src_channel_offset + count, src.shape[3]);
+            Dispatch::require_operand(
+                src_channel_offset >= 0 && src_channel_offset + count <= src.shape[3], name, "src",
+                "has {} channels, but channels [{}, {}) were asked for", src.shape[3],
+                src_channel_offset, src_channel_offset + count);
 
-            SB_THROW_IF(dst_channel_offset < 0 || dst_channel_offset + count > dst.shape[3],
-                        "Spatial operation '{}' writes channels [{}, {}) of a destination that "
-                        "has {} channels.",
-                        name, dst_channel_offset, dst_channel_offset + count, dst.shape[3]);
+            Dispatch::require_operand(
+                dst_channel_offset >= 0 && dst_channel_offset + count <= dst.shape[3], name, "dst",
+                "has {} channels, but channels [{}, {}) were asked for", dst.shape[3],
+                dst_channel_offset, dst_channel_offset + count);
 
             Spatial::WindowSpan span;
             span.batch = src.shape[0];
@@ -112,6 +106,9 @@ namespace SushiBLAS
         const int64_t count = src.rank == 4 ? src.shape[3] : 0;
         const Spatial::WindowSpan span =
             channel_copy_span(NAME, src, dst, 0, dst_channel_offset, count);
+
+        Dispatch::require_device_dtype(src, NAME, "src");
+        Dispatch::require_device_dtype(dst, NAME, "dst");
 
         const void* read_src = src.data_or_null();
         void* write_dst = dst.data_or_null();
@@ -159,6 +156,9 @@ namespace SushiBLAS
         const int64_t count = dst.rank == 4 ? dst.shape[3] : 0;
         const Spatial::WindowSpan span =
             channel_copy_span(NAME, src, dst, src_channel_offset, 0, count);
+
+        Dispatch::require_device_dtype(src, NAME, "src");
+        Dispatch::require_device_dtype(dst, NAME, "dst");
 
         const void* read_src = src.data_or_null();
         void* write_dst = dst.data_or_null();

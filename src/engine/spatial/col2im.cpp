@@ -28,6 +28,7 @@
 
 #include <vector>
 #include <SushiBLAS/engine/task.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/spatial.hpp>
 #include <SushiBLAS/engine/spatial/window.hpp>
 #include "kernels/spatial.hpp"
@@ -41,9 +42,10 @@ namespace SushiBLAS
     {
         static constexpr const char* NAME = "spatial.col2im";
 
-        SB_THROW_IF(image.dtype != cols.dtype,
-                    "Spatial operation '{}' has a {} column matrix and a {} image.",
-                    NAME, Core::to_string(cols.dtype), Core::to_string(image.dtype));
+        Dispatch::require_dtype(image, cols.dtype, NAME, "image");
+
+        Dispatch::require_device_dtype(cols, NAME, "cols");
+        Dispatch::require_device_dtype(image, NAME, "image");
 
         // image plays the input role in the span; see src/README.md.
         const Spatial::WindowSpan span = Spatial::window_span_for(image, g, out_h, out_w, NAME);
