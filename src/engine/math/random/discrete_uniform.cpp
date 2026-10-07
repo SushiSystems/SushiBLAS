@@ -54,13 +54,13 @@ namespace SushiBLAS
 
         const int64_t magnitude = std::max(std::abs(static_cast<int64_t>(min)),
                                            std::abs(static_cast<int64_t>(max)));
-        if (t.dtype == Core::DataType::FLOAT32 && magnitude > K_MAX_EXACT_FLOAT32_INTEGER)
+        if (t.dtype == Core::DataType::Float32 && magnitude > K_MAX_EXACT_FLOAT32_INTEGER)
             Dispatch::Detail::throw_operand_error("random.discrete_uniform", "t",
                                                   "is FLOAT32, which cannot hold every integer in "
                                                   "[{}, {}]; the bound is {} in magnitude",
                                                   min, max, K_MAX_EXACT_FLOAT32_INTEGER);
 
-        return Dispatch::execute_random<Dispatch::Domain::REAL>(recorder_, rng_, t, "random.discrete_uniform", "random.discrete_uniform"_op, {static_cast<double>(min), static_cast<double>(max)},
+        return Dispatch::execute_random<Dispatch::Domain::Real>(recorder_, rng_, t, "random.discrete_uniform", "random.discrete_uniform"_op, {static_cast<double>(min), static_cast<double>(max)},
             [min, max](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,
                        uint64_t offset, int64_t size, auto* pT) -> sycl::event
             {

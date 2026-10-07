@@ -60,7 +60,7 @@ namespace SushiBLAS
         Dispatch::require_same_layout(a, b, op, "A", "B");
         Dispatch::require_square(a, op, "A");
 
-        const bool left = (side == Core::Side::LEFT);
+        const bool left = (side == Core::Side::Left);
         const int64_t m = b.rows;
         const int64_t n = b.cols;
         Dispatch::require_matrix_extent(a.rows, left ? m : n,

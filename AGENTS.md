@@ -17,8 +17,12 @@ Load before working here: `sushiskills`, `repository-layout`, `cpp-code-style`,
   from an `Engine` or a `TaskRecorder` and reaches the task graph only through the recorder, and
   a kernel knows nothing of the recorder or `Engine`. `tools/layering/check_layering.py` checks
   all three, and `docs/architecture/ARCHITECTURE.md` describes the layers.
-- Every operation has a reference kernel and a SYCL kernel, and an unsupported dtype throws.
-  `docs/CONTRIBUTING.md`, section 5, states what a new operation carries.
+- Every operation has a SYCL kernel and a reference path, and an unsupported dtype throws. The
+  BLAS, spatial and sparse families have a reference kernel beside the SYCL kernel; the functor
+  families (elementwise, nonlinear, logic), the reductions and the random family run a host
+  reference path. `docs/CONTRIBUTING.md`, section 5, states what a new operation carries.
+- Enumerators are PascalCase and constants are `K_UPPER_SNAKE`.
+  `tools/naming/sushiblas_0_1_0.tsv` lists every name the v0.1.0 sweep changed.
 - `docs/README.md` indexes the manual. `docs/design/REMAINING_WORK.md` is the backlog and
   `docs/reference/KNOWN_ISSUES.md` the open defects.
 
@@ -33,5 +37,5 @@ python tools/versioning/check_version.py .
 python -m unittest discover -s tools/tests
 ```
 
-The other rules of `check_source_comments.py` do not pass yet; the known issues page has the
-count.
+Run without `--rule`, `check_source_comments.py` still reports a comment block over the
+ceiling; the known issues page names it.

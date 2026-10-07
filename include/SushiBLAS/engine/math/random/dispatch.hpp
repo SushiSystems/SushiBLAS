@@ -86,8 +86,8 @@ namespace SushiBLAS
          */
         enum class Sampling : uint8_t
         {
-            DRAWS_VALUES, /**< Computes new values; HALF has too little mantissa and is refused. */
-            MOVES_VALUES  /**< Fills or permutes values; every dtype of its domain is accepted. */
+            DrawsValues, /**< Computes new values; HALF has too little mantissa and is refused. */
+            MovesValues  /**< Fills or permutes values; every dtype of its domain is accepted. */
         };
 
         /**
@@ -97,7 +97,7 @@ namespace SushiBLAS
         [[nodiscard]] inline constexpr bool random_admits(Domain domain, Sampling sampling,
                                                           Core::DataType dtype) noexcept
         {
-            if (sampling == Sampling::DRAWS_VALUES && dtype == Core::DataType::HALF)
+            if (sampling == Sampling::DrawsValues && dtype == Core::DataType::Half)
                 return false;
             return domain_admits(domain, domain_of(dtype));
         }
@@ -112,9 +112,9 @@ namespace SushiBLAS
                 return;
 
             constexpr Core::DataType k_dtypes[] = {
-                Core::DataType::HALF, Core::DataType::FLOAT32, Core::DataType::FLOAT64,
-                Core::DataType::COMPLEX32, Core::DataType::COMPLEX64,
-                Core::DataType::INT32, Core::DataType::INT64};
+                Core::DataType::Half, Core::DataType::Float32, Core::DataType::Float64,
+                Core::DataType::Complex32, Core::DataType::Complex64,
+                Core::DataType::Int32, Core::DataType::Int64};
 
             std::string accepted;
             for (Core::DataType dtype : k_dtypes)
@@ -281,7 +281,7 @@ namespace SushiBLAS
                                   const char* name, SushiRuntime::Graph::OpID op_id,
                                   std::initializer_list<double> params, Func&& task_func)
         {
-            require_random_dtype(t, Dom, Sampling::DRAWS_VALUES, name);
+            require_random_dtype(t, Dom, Sampling::DrawsValues, name);
             require_storage(t, name, "t");
             require_device_dtype(t, name, "t");
             require_contiguous(t, name, "t");

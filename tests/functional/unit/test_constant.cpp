@@ -21,7 +21,7 @@
 
 /**
  * @file test_constant.cpp
- * @brief Tests that random().constant fills a tensor of every supported dtype with one value.
+ * @brief Tests that RandomOps::constant fills a tensor of every supported dtype with one value.
  * @author Mustafa Garip
  */
 
@@ -74,40 +74,40 @@ TEST_F(Unit_ConstantTest, Float32)
 
 TEST_F(Unit_ConstantTest, HalfOddSize)
 {
-    expect_constant_fill(DataType::HALF, K_ODD_SIZE, K_REAL_VALUE);
+    expect_constant_fill(DataType::Half, K_ODD_SIZE, K_REAL_VALUE);
 }
 
 TEST_F(Unit_ConstantTest, Float32OddSize)
 {
-    expect_constant_fill(DataType::FLOAT32, K_ODD_SIZE, K_REAL_VALUE);
+    expect_constant_fill(DataType::Float32, K_ODD_SIZE, K_REAL_VALUE);
 }
 
 TEST_F(Unit_ConstantTest, Float64OddSize)
 {
-    expect_constant_fill(DataType::FLOAT64, K_ODD_SIZE, K_REAL_VALUE);
+    expect_constant_fill(DataType::Float64, K_ODD_SIZE, K_REAL_VALUE);
 }
 
 TEST_F(Unit_ConstantTest, Complex32OddSizeHasZeroImaginaryPart)
 {
-    expect_constant_fill(DataType::COMPLEX32, K_ODD_SIZE, K_REAL_VALUE);
+    expect_constant_fill(DataType::Complex32, K_ODD_SIZE, K_REAL_VALUE);
 }
 
 TEST_F(Unit_ConstantTest, Complex64OddSizeHasZeroImaginaryPart)
 {
-    expect_constant_fill(DataType::COMPLEX64, K_ODD_SIZE, K_REAL_VALUE);
+    expect_constant_fill(DataType::Complex64, K_ODD_SIZE, K_REAL_VALUE);
 }
 
 TEST_F(Unit_ConstantTest, Int32OddSize)
 {
-    expect_constant_fill(DataType::INT32, K_ODD_SIZE, K_INTEGER_VALUE);
+    expect_constant_fill(DataType::Int32, K_ODD_SIZE, K_INTEGER_VALUE);
 }
 
 TEST_F(Unit_ConstantTest, Int64OddSize)
 {
-    expect_constant_fill(DataType::INT64, K_ODD_SIZE, K_INTEGER_VALUE);
+    expect_constant_fill(DataType::Int64, K_ODD_SIZE, K_INTEGER_VALUE);
 }
 
 TEST_F(Unit_ConstantTest, SingleElement)
 {
-    expect_constant_fill(DataType::FLOAT32, 1, K_REAL_VALUE);
+    expect_constant_fill(DataType::Float32, 1, K_REAL_VALUE);
 }

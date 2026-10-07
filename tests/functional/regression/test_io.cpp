@@ -108,7 +108,7 @@ namespace SushiBLAS
             auto source = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
             SushiBLAS::IO(*engine).save(source, path);
 
-            auto target = engine->create_tensor({4}, Core::DataType::INT32);
+            auto target = engine->create_tensor({4}, Core::DataType::Int32);
             EXPECT_THROW(SushiBLAS::IO(*engine).load(target, path), std::runtime_error);
         }
 
@@ -120,8 +120,8 @@ namespace SushiBLAS
                 SushiBLAS::IO(*engine).save(source, path);
             }
 
-            reinit_engine(Core::Layout::COLUMN_MAJOR);
-            auto target = engine->create_tensor({2, 3}, Core::DataType::FLOAT32);
+            reinit_engine(Core::Layout::ColumnMajor);
+            auto target = engine->create_tensor({2, 3}, Core::DataType::Float32);
             EXPECT_THROW(SushiBLAS::IO(*engine).load(target, path), std::runtime_error);
         }
 
@@ -140,7 +140,7 @@ namespace SushiBLAS
             bytes[K_VERSION_OFFSET] = 2;
             write_bytes(path, bytes);
 
-            auto target = engine->create_tensor({4}, Core::DataType::FLOAT32);
+            auto target = engine->create_tensor({4}, Core::DataType::Float32);
             EXPECT_THROW(SushiBLAS::IO(*engine).load(target, path), std::runtime_error);
         }
 
@@ -163,7 +163,7 @@ namespace SushiBLAS
             SushiBLAS::IO(*engine).save_npy(source, path);
             drop_tail(path, sizeof(float));
 
-            auto target = engine->create_tensor({4}, Core::DataType::FLOAT32);
+            auto target = engine->create_tensor({4}, Core::DataType::Float32);
             EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(target, path), std::runtime_error);
         }
 
@@ -177,11 +177,11 @@ namespace SushiBLAS
             const std::vector<float> values{1.0f, 2.0f, 3.0f, 4.0f};
 
             const std::string path = temp_path("device.bin");
-            auto source = engine->create_tensor({4}, Core::DataType::FLOAT32, device);
+            auto source = engine->create_tensor({4}, Core::DataType::Float32, device);
             fill_tensor(source, values);
             SushiBLAS::IO(*engine).save_bin(source, path);
 
-            auto target = engine->create_tensor({4}, Core::DataType::FLOAT32, device);
+            auto target = engine->create_tensor({4}, Core::DataType::Float32, device);
             fill_tensor(target, {0.0f, 0.0f, 0.0f, 0.0f});
             SushiBLAS::IO(*engine).load_bin(target, path);
 
@@ -208,7 +208,7 @@ namespace SushiBLAS
             {
                 SCOPED_TRACE(residency == SushiRuntime::API::Residency::Device ? "Device"
                                                                                : "Shared");
-                auto target = engine->create_tensor({4}, Core::DataType::FLOAT32, residency);
+                auto target = engine->create_tensor({4}, Core::DataType::Float32, residency);
                 fill_tensor(target, sentinel);
 
                 EXPECT_THROW(SushiBLAS::IO(*engine).load_bin(target, bin_path),
@@ -241,12 +241,12 @@ namespace SushiBLAS
                 const std::string path =
                     temp_path(on_device ? "chunks_device.bin" : "chunks_shared.bin");
 
-                auto source = engine->create_tensor({K_ELEMENTS}, Core::DataType::FLOAT32,
+                auto source = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32,
                                                     residency);
                 SushiBLAS::IO(*engine).from_vector(source, values);
                 SushiBLAS::IO(*engine).save_bin(source, path);
 
-                auto target = engine->create_tensor({K_ELEMENTS}, Core::DataType::FLOAT32,
+                auto target = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32,
                                                     residency);
                 SushiBLAS::IO(*engine).load_bin(target, path);
 

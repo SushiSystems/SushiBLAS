@@ -35,7 +35,7 @@ namespace SushiBLAS
 
     TaskHandle ElementwiseOps::abs(Tensor& t) 
     {
-        return Dispatch::execute_unary_inplace<Dispatch::Domain::ALL>(recorder_, t, "math.ew.abs", "math.ew.abs"_op, 
+        return Dispatch::execute_unary_inplace<Dispatch::Domain::All>(recorder_, t, "math.ew.abs", "math.ew.abs"_op, 
             [](auto x) { return Dispatch::wrapping_abs(x); });
     }
 } // namespace SushiBLAS

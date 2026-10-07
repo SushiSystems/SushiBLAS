@@ -79,14 +79,14 @@ namespace SushiBLAS
             constexpr double K_DIAGONAL_IMAGINARY = 7.0;
 
             /// @brief The two modes every case runs in.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::FORCE_SYCL,
-                                                 ExecutionMode::FORCE_REFERENCE};
+            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceSycl,
+                                                 ExecutionMode::ForceReference};
 
             /// @brief The two sides A can stand on.
-            constexpr Core::Side K_SIDES[] = {Core::Side::LEFT, Core::Side::RIGHT};
+            constexpr Core::Side K_SIDES[] = {Core::Side::Left, Core::Side::Right};
 
             /// @brief The two triangles A can be stored in.
-            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::UPPER, Core::Uplo::LOWER};
+            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
 
             /// @brief A scalar with a non-zero imaginary part, which a real tensor refuses.
             const BlasScalar K_COMPLEX_SCALAR = std::complex<double>(1.0, 2.0);
@@ -94,14 +94,14 @@ namespace SushiBLAS
             /** @brief Names the routine a shared case calls. */
             enum class Routine : std::uint8_t
             {
-                SYMM, /**< The symmetric product. */
-                HEMM  /**< The Hermitian product. */
+                Symm, /**< The symmetric product. */
+                Hemm  /**< The Hermitian product. */
             };
 
             /** @brief Returns the name of a mode for a failure message. */
             [[nodiscard]] const char* mode_name(ExecutionMode mode) noexcept
             {
-                return mode == ExecutionMode::FORCE_SYCL ? "FORCE_SYCL" : "FORCE_REFERENCE";
+                return mode == ExecutionMode::ForceSycl ? "FORCE_SYCL" : "FORCE_REFERENCE";
             }
 
             /** @brief Returns the value that marks an element no kernel may read. */
@@ -191,7 +191,7 @@ namespace SushiBLAS
             /** @brief Returns whether (r, c) lies in the stored triangle. */
             [[nodiscard]] constexpr bool is_stored(Core::Uplo uplo, int64_t r, int64_t c) noexcept
             {
-                return uplo == Core::Uplo::UPPER ? r <= c : r >= c;
+                return uplo == Core::Uplo::Upper ? r <= c : r >= c;
             }
 
             /**
@@ -202,7 +202,7 @@ namespace SushiBLAS
             [[nodiscard]] std::vector<T> mirrored(const std::vector<T>& a, int64_t order,
                                                   Core::Uplo uplo, Routine routine)
             {
-                const bool hermitian = routine == Routine::HEMM;
+                const bool hermitian = routine == Routine::Hemm;
                 std::vector<T> full(a.size());
                 for (int64_t r = 0; r < order; ++r)
                 {
@@ -282,7 +282,7 @@ namespace SushiBLAS
                                       Core::Uplo uplo, BlasScalar alpha, BlasScalar beta)
             {
                 SushiBLAS::BLASOps ops(engine);
-                return routine == Routine::HEMM ? ops.hemm(A, B, C, side, uplo, alpha, beta)
+                return routine == Routine::Hemm ? ops.hemm(A, B, C, side, uplo, alpha, beta)
                                                 : ops.symm(A, B, C, side, uplo, alpha, beta);
             }
 
@@ -301,13 +301,13 @@ namespace SushiBLAS
                         SCOPED_TRACE(std::string(Core::to_string(side)) + " " +
                                      Core::to_string(uplo));
 
-                        const bool left = side == Core::Side::LEFT;
+                        const bool left = side == Core::Side::Left;
                         const int64_t order = left ? K_ROWS : K_COLS;
                         std::vector<T> a = random_elements<T>(generator, order * order);
                         const std::vector<T> b = random_elements<T>(generator, K_ROWS * K_COLS);
                         const std::vector<T> c = random_elements<T>(generator, K_ROWS * K_COLS);
 
-                        if (routine == Routine::HEMM)
+                        if (routine == Routine::Hemm)
                         {
                             for (int64_t d = 0; d < order; ++d)
                             {
@@ -332,8 +332,8 @@ namespace SushiBLAS
                             record_product(engine, routine, A, B, from_routine, side, uplo,
                                            K_ALPHA, K_BETA);
                             SushiBLAS::BLASOps(engine).gemm(left ? S : B, left ? B : S, from_gemm,
-                                                            Core::Transpose::NO_TRANS,
-                                                            Core::Transpose::NO_TRANS,
+                                                            Core::Transpose::NoTrans,
+                                                            Core::Transpose::NoTrans,
                                                             K_ALPHA, K_BETA);
                             engine.execute();
 
@@ -374,8 +374,8 @@ namespace SushiBLAS
                 const Tensor B = upload(*this->engine, {3, 2}, b);
                 Tensor C = upload(*this->engine, {3, 2}, ones);
 
-                SushiBLAS::BLASOps(*this->engine).symm(A, B, C, Core::Side::LEFT,
-                                                       Core::Uplo::UPPER, 2.0, -1.0);
+                SushiBLAS::BLASOps(*this->engine).symm(A, B, C, Core::Side::Left,
+                                                       Core::Uplo::Upper, 2.0, -1.0);
                 this->engine->execute();
 
                 // A * B is {22 28, 39 50, 48 62}; C is twice that minus one.
@@ -399,8 +399,8 @@ namespace SushiBLAS
                 const Tensor B = upload(*this->engine, {3, 2}, b);
                 Tensor C = upload(*this->engine, {3, 2}, std::vector<T>(6, poison<T>()));
 
-                SushiBLAS::BLASOps(*this->engine).symm(A, B, C, Core::Side::RIGHT,
-                                                       Core::Uplo::LOWER, 1.0, 0.0);
+                SushiBLAS::BLASOps(*this->engine).symm(A, B, C, Core::Side::Right,
+                                                       Core::Uplo::Lower, 1.0, 0.0);
                 this->engine->execute();
 
                 expect_equal(read_tensor<T>(C), elements<T>({5, 8, 11, 18, 17, 28}));
@@ -409,7 +409,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_Symm, EqualsGemmOnTheFullMatrixToTheBit)
         {
-            expect_product_equals_gemm<TypeParam>(*this->engine, Routine::SYMM);
+            expect_product_equals_gemm<TypeParam>(*this->engine, Routine::Symm);
         }
 
         TYPED_TEST(Unit_Symm, ABatchIsMultipliedMatrixByMatrix)
@@ -419,7 +419,7 @@ namespace SushiBLAS
 
             for (const Core::Side side : K_SIDES)
             {
-                const int64_t order = side == Core::Side::LEFT ? K_BATCH_ROWS : K_BATCH_COLS;
+                const int64_t order = side == Core::Side::Left ? K_BATCH_ROWS : K_BATCH_COLS;
                 const std::vector<T> a = integer_elements<T>(0, K_BATCH * order * order);
                 const std::vector<T> b = integer_elements<T>(11, K_BATCH * matrix);
                 const std::vector<T> c = integer_elements<T>(23, K_BATCH * matrix);
@@ -440,7 +440,7 @@ namespace SushiBLAS
                             upload(*this->engine, {K_BATCH, K_BATCH_ROWS, K_BATCH_COLS}, b);
                         Tensor C =
                             upload(*this->engine, {K_BATCH, K_BATCH_ROWS, K_BATCH_COLS}, c);
-                        SushiBLAS::BLASOps(*this->engine).symm(A, B, C, side, Core::Uplo::UPPER,
+                        SushiBLAS::BLASOps(*this->engine).symm(A, B, C, side, Core::Uplo::Upper,
                                                                2.0, -1.0);
                         this->engine->execute();
                         const std::vector<T> batched = read_tensor<T>(C);
@@ -457,7 +457,7 @@ namespace SushiBLAS
                             Tensor one_c = upload(*this->engine, {K_BATCH_ROWS, K_BATCH_COLS},
                                                   matrix_of(c, index, matrix));
                             SushiBLAS::BLASOps(*this->engine).symm(one_a, one_b, one_c, side,
-                                                                   Core::Uplo::UPPER, 2.0, -1.0);
+                                                                   Core::Uplo::Upper, 2.0, -1.0);
                             this->engine->execute();
 
                             expect_equal(matrix_of(batched, index, matrix),
@@ -475,7 +475,7 @@ namespace SushiBLAS
 
             for (const Core::Side side : K_SIDES)
             {
-                const int64_t order = side == Core::Side::LEFT ? K_ROWS : K_COLS;
+                const int64_t order = side == Core::Side::Left ? K_ROWS : K_COLS;
                 const std::vector<T> a = random_elements<T>(generator, order * order);
                 const std::vector<T> b = random_elements<T>(generator, K_ROWS * K_COLS);
 
@@ -489,7 +489,7 @@ namespace SushiBLAS
                                       std::vector<T>(static_cast<std::size_t>(K_ROWS * K_COLS),
                                                      poison<T>()));
 
-                    SushiBLAS::BLASOps(*this->engine).symm(A, B, C, side, Core::Uplo::LOWER,
+                    SushiBLAS::BLASOps(*this->engine).symm(A, B, C, side, Core::Uplo::Lower,
                                                            K_ALPHA, 0.0);
                     this->engine->execute();
 
@@ -512,7 +512,7 @@ namespace SushiBLAS
 
                 for (const Core::Side side : K_SIDES)
                 {
-                    const int64_t order = side == Core::Side::LEFT ? rows : cols;
+                    const int64_t order = side == Core::Side::Left ? rows : cols;
 
                     for (const ExecutionMode mode : K_MODES)
                     {
@@ -523,7 +523,7 @@ namespace SushiBLAS
                         Tensor C = this->engine->create_tensor({rows, cols}, dtype);
 
                         EXPECT_NO_THROW(SushiBLAS::BLASOps(*this->engine).symm(
-                            A, B, C, side, Core::Uplo::UPPER));
+                            A, B, C, side, Core::Uplo::Upper));
                         EXPECT_NO_THROW(this->engine->execute());
                     }
                 }
@@ -542,7 +542,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_Hemm, EqualsGemmOnTheFullHermitianMatrixToTheBit)
         {
-            expect_product_equals_gemm<TypeParam>(*this->engine, Routine::HEMM);
+            expect_product_equals_gemm<TypeParam>(*this->engine, Routine::Hemm);
         }
 
         TYPED_TEST(Unit_Hemm, MatchesAHandComputedProduct)
@@ -560,8 +560,8 @@ namespace SushiBLAS
                 const Tensor B = upload(*this->engine, {2, 1}, b);
                 Tensor C = upload(*this->engine, {2, 1}, std::vector<T>(2, poison<T>()));
 
-                SushiBLAS::BLASOps(*this->engine).hemm(A, B, C, Core::Side::LEFT,
-                                                       Core::Uplo::UPPER, 1.0, 0.0);
+                SushiBLAS::BLASOps(*this->engine).hemm(A, B, C, Core::Side::Left,
+                                                       Core::Uplo::Upper, 1.0, 0.0);
                 this->engine->execute();
 
                 // Row 0 is 2 * 1 + (1 + i) * i; row 1 is conj(1 + i) * 1 + 3 * i.
@@ -582,7 +582,7 @@ namespace SushiBLAS
                 {
                     try
                     {
-                        Tensor tensor = engine->create_tensor(dims, Core::DataType::FLOAT32,
+                        Tensor tensor = engine->create_tensor(dims, Core::DataType::Float32,
                                                               SushiRuntime::API::Residency::Device);
                         const sycl::context context =
                             TestEnvironment::get_context().get_queue().get_context();
@@ -630,10 +630,10 @@ namespace SushiBLAS
                 Tensor from_hemm = upload(*engine, {K_ROWS, K_COLS}, c);
                 Tensor from_symm = upload(*engine, {K_ROWS, K_COLS}, c);
 
-                record_product(*engine, Routine::HEMM, A, B, from_hemm, Core::Side::LEFT,
-                               Core::Uplo::UPPER, K_ALPHA, K_BETA);
-                record_product(*engine, Routine::SYMM, A, B, from_symm, Core::Side::LEFT,
-                               Core::Uplo::UPPER, K_ALPHA, K_BETA);
+                record_product(*engine, Routine::Hemm, A, B, from_hemm, Core::Side::Left,
+                               Core::Uplo::Upper, K_ALPHA, K_BETA);
+                record_product(*engine, Routine::Symm, A, B, from_symm, Core::Side::Left,
+                               Core::Uplo::Upper, K_ALPHA, K_BETA);
                 engine->execute();
 
                 expect_same_bytes(read_tensor<float>(from_hemm), read_tensor<float>(from_symm));
@@ -661,7 +661,7 @@ namespace SushiBLAS
                 Tensor C = upload(*engine, {3, 1},
                                   std::vector<sycl::half>(3, poison<sycl::half>()));
 
-                SushiBLAS::BLASOps(*engine).symm(A, B, C, Core::Side::LEFT, Core::Uplo::UPPER,
+                SushiBLAS::BLASOps(*engine).symm(A, B, C, Core::Side::Left, Core::Uplo::Upper,
                                                  1.0, 0.0);
                 engine->execute();
 
@@ -685,70 +685,70 @@ namespace SushiBLAS
 
             expect_refused("side holding 0", [&](SushiBLAS::BLASOps& ops)
             {
-                return ops.symm(A, B, C, static_cast<Core::Side>(0), Core::Uplo::UPPER);
+                return ops.symm(A, B, C, static_cast<Core::Side>(0), Core::Uplo::Upper);
             });
             expect_refused("uplo holding 0", [&](SushiBLAS::BLASOps& ops)
             {
-                return ops.symm(A, B, C, Core::Side::LEFT, static_cast<Core::Uplo>(0));
+                return ops.symm(A, B, C, Core::Side::Left, static_cast<Core::Uplo>(0));
             });
             expect_refused("B of another dtype", [&](SushiBLAS::BLASOps& ops)
             {
-                const Tensor other = engine->create_tensor({3, 2}, Core::DataType::FLOAT64);
-                return ops.symm(A, other, C, Core::Side::LEFT, Core::Uplo::UPPER);
+                const Tensor other = engine->create_tensor({3, 2}, Core::DataType::Float64);
+                return ops.symm(A, other, C, Core::Side::Left, Core::Uplo::Upper);
             });
             expect_refused("C of another dtype", [&](SushiBLAS::BLASOps& ops)
             {
-                Tensor other = engine->create_tensor({3, 2}, Core::DataType::FLOAT64);
-                return ops.symm(A, B, other, Core::Side::LEFT, Core::Uplo::UPPER);
+                Tensor other = engine->create_tensor({3, 2}, Core::DataType::Float64);
+                return ops.symm(A, B, other, Core::Side::Left, Core::Uplo::Upper);
             });
             expect_refused("a complex alpha on FLOAT32", [&](SushiBLAS::BLASOps& ops)
             {
-                return ops.symm(A, B, C, Core::Side::LEFT, Core::Uplo::UPPER, K_COMPLEX_SCALAR);
+                return ops.symm(A, B, C, Core::Side::Left, Core::Uplo::Upper, K_COMPLEX_SCALAR);
             });
             expect_refused("a complex beta on FLOAT32", [&](SushiBLAS::BLASOps& ops)
             {
-                return ops.symm(A, B, C, Core::Side::LEFT, Core::Uplo::UPPER, 1.0,
+                return ops.symm(A, B, C, Core::Side::Left, Core::Uplo::Upper, 1.0,
                                 K_COMPLEX_SCALAR);
             });
             expect_refused("a 3 x 4 A", [&](SushiBLAS::BLASOps& ops)
             {
                 const Tensor other = engine->create_tensor({3, 4});
-                return ops.symm(other, B, C, Core::Side::LEFT, Core::Uplo::UPPER);
+                return ops.symm(other, B, C, Core::Side::Left, Core::Uplo::Upper);
             });
             expect_refused("A of order 4 with a 3-row C under LEFT", [&](SushiBLAS::BLASOps& ops)
             {
-                return ops.symm(A_of_order_4, B, C, Core::Side::LEFT, Core::Uplo::UPPER);
+                return ops.symm(A_of_order_4, B, C, Core::Side::Left, Core::Uplo::Upper);
             });
             expect_refused("A of order 4 with a 3-column C under RIGHT",
                            [&](SushiBLAS::BLASOps& ops)
             {
-                return ops.symm(A_of_order_4, wide_B, wide_C, Core::Side::RIGHT,
-                                Core::Uplo::UPPER);
+                return ops.symm(A_of_order_4, wide_B, wide_C, Core::Side::Right,
+                                Core::Uplo::Upper);
             });
             expect_refused("B of another shape than C", [&](SushiBLAS::BLASOps& ops)
             {
                 const Tensor other = engine->create_tensor({3, 3});
-                return ops.symm(A, other, C, Core::Side::LEFT, Core::Uplo::UPPER);
+                return ops.symm(A, other, C, Core::Side::Left, Core::Uplo::Upper);
             });
             expect_refused("a column-major A with a row-major C", [&](SushiBLAS::BLASOps& ops)
             {
-                const Tensor other(A.storage, {3, 3}, Core::DataType::FLOAT32, 0,
-                                   Core::Layout::COLUMN_MAJOR);
-                return ops.symm(other, B, C, Core::Side::LEFT, Core::Uplo::UPPER);
+                const Tensor other(A.storage, {3, 3}, Core::DataType::Float32, 0,
+                                   Core::Layout::ColumnMajor);
+                return ops.symm(other, B, C, Core::Side::Left, Core::Uplo::Upper);
             });
             expect_refused("a batch of 3 against a batch of 4", [&](SushiBLAS::BLASOps& ops)
             {
                 const Tensor batch_A = engine->create_tensor({3, 3, 3});
                 const Tensor batch_B = engine->create_tensor({4, 3, 2});
                 Tensor batch_C = engine->create_tensor({4, 3, 2});
-                return ops.symm(batch_A, batch_B, batch_C, Core::Side::LEFT, Core::Uplo::UPPER);
+                return ops.symm(batch_A, batch_B, batch_C, Core::Side::Left, Core::Uplo::Upper);
             });
             expect_refused("an INT32 A", [&](SushiBLAS::BLASOps& ops)
             {
-                const Tensor int_A = engine->create_tensor({3, 3}, Core::DataType::INT32);
-                const Tensor int_B = engine->create_tensor({3, 2}, Core::DataType::INT32);
-                Tensor int_C = engine->create_tensor({3, 2}, Core::DataType::INT32);
-                return ops.symm(int_A, int_B, int_C, Core::Side::LEFT, Core::Uplo::UPPER);
+                const Tensor int_A = engine->create_tensor({3, 3}, Core::DataType::Int32);
+                const Tensor int_B = engine->create_tensor({3, 2}, Core::DataType::Int32);
+                Tensor int_C = engine->create_tensor({3, 2}, Core::DataType::Int32);
+                return ops.symm(int_A, int_B, int_C, Core::Side::Left, Core::Uplo::Upper);
             });
         }
 
@@ -760,10 +760,10 @@ namespace SushiBLAS
             const Tensor B = engine->create_tensor({3, 2});
             Tensor C = engine->create_tensor({3, 2});
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             try
             {
-                SushiBLAS::BLASOps(*engine).symm(*A, B, C, Core::Side::LEFT, Core::Uplo::UPPER);
+                SushiBLAS::BLASOps(*engine).symm(*A, B, C, Core::Side::Left, Core::Uplo::Upper);
                 FAIL() << "FORCE_REFERENCE must refuse a device-only operand.";
             }
             catch (const std::invalid_argument& e)

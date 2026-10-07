@@ -21,7 +21,7 @@
 
 /**
  * @file test_syr2.cpp
- * @brief Tests blas().syr2 against fixed expected values.
+ * @brief Tests BLASOps::syr2 against fixed expected values.
  * @author Mustafa Garip
  */
 
@@ -46,7 +46,7 @@ TEST_F(Unit_SYR2Test, SimpleSYR2)
     fill_tensor(A, std::vector<float>(N * N, 0.0f));
 
     SB_LOG_INFO("Submitting SYR2.");
-    SushiBLAS::BLASOps(*engine).syr2(X, Y, A, SushiBLAS::Core::Uplo::LOWER);
+    SushiBLAS::BLASOps(*engine).syr2(X, Y, A, SushiBLAS::Core::Uplo::Lower);
     
     engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");

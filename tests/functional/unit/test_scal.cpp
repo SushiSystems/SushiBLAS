@@ -21,7 +21,7 @@
 
 /**
  * @file test_scal.cpp
- * @brief Tests blas().scal against fixed expected values.
+ * @brief Tests BLASOps::scal against fixed expected values.
  * @author Mustafa Garip
  */
 

@@ -47,7 +47,7 @@ namespace SushiBLAS
                 void SetUp() override
                 {
                     SushiBLASTest::SetUp();
-                    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                    engine->set_mode(ExecutionMode::ForceReference);
                 }
         };
 
@@ -109,7 +109,7 @@ namespace SushiBLAS
             const std::vector<float> K_EXPECTED_INDEX = {1.0f};
 
             auto x = create_initialized_tensor<float>({4}, {1.0f, -3.0f, 3.0f, 2.0f});
-            auto result = engine->create_tensor({1}, Core::DataType::INT64);
+            auto result = engine->create_tensor({1}, Core::DataType::Int64);
 
             SushiBLAS::BLASOps(*engine).iamax(x, result);
             engine->execute();
@@ -122,7 +122,7 @@ namespace SushiBLAS
             const std::vector<float> K_EXPECTED_INDEX = {3.0f};
 
             auto x = create_initialized_tensor<float>({4}, {0.5f, -1.0f, 2.0f, -7.0f});
-            auto result = engine->create_tensor({1}, Core::DataType::INT64);
+            auto result = engine->create_tensor({1}, Core::DataType::Int64);
 
             SushiBLAS::BLASOps(*engine).iamax(x, result);
             engine->execute();

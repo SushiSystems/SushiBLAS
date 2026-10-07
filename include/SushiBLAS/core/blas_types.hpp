@@ -39,9 +39,9 @@ namespace SushiBLAS
          */
         enum class Transpose : uint8_t
         {
-            NO_TRANS = 111,   /**< op(X) = X. */
-            TRANS = 112,      /**< op(X) = X^T. */
-            CONJ_TRANS = 113  /**< op(X) = X^H, which is X^T for a real element type. */
+            NoTrans = 111,   /**< op(X) = X. */
+            Trans = 112,      /**< op(X) = X^T. */
+            ConjTrans = 113  /**< op(X) = X^H, which is X^T for a real element type. */
         };
 
         /**
@@ -50,8 +50,8 @@ namespace SushiBLAS
          */
         enum class Uplo : uint8_t
         {
-            UPPER = 121, /**< The triangle on and above the diagonal. */
-            LOWER = 122  /**< The triangle on and below the diagonal. */
+            Upper = 121, /**< The triangle on and above the diagonal. */
+            Lower = 122  /**< The triangle on and below the diagonal. */
         };
 
         /**
@@ -60,8 +60,8 @@ namespace SushiBLAS
          */
         enum class Diag : uint8_t
         {
-            NON_UNIT = 131, /**< The diagonal is read from the matrix. */
-            UNIT = 132      /**< The diagonal is taken as all ones and never read. */
+            NonUnit = 131, /**< The diagonal is read from the matrix. */
+            Unit = 132      /**< The diagonal is taken as all ones and never read. */
         };
 
         /**
@@ -70,45 +70,45 @@ namespace SushiBLAS
          */
         enum class Side : uint8_t
         {
-            LEFT = 141, /**< op(A) * X. */
-            RIGHT = 142 /**< X * op(A). */
+            Left = 141, /**< op(A) * X. */
+            Right = 142 /**< X * op(A). */
         };
 
         /** @brief Returns whether value is an enumerator of Transpose. */
         [[nodiscard]] inline constexpr bool is_valid(Transpose value) noexcept
         {
-            return value == Transpose::NO_TRANS || value == Transpose::TRANS ||
-                   value == Transpose::CONJ_TRANS;
+            return value == Transpose::NoTrans || value == Transpose::Trans ||
+                   value == Transpose::ConjTrans;
         }
 
         /** @brief Returns whether value is an enumerator of Uplo. */
         [[nodiscard]] inline constexpr bool is_valid(Uplo value) noexcept
         {
-            return value == Uplo::UPPER || value == Uplo::LOWER;
+            return value == Uplo::Upper || value == Uplo::Lower;
         }
 
         /** @brief Returns whether value is an enumerator of Diag. */
         [[nodiscard]] inline constexpr bool is_valid(Diag value) noexcept
         {
-            return value == Diag::NON_UNIT || value == Diag::UNIT;
+            return value == Diag::NonUnit || value == Diag::Unit;
         }
 
         /** @brief Returns whether value is an enumerator of Side. */
         [[nodiscard]] inline constexpr bool is_valid(Side value) noexcept
         {
-            return value == Side::LEFT || value == Side::RIGHT;
+            return value == Side::Left || value == Side::Right;
         }
 
         /** @brief Returns whether op(X) swaps the rows and columns of X. */
         [[nodiscard]] inline constexpr bool is_transposed(Transpose value) noexcept
         {
-            return value != Transpose::NO_TRANS;
+            return value != Transpose::NoTrans;
         }
 
         /** @brief Returns whether op(X) conjugates the elements of a complex X. */
         [[nodiscard]] inline constexpr bool is_conjugated(Transpose value) noexcept
         {
-            return value == Transpose::CONJ_TRANS;
+            return value == Transpose::ConjTrans;
         }
 
         /** @brief Returns the name of a Transpose, or "UNKNOWN" outside the enumeration. */
@@ -116,11 +116,11 @@ namespace SushiBLAS
         {
             switch (value)
             {
-                case Transpose::NO_TRANS:
+                case Transpose::NoTrans:
                     return "NO_TRANS";
-                case Transpose::TRANS:
+                case Transpose::Trans:
                     return "TRANS";
-                case Transpose::CONJ_TRANS:
+                case Transpose::ConjTrans:
                     return "CONJ_TRANS";
             }
             return "UNKNOWN";
@@ -131,9 +131,9 @@ namespace SushiBLAS
         {
             switch (value)
             {
-                case Uplo::UPPER:
+                case Uplo::Upper:
                     return "UPPER";
-                case Uplo::LOWER:
+                case Uplo::Lower:
                     return "LOWER";
             }
             return "UNKNOWN";
@@ -144,9 +144,9 @@ namespace SushiBLAS
         {
             switch (value)
             {
-                case Diag::NON_UNIT:
+                case Diag::NonUnit:
                     return "NON_UNIT";
-                case Diag::UNIT:
+                case Diag::Unit:
                     return "UNIT";
             }
             return "UNKNOWN";
@@ -157,9 +157,9 @@ namespace SushiBLAS
         {
             switch (value)
             {
-                case Side::LEFT:
+                case Side::Left:
                     return "LEFT";
-                case Side::RIGHT:
+                case Side::Right:
                     return "RIGHT";
             }
             return "UNKNOWN";

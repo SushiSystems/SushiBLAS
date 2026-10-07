@@ -1732,6 +1732,107 @@ of the neighbouring entry of `build/compile_commands.json` (`-std=gnu++17 -Wall 
 
 ## NAMING_TABLE (the naming table)
 
-Not written yet. The naming sweep, which runs after every other package, puts its table of
-old and new names here.
+The naming sweep ran on 2026-10-07 over the tree at `070581f`. A script applied
+`tools/naming/sushiblas_0_1_0.tsv`, which has the columns `tools/naming/README.md` of sushiai
+describes, and this is the same table. Nothing was built or run after it. Function-local
+`constexpr` values, 136 of them, keep their names.
 
+| Kind | Old name | New name | Declared in |
+| --- | --- | --- | --- |
+| constant | `ACTIVE_LOG_LEVEL` | `K_ACTIVE_LOG_LEVEL` | `include/SushiBLAS/core/logger.hpp` |
+| constant | `IM2COL_NAME` | `K_IM2COL_NAME` | `src/engine/spatial/im2col.cpp` |
+| constant | `MAX_TENSOR_RANK` | `K_MAX_TENSOR_RANK` | `include/SushiBLAS/core/common.hpp` |
+| constant | `N` | `K_N` | `tests/functional/unit/test_shuffle.cpp` |
+| constant | `block_m` | `K_BLOCK_M` | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syr2k.hpp`, `kernels/sycl/blas/level3/syrk.hpp` |
+| constant | `block_n` | `K_BLOCK_N` | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syr2k.hpp`, `kernels/sycl/blas/level3/syrk.hpp` |
+| constant | `item_cols` | `K_ITEM_COLS` | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syr2k.hpp`, `kernels/sycl/blas/level3/syrk.hpp` |
+| constant | `item_rows` | `K_ITEM_ROWS` | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syr2k.hpp`, `kernels/sycl/blas/level3/syrk.hpp` |
+| constant | `kColMax` | `K_COL_MAX` | `tests/functional/unit/test_axis_reductions.cpp` |
+| constant | `kColMin` | `K_COL_MIN` | `tests/functional/unit/test_axis_reductions.cpp` |
+| constant | `kColSum` | `K_COL_SUM` | `tests/functional/unit/test_axis_reductions.cpp` |
+| constant | `kColumnMajor` | `K_COLUMN_MAJOR` | `tests/functional/unit/test_axis_reductions.cpp` |
+| constant | `kHalfMax` | `K_HALF_MAX` | `tests/functional/unit/test_convert.cpp` |
+| constant | `kLarge` | `K_LARGE` | `tests/functional/unit/test_count_nonfinite.cpp`, `tests/functional/unit/test_reduction_determinism.cpp` |
+| constant | `kMomentRuns` | `K_MOMENT_RUNS` | `tests/functional/unit/test_reduction_determinism.cpp` |
+| constant | `kMoments` | `K_MOMENTS` | `tests/functional/unit/test_reduction_determinism.cpp` |
+| constant | `kPad` | `K_PAD` | `tests/functional/unit/test_storage_offset.cpp` |
+| constant | `kPoisonByte` | `K_POISON_BYTE` | `tests/functional/unit/test_storage_offset.cpp` |
+| constant | `kRealDTypes` | `K_REAL_DTYPES` | `tests/functional/unit/test_convert.cpp` |
+| constant | `kRowMajor` | `K_ROW_MAJOR` | `tests/functional/unit/test_axis_reductions.cpp` |
+| constant | `kRowMax` | `K_ROW_MAX` | `tests/functional/unit/test_axis_reductions.cpp` |
+| constant | `kRowMin` | `K_ROW_MIN` | `tests/functional/unit/test_axis_reductions.cpp` |
+| constant | `kRowSum` | `K_ROW_SUM` | `tests/functional/unit/test_axis_reductions.cpp` |
+| constant | `kSmall` | `K_SMALL` | `tests/functional/unit/test_count_nonfinite.cpp`, `tests/functional/unit/test_reduction_determinism.cpp` |
+| constant | `kTenthAsHalf` | `K_TENTH_AS_HALF` | `tests/functional/unit/test_convert.cpp` |
+| constant | `kTinyAsHalf` | `K_TINY_AS_HALF` | `tests/functional/unit/test_convert.cpp` |
+| constant | `tile_a_ld` | `K_TILE_A_LD` | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp` |
+| constant | `tile_k` | `K_TILE_K` | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syr2k.hpp`, `kernels/sycl/blas/level3/syrk.hpp` |
+| constant | `wg_cols` | `K_WG_COLS` | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syr2k.hpp`, `kernels/sycl/blas/level3/syrk.hpp` |
+| constant | `wg_items` | `K_WG_ITEMS` | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syr2k.hpp`, `kernels/sycl/blas/level3/syrk.hpp` |
+| constant | `wg_rows` | `K_WG_ROWS` | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syr2k.hpp`, `kernels/sycl/blas/level3/syrk.hpp` |
+| enumerator | `BackwardOrder::ASCENDING` | `Ascending` | `tests/functional/unit/test_blas_half_accumulation.cpp` |
+| enumerator | `BackwardOrder::DESCENDING` | `Descending` | `tests/functional/unit/test_blas_half_accumulation.cpp` |
+| enumerator | `Core::DataType::COMPLEX32` | `Complex32` | `include/SushiBLAS/core/common.hpp` |
+| enumerator | `Core::DataType::COMPLEX64` | `Complex64` | `include/SushiBLAS/core/common.hpp` |
+| enumerator | `Core::DataType::FLOAT32` | `Float32` | `include/SushiBLAS/core/common.hpp` |
+| enumerator | `Core::DataType::FLOAT64` | `Float64` | `include/SushiBLAS/core/common.hpp` |
+| enumerator | `Core::DataType::HALF` | `Half` | `include/SushiBLAS/core/common.hpp` |
+| enumerator | `Core::DataType::INT32` | `Int32` | `include/SushiBLAS/core/common.hpp` |
+| enumerator | `Core::DataType::INT64` | `Int64` | `include/SushiBLAS/core/common.hpp` |
+| enumerator | `Core::Diag::NON_UNIT` | `NonUnit` | `include/SushiBLAS/core/blas_types.hpp` |
+| enumerator | `Core::Diag::UNIT` | `Unit` | `include/SushiBLAS/core/blas_types.hpp` |
+| enumerator | `Dispatch::Domain::ALL` | `All` | `include/SushiBLAS/engine/dispatch.hpp` |
+| enumerator | `Dispatch::Domain::COMPLEX` | `Complex` | `include/SushiBLAS/engine/dispatch.hpp` |
+| enumerator | `Dispatch::Domain::INTEGRAL` | `Integral` | `include/SushiBLAS/engine/dispatch.hpp` |
+| enumerator | `Dispatch::Domain::REAL` | `Real` | `include/SushiBLAS/engine/dispatch.hpp` |
+| enumerator | `Dispatch::Domain::REAL_AND_COMPLEX` | `RealAndComplex` | `include/SushiBLAS/engine/dispatch.hpp` |
+| enumerator | `Dispatch::Domain::REAL_AND_INTEGRAL` | `RealAndIntegral` | `include/SushiBLAS/engine/dispatch.hpp` |
+| enumerator | `ExecutionMode::AUTO` | `Auto` | `include/SushiBLAS/engine/execution_mode.hpp` |
+| enumerator | `ExecutionMode::FORCE_REFERENCE` | `ForceReference` | `include/SushiBLAS/engine/execution_mode.hpp` |
+| enumerator | `ExecutionMode::FORCE_SYCL` | `ForceSycl` | `include/SushiBLAS/engine/execution_mode.hpp` |
+| enumerator | `Core::IndexBase::ONE` | `One` | `include/SushiBLAS/core/sparse_types.hpp` |
+| enumerator | `Core::IndexBase::ZERO` | `Zero` | `include/SushiBLAS/core/sparse_types.hpp` |
+| enumerator | `Core::Layout::COLUMN_MAJOR` | `ColumnMajor` | `include/SushiBLAS/core/common.hpp` |
+| enumerator | `Core::Layout::ROW_MAJOR` | `RowMajor` | `include/SushiBLAS/core/common.hpp` |
+| enumerator | `Core::LogType::DEBUG` | `Debug` | `include/SushiBLAS/core/logger.hpp` |
+| enumerator | `Core::LogType::ERR` | `Err` | `include/SushiBLAS/core/logger.hpp` |
+| enumerator | `Core::LogType::INFO` | `Info` | `include/SushiBLAS/core/logger.hpp` |
+| enumerator | `Core::LogType::OFF` | `Off` | `include/SushiBLAS/core/logger.hpp` |
+| enumerator | `Core::LogType::WARN` | `Warn` | `include/SushiBLAS/core/logger.hpp` |
+| enumerator | `Mirror::HERMITIAN` | `Hermitian` | `tests/functional/unit/test_sparse_spsymv.cpp` |
+| enumerator | `Mirror::SYMMETRIC` | `Symmetric` | `tests/functional/unit/test_sparse_spsymv.cpp` |
+| enumerator | `Outcome::INVALID_ARGUMENT` | `InvalidArgument` | `tests/functional/unit/test_unsupported_execution.cpp` |
+| enumerator | `Outcome::RETURNED` | `Returned` | `tests/functional/unit/test_unsupported_execution.cpp` |
+| enumerator | `Outcome::UNSUPPORTED_EXECUTION` | `UnsupportedExecution` | `tests/functional/unit/test_unsupported_execution.cpp` |
+| enumerator | `PanelLines::COLUMNS` | `Columns` | `include/SushiBLAS/kernels/sycl/blas/level3/packed_panel.hpp` |
+| enumerator | `PanelLines::ROWS` | `Rows` | `include/SushiBLAS/kernels/sycl/blas/level3/packed_panel.hpp` |
+| enumerator | `RebuildValue::INVERSE_COSINE` | `InverseCosine` | `tests/functional/unit/test_givens.cpp`, `tests/functional/unit/test_rotg.cpp` |
+| enumerator | `RebuildValue::ONE` | `One` | `tests/functional/unit/test_givens.cpp`, `tests/functional/unit/test_rotg.cpp` |
+| enumerator | `RebuildValue::SINE` | `Sine` | `tests/functional/unit/test_givens.cpp`, `tests/functional/unit/test_rotg.cpp` |
+| enumerator | `RebuildValue::ZERO` | `Zero` | `tests/functional/unit/test_givens.cpp`, `tests/functional/unit/test_rotg.cpp` |
+| enumerator | `Routine::HEMM` | `Hemm` | `tests/functional/unit/test_packed_symm.cpp`, `tests/functional/unit/test_symm.cpp` |
+| enumerator | `Routine::SYMM` | `Symm` | `tests/functional/unit/test_packed_symm.cpp`, `tests/functional/unit/test_symm.cpp` |
+| enumerator | `Dispatch::Sampling::DRAWS_VALUES` | `DrawsValues` | `include/SushiBLAS/engine/math/random/dispatch.hpp` |
+| enumerator | `Dispatch::Sampling::MOVES_VALUES` | `MovesValues` | `include/SushiBLAS/engine/math/random/dispatch.hpp` |
+| enumerator | `Scheme::GENERAL_BAND` | `GeneralBand` | `tests/functional/unit/test_blas_structured_validation.cpp` |
+| enumerator | `Scheme::PACKED` | `Packed` | `tests/functional/unit/test_blas_structured_validation.cpp` |
+| enumerator | `Scheme::TRIANGLE_BAND` | `TriangleBand` | `tests/functional/unit/test_blas_structured_validation.cpp` |
+| enumerator | `Core::Side::LEFT` | `Left` | `include/SushiBLAS/core/blas_types.hpp` |
+| enumerator | `Core::Side::RIGHT` | `Right` | `include/SushiBLAS/core/blas_types.hpp` |
+| enumerator | `StructureDefect::DECREASING_OFFSET` | `DecreasingOffset` | `kernels/reference/sparse/structure.hpp` |
+| enumerator | `StructureDefect::FIRST_OFFSET` | `FirstOffset` | `kernels/reference/sparse/structure.hpp` |
+| enumerator | `StructureDefect::INDEX_OUT_OF_RANGE` | `IndexOutOfRange` | `kernels/reference/sparse/structure.hpp` |
+| enumerator | `StructureDefect::LAST_OFFSET` | `LastOffset` | `kernels/reference/sparse/structure.hpp` |
+| enumerator | `StructureDefect::NONE` | `None` | `kernels/reference/sparse/structure.hpp` |
+| enumerator | `StructureDefect::REPEATED_INDEX` | `RepeatedIndex` | `kernels/reference/sparse/structure.hpp` |
+| enumerator | `Core::Transpose::CONJ_TRANS` | `ConjTrans` | `include/SushiBLAS/core/blas_types.hpp` |
+| enumerator | `Core::Transpose::NO_TRANS` | `NoTrans` | `include/SushiBLAS/core/blas_types.hpp` |
+| enumerator | `Core::Transpose::TRANS` | `Trans` | `include/SushiBLAS/core/blas_types.hpp` |
+| enumerator | `Core::Uplo::LOWER` | `Lower` | `include/SushiBLAS/core/blas_types.hpp` |
+| enumerator | `Core::Uplo::UPPER` | `Upper` | `include/SushiBLAS/core/blas_types.hpp` |
+
+Not renamed:
+
+- `is_complex_v` (`include/SushiBLAS/core/traits.hpp`): a trait variable template keeps its type-like name.
+- `is_real_scalar_v` (`include/SushiBLAS/engine/math/reductions/dispatch.hpp`): a trait variable template keeps its type-like name.
+- `value` (`include/SushiBLAS/engine/math/reductions/dispatch.hpp`): the member name the standard trait protocol reads.

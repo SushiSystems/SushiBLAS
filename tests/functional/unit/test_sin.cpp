@@ -21,7 +21,7 @@
 
 /**
  * @file test_sin.cpp
- * @brief Tests elementwise().sin against fixed expected values.
+ * @brief Tests ElementwiseOps::sin against fixed expected values.
  * @author Mustafa Garip
  */
 
@@ -111,7 +111,7 @@ TEST_F(Unit_SinTest, ThousandElements)
 
 TEST_F(Unit_SinTest, Float64)
 {
-    auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::FLOAT64);
+    auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::Float64);
     fill_tensor(t, {-1.0f, 0.0f, 0.5f, 2.0f});
 
     SushiBLAS::ElementwiseOps(*engine).sin(t);

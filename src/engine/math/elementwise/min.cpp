@@ -35,7 +35,7 @@ namespace SushiBLAS
 
     TaskHandle ElementwiseOps::min(const Tensor& A, const Tensor& B, Tensor& C)
     {
-        return Dispatch::execute_binary<Dispatch::Domain::REAL_AND_INTEGRAL>(
+        return Dispatch::execute_binary<Dispatch::Domain::RealAndIntegral>(
             recorder_, A, B, C, "math.ew.min", "math.ew.min"_op,
             [](auto x, auto y)
             {

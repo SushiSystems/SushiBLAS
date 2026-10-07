@@ -55,7 +55,7 @@ namespace SushiBLAS
             {
                 using RW = ReferenceAccumulator<T>;
 
-                SB_ASSERT(find_defect(pattern) == StructureDefect::NONE,
+                SB_ASSERT(find_defect(pattern) == StructureDefect::None,
                           "spmv was given a CSR structure that breaks its contract");
 
                 const bool keeps_y = !(beta == T(0));

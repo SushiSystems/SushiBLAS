@@ -70,16 +70,16 @@ namespace SushiBLAS
         constexpr double K_BITS_DIAGONAL_SHIFT = 4.0;
 
         /// @brief Both element orders a tensor can have.
-        constexpr std::array<Core::Layout, 2> K_BITS_LAYOUTS = {Core::Layout::ROW_MAJOR,
-                                                                Core::Layout::COLUMN_MAJOR};
+        constexpr std::array<Core::Layout, 2> K_BITS_LAYOUTS = {Core::Layout::RowMajor,
+                                                                Core::Layout::ColumnMajor};
 
         /// @brief Both triangles a symmetric or triangular call can name.
-        constexpr std::array<Core::Uplo, 2> K_BITS_TRIANGLES = {Core::Uplo::UPPER,
-                                                                Core::Uplo::LOWER};
+        constexpr std::array<Core::Uplo, 2> K_BITS_TRIANGLES = {Core::Uplo::Upper,
+                                                                Core::Uplo::Lower};
 
         /// @brief The transposes that do not conjugate.
-        constexpr std::array<Core::Transpose, 2> K_BITS_TRANSPOSES = {Core::Transpose::NO_TRANS,
-                                                                      Core::Transpose::TRANS};
+        constexpr std::array<Core::Transpose, 2> K_BITS_TRANSPOSES = {Core::Transpose::NoTrans,
+                                                                      Core::Transpose::Trans};
 
         /**
          * @brief Runs a BLAS call on the reference kernel and computes the same result on the host.
@@ -98,7 +98,7 @@ namespace SushiBLAS
                 void start(Core::Layout layout)
                 {
                     reinit_engine(layout);
-                    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                    engine->set_mode(ExecutionMode::ForceReference);
                     generator_.seed(K_BITS_SEED);
                 }
 
@@ -163,7 +163,7 @@ namespace SushiBLAS
                 [[nodiscard]] std::size_t offset(int64_t r, int64_t c, int64_t rows,
                                                  int64_t cols) const
                 {
-                    return (engine->get_layout() == Core::Layout::ROW_MAJOR) ? index(r * cols + c)
+                    return (engine->get_layout() == Core::Layout::RowMajor) ? index(r * cols + c)
                                                                              : index(r + c * rows);
                 }
 
@@ -194,7 +194,7 @@ namespace SushiBLAS
                 void host_symv(Core::Uplo uplo, int64_t n, T scale, const std::vector<T>& a,
                                const std::vector<T>& x, T prior, std::vector<T>& y) const
                 {
-                    const bool upper = (uplo == Core::Uplo::UPPER);
+                    const bool upper = (uplo == Core::Uplo::Upper);
                     for (int64_t i = 0; i < n; ++i)
                     {
                         Kernels::ReferenceSum<T> sum;
@@ -216,7 +216,7 @@ namespace SushiBLAS
                 void host_syr(Core::Uplo uplo, int64_t n, T scale, const std::vector<T>& x,
                               std::vector<T>& a) const
                 {
-                    const bool upper = (uplo == Core::Uplo::UPPER);
+                    const bool upper = (uplo == Core::Uplo::Upper);
                     for (int64_t i = 0; i < n; ++i)
                     {
                         const int64_t first = upper ? i : 0;
@@ -233,7 +233,7 @@ namespace SushiBLAS
                 void host_syr2(Core::Uplo uplo, int64_t n, T scale, const std::vector<T>& x,
                                const std::vector<T>& y, std::vector<T>& a) const
                 {
-                    const bool upper = (uplo == Core::Uplo::UPPER);
+                    const bool upper = (uplo == Core::Uplo::Upper);
                     for (int64_t i = 0; i < n; ++i)
                     {
                         const int64_t first = upper ? i : 0;
@@ -256,8 +256,8 @@ namespace SushiBLAS
                 void host_syrk(Core::Uplo uplo, Core::Transpose trans, int64_t n, int64_t k,
                                T scale, const std::vector<T>& a, T prior, std::vector<T>& c) const
                 {
-                    const bool upper = (uplo == Core::Uplo::UPPER);
-                    const bool transposed = (trans == Core::Transpose::TRANS);
+                    const bool upper = (uplo == Core::Uplo::Upper);
+                    const bool transposed = (trans == Core::Transpose::Trans);
                     auto op_a = [&](int64_t r, int64_t l) -> T
                     {
                         return transposed ? a[offset(l, r, k, n)] : a[offset(r, l, n, k)];
@@ -291,10 +291,10 @@ namespace SushiBLAS
                                Core::Diag diag, int64_t m, int64_t n, T scale,
                                const std::vector<T>& a, std::vector<T>& b) const
                 {
-                    const bool left = (side == Core::Side::LEFT);
-                    const bool upper = (uplo == Core::Uplo::UPPER);
-                    const bool transposed = (trans == Core::Transpose::TRANS);
-                    const bool unit_diagonal = (diag == Core::Diag::UNIT);
+                    const bool left = (side == Core::Side::Left);
+                    const bool upper = (uplo == Core::Uplo::Upper);
+                    const bool transposed = (trans == Core::Transpose::Trans);
+                    const bool unit_diagonal = (diag == Core::Diag::Unit);
                     const int64_t order = left ? m : n;
 
                     // On the right side a row of X solves against the transpose of op(A).
@@ -503,7 +503,7 @@ namespace SushiBLAS
                     {
                         for (const T beta : {TestFixture::beta(), T(0)})
                         {
-                            const bool transposed = (trans == Core::Transpose::TRANS);
+                            const bool transposed = (trans == Core::Transpose::Trans);
 
                             this->start(layout);
                             const std::vector<T> a = this->random_values(n * k);
@@ -534,15 +534,15 @@ namespace SushiBLAS
 
             for (const Core::Layout layout : K_BITS_LAYOUTS)
             {
-                for (const Core::Side side : {Core::Side::LEFT, Core::Side::RIGHT})
+                for (const Core::Side side : {Core::Side::Left, Core::Side::Right})
                 {
                     for (const Core::Uplo uplo : K_BITS_TRIANGLES)
                     {
                         for (const Core::Transpose trans : K_BITS_TRANSPOSES)
                         {
-                            for (const Core::Diag diag : {Core::Diag::NON_UNIT, Core::Diag::UNIT})
+                            for (const Core::Diag diag : {Core::Diag::NonUnit, Core::Diag::Unit})
                             {
-                                const int64_t order = (side == Core::Side::LEFT) ? m : n;
+                                const int64_t order = (side == Core::Side::Left) ? m : n;
 
                                 this->start(layout);
                                 const std::vector<T> a = this->random_triangular(order);

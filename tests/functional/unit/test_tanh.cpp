@@ -21,7 +21,7 @@
 
 /**
  * @file test_tanh.cpp
- * @brief Tests nonlinear().tanh and tanh_backward against fixed expected values.
+ * @brief Tests NonLinearOps::tanh and tanh_backward against fixed expected values.
  * @author Mustafa Garip
  */
 

@@ -54,13 +54,13 @@ namespace SushiBLAS
     {
         /**
          * @brief Records a unary in-place elementwise op `t[i] = op(t[i])`, or nothing when t is empty.
-         * @tparam Dom Defaults to Domain::REAL; a wider domain needs an op_func well-formed for it.
+         * @tparam Dom Defaults to Domain::Real; a wider domain needs an op_func well-formed for it.
          * @param op_func Callable `(auto x) -> auto`, or a bind_scalars or bind_reads bundle of one.
          * @throws std::invalid_argument on an operand or declared-read violation, or too many params.
          * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/math/README.md
          */
-        template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
+        template<Domain Dom = Domain::Real, typename Func, typename Param = double>
         TaskHandle execute_unary_inplace(TaskRecorder& recorder, Tensor& t, const char* name,
                                          SushiRuntime::Graph::OpID op_id, Func&& op_func,
                                          std::initializer_list<Param> params = {})
@@ -100,7 +100,7 @@ namespace SushiBLAS
          * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/math/README.md
          */
-        template<Domain Dom = Domain::REAL, typename Func, typename Param = double>
+        template<Domain Dom = Domain::Real, typename Func, typename Param = double>
         TaskHandle execute_binary(TaskRecorder& recorder, const Tensor& A, const Tensor& B, Tensor& C,
                                   const char* name, SushiRuntime::Graph::OpID op_id, Func&& op_func,
                                   std::initializer_list<Param> params = {})
@@ -151,7 +151,7 @@ namespace SushiBLAS
          * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/math/README.md
          */
-        template<Domain Dom = Domain::REAL, std::size_t N, typename Func, typename Param = double>
+        template<Domain Dom = Domain::Real, std::size_t N, typename Func, typename Param = double>
         TaskHandle execute_zip_inplace(TaskRecorder& recorder, const std::array<Tensor*, N>& tensors,
                                        const char* name, SushiRuntime::Graph::OpID op_id,
                                        Func&& op_func, std::initializer_list<Param> params = {})

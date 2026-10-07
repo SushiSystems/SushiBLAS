@@ -76,7 +76,7 @@ namespace SushiBLAS
         const Core::Layout layout = a.layout;
         const int64_t lda = a.leading_dimension;
         // b is an n x 1 matrix: ldb is 1 in row-major and n in column-major; see src/README.md.
-        const int64_t ldb = (layout == Core::Layout::ROW_MAJOR) ? 1 : n;
+        const int64_t ldb = (layout == Core::Layout::RowMajor) ? 1 : n;
         const void* read_A = A.data_or_null();
         void* rw_b = b.data_or_null();
 
@@ -91,13 +91,13 @@ namespace SushiBLAS
                 return dispatcher.run(q, deps,
                     [=]
                     {
-                        Kernels::Reference::trsm<T>(layout, Core::Side::LEFT, uplo, trans, diag,
+                        Kernels::Reference::trsm<T>(layout, Core::Side::Left, uplo, trans, diag,
                                                     n, 1, T(1), pA, lda, pb, ldb);
                     },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
                         return Kernels::SYCL::trsm<T>(
-                            q2, layout, Core::Side::LEFT, uplo, trans, diag, n, 1, T(1), pA, lda,
+                            q2, layout, Core::Side::Left, uplo, trans, diag, n, 1, T(1), pA, lda,
                             0, pb, ldb, 0, 1,
                             static_cast<Kernels::Accumulator<T>*>(work.data()), deps2);
                     });

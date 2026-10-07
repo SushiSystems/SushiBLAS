@@ -50,8 +50,8 @@ namespace SushiBLAS
         namespace
         {
             /// @brief The forced modes every case runs in.
-            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::FORCE_SYCL,
-                                                        ExecutionMode::FORCE_REFERENCE};
+            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceSycl,
+                                                        ExecutionMode::ForceReference};
 
             /// @brief The value an output holds before its operation runs.
             constexpr double K_SENTINEL = 7.0;
@@ -62,7 +62,7 @@ namespace SushiBLAS
             /** @brief Returns the name a failure message gives a forced mode. */
             const char* forced_mode_name(ExecutionMode mode) noexcept
             {
-                return mode == ExecutionMode::FORCE_REFERENCE ? "FORCE_REFERENCE" : "FORCE_SYCL";
+                return mode == ExecutionMode::ForceReference ? "FORCE_REFERENCE" : "FORCE_SYCL";
             }
 
             /** @brief Returns how many elements a tensor of dims holds. */
@@ -385,7 +385,7 @@ namespace SushiBLAS
             {
                 const double store = unit_roundoff<T>() * std::fabs(truth.value);
 
-                if (mode == ExecutionMode::FORCE_SYCL)
+                if (mode == ExecutionMode::ForceSycl)
                     return rounding_bound(16, unit_roundoff<Kernels::Accumulator<T>>(),
                                           truth.magnitude) + store;
 
@@ -611,11 +611,11 @@ namespace SushiBLAS
                 const Tensor dy = tensor_from<T>(engine, c.output_dims(),
                                                  fractional(gradient_pattern(c.output_dims())));
 
-                engine.set_mode(ExecutionMode::FORCE_REFERENCE);
+                engine.set_mode(ExecutionMode::ForceReference);
                 const std::vector<T> reference_out = forward_of<T>(engine, c, in, weights);
                 const std::vector<T> reference_dx = input_gradient_of<T>(engine, c, dy, weights);
 
-                engine.set_mode(ExecutionMode::FORCE_SYCL);
+                engine.set_mode(ExecutionMode::ForceSycl);
                 const std::vector<T> device_out = forward_of<T>(engine, c, in, weights);
                 const std::vector<T> device_dx = input_gradient_of<T>(engine, c, dy, weights);
 
@@ -788,21 +788,21 @@ namespace SushiBLAS
             const int64_t N = 1, H = 4, W = 4, C = 2;
             const Spatial::ConvGeometry g = geometry_of(3, 3, 1, 1, 1, 1, 1, 1);
 
-            Tensor in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
-            Tensor weights = engine->create_tensor({3, 3, C}, Core::DataType::FLOAT32);
-            Tensor out = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            Tensor in = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
+            Tensor weights = engine->create_tensor({3, 3, C}, Core::DataType::Float32);
+            Tensor out = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             SushiBLAS::SpatialOps spatial(*engine);
 
-            Tensor flat_weights = engine->create_tensor({3, 3}, Core::DataType::FLOAT32);
+            Tensor flat_weights = engine->create_tensor({3, 3}, Core::DataType::Float32);
             expect_refusal([&] { spatial.window_dot(in, flat_weights, out, g); }, NAME, "weights");
 
-            Tensor wide_weights = engine->create_tensor({3, 3, C + 1}, Core::DataType::FLOAT32);
+            Tensor wide_weights = engine->create_tensor({3, 3, C + 1}, Core::DataType::Float32);
             expect_refusal([&] { spatial.window_dot(in, wide_weights, out, g); }, NAME, "weights");
 
-            Tensor double_out = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT64);
+            Tensor double_out = engine->create_tensor({N, H, W, C}, Core::DataType::Float64);
             expect_refusal([&] { spatial.window_dot(in, weights, double_out, g); }, NAME, "out");
 
-            Tensor batched_out = engine->create_tensor({N + 1, H, W, C}, Core::DataType::FLOAT32);
+            Tensor batched_out = engine->create_tensor({N + 1, H, W, C}, Core::DataType::Float32);
             expect_refusal([&] { spatial.window_dot(in, weights, batched_out, g); }, NAME, "out");
 
             Tensor aliased_out = in;
@@ -824,7 +824,7 @@ namespace SushiBLAS
             try
             {
                 in = engine->create_tensor({c.batch, c.in_h, c.in_w, c.channels},
-                                           Core::DataType::FLOAT32,
+                                           Core::DataType::Float32,
                                            SushiRuntime::API::Residency::Device);
             }
             catch (const std::exception& error)
@@ -843,10 +843,10 @@ namespace SushiBLAS
             Tensor out = sentinel_tensor<float>(*engine, c.output_dims());
             SushiBLAS::SpatialOps spatial(*engine);
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             EXPECT_THROW(spatial.window_dot(*in, weights, out, g), std::invalid_argument);
 
-            engine->set_mode(ExecutionMode::AUTO);
+            engine->set_mode(ExecutionMode::Auto);
             EXPECT_NO_THROW(spatial.window_dot(*in, weights, out, g));
             engine->execute();
         }

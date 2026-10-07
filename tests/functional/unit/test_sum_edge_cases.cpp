@@ -21,7 +21,7 @@
 
 /**
  * @file test_sum_edge_cases.cpp
- * @brief Tests reductions().sum, mean, max and min on edge-case inputs.
+ * @brief Tests ReductionOps::sum, mean, max and min on edge-case inputs.
  * @author Mustafa Garip
  */
 

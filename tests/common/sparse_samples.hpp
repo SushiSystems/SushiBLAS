@@ -87,11 +87,11 @@ namespace SushiBLAS
                                              SparseCase<std::complex<double>, int32_t>>;
 
         /// @brief The two execution modes every sparse routine is tested in.
-        constexpr ExecutionMode K_BOTH_MODES[2] = {ExecutionMode::FORCE_REFERENCE,
-                                                   ExecutionMode::FORCE_SYCL};
+        constexpr ExecutionMode K_BOTH_MODES[2] = {ExecutionMode::ForceReference,
+                                                   ExecutionMode::ForceSycl};
 
         /// @brief The two index bases every sparse routine is tested in.
-        constexpr Core::IndexBase K_BOTH_BASES[2] = {Core::IndexBase::ZERO, Core::IndexBase::ONE};
+        constexpr Core::IndexBase K_BOTH_BASES[2] = {Core::IndexBase::Zero, Core::IndexBase::One};
 
         /**
          * @brief Holds a sparse matrix as zero-based triplets in host memory.

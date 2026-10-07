@@ -56,10 +56,10 @@ namespace SushiBLAS
          */
         [[nodiscard]] inline constexpr Core::DataType real_result_dtype(Core::DataType dtype)
         {
-            if (dtype == Core::DataType::COMPLEX32)
-                return Core::DataType::FLOAT32;
-            if (dtype == Core::DataType::COMPLEX64)
-                return Core::DataType::FLOAT64;
+            if (dtype == Core::DataType::Complex32)
+                return Core::DataType::Float32;
+            if (dtype == Core::DataType::Complex64)
+                return Core::DataType::Float64;
             return dtype;
         }
 
@@ -89,23 +89,23 @@ namespace SushiBLAS
         {
             switch (dtype)
             {
-                case Core::DataType::HALF:
+                case Core::DataType::Half:
                     return Kernels::RunningSolution<sycl::half>::K_NEEDS_WORKSPACE
                                ? sizeof(Kernels::RunningSolution<sycl::half>::Wide) : 0;
-                case Core::DataType::FLOAT32:
+                case Core::DataType::Float32:
                     return Kernels::RunningSolution<float>::K_NEEDS_WORKSPACE
                                ? sizeof(Kernels::RunningSolution<float>::Wide) : 0;
-                case Core::DataType::FLOAT64:
+                case Core::DataType::Float64:
                     return Kernels::RunningSolution<double>::K_NEEDS_WORKSPACE
                                ? sizeof(Kernels::RunningSolution<double>::Wide) : 0;
-                case Core::DataType::COMPLEX32:
+                case Core::DataType::Complex32:
                     return Kernels::RunningSolution<std::complex<float>>::K_NEEDS_WORKSPACE
                                ? sizeof(Kernels::RunningSolution<std::complex<float>>::Wide) : 0;
-                case Core::DataType::COMPLEX64:
+                case Core::DataType::Complex64:
                     return Kernels::RunningSolution<std::complex<double>>::K_NEEDS_WORKSPACE
                                ? sizeof(Kernels::RunningSolution<std::complex<double>>::Wide) : 0;
-                case Core::DataType::INT32:
-                case Core::DataType::INT64:
+                case Core::DataType::Int32:
+                case Core::DataType::Int64:
                     return 0;
             }
             return 0;
@@ -122,7 +122,7 @@ namespace SushiBLAS
                                                                  OperandSet& operands)
         {
             if (!anchor.storage || bytes == 0 ||
-                recorder.get_mode() == ExecutionMode::FORCE_REFERENCE)
+                recorder.get_mode() == ExecutionMode::ForceReference)
                 return ScratchBuffer();
 
             ScratchBuffer scratch(recorder.get_scratch_pool(), bytes,
@@ -162,25 +162,25 @@ namespace SushiBLAS
             Kernels::PackedProductPlan plan;
             switch (dtype)
             {
-                case Core::DataType::HALF:
+                case Core::DataType::Half:
                     plan = Kernels::plan_packed_product<sycl::half>(profile, m, n, k, batch_size);
                     break;
-                case Core::DataType::FLOAT32:
+                case Core::DataType::Float32:
                     plan = Kernels::plan_packed_product<float>(profile, m, n, k, batch_size);
                     break;
-                case Core::DataType::FLOAT64:
+                case Core::DataType::Float64:
                     plan = Kernels::plan_packed_product<double>(profile, m, n, k, batch_size);
                     break;
-                case Core::DataType::COMPLEX32:
+                case Core::DataType::Complex32:
                     plan = Kernels::plan_packed_product<std::complex<float>>(profile, m, n, k,
                                                                              batch_size);
                     break;
-                case Core::DataType::COMPLEX64:
+                case Core::DataType::Complex64:
                     plan = Kernels::plan_packed_product<std::complex<double>>(profile, m, n, k,
                                                                               batch_size);
                     break;
-                case Core::DataType::INT32:
-                case Core::DataType::INT64:
+                case Core::DataType::Int32:
+                case Core::DataType::Int64:
                     break;
             }
             return plan.selected ? plan.scratch_bytes : std::size_t{0};
@@ -212,7 +212,7 @@ namespace SushiBLAS
          * @throws UnsupportedExecution at record time, as TaskRecorder::record_pair states.
          * @see include/SushiBLAS/engine/blas/README.md
          */
-        template<Dispatch::Domain Dom = Dispatch::Domain::REAL_AND_COMPLEX, typename Func>
+        template<Dispatch::Domain Dom = Dispatch::Domain::RealAndComplex, typename Func>
         TaskHandle execute_blas_task(TaskRecorder& recorder,
                                      const SushiRuntime::Graph::TaskMetadata& meta,
                                      const OperandSet& operands, Core::DataType dtype,

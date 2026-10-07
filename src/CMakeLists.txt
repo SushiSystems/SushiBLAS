@@ -212,7 +212,7 @@ target_include_directories(sushiblas PRIVATE
 sushiblas_apply_build_policy(sushiblas)
 
 # The compiled-in log level, PUBLIC (see cmake/SushiBLASLogging.cmake) so examples,
-# tests, and out-of-tree consumers all see the same ACTIVE_LOG_LEVEL this archive was
+# tests, and out-of-tree consumers all see the same K_ACTIVE_LOG_LEVEL this archive was
 # compiled with.
 sushiblas_apply_log_level(sushiblas)
 

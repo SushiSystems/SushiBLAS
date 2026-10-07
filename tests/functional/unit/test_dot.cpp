@@ -21,7 +21,7 @@
 
 /**
  * @file test_dot.cpp
- * @brief Tests blas().dot against fixed expected values.
+ * @brief Tests BLASOps::dot against fixed expected values.
  * @author Mustafa Garip
  */
 

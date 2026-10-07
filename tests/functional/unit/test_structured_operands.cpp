@@ -49,7 +49,7 @@ namespace SushiBLAS
             using Core::Uplo;
 
             /// @brief Holds the two layouts every case runs under.
-            constexpr Layout K_LAYOUTS[] = {Layout::COLUMN_MAJOR, Layout::ROW_MAJOR};
+            constexpr Layout K_LAYOUTS[] = {Layout::ColumnMajor, Layout::RowMajor};
 
             /// @brief Holds an order whose packed element count needs more than 53 bits.
             constexpr int64_t K_LARGE_ORDER = 3000000000;
@@ -69,8 +69,8 @@ namespace SushiBLAS
                 protected:
                     /** @brief Returns a dense tensor over a shared storage of its own. */
                     [[nodiscard]] static Tensor make_tensor(std::initializer_list<int64_t> dims,
-                                                            Layout layout = Layout::ROW_MAJOR,
-                                                            DataType dtype = DataType::FLOAT32)
+                                                            Layout layout = Layout::RowMajor,
+                                                            DataType dtype = DataType::Float32)
                     {
                         int64_t elements = 1;
                         for (const int64_t extent : dims)
@@ -81,9 +81,9 @@ namespace SushiBLAS
                     /** @brief Returns a tensor of a shape that owns no storage. */
                     [[nodiscard]] static Tensor
                     make_tensor_without_storage(std::initializer_list<int64_t> dims,
-                                                Layout layout = Layout::ROW_MAJOR)
+                                                Layout layout = Layout::RowMajor)
                     {
-                        return Tensor(SushiRuntime::sushi_ptr<Storage>(), dims, DataType::FLOAT32,
+                        return Tensor(SushiRuntime::sushi_ptr<Storage>(), dims, DataType::Float32,
                                       0, layout);
                     }
 
@@ -95,11 +95,11 @@ namespace SushiBLAS
                                                                          Layout layout)
                     {
                         const int64_t dims[] = {elements};
-                        std::array<int64_t, Core::MAX_TENSOR_RANK> strides{};
+                        std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides{};
                         strides[0] = 2;
-                        return Tensor(make_storage(2 * elements, DataType::FLOAT32),
+                        return Tensor(make_storage(2 * elements, DataType::Float32),
                                       SushiRuntime::span<const int64_t>(dims, 1), strides,
-                                      DataType::FLOAT32, 0, layout);
+                                      DataType::Float32, 0, layout);
                     }
 
                     /** @brief Returns the text of the invalid_argument a check throws, or "". */
@@ -145,14 +145,14 @@ namespace SushiBLAS
          */
         TEST_F(Unit_BandOperand, AColumnMajorTensorStoresOneLinePerColumn)
         {
-            const Tensor t = make_tensor({4, 5}, Layout::COLUMN_MAJOR);
+            const Tensor t = make_tensor({4, 5}, Layout::ColumnMajor);
             const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 1, 2, "op", "A");
 
             EXPECT_EQ(5, band.lines);
             EXPECT_EQ(4, band.leading_dimension);
             EXPECT_EQ(1, band.lower);
             EXPECT_EQ(2, band.upper);
-            EXPECT_EQ(Layout::COLUMN_MAJOR, band.layout);
+            EXPECT_EQ(Layout::ColumnMajor, band.layout);
         }
 
         /**
@@ -160,14 +160,14 @@ namespace SushiBLAS
          */
         TEST_F(Unit_BandOperand, ARowMajorTensorStoresOneLinePerRow)
         {
-            const Tensor t = make_tensor({4, 4}, Layout::ROW_MAJOR);
+            const Tensor t = make_tensor({4, 4}, Layout::RowMajor);
             const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 1, 2, "op", "A");
 
             EXPECT_EQ(4, band.lines);
             EXPECT_EQ(4, band.leading_dimension);
             EXPECT_EQ(1, band.lower);
             EXPECT_EQ(2, band.upper);
-            EXPECT_EQ(Layout::ROW_MAJOR, band.layout);
+            EXPECT_EQ(Layout::RowMajor, band.layout);
         }
 
         /**
@@ -175,7 +175,7 @@ namespace SushiBLAS
          */
         TEST_F(Unit_BandOperand, SpareSlotsPerLineAreAccepted)
         {
-            const Tensor t = make_tensor({6, 5}, Layout::COLUMN_MAJOR);
+            const Tensor t = make_tensor({6, 5}, Layout::ColumnMajor);
             const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 1, 2, "op", "A");
 
             EXPECT_EQ(5, band.lines);
@@ -187,7 +187,7 @@ namespace SushiBLAS
          */
         TEST_F(Unit_BandOperand, AWidthBeyondTheMatrixIsAccepted)
         {
-            const Tensor t = make_tensor({4, 2}, Layout::COLUMN_MAJOR);
+            const Tensor t = make_tensor({4, 2}, Layout::ColumnMajor);
             const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 3, 0, "op", "A");
 
             EXPECT_EQ(2, band.lines);
@@ -201,7 +201,7 @@ namespace SushiBLAS
          */
         TEST_F(Unit_BandOperand, AnEmptyTensorHasNoLine)
         {
-            const Tensor t = make_tensor_without_storage({3, 0}, Layout::COLUMN_MAJOR);
+            const Tensor t = make_tensor_without_storage({3, 0}, Layout::ColumnMajor);
             const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 1, 1, "op", "A");
 
             EXPECT_EQ(0, band.lines);
@@ -213,17 +213,17 @@ namespace SushiBLAS
          */
         TEST_F(Unit_BandOperand, ATriangleBandPutsItsWidthOnOneSide)
         {
-            const Tensor t = make_tensor({4, 5}, Layout::COLUMN_MAJOR);
+            const Tensor t = make_tensor({4, 5}, Layout::ColumnMajor);
 
             const Dispatch::BandOperand upper =
-                Dispatch::describe_triangle_band_operand(t, Uplo::UPPER, 3, "op", "A");
+                Dispatch::describe_triangle_band_operand(t, Uplo::Upper, 3, "op", "A");
             EXPECT_EQ(0, upper.lower);
             EXPECT_EQ(3, upper.upper);
             EXPECT_EQ(5, upper.lines);
             EXPECT_EQ(4, upper.leading_dimension);
 
             const Dispatch::BandOperand lower =
-                Dispatch::describe_triangle_band_operand(t, Uplo::LOWER, 3, "op", "A");
+                Dispatch::describe_triangle_band_operand(t, Uplo::Lower, 3, "op", "A");
             EXPECT_EQ(3, lower.lower);
             EXPECT_EQ(0, lower.upper);
         }
@@ -233,7 +233,7 @@ namespace SushiBLAS
          */
         TEST_F(Unit_BandOperand, ANegativeWidthIsRefusedByName)
         {
-            const Tensor t = make_tensor({4, 5}, Layout::COLUMN_MAJOR);
+            const Tensor t = make_tensor({4, 5}, Layout::ColumnMajor);
 
             const auto band_refusal = [&](int64_t kl, int64_t ku)
             {
@@ -258,7 +258,7 @@ namespace SushiBLAS
             EXPECT_NE(std::string::npos, band_refusal(-1, 2).find("'kl'"));
             EXPECT_NE(std::string::npos, band_refusal(1, -1).find("'ku'"));
 
-            for (const Uplo uplo : {Uplo::UPPER, Uplo::LOWER})
+            for (const Uplo uplo : {Uplo::Upper, Uplo::Lower})
             {
                 SCOPED_TRACE(Core::to_string(uplo));
 
@@ -274,15 +274,15 @@ namespace SushiBLAS
          */
         TEST_F(Unit_BandOperand, ATensorThatIsNoDenseMatrixIsRefused)
         {
-            const Tensor vector = make_tensor({20}, Layout::COLUMN_MAJOR);
+            const Tensor vector = make_tensor({20}, Layout::ColumnMajor);
             EXPECT_THROW((void)Dispatch::describe_band_operand(vector, 0, 0, "op", "A"),
                          std::invalid_argument);
 
-            const Tensor batch = make_tensor({2, 4, 5}, Layout::COLUMN_MAJOR);
+            const Tensor batch = make_tensor({2, 4, 5}, Layout::ColumnMajor);
             EXPECT_THROW((void)Dispatch::describe_band_operand(batch, 0, 0, "op", "A"),
                          std::invalid_argument);
 
-            const Tensor matrix = make_tensor({4, 5}, Layout::COLUMN_MAJOR);
+            const Tensor matrix = make_tensor({4, 5}, Layout::ColumnMajor);
             ASSERT_NO_THROW((void)Dispatch::describe_band_operand(matrix, 0, 0, "op", "A"));
             const Tensor transposed = matrix.transpose(0, 1);
             EXPECT_THROW((void)Dispatch::describe_band_operand(transposed, 0, 0, "op", "A"),
@@ -297,7 +297,7 @@ namespace SushiBLAS
         {
             for (const Layout layout : K_LAYOUTS)
             {
-                SCOPED_TRACE(layout == Layout::ROW_MAJOR ? "row-major" : "column-major");
+                SCOPED_TRACE(layout == Layout::RowMajor ? "row-major" : "column-major");
 
                 // Both extents are 4, so a line holds 4 slots under either layout.
                 const Tensor t = make_tensor({4, 4}, layout);
@@ -354,7 +354,7 @@ namespace SushiBLAS
 
             for (const Layout layout : K_LAYOUTS)
             {
-                SCOPED_TRACE(layout == Layout::ROW_MAJOR ? "row-major" : "column-major");
+                SCOPED_TRACE(layout == Layout::RowMajor ? "row-major" : "column-major");
 
                 for (const PackedCount& count : counts)
                 {
@@ -399,7 +399,7 @@ namespace SushiBLAS
             EXPECT_THROW((void)Dispatch::describe_packed_operand(matrix, "op", "AP"),
                          std::invalid_argument);
 
-            const Tensor strided = make_every_second_element(3, Layout::ROW_MAJOR);
+            const Tensor strided = make_every_second_element(3, Layout::RowMajor);
             ASSERT_EQ(3, strided.num_elements);
             EXPECT_THROW((void)Dispatch::describe_packed_operand(strided, "op", "AP"),
                          std::invalid_argument);
@@ -414,15 +414,15 @@ namespace SushiBLAS
             ASSERT_EQ(0, rank0.rank);
             ASSERT_EQ(1, rank0.num_elements);
             EXPECT_NO_THROW(
-                Dispatch::require_scalar_operand(rank0, DataType::FLOAT32, "op", "alpha"));
+                Dispatch::require_scalar_operand(rank0, DataType::Float32, "op", "alpha"));
 
             const Tensor rank1 = make_tensor({1});
             EXPECT_NO_THROW(
-                Dispatch::require_scalar_operand(rank1, DataType::FLOAT32, "op", "alpha"));
+                Dispatch::require_scalar_operand(rank1, DataType::Float32, "op", "alpha"));
 
             const Tensor rank2 = make_tensor({1, 1});
             EXPECT_NO_THROW(
-                Dispatch::require_scalar_operand(rank2, DataType::FLOAT32, "op", "alpha"));
+                Dispatch::require_scalar_operand(rank2, DataType::Float32, "op", "alpha"));
         }
 
         /**
@@ -431,11 +431,11 @@ namespace SushiBLAS
         TEST_F(Unit_ScalarOperand, AnotherElementCountIsRefused)
         {
             const Tensor two = make_tensor({2});
-            EXPECT_THROW(Dispatch::require_scalar_operand(two, DataType::FLOAT32, "op", "alpha"),
+            EXPECT_THROW(Dispatch::require_scalar_operand(two, DataType::Float32, "op", "alpha"),
                          std::invalid_argument);
 
             const Tensor none = make_tensor_without_storage({0});
-            EXPECT_THROW(Dispatch::require_scalar_operand(none, DataType::FLOAT32, "op", "alpha"),
+            EXPECT_THROW(Dispatch::require_scalar_operand(none, DataType::Float32, "op", "alpha"),
                          std::invalid_argument);
         }
 
@@ -445,7 +445,7 @@ namespace SushiBLAS
         TEST_F(Unit_ScalarOperand, AMissingStorageIsRefused)
         {
             const Tensor t = make_tensor_without_storage({1});
-            EXPECT_THROW(Dispatch::require_scalar_operand(t, DataType::FLOAT32, "op", "alpha"),
+            EXPECT_THROW(Dispatch::require_scalar_operand(t, DataType::Float32, "op", "alpha"),
                          std::invalid_argument);
         }
 
@@ -455,9 +455,9 @@ namespace SushiBLAS
         TEST_F(Unit_ScalarOperand, AnotherDtypeIsRefused)
         {
             const Tensor t = make_tensor({1});
-            EXPECT_THROW(Dispatch::require_scalar_operand(t, DataType::FLOAT64, "op", "alpha"),
+            EXPECT_THROW(Dispatch::require_scalar_operand(t, DataType::Float64, "op", "alpha"),
                          std::invalid_argument);
-            EXPECT_THROW(Dispatch::require_scalar_operand(t, DataType::INT32, "op", "alpha"),
+            EXPECT_THROW(Dispatch::require_scalar_operand(t, DataType::Int32, "op", "alpha"),
                          std::invalid_argument);
         }
     } // namespace Test

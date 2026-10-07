@@ -51,7 +51,7 @@ namespace SushiBLAS
                       const T* x, int64_t incx, T beta, T* y, int64_t incy)
             {
                 const PackedAccess access =
-                    packed_access(layout, uplo, Core::Transpose::NO_TRANS, n);
+                    packed_access(layout, uplo, Core::Transpose::NoTrans, n);
                 Detail::symmetric_product<T, Conj>(access, n, alpha, ap, x, incx, beta, y, incy);
             }
         } // namespace Reference

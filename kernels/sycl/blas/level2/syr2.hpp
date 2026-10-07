@@ -73,7 +73,7 @@ namespace SushiBLAS
                              const std::vector<sycl::event>& deps)
             {
                 using W = Accumulator<T>;
-                const bool upper = (uplo == Core::Uplo::UPPER);
+                const bool upper = (uplo == Core::Uplo::Upper);
                 SB_LOG_INFO("SYCL SYR2: {}x{}", n, n);
 
                 return queue.submit([&](sycl::handler& h)
@@ -86,7 +86,7 @@ namespace SushiBLAS
                         bool in_triangle = upper ? (j >= i) : (j <= i);
                         if (!in_triangle)
                             return;
-                        T& ref = (layout == Core::Layout::ROW_MAJOR) ? a[i * lda + j]
+                        T& ref = (layout == Core::Layout::RowMajor) ? a[i * lda + j]
                                                                      : a[i + j * lda];
                         const W term = Detail::rank2_term(Conj{}, W(alpha),
                                                           W(x[i * incx]), W(y[j * incy]),

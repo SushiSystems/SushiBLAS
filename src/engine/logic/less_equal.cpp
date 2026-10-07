@@ -35,7 +35,7 @@ namespace SushiBLAS
 
     TaskHandle LogicOps::less_equal(const Tensor& A, const Tensor& B, Tensor& result) 
     {
-        return Dispatch::execute_logic_binary<Dispatch::Domain::REAL_AND_INTEGRAL>(recorder_, A, B, result, "logic.less_equal", "logic.less_equal"_op, 
+        return Dispatch::execute_logic_binary<Dispatch::Domain::RealAndIntegral>(recorder_, A, B, result, "logic.less_equal", "logic.less_equal"_op, 
             [](auto x, auto y) { return Dispatch::logic_less_equal(x, y) ? decltype(x)(1) : decltype(x)(0); });
     }
 } // namespace SushiBLAS

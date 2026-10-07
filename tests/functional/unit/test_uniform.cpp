@@ -21,7 +21,7 @@
 
 /**
  * @file test_uniform.cpp
- * @brief Tests random().uniform's bounds, sample moments, spread and seed determinism.
+ * @brief Tests RandomOps::uniform's bounds, sample moments, spread and seed determinism.
  * @author Mustafa Garip
  */
 

@@ -41,7 +41,7 @@ namespace
                                                   int64_t{1} << 24};
 
     /// @brief Data types timed for every length.
-    const std::vector<DataType> K_DTYPES = {DataType::FLOAT32, DataType::FLOAT64};
+    const std::vector<DataType> K_DTYPES = {DataType::Float32, DataType::Float64};
 
     /// @brief Value written into every element of x.
     constexpr double K_X_VALUE = 1.0;
@@ -59,7 +59,7 @@ namespace
         SushiBLAS::Tensor x = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor y = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor scalar = engine.create_tensor({1}, dtype);
-        SushiBLAS::Tensor index = engine.create_tensor({1}, DataType::INT64);
+        SushiBLAS::Tensor index = engine.create_tensor({1}, DataType::Int64);
         Bench::fill_tensor(engine, x, K_X_VALUE);
         Bench::fill_tensor(engine, y, K_Y_VALUE);
 

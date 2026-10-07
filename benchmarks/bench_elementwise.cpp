@@ -41,7 +41,7 @@ namespace
                                                   int64_t{1} << 24};
 
     /// @brief Data types timed for every count.
-    const std::vector<DataType> K_DTYPES = {DataType::FLOAT32, DataType::FLOAT64};
+    const std::vector<DataType> K_DTYPES = {DataType::Float32, DataType::Float64};
 
     /// @brief Value written into every element of the first operand.
     constexpr double K_A_VALUE = -0.25;

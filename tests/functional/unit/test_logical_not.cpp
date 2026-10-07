@@ -21,7 +21,7 @@
 
 /**
  * @file test_logical_not.cpp
- * @brief Tests logic().logical_not against fixed expected values.
+ * @brief Tests LogicOps::logical_not against fixed expected values.
  * @author Mustafa Garip
  */
 

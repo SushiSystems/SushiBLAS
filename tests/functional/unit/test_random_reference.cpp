@@ -397,7 +397,7 @@ namespace SushiBLAS
                 {
                     try
                     {
-                        Tensor t = engine->create_tensor(dims, Core::DataType::FLOAT32,
+                        Tensor t = engine->create_tensor(dims, Core::DataType::Float32,
                                                          SushiRuntime::API::Residency::Device);
                         const sycl::context context =
                             TestEnvironment::get_context().get_queue().get_context();
@@ -443,9 +443,9 @@ namespace SushiBLAS
                 {
                     ModeDraws<T> draws;
                     draws.reference =
-                        run_under(ExecutionMode::FORCE_REFERENCE, seed, dims, initial, operation);
+                        run_under(ExecutionMode::ForceReference, seed, dims, initial, operation);
                     draws.device =
-                        run_under(ExecutionMode::FORCE_SYCL, seed, dims, initial, operation);
+                        run_under(ExecutionMode::ForceSycl, seed, dims, initial, operation);
                     return draws;
                 }
 
@@ -738,7 +738,7 @@ namespace SushiBLAS
             RandomOps random(*engine);
             random.set_seed(K_SEED);
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             const uint64_t offset_before = engine->get_rng().reserve(0).offset;
 
             EXPECT_THROW(random.uniform(*values), std::invalid_argument);
@@ -747,7 +747,7 @@ namespace SushiBLAS
             EXPECT_EQ(offset_before, engine->get_rng().reserve(0).offset);
 
             // The same call reserves one offset once the mode lets it record.
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
             random.uniform(*values);
             EXPECT_EQ(offset_before + 1, engine->get_rng().reserve(0).offset);
             engine->execute();
@@ -762,9 +762,9 @@ namespace SushiBLAS
             };
             const std::vector<float> unwritten(static_cast<std::size_t>(K_ELEMENTS), K_UNWRITTEN);
 
-            const std::vector<float> first = run_under(ExecutionMode::FORCE_REFERENCE, K_SEED,
+            const std::vector<float> first = run_under(ExecutionMode::ForceReference, K_SEED,
                                                        {K_ELEMENTS}, unwritten, fill);
-            const std::vector<float> second = run_under(ExecutionMode::FORCE_REFERENCE, K_SEED,
+            const std::vector<float> second = run_under(ExecutionMode::ForceReference, K_SEED,
                                                         {K_ELEMENTS}, unwritten, fill);
 
             EXPECT_EQ(count_holding(first, K_UNWRITTEN), std::size_t{0});

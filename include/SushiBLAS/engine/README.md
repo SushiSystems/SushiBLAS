@@ -75,7 +75,7 @@ states the domain, the dispatch instantiates only the arms inside it, and every 
 throws naming the op and the dtype.
 
 **A bit set over element-type families, not a list of named combinations.** It began as the
-two-valued `{REAL, REAL_AND_COMPLEX}` this codebase still spells everywhere, and the arrival of
+two-valued `{Real, RealAndComplex}` this codebase still spells everywhere, and the arrival of
 `INT32`/`INT64` would have turned that into six enumerators whose relationships only the reader can
 see. As flags, a new family costs one bit and the query stays `domain_admits`; the two original
 names survive as the combinations they always were, so no existing call site changes.
@@ -237,8 +237,8 @@ family, the operation and the dtype it does not serve. `core/README.md` says how
 
 ## `execution_mode.hpp`
 
-`ExecutionMode` has three enumerators. `AUTO` lets the library choose, and it chooses the SYCL
-kernel. `FORCE_SYCL` runs the SYCL kernel. `FORCE_REFERENCE` runs the reference path on the host:
+`ExecutionMode` has three enumerators. `Auto` lets the library choose, and it chooses the SYCL
+kernel. `ForceSycl` runs the SYCL kernel. `ForceReference` runs the reference path on the host:
 a reference kernel where the operation has one, and a serial loop over the operation's own
 functor in the elementwise, non-linear, logic, random and reduction families. The mode is a
 property of the recorder, read once per record call and fixed in the task; changing it later does
@@ -261,7 +261,7 @@ and write regions, and returns a `TaskHandle` of its own identity and that index
 
 ### `TaskRecorder::require_host_reachable`
 
-Under `FORCE_REFERENCE`, throws `UnsupportedExecution` when `OperandSet::has_device_only_operand()`
+Under `ForceReference`, throws `UnsupportedExecution` when `OperandSet::has_device_only_operand()`
 is true, that is, when a declared tensor's storage has `Residency::Device`. The host reference
 path would otherwise dereference device-only USM. Under any other mode it returns at once. The
 message is `<name>: <family> cannot run under FORCE_REFERENCE: an operand is device-only USM,
@@ -291,7 +291,7 @@ storage; a tensor without storage adds nothing. `scratch` declares a `ScratchBuf
 and retains its block's storage. `merge` adds another set's declarations, which is how a GEMM
 epilogue's operands join the task's. The recorder reads the two region lists for the dependency
 tracker, `retained()` for the keep-alive, and `has_device_only_operand()` for the refusal under
-`FORCE_REFERENCE`.
+`ForceReference`.
 
 ### `Internal::StorageKeepAlive`
 
@@ -303,8 +303,8 @@ holds it once.
 
 `Internal::KernelPairDispatcher` holds the execution mode the recorder had when the task was
 recorded. A task body calls `dispatcher.run(q, deps, reference_fn, sycl_fn)`. Under
-`FORCE_REFERENCE` it waits on the dependencies, calls `reference_fn` on the calling thread and
-returns an empty event; under `AUTO` and `FORCE_SYCL` it returns what `sycl_fn(q, deps)` returns.
+`ForceReference` it waits on the dependencies, calls `reference_fn` on the calling thread and
+returns an empty event; under `Auto` and `ForceSycl` it returns what `sycl_fn(q, deps)` returns.
 It is the one place the two branches are written.
 
 ## `rng_stream.hpp`
@@ -366,12 +366,12 @@ numbers around a grid.
 
 Every operation in this domain has both a pure-C++ reference kernel and a SYCL one, and the
 reference is the specification. The two are held to each other by this domain's unit tests, which
-run `ExecutionMode::FORCE_SYCL` and `ExecutionMode::FORCE_REFERENCE` into two tensors and compare
+run `ExecutionMode::ForceSycl` and `ExecutionMode::ForceReference` into two tensors and compare
 them. `ExecutionMode` has no mode that runs both.
 
 Every operation returns a `TaskHandle` and checks its operands when the call is recorded. A wrong
 rank, dtype or extent throws `std::invalid_argument`. A dtype the operand's device cannot compute
-in, or a device-only operand under `FORCE_REFERENCE`, throws `UnsupportedExecution`.
+in, or a device-only operand under `ForceReference`, throws `UnsupportedExecution`.
 
 **Every backward here is a gather, never an atomic scatter.** SushiBLAS links
 `sushiruntime_deterministic_fp` PUBLIC, and a floating-point atomic add has a combination order that
@@ -557,7 +557,7 @@ receives already holds it.
   every built-in BLAS *arithmetic* op wants; the parameter exists for callers whose functor is
   written outside this library and is therefore no more likely to be well-formed for `std::complex`
   than an elementwise lambda is, and for operations that pass another domain: `window_dot` passes
-  `Domain::REAL`.
+  `Domain::Real`.
 - `family`: What kind of operation this is, for diagnostics: "BLAS operation", "Spatial operation".
   A string literal, because the task body keeps the pointer.
 

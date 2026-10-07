@@ -21,7 +21,7 @@
 
 /**
  * @file test_pow.cpp
- * @brief Tests elementwise().pow against fixed expected values.
+ * @brief Tests ElementwiseOps::pow against fixed expected values.
  * @author Mustafa Garip
  */
 

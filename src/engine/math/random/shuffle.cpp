@@ -103,7 +103,7 @@ namespace SushiBLAS
     {
         const char* name = "random.shuffle";
 
-        Dispatch::require_random_dtype(t, Dispatch::Domain::REAL_AND_COMPLEX, Dispatch::Sampling::MOVES_VALUES, name);
+        Dispatch::require_random_dtype(t, Dispatch::Domain::RealAndComplex, Dispatch::Sampling::MovesValues, name);
         Dispatch::require_storage(t, name, "t");
         Dispatch::require_device_dtype(t, name, "t");
         Dispatch::require_contiguous(t, name, "t");
@@ -134,7 +134,7 @@ namespace SushiBLAS
                 SB_LOG_INFO("RandomOps: {} ({} elements, seed: {}, offset: {})", name, size, seed, offset);
 
                 sycl::event done;
-                Dispatch::with_element_type<Dispatch::Domain::REAL_AND_COMPLEX>(dtype, "RNG operation", name, [&](auto tag)
+                Dispatch::with_element_type<Dispatch::Domain::RealAndComplex>(dtype, "RNG operation", name, [&](auto tag)
                 {
                     using T = typename decltype(tag)::type;
                     done = shuffle_dispatch(pair, q, static_cast<T*>(ptr), size, seed, offset, deps);

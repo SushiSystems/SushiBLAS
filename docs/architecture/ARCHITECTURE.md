@@ -107,9 +107,9 @@ the mode of every operation recorded from then on.
 
 | Mode | What a task recorded under it runs |
 | --- | --- |
-| `AUTO` | The library's choice, which is the SYCL kernel. The default. |
-| `FORCE_SYCL` | The SYCL kernel. |
-| `FORCE_REFERENCE` | The reference path, on the host thread that executes the task. |
+| `Auto` | The library's choice, which is the SYCL kernel. The default. |
+| `ForceSycl` | The SYCL kernel. |
+| `ForceReference` | The reference path, on the host thread that executes the task. |
 
 There is no `VERIFY` mode. `set_mode` is `noexcept` and accepts all three values.
 
@@ -123,9 +123,9 @@ auto from_reference = engine.create_tensor({64, 64});
 auto from_sycl = engine.create_tensor({64, 64});
 
 BLASOps blas(engine);
-engine.set_mode(ExecutionMode::FORCE_REFERENCE);
+engine.set_mode(ExecutionMode::ForceReference);
 blas.gemm(A, B, from_reference);
-engine.set_mode(ExecutionMode::FORCE_SYCL);
+engine.set_mode(ExecutionMode::ForceSycl);
 blas.gemm(A, B, from_sycl);
 engine.execute();
 ```
@@ -134,7 +134,7 @@ This is how the tests compare the two paths of an operation: the same call under
 two tensors, then a comparison of the tensors.
 
 `KernelPairDispatcher::run(q, deps, reference_fn, sycl_fn)` is the single mode switch. Under
-`FORCE_REFERENCE` it waits on the dependency events, calls `reference_fn` on the calling thread
+`ForceReference` it waits on the dependency events, calls `reference_fn` on the calling thread
 and returns an empty event. Otherwise it returns `sycl_fn(q, deps)`.
 
 **Every family has a reference path**, and what that path is differs by family:
@@ -158,7 +158,7 @@ A sum is the one fold whose accumulator also differs: the host folds it in
 over the element's accumulation type. The two therefore add in different orders and types and are
 not expected to agree to the bit.
 
-**`FORCE_REFERENCE` needs host-reachable operands.** A reference path dereferences its operands
+**`ForceReference` needs host-reachable operands.** A reference path dereferences its operands
 on the host, which `Residency::Device` storage does not allow. `OperandSet` notes a device-only
 operand as it is declared, and `TaskRecorder::require_host_reachable` throws
 `UnsupportedExecution` at record time, before any task or scratch exists. A tensor an epilogue or
@@ -171,9 +171,9 @@ a functor declares through `reads` is part of the same operand set and is refuse
 A `Tensor` (`tensor.hpp`) is metadata: `shape`, `strides`, `rank`, `dtype`, `layout`,
 `num_elements`, a `storage` pointer and a `storage_offset`. `transpose()`, `reshape()` and
 `slice()` return a new `Tensor` over the same `SushiRuntime::sushi_ptr<Storage>` and move no
-data. `MAX_TENSOR_RANK` is 6.
+data. `K_MAX_TENSOR_RANK` is 6.
 
-`Core::DataType` is `HALF`, `FLOAT32`, `FLOAT64`, `COMPLEX32`, `COMPLEX64`, `INT32`, `INT64`, with
+`Core::DataType` is `Half`, `Float32`, `Float64`, `Complex32`, `Complex64`, `Int32`, `Int64`, with
 the values 0 to 6 written out in `core/common.hpp`. The values are a file-format contract: none
 changes, and a new type is appended. `Core::bytes_per_element()` is the one mapping from a dtype
 to its width.
@@ -186,7 +186,7 @@ integer meaning (`add`, `sub`, `mul`, `neg`, `abs`, `min`, `max`, `clamp`), whos
 wraps. Every other operation rejects them by name at record time, through `Dispatch::Domain`
 ([section 6](#6-the-dispatch-seams-and-the-fusion-hooks)).
 
-**Layout and the batch axis.** `Core::Layout` (`ROW_MAJOR`, `COLUMN_MAJOR`) is fixed at
+**Layout and the batch axis.** `Core::Layout` (`RowMajor`, `ColumnMajor`) is fixed at
 construction and describes the order inside one matrix. `Tensor::layout_strides()` is the single
 definition: the constructor lays a tensor out with it and `is_contiguous()` compares against it.
 For rank 3 and above the trailing two axes are the matrix and take the layout's order, and every
@@ -235,7 +235,7 @@ A recorded task keeps its operands' storage alive. `OperandSet` takes one refere
 inline, the rest on the heap), and `record_pair` copies that list into the task. The storage of a
 tensor the caller drops between the record call and `execute()` is therefore still referenced when
 the task runs. A pointer hidden inside a bare functor is not a declared operand: nothing retains it,
-orders against it, or checks it under `FORCE_REFERENCE`.
+orders against it, or checks it under `ForceReference`.
 
 ### The scratch pool
 
@@ -255,7 +255,7 @@ record time and the task holds the lease by value.
 - `OperandSet::scratch(buffer)` declares the lease as a written region of the task and retains
   its storage.
 
-Under `FORCE_REFERENCE` the reduction seams and `Internal::allocate_blas_scratch` lease nothing:
+Under `ForceReference` the reduction seams and `Internal::allocate_blas_scratch` lease nothing:
 a host fold stages no partials.
 
 ---
@@ -320,7 +320,7 @@ from an `Engine` and one from a `TaskRecorder` the caller owns:
 ```cpp
 SushiRuntime::Graph::TaskGraph graph(ctx);
 ScratchPool pool(ctx);
-TaskRecorder recorder(graph, pool, ExecutionMode::FORCE_REFERENCE);
+TaskRecorder recorder(graph, pool, ExecutionMode::ForceReference);
 
 const TaskHandle recorded = BLASOps(recorder).axpy(2.0, x, y);
 ```
@@ -372,7 +372,7 @@ written on it.
 
 **The functor seams** are the public `SushiBLAS::Dispatch::execute_*` functions. Each takes a
 caller-written functor, inlines it into one SYCL kernel, and runs the same functor in a serial
-host loop under `FORCE_REFERENCE`:
+host loop under `ForceReference`:
 
 | Header | Executors |
 | --- | --- |
@@ -387,8 +387,8 @@ A functor that reaches a device is device-copyable and trivially copyable, captu
 dereferences no host pointer, allocates nothing and throws nothing. The compiler does not
 diagnose all of these.
 
-**`Dispatch::Domain`** (`engine/dispatch.hpp`) is a bit set over element-type families: `REAL`,
-`COMPLEX`, `INTEGRAL` and the unions `REAL_AND_COMPLEX`, `REAL_AND_INTEGRAL` and `ALL`. It says
+**`Dispatch::Domain`** (`engine/dispatch.hpp`) is a bit set over element-type families: `Real`,
+`Complex`, `Integral` and the unions `RealAndComplex`, `RealAndIntegral` and `All`. It says
 which element types a functor may be instantiated for. `require_domain<Dom>` rejects a dtype
 outside the domain at record time with `std::invalid_argument`. `with_element_type<Dom>` is the
 dtype switch of the functor seams: an arm outside the domain is never instantiated, which is what
@@ -443,7 +443,7 @@ The `"..."_op` literal comes from `SushiRuntime::Graph::Literals`.
 before the store. The coordinates make a bias broadcast expressible, so a product, a bias-add and
 an activation are one task. `Level3::gemm` is this function with
 `Kernels::GemmIdentityEpilogue`, and the reference kernel takes the same parameter, so
-`FORCE_REFERENCE` runs a fused GEMM too.
+`ForceReference` runs a fused GEMM too.
 
 ```cpp
 struct BiasRelu
@@ -460,7 +460,7 @@ struct BiasRelu
 
 // One task: the product, the bias broadcast and the ReLU.
 Dispatch::execute_gemm(recorder, X, W, Y,
-                       Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS, 1.0, 0.0,
+                       Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                        "nn.linear_relu", "nn.linear_relu"_op,
                        Dispatch::gemm_epilogue(BiasRelu{bias.data_as<float>()}).reads(bias));
 ```
@@ -468,14 +468,14 @@ Dispatch::execute_gemm(recorder, X, W, Y,
 `Dispatch::gemm_epilogue(functor)` bundles the functor with the tensors it touches, and
 `.reads(t)` and `.writes(t)` declare them. `execute_gemm` merges those declarations into the
 task's operand set, so the bias is ordered against whatever writes it, retained until the task is
-dropped, and refused under `FORCE_REFERENCE` when it is device-only. A bare functor is accepted
-and declares nothing. `execute_gemm` defaults to `Domain::REAL`; an epilogue that is well-formed
-for `std::complex` passes `Domain::REAL_AND_COMPLEX`.
+dropped, and refused under `ForceReference` when it is device-only. A bare functor is accepted
+and declares nothing. `execute_gemm` defaults to `Domain::Real`; an epilogue that is well-formed
+for `std::complex` passes `Domain::RealAndComplex`.
 
 Two warnings travel with the epilogue. An activation fused into the forward pass of training
 gives a wrong gradient unless the epilogue also writes its pre-activation value to a buffer the
 backward pass reads, declared through `.writes`; nothing throws when this is missing. And under
-`FORCE_REFERENCE` the epilogue runs on the host, so a pointer it carries must be host-readable.
+`ForceReference` the epilogue runs on the host, so a pointer it carries must be host-readable.
 
 ---
 
@@ -544,10 +544,10 @@ of a sum.
 
 | Enumeration | Enumerators |
 | --- | --- |
-| `Core::Transpose` | `NO_TRANS`, `TRANS`, `CONJ_TRANS` |
-| `Core::Uplo` | `UPPER`, `LOWER` |
-| `Core::Diag` | `NON_UNIT`, `UNIT` |
-| `Core::Side` | `LEFT`, `RIGHT` |
+| `Core::Transpose` | `NoTrans`, `Trans`, `ConjTrans` |
+| `Core::Uplo` | `Upper`, `Lower` |
+| `Core::Diag` | `NonUnit`, `Unit` |
+| `Core::Side` | `Left`, `Right` |
 
 A flag outside its enumeration throws `std::invalid_argument` at record time (`require_flag`).
 
@@ -559,15 +559,15 @@ standard defines as real (`rot`'s `c` and `s`, the `alpha` of `her`, `hpr` and `
 of `herk` and `her2k`, and `ger`'s `alpha`) are `double`.
 
 ```cpp
-auto Z = engine.create_tensor({8, 8}, Core::DataType::COMPLEX64);
-auto H = engine.create_tensor({8, 8}, Core::DataType::COMPLEX64);
-auto zx = engine.create_tensor({8}, Core::DataType::COMPLEX64);
-auto zy = engine.create_tensor({8}, Core::DataType::COMPLEX64);
+auto Z = engine.create_tensor({8, 8}, Core::DataType::Complex64);
+auto H = engine.create_tensor({8, 8}, Core::DataType::Complex64);
+auto zx = engine.create_tensor({8}, Core::DataType::Complex64);
+auto zy = engine.create_tensor({8}, Core::DataType::Complex64);
 
 BLASOps blas(engine);
-blas.herk(Z, H, Core::Uplo::UPPER, Core::Transpose::CONJ_TRANS, 1.0, 0.0);   // H = Z^H Z
+blas.herk(Z, H, Core::Uplo::Upper, Core::Transpose::ConjTrans, 1.0, 0.0);   // H = Z^H Z
 blas.axpy(std::complex<double>(0.0, 1.0), zx, zy);                           // zy = i*zx + zy
-blas.trsv(H, zx, Core::Uplo::UPPER, Core::Transpose::NO_TRANS, Core::Diag::NON_UNIT);
+blas.trsv(H, zx, Core::Uplo::Upper, Core::Transpose::NoTrans, Core::Diag::NonUnit);
 ```
 
 **Routines.** The dtypes are HALF, FLOAT32, FLOAT64, COMPLEX32 and COMPLEX64 unless a row says
@@ -639,7 +639,7 @@ The sparse operands are plain structs of tensors, so they are views like any oth
   `index_base`. The index tensors are `INT32` or `INT64` and share a dtype.
 - `SparseVector` (`sparse_vector.hpp`) is `indices` and `values` with a `size` and an
   `index_base`, no position stored twice.
-- `Core::IndexBase` (`core/sparse_types.hpp`) is `ZERO` or `ONE`.
+- `Core::IndexBase` (`core/sparse_types.hpp`) is `Zero` or `One`.
 
 `SparseBuilder` (`sparse_builder.hpp`) builds them from host data on one device of a
 `TensorFactory`. `matrix_from_triplets` takes COO arrays, adds the values of repeated
@@ -657,7 +657,7 @@ const SparseMatrix S = builder.matrix_from_triplets(3, 3, rows, cols, values);
 
 SparseOps sparse(engine);
 sparse.spmv(S, x, y);                                         // y = S x
-sparse.spmv(S, x, y, Core::Transpose::TRANS, 1.0, 1.0);       // y = S^T x + y
+sparse.spmv(S, x, y, Core::Transpose::Trans, 1.0, 1.0);       // y = S^T x + y
 ```
 
 `SparseOps` records thirteen routines:
@@ -674,7 +674,7 @@ read the index values: a kernel takes the structure on trust, and
 `kernels/reference/sparse/structure.hpp` holds the host checks the reference kernels assert in a
 build without `NDEBUG`.
 
-**The scattering scheme.** A product with `NO_TRANS` gives each output row to one work-item,
+**The scattering scheme.** A product with `NoTrans` gives each output row to one work-item,
 which adds that row's terms in stored order. A transposed product has no such owner: output `j`
 is column `j`, and every row scatters into the output. `kernels/sycl/sparse/row_blocks.hpp` makes
 that safe without atomic adds, in two stages. The rows are cut into consecutive blocks that hold
@@ -694,7 +694,7 @@ work-item.
 `SpatialOps` moves numbers around an NHWC grid: gathers (`im2col`, `col2im`,
 `upsample_nearest`, `concat_channels`, `slice_channels`, `layout_convert`), windowed reductions
 (`pool_max`, `pool_avg`), broadcasts (`channel_affine`, `broadcast_spatial`), the backward form
-of each that has one, and the windowed product. The family serves `Domain::REAL`, except
+of each that has one, and the windowed product. The family serves `Domain::Real`, except
 `concat_channels` and `slice_channels`, which move elements and serve every dtype. Parameter
 ownership, training mode and differentiation belong to the layer above.
 
@@ -856,7 +856,7 @@ for the operation. Four types cover the library:
 | Type | Base | Thrown when |
 | --- | --- | --- |
 | `std::invalid_argument` | `std::logic_error` | An operand, flag, scalar or parameter is wrong: missing storage, a dtype, rank, shape, layout, stride or length mismatch, a dtype outside the operation's domain, a flag outside its enumeration, a complex scalar for a real tensor, a bad window geometry |
-| `SushiBLAS::UnsupportedExecution` | `std::invalid_argument` | The operands are right and the operation cannot run under this mode or on this device: a device-only operand under `FORCE_REFERENCE`, FLOAT64 or COMPLEX64 storage on a device without `fp64`, HALF storage on a device without `fp16`, `poisson` on a device without `fp64` |
+| `SushiBLAS::UnsupportedExecution` | `std::invalid_argument` | The operands are right and the operation cannot run under this mode or on this device: a device-only operand under `ForceReference`, FLOAT64 or COMPLEX64 storage on a device without `fp64`, HALF storage on a device without `fp16`, `poisson` on a device without `fp64` |
 | `std::runtime_error` | `std::exception` | Creation and I/O: a `Tensor` or `Storage` rule (rank above 6, a negative dimension, an overflowing size, a failed allocation, a view past its storage), `TensorFactory::create`, `SparseBuilder` and `Sparse::assemble_csr`, a scratch allocation, a file that cannot be read or written |
 | `SushiRuntime::Core::SushiException` | `std::runtime_error` | The runtime refused a graph or a run |
 

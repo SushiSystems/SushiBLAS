@@ -21,7 +21,7 @@
 
 /**
  * @file test_cosh.cpp
- * @brief Tests elementwise().cosh against fixed expected values.
+ * @brief Tests ElementwiseOps::cosh against fixed expected values.
  * @author Mustafa Garip
  */
 

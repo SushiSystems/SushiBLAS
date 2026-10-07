@@ -57,7 +57,7 @@ namespace SushiBLAS
                                   "and b are {} and {}; truncated_normal needs finite bounds "
                                   "with a < b",
                                   a, b);
-        Dispatch::require_random_dtype(t, Dispatch::Domain::REAL, Dispatch::Sampling::DRAWS_VALUES,
+        Dispatch::require_random_dtype(t, Dispatch::Domain::Real, Dispatch::Sampling::DrawsValues,
                                        "random.truncated_normal");
 
         constexpr double k_bound = Kernels::SYCL::Random::K_TRUNCATED_NORMAL_MAX_BOUND;
@@ -71,14 +71,14 @@ namespace SushiBLAS
         const double scale = mirrored ? -stddev : stddev;
 
         // hi is the bound nearer the mean, so no mass below hi means no mass in the interval.
-        const bool massless = t.dtype == Core::DataType::FLOAT32 ? is_massless_below<float>(hi)
+        const bool massless = t.dtype == Core::DataType::Float32 ? is_massless_below<float>(hi)
                                                                  : is_massless_below<double>(hi);
         Dispatch::require_operand(!massless, "random.truncated_normal", "a",
                                   "and b are {} and {}; in dtype {} the normal distribution "
                                   "function rounds to zero between them",
                                   a, b, Core::to_string(t.dtype));
 
-        return Dispatch::execute_random<Dispatch::Domain::REAL>(
+        return Dispatch::execute_random<Dispatch::Domain::Real>(
             recorder_, rng_, t, "random.truncated_normal", "random.truncated_normal"_op,
             {mean, stddev, a_clamped, b_clamped},
             [mean, scale, lo, hi](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,

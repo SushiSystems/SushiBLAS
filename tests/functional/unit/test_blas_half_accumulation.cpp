@@ -66,8 +66,8 @@ namespace SushiBLAS
         /** @brief Selects the order a backward step subtracts its solved elements in. */
         enum class BackwardOrder : std::uint8_t
         {
-            ASCENDING, /**< From the element after the step up to the last one. */
-            DESCENDING /**< From the last element down to the one after the step. */
+            Ascending, /**< From the element after the step up to the last one. */
+            Descending /**< From the last element down to the one after the step. */
         };
 
         /**
@@ -80,7 +80,7 @@ namespace SushiBLAS
                 /** @brief Returns a HALF tensor of dims with every element one. */
                 [[nodiscard]] Tensor ones(std::initializer_list<int64_t> dims)
                 {
-                    Tensor t = engine->create_tensor(dims, Core::DataType::HALF);
+                    Tensor t = engine->create_tensor(dims, Core::DataType::Half);
                     const std::vector<sycl::half> values(static_cast<std::size_t>(t.num_elements),
                                                          sycl::half(1.0f));
                     SushiBLAS::IO(*engine).from_vector(t, values);
@@ -90,7 +90,7 @@ namespace SushiBLAS
                 /** @brief Returns a HALF tensor of dims with every element zero. */
                 [[nodiscard]] Tensor zeros(std::initializer_list<int64_t> dims)
                 {
-                    Tensor t = engine->create_tensor(dims, Core::DataType::HALF);
+                    Tensor t = engine->create_tensor(dims, Core::DataType::Half);
                     const std::vector<sycl::half> values(static_cast<std::size_t>(t.num_elements),
                                                          sycl::half(0.0f));
                     SushiBLAS::IO(*engine).from_vector(t, values);
@@ -101,7 +101,7 @@ namespace SushiBLAS
                 [[nodiscard]] Tensor half_tensor(std::initializer_list<int64_t> dims,
                                                  const std::vector<sycl::half>& values)
                 {
-                    Tensor t = engine->create_tensor(dims, Core::DataType::HALF);
+                    Tensor t = engine->create_tensor(dims, Core::DataType::Half);
                     SushiBLAS::IO(*engine).from_vector(t, values);
                     return t;
                 }
@@ -172,7 +172,7 @@ namespace SushiBLAS
                         solution[index] = sycl::half(wide);
                     };
 
-                    if (side == Core::Side::LEFT)
+                    if (side == Core::Side::Left)
                     {
                         for (int64_t j = 0; j < cols; ++j)
                         {
@@ -192,7 +192,7 @@ namespace SushiBLAS
                             for (int64_t p = cols - 1; p >= 0; --p)
                             {
                                 Sum sum = static_cast<Sum>(static_cast<float>(b[at_b(i, p)]));
-                                if (backward == BackwardOrder::DESCENDING)
+                                if (backward == BackwardOrder::Descending)
                                 {
                                     for (int64_t q = cols - 1; q > p; --q)
                                         sum -= term(at_a(q, p), at_b(i, q));
@@ -216,8 +216,8 @@ namespace SushiBLAS
                     engine->set_mode(mode);
                     Tensor A = half_tensor({K_SYSTEM_ORDER, K_SYSTEM_ORDER}, unit_lower_values());
                     Tensor B = half_tensor({rows, cols}, right_hand_side_values(rows * cols));
-                    SushiBLAS::BLASOps(*engine).trsm(A, B, side, Core::Uplo::LOWER,
-                                                     Core::Transpose::NO_TRANS, Core::Diag::UNIT);
+                    SushiBLAS::BLASOps(*engine).trsm(A, B, side, Core::Uplo::Lower,
+                                                     Core::Transpose::NoTrans, Core::Diag::Unit);
                     engine->execute();
                     return SushiBLAS::IO(*engine).to_vector<sycl::half>(B);
                 }
@@ -229,8 +229,8 @@ namespace SushiBLAS
                     Tensor A = half_tensor({K_SYSTEM_ORDER, K_SYSTEM_ORDER}, unit_lower_values());
                     Tensor b = half_tensor({K_SYSTEM_ORDER},
                                            right_hand_side_values(K_SYSTEM_ORDER));
-                    SushiBLAS::BLASOps(*engine).trsv(A, b, Core::Uplo::LOWER,
-                                                     Core::Transpose::NO_TRANS, Core::Diag::UNIT);
+                    SushiBLAS::BLASOps(*engine).trsv(A, b, Core::Uplo::Lower,
+                                                     Core::Transpose::NoTrans, Core::Diag::Unit);
                     engine->execute();
                     return SushiBLAS::IO(*engine).to_vector<sycl::half>(b);
                 }
@@ -272,16 +272,16 @@ namespace SushiBLAS
                 void expect_carried_in_float(Core::Side side, int64_t rows, int64_t cols, Run run)
                 {
                     const auto summed_in_float =
-                        substitute<float, float>(side, rows, cols, BackwardOrder::DESCENDING);
+                        substitute<float, float>(side, rows, cols, BackwardOrder::Descending);
                     const auto summed_in_double =
-                        substitute<double, float>(side, rows, cols, BackwardOrder::ASCENDING);
+                        substitute<double, float>(side, rows, cols, BackwardOrder::Ascending);
                     const auto carried_in_half =
-                        substitute<float, sycl::half>(side, rows, cols, BackwardOrder::DESCENDING);
+                        substitute<float, sycl::half>(side, rows, cols, BackwardOrder::Descending);
 
                     EXPECT_TRUE(differs(summed_in_float, carried_in_half));
                     EXPECT_TRUE(differs(summed_in_double, carried_in_half));
-                    expect_same_bits(run(ExecutionMode::FORCE_SYCL), summed_in_float);
-                    expect_same_bits(run(ExecutionMode::FORCE_REFERENCE), summed_in_double);
+                    expect_same_bits(run(ExecutionMode::ForceSycl), summed_in_float);
+                    expect_same_bits(run(ExecutionMode::ForceReference), summed_in_double);
                 }
 
                 /** @brief Returns C = A * B for all-ones A and B, computed in mode. */
@@ -291,8 +291,8 @@ namespace SushiBLAS
                     Tensor A = ones({K_OUTPUT_EDGE, K_REDUCTION_LENGTH});
                     Tensor B = ones({K_REDUCTION_LENGTH, K_OUTPUT_EDGE});
                     Tensor C = zeros({K_OUTPUT_EDGE, K_OUTPUT_EDGE});
-                    SushiBLAS::BLASOps(*engine).gemm(A, B, C, Core::Transpose::NO_TRANS,
-                                                     Core::Transpose::NO_TRANS, 1.0, 0.0);
+                    SushiBLAS::BLASOps(*engine).gemm(A, B, C, Core::Transpose::NoTrans,
+                                                     Core::Transpose::NoTrans, 1.0, 0.0);
                     engine->execute();
                     return SushiBLAS::IO(*engine).to_vector<sycl::half>(C);
                 }
@@ -303,8 +303,8 @@ namespace SushiBLAS
                     engine->set_mode(mode);
                     Tensor A = ones({K_OUTPUT_EDGE, K_REDUCTION_LENGTH});
                     Tensor C = zeros({K_OUTPUT_EDGE, K_OUTPUT_EDGE});
-                    SushiBLAS::BLASOps(*engine).syrk(A, C, Core::Uplo::LOWER,
-                                                     Core::Transpose::NO_TRANS, 1.0, 0.0);
+                    SushiBLAS::BLASOps(*engine).syrk(A, C, Core::Uplo::Lower,
+                                                     Core::Transpose::NoTrans, 1.0, 0.0);
                     engine->execute();
 
                     const std::vector<sycl::half> full =
@@ -323,7 +323,7 @@ namespace SushiBLAS
                     Tensor A = ones({K_OUTPUT_EDGE, K_REDUCTION_LENGTH});
                     Tensor x = ones({K_REDUCTION_LENGTH});
                     Tensor y = zeros({K_OUTPUT_EDGE});
-                    SushiBLAS::BLASOps(*engine).gemv(A, x, y, Core::Transpose::NO_TRANS, 1.0, 0.0);
+                    SushiBLAS::BLASOps(*engine).gemv(A, x, y, Core::Transpose::NoTrans, 1.0, 0.0);
                     engine->execute();
                     return SushiBLAS::IO(*engine).to_vector<sycl::half>(y);
                 }
@@ -369,8 +369,8 @@ namespace SushiBLAS
 
         TEST_F(Unit_BlasHalfAccumulationTest, GemmSumsEveryTermOfALongReduction)
         {
-            const auto expected = run_gemm(ExecutionMode::FORCE_REFERENCE);
-            const auto actual = run_gemm(ExecutionMode::FORCE_SYCL);
+            const auto expected = run_gemm(ExecutionMode::ForceReference);
+            const auto actual = run_gemm(ExecutionMode::ForceSycl);
             expect_full_sum(expected);
             expect_full_sum(actual);
             expect_match(actual, expected);
@@ -378,8 +378,8 @@ namespace SushiBLAS
 
         TEST_F(Unit_BlasHalfAccumulationTest, SyrkSumsEveryTermOfALongReduction)
         {
-            const auto expected = run_syrk(ExecutionMode::FORCE_REFERENCE);
-            const auto actual = run_syrk(ExecutionMode::FORCE_SYCL);
+            const auto expected = run_syrk(ExecutionMode::ForceReference);
+            const auto actual = run_syrk(ExecutionMode::ForceSycl);
             expect_full_sum(expected);
             expect_full_sum(actual);
             expect_match(actual, expected);
@@ -387,8 +387,8 @@ namespace SushiBLAS
 
         TEST_F(Unit_BlasHalfAccumulationTest, GemvSumsEveryTermOfALongReduction)
         {
-            const auto expected = run_gemv(ExecutionMode::FORCE_REFERENCE);
-            const auto actual = run_gemv(ExecutionMode::FORCE_SYCL);
+            const auto expected = run_gemv(ExecutionMode::ForceReference);
+            const auto actual = run_gemv(ExecutionMode::ForceSycl);
             expect_full_sum(expected);
             expect_full_sum(actual);
             expect_match(actual, expected);
@@ -400,9 +400,9 @@ namespace SushiBLAS
             {
                 SushiBLAS::BLASOps(*engine).dot(x, x, result);
             };
-            EXPECT_NEAR(run_level1(ExecutionMode::FORCE_REFERENCE, dot), K_EXPECTED_SUM,
+            EXPECT_NEAR(run_level1(ExecutionMode::ForceReference, dot), K_EXPECTED_SUM,
                         K_HALF_ROUNDING_AT_SUM);
-            EXPECT_NEAR(run_level1(ExecutionMode::FORCE_SYCL, dot), K_EXPECTED_SUM,
+            EXPECT_NEAR(run_level1(ExecutionMode::ForceSycl, dot), K_EXPECTED_SUM,
                         K_HALF_ROUNDING_AT_SUM);
         }
 
@@ -412,9 +412,9 @@ namespace SushiBLAS
             {
                 SushiBLAS::BLASOps(*engine).asum(x, result);
             };
-            EXPECT_NEAR(run_level1(ExecutionMode::FORCE_REFERENCE, asum), K_EXPECTED_SUM,
+            EXPECT_NEAR(run_level1(ExecutionMode::ForceReference, asum), K_EXPECTED_SUM,
                         K_HALF_ROUNDING_AT_SUM);
-            EXPECT_NEAR(run_level1(ExecutionMode::FORCE_SYCL, asum), K_EXPECTED_SUM,
+            EXPECT_NEAR(run_level1(ExecutionMode::ForceSycl, asum), K_EXPECTED_SUM,
                         K_HALF_ROUNDING_AT_SUM);
         }
 
@@ -424,17 +424,17 @@ namespace SushiBLAS
             {
                 SushiBLAS::BLASOps(*engine).nrm2(x, result);
             };
-            EXPECT_NEAR(run_level1(ExecutionMode::FORCE_REFERENCE, nrm2), K_EXPECTED_NORM,
+            EXPECT_NEAR(run_level1(ExecutionMode::ForceReference, nrm2), K_EXPECTED_NORM,
                         K_HALF_ROUNDING_AT_NORM);
-            EXPECT_NEAR(run_level1(ExecutionMode::FORCE_SYCL, nrm2), K_EXPECTED_NORM,
+            EXPECT_NEAR(run_level1(ExecutionMode::ForceSycl, nrm2), K_EXPECTED_NORM,
                         K_HALF_ROUNDING_AT_NORM);
         }
 
         TEST_F(Unit_BlasHalfAccumulationTest, HalfTrsmCarriesTheSolutionInFloat)
         {
-            for (const Core::Side side : {Core::Side::LEFT, Core::Side::RIGHT})
+            for (const Core::Side side : {Core::Side::Left, Core::Side::Right})
             {
-                const bool left = side == Core::Side::LEFT;
+                const bool left = side == Core::Side::Left;
                 const int64_t rows = left ? K_SYSTEM_ORDER : K_RIGHT_HAND_SIDES;
                 const int64_t cols = left ? K_RIGHT_HAND_SIDES : K_SYSTEM_ORDER;
                 expect_carried_in_float(side, rows, cols, [&](ExecutionMode mode)
@@ -446,7 +446,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_BlasHalfAccumulationTest, HalfTrsvCarriesTheSolutionInFloat)
         {
-            expect_carried_in_float(Core::Side::LEFT, K_SYSTEM_ORDER, 1, [this](ExecutionMode mode)
+            expect_carried_in_float(Core::Side::Left, K_SYSTEM_ORDER, 1, [this](ExecutionMode mode)
             {
                 return run_trsv(mode);
             });

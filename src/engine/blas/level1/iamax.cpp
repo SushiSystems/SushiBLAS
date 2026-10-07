@@ -46,7 +46,7 @@ namespace SushiBLAS
         const char* const op = "blas.lvl1.iamax";
 
         // The result is an index, so its tensor is INT64 whatever x holds; see src/README.md.
-        Internal::require_scalar_result(result, Core::DataType::INT64, op);
+        Internal::require_scalar_result(result, Core::DataType::Int64, op);
         const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
 
         const int64_t n = vx.length;

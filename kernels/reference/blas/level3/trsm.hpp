@@ -55,11 +55,11 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
                 using RW = ReferenceAccumulator<T>;
-                const bool left = (side == Core::Side::LEFT);
-                const bool unit_diag = (diag == Core::Diag::UNIT);
-                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::UPPER);
+                const bool left = (side == Core::Side::Left);
+                const bool unit_diag = (diag == Core::Diag::Unit);
+                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
                 const OperandAccess op_a = operand_access(layout, trans, lda);
-                const OperandAccess at_b = operand_access(layout, Core::Transpose::NO_TRANS, ldb);
+                const OperandAccess at_b = operand_access(layout, Core::Transpose::NoTrans, ldb);
 
                 // The workspace is indexed like B, so it reaches as far as B's last element.
                 const bool needs_wide = RunningSolution<T>::K_NEEDS_WORKSPACE && m > 0 && n > 0;

@@ -21,7 +21,7 @@
 
 /**
  * @file test_copy.cpp
- * @brief Tests blas().copy against fixed expected values.
+ * @brief Tests BLASOps::copy against fixed expected values.
  * @author Mustafa Garip
  */
 

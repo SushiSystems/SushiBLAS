@@ -59,7 +59,7 @@ namespace SushiBLAS
                 sycl::event run(sycl::queue& q, const std::vector<sycl::event>& deps,
                                 ReferenceFn&& reference_fn, SyclFn&& sycl_fn) const
                 {
-                    if (mode_ == ExecutionMode::FORCE_REFERENCE)
+                    if (mode_ == ExecutionMode::ForceReference)
                     {
                         sycl::event::wait(deps);
                         std::forward<ReferenceFn>(reference_fn)();

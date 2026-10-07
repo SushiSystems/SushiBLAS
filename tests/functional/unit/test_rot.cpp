@@ -21,7 +21,7 @@
 
 /**
  * @file test_rot.cpp
- * @brief Tests blas().rot against fixed expected values.
+ * @brief Tests BLASOps::rot against fixed expected values.
  * @author Mustafa Garip
  */
 

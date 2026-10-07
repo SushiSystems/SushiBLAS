@@ -21,7 +21,7 @@
 
 /**
  * @file test_normal.cpp
- * @brief Tests random().normal's sample moments, spread and seed determinism.
+ * @brief Tests RandomOps::normal's sample moments, spread and seed determinism.
  * @author Mustafa Garip
  */
 

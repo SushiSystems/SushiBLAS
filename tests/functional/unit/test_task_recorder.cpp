@@ -70,14 +70,14 @@ namespace SushiBLAS
                 /** @brief Returns a FLOAT32 vector of four elements from the fixture's engine. */
                 [[nodiscard]] Tensor vector_of_four()
                 {
-                    return engine->create_tensor({4}, Core::DataType::FLOAT32);
+                    return engine->create_tensor({4}, Core::DataType::Float32);
                 }
 
                 /** @brief Returns fresh outputs for one replay over a four-element input. */
                 [[nodiscard]] ChainOutputs chain_outputs()
                 {
                     return ChainOutputs{vector_of_four(), vector_of_four(),
-                                        engine->create_tensor({1}, Core::DataType::FLOAT32)};
+                                        engine->create_tensor({1}, Core::DataType::Float32)};
                 }
 
                 /** @brief Records mul, add and sum on recorder, each reading the one before. */
@@ -129,7 +129,7 @@ namespace SushiBLAS
         /** @brief Tests that every family records and runs one task under FORCE_REFERENCE. */
         TEST_F(Unit_TaskRecorderTest, EveryFamilyRecordsUnderForceReference)
         {
-            GraphProbe probe(ExecutionMode::FORCE_REFERENCE);
+            GraphProbe probe(ExecutionMode::ForceReference);
             TaskRecorder& recorder = probe.get_recorder();
 
             const std::vector<float> signed_values = {1.0f, -2.0f, 3.0f, -4.0f};
@@ -140,11 +140,11 @@ namespace SushiBLAS
             auto added = vector_of_four();
             auto rectified = create_initialized_tensor<float>({4}, signed_values);
             auto compared = vector_of_four();
-            auto total = engine->create_tensor({1}, Core::DataType::FLOAT32);
+            auto total = engine->create_tensor({1}, Core::DataType::Float32);
             auto drawn = vector_of_four();
             auto y = create_initialized_tensor<float>({4}, counting_values);
             auto image = create_initialized_tensor<float>({1, 2, 2, 1}, signed_values);
-            auto columns = engine->create_tensor({4, 1}, Core::DataType::FLOAT32);
+            auto columns = engine->create_tensor({4, 1}, Core::DataType::Float32);
             const Spatial::ConvGeometry unit_window;
 
             const std::array<FamilyCall, 7> calls = {{

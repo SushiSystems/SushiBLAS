@@ -68,7 +68,7 @@ namespace SushiBLAS
                           "A symmetric spmv needs the partial sums its caller sized");
 
                 const int64_t n = pattern.rows;
-                const bool lower = (uplo == Core::Uplo::LOWER);
+                const bool lower = (uplo == Core::Uplo::Lower);
                 const int64_t used_blocks = static_cast<int64_t>(std::max<std::size_t>(blocks, 1));
 
                 // Block b alone writes partials[b * n, (b + 1) * n).

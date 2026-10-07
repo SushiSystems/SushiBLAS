@@ -34,7 +34,7 @@ namespace SushiBLAS
 
     TaskHandle ElementwiseOps::log(Tensor& t) 
     {
-        return Dispatch::execute_unary_inplace<Dispatch::Domain::REAL_AND_COMPLEX>(recorder_, t, "math.ew.log", "math.ew.log"_op, 
+        return Dispatch::execute_unary_inplace<Dispatch::Domain::RealAndComplex>(recorder_, t, "math.ew.log", "math.ew.log"_op, 
             [](auto x) { return Dispatch::safe_log(x); });
     }
 } // namespace SushiBLAS

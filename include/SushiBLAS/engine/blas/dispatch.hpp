@@ -192,7 +192,7 @@ namespace SushiBLAS
          * @warning A bare functor that hides a pointer is neither kept alive nor host-checked.
          * @see include/SushiBLAS/engine/blas/README.md
          */
-        template<Domain Dom = Domain::REAL, typename Epilogue>
+        template<Domain Dom = Domain::Real, typename Epilogue>
         TaskHandle execute_gemm(TaskRecorder& recorder, const Tensor& A, const Tensor& B, Tensor& C,
                                 Core::Transpose transA, Core::Transpose transB,
                                 BlasScalar alpha, BlasScalar beta,
@@ -206,13 +206,13 @@ namespace SushiBLAS
             require_real_scalar(alpha, A.dtype, name, "alpha");
             require_real_scalar(beta, A.dtype, name, "beta");
 
-            if constexpr (Dom == Domain::REAL)
+            if constexpr (Dom == Domain::Real)
             {
                 if (Core::is_complex_dtype(A.dtype))
                     Detail::throw_operand_error(name, "A",
                                                 "has dtype {}, but the epilogue of this call was "
                                                 "declared for real tensors; pass "
-                                                "Domain::REAL_AND_COMPLEX when the epilogue is "
+                                                "Domain::RealAndComplex when the epilogue is "
                                                 "well-formed for std::complex",
                                                 Core::to_string(A.dtype));
             }

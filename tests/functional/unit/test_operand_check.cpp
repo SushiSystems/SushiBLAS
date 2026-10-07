@@ -57,11 +57,11 @@ namespace SushiBLAS
 
                 /** @brief Returns a dense FLOAT32 tensor over a storage of its own. */
                 Tensor make_tensor(std::initializer_list<int64_t> dims,
-                                   Core::Layout layout = Core::Layout::ROW_MAJOR)
+                                   Core::Layout layout = Core::Layout::RowMajor)
                 {
                     int64_t n = 1;
                     for (auto d : dims) n *= d;
-                    return Tensor(make_storage(n), dims, Core::DataType::FLOAT32, 0, layout);
+                    return Tensor(make_storage(n), dims, Core::DataType::Float32, 0, layout);
                 }
 
                 /** @brief Returns the text of the std::invalid_argument a check throws, or "". */
@@ -96,13 +96,13 @@ namespace SushiBLAS
         TEST_F(Unit_OperandCheckTest, RequireDtypeAcceptsMatchingDtype)
         {
             auto t = make_tensor({4});
-            EXPECT_NO_THROW(Dispatch::require_dtype(t, Core::DataType::FLOAT32, "op", "x"));
+            EXPECT_NO_THROW(Dispatch::require_dtype(t, Core::DataType::Float32, "op", "x"));
         }
 
         TEST_F(Unit_OperandCheckTest, RequireDtypeRejectsOtherDtype)
         {
             auto t = make_tensor({4});
-            EXPECT_THROW(Dispatch::require_dtype(t, Core::DataType::FLOAT64, "op", "x"),
+            EXPECT_THROW(Dispatch::require_dtype(t, Core::DataType::Float64, "op", "x"),
                          std::invalid_argument);
         }
 
@@ -122,22 +122,22 @@ namespace SushiBLAS
 
         TEST_F(Unit_OperandCheckTest, RequireSameLayoutAcceptsEqualLayouts)
         {
-            auto a = make_tensor({2, 3}, Core::Layout::COLUMN_MAJOR);
-            auto b = make_tensor({2, 3}, Core::Layout::COLUMN_MAJOR);
+            auto a = make_tensor({2, 3}, Core::Layout::ColumnMajor);
+            auto b = make_tensor({2, 3}, Core::Layout::ColumnMajor);
             EXPECT_NO_THROW(Dispatch::require_same_layout(a, b, "op", "a", "b"));
         }
 
         TEST_F(Unit_OperandCheckTest, RequireSameLayoutAcceptsRankOneOperands)
         {
             auto a = make_tensor({4});
-            auto b = make_tensor({4}, Core::Layout::COLUMN_MAJOR);
+            auto b = make_tensor({4}, Core::Layout::ColumnMajor);
             EXPECT_NO_THROW(Dispatch::require_same_layout(a, b, "op", "a", "b"));
         }
 
         TEST_F(Unit_OperandCheckTest, RequireSameLayoutRejectsOtherLayout)
         {
             auto a = make_tensor({2, 3});
-            auto b = make_tensor({2, 3}, Core::Layout::COLUMN_MAJOR);
+            auto b = make_tensor({2, 3}, Core::Layout::ColumnMajor);
             EXPECT_THROW(Dispatch::require_same_layout(a, b, "op", "a", "b"), std::invalid_argument);
         }
 
@@ -176,7 +176,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_OperandCheckTest, RequireContiguousAcceptsColumnMajorTensor)
         {
-            auto t = make_tensor({2, 3}, Core::Layout::COLUMN_MAJOR);
+            auto t = make_tensor({2, 3}, Core::Layout::ColumnMajor);
             ASSERT_EQ(t.strides[0], 1);
             ASSERT_EQ(t.strides[1], 2);
             EXPECT_NO_THROW(Dispatch::require_contiguous(t, "op", "x"));
@@ -184,7 +184,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_OperandCheckTest, RequireContiguousAcceptsStorageOffsetView)
         {
-            Tensor t(make_storage(16), {2, 3}, Core::DataType::FLOAT32, 8);
+            Tensor t(make_storage(16), {2, 3}, Core::DataType::Float32, 8);
             EXPECT_NO_THROW(Dispatch::require_contiguous(t, "op", "x"));
         }
 
@@ -197,10 +197,10 @@ namespace SushiBLAS
 
         TEST_F(Unit_OperandCheckTest, RequireContiguousRejectsStrideZeroView)
         {
-            const std::array<int64_t, Core::MAX_TENSOR_RANK> strides{0};
+            const std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides{0};
             const std::array<int64_t, 1> dims{4};
             Tensor t(make_storage(1), SushiRuntime::span<const int64_t>(dims.data(), dims.size()),
-                     strides, Core::DataType::FLOAT32, 0, Core::Layout::ROW_MAJOR);
+                     strides, Core::DataType::Float32, 0, Core::Layout::RowMajor);
             EXPECT_THROW(Dispatch::require_contiguous(t, "op", "x"), std::invalid_argument);
         }
 
@@ -253,14 +253,14 @@ namespace SushiBLAS
             const auto raise = []
             {
                 Dispatch::Detail::throw_dtype_error("Elementwise operation", "sqrt",
-                                                    Core::DataType::INT32);
+                                                    Core::DataType::Int32);
             };
             EXPECT_THROW(raise(), std::invalid_argument);
 
             const std::string message = message_of(raise);
             EXPECT_NE(message.find("Elementwise operation"), std::string::npos);
             EXPECT_NE(message.find("'sqrt'"), std::string::npos);
-            EXPECT_NE(message.find(Core::to_string(Core::DataType::INT32)), std::string::npos);
+            EXPECT_NE(message.find(Core::to_string(Core::DataType::Int32)), std::string::npos);
         }
 
         TEST_F(Unit_OperandCheckTest, RequireDeviceDtypeAcceptsWhatTheDeviceOffers)
@@ -268,11 +268,11 @@ namespace SushiBLAS
             auto narrow = make_tensor({4});
             EXPECT_NO_THROW(Dispatch::require_device_dtype(narrow, "op", "x"));
 
-            Tensor detached(SushiRuntime::sushi_ptr<Storage>(), {4}, Core::DataType::FLOAT64);
+            Tensor detached(SushiRuntime::sushi_ptr<Storage>(), {4}, Core::DataType::Float64);
             EXPECT_NO_THROW(Dispatch::require_device_dtype(detached, "op", "x"));
 
             // Eight FLOAT32 elements are the 32 bytes four FLOAT64 elements need.
-            Tensor wide(make_storage(8), {4}, Core::DataType::FLOAT64);
+            Tensor wide(make_storage(8), {4}, Core::DataType::Float64);
             if (Device::profile_for(wide.get_device()).supports_fp64)
                 EXPECT_NO_THROW(Dispatch::require_device_dtype(wide, "op", "x"));
             else
@@ -330,11 +330,11 @@ namespace SushiBLAS
 
         TEST_F(Unit_OperandCheckTest, RequireDeviceDtypeAcceptsHalfWhereTheDeviceOffersIt)
         {
-            Tensor detached(SushiRuntime::sushi_ptr<Storage>(), {4}, Core::DataType::HALF);
+            Tensor detached(SushiRuntime::sushi_ptr<Storage>(), {4}, Core::DataType::Half);
             EXPECT_NO_THROW(Dispatch::require_device_dtype(detached, "op", "x"));
 
             // Two FLOAT32 elements are the 8 bytes four HALF elements need.
-            Tensor half(make_storage(2), {4}, Core::DataType::HALF);
+            Tensor half(make_storage(2), {4}, Core::DataType::Half);
             const auto check = [&] { Dispatch::require_device_dtype(half, "op", "x"); };
             if (Device::profile_for(half.get_device()).supports_fp16)
             {

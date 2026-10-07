@@ -242,7 +242,7 @@ safe.
 ### `kernels/reference/blas/level3/syrk.hpp`
 
 `syrk` addresses its operand by the same two-stride rule as `Reference::gemm`. It once carried the
-same defect: the `COLUMN_MAJOR` arm was inverted, which made `layout` a no-op for A and read past
+same defect: the `ColumnMajor` arm was inverted, which made `layout` a no-op for A and read past
 its end for some shapes. The identity that catches the defect is in
 `include/SushiBLAS/kernels/README.md`, under `reference/blas/level3/gemm.hpp`.
 
@@ -358,7 +358,7 @@ the destination needs no prior clear.
 ### `kernels/reference/spatial/im2col.hpp`
 
 The reference `im2col` is the specification of `im2col` and the answer
-`ExecutionMode::FORCE_REFERENCE` produces. It is a plain nest of loops in index order, because a
+`ExecutionMode::ForceReference` produces. It is a plain nest of loops in index order, because a
 reference kernel with an optimisation in it is a second implementation that can be wrong.
 
 `ExecutionMode` has no mode that runs both kernels. The comparison is in
@@ -637,7 +637,7 @@ says whether step `s` needs the steps below it.
 
 The left side solves op(A)\*X = alpha\*B column by column, so the order is `m`, the vectors are
 the `n` columns, and the coefficient access is that of op(A). op(A) is upper exactly when the
-transpose flag and `uplo == UPPER` differ in truth, and a lower op(A) is solved forward. The
+transpose flag and `uplo == Upper` differ in truth, and a lower op(A) is solved forward. The
 right side solves X\*op(A) = alpha\*B, which is op(A)^T \* X^T = alpha\*B^T: the same system
 with both accesses transposed, the order `n`, the vectors the `m` rows, and the direction
 reversed.

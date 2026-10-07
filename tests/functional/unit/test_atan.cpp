@@ -21,7 +21,7 @@
 
 /**
  * @file test_atan.cpp
- * @brief Tests elementwise().atan against fixed expected values.
+ * @brief Tests ElementwiseOps::atan against fixed expected values.
  * @author Mustafa Garip
  */
 

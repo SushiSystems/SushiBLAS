@@ -46,18 +46,18 @@ namespace SushiBLAS
         {
             switch (dtype)
             {
-                case Core::DataType::HALF:
+                case Core::DataType::Half:
                     return sizeof(Kernels::Accumulator<sycl::half>);
-                case Core::DataType::FLOAT32:
+                case Core::DataType::Float32:
                     return sizeof(Kernels::Accumulator<float>);
-                case Core::DataType::FLOAT64:
+                case Core::DataType::Float64:
                     return sizeof(Kernels::Accumulator<double>);
-                case Core::DataType::COMPLEX32:
+                case Core::DataType::Complex32:
                     return sizeof(Kernels::Accumulator<std::complex<float>>);
-                case Core::DataType::COMPLEX64:
+                case Core::DataType::Complex64:
                     return sizeof(Kernels::Accumulator<std::complex<double>>);
-                case Core::DataType::INT32:
-                case Core::DataType::INT64:
+                case Core::DataType::Int32:
+                case Core::DataType::Int64:
                     return 0;
             }
             return 0;

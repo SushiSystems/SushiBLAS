@@ -109,9 +109,9 @@ namespace SushiBLAS
         TaskHandle handle;
 
         // A truth test serves real and integer dtypes and refuses complex; see src/README.md.
-        Dispatch::require_domain<Dispatch::Domain::REAL_AND_INTEGRAL>(t.dtype, "Logic operation",
+        Dispatch::require_domain<Dispatch::Domain::RealAndIntegral>(t.dtype, "Logic operation",
                                                                       "logic.any");
-        Dispatch::with_element_type<Dispatch::Domain::REAL_AND_INTEGRAL>(
+        Dispatch::with_element_type<Dispatch::Domain::RealAndIntegral>(
             t.dtype, "Logic operation", meta.name, [&](auto tag)
         {
             using T = typename decltype(tag)::type;

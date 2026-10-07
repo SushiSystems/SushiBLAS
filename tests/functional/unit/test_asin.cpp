@@ -21,7 +21,7 @@
 
 /**
  * @file test_asin.cpp
- * @brief Tests elementwise().asin against fixed expected values.
+ * @brief Tests ElementwiseOps::asin against fixed expected values.
  * @author Mustafa Garip
  */
 

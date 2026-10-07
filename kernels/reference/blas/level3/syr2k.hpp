@@ -57,10 +57,10 @@ namespace SushiBLAS
                 using RW = ReferenceAccumulator<T>;
                 using RWS = ReferenceAccumulator<Scalar>;
 
-                const bool upper = (uplo == Core::Uplo::UPPER);
+                const bool upper = (uplo == Core::Uplo::Upper);
                 const OperandAccess op_a = operand_access(layout, trans, lda);
                 const OperandAccess op_b = operand_access(layout, trans, ldb);
-                const OperandAccess at_c = operand_access(layout, Core::Transpose::NO_TRANS, ldc);
+                const OperandAccess at_c = operand_access(layout, Core::Transpose::NoTrans, ldc);
 
                 for (int64_t i = 0; i < n; ++i)
                 {

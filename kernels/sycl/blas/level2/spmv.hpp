@@ -58,7 +58,7 @@ namespace SushiBLAS
                 SB_LOG_INFO("SYCL SPMV: {}x{}", n, n);
 
                 const PackedAccess access =
-                    packed_access(layout, uplo, Core::Transpose::NO_TRANS, n);
+                    packed_access(layout, uplo, Core::Transpose::NoTrans, n);
                 return Detail::symmetric_product<T, Conj>(queue, access, n, n, alpha, ap, x, incx,
                                                           beta, y, incy, deps);
             }

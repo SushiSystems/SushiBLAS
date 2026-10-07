@@ -43,7 +43,7 @@ namespace SushiBLAS
                                                   "is {}, expected above 0", n_in);
 
         const double stddev = std::sqrt(2.0 / n_in);
-        return Dispatch::execute_random<Dispatch::Domain::REAL>(
+        return Dispatch::execute_random<Dispatch::Domain::Real>(
             recorder_, rng_, t, "random.he_normal", "random.he_normal"_op,
             {static_cast<double>(n_in), stddev},
             [stddev](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,

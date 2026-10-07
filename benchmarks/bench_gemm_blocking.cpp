@@ -60,7 +60,7 @@ namespace
     /// @brief Holds what the command line asks for.
     struct Request
     {
-        DataType dtype = DataType::FLOAT32; /**< FLOAT32 or FLOAT64. */
+        DataType dtype = DataType::Float32; /**< FLOAT32 or FLOAT64. */
         int64_t n = 0;                      /**< Order of the three square matrices. */
         bool packed = true;                 /**< Whether the packed kernel is the one timed. */
         Device::Profile profile;            /**< The device profile with the given overrides. */
@@ -136,9 +136,9 @@ namespace
 
         const std::string dtype = argv[1];
         if (dtype == "f32")
-            request.dtype = DataType::FLOAT32;
+            request.dtype = DataType::Float32;
         else if (dtype == "f64")
-            request.dtype = DataType::FLOAT64;
+            request.dtype = DataType::Float64;
         else
             throw std::invalid_argument("dtype is neither f32 nor f64: " + dtype);
 
@@ -197,7 +197,7 @@ namespace
                     static_cast<long long>(plan.workers), plan.scratch_bytes);
 
         const Kernels::OperandAccess access =
-            Kernels::operand_access(Layout::COLUMN_MAJOR, Transpose::NO_TRANS, n);
+            Kernels::operand_access(Layout::ColumnMajor, Transpose::NoTrans, n);
         const Bench::Timing timing = Bench::time_iterations([&]()
         {
             if (request.packed)
@@ -205,8 +205,8 @@ namespace
                                    0, T(0), c.get(), access, 0, 1, scratch.get(), {},
                                    Kernels::GemmIdentityEpilogue{}).wait();
             else
-                Kernels::SYCL::gemm<T>(q, Layout::COLUMN_MAJOR, Transpose::NO_TRANS,
-                                       Transpose::NO_TRANS, n, n, n, T(1), a.get(), n, 0,
+                Kernels::SYCL::gemm<T>(q, Layout::ColumnMajor, Transpose::NoTrans,
+                                       Transpose::NoTrans, n, n, n, T(1), a.get(), n, 0,
                                        b.get(), n, 0, T(0), c.get(), n, 0, 1, {}).wait();
         });
 
@@ -220,7 +220,7 @@ namespace
     void run(int argc, char** argv)
     {
         SushiRuntime::Execution::RuntimeContext context;
-        SushiBLAS::Engine engine(context, SushiBLAS::Core::Layout::COLUMN_MAJOR);
+        SushiBLAS::Engine engine(context, SushiBLAS::Core::Layout::ColumnMajor);
         Bench::print_environment(engine);
 
         sycl::queue& q = context.get_queue();
@@ -232,7 +232,7 @@ namespace
                     blocking.inner_bytes, blocking.outer_bytes, blocking.stream_bytes,
                     blocking.workers_per_compute_unit, request.profile.compute_units);
 
-        if (request.dtype == DataType::FLOAT32)
+        if (request.dtype == DataType::Float32)
             bench<float>(q, request);
         else
             bench<double>(q, request);

@@ -81,26 +81,26 @@ namespace SushiBLAS
                         // The seven arms mirror Dispatch::with_element_type; see include/SushiBLAS/engine/README.md.
                         switch (dtype_)
                         {
-                            case Core::DataType::HALF:
+                            case Core::DataType::Half:
                                 return op_func_(sycl::half{}, dispatcher, q, deps);
-                            case Core::DataType::FLOAT32:
+                            case Core::DataType::Float32:
                                 return op_func_(float{}, dispatcher, q, deps);
-                            case Core::DataType::FLOAT64:
+                            case Core::DataType::Float64:
                                 return op_func_(double{}, dispatcher, q, deps);
-                            case Core::DataType::COMPLEX32:
-                                if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::COMPLEX))
+                            case Core::DataType::Complex32:
+                                if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Complex))
                                     return op_func_(std::complex<float>{}, dispatcher, q, deps);
                                 break;
-                            case Core::DataType::COMPLEX64:
-                                if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::COMPLEX))
+                            case Core::DataType::Complex64:
+                                if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Complex))
                                     return op_func_(std::complex<double>{}, dispatcher, q, deps);
                                 break;
-                            case Core::DataType::INT32:
-                                if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::INTEGRAL))
+                            case Core::DataType::Int32:
+                                if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Integral))
                                     return op_func_(int32_t{}, dispatcher, q, deps);
                                 break;
-                            case Core::DataType::INT64:
-                                if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::INTEGRAL))
+                            case Core::DataType::Int64:
+                                if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Integral))
                                     return op_func_(int64_t{}, dispatcher, q, deps);
                                 break;
                         }
@@ -134,7 +134,7 @@ namespace SushiBLAS
          * @throws std::invalid_argument at record time on a dtype outside Dom; UnsupportedExecution as TaskRecorder::record_pair states.
          * @see include/SushiBLAS/engine/README.md
          */
-        template<Dispatch::Domain Dom = Dispatch::Domain::REAL_AND_COMPLEX, typename Func>
+        template<Dispatch::Domain Dom = Dispatch::Domain::RealAndComplex, typename Func>
         TaskHandle execute_typed_task(TaskRecorder& recorder,
                                       const SushiRuntime::Graph::TaskMetadata& meta,
                                       const OperandSet& operands, Core::DataType dtype,

@@ -39,14 +39,14 @@ namespace SushiBLAS
          */
         enum class IndexBase : uint8_t
         {
-            ZERO = 221, /**< Row 0, column 0 and position 0 are stored as 0. */
-            ONE = 222   /**< Row 0, column 0 and position 0 are stored as 1. */
+            Zero = 221, /**< Row 0, column 0 and position 0 are stored as 0. */
+            One = 222   /**< Row 0, column 0 and position 0 are stored as 1. */
         };
 
         /** @brief Returns whether value is an enumerator of IndexBase. */
         [[nodiscard]] inline constexpr bool is_valid(IndexBase value) noexcept
         {
-            return value == IndexBase::ZERO || value == IndexBase::ONE;
+            return value == IndexBase::Zero || value == IndexBase::One;
         }
 
         /**
@@ -55,7 +55,7 @@ namespace SushiBLAS
          */
         [[nodiscard]] inline constexpr int64_t first_index(IndexBase base) noexcept
         {
-            return base == IndexBase::ONE ? 1 : 0;
+            return base == IndexBase::One ? 1 : 0;
         }
 
         /** @brief Returns the name of an IndexBase, or "UNKNOWN" outside the enumeration. */
@@ -63,9 +63,9 @@ namespace SushiBLAS
         {
             switch (value)
             {
-                case IndexBase::ZERO:
+                case IndexBase::Zero:
                     return "ZERO";
-                case IndexBase::ONE:
+                case IndexBase::One:
                     return "ONE";
             }
             return "UNKNOWN";

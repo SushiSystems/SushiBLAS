@@ -57,12 +57,12 @@ namespace SushiBLAS
         namespace
         {
             /// @brief The forced modes every case is recorded under.
-            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::FORCE_REFERENCE,
-                                                        ExecutionMode::FORCE_SYCL};
+            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceReference,
+                                                        ExecutionMode::ForceSycl};
 
             /// @brief The modes that run the SYCL kernel.
-            constexpr ExecutionMode K_SYCL_MODES[] = {ExecutionMode::AUTO,
-                                                      ExecutionMode::FORCE_SYCL};
+            constexpr ExecutionMode K_SYCL_MODES[] = {ExecutionMode::Auto,
+                                                      ExecutionMode::ForceSycl};
 
             /// @brief Element count of every case but the fused update.
             constexpr int64_t K_ELEMENTS = 1000;
@@ -144,7 +144,7 @@ namespace SushiBLAS
                 /** @brief Returns the elements the given forced mode wrote. */
                 [[nodiscard]] std::vector<T>& in(ExecutionMode mode) noexcept
                 {
-                    return mode == ExecutionMode::FORCE_REFERENCE ? reference : device;
+                    return mode == ExecutionMode::ForceReference ? reference : device;
                 }
 
                 const char* name = "";    /**< The operation's name in a failure message. */
@@ -545,7 +545,7 @@ namespace SushiBLAS
                 {
                     try
                     {
-                        Tensor t = engine->create_tensor({count}, Core::DataType::FLOAT32,
+                        Tensor t = engine->create_tensor({count}, Core::DataType::Float32,
                                                          SushiRuntime::API::Residency::Device);
                         const sycl::context context =
                             TestEnvironment::get_context().get_queue().get_context();
@@ -849,7 +849,7 @@ namespace SushiBLAS
                 verify_tensor(c, {11.0f, 22.0f, 33.0f, 44.0f}, K_EXACT_TOLERANCE);
             }
 
-            GraphProbe reference(ExecutionMode::FORCE_REFERENCE);
+            GraphProbe reference(ExecutionMode::ForceReference);
             Tensor c = engine->create_tensor({4});
             const std::string message =
                 refusal_of([&] { ElementwiseOps(reference.get_recorder()).add(*a, b, c); });

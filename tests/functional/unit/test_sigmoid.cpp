@@ -21,7 +21,7 @@
 
 /**
  * @file test_sigmoid.cpp
- * @brief Tests nonlinear().sigmoid and sigmoid_backward against fixed expected values.
+ * @brief Tests NonLinearOps::sigmoid and sigmoid_backward against fixed expected values.
  * @author Mustafa Garip
  */
 

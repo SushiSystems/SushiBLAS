@@ -45,7 +45,7 @@ namespace SushiBLAS
             Dispatch::Detail::throw_operand_error("random.log_normal", "stddev",
                                                   "is {}, expected finite and at least 0", stddev);
 
-        return Dispatch::execute_random<Dispatch::Domain::REAL>(
+        return Dispatch::execute_random<Dispatch::Domain::Real>(
             recorder_, rng_, t, "random.log_normal", "random.log_normal"_op, {mean, stddev},
             [mean, stddev](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,
                            uint64_t offset, int64_t size, auto* pT) -> sycl::event

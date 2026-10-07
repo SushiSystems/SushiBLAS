@@ -51,7 +51,7 @@ namespace SushiBLAS
             /// @brief Holds the largest value a budget or a count can carry.
             constexpr std::size_t K_SATURATED = std::numeric_limits<std::size_t>::max();
 
-            /** @brief Holds one row of the plan table of DESIGN_GEMM_CPU.md, section 3.2. */
+            /** @brief Holds one row of the plan table of DESIGN_GEMM_CPU, section 3.2. */
             struct DocumentedPlan
             {
                 int64_t extent;            /**< The value of m, n and k. */

@@ -44,7 +44,7 @@ namespace SushiBLAS
         struct PackedOperand
         {
             int64_t order = 0;                             /**< Rows, and columns, of the matrix. */
-            Core::Layout layout = Core::Layout::ROW_MAJOR; /**< ROW_MAJOR packs by rows. */
+            Core::Layout layout = Core::Layout::RowMajor; /**< ROW_MAJOR packs by rows. */
         };
 
         /** @brief Returns how many elements the packed triangle of a matrix of order n holds. */

@@ -21,7 +21,7 @@
 
 /**
  * @file test_cos.cpp
- * @brief Tests elementwise().cos against fixed expected values.
+ * @brief Tests ElementwiseOps::cos against fixed expected values.
  * @author Mustafa Garip
  */
 
@@ -111,7 +111,7 @@ TEST_F(Unit_CosTest, ThousandElements)
 
 TEST_F(Unit_CosTest, Float64)
 {
-    auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::FLOAT64);
+    auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::Float64);
     fill_tensor(t, {-1.0f, 0.0f, 0.5f, 2.0f});
 
     SushiBLAS::ElementwiseOps(*engine).cos(t);

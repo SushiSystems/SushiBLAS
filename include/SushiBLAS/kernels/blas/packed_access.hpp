@@ -114,8 +114,8 @@ namespace SushiBLAS
                                                                   Core::Transpose trans,
                                                                   int64_t n) noexcept
         {
-            const bool by_rows = (layout == Core::Layout::ROW_MAJOR);
-            const PackedAccess stored{n, by_rows, (uplo == Core::Uplo::UPPER) != by_rows, false};
+            const bool by_rows = (layout == Core::Layout::RowMajor);
+            const PackedAccess stored{n, by_rows, (uplo == Core::Uplo::Upper) != by_rows, false};
             if (!Core::is_transposed(trans))
                 return stored;
 

@@ -129,7 +129,7 @@ namespace SushiBLAS
         Dispatch::require_unit_increment(vb, K_OP, "b");
         Dispatch::require_vector_length(vb, a.rows, "the order of A", K_OP, "b");
 
-        if (A.row_offsets.dtype == Core::DataType::INT32)
+        if (A.row_offsets.dtype == Core::DataType::Int32)
             return record_sptrsv<int32_t>(recorder_, A, a, b, uplo, trans, diag);
         return record_sptrsv<int64_t>(recorder_, A, a, b, uplo, trans, diag);
     }

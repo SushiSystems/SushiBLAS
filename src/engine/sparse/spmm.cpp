@@ -155,7 +155,7 @@ namespace SushiBLAS
         Dispatch::require_matrix_extent(c.cols, b.cols, "columns against the columns of B", K_OP,
                                         "C");
 
-        if (A.row_offsets.dtype == Core::DataType::INT32)
+        if (A.row_offsets.dtype == Core::DataType::Int32)
             return record_spmm<int32_t>(recorder_, A, a, B, b, C, c, trans, alpha, beta);
         return record_spmm<int64_t>(recorder_, A, a, B, b, C, c, trans, alpha, beta);
     }

@@ -63,17 +63,17 @@ namespace SushiBLAS
                 Core::Layout layout, Core::Side side, Core::Uplo uplo, Core::Transpose trans,
                 Core::Diag diag, int64_t m, int64_t n, int64_t lda, int64_t ldb) noexcept
             {
-                const bool left = (side == Core::Side::LEFT);
-                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::UPPER);
+                const bool left = (side == Core::Side::Left);
+                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
                 const OperandAccess op_a = operand_access(layout, trans, lda);
-                const OperandAccess at_b = operand_access(layout, Core::Transpose::NO_TRANS, ldb);
+                const OperandAccess at_b = operand_access(layout, Core::Transpose::NoTrans, ldb);
 
                 return TriangularSystem{left ? op_a : op_a.transposed(),
                                         left ? at_b : at_b.transposed(),
                                         left ? m : n,
                                         left ? n : m,
                                         left ? !op_upper : op_upper,
-                                        diag == Core::Diag::UNIT};
+                                        diag == Core::Diag::Unit};
             }
         } // namespace SYCL
     } // namespace Kernels

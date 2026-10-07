@@ -147,10 +147,10 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
 
-                const bool eff_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::UPPER);
+                const bool eff_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
                 const Detail::TrmvSnapshot<T> snapshot{x, incx, work};
                 const Detail::TrmvTerm<T> term{operand_access(layout, trans, lda), a, work,
-                                               diag == Core::Diag::UNIT};
+                                               diag == Core::Diag::Unit};
                 const Detail::TriangleRow columns{n, eff_upper};
                 const Detail::TrmvStore<T> store{x, incx};
                 const std::size_t rows = static_cast<std::size_t>(n);
@@ -188,7 +188,7 @@ namespace SushiBLAS
             {
                 // A row of op(A) is contiguous exactly when GEMV's row is; see kernels/README.md.
                 const bool row_contiguous =
-                    (layout == Core::Layout::ROW_MAJOR) != Core::is_transposed(trans);
+                    (layout == Core::Layout::RowMajor) != Core::is_transposed(trans);
                 const std::size_t width = row_contiguous
                     ? Detail::row_reduction_width(Device::profile_for(queue), n)
                     : std::size_t{0};

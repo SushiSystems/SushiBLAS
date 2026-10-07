@@ -68,8 +68,8 @@ namespace SushiBLAS
                 SB_LOG_INFO("SYCL SPMM: {}x{}, {} entries, {} columns", pattern.rows, pattern.cols,
                             pattern.nnz, nrhs);
 
-                const OperandAccess at_b = operand_access(layout, Core::Transpose::NO_TRANS, ldb);
-                const OperandAccess at_c = operand_access(layout, Core::Transpose::NO_TRANS, ldc);
+                const OperandAccess at_b = operand_access(layout, Core::Transpose::NoTrans, ldb);
+                const OperandAccess at_c = operand_access(layout, Core::Transpose::NoTrans, ldc);
                 const bool keeps_c = !(beta == T(0));
 
                 if (!Core::is_transposed(trans))

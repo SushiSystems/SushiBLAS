@@ -49,7 +49,7 @@ namespace SushiBLAS
             int64_t leading_dimension = 0; /**< Elements per line, at least lower + upper + 1. */
             int64_t lower = 0;             /**< Sub-diagonals of the matrix, kl. */
             int64_t upper = 0;             /**< Super-diagonals of the matrix, ku. */
-            Core::Layout layout = Core::Layout::ROW_MAJOR; /**< Which band storage it is. */
+            Core::Layout layout = Core::Layout::RowMajor; /**< Which band storage it is. */
         };
 
         /**
@@ -76,7 +76,7 @@ namespace SushiBLAS
             const MatrixOperand m = describe_matrix_operand(t, op, operand);
             require_unbatched(m, op, operand);
 
-            const bool by_rows = (m.layout == Core::Layout::ROW_MAJOR);
+            const bool by_rows = (m.layout == Core::Layout::RowMajor);
 
             // Written without kl + ku, which two large widths could overflow.
             if (ku >= m.leading_dimension || kl > m.leading_dimension - 1 - ku)
@@ -106,7 +106,7 @@ namespace SushiBLAS
                                                                         const char* op,
                                                                         const char* operand)
         {
-            const bool upper = (uplo == Core::Uplo::UPPER);
+            const bool upper = (uplo == Core::Uplo::Upper);
             return describe_band_operand(t, upper ? int64_t{0} : k, upper ? k : int64_t{0}, op,
                                          operand, "k", "k");
         }

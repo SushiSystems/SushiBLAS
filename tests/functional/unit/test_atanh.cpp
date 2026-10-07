@@ -21,7 +21,7 @@
 
 /**
  * @file test_atanh.cpp
- * @brief Tests elementwise().atanh against fixed expected values.
+ * @brief Tests ElementwiseOps::atanh against fixed expected values.
  * @author Mustafa Garip
  */
 

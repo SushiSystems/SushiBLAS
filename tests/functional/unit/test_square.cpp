@@ -21,7 +21,7 @@
 
 /**
  * @file test_square.cpp
- * @brief Tests elementwise().square against fixed expected values.
+ * @brief Tests ElementwiseOps::square against fixed expected values.
  * @author Mustafa Garip
  */
 

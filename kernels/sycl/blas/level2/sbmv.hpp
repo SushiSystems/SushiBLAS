@@ -61,7 +61,7 @@ namespace SushiBLAS
                 SB_LOG_INFO("SYCL SBMV: {}x{}, k={}", n, n, k);
 
                 const BandAccess access =
-                    triangle_band_access(layout, uplo, Core::Transpose::NO_TRANS, k, lda);
+                    triangle_band_access(layout, uplo, Core::Transpose::NoTrans, k, lda);
                 const int64_t longest_row = std::min(n, 2 * k + 1);
                 return Detail::symmetric_product<T, Conj>(queue, access, n, longest_row, alpha, a,
                                                           x, incx, beta, y, incy, deps);

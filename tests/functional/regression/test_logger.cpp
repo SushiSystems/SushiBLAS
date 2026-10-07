@@ -57,7 +57,7 @@ namespace SushiBLAS
 #ifdef NDEBUG
             GTEST_SKIP() << "SB_ASSERT compiles to nothing under NDEBUG; run this in a debug build.";
 #else
-            if (Core::ACTIVE_LOG_LEVEL < Core::LogType::ERR)
+            if (Core::K_ACTIVE_LOG_LEVEL < Core::LogType::Err)
                 GTEST_SKIP() << "The error level is compiled out, so SB_ASSERT has no line to write.";
 
             constexpr int K_BACKLOG_LINES = 5000;
@@ -68,7 +68,7 @@ namespace SushiBLAS
 
                     // The backlog keeps the worker busy, so only a flush can write the assertion.
                     for (int i = 0; i < K_BACKLOG_LINES; ++i)
-                        Core::Detail::dispatch_log(Core::LogType::ERR, std::string(K_LINE));
+                        Core::Detail::dispatch_log(Core::LogType::Err, std::string(K_LINE));
 
                     SB_ASSERT(false, "regression sentinel for the lost assertion message");
                 },
@@ -84,7 +84,7 @@ namespace SushiBLAS
 
             ::testing::internal::CaptureStderr();
             for (int i = 0; i < K_LINES; ++i)
-                logger.enqueue(Core::LogType::ERR, std::string(K_LINE));
+                logger.enqueue(Core::LogType::Err, std::string(K_LINE));
             logger.flush();
             const std::string captured = ::testing::internal::GetCapturedStderr();
 
@@ -100,7 +100,7 @@ namespace SushiBLAS
             for (int round = 0; round < K_ROUNDS; ++round)
             {
                 Core::Detail::AsyncLogger logger;
-                logger.enqueue(Core::LogType::ERR, std::string(K_LINE));
+                logger.enqueue(Core::LogType::Err, std::string(K_LINE));
             }
             const std::string captured = ::testing::internal::GetCapturedStderr();
 

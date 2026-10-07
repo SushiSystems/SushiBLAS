@@ -139,7 +139,7 @@ namespace SushiBLAS
         TEST_F(Unit_EmptyTensorTest, ConvertOfEmptyTensorsIsANoOp)
         {
             Tensor src = empty_tensor();
-            Tensor dst(SushiRuntime::sushi_ptr<Storage>(), {0, 3}, Core::DataType::FLOAT64);
+            Tensor dst(SushiRuntime::sushi_ptr<Storage>(), {0, 3}, Core::DataType::Float64);
 
             EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(probe.get_recorder()).convert(src, dst));
             EXPECT_TRUE(graph_is_empty());
@@ -172,7 +172,7 @@ namespace SushiBLAS
             Tensor asum = engine->create_tensor({1});
             Tensor nrm2 = engine->create_tensor({1});
             Tensor prod = engine->create_tensor({1});
-            Tensor count = engine->create_tensor({1}, Core::DataType::INT64);
+            Tensor count = engine->create_tensor({1}, Core::DataType::Int64);
 
             // Each result starts from a value that is not its identity.
             fill_tensor(sum, {0.5f});
@@ -205,7 +205,7 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps reductions(probe.get_recorder());
 
             Tensor scalar = engine->create_tensor({1});
-            Tensor index = engine->create_tensor({1}, Core::DataType::INT64);
+            Tensor index = engine->create_tensor({1}, Core::DataType::Int64);
             Tensor per_column = engine->create_tensor({3});
             Tensor per_channel = engine->create_tensor({1, 3});
 

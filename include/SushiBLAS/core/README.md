@@ -38,7 +38,7 @@ quietly accepted and then silently mishandled is worse than one that is not acce
 for.
 
 **The numeric values are a file-format contract.** Each enumerator is written out with its value,
-`HALF = 0` to `INT64 = 6`. No value changes, and a new element type is appended after the last.
+`Half = 0` to `Int64 = 6`. No value changes, and a new element type is appended after the last.
 
 ### `to_string`
 
@@ -64,19 +64,19 @@ outside the enumeration.
 
 ### `Transpose`, `Uplo`, `Diag`, `Side`
 
-The enumerators carry the CBLAS numbers: `NO_TRANS`, `TRANS` and `CONJ_TRANS` are 111 to 113,
-`UPPER` and `LOWER` 121 and 122, `NON_UNIT` and `UNIT` 131 and 132, `LEFT` and `RIGHT` 141 and
+The enumerators carry the CBLAS numbers: `NoTrans`, `Trans` and `ConjTrans` are 111 to 113,
+`Upper` and `Lower` 121 and 122, `NonUnit` and `Unit` 131 and 132, `Left` and `Right` 141 and
 142. A value-initialised flag is therefore 0 and names nothing. `is_valid` reports that, and the
 record-time flag check in `engine/blas/argument_check.hpp` throws `std::invalid_argument` for it,
-so a flag a caller forgot to set never reads as `NO_TRANS` or `UPPER`. Each enumeration is one
+so a flag a caller forgot to set never reads as `NoTrans` or `Upper`. Each enumeration is one
 byte and fits one `TaskMetadata` slot. `is_transposed` and `is_conjugated` answer the two
-questions a kernel asks of a `Transpose`; for a real element type `CONJ_TRANS` is `TRANS`.
+questions a kernel asks of a `Transpose`; for a real element type `ConjTrans` is `Trans`.
 
 ## `sparse_types.hpp`
 
 ### `IndexBase`
 
-`ZERO` is 221 and `ONE` is 222, so a value-initialised base is 0 and `is_valid` refuses it, as
+`Zero` is 221 and `One` is 222, so a value-initialised base is 0 and `is_valid` refuses it, as
 with the BLAS flags. `first_index` turns a base into the stored value that names row 0, column 0
 and position 0. The sparse operand describers carry that value to the kernel, which subtracts
 it on each read through `Kernels::Sparse::CsrPattern` and `IndexList`.
@@ -86,7 +86,7 @@ it on each read through `Kernels::Sparse::CsrPattern` and `IndexList`.
 ### `UnsupportedExecution`
 
 Thrown when an operation cannot run under the execution mode or on the device: a device-only
-operand under `FORCE_REFERENCE`, FLOAT64 or COMPLEX64 storage on a device without the fp64 aspect,
+operand under `ForceReference`, FLOAT64 or COMPLEX64 storage on a device without the fp64 aspect,
 HALF storage on a device without fp16. It derives from `std::invalid_argument`, so a `catch (const
 std::invalid_argument&)` still catches it, and a caller that wants to tell a refusal from a wrong
 operand puts `catch (const SushiBLAS::UnsupportedExecution&)` first. It is thrown at record time
@@ -234,8 +234,9 @@ signature is what tells one apart from another, and it is what the level-choice 
 Set it from the build rather than by editing this header: the `SB_LOG_LEVEL` CMake cache variable
 (`cmake/SushiBLASLogging.cmake`) forwards its value here, so `sb build -D SB_LOG_LEVEL=INFO` raises
 the level for a debugging session and `sb build -D SB_LOG_LEVEL=auto` puts it back. Valid values are
-the enumerator names: `OFF`, `ERR`, `WARN`, `INFO`, `DEBUG`: a typo is a compile error naming the
-bad enumerator rather than a silently wrong level.
+the level names `OFF`, `ERR`, `WARN`, `INFO` and `DEBUG`. `SB_LOG_TYPE_OF` expands a level name to
+its `LogType` enumerator, `Off` to `Debug`, so a typo is a compile error naming the unknown level
+rather than a silently wrong level.
 
 The default is WARN for a release build and DEBUG for a debug build. Release used to default to
 INFO, which was expensive rather than merely noisy: every `SB_LOG_INFO` that survives the `if

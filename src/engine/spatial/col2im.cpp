@@ -62,7 +62,7 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.col2im"_op;
 
-        return Internal::execute_typed_task<Dispatch::Domain::REAL>(
+        return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, meta, operands, image.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

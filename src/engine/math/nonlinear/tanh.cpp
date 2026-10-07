@@ -35,13 +35,13 @@ namespace SushiBLAS
 
     TaskHandle NonLinearOps::tanh(Tensor& t) 
     {
-        return Dispatch::execute_nonlinear_forward<Dispatch::Domain::REAL_AND_COMPLEX>(recorder_, t, "math.nonlinear.tanh", "math.nonlinear.tanh"_op, 
+        return Dispatch::execute_nonlinear_forward<Dispatch::Domain::RealAndComplex>(recorder_, t, "math.nonlinear.tanh", "math.nonlinear.tanh"_op, 
             [](auto x) { return Dispatch::safe_tanh(x); });
     }
 
     TaskHandle NonLinearOps::tanh_backward(const Tensor& dy, const Tensor& y, Tensor& dx)
     {
-        return Dispatch::execute_nonlinear_backward<Dispatch::Domain::REAL_AND_COMPLEX>(recorder_, dy, y, dx, "math.nonlinear.tanh_backward", "math.nonlinear.tanh_backward"_op, 
+        return Dispatch::execute_nonlinear_backward<Dispatch::Domain::RealAndComplex>(recorder_, dy, y, dx, "math.nonlinear.tanh_backward", "math.nonlinear.tanh_backward"_op, 
             [](auto pdy, auto py) 
             {
                 return pdy * (decltype(py)(1) - py * py); 

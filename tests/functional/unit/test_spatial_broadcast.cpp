@@ -21,7 +21,7 @@
 
 /**
  * @file test_spatial_broadcast.cpp
- * @brief Tests spatial().channel_affine, broadcast_spatial and layout_convert.
+ * @brief Tests SpatialOps::channel_affine, broadcast_spatial and layout_convert.
  * @author Mustafa Garip
  */
 
@@ -57,7 +57,7 @@ namespace SushiBLAS
                 Tensor filled(std::initializer_list<int64_t> dims,
                               std::initializer_list<float> values)
                 {
-                    auto t = engine->create_tensor(dims, Core::DataType::FLOAT32);
+                    auto t = engine->create_tensor(dims, Core::DataType::Float32);
                     float* p = t.data_as<float>();
                     int64_t i = 0;
                     for (float v : values) p[i++] = v;
@@ -67,7 +67,7 @@ namespace SushiBLAS
                 /** @brief A float tensor of the given shape whose element k holds `k`. */
                 Tensor ramp(std::initializer_list<int64_t> dims)
                 {
-                    auto t = engine->create_tensor(dims, Core::DataType::FLOAT32);
+                    auto t = engine->create_tensor(dims, Core::DataType::Float32);
                     float* p = t.data_as<float>();
                     for (int64_t i = 0; i < t.num_elements; ++i) p[i] = static_cast<float>(i);
                     return t;
@@ -76,7 +76,7 @@ namespace SushiBLAS
                 /** @brief A float tensor of the given shape whose every element is @p value. */
                 Tensor uniform(std::initializer_list<int64_t> dims, float value)
                 {
-                    auto t = engine->create_tensor(dims, Core::DataType::FLOAT32);
+                    auto t = engine->create_tensor(dims, Core::DataType::Float32);
                     float* p = t.data_as<float>();
                     for (int64_t i = 0; i < t.num_elements; ++i) p[i] = value;
                     return t;
@@ -90,7 +90,7 @@ namespace SushiBLAS
                  */
                 Tensor nchw_view(const Tensor& base, int64_t n, int64_t h, int64_t w, int64_t c)
                 {
-                    std::array<int64_t, Core::MAX_TENSOR_RANK> s{};
+                    std::array<int64_t, Core::K_MAX_TENSOR_RANK> s{};
                     s[0] = c * h * w;   // N
                     s[1] = w;           // H
                     s[2] = 1;           // W
@@ -99,7 +99,7 @@ namespace SushiBLAS
                     const int64_t dims[4] = {n, h, w, c};
                     return Tensor(base.storage,
                                   SushiRuntime::span<const int64_t>(dims, dims + 4), s,
-                                  Core::DataType::FLOAT32, base.storage_offset, base.layout);
+                                  Core::DataType::Float32, base.storage_offset, base.layout);
                 }
         };
 
@@ -108,7 +108,7 @@ namespace SushiBLAS
             auto in = ramp({1, 2, 2, 3});
             auto gamma = filled({3}, {2.0f, 3.0f, 4.0f});
             auto beta = filled({3}, {10.0f, 20.0f, 30.0f});
-            auto out = engine->create_tensor({1, 2, 2, 3}, Core::DataType::FLOAT32);
+            auto out = engine->create_tensor({1, 2, 2, 3}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, out);
             engine->execute();
@@ -129,7 +129,7 @@ namespace SushiBLAS
             auto in = ramp({2, 3, 4, 5});
             auto gamma = uniform({5}, 1.0f);
             auto beta = uniform({5}, 0.0f);
-            auto out = engine->create_tensor({2, 3, 4, 5}, Core::DataType::FLOAT32);
+            auto out = engine->create_tensor({2, 3, 4, 5}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, out);
             engine->execute();
@@ -147,7 +147,7 @@ namespace SushiBLAS
 
             auto in = filled({N, C}, {1, 2, 3,
                                       4, 5, 6});
-            auto out = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            auto out = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).broadcast_spatial(in, out, 0.5);
             engine->execute();
@@ -169,7 +169,7 @@ namespace SushiBLAS
             const double scale = 1.0 / static_cast<double>(H * W);
 
             auto in = uniform({N, C}, 1.0f);
-            auto out = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            auto out = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).broadcast_spatial(in, out, scale);
             engine->execute();
@@ -201,9 +201,9 @@ namespace SushiBLAS
             const int64_t N = 2, H = 3, W = 4, C = 5;
 
             auto source = ramp({N, H, W, C});
-            auto middle_storage = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            auto middle_storage = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             auto middle = nchw_view(middle_storage, N, H, W, C);
-            auto destination = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            auto destination = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
             // NHWC to NCHW and back: the same call, with the permuted strides on the other operand.
             SushiBLAS::SpatialOps(*engine).layout_convert(source, middle);
@@ -224,7 +224,7 @@ namespace SushiBLAS
             const int64_t N = 1, H = 2, W = 2, C = 2;
 
             auto source = ramp({N, H, W, C});
-            auto nchw_storage = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            auto nchw_storage = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             auto nchw = nchw_view(nchw_storage, N, H, W, C);
 
             SushiBLAS::SpatialOps(*engine).layout_convert(source, nchw);
@@ -244,13 +244,13 @@ namespace SushiBLAS
             // The two forced modes are compared here. See tests/functional/unit/README.md.
             const int64_t N = 2, H = 5, W = 3, C = 4;
 
-            auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            auto in = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             float* p = in.data_as<float>();
             for (int64_t i = 0; i < in.num_elements; ++i)
                 p[i] = static_cast<float>((i * 37) % 23) - 11.0f;
 
-            auto gamma = engine->create_tensor({C}, Core::DataType::FLOAT32);
-            auto beta = engine->create_tensor({C}, Core::DataType::FLOAT32);
+            auto gamma = engine->create_tensor({C}, Core::DataType::Float32);
+            auto beta = engine->create_tensor({C}, Core::DataType::Float32);
             float* g = gamma.data_as<float>();
             float* b = beta.data_as<float>();
             for (int64_t c = 0; c < C; ++c)
@@ -259,29 +259,29 @@ namespace SushiBLAS
                 b[c] = static_cast<float>(c) - 1.5f;
             }
 
-            auto plane = engine->create_tensor({N, C}, Core::DataType::FLOAT32);
+            auto plane = engine->create_tensor({N, C}, Core::DataType::Float32);
             float* pl = plane.data_as<float>();
             for (int64_t i = 0; i < plane.num_elements; ++i)
                 pl[i] = static_cast<float>((i * 13) % 7) - 3.0f;
 
-            auto affine_reference = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
-            auto affine_device = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
-            auto spread_reference = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
-            auto spread_device = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            auto affine_reference = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
+            auto affine_device = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
+            auto spread_reference = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
+            auto spread_device = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             auto convert_reference_storage =
-                engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+                engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             auto convert_device_storage =
-                engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+                engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             auto convert_reference = nchw_view(convert_reference_storage, N, H, W, C);
             auto convert_device = nchw_view(convert_device_storage, N, H, W, C);
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, affine_reference);
             SushiBLAS::SpatialOps(*engine).broadcast_spatial(plane, spread_reference, 1.0 / 15.0);
             SushiBLAS::SpatialOps(*engine).layout_convert(in, convert_reference);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
             SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, affine_device);
             SushiBLAS::SpatialOps(*engine).broadcast_spatial(plane, spread_device, 1.0 / 15.0);
             SushiBLAS::SpatialOps(*engine).layout_convert(in, convert_device);

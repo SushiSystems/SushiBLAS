@@ -69,8 +69,8 @@ namespace SushiBLAS
         const void* read_x = x.data_or_null();
         void* write_y = y.data_or_null();
 
-        // copy does no arithmetic, so it serves Domain::ALL; see src/README.md.
-        return Internal::execute_blas_task<Dispatch::Domain::ALL>(
+        // copy does no arithmetic, so it serves Domain::All; see src/README.md.
+        return Internal::execute_blas_task<Dispatch::Domain::All>(
             recorder_, meta.get(), operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

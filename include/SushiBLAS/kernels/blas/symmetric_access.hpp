@@ -73,8 +73,8 @@ namespace SushiBLAS
                                                                               Core::Uplo uplo,
                                                                               int64_t ld) noexcept
         {
-            return SymmetricAccess<Conj>{operand_access(layout, Core::Transpose::NO_TRANS, ld),
-                                         uplo == Core::Uplo::UPPER};
+            return SymmetricAccess<Conj>{operand_access(layout, Core::Transpose::NoTrans, ld),
+                                         uplo == Core::Uplo::Upper};
         }
     } // namespace Kernels
 } // namespace SushiBLAS

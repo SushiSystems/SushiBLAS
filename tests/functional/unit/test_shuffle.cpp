@@ -21,7 +21,7 @@
 
 /**
  * @file test_shuffle.cpp
- * @brief Tests that random().shuffle permutes its input and repeats for one seed and offset.
+ * @brief Tests that RandomOps::shuffle permutes its input and repeats for one seed and offset.
  * @author Mustafa Garip
  */
 
@@ -37,23 +37,23 @@ using namespace SushiBLAS::Test;
 class Unit_ShuffleTest : public SushiBLASTest
 {
     protected:
-        static constexpr int N = 64;
+        static constexpr int K_N = 64;
 
         std::vector<float> shuffled_iota(uint64_t seed)
         {
-            std::vector<float> src(N);
+            std::vector<float> src(K_N);
             std::iota(src.begin(), src.end(), 0.0f);
 
-            auto t = engine->create_tensor({N});
+            auto t = engine->create_tensor({K_N});
             fill_tensor(t, src);
 
             SushiBLAS::RandomOps(*engine).set_seed(seed);
             SushiBLAS::RandomOps(*engine).shuffle(t);
             engine->execute();
 
-            std::vector<float> out(N);
+            std::vector<float> out(K_N);
             auto& q = TestEnvironment::get_context().get_queue();
-            q.memcpy(out.data(), t.data(), N * sizeof(float)).wait();
+            q.memcpy(out.data(), t.data(), K_N * sizeof(float)).wait();
             return out;
         }
 };
@@ -65,14 +65,14 @@ TEST_F(Unit_ShuffleTest, ResultIsAPermutationOfTheInput)
     // The result is a permutation of the input. See tests/functional/unit/README.md.
     auto sorted = out;
     std::sort(sorted.begin(), sorted.end());
-    for (int i = 0; i < N; ++i)
+    for (int i = 0; i < K_N; ++i)
     {
         EXPECT_FLOAT_EQ(sorted[i], static_cast<float>(i)) << "Element " << i << " is not a permutation of the input.";
     }
 
     // The identity permutation means the kernel never ran. See tests/functional/unit/README.md.
     bool moved = false;
-    for (int i = 0; i < N; ++i)
+    for (int i = 0; i < K_N; ++i)
     {
         if (out[i] != static_cast<float>(i)) { moved = true; break; }
     }
@@ -84,7 +84,7 @@ TEST_F(Unit_ShuffleTest, SameSeedReproducesTheSamePermutation)
     auto first = shuffled_iota(20260803);
 
     // A fresh engine restarts the RNG offset counter. See tests/functional/unit/README.md.
-    reinit_engine(SushiBLAS::Core::Layout::ROW_MAJOR);
+    reinit_engine(SushiBLAS::Core::Layout::RowMajor);
     auto second = shuffled_iota(20260803);
 
     EXPECT_EQ(first, second);
@@ -94,7 +94,7 @@ TEST_F(Unit_ShuffleTest, DifferentSeedsProduceDifferentPermutations)
 {
     auto first = shuffled_iota(1);
 
-    reinit_engine(SushiBLAS::Core::Layout::ROW_MAJOR);
+    reinit_engine(SushiBLAS::Core::Layout::RowMajor);
     auto second = shuffled_iota(2);
 
     EXPECT_NE(first, second) << "The seed is not reaching the permutation.";
@@ -103,11 +103,11 @@ TEST_F(Unit_ShuffleTest, DifferentSeedsProduceDifferentPermutations)
 TEST_F(Unit_ShuffleTest, ConsecutiveShufflesOnOneEngineDiffer)
 {
     // Each task draws a fresh counter offset, so two shuffles must not repeat a permutation.
-    std::vector<float> src(N);
+    std::vector<float> src(K_N);
     std::iota(src.begin(), src.end(), 0.0f);
 
-    auto a = engine->create_tensor({N});
-    auto b = engine->create_tensor({N});
+    auto a = engine->create_tensor({K_N});
+    auto b = engine->create_tensor({K_N});
     fill_tensor(a, src);
     fill_tensor(b, src);
 
@@ -116,10 +116,10 @@ TEST_F(Unit_ShuffleTest, ConsecutiveShufflesOnOneEngineDiffer)
     SushiBLAS::RandomOps(*engine).shuffle(b);
     engine->execute();
 
-    std::vector<float> ha(N), hb(N);
+    std::vector<float> ha(K_N), hb(K_N);
     auto& q = TestEnvironment::get_context().get_queue();
-    q.memcpy(ha.data(), a.data(), N * sizeof(float)).wait();
-    q.memcpy(hb.data(), b.data(), N * sizeof(float)).wait();
+    q.memcpy(ha.data(), a.data(), K_N * sizeof(float)).wait();
+    q.memcpy(hb.data(), b.data(), K_N * sizeof(float)).wait();
 
     EXPECT_NE(ha, hb);
 }
@@ -131,7 +131,7 @@ TEST_F(Unit_ShuffleTest, PermutesHalfPrecisionToo)
     std::vector<float> src(kSmall);
     std::iota(src.begin(), src.end(), 0.0f);
 
-    auto t = engine->create_tensor({kSmall}, SushiBLAS::Core::DataType::HALF);
+    auto t = engine->create_tensor({kSmall}, SushiBLAS::Core::DataType::Half);
     fill_tensor(t, src);
 
     SushiBLAS::RandomOps(*engine).set_seed(5);

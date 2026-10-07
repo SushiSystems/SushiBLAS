@@ -25,8 +25,8 @@ views, the executor of each family under `<family>/dispatch.hpp`, and the scalar
 
 Every executor takes a `TaskRecorder&` as its first argument and returns a `TaskHandle`. A
 record-time refusal of an operand, a dtype or a parameter is `std::invalid_argument`; a
-device-only tensor under `FORCE_REFERENCE` and a dtype a tensor's device cannot compute in are
-`UnsupportedExecution`. Each family has a host path under `FORCE_REFERENCE`: a serial loop over
+device-only tensor under `ForceReference` and a dtype a tensor's device cannot compute in are
+`UnsupportedExecution`. Each family has a host path under `ForceReference`: a serial loop over
 the same functor the SYCL kernel runs.
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
@@ -59,7 +59,7 @@ constraint. A converting op dispatches on *two* runtime dtypes, so the naive spe
 operation, more than this library's entire elementwise family costs put together. It is also a shape
 this tree's clang is known to miscompile: the nested generic lambda is exactly what crashes it
 during instantiation, which is why `Internal::execute_blas_task` spells its own switch out by hand
-(`<SushiBLAS/engine/blas/utils.hpp>`). So the pair is restricted to `Dispatch::Domain::REAL` on
+(`<SushiBLAS/engine/blas/utils.hpp>`). So the pair is restricted to `Dispatch::Domain::Real` on
 **both** sides, HALF, FLOAT32, FLOAT64, nine arms, and the switch is written as two plain, un-nested
 `switch` statements over ordinary function templates rather than as lambdas.
 
@@ -95,7 +95,7 @@ arena-packed fp32/fp16 pair this op exists to serve.
 Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
 
 Throws `std::invalid_argument`, naming the offending operand, if it is storage-less or
-non-contiguous, if the two shapes or layouts disagree, if its dtype falls outside `Domain::REAL`,
+non-contiguous, if the two shapes or layouts disagree, if its dtype falls outside `Domain::Real`,
 and if the operands overlap. Throws `UnsupportedExecution` as `Dispatch::require_device_dtype` and
 `TaskRecorder::record_pair` state.
 
@@ -121,7 +121,7 @@ things:
 ### `elementwise/map_task.hpp`
 
 `MapTask` and `ZipTask` hold the dtype, the base addresses, the element count and the functor. Under
-`FORCE_REFERENCE` the body runs `Serial::map` or `Serial::zip_inplace` on the host; under any other
+`ForceReference` the body runs `Serial::map` or `Serial::zip_inplace` on the host; under any other
 mode it submits one kernel through `Launch::map` or `Launch::zip_inplace`, with the launch shape
 planned from the queue's device. Both paths call the same functor, so the host path is not a second
 implementation of the operation. `make_map_task` builds a `MapTask` from the seam's arguments.
@@ -149,7 +149,7 @@ operation's own element type and `read_as<U>(t)` one read as an array of `U`. Th
   typed for `T`.
 
 Declaring a read also retains its storage until the task is destroyed, and a device-only read is
-refused under `FORCE_REFERENCE` with the operands. A bare functor declares nothing:
+refused under `ForceReference` with the operands. A bare functor declares nothing:
 `require_declared_reads` and `declare_reads` are no-ops for it.
 
 ## `elementwise/dispatch.hpp`
@@ -164,8 +164,8 @@ follows the same rule.
 
 ### Integer operands
 
-`add`, `sub`, `mul`, `neg` and `abs` accept every dtype (`Domain::ALL`); `min`, `max` and `clamp`
-accept the real and integer dtypes (`Domain::REAL_AND_INTEGRAL`); on a floating dtype `min` and
+`add`, `sub`, `mul`, `neg` and `abs` accept every dtype (`Domain::All`); `min`, `max` and `clamp`
+accept the real and integer dtypes (`Domain::RealAndIntegral`); on a floating dtype `min` and
 `max` return NaN when either operand is NaN, as the reductions do. Division, `fmod`, `remainder`,
 `pow` and the transcendental ops refuse the integer dtypes. Integer arithmetic goes through
 `elementwise/wrapping_math.hpp`: each functor converts to the unsigned type of the same width,
@@ -240,8 +240,8 @@ free to touch any of them and this layer cannot see which. The regions come from
 which reports a precise byte interval, so two disjoint views of one arena still do not serialise
 against each other.
 
-- `Dom`: Which element types to instantiate the functor for. Defaults to Domain::REAL; pass
-  Domain::REAL_AND_COMPLEX only when `op_func` is well-formed for `std::complex` (see
+- `Dom`: Which element types to instantiate the functor for. Defaults to Domain::Real; pass
+  Domain::RealAndComplex only when `op_func` is well-formed for `std::complex` (see
   safe_math.hpp).
 - `tensors`: The tensors to advance together, in the order `op_func` expects them. None may be null;
   all must share one shape, layout and dtype.
@@ -283,8 +283,8 @@ zero and maps NaN to 0. The task metadata records the `double` as given.
 ### `execute_nonlinear_forward`
 
 The generic seam behind every `NonLinearOps` forward entry point. Like the elementwise executors it
-defaults to `Domain::REAL`; `sigmoid` and `tanh` opt into `Domain::REAL_AND_COMPLEX`. A consumer
-passes `Domain::REAL_AND_COMPLEX` only when its functor is written against the complex-tolerant
+defaults to `Domain::Real`; `sigmoid` and `tanh` opt into `Domain::RealAndComplex`. A consumer
+passes `Domain::RealAndComplex` only when its functor is written against the complex-tolerant
 `safe_*` helpers.
 
 Warning: This is a low-level generic seam. `op_func` is inlined into a SYCL device kernel: it must
@@ -363,9 +363,9 @@ which draw a task made.
 ### `Sampling` and `require_random_dtype`
 
 Every random op names the element families it serves as a `Dispatch::Domain` and says whether it
-draws new values or only moves existing ones. `Sampling::DRAWS_VALUES` refuses HALF on top of the
+draws new values or only moves existing ones. `Sampling::DrawsValues` refuses HALF on top of the
 domain: HALF has too little mantissa for the inverse-CDF and Box-Muller transforms.
-`Sampling::MOVES_VALUES` accepts every dtype of the domain; `shuffle` and `constant` use it.
+`Sampling::MovesValues` accepts every dtype of the domain; `shuffle` and `constant` use it.
 
 `require_random_dtype` throws `std::invalid_argument` with one message for all of them: the op,
 the operand `t`, its dtype and the dtypes the op accepts. The distributions call it through
@@ -400,7 +400,7 @@ value only, hold no host pointers, allocate nothing and throw nothing.
 `serial_random_fill` is the host path of the same fill: it walks the blocks in order on the
 host and writes what `draw_block` returns. `RandomFill` is the launcher a task body
 receives. It holds the task's `KernelPairDispatcher`, the queue and the dependencies, and
-`fill(n, out, draw_block)` runs `serial_random_fill` under `FORCE_REFERENCE` and
+`fill(n, out, draw_block)` runs `serial_random_fill` under `ForceReference` and
 `submit_random_fill` otherwise. A distribution writes `draw_block` once and gets both paths.
 
 ### `execute_random`
@@ -412,8 +412,8 @@ caller's functor.
 
 - `recorder`, `stream`: The recorder the task is recorded through and the stream it draws from.
   `RandomOps` passes its own two references.
-- `Dom`: The element families the distribution draws, `Domain::REAL` or
-  `Domain::REAL_AND_COMPLEX`. The task instantiates `task_func` only for the types `Dom` admits,
+- `Dom`: The element families the distribution draws, `Domain::Real` or
+  `Domain::RealAndComplex`. The task instantiates `task_func` only for the types `Dom` admits,
   so a distribution that refuses complex carries no complex branch.
 - `params`: The distribution's own parameters, recorded in metadata slots 0..n-1.
 - `task_func`: Callable `(auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,
@@ -429,7 +429,7 @@ nothing and throw nothing. Draw through `Kernels::SYCL::Random` rather than a st
 Throws `std::invalid_argument` through `require_random_dtype` for HALF, the integer dtypes and any
 dtype outside `Dom`, for a tensor without storage or not contiguous, and if `params` exceeds
 `K_MAX_RNG_PARAMS`. Throws `UnsupportedExecution` for a dtype the device of `t` cannot compute in
-and for a device-only `t` under `FORCE_REFERENCE`. All of these fire at record time and before the
+and for a device-only `t` under `ForceReference`. All of these fire at record time and before the
 offset is reserved, so a refused call does not move the stream.
 
 ## `reductions.hpp`
@@ -557,7 +557,7 @@ recorded costs nothing on any subsequent replay.
 
 The buffer is a `ScratchBuffer` leased from the recorder's `ScratchPool` on the device of the
 operand. The task holds the lease, so the block is lent for as long as the graph holds the task.
-`leased_partials` returns 0 under `FORCE_REFERENCE`, whose host fold stages nothing, so no block
+`leased_partials` returns 0 under `ForceReference`, whose host fold stages nothing, so no block
 is leased in that mode.
 
 ### `execute_reduction`
@@ -590,12 +590,12 @@ Throws `std::invalid_argument` if an operand has no storage, if `t` is not conti
 is not scalar, if the dtypes disagree, or if the dtype is one reductions do not support (HALF,
 FLOAT32 and FLOAT64 are; the complex types are not, since a reduction's operators need an ordering
 and an identity that `std::complex` does not supply). Throws `UnsupportedExecution` for a dtype a
-tensor's device cannot compute in and for a device-only tensor under `FORCE_REFERENCE`; the
+tensor's device cannot compute in and for a device-only tensor under `ForceReference`; the
 refusal comes before the scratch is leased.
 
 ### `Detail::ReductionTask`
 
-The task body of the three whole-tensor executors. Under `FORCE_REFERENCE` it calls
+The task body of the three whole-tensor executors. Under `ForceReference` it calls
 `dispatch.reference(in, out, size)` on the host; otherwise it calls the SYCL path with
 the leased scratch. `has_reference_path` is the trait its `static_assert` tests.
 
@@ -647,7 +647,7 @@ Throws `std::invalid_argument` if `t` is empty, if `result` is not a scalar, if 
 if the input dtype is one an ordering is not defined on (the complex types). Throws
 `UnsupportedExecution` as `execute_reduction` does.
 
-`execute_index_reduction` dispatches over `Domain::REAL_AND_INTEGRAL`: "which element is largest"
+`execute_index_reduction` dispatches over `Domain::RealAndIntegral`: "which element is largest"
 needs an ordering, which the complex types do not have and the integer types do.
 
 ### `execute_counting_reduction`
@@ -683,13 +683,13 @@ Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engi
 Warning: Same device-kernel constraints as `execute_reduction`.
 
 Throws `std::invalid_argument` if `result` is not a scalar, if it is not INT64, or if the input dtype
-is outside `Domain::REAL`. Throws `UnsupportedExecution` as `execute_reduction` does.
+is outside `Domain::Real`. Throws `UnsupportedExecution` as `execute_reduction` does.
 
 At `operands.reads(t).writes(result);`: `Tensor::region()`,
 never the bare `data()` pointer: the reason is spelled out at length under `execute_reduction`, and
 it is the same reason here.
 
-At `with_element_type<Domain::REAL>(t.dtype, "Reduction", name,`: REAL only. An integer or complex
+At `with_element_type<Domain::Real>(t.dtype, "Reduction", name,`: REAL only. An integer or complex
 tensor is rejected by name rather than answered with the zero that would technically be true of the
 integer case: this is a screen for floating-point overflow, so a caller handing it a dtype that
 cannot overflow has confused two tensors, and a confident "0 bad elements" is the worst possible
@@ -851,7 +851,7 @@ was actually routed to: the same reason Reduce::plan is asked inside the kernel 
 at record time. Nothing is sized from it, so unlike the whole-tensor seam there is no scratch
 capacity to clamp against.
 
-`execute_folding_span_reduction` dispatches over `Domain::REAL` only, matching `execute_reduction`:
+`execute_folding_span_reduction` dispatches over `Domain::Real` only, matching `execute_reduction`:
 a fold needs an ordering and an identity, which `std::complex` does not supply, and an integer
 tensor is not an arithmetic type in this library (see `Dispatch::Domain`).
 
@@ -876,7 +876,7 @@ instantiated once per dtype the executor's Domain admits. A body written as `syc
 for HALF/FLOAT32/FLOAT64 and a hard compile error for `std::complex`, because the SYCL math builtins
 only accept device scalar types. Writing `safe_exp(x)` instead picks `sycl::exp` for real scalars
 and the complex overload for complex ones by overload resolution, so one functor covers
-Domain::REAL_AND_COMPLEX without any `if constexpr` at the call site.
+Domain::RealAndComplex without any `if constexpr` at the call site.
 
 The complex overloads of `safe_exp`, `safe_tanh`, `safe_log`, `safe_sqrt`, `safe_erf` and
 `safe_abs` compute on the real and imaginary parts with `sycl::` real math only. They never call
@@ -887,7 +887,7 @@ imaginary part unchanged, sign included, when the input's imaginary part is zero
 Only operations with an unambiguous complex meaning appear here. There is deliberately no `safe_max`
 / `safe_floor` / `safe_clamp`: those need a total order on the element type, complex numbers do not
 have one, and inventing a lexicographic stand-in would be a silently-wrong answer rather than a
-missing feature. Ops built on them declare Domain::REAL and throw for complex inputs.
+missing feature. Ops built on them declare Domain::Real and throw for complex inputs.
 
 Lived in src/engine/math/nonlinear/nonlinear_internal.hpp before the dispatch seam went public;
 hoisted here so the elementwise and nonlinear families share one definition instead of growing a

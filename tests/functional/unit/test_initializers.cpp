@@ -21,7 +21,7 @@
 
 /**
  * @file test_initializers.cpp
- * @brief Tests the Xavier and He initializers of random().
+ * @brief Tests the Xavier and He initializers of RandomOps.
  * @author Mustafa Garip
  */
 

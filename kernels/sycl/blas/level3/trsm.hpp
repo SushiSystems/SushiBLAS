@@ -337,7 +337,7 @@ namespace SushiBLAS
                                            Accumulator<T>* work,
                                            const std::vector<sycl::event>& deps)
             {
-                const bool left = (side == Core::Side::LEFT);
+                const bool left = (side == Core::Side::Left);
                 const TriangularSolvePlan plan = plan_triangular_solve(
                     Device::profile_for(queue), left ? m : n, batch_size * (left ? n : m));
 

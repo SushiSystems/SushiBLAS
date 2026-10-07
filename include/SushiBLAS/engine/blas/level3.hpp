@@ -48,8 +48,8 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
             TaskHandle gemm(const Tensor& A, const Tensor& B, Tensor& C,
-                            Core::Transpose transA = Core::Transpose::NO_TRANS,
-                            Core::Transpose transB = Core::Transpose::NO_TRANS,
+                            Core::Transpose transA = Core::Transpose::NoTrans,
+                            Core::Transpose transB = Core::Transpose::NoTrans,
                             BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
 
             /**
@@ -82,8 +82,8 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
             TaskHandle trsm(const Tensor& A, Tensor& B, Core::Side side, Core::Uplo uplo,
-                            Core::Transpose trans = Core::Transpose::NO_TRANS,
-                            Core::Diag diag = Core::Diag::NON_UNIT, BlasScalar alpha = 1.0);
+                            Core::Transpose trans = Core::Transpose::NoTrans,
+                            Core::Diag diag = Core::Diag::NonUnit, BlasScalar alpha = 1.0);
 
             /**
              * @brief Records the symmetric rank-k update C = alpha * op(A) * op(A)^T + beta * C.
@@ -92,7 +92,7 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
             TaskHandle syrk(const Tensor& A, Tensor& C, Core::Uplo uplo,
-                            Core::Transpose trans = Core::Transpose::NO_TRANS,
+                            Core::Transpose trans = Core::Transpose::NoTrans,
                             BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
 
             /**
@@ -102,7 +102,7 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand or a flag the call does not accept.
              */
             TaskHandle herk(const Tensor& A, Tensor& C, Core::Uplo uplo,
-                            Core::Transpose trans = Core::Transpose::NO_TRANS,
+                            Core::Transpose trans = Core::Transpose::NoTrans,
                             double alpha = 1.0, double beta = 0.0);
 
             /**
@@ -113,7 +113,7 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
             TaskHandle syr2k(const Tensor& A, const Tensor& B, Tensor& C, Core::Uplo uplo,
-                             Core::Transpose trans = Core::Transpose::NO_TRANS,
+                             Core::Transpose trans = Core::Transpose::NoTrans,
                              BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
 
             /**
@@ -124,7 +124,7 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
             TaskHandle her2k(const Tensor& A, const Tensor& B, Tensor& C, Core::Uplo uplo,
-                             Core::Transpose trans = Core::Transpose::NO_TRANS,
+                             Core::Transpose trans = Core::Transpose::NoTrans,
                              BlasScalar alpha = 1.0, double beta = 0.0);
 
         protected:

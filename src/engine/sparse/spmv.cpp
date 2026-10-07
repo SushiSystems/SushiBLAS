@@ -148,7 +148,7 @@ namespace SushiBLAS
         Dispatch::require_vector_length(vy, transposed ? a.cols : a.rows, "the rows of op(A)",
                                         K_OP, "y");
 
-        if (A.row_offsets.dtype == Core::DataType::INT32)
+        if (A.row_offsets.dtype == Core::DataType::Int32)
             return record_spmv<int32_t>(recorder_, A, a, x, vx.increment, y, vy.increment, trans,
                                         alpha, beta);
         return record_spmv<int64_t>(recorder_, A, a, x, vx.increment, y, vy.increment, trans, alpha,

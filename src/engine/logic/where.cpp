@@ -35,7 +35,7 @@ namespace SushiBLAS
 
     TaskHandle LogicOps::where(const Tensor& condition, const Tensor& A, const Tensor& B, Tensor& out) 
     {
-        return Dispatch::execute_logic_ternary<Dispatch::Domain::ALL>(recorder_, condition, A, B, out, "logic.where", "logic.where"_op, 
+        return Dispatch::execute_logic_ternary<Dispatch::Domain::All>(recorder_, condition, A, B, out, "logic.where", "logic.where"_op, 
             [](auto c, auto a, auto b) { return Dispatch::logic_not_zero(c) ? a : b; });
     }
 } // namespace SushiBLAS

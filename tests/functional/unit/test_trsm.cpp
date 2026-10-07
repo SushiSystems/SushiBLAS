@@ -21,7 +21,7 @@
 
 /**
  * @file test_trsm.cpp
- * @brief Tests blas().trsm in row-major and column-major layouts.
+ * @brief Tests BLASOps::trsm in row-major and column-major layouts.
  * @author Mustafa Garip
  */
 
@@ -50,10 +50,10 @@ TEST_F(Unit_TRSMTest, SimpleTRSM)
     fill_tensor(B, {4, 6, 4, 7});
 
     SB_LOG_INFO("Submitting standard TRSM.");
-    SushiBLAS::BLASOps(*engine).trsm(A, B, SushiBLAS::Core::Side::LEFT,
-                                     SushiBLAS::Core::Uplo::LOWER,
-                                     SushiBLAS::Core::Transpose::NO_TRANS,
-                                     SushiBLAS::Core::Diag::NON_UNIT, 1.0f);
+    SushiBLAS::BLASOps(*engine).trsm(A, B, SushiBLAS::Core::Side::Left,
+                                     SushiBLAS::Core::Uplo::Lower,
+                                     SushiBLAS::Core::Transpose::NoTrans,
+                                     SushiBLAS::Core::Diag::NonUnit, 1.0f);
     
     engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
@@ -64,7 +64,7 @@ TEST_F(Unit_TRSMTest, SimpleTRSM)
 
 TEST_F(Unit_TRSMTest, SimpleTRSMColumnMajor) 
 {
-    reinit_engine(SushiBLAS::Core::Layout::COLUMN_MAJOR);
+    reinit_engine(SushiBLAS::Core::Layout::ColumnMajor);
     
     const int M = 2, N = 2;
     auto A = engine->create_tensor({M, M});
@@ -77,10 +77,10 @@ TEST_F(Unit_TRSMTest, SimpleTRSMColumnMajor)
     fill_tensor(B, {4, 4, 6, 7});
 
     SB_LOG_INFO("Submitting Column-Major TRSM.");
-    SushiBLAS::BLASOps(*engine).trsm(A, B, SushiBLAS::Core::Side::LEFT,
-                                     SushiBLAS::Core::Uplo::UPPER,
-                                     SushiBLAS::Core::Transpose::NO_TRANS,
-                                     SushiBLAS::Core::Diag::NON_UNIT, 1.0f);
+    SushiBLAS::BLASOps(*engine).trsm(A, B, SushiBLAS::Core::Side::Left,
+                                     SushiBLAS::Core::Uplo::Upper,
+                                     SushiBLAS::Core::Transpose::NoTrans,
+                                     SushiBLAS::Core::Diag::NonUnit, 1.0f);
     
     engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");

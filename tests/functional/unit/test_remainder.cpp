@@ -21,7 +21,7 @@
 
 /**
  * @file test_remainder.cpp
- * @brief Tests elementwise().remainder against fixed expected values.
+ * @brief Tests ElementwiseOps::remainder against fixed expected values.
  * @author Mustafa Garip
  */
 

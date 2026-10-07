@@ -21,7 +21,7 @@
 
 /**
  * @file test_less_equal.cpp
- * @brief Tests logic().less_equal against fixed expected values.
+ * @brief Tests LogicOps::less_equal against fixed expected values.
  * @author Mustafa Garip
  */
 

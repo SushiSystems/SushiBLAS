@@ -82,7 +82,7 @@ namespace SushiBLAS
                 void SetUp() override
                 {
                     SushiBLASTest::SetUp();
-                    engine->set_mode(ExecutionMode::FORCE_SYCL);
+                    engine->set_mode(ExecutionMode::ForceSycl);
                 }
 
                 /** @brief Returns a FLOAT32 tensor holding @p host. */
@@ -220,7 +220,7 @@ namespace SushiBLAS
                 const int64_t expected = serial_iamax(hx);
 
                 auto x = upload(hx);
-                auto r = engine->create_tensor({1}, Core::DataType::INT64);
+                auto r = engine->create_tensor({1}, Core::DataType::Int64);
                 SushiBLAS::BLASOps(*engine).iamax(x, r);
                 engine->execute();
 
@@ -284,7 +284,7 @@ namespace SushiBLAS
             hx[higher] = 9.0f;
 
             auto x = upload(hx);
-            auto r = engine->create_tensor({1}, Core::DataType::INT64);
+            auto r = engine->create_tensor({1}, Core::DataType::Int64);
             SushiBLAS::BLASOps(*engine).iamax(x, r);
             engine->execute();
 
@@ -303,7 +303,7 @@ namespace SushiBLAS
 
             const std::vector<sycl::half> host = {sycl::half(K_HALF_ELEMENT), sycl::half(K_HALF_ELEMENT)};
             auto t = create_initialized_tensor<sycl::half>({2}, host);
-            auto r = engine->create_tensor({1}, Core::DataType::HALF);
+            auto r = engine->create_tensor({1}, Core::DataType::Half);
 
             SushiBLAS::ReductionOps(*engine).mean(t, r);
             engine->execute();
@@ -321,7 +321,7 @@ namespace SushiBLAS
 
             const std::vector<sycl::half> host = {sycl::half(K_HALF_ELEMENT), sycl::half(K_HALF_ELEMENT)};
             auto t = create_initialized_tensor<sycl::half>({2}, host);
-            auto r = engine->create_tensor({1}, Core::DataType::HALF);
+            auto r = engine->create_tensor({1}, Core::DataType::Half);
 
             SushiBLAS::ReductionOps(*engine).sum(t, r);
             engine->execute();

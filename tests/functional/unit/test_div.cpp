@@ -21,7 +21,7 @@
 
 /**
  * @file test_div.cpp
- * @brief Tests elementwise().div against fixed expected values.
+ * @brief Tests ElementwiseOps::div against fixed expected values.
  * @author Mustafa Garip
  */
 

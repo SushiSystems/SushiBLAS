@@ -52,13 +52,13 @@ namespace SushiBLAS
          */
         enum class Domain : uint8_t
         {
-            REAL              = 1u << 0,  /**< HALF, FLOAT32, FLOAT64. */
-            COMPLEX           = 1u << 1,  /**< COMPLEX32, COMPLEX64. */
-            INTEGRAL          = 1u << 2,  /**< INT32, INT64. */
+            Real              = 1u << 0,  /**< HALF, FLOAT32, FLOAT64. */
+            Complex           = 1u << 1,  /**< COMPLEX32, COMPLEX64. */
+            Integral          = 1u << 2,  /**< INT32, INT64. */
 
-            REAL_AND_COMPLEX  = REAL | COMPLEX,   /**< Everything but the integers. */
-            REAL_AND_INTEGRAL = REAL | INTEGRAL,  /**< Everything an ordering is defined on. */
-            ALL               = REAL | COMPLEX | INTEGRAL /**< Every element type. */
+            RealAndComplex  = Real | Complex,   /**< Everything but the integers. */
+            RealAndIntegral = Real | Integral,  /**< Everything an ordering is defined on. */
+            All               = Real | Complex | Integral /**< Every element type. */
         };
 
         /**
@@ -78,9 +78,9 @@ namespace SushiBLAS
          */
         [[nodiscard]] inline constexpr Domain domain_of(Core::DataType dtype) noexcept
         {
-            if (Core::is_complex_dtype(dtype)) return Domain::COMPLEX;
-            if (Core::is_integer_dtype(dtype)) return Domain::INTEGRAL;
-            return Domain::REAL;
+            if (Core::is_complex_dtype(dtype)) return Domain::Complex;
+            if (Core::is_integer_dtype(dtype)) return Domain::Integral;
+            return Domain::Real;
         }
 
         /**
@@ -200,26 +200,26 @@ namespace SushiBLAS
 
             switch (dtype)
             {
-                case Core::DataType::HALF:
-                    served = Detail::run_arm_if_admitted<Dom, Domain::REAL, sycl::half>(arm);
+                case Core::DataType::Half:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::Real, sycl::half>(arm);
                     break;
-                case Core::DataType::FLOAT32:
-                    served = Detail::run_arm_if_admitted<Dom, Domain::REAL, float>(arm);
+                case Core::DataType::Float32:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::Real, float>(arm);
                     break;
-                case Core::DataType::FLOAT64:
-                    served = Detail::run_arm_if_admitted<Dom, Domain::REAL, double>(arm);
+                case Core::DataType::Float64:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::Real, double>(arm);
                     break;
-                case Core::DataType::COMPLEX32:
-                    served = Detail::run_arm_if_admitted<Dom, Domain::COMPLEX, std::complex<float>>(arm);
+                case Core::DataType::Complex32:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::Complex, std::complex<float>>(arm);
                     break;
-                case Core::DataType::COMPLEX64:
-                    served = Detail::run_arm_if_admitted<Dom, Domain::COMPLEX, std::complex<double>>(arm);
+                case Core::DataType::Complex64:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::Complex, std::complex<double>>(arm);
                     break;
-                case Core::DataType::INT32:
-                    served = Detail::run_arm_if_admitted<Dom, Domain::INTEGRAL, int32_t>(arm);
+                case Core::DataType::Int32:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::Integral, int32_t>(arm);
                     break;
-                case Core::DataType::INT64:
-                    served = Detail::run_arm_if_admitted<Dom, Domain::INTEGRAL, int64_t>(arm);
+                case Core::DataType::Int64:
+                    served = Detail::run_arm_if_admitted<Dom, Domain::Integral, int64_t>(arm);
                     break;
             }
 

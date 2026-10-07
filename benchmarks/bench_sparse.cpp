@@ -167,32 +167,32 @@ namespace
                         product_bytes, gb);
         table.print_row("spmv_t", dtype, n,
                         Bench::measure(
-                            engine, [&]() { SparseOps(engine).spmv(A, x, y, Transpose::TRANS); }),
+                            engine, [&]() { SparseOps(engine).spmv(A, x, y, Transpose::Trans); }),
                         product_bytes, gb);
         table.print_row("spmv_at", dtype, n,
                         Bench::measure(engine, [&]() { SparseOps(engine).spmv(At, x, y); }),
                         product_bytes, gb);
         table.print_row("spsymv", dtype, n,
                         Bench::measure(
-                            engine, [&]() { SparseOps(engine).spsymv(L, x, y, Uplo::LOWER); }),
+                            engine, [&]() { SparseOps(engine).spsymv(L, x, y, Uplo::Lower); }),
                         solve_bytes, gb);
         table.print_row("spmm", dtype, n,
                         Bench::measure(engine, [&]() { SparseOps(engine).spmm(A, B, C); }),
                         dense_bytes, gb);
         table.print_row("spmm_t", dtype, n,
                         Bench::measure(
-                            engine, [&]() { SparseOps(engine).spmm(A, B, C, Transpose::TRANS); }),
+                            engine, [&]() { SparseOps(engine).spmm(A, B, C, Transpose::Trans); }),
                         dense_bytes, gb);
         table.print_row("sptrsv", dtype, n,
                         Bench::measure(engine,
-                                       [&]() { SparseOps(engine).sptrsv(L, y, Uplo::LOWER); }),
+                                       [&]() { SparseOps(engine).sptrsv(L, y, Uplo::Lower); }),
                         solve_bytes, gb);
         table.print_row("sptrsv_t", dtype, n,
                         Bench::measure(engine,
                                        [&]()
                                        {
-                                           SparseOps(engine).sptrsv(L, y, Uplo::LOWER,
-                                                                    Transpose::TRANS);
+                                           SparseOps(engine).sptrsv(L, y, Uplo::Lower,
+                                                                    Transpose::Trans);
                                        }),
                         solve_bytes, gb);
         table.print_row("axpyi", dtype, n,
@@ -214,9 +214,9 @@ namespace
 
         const Bench::ResultTable table("GB/s");
         for (const int64_t n : sizes)
-            bench_order<float>(engine, table, DataType::FLOAT32, n);
+            bench_order<float>(engine, table, DataType::Float32, n);
         for (const int64_t n : sizes)
-            bench_order<double>(engine, table, DataType::FLOAT64, n);
+            bench_order<double>(engine, table, DataType::Float64, n);
     }
 } // namespace
 

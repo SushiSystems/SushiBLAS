@@ -21,7 +21,7 @@
 
 /**
  * @file test_where.cpp
- * @brief Tests logic().where against fixed expected values.
+ * @brief Tests LogicOps::where against fixed expected values.
  * @author Mustafa Garip
  */
 

@@ -1,0 +1,95 @@
+kind	old_name	new_name	declaring_file	occurrences	document_occurrences	status	reason
+constant	ACTIVE_LOG_LEVEL	K_ACTIVE_LOG_LEVEL	include/SushiBLAS/core/logger.hpp	4	0	rename	
+constant	IM2COL_NAME	K_IM2COL_NAME	src/engine/spatial/im2col.cpp	11	0	rename	
+constant	MAX_TENSOR_RANK	K_MAX_TENSOR_RANK	include/SushiBLAS/core/common.hpp	32	2	rename	
+constant	N	K_N	tests/functional/unit/test_shuffle.cpp	14	0	rename	
+constant	block_m	K_BLOCK_M	include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp; kernels/sycl/blas/level3/syr2k.hpp; kernels/sycl/blas/level3/syrk.hpp	14	0	rename	
+constant	block_n	K_BLOCK_N	include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp; kernels/sycl/blas/level3/syr2k.hpp; kernels/sycl/blas/level3/syrk.hpp	17	0	rename	
+constant	is_complex_v	is_complex_v	include/SushiBLAS/core/traits.hpp	0	0	excluded	a trait variable template keeps its type-like name
+constant	is_real_scalar_v	is_real_scalar_v	include/SushiBLAS/engine/math/reductions/dispatch.hpp	0	0	excluded	a trait variable template keeps its type-like name
+constant	item_cols	K_ITEM_COLS	include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp; kernels/sycl/blas/level3/syr2k.hpp; kernels/sycl/blas/level3/syrk.hpp	24	0	rename	
+constant	item_rows	K_ITEM_ROWS	include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp; kernels/sycl/blas/level3/syr2k.hpp; kernels/sycl/blas/level3/syrk.hpp	27	0	rename	
+constant	kColMax	K_COL_MAX	tests/functional/unit/test_axis_reductions.cpp	2	0	rename	
+constant	kColMin	K_COL_MIN	tests/functional/unit/test_axis_reductions.cpp	2	0	rename	
+constant	kColSum	K_COL_SUM	tests/functional/unit/test_axis_reductions.cpp	3	0	rename	
+constant	kColumnMajor	K_COLUMN_MAJOR	tests/functional/unit/test_axis_reductions.cpp	2	0	rename	
+constant	kHalfMax	K_HALF_MAX	tests/functional/unit/test_convert.cpp	3	0	rename	
+constant	kLarge	K_LARGE	tests/functional/unit/test_count_nonfinite.cpp; tests/functional/unit/test_reduction_determinism.cpp	19	0	rename	
+constant	kMomentRuns	K_MOMENT_RUNS	tests/functional/unit/test_reduction_determinism.cpp	4	0	rename	
+constant	kMoments	K_MOMENTS	tests/functional/unit/test_reduction_determinism.cpp	5	0	rename	
+constant	kPad	K_PAD	tests/functional/unit/test_storage_offset.cpp	6	0	rename	
+constant	kPoisonByte	K_POISON_BYTE	tests/functional/unit/test_storage_offset.cpp	3	0	rename	
+constant	kRealDTypes	K_REAL_DTYPES	tests/functional/unit/test_convert.cpp	3	0	rename	
+constant	kRowMajor	K_ROW_MAJOR	tests/functional/unit/test_axis_reductions.cpp	7	0	rename	
+constant	kRowMax	K_ROW_MAX	tests/functional/unit/test_axis_reductions.cpp	4	0	rename	
+constant	kRowMin	K_ROW_MIN	tests/functional/unit/test_axis_reductions.cpp	2	0	rename	
+constant	kRowSum	K_ROW_SUM	tests/functional/unit/test_axis_reductions.cpp	2	0	rename	
+constant	kSmall	K_SMALL	tests/functional/unit/test_count_nonfinite.cpp; tests/functional/unit/test_reduction_determinism.cpp	15	0	rename	
+constant	kTenthAsHalf	K_TENTH_AS_HALF	tests/functional/unit/test_convert.cpp	3	0	rename	
+constant	kTinyAsHalf	K_TINY_AS_HALF	tests/functional/unit/test_convert.cpp	2	0	rename	
+constant	tile_a_ld	K_TILE_A_LD	include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp	5	0	rename	
+constant	tile_k	K_TILE_K	include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp; kernels/sycl/blas/level3/syr2k.hpp; kernels/sycl/blas/level3/syrk.hpp	19	0	rename	
+constant	value	value	include/SushiBLAS/engine/math/reductions/dispatch.hpp	0	0	excluded	the member name the standard trait protocol reads
+constant	wg_cols	K_WG_COLS	include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp; kernels/sycl/blas/level3/syr2k.hpp; kernels/sycl/blas/level3/syrk.hpp	16	0	rename	
+constant	wg_items	K_WG_ITEMS	include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp; kernels/sycl/blas/level3/syr2k.hpp; kernels/sycl/blas/level3/syrk.hpp	12	0	rename	
+constant	wg_rows	K_WG_ROWS	include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp; kernels/sycl/blas/level3/syr2k.hpp; kernels/sycl/blas/level3/syrk.hpp	15	0	rename	
+enumerator	BackwardOrder::ASCENDING	BackwardOrder::Ascending	tests/functional/unit/test_blas_half_accumulation.cpp	2	0	rename	
+enumerator	BackwardOrder::DESCENDING	BackwardOrder::Descending	tests/functional/unit/test_blas_half_accumulation.cpp	4	0	rename	
+enumerator	DataType::COMPLEX32	DataType::Complex32	include/SushiBLAS/core/common.hpp	79	0	rename	
+enumerator	DataType::COMPLEX64	DataType::Complex64	include/SushiBLAS/core/common.hpp	32	4	rename	
+enumerator	DataType::FLOAT32	DataType::Float32	include/SushiBLAS/core/common.hpp	373	0	rename	
+enumerator	DataType::FLOAT64	DataType::Float64	include/SushiBLAS/core/common.hpp	87	0	rename	
+enumerator	DataType::HALF	DataType::Half	include/SushiBLAS/core/common.hpp	77	0	rename	
+enumerator	DataType::INT32	DataType::Int32	include/SushiBLAS/core/common.hpp	86	0	rename	
+enumerator	DataType::INT64	DataType::Int64	include/SushiBLAS/core/common.hpp	106	0	rename	
+enumerator	Diag::NON_UNIT	Diag::NonUnit	include/SushiBLAS/core/blas_types.hpp	66	1	rename	
+enumerator	Diag::UNIT	Diag::Unit	include/SushiBLAS/core/blas_types.hpp	45	0	rename	
+enumerator	Domain::ALL	Domain::All	include/SushiBLAS/engine/dispatch.hpp	20	9	rename	
+enumerator	Domain::COMPLEX	Domain::Complex	include/SushiBLAS/engine/dispatch.hpp	8	0	rename	
+enumerator	Domain::INTEGRAL	Domain::Integral	include/SushiBLAS/engine/dispatch.hpp	8	0	rename	
+enumerator	Domain::REAL	Domain::Real	include/SushiBLAS/engine/dispatch.hpp	54	26	rename	
+enumerator	Domain::REAL_AND_COMPLEX	Domain::RealAndComplex	include/SushiBLAS/engine/dispatch.hpp	19	7	rename	
+enumerator	Domain::REAL_AND_INTEGRAL	Domain::RealAndIntegral	include/SushiBLAS/engine/dispatch.hpp	15	5	rename	
+enumerator	ExecutionMode::AUTO	ExecutionMode::Auto	include/SushiBLAS/engine/execution_mode.hpp	9	0	rename	
+enumerator	ExecutionMode::FORCE_REFERENCE	ExecutionMode::ForceReference	include/SushiBLAS/engine/execution_mode.hpp	113	6	rename	
+enumerator	ExecutionMode::FORCE_SYCL	ExecutionMode::ForceSycl	include/SushiBLAS/engine/execution_mode.hpp	110	3	rename	
+enumerator	IndexBase::ONE	IndexBase::One	include/SushiBLAS/core/sparse_types.hpp	16	0	rename	
+enumerator	IndexBase::ZERO	IndexBase::Zero	include/SushiBLAS/core/sparse_types.hpp	66	0	rename	
+enumerator	Layout::COLUMN_MAJOR	Layout::ColumnMajor	include/SushiBLAS/core/common.hpp	117	0	rename	
+enumerator	Layout::ROW_MAJOR	Layout::RowMajor	include/SushiBLAS/core/common.hpp	167	1	rename	
+enumerator	LogType::DEBUG	LogType::Debug	include/SushiBLAS/core/logger.hpp	2	0	rename	
+enumerator	LogType::ERR	LogType::Err	include/SushiBLAS/core/logger.hpp	8	0	rename	
+enumerator	LogType::INFO	LogType::Info	include/SushiBLAS/core/logger.hpp	2	0	rename	
+enumerator	LogType::OFF	LogType::Off	include/SushiBLAS/core/logger.hpp	2	0	rename	
+enumerator	LogType::WARN	LogType::Warn	include/SushiBLAS/core/logger.hpp	2	0	rename	
+enumerator	Mirror::HERMITIAN	Mirror::Hermitian	tests/functional/unit/test_sparse_spsymv.cpp	6	0	rename	
+enumerator	Mirror::SYMMETRIC	Mirror::Symmetric	tests/functional/unit/test_sparse_spsymv.cpp	12	0	rename	
+enumerator	Outcome::INVALID_ARGUMENT	Outcome::InvalidArgument	tests/functional/unit/test_unsupported_execution.cpp	7	0	rename	
+enumerator	Outcome::RETURNED	Outcome::Returned	tests/functional/unit/test_unsupported_execution.cpp	4	0	rename	
+enumerator	Outcome::UNSUPPORTED_EXECUTION	Outcome::UnsupportedExecution	tests/functional/unit/test_unsupported_execution.cpp	6	0	rename	
+enumerator	PanelLines::COLUMNS	PanelLines::Columns	include/SushiBLAS/kernels/sycl/blas/level3/packed_panel.hpp	8	0	rename	
+enumerator	PanelLines::ROWS	PanelLines::Rows	include/SushiBLAS/kernels/sycl/blas/level3/packed_panel.hpp	18	0	rename	
+enumerator	RebuildValue::INVERSE_COSINE	RebuildValue::InverseCosine	tests/functional/unit/test_givens.cpp; tests/functional/unit/test_rotg.cpp	9	0	rename	
+enumerator	RebuildValue::ONE	RebuildValue::One	tests/functional/unit/test_givens.cpp; tests/functional/unit/test_rotg.cpp	6	0	rename	
+enumerator	RebuildValue::SINE	RebuildValue::Sine	tests/functional/unit/test_givens.cpp; tests/functional/unit/test_rotg.cpp	8	0	rename	
+enumerator	RebuildValue::ZERO	RebuildValue::Zero	tests/functional/unit/test_givens.cpp; tests/functional/unit/test_rotg.cpp	8	0	rename	
+enumerator	Routine::HEMM	Routine::Hemm	tests/functional/unit/test_packed_symm.cpp; tests/functional/unit/test_symm.cpp	9	0	rename	
+enumerator	Routine::SYMM	Routine::Symm	tests/functional/unit/test_packed_symm.cpp; tests/functional/unit/test_symm.cpp	6	0	rename	
+enumerator	Sampling::DRAWS_VALUES	Sampling::DrawsValues	include/SushiBLAS/engine/math/random/dispatch.hpp	5	1	rename	
+enumerator	Sampling::MOVES_VALUES	Sampling::MovesValues	include/SushiBLAS/engine/math/random/dispatch.hpp	3	1	rename	
+enumerator	Scheme::GENERAL_BAND	Scheme::GeneralBand	tests/functional/unit/test_blas_structured_validation.cpp	5	0	rename	
+enumerator	Scheme::PACKED	Scheme::Packed	tests/functional/unit/test_blas_structured_validation.cpp	11	0	rename	
+enumerator	Scheme::TRIANGLE_BAND	Scheme::TriangleBand	tests/functional/unit/test_blas_structured_validation.cpp	5	0	rename	
+enumerator	Side::LEFT	Side::Left	include/SushiBLAS/core/blas_types.hpp	69	1	rename	
+enumerator	Side::RIGHT	Side::Right	include/SushiBLAS/core/blas_types.hpp	20	0	rename	
+enumerator	StructureDefect::DECREASING_OFFSET	StructureDefect::DecreasingOffset	kernels/reference/sparse/structure.hpp	3	0	rename	
+enumerator	StructureDefect::FIRST_OFFSET	StructureDefect::FirstOffset	kernels/reference/sparse/structure.hpp	3	0	rename	
+enumerator	StructureDefect::INDEX_OUT_OF_RANGE	StructureDefect::IndexOutOfRange	kernels/reference/sparse/structure.hpp	7	0	rename	
+enumerator	StructureDefect::LAST_OFFSET	StructureDefect::LastOffset	kernels/reference/sparse/structure.hpp	3	0	rename	
+enumerator	StructureDefect::NONE	StructureDefect::None	kernels/reference/sparse/structure.hpp	21	0	rename	
+enumerator	StructureDefect::REPEATED_INDEX	StructureDefect::RepeatedIndex	kernels/reference/sparse/structure.hpp	3	0	rename	
+enumerator	Transpose::CONJ_TRANS	Transpose::ConjTrans	include/SushiBLAS/core/blas_types.hpp	63	1	rename	
+enumerator	Transpose::NO_TRANS	Transpose::NoTrans	include/SushiBLAS/core/blas_types.hpp	268	7	rename	
+enumerator	Transpose::TRANS	Transpose::Trans	include/SushiBLAS/core/blas_types.hpp	101	2	rename	
+enumerator	Uplo::LOWER	Uplo::Lower	include/SushiBLAS/core/blas_types.hpp	161	2	rename	
+enumerator	Uplo::UPPER	Uplo::Upper	include/SushiBLAS/core/blas_types.hpp	184	2	rename	

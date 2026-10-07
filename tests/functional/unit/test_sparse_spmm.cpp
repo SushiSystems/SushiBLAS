@@ -70,11 +70,11 @@ namespace SushiBLAS
 
             /// @brief The three values of Core::Transpose.
             constexpr Core::Transpose K_EVERY_TRANSPOSE[3] = {
-                Core::Transpose::NO_TRANS, Core::Transpose::TRANS, Core::Transpose::CONJ_TRANS};
+                Core::Transpose::NoTrans, Core::Transpose::Trans, Core::Transpose::ConjTrans};
 
             /// @brief The two layouts a dense operand is stored in.
-            constexpr Core::Layout K_BOTH_LAYOUTS[2] = {Core::Layout::ROW_MAJOR,
-                                                        Core::Layout::COLUMN_MAJOR};
+            constexpr Core::Layout K_BOTH_LAYOUTS[2] = {Core::Layout::RowMajor,
+                                                        Core::Layout::ColumnMajor};
 
             /** @brief Returns count columns of rows elements, every one holding value. */
             [[nodiscard]] Columns filled(std::size_t rows, std::size_t count,
@@ -125,7 +125,7 @@ namespace SushiBLAS
                 {
                     const std::size_t rows = columns.front().size();
                     const std::size_t count = columns.size();
-                    const bool row_major = engine->get_layout() == Core::Layout::ROW_MAJOR;
+                    const bool row_major = engine->get_layout() == Core::Layout::RowMajor;
 
                     std::vector<T> host(rows * count);
                     for (std::size_t r = 0; r < count; ++r)
@@ -143,7 +143,7 @@ namespace SushiBLAS
                 {
                     const std::size_t rows = static_cast<std::size_t>(matrix.shape[0]);
                     const std::size_t count = static_cast<std::size_t>(matrix.shape[1]);
-                    const bool row_major = matrix.layout == Core::Layout::ROW_MAJOR;
+                    const bool row_major = matrix.layout == Core::Layout::RowMajor;
                     const std::vector<T> host = read_tensor<T>(matrix);
 
                     std::vector<std::vector<T>> columns(count, std::vector<T>(rows));
@@ -199,7 +199,7 @@ namespace SushiBLAS
                 {
                     for (const Core::Layout layout : K_BOTH_LAYOUTS)
                     {
-                        SCOPED_TRACE(layout == Core::Layout::ROW_MAJOR ? "row-major"
+                        SCOPED_TRACE(layout == Core::Layout::RowMajor ? "row-major"
                                                                        : "column-major");
                         reinit_engine(layout);
                         for (const ExecutionMode mode : K_BOTH_MODES)
@@ -268,7 +268,7 @@ namespace SushiBLAS
             const HostTriplets<T> host = sample_matrix<T>();
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> zero(0.0, 0.0);
-            const Core::IndexBase base = Core::IndexBase::ZERO;
+            const Core::IndexBase base = Core::IndexBase::Zero;
 
             // Column 0 of B selects row 0 of A: 1 + 2i in column 0 and 2 - i in column 3.
             Columns b = filled(4, 2, zero);
@@ -278,19 +278,19 @@ namespace SushiBLAS
 
             if (Core::is_complex_v<T>)
             {
-                this->expect_columns(host, base, Core::Transpose::TRANS, one, b, zero, c,
+                this->expect_columns(host, base, Core::Transpose::Trans, one, b, zero, c,
                                      {{{-1.0, 3.0}, zero, zero, {3.0, 1.0}, zero}, untouched},
                                      K_SAMPLE_TOLERANCE);
-                this->expect_columns(host, base, Core::Transpose::CONJ_TRANS, one, b, zero, c,
+                this->expect_columns(host, base, Core::Transpose::ConjTrans, one, b, zero, c,
                                      {{{3.0, -1.0}, zero, zero, {1.0, 3.0}, zero}, untouched},
                                      K_SAMPLE_TOLERANCE);
             }
             else
             {
                 const Columns real_product = {{one, zero, zero, {2.0, 0.0}, zero}, untouched};
-                this->expect_columns(host, base, Core::Transpose::TRANS, one, b, zero, c,
+                this->expect_columns(host, base, Core::Transpose::Trans, one, b, zero, c,
                                      real_product, 0.0);
-                this->expect_columns(host, base, Core::Transpose::CONJ_TRANS, one, b, zero, c,
+                this->expect_columns(host, base, Core::Transpose::ConjTrans, one, b, zero, c,
                                      real_product, 0.0);
             }
         }
@@ -303,7 +303,7 @@ namespace SushiBLAS
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> zero(0.0, 0.0);
             const double nan = std::numeric_limits<double>::quiet_NaN();
-            const Core::Transpose both[2] = {Core::Transpose::NO_TRANS, Core::Transpose::TRANS};
+            const Core::Transpose both[2] = {Core::Transpose::NoTrans, Core::Transpose::Trans};
 
             for (const Core::Transpose trans : both)
             {
@@ -316,7 +316,7 @@ namespace SushiBLAS
                 for (std::size_t r = 0; r < b.size(); ++r)
                     expected[r] = host_product(host, trans, one, b[r], zero, Wide(outputs, zero));
 
-                this->expect_columns(host, Core::IndexBase::ZERO, trans, one, b, zero,
+                this->expect_columns(host, Core::IndexBase::Zero, trans, one, b, zero,
                                      filled(outputs, 2, std::complex<double>(nan, nan)), expected,
                                      K_SAMPLE_TOLERANCE);
             }
@@ -348,7 +348,7 @@ namespace SushiBLAS
                                                        0.0);
                 }
 
-                this->expect_host_columns(host, Core::IndexBase::ZERO, trans, one, b, minus_one,
+                this->expect_host_columns(host, Core::IndexBase::Zero, trans, one, b, minus_one,
                                           filled(outputs, K_EXACT_DENSE_COLUMNS, one), 0.0);
             }
         }
@@ -364,7 +364,7 @@ namespace SushiBLAS
                 for (const ExecutionMode mode : K_BOTH_MODES)
                 {
                     this->engine->set_mode(mode);
-                    const SparseMatrix A = this->build(host, Core::IndexBase::ZERO);
+                    const SparseMatrix A = this->build(host, Core::IndexBase::Zero);
                     const Tensor B = this->engine->create_tensor({5, 0}, get_sushiblas_dtype<T>());
                     Tensor C = this->engine->create_tensor({4, 0}, get_sushiblas_dtype<T>());
 
@@ -395,7 +395,7 @@ namespace SushiBLAS
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> zero(0.0, 0.0);
 
-            expect_columns(column, Core::IndexBase::ZERO, Core::Transpose::TRANS, one,
+            expect_columns(column, Core::IndexBase::Zero, Core::Transpose::Trans, one,
                            filled(3, 2, one), zero, filled(1, 2, zero), filled(1, 2, one), 0.0);
         }
     } // namespace Test

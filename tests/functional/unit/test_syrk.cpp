@@ -21,7 +21,7 @@
 
 /**
  * @file test_syrk.cpp
- * @brief Tests blas().syrk against the reference kernel over dtypes, layouts and triangles.
+ * @brief Tests BLASOps::syrk against the reference kernel over dtypes, layouts and triangles.
  * @author Mustafa Garip
  */
 
@@ -40,14 +40,14 @@ namespace SushiBLAS
         class Unit_SYRKTest : public SushiBLASTest 
         {
             public:
-                void test_accuracy(int64_t n, int64_t k, Core::Layout layout = Core::Layout::ROW_MAJOR, bool upper = false, bool transA = false) 
+                void test_accuracy(int64_t n, int64_t k, Core::Layout layout = Core::Layout::RowMajor, bool upper = false, bool transA = false) 
                 {
                     reinit_engine(layout);
 
-                    auto dtype = Core::DataType::FLOAT32;
-                    if constexpr (std::is_same_v<T, double>) dtype = Core::DataType::FLOAT64;
-                    if constexpr (std::is_same_v<T, std::complex<float>>) dtype = Core::DataType::COMPLEX32;
-                    if constexpr (std::is_same_v<T, std::complex<double>>) dtype = Core::DataType::COMPLEX64;
+                    auto dtype = Core::DataType::Float32;
+                    if constexpr (std::is_same_v<T, double>) dtype = Core::DataType::Float64;
+                    if constexpr (std::is_same_v<T, std::complex<float>>) dtype = Core::DataType::Complex32;
+                    if constexpr (std::is_same_v<T, std::complex<double>>) dtype = Core::DataType::Complex64;
 
                     int64_t a_rows = transA ? k : n;
                     int64_t a_cols = transA ? n : k;
@@ -69,19 +69,19 @@ namespace SushiBLAS
                     double beta = 0.5;
 
                     // 2. Compute SYCL (Optimized) result
-                    engine->set_mode(ExecutionMode::FORCE_SYCL);
+                    engine->set_mode(ExecutionMode::ForceSycl);
                     SushiBLAS::BLASOps(*engine).syrk(A, C_actual, uplo_of(upper),
                                                      transpose_of(transA), alpha, beta);
                     engine->execute();
 
                     // 3. Compute Reference (CPU) result
-                    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                    engine->set_mode(ExecutionMode::ForceReference);
                     SushiBLAS::BLASOps(*engine).syrk(A, C_expected, uplo_of(upper),
                                                      transpose_of(transA), alpha, beta);
                     engine->execute();
 
                     // 4. Compare
-                    double tol = (dtype == Core::DataType::HALF) ? 1e-2 : 1e-4;
+                    double tol = (dtype == Core::DataType::Half) ? 1e-2 : 1e-4;
                     SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tol, T);
                 }
         };
@@ -91,32 +91,32 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_SYRKTest, SmallMatrixLowerNoTrans) 
         {
-            this->test_accuracy(4, 3, Core::Layout::ROW_MAJOR, false, false);
+            this->test_accuracy(4, 3, Core::Layout::RowMajor, false, false);
         }
 
         TYPED_TEST(Unit_SYRKTest, SmallMatrixUpperNoTrans) 
         {
-            this->test_accuracy(4, 3, Core::Layout::ROW_MAJOR, true, false);
+            this->test_accuracy(4, 3, Core::Layout::RowMajor, true, false);
         }
 
         TYPED_TEST(Unit_SYRKTest, SmallMatrixLowerTrans) 
         {
-            this->test_accuracy(4, 3, Core::Layout::ROW_MAJOR, false, true);
+            this->test_accuracy(4, 3, Core::Layout::RowMajor, false, true);
         }
 
         TYPED_TEST(Unit_SYRKTest, SmallMatrixUpperTrans) 
         {
-            this->test_accuracy(4, 3, Core::Layout::ROW_MAJOR, true, true);
+            this->test_accuracy(4, 3, Core::Layout::RowMajor, true, true);
         }
 
         TYPED_TEST(Unit_SYRKTest, SmallMatrixColMajor) 
         {
-            this->test_accuracy(4, 3, Core::Layout::COLUMN_MAJOR, false, false);
+            this->test_accuracy(4, 3, Core::Layout::ColumnMajor, false, false);
         }
 
         TYPED_TEST(Unit_SYRKTest, Rectangular) 
         {
-            this->test_accuracy(8, 16, Core::Layout::ROW_MAJOR, false, false);
+            this->test_accuracy(8, 16, Core::Layout::RowMajor, false, false);
         }
     }
 }

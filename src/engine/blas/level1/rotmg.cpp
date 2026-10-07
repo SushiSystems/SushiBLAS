@@ -49,7 +49,7 @@ namespace SushiBLAS
         const char* const op = "blas.lvl1.rotmg";
 
         Dispatch::require_real_dtype(d1, op, "d1", "rotg");
-        Dispatch::require_operand(d1.dtype != Core::DataType::HALF, op, "d1",
+        Dispatch::require_operand(d1.dtype != Core::DataType::Half, op, "d1",
                                   "has dtype HALF; the scale window of this routine, 2^-24 to "
                                   "2^24, does not fit the type");
 
@@ -75,7 +75,7 @@ namespace SushiBLAS
         const void* read_y1 = y1.data_or_null();
         void* rw_param = param.data_or_null();
 
-        return Internal::execute_blas_task<Dispatch::Domain::REAL>(
+        return Internal::execute_blas_task<Dispatch::Domain::Real>(
             recorder_, meta.get(), operands, d1.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

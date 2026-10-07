@@ -49,24 +49,24 @@ namespace SushiBLAS
              * @brief Holds a 3x4 row-major matrix whose reductions are exact in every dtype.
              * @see tests/functional/unit/README.md
              */
-            const std::vector<float> kRowMajor =
+            const std::vector<float> K_ROW_MAJOR =
                 {1, -2, 3, 0,
                  5, 4, -1, 2,
                  -3, -7, -2, -9};
 
             /** @brief The same logical matrix laid out column by column. */
-            const std::vector<float> kColumnMajor =
+            const std::vector<float> K_COLUMN_MAJOR =
                 {1, 5, -3,
                  -2, 4, -7,
                  3, -1, -2,
                  0, 2, -9};
 
-            const std::vector<float> kRowMax = {3, 5, -2};
-            const std::vector<float> kColMax = {5, 4, 3, 2};
-            const std::vector<float> kRowMin = {-2, -1, -9};
-            const std::vector<float> kColMin = {-3, -7, -2, -9};
-            const std::vector<float> kRowSum = {2, 10, -21};
-            const std::vector<float> kColSum = {3, -5, 0, -7};
+            const std::vector<float> K_ROW_MAX = {3, 5, -2};
+            const std::vector<float> K_COL_MAX = {5, 4, 3, 2};
+            const std::vector<float> K_ROW_MIN = {-2, -1, -9};
+            const std::vector<float> K_COL_MIN = {-3, -7, -2, -9};
+            const std::vector<float> K_ROW_SUM = {2, 10, -21};
+            const std::vector<float> K_COL_SUM = {3, -5, 0, -7};
 
             /** @brief A device profile with the fields `plan_axis` actually reads. */
             Device::Profile profile(bool is_cpu, std::size_t compute_units,
@@ -154,12 +154,12 @@ namespace SushiBLAS
             using T = TypeParam;
             auto x = this->engine->create_tensor({3, 4}, get_sushiblas_dtype<T>());
             auto out = this->engine->create_tensor({3}, get_sushiblas_dtype<T>());
-            fill_tensor(x, kRowMajor);
+            fill_tensor(x, K_ROW_MAJOR);
 
             SushiBLAS::ReductionOps(*this->engine).max_along(x, 1, out);
             this->engine->execute();
 
-            verify_tensor(out, kRowMax);
+            verify_tensor(out, K_ROW_MAX);
         }
 
         TYPED_TEST(Unit_AxisReductionsTyped, ColumnMaxFoldsAxisZero)
@@ -167,12 +167,12 @@ namespace SushiBLAS
             using T = TypeParam;
             auto x = this->engine->create_tensor({3, 4}, get_sushiblas_dtype<T>());
             auto out = this->engine->create_tensor({4}, get_sushiblas_dtype<T>());
-            fill_tensor(x, kRowMajor);
+            fill_tensor(x, K_ROW_MAJOR);
 
             SushiBLAS::ReductionOps(*this->engine).max_along(x, 0, out);
             this->engine->execute();
 
-            verify_tensor(out, kColMax);
+            verify_tensor(out, K_COL_MAX);
         }
 
         TYPED_TEST(Unit_AxisReductionsTyped, RowSumFoldsAxisOne)
@@ -180,12 +180,12 @@ namespace SushiBLAS
             using T = TypeParam;
             auto x = this->engine->create_tensor({3, 4}, get_sushiblas_dtype<T>());
             auto out = this->engine->create_tensor({3}, get_sushiblas_dtype<T>());
-            fill_tensor(x, kRowMajor);
+            fill_tensor(x, K_ROW_MAJOR);
 
             SushiBLAS::ReductionOps(*this->engine).sum_along(x, 1, out);
             this->engine->execute();
 
-            verify_tensor(out, kRowSum);
+            verify_tensor(out, K_ROW_SUM);
         }
 
         TYPED_TEST(Unit_AxisReductionsTyped, ColumnSumFoldsAxisZero)
@@ -193,12 +193,12 @@ namespace SushiBLAS
             using T = TypeParam;
             auto x = this->engine->create_tensor({3, 4}, get_sushiblas_dtype<T>());
             auto out = this->engine->create_tensor({4}, get_sushiblas_dtype<T>());
-            fill_tensor(x, kRowMajor);
+            fill_tensor(x, K_ROW_MAJOR);
 
             SushiBLAS::ReductionOps(*this->engine).sum_along(x, 0, out);
             this->engine->execute();
 
-            verify_tensor(out, kColSum);
+            verify_tensor(out, K_COL_SUM);
         }
 
         class Unit_AxisReductions : public SushiBLASTest {};
@@ -209,19 +209,19 @@ namespace SushiBLAS
          */
         TEST_F(Unit_AxisReductions, ColumnMajorOperandsFoldTheSameAxes)
         {
-            reinit_engine(Core::Layout::COLUMN_MAJOR);
+            reinit_engine(Core::Layout::ColumnMajor);
 
             auto x = engine->create_tensor({3, 4});
             auto rows = engine->create_tensor({3});
             auto cols = engine->create_tensor({4});
-            fill_tensor(x, kColumnMajor);
+            fill_tensor(x, K_COLUMN_MAJOR);
 
             SushiBLAS::ReductionOps(*engine).max_along(x, 1, rows);
             SushiBLAS::ReductionOps(*engine).sum_along(x, 0, cols);
             engine->execute();
 
-            verify_tensor(rows, kRowMax);
-            verify_tensor(cols, kColSum);
+            verify_tensor(rows, K_ROW_MAX);
+            verify_tensor(cols, K_COL_SUM);
         }
 
         /**
@@ -237,17 +237,17 @@ namespace SushiBLAS
                 static_cast<size_t>(2 * kElements) * sizeof(float),
                 SushiRuntime::API::Residency::Shared);
 
-            Tensor head(storage, {3, 4}, Core::DataType::FLOAT32, 0);
-            Tensor tail(storage, {3, 4}, Core::DataType::FLOAT32, kElements);
+            Tensor head(storage, {3, 4}, Core::DataType::Float32, 0);
+            Tensor tail(storage, {3, 4}, Core::DataType::Float32, kElements);
 
             fill_tensor(head, std::vector<float>(static_cast<size_t>(kElements), -1.0f));
-            fill_tensor(tail, kRowMajor);
+            fill_tensor(tail, K_ROW_MAJOR);
 
             auto out = engine->create_tensor({3});
             SushiBLAS::ReductionOps(*engine).max_along(tail, 1, out);
             engine->execute();
 
-            verify_tensor(out, kRowMax);
+            verify_tensor(out, K_ROW_MAX);
         }
 
         /**
@@ -265,8 +265,8 @@ namespace SushiBLAS
                 static_cast<size_t>(2 * kElements) * sizeof(float),
                 SushiRuntime::API::Residency::Shared);
 
-            Tensor source(storage, {3, 4}, Core::DataType::FLOAT32, 0);
-            Tensor packed(storage, {3, 4}, Core::DataType::FLOAT32, kElements);
+            Tensor source(storage, {3, 4}, Core::DataType::Float32, 0);
+            Tensor packed(storage, {3, 4}, Core::DataType::Float32, kElements);
             auto out = engine->create_tensor({3});
 
             fill_tensor(source, std::vector<float>(static_cast<size_t>(kElements), 3.0f));
@@ -329,7 +329,7 @@ namespace SushiBLAS
                 std::invalid_argument);
 
             // Mismatched dtypes.
-            auto halves = engine->create_tensor({3}, Core::DataType::HALF);
+            auto halves = engine->create_tensor({3}, Core::DataType::Half);
             EXPECT_THROW(
                 SushiBLAS::ReductionOps(*engine).sum_along(matrix, 1, halves),
                 std::invalid_argument);
@@ -343,14 +343,14 @@ namespace SushiBLAS
             auto matrix = engine->create_tensor({3, 4});
             auto rows = engine->create_tensor({3});
             auto cols = engine->create_tensor({4});
-            fill_tensor(matrix, kRowMajor);
+            fill_tensor(matrix, K_ROW_MAJOR);
 
             SushiBLAS::ReductionOps(*engine).min_along(matrix, 1, rows);
             SushiBLAS::ReductionOps(*engine).min_along(matrix, 0, cols);
             engine->execute();
 
-            verify_tensor(rows, kRowMin);
-            verify_tensor(cols, kColMin);
+            verify_tensor(rows, K_ROW_MIN);
+            verify_tensor(cols, K_COL_MIN);
 
             // Rank 1 in: there is no axis to fold away.
             auto vector = engine->create_tensor({4});
@@ -381,7 +381,7 @@ namespace SushiBLAS
                 std::invalid_argument);
 
             // Mismatched dtypes.
-            auto halves = engine->create_tensor({3}, Core::DataType::HALF);
+            auto halves = engine->create_tensor({3}, Core::DataType::Half);
             EXPECT_THROW(
                 SushiBLAS::ReductionOps(*engine).min_along(matrix, 1, halves),
                 std::invalid_argument);
@@ -393,8 +393,8 @@ namespace SushiBLAS
          */
         TEST_F(Unit_AxisReductions, NonRealDtypesAreRefusedByName)
         {
-            for (Core::DataType dtype : {Core::DataType::COMPLEX32, Core::DataType::COMPLEX64,
-                                         Core::DataType::INT32, Core::DataType::INT64})
+            for (Core::DataType dtype : {Core::DataType::Complex32, Core::DataType::Complex64,
+                                         Core::DataType::Int32, Core::DataType::Int64})
             {
                 SCOPED_TRACE(Core::to_string(dtype));
 
@@ -701,7 +701,7 @@ namespace SushiBLAS
             auto global_sums = engine->create_tensor({kRows});
 
             SushiBLAS::BLASOps(*engine).gemv(ones_column, global_max, peak_row,
-                                             Core::Transpose::NO_TRANS, 1.0f, 0.0f);
+                                             Core::Transpose::NoTrans, 1.0f, 0.0f);
             SushiBLAS::BLASOps(*engine).copy(logits, shifted);
             SushiBLAS::BLASOps(*engine).ger(ones_rows, peak_row, shifted, -1.0f);
             SushiBLAS::ElementwiseOps(*engine).exp(shifted);

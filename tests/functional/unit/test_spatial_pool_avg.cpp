@@ -21,7 +21,7 @@
 
 /**
  * @file test_spatial_pool_avg.cpp
- * @brief Tests spatial().pool_avg and pool_avg_backward.
+ * @brief Tests SpatialOps::pool_avg and pool_avg_backward.
  * @author Mustafa Garip
  */
 
@@ -56,7 +56,7 @@ namespace SushiBLAS
                 Tensor image(int64_t n, int64_t h, int64_t w, int64_t c,
                              std::initializer_list<float> values)
                 {
-                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::FLOAT32);
+                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::Float32);
                     float* p = t.data_as<float>();
                     int64_t i = 0;
                     for (float v : values) p[i++] = v;
@@ -66,7 +66,7 @@ namespace SushiBLAS
                 /** @brief A rank-4 NHWC float tensor whose every element is @p value. */
                 Tensor uniform(int64_t n, int64_t h, int64_t w, int64_t c, float value)
                 {
-                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::FLOAT32);
+                    auto t = engine->create_tensor({n, h, w, c}, Core::DataType::Float32);
                     float* p = t.data_as<float>();
                     for (int64_t i = 0; i < t.num_elements; ++i) p[i] = value;
                     return t;
@@ -88,7 +88,7 @@ namespace SushiBLAS
             g.pad_top = 1;
             g.pad_left = 1;
 
-            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
+            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
             SushiBLAS::SpatialOps(*engine).pool_avg(in, out, g);
             engine->execute();
 
@@ -114,7 +114,7 @@ namespace SushiBLAS
             g.stride_h = 2;
             g.stride_w = 2;
 
-            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::FLOAT32);
+            auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
             SushiBLAS::SpatialOps(*engine).pool_avg(in, out, g);
             engine->execute();
 
@@ -135,7 +135,7 @@ namespace SushiBLAS
 
             auto dy = image(1, 2, 2, 1, {4, 8,
                                          12, 16});
-            auto dx = engine->create_tensor({1, 4, 4, 1}, Core::DataType::FLOAT32);
+            auto dx = engine->create_tensor({1, 4, 4, 1}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
             engine->execute();
@@ -160,7 +160,7 @@ namespace SushiBLAS
 
             auto dy = image(1, 2, 2, 1, {1, 2,
                                          3, 4});
-            auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::FLOAT32);
+            auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
             engine->execute();
@@ -183,7 +183,7 @@ namespace SushiBLAS
             g.pad_left = 1;
 
             auto dy = uniform(1, 4, 4, 1, 1.0f);
-            auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::FLOAT32);
+            auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
             engine->execute();
@@ -198,7 +198,7 @@ namespace SushiBLAS
             // The two forced modes are compared here. See tests/functional/unit/README.md.
             const int64_t N = 2, H = 7, W = 5, C = 3;
 
-            auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            auto in = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             float* p = in.data_as<float>();
             for (int64_t i = 0; i < in.num_elements; ++i)
                 p[i] = static_cast<float>((i * 37) % 23) - 11.0f;
@@ -215,14 +215,14 @@ namespace SushiBLAS
             const int64_t out_h = Spatial::output_extent(H, 1, 1, 2, 3, 2);
             const int64_t out_w = Spatial::output_extent(W, 1, 1, 1, 2, 1);
 
-            auto from_reference = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
-            auto from_device = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
+            auto from_reference = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Float32);
+            auto from_device = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Float32);
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             SushiBLAS::SpatialOps(*engine).pool_avg(in, from_reference, g);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
             SushiBLAS::SpatialOps(*engine).pool_avg(in, from_device, g);
             engine->execute();
 

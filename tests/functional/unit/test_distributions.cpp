@@ -162,7 +162,7 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalRejectsBoundsItCannotHonour)
         SushiBLAS::RandomOps(*engine).truncated_normal(t, 0.0, 1.0, -20.0, -15.0),
         std::invalid_argument);
 
-    auto z = engine->create_tensor({8}, SushiBLAS::Core::DataType::COMPLEX32);
+    auto z = engine->create_tensor({8}, SushiBLAS::Core::DataType::Complex32);
     EXPECT_THROW(
         SushiBLAS::RandomOps(*engine).truncated_normal(z, 0.0, 1.0, -2.0, 2.0),
         std::invalid_argument);
@@ -230,7 +230,7 @@ TEST_F(Unit_DistributionsTest, EveryDistributionRejectsAnUnsupportedDtypeAtRecor
     SushiBLAS::RandomOps rng(*engine);
 
     // No execute() follows, so a throw here comes from the recording call itself.
-    for (DataType dtype : {DataType::HALF, DataType::COMPLEX32, DataType::COMPLEX64})
+    for (DataType dtype : {DataType::Half, DataType::Complex32, DataType::Complex64})
     {
         auto t = engine->create_tensor({4, 4}, dtype);
         EXPECT_THROW(rng.log_normal(t), std::invalid_argument);
@@ -247,12 +247,12 @@ TEST_F(Unit_DistributionsTest, EveryDistributionRejectsAnUnsupportedDtypeAtRecor
     }
 
     // uniform and normal draw complex values, so only HALF is refused.
-    auto half = engine->create_tensor({4}, DataType::HALF);
+    auto half = engine->create_tensor({4}, DataType::Half);
     EXPECT_THROW(rng.uniform(half), std::invalid_argument);
     EXPECT_THROW(rng.normal(half), std::invalid_argument);
 
     // shuffle moves values, so it refuses only the integer dtypes.
-    for (DataType dtype : {DataType::INT32, DataType::INT64})
+    for (DataType dtype : {DataType::Int32, DataType::Int64})
     {
         auto t = engine->create_tensor({4}, dtype);
         EXPECT_THROW(rng.shuffle(t), std::invalid_argument);

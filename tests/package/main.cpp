@@ -165,7 +165,7 @@ int main()
 
     sb::Dispatch::execute_gemm(
         engine.get_recorder(), gemm_a, gemm_b, gemm_c,
-        sb::Core::Transpose::NO_TRANS, sb::Core::Transpose::NO_TRANS, 1.0, 0.0,
+        sb::Core::Transpose::NoTrans, sb::Core::Transpose::NoTrans, 1.0, 0.0,
         "consumer.linear_relu", "consumer.linear_relu"_op,
         ConsumerBiasRelu{row_bias.data_as<float>(), col_bias.data_as<float>()});
     engine.execute();

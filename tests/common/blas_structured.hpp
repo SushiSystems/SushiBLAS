@@ -46,7 +46,7 @@ namespace SushiBLAS
         [[nodiscard]] std::vector<T> in_layout(const std::vector<T>& dense, int64_t m, int64_t n,
                                                Core::Layout layout)
         {
-            if (layout == Core::Layout::ROW_MAJOR)
+            if (layout == Core::Layout::RowMajor)
                 return dense;
 
             std::vector<T> out(dense.size());
@@ -70,7 +70,7 @@ namespace SushiBLAS
                                              int64_t kl, int64_t ku, int64_t ld,
                                              Core::Layout layout, T poison)
         {
-            const bool by_columns = (layout == Core::Layout::COLUMN_MAJOR);
+            const bool by_columns = (layout == Core::Layout::ColumnMajor);
             std::vector<T> band(static_cast<std::size_t>((by_columns ? n : m) * ld), poison);
 
             for (int64_t i = 0; i < m; ++i)
@@ -99,7 +99,7 @@ namespace SushiBLAS
                                                       Core::Uplo uplo, int64_t k, int64_t ld,
                                                       Core::Layout layout, T poison)
         {
-            const bool upper = (uplo == Core::Uplo::UPPER);
+            const bool upper = (uplo == Core::Uplo::Upper);
             return to_band(dense, n, n, upper ? int64_t{0} : k, upper ? k : int64_t{0}, ld,
                            layout, poison);
         }
@@ -114,8 +114,8 @@ namespace SushiBLAS
         [[nodiscard]] std::vector<T> to_packed(const std::vector<T>& dense, int64_t n,
                                                Core::Uplo uplo, Core::Layout layout)
         {
-            const bool upper = (uplo == Core::Uplo::UPPER);
-            const bool by_columns = (layout == Core::Layout::COLUMN_MAJOR);
+            const bool upper = (uplo == Core::Uplo::Upper);
+            const bool by_columns = (layout == Core::Layout::ColumnMajor);
 
             std::vector<T> packed;
             packed.reserve(static_cast<std::size_t>(n * (n + 1) / 2));

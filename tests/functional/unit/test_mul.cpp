@@ -21,7 +21,7 @@
 
 /**
  * @file test_mul.cpp
- * @brief Tests elementwise().mul against fixed expected values.
+ * @brief Tests ElementwiseOps::mul against fixed expected values.
  * @author Mustafa Garip
  */
 

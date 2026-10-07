@@ -21,7 +21,7 @@
 
 /**
  * @file test_softplus.cpp
- * @brief Tests nonlinear().softplus and softplus_backward against fixed expected values.
+ * @brief Tests NonLinearOps::softplus and softplus_backward against fixed expected values.
  * @author Mustafa Garip
  */
 

@@ -21,7 +21,7 @@
 
 /**
  * @file test_relu.cpp
- * @brief Tests nonlinear().relu and relu_backward against fixed expected values.
+ * @brief Tests NonLinearOps::relu and relu_backward against fixed expected values.
  * @author Mustafa Garip
  */
 

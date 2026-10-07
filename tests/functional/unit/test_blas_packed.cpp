@@ -83,23 +83,23 @@ namespace SushiBLAS
             constexpr int64_t K_MODE_ORDER = 64;
 
             /// @brief Both kernels an operation has.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::FORCE_REFERENCE,
-                                                 ExecutionMode::FORCE_SYCL};
+            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
+                                                 ExecutionMode::ForceSycl};
 
             /// @brief Both orders a packed triangle can be stored in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::ROW_MAJOR,
-                                                  Core::Layout::COLUMN_MAJOR};
+            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
+                                                  Core::Layout::ColumnMajor};
 
             /// @brief Both triangles a packed tensor can hold.
-            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::UPPER, Core::Uplo::LOWER};
+            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
 
             /// @brief Every form op(A) takes.
-            constexpr Core::Transpose K_TRANSPOSES[] = {Core::Transpose::NO_TRANS,
-                                                        Core::Transpose::TRANS,
-                                                        Core::Transpose::CONJ_TRANS};
+            constexpr Core::Transpose K_TRANSPOSES[] = {Core::Transpose::NoTrans,
+                                                        Core::Transpose::Trans,
+                                                        Core::Transpose::ConjTrans};
 
             /// @brief Both ways a triangular diagonal is read.
-            constexpr Core::Diag K_DIAGONALS[] = {Core::Diag::NON_UNIT, Core::Diag::UNIT};
+            constexpr Core::Diag K_DIAGONALS[] = {Core::Diag::NonUnit, Core::Diag::Unit};
 
             /**
              * @brief U = [1 2 3; 0 4 5; 0 0 6] or its transpose packed in lines that grow:
@@ -155,11 +155,11 @@ namespace SushiBLAS
 
             /// @brief The triangular products of the design, section 10.3.
             constexpr TriangularRow K_TRIANGULAR_ROWS[] = {
-                {Core::Uplo::UPPER, Core::Transpose::NO_TRANS, Core::Diag::NON_UNIT, {14, 23, 18}},
-                {Core::Uplo::UPPER, Core::Transpose::TRANS, Core::Diag::NON_UNIT, {1, 10, 31}},
-                {Core::Uplo::UPPER, Core::Transpose::NO_TRANS, Core::Diag::UNIT, {14, 17, 3}},
-                {Core::Uplo::LOWER, Core::Transpose::NO_TRANS, Core::Diag::NON_UNIT, {1, 10, 31}},
-                {Core::Uplo::LOWER, Core::Transpose::TRANS, Core::Diag::NON_UNIT, {14, 23, 18}}};
+                {Core::Uplo::Upper, Core::Transpose::NoTrans, Core::Diag::NonUnit, {14, 23, 18}},
+                {Core::Uplo::Upper, Core::Transpose::Trans, Core::Diag::NonUnit, {1, 10, 31}},
+                {Core::Uplo::Upper, Core::Transpose::NoTrans, Core::Diag::Unit, {14, 17, 3}},
+                {Core::Uplo::Lower, Core::Transpose::NoTrans, Core::Diag::NonUnit, {1, 10, 31}},
+                {Core::Uplo::Lower, Core::Transpose::Trans, Core::Diag::NonUnit, {14, 23, 18}}};
 
             /** @brief Holds the operands of the eight routines at one small order. */
             struct EdgeRow
@@ -179,14 +179,14 @@ namespace SushiBLAS
              *        layout and triangle.
              */
             const EdgeRow K_EDGE_ROWS[] = {
-                {Core::Uplo::UPPER, {3}, {2}, {5}, {6},
+                {Core::Uplo::Upper, {3}, {2}, {5}, {6},
                  {{6}, {6}, {6}, {2}, {7}, {7}, {23}, {23}}},
-                {Core::Uplo::LOWER, {3}, {2}, {5}, {6},
+                {Core::Uplo::Lower, {3}, {2}, {5}, {6},
                  {{6}, {6}, {6}, {2}, {7}, {7}, {23}, {23}}},
-                {Core::Uplo::UPPER, {1, 2, 3}, {1, 2}, {3, 5}, {5, 6},
+                {Core::Uplo::Upper, {1, 2, 3}, {1, 2}, {3, 5}, {5, 6},
                  {{5, 8}, {5, 8}, {5, 6}, {1, 2}, {2, 4, 7}, {2, 4, 7}, {7, 13, 23},
                   {7, 13, 23}}},
-                {Core::Uplo::LOWER, {1, 2, 3}, {1, 2}, {3, 5}, {1, 8},
+                {Core::Uplo::Lower, {1, 2, 3}, {1, 2}, {3, 5}, {1, 8},
                  {{5, 8}, {5, 8}, {1, 8}, {1, 2}, {2, 4, 7}, {2, 4, 7}, {7, 13, 23},
                   {7, 13, 23}}}};
 
@@ -222,9 +222,9 @@ namespace SushiBLAS
             /** @brief Returns the name of a mode and a layout for a failure message. */
             [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
             {
-                return std::string(mode == ExecutionMode::FORCE_SYCL ? "FORCE_SYCL"
+                return std::string(mode == ExecutionMode::ForceSycl ? "FORCE_SYCL"
                                                                      : "FORCE_REFERENCE") +
-                       (layout == Core::Layout::ROW_MAJOR ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
+                       (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
             }
 
             /** @brief Returns the names of the flags of a triangular call. */
@@ -238,7 +238,7 @@ namespace SushiBLAS
             /** @brief Returns whether a triangle is packed in lines that grow under a layout. */
             [[nodiscard]] constexpr bool is_growing(Core::Uplo uplo, Core::Layout layout) noexcept
             {
-                return (uplo == Core::Uplo::UPPER) == (layout == Core::Layout::COLUMN_MAJOR);
+                return (uplo == Core::Uplo::Upper) == (layout == Core::Layout::ColumnMajor);
             }
 
             /** @brief Returns whether the test device computes in the component type of T. */
@@ -333,7 +333,6 @@ namespace SushiBLAS
 
             /**
              * @brief Holds a triangular system whose every product and solve is exact in HALF.
-             * @see docs/agent/2026_10_07_V010/DESIGN_BLAS_BAND_PACKED.md
              */
             struct ExactTriangle
             {
@@ -353,8 +352,8 @@ namespace SushiBLAS
                                                        bool complex_parts)
             {
                 constexpr double diagonals[] = {1.0, 2.0, -2.0, 4.0};
-                const bool upper = (uplo == Core::Uplo::UPPER);
-                const bool unit = (diag == Core::Diag::UNIT);
+                const bool upper = (uplo == Core::Uplo::Upper);
+                const bool unit = (diag == Core::Diag::Unit);
                 const auto at = [n](int64_t r, int64_t c)
                 {
                     return static_cast<std::size_t>(r * n + c);
@@ -555,7 +554,7 @@ namespace SushiBLAS
                                                                      int64_t n)
                 {
                     const std::vector<T> stored = read_tensor<T>(tensor);
-                    if (tensor.layout == Core::Layout::ROW_MAJOR)
+                    if (tensor.layout == Core::Layout::RowMajor)
                         return stored;
 
                     std::vector<T> row_ordered(stored.size());
@@ -658,7 +657,7 @@ namespace SushiBLAS
                     std::mt19937 generator(K_SEED);
                     const std::vector<T> dense = random_elements<T>(generator, n * n);
 
-                    const Tensor ap = vector_of(packed(dense, n, Core::Uplo::UPPER));
+                    const Tensor ap = vector_of(packed(dense, n, Core::Uplo::Upper));
                     const Tensor full = dense_of(n, dense);
                     const Tensor x = vector_of(random_elements<T>(generator, n));
                     const std::vector<T> y = random_elements<T>(generator, n);
@@ -666,8 +665,8 @@ namespace SushiBLAS
                     Tensor from_dense = vector_of(y);
 
                     SushiBLAS::BLASOps ops(*this->engine);
-                    ops.spmv(ap, x, from_packed, Core::Uplo::UPPER, K_ALPHA, K_BETA);
-                    ops.symv(full, x, from_dense, Core::Uplo::UPPER, K_ALPHA, K_BETA);
+                    ops.spmv(ap, x, from_packed, Core::Uplo::Upper, K_ALPHA, K_BETA);
+                    ops.symv(full, x, from_dense, Core::Uplo::Upper, K_ALPHA, K_BETA);
                     this->engine->execute();
                     return {{read_tensor<T>(from_packed), read_tensor<T>(from_dense)}};
                 }
@@ -988,7 +987,7 @@ namespace SushiBLAS
             {
                 for (const Core::Uplo uplo : K_TRIANGLES)
                 {
-                    SCOPED_TRACE(engine_name(layout, ExecutionMode::FORCE_SYCL) + ", " +
+                    SCOPED_TRACE(engine_name(layout, ExecutionMode::ForceSycl) + ", " +
                                  Core::to_string(uplo));
                     const Inputs in{uplo,
                                     to_packed(general, n, uplo, layout),
@@ -1000,9 +999,9 @@ namespace SushiBLAS
                                     K_ALPHA,
                                     K_BETA};
 
-                    this->start(layout, ExecutionMode::FORCE_REFERENCE);
+                    this->start(layout, ExecutionMode::ForceReference);
                     const std::vector<std::vector<T>> reference = this->run_eight(in);
-                    this->start(layout, ExecutionMode::FORCE_SYCL);
+                    this->start(layout, ExecutionMode::ForceSycl);
                     const std::vector<std::vector<T>> device = this->run_eight(in);
 
                     ASSERT_EQ(device.size(), reference.size());
@@ -1068,7 +1067,7 @@ namespace SushiBLAS
                     SushiBLAS::BLASOps(*this->engine).hpr(x, AP, uplo, 2.0);
                     this->engine->execute();
 
-                    const double sign = (uplo == Core::Uplo::UPPER) ? 1.0 : -1.0;
+                    const double sign = (uplo == Core::Uplo::Upper) ? 1.0 : -1.0;
                     expect_equal(read_tensor<T>(AP),
                                  narrowed_all<T>({Wide(4, 0), Wide(4, 4 * sign), Wide(8, 0)}));
                 }
@@ -1094,7 +1093,7 @@ namespace SushiBLAS
                     SushiBLAS::BLASOps(*this->engine).hpr2(x, y, AP, uplo, Wide(0.0, 1.0));
                     this->engine->execute();
 
-                    const double sign = (uplo == Core::Uplo::UPPER) ? 1.0 : -1.0;
+                    const double sign = (uplo == Core::Uplo::Upper) ? 1.0 : -1.0;
                     expect_equal(read_tensor<T>(AP),
                                  narrowed_all<T>({Wide(2, 0), Wide(-1, sign), Wide(-4, 0)}));
                 }
@@ -1116,13 +1115,13 @@ namespace SushiBLAS
             for_each_engine([&](Core::Layout)
             {
                 SushiBLAS::BLASOps ops(*engine);
-                const Tensor AP = vector_of(packed(elements<T>(square), n, Core::Uplo::UPPER));
+                const Tensor AP = vector_of(packed(elements<T>(square), n, Core::Uplo::Upper));
                 const Tensor ones = vector_of(elements<T>({1, 1, 1, 1}));
 
                 Tensor from_spmv = vector_of(std::vector<T>(4, poison<T>()));
-                ops.spmv(AP, ones, from_spmv, Core::Uplo::UPPER);
+                ops.spmv(AP, ones, from_spmv, Core::Uplo::Upper);
                 Tensor from_tpmv = vector_of(elements<T>({1, 1, 1, 1}));
-                ops.tpmv(AP, from_tpmv, Core::Uplo::UPPER);
+                ops.tpmv(AP, from_tpmv, Core::Uplo::Upper);
                 engine->execute();
 
                 expect_equal(read_tensor<T>(from_spmv), elements<T>({2, 1, 1, -2048}));
@@ -1142,10 +1141,10 @@ namespace SushiBLAS
             for_each_engine([&](Core::Layout)
             {
                 const Tensor AP =
-                    vector_of(packed(elements<T>(lower), K_HAND_ORDER, Core::Uplo::LOWER));
+                    vector_of(packed(elements<T>(lower), K_HAND_ORDER, Core::Uplo::Lower));
                 Tensor b = vector_of(elements<T>({2048, 1, 2050}));
 
-                SushiBLAS::BLASOps(*engine).tpsv(AP, b, Core::Uplo::LOWER);
+                SushiBLAS::BLASOps(*engine).tpsv(AP, b, Core::Uplo::Lower);
                 engine->execute();
 
                 expect_equal(read_tensor<T>(b), elements<T>({2048, 2048, 1}));
@@ -1172,8 +1171,8 @@ namespace SushiBLAS
         {
             for (const Core::Layout layout : K_LAYOUTS)
             {
-                SCOPED_TRACE(engine_name(layout, ExecutionMode::FORCE_SYCL));
-                start(layout, ExecutionMode::FORCE_SYCL);
+                SCOPED_TRACE(engine_name(layout, ExecutionMode::ForceSycl));
+                start(layout, ExecutionMode::ForceSycl);
                 const std::vector<float> first = large_symmetric_products()[0];
                 const std::vector<float> second = large_symmetric_products()[0];
 

@@ -65,18 +65,18 @@ namespace SushiBLAS
          */
         TEST_F(Unit_IntegerDTypeTest, ElementWidthsAndNamesAreDeclared)
         {
-            EXPECT_EQ(4u, Core::bytes_per_element(Core::DataType::INT32));
-            EXPECT_EQ(8u, Core::bytes_per_element(Core::DataType::INT64));
-            EXPECT_STREQ("INT32", Core::to_string(Core::DataType::INT32));
-            EXPECT_STREQ("INT64", Core::to_string(Core::DataType::INT64));
+            EXPECT_EQ(4u, Core::bytes_per_element(Core::DataType::Int32));
+            EXPECT_EQ(8u, Core::bytes_per_element(Core::DataType::Int64));
+            EXPECT_STREQ("INT32", Core::to_string(Core::DataType::Int32));
+            EXPECT_STREQ("INT64", Core::to_string(Core::DataType::Int64));
 
-            EXPECT_TRUE(Core::is_integer_dtype(Core::DataType::INT32));
-            EXPECT_TRUE(Core::is_integer_dtype(Core::DataType::INT64));
-            EXPECT_FALSE(Core::is_integer_dtype(Core::DataType::FLOAT32));
-            EXPECT_FALSE(Core::is_real_dtype(Core::DataType::INT64));
-            EXPECT_FALSE(Core::is_complex_dtype(Core::DataType::INT64));
+            EXPECT_TRUE(Core::is_integer_dtype(Core::DataType::Int32));
+            EXPECT_TRUE(Core::is_integer_dtype(Core::DataType::Int64));
+            EXPECT_FALSE(Core::is_integer_dtype(Core::DataType::Float32));
+            EXPECT_FALSE(Core::is_real_dtype(Core::DataType::Int64));
+            EXPECT_FALSE(Core::is_complex_dtype(Core::DataType::Int64));
 
-            auto t = engine->create_tensor({4}, Core::DataType::INT64);
+            auto t = engine->create_tensor({4}, Core::DataType::Int64);
             EXPECT_EQ(32, t.element_span() * static_cast<int64_t>(Core::bytes_per_element(t.dtype)));
         }
 
@@ -86,8 +86,8 @@ namespace SushiBLAS
          */
         TEST_F(Unit_IntegerDTypeTest, ConstantFillsAnIntegerTensorExactly)
         {
-            auto a = engine->create_tensor({4}, Core::DataType::INT32);
-            auto b = engine->create_tensor({4}, Core::DataType::INT64);
+            auto a = engine->create_tensor({4}, Core::DataType::Int32);
+            auto b = engine->create_tensor({4}, Core::DataType::Int64);
 
             SushiBLAS::RandomOps(*engine).constant(a, 7.0);
             SushiBLAS::RandomOps(*engine).constant(b, 1234567890.0);
@@ -103,8 +103,8 @@ namespace SushiBLAS
          */
         TEST_F(Unit_IntegerDTypeTest, CopyMovesIntegerElements)
         {
-            auto src = engine->create_tensor({3}, Core::DataType::INT64);
-            auto dst = engine->create_tensor({3}, Core::DataType::INT64);
+            auto src = engine->create_tensor({3}, Core::DataType::Int64);
+            auto dst = engine->create_tensor({3}, Core::DataType::Int64);
 
             fill_tensor(src, {10.0f, -20.0f, 30.0f});
             SushiBLAS::RandomOps(*engine).constant(dst, 0.0);
@@ -120,9 +120,9 @@ namespace SushiBLAS
          */
         TEST_F(Unit_IntegerDTypeTest, ComparisonsWorkOnIntegerTensors)
         {
-            auto a = engine->create_tensor({4}, Core::DataType::INT32);
-            auto b = engine->create_tensor({4}, Core::DataType::INT32);
-            auto r = engine->create_tensor({4}, Core::DataType::INT32);
+            auto a = engine->create_tensor({4}, Core::DataType::Int32);
+            auto b = engine->create_tensor({4}, Core::DataType::Int32);
+            auto r = engine->create_tensor({4}, Core::DataType::Int32);
 
             fill_tensor(a, {1.0f, 5.0f, 3.0f, 9.0f});
             fill_tensor(b, {2.0f, 5.0f, 1.0f, 0.0f});
@@ -143,9 +143,9 @@ namespace SushiBLAS
         // The boolean family and `where`, which selects rather than compares.
         TEST_F(Unit_IntegerDTypeTest, BooleanOpsAndWhereWorkOnIntegerTensors)
         {
-            auto a = engine->create_tensor({4}, Core::DataType::INT64);
-            auto b = engine->create_tensor({4}, Core::DataType::INT64);
-            auto r = engine->create_tensor({4}, Core::DataType::INT64);
+            auto a = engine->create_tensor({4}, Core::DataType::Int64);
+            auto b = engine->create_tensor({4}, Core::DataType::Int64);
+            auto r = engine->create_tensor({4}, Core::DataType::Int64);
 
             fill_tensor(a, {1.0f, 1.0f, 0.0f, 0.0f});
             fill_tensor(b, {1.0f, 0.0f, 1.0f, 0.0f});
@@ -158,8 +158,8 @@ namespace SushiBLAS
             engine->execute();
             EXPECT_EQ((std::vector<int64_t>{0, 1, 1, 0}), read_i64(r));
 
-            auto lhs = engine->create_tensor({4}, Core::DataType::INT64);
-            auto rhs = engine->create_tensor({4}, Core::DataType::INT64);
+            auto lhs = engine->create_tensor({4}, Core::DataType::Int64);
+            auto rhs = engine->create_tensor({4}, Core::DataType::Int64);
             fill_tensor(lhs, {100.0f, 200.0f, 300.0f, 400.0f});
             fill_tensor(rhs, {-1.0f, -2.0f, -3.0f, -4.0f});
 
@@ -171,9 +171,9 @@ namespace SushiBLAS
         // `all` and `any` reduce a truth vector, so they take integer operands too.
         TEST_F(Unit_IntegerDTypeTest, AllAndAnyReduceIntegerTruthVectors)
         {
-            auto mixed = engine->create_tensor({4}, Core::DataType::INT32);
-            auto ones = engine->create_tensor({4}, Core::DataType::INT32);
-            auto r = engine->create_tensor({1}, Core::DataType::INT32);
+            auto mixed = engine->create_tensor({4}, Core::DataType::Int32);
+            auto ones = engine->create_tensor({4}, Core::DataType::Int32);
+            auto r = engine->create_tensor({1}, Core::DataType::Int32);
 
             fill_tensor(mixed, {1.0f, 0.0f, 1.0f, 1.0f});
             fill_tensor(ones, {1.0f, 1.0f, 1.0f, 1.0f});
@@ -197,8 +197,8 @@ namespace SushiBLAS
          */
         TEST_F(Unit_IntegerDTypeTest, ArgmaxSearchesAnIntegerTensor)
         {
-            auto t = engine->create_tensor({5}, Core::DataType::INT32);
-            auto r = engine->create_tensor({1}, Core::DataType::INT64);
+            auto t = engine->create_tensor({5}, Core::DataType::Int32);
+            auto r = engine->create_tensor({1}, Core::DataType::Int64);
 
             fill_tensor(t, {3.0f, -1.0f, 42.0f, 7.0f, 41.0f});
 
@@ -221,7 +221,7 @@ namespace SushiBLAS
             constexpr int64_t kPeak = 16777217;
 
             auto t = engine->create_tensor({kN});
-            auto r = engine->create_tensor({1}, Core::DataType::INT64);
+            auto r = engine->create_tensor({1}, Core::DataType::Int64);
 
             SushiBLAS::RandomOps(*engine).constant(t, 1.0);
             engine->execute();
@@ -247,9 +247,9 @@ namespace SushiBLAS
         {
             GraphProbe probe;
 
-            auto a = engine->create_tensor({4}, Core::DataType::INT32);
-            auto b = engine->create_tensor({4}, Core::DataType::INT32);
-            auto scalar = engine->create_tensor({1}, Core::DataType::INT32);
+            auto a = engine->create_tensor({4}, Core::DataType::Int32);
+            auto b = engine->create_tensor({4}, Core::DataType::Int32);
+            auto scalar = engine->create_tensor({1}, Core::DataType::Int32);
 
             // Elementwise transcendentals.
             EXPECT_THROW(
@@ -300,9 +300,9 @@ namespace SushiBLAS
          */
         TEST_F(Unit_IntegerDTypeTest, OrderingComparisonsStillRejectComplex)
         {
-            auto a = engine->create_tensor({4}, Core::DataType::COMPLEX32);
-            auto b = engine->create_tensor({4}, Core::DataType::COMPLEX32);
-            auto r = engine->create_tensor({4}, Core::DataType::COMPLEX32);
+            auto a = engine->create_tensor({4}, Core::DataType::Complex32);
+            auto b = engine->create_tensor({4}, Core::DataType::Complex32);
+            auto r = engine->create_tensor({4}, Core::DataType::Complex32);
 
             EXPECT_THROW(SushiBLAS::LogicOps(*engine).less(a, b, r), std::invalid_argument);
             EXPECT_THROW(SushiBLAS::LogicOps(*engine).greater(a, b, r), std::invalid_argument);

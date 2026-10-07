@@ -50,8 +50,8 @@ namespace SushiBLAS
                 using RW = ReferenceAccumulator<T>;
 
                 const OperandAccess access = operand_access(layout, trans, lda);
-                const bool unit_diag = (diag == Core::Diag::UNIT);
-                const bool eff_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::UPPER);
+                const bool unit_diag = (diag == Core::Diag::Unit);
+                const bool eff_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
 
                 if (eff_upper)
                 {

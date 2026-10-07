@@ -21,7 +21,7 @@
 
 /**
  * @file test_orthogonal.cpp
- * @brief Tests that random().orthogonal fills a matrix with orthonormal rows or columns.
+ * @brief Tests that RandomOps::orthogonal fills a matrix with orthonormal rows or columns.
  * @author Mustafa Garip
  */
 
@@ -160,10 +160,10 @@ TEST_F(Unit_OrthogonalTest, RejectsInputsItCannotOrthonormalize)
     auto cube = engine->create_tensor({2, 3, 4});
     EXPECT_THROW(SushiBLAS::RandomOps(*engine).orthogonal(cube), std::invalid_argument);
 
-    auto half_mat = engine->create_tensor({4, 4}, DataType::HALF);
+    auto half_mat = engine->create_tensor({4, 4}, DataType::Half);
     EXPECT_THROW(SushiBLAS::RandomOps(*engine).orthogonal(half_mat), std::invalid_argument);
 
-    auto complex_mat = engine->create_tensor({4, 4}, DataType::COMPLEX32);
+    auto complex_mat = engine->create_tensor({4, 4}, DataType::Complex32);
     EXPECT_THROW(SushiBLAS::RandomOps(*engine).orthogonal(complex_mat), std::invalid_argument);
 }
 

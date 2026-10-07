@@ -166,7 +166,6 @@ namespace SushiBLAS
              * @param terms The terms of each sum.
              * @param alpha_abs The absolute value of alpha; operand parts are at most 1.
              * @param added_abs The largest magnitude added to the product: beta times C, or a bias.
-             * @see docs/agent/2026_10_07_V010/DESIGN_GEMM_CPU.md
              */
             template<typename T>
             [[nodiscard]] double parity_bound(int64_t terms, double alpha_abs,
@@ -302,8 +301,8 @@ namespace SushiBLAS
         /** @brief Tests that every blocking gives the reference result on a ragged shape. */
         TYPED_TEST(Unit_PackedProduct, EveryBlockingEqualsTheReferenceOnExactData)
         {
-            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::ROW_MAJOR,
-                                           Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::RowMajor,
+                                           Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                            37, 45, 23, 1);
             this->expect_exact(problem, exact_alpha<TypeParam>(), exact_beta<TypeParam>());
         }
@@ -311,15 +310,15 @@ namespace SushiBLAS
         /** @brief Tests every pair of Transpose values in both layouts against the reference. */
         TYPED_TEST(Unit_PackedProduct, EveryTransposeAndLayoutEqualsTheReference)
         {
-            for (const Core::Layout layout : {Core::Layout::ROW_MAJOR, Core::Layout::COLUMN_MAJOR})
+            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
             {
-                for (const Core::Transpose transA : {Core::Transpose::NO_TRANS,
-                                                     Core::Transpose::TRANS,
-                                                     Core::Transpose::CONJ_TRANS})
+                for (const Core::Transpose transA : {Core::Transpose::NoTrans,
+                                                     Core::Transpose::Trans,
+                                                     Core::Transpose::ConjTrans})
                 {
-                    for (const Core::Transpose transB : {Core::Transpose::NO_TRANS,
-                                                         Core::Transpose::TRANS,
-                                                         Core::Transpose::CONJ_TRANS})
+                    for (const Core::Transpose transB : {Core::Transpose::NoTrans,
+                                                         Core::Transpose::Trans,
+                                                         Core::Transpose::ConjTrans})
                     {
                         SCOPED_TRACE(Core::to_string(transA));
                         SCOPED_TRACE(Core::to_string(transB));
@@ -352,9 +351,9 @@ namespace SushiBLAS
             {
                 SCOPED_TRACE(::testing::Message()
                              << shape[0] << " x " << shape[1] << " x " << shape[2]);
-                GemmProblem<TypeParam> problem(this->queue(), Core::Layout::ROW_MAJOR,
-                                               Core::Transpose::NO_TRANS,
-                                               Core::Transpose::NO_TRANS,
+                GemmProblem<TypeParam> problem(this->queue(), Core::Layout::RowMajor,
+                                               Core::Transpose::NoTrans,
+                                               Core::Transpose::NoTrans,
                                                shape[0], shape[1], shape[2], 1);
                 this->expect_exact(problem, exact_alpha<TypeParam>(), exact_beta<TypeParam>());
             }
@@ -363,11 +362,11 @@ namespace SushiBLAS
         /** @brief Tests that a batch of three equals the reference, gaps included, per layout. */
         TYPED_TEST(Unit_PackedProduct, ABatchKeepsItsMatricesApart)
         {
-            for (const Core::Layout layout : {Core::Layout::ROW_MAJOR, Core::Layout::COLUMN_MAJOR})
+            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
             {
-                SCOPED_TRACE(layout == Core::Layout::ROW_MAJOR ? "row-major" : "column-major");
-                GemmProblem<TypeParam> problem(this->queue(), layout, Core::Transpose::NO_TRANS,
-                                               Core::Transpose::NO_TRANS, 13, 18, 11, 3);
+                SCOPED_TRACE(layout == Core::Layout::RowMajor ? "row-major" : "column-major");
+                GemmProblem<TypeParam> problem(this->queue(), layout, Core::Transpose::NoTrans,
+                                               Core::Transpose::NoTrans, 13, 18, 11, 3);
                 this->expect_exact(problem, exact_alpha<TypeParam>(), exact_beta<TypeParam>());
             }
         }
@@ -380,8 +379,8 @@ namespace SushiBLAS
             const TypeParam alpha = exact_alpha<TypeParam>();
             const TypeParam zero = TypeParam(0);
 
-            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::ROW_MAJOR,
-                                           Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::RowMajor,
+                                           Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                            m, n, 0, 1);
             this->expect_exact(problem, alpha, exact_beta<TypeParam>());
             this->expect_exact(problem, alpha, zero);
@@ -409,8 +408,8 @@ namespace SushiBLAS
             const TypeParam alpha = exact_alpha<TypeParam>();
             const TypeParam zero = TypeParam(0);
 
-            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::ROW_MAJOR,
-                                           Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::RowMajor,
+                                           Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                            m, n, 23, 1);
             problem.poison_output();
 
@@ -439,8 +438,8 @@ namespace SushiBLAS
             const TypeParam alpha = exact_alpha<TypeParam>();
             const TypeParam beta = exact_beta<TypeParam>();
 
-            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::ROW_MAJOR,
-                                           Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::RowMajor,
+                                           Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                            37, 45, 23, 1);
 
             const std::vector<TypeParam> want = problem.expected(alpha, beta, CoordinateEpilogue{});
@@ -463,9 +462,9 @@ namespace SushiBLAS
             for (const std::array<int64_t, 2>& shape : shapes)
             {
                 SCOPED_TRACE(::testing::Message() << shape[0] << " x " << shape[1]);
-                GemmProblem<TypeParam> problem(this->queue(), Core::Layout::ROW_MAJOR,
-                                               Core::Transpose::NO_TRANS,
-                                               Core::Transpose::NO_TRANS,
+                GemmProblem<TypeParam> problem(this->queue(), Core::Layout::RowMajor,
+                                               Core::Transpose::NoTrans,
+                                               Core::Transpose::NoTrans,
                                                shape[0], shape[1], 17, 1);
 
                 // A fresh problem fills C with salt 2 over a leading dimension of n plus padding.
@@ -498,8 +497,8 @@ namespace SushiBLAS
             const TypeParam alpha = exact_alpha<TypeParam>();
             const TypeParam beta = exact_beta<TypeParam>();
 
-            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::ROW_MAJOR,
-                                           Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::RowMajor,
+                                           Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                            61, 70, k, 1);
             problem.fill_uniform(K_UNIFORM_SEED);
 
@@ -528,8 +527,8 @@ namespace SushiBLAS
             const TypeParam alpha = exact_alpha<TypeParam>();
             const TypeParam beta = exact_beta<TypeParam>();
 
-            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::ROW_MAJOR,
-                                           Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::RowMajor,
+                                           Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                            61, 70, 64, 1);
             problem.fill_uniform(K_UNIFORM_SEED);
 
@@ -550,8 +549,8 @@ namespace SushiBLAS
             const TypeParam alpha = exact_alpha<TypeParam>();
             const TypeParam beta = exact_beta<TypeParam>();
 
-            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::ROW_MAJOR,
-                                           Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS,
+            GemmProblem<TypeParam> problem(this->queue(), Core::Layout::RowMajor,
+                                           Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                            61, 70, 64, 1);
             problem.fill_uniform(K_UNIFORM_SEED);
 
@@ -617,11 +616,11 @@ namespace SushiBLAS
                     Tensor reference_result =
                         engine->create_tensor({s, s}, get_sushiblas_dtype<T>());
 
-                    engine->set_mode(ExecutionMode::FORCE_SYCL);
+                    engine->set_mode(ExecutionMode::ForceSycl);
                     SushiBLAS::BLASOps(*engine).gemm(A, B, sycl_result);
                     engine->execute();
 
-                    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+                    engine->set_mode(ExecutionMode::ForceReference);
                     SushiBLAS::BLASOps(*engine).gemm(A, B, reference_result);
                     engine->execute();
 
@@ -639,17 +638,17 @@ namespace SushiBLAS
             const int64_t s = packed_order<float>(Device::profile_for(queue()));
             const Tensor A = random_square<float>(s);
             const Tensor B = random_square<float>(s);
-            Tensor sycl_result = engine->create_tensor({s, s}, Core::DataType::FLOAT32);
-            Tensor reference_result = engine->create_tensor({s, s}, Core::DataType::FLOAT32);
+            Tensor sycl_result = engine->create_tensor({s, s}, Core::DataType::Float32);
+            Tensor reference_result = engine->create_tensor({s, s}, Core::DataType::Float32);
             auto& context = TestEnvironment::get_context();
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
             const std::size_t live_before_sycl = context.live_usm_count();
             SushiBLAS::BLASOps(*engine).gemm(A, B, sycl_result);
             EXPECT_EQ(context.live_usm_count(), live_before_sycl + 1);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             const std::size_t live_before_reference = context.live_usm_count();
             SushiBLAS::BLASOps(*engine).gemm(A, B, reference_result);
             EXPECT_EQ(context.live_usm_count(), live_before_reference);
@@ -664,10 +663,10 @@ namespace SushiBLAS
             const Tensor A = random_square<float>(K_SMALL_ORDER);
             const Tensor B = random_square<float>(K_SMALL_ORDER);
             Tensor C = engine->create_tensor({K_SMALL_ORDER, K_SMALL_ORDER},
-                                             Core::DataType::FLOAT32);
+                                             Core::DataType::Float32);
             auto& context = TestEnvironment::get_context();
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
             const std::size_t live_before = context.live_usm_count();
             SushiBLAS::BLASOps(*engine).gemm(A, B, C);
             EXPECT_EQ(context.live_usm_count(), live_before);
@@ -695,24 +694,24 @@ namespace SushiBLAS
             const int64_t s = packed_order<float>(Device::profile_for(queue()));
             const Tensor A = random_square<float>(s);
             const Tensor B = random_square<float>(s);
-            Tensor sycl_result = engine->create_tensor({s, s}, Core::DataType::FLOAT32);
-            Tensor reference_result = engine->create_tensor({s, s}, Core::DataType::FLOAT32);
-            Tensor bias = engine->create_tensor({s}, Core::DataType::FLOAT32);
+            Tensor sycl_result = engine->create_tensor({s, s}, Core::DataType::Float32);
+            Tensor reference_result = engine->create_tensor({s, s}, Core::DataType::Float32);
+            Tensor bias = engine->create_tensor({s}, Core::DataType::Float32);
             fill_random<float>(bias);
 
             // (0, 1): the bias element is chosen by the column of C.
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
             Dispatch::execute_gemm(engine->get_recorder(), A, B, sycl_result,
-                                   Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS, 1.0, 0.0,
+                                   Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.packed_gemm_bias", "test.packed_gemm_bias"_op,
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));
             engine->execute();
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             Dispatch::execute_gemm(engine->get_recorder(), A, B, reference_result,
-                                   Core::Transpose::NO_TRANS, Core::Transpose::NO_TRANS, 1.0, 0.0,
+                                   Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.packed_gemm_bias_reference",
                                    "test.packed_gemm_bias_reference"_op,
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));

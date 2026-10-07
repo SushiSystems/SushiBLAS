@@ -82,7 +82,7 @@ namespace SushiBLAS
             [[nodiscard]] SparseMatrix matrix_from_triplets(
                 int64_t rows, int64_t cols, const std::vector<Index>& row_indices,
                 const std::vector<Index>& column_indices, const std::vector<T>& values,
-                Core::IndexBase base = Core::IndexBase::ZERO) const
+                Core::IndexBase base = Core::IndexBase::Zero) const
             {
                 static_assert(!std::is_integral_v<T>,
                               "A sparse value is floating-point or complex.");
@@ -105,8 +105,8 @@ namespace SushiBLAS
              *         not INT32 or INT64 or is too narrow, or as TensorFactory::create states.
              */
             [[nodiscard]] SparseMatrix matrix_from_dense(
-                const Tensor& dense, Core::DataType index_dtype = Core::DataType::INT64,
-                Core::IndexBase base = Core::IndexBase::ZERO) const;
+                const Tensor& dense, Core::DataType index_dtype = Core::DataType::Int64,
+                Core::IndexBase base = Core::IndexBase::Zero) const;
 
             /**
              * @brief Builds a sparse vector from its stored positions and values.
@@ -119,7 +119,7 @@ namespace SushiBLAS
             template<typename Index, typename T>
             [[nodiscard]] SparseVector vector_from_entries(
                 int64_t size, const std::vector<Index>& indices, const std::vector<T>& values,
-                Core::IndexBase base = Core::IndexBase::ZERO) const
+                Core::IndexBase base = Core::IndexBase::Zero) const
             {
                 require_index_base(base);
                 require_equal_counts(indices.size(), values.size());

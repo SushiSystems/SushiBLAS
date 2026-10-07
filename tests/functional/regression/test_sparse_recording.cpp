@@ -107,7 +107,7 @@ namespace SushiBLAS
                 /** @brief Returns the CSR matrix of FLOAT32 host triplets, zero-based. */
                 [[nodiscard]] SparseMatrix build(const HostTriplets<float>& host)
                 {
-                    const Core::IndexBase base = Core::IndexBase::ZERO;
+                    const Core::IndexBase base = Core::IndexBase::Zero;
                     const SparseBuilder builder(engine->get_tensor_factory());
                     return builder.matrix_from_triplets(
                         host.rows, host.cols, stored_indices<int32_t>(host.row_indices, base),
@@ -161,7 +161,7 @@ namespace SushiBLAS
                 {
                     SCOPED_TRACE(routine);
 
-                    GraphProbe probe(ExecutionMode::FORCE_SYCL);
+                    GraphProbe probe(ExecutionMode::ForceSycl);
                     ASSERT_TRUE(record(probe.get_recorder()).is_valid());
 
                     const auto nodes = probe.take_nodes();
@@ -220,7 +220,7 @@ namespace SushiBLAS
                 expect_body_waits("spmv under TRANS",
                     [&](TaskRecorder& r)
                     {
-                        return SparseOps(r).spmv(A, x, y, Core::Transpose::TRANS);
+                        return SparseOps(r).spmv(A, x, y, Core::Transpose::Trans);
                     },
                     [&] { verify_tensor(y, transposed, K_TOLERANCE); });
             }
@@ -232,7 +232,7 @@ namespace SushiBLAS
                 expect_body_waits("spsymv",
                     [&](TaskRecorder& r)
                     {
-                        return SparseOps(r).spsymv(A, x, y, Core::Uplo::LOWER);
+                        return SparseOps(r).spsymv(A, x, y, Core::Uplo::Lower);
                     },
                     [&] { verify_tensor(y, std::vector<float>{28, 19, 51, 59}, K_TOLERANCE); });
             }
@@ -246,7 +246,7 @@ namespace SushiBLAS
                 expect_body_waits("spmm under TRANS",
                     [&](TaskRecorder& r)
                     {
-                        return SparseOps(r).spmm(A, B, C, Core::Transpose::TRANS);
+                        return SparseOps(r).spmm(A, B, C, Core::Transpose::Trans);
                     },
                     [&]
                     {
@@ -259,7 +259,7 @@ namespace SushiBLAS
                 const SparseMatrix A = lower_triangle();
                 Tensor b = vector_of({2.0f, 7.0f, 23.0f, 59.0f});
                 expect_body_waits("sptrsv",
-                    [&](TaskRecorder& r) { return SparseOps(r).sptrsv(A, b, Core::Uplo::LOWER); },
+                    [&](TaskRecorder& r) { return SparseOps(r).sptrsv(A, b, Core::Uplo::Lower); },
                     [&] { verify_tensor(b, four, K_TOLERANCE); });
             }
         }
@@ -330,8 +330,8 @@ namespace SushiBLAS
             Tensor y_first = vector_of({0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
             Tensor y_second = vector_of({0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
 
-            SparseOps(first.get_recorder()).spmv(A, x, y_first, Core::Transpose::TRANS);
-            SparseOps(second.get_recorder()).spmv(A, x, y_second, Core::Transpose::TRANS);
+            SparseOps(first.get_recorder()).spmv(A, x, y_first, Core::Transpose::Trans);
+            SparseOps(second.get_recorder()).spmv(A, x, y_second, Core::Transpose::Trans);
             first.execute();
             second.execute();
 

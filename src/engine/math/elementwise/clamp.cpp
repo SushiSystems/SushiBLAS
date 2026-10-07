@@ -38,7 +38,7 @@ namespace SushiBLAS
         Dispatch::require_operand(!(min_val > max_val), "math.ew.clamp", "min_val",
                                   "is {}, above max_val {}", min_val, max_val);
 
-        return Dispatch::execute_unary_inplace<Dispatch::Domain::REAL_AND_INTEGRAL>(
+        return Dispatch::execute_unary_inplace<Dispatch::Domain::RealAndIntegral>(
             recorder_, t, "math.ew.clamp", "math.ew.clamp"_op,
             Dispatch::bind_scalars([](auto x, auto lo, auto hi) { return sycl::clamp(x, lo, hi); },
                                    Dispatch::ElementScalar(min_val),

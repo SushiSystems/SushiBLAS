@@ -47,7 +47,7 @@ namespace SushiBLAS
         const char* name = "random.orthogonal";
 
         Dispatch::require_rank(t, 2, name, "t");
-        Dispatch::require_random_dtype(t, Dispatch::Domain::REAL, Dispatch::Sampling::DRAWS_VALUES,
+        Dispatch::require_random_dtype(t, Dispatch::Domain::Real, Dispatch::Sampling::DrawsValues,
                                        name);
 
         const int64_t rows = t.shape[0];
@@ -88,7 +88,7 @@ namespace SushiBLAS
                 SB_LOG_INFO("RandomOps: {} ({} vectors of length {}, gain: {:.4f})", name, set.count, set.length, gain);
 
                 sycl::event done;
-                Dispatch::with_element_type<Dispatch::Domain::REAL>(dtype, "RNG operation", name, [&](auto tag)
+                Dispatch::with_element_type<Dispatch::Domain::Real>(dtype, "RNG operation", name, [&](auto tag)
                 {
                     using T = typename decltype(tag)::type;
                     if constexpr (std::is_same_v<T, sycl::half>)

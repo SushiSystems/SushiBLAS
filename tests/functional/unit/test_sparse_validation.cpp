@@ -70,7 +70,7 @@ namespace SushiBLAS
                 /** @brief Returns the CSR matrix of FLOAT32 host triplets, zero-based. */
                 [[nodiscard]] SparseMatrix build(const HostTriplets<float>& host)
                 {
-                    const Core::IndexBase base = Core::IndexBase::ZERO;
+                    const Core::IndexBase base = Core::IndexBase::Zero;
                     const SparseBuilder builder(engine->get_tensor_factory());
                     return builder.matrix_from_triplets(
                         host.rows, host.cols, stored_indices<int32_t>(host.row_indices, base),
@@ -105,7 +105,7 @@ namespace SushiBLAS
                 [[nodiscard]] static Tensor every_second(const Tensor& wide)
                 {
                     const int64_t dims[1] = {wide.num_elements / 2};
-                    std::array<int64_t, Core::MAX_TENSOR_RANK> strides{};
+                    std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides{};
                     strides[0] = 2;
                     return Tensor(wide.storage, SushiRuntime::span<const int64_t>(dims, 1),
                                   strides, wide.dtype, 0, wide.layout);
@@ -226,18 +226,18 @@ namespace SushiBLAS
             const Tensor five = dense(5);
             Tensor y4 = dense(4);
             Tensor y5 = dense(5);
-            Tensor y_double = engine->create_tensor({4}, Core::DataType::FLOAT64);
+            Tensor y_double = engine->create_tensor({4}, Core::DataType::Float64);
             const BlasScalar complex_alpha = std::complex<double>(1.0, 2.0);
 
             expect_refused("x of the wrong length under NO_TRANS",
                            [&](SparseOps& ops) { ops.spmv(A, four, y4); });
             expect_refused("x of the NO_TRANS length under TRANS",
-                           [&](SparseOps& ops) { ops.spmv(A, five, y5, Core::Transpose::TRANS); });
+                           [&](SparseOps& ops) { ops.spmv(A, five, y5, Core::Transpose::Trans); });
             expect_refused("y of another dtype",
                            [&](SparseOps& ops) { ops.spmv(A, five, y_double); });
             expect_refused("a complex alpha on FLOAT32", [&](SparseOps& ops)
             {
-                ops.spmv(A, five, y4, Core::Transpose::NO_TRANS, complex_alpha);
+                ops.spmv(A, five, y4, Core::Transpose::NoTrans, complex_alpha);
             });
             expect_refused("a trans of 0", [&](SparseOps& ops)
             {
@@ -252,7 +252,7 @@ namespace SushiBLAS
             const Tensor four = dense(4);
             const Tensor five = dense(5);
             Tensor y = dense(4);
-            const Core::Uplo lower = Core::Uplo::LOWER;
+            const Core::Uplo lower = Core::Uplo::Lower;
             const Core::Uplo no_triangle = static_cast<Core::Uplo>(0);
 
             expect_refused("spsymv of a 4 x 5 matrix",
@@ -276,8 +276,8 @@ namespace SushiBLAS
             Tensor C = engine->create_tensor({4, 3});
 
             const Tensor cube = engine->create_tensor({5, 3, 1});
-            const Tensor column_major(B.storage, {5, 3}, Core::DataType::FLOAT32, 0,
-                                      Core::Layout::COLUMN_MAJOR);
+            const Tensor column_major(B.storage, {5, 3}, Core::DataType::Float32, 0,
+                                      Core::Layout::ColumnMajor);
             const Tensor short_B = engine->create_tensor({4, 3});
             Tensor narrow_C = engine->create_tensor({4, 2});
 
@@ -298,7 +298,7 @@ namespace SushiBLAS
             Tensor long_b = dense(5);
             const Tensor eight = dense(8);
             Tensor strided = every_second(eight);
-            const Core::Uplo lower = Core::Uplo::LOWER;
+            const Core::Uplo lower = Core::Uplo::Lower;
 
             expect_refused("a 4 x 5 matrix", [&](SparseOps& ops) { ops.sptrsv(wide, b, lower); });
             expect_refused("a strided b", [&](SparseOps& ops) { ops.sptrsv(A, strided, lower); });
@@ -310,13 +310,13 @@ namespace SushiBLAS
             });
             expect_refused("a diag of 0", [&](SparseOps& ops)
             {
-                ops.sptrsv(A, b, lower, Core::Transpose::NO_TRANS, static_cast<Core::Diag>(0));
+                ops.sptrsv(A, b, lower, Core::Transpose::NoTrans, static_cast<Core::Diag>(0));
             });
         }
 
         TEST_F(Unit_SparseValidation, ForceReferenceRefusesAMatrixWithDeviceOnlyValues)
         {
-            GraphProbe probe(ExecutionMode::FORCE_REFERENCE);
+            GraphProbe probe(ExecutionMode::ForceReference);
             SparseOps ops(probe.get_recorder());
 
             SparseMatrix A = sample();
@@ -328,7 +328,7 @@ namespace SushiBLAS
 
             try
             {
-                A.values = engine->create_tensor({A.nnz()}, Core::DataType::FLOAT32,
+                A.values = engine->create_tensor({A.nnz()}, Core::DataType::Float32,
                                                  SushiRuntime::API::Residency::Device);
             }
             catch (const std::exception&)

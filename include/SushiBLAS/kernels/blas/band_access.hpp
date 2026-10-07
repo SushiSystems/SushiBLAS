@@ -106,7 +106,7 @@ namespace SushiBLAS
                                                               Core::Transpose trans, int64_t kl,
                                                               int64_t ku, int64_t ld) noexcept
         {
-            const BandAccess stored = (layout == Core::Layout::COLUMN_MAJOR)
+            const BandAccess stored = (layout == Core::Layout::ColumnMajor)
                                           ? BandAccess{1, ld - 1, ku, kl, ku, false}
                                           : BandAccess{ld - 1, 1, kl, kl, ku, false};
             if (!Core::is_transposed(trans))
@@ -129,7 +129,7 @@ namespace SushiBLAS
                                                                        int64_t k,
                                                                        int64_t ld) noexcept
         {
-            const bool upper = (uplo == Core::Uplo::UPPER);
+            const bool upper = (uplo == Core::Uplo::Upper);
             return band_access(layout, trans, upper ? int64_t{0} : k, upper ? k : int64_t{0}, ld);
         }
     } // namespace Kernels

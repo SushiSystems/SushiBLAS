@@ -46,16 +46,16 @@ namespace SushiBLAS
          */
         TEST_F(Regression_Sentinel, SyrkAcceptsHalfDtype)
         {
-            auto A = engine->create_tensor({4, 3}, Core::DataType::HALF);
-            auto C = engine->create_tensor({4, 4}, Core::DataType::HALF);
+            auto A = engine->create_tensor({4, 3}, Core::DataType::Half);
+            auto C = engine->create_tensor({4, 4}, Core::DataType::Half);
 
             fill_random<sycl::half>(A);
             fill_random<sycl::half>(C);
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
             EXPECT_NO_THROW({
-                SushiBLAS::BLASOps(*engine).syrk(A, C, Core::Uplo::LOWER,
-                                                 Core::Transpose::NO_TRANS, 1.0, 0.0);
+                SushiBLAS::BLASOps(*engine).syrk(A, C, Core::Uplo::Lower,
+                                                 Core::Transpose::NoTrans, 1.0, 0.0);
                 engine->execute();
             }) << "SYRK must accept HALF (SB-2 removed the oneMKL-era restriction).";
         }
@@ -66,19 +66,19 @@ namespace SushiBLAS
          */
         TEST_F(Regression_Sentinel, GemmColumnMajorOperandsUseColumnStrides)
         {
-            reinit_engine(Core::Layout::COLUMN_MAJOR);
+            reinit_engine(Core::Layout::ColumnMajor);
 
             const std::vector<float> expected{3, 7, 11, 2, 4, 6};
 
-            for (auto mode : {ExecutionMode::FORCE_SYCL, ExecutionMode::FORCE_REFERENCE})
+            for (auto mode : {ExecutionMode::ForceSycl, ExecutionMode::ForceReference})
             {
-                SCOPED_TRACE(mode == ExecutionMode::FORCE_SYCL
+                SCOPED_TRACE(mode == ExecutionMode::ForceSycl
                     ? "FORCE_SYCL: column-major GEMM must index A and B by column stride"
                     : "FORCE_REFERENCE: column-major GEMM must index A and B by column stride");
 
                 auto A = create_initialized_tensor<float>({3, 2}, {1, 3, 5, 2, 4, 6});
                 auto B = create_initialized_tensor<float>({2, 2}, {1, 1, 0, 1});
-                auto C = engine->create_tensor({3, 2}, Core::DataType::FLOAT32);
+                auto C = engine->create_tensor({3, 2}, Core::DataType::Float32);
 
                 engine->set_mode(mode);
                 SushiBLAS::BLASOps(*engine).gemm(A, B, C);
@@ -132,8 +132,8 @@ namespace SushiBLAS
 
             auto& q = TestEnvironment::get_context().get_queue();
 
-            auto x = engine->create_tensor({1}, Core::DataType::FLOAT64);
-            auto y = engine->create_tensor({1}, Core::DataType::FLOAT64);
+            auto x = engine->create_tensor({1}, Core::DataType::Float64);
+            auto y = engine->create_tensor({1}, Core::DataType::Float64);
             const double one = 1.0, zero = 0.0;
             q.memcpy(x.data(), &one, sizeof(double)).wait();
             q.memcpy(y.data(), &zero, sizeof(double)).wait();
@@ -172,11 +172,11 @@ namespace SushiBLAS
             };
 
             const std::vector<Case> cases{
-                {Core::Layout::ROW_MAJOR, "row-major",
+                {Core::Layout::RowMajor, "row-major",
                  {1, 0, 0, 1,   2, 0, 0, 2,   3, 0, 0, 3},
                  {1, 2, 3, 4,   2, 3, 4, 5,   3, 4, 5, 6},
                  {1, 2, 3, 4,   4, 6, 8, 10,  9, 12, 15, 18}},
-                {Core::Layout::COLUMN_MAJOR, "column-major",
+                {Core::Layout::ColumnMajor, "column-major",
                  {1, 0, 0, 1,   2, 0, 0, 2,   3, 0, 0, 3},
                  {1, 3, 2, 4,   2, 4, 3, 5,   3, 5, 4, 6},
                  {1, 3, 2, 4,   4, 8, 6, 10,  9, 15, 12, 18}},
@@ -184,15 +184,15 @@ namespace SushiBLAS
 
             for (const auto& c : cases)
             {
-                for (auto mode : {ExecutionMode::FORCE_SYCL, ExecutionMode::FORCE_REFERENCE})
+                for (auto mode : {ExecutionMode::ForceSycl, ExecutionMode::ForceReference})
                 {
-                    SCOPED_TRACE(std::string(c.name) + (mode == ExecutionMode::FORCE_SYCL ? " / SYCL" : " / reference"));
+                    SCOPED_TRACE(std::string(c.name) + (mode == ExecutionMode::ForceSycl ? " / SYCL" : " / reference"));
 
                     reinit_engine(c.layout);
 
                     auto A = create_initialized_tensor<float>({3, 2, 2}, c.a);
                     auto B = create_initialized_tensor<float>({3, 2, 2}, c.b);
-                    auto C = engine->create_tensor({3, 2, 2}, Core::DataType::FLOAT32);
+                    auto C = engine->create_tensor({3, 2, 2}, Core::DataType::Float32);
 
                     // The batch axis is the slowest-varying one whatever the layout says.
                     EXPECT_EQ(4, A.strides[0]) << "batch stride must be m*k, not 1.";
@@ -244,10 +244,10 @@ namespace SushiBLAS
 
                 // beta != 0 -> y is read
                 SushiBLAS::BLASOps(probe.get_recorder()).gemv(A, x, y,
-                                                              Core::Transpose::NO_TRANS, 1.0, 1.0);
+                                                              Core::Transpose::NoTrans, 1.0, 1.0);
                 // beta == 0 -> y is not
                 SushiBLAS::BLASOps(probe.get_recorder()).gemv(A, x, y,
-                                                              Core::Transpose::NO_TRANS, 1.0, 0.0);
+                                                              Core::Transpose::NoTrans, 1.0, 0.0);
 
                 auto nodes = probe.take_nodes();
                 ASSERT_EQ(2u, nodes.size());
@@ -277,8 +277,8 @@ namespace SushiBLAS
                 static_cast<size_t>(2 * kN) * sizeof(float),
                 SushiRuntime::API::Residency::Shared);
 
-            Tensor source(storage, {kN}, Core::DataType::FLOAT32, 0);
-            Tensor packed(storage, {kN}, Core::DataType::FLOAT32, kN);
+            Tensor source(storage, {kN}, Core::DataType::Float32, 0);
+            Tensor packed(storage, {kN}, Core::DataType::Float32, kN);
             auto total = engine->create_tensor({1});
 
             fill_tensor(source, std::vector<float>(static_cast<size_t>(kN), 3.0f));
@@ -401,7 +401,7 @@ namespace SushiBLAS
             const std::vector<std::complex<float>> data = {{3.0f, 4.0f}};
 
             auto x = create_initialized_tensor<std::complex<float>>({1}, data);
-            auto result = engine->create_tensor({1}, Core::DataType::FLOAT32);
+            auto result = engine->create_tensor({1}, Core::DataType::Float32);
 
             SushiBLAS::BLASOps(*engine).nrm2(x, result);
             engine->execute();

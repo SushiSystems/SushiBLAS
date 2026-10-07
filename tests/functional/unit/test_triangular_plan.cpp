@@ -116,21 +116,21 @@ namespace SushiBLAS
             /** @brief Returns the rows of B: the order on the left, else the vectors. */
             [[nodiscard]] constexpr int64_t rows_of(Core::Side side) noexcept
             {
-                return side == Core::Side::LEFT ? K_ORDER : K_VECTORS;
+                return side == Core::Side::Left ? K_ORDER : K_VECTORS;
             }
 
             /** @brief Returns the columns of B: the vectors on the left, else the order. */
             [[nodiscard]] constexpr int64_t cols_of(Core::Side side) noexcept
             {
-                return side == Core::Side::LEFT ? K_VECTORS : K_ORDER;
+                return side == Core::Side::Left ? K_VECTORS : K_ORDER;
             }
 
             /// @brief Holds the two layouts every decoding case runs in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::ROW_MAJOR,
-                                                  Core::Layout::COLUMN_MAJOR};
+            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
+                                                  Core::Layout::ColumnMajor};
 
             /// @brief Holds the two sides every decoding case runs on.
-            constexpr Core::Side K_SIDES[] = {Core::Side::LEFT, Core::Side::RIGHT};
+            constexpr Core::Side K_SIDES[] = {Core::Side::Left, Core::Side::Right};
 
             /** @brief Holds the flags of one TRSM call. */
             struct SolveFlags
@@ -148,12 +148,12 @@ namespace SushiBLAS
                 std::vector<SolveFlags> all;
                 for (const Core::Layout layout : K_LAYOUTS)
                     for (const Core::Side side : K_SIDES)
-                        for (const Core::Uplo uplo : {Core::Uplo::UPPER, Core::Uplo::LOWER})
+                        for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
                             for (const Core::Transpose trans :
-                                 {Core::Transpose::NO_TRANS, Core::Transpose::TRANS,
-                                  Core::Transpose::CONJ_TRANS})
+                                 {Core::Transpose::NoTrans, Core::Transpose::Trans,
+                                  Core::Transpose::ConjTrans})
                                 for (const Core::Diag diag :
-                                     {Core::Diag::NON_UNIT, Core::Diag::UNIT})
+                                     {Core::Diag::NonUnit, Core::Diag::Unit})
                                     all.push_back(SolveFlags{layout, side, uplo, trans, diag});
                 return all;
             }
@@ -242,7 +242,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that every side and flag of TRSM decodes to the substitution of its row
-         *        in DESIGN_BLAS_L3.md, section 7.4.
+         *        in DESIGN_BLAS_L3, section 7.4.
          */
         TEST(Unit_TriangularSystem, EverySideAndFlagDecodesToItsLoop)
         {
@@ -260,25 +260,25 @@ namespace SushiBLAS
                 const Core::Diag diag = flags.diag;
 
                 SCOPED_TRACE(::testing::Message()
-                             << (layout == Core::Layout::ROW_MAJOR ? "ROW_MAJOR" : "COLUMN_MAJOR")
+                             << (layout == Core::Layout::RowMajor ? "ROW_MAJOR" : "COLUMN_MAJOR")
                              << " " << Core::to_string(side) << " " << Core::to_string(uplo)
                              << " " << Core::to_string(trans) << " " << Core::to_string(diag));
 
-                const bool left = (side == Core::Side::LEFT);
+                const bool left = (side == Core::Side::Left);
                 const Kernels::SYCL::TriangularSystem system = Kernels::SYCL::triangular_system(
                     layout, side, uplo, trans, diag, rows_of(side), cols_of(side), K_LDA, K_LDB);
 
                 const Kernels::OperandAccess op_a = Kernels::operand_access(layout, trans, K_LDA);
                 const Kernels::OperandAccess at_b =
-                    Kernels::operand_access(layout, Core::Transpose::NO_TRANS, K_LDB);
+                    Kernels::operand_access(layout, Core::Transpose::NoTrans, K_LDB);
 
                 EXPECT_EQ(K_ORDER, system.order);
                 EXPECT_EQ(K_VECTORS, system.vectors);
-                EXPECT_EQ(diag == Core::Diag::UNIT, system.unit_diag);
+                EXPECT_EQ(diag == Core::Diag::Unit, system.unit_diag);
 
                 // op(A) is upper when exactly one of an upper A and a transposing op holds.
                 const bool op_upper =
-                    (uplo == Core::Uplo::UPPER) != (trans != Core::Transpose::NO_TRANS);
+                    (uplo == Core::Uplo::Upper) != (trans != Core::Transpose::NoTrans);
                 EXPECT_EQ(left ? !op_upper : op_upper, system.forward);
 
                 for (int64_t s = 0; s < K_ORDER; ++s)
@@ -307,15 +307,15 @@ namespace SushiBLAS
                 {
                     const Kernels::SYCL::TriangularSystem conjugating =
                         Kernels::SYCL::triangular_system(
-                            layout, side, Core::Uplo::LOWER, Core::Transpose::CONJ_TRANS,
-                            Core::Diag::NON_UNIT, rows_of(side), cols_of(side), K_LDA, K_LDB);
+                            layout, side, Core::Uplo::Lower, Core::Transpose::ConjTrans,
+                            Core::Diag::NonUnit, rows_of(side), cols_of(side), K_LDA, K_LDB);
                     EXPECT_TRUE(conjugating.coefficient.conjugated);
                     EXPECT_FALSE(conjugating.unknown.conjugated);
 
                     const Kernels::SYCL::TriangularSystem transposing =
                         Kernels::SYCL::triangular_system(
-                            layout, side, Core::Uplo::LOWER, Core::Transpose::TRANS,
-                            Core::Diag::NON_UNIT, rows_of(side), cols_of(side), K_LDA, K_LDB);
+                            layout, side, Core::Uplo::Lower, Core::Transpose::Trans,
+                            Core::Diag::NonUnit, rows_of(side), cols_of(side), K_LDA, K_LDB);
                     EXPECT_FALSE(transposing.coefficient.conjugated);
                     EXPECT_FALSE(transposing.unknown.conjugated);
                 }

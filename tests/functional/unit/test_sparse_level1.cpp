@@ -170,7 +170,7 @@ namespace SushiBLAS
                 [[nodiscard]] static Tensor every_second(const Tensor& wide)
                 {
                     const int64_t dims[1] = {wide.num_elements / 2};
-                    std::array<int64_t, Core::MAX_TENSOR_RANK> strides{};
+                    std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides{};
                     strides[0] = 2;
                     return Tensor(wide.storage, SushiRuntime::span<const int64_t>(dims, 1),
                                   strides, wide.dtype, 0, wide.layout);
@@ -293,7 +293,7 @@ namespace SushiBLAS
 
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
-                auto on = this->operands(mode, Core::IndexBase::ZERO);
+                auto on = this->operands(mode, Core::IndexBase::Zero);
                 Tensor unconjugated = this->vector_of(reals({9}));
                 Tensor conjugated = this->vector_of(reals({9}));
 
@@ -464,7 +464,7 @@ namespace SushiBLAS
             // dotui serves every element type; on a real tensor it records doti.
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
-                auto on = this->operands(mode, Core::IndexBase::ONE, positions, entries, dense);
+                auto on = this->operands(mode, Core::IndexBase::One, positions, entries, dense);
                 SparseOps(*this->engine).dotui(on.x, on.y, on.result);
                 this->engine->execute();
 
@@ -489,7 +489,7 @@ namespace SushiBLAS
 
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
-                auto on = operands(mode, Core::IndexBase::ZERO, {2}, reals({683}), dense);
+                auto on = operands(mode, Core::IndexBase::Zero, {2}, reals({683}), dense);
                 SparseOps(*engine).axpyi(3.0, on.x, on.y);
                 engine->execute();
 

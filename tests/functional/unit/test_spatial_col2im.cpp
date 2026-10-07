@@ -21,7 +21,7 @@
 
 /**
  * @file test_spatial_col2im.cpp
- * @brief Tests spatial().col2im against overlap counts and the reference kernel.
+ * @brief Tests SpatialOps::col2im against overlap counts and the reference kernel.
  * @author Mustafa Garip
  */
 
@@ -53,7 +53,7 @@ namespace SushiBLAS
                 /** @brief A rank-2 column matrix whose every entry is @p value. */
                 Tensor filled_cols(int64_t rows, int64_t width, float value)
                 {
-                    auto t = engine->create_tensor({rows, width}, Core::DataType::FLOAT32);
+                    auto t = engine->create_tensor({rows, width}, Core::DataType::Float32);
                     float* p = t.data_as<float>();
                     for (int64_t i = 0; i < t.num_elements; ++i)
                         p[i] = value;
@@ -75,7 +75,7 @@ namespace SushiBLAS
             const int64_t out_w = Spatial::output_extent(W, 1, 1, 1, 3, 1);
 
             auto cols = filled_cols(N * out_h * out_w, 3 * 3 * C, 1.0f);
-            auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).col2im(cols, dx, g, out_h, out_w);
             engine->execute();
@@ -114,7 +114,7 @@ namespace SushiBLAS
             const int64_t out_w = Spatial::output_extent(W, 0, 0, 1, 2, 2);   // 2
 
             auto cols = filled_cols(out_h * out_w, 2 * 2 * C, 1.0f);
-            auto dx = engine->create_tensor({1, H, W, C}, Core::DataType::FLOAT32);
+            auto dx = engine->create_tensor({1, H, W, C}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).col2im(cols, dx, g, out_h, out_w);
             engine->execute();
@@ -139,7 +139,7 @@ namespace SushiBLAS
             const int64_t out_w = Spatial::output_extent(W, 0, 0, 1, 2, 2);   // 2
 
             auto cols = filled_cols(out_h * out_w, 2 * 2 * C, 1.0f);
-            auto dx = engine->create_tensor({1, H, W, C}, Core::DataType::FLOAT32);
+            auto dx = engine->create_tensor({1, H, W, C}, Core::DataType::Float32);
 
             const float sentinel = -12345.0f;
             float* seed = dx.data_as<float>();
@@ -176,19 +176,19 @@ namespace SushiBLAS
             const int64_t out_w = Spatial::output_extent(W, 1, 1, 1, 2, 1);
 
             auto cols = engine->create_tensor({N * out_h * out_w, 3 * 2 * C},
-                                              Core::DataType::FLOAT32);
+                                              Core::DataType::Float32);
             float* p = cols.data_as<float>();
             for (int64_t i = 0; i < cols.num_elements; ++i)
                 p[i] = static_cast<float>(i % 17) - 8.0f;
 
-            auto from_reference = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
-            auto from_device = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            auto from_reference = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
+            auto from_device = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
-            engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+            engine->set_mode(ExecutionMode::ForceReference);
             SushiBLAS::SpatialOps(*engine).col2im(cols, from_reference, g, out_h, out_w);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::FORCE_SYCL);
+            engine->set_mode(ExecutionMode::ForceSycl);
             SushiBLAS::SpatialOps(*engine).col2im(cols, from_device, g, out_h, out_w);
             engine->execute();
 

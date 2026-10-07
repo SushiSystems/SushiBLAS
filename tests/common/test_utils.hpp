@@ -99,13 +99,13 @@ namespace SushiBLAS
         * @brief Maps a C++ scalar type to its corresponding SushiBLAS DataType enum value.
         */
         template<typename T> Core::DataType get_sushiblas_dtype();
-        template<> inline Core::DataType get_sushiblas_dtype<sycl::half>() { return Core::DataType::HALF; }
-        template<> inline Core::DataType get_sushiblas_dtype<float>() { return Core::DataType::FLOAT32; }
-        template<> inline Core::DataType get_sushiblas_dtype<double>() { return Core::DataType::FLOAT64; }
-        template<> inline Core::DataType get_sushiblas_dtype<std::complex<float>>() { return Core::DataType::COMPLEX32; }
-        template<> inline Core::DataType get_sushiblas_dtype<std::complex<double>>() { return Core::DataType::COMPLEX64; }
-        template<> inline Core::DataType get_sushiblas_dtype<int32_t>() { return Core::DataType::INT32; }
-        template<> inline Core::DataType get_sushiblas_dtype<int64_t>() { return Core::DataType::INT64; }
+        template<> inline Core::DataType get_sushiblas_dtype<sycl::half>() { return Core::DataType::Half; }
+        template<> inline Core::DataType get_sushiblas_dtype<float>() { return Core::DataType::Float32; }
+        template<> inline Core::DataType get_sushiblas_dtype<double>() { return Core::DataType::Float64; }
+        template<> inline Core::DataType get_sushiblas_dtype<std::complex<float>>() { return Core::DataType::Complex32; }
+        template<> inline Core::DataType get_sushiblas_dtype<std::complex<double>>() { return Core::DataType::Complex64; }
+        template<> inline Core::DataType get_sushiblas_dtype<int32_t>() { return Core::DataType::Int32; }
+        template<> inline Core::DataType get_sushiblas_dtype<int64_t>() { return Core::DataType::Int64; }
 
         /**
         * @brief Writes a flat host-side value list into a tensor, dispatching on the tensor's
@@ -119,44 +119,44 @@ namespace SushiBLAS
             auto& q = TestEnvironment::get_context().get_queue();
             switch (tensor.dtype)
             {
-                case Core::DataType::HALF:
+                case Core::DataType::Half:
                 {
                     std::vector<sycl::half> host(values.begin(), values.end());
                     q.memcpy(tensor.data(), host.data(), size * sizeof(sycl::half)).wait();
                     break;
                 }
-                case Core::DataType::FLOAT32:
+                case Core::DataType::Float32:
                 {
                     std::vector<float> host(values.begin(), values.end());
                     q.memcpy(tensor.data(), host.data(), size * sizeof(float)).wait();
                     break;
                 }
-                case Core::DataType::FLOAT64:
+                case Core::DataType::Float64:
                 {
                     std::vector<double> host(values.begin(), values.end());
                     q.memcpy(tensor.data(), host.data(), size * sizeof(double)).wait();
                     break;
                 }
-                case Core::DataType::COMPLEX32:
+                case Core::DataType::Complex32:
                 {
                     std::vector<std::complex<float>> host(values.begin(), values.end());
                     q.memcpy(tensor.data(), host.data(), size * sizeof(std::complex<float>)).wait();
                     break;
                 }
-                case Core::DataType::COMPLEX64:
+                case Core::DataType::Complex64:
                 {
                     std::vector<std::complex<double>> host(values.begin(), values.end());
                     q.memcpy(tensor.data(), host.data(), size * sizeof(std::complex<double>)).wait();
                     break;
                 }
                 // The integer arms truncate the given values, as every other arm casts them.
-                case Core::DataType::INT32:
+                case Core::DataType::Int32:
                 {
                     std::vector<int32_t> host(values.begin(), values.end());
                     q.memcpy(tensor.data(), host.data(), size * sizeof(int32_t)).wait();
                     break;
                 }
-                case Core::DataType::INT64:
+                case Core::DataType::Int64:
                 {
                     std::vector<int64_t> host(values.begin(), values.end());
                     q.memcpy(tensor.data(), host.data(), size * sizeof(int64_t)).wait();
@@ -249,13 +249,13 @@ namespace SushiBLAS
 
                 switch (tensor.dtype)
                 {
-                    case Core::DataType::HALF:      compare_host_elements<sycl::half>(tensor, expected, tolerance); break;
-                    case Core::DataType::FLOAT32:   compare_host_elements<float>(tensor, expected, tolerance); break;
-                    case Core::DataType::FLOAT64:   compare_host_elements<double>(tensor, expected, tolerance); break;
-                    case Core::DataType::COMPLEX32: compare_host_elements<std::complex<float>>(tensor, expected, tolerance); break;
-                    case Core::DataType::COMPLEX64: compare_host_elements<std::complex<double>>(tensor, expected, tolerance); break;
-                    case Core::DataType::INT32:     compare_host_elements<int32_t>(tensor, expected, tolerance); break;
-                    case Core::DataType::INT64:     compare_host_elements<int64_t>(tensor, expected, tolerance); break;
+                    case Core::DataType::Half:      compare_host_elements<sycl::half>(tensor, expected, tolerance); break;
+                    case Core::DataType::Float32:   compare_host_elements<float>(tensor, expected, tolerance); break;
+                    case Core::DataType::Float64:   compare_host_elements<double>(tensor, expected, tolerance); break;
+                    case Core::DataType::Complex32: compare_host_elements<std::complex<float>>(tensor, expected, tolerance); break;
+                    case Core::DataType::Complex64: compare_host_elements<std::complex<double>>(tensor, expected, tolerance); break;
+                    case Core::DataType::Int32:     compare_host_elements<int32_t>(tensor, expected, tolerance); break;
+                    case Core::DataType::Int64:     compare_host_elements<int64_t>(tensor, expected, tolerance); break;
                 }
             }
         } // namespace Detail
@@ -367,7 +367,7 @@ namespace SushiBLAS
 
                 void SetUp() override 
                 {
-                    engine = std::make_unique<Engine>(TestEnvironment::get_context(), Core::Layout::ROW_MAJOR);
+                    engine = std::make_unique<Engine>(TestEnvironment::get_context(), Core::Layout::RowMajor);
                     reset_fill_random_generator();
                 }
 

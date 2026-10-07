@@ -62,7 +62,7 @@ namespace SushiBLAS
 
         /// @brief The three values of Core::Transpose.
         constexpr Core::Transpose K_EVERY_TRANSPOSE[3] = {
-            Core::Transpose::NO_TRANS, Core::Transpose::TRANS, Core::Transpose::CONJ_TRANS};
+            Core::Transpose::NoTrans, Core::Transpose::Trans, Core::Transpose::ConjTrans};
 
         /// @brief The value the elements between those of a strided view hold.
         constexpr double K_FILLER = -7.0;
@@ -172,7 +172,7 @@ namespace SushiBLAS
                 [[nodiscard]] static Tensor every_second(const Tensor& wide)
                 {
                     const int64_t dims[1] = {wide.num_elements / 2};
-                    std::array<int64_t, Core::MAX_TENSOR_RANK> strides{};
+                    std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides{};
                     strides[0] = 2;
                     return Tensor(wide.storage, SushiRuntime::span<const int64_t>(dims, 1),
                                   strides, wide.dtype, 0, wide.layout);
@@ -241,7 +241,7 @@ namespace SushiBLAS
             const Wide y(4, std::complex<double>(1.0, 0.0));
             const std::complex<double> alpha(2.0, 0.0);
             const std::complex<double> beta(-1.0, 0.0);
-            const Core::Transpose trans = Core::Transpose::NO_TRANS;
+            const Core::Transpose trans = Core::Transpose::NoTrans;
 
             const Wide expected = host_product(host, trans, alpha, x, beta, y);
             if (!Core::is_complex_v<T>)
@@ -270,7 +270,7 @@ namespace SushiBLAS
             const Wide y(5, std::complex<double>(0.0, 0.0));
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> zero(0.0, 0.0);
-            const Core::Transpose trans = Core::Transpose::TRANS;
+            const Core::Transpose trans = Core::Transpose::Trans;
 
             const Wide expected = host_product(host, trans, one, x, zero, y);
             if (!Core::is_complex_v<T>)
@@ -297,7 +297,7 @@ namespace SushiBLAS
             const Wide y(5, std::complex<double>(0.0, 0.0));
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> zero(0.0, 0.0);
-            const Core::IndexBase base = Core::IndexBase::ZERO;
+            const Core::IndexBase base = Core::IndexBase::Zero;
 
             // x selects row 0, whose entries are 1 + 2i in column 0 and 2 - i in column 3.
             Wide x(4, zero);
@@ -306,9 +306,9 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 const std::vector<T> plain =
-                    this->run(mode, host, base, Core::Transpose::TRANS, one, x, zero, y);
+                    this->run(mode, host, base, Core::Transpose::Trans, one, x, zero, y);
                 const std::vector<T> conjugated =
-                    this->run(mode, host, base, Core::Transpose::CONJ_TRANS, one, x, zero, y);
+                    this->run(mode, host, base, Core::Transpose::ConjTrans, one, x, zero, y);
 
                 if (Core::is_complex_v<T>)
                 {
@@ -334,7 +334,7 @@ namespace SushiBLAS
                                                                   K_EXACT_PER_ROW, K_EXACT_SEED);
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> minus_one(-1.0, 0.0);
-            const Core::IndexBase base = Core::IndexBase::ZERO;
+            const Core::IndexBase base = Core::IndexBase::Zero;
 
             for (const Core::Transpose trans : K_EVERY_TRANSPOSE)
             {
@@ -364,7 +364,7 @@ namespace SushiBLAS
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> zero(0.0, 0.0);
             const double nan = std::numeric_limits<double>::quiet_NaN();
-            const Core::Transpose both[2] = {Core::Transpose::NO_TRANS, Core::Transpose::TRANS};
+            const Core::Transpose both[2] = {Core::Transpose::NoTrans, Core::Transpose::Trans};
 
             for (const Core::Transpose trans : both)
             {
@@ -377,7 +377,7 @@ namespace SushiBLAS
                 const Wide expected = host_product(host, trans, one, x, zero, Wide(outputs, zero));
 
                 for (const ExecutionMode mode : K_BOTH_MODES)
-                    this->expect_near(this->run(mode, host, Core::IndexBase::ZERO, trans, one, x,
+                    this->expect_near(this->run(mode, host, Core::IndexBase::Zero, trans, one, x,
                                                 zero, poisoned),
                                       expected, K_SAMPLE_TOLERANCE);
             }
@@ -428,8 +428,8 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 this->engine->set_mode(mode);
-                const SparseMatrix wide_matrix = this->build(no_rows, Core::IndexBase::ZERO);
-                const SparseMatrix tall_matrix = this->build(no_columns, Core::IndexBase::ONE);
+                const SparseMatrix wide_matrix = this->build(no_rows, Core::IndexBase::Zero);
+                const SparseMatrix tall_matrix = this->build(no_columns, Core::IndexBase::One);
 
                 // The side of length 5 is y under TRANS for 0 x 5 and under NO_TRANS for 5 x 0.
                 const Tensor nothing = this->vector_without_elements();
@@ -439,10 +439,10 @@ namespace SushiBLAS
                 Tensor y_tall = this->vector_of(five);
 
                 SparseOps ops(*this->engine);
-                ops.spmv(wide_matrix, x, no_result, Core::Transpose::NO_TRANS, alpha, beta);
-                ops.spmv(wide_matrix, nothing, y_wide, Core::Transpose::TRANS, alpha, beta);
-                ops.spmv(tall_matrix, nothing, y_tall, Core::Transpose::NO_TRANS, alpha, beta);
-                ops.spmv(tall_matrix, x, no_result, Core::Transpose::TRANS, alpha, beta);
+                ops.spmv(wide_matrix, x, no_result, Core::Transpose::NoTrans, alpha, beta);
+                ops.spmv(wide_matrix, nothing, y_wide, Core::Transpose::Trans, alpha, beta);
+                ops.spmv(tall_matrix, nothing, y_tall, Core::Transpose::NoTrans, alpha, beta);
+                ops.spmv(tall_matrix, x, no_result, Core::Transpose::Trans, alpha, beta);
                 this->engine->execute();
 
                 this->expect_near(read_tensor<T>(y_wide), scaled, 0.0);
@@ -460,7 +460,7 @@ namespace SushiBLAS
             const Wide y(4, std::complex<double>(1.0, 0.0));
             const std::complex<double> alpha(2.0, 0.0);
             const std::complex<double> beta(-1.0, 0.0);
-            const Core::Transpose trans = Core::Transpose::NO_TRANS;
+            const Core::Transpose trans = Core::Transpose::NoTrans;
             const Wide expected = host_product(host, trans, alpha, x, beta, y);
 
             for (const ExecutionMode mode : K_BOTH_MODES)
@@ -510,7 +510,7 @@ namespace SushiBLAS
 
                     SparseOps ops(*this->engine);
                     ops.spmv(A, by_columns, product);
-                    ops.spmv(A, by_rows, transposed, Core::Transpose::TRANS);
+                    ops.spmv(A, by_rows, transposed, Core::Transpose::Trans);
                     this->engine->execute();
 
                     this->expect_near(read_tensor<T>(product), {{50.0, 0.0}, {400.0, 0.0}}, 0.0);
@@ -552,10 +552,10 @@ namespace SushiBLAS
 
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
-                expect_near(run(mode, row, Core::IndexBase::ZERO, Core::Transpose::NO_TRANS, one,
+                expect_near(run(mode, row, Core::IndexBase::Zero, Core::Transpose::NoTrans, one,
                                 ones, zero, start),
                             Wide(1, one), 0.0);
-                expect_near(run(mode, column, Core::IndexBase::ZERO, Core::Transpose::TRANS, one,
+                expect_near(run(mode, column, Core::IndexBase::Zero, Core::Transpose::Trans, one,
                                 ones, zero, start),
                             Wide(1, one), 0.0);
             }
@@ -572,7 +572,7 @@ namespace SushiBLAS
                                                                     const std::vector<float>& x,
                                                                     std::size_t blocks)
                 {
-                    const Core::IndexBase base = Core::IndexBase::ZERO;
+                    const Core::IndexBase base = Core::IndexBase::Zero;
                     const SparseBuilder builder(engine->get_tensor_factory());
                     const SparseMatrix A = builder.matrix_from_triplets(
                         host.rows, host.cols, stored_indices<int32_t>(host.row_indices, base),
@@ -586,7 +586,7 @@ namespace SushiBLAS
                         A.rows, A.cols, A.nnz(), 0, A.row_offsets.data_as<int32_t>(),
                         A.column_indices.data_as<int32_t>()};
                     Kernels::SYCL::spmv<float, int32_t>(
-                        TestEnvironment::get_context().get_queue(), Core::Transpose::TRANS, pattern,
+                        TestEnvironment::get_context().get_queue(), Core::Transpose::Trans, pattern,
                         A.values.data_as<float>(), 1.0f, tx.data_as<float>(), 1, 0.0f,
                         ty.data_as<float>(), 1, partials.data_as<float>(), blocks, {}).wait();
                     return read_tensor<float>(ty);
@@ -609,7 +609,7 @@ namespace SushiBLAS
 
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> zero(0.0, 0.0);
-            const Wide expected = host_product(host, Core::Transpose::TRANS, one, wide_x, zero,
+            const Wide expected = host_product(host, Core::Transpose::Trans, one, wide_x, zero,
                                                Wide(static_cast<std::size_t>(host.cols), zero));
 
             const std::size_t block_counts[6] = {1, 2, 3, 7, 64, 256};

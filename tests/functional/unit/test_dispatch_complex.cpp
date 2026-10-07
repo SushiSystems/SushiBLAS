@@ -46,7 +46,7 @@ TEST_F(Unit_DispatchComplexTest, BinaryArithmeticOnComplex32)
 
     auto a = create_initialized_tensor<cf>({2}, av);
     auto b = create_initialized_tensor<cf>({2}, bv);
-    auto c = engine->create_tensor({2}, DataType::COMPLEX32);
+    auto c = engine->create_tensor({2}, DataType::Complex32);
 
     SushiBLAS::ElementwiseOps(*engine).add(a, b, c);
     engine->execute();
@@ -128,7 +128,7 @@ TEST_F(Unit_DispatchComplexTest, EqualityAndConnectivesOnComplex32)
 {
     auto a = create_initialized_tensor<cf>({3}, {cf(1.0f, 2.0f), cf(0.0f, 0.0f), cf(1.0f, 0.0f)});
     auto b = create_initialized_tensor<cf>({3}, {cf(1.0f, 2.0f), cf(0.0f, 1.0f), cf(1.0f, 1.0f)});
-    auto r = engine->create_tensor({3}, DataType::COMPLEX32);
+    auto r = engine->create_tensor({3}, DataType::Complex32);
 
     // Equality is component-wise, so (1,0) != (1,1) although the real parts match.
     SushiBLAS::LogicOps(*engine).equal(a, b, r);
@@ -153,7 +153,7 @@ TEST_F(Unit_DispatchComplexTest, WhereSelectsOnComplex32)
     auto cond = create_initialized_tensor<cf>({3}, {cf(1.0f, 0.0f), cf(0.0f, 0.0f), cf(0.0f, 2.0f)});
     auto a = create_initialized_tensor<cf>({3}, {cf(7.0f, 7.0f), cf(7.0f, 7.0f), cf(7.0f, 7.0f)});
     auto b = create_initialized_tensor<cf>({3}, {cf(-1.0f, -1.0f), cf(-1.0f, -1.0f), cf(-1.0f, -1.0f)});
-    auto out = engine->create_tensor({3}, DataType::COMPLEX32);
+    auto out = engine->create_tensor({3}, DataType::Complex32);
 
     SushiBLAS::LogicOps(*engine).where(cond, a, b, out);
     engine->execute();
@@ -166,9 +166,9 @@ TEST_F(Unit_DispatchComplexTest, WhereSelectsOnComplex32)
 
 TEST_F(Unit_DispatchComplexTest, OrderingComparisonsRejectComplex32)
 {
-    auto a = engine->create_tensor({2}, DataType::COMPLEX32);
-    auto b = engine->create_tensor({2}, DataType::COMPLEX32);
-    auto r = engine->create_tensor({2}, DataType::COMPLEX32);
+    auto a = engine->create_tensor({2}, DataType::Complex32);
+    auto b = engine->create_tensor({2}, DataType::Complex32);
+    auto r = engine->create_tensor({2}, DataType::Complex32);
 
     // C is not an ordered field. See tests/functional/unit/README.md.
     EXPECT_THROW(SushiBLAS::LogicOps(*engine).less(a, b, r), std::invalid_argument);
@@ -179,9 +179,9 @@ TEST_F(Unit_DispatchComplexTest, OrderingComparisonsRejectComplex32)
 
 TEST_F(Unit_DispatchComplexTest, OrderDependentElementwiseOpsRejectComplex32)
 {
-    auto a = engine->create_tensor({2}, DataType::COMPLEX32);
-    auto b = engine->create_tensor({2}, DataType::COMPLEX32);
-    auto c = engine->create_tensor({2}, DataType::COMPLEX32);
+    auto a = engine->create_tensor({2}, DataType::Complex32);
+    auto b = engine->create_tensor({2}, DataType::Complex32);
+    auto c = engine->create_tensor({2}, DataType::Complex32);
 
     EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).max(a, b, c), std::invalid_argument);
     EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).min(a, b, c), std::invalid_argument);
@@ -191,7 +191,7 @@ TEST_F(Unit_DispatchComplexTest, OrderDependentElementwiseOpsRejectComplex32)
 
 TEST_F(Unit_DispatchComplexTest, RoundingAndClampRejectComplex32)
 {
-    auto t = engine->create_tensor({2}, DataType::COMPLEX32);
+    auto t = engine->create_tensor({2}, DataType::Complex32);
 
     EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).floor(t), std::invalid_argument);
     EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).ceil(t), std::invalid_argument);
@@ -202,7 +202,7 @@ TEST_F(Unit_DispatchComplexTest, RoundingAndClampRejectComplex32)
 TEST_F(Unit_DispatchComplexTest, RemainingRealOnlyOpsRejectComplex32)
 {
     // Complex trigonometry and pow are not implemented. See tests/functional/unit/README.md.
-    auto t = engine->create_tensor({2}, DataType::COMPLEX32);
+    auto t = engine->create_tensor({2}, DataType::Complex32);
 
     EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).sin(t), std::invalid_argument);
     EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).cos(t), std::invalid_argument);
@@ -212,7 +212,7 @@ TEST_F(Unit_DispatchComplexTest, RemainingRealOnlyOpsRejectComplex32)
 
 TEST_F(Unit_DispatchComplexTest, RealDtypesAreUnaffected)
 {
-    // max and min are Domain::REAL_AND_INTEGRAL and must still work on a FLOAT32 tensor.
+    // max and min are Domain::RealAndIntegral and must still work on a FLOAT32 tensor.
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});
     auto c = engine->create_tensor({4});

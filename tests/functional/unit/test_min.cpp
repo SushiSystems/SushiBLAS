@@ -21,7 +21,7 @@
 
 /**
  * @file test_min.cpp
- * @brief Tests elementwise().min against fixed expected values.
+ * @brief Tests ElementwiseOps::min against fixed expected values.
  * @author Mustafa Garip
  */
 

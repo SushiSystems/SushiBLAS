@@ -85,7 +85,7 @@ namespace SushiBLAS
             for (std::size_t device = 0; device < context().device_count(); ++device)
             {
                 SCOPED_TRACE(device);
-                const Tensor tensor = factory_.create(span_of(dims), Core::DataType::FLOAT32,
+                const Tensor tensor = factory_.create(span_of(dims), Core::DataType::Float32,
                                                       SushiRuntime::API::Residency::Shared, device);
 
                 ASSERT_TRUE(tensor.storage != nullptr);
@@ -100,10 +100,10 @@ namespace SushiBLAS
             const std::vector<int64_t> empty_dims = {0, 3};
             const std::size_t past_the_last = context().device_count();
 
-            EXPECT_THROW((void)factory_.create(span_of(dims), Core::DataType::FLOAT32,
+            EXPECT_THROW((void)factory_.create(span_of(dims), Core::DataType::Float32,
                                                SushiRuntime::API::Residency::Shared, past_the_last),
                          std::runtime_error);
-            EXPECT_THROW((void)factory_.create(span_of(empty_dims), Core::DataType::FLOAT32,
+            EXPECT_THROW((void)factory_.create(span_of(empty_dims), Core::DataType::Float32,
                                                SushiRuntime::API::Residency::Shared, past_the_last),
                          std::runtime_error);
         }
@@ -129,12 +129,12 @@ namespace SushiBLAS
         /** @brief Tests that a column-major engine creates column-major tensors. */
         TEST_F(Unit_TensorFactoryTest, EngineCreateTensorUsesTheEngineLayout)
         {
-            reinit_engine(Core::Layout::COLUMN_MAJOR);
+            reinit_engine(Core::Layout::ColumnMajor);
 
             const Tensor tensor = engine->create_tensor({2, 3});
 
-            EXPECT_EQ(Core::Layout::COLUMN_MAJOR, engine->get_tensor_factory().get_layout());
-            EXPECT_EQ(Core::Layout::COLUMN_MAJOR, tensor.layout);
+            EXPECT_EQ(Core::Layout::ColumnMajor, engine->get_tensor_factory().get_layout());
+            EXPECT_EQ(Core::Layout::ColumnMajor, tensor.layout);
             EXPECT_EQ(1, tensor.strides[0]);
             EXPECT_EQ(2, tensor.strides[1]);
         }
@@ -142,7 +142,7 @@ namespace SushiBLAS
         /** @brief Tests that twelve requested bytes are stored as whole alignment units. */
         TEST_F(Unit_TensorFactoryTest, StorageSizeIsRoundedUpToTheAlignment)
         {
-            const Tensor tensor = engine->create_tensor({3}, Core::DataType::FLOAT32);
+            const Tensor tensor = engine->create_tensor({3}, Core::DataType::Float32);
 
             ASSERT_TRUE(tensor.storage != nullptr);
             const std::size_t stored_bytes = tensor.storage->size_bytes();

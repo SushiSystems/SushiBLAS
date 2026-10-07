@@ -301,7 +301,7 @@ class Unit_DispatchSeamTest : public SushiBLASTest
         {
             try
             {
-                sb::Tensor t = engine->create_tensor(dims, DataType::FLOAT32,
+                sb::Tensor t = engine->create_tensor(dims, DataType::Float32,
                                                      SushiRuntime::API::Residency::Device);
                 const sycl::context context =
                     TestEnvironment::get_context().get_queue().get_context();
@@ -414,10 +414,10 @@ TEST_F(Unit_DispatchSeamTest, ConsumerFunctorCanOptIntoComplex)
 
     auto a = create_initialized_tensor<cf>({2}, {cf(1.0f, 1.0f), cf(2.0f, -1.0f)});
     auto b = create_initialized_tensor<cf>({2}, {cf(0.0f, 1.0f), cf(1.0f, 1.0f)});
-    auto c = engine->create_tensor({2}, DataType::COMPLEX32);
+    auto c = engine->create_tensor({2}, DataType::Complex32);
 
     // (1+i)(i) + (1+i) = 2i and (2-i)(1+i) + (2-i) = 5.
-    sb::Dispatch::execute_binary<sb::Dispatch::Domain::REAL_AND_COMPLEX>(
+    sb::Dispatch::execute_binary<sb::Dispatch::Domain::RealAndComplex>(
         engine->get_recorder(), a, b, c, "test.fused_complex", "test.fused_complex"_op,
         [](auto x, auto y) { return x * y + x; });
     engine->execute();
@@ -454,9 +454,9 @@ TEST_F(Unit_DispatchSeamTest, ConsumerCanDriveTheLogicAndReductionSeamsToo)
 
 TEST_F(Unit_DispatchSeamTest, RealOnlyDomainRejectsComplexAtRecordTime)
 {
-    auto a = engine->create_tensor({2}, DataType::COMPLEX32);
-    auto b = engine->create_tensor({2}, DataType::COMPLEX32);
-    auto c = engine->create_tensor({2}, DataType::COMPLEX32);
+    auto a = engine->create_tensor({2}, DataType::Complex32);
+    auto b = engine->create_tensor({2}, DataType::Complex32);
+    auto c = engine->create_tensor({2}, DataType::Complex32);
 
     // The default domain is REAL. See tests/functional/unit/README.md.
     EXPECT_THROW(
@@ -605,8 +605,8 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
 {
     auto four = engine->create_tensor({4});
     auto eight = engine->create_tensor({8});
-    auto wide = engine->create_tensor({4}, DataType::FLOAT64);
-    auto cplx = engine->create_tensor({4}, DataType::COMPLEX32);
+    auto wide = engine->create_tensor({4}, DataType::Float64);
+    auto cplx = engine->create_tensor({4}, DataType::Complex32);
     sb::Tensor* missing = nullptr;
 
     auto accumulate = [](auto& x, auto& y) { x = x + y; };
@@ -726,7 +726,7 @@ TEST_F(Unit_DispatchSeamTest, ABoundFunctorWorksInAFusedUpdate)
  */
 TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
 {
-    auto t = engine->create_tensor({4}, DataType::COMPLEX32);
+    auto t = engine->create_tensor({4}, DataType::Complex32);
 
     SushiRuntime::Graph::TaskMetadata meta;
     meta.name = "spatial.im2col";
@@ -734,7 +734,7 @@ TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
 
     try
     {
-        (void)sb::Internal::execute_typed_task<sb::Dispatch::Domain::REAL>(
+        (void)sb::Internal::execute_typed_task<sb::Dispatch::Domain::Real>(
             engine->get_recorder(), meta, SushiBLAS::OperandSet(), t.dtype, "Spatial operation",
             [](auto, const sb::Internal::KernelPairDispatcher&, sycl::queue&,
                const std::vector<sycl::event>&) -> sycl::event
@@ -802,7 +802,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsKeptAllocated)
  */
 TEST_F(Unit_DispatchSeamTest, ADeclaredReadOfAnotherTypeArrivesTyped)
 {
-    const GatedUpdate update = run_gated_update(sb::ExecutionMode::AUTO);
+    const GatedUpdate update = run_gated_update(sb::ExecutionMode::Auto);
 
     std::vector<double> expected = update.theta;
     for (size_t i = 0; i < expected.size(); ++i)
@@ -905,13 +905,13 @@ TEST_F(Unit_DispatchSeamTest, ADeviceOnlyReadIsRefusedUnderForceReference)
         GTEST_SKIP() << "This device offers no device-only USM.";
     auto y = engine->create_tensor({4});
 
-    GraphProbe reference(sb::ExecutionMode::FORCE_REFERENCE);
+    GraphProbe reference(sb::ExecutionMode::ForceReference);
     const std::string message =
         refusal_of([&] { record_scaled(reference.get_recorder(), y, *factor); });
     EXPECT_NE(message.find("FORCE_REFERENCE"), std::string::npos) << message;
     EXPECT_TRUE(reference.take_nodes().empty());
 
-    GraphProbe device(sb::ExecutionMode::FORCE_SYCL);
+    GraphProbe device(sb::ExecutionMode::ForceSycl);
     EXPECT_NO_THROW(record_scaled(device.get_recorder(), y, *factor));
     EXPECT_EQ(device.take_nodes().size(), 1u);
 }
@@ -922,8 +922,8 @@ TEST_F(Unit_DispatchSeamTest, ADeviceOnlyReadIsRefusedUnderForceReference)
  */
 TEST_F(Unit_DispatchSeamTest, ADeclaredReadReachesTheHostPath)
 {
-    const GatedUpdate reference = run_gated_update(sb::ExecutionMode::FORCE_REFERENCE);
-    const GatedUpdate device = run_gated_update(sb::ExecutionMode::FORCE_SYCL);
+    const GatedUpdate reference = run_gated_update(sb::ExecutionMode::ForceReference);
+    const GatedUpdate device = run_gated_update(sb::ExecutionMode::ForceSycl);
 
     expect_same_bits(reference.gated, device.gated, "the parameter whose gate is set");
     expect_same_bits(reference.stepped, device.stepped, "the parameter whose gate is clear");

@@ -63,7 +63,7 @@ namespace SushiBLAS
                     h.parallel_for(elements, [=](sycl::id<2> idx)
                     {
                         int64_t i = idx[0], j = idx[1];
-                        T& ref = (layout == Core::Layout::ROW_MAJOR) ? a[i * lda + j]
+                        T& ref = (layout == Core::Layout::RowMajor) ? a[i * lda + j]
                                                                      : a[i + j * lda];
                         ref = T(W(ref) + multiply(multiply(W(alpha), W(x[i * incx])),
                                                   Conj::apply(W(y[j * incy]))));

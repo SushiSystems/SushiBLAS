@@ -35,7 +35,7 @@ namespace SushiBLAS
 
     TaskHandle LogicOps::logical_xor(const Tensor& A, const Tensor& B, Tensor& result) 
     {
-        return Dispatch::execute_logic_binary<Dispatch::Domain::ALL>(recorder_, A, B, result, "logic.xor", "logic.xor"_op, 
+        return Dispatch::execute_logic_binary<Dispatch::Domain::All>(recorder_, A, B, result, "logic.xor", "logic.xor"_op, 
             [](auto x, auto y) { return (Dispatch::logic_not_zero(x) != Dispatch::logic_not_zero(y)) ? decltype(x)(1) : decltype(x)(0); });
     }
 } // namespace SushiBLAS

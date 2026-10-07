@@ -110,15 +110,15 @@ namespace SushiBLAS
             constexpr double K_UNTOUCHED = -77.0;
 
             /// @brief The two modes every case runs in.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::FORCE_SYCL,
-                                                 ExecutionMode::FORCE_REFERENCE};
+            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceSycl,
+                                                 ExecutionMode::ForceReference};
 
             /// @brief The two layouts the exact cases run in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::ROW_MAJOR,
-                                                  Core::Layout::COLUMN_MAJOR};
+            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
+                                                  Core::Layout::ColumnMajor};
 
             /// @brief The two triangles of C an update can write.
-            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::UPPER, Core::Uplo::LOWER};
+            constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
 
             /// @brief A scalar with a non-zero imaginary part, which a real tensor refuses.
             const BlasScalar K_COMPLEX_SCALAR = std::complex<double>(1.0, 2.0);
@@ -126,7 +126,7 @@ namespace SushiBLAS
             /** @brief Returns the name of a mode for a failure message. */
             [[nodiscard]] const char* mode_name(ExecutionMode mode) noexcept
             {
-                return mode == ExecutionMode::FORCE_SYCL ? "FORCE_SYCL" : "FORCE_REFERENCE";
+                return mode == ExecutionMode::ForceSycl ? "FORCE_SYCL" : "FORCE_REFERENCE";
             }
 
             /** @brief Returns the names of a layout, a triangle and a transpose for a message. */
@@ -134,7 +134,7 @@ namespace SushiBLAS
                                                 Core::Transpose trans)
             {
                 const char* const layout_name =
-                    layout == Core::Layout::ROW_MAJOR ? "ROW_MAJOR" : "COLUMN_MAJOR";
+                    layout == Core::Layout::RowMajor ? "ROW_MAJOR" : "COLUMN_MAJOR";
                 return std::string(layout_name) + " " + Core::to_string(uplo) + " " +
                        Core::to_string(trans);
             }
@@ -170,7 +170,7 @@ namespace SushiBLAS
             /** @brief Returns whether (r, c) lies in the updated triangle. */
             [[nodiscard]] constexpr bool is_updated(Core::Uplo uplo, int64_t r, int64_t c) noexcept
             {
-                return uplo == Core::Uplo::UPPER ? r <= c : r >= c;
+                return uplo == Core::Uplo::Upper ? r <= c : r >= c;
             }
 
             /** @brief Holds a matrix on the host in the element order of a layout. */
@@ -179,13 +179,13 @@ namespace SushiBLAS
             {
                 int64_t rows = 0;                              /**< Rows of the matrix. */
                 int64_t cols = 0;                              /**< Columns of the matrix. */
-                Core::Layout layout = Core::Layout::ROW_MAJOR; /**< Orders values. */
+                Core::Layout layout = Core::Layout::RowMajor; /**< Orders values. */
                 std::vector<T> values;                         /**< rows * cols elements. */
 
                 /** @brief Returns the position of element (r, c) in values. */
                 [[nodiscard]] std::size_t index(int64_t r, int64_t c) const noexcept
                 {
-                    return static_cast<std::size_t>(layout == Core::Layout::ROW_MAJOR
+                    return static_cast<std::size_t>(layout == Core::Layout::RowMajor
                                                         ? r * cols + c
                                                         : c * rows + r);
                 }
@@ -253,7 +253,7 @@ namespace SushiBLAS
                                                       int64_t cols)
             {
                 std::uniform_real_distribution<T> distribution(T(-1), T(1));
-                HostMatrix<T> out = zero_matrix<T>(rows, cols, Core::Layout::ROW_MAJOR);
+                HostMatrix<T> out = zero_matrix<T>(rows, cols, Core::Layout::RowMajor);
                 for (T& element : out.values)
                     element = distribution(generator);
                 return out;
@@ -421,7 +421,7 @@ namespace SushiBLAS
             {
                 using Tile = Kernels::SYCL::Detail::Syr2kTileConfig<T>;
                 const Device::LocalTileDemand demand{Tile::local_mem_bytes(),
-                                                     static_cast<std::size_t>(Tile::wg_items)};
+                                                     static_cast<std::size_t>(Tile::K_WG_ITEMS)};
                 return Device::hosts_local_tile(profile, demand);
             }
 
@@ -431,8 +431,8 @@ namespace SushiBLAS
                                                  std::size_t local_bytes) noexcept
             {
                 using Tile = Kernels::SYCL::Detail::Syr2kTileConfig<T>;
-                return Tile::item_rows == register_block && Tile::item_cols == register_block &&
-                       Tile::block_m == group_edge && Tile::block_n == group_edge &&
+                return Tile::K_ITEM_ROWS == register_block && Tile::K_ITEM_COLS == register_block &&
+                       Tile::K_BLOCK_M == group_edge && Tile::K_BLOCK_N == group_edge &&
                        Tile::local_mem_bytes() == local_bytes;
             }
         } // namespace
@@ -553,7 +553,7 @@ namespace SushiBLAS
                 const auto lower = matrix_of<T>(2, 2, layout, {-9, 10, -16, 51});
 
                 for (const Core::Transpose trans :
-                     {Core::Transpose::NO_TRANS, Core::Transpose::TRANS})
+                     {Core::Transpose::NoTrans, Core::Transpose::Trans})
                 {
                     // Under TRANS the stored operands are the 3 x 2 transposes.
                     const auto stored_a = applied(a, trans);
@@ -561,14 +561,14 @@ namespace SushiBLAS
 
                     for (const ExecutionMode mode : K_MODES)
                     {
-                        SCOPED_TRACE(case_name(layout, Core::Uplo::UPPER, trans) + " " +
+                        SCOPED_TRACE(case_name(layout, Core::Uplo::Upper, trans) + " " +
                                      mode_name(mode));
                         expect_equal(this->template run_update<T, Conj>(
-                                         mode, stored_a, stored_b, c, Core::Uplo::UPPER, trans,
+                                         mode, stored_a, stored_b, c, Core::Uplo::Upper, trans,
                                          K_INTEGER_ALPHA, K_INTEGER_BETA),
                                      upper.values);
                         expect_equal(this->template run_update<T, Conj>(
-                                         mode, stored_a, stored_b, c, Core::Uplo::LOWER, trans,
+                                         mode, stored_a, stored_b, c, Core::Uplo::Lower, trans,
                                          K_INTEGER_ALPHA, K_INTEGER_BETA),
                                      lower.values);
                     }
@@ -579,14 +579,14 @@ namespace SushiBLAS
         TYPED_TEST(Unit_Syr2k, IsExactOnSmallIntegers)
         {
             this->template expect_exact_on_integers<TypeParam, Kernels::Unconjugated>(
-                {Core::Transpose::NO_TRANS, Core::Transpose::TRANS}, K_INTEGER_ALPHA);
+                {Core::Transpose::NoTrans, Core::Transpose::Trans}, K_INTEGER_ALPHA);
         }
 
         TYPED_TEST(Unit_Syr2k, ABatchIsUpdatedMatrixByMatrix)
         {
             using T = TypeParam;
             using Conj = Kernels::Unconjugated;
-            const Core::Layout layout = Core::Layout::ROW_MAJOR;
+            const Core::Layout layout = Core::Layout::RowMajor;
             const int64_t n = K_BATCH_ORDER;
             const int64_t k = K_BATCH_INNER;
 
@@ -609,11 +609,11 @@ namespace SushiBLAS
                     for (std::size_t index = 0; index < c.size(); ++index)
                         expected.push_back(expected_update<T, Conj>(
                             a[a_is_batched ? index : 0], b[index], c[index], uplo,
-                            Core::Transpose::NO_TRANS, K_INTEGER_ALPHA, K_INTEGER_BETA));
+                            Core::Transpose::NoTrans, K_INTEGER_ALPHA, K_INTEGER_BETA));
 
                     for (const ExecutionMode mode : K_MODES)
                     {
-                        SCOPED_TRACE(case_name(layout, uplo, Core::Transpose::NO_TRANS) + " " +
+                        SCOPED_TRACE(case_name(layout, uplo, Core::Transpose::NoTrans) + " " +
                                      mode_name(mode) +
                                      (a_is_batched ? ", A batched" : ", A of rank 2"));
                         this->engine->set_mode(mode);
@@ -624,7 +624,7 @@ namespace SushiBLAS
                         Tensor C = this->upload({K_BATCH, n, n}, concatenated(c));
 
                         SushiBLAS::BLASOps(*this->engine).syr2k(A, B, C, uplo,
-                                                                Core::Transpose::NO_TRANS,
+                                                                Core::Transpose::NoTrans,
                                                                 K_INTEGER_ALPHA, K_INTEGER_BETA);
                         this->engine->execute();
 
@@ -642,7 +642,7 @@ namespace SushiBLAS
                 /** @brief Returns the unit roundoff of the type the kernel of mode sums T in. */
                 [[nodiscard]] static double summing_unit(ExecutionMode mode) noexcept
                 {
-                    return mode == ExecutionMode::FORCE_REFERENCE
+                    return mode == ExecutionMode::ForceReference
                                ? unit_roundoff<Kernels::ReferenceAccumulator<T>>()
                                : unit_roundoff<Kernels::Accumulator<T>>();
                 }
@@ -650,7 +650,7 @@ namespace SushiBLAS
                 /** @brief Returns the roundings the kernel of mode makes on two sums of k terms. */
                 [[nodiscard]] static std::size_t roundings(ExecutionMode mode, int64_t k) noexcept
                 {
-                    const bool compensated = mode == ExecutionMode::FORCE_REFERENCE &&
+                    const bool compensated = mode == ExecutionMode::ForceReference &&
                                              Kernels::ReferenceSum<T>::K_IS_COMPENSATED;
                     return 2 * (compensated ? K_COMPENSATED_ROUNDINGS
                                             : static_cast<std::size_t>(k)) +
@@ -684,7 +684,7 @@ namespace SushiBLAS
             using T = TypeParam;
             std::mt19937 generator(K_SEED);
 
-            for (const Core::Transpose trans : {Core::Transpose::NO_TRANS, Core::Transpose::TRANS})
+            for (const Core::Transpose trans : {Core::Transpose::NoTrans, Core::Transpose::Trans})
             {
                 const bool transposed = Core::is_transposed(trans);
                 const auto a = random_matrix<T>(generator, transposed ? K_INNER : K_ORDER,
@@ -698,7 +698,7 @@ namespace SushiBLAS
                 {
                     for (const ExecutionMode mode : K_MODES)
                     {
-                        SCOPED_TRACE(case_name(Core::Layout::ROW_MAJOR, uplo, trans) + " " +
+                        SCOPED_TRACE(case_name(Core::Layout::RowMajor, uplo, trans) + " " +
                                      mode_name(mode));
                         const std::vector<T> actual =
                             this->template run_update<T, Kernels::Unconjugated>(
@@ -753,8 +753,8 @@ namespace SushiBLAS
                 const Tensor B = upload({1, 3}, ones);
                 Tensor C = upload({1, 1}, std::vector<sycl::half>(1, sycl::half(0.0f)));
 
-                SushiBLAS::BLASOps(*engine).syr2k(A, B, C, Core::Uplo::UPPER,
-                                                  Core::Transpose::NO_TRANS, 1.0, 0.0);
+                SushiBLAS::BLASOps(*engine).syr2k(A, B, C, Core::Uplo::Upper,
+                                                  Core::Transpose::NoTrans, 1.0, 0.0);
                 engine->execute();
 
                 // Each product sums 2048 + 1 - 2048, which is 1 in FLOAT32 and 0 in HALF.
@@ -766,7 +766,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_Syr2kFixedType, WaitsForItsDependencies)
         {
-            const Core::Layout layout = Core::Layout::ROW_MAJOR;
+            const Core::Layout layout = Core::Layout::RowMajor;
             const Tensor A = upload(matrix_of<float>(2, 3, layout, {1, 2, 3, 4, 5, 6}));
             const Tensor B = upload(matrix_of<float>(2, 3, layout, {1, 0, -1, 2, 1, 0}));
             Tensor C = upload(matrix_of<float>(2, 2, layout, {1, 10, 20, 1}));
@@ -775,7 +775,7 @@ namespace SushiBLAS
             DependencyGate gate(queue);
 
             sycl::event done = Kernels::SYCL::syr2k<float>(
-                queue, layout, Core::Uplo::UPPER, Core::Transpose::NO_TRANS, 2, 3,
+                queue, layout, Core::Uplo::Upper, Core::Transpose::NoTrans, 2, 3,
                 static_cast<float>(K_INTEGER_ALPHA), static_cast<const float*>(A.data()), 3, 0,
                 static_cast<const float*>(B.data()), 3, 0,
                 static_cast<float>(K_INTEGER_BETA), static_cast<float*>(C.data()), 2, 0,
@@ -840,11 +840,11 @@ namespace SushiBLAS
 
                 for (const ExecutionMode mode : K_MODES)
                 {
-                    SCOPED_TRACE(case_name(layout, Core::Uplo::UPPER, Core::Transpose::NO_TRANS) +
+                    SCOPED_TRACE(case_name(layout, Core::Uplo::Upper, Core::Transpose::NoTrans) +
                                  " " + mode_name(mode));
                     const std::vector<T> actual =
                         this->template run_update<T, Kernels::Conjugated>(
-                            mode, a, b, c, Core::Uplo::UPPER, Core::Transpose::NO_TRANS, alpha,
+                            mode, a, b, c, Core::Uplo::Upper, Core::Transpose::NoTrans, alpha,
                             2.0);
 
                     // C(0, 0) is 6 + 2 * (1 + 5i) with its imaginary part dropped.
@@ -858,7 +858,7 @@ namespace SushiBLAS
         TYPED_TEST(Unit_Her2k, IsExactOnGaussianIntegers)
         {
             this->template expect_exact_on_integers<TypeParam, Kernels::Conjugated>(
-                {Core::Transpose::NO_TRANS, Core::Transpose::CONJ_TRANS}, this->K_ALPHA);
+                {Core::Transpose::NoTrans, Core::Transpose::ConjTrans}, this->K_ALPHA);
         }
 
         TYPED_TEST(Unit_Her2k, ConjTransEqualsNoTransOnTheConjugateTransposes)
@@ -866,12 +866,12 @@ namespace SushiBLAS
             using T = TypeParam;
             using Conj = Kernels::Conjugated;
             const Wide alpha = this->K_ALPHA;
-            const Core::Layout layout = Core::Layout::ROW_MAJOR;
+            const Core::Layout layout = Core::Layout::RowMajor;
             const auto a = integer_matrix<T>(K_SEED_A, K_INNER, K_ORDER, layout);
             const auto b = integer_matrix<T>(K_SEED_B, K_INNER, K_ORDER, layout);
             const auto c = integer_matrix<T>(K_SEED_C, K_ORDER, K_ORDER, layout);
-            const auto a_h = applied(a, Core::Transpose::CONJ_TRANS);
-            const auto b_h = applied(b, Core::Transpose::CONJ_TRANS);
+            const auto a_h = applied(a, Core::Transpose::ConjTrans);
+            const auto b_h = applied(b, Core::Transpose::ConjTrans);
 
             for (const Core::Uplo uplo : K_TRIANGLES)
             {
@@ -879,10 +879,10 @@ namespace SushiBLAS
                 {
                     SCOPED_TRACE(std::string(Core::to_string(uplo)) + " " + mode_name(mode));
                     expect_equal(this->template run_update<T, Conj>(
-                                     mode, a, b, c, uplo, Core::Transpose::CONJ_TRANS, alpha,
+                                     mode, a, b, c, uplo, Core::Transpose::ConjTrans, alpha,
                                      K_INTEGER_BETA),
                                  this->template run_update<T, Conj>(
-                                     mode, a_h, b_h, c, uplo, Core::Transpose::NO_TRANS, alpha,
+                                     mode, a_h, b_h, c, uplo, Core::Transpose::NoTrans, alpha,
                                      K_INTEGER_BETA));
                 }
             }
@@ -921,10 +921,10 @@ namespace SushiBLAS
                 SCOPED_TRACE(mode_name(mode));
                 expect_same_bytes(
                     run_update<float, Kernels::Conjugated>(
-                        mode, a, b, c, Core::Uplo::UPPER, Core::Transpose::NO_TRANS,
+                        mode, a, b, c, Core::Uplo::Upper, Core::Transpose::NoTrans,
                         K_ROUNDED_ALPHA, K_ROUNDED_BETA),
                     run_update<float, Kernels::Unconjugated>(
-                        mode, a, b, c, Core::Uplo::UPPER, Core::Transpose::NO_TRANS,
+                        mode, a, b, c, Core::Uplo::Upper, Core::Transpose::NoTrans,
                         K_ROUNDED_ALPHA, K_ROUNDED_BETA));
             }
         }
@@ -941,24 +941,24 @@ namespace SushiBLAS
                 SCOPED_TRACE(mode_name(mode));
                 expect_same_bytes(
                     run_update<float, Kernels::Unconjugated>(
-                        mode, a, b, c, Core::Uplo::LOWER, Core::Transpose::CONJ_TRANS,
+                        mode, a, b, c, Core::Uplo::Lower, Core::Transpose::ConjTrans,
                         K_ROUNDED_ALPHA, K_ROUNDED_BETA),
                     run_update<float, Kernels::Unconjugated>(
-                        mode, a, b, c, Core::Uplo::LOWER, Core::Transpose::TRANS,
+                        mode, a, b, c, Core::Uplo::Lower, Core::Transpose::Trans,
                         K_ROUNDED_ALPHA, K_ROUNDED_BETA));
             }
         }
 
         TEST_F(Unit_Syr2kHer2kEdges, EveryRefusalIsAnInvalidArgument)
         {
-            const Core::Uplo upper = Core::Uplo::UPPER;
-            const Core::Transpose no_trans = Core::Transpose::NO_TRANS;
+            const Core::Uplo upper = Core::Uplo::Upper;
+            const Core::Transpose no_trans = Core::Transpose::NoTrans;
             const Tensor A = engine->create_tensor({3, 2});
             const Tensor B = engine->create_tensor({3, 2});
             Tensor C = engine->create_tensor({3, 3});
-            const Tensor complex_A = engine->create_tensor({3, 2}, Core::DataType::COMPLEX32);
-            const Tensor complex_B = engine->create_tensor({3, 2}, Core::DataType::COMPLEX32);
-            Tensor complex_C = engine->create_tensor({3, 3}, Core::DataType::COMPLEX32);
+            const Tensor complex_A = engine->create_tensor({3, 2}, Core::DataType::Complex32);
+            const Tensor complex_B = engine->create_tensor({3, 2}, Core::DataType::Complex32);
+            Tensor complex_C = engine->create_tensor({3, 3}, Core::DataType::Complex32);
             const Tensor tall = engine->create_tensor({4, 2});
 
             expect_refused("uplo holding 0", [&](SushiBLAS::BLASOps& ops)
@@ -972,20 +972,20 @@ namespace SushiBLAS
             expect_refused("syr2k with CONJ_TRANS on COMPLEX32", [&](SushiBLAS::BLASOps& ops)
             {
                 return ops.syr2k(complex_A, complex_B, complex_C, upper,
-                                 Core::Transpose::CONJ_TRANS);
+                                 Core::Transpose::ConjTrans);
             });
             expect_refused("her2k with TRANS on COMPLEX32", [&](SushiBLAS::BLASOps& ops)
             {
-                return ops.her2k(complex_A, complex_B, complex_C, upper, Core::Transpose::TRANS);
+                return ops.her2k(complex_A, complex_B, complex_C, upper, Core::Transpose::Trans);
             });
             expect_refused("B of another dtype", [&](SushiBLAS::BLASOps& ops)
             {
-                const Tensor other = engine->create_tensor({3, 2}, Core::DataType::FLOAT64);
+                const Tensor other = engine->create_tensor({3, 2}, Core::DataType::Float64);
                 return ops.syr2k(A, other, C, upper);
             });
             expect_refused("C of another dtype", [&](SushiBLAS::BLASOps& ops)
             {
-                Tensor other = engine->create_tensor({3, 3}, Core::DataType::FLOAT64);
+                Tensor other = engine->create_tensor({3, 3}, Core::DataType::Float64);
                 return ops.syr2k(A, B, other, upper);
             });
             expect_refused("a complex alpha on FLOAT32 through syr2k",
@@ -1018,8 +1018,8 @@ namespace SushiBLAS
             });
             expect_refused("a column-major A with a row-major C", [&](SushiBLAS::BLASOps& ops)
             {
-                const Tensor other(A.storage, {3, 2}, Core::DataType::FLOAT32, 0,
-                                   Core::Layout::COLUMN_MAJOR);
+                const Tensor other(A.storage, {3, 2}, Core::DataType::Float32, 0,
+                                   Core::Layout::ColumnMajor);
                 return ops.syr2k(other, B, C, upper);
             });
             expect_refused("a batch of 3 against a batch of 4", [&](SushiBLAS::BLASOps& ops)
@@ -1031,9 +1031,9 @@ namespace SushiBLAS
             });
             expect_refused("an INT32 A", [&](SushiBLAS::BLASOps& ops)
             {
-                const Tensor int_A = engine->create_tensor({3, 2}, Core::DataType::INT32);
-                const Tensor int_B = engine->create_tensor({3, 2}, Core::DataType::INT32);
-                Tensor int_C = engine->create_tensor({3, 3}, Core::DataType::INT32);
+                const Tensor int_A = engine->create_tensor({3, 2}, Core::DataType::Int32);
+                const Tensor int_B = engine->create_tensor({3, 2}, Core::DataType::Int32);
+                Tensor int_C = engine->create_tensor({3, 3}, Core::DataType::Int32);
                 return ops.syr2k(int_A, int_B, int_C, upper);
             });
         }
@@ -1041,7 +1041,7 @@ namespace SushiBLAS
         TEST_F(Unit_Syr2kHer2kEdges, AnEmptyUpdateRecordsAndRuns)
         {
             const HostMatrix<float> c =
-                integer_matrix<float>(K_SEED_C, 3, 3, Core::Layout::ROW_MAJOR);
+                integer_matrix<float>(K_SEED_C, 3, 3, Core::Layout::RowMajor);
 
             for (const ExecutionMode mode : K_MODES)
             {
@@ -1052,14 +1052,14 @@ namespace SushiBLAS
                 const Tensor no_rows_B = engine->create_tensor({0, 2});
                 Tensor no_rows_C = engine->create_tensor({0, 0});
                 EXPECT_NO_THROW(SushiBLAS::BLASOps(*engine).syr2k(no_rows_A, no_rows_B, no_rows_C,
-                                                                  Core::Uplo::UPPER));
+                                                                  Core::Uplo::Upper));
                 EXPECT_NO_THROW(engine->execute());
 
                 const Tensor no_cols_A = engine->create_tensor({3, 0});
                 const Tensor no_cols_B = engine->create_tensor({3, 0});
                 Tensor C = upload(c);
                 EXPECT_NO_THROW(SushiBLAS::BLASOps(*engine).syr2k(
-                    no_cols_A, no_cols_B, C, Core::Uplo::LOWER, Core::Transpose::NO_TRANS,
+                    no_cols_A, no_cols_B, C, Core::Uplo::Lower, Core::Transpose::NoTrans,
                     K_INTEGER_ALPHA, 1.0));
                 EXPECT_NO_THROW(engine->execute());
                 expect_same_bytes(read_tensor<float>(C), c.values);

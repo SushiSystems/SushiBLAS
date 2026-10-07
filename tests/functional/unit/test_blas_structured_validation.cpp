@@ -79,19 +79,19 @@ namespace SushiBLAS
             const BlasScalar K_COMPLEX_SCALAR = std::complex<double>(1.0, 2.0);
 
             /// @brief Both kernels an operation has.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::FORCE_REFERENCE,
-                                                 ExecutionMode::FORCE_SYCL};
+            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
+                                                 ExecutionMode::ForceSycl};
 
             /// @brief Both element orders a band or a packed triangle can be stored in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::ROW_MAJOR,
-                                                  Core::Layout::COLUMN_MAJOR};
+            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
+                                                  Core::Layout::ColumnMajor};
 
             /** @brief Names the storage scheme of the matrix a routine takes. */
             enum class Scheme : std::uint8_t
             {
-                GENERAL_BAND,  /**< A band with kl sub-diagonals and ku super-diagonals. */
-                TRIANGLE_BAND, /**< One triangle of a band with k off-diagonals. */
-                PACKED         /**< One packed triangle. */
+                GeneralBand,  /**< A band with kl sub-diagonals and ku super-diagonals. */
+                TriangleBand, /**< One triangle of a band with k off-diagonals. */
+                Packed         /**< One packed triangle. */
             };
 
             /** @brief Holds every argument a band or a packed routine can take. */
@@ -105,9 +105,9 @@ namespace SushiBLAS
                 int64_t kl = K_WIDTH;                              /**< Lower width of general. */
                 int64_t ku = K_WIDTH;                              /**< Upper width of general. */
                 int64_t k = K_WIDTH;                               /**< Width of triangle. */
-                Core::Uplo uplo = Core::Uplo::UPPER;               /**< The stored triangle. */
-                Core::Transpose trans = Core::Transpose::NO_TRANS; /**< The form of op(A). */
-                Core::Diag diag = Core::Diag::NON_UNIT;            /**< How the diagonal is read. */
+                Core::Uplo uplo = Core::Uplo::Upper;               /**< The stored triangle. */
+                Core::Transpose trans = Core::Transpose::NoTrans; /**< The form of op(A). */
+                Core::Diag diag = Core::Diag::NonUnit;            /**< How the diagonal is read. */
                 BlasScalar alpha = 1.0;                            /**< Scales the product. */
                 BlasScalar beta = 1.0;                             /**< Scales the prior y. */
             };
@@ -134,80 +134,80 @@ namespace SushiBLAS
                  {
                      return ops.gbmv(o.general, o.x, o.y, o.kl, o.ku, o.trans, o.alpha, o.beta);
                  },
-                 Scheme::GENERAL_BAND, true, true, false, true, false, true, true},
+                 Scheme::GeneralBand, true, true, false, true, false, true, true},
                 {"sbmv",
                  [](BLASOps& ops, Operands& o)
                  {
                      return ops.sbmv(o.triangle, o.x, o.y, o.uplo, o.k, o.alpha, o.beta);
                  },
-                 Scheme::TRIANGLE_BAND, true, true, true, false, false, true, true},
+                 Scheme::TriangleBand, true, true, true, false, false, true, true},
                 {"hbmv",
                  [](BLASOps& ops, Operands& o)
                  {
                      return ops.hbmv(o.triangle, o.x, o.y, o.uplo, o.k, o.alpha, o.beta);
                  },
-                 Scheme::TRIANGLE_BAND, false, true, true, false, false, true, true},
+                 Scheme::TriangleBand, false, true, true, false, false, true, true},
                 {"tbmv",
                  [](BLASOps& ops, Operands& o)
                  {
                      return ops.tbmv(o.triangle, o.x, o.uplo, o.k, o.trans, o.diag);
                  },
-                 Scheme::TRIANGLE_BAND, true, false, true, true, true, false, false},
+                 Scheme::TriangleBand, true, false, true, true, true, false, false},
                 {"tbsv",
                  [](BLASOps& ops, Operands& o)
                  {
                      return ops.tbsv(o.triangle, o.x, o.uplo, o.k, o.trans, o.diag);
                  },
-                 Scheme::TRIANGLE_BAND, true, false, true, true, true, false, false},
+                 Scheme::TriangleBand, true, false, true, true, true, false, false},
                 {"spmv",
                  [](BLASOps& ops, Operands& o)
                  {
                      return ops.spmv(o.packed, o.x, o.y, o.uplo, o.alpha, o.beta);
                  },
-                 Scheme::PACKED, true, true, true, false, false, true, true},
+                 Scheme::Packed, true, true, true, false, false, true, true},
                 {"hpmv",
                  [](BLASOps& ops, Operands& o)
                  {
                      return ops.hpmv(o.packed, o.x, o.y, o.uplo, o.alpha, o.beta);
                  },
-                 Scheme::PACKED, false, true, true, false, false, true, true},
+                 Scheme::Packed, false, true, true, false, false, true, true},
                 {"tpmv",
                  [](BLASOps& ops, Operands& o)
                  {
                      return ops.tpmv(o.packed, o.x, o.uplo, o.trans, o.diag);
                  },
-                 Scheme::PACKED, true, false, true, true, true, false, false},
+                 Scheme::Packed, true, false, true, true, true, false, false},
                 {"tpsv",
                  [](BLASOps& ops, Operands& o)
                  {
                      return ops.tpsv(o.packed, o.x, o.uplo, o.trans, o.diag);
                  },
-                 Scheme::PACKED, true, false, true, true, true, false, false},
+                 Scheme::Packed, true, false, true, true, true, false, false},
                 {"spr",
                  [](BLASOps& ops, Operands& o) { return ops.spr(o.x, o.packed, o.uplo, o.alpha); },
-                 Scheme::PACKED, true, false, true, false, false, true, false},
+                 Scheme::Packed, true, false, true, false, false, true, false},
                 {"hpr",
                  [](BLASOps& ops, Operands& o) { return ops.hpr(o.x, o.packed, o.uplo, K_ALPHA); },
-                 Scheme::PACKED, false, false, true, false, false, false, false},
+                 Scheme::Packed, false, false, true, false, false, false, false},
                 {"spr2",
                  [](BLASOps& ops, Operands& o)
                  {
                      return ops.spr2(o.x, o.y, o.packed, o.uplo, o.alpha);
                  },
-                 Scheme::PACKED, true, true, true, false, false, true, false},
+                 Scheme::Packed, true, true, true, false, false, true, false},
                 {"hpr2",
                  [](BLASOps& ops, Operands& o)
                  {
                      return ops.hpr2(o.x, o.y, o.packed, o.uplo, o.alpha);
                  },
-                 Scheme::PACKED, false, true, true, false, false, true, false}};
+                 Scheme::Packed, false, true, true, false, false, true, false}};
 
             /** @brief Returns the name of a mode and a layout for a failure message. */
             [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
             {
-                return std::string(mode == ExecutionMode::FORCE_SYCL ? "FORCE_SYCL"
+                return std::string(mode == ExecutionMode::ForceSycl ? "FORCE_SYCL"
                                                                      : "FORCE_REFERENCE") +
-                       (layout == Core::Layout::ROW_MAJOR ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
+                       (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
             }
 
             /** @brief Returns whether a routine is the one checked for the geometry of a pair. */
@@ -219,13 +219,13 @@ namespace SushiBLAS
             /** @brief Returns whether a routine is checked for geometry and takes a band. */
             [[nodiscard]] bool takes_a_band(const Routine& routine) noexcept
             {
-                return routine.represents_its_kernels && routine.scheme != Scheme::PACKED;
+                return routine.represents_its_kernels && routine.scheme != Scheme::Packed;
             }
 
             /** @brief Returns whether a routine is checked for geometry and takes a packed AP. */
             [[nodiscard]] bool takes_a_packed_matrix(const Routine& routine) noexcept
             {
-                return routine.represents_its_kernels && routine.scheme == Scheme::PACKED;
+                return routine.represents_its_kernels && routine.scheme == Scheme::Packed;
             }
         } // namespace
 
@@ -256,7 +256,7 @@ namespace SushiBLAS
 
                 /** @brief Returns a tensor of dims and dtype whose elements are not set. */
                 [[nodiscard]] Tensor raw(const std::vector<int64_t>& dims,
-                                         DataType dtype = DataType::FLOAT32)
+                                         DataType dtype = DataType::Float32)
                 {
                     return engine->create_tensor(
                         SushiRuntime::span<const int64_t>(dims.data(), dims.size()), dtype);
@@ -286,7 +286,7 @@ namespace SushiBLAS
                 /** @brief Returns the shape of a band of lines of ld elements in the layout. */
                 [[nodiscard]] std::vector<int64_t> band_dims(int64_t lines, int64_t ld) const
                 {
-                    if (engine->get_layout() == Core::Layout::COLUMN_MAJOR)
+                    if (engine->get_layout() == Core::Layout::ColumnMajor)
                         return {ld, lines};
                     return {lines, ld};
                 }
@@ -296,7 +296,7 @@ namespace SushiBLAS
                 {
                     return Tensor(SushiRuntime::sushi_ptr<Storage>(),
                                   SushiRuntime::span<const int64_t>(dims.data(), dims.size()),
-                                  DataType::FLOAT32, 0, engine->get_layout());
+                                  DataType::Float32, 0, engine->get_layout());
                 }
 
                 /**
@@ -304,11 +304,11 @@ namespace SushiBLAS
                  *        elements apart.
                  */
                 [[nodiscard]] Tensor strided(int64_t count, int64_t increment,
-                                             DataType dtype = DataType::FLOAT32)
+                                             DataType dtype = DataType::Float32)
                 {
                     const Tensor parent = raw({count * (increment == 0 ? 1 : increment)}, dtype);
                     const int64_t dims[] = {count};
-                    std::array<int64_t, Core::MAX_TENSOR_RANK> strides{};
+                    std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides{};
                     strides[0] = increment;
                     return Tensor(parent.storage, SushiRuntime::span<const int64_t>(dims, 1),
                                   strides, dtype, 0, parent.layout);
@@ -462,20 +462,20 @@ namespace SushiBLAS
             {
                 expect_refusals("INT32 operands", represents_its_kernels, [&](Operands& o)
                 {
-                    o.general = raw(band_dims(K_ORDER, K_GENERAL_LD), DataType::INT32);
-                    o.triangle = raw(band_dims(K_ORDER, K_TRIANGLE_LD), DataType::INT32);
-                    o.packed = raw({K_PACKED_COUNT}, DataType::INT32);
-                    o.x = raw({K_ORDER}, DataType::INT32);
-                    o.y = raw({K_ORDER}, DataType::INT32);
+                    o.general = raw(band_dims(K_ORDER, K_GENERAL_LD), DataType::Int32);
+                    o.triangle = raw(band_dims(K_ORDER, K_TRIANGLE_LD), DataType::Int32);
+                    o.packed = raw({K_PACKED_COUNT}, DataType::Int32);
+                    o.x = raw({K_ORDER}, DataType::Int32);
+                    o.y = raw({K_ORDER}, DataType::Int32);
                 });
 
-                Tensor scalar = raw({1}, DataType::INT32);
-                Tensor other = raw({1}, DataType::INT32);
-                Tensor third = raw({1}, DataType::INT32);
-                Tensor fourth = raw({1}, DataType::INT32);
-                Tensor x = raw({K_ORDER}, DataType::INT32);
-                Tensor y = raw({K_ORDER}, DataType::INT32);
-                Tensor param = raw({K_PARAMETERS}, DataType::INT32);
+                Tensor scalar = raw({1}, DataType::Int32);
+                Tensor other = raw({1}, DataType::Int32);
+                Tensor third = raw({1}, DataType::Int32);
+                Tensor fourth = raw({1}, DataType::Int32);
+                Tensor x = raw({K_ORDER}, DataType::Int32);
+                Tensor y = raw({K_ORDER}, DataType::Int32);
+                Tensor param = raw({K_PARAMETERS}, DataType::Int32);
 
                 expect_refused("rotg: INT32 operands", [&](SushiBLAS::BLASOps& ops)
                 {
@@ -576,13 +576,13 @@ namespace SushiBLAS
             for_each_engine([&](Core::Layout)
             {
                 expect_refusals("a FLOAT64 x", represents_its_kernels,
-                                [&](Operands& o) { o.x = raw({K_ORDER}, DataType::FLOAT64); });
+                                [&](Operands& o) { o.x = raw({K_ORDER}, DataType::Float64); });
                 expect_refusals("a FLOAT64 y",
                                 [](const Routine& routine)
                                 {
                                     return routine.represents_its_kernels && routine.takes_y;
                                 },
-                                [&](Operands& o) { o.y = raw({K_ORDER}, DataType::FLOAT64); });
+                                [&](Operands& o) { o.y = raw({K_ORDER}, DataType::Float64); });
             });
         }
 
@@ -597,7 +597,7 @@ namespace SushiBLAS
                 const auto has_a_fixed_order = [](const Routine& routine)
                 {
                     return routine.represents_its_kernels &&
-                           routine.scheme != Scheme::GENERAL_BAND;
+                           routine.scheme != Scheme::GeneralBand;
                 };
 
                 expect_refusals("x one element too long", has_a_fixed_order,
@@ -610,12 +610,12 @@ namespace SushiBLAS
                                 [&](Operands& o) { o.y = ones({K_ORDER + 1}); });
 
                 // The storage gives n under COLUMN_MAJOR and m under ROW_MAJOR.
-                const bool storage_gives_columns = (layout == Core::Layout::COLUMN_MAJOR);
+                const bool storage_gives_columns = (layout == Core::Layout::ColumnMajor);
                 expect_refusals(storage_gives_columns ? "x longer than the stored columns"
                                                       : "y longer than the stored rows",
                                 [](const Routine& routine)
                                 {
-                                    return routine.scheme == Scheme::GENERAL_BAND;
+                                    return routine.scheme == Scheme::GeneralBand;
                                 },
                                 [&](Operands& o)
                                 {
@@ -639,7 +639,7 @@ namespace SushiBLAS
                 expect_refusals("ku of -1",
                                 [](const Routine& routine)
                                 {
-                                    return routine.scheme == Scheme::GENERAL_BAND;
+                                    return routine.scheme == Scheme::GeneralBand;
                                 },
                                 [](Operands& o) { o.ku = -1; });
             });
@@ -753,7 +753,7 @@ namespace SushiBLAS
                 Tensor s = ones({1});
                 Tensor pair = ones({2});
                 Tensor none = raw({0});
-                Tensor wide = raw({1}, DataType::FLOAT64);
+                Tensor wide = raw({1}, DataType::Float64);
 
                 expect_refused("a of two elements", [&](SushiBLAS::BLASOps& ops)
                 {
@@ -789,10 +789,10 @@ namespace SushiBLAS
                 });
                 expect_refused("a complex c beside a complex a", [&](SushiBLAS::BLASOps& ops)
                 {
-                    Tensor complex_a = raw({1}, DataType::COMPLEX32);
-                    Tensor complex_b = raw({1}, DataType::COMPLEX32);
-                    Tensor complex_c = raw({1}, DataType::COMPLEX32);
-                    Tensor complex_s = raw({1}, DataType::COMPLEX32);
+                    Tensor complex_a = raw({1}, DataType::Complex32);
+                    Tensor complex_b = raw({1}, DataType::Complex32);
+                    Tensor complex_c = raw({1}, DataType::Complex32);
+                    Tensor complex_s = raw({1}, DataType::Complex32);
                     return ops.rotg(complex_a, complex_b, complex_c, complex_s);
                 });
             });
@@ -811,19 +811,19 @@ namespace SushiBLAS
 
                 expect_refused("complex operands", [&](SushiBLAS::BLASOps& ops)
                 {
-                    Tensor complex_x = raw({K_ORDER}, DataType::COMPLEX32);
-                    Tensor complex_y = raw({K_ORDER}, DataType::COMPLEX32);
-                    const Tensor complex_param = raw({K_PARAMETERS}, DataType::COMPLEX32);
+                    Tensor complex_x = raw({K_ORDER}, DataType::Complex32);
+                    Tensor complex_y = raw({K_ORDER}, DataType::Complex32);
+                    const Tensor complex_param = raw({K_PARAMETERS}, DataType::Complex32);
                     return ops.rotm(complex_x, complex_y, complex_param);
                 });
                 expect_refused("a FLOAT64 y", [&](SushiBLAS::BLASOps& ops)
                 {
-                    Tensor other = raw({K_ORDER}, DataType::FLOAT64);
+                    Tensor other = raw({K_ORDER}, DataType::Float64);
                     return ops.rotm(x, other, param);
                 });
                 expect_refused("a FLOAT64 param", [&](SushiBLAS::BLASOps& ops)
                 {
-                    const Tensor other = raw({K_PARAMETERS}, DataType::FLOAT64);
+                    const Tensor other = raw({K_PARAMETERS}, DataType::Float64);
                     return ops.rotm(x, y, other);
                 });
                 expect_refused("y one element too long", [&](SushiBLAS::BLASOps& ops)
@@ -862,9 +862,9 @@ namespace SushiBLAS
                 Tensor y1 = ones({1});
                 Tensor param = ones({K_PARAMETERS});
                 Tensor pair = ones({2});
-                Tensor wide = raw({1}, DataType::FLOAT64);
+                Tensor wide = raw({1}, DataType::Float64);
 
-                for (const DataType dtype : {DataType::COMPLEX32, DataType::HALF})
+                for (const DataType dtype : {DataType::Complex32, DataType::Half})
                 {
                     expect_refused(std::string(Core::to_string(dtype)) + " operands",
                                    [&](SushiBLAS::BLASOps& ops)
@@ -912,7 +912,7 @@ namespace SushiBLAS
                 });
                 expect_refused("a FLOAT64 param", [&](SushiBLAS::BLASOps& ops)
                 {
-                    Tensor other = raw({K_PARAMETERS}, DataType::FLOAT64);
+                    Tensor other = raw({K_PARAMETERS}, DataType::Float64);
                     return ops.rotmg(d1, d2, x1, y1, other);
                 });
                 expect_refused("param of four elements", [&](SushiBLAS::BLASOps& ops)
@@ -942,7 +942,7 @@ namespace SushiBLAS
                 const Tensor x = holding({K_ORDER}, random_values(generator, K_ORDER));
                 const std::vector<float> y = random_values(generator, K_ORDER);
 
-                for (const Core::Uplo uplo : {Core::Uplo::UPPER, Core::Uplo::LOWER})
+                for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
                 {
                     SCOPED_TRACE(Core::to_string(uplo));
                     expect_same_bits(
@@ -967,7 +967,7 @@ namespace SushiBLAS
                 const Tensor x = holding({K_ORDER}, random_values(generator, K_ORDER));
                 const std::vector<float> y = random_values(generator, K_ORDER);
 
-                for (const Core::Uplo uplo : {Core::Uplo::UPPER, Core::Uplo::LOWER})
+                for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
                 {
                     SCOPED_TRACE(Core::to_string(uplo));
                     expect_same_bits(
@@ -991,7 +991,7 @@ namespace SushiBLAS
                 const Tensor x = holding({K_ORDER}, random_values(generator, K_ORDER));
                 const Tensor y = holding({K_ORDER}, random_values(generator, K_ORDER));
 
-                for (const Core::Uplo uplo : {Core::Uplo::UPPER, Core::Uplo::LOWER})
+                for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
                 {
                     SCOPED_TRACE(Core::to_string(uplo));
                     expect_same_bits(ap,

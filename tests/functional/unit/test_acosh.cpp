@@ -21,7 +21,7 @@
 
 /**
  * @file test_acosh.cpp
- * @brief Tests elementwise().acosh against fixed expected values.
+ * @brief Tests ElementwiseOps::acosh against fixed expected values.
  * @author Mustafa Garip
  */
 

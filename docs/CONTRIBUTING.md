@@ -7,8 +7,9 @@ committed. SushiBLAS is source-available under the PolyForm Noncommercial
 License 1.0.0 (see [`LICENSE`](../LICENSE)).
 
 Read [the architecture](architecture/ARCHITECTURE.md) first. It explains the
-`Tensor` and `Storage` model, the `Engine` facade, the `ExecutionMode` triad
-and the reference and SYCL kernel pair every operation follows.
+`Tensor` and `Storage` model, `Engine`, the recorder and the operation views,
+the `ExecutionMode` triad and the reference path every operation has beside
+its SYCL kernel.
 
 ---
 
@@ -49,9 +50,9 @@ machine-specific toolchain paths are resolved (`cli/config.local.toml`).
 - **Keep changes focused.** One logical change per commit. A refactor and a
   behavior change together are hard to review and hard to revert.
 - **Match the layer boundaries.** `Engine` knows nothing about individual
-  operations; op classes (`BLASOps`, `ElementwiseOps`, ...) know nothing about
-  the task graph beyond `engine.get_graph()`; kernels know nothing about
-  `Engine` at all (see ARCHITECTURE §2). New cross-layer coupling needs a
+  operations; the operation views (`BLASOps`, `ElementwiseOps`, ...) record
+  through a `TaskRecorder` and never insert into the task graph themselves;
+  kernels know nothing about the recorder or `Engine` (see ARCHITECTURE §2). New cross-layer coupling needs a
   reason.
 
 ---
@@ -83,7 +84,7 @@ Expectations for a mergeable change:
 2. **A new operation ships with a typed test.** Every test suite runs across
    every dtype the op claims to support (`float`, `double`, `half`, and the
    complex types where applicable) — see [§5](#5-adding-a-new-operation).
-   A `FORCE_SYCL` against `FORCE_REFERENCE` comparison is how a new SYCL kernel
+   A `ForceSycl` against `ForceReference` comparison is how a new SYCL kernel
    is checked against its reference implementation.
 3. **A fixed bug gets a regression test** in
    `tests/functional/regression/`, named for what it guards against (see
@@ -115,6 +116,11 @@ which also keeps the upstream lines of the two files ported from portBLAS.
 - **Functions and variables**: `snake_case` (`create_tensor`,
   `num_elements`).
 - **Private members**: trailing underscore (`engine_`, `data_ptr_`).
+- **Enumerators**: `PascalCase` (`DataType::Float32`, `Transpose::NoTrans`).
+  An explicit value stays as written; the values of `DataType`, of the BLAS
+  flags and of `IndexBase` are contracts.
+- **Constants** at namespace or class scope: `K_UPPER_SNAKE`
+  (`K_MAX_TENSOR_RANK`).
 
 ### Braces
 
@@ -175,10 +181,15 @@ The existing source does not meet this yet.
 
 ### Error handling
 
-`SB_THROW_IF(condition, message, ...)` for errors a caller can act on
-(unsupported dtype, shape mismatch, invalid storage). Assertions are for
-internal bugs, not user-facing input validation. An unsupported case
-(dtype, layout, mode) always throws loudly — it never silently no-ops.
+An operand rule (dtype, shape, layout, flag) is checked at record time by
+`engine/operand_check.hpp` and the family's describers, which throw
+`std::invalid_argument` with the operation and the operand named. A refusal
+by mode or device throws `UnsupportedExecution`, which derives from it.
+`SB_THROW_IF(condition, message, ...)` throws `std::runtime_error` and is for
+an error that is not an operand rule, as in `src/io.cpp`, `tensor.hpp` and
+`storage.hpp`. Assertions are for internal bugs, not user-facing input
+validation. An unsupported case (dtype, layout, mode) always throws; it
+never silently no-ops.
 
 ### Build-system names
 
@@ -284,7 +295,7 @@ The numbered comments are this page's and are not in the source file.
 which throw `std::invalid_argument` with the operation and the operand named. A
 refusal by mode or device is `UnsupportedExecution`: `require_device_dtype`
 throws it, the describers call it, and the recorder throws it for a device-only
-operand under `FORCE_REFERENCE`. Do not write `SB_THROW_IF` for an operand
+operand under `ForceReference`. Do not write `SB_THROW_IF` for an operand
 rule; it throws `std::runtime_error`. A new rule that two operations share is a
 new function in `operand_check.hpp` or in the family's check header, not a copy.
 
@@ -293,7 +304,7 @@ for an output that is only written, `updates` for one changed in place, and
 `scratch` for a leased `ScratchBuffer`. Pass tensors, never a region built from
 a pointer. An output that is read only when a scalar is non-zero (`beta`) is
 declared `writes` when the scalar is zero and `updates` otherwise. The set is
-also what keeps the storage alive and what `FORCE_REFERENCE` is checked
+also what keeps the storage alive and what `ForceReference` is checked
 against, so a tensor left out of it is unordered, unretained and unchecked.
 
 **3. Capture by value.** The body runs later and may run more than once. It
@@ -303,7 +314,7 @@ holds no `Tensor`, no reference to a local and no reference to the view.
 **4. Call the seam.** `Internal::execute_blas_task` for dense BLAS,
 `Internal::execute_typed_task` with the family string for sparse and spatial.
 Pass the `Dispatch::Domain` when the operation does not serve the default,
-which is `REAL_AND_COMPLEX` for both: `Domain::ALL` for a copy, `Domain::REAL`
+which is `RealAndComplex` for both: `Domain::All` for a copy, `Domain::Real`
 for a routine with no complex meaning. Inside the body, `dispatcher.run` takes the
 reference kernel and the SYCL kernel. An operation source never reads the
 execution mode, never includes `engine.hpp` and never calls
@@ -334,20 +345,20 @@ public `Dispatch` seam instantiates in a consumer's translation unit goes under
 These families have no kernel files. The operation is a view method and a
 source that hands one functor to the family's `Dispatch::execute_*` seam. The
 seam runs the checks, builds the `OperandSet`, and runs the functor in a SYCL
-kernel or, under `FORCE_REFERENCE`, in a serial host loop. This is
+kernel or, under `ForceReference`, in a serial host loop. This is
 `src/engine/math/elementwise/add.cpp`:
 
 ```cpp
 TaskHandle ElementwiseOps::add(const Tensor& A, const Tensor& B, Tensor& C)
 {
-    return Dispatch::execute_binary<Dispatch::Domain::ALL>(
+    return Dispatch::execute_binary<Dispatch::Domain::All>(
         recorder_, A, B, C, "math.ew.add", "math.ew.add"_op,
         [](auto x, auto y) { return Dispatch::wrapping_add(x, y); });
 }
 ```
 
 - State the `Domain` the functor is well-formed for. The default is
-  `Domain::REAL`. A functor instantiated for complex uses the `safe_*` helpers
+  `Domain::Real`. A functor instantiated for complex uses the `safe_*` helpers
   of `engine/math/safe_math.hpp`, and one instantiated for the integers uses
   `engine/math/elementwise/wrapping_math.hpp`.
 - The functor reaches a device: it is trivially copyable, captures by value,
@@ -371,8 +382,8 @@ TaskHandle ElementwiseOps::add(const Tensor& A, const Tensor& B, Tensor& C)
   modes is a differential check, and it passes when both paths are wrong the
   same way. For a functor operation the two modes share the formula, so only a
   hand-computed value tests it.
-- **Both modes.** Record the operation under `FORCE_SYCL` and under
-  `FORCE_REFERENCE` into two tensors and compare them. Use
+- **Both modes.** Record the operation under `ForceSycl` and under
+  `ForceReference` into two tensors and compare them. Use
   `SB_ASSERT_TENSOR_NEAR` or `EXPECT_TENSOR_NEAR` with a tolerance for the
   dtype, and compare bits only where the two paths are defined to agree.
 - **Each record-time refusal**, asserting the type: `std::invalid_argument`

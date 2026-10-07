@@ -21,7 +21,7 @@
 
 /**
  * @file test_abs.cpp
- * @brief Tests elementwise().abs against fixed expected values.
+ * @brief Tests ElementwiseOps::abs against fixed expected values.
  * @author Mustafa Garip
  */
 

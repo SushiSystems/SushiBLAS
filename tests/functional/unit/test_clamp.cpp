@@ -21,7 +21,7 @@
 
 /**
  * @file test_clamp.cpp
- * @brief Tests elementwise().clamp against fixed expected values.
+ * @brief Tests ElementwiseOps::clamp against fixed expected values.
  * @author Mustafa Garip
  */
 

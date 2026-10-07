@@ -49,7 +49,7 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
             TaskHandle gemv(const Tensor& A, const Tensor& x, Tensor& y,
-                            Core::Transpose trans = Core::Transpose::NO_TRANS,
+                            Core::Transpose trans = Core::Transpose::NoTrans,
                             BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
 
             /**
@@ -93,8 +93,8 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand or a flag the call does not accept.
              */
             TaskHandle trmv(const Tensor& A, Tensor& x, Core::Uplo uplo,
-                            Core::Transpose trans = Core::Transpose::NO_TRANS,
-                            Core::Diag diag = Core::Diag::NON_UNIT);
+                            Core::Transpose trans = Core::Transpose::NoTrans,
+                            Core::Diag diag = Core::Diag::NonUnit);
 
             /**
              * @brief Records the solution of op(A) * x = b for a triangular A, overwriting b.
@@ -102,8 +102,8 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand or a flag the call does not accept.
              */
             TaskHandle trsv(const Tensor& A, Tensor& b, Core::Uplo uplo,
-                            Core::Transpose trans = Core::Transpose::NO_TRANS,
-                            Core::Diag diag = Core::Diag::NON_UNIT);
+                            Core::Transpose trans = Core::Transpose::NoTrans,
+                            Core::Diag diag = Core::Diag::NonUnit);
 
             /**
              * @brief Records the symmetric rank-1 update A = alpha * x * x^T + A.
@@ -144,7 +144,7 @@ namespace SushiBLAS
              *         does not accept.
              */
             TaskHandle gbmv(const Tensor& A, const Tensor& x, Tensor& y, int64_t kl, int64_t ku,
-                            Core::Transpose trans = Core::Transpose::NO_TRANS,
+                            Core::Transpose trans = Core::Transpose::NoTrans,
                             BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
 
             /**
@@ -175,8 +175,8 @@ namespace SushiBLAS
              *         accept.
              */
             TaskHandle tbmv(const Tensor& A, Tensor& x, Core::Uplo uplo, int64_t k,
-                            Core::Transpose trans = Core::Transpose::NO_TRANS,
-                            Core::Diag diag = Core::Diag::NON_UNIT);
+                            Core::Transpose trans = Core::Transpose::NoTrans,
+                            Core::Diag diag = Core::Diag::NonUnit);
 
             /**
              * @brief Records the solution of op(A) * x = b for a triangular band matrix A,
@@ -186,8 +186,8 @@ namespace SushiBLAS
              *         accept.
              */
             TaskHandle tbsv(const Tensor& A, Tensor& b, Core::Uplo uplo, int64_t k,
-                            Core::Transpose trans = Core::Transpose::NO_TRANS,
-                            Core::Diag diag = Core::Diag::NON_UNIT);
+                            Core::Transpose trans = Core::Transpose::NoTrans,
+                            Core::Diag diag = Core::Diag::NonUnit);
 
             /**
              * @brief Records y = alpha * A * x + beta * y for a packed symmetric A.
@@ -214,8 +214,8 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand or a flag the call does not accept.
              */
             TaskHandle tpmv(const Tensor& AP, Tensor& x, Core::Uplo uplo,
-                            Core::Transpose trans = Core::Transpose::NO_TRANS,
-                            Core::Diag diag = Core::Diag::NON_UNIT);
+                            Core::Transpose trans = Core::Transpose::NoTrans,
+                            Core::Diag diag = Core::Diag::NonUnit);
 
             /**
              * @brief Records the solution of op(A) * x = b for a packed triangular A,
@@ -224,8 +224,8 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand or a flag the call does not accept.
              */
             TaskHandle tpsv(const Tensor& AP, Tensor& b, Core::Uplo uplo,
-                            Core::Transpose trans = Core::Transpose::NO_TRANS,
-                            Core::Diag diag = Core::Diag::NON_UNIT);
+                            Core::Transpose trans = Core::Transpose::NoTrans,
+                            Core::Diag diag = Core::Diag::NonUnit);
 
             /**
              * @brief Records the symmetric rank-1 update A = alpha * x * x^T + A of a packed A.

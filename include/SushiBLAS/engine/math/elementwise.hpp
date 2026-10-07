@@ -328,7 +328,7 @@ namespace SushiBLAS
              * @param src Must be contiguous and have storage.
              * @param dst Must be contiguous, have storage, match src's shape and layout and not overlap it.
              * @return The handle of the recorded task.
-             * @throws std::invalid_argument if an operand has no storage, is not contiguous or falls outside Domain::REAL, or the shapes or layouts differ.
+             * @throws std::invalid_argument if an operand has no storage, is not contiguous or falls outside Domain::Real, or the shapes or layouts differ.
              * @see include/SushiBLAS/engine/math/README.md
              */
             TaskHandle convert(const Tensor& src, Tensor& dst);

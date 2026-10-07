@@ -78,19 +78,19 @@ namespace SushiBLAS
     struct Tensor 
     {
         /** @brief The size of each dimension (e.g., {rows, columns}). */
-        std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK> shape{};
+        std::array<int64_t, SushiBLAS::Core::K_MAX_TENSOR_RANK> shape{};
         
         /** @brief The memory step size for each dimension to calculate indices. */
-        std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK> strides{};
+        std::array<int64_t, SushiBLAS::Core::K_MAX_TENSOR_RANK> strides{};
         
         /** @brief The number of dimensions in the tensor (e.g., 2 for a matrix). */
         int32_t rank = 0;
         
         /** @brief The type of data stored in the tensor (e.g., FLOAT32). */
-        SushiBLAS::Core::DataType dtype = SushiBLAS::Core::DataType::FLOAT32;
+        SushiBLAS::Core::DataType dtype = SushiBLAS::Core::DataType::Float32;
         
         /** @brief How the data is arranged in memory (ROW_MAJOR or COLUMN_MAJOR). */
-        SushiBLAS::Core::Layout layout = SushiBLAS::Core::Layout::ROW_MAJOR;
+        SushiBLAS::Core::Layout layout = SushiBLAS::Core::Layout::RowMajor;
         
         /** @brief The total number of elements in the tensor. */
         int64_t num_elements = 0;
@@ -113,12 +113,12 @@ namespace SushiBLAS
          * @throws std::runtime_error on a rank too high, a negative dimension or an overflowing stride.
          * @see include/SushiBLAS/README.md
          */
-        static std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK>
+        static std::array<int64_t, SushiBLAS::Core::K_MAX_TENSOR_RANK>
         layout_strides(SushiRuntime::span<const int64_t> dims, Core::Layout l)
         {
-            std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK> out{};
+            std::array<int64_t, SushiBLAS::Core::K_MAX_TENSOR_RANK> out{};
 
-            SB_THROW_IF(dims.size() > SushiBLAS::Core::MAX_TENSOR_RANK, "Rank {} exceeds limit of {}", dims.size(), SushiBLAS::Core::MAX_TENSOR_RANK);
+            SB_THROW_IF(dims.size() > SushiBLAS::Core::K_MAX_TENSOR_RANK, "Rank {} exceeds limit of {}", dims.size(), SushiBLAS::Core::K_MAX_TENSOR_RANK);
             for (size_t i = 0; i < dims.size(); ++i)
                 SB_THROW_IF(dims[i] < 0, "Dimension {} is negative ({})", i, dims[i]);
 
@@ -127,7 +127,7 @@ namespace SushiBLAS
             const int first_matrix_dim = r - std::min(r, 2);
 
             int64_t running = 1;
-            if (l == Core::Layout::COLUMN_MAJOR)
+            if (l == Core::Layout::ColumnMajor)
             {
                 for (int i = first_matrix_dim; i < r; ++i)
                 {
@@ -161,8 +161,8 @@ namespace SushiBLAS
          * @throws std::runtime_error on a rank too high, a negative dimension, an overflowing size, or a storage too small.
          */
         Tensor(SushiRuntime::sushi_ptr<Storage> s, SushiRuntime::span<const int64_t> dims,
-               Core::DataType d = Core::DataType::FLOAT32,
-               int64_t offset = 0, Core::Layout l = Core::Layout::ROW_MAJOR)
+               Core::DataType d = Core::DataType::Float32,
+               int64_t offset = 0, Core::Layout l = Core::Layout::RowMajor)
             : Tensor(std::move(s), dims, layout_strides(dims, l), d, offset, l) {}
 
         /**
@@ -173,11 +173,11 @@ namespace SushiBLAS
          * @see include/SushiBLAS/README.md
          */
         Tensor(SushiRuntime::sushi_ptr<Storage> s, SushiRuntime::span<const int64_t> dims,
-               const std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK>& strides_in,
+               const std::array<int64_t, SushiBLAS::Core::K_MAX_TENSOR_RANK>& strides_in,
                Core::DataType d, int64_t offset, Core::Layout l)
             : dtype(d), layout(l), storage(std::move(s)), storage_offset(offset)
         {
-            SB_THROW_IF(dims.size() > SushiBLAS::Core::MAX_TENSOR_RANK, "Rank {} exceeds limit of {}", dims.size(), SushiBLAS::Core::MAX_TENSOR_RANK);
+            SB_THROW_IF(dims.size() > SushiBLAS::Core::K_MAX_TENSOR_RANK, "Rank {} exceeds limit of {}", dims.size(), SushiBLAS::Core::K_MAX_TENSOR_RANK);
             rank = static_cast<int32_t>(dims.size());
 
             int64_t elements = 1;
@@ -214,8 +214,8 @@ namespace SushiBLAS
          * @brief Creates a Tensor from an initializer list of dimensions.
          */
         Tensor(SushiRuntime::sushi_ptr<Storage> s, std::initializer_list<int64_t> dims, 
-               Core::DataType d = Core::DataType::FLOAT32,
-               int64_t offset = 0, Core::Layout l = Core::Layout::ROW_MAJOR)
+               Core::DataType d = Core::DataType::Float32,
+               int64_t offset = 0, Core::Layout l = Core::Layout::RowMajor)
             : Tensor(std::move(s), SushiRuntime::span<const int64_t>(dims.begin(), dims.end()), d, offset, l) {}
 
         /**
@@ -405,7 +405,7 @@ namespace SushiBLAS
 
             int64_t new_offset = this->storage_offset + (start * strides[dim]);
             
-            std::array<int64_t, SushiBLAS::Core::MAX_TENSOR_RANK> new_shape_arr = shape;
+            std::array<int64_t, SushiBLAS::Core::K_MAX_TENSOR_RANK> new_shape_arr = shape;
             new_shape_arr[dim] = end - start;
 
             SB_LOG_DEBUG("Tensor Sliced: dim = {}, range = [{}, {}), new_offset = {}", 

@@ -21,7 +21,7 @@
 
 /**
  * @file test_round.cpp
- * @brief Tests elementwise().round against fixed expected values.
+ * @brief Tests ElementwiseOps::round against fixed expected values.
  * @author Mustafa Garip
  */
 

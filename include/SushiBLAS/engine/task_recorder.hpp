@@ -105,7 +105,7 @@ namespace SushiBLAS
              * @param scratch_pool Lends operation scratch; it must outlive the recorder.
              */
             TaskRecorder(SushiRuntime::Graph::TaskGraph& graph, ScratchPool& scratch_pool,
-                         ExecutionMode mode = ExecutionMode::AUTO) noexcept
+                         ExecutionMode mode = ExecutionMode::Auto) noexcept
                 : graph_(&graph), scratch_pool_(&scratch_pool), mode_(mode),
                   identity_(Internal::Detail::next_recorder_identity())
             {
@@ -138,7 +138,7 @@ namespace SushiBLAS
             void require_host_reachable(const OperandSet& operands, const char* family,
                                         const char* name) const
             {
-                if (mode_ != ExecutionMode::FORCE_REFERENCE || !operands.has_device_only_operand())
+                if (mode_ != ExecutionMode::ForceReference || !operands.has_device_only_operand())
                     return;
 
                 Dispatch::Detail::throw_execution_error(

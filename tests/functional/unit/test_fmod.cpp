@@ -21,7 +21,7 @@
 
 /**
  * @file test_fmod.cpp
- * @brief Tests elementwise().fmod against fixed expected values.
+ * @brief Tests ElementwiseOps::fmod against fixed expected values.
  * @author Mustafa Garip
  */
 

@@ -59,7 +59,7 @@ namespace SushiBLAS
                 using WS = Accumulator<Scalar>;
 
                 const PackedAccess access =
-                    packed_access(layout, uplo, Core::Transpose::NO_TRANS, n);
+                    packed_access(layout, uplo, Core::Transpose::NoTrans, n);
 
                 for (int64_t i = 0; i < n; ++i)
                 {

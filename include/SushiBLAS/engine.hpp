@@ -58,7 +58,7 @@ namespace SushiBLAS
              * @param layout The memory layout of tensors this engine creates.
              */
             explicit Engine(SushiRuntime::Execution::RuntimeContext& context,
-                            Core::Layout layout = Core::Layout::ROW_MAJOR);
+                            Core::Layout layout = Core::Layout::RowMajor);
 
             Engine(const Engine&) = delete;
             Engine& operator=(const Engine&) = delete;
@@ -117,7 +117,7 @@ namespace SushiBLAS
              */
             [[nodiscard]] Tensor create_tensor(
                 std::initializer_list<int64_t> dims,
-                Core::DataType dtype = Core::DataType::FLOAT32,
+                Core::DataType dtype = Core::DataType::Float32,
                 SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared,
                 std::size_t device_index = 0)
             {
@@ -134,7 +134,7 @@ namespace SushiBLAS
              */
             [[nodiscard]] Tensor create_tensor(
                 SushiRuntime::span<const int64_t> dims,
-                Core::DataType dtype = Core::DataType::FLOAT32,
+                Core::DataType dtype = Core::DataType::Float32,
                 SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared,
                 std::size_t device_index = 0)
             {

@@ -111,7 +111,7 @@ namespace SushiBLAS
         /**
          * @brief Selects the destination type at runtime for a fixed source type.
          * @return The handle of the recorded task.
-         * @throws std::runtime_error if @p dst_dtype is outside `Domain::REAL`.
+         * @throws std::runtime_error if @p dst_dtype is outside `Domain::Real`.
          * @throws UnsupportedExecution under FORCE_REFERENCE when an operand is device-only USM.
          * @see src/README.md
          */
@@ -123,13 +123,13 @@ namespace SushiBLAS
         {
             switch (dst_dtype)
             {
-                case Core::DataType::HALF:
+                case Core::DataType::Half:
                     return record_convert<Src, sycl::half>(recorder, meta, operands,
                                                            src_ptr, dst_ptr, n);
-                case Core::DataType::FLOAT32:
+                case Core::DataType::Float32:
                     return record_convert<Src, float>(recorder, meta, operands,
                                                       src_ptr, dst_ptr, n);
-                case Core::DataType::FLOAT64:
+                case Core::DataType::Float64:
                     return record_convert<Src, double>(recorder, meta, operands,
                                                        src_ptr, dst_ptr, n);
                 default:
@@ -186,13 +186,13 @@ namespace SushiBLAS
         // The outer switch picks the source type; see src/README.md.
         switch (src.dtype)
         {
-            case Core::DataType::HALF:
+            case Core::DataType::Half:
                 return dispatch_destination<sycl::half>(dst.dtype, recorder_, meta, operands,
                                                         read_src, write_dst, n);
-            case Core::DataType::FLOAT32:
+            case Core::DataType::Float32:
                 return dispatch_destination<float>(dst.dtype, recorder_, meta, operands,
                                                    read_src, write_dst, n);
-            case Core::DataType::FLOAT64:
+            case Core::DataType::Float64:
                 return dispatch_destination<double>(dst.dtype, recorder_, meta, operands,
                                                     read_src, write_dst, n);
             default:

@@ -59,11 +59,11 @@ namespace SushiBLAS
             {
                 using RW = ReferenceAccumulator<T>;
 
-                SB_ASSERT(find_defect(pattern) == StructureDefect::NONE,
+                SB_ASSERT(find_defect(pattern) == StructureDefect::None,
                           "spmm was given a CSR structure that breaks its contract");
 
-                const OperandAccess at_b = operand_access(layout, Core::Transpose::NO_TRANS, ldb);
-                const OperandAccess at_c = operand_access(layout, Core::Transpose::NO_TRANS, ldc);
+                const OperandAccess at_b = operand_access(layout, Core::Transpose::NoTrans, ldb);
+                const OperandAccess at_c = operand_access(layout, Core::Transpose::NoTrans, ldc);
                 const bool keeps_c = !(beta == T(0));
 
                 if (!Core::is_transposed(trans))

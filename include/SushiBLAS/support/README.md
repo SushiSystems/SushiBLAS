@@ -270,7 +270,7 @@ the queue and plans the shape from its device. The shape form is what lets a tes
 that has planned once for several launches, run a kernel in a shape the planner would not pick
 for that size.
 
-Under `FORCE_REFERENCE` none of this runs: the same functor is called by the loops of
+Under `ForceReference` none of this runs: the same functor is called by the loops of
 `serial_1d.hpp`.
 
 ### `K_VECTOR_WIDTH`
@@ -1036,7 +1036,7 @@ addresses at every step.
 ## `serial_1d.hpp`
 
 `Serial::map`, `Serial::zip_inplace` and `Serial::indexed` are the host loops behind
-`FORCE_REFERENCE` for every kernel that launches through `launch_1d.hpp`. Each takes the functor
+`ForceReference` for every kernel that launches through `launch_1d.hpp`. Each takes the functor
 its `Launch` sibling would launch and calls it once per element, in index order, on one thread.
 There is no second implementation of an operation to keep in step: the reference path and the
 SYCL path differ only in who calls the functor. The functor contract is the device one, so a
@@ -1044,7 +1044,7 @@ functor that runs on the device runs here.
 
 ## `serial_reduce.hpp`
 
-The host folds behind `FORCE_REFERENCE` for `reduce`, `reduce_indexed` and `reduce_axis`:
+The host folds behind `ForceReference` for `reduce`, `reduce_indexed` and `reduce_axis`:
 `Serial::reduce`, `Serial::reduce_indexed` and `Serial::reduce_axis`, each one ascending walk.
 
 ### `Serial::Fold`

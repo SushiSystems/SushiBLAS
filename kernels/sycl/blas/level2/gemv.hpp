@@ -65,7 +65,7 @@ namespace SushiBLAS
 
                 SB_LOG_INFO("SYCL GEMV: {}x{}", m, n);
 
-                const bool row_contiguous = (layout == Core::Layout::ROW_MAJOR) != transposed;
+                const bool row_contiguous = (layout == Core::Layout::RowMajor) != transposed;
                 const std::size_t width = (row_contiguous && out_len > 0)
                     ? Detail::row_reduction_width(Device::profile_for(queue), in_len)
                     : std::size_t{0};

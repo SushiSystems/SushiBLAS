@@ -146,8 +146,8 @@ namespace SushiBLAS
             constexpr int64_t K_HALF_WIDTHS[] = {8, K_HALF_ORDER};
 
             /// @brief Holds the two modes a public call is run in.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::FORCE_REFERENCE,
-                                                 ExecutionMode::FORCE_SYCL};
+            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
+                                                 ExecutionMode::ForceSycl};
 
             /** @brief Holds a queued event that stays incomplete until the gate is opened. */
             class DependencyGate final
@@ -209,17 +209,17 @@ namespace SushiBLAS
             /** @brief Holds the flags of one triangular call. */
             struct TriangularFlags
             {
-                Core::Layout layout = Core::Layout::ROW_MAJOR;     /**< The memory order. */
-                Core::Side side = Core::Side::LEFT;                /**< The side of op(A). */
-                Core::Uplo uplo = Core::Uplo::LOWER;               /**< The triangle read. */
-                Core::Transpose trans = Core::Transpose::NO_TRANS; /**< The op applied to A. */
-                Core::Diag diag = Core::Diag::NON_UNIT;            /**< The diagonal read. */
+                Core::Layout layout = Core::Layout::RowMajor;     /**< The memory order. */
+                Core::Side side = Core::Side::Left;                /**< The side of op(A). */
+                Core::Uplo uplo = Core::Uplo::Lower;               /**< The triangle read. */
+                Core::Transpose trans = Core::Transpose::NoTrans; /**< The op applied to A. */
+                Core::Diag diag = Core::Diag::NonUnit;            /**< The diagonal read. */
             };
 
             /** @brief Returns the flags of a call as one line of a failure message. */
             [[nodiscard]] std::string describe(const TriangularFlags& flags)
             {
-                return std::string(flags.layout == Core::Layout::ROW_MAJOR ? "ROW_MAJOR"
+                return std::string(flags.layout == Core::Layout::RowMajor ? "ROW_MAJOR"
                                                                            : "COLUMN_MAJOR") +
                        " " + Core::to_string(flags.side) + " " + Core::to_string(flags.uplo) +
                        " " + Core::to_string(flags.trans) + " " + Core::to_string(flags.diag);
@@ -234,19 +234,19 @@ namespace SushiBLAS
             [[nodiscard]] std::vector<TriangularFlags> flags_over(
                 std::initializer_list<Core::Side> sides)
             {
-                std::vector<Core::Transpose> transposes = {Core::Transpose::NO_TRANS,
-                                                           Core::Transpose::TRANS};
+                std::vector<Core::Transpose> transposes = {Core::Transpose::NoTrans,
+                                                           Core::Transpose::Trans};
                 if (Core::is_complex_v<T>)
-                    transposes.push_back(Core::Transpose::CONJ_TRANS);
+                    transposes.push_back(Core::Transpose::ConjTrans);
 
                 std::vector<TriangularFlags> all;
                 for (const Core::Layout layout :
-                     {Core::Layout::ROW_MAJOR, Core::Layout::COLUMN_MAJOR})
+                     {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
                     for (const Core::Side side : sides)
-                        for (const Core::Uplo uplo : {Core::Uplo::UPPER, Core::Uplo::LOWER})
+                        for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
                             for (const Core::Transpose trans : transposes)
                                 for (const Core::Diag diag :
-                                     {Core::Diag::NON_UNIT, Core::Diag::UNIT})
+                                     {Core::Diag::NonUnit, Core::Diag::Unit})
                                     all.push_back(
                                         TriangularFlags{layout, side, uplo, trans, diag});
                 return all;
@@ -448,7 +448,7 @@ namespace SushiBLAS
                                                           int64_t cols, int64_t r,
                                                           int64_t c) noexcept
             {
-                return static_cast<std::size_t>(layout == Core::Layout::ROW_MAJOR ? r * cols + c
+                return static_cast<std::size_t>(layout == Core::Layout::RowMajor ? r * cols + c
                                                                                   : c * rows + r);
             }
 
@@ -511,7 +511,7 @@ namespace SushiBLAS
                     /** @brief Returns the leading dimension of the dense B. */
                     [[nodiscard]] int64_t ldb() const noexcept
                     {
-                        return leading(flags_.layout == Core::Layout::ROW_MAJOR ? cols() : rows());
+                        return leading(flags_.layout == Core::Layout::RowMajor ? cols() : rows());
                     }
 
                     /** @brief Returns whether unknown t has a factor in step s, itself included. */
@@ -525,7 +525,7 @@ namespace SushiBLAS
                     [[nodiscard]] T coefficient(int64_t s, int64_t t) const
                     {
                         const Position p = source(s, t);
-                        if (p.row == p.col && flags_.diag == Core::Diag::UNIT)
+                        if (p.row == p.col && flags_.diag == Core::Diag::Unit)
                             return element_of<T>(1.0);
                         if (p.row != p.col && !is_off_diagonal_stored(p))
                             return element_of<T>(0.0);
@@ -548,7 +548,7 @@ namespace SushiBLAS
                         {
                             for (int64_t c = 0; c < order_; ++c)
                             {
-                                const bool read = (r == c) ? flags_.diag != Core::Diag::UNIT
+                                const bool read = (r == c) ? flags_.diag != Core::Diag::Unit
                                                            : is_off_diagonal_stored(Position{r, c});
                                 if (read)
                                     stored[offset_of(flags_.layout, order_, order_, r, c)] =
@@ -590,7 +590,7 @@ namespace SushiBLAS
                     /** @brief Returns whether op(A) stands on the left of X. */
                     [[nodiscard]] bool is_left() const noexcept
                     {
-                        return flags_.side == Core::Side::LEFT;
+                        return flags_.side == Core::Side::Left;
                     }
 
                     /** @brief Returns the offset of element (r, c) of the full matrix. */
@@ -611,7 +611,7 @@ namespace SushiBLAS
                     /** @brief Returns whether an off-diagonal element lies in the triangle read. */
                     [[nodiscard]] bool is_off_diagonal_stored(const Position& p) const noexcept
                     {
-                        return flags_.uplo == Core::Uplo::UPPER ? p.row < p.col : p.row > p.col;
+                        return flags_.uplo == Core::Uplo::Upper ? p.row < p.col : p.row > p.col;
                     }
 
                     /// @brief The flags of the call.
@@ -679,7 +679,7 @@ namespace SushiBLAS
                                               int64_t increment)
             {
                 const int64_t dims[] = {length};
-                std::array<int64_t, Core::MAX_TENSOR_RANK> strides{};
+                std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides{};
                 strides[0] = increment;
                 return Tensor(buffer.storage, SushiRuntime::span<const int64_t>(dims, 1), strides,
                               buffer.dtype, buffer.storage_offset, buffer.layout);
@@ -851,7 +851,7 @@ namespace SushiBLAS
                     /** @brief Returns the unit roundoff of the type the kernel of mode sums in. */
                     [[nodiscard]] static double summing_unit(ExecutionMode mode) noexcept
                     {
-                        return mode == ExecutionMode::FORCE_REFERENCE
+                        return mode == ExecutionMode::ForceReference
                                    ? unit_roundoff<Kernels::ReferenceAccumulator<T>>()
                                    : unit_roundoff<Kernels::Accumulator<T>>();
                     }
@@ -863,7 +863,7 @@ namespace SushiBLAS
                     [[nodiscard]] static std::size_t roundings(ExecutionMode mode, int64_t len,
                                                                std::size_t fixed) noexcept
                     {
-                        const bool compensated = mode == ExecutionMode::FORCE_REFERENCE &&
+                        const bool compensated = mode == ExecutionMode::ForceReference &&
                                                  Kernels::ReferenceSum<T>::K_IS_COMPENSATED;
                         return (compensated ? K_COMPENSATED_ROUNDINGS
                                             : static_cast<std::size_t>(len)) + fixed;
@@ -871,7 +871,7 @@ namespace SushiBLAS
 
                     /**
                      * @brief Expects every step of a solved real system to leave a residual within
-                     *        the bound of DESIGN_BLAS_L3.md, section 7.6.
+                     *        the bound of DESIGN_BLAS_L3, section 7.6.
                      * @param x The solution a kernel of mode wrote over b.
                      */
                     void expect_residual_within_bound(const HostSolve<T>& system,
@@ -994,7 +994,7 @@ namespace SushiBLAS
             const T alpha = element_of<T>(K_ROUNDED_ALPHA);
 
             for (const TriangularFlags& flags :
-                 flags_over<T>({Core::Side::LEFT, Core::Side::RIGHT}))
+                 flags_over<T>({Core::Side::Left, Core::Side::Right}))
             {
                 SCOPED_TRACE(describe(flags));
                 const HostSolve<T> system(flags, K_ORDER, K_VECTORS,
@@ -1021,7 +1021,7 @@ namespace SushiBLAS
             const T alpha = element_of<T>(K_EXACT_ALPHA);
 
             for (const TriangularFlags& flags :
-                 flags_over<T>({Core::Side::LEFT, Core::Side::RIGHT}))
+                 flags_over<T>({Core::Side::Left, Core::Side::Right}))
             {
                 SCOPED_TRACE(describe(flags));
                 const HostSolve<T> system(flags, K_ORDER, K_VECTORS,
@@ -1040,7 +1040,7 @@ namespace SushiBLAS
 
                 SCOPED_TRACE("FORCE_REFERENCE");
                 expect_equal_values(this->solve_through_view(system, b, K_EXACT_ALPHA,
-                                                             ExecutionMode::FORCE_REFERENCE),
+                                                             ExecutionMode::ForceReference),
                                     expected);
             }
         }
@@ -1055,7 +1055,7 @@ namespace SushiBLAS
             const T alpha = element_of<T>(K_ROUNDED_ALPHA);
             const std::size_t matrix_elements = static_cast<std::size_t>(K_ORDER * K_ORDER);
 
-            for (const Core::Side side : {Core::Side::LEFT, Core::Side::RIGHT})
+            for (const Core::Side side : {Core::Side::Left, Core::Side::Right})
             {
                 for (const bool shares_a : {false, true})
                 {
@@ -1165,7 +1165,7 @@ namespace SushiBLAS
 
             for (const int64_t order : K_PRODUCT_ORDERS)
             {
-                for (const TriangularFlags& flags : flags_over<T>({Core::Side::LEFT}))
+                for (const TriangularFlags& flags : flags_over<T>({Core::Side::Left}))
                 {
                     const std::size_t elements = static_cast<std::size_t>(order * order);
                     const HostSolve<T> system(flags, order, 1,
@@ -1211,9 +1211,9 @@ namespace SushiBLAS
             const std::vector<T> x = fraction_values<T>(order, draws);
 
             const std::vector<T> first =
-                this->multiply_through_view(system, x, 1, ExecutionMode::FORCE_SYCL);
+                this->multiply_through_view(system, x, 1, ExecutionMode::ForceSycl);
             const std::vector<T> second =
-                this->multiply_through_view(system, x, 1, ExecutionMode::FORCE_SYCL);
+                this->multiply_through_view(system, x, 1, ExecutionMode::ForceSycl);
             expect_same_bits(first, second);
         }
 
@@ -1231,15 +1231,15 @@ namespace SushiBLAS
             Tensor a_buffer = device_buffer<T>(*this->engine, system.stored_matrix());
             Tensor x = device_buffer<T>(*this->engine, fraction_values<T>(order, draws));
             Tensor A = matrix_view(a_buffer, {K_POOLED_ORDER, K_POOLED_ORDER},
-                                   Core::Layout::ROW_MAJOR);
+                                   Core::Layout::RowMajor);
 
             auto& context = TestEnvironment::get_context();
             ScratchPool& pool = this->engine->get_scratch_pool();
-            this->engine->set_mode(ExecutionMode::FORCE_SYCL);
+            this->engine->set_mode(ExecutionMode::ForceSycl);
             const std::size_t outstanding_before =
                 context.live_usm_count() - pool.idle_block_count();
 
-            SushiBLAS::BLASOps(*this->engine).trmv(A, x, Core::Uplo::LOWER);
+            SushiBLAS::BLASOps(*this->engine).trmv(A, x, Core::Uplo::Lower);
             this->engine->execute();
 
             EXPECT_EQ(outstanding_before, context.live_usm_count() - pool.idle_block_count())
@@ -1248,7 +1248,7 @@ namespace SushiBLAS
             const std::size_t live_after_first = context.live_usm_count();
             const std::size_t idle_after_first = pool.idle_block_count();
 
-            SushiBLAS::BLASOps(*this->engine).trmv(A, x, Core::Uplo::LOWER);
+            SushiBLAS::BLASOps(*this->engine).trmv(A, x, Core::Uplo::Lower);
             this->engine->execute();
 
             EXPECT_EQ(live_after_first, context.live_usm_count());
@@ -1297,9 +1297,9 @@ namespace SushiBLAS
             using T = TypeParam;
             Draws draws(K_SEED);
 
-            for (const Core::Uplo uplo : {Core::Uplo::LOWER, Core::Uplo::UPPER})
+            for (const Core::Uplo uplo : {Core::Uplo::Lower, Core::Uplo::Upper})
             {
-                const TriangularFlags flags = plain_flags(uplo, Core::Transpose::NO_TRANS);
+                const TriangularFlags flags = plain_flags(uplo, Core::Transpose::NoTrans);
                 SCOPED_TRACE(describe(flags));
 
                 const HostSolve<T> single(flags, K_LARGE_ORDER, 1,
@@ -1307,7 +1307,7 @@ namespace SushiBLAS
                 const std::vector<T> x = integer_values<T>(single.elements(), -3, 3, draws);
                 expect_equal_values(
                     this->solve_vector_through_view(single, single.product(x),
-                                                    ExecutionMode::FORCE_SYCL),
+                                                    ExecutionMode::ForceSycl),
                     x);
 
                 const HostSolve<T> several(flags, K_LARGE_ORDER, K_LARGE_VECTORS,
@@ -1316,7 +1316,7 @@ namespace SushiBLAS
                     integer_values<T>(several.elements(), -3, 3, draws);
                 expect_equal_values(
                     this->solve_through_view(several, several.product(solution), K_EXACT_ALPHA,
-                                             ExecutionMode::FORCE_SYCL),
+                                             ExecutionMode::ForceSycl),
                     scaled(solution, element_of<T>(K_EXACT_ALPHA)));
             }
         }
@@ -1330,7 +1330,7 @@ namespace SushiBLAS
             Draws draws(K_SEED);
 
             for (const TriangularFlags& flags :
-                 flags_over<T>({Core::Side::LEFT, Core::Side::RIGHT}))
+                 flags_over<T>({Core::Side::Left, Core::Side::Right}))
             {
                 const HostSolve<T> system(flags, K_RESIDUAL_ORDER, K_RESIDUAL_VECTORS,
                                           dominant_matrix<T>(K_RESIDUAL_ORDER, draws));
@@ -1339,7 +1339,7 @@ namespace SushiBLAS
                 for (const ExecutionMode mode : K_MODES)
                 {
                     SCOPED_TRACE(describe(flags));
-                    SCOPED_TRACE(mode == ExecutionMode::FORCE_SYCL ? "FORCE_SYCL"
+                    SCOPED_TRACE(mode == ExecutionMode::ForceSycl ? "FORCE_SYCL"
                                                                    : "FORCE_REFERENCE");
                     this->expect_residual_within_bound(
                         system, b, K_ROUNDED_ALPHA,
@@ -1358,10 +1358,10 @@ namespace SushiBLAS
             Draws draws(K_SEED);
             const std::size_t order = static_cast<std::size_t>(K_PRODUCT_BOUND_ORDER);
 
-            for (const Core::Uplo uplo : {Core::Uplo::LOWER, Core::Uplo::UPPER})
+            for (const Core::Uplo uplo : {Core::Uplo::Lower, Core::Uplo::Upper})
             {
                 for (const Core::Transpose trans :
-                     {Core::Transpose::NO_TRANS, Core::Transpose::TRANS})
+                     {Core::Transpose::NoTrans, Core::Transpose::Trans})
                 {
                     const TriangularFlags flags = plain_flags(uplo, trans);
                     SCOPED_TRACE(describe(flags));
@@ -1376,7 +1376,7 @@ namespace SushiBLAS
 
                     this->expect_product_within_bound(
                         system, x, this->multiply_with_kernel(system, x, 1, K_GROUP_WIDTH),
-                        ExecutionMode::FORCE_SYCL);
+                        ExecutionMode::ForceSycl);
                 }
             }
         }
@@ -1427,7 +1427,7 @@ namespace SushiBLAS
 
                 /**
                  * @brief Returns the host solution of the unit-lower system, summed and carried in
-                 *        float, subtracting in the order of DESIGN_BLAS_L3.md, section 7.2.
+                 *        float, subtracting in the order of DESIGN_BLAS_L3, section 7.2.
                  * @return Each solved element rounded once to HALF.
                  */
                 [[nodiscard]] static std::vector<sycl::half> substitute_in_float(
@@ -1447,7 +1447,7 @@ namespace SushiBLAS
                         return static_cast<std::size_t>(r * cols + c);
                     };
 
-                    if (side == Core::Side::LEFT)
+                    if (side == Core::Side::Left)
                     {
                         for (int64_t j = 0; j < cols; ++j)
                         {
@@ -1489,8 +1489,8 @@ namespace SushiBLAS
 
                     Kernels::SYCL::trsm<sycl::half>(
                         test_queue(), Kernels::SYCL::TriangularSolvePlan{width},
-                        Core::Layout::ROW_MAJOR, side, Core::Uplo::LOWER, Core::Transpose::NO_TRANS,
-                        Core::Diag::UNIT, rows, cols, sycl::half(1.0f),
+                        Core::Layout::RowMajor, side, Core::Uplo::Lower, Core::Transpose::NoTrans,
+                        Core::Diag::Unit, rows, cols, sycl::half(1.0f),
                         pointer_of<const sycl::half>(A), K_HALF_ORDER, 0,
                         pointer_of<sycl::half>(B), cols, rows * cols, 1, pointer_of<float>(work),
                         {})
@@ -1506,10 +1506,10 @@ namespace SushiBLAS
         {
             const std::vector<sycl::half> a = unit_lower_values();
 
-            for (const Core::Side side : {Core::Side::LEFT, Core::Side::RIGHT})
+            for (const Core::Side side : {Core::Side::Left, Core::Side::Right})
             {
                 SCOPED_TRACE(Core::to_string(side));
-                const bool left = (side == Core::Side::LEFT);
+                const bool left = (side == Core::Side::Left);
                 const int64_t rows = left ? K_HALF_ORDER : K_HALF_VECTORS;
                 const int64_t cols = left ? K_HALF_VECTORS : K_HALF_ORDER;
                 const std::vector<sycl::half> b = right_hand_side_values(rows * cols);
@@ -1537,16 +1537,16 @@ namespace SushiBLAS
 
             for (const ExecutionMode mode : K_MODES)
             {
-                SCOPED_TRACE(mode == ExecutionMode::FORCE_SYCL ? "FORCE_SYCL"
+                SCOPED_TRACE(mode == ExecutionMode::ForceSycl ? "FORCE_SYCL"
                                                                : "FORCE_REFERENCE");
                 engine->set_mode(mode);
 
                 Tensor a_buffer = device_buffer<sycl::half>(*engine, a);
                 Tensor x = device_buffer<sycl::half>(*engine,
                                                      std::vector<sycl::half>(3, one));
-                Tensor A = matrix_view(a_buffer, {3, 3}, Core::Layout::ROW_MAJOR);
+                Tensor A = matrix_view(a_buffer, {3, 3}, Core::Layout::RowMajor);
 
-                SushiBLAS::BLASOps(*engine).trmv(A, x, Core::Uplo::LOWER);
+                SushiBLAS::BLASOps(*engine).trmv(A, x, Core::Uplo::Lower);
                 engine->execute();
 
                 const std::vector<sycl::half> product = read_buffer<sycl::half>(x);

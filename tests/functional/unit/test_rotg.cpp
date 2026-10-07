@@ -87,12 +87,12 @@ namespace SushiBLAS
             constexpr R K_TABLE_TOLERANCE = R(8) * std::numeric_limits<R>::epsilon();
 
             /// @brief Both kernels an operation has.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::FORCE_REFERENCE,
-                                                 ExecutionMode::FORCE_SYCL};
+            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
+                                                 ExecutionMode::ForceSycl};
 
             /// @brief Both element orders an engine can create tensors in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::ROW_MAJOR,
-                                                  Core::Layout::COLUMN_MAJOR};
+            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
+                                                  Core::Layout::ColumnMajor};
 
             /** @brief Takes the square root of a rotation on the host. */
             struct StdRoot
@@ -139,10 +139,10 @@ namespace SushiBLAS
             /** @brief Names how z of a real rotation is rebuilt from its other values. */
             enum class RebuildValue : std::uint8_t
             {
-                ZERO,          /**< z is 0. */
-                ONE,           /**< z is 1. */
-                SINE,          /**< z is s. */
-                INVERSE_COSINE /**< z is 1 / c. */
+                Zero,          /**< z is 0. */
+                One,           /**< z is 1. */
+                Sine,          /**< z is s. */
+                InverseCosine /**< z is 1 / c. */
             };
 
             /** @brief Holds one row of the real table of the design, section 10.2. */
@@ -170,13 +170,13 @@ namespace SushiBLAS
 
             /// @brief The real table of the design, section 10.2.
             constexpr RealRotationRow K_REAL_ROWS[] = {
-                {3.0, 4.0, 5.0, 3.0, 5.0, 4.0, 5.0, RebuildValue::INVERSE_COSINE},
-                {4.0, 3.0, 5.0, 4.0, 5.0, 3.0, 5.0, RebuildValue::SINE},
-                {-4.0, 3.0, -5.0, -4.0, -5.0, 3.0, -5.0, RebuildValue::SINE},
-                {3.0, -4.0, -5.0, 3.0, -5.0, -4.0, -5.0, RebuildValue::INVERSE_COSINE},
-                {0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, RebuildValue::ZERO},
-                {0.0, 2.0, 2.0, 0.0, 1.0, 1.0, 1.0, RebuildValue::ONE},
-                {2.0, 0.0, 2.0, 1.0, 1.0, 0.0, 1.0, RebuildValue::ZERO}};
+                {3.0, 4.0, 5.0, 3.0, 5.0, 4.0, 5.0, RebuildValue::InverseCosine},
+                {4.0, 3.0, 5.0, 4.0, 5.0, 3.0, 5.0, RebuildValue::Sine},
+                {-4.0, 3.0, -5.0, -4.0, -5.0, 3.0, -5.0, RebuildValue::Sine},
+                {3.0, -4.0, -5.0, 3.0, -5.0, -4.0, -5.0, RebuildValue::InverseCosine},
+                {0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, RebuildValue::Zero},
+                {0.0, 2.0, 2.0, 0.0, 1.0, 1.0, 1.0, RebuildValue::One},
+                {2.0, 0.0, 2.0, 1.0, 1.0, 0.0, 1.0, RebuildValue::Zero}};
 
             /// @brief The complex table of the design, section 10.2.
             const ComplexRotationRow K_COMPLEX_ROWS[] = {
@@ -189,9 +189,9 @@ namespace SushiBLAS
             /** @brief Returns the name of a mode and a layout for a failure message. */
             [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
             {
-                return std::string(mode == ExecutionMode::FORCE_SYCL ? "FORCE_SYCL"
+                return std::string(mode == ExecutionMode::ForceSycl ? "FORCE_SYCL"
                                                                      : "FORCE_REFERENCE") +
-                       (layout == Core::Layout::ROW_MAJOR ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
+                       (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
             }
 
             /** @brief Returns whether the test device computes in the component type of T. */
@@ -407,16 +407,16 @@ namespace SushiBLAS
                     Wide z = Wide(0);
                     switch (row.z)
                     {
-                        case RebuildValue::ZERO:
+                        case RebuildValue::Zero:
                             z = Wide(0);
                             break;
-                        case RebuildValue::ONE:
+                        case RebuildValue::One:
                             z = Wide(1);
                             break;
-                        case RebuildValue::SINE:
+                        case RebuildValue::Sine:
                             z = s;
                             break;
-                        case RebuildValue::INVERSE_COSINE:
+                        case RebuildValue::InverseCosine:
                             z = Wide(1) / c;
                             break;
                     }
@@ -489,7 +489,7 @@ namespace SushiBLAS
         {
             using T = TypeParam;
             const RealRotationRow row = {K_DOT_VALUE, K_DOT_PARTNER, 5.0, 3.0, 5.0, 4.0, 5.0,
-                                         RebuildValue::INVERSE_COSINE};
+                                         RebuildValue::InverseCosine};
             const auto expected = TestFixture::expected_of(row);
 
             for (const Core::Layout layout : K_LAYOUTS)
@@ -576,10 +576,10 @@ namespace SushiBLAS
 
             for (const Core::Layout layout : K_LAYOUTS)
             {
-                SCOPED_TRACE(layout == Core::Layout::ROW_MAJOR ? "ROW_MAJOR" : "COLUMN_MAJOR");
-                this->start(layout, ExecutionMode::FORCE_REFERENCE);
+                SCOPED_TRACE(layout == Core::Layout::RowMajor ? "ROW_MAJOR" : "COLUMN_MAJOR");
+                this->start(layout, ExecutionMode::ForceReference);
                 const auto reference = this->rotate(pairs);
-                this->start(layout, ExecutionMode::FORCE_SYCL);
+                this->start(layout, ExecutionMode::ForceSycl);
                 const auto device = this->rotate(pairs);
 
                 ASSERT_EQ(device.size(), reference.size());
@@ -610,8 +610,8 @@ namespace SushiBLAS
 
             for (const Core::Layout layout : K_LAYOUTS)
             {
-                SCOPED_TRACE(engine_name(layout, ExecutionMode::FORCE_REFERENCE));
-                start(layout, ExecutionMode::FORCE_REFERENCE);
+                SCOPED_TRACE(engine_name(layout, ExecutionMode::ForceReference));
+                start(layout, ExecutionMode::ForceReference);
                 const std::vector<Rotation> rotations = rotate(pairs);
 
                 for (std::size_t i = 0; i < rotations.size(); ++i)

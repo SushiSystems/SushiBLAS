@@ -21,7 +21,7 @@
 
 /**
  * @file test_silu.cpp
- * @brief Tests nonlinear().silu and silu_backward against fixed expected values.
+ * @brief Tests NonLinearOps::silu and silu_backward against fixed expected values.
  * @author Mustafa Garip
  */
 

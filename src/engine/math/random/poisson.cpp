@@ -55,7 +55,7 @@ namespace SushiBLAS
         const Kernels::SYCL::Random::PoissonParams params =
             Kernels::SYCL::Random::make_poisson_params(lambda);
 
-        return Dispatch::execute_random<Dispatch::Domain::REAL>(
+        return Dispatch::execute_random<Dispatch::Domain::Real>(
             recorder_, rng_, t, "random.poisson", "random.poisson"_op, {lambda},
             [params](auto scalar_type, const Dispatch::RandomFill& fill, uint64_t seed,
                      uint64_t offset, int64_t size, auto* pT) -> sycl::event

@@ -53,7 +53,7 @@ namespace SushiBLAS
                       int64_t incy)
             {
                 const BandAccess access =
-                    triangle_band_access(layout, uplo, Core::Transpose::NO_TRANS, k, lda);
+                    triangle_band_access(layout, uplo, Core::Transpose::NoTrans, k, lda);
                 Detail::symmetric_product<T, Conj>(access, n, alpha, a, x, incx, beta, y, incy);
             }
         } // namespace Reference

@@ -21,7 +21,7 @@
 
 /**
  * @file test_neg.cpp
- * @brief Tests elementwise().neg against fixed expected values.
+ * @brief Tests ElementwiseOps::neg against fixed expected values.
  * @author Mustafa Garip
  */
 

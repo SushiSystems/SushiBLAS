@@ -123,10 +123,10 @@ namespace SushiBLAS
                 [&](std::vector<uint32_t>& sink)
                 {
                     auto cols = engine->create_tensor({N * out_h * out_w, 3 * 3 * C},
-                                                      Core::DataType::FLOAT32);
+                                                      Core::DataType::Float32);
                     fill_order_sensitive(cols.data_as<float>(), cols.num_elements);
 
-                    auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+                    auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
                     SushiBLAS::SpatialOps(*engine).col2im(cols, dx, g, out_h, out_w);
                     engine->execute();
 
@@ -148,25 +148,25 @@ namespace SushiBLAS
             const int64_t out_w = Spatial::output_extent(W, 0, 0, 1, 2, 1);
 
             // One dominant pixel per channel plane, so every window in reach selects it.
-            auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+            auto in = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             float* p = in.data_as<float>();
             for (int64_t i = 0; i < in.num_elements; ++i) p[i] = 0.0f;
             for (int64_t n = 0; n < N; ++n)
                 for (int64_t c = 0; c < C; ++c)
                     p[((n * H + 2) * W + 3) * C + c] = 1.0f;
 
-            auto indices = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::INT64);
-            auto pooled = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
+            auto indices = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Int64);
+            auto pooled = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Float32);
             SushiBLAS::SpatialOps(*engine).pool_max(in, pooled, indices, g);
             engine->execute();
 
             expect_bit_identical_across_runs(
                 [&](std::vector<uint32_t>& sink)
                 {
-                    auto dy = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
+                    auto dy = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Float32);
                     fill_order_sensitive(dy.data_as<float>(), dy.num_elements);
 
-                    auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+                    auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
                     SushiBLAS::SpatialOps(*engine).pool_max_backward(dy, indices, dx, g);
                     engine->execute();
 
@@ -190,10 +190,10 @@ namespace SushiBLAS
             expect_bit_identical_across_runs(
                 [&](std::vector<uint32_t>& sink)
                 {
-                    auto dy = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
+                    auto dy = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Float32);
                     fill_order_sensitive(dy.data_as<float>(), dy.num_elements);
 
-                    auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+                    auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
                     SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
                     engine->execute();
 
@@ -219,13 +219,13 @@ namespace SushiBLAS
             expect_bit_identical_across_runs(
                 [&](std::vector<uint32_t>& sink)
                 {
-                    auto dy = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
+                    auto dy = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Float32);
                     fill_order_sensitive(dy.data_as<float>(), dy.num_elements);
 
-                    auto weights = engine->create_tensor({3, 3, C}, Core::DataType::FLOAT32);
+                    auto weights = engine->create_tensor({3, 3, C}, Core::DataType::Float32);
                     fill_ones(weights.data_as<float>(), weights.num_elements);
 
-                    auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+                    auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
                     SushiBLAS::SpatialOps(*engine).window_dot_backward(dy, weights, dx, g);
                     engine->execute();
 
@@ -251,13 +251,13 @@ namespace SushiBLAS
             expect_bit_identical_across_runs(
                 [&](std::vector<uint32_t>& sink)
                 {
-                    auto dy = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::FLOAT32);
+                    auto dy = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Float32);
                     fill_order_sensitive(dy.data_as<float>(), dy.num_elements);
 
-                    auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+                    auto in = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
                     fill_ones(in.data_as<float>(), in.num_elements);
 
-                    auto dweights = engine->create_tensor({3, 3, C}, Core::DataType::FLOAT32);
+                    auto dweights = engine->create_tensor({3, 3, C}, Core::DataType::Float32);
                     SushiBLAS::SpatialOps(*engine).window_dot_weights_backward(dy, in, dweights, g);
                     engine->execute();
 
@@ -276,10 +276,10 @@ namespace SushiBLAS
                 [&](std::vector<uint32_t>& sink)
                 {
                     auto dy = engine->create_tensor({N, H * scale, W * scale, C},
-                                                    Core::DataType::FLOAT32);
+                                                    Core::DataType::Float32);
                     fill_order_sensitive(dy.data_as<float>(), dy.num_elements);
 
-                    auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+                    auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
                     SushiBLAS::SpatialOps(*engine).upsample_nearest_backward(dy, dx, scale, scale);
                     engine->execute();
 
@@ -296,10 +296,10 @@ namespace SushiBLAS
             expect_bit_identical_across_runs(
                 [&](std::vector<uint32_t>& sink)
                 {
-                    auto in = engine->create_tensor({N, H, W, C}, Core::DataType::FLOAT32);
+                    auto in = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
                     fill_order_sensitive(in.data_as<float>(), in.num_elements);
 
-                    auto out = engine->create_tensor({N, C}, Core::DataType::FLOAT32);
+                    auto out = engine->create_tensor({N, C}, Core::DataType::Float32);
                     SushiBLAS::ReductionOps(*engine).mean_spatial(in, out);
                     engine->execute();
 

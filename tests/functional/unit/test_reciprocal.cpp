@@ -21,7 +21,7 @@
 
 /**
  * @file test_reciprocal.cpp
- * @brief Tests elementwise().reciprocal against fixed expected values.
+ * @brief Tests ElementwiseOps::reciprocal against fixed expected values.
  * @author Mustafa Garip
  */
 

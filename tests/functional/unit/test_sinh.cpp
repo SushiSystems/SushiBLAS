@@ -21,7 +21,7 @@
 
 /**
  * @file test_sinh.cpp
- * @brief Tests elementwise().sinh against fixed expected values.
+ * @brief Tests ElementwiseOps::sinh against fixed expected values.
  * @author Mustafa Garip
  */
 

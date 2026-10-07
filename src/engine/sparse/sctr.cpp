@@ -72,7 +72,7 @@ namespace SushiBLAS
             const void* read_x = x.values.data_or_null();
             void* rw_y = y.data_or_null();
 
-            return Internal::execute_typed_task<Dispatch::Domain::ALL>(
+            return Internal::execute_typed_task<Dispatch::Domain::All>(
                 recorder, meta.get(), operands, x.values.dtype, "Sparse operation",
                 [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                     sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
@@ -105,7 +105,7 @@ namespace SushiBLAS
         const Dispatch::VectorOperand vy = Dispatch::describe_vector_operand(y, K_OP, "y");
         Dispatch::require_vector_length(vy, sx.size, "the size of x", K_OP, "y");
 
-        if (x.indices.dtype == Core::DataType::INT32)
+        if (x.indices.dtype == Core::DataType::Int32)
             return record_sctr<int32_t>(recorder_, x, sx, y, vy.increment);
         return record_sctr<int64_t>(recorder_, x, sx, y, vy.increment);
     }

@@ -21,7 +21,7 @@
 
 /**
  * @file test_max.cpp
- * @brief Tests elementwise().max against fixed expected values.
+ * @brief Tests ElementwiseOps::max against fixed expected values.
  * @author Mustafa Garip
  */
 

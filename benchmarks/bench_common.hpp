@@ -93,11 +93,11 @@ namespace SushiBLAS::Bench
     {
         switch (mode)
         {
-            case ExecutionMode::AUTO:
+            case ExecutionMode::Auto:
                 return "AUTO";
-            case ExecutionMode::FORCE_SYCL:
+            case ExecutionMode::ForceSycl:
                 return "FORCE_SYCL";
-            case ExecutionMode::FORCE_REFERENCE:
+            case ExecutionMode::ForceReference:
                 return "FORCE_REFERENCE";
         }
         return "UNKNOWN";
@@ -126,9 +126,9 @@ namespace SushiBLAS::Bench
     {
         switch (dtype)
         {
-            case Core::DataType::FLOAT32:
+            case Core::DataType::Float32:
                 return "FLOAT32";
-            case Core::DataType::FLOAT64:
+            case Core::DataType::Float64:
                 return "FLOAT64";
             default:
                 throw std::invalid_argument("benchmark dtype is neither FLOAT32 nor FLOAT64");
@@ -140,9 +140,9 @@ namespace SushiBLAS::Bench
     {
         switch (dtype)
         {
-            case Core::DataType::FLOAT32:
+            case Core::DataType::Float32:
                 return sizeof(float);
-            case Core::DataType::FLOAT64:
+            case Core::DataType::Float64:
                 return sizeof(double);
             default:
                 throw std::invalid_argument("benchmark dtype is neither FLOAT32 nor FLOAT64");
@@ -158,11 +158,11 @@ namespace SushiBLAS::Bench
         const std::size_t count = static_cast<std::size_t>(tensor.num_elements);
         switch (tensor.dtype)
         {
-            case Core::DataType::FLOAT32:
+            case Core::DataType::Float32:
                 SushiBLAS::IO(engine).from_vector(tensor,
                                         std::vector<float>(count, static_cast<float>(value)));
                 return;
-            case Core::DataType::FLOAT64:
+            case Core::DataType::Float64:
                 SushiBLAS::IO(engine).from_vector(tensor, std::vector<double>(count, value));
                 return;
             default:

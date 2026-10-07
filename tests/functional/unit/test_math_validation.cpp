@@ -64,9 +64,9 @@ namespace SushiBLAS
             constexpr float K_SOFTPLUS_SMALL_BOUND = 1e-30f;
 
             /** @brief Holds every execution mode a record call can be made under. */
-            constexpr ExecutionMode K_EVERY_MODE[] = {ExecutionMode::AUTO,
-                                                      ExecutionMode::FORCE_SYCL,
-                                                      ExecutionMode::FORCE_REFERENCE};
+            constexpr ExecutionMode K_EVERY_MODE[] = {ExecutionMode::Auto,
+                                                      ExecutionMode::ForceSycl,
+                                                      ExecutionMode::ForceReference};
 
             /** @brief Names one record call of an operation. */
             struct RecordCase
@@ -138,7 +138,7 @@ namespace SushiBLAS
                 float sum_of(const std::vector<float>& data)
                 {
                     auto t = create_initialized_tensor<float>({static_cast<int64_t>(data.size())}, data);
-                    auto result = engine->create_tensor({1}, Core::DataType::FLOAT32);
+                    auto result = engine->create_tensor({1}, Core::DataType::Float32);
                     SushiBLAS::ReductionOps(*engine).sum(t, result);
                     return run_and_read(result);
                 }
@@ -152,12 +152,12 @@ namespace SushiBLAS
                         return engine->create_tensor(dims, dtype, residency);
                     };
 
-                    return RecordOperands{make({4}, Core::DataType::FLOAT32),
-                                          make({4}, Core::DataType::FLOAT32),
-                                          make({4}, Core::DataType::FLOAT32),
-                                          make({1}, Core::DataType::FLOAT32),
-                                          make({2, 2}, Core::DataType::FLOAT32),
-                                          make({1}, Core::DataType::INT64)};
+                    return RecordOperands{make({4}, Core::DataType::Float32),
+                                          make({4}, Core::DataType::Float32),
+                                          make({4}, Core::DataType::Float32),
+                                          make({1}, Core::DataType::Float32),
+                                          make({2, 2}, Core::DataType::Float32),
+                                          make({1}, Core::DataType::Int64)};
                 }
 
                 /**
@@ -215,25 +215,25 @@ namespace SushiBLAS
 
         TEST_F(Unit_MathValidationTest, AddRejectsMismatchedShapes)
         {
-            auto a = engine->create_tensor({2, 3}, Core::DataType::FLOAT32);
-            auto b = engine->create_tensor({3, 2}, Core::DataType::FLOAT32);
-            auto c = engine->create_tensor({2, 3}, Core::DataType::FLOAT32);
+            auto a = engine->create_tensor({2, 3}, Core::DataType::Float32);
+            auto b = engine->create_tensor({3, 2}, Core::DataType::Float32);
+            auto c = engine->create_tensor({2, 3}, Core::DataType::Float32);
             EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).add(a, b, c), std::invalid_argument);
         }
 
         TEST_F(Unit_MathValidationTest, AddRejectsTransposedView)
         {
-            auto a = engine->create_tensor({2, 3}, Core::DataType::FLOAT32).transpose(0, 1);
-            auto b = engine->create_tensor({3, 2}, Core::DataType::FLOAT32);
-            auto c = engine->create_tensor({3, 2}, Core::DataType::FLOAT32);
+            auto a = engine->create_tensor({2, 3}, Core::DataType::Float32).transpose(0, 1);
+            auto b = engine->create_tensor({3, 2}, Core::DataType::Float32);
+            auto c = engine->create_tensor({3, 2}, Core::DataType::Float32);
             EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).add(a, b, c), std::invalid_argument);
         }
 
         TEST_F(Unit_MathValidationTest, AddRejectsTensorWithoutStorage)
         {
             Tensor a(SushiRuntime::sushi_ptr<Storage>(), {4});
-            auto b = engine->create_tensor({4}, Core::DataType::FLOAT32);
-            auto c = engine->create_tensor({4}, Core::DataType::FLOAT32);
+            auto b = engine->create_tensor({4}, Core::DataType::Float32);
+            auto c = engine->create_tensor({4}, Core::DataType::Float32);
             EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).add(a, b, c), std::invalid_argument);
         }
 
@@ -246,14 +246,14 @@ namespace SushiBLAS
         TEST_F(Unit_MathValidationTest, SumRejectsTensorWithoutStorage)
         {
             Tensor t(SushiRuntime::sushi_ptr<Storage>(), {4});
-            auto result = engine->create_tensor({1}, Core::DataType::FLOAT32);
+            auto result = engine->create_tensor({1}, Core::DataType::Float32);
             EXPECT_THROW(SushiBLAS::ReductionOps(*engine).sum(t, result), std::invalid_argument);
         }
 
         TEST_F(Unit_MathValidationTest, VarRejectsEmptyTensor)
         {
             Tensor t(SushiRuntime::sushi_ptr<Storage>(), {0});
-            auto result = engine->create_tensor({1}, Core::DataType::FLOAT32);
+            auto result = engine->create_tensor({1}, Core::DataType::Float32);
             EXPECT_THROW(SushiBLAS::ReductionOps(*engine).var(t, result), std::invalid_argument);
         }
 
@@ -276,7 +276,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_MathValidationTest, ReluRejectsComplexTensor)
         {
-            auto t = engine->create_tensor({2}, Core::DataType::COMPLEX32);
+            auto t = engine->create_tensor({2}, Core::DataType::Complex32);
             EXPECT_THROW(SushiBLAS::NonLinearOps(*engine).relu(t), std::invalid_argument);
         }
 
@@ -286,7 +286,7 @@ namespace SushiBLAS
          */
         TEST_F(Unit_MathValidationTest, ADeviceOnlyOperandIsRefusedInEveryFamily)
         {
-            GraphProbe probe(ExecutionMode::FORCE_REFERENCE);
+            GraphProbe probe(ExecutionMode::ForceReference);
 
             RecordOperands shared = operands_in(SushiRuntime::API::Residency::Shared);
             for (const RecordCase& c : record_cases(probe.get_recorder(), shared))
@@ -330,7 +330,7 @@ namespace SushiBLAS
                 EXPECT_TRUE(holds(text, "'B'")) << text;
                 EXPECT_FALSE(holds(text, "FORCE_REFERENCE")) << text;
 
-                if (mode == ExecutionMode::AUTO)
+                if (mode == ExecutionMode::Auto)
                     text_under_auto = text;
                 EXPECT_EQ(text_under_auto, text);
 
@@ -345,9 +345,9 @@ namespace SushiBLAS
          */
         TEST_F(Unit_MathValidationTest, AMismatchedDtypeNamesTheOperand)
         {
-            auto a = engine->create_tensor({4}, Core::DataType::FLOAT32);
-            auto b = engine->create_tensor({4}, Core::DataType::FLOAT64);
-            auto c = engine->create_tensor({4}, Core::DataType::FLOAT32);
+            auto a = engine->create_tensor({4}, Core::DataType::Float32);
+            auto b = engine->create_tensor({4}, Core::DataType::Float64);
+            auto c = engine->create_tensor({4}, Core::DataType::Float32);
 
             const std::string text =
                 refusal_of([&] { SushiBLAS::ElementwiseOps(*engine).add(a, b, c); });

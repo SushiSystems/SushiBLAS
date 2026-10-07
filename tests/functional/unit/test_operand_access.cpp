@@ -56,7 +56,7 @@ namespace SushiBLAS
         TEST(Unit_OperandAccess, RowMajorUntransposedStepsARowByTheLeadingDimension)
         {
             const Kernels::OperandAccess access = Kernels::operand_access(
-                Core::Layout::ROW_MAJOR, Core::Transpose::NO_TRANS, K_LEADING_DIMENSION);
+                Core::Layout::RowMajor, Core::Transpose::NoTrans, K_LEADING_DIMENSION);
 
             EXPECT_EQ(access.row, K_LEADING_DIMENSION);
             EXPECT_EQ(access.col, 1);
@@ -65,7 +65,7 @@ namespace SushiBLAS
         TEST(Unit_OperandAccess, RowMajorTransposedStepsAColumnByTheLeadingDimension)
         {
             const Kernels::OperandAccess access = Kernels::operand_access(
-                Core::Layout::ROW_MAJOR, Core::Transpose::TRANS, K_LEADING_DIMENSION);
+                Core::Layout::RowMajor, Core::Transpose::Trans, K_LEADING_DIMENSION);
 
             EXPECT_EQ(access.row, 1);
             EXPECT_EQ(access.col, K_LEADING_DIMENSION);
@@ -74,7 +74,7 @@ namespace SushiBLAS
         TEST(Unit_OperandAccess, ColumnMajorUntransposedStepsAColumnByTheLeadingDimension)
         {
             const Kernels::OperandAccess access = Kernels::operand_access(
-                Core::Layout::COLUMN_MAJOR, Core::Transpose::NO_TRANS, K_LEADING_DIMENSION);
+                Core::Layout::ColumnMajor, Core::Transpose::NoTrans, K_LEADING_DIMENSION);
 
             EXPECT_EQ(access.row, 1);
             EXPECT_EQ(access.col, K_LEADING_DIMENSION);
@@ -83,7 +83,7 @@ namespace SushiBLAS
         TEST(Unit_OperandAccess, ColumnMajorTransposedStepsARowByTheLeadingDimension)
         {
             const Kernels::OperandAccess access = Kernels::operand_access(
-                Core::Layout::COLUMN_MAJOR, Core::Transpose::TRANS, K_LEADING_DIMENSION);
+                Core::Layout::ColumnMajor, Core::Transpose::Trans, K_LEADING_DIMENSION);
 
             EXPECT_EQ(access.row, K_LEADING_DIMENSION);
             EXPECT_EQ(access.col, 1);
@@ -91,12 +91,12 @@ namespace SushiBLAS
 
         TEST(Unit_OperandAccess, ConjugateTransposeHasTheStridesOfTransposeAndConjugates)
         {
-            for (const Core::Layout layout : {Core::Layout::ROW_MAJOR, Core::Layout::COLUMN_MAJOR})
+            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
             {
                 const Kernels::OperandAccess transposed = Kernels::operand_access(
-                    layout, Core::Transpose::TRANS, K_LEADING_DIMENSION);
+                    layout, Core::Transpose::Trans, K_LEADING_DIMENSION);
                 const Kernels::OperandAccess conjugated = Kernels::operand_access(
-                    layout, Core::Transpose::CONJ_TRANS, K_LEADING_DIMENSION);
+                    layout, Core::Transpose::ConjTrans, K_LEADING_DIMENSION);
 
                 EXPECT_EQ(conjugated.row, transposed.row);
                 EXPECT_EQ(conjugated.col, transposed.col);
@@ -107,10 +107,10 @@ namespace SushiBLAS
 
         TEST(Unit_OperandAccess, UntransposedAccessDoesNotConjugate)
         {
-            for (const Core::Layout layout : {Core::Layout::ROW_MAJOR, Core::Layout::COLUMN_MAJOR})
+            for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
             {
                 const Kernels::OperandAccess access = Kernels::operand_access(
-                    layout, Core::Transpose::NO_TRANS, K_LEADING_DIMENSION);
+                    layout, Core::Transpose::NoTrans, K_LEADING_DIMENSION);
 
                 EXPECT_FALSE(access.conjugated);
             }
@@ -128,9 +128,9 @@ namespace SushiBLAS
         TEST(Unit_OperandAccess, AtReadsTheSameElementFromBothLayouts)
         {
             const Kernels::OperandAccess row_major = Kernels::operand_access(
-                Core::Layout::ROW_MAJOR, Core::Transpose::NO_TRANS, K_STORED_COLS);
+                Core::Layout::RowMajor, Core::Transpose::NoTrans, K_STORED_COLS);
             const Kernels::OperandAccess column_major = Kernels::operand_access(
-                Core::Layout::COLUMN_MAJOR, Core::Transpose::NO_TRANS, K_STORED_ROWS);
+                Core::Layout::ColumnMajor, Core::Transpose::NoTrans, K_STORED_ROWS);
 
             for (int64_t r = 0; r < K_STORED_ROWS; ++r)
             {
@@ -147,9 +147,9 @@ namespace SushiBLAS
         TEST(Unit_OperandAccess, AtReadsTheTransposeFromBothLayouts)
         {
             const Kernels::OperandAccess row_major = Kernels::operand_access(
-                Core::Layout::ROW_MAJOR, Core::Transpose::TRANS, K_STORED_COLS);
+                Core::Layout::RowMajor, Core::Transpose::Trans, K_STORED_COLS);
             const Kernels::OperandAccess column_major = Kernels::operand_access(
-                Core::Layout::COLUMN_MAJOR, Core::Transpose::TRANS, K_STORED_ROWS);
+                Core::Layout::ColumnMajor, Core::Transpose::Trans, K_STORED_ROWS);
 
             for (int64_t r = 0; r < K_STORED_COLS; ++r)
             {
@@ -199,7 +199,7 @@ namespace SushiBLAS
         TEST(Unit_OperandAccess, ResolvesAtCompileTime)
         {
             constexpr Kernels::OperandAccess access = Kernels::operand_access(
-                Core::Layout::ROW_MAJOR, Core::Transpose::CONJ_TRANS, K_LEADING_DIMENSION);
+                Core::Layout::RowMajor, Core::Transpose::ConjTrans, K_LEADING_DIMENSION);
 
             static_assert(access.row == 1, "A row-major transpose steps a row by one.");
             static_assert(access.col == K_LEADING_DIMENSION, "It steps a column by the leading "
