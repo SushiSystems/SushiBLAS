@@ -99,9 +99,9 @@ namespace SushiBLAS
         const int64_t gamma_stride = gamma.strides[0];
         const int64_t beta_stride = beta.strides[0];
 
-        void* read_in = in.data_or_null();
-        void* read_gamma = gamma.data_or_null();
-        void* read_beta = beta.data_or_null();
+        const void* read_in = in.data_or_null();
+        const void* read_gamma = gamma.data_or_null();
+        const void* read_beta = beta.data_or_null();
         void* write_out = out.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
@@ -116,11 +116,11 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.channel_affine"_op;
 
-        const auto mode = engine_.get_mode();
-
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
             engine_, meta, reads, writes, in.dtype, "Spatial operation",
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_in, read_gamma, read_beta, write_out},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
@@ -129,7 +129,7 @@ namespace SushiBLAS
                 auto shift = static_cast<const T*>(read_beta);
                 auto destination = static_cast<T*>(write_out);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=] { Kernels::Reference::channel_affine<T>(span, source, scale, shift,
                                                                 gamma_stride, beta_stride,
                                                                 destination); },
@@ -178,7 +178,7 @@ namespace SushiBLAS
         const int64_t in_batch_stride = in.strides[0];
         const int64_t in_channel_stride = in.strides[1];
 
-        void* read_in = in.data_or_null();
+        const void* read_in = in.data_or_null();
         void* write_out = out.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
@@ -191,11 +191,11 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.broadcast_spatial"_op;
 
-        const auto mode = engine_.get_mode();
-
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
             engine_, meta, reads, writes, in.dtype, "Spatial operation",
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_in, write_out},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
@@ -205,7 +205,7 @@ namespace SushiBLAS
                 // T is known only in this closure, so scale is narrowed here; see src/README.md.
                 const T factor = static_cast<T>(scale);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=] { Kernels::Reference::broadcast_spatial<T>(span, source, in_batch_stride,
                                                                    in_channel_stride, destination,
                                                                    factor); },
@@ -257,7 +257,7 @@ namespace SushiBLAS
         span.out_col_stride = out.strides[2];
         span.out_channel_stride = out.strides[3];
 
-        void* read_in = in.data_or_null();
+        const void* read_in = in.data_or_null();
         void* write_out = out.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
@@ -270,18 +270,18 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.layout_convert"_op;
 
-        const auto mode = engine_.get_mode();
-
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
             engine_, meta, reads, writes, in.dtype, "Spatial operation",
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_in, write_out},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
                 auto source = static_cast<const T*>(read_in);
                 auto destination = static_cast<T*>(write_out);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=] { Kernels::Reference::layout_convert<T>(span, source, destination); },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {

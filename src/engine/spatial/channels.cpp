@@ -114,7 +114,7 @@ namespace SushiBLAS
         const Spatial::WindowSpan span =
             channel_copy_span(NAME, src, dst, 0, dst_channel_offset, count);
 
-        void* read_src = src.data_or_null();
+        const void* read_src = src.data_or_null();
         void* write_dst = dst.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
@@ -127,19 +127,19 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.concat_channels"_op;
 
-        const auto mode = engine_.get_mode();
-
         // A copy does no arithmetic, so it serves Domain::ALL; see src/README.md.
         return Internal::execute_typed_task<Dispatch::Domain::ALL>(
             engine_, meta, reads, writes, src.dtype, "Spatial operation",
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_src, write_dst},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
                 auto source = static_cast<const T*>(read_src);
                 auto destination = static_cast<T*>(write_dst);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=]
                     {
                         Kernels::Reference::copy_channel_range<T>(span, 0, dst_channel_offset,
@@ -164,7 +164,7 @@ namespace SushiBLAS
         const Spatial::WindowSpan span =
             channel_copy_span(NAME, src, dst, src_channel_offset, 0, count);
 
-        void* read_src = src.data_or_null();
+        const void* read_src = src.data_or_null();
         void* write_dst = dst.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
@@ -177,18 +177,18 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.slice_channels"_op;
 
-        const auto mode = engine_.get_mode();
-
         return Internal::execute_typed_task<Dispatch::Domain::ALL>(
             engine_, meta, reads, writes, src.dtype, "Spatial operation",
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_src, write_dst},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
                 auto source = static_cast<const T*>(read_src);
                 auto destination = static_cast<T*>(write_dst);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=]
                     {
                         Kernels::Reference::copy_channel_range<T>(span, src_channel_offset, 0,

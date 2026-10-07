@@ -29,15 +29,80 @@
 
 #include <SushiBLAS/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
-#include <SushiBLAS/engine/spatial/geometry.hpp>
+#include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/support/spatial_geometry.hpp>
 
 namespace SushiBLAS
 {
     namespace Spatial
     {
         /**
+         * @brief Throws unless every kernel, stride and dilation is positive and no padding is negative.
+         * @throws std::invalid_argument naming the first field that breaks the rule.
+         * @see include/SushiBLAS/engine/spatial/README.md
+         */
+        inline void require_valid_geometry(const ConvGeometry& g, const char* name)
+        {
+            const struct
+            {
+                const char* field;
+                int64_t value;
+                int64_t minimum;
+            } rules[] = {
+                {"kernel_h", g.kernel_h, 1},     {"kernel_w", g.kernel_w, 1},
+                {"stride_h", g.stride_h, 1},     {"stride_w", g.stride_w, 1},
+                {"dilation_h", g.dilation_h, 1}, {"dilation_w", g.dilation_w, 1},
+                {"pad_top", g.pad_top, 0},       {"pad_left", g.pad_left, 0},
+            };
+
+            for (const auto& rule : rules)
+            {
+                if (rule.value < rule.minimum)
+                    Dispatch::Detail::throw_operand_error(name, "geometry",
+                                                          "has {} = {}; it must be at least {}",
+                                                          rule.field, rule.value, rule.minimum);
+            }
+        }
+
+        /**
+         * @brief Returns true when a window whose first tap sits at origin has a tap inside [0, in).
+         * @pre origin < in, dilation > 0, kernel > 0.
+         */
+        [[nodiscard]] constexpr bool window_has_live_tap(int64_t origin, int64_t dilation,
+                                                         int64_t kernel, int64_t in) noexcept
+        {
+            if (origin >= 0)
+                return true;
+
+            const int64_t first_live = (-origin + dilation - 1) / dilation;
+            return first_live < kernel && origin + first_live * dilation < in;
+        }
+
+        /**
+         * @brief Throws unless every window along one axis has at least one in-bounds tap.
+         * @throws std::invalid_argument naming the first window made only of padding.
+         * @see include/SushiBLAS/engine/spatial/README.md
+         */
+        inline void require_live_windows(int64_t in, int64_t out, int64_t pad, int64_t dilation,
+                                         int64_t kernel, int64_t stride, const char* axis,
+                                         const char* name)
+        {
+            // Only windows whose origin is negative can miss the input; the rest start inside it.
+            for (int64_t o = 0; o < out && o * stride - pad < 0; ++o)
+            {
+                if (!window_has_live_tap(o * stride - pad, dilation, kernel, in))
+                    Dispatch::Detail::throw_operand_error(
+                        name, "geometry",
+                        "puts output {} {} entirely in the padding (padding {}, kernel {}, "
+                        "dilation {}, input extent {}); a pooling window needs a real tap",
+                        axis, o, pad, kernel, dilation, in);
+            }
+        }
+
+        /**
          * @brief Describes a windowed operation whose output extents the caller states.
          * @return The span in element counts; the `out_*_stride` fields stay zero.
+         * @throws std::invalid_argument on a bad geometry or an output extent below 1.
          * @throws std::runtime_error when in is not rank 4 or a window origin falls outside the padded input.
          * @see include/SushiBLAS/engine/spatial/README.md
          */
@@ -45,6 +110,13 @@ namespace SushiBLAS
                                                         int64_t out_h, int64_t out_w,
                                                         const char* name)
         {
+            require_valid_geometry(g, name);
+
+            if (out_h < 1 || out_w < 1)
+                Dispatch::Detail::throw_operand_error(name, "output",
+                                                      "has extents {}x{}; both must be at least 1",
+                                                      out_h, out_w);
+
             SB_THROW_IF(in.rank != 4, "Spatial operation '{}' needs a rank-4 NHWC input; got rank {}.",
                         name, in.rank);
 
@@ -103,6 +175,25 @@ namespace SushiBLAS
             span.out_row_stride = out.strides[1];
             span.out_col_stride = out.strides[2];
             span.out_channel_stride = out.strides[3];
+
+            return span;
+        }
+
+        /**
+         * @brief Describes a pooling operation from its two operands and refuses all-padding windows.
+         * @return The span window_span_for returns.
+         * @throws std::invalid_argument when some window holds only padding, or as window_span_for.
+         * @see include/SushiBLAS/engine/spatial/README.md
+         */
+        [[nodiscard]] inline WindowSpan pooling_span_for(const Tensor& in, const ConvGeometry& g,
+                                                         const Tensor& out, const char* name)
+        {
+            const WindowSpan span = window_span_for(in, g, out, name);
+
+            require_live_windows(span.in_h, span.out_h, g.pad_top, g.dilation_h, g.kernel_h,
+                                 g.stride_h, "row", name);
+            require_live_windows(span.in_w, span.out_w, g.pad_left, g.dilation_w, g.kernel_w,
+                                 g.stride_w, "column", name);
 
             return span;
         }

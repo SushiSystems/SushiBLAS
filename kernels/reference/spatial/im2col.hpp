@@ -28,7 +28,7 @@
 #pragma once
 
 #include <cstdint>
-#include <SushiBLAS/engine/spatial/geometry.hpp>
+#include <SushiBLAS/support/spatial_geometry.hpp>
 
 namespace SushiBLAS
 {

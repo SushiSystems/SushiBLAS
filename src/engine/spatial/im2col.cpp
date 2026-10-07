@@ -53,7 +53,7 @@ namespace SushiBLAS
         const Spatial::WindowSpan span = Spatial::window_span_for(in, g, out_h, out_w, IM2COL_NAME);
         const Spatial::ColumnSpan column = Spatial::column_span_for(cols, span, IM2COL_NAME);
 
-        void* read_in = in.data_or_null();
+        const void* read_in = in.data_or_null();
         void* write_cols = cols.data_or_null();
 
         std::vector<SushiRuntime::Core::ResourceRegion> reads = {};
@@ -66,18 +66,18 @@ namespace SushiBLAS
         meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
         meta.op_id = "spatial.im2col"_op;
 
-        const auto mode = engine_.get_mode();
-
         return Internal::execute_typed_task<Dispatch::Domain::REAL>(
             engine_, meta, reads, writes, in.dtype, "Spatial operation",
-            [=](auto scalar_type, sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
+            Internal::ReferenceOperands{read_in, write_cols},
+            [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+                sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
                 using T = decltype(scalar_type);
 
                 auto source = static_cast<const T*>(read_in);
                 auto destination = static_cast<T*>(write_cols);
 
-                return Internal::dispatch_with_mode(mode, q, deps,
+                return dispatcher.run(q, deps,
                     [=] { Kernels::Reference::im2col<T>(span, column, source, destination); },
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
