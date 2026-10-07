@@ -21,7 +21,7 @@
 
 /**
  * @file test_host_transfer.cpp
- * @brief Tests IO's host transfer calls, load ordering against pending writes and the .npy reader.
+ * @brief Tests IO's host transfer calls, load ordering, the .npy reader and the text of a tensor.
  * @author Mustafa Garip
  */
 
@@ -133,6 +133,32 @@ namespace SushiBLAS
                     SushiBLAS::IO(*engine).from_vector(source, K_VALUES);
                     SushiBLAS::IO(*engine).save_npy(source, path);
                     return path;
+                }
+
+                /**
+                 * @brief Returns the elements of a rank-2 view in row order, read by its strides.
+                 * @param parent The elements of the view's storage, from storage offset 0.
+                 */
+                static std::vector<float> gather_view(const Tensor& view,
+                                                      const std::vector<float>& parent)
+                {
+                    std::vector<float> out;
+                    out.reserve(static_cast<size_t>(view.num_elements));
+                    for (int64_t i = 0; i < view.shape[0]; ++i)
+                        for (int64_t j = 0; j < view.shape[1]; ++j)
+                            out.push_back(parent[static_cast<size_t>(
+                                view.storage_offset + i * view.strides[0] + j * view.strides[1])]);
+                    return out;
+                }
+
+                /** @brief Returns the text of a dense Shared tensor of the view's elements. */
+                std::string dense_twin_text(const Tensor& view, const std::vector<float>& parent)
+                {
+                    auto twin = engine->create_tensor(
+                        SushiRuntime::span<const int64_t>(view.shape.data(),
+                                                          static_cast<size_t>(view.rank)));
+                    SushiBLAS::IO(*engine).from_vector(twin, gather_view(view, parent));
+                    return SushiBLAS::IO(*engine).to_string(twin);
                 }
 
             private:
@@ -346,6 +372,73 @@ namespace SushiBLAS
 
             EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, temp_path("column_major.npy")),
                          std::invalid_argument);
+        }
+
+        TEST_F(Unit_HostTransfer, ToStringOfADeviceTensorMatchesItsSharedTwin)
+        {
+            // With the default three edge items, the second shape of each rank is elided.
+            const std::vector<std::vector<int64_t>> shapes{
+                {5}, {20}, {2, 3}, {8, 9}, {2, 2, 3}, {7, 8, 9}};
+
+            for (const std::vector<int64_t>& dims : shapes)
+            {
+                SCOPED_TRACE("rank " + std::to_string(dims.size()) + ", first dimension " +
+                             std::to_string(dims.front()));
+                const SushiRuntime::span<const int64_t> span(dims.data(), dims.size());
+                auto shared = engine->create_tensor(span, Core::DataType::FLOAT32,
+                                                    SushiRuntime::API::Residency::Shared);
+                auto device = engine->create_tensor(span, Core::DataType::FLOAT32,
+                                                    SushiRuntime::API::Residency::Device);
+
+                std::vector<float> values(static_cast<size_t>(shared.num_elements));
+                for (size_t i = 0; i < values.size(); ++i)
+                    values[i] = 0.5f * static_cast<float>(i) - 3.0f;
+                SushiBLAS::IO(*engine).from_vector(shared, values);
+                SushiBLAS::IO(*engine).from_vector(device, values);
+
+                EXPECT_EQ(SushiBLAS::IO(*engine).to_string(device),
+                          SushiBLAS::IO(*engine).to_string(shared));
+            }
+        }
+
+        TEST_F(Unit_HostTransfer, ToStringReadsAStridedViewThroughItsStrides)
+        {
+            const std::vector<float> values{0.0f, 1.0f, 2.0f, 3.0f, 4.0f,  5.0f,
+                                            6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f};
+            auto device = engine->create_tensor({3, 4}, Core::DataType::FLOAT32,
+                                                SushiRuntime::API::Residency::Device);
+            SushiBLAS::IO(*engine).from_vector(device, values);
+
+            const Tensor transposed = device.transpose(0, 1);
+            EXPECT_EQ(SushiBLAS::IO(*engine).to_string(transposed),
+                      dense_twin_text(transposed, values));
+
+            const Tensor sliced = device.slice(1, 1, 3);
+            EXPECT_EQ(SushiBLAS::IO(*engine).to_string(sliced), dense_twin_text(sliced, values));
+        }
+
+        TEST_F(Unit_HostTransfer, ToStringOfAnElidedTensorIsUnchanged)
+        {
+            std::vector<float> values(100);
+            for (size_t i = 0; i < values.size(); ++i)
+                values[i] = static_cast<float>(i);
+
+            auto t = engine->create_tensor({100});
+            SushiBLAS::IO(*engine).from_vector(t, values);
+
+            EXPECT_EQ(SushiBLAS::IO(*engine).to_string(t),
+                      "Tensor(shape=[100], dtype=f32):\n"
+                      "[0.0000, 1.0000, 2.0000, ... 97.0000, 98.0000, 99.0000]");
+            EXPECT_EQ(SushiBLAS::IO(*engine).to_string(t, 4, 0),
+                      "Tensor(shape=[100], dtype=f32):\n[... ]");
+        }
+
+        TEST_F(Unit_HostTransfer, ToStringOfAnEmptyTensorPrintsAnEmptyList)
+        {
+            auto t = engine->create_tensor({0});
+            ASSERT_FALSE(t.storage) << "A zero-element tensor is expected to have no storage.";
+
+            EXPECT_EQ(SushiBLAS::IO(*engine).to_string(t), "Tensor(shape=[0], dtype=f32):\n[]");
         }
     } // namespace Test
 } // namespace SushiBLAS

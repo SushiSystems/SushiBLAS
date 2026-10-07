@@ -121,11 +121,8 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Save tensor in the native .sushi format.
-             *
-             * This includes a header with metadata (shape, dtype) followed by raw data.
+             * @brief Saves a tensor in the native .sushi format: a header, then the raw data.
              * @param t The tensor to save; stored and contiguous.
-             * @param path The filesystem path to save the file to.
              * @throws std::invalid_argument when t is strided or has no storage.
              * @throws std::runtime_error when a write fails; the partial file is removed.
              */
@@ -186,12 +183,8 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Save tensor in NumPy .npy format.
-             *
-             * This allows the tensor to be loaded directly in Python using np.load().
-             * @param t The tensor to export; stored, contiguous, and not COLUMN_MAJOR at rank 3
-             * or more.
-             * @param path The filesystem path to save the .npy file.
+             * @brief Saves a tensor in NumPy .npy format, version 1.0.
+             * @param t Stored, contiguous, and not COLUMN_MAJOR at rank 3 or more.
              * @throws std::invalid_argument when t breaks one of those rules.
              * @throws std::runtime_error when a write fails; the partial file is removed.
              */
@@ -199,9 +192,8 @@ namespace SushiBLAS
 
             /**
              * @brief Runs the recorded graph, then loads a .npy file of version 1.0, 2.0 or 3.0.
-             *
-             * The header's descr, fortran_order and shape must match the tensor exactly.
-             * @param t A stored, contiguous tensor, not COLUMN_MAJOR at rank 3 or more.
+             * @param t A stored, contiguous tensor, not COLUMN_MAJOR at rank 3 or more; the
+             *        header's descr, fortran_order and shape must match it.
              * @throws std::invalid_argument when t breaks one of those rules.
              * @throws std::runtime_error on another version, a malformed header or a mismatch.
              * @see include/SushiBLAS/README.md
@@ -220,6 +212,8 @@ namespace SushiBLAS
              * @brief Raw binary load (no header), after running the recorded graph.
              * @param t The target tensor to load data into.
              * @param path The filesystem path of the binary file.
+             * @throws std::runtime_error on a short file before any element changes, and on a
+             *         failed read after some have.
              */
             void load_bin(Tensor& t, const std::string& path);
 
@@ -246,13 +240,6 @@ namespace SushiBLAS
              */
             static void require_element_type(const Tensor& t, Core::DataType expected,
                                              const char* op);
-
-            /**
-             * @brief Internal recursive printing engine for N-dimensional tensors.
-             */
-            void print_recursive(std::ostream& os, const std::pair<double, double>* data,
-                                 const int64_t* shape, const int64_t* strides, int rank,
-                                 int current_dim, int64_t offset, int precision, int edge_items);
 
             /// @brief The engine whose recorded graph runs before every transfer.
             Engine& engine_;
