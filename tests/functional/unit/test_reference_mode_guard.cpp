@@ -27,14 +27,19 @@
 
 #include <string>
 #include <vector>
+#include <cstdint>
 #include <optional>
 #include <stdexcept>
+#include <initializer_list>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/engine/blas/dispatch.hpp>
+#include <SushiBLAS/kernels/blas/level3/channel_bias_epilogue.hpp>
 #include "../../common/test_utils.hpp"
 
 using namespace SushiBLAS;
 using namespace SushiBLAS::Test;
+using namespace SushiRuntime::Graph::Literals;
 
 namespace
 {
@@ -59,25 +64,34 @@ class Unit_ReferenceModeGuardTest : public SushiBLASTest
 {
     protected:
         /**
-         * @brief Returns the 2x3 operand A in device-only USM, or nothing if the device has none.
-         * @return Empty when the allocation fails or the pointer does not report usm::alloc::device.
+         * @brief Returns a FLOAT32 tensor of dims in device-only USM, or nothing without such USM.
+         * @return Empty when the allocation fails or the pointer is not usm::alloc::device.
          */
-        std::optional<Tensor> make_device_a()
+        std::optional<Tensor> make_device_tensor(std::initializer_list<int64_t> dims)
         {
             try
             {
-                Tensor a = engine->create_tensor({2, 3}, Core::DataType::FLOAT32,
+                Tensor t = engine->create_tensor(dims, Core::DataType::FLOAT32,
                                                  SushiRuntime::API::Residency::Device);
-                const sycl::context context = TestEnvironment::get_context().get_queue().get_context();
-                if (sycl::get_pointer_type(a.data(), context) != sycl::usm::alloc::device)
+                const sycl::context context =
+                    TestEnvironment::get_context().get_queue().get_context();
+                if (sycl::get_pointer_type(t.data(), context) != sycl::usm::alloc::device)
                     return std::nullopt;
-                fill_tensor(a, K_A_VALUES);
-                return a;
+                return t;
             }
             catch (const std::exception&)
             {
                 return std::nullopt;
             }
+        }
+
+        /** @brief Returns the 2x3 operand A in device-only USM, or nothing without such USM. */
+        std::optional<Tensor> make_device_a()
+        {
+            std::optional<Tensor> a = make_device_tensor({2, 3});
+            if (a)
+                fill_tensor(*a, K_A_VALUES);
+            return a;
         }
 
         /** @brief Returns a 2x3 shared-USM tensor holding K_A_VALUES. */
@@ -129,6 +143,24 @@ TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceGemmRefusesADeviceOperand)
         const std::string message = e.what();
         EXPECT_NE(message.find(K_GEMM_NAME), std::string::npos) << message;
     }
+}
+
+TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceRefusesADeviceOperandDeclaredByAnEpilogue)
+{
+    std::optional<Tensor> bias = make_device_tensor({2});
+    if (!bias)
+        GTEST_SKIP() << "This device offers no device-only USM.";
+    const Tensor a = make_shared_a();
+    const Tensor b = make_shared_b();
+    Tensor c = engine->create_tensor({2, 2});
+    const Kernels::ChannelBiasEpilogue epilogue{bias->data(), 0, 1};
+
+    engine->set_mode(ExecutionMode::FORCE_REFERENCE);
+    EXPECT_THROW(Dispatch::execute_gemm(engine->get_recorder(), a, b, c, Core::Transpose::NO_TRANS,
+                                        Core::Transpose::NO_TRANS, 1.0, 0.0,
+                                        "test.gemm_device_bias", "test.gemm_device_bias"_op,
+                                        Dispatch::gemm_epilogue(epilogue).reads(*bias)),
+                 std::invalid_argument);
 }
 
 TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceGemmOnSharedOperandsMatchesSycl)

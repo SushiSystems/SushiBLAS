@@ -30,6 +30,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
+#include "../../common/blas_flags.hpp"
 
 namespace SushiBLAS
 {
@@ -69,12 +70,14 @@ namespace SushiBLAS
 
                     // 2. Compute SYCL (Optimized) result
                     engine->set_mode(ExecutionMode::FORCE_SYCL);
-                    SushiBLAS::BLASOps(*engine).syrk(A, C_actual, upper, transA, alpha, beta);
+                    SushiBLAS::BLASOps(*engine).syrk(A, C_actual, uplo_of(upper),
+                                                     transpose_of(transA), alpha, beta);
                     engine->execute();
 
                     // 3. Compute Reference (CPU) result
                     engine->set_mode(ExecutionMode::FORCE_REFERENCE);
-                    SushiBLAS::BLASOps(*engine).syrk(A, C_expected, upper, transA, alpha, beta);
+                    SushiBLAS::BLASOps(*engine).syrk(A, C_expected, uplo_of(upper),
+                                                     transpose_of(transA), alpha, beta);
                     engine->execute();
 
                     // 4. Compare

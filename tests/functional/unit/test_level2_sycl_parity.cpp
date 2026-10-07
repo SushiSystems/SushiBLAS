@@ -21,7 +21,8 @@
 
 /**
  * @file test_level2_sycl_parity.cpp
- * @brief Tests that the SYCL GEMV and SYMV kernels match the reference kernels and repeat to the bit.
+ * @brief Tests that the GEMV and SYMV kernels stay within their rounding bound of a
+ *        double-precision truth, and that the SYCL kernels repeat to the bit.
  * @author Mustafa Garip
  */
 
@@ -30,24 +31,18 @@
 #include <cstring>
 #include <vector>
 #include <cstddef>
-#include <type_traits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/support/reference_accumulator.hpp>
 #include "../../common/test_utils.hpp"
+#include "../../common/blas_flags.hpp"
+#include "../../common/blas_truth.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /// @brief Absolute error allowed per reduced term, for float.
-        constexpr double K_FLOAT_ERROR_PER_TERM = 1e-6;
-
-        /// @brief Absolute error allowed per reduced term, for double.
-        constexpr double K_DOUBLE_ERROR_PER_TERM = 1e-14;
-
-        /// @brief Relative error allowed against the reference value, for every type.
-        constexpr double K_RELATIVE_ERROR = 1e-5;
-
         /// @brief Edge of the small square case; below every work-group-per-row crossover.
         constexpr int64_t K_SMALL_N = 100;
 
@@ -60,11 +55,20 @@ namespace SushiBLAS
         /// @brief Columns of the wide GEMV case; at the CPU two-stage reduction threshold.
         constexpr int64_t K_WIDE_COLS = 16384;
 
-        /// @brief Scales op(A) * x in every call of this file.
-        constexpr double K_ALPHA = 1.5;
+        /// @brief Index of a data set at which the elements of A start.
+        constexpr std::size_t K_SEED_A = 0;
 
-        /// @brief Scales the prior y in every call of this file.
-        constexpr double K_BETA = -0.5;
+        /// @brief Index of a data set at which the elements of x start.
+        constexpr std::size_t K_SEED_X = 11;
+
+        /// @brief Index of a data set at which the elements of y start.
+        constexpr std::size_t K_SEED_Y = 23;
+
+        /// @brief Roundings a kernel makes whatever the length, and two of the truth itself.
+        constexpr std::size_t K_FIXED_ROUNDINGS = 6;
+
+        /// @brief Roundings counted for a compensated sum, which does not grow with the length.
+        constexpr std::size_t K_COMPENSATED_ROUNDINGS = 2;
 
         /**
          * @brief Returns a fixed, sign-mixed value in [-1, 1] for index i.
@@ -75,28 +79,50 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Returns the per-term error allowance of T.
+         * @brief Returns a fixed integer in [-3, 3] for index i.
          */
-        template<typename T>
-        [[nodiscard]] constexpr double error_per_term() noexcept
+        [[nodiscard]] inline double integer_value(std::size_t i) noexcept
         {
-            return std::is_same<T, float>::value ? K_FLOAT_ERROR_PER_TERM : K_DOUBLE_ERROR_PER_TERM;
+            return static_cast<double>(static_cast<int64_t>((i * 37u) % 7u) - 3);
         }
 
+        /** @brief Holds the values a case fills its operands with and the scalars of its call. */
+        struct ParityData
+        {
+            double (*value)(std::size_t) noexcept; /**< The value at an index. */
+            double alpha;                          /**< Scales op(A) * x. */
+            double beta;                           /**< Scales the prior y. */
+        };
+
+        /// @brief Rounded data: sign-mixed fractions, alpha 1.5 and beta -0.5.
+        constexpr ParityData K_PATTERNED{&pattern_value, 1.5, -0.5};
+
+        /// @brief Exact data: every partial sum of every case is an integer below 2^24.
+        constexpr ParityData K_INTEGER_VALUED{&integer_value, 2.0, -1.0};
+
         /**
-         * @brief Runs GEMV and SYMV in a chosen execution mode and reads the results back.
+         * @brief Runs GEMV and SYMV in a chosen execution mode and measures them against a truth.
+         * @see tests/common/README.md
          */
         template<typename T>
         class Unit_Level2SyclParityTest : public SushiBLASTest
         {
             protected:
-                /** @brief Returns a tensor of dims filled with pattern_value, offset by seed. */
-                [[nodiscard]] Tensor patterned(std::initializer_list<int64_t> dims, std::size_t seed)
+                /** @brief Returns the element a tensor of T holds at index of data, as a double. */
+                [[nodiscard]] static double element(const ParityData& data,
+                                                    std::size_t index) noexcept
+                {
+                    return static_cast<double>(static_cast<T>(data.value(index)));
+                }
+
+                /** @brief Returns a tensor of dims filled from data, starting at index seed. */
+                [[nodiscard]] Tensor filled(std::initializer_list<int64_t> dims,
+                                            const ParityData& data, std::size_t seed)
                 {
                     Tensor t = engine->create_tensor(dims, get_sushiblas_dtype<T>());
                     std::vector<T> host(static_cast<std::size_t>(t.num_elements));
                     for (std::size_t i = 0; i < host.size(); ++i)
-                        host[i] = static_cast<T>(pattern_value(i + seed));
+                        host[i] = static_cast<T>(data.value(i + seed));
                     TestEnvironment::get_context().get_queue()
                         .memcpy(t.data(), host.data(), host.size() * sizeof(T)).wait();
                     return t;
@@ -112,41 +138,116 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns y = alpha * A * x + beta * y for an m x n A, computed in mode. */
-                [[nodiscard]] std::vector<T> run_gemv(ExecutionMode mode, int64_t m, int64_t n)
+                [[nodiscard]] std::vector<T> run_gemv(ExecutionMode mode, int64_t m, int64_t n,
+                                                      const ParityData& data = K_PATTERNED)
                 {
                     engine->set_mode(mode);
-                    Tensor A = patterned({m, n}, 0);
-                    Tensor x = patterned({n}, 11);
-                    Tensor y = patterned({m}, 23);
-                    SushiBLAS::BLASOps(*engine).gemv(A, x, y, false, K_ALPHA, K_BETA);
+                    Tensor A = filled({m, n}, data, K_SEED_A);
+                    Tensor x = filled({n}, data, K_SEED_X);
+                    Tensor y = filled({m}, data, K_SEED_Y);
+                    SushiBLAS::BLASOps(*engine).gemv(A, x, y, Core::Transpose::NO_TRANS,
+                                                     data.alpha, data.beta);
                     engine->execute();
                     return read_back(y);
                 }
 
-                /** @brief Returns y = alpha * A * x + beta * y for a symmetric n x n A, computed in mode. */
-                [[nodiscard]] std::vector<T> run_symv(ExecutionMode mode, int64_t n, bool upper)
+                /** @brief Returns y = alpha * A * x + beta * y for a symmetric A, run in mode. */
+                [[nodiscard]] std::vector<T> run_symv(ExecutionMode mode, int64_t n, bool upper,
+                                                      const ParityData& data = K_PATTERNED)
                 {
                     engine->set_mode(mode);
-                    Tensor A = patterned({n, n}, 0);
-                    Tensor x = patterned({n}, 11);
-                    Tensor y = patterned({n}, 23);
-                    SushiBLAS::BLASOps(*engine).symv(A, x, y, upper, K_ALPHA, K_BETA);
+                    Tensor A = filled({n, n}, data, K_SEED_A);
+                    Tensor x = filled({n}, data, K_SEED_X);
+                    Tensor y = filled({n}, data, K_SEED_Y);
+                    SushiBLAS::BLASOps(*engine).symv(A, x, y, uplo_of(upper), data.alpha,
+                                                     data.beta);
                     engine->execute();
                     return read_back(y);
                 }
 
-                /** @brief Expects every element within the allowance of a reduction over len terms. */
-                static void expect_close(const std::vector<T>& actual, const std::vector<T>& expected,
-                                         int64_t len)
+                /** @brief Returns the exact result of run_gemv on data, element by element. */
+                [[nodiscard]] static std::vector<TruthValue> truth_gemv(int64_t m, int64_t n,
+                                                                        const ParityData& data)
                 {
-                    ASSERT_EQ(actual.size(), expected.size());
-                    const double absolute = error_per_term<T>() * static_cast<double>(len);
+                    const std::size_t rows = static_cast<std::size_t>(m);
+                    const std::size_t cols = static_cast<std::size_t>(n);
+                    std::vector<TruthValue> truth(rows);
+                    for (std::size_t i = 0; i < rows; ++i)
+                    {
+                        TruthSum sum;
+                        for (std::size_t j = 0; j < cols; ++j)
+                            sum.add_product(data.alpha * element(data, K_SEED_A + i * cols + j),
+                                            element(data, K_SEED_X + j));
+                        sum.add_product(data.beta, element(data, K_SEED_Y + i));
+                        truth[i] = sum.value();
+                    }
+                    return truth;
+                }
+
+                /** @brief Returns the exact result of run_symv on data, read from one triangle. */
+                [[nodiscard]] static std::vector<TruthValue> truth_symv(int64_t n, bool upper,
+                                                                        const ParityData& data)
+                {
+                    const std::size_t order = static_cast<std::size_t>(n);
+                    std::vector<TruthValue> truth(order);
+                    for (std::size_t i = 0; i < order; ++i)
+                    {
+                        TruthSum sum;
+                        for (std::size_t j = 0; j < order; ++j)
+                        {
+                            const bool stored = upper ? i <= j : i >= j;
+                            const std::size_t index = stored ? i * order + j : j * order + i;
+                            sum.add_product(data.alpha * element(data, K_SEED_A + index),
+                                            element(data, K_SEED_X + j));
+                        }
+                        sum.add_product(data.beta, element(data, K_SEED_Y + i));
+                        truth[i] = sum.value();
+                    }
+                    return truth;
+                }
+
+                /** @brief Returns the unit roundoff of the type the kernel of mode sums T in. */
+                [[nodiscard]] static double summing_unit(ExecutionMode mode) noexcept
+                {
+                    return mode == ExecutionMode::FORCE_REFERENCE
+                               ? unit_roundoff<Kernels::ReferenceAccumulator<T>>()
+                               : unit_roundoff<Kernels::Accumulator<T>>();
+                }
+
+                /** @brief Returns the roundings the kernel of mode makes on a sum of len terms. */
+                [[nodiscard]] static std::size_t roundings(ExecutionMode mode,
+                                                           int64_t len) noexcept
+                {
+                    const bool compensated = mode == ExecutionMode::FORCE_REFERENCE &&
+                                             Kernels::ReferenceSum<T>::K_IS_COMPENSATED;
+                    return (compensated ? K_COMPENSATED_ROUNDINGS : static_cast<std::size_t>(len)) +
+                           K_FIXED_ROUNDINGS;
+                }
+
+                /** @brief Expects every element within the bound of mode for a sum of len terms. */
+                static void expect_within_bound(const std::vector<T>& actual,
+                                                const std::vector<TruthValue>& truth, int64_t len,
+                                                ExecutionMode mode)
+                {
+                    ASSERT_EQ(actual.size(), truth.size());
+                    const double unit = summing_unit(mode);
+                    const std::size_t count = roundings(mode, len);
                     for (std::size_t i = 0; i < actual.size(); ++i)
                     {
-                        const double e = static_cast<double>(expected[i]);
-                        const double bound = absolute + K_RELATIVE_ERROR * std::fabs(e);
-                        EXPECT_NEAR(static_cast<double>(actual[i]), e, bound) << "index " << i;
+                        const double bound = rounding_bound(count, unit, truth[i].magnitude) +
+                                             unit_roundoff<T>() * std::fabs(truth[i].value);
+                        EXPECT_NEAR(static_cast<double>(actual[i]), truth[i].value, bound)
+                            << "index " << i;
                     }
+                }
+
+                /** @brief Expects every element to equal the truth with no tolerance. */
+                static void expect_exact(const std::vector<T>& actual,
+                                         const std::vector<TruthValue>& truth)
+                {
+                    ASSERT_EQ(actual.size(), truth.size());
+                    for (std::size_t i = 0; i < actual.size(); ++i)
+                        EXPECT_EQ(static_cast<double>(actual[i]), truth[i].value) << "index " << i;
                 }
 
                 /** @brief Expects two results to hold the same bits. */
@@ -156,51 +257,92 @@ namespace SushiBLAS
                     ASSERT_EQ(first.size(), second.size());
                     EXPECT_EQ(0, std::memcmp(first.data(), second.data(), first.size() * sizeof(T)));
                 }
+
+                /** @brief Expects GEMV of an m x n A within its bound of the truth in each mode. */
+                void expect_gemv_within_bound(int64_t m, int64_t n)
+                {
+                    const auto truth = truth_gemv(m, n, K_PATTERNED);
+                    for (const ExecutionMode mode : K_MODES)
+                        expect_within_bound(run_gemv(mode, m, n), truth, n, mode);
+                }
+
+                /** @brief Expects SYMV of order n within its bound, for each mode and triangle. */
+                void expect_symv_within_bound(int64_t n)
+                {
+                    for (const bool upper : {true, false})
+                    {
+                        const auto truth = truth_symv(n, upper, K_PATTERNED);
+                        for (const ExecutionMode mode : K_MODES)
+                            expect_within_bound(run_symv(mode, n, upper), truth, n, mode);
+                    }
+                }
+
+                /** @brief Expects GEMV of an m x n A of small integers to equal the truth. */
+                void expect_gemv_exact(int64_t m, int64_t n)
+                {
+                    const auto truth = truth_gemv(m, n, K_INTEGER_VALUED);
+                    for (const ExecutionMode mode : K_MODES)
+                        expect_exact(run_gemv(mode, m, n, K_INTEGER_VALUED), truth);
+                }
+
+                /** @brief Expects SYMV of order n of small integers to equal the truth. */
+                void expect_symv_exact(int64_t n)
+                {
+                    for (const bool upper : {true, false})
+                    {
+                        const auto truth = truth_symv(n, upper, K_INTEGER_VALUED);
+                        for (const ExecutionMode mode : K_MODES)
+                            expect_exact(run_symv(mode, n, upper, K_INTEGER_VALUED), truth);
+                    }
+                }
+
+                /// @brief The two modes every truth case runs in.
+                static constexpr ExecutionMode K_MODES[] = {ExecutionMode::FORCE_REFERENCE,
+                                                            ExecutionMode::FORCE_SYCL};
         };
 
         /// @brief Element types the parity tests run on.
         using ParityTypes = ::testing::Types<float, double>;
         SB_TYPED_TEST_SUITE(Unit_Level2SyclParityTest, ParityTypes);
 
-        TYPED_TEST(Unit_Level2SyclParityTest, GemvMatchesReferenceSmall)
+        TYPED_TEST(Unit_Level2SyclParityTest, GemvIsWithinItsBoundOfTheTruthSmall)
         {
-            const auto expected = this->run_gemv(ExecutionMode::FORCE_REFERENCE, K_SMALL_N, K_SMALL_N);
-            const auto actual = this->run_gemv(ExecutionMode::FORCE_SYCL, K_SMALL_N, K_SMALL_N);
-            this->expect_close(actual, expected, K_SMALL_N);
+            this->expect_gemv_within_bound(K_SMALL_N, K_SMALL_N);
         }
 
-        TYPED_TEST(Unit_Level2SyclParityTest, GemvMatchesReferenceLarge)
+        TYPED_TEST(Unit_Level2SyclParityTest, GemvIsWithinItsBoundOfTheTruthLarge)
         {
-            const auto expected = this->run_gemv(ExecutionMode::FORCE_REFERENCE, K_LARGE_N, K_LARGE_N);
-            const auto actual = this->run_gemv(ExecutionMode::FORCE_SYCL, K_LARGE_N, K_LARGE_N);
-            this->expect_close(actual, expected, K_LARGE_N);
+            this->expect_gemv_within_bound(K_LARGE_N, K_LARGE_N);
         }
 
-        TYPED_TEST(Unit_Level2SyclParityTest, GemvMatchesReferenceWide)
+        TYPED_TEST(Unit_Level2SyclParityTest, GemvIsWithinItsBoundOfTheTruthWide)
         {
-            const auto expected = this->run_gemv(ExecutionMode::FORCE_REFERENCE, K_WIDE_ROWS, K_WIDE_COLS);
-            const auto actual = this->run_gemv(ExecutionMode::FORCE_SYCL, K_WIDE_ROWS, K_WIDE_COLS);
-            this->expect_close(actual, expected, K_WIDE_COLS);
+            this->expect_gemv_within_bound(K_WIDE_ROWS, K_WIDE_COLS);
         }
 
-        TYPED_TEST(Unit_Level2SyclParityTest, SymvMatchesReferenceSmall)
+        TYPED_TEST(Unit_Level2SyclParityTest, SymvIsWithinItsBoundOfTheTruthSmall)
         {
-            for (const bool upper : {true, false})
-            {
-                const auto expected = this->run_symv(ExecutionMode::FORCE_REFERENCE, K_SMALL_N, upper);
-                const auto actual = this->run_symv(ExecutionMode::FORCE_SYCL, K_SMALL_N, upper);
-                this->expect_close(actual, expected, K_SMALL_N);
-            }
+            this->expect_symv_within_bound(K_SMALL_N);
         }
 
-        TYPED_TEST(Unit_Level2SyclParityTest, SymvMatchesReferenceLarge)
+        TYPED_TEST(Unit_Level2SyclParityTest, SymvIsWithinItsBoundOfTheTruthLarge)
         {
-            for (const bool upper : {true, false})
-            {
-                const auto expected = this->run_symv(ExecutionMode::FORCE_REFERENCE, K_LARGE_N, upper);
-                const auto actual = this->run_symv(ExecutionMode::FORCE_SYCL, K_LARGE_N, upper);
-                this->expect_close(actual, expected, K_LARGE_N);
-            }
+            this->expect_symv_within_bound(K_LARGE_N);
+        }
+
+        TYPED_TEST(Unit_Level2SyclParityTest, GemvIsExactOnSmallIntegersLarge)
+        {
+            this->expect_gemv_exact(K_LARGE_N, K_LARGE_N);
+        }
+
+        TYPED_TEST(Unit_Level2SyclParityTest, GemvIsExactOnSmallIntegersWide)
+        {
+            this->expect_gemv_exact(K_WIDE_ROWS, K_WIDE_COLS);
+        }
+
+        TYPED_TEST(Unit_Level2SyclParityTest, SymvIsExactOnSmallIntegersLarge)
+        {
+            this->expect_symv_exact(K_LARGE_N);
         }
 
         TYPED_TEST(Unit_Level2SyclParityTest, GemvRepeatsToTheBit)

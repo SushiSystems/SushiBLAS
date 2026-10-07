@@ -54,7 +54,8 @@ namespace SushiBLAS
 
             engine->set_mode(ExecutionMode::FORCE_SYCL);
             EXPECT_NO_THROW({
-                SushiBLAS::BLASOps(*engine).syrk(A, C, /*upper=*/false, /*transA=*/false, 1.0, 0.0);
+                SushiBLAS::BLASOps(*engine).syrk(A, C, Core::Uplo::LOWER,
+                                                 Core::Transpose::NO_TRANS, 1.0, 0.0);
                 engine->execute();
             }) << "SYRK must accept HALF (SB-2 removed the oneMKL-era restriction).";
         }
@@ -242,9 +243,11 @@ namespace SushiBLAS
                 auto y = engine->create_tensor({2});
 
                 // beta != 0 -> y is read
-                SushiBLAS::BLASOps(probe.get_recorder()).gemv(A, x, y, false, 1.0, 1.0);
+                SushiBLAS::BLASOps(probe.get_recorder()).gemv(A, x, y,
+                                                              Core::Transpose::NO_TRANS, 1.0, 1.0);
                 // beta == 0 -> y is not
-                SushiBLAS::BLASOps(probe.get_recorder()).gemv(A, x, y, false, 1.0, 0.0);
+                SushiBLAS::BLASOps(probe.get_recorder()).gemv(A, x, y,
+                                                              Core::Transpose::NO_TRANS, 1.0, 0.0);
 
                 auto nodes = probe.take_nodes();
                 ASSERT_EQ(2u, nodes.size());

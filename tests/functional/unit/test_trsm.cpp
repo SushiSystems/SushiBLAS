@@ -50,8 +50,10 @@ TEST_F(Unit_TRSMTest, SimpleTRSM)
     fill_tensor(B, {4, 6, 4, 7});
 
     SB_LOG_INFO("Submitting standard TRSM.");
-    // Left=true, Upper=false, TransA=false, UnitDiag=false, alpha=1.0
-    SushiBLAS::BLASOps(*engine).trsm(A, B, true, false, false, false, 1.0f);
+    SushiBLAS::BLASOps(*engine).trsm(A, B, SushiBLAS::Core::Side::LEFT,
+                                     SushiBLAS::Core::Uplo::LOWER,
+                                     SushiBLAS::Core::Transpose::NO_TRANS,
+                                     SushiBLAS::Core::Diag::NON_UNIT, 1.0f);
     
     engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
@@ -75,8 +77,10 @@ TEST_F(Unit_TRSMTest, SimpleTRSMColumnMajor)
     fill_tensor(B, {4, 4, 6, 7});
 
     SB_LOG_INFO("Submitting Column-Major TRSM.");
-    // Left=true, Upper=true, TransA=false, UnitDiag=false, alpha=1.0
-    SushiBLAS::BLASOps(*engine).trsm(A, B, true, true, false, false, 1.0f);
+    SushiBLAS::BLASOps(*engine).trsm(A, B, SushiBLAS::Core::Side::LEFT,
+                                     SushiBLAS::Core::Uplo::UPPER,
+                                     SushiBLAS::Core::Transpose::NO_TRANS,
+                                     SushiBLAS::Core::Diag::NON_UNIT, 1.0f);
     
     engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");

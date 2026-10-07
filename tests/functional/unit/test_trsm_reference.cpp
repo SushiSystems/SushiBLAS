@@ -29,6 +29,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include "../../common/test_utils.hpp"
+#include "../../common/blas_flags.hpp"
 
 namespace SushiBLAS
 {
@@ -98,7 +99,8 @@ namespace SushiBLAS
                     fill_tensor(B, b_values);
 
                     SushiBLAS::BLASOps(*engine).trsm(
-                        A, B, left_side, upper, trans_a, unit_diag, alpha);
+                        A, B, side_of(left_side), uplo_of(upper), transpose_of(trans_a),
+                        diag_of(unit_diag), alpha);
                     engine->execute();
 
                     EXPECT_TENSOR_NEAR(B, expected, K_TOLERANCE);

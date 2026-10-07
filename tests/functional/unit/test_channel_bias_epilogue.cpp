@@ -95,7 +95,8 @@ namespace SushiBLAS
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
 
             engine->set_mode(ExecutionMode::FORCE_SYCL);
-            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, false, false, 1.0, 0.0,
+            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NO_TRANS,
+                                   Core::Transpose::NO_TRANS, 1.0, 0.0,
                                    "test.gemm_channel_bias_col",
                                    "test.gemm_channel_bias_col"_op,
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));
@@ -118,7 +119,8 @@ namespace SushiBLAS
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 1, 0};
 
             engine->set_mode(ExecutionMode::FORCE_SYCL);
-            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, false, false, 1.0, 0.0,
+            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NO_TRANS,
+                                   Core::Transpose::NO_TRANS, 1.0, 0.0,
                                    "test.gemm_channel_bias_row",
                                    "test.gemm_channel_bias_row"_op,
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));
@@ -141,7 +143,8 @@ namespace SushiBLAS
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 1, 0};
 
             engine->set_mode(ExecutionMode::FORCE_REFERENCE);
-            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, false, false, 1.0, 0.0,
+            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NO_TRANS,
+                                   Core::Transpose::NO_TRANS, 1.0, 0.0,
                                    "test.gemm_channel_bias_row_ref",
                                    "test.gemm_channel_bias_row_ref"_op,
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));
@@ -162,13 +165,15 @@ namespace SushiBLAS
             auto bias = create_initialized_tensor<float>({3}, {0.0f, 0.0f, 0.0f});
 
             engine->set_mode(ExecutionMode::FORCE_SYCL);
-            Dispatch::execute_gemm(engine->get_recorder(), A, B, fused, false, false, 1.5, 0.0,
+            Dispatch::execute_gemm(engine->get_recorder(), A, B, fused, Core::Transpose::NO_TRANS,
+                                   Core::Transpose::NO_TRANS, 1.5, 0.0,
                                    "test.gemm_zero_channel_bias",
                                    "test.gemm_zero_channel_bias"_op,
                                    Dispatch::gemm_epilogue(
                                        Kernels::ChannelBiasEpilogue{bias.data(), 0, 1})
                                        .reads(bias));
-            Dispatch::execute_gemm(engine->get_recorder(), A, B, plain, false, false, 1.5, 0.0,
+            Dispatch::execute_gemm(engine->get_recorder(), A, B, plain, Core::Transpose::NO_TRANS,
+                                   Core::Transpose::NO_TRANS, 1.5, 0.0,
                                    "test.gemm_zero_identity",
                                    "test.gemm_zero_identity"_op,
                                    Kernels::GemmIdentityEpilogue{});
@@ -200,7 +205,8 @@ namespace SushiBLAS
 
             SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(seed, seed, bias);
 
-            Dispatch::execute_gemm(probe.get_recorder(), A, B, C, false, false, 1.0, 0.0,
+            Dispatch::execute_gemm(probe.get_recorder(), A, B, C, Core::Transpose::NO_TRANS,
+                                   Core::Transpose::NO_TRANS, 1.0, 0.0,
                                    "test.gemm_channel_bias_declared",
                                    "test.gemm_channel_bias_declared"_op,
                                    Dispatch::gemm_epilogue(
@@ -229,7 +235,8 @@ namespace SushiBLAS
             SushiBLAS::ElementwiseOps(*engine).mul(seed, seed, bias);
 
             engine->set_mode(ExecutionMode::FORCE_SYCL);
-            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, false, false, 1.0, 0.0,
+            Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NO_TRANS,
+                                   Core::Transpose::NO_TRANS, 1.0, 0.0,
                                    "test.gemm_channel_bias_produced",
                                    "test.gemm_channel_bias_produced"_op,
                                    Dispatch::gemm_epilogue(

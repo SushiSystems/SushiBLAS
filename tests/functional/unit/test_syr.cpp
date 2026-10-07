@@ -44,8 +44,7 @@ TEST_F(Unit_SYRTest, SimpleSYR)
     fill_tensor(A, std::vector<float>(N * N, 0.0f));
 
     SB_LOG_INFO("Submitting SYR.");
-    // upper=false
-    SushiBLAS::BLASOps(*engine).syr(X, A, false);
+    SushiBLAS::BLASOps(*engine).syr(X, A, SushiBLAS::Core::Uplo::LOWER);
     
     engine->execute();
     SB_LOG_INFO("Execution finished. Checking results.");
