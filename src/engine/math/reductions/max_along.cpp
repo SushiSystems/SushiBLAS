@@ -35,7 +35,10 @@ namespace SushiBLAS
     // An axis reduction has no sycl::reduction form, so it folds; see src/README.md.
     TaskHandle ReductionOps::max_along(const Tensor& t, int axis, Tensor& result)
     {
-        return Dispatch::execute_folding_axis_reduction<Reduce::RunningMax>(
+        recorder_.require_sycl_path("Axis reduction", "math.max_along");
+        Dispatch::require_min_elements(t, 1, "math.max_along", "t");
+
+        return Dispatch::execute_folding_axis_reduction<Reduce::NaNPropagatingMax>(
             recorder_, t, axis, result, "math.max_along", "math.max_along"_op,
             Dispatch::ReduceIdentityTransform{}, Dispatch::ReduceIdentityFinalize{});
     }

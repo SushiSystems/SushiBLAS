@@ -36,10 +36,11 @@ namespace SushiBLAS
     // The count goes through the counting seam with a predicate transform; see src/README.md.
     TaskHandle ReductionOps::count_nonfinite(const Tensor& t, Tensor& result)
     {
+        recorder_.require_sycl_path("Reduction", "math.count_nonfinite");
+        Dispatch::require_storage(t, "math.count_nonfinite", "t");
+
         // The partial count is planned from the device the data lives on; see src/README.md.
-        const std::size_t partials =
-            Reduce::planned_partials(Device::profile_for(t.get_device()),
-                                     static_cast<std::size_t>(t.num_elements));
+        const std::size_t partials = Dispatch::planned_partials_for(t);
 
         auto dispatch = [](sycl::queue& q, const auto* pT, int64_t* pR, int64_t size,
                            auto scratch, const std::vector<sycl::event>& deps)

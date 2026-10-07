@@ -33,6 +33,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <algorithm>
+#include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
@@ -63,6 +64,19 @@ namespace SushiBLAS
         /** @brief Names `Accumulation<T>::type`, the accumulation type itself. */
         template<typename T>
         using AccumulationOf = Kernels::Accumulator<T>;
+
+        namespace Detail
+        {
+            /** @brief Returns whether x is a NaN; an integer never is. */
+            template<typename R>
+            [[nodiscard]] inline bool is_nan([[maybe_unused]] R x) noexcept
+            {
+                if constexpr (std::is_integral_v<R>)
+                    return false;
+                else
+                    return sycl::isnan(x);
+            }
+        } // namespace Detail
 
         /**
          * @struct Plan
@@ -383,17 +397,16 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Holds a running maximum in the shape the folding seams accumulate in.
+         * @brief Holds a running maximum that turns into NaN once any NaN is folded.
          * @see include/SushiBLAS/support/README.md
          */
         template<typename T>
-        class RunningMax
+        class NaNPropagatingMax
         {
             public:
                 /**
-                 * @brief Returns the value an empty maximum has: -infinity, or the lowest finite
-                 *        value when T has no infinity.
-                 * @see include/SushiBLAS/support/README.md
+                 * @brief Returns the value an empty maximum has: -infinity, or lowest() when T
+                 *        has no infinity.
                  */
                 [[nodiscard]] static T identity() noexcept
                 {
@@ -404,36 +417,87 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Combines two finished maxima.
-                 * @return The greater, keeping @p a on a tie or a NaN.
+                 * @brief Combines two finished maximums, in either order with the same result.
+                 * @return NaN when either side is NaN, +0 over -0, otherwise the greater value.
                  */
                 [[nodiscard]] static T combine(T a, T b) noexcept
                 {
+                    if (sycl::isnan(a))
+                        return a;
+                    if (sycl::isnan(b))
+                        return b;
+                    if (a == b)
+                        return sycl::signbit(a) ? b : a;
                     return a < b ? b : a;
                 }
 
-                /**
-                 * @brief Folds one value into the running maximum.
-                 * @param x The value to consider.
-                 */
+                /** @brief Folds one value into the running maximum. */
                 void accumulate(T x) noexcept
                 {
-                    if (max_ < x)
-                        max_ = x;
+                    best_ = combine(best_, x);
                 }
 
-                /**
-                 * @brief Returns the maximum so far.
-                 * @return The running maximum, or @ref identity if nothing was folded.
-                 */
+                /** @brief Returns the maximum so far, NaN if a NaN was folded, or identity(). */
                 [[nodiscard]] T value() const noexcept
                 {
-                    return max_;
+                    return best_;
                 }
 
             private:
-                /** @brief Holds the largest value folded so far. */
-                T max_ = identity();
+                /** @brief The greater value folded so far, or the first NaN met. */
+                T best_ = identity();
+        };
+
+        /**
+         * @brief Holds a running minimum that turns into NaN once any NaN is folded.
+         * @see include/SushiBLAS/support/README.md
+         */
+        template<typename T>
+        class NaNPropagatingMin
+        {
+            public:
+                /**
+                 * @brief Returns the value an empty minimum has: +infinity, or max() when T has
+                 *        no infinity.
+                 */
+                [[nodiscard]] static T identity() noexcept
+                {
+                    if constexpr (std::numeric_limits<T>::has_infinity)
+                        return std::numeric_limits<T>::infinity();
+                    else
+                        return std::numeric_limits<T>::max();
+                }
+
+                /**
+                 * @brief Combines two finished minimums, in either order with the same result.
+                 * @return NaN when either side is NaN, -0 over +0, otherwise the smaller value.
+                 */
+                [[nodiscard]] static T combine(T a, T b) noexcept
+                {
+                    if (sycl::isnan(a))
+                        return a;
+                    if (sycl::isnan(b))
+                        return b;
+                    if (a == b)
+                        return sycl::signbit(a) ? a : b;
+                    return b < a ? b : a;
+                }
+
+                /** @brief Folds one value into the running minimum. */
+                void accumulate(T x) noexcept
+                {
+                    best_ = combine(best_, x);
+                }
+
+                /** @brief Returns the minimum so far, NaN if a NaN was folded, or identity(). */
+                [[nodiscard]] T value() const noexcept
+                {
+                    return best_;
+                }
+
+            private:
+                /** @brief The smaller value folded so far, or the first NaN met. */
+                T best_ = identity();
         };
 
         /**
@@ -575,8 +639,8 @@ namespace SushiBLAS
                     if (b.index < 0)
                         return a;
 
-                    const bool a_nan = sycl::isnan(a.value);
-                    const bool b_nan = sycl::isnan(b.value);
+                    const bool a_nan = Detail::is_nan(a.value);
+                    const bool b_nan = Detail::is_nan(b.value);
 
                     if (a_nan && a.index == 0)
                         return a;
@@ -615,26 +679,84 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Reduces indices `[0..n)` to `*out` as `finalize(fold(read(i)), n)`, in a
-         *        fixed order.
+         * @brief Holds the running (value, index) minimum under the NaN rule RunningArgMax uses.
+         * @tparam P An IndexedValue type.
+         * @see include/SushiBLAS/support/README.md
+         */
+        template<typename P>
+        class RunningArgMin
+        {
+            public:
+                /** @brief Returns the empty candidate, which every real candidate beats. */
+                [[nodiscard]] static P identity() noexcept
+                {
+                    return P{std::numeric_limits<decltype(P::value)>::max(), -1};
+                }
+
+                /**
+                 * @brief Returns the winner of two candidates under a total order.
+                 * @return A NaN at index 0 first, then the smaller value, then the lower index;
+                 *         a NaN elsewhere beats only the empty candidate.
+                 * @see include/SushiBLAS/support/README.md
+                 */
+                [[nodiscard]] static P combine(P a, P b) noexcept
+                {
+                    if (a.index < 0)
+                        return b;
+                    if (b.index < 0)
+                        return a;
+
+                    const bool a_nan = Detail::is_nan(a.value);
+                    const bool b_nan = Detail::is_nan(b.value);
+
+                    if (a_nan && a.index == 0)
+                        return a;
+                    if (b_nan && b.index == 0)
+                        return b;
+                    if (a_nan != b_nan)
+                        return a_nan ? b : a;
+                    if (!a_nan)
+                    {
+                        if (a.value < b.value)
+                            return a;
+                        if (b.value < a.value)
+                            return b;
+                    }
+                    return a.index < b.index ? a : b;
+                }
+
+                /** @brief Folds one candidate into the running minimum. */
+                void accumulate(P x) noexcept
+                {
+                    best_ = combine(best_, x);
+                }
+
+                /** @brief Returns the winning candidate, or identity() if nothing was folded. */
+                [[nodiscard]] P value() const noexcept
+                {
+                    return best_;
+                }
+
+            private:
+                /** @brief Holds the winning candidate so far. */
+                P best_ = identity();
+        };
+
+        /**
+         * @brief Reduces indices `[0..n)` to `*out` as `finalize(fold(read(i)), n)` in a given geometry.
+         * @pre geometry.sequential(), or partials holds geometry.groups values and geometry.local
+         *      is a power of two the device accepts as a work-group size.
          * @param read Callable `(std::size_t i) -> W`, the input of element i.
-         * @param partials Scratch for one W per work-group; may be null when partial_capacity
-         *        is zero.
-         * @param finalize Callable `(W value, std::size_t n)`, applied once; converted to Out
-         *        on store.
-         * @return The event for the last submitted kernel.
+         * @param finalize Callable `(W value, std::size_t n)`, applied once; converted to Out on store.
          * @see include/SushiBLAS/support/README.md
          */
         template<template<typename> class Accum, typename W, typename Out,
                  typename Read, typename Finalize>
-        [[nodiscard]] sycl::event reduce_indexed(sycl::queue& queue, std::size_t n, Read read,
-                                                 Out* out, W* partials,
-                                                 std::size_t partial_capacity,
+        [[nodiscard]] sycl::event reduce_indexed(sycl::queue& queue, const Plan& geometry,
+                                                 std::size_t n, Read read, Out* out, W* partials,
                                                  Finalize finalize,
                                                  const std::vector<sycl::event>& deps)
         {
-            const Plan geometry = plan(Device::profile_for(queue), n, partial_capacity);
-
             if (geometry.sequential())
             {
                 // The single-pass shape is one task walking the input in order.
@@ -703,12 +825,49 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Reduces `in[0..n)` to `*out` as `finalize(fold(transform(in[i])), n)`, in a
-         *        fixed order.
-         * @param partials Scratch for one AccumulationOf<A> per work-group; may be null when
-         *        partial_capacity is zero.
+         * @brief Reduces indices `[0..n)` to `*out` in the geometry the queue's device plans.
+         * @param partials Scratch for one W per work-group; may be null when partial_capacity is zero.
+         * @return The event for the last submitted kernel.
+         * @see include/SushiBLAS/support/README.md
+         */
+        template<template<typename> class Accum, typename W, typename Out,
+                 typename Read, typename Finalize>
+        [[nodiscard]] sycl::event reduce_indexed(sycl::queue& queue, std::size_t n, Read read,
+                                                 Out* out, W* partials,
+                                                 std::size_t partial_capacity,
+                                                 Finalize finalize,
+                                                 const std::vector<sycl::event>& deps)
+        {
+            return reduce_indexed<Accum>(queue,
+                                         plan(Device::profile_for(queue), n, partial_capacity),
+                                         n, read, out, partials, finalize, deps);
+        }
+
+        /**
+         * @brief Reduces `in[0..n)` to `*out` as `finalize(fold(transform(in[i])), n)` in a given geometry.
+         * @pre The precondition of the geometry form of reduce_indexed.
          * @param transform Callable `(T) -> A`, applied to each element before the fold.
          * @param finalize Callable `(AccumulationOf<A> value, std::size_t n)`, applied once.
+         * @see include/SushiBLAS/support/README.md
+         */
+        template<template<typename> class Accum, typename T, typename A,
+                 typename Transform, typename Finalize>
+        [[nodiscard]] sycl::event reduce(sycl::queue& queue, const Plan& geometry, const T* in,
+                                         A* out, std::size_t n, AccumulationOf<A>* partials,
+                                         Transform transform, Finalize finalize,
+                                         const std::vector<sycl::event>& deps)
+        {
+            using W = AccumulationOf<A>;
+
+            return reduce_indexed<Accum>(queue, geometry, n,
+                [=](std::size_t i) { return static_cast<W>(transform(in[i])); },
+                out, partials, finalize, deps);
+        }
+
+        /**
+         * @brief Reduces `in[0..n)` to `*out` in the geometry the queue's device plans.
+         * @param partials Scratch for one AccumulationOf<A> per work-group; may be null when
+         *        partial_capacity is zero.
          * @return The event for the last submitted kernel.
          * @see include/SushiBLAS/support/README.md
          */
@@ -720,11 +879,8 @@ namespace SushiBLAS
                                          Transform transform, Finalize finalize,
                                          const std::vector<sycl::event>& deps)
         {
-            using W = AccumulationOf<A>;
-
-            return reduce_indexed<Accum>(queue, n,
-                [=](std::size_t i) { return static_cast<W>(transform(in[i])); },
-                out, partials, partial_capacity, finalize, deps);
+            return reduce<Accum>(queue, plan(Device::profile_for(queue), n, partial_capacity),
+                                 in, out, n, partials, transform, finalize, deps);
         }
 
     } // namespace Reduce

@@ -21,7 +21,7 @@
 
 /**
  * @file test_axis_reductions.cpp
- * @brief Tests max_along and sum_along, the plan they launch from and both of their kernels.
+ * @brief Tests the axis reductions, the plan they launch from and both of their kernels.
  * @author Mustafa Garip
  */
 
@@ -30,6 +30,7 @@
 #include <cstring>
 #include <vector>
 #include <cstddef>
+#include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/support/reduce_axis.hpp>
@@ -62,6 +63,8 @@ namespace SushiBLAS
 
             const std::vector<float> kRowMax = {3, 5, -2};
             const std::vector<float> kColMax = {5, 4, 3, 2};
+            const std::vector<float> kRowMin = {-2, -1, -9};
+            const std::vector<float> kColMin = {-3, -7, -2, -9};
             const std::vector<float> kRowSum = {2, 10, -21};
             const std::vector<float> kColSum = {3, -5, 0, -7};
 
@@ -295,41 +298,93 @@ namespace SushiBLAS
             // Rank 1 in: there is no axis to fold away.
             EXPECT_THROW(
                 SushiBLAS::ReductionOps(*engine).max_along(vector, 0, rows),
-                std::runtime_error);
+                std::invalid_argument);
 
             // Rank 3 is refused by name, not reduced along the wrong stride.
             auto cube = engine->create_tensor({2, 3, 4});
             EXPECT_THROW(
                 SushiBLAS::ReductionOps(*engine).sum_along(cube, 1, rows),
-                std::runtime_error);
+                std::invalid_argument);
 
             // Axis out of range.
             EXPECT_THROW(
                 SushiBLAS::ReductionOps(*engine).max_along(matrix, 2, rows),
-                std::runtime_error);
+                std::invalid_argument);
             EXPECT_THROW(
                 SushiBLAS::ReductionOps(*engine).max_along(matrix, -1, rows),
-                std::runtime_error);
+                std::invalid_argument);
 
             // Result of the wrong length: folding axis 1 of a [3, 4] leaves 3 values.
             EXPECT_THROW(
                 SushiBLAS::ReductionOps(*engine).max_along(matrix, 1, cols),
-                std::runtime_error);
+                std::invalid_argument);
             EXPECT_THROW(
                 SushiBLAS::ReductionOps(*engine).max_along(matrix, 0, rows),
-                std::runtime_error);
+                std::invalid_argument);
 
             // Result of the wrong rank.
             auto square = engine->create_tensor({3, 1});
             EXPECT_THROW(
                 SushiBLAS::ReductionOps(*engine).sum_along(matrix, 1, square),
-                std::runtime_error);
+                std::invalid_argument);
 
             // Mismatched dtypes.
             auto halves = engine->create_tensor({3}, Core::DataType::HALF);
             EXPECT_THROW(
                 SushiBLAS::ReductionOps(*engine).sum_along(matrix, 1, halves),
-                std::runtime_error);
+                std::invalid_argument);
+        }
+
+        /**
+         * @brief Tests that min_along folds the axes max_along folds and refuses what it refuses.
+         */
+        TEST_F(Unit_AxisReductions, MinAlongMirrorsMaxAlong)
+        {
+            auto matrix = engine->create_tensor({3, 4});
+            auto rows = engine->create_tensor({3});
+            auto cols = engine->create_tensor({4});
+            fill_tensor(matrix, kRowMajor);
+
+            SushiBLAS::ReductionOps(*engine).min_along(matrix, 1, rows);
+            SushiBLAS::ReductionOps(*engine).min_along(matrix, 0, cols);
+            engine->execute();
+
+            verify_tensor(rows, kRowMin);
+            verify_tensor(cols, kColMin);
+
+            // Rank 1 in: there is no axis to fold away.
+            auto vector = engine->create_tensor({4});
+            EXPECT_THROW(
+                SushiBLAS::ReductionOps(*engine).min_along(vector, 0, rows),
+                std::invalid_argument);
+
+            // Axis out of range.
+            EXPECT_THROW(
+                SushiBLAS::ReductionOps(*engine).min_along(matrix, 2, rows),
+                std::invalid_argument);
+            EXPECT_THROW(
+                SushiBLAS::ReductionOps(*engine).min_along(matrix, -1, rows),
+                std::invalid_argument);
+
+            // Result of the wrong length: folding axis 1 of a [3, 4] leaves 3 values.
+            EXPECT_THROW(
+                SushiBLAS::ReductionOps(*engine).min_along(matrix, 1, cols),
+                std::invalid_argument);
+            EXPECT_THROW(
+                SushiBLAS::ReductionOps(*engine).min_along(matrix, 0, rows),
+                std::invalid_argument);
+
+            // Result of the wrong rank.
+            auto square = engine->create_tensor({3, 1});
+            EXPECT_THROW(
+                SushiBLAS::ReductionOps(*engine).min_along(matrix, 1, square),
+                std::invalid_argument);
+
+            // Mismatched dtypes.
+            auto halves = engine->create_tensor({3}, Core::DataType::HALF);
+            EXPECT_THROW(
+                SushiBLAS::ReductionOps(*engine).min_along(matrix, 1, halves),
+                std::invalid_argument);
         }
 
         /**
@@ -348,10 +403,10 @@ namespace SushiBLAS
 
                 EXPECT_THROW(
                     SushiBLAS::ReductionOps(*engine).max_along(x, 1, out),
-                    std::runtime_error);
+                    std::invalid_argument);
                 EXPECT_THROW(
                     SushiBLAS::ReductionOps(*engine).sum_along(x, 1, out),
-                    std::runtime_error);
+                    std::invalid_argument);
             }
         }
 
@@ -468,11 +523,11 @@ namespace SushiBLAS
             const auto keep = [](float v, [[maybe_unused]] std::size_t n) { return v; };
             const std::size_t local = Reduce::group_width(Device::profile_for(q));
 
-            Reduce::reduce_axis<Reduce::RunningMax>(
+            Reduce::reduce_axis<Reduce::NaNPropagatingMax>(
                 q, in.data_as<float>(), flat.data_as<float>(), span,
                 Reduce::AxisPlan{1}, identity, keep, {}).wait();
 
-            Reduce::reduce_axis<Reduce::RunningMax>(
+            Reduce::reduce_axis<Reduce::NaNPropagatingMax>(
                 q, in.data_as<float>(), tree.data_as<float>(), span,
                 Reduce::AxisPlan{local}, identity, keep, {}).wait();
 

@@ -92,12 +92,25 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Returns the device queue a reduction of t into result leases its scratch on.
+         * @pre result has storage.
+         */
+        [[nodiscard]] inline std::size_t reduction_device_index(const Tensor& t,
+                                                                const Tensor& result)
+        {
+            return t.storage ? t.storage->get_device_index()
+                             : result.storage->get_device_index();
+        }
+
+        /** @brief Holds the bytes one (value, index) partial of an index reduction takes. */
+        inline constexpr std::size_t K_INDEXED_PARTIAL_BYTES = 16;
+
+        /**
          * @brief Records a whole-tensor reduction to a scalar result tensor.
          * @param result Must hold one element and share t's dtype.
          * @param dispatch Builds the command group per element type and must call `depends_on(deps)`.
-         * @param scratch_elements Per-work-group partials to allocate; zero allocates nothing.
-         * @throws std::invalid_argument if an operand holds elements without storage, t is not contiguous, or under FORCE_REFERENCE.
-         * @throws std::runtime_error if result is not scalar, the dtypes disagree, or the dtype is not real.
+         * @param scratch_elements Per-work-group partials to lease; zero leases nothing.
+         * @throws std::invalid_argument on an operand violation, or under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
@@ -105,15 +118,18 @@ namespace SushiBLAS
                                      const char* name, SushiRuntime::Graph::OpID op_id,
                                      Dispatcher&& dispatch, std::size_t scratch_elements = 0)
         {
-            require_storage(t, name, "t");
-            require_storage(result, name, "result");
-            require_contiguous(t, name, "t");
-            SB_THROW_IF(result.num_elements != 1, "Result tensor for reduction '{}' must be a scalar (1 element).", name);
-            SB_THROW_IF(t.dtype != result.dtype, "Data types must match for reduction operations.");
             recorder.require_sycl_path("Reduction", name);
+            require_storage(t, name, "t");
+            require_device_dtype(t, name, "t");
+            require_storage(result, name, "result");
+            require_device_dtype(result, name, "result");
+            require_contiguous(t, name, "t");
+            require_scalar(result, name, "result");
+            require_dtype(result, t.dtype, name, "result");
+            require_domain<Domain::REAL>(t.dtype, "Reduction", name);
 
             int64_t size = t.num_elements;
-            const void* read_T = t.data();
+            const void* read_T = t.data_or_null();
             void* write_R = result.data();
 
             // Operands are declared by Tensor::region(), not by data(); see include/SushiBLAS/engine/math/README.md.
@@ -123,7 +139,7 @@ namespace SushiBLAS
             // The scratch is declared as a resource with its own region; see include/SushiBLAS/engine/math/README.md.
             const ScratchBuffer scratch(recorder.get_scratch_pool(),
                                         scratch_elements * partial_bytes(t.dtype),
-                                        t.storage->get_device_index());
+                                        reduction_device_index(t, result));
             void* scratch_ptr = scratch.data();
             operands.scratch(scratch);
 
@@ -176,7 +192,8 @@ namespace SushiBLAS
         {
             /**
              * @brief Records an index reduction for the element type of a with_element_type arm.
-             * @tparam Dispatcher Callable `(queue&, const T*, int64_t*, int64_t, deps) -> sycl::event`.
+             * @tparam Dispatcher Callable `(queue&, const T*, int64_t*, int64_t,
+             *         ReductionScratch<Reduce::IndexedValue<T>>, deps) -> sycl::event`.
              * @see docs/reference/KNOWN_ISSUES.md
              */
             template<typename Dispatcher>
@@ -196,6 +213,12 @@ namespace SushiBLAS
                 const void* read_T;
                 /** @brief Holds the address the index is written to. */
                 int64_t* write_R;
+                /** @brief Holds the lease the task keeps until it is destroyed. */
+                const ScratchBuffer& scratch;
+                /** @brief Holds the base address of the leased partials, or null. */
+                void* scratch_ptr;
+                /** @brief Holds how many partials the lease has room for. */
+                std::size_t scratch_elements;
                 /** @brief Holds the operation name for messages. */
                 const char* name;
                 /** @brief Receives the handle of the recorded task. */
@@ -206,14 +229,20 @@ namespace SushiBLAS
                 void operator()(Tag) const
                 {
                     using T = typename Tag::type;
+                    using P = Reduce::IndexedValue<T>;
+
+                    static_assert(sizeof(P) <= K_INDEXED_PARTIAL_BYTES,
+                                  "An index partial must fit the bytes its scratch is sized by.");
 
                     handle = recorder.record(meta, operands, "Reduction",
                         [size = size, pT = static_cast<const T*>(read_T), write_R = write_R,
-                         dispatch = dispatch, name = name]
+                         scratch = scratch, pS = static_cast<P*>(scratch_ptr),
+                         scratch_elements = scratch_elements, dispatch = dispatch, name = name]
                         (sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                         {
                             SB_LOG_INFO("Reduction {}: {} elements", name, size);
-                            return dispatch(q, pT, write_R, size, deps);
+                            return dispatch(q, pT, write_R, size,
+                                            ReductionScratch<P>{pS, scratch_elements}, deps);
                         });
                 }
             };
@@ -331,24 +360,26 @@ namespace SushiBLAS
          * @brief Records a whole-tensor reduction whose result is an index in an INT64 scalar.
          * @param result Must be a scalar INT64 tensor.
          * @param dispatch Builds the command group per input element type, as in execute_reduction.
-         * @throws std::invalid_argument if an operand holds elements without storage, t is not contiguous, or under FORCE_REFERENCE.
-         * @throws std::runtime_error if result is not an INT64 scalar or the input dtype is complex.
+         * @param scratch_elements Per-work-group index partials to lease; zero leases nothing.
+         * @throws std::invalid_argument on an operand violation, or under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
         TaskHandle execute_index_reduction(TaskRecorder& recorder, const Tensor& t, Tensor& result,
                                            const char* name, SushiRuntime::Graph::OpID op_id,
-                                           Dispatcher&& dispatch)
+                                           Dispatcher&& dispatch,
+                                           std::size_t scratch_elements = 0)
         {
+            recorder.require_sycl_path("Reduction", name);
             require_storage(t, name, "t");
+            require_device_dtype(t, name, "t");
             require_storage(result, name, "result");
+            require_device_dtype(result, name, "result");
             require_contiguous(t, name, "t");
-            SB_THROW_IF(result.num_elements != 1,
-                        "Result tensor for reduction '{}' must be a scalar (1 element).", name);
-            SB_THROW_IF(result.dtype != Core::DataType::INT64,
-                        "Reduction '{}' answers with an index, so its result tensor must have "
-                        "dtype INT64; got {}.",
-                        name, Core::to_string(result.dtype));
+            require_scalar(result, name, "result");
+            require_dtype(result, Core::DataType::INT64, name, "result");
+            require_domain<Domain::REAL_AND_INTEGRAL>(t.dtype, "Reduction", name);
+            require_min_elements(t, 1, name, "t");
 
             const int64_t size = t.num_elements;
             const void* read_T = t.data();
@@ -356,6 +387,13 @@ namespace SushiBLAS
 
             OperandSet operands;
             operands.reads(t).writes(result);
+
+            // The partials are (value, index) pairs, 16 bytes for every element type served.
+            const ScratchBuffer scratch(recorder.get_scratch_pool(),
+                                        scratch_elements * K_INDEXED_PARTIAL_BYTES,
+                                        t.storage->get_device_index());
+            void* scratch_ptr = scratch.data();
+            operands.scratch(scratch);
 
             SushiRuntime::Graph::TaskMetadata meta;
             meta.name = name;
@@ -366,7 +404,8 @@ namespace SushiBLAS
 
             // REAL_AND_INTEGRAL: finding the largest element needs an ordering, which complex types lack; see include/SushiBLAS/engine/math/README.md.
             const Detail::IndexReductionArm<std::remove_reference_t<Dispatcher>> arm{
-                recorder, meta, operands, dispatch, size, read_T, write_R, name, handle};
+                recorder, meta, operands, dispatch, size, read_T, write_R,
+                scratch, scratch_ptr, scratch_elements, name, handle};
             with_element_type<Domain::REAL_AND_INTEGRAL>(t.dtype, "Reduction", name, arm);
 
             return handle;
@@ -375,9 +414,8 @@ namespace SushiBLAS
         /**
          * @brief Records a whole-tensor reduction that counts elements into an INT64 scalar.
          * @param result Must be a scalar INT64 tensor.
-         * @param scratch_elements Per-work-group partials to allocate; zero allocates nothing.
-         * @throws std::invalid_argument if an operand holds elements without storage, t is not contiguous, or under FORCE_REFERENCE.
-         * @throws std::runtime_error if result is not an INT64 scalar or the input dtype is not real.
+         * @param scratch_elements Per-work-group partials to lease; zero leases nothing.
+         * @throws std::invalid_argument on an operand violation, or under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<typename Dispatcher>
@@ -387,21 +425,18 @@ namespace SushiBLAS
                                               Dispatcher&& dispatch,
                                               std::size_t scratch_elements = 0)
         {
-            require_storage(t, name, "t");
-            require_storage(result, name, "result");
-            require_contiguous(t, name, "t");
-            SB_THROW_IF(result.num_elements != 1,
-                        "Result tensor for reduction '{}' must be a scalar (1 element).", name);
-            SB_THROW_IF(result.dtype != Core::DataType::INT64,
-                        "Reduction '{}' answers with a count, so its result tensor must have "
-                        "dtype INT64; got {}. A count in a floating-point tensor is exact only "
-                        "below 2^24 in FLOAT32 and below 2048 in HALF, and past 65504 a HALF "
-                        "one is an infinity.",
-                        name, Core::to_string(result.dtype));
             recorder.require_sycl_path("Reduction", name);
+            require_storage(t, name, "t");
+            require_device_dtype(t, name, "t");
+            require_storage(result, name, "result");
+            require_device_dtype(result, name, "result");
+            require_contiguous(t, name, "t");
+            require_scalar(result, name, "result");
+            require_dtype(result, Core::DataType::INT64, name, "result");
+            require_domain<Domain::REAL>(t.dtype, "Reduction", name);
 
             const int64_t size = t.num_elements;
-            const void* read_T = t.data();
+            const void* read_T = t.data_or_null();
             int64_t* write_R = result.data_as<int64_t>();
 
             // Operands are declared by Tensor::region(), not by data(); see include/SushiBLAS/engine/math/README.md.
@@ -411,7 +446,7 @@ namespace SushiBLAS
             // Partials are INT64 whatever the input dtype, so the scratch is sized from sizeof(int64_t); see include/SushiBLAS/engine/math/README.md.
             const ScratchBuffer scratch(recorder.get_scratch_pool(),
                                         scratch_elements * sizeof(int64_t),
-                                        t.storage->get_device_index());
+                                        reduction_device_index(t, result));
             int64_t* scratch_ptr = static_cast<int64_t*>(scratch.data());
             operands.scratch(scratch);
 
@@ -433,11 +468,10 @@ namespace SushiBLAS
 
         /**
          * @brief Records a whole-tensor reduction as `result = finalize(fold(transform(t[i])), n)`.
-         * @tparam Accum Reduce::CompensatedSum for anything additive, Reduce::RunningProduct for a product.
+         * @tparam Accum A Reduce accumulator: CompensatedSum, RunningProduct, NaNPropagatingMax.
          * @param transform Callable `(auto x) -> auto`, applied to each element before the fold.
-         * @param finalize Callable `(auto value, std::size_t n) -> auto`, applied once to the folded result.
-         * @throws std::invalid_argument for the same reasons execute_reduction does.
-         * @throws std::runtime_error for the same reasons execute_reduction does.
+         * @param finalize Callable `(auto value, std::size_t n) -> auto`, applied once.
+         * @throws std::invalid_argument as execute_reduction does.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<template<typename> class Accum, typename Transform, typename Finalize>
@@ -446,8 +480,11 @@ namespace SushiBLAS
                                              SushiRuntime::Graph::OpID op_id, Transform transform,
                                              Finalize finalize)
         {
+            recorder.require_sycl_path("Reduction", name);
             require_storage(t, name, "t");
+            require_device_dtype(t, name, "t");
             require_storage(result, name, "result");
+            require_device_dtype(result, name, "result");
 
             const std::size_t partials = planned_partials_for(t);
 
@@ -467,33 +504,22 @@ namespace SushiBLAS
          * @brief Resolves a rank-2 tensor and an axis into the stride pair a segmented reduction walks.
          * @param axis 0 reduces down the columns, 1 along the rows.
          * @param result Rank-1 tensor with one element per surviving position.
-         * @throws std::runtime_error on a rank, axis or length mismatch.
+         * @throws std::invalid_argument on a rank, axis or length mismatch.
          * @see include/SushiBLAS/engine/math/README.md
          */
         [[nodiscard]] inline Reduce::AxisSpan axis_span_for(const Tensor& t, int axis,
                                                             const Tensor& result,
                                                             const char* name)
         {
-            SB_THROW_IF(t.rank != 2,
-                        "Axis reduction '{}' takes a rank-2 operand; got rank {}. Reducing one "
-                        "axis of a higher-rank tensor is not implemented - the launch shape "
-                        "generalises, the operand validation here does not.",
-                        name, t.rank);
-            SB_THROW_IF(axis != 0 && axis != 1,
-                        "Axis reduction '{}' takes axis 0 or 1 on a rank-2 operand; got {}.",
-                        name, axis);
-            SB_THROW_IF(result.rank != 1,
-                        "Axis reduction '{}' answers with a vector, so its result tensor must be "
-                        "rank 1; got rank {}.",
-                        name, result.rank);
+            require_rank(t, 2, name, "t");
+            require_operand(axis == 0 || axis == 1, name, "axis",
+                            "is {}; a rank-2 operand has axes 0 and 1", axis);
+            require_rank(result, 1, name, "result");
 
             // The surviving axis is the one not folded away; its extent is the number of folds; see include/SushiBLAS/engine/math/README.md.
             const int kept = 1 - axis;
 
-            SB_THROW_IF(result.num_elements != t.shape[kept],
-                        "Axis reduction '{}' over axis {} of a [{}, {}] tensor produces {} "
-                        "values, but the result tensor holds {}.",
-                        name, axis, t.shape[0], t.shape[1], t.shape[kept], result.num_elements);
+            require_extent(result.num_elements, t.shape[kept], "elements", name, "result");
 
             Reduce::AxisSpan span;
             span.segments       = static_cast<std::size_t>(t.shape[kept]);
@@ -508,25 +534,20 @@ namespace SushiBLAS
          * @brief Resolves an NHWC tensor into the geometry that folds H and W away: `[N, H, W, C] -> [N, C]`.
          * @param t Must be rank 4, NHWC, with rows contiguous with one another.
          * @param result Rank-2 `[N, C]` tensor with one element per surviving pair.
-         * @throws std::runtime_error on a rank or shape mismatch, or a row-sliced view.
+         * @throws std::invalid_argument on a rank or shape mismatch, or a row-sliced view.
          * @see include/SushiBLAS/engine/math/README.md
          */
         [[nodiscard]] inline Reduce::AxisSpan spatial_span_for(const Tensor& t, const Tensor& result,
                                                                const char* name)
         {
-            SB_THROW_IF(t.rank != 4, "Reduction '{}' needs a rank-4 NHWC input; got rank {}.",
-                        name, t.rank);
-            SB_THROW_IF(result.rank != 2, "Reduction '{}' needs a rank-2 [N, C] result; got rank {}.",
-                        name, result.rank);
-            SB_THROW_IF(result.shape[0] != t.shape[0] || result.shape[1] != t.shape[3],
-                        "Reduction '{}' folds [{}, {}, {}, {}] to [{}, {}] but was given a [{}, {}] result.",
-                        name, t.shape[0], t.shape[1], t.shape[2], t.shape[3],
-                        t.shape[0], t.shape[3], result.shape[0], result.shape[1]);
-            SB_THROW_IF(t.strides[1] != t.strides[2] * t.shape[2],
-                        "Reduction '{}' folds H and W as one run, which needs the row stride ({}) "
-                        "to be the column stride ({}) times the width ({}). This tensor is a "
-                        "row-sliced view; materialise it first.",
-                        name, t.strides[1], t.strides[2], t.shape[2]);
+            require_rank(t, 4, name, "t");
+            require_rank(result, 2, name, "result");
+            require_extent(result.shape[0], t.shape[0], "rows", name, "result");
+            require_extent(result.shape[1], t.shape[3], "columns", name, "result");
+            require_operand(t.strides[1] == t.strides[2] * t.shape[2], name, "t",
+                            "is a row-sliced view: row stride {}, column stride {}, width {}; "
+                            "materialise it first",
+                            t.strides[1], t.strides[2], t.shape[2]);
 
             Reduce::AxisSpan span;
             span.segments  = static_cast<std::size_t>(t.shape[3]);              // c
@@ -542,10 +563,8 @@ namespace SushiBLAS
         /**
          * @brief Records a segmented reduction over a span, one result per segment.
          * @param span The segment geometry, from axis_span_for or spatial_span_for.
-         * @param result Must share t's dtype.
          * @param finalize Callable `(auto value, std::size_t n) -> auto`, applied once per segment.
-         * @throws std::invalid_argument if an operand holds elements without storage, or under FORCE_REFERENCE.
-         * @throws std::runtime_error if the dtypes disagree or the dtype is not HALF, FLOAT32 or FLOAT64.
+         * @throws std::invalid_argument on an operand violation, or under FORCE_REFERENCE.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<template<typename> class Accum, typename Transform, typename Finalize>
@@ -555,12 +574,18 @@ namespace SushiBLAS
                                                   SushiRuntime::Graph::OpID op_id,
                                                   Transform transform, Finalize finalize)
         {
+            recorder.require_sycl_path("Axis reduction", name);
             require_storage(t, name, "t");
+            require_device_dtype(t, name, "t");
             require_storage(result, name, "result");
-            SB_THROW_IF(t.dtype != result.dtype,
-                        "Data types must match for axis reduction '{}'.", name);
+            require_device_dtype(result, name, "result");
+            require_dtype(result, t.dtype, name, "result");
+            require_domain<Domain::REAL>(t.dtype, "Axis reduction", name);
 
-            const void* read_T = t.data();
+            if (result.num_elements == 0)
+                return TaskHandle();
+
+            const void* read_T = t.data_or_null();
             void* write_R = result.data();
 
             // Operands are declared by Tensor::region(), not by data(); see include/SushiBLAS/engine/math/README.md.
@@ -586,8 +611,7 @@ namespace SushiBLAS
          * @brief Records a segmented reduction over one axis of a rank-2 tensor.
          * @param axis Which axis to fold away; see axis_span_for.
          * @param result Rank-1 tensor sharing t's dtype.
-         * @throws std::invalid_argument if an operand holds elements without storage, or under FORCE_REFERENCE.
-         * @throws std::runtime_error for the reasons axis_span_for and execute_folding_span_reduction list.
+         * @throws std::invalid_argument for the reasons axis_span_for and execute_folding_span_reduction list.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<template<typename> class Accum, typename Transform, typename Finalize>
@@ -596,10 +620,12 @@ namespace SushiBLAS
                                                   SushiRuntime::Graph::OpID op_id,
                                                   Transform transform, Finalize finalize)
         {
+            recorder.require_sycl_path("Axis reduction", name);
             require_storage(t, name, "t");
+            require_device_dtype(t, name, "t");
             require_storage(result, name, "result");
-            SB_THROW_IF(t.dtype != result.dtype,
-                        "Data types must match for axis reduction '{}'.", name);
+            require_device_dtype(result, name, "result");
+            require_dtype(result, t.dtype, name, "result");
 
             const Reduce::AxisSpan span = axis_span_for(t, axis, result, name);
 

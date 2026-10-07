@@ -25,107 +25,20 @@
  * @author Mustafa Garip
  */
 
-#include <limits>
-#include <cstddef>
-#include <type_traits>
-#include <sycl/sycl.hpp>
-#include <SushiBLAS/support/reduce_1d.hpp>
 #include <SushiBLAS/engine/math/reductions.hpp>
 #include <SushiBLAS/engine/math/reductions/dispatch.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    namespace
-    {
-        /**
-         * @brief Holds a running maximum that turns into NaN once any NaN is folded.
-         * @see src/README.md
-         */
-        template<typename T>
-        class NaNPropagatingMax
-        {
-            public:
-                /**
-                 * @brief Returns the value an empty maximum has: -infinity, or lowest() when T
-                 *        has no infinity.
-                 */
-                [[nodiscard]] static T identity() noexcept
-                {
-                    if constexpr (std::numeric_limits<T>::has_infinity)
-                        return -std::numeric_limits<T>::infinity();
-                    else
-                        return std::numeric_limits<T>::lowest();
-                }
-
-                /**
-                 * @brief Combines two finished maximums, in either order with the same result.
-                 * @return NaN when either side is NaN, +0 over -0, otherwise the greater value.
-                 */
-                [[nodiscard]] static T combine(T a, T b) noexcept
-                {
-                    if (sycl::isnan(a))
-                        return a;
-                    if (sycl::isnan(b))
-                        return b;
-                    if (a == b)
-                        return sycl::signbit(a) ? b : a;
-                    return a < b ? b : a;
-                }
-
-                /**
-                 * @brief Folds one value into the running maximum.
-                 * @param x The value to consider.
-                 */
-                void accumulate(T x) noexcept
-                {
-                    best_ = combine(best_, x);
-                }
-
-                /**
-                 * @brief Returns the maximum so far, NaN if a NaN was folded, or identity() if
-                 *        nothing was.
-                 */
-                [[nodiscard]] T value() const noexcept
-                {
-                    return best_;
-                }
-
-            private:
-                /** @brief The greater value folded so far, or the first NaN met. */
-                T best_ = identity();
-        };
-    } // namespace
-
     TaskHandle ReductionOps::max(const Tensor& t, Tensor& result)
     {
-        Dispatch::require_storage(t, "math.max", "t");
-        const std::size_t partials = Dispatch::planned_partials_for(t);
+        recorder_.require_sycl_path("Reduction", "math.max");
+        Dispatch::require_min_elements(t, 1, "math.max", "t");
 
-        auto dispatch = [](sycl::queue& q, const auto* pT, auto* pR, int64_t size,
-                           auto scratch, const std::vector<sycl::event>& deps)
-        {
-            using T = std::decay_t<decltype(*pT)>;
-
-            const T init_val = std::numeric_limits<T>::lowest();
-
-            // An empty input writes the lowest() of the element type itself, not of its accumulation type.
-            if (size == 0)
-            {
-                return q.submit([&](sycl::handler& h)
-                {
-                    h.depends_on(deps);
-                    h.single_task([=]() { *pR = init_val; });
-                });
-            }
-
-            return Reduce::reduce<NaNPropagatingMax>(q, pT, pR, static_cast<std::size_t>(size),
-                                              scratch.data, scratch.capacity,
-                                              Dispatch::ReduceIdentityTransform{},
-                                              Dispatch::ReduceIdentityFinalize{}, deps);
-        };
-        return Dispatch::execute_reduction(recorder_, t, result, "math.max", "math.max"_op,
-                                           dispatch, partials);
+        return Dispatch::execute_folding_reduction<Reduce::NaNPropagatingMax>(
+            recorder_, t, result, "math.max", "math.max"_op,
+            Dispatch::ReduceIdentityTransform{}, Dispatch::ReduceIdentityFinalize{});
     }
 } // namespace SushiBLAS

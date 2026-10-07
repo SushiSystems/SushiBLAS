@@ -21,10 +21,11 @@
 
 /**
  * @file test_empty_tensors.cpp
- * @brief Tests that elementwise, non-linear and logic ops on empty tensors record nothing.
+ * @brief Tests what elementwise, non-linear, logic and reduction ops do with an empty tensor.
  * @author Mustafa Garip
  */
 
+#include <vector>
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
@@ -156,6 +157,92 @@ namespace SushiBLAS
             EXPECT_THROW(
                 SushiBLAS::ElementwiseOps(probe.get_recorder()).add(a, b, c),
                 std::invalid_argument);
+            EXPECT_TRUE(graph_is_empty());
+        }
+
+        /**
+         * @brief Tests that the five reductions with an identity write it for an empty tensor.
+         */
+        TEST_F(Unit_EmptyTensorTest, IdentityReductionsOfNothingWriteTheirIdentity)
+        {
+            Tensor t = empty_tensor();
+            SushiBLAS::ReductionOps reductions(*engine);
+
+            Tensor sum = engine->create_tensor({1});
+            Tensor asum = engine->create_tensor({1});
+            Tensor nrm2 = engine->create_tensor({1});
+            Tensor prod = engine->create_tensor({1});
+            Tensor count = engine->create_tensor({1}, Core::DataType::INT64);
+
+            // Each result starts from a value that is not its identity.
+            fill_tensor(sum, {0.5f});
+            fill_tensor(asum, {0.5f});
+            fill_tensor(nrm2, {0.5f});
+            fill_tensor(prod, {0.5f});
+            fill_tensor(count, {7.0f});
+
+            EXPECT_NO_THROW(reductions.sum(t, sum));
+            EXPECT_NO_THROW(reductions.asum(t, asum));
+            EXPECT_NO_THROW(reductions.nrm2(t, nrm2));
+            EXPECT_NO_THROW(reductions.prod(t, prod));
+            EXPECT_NO_THROW(reductions.count_nonfinite(t, count));
+            engine->execute();
+
+            verify_tensor(sum, {0.0f});
+            verify_tensor(asum, {0.0f});
+            verify_tensor(nrm2, {0.0f});
+            verify_tensor(prod, {1.0f});
+            verify_tensor(count, {0.0f});
+        }
+
+        /**
+         * @brief Tests that every reduction without an identity refuses an empty tensor.
+         */
+        TEST_F(Unit_EmptyTensorTest, OrderedReductionsOfNothingAreRefused)
+        {
+            Tensor t = empty_tensor();
+            Tensor image(SushiRuntime::sushi_ptr<Storage>(), {0, 2, 2, 3});
+            SushiBLAS::ReductionOps reductions(probe.get_recorder());
+
+            Tensor scalar = engine->create_tensor({1});
+            Tensor index = engine->create_tensor({1}, Core::DataType::INT64);
+            Tensor per_column = engine->create_tensor({3});
+            Tensor per_channel = engine->create_tensor({1, 3});
+
+            EXPECT_THROW(reductions.mean(t, scalar), std::invalid_argument);
+            EXPECT_THROW(reductions.max(t, scalar), std::invalid_argument);
+            EXPECT_THROW(reductions.min(t, scalar), std::invalid_argument);
+            EXPECT_THROW(reductions.var(t, scalar), std::invalid_argument);
+            EXPECT_THROW(reductions.std(t, scalar), std::invalid_argument);
+            EXPECT_THROW(reductions.logsumexp(t, scalar), std::invalid_argument);
+            EXPECT_THROW(reductions.argmax(t, index), std::invalid_argument);
+            EXPECT_THROW(reductions.argmin(t, index), std::invalid_argument);
+            EXPECT_THROW(reductions.max_along(t, 0, per_column), std::invalid_argument);
+            EXPECT_THROW(reductions.min_along(t, 0, per_column), std::invalid_argument);
+            EXPECT_THROW(reductions.mean_spatial(image, per_channel), std::invalid_argument);
+            EXPECT_TRUE(graph_is_empty());
+        }
+
+        /**
+         * @brief Tests sum_along over an axis of length zero and into a result of length zero.
+         */
+        TEST_F(Unit_EmptyTensorTest, SumAlongOfAnEmptyAxisWritesZeros)
+        {
+            // Folding axis 0 of a [0, 5] tensor leaves five sums of nothing.
+            Tensor no_rows(SushiRuntime::sushi_ptr<Storage>(), {0, 5});
+            Tensor sums = engine->create_tensor({5});
+            fill_tensor(sums, std::vector<float>(5, 0.5f));
+
+            EXPECT_NO_THROW(SushiBLAS::ReductionOps(*engine).sum_along(no_rows, 0, sums));
+            engine->execute();
+            verify_tensor(sums, std::vector<float>(5, 0.0f));
+
+            // Folding axis 0 of a [5, 0] tensor leaves no position to write.
+            Tensor no_columns(SushiRuntime::sushi_ptr<Storage>(), {5, 0});
+            Tensor nothing(SushiRuntime::sushi_ptr<Storage>(), {0});
+
+            EXPECT_NO_THROW(
+                SushiBLAS::ReductionOps(probe.get_recorder()).sum_along(no_columns, 0, nothing));
             EXPECT_TRUE(graph_is_empty());
         }
     } // namespace Test
