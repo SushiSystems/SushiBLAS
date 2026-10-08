@@ -28,6 +28,7 @@
 #pragma once
 
 #include <cstdint>
+#include <SushiBLAS/kernels/blas/row_cursor.hpp>
 #include <SushiBLAS/support/reference_accumulator.hpp>
 
 namespace SushiBLAS
@@ -56,9 +57,11 @@ namespace SushiBLAS
                         const int64_t end = access.end_column(i, n);
 
                         ReferenceSum<T> sum;
-                        for (int64_t k = access.first_column(i); k < end; ++k)
+                        const int64_t first = access.first_column(i);
+                        RowCursor cursor = access.row_cursor(i, first);
+                        for (int64_t k = first; k < end; ++k, cursor.advance())
                         {
-                            const T aval = (k == i && unit_diag) ? T(1) : access.at(a, i, k);
+                            const T aval = (k == i && unit_diag) ? T(1) : access.at(a, cursor);
                             sum.add(RW(aval) * RW(x[k * incx]));
                         }
                         x[i * incx] = T(sum.value());

@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/running_solution.hpp>
+#include <SushiBLAS/kernels/blas/row_cursor.hpp>
 #include <SushiBLAS/support/reference_accumulator.hpp>
 
 namespace SushiBLAS
@@ -66,8 +67,9 @@ namespace SushiBLAS
                     {
                         ReferenceSum<T> sum;
                         sum.add(RW(x[i * incx]));
-                        for (int64_t c = first; c < end; ++c)
-                            sum.add(-(RW(access.at(a, i, c)) * RW(solution.get(c * incx))));
+                        RowCursor cursor = access.row_cursor(i, first);
+                        for (int64_t c = first; c < end; ++c, cursor.advance())
+                            sum.add(-(RW(access.at(a, cursor)) * RW(solution.get(c * incx))));
 
                         solution.set(i * incx,
                                      static_cast<W>(unit_diag

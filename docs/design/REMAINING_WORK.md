@@ -69,6 +69,9 @@ it and holds the steps that have not run.
 - Add `trmm`; `TrmvTerm` and `TriangleRow` are the bricks it starts from.
 - Add a `rot` that takes c and s as tensors, so `rotg` chains into it inside one graph.
 - Coalesce the right-side reads of TRSM.
+- Close the gap between the SYCL `tpsv` and the dense `trsv`: one 128-row block costs 0.30 ms
+  against 0.19 ms up to order 1024 and 0.42 ms against 0.20 ms from order 2048 (FLOAT32,
+  RTX 3080 Ti); the cost per block does not grow with the order beyond that step.
 - Measure where a narrow-band `tbsv`, which runs as one sequential device task, is cheaper on
   the host than on a GPU.
 - Merge the three texts of the mirrored read of a symmetric matrix (`symv`, `SymmetricAccess`,

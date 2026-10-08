@@ -28,8 +28,8 @@
 #pragma once
 
 #include <cstdint>
-#include <algorithm>
 #include <SushiBLAS/kernels/blas/conjugation.hpp>
+#include <SushiBLAS/kernels/blas/symmetric_row.hpp>
 #include <SushiBLAS/support/reference_accumulator.hpp>
 
 namespace SushiBLAS
@@ -53,25 +53,15 @@ namespace SushiBLAS
                 {
                     using RW = ReferenceAccumulator<T>;
 
-                    const Access mirror = access.transposed();
-                    auto sym_at = [&](int64_t r, int64_t c) -> T
-                    {
-                        if (r == c)
-                            return Conj::diagonal(access.at(a, r, r));
-                        return access.holds(r, c) ? access.at(a, r, c)
-                                                  : Conj::apply(access.at(a, c, r));
-                    };
+                    const SymmetricRow<Conj, Access> rows = symmetric_row<Conj>(access, n);
 
                     for (int64_t i = 0; i < n; ++i)
                     {
-                        const int64_t first =
-                            std::min(access.first_column(i), mirror.first_column(i));
-                        const int64_t end =
-                            std::max(access.end_column(i, n), mirror.end_column(i, n));
-
                         ReferenceSum<T> sum;
-                        for (int64_t j = first; j < end; ++j)
-                            sum.add(RW(sym_at(i, j)) * RW(x[j * incx]));
+                        rows.for_each(a, i, [&](T value, int64_t j)
+                        {
+                            sum.add(RW(value) * RW(x[j * incx]));
+                        });
 
                         y[i * incy] = (beta == T(0))
                                           ? T(RW(alpha) * sum.value())
