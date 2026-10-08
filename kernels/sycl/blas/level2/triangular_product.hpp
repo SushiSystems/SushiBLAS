@@ -34,6 +34,7 @@
 #include <SushiBLAS/support/launch_1d.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/kernels/blas/row_cursor.hpp>
 #include "kernels/sycl/blas/level2/vector_snapshot.hpp"
 
 namespace SushiBLAS
@@ -69,10 +70,13 @@ namespace SushiBLAS
                         const int64_t i = static_cast<int64_t>(index);
                         const int64_t end = access.end_column(i, n);
 
+                        const int64_t first = access.first_column(i);
+
                         W sum(0);
-                        for (int64_t k = access.first_column(i); k < end; ++k)
+                        RowCursor cursor = access.row_cursor(i, first);
+                        for (int64_t k = first; k < end; ++k, cursor.advance())
                         {
-                            const T aval = (k == i && unit_diag) ? T(1) : access.at(a, i, k);
+                            const T aval = (k == i && unit_diag) ? T(1) : access.at(a, cursor);
                             sum += multiply(W(aval), W(snapshot[k]));
                         }
                         x[i * incx] = T(sum);

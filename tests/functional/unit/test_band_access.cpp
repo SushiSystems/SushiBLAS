@@ -451,6 +451,51 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Tests that a cursor walked along a row, forward and back, stands on the offset
+         *        index gives for every stored column.
+         */
+        TEST(Unit_BandAccess, ARowCursorReachesTheOffsetOfEveryColumn)
+        {
+            constexpr int64_t rows = 7;
+            constexpr int64_t cols = 6;
+            constexpr int64_t lower = 2;
+            constexpr int64_t upper = 1;
+
+            for (const Layout layout : K_LAYOUTS)
+            {
+                for (const Transpose trans : {Transpose::NoTrans, Transpose::Trans})
+                {
+                    SCOPED_TRACE(::testing::Message()
+                                 << layout_name(layout) << ", " << Core::to_string(trans));
+
+                    const Kernels::BandAccess access =
+                        Kernels::band_access(layout, trans, lower, upper, lower + upper + 1);
+                    const bool transposed = Core::is_transposed(trans);
+                    const int64_t op_rows = transposed ? cols : rows;
+                    const int64_t op_cols = transposed ? rows : cols;
+
+                    for (int64_t r = 0; r < op_rows; ++r)
+                    {
+                        const int64_t first = access.first_column(r);
+                        const int64_t end = access.end_column(r, op_cols);
+                        if (first >= end)
+                            continue;
+
+                        Kernels::RowCursor cursor = access.row_cursor(r, first);
+                        for (int64_t c = first; c < end; ++c, cursor.advance())
+                            EXPECT_EQ(access.index(r, c), cursor.offset)
+                                << "forward, row " << r << ", column " << c;
+
+                        cursor = access.row_cursor(r, end - 1);
+                        for (int64_t c = end - 1; c >= first; --c, cursor.retreat())
+                            EXPECT_EQ(access.index(r, c), cursor.offset)
+                                << "backward, row " << r << ", column " << c;
+                    }
+                }
+            }
+        }
+
+        /**
          * @brief Tests on which slot of a stored line each triangle band storage puts the
          *        diagonal.
          */
