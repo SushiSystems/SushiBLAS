@@ -37,8 +37,8 @@ namespace SushiBLAS
         /** @brief Memory layout strategies. */
         enum class Layout : uint8_t
         {
-            RowMajor,
-            ColumnMajor
+            RowMajor = 0,   /**< Elements of one row are adjacent. */
+            ColumnMajor = 1 /**< Elements of one column are adjacent. */
         };
 
 

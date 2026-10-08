@@ -18,10 +18,8 @@
 # added alongside this one.
 
 # `auto` (the default) leaves the choice to the header, which picks WARN under NDEBUG
-# and DEBUG otherwise. Any other value is passed straight through as an enumerator name,
-# so a value the header does not recognise fails to compile rather than degrading
-# silently — but the validation below catches it at configure time instead, which is a
-# far better error message.
+# and DEBUG otherwise. Any other value is validated here and handed to the header as the
+# SushiBLAS::Core::LogType enumerator of that level.
 set(SB_LOG_LEVEL "auto" CACHE STRING
     "Compiled-in SushiBLAS log level: auto | OFF | ERR | WARN | INFO | DEBUG \
 ('auto' = WARN for release, DEBUG for debug)")
@@ -32,9 +30,15 @@ set_property(CACHE SB_LOG_LEVEL PROPERTY STRINGS ${_sb_log_levels})
 if(NOT SB_LOG_LEVEL IN_LIST _sb_log_levels)
     message(FATAL_ERROR
         "SB_LOG_LEVEL is '${SB_LOG_LEVEL}'. Expected one of: ${_sb_log_levels}. "
-        "SB_LOG_TYPE_OF maps each to its SushiBLAS::Core::LogType enumerator, plus 'auto' for the "
-        "per-build-type default.")
+        "'auto' is the per-build-type default.")
 endif()
+
+# The LogType enumerator each level name stands for.
+set(_sb_log_enumerator_OFF Off)
+set(_sb_log_enumerator_ERR Err)
+set(_sb_log_enumerator_WARN Warn)
+set(_sb_log_enumerator_INFO Info)
+set(_sb_log_enumerator_DEBUG Debug)
 
 # Applies the configured log level to one target.
 #
@@ -45,6 +49,7 @@ endif()
 # without the export-set problem sushiblas_apply_build_policy() exists to avoid.
 function(sushiblas_apply_log_level target)
     if(NOT SB_LOG_LEVEL STREQUAL "auto")
-        target_compile_definitions(${target} PUBLIC SB_ACTIVE_LOG_LEVEL=${SB_LOG_LEVEL})
+        target_compile_definitions(${target} PUBLIC
+            SB_ACTIVE_LOG_LEVEL=${_sb_log_enumerator_${SB_LOG_LEVEL}})
     endif()
 endfunction()
