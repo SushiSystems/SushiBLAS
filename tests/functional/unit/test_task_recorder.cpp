@@ -217,5 +217,35 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(first_outputs.total, expected_total, 1e-5);
             EXPECT_TENSOR_NEAR(second_outputs.total, expected_total, 1e-5);
         }
+
+        /**
+         * @brief Tests that a discarded task never runs and that the engine records and runs
+         *        again afterwards.
+         */
+        TEST_F(Unit_TaskRecorderTest, ADiscardedTaskDoesNotRunAndTheEngineGoesOn)
+        {
+            auto x = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
+            auto y = create_initialized_tensor<float>({4}, {10.0f, 20.0f, 30.0f, 40.0f});
+
+            SushiBLAS::BLASOps(*engine).axpy(2.0, x, y);
+            engine->discard_recorded();
+            engine->execute();
+            EXPECT_TENSOR_NEAR(y, (std::vector<float>{10.0f, 20.0f, 30.0f, 40.0f}), 0.0);
+
+            SushiBLAS::BLASOps(*engine).axpy(2.0, x, y);
+            engine->execute();
+            EXPECT_TENSOR_NEAR(y, (std::vector<float>{12.0f, 24.0f, 36.0f, 48.0f}), 1e-6);
+        }
+
+        /** @brief Tests that discarding an engine with nothing recorded does nothing. */
+        TEST_F(Unit_TaskRecorderTest, DiscardingAnEmptyEngineIsHarmless)
+        {
+            auto y = create_initialized_tensor<float>({2}, {5.0f, 6.0f});
+
+            engine->discard_recorded();
+            engine->discard_recorded();
+            engine->execute();
+            EXPECT_TENSOR_NEAR(y, (std::vector<float>{5.0f, 6.0f}), 0.0);
+        }
     } // namespace Test
 } // namespace SushiBLAS

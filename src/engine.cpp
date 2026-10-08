@@ -21,11 +21,13 @@
 
 /**
  * @file engine.cpp
- * @brief Defines the Engine constructor and Engine::execute.
+ * @brief Defines the Engine constructor, Engine::execute and Engine::discard_recorded.
  * @author Mustafa Garip
  */
 
 #include <SushiBLAS/engine.hpp>
+
+#include <cstddef>
 
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiRuntime/execution/execution_engine.hpp>
@@ -48,5 +50,12 @@ namespace SushiBLAS
             return;
 
         context_.get_execution_engine().execute(compiled);
+    }
+
+    void Engine::discard_recorded()
+    {
+        // The nodes die with the returned vector, and take what their bodies captured with them.
+        const std::size_t dropped = graph_.take_nodes().size();
+        SB_LOG_INFO("SushiBLAS Engine discarded {} recorded task(s).", dropped);
     }
 } // namespace SushiBLAS

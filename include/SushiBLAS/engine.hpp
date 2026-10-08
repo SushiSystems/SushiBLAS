@@ -110,6 +110,14 @@ namespace SushiBLAS
             void execute();
 
             /**
+             * @brief Drops every task recorded through get_recorder() that has not run, with the
+             *        operand storage and the scratch those tasks hold; the engine stays usable.
+             * @pre No thread is recording on this engine or running execute().
+             * @see include/SushiBLAS/README.md
+             */
+            void discard_recorded();
+
+            /**
              * @brief Creates a tensor from a brace list of dimensions.
              * @param device_index Device queue that owns the allocation.
              * @return A tensor without storage when a dimension is 0.
