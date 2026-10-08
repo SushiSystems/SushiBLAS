@@ -88,7 +88,19 @@ endif()
 
 # --- Subdirectories ---
 add_subdirectory(src)
-add_subdirectory(examples)
+
+# Examples and tests are built when SushiBLAS is the top-level project, not when a consumer
+# pulls it in with add_subdirectory.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(SB_IS_TOP_LEVEL ON)
+else()
+    set(SB_IS_TOP_LEVEL OFF)
+endif()
+
+option(SB_BUILD_EXAMPLES "Build the example programs under examples/" ${SB_IS_TOP_LEVEL})
+if(SB_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 
 option(SB_BUILD_BENCHMARKS "Build the benchmark programs under benchmarks/" OFF)
 if(SB_BUILD_BENCHMARKS)
@@ -122,5 +134,8 @@ install(FILES
 )
 
 # --- Testing ---
-enable_testing()
-add_subdirectory(tests)
+option(SB_BUILD_TESTS "Build and register the test suite under tests/" ${SB_IS_TOP_LEVEL})
+if(SB_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
