@@ -234,9 +234,9 @@ signature is what tells one apart from another, and it is what the level-choice 
 Set it from the build rather than by editing this header: the `SB_LOG_LEVEL` CMake cache variable
 (`cmake/SushiBLASLogging.cmake`) forwards its value here, so `sb build -D SB_LOG_LEVEL=INFO` raises
 the level for a debugging session and `sb build -D SB_LOG_LEVEL=auto` puts it back. Valid values are
-the level names `OFF`, `ERR`, `WARN`, `INFO` and `DEBUG`. `SB_LOG_TYPE_OF` expands a level name to
-its `LogType` enumerator, `Off` to `Debug`, so a typo is a compile error naming the unknown level
-rather than a silently wrong level.
+the level names `OFF`, `ERR`, `WARN`, `INFO` and `DEBUG`; CMake rejects any other at configure time
+and defines `SB_ACTIVE_LOG_LEVEL` as the `LogType` enumerator of the level, `Off` to `Debug`. A
+build that defines the macro itself names the enumerator.
 
 The default is WARN for a release build and DEBUG for a debug build. Release used to default to
 INFO, which was expensive rather than merely noisy: every `SB_LOG_INFO` that survives the `if

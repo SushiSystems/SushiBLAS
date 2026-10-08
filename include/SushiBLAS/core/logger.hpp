@@ -61,29 +61,17 @@
 
 /**
  * @def SB_ACTIVE_LOG_LEVEL
- * @brief Names the compiled-in log level: OFF, ERR, WARN, INFO or DEBUG.
+ * @brief Names the SushiBLAS::Core::LogType enumerator of the compiled-in log level: Off, Err,
+ *        Warn, Info or Debug.
  * @see include/SushiBLAS/core/README.md
  */
 #ifndef SB_ACTIVE_LOG_LEVEL
     #ifdef NDEBUG
-        #define SB_ACTIVE_LOG_LEVEL WARN
+        #define SB_ACTIVE_LOG_LEVEL Warn
     #else
-        #define SB_ACTIVE_LOG_LEVEL DEBUG
+        #define SB_ACTIVE_LOG_LEVEL Debug
     #endif
 #endif
-
-/**
- * @def SB_LOG_TYPE_OF
- * @brief Expands a level name of SB_ACTIVE_LOG_LEVEL to its SushiBLAS::Core::LogType enumerator.
- * @see include/SushiBLAS/core/README.md
- */
-#define SB_LOG_TYPE_OF_OFF Off
-#define SB_LOG_TYPE_OF_ERR Err
-#define SB_LOG_TYPE_OF_WARN Warn
-#define SB_LOG_TYPE_OF_INFO Info
-#define SB_LOG_TYPE_OF_DEBUG Debug
-#define SB_LOG_TYPE_OF_JOIN(level) SB_LOG_TYPE_OF_##level
-#define SB_LOG_TYPE_OF(level) SB_LOG_TYPE_OF_JOIN(level)
 
 namespace SushiBLAS 
 {
@@ -109,7 +97,7 @@ namespace SushiBLAS
          * the call.
          */
         #if SB_ENABLE_LOGGING
-            inline constexpr LogType K_ACTIVE_LOG_LEVEL = LogType::SB_LOG_TYPE_OF(SB_ACTIVE_LOG_LEVEL);
+            inline constexpr LogType K_ACTIVE_LOG_LEVEL = LogType::SB_ACTIVE_LOG_LEVEL;
         #else
             inline constexpr LogType K_ACTIVE_LOG_LEVEL = LogType::Off;
         #endif
