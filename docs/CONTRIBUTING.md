@@ -513,15 +513,15 @@ and the link line) if the C++ build needs to find it. Verify with
 Open a GitHub issue. A good bug report includes the platform and
 toolchain, the build type, the exact `sb` command, and the smallest
 reproducer you can manage. For anything that looks like a **security** issue,
-do **not** open a public issue — follow [`SECURITY.md`](reference/SECURITY.md).
+do **not** open a public issue — follow [`SECURITY.md`](../.github/SECURITY.md).
 
 ---
 
 ## 10. Questions
 
 Open a GitHub Discussion, join the community Discord (see
-[`CODE_OF_CONDUCT.md`](reference/CODE_OF_CONDUCT.md) for the invite), or email
+[`CODE_OF_CONDUCT.md`](../.github/CODE_OF_CONDUCT.md) for the invite), or email
 **mustafagarip@sushisystems.io**.
 
 Please be respectful in all project spaces — see
-[`CODE_OF_CONDUCT.md`](reference/CODE_OF_CONDUCT.md).
+[`CODE_OF_CONDUCT.md`](../.github/CODE_OF_CONDUCT.md).

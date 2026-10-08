@@ -11,15 +11,16 @@ in [the backlog](../design/REMAINING_WORK.md).
 
 | Issue | Where |
 | --- | --- |
-| Nothing committed from `0b9ec90` on, which is every commit of the v0.1.0 work and the interface break that begins at `703606d`, has been built, linked or run. Each file was parsed with `clang++ -fsyntax-only` by its author and its reviewer, and no test of the new or the changed code has executed | the whole tree; `docs/agent/2026_10_07_V010/REPORT.md`, sections 1 and 2 |
+| The whole suite ran once on this tree, on 2026-10-09, on the CUDA build with an RTX 3080 Ti: 2 047 of 2 047 tests passed, the ones CTest lists as skipped among them. The tree has not run on the OpenCL CPU device or on any other card | the whole tree |
+| Of the benchmark programs only `benchmark_band_packed` has run, on that card; no other design figure about speed is a measurement | `tests/benchmark/` |
+| The record-time refusal of a device that cannot host the `syrk` or `syr2k` tile was never seen to throw: the one device the tree ran on hosts both tiles | `include/SushiBLAS/engine/blas/utils.hpp`, `require_local_tile` |
+| With `SB_BUILD_TESTS` and `SB_BUILD_EXAMPLES` off, as under a consumer, the tree was never configured | `CMakeLists.txt` |
 | The last syntax sweep of the whole tree ran at commit `1746b03`, over 250 translation units. Every later commit was checked file by file only, so an error between two files that were each parsed alone is still possible | `docs/agent/2026_10_07_V010/SPEC.md`, `OWNER_DECISIONS_LATE` |
-| The lines that list the new sources, tests and benchmarks in the CMake files were never configured | `src/CMakeLists.txt`, `tests/CMakeLists.txt`, `benchmarks/CMakeLists.txt` |
 | The GPU evidence is one run on one card, an RTX 3080 Ti, of the tree before the first commit of this work. The tree after the break has run on no device | [GPU_VALIDATION.md](../design/GPU_VALIDATION.md), "The one GPU run" |
 | No kernel written since the break has been compiled for an ahead-of-time target. `Kernels::multiply`, `divide` and `conjugate`, which keep `std::complex` functions out of the SYCL BLAS kernels, are among them | `include/SushiBLAS/support/complex_arithmetic.hpp`, `kernels/sycl/` |
 | Whether `sycl::aligned_alloc_device` returns 128-byte aligned memory on every backend is unverified; `Storage` throws when an address is not aligned | `include/SushiBLAS/storage.hpp` |
 | The speed of the packed GEMM path is unmeasured, and its blocking defaults are derived from the cache size a device reports, which was never read on a real run | `include/SushiBLAS/support/device_policy.hpp`, `include/SushiBLAS/kernels/blas/level3/packed_product_plan.hpp` |
 | The solve block widths, 256 on a CPU and 128 on a GPU, come from assumed launch and step costs | `kernels/sycl/blas/level3/triangular_plan.hpp` |
-| No benchmark program added on 2026-10-07 has run, so no design figure about speed is a measurement | `benchmarks/bench_gemm_blocking.cpp`, `bench_triangular.cpp`, `bench_band_packed.cpp`, `bench_sparse.cpp` |
 | The rotation bricks were transcribed from the reference BLAS (`drotg.f90`, `zrotg.f90`, `drotmg.f`) through a summarising fetch, without the source at hand. Whether `drotmg.f` writes the implied entries of H only for flags 0 and 1, as the brick does, is not settled | `include/SushiBLAS/kernels/blas/givens.hpp`, `modified_givens.hpp` |
 | `Core::IndexBase` carries 221 and 222, written from memory of the Sparse BLAS header | `include/SushiBLAS/core/sparse_types.hpp` |
 | The parity allowances of the random reference tests are estimates, and `LargeLambdaPoissonGivesTheSameCounts` asserts equality for one seed, which a device whose `log` or `lgamma` differs from the host's can break | `tests/functional/unit/test_random_reference.cpp` |
@@ -44,7 +45,6 @@ in [the backlog](../design/REMAINING_WORK.md).
 | A tensor that is recorded and then dropped stays allocated until its graph node dies, and a caller that keeps a compiled plan keeps every operand and scratch block of that plan | `include/SushiBLAS/engine/operand_set.hpp` |
 | A recorder's identity comes from a `static` counter in an inline function, so two binaries that each link the static library can hand out one identity | `include/SushiBLAS/engine/task_recorder.hpp` |
 | `rule_task_dependencies` reads text: a kernel that accepts `deps` and never uses it passes, and the regression test behind it covers seven operations | `tools/layering/check_layering.py`, `tests/functional/regression/test_task_dependencies.cpp` |
-| The tiled `syrk` and `syr2k` refuse a device that cannot host their tile with `std::runtime_error` at execution, where every record-time device refusal is `UnsupportedExecution` | `kernels/sycl/blas/level3/syrk.hpp`, `syr2k.hpp` |
 | A backward `tbsv` or `tpsv` and a backward `trsv` do not agree to the bit on inexact data, because the blocked dense solve subtracts from the top down | `kernels/sycl/blas/level3/trsm.hpp`, `kernels/sycl/blas/level2/triangular_solve.hpp` |
 | `sptrsv` solves on one work-item; whether a long `single_task` trips a driver watchdog on a display GPU is unknown | `kernels/sycl/sparse/sptrsv.hpp` |
 | A SYCL sum that overflows its accumulation type midway gives an infinity where the host fold in double gives the finite value | `include/SushiBLAS/support/reduce_1d.hpp`, `serial_reduce.hpp` |
@@ -64,7 +64,6 @@ in [the backlog](../design/REMAINING_WORK.md).
 | The manual and the module READMEs were being rewritten to the recorder shape in the working tree, uncommitted, on 2026-10-07, and no one has read every page against the code. A search that day still found `engine.get_graph()` in the contributing guide, `ExecutionMode::VERIFY` in two READMEs, the removed accessor form `engine.blas()` in the FAQ and the security policy, a `SparseBLAS` reached through that accessor in the FAQ, and the removed `Reduce::RunningMax` in three READMEs | `docs/CONTRIBUTING.md`, `kernels/README.md`, `tests/functional/unit/README.md`, `docs/guides/FAQ.md`, `docs/reference/SECURITY.md`, `src/README.md`, `include/SushiBLAS/support/README.md` |
 | Four `@throws` lines name `std::runtime_error` where the code throws `std::invalid_argument`: `clamp`, `convert`, `truncated_normal` and `orthogonal` | `include/SushiBLAS/engine/math/elementwise.hpp`, `include/SushiBLAS/engine/math/random.hpp` |
 | The source comment checker reports 1 finding, a block over the ceiling | `kernels/sycl/blas/level3/syrk.hpp` |
-| Two CMake comments name `ACTIVE_LOG_LEVEL`, which is `K_ACTIVE_LOG_LEVEL` since the naming sweep, and the `SB_LOG_LEVEL` error message calls its values `LogType` enumerator names, which they stopped being: `SB_LOG_TYPE_OF` maps `INFO` to `LogType::Info` | `cmake/SushiBLASLogging.cmake`, `src/CMakeLists.txt` |
 | The CLI manual says `sushicore` is published to no index, while the changelog records it taken from PyPI on 2026-09-22; which versions PyPI holds was not checked | `cli/README.md` |
 | The integration and GPU validation pages have not been through the humanizer pass; they hold 13 em dashes in about 1 000 words and 29 in about 2 800 | `docs/guides/INTEGRATION.md`, `docs/design/GPU_VALIDATION.md` |
 | The archived wave 1 report says it created `docs/reference/CHANGELOG.md` and that no commit was made; the entry went to the old `docs/CHANGELOG.md` and commit `e7783de` is on main | `docs/archive/agent/reports/2026-09-22-wave-1-task-7d.md` |
@@ -75,14 +74,10 @@ in [the backlog](../design/REMAINING_WORK.md).
 
 | Issue | Where |
 | --- | --- |
-| `docs/api/` is not part of the documentation tree and `mainpage.md` is not named in upper snake case. `sb docs` now writes under `build/docs/api-site`, but the `Doxyfile` still names `docs/api-site` and a checkout that built the site before keeps that folder; `check_docs_layout.py` reports all three | `Doxyfile`, `docs/api/mainpage.md` |
 | `Doxyfile` sits in the root, where the layout forbids it | `Doxyfile` |
-| The source folder is `src/` where the layout names `source/`, and `kernels/`, `examples/` and `benchmarks/` are top-level folders outside the layout | repository root |
+| The source folder is `src/` where the layout names `source/`, as in SushiRuntime, SushiDSP and SushiAI. `kernels/` is a top-level folder outside the layout and stays there by the owner's decision of 2026-10-09 | repository root |
 | `tests/` has a `functional/` level over unit, integration and regression, and a `package/` folder the layout does not name | `tests/` |
-| The root lacks `.clang-format`, `.editorconfig` and `.gitattributes` | repository root |
-| `.gitignore` has no rule for `.pytest_cache/`, `venv/`, `.venv/`, `build-*/` or `dist/` | `.gitignore` |
 | `sushi-module.toml` spells the remote in lower case, the remote itself is `SushiSystems/SushiBLAS` | `sushi-module.toml` |
-| The security policy and the code of conduct are under `docs/reference/`, where GitHub does not look for them | `docs/reference/SECURITY.md`, `docs/reference/CODE_OF_CONDUCT.md` |
 
 ## Continuous integration
 
@@ -101,4 +96,3 @@ in [the backlog](../design/REMAINING_WORK.md).
 | --- | --- |
 | No release was ever tagged, and the Unreleased section holds 197 entries | `docs/reference/CHANGELOG.md` |
 | The library builds only against a SushiRuntime with the aligned shared and device allocation; no runtime tag carries it, and the build files pin no runtime version | `cmake/Runtime.cmake`, `cmake/SushiBLASConfig.cmake.in` |
-| `cli/pyproject.toml` requires `sushicore>=0.7.0`; the sushicore repository is tagged up to v0.4.0 | `cli/pyproject.toml` |

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* bench_triangular.cpp                                                   */
+/* benchmark_triangular.cpp                                               */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -20,7 +20,7 @@
 /**************************************************************************/
 
 /**
- * @file bench_triangular.cpp
+ * @file benchmark_triangular.cpp
  * @brief Times the triangular and symmetric BLAS routines and prints GFLOP/s per size.
  * @author Mustafa Garip
  */
@@ -34,7 +34,7 @@
 #include <kernels/blas.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 
-#include "bench_common.hpp"
+#include "benchmark_common.hpp"
 
 namespace
 {
@@ -164,7 +164,7 @@ namespace
     }
 
     /// @brief Times the four matrix products on n x n operands and prints one row each.
-    void bench_products(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
+    void benchmark_products(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                         DataType dtype, int64_t n, const SushiBLAS::Tensor& a)
     {
         const SushiBLAS::Tensor g = constant_matrix(engine, dtype, n, n, K_G_VALUE);
@@ -197,7 +197,7 @@ namespace
     }
 
     /// @brief Times TRMV on a vector of ones under one execution mode and prints one row.
-    void bench_trmv(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
+    void benchmark_trmv(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                     int64_t n, const SushiBLAS::Tensor& a, ExecutionMode mode, const char* label)
     {
         SushiBLAS::Tensor x = ones_vector(engine, dtype, n);
@@ -211,7 +211,7 @@ namespace
     }
 
     /// @brief Times TRSV on a vector of ones under one execution mode and prints one row.
-    void bench_trsv(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
+    void benchmark_trsv(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                     int64_t n, const SushiBLAS::Tensor& a, ExecutionMode mode, const char* label)
     {
         SushiBLAS::Tensor x = ones_vector(engine, dtype, n);
@@ -225,7 +225,7 @@ namespace
     }
 
     /// @brief Times TRSM from the left on n x columns right-hand sides of ones and prints one row.
-    void bench_trsm(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
+    void benchmark_trsm(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                     int64_t n, const SushiBLAS::Tensor& a, int64_t columns, const char* label)
     {
         SushiBLAS::Tensor b = constant_matrix(engine, dtype, n, columns, K_ONE);
@@ -244,7 +244,7 @@ namespace
      * @pre No task is recorded on the engine that owns a.
      */
     template<typename T>
-    void bench_solve_kernel(sycl::queue& queue, SushiBLAS::Engine& engine,
+    void benchmark_solve_kernel(sycl::queue& queue, SushiBLAS::Engine& engine,
                             const Bench::ResultTable& table, int64_t n,
                             const SushiBLAS::Tensor& a, int64_t columns, int64_t block,
                             const std::string& label)
@@ -268,7 +268,7 @@ namespace
 
     /// @brief Times the SYCL TRSM kernel at every block width for one element type.
     template<typename T>
-    void bench_solve_kernels_as(sycl::queue& queue, SushiBLAS::Engine& engine,
+    void benchmark_solve_kernels_as(sycl::queue& queue, SushiBLAS::Engine& engine,
                                 const Bench::ResultTable& table, int64_t n,
                                 const SushiBLAS::Tensor& a)
     {
@@ -276,29 +276,29 @@ namespace
         for (const int64_t block : K_BLOCK_WIDTHS)
         {
             if (block < n)
-                bench_solve_kernel<T>(queue, engine, table, n, a, 1, block,
+                benchmark_solve_kernel<T>(queue, engine, table, n, a, 1, block,
                                       "trsv b=" + std::to_string(block));
         }
-        bench_solve_kernel<T>(queue, engine, table, n, a, 1, n, "trsv b=n");
-        bench_solve_kernel<T>(queue, engine, table, n, a, K_NARROW_COLUMNS, n, "trsm b=n r=8");
-        bench_solve_kernel<T>(queue, engine, table, n, a, n, n, "trsm b=n r=n");
+        benchmark_solve_kernel<T>(queue, engine, table, n, a, 1, n, "trsv b=n");
+        benchmark_solve_kernel<T>(queue, engine, table, n, a, K_NARROW_COLUMNS, n, "trsm b=n r=8");
+        benchmark_solve_kernel<T>(queue, engine, table, n, a, n, n, "trsm b=n r=n");
     }
 
     /**
      * @brief Times the SYCL TRSM kernel at every block width for the dtype of a.
      * @throws std::invalid_argument for a dtype that is neither FLOAT32 nor FLOAT64.
      */
-    void bench_solve_kernels(sycl::queue& queue, SushiBLAS::Engine& engine,
+    void benchmark_solve_kernels(sycl::queue& queue, SushiBLAS::Engine& engine,
                              const Bench::ResultTable& table, int64_t n,
                              const SushiBLAS::Tensor& a)
     {
         switch (a.dtype)
         {
             case DataType::Float32:
-                bench_solve_kernels_as<float>(queue, engine, table, n, a);
+                benchmark_solve_kernels_as<float>(queue, engine, table, n, a);
                 return;
             case DataType::Float64:
-                bench_solve_kernels_as<double>(queue, engine, table, n, a);
+                benchmark_solve_kernels_as<double>(queue, engine, table, n, a);
                 return;
             default:
                 throw std::invalid_argument("benchmark dtype is neither FLOAT32 nor FLOAT64");
@@ -306,19 +306,19 @@ namespace
     }
 
     /// @brief Times every row of the program for one data type and one order.
-    void bench_size(sycl::queue& queue, SushiBLAS::Engine& engine,
+    void benchmark_size(sycl::queue& queue, SushiBLAS::Engine& engine,
                     const Bench::ResultTable& table, DataType dtype, int64_t n)
     {
         const SushiBLAS::Tensor a = unit_lower(engine, dtype, n);
 
-        bench_products(engine, table, dtype, n, a);
-        bench_trmv(engine, table, dtype, n, a, ExecutionMode::ForceSycl, "trmv");
-        bench_trmv(engine, table, dtype, n, a, ExecutionMode::ForceReference, "trmv ref");
-        bench_trsv(engine, table, dtype, n, a, ExecutionMode::ForceSycl, "trsv");
-        bench_trsv(engine, table, dtype, n, a, ExecutionMode::ForceReference, "trsv ref");
-        bench_trsm(engine, table, dtype, n, a, K_NARROW_COLUMNS, "trsm r=8");
-        bench_trsm(engine, table, dtype, n, a, n, "trsm r=n");
-        bench_solve_kernels(queue, engine, table, n, a);
+        benchmark_products(engine, table, dtype, n, a);
+        benchmark_trmv(engine, table, dtype, n, a, ExecutionMode::ForceSycl, "trmv");
+        benchmark_trmv(engine, table, dtype, n, a, ExecutionMode::ForceReference, "trmv ref");
+        benchmark_trsv(engine, table, dtype, n, a, ExecutionMode::ForceSycl, "trsv");
+        benchmark_trsv(engine, table, dtype, n, a, ExecutionMode::ForceReference, "trsv ref");
+        benchmark_trsm(engine, table, dtype, n, a, K_NARROW_COLUMNS, "trsm r=8");
+        benchmark_trsm(engine, table, dtype, n, a, n, "trsm r=n");
+        benchmark_solve_kernels(queue, engine, table, n, a);
     }
 
     /// @brief Times every data type at every requested size.
@@ -335,7 +335,7 @@ namespace
         for (const DataType dtype : K_DTYPES)
         {
             for (const int64_t n : sizes)
-                bench_size(queue, engine, table, dtype, n);
+                benchmark_size(queue, engine, table, dtype, n);
         }
     }
 } // namespace

@@ -6,18 +6,14 @@ Finding numbers such as C4 or L11 refer to `docs/agent/2026_10_05_ESTATE_AUDIT/R
 such as `DESIGN_BLAS_L3`, `PLAN` or `PLAN_EXT` is a heading of `SPEC.md` or `PLAN.md` in
 `docs/agent/2026_10_07_V010/`.
 
-## First build and test of the v0.1.0 tree
+## Full run of the v0.1.0 tree
 
-Every commit of the v0.1.0 work, from `0b9ec90` on, was written without a build. The last tree
-that was built and run is the one before it: 792 of 792 tests on the OpenCL CPU device, and 790
-of 792 on an RTX 3080 Ti.
+The whole suite passed on 2026-10-09 on the CUDA build with an RTX 3080 Ti, 2 047 tests.
 
-- Run `sb build --benchmarks` and `sb test` on the OpenCL CPU device, the owner's first build of
-  this tree, and fix what it finds. It is the first compile of the tree as a whole since the
-  front-end sweep at `1746b03`, and the first link and run of anything this work wrote.
-- Repeat both on the CUDA build. It is the first ahead-of-time compile of every kernel of the
-  break, of `Kernels::multiply`, `divide` and `conjugate`, and the first run of the work-group
-  shapes of TRMV, `gbmv` and the band and packed symmetric products.
+- Run `sb build --benchmarks` and `sb test` on the OpenCL CPU device, where this tree has never
+  run, and fix what it finds.
+- Run the seven benchmark programs that have not run; only `benchmark_band_packed` has.
+- Read why CTest lists tests as skipped on the CUDA build and record each reason.
 - If the link fails on a `HostKernel` symbol, turn the generic lambda arms of `all.cpp`,
   `any.cpp`, `shuffle.cpp` and `orthogonal.cpp` into named classes shaped like
   `Detail::RandomArm`.
@@ -30,12 +26,12 @@ of 792 on an RTX 3080 Ti.
 
 ## Benchmarks and tuning
 
-- Run `bench_gemm_blocking` on the CPU device and tune the blocking of the packed GEMM by the
+- Run `benchmark_gemm_blocking` on the CPU device and tune the blocking of the packed GEMM by the
   procedure of `DESIGN_GEMM_CPU`, section 10.4; it also answers the eight unknowns of its
   section 10.3.
-- Run `bench_triangular` and settle the two solve block widths and whether a small TRMV needs a
+- Run `benchmark_triangular` and settle the two solve block widths and whether a small TRMV needs a
   serial arm (`DESIGN_BLAS_L3`, sections 8 and 13).
-- Run `bench_band_packed` and `bench_sparse`; neither has produced a number.
+- Run `benchmark_band_packed` and `benchmark_sparse`; neither has produced a number.
 - Decide from those runs whether `ScratchShelf` gets size classes above 4 KiB. A recorded
   `trmv`, a packed GEMM and a scattering sparse product each lease more than the pool holds.
 - Run the benchmarks on a device other than the CPU; the numbers of 2026-10-07 are from one
@@ -185,20 +181,14 @@ it and holds the steps that have not run.
 
 ## Layout, needing the owner
 
-- Move `src/` to `source/` and give `kernels/`, `examples/` and `benchmarks/` a home inside the
-  layout, together with SushiRuntime, and decide the `functional/` level of `tests/` (L8, L14).
-- Move the Doxygen main page to `docs/reference/` and point the `Doxyfile` at the build tree,
-  where `sb docs` already writes (D19). Until then `check_docs_layout.py` reports `docs/api`, a
-  leftover `docs/api-site` and the name `mainpage.md`.
-- Move `Doxyfile` out of the root (L7).
-- Add `.clang-format`, `.editorconfig` and `.gitattributes`, and the missing `.gitignore` rules
-  (L6, L18).
-- Decide where `SECURITY.md` and `CODE_OF_CONDUCT.md` live; GitHub reads them from the root,
-  `docs/` or `.github/`, and they are now in `docs/reference/`.
+- Move `src/` to `source/` in the four repositories of the stack at once; SushiRuntime, SushiDSP
+  and SushiAI have the same folder. `kernels/` stays in the root, by the owner's decision of
+  2026-10-09. Decide the `functional/` level of `tests/` (L8, L14).
+- Move `Doxyfile` out of the root, with the sibling repositories (L7).
 - Update the paths that `Doxyfile`, `.github/workflows/ci.yml` and
   `tests/package/CMakeLists.txt` cite for documents that moved on 2026-10-05.
-- Delete the merged local branches `feature/sushicore_help_screen` and
-  `feature/blas-spatial-domain`, and push main (L17).
+- Push main, and delete the remote branches `origin/ci-fix` and
+  `origin/feature/blas-spatial-domain`, which are merged (L17).
 
 ## Continuous integration
 
@@ -220,7 +210,6 @@ In the order the tag needs them.
 - Install without `include/SushiBLAS/experimental/` and make the package consumer test fail if
   the installed tree holds that folder or a document among its headers (`PLAN`, section 3),
   then run `sb test --suite package`.
-- Delete `CMakePresets.json` or rewrite it for the toolchain in use. Owner decision.
 - Migrate SushiAI onto the views, the enums and `BlasScalar`. The sushiai session does it, once,
   after this tree has built.
 - Get CI green on the commit to be tagged, with the `functional` job on the tagged runtime.

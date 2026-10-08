@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* bench_gemm.cpp                                                         */
+/* benchmark_gemm.cpp                                                     */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -20,7 +20,7 @@
 /**************************************************************************/
 
 /**
- * @file bench_gemm.cpp
+ * @file benchmark_gemm.cpp
  * @brief Times square GEMM in FLOAT32 and FLOAT64 and prints GFLOP/s per size.
  * @author Mustafa Garip
  */
@@ -29,7 +29,7 @@
 #include <vector>
 #include <SushiBLAS/SushiBLAS.h>
 
-#include "bench_common.hpp"
+#include "benchmark_common.hpp"
 
 namespace
 {
@@ -49,7 +49,7 @@ namespace
     constexpr double K_B_VALUE = 0.5;
 
     /// @brief Times C = A * B for n x n matrices and prints one row.
-    void bench_gemm(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
+    void benchmark_gemm(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                     int64_t n)
     {
         SushiBLAS::Tensor a = engine.create_tensor({n, n}, dtype);
@@ -78,7 +78,7 @@ namespace
         for (const DataType dtype : K_DTYPES)
         {
             for (const int64_t n : sizes)
-                bench_gemm(engine, table, dtype, n);
+                benchmark_gemm(engine, table, dtype, n);
         }
     }
 } // namespace

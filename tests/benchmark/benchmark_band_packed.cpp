@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* bench_band_packed.cpp                                                  */
+/* benchmark_band_packed.cpp                                              */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -20,7 +20,7 @@
 /**************************************************************************/
 
 /**
- * @file bench_band_packed.cpp
+ * @file benchmark_band_packed.cpp
  * @brief Times the band and packed Level 2 routines beside their dense siblings.
  * @author Mustafa Garip
  */
@@ -29,7 +29,7 @@
 #include <vector>
 #include <SushiBLAS/SushiBLAS.h>
 
-#include "bench_common.hpp"
+#include "benchmark_common.hpp"
 
 namespace
 {
@@ -56,7 +56,7 @@ namespace
     constexpr double K_ELEMENTS_PER_MEGAELEMENT = 1.0e6;
 
     /// @brief Times the dense, band and packed forms of five Level 2 routines at one order.
-    void bench_order(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
+    void benchmark_order(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                      int64_t n)
     {
         SushiBLAS::BLASOps blas(engine);
@@ -160,7 +160,7 @@ namespace
         for (const DataType dtype : K_DTYPES)
         {
             for (const int64_t n : sizes)
-                bench_order(engine, table, dtype, n);
+                benchmark_order(engine, table, dtype, n);
         }
     }
 } // namespace

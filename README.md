@@ -102,7 +102,7 @@ sb config         # print the resolved configuration and the source of each valu
 sb env            # print the environment the cmake, ctest and run subprocesses see
 sb setup          # provision what the build needs, then report readiness
 sb doctor         # report whether this machine can build the module
-sb docs           # build the Doxygen API reference into docs/api-site/html/
+sb docs           # build the Doxygen API reference into build/docs/api-site/html/
 ```
 
 ## Running the tests
@@ -227,8 +227,8 @@ src/                    Implementations (engine/<domain>/<op>.cpp, engine.cpp, i
 kernels/                Private kernels, never installed
   reference/            Plain C++ kernels
   sycl/                 SYCL kernels
-examples/               example.cpp, io_example.cpp
-benchmarks/             bench_*.cpp, built with sb build --benchmarks
+applications/examples/               example.cpp, io_example.cpp
+tests/benchmark/             benchmark_*.cpp, built with sb build --benchmarks
 tests/
   common/               Shared GoogleTest entry point and helpers
   functional/           unit, integration, regression

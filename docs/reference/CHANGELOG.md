@@ -6,6 +6,14 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-09 — docs: Moved the security policy and the code of conduct to `.github/` and the Doxygen main page to `docs/reference/MAINPAGE.md`; Doxygen writes under `build/docs/api-site` (`Doxyfile`, `cli.py`).
+- 2026-10-09 — build: Moved `benchmarks/` to `tests/benchmark/` and renamed its programs from bench_ to `benchmark_*` (`CMakeLists.txt`).
+- 2026-10-09 — build: Moved `examples/` to `applications/examples/` (`CMakeLists.txt`).
+- 2026-10-09 — build: Removed `CMakePresets.json`.
+- 2026-10-09 — build: Added `.clang-format`, `.editorconfig`, `.gitattributes` and five `.gitignore` rules.
+- 2026-10-09 — core: Removed the `SB_LOG_TYPE_OF` macros; `SB_ACTIVE_LOG_LEVEL` now names a LogType enumerator, which CMake derives from the log level option (`logger.hpp`, `SushiBLASLogging.cmake`).
+- 2026-10-09 — core: Fixed the values of `Core::Layout` at `RowMajor = 0` and `ColumnMajor = 1` (`common.hpp`).
+- 2026-10-09 — blas: Refused at record time, with UnsupportedExecution, a device that cannot host the syrk or syr2k tile (`require_local_tile`, `SyrkTile`, `Syr2kTile`, `syrk.cpp`, `syr2k.cpp`).
 - 2026-10-09 — build: Added `SB_BUILD_TESTS` and `SB_BUILD_EXAMPLES`, on when SushiBLAS is the top-level project and off under a consumer (`CMakeLists.txt`).
 - 2026-10-09 — blas: Walked the rows of the symmetric product and of the reference band and packed kernels with a cursor (`symmetric_row.hpp`, `symmetric_product.hpp`, `triangular_solve.hpp`, `spr.hpp`, `spr2.hpp`).
 - 2026-10-08 — blas: Walked a row of a band or packed operand with a cursor that adds its way to the next column (`row_cursor.hpp`, `PackedAccess`, `BandAccess`, `triangular_solve.hpp`, `triangular_product.hpp`).

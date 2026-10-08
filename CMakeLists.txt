@@ -97,14 +97,14 @@ else()
     set(SB_IS_TOP_LEVEL OFF)
 endif()
 
-option(SB_BUILD_EXAMPLES "Build the example programs under examples/" ${SB_IS_TOP_LEVEL})
+option(SB_BUILD_EXAMPLES "Build the example programs under applications/examples/" ${SB_IS_TOP_LEVEL})
 if(SB_BUILD_EXAMPLES)
-    add_subdirectory(examples)
+    add_subdirectory(applications/examples)
 endif()
 
-option(SB_BUILD_BENCHMARKS "Build the benchmark programs under benchmarks/" OFF)
+option(SB_BUILD_BENCHMARKS "Build the benchmark programs under tests/benchmark/" OFF)
 if(SB_BUILD_BENCHMARKS)
-    add_subdirectory(benchmarks)
+    add_subdirectory(tests/benchmark)
 endif()
 
 # --- Package files (SB-6) ---

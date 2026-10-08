@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* bench_sparse.cpp                                                       */
+/* benchmark_sparse.cpp                                                   */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -20,7 +20,7 @@
 /**************************************************************************/
 
 /**
- * @file bench_sparse.cpp
+ * @file benchmark_sparse.cpp
  * @brief Times spmv, spsymv, spmm, sptrsv, axpyi and doti and prints GB/s per matrix order.
  * @author Mustafa Garip
  */
@@ -30,7 +30,7 @@
 #include <vector>
 #include <SushiBLAS/SushiBLAS.h>
 
-#include "bench_common.hpp"
+#include "benchmark_common.hpp"
 
 namespace
 {
@@ -120,7 +120,7 @@ namespace
 
     /// @brief Times every sparse routine at one matrix order and prints one row each.
     template<typename T>
-    void bench_order(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
+    void benchmark_order(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                      int64_t n)
     {
         const SushiBLAS::SparseBuilder builder(engine.get_tensor_factory());
@@ -214,9 +214,9 @@ namespace
 
         const Bench::ResultTable table("GB/s");
         for (const int64_t n : sizes)
-            bench_order<float>(engine, table, DataType::Float32, n);
+            benchmark_order<float>(engine, table, DataType::Float32, n);
         for (const int64_t n : sizes)
-            bench_order<double>(engine, table, DataType::Float64, n);
+            benchmark_order<double>(engine, table, DataType::Float64, n);
     }
 } // namespace
 

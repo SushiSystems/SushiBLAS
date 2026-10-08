@@ -24,9 +24,9 @@ to run its tests. This index reaches every other document.
 | [Changelog](reference/CHANGELOG.md) | What changed, one line per change |
 | [Glossary](reference/GLOSSARY.md) | The words these documents use |
 | [Known issues](reference/KNOWN_ISSUES.md) | Defects that are recorded and not yet fixed |
-| [Security policy](reference/SECURITY.md) | How to report a vulnerability and what is in scope |
-| [Code of conduct](reference/CODE_OF_CONDUCT.md) | The conduct expected in project spaces |
-| [API reference main page](api/mainpage.md) | The page Doxygen opens the generated reference with |
+| [Security policy](../.github/SECURITY.md) | How to report a vulnerability and what is in scope |
+| [Code of conduct](../.github/CODE_OF_CONDUCT.md) | The conduct expected in project spaces |
+| [API reference main page](reference/MAINPAGE.md) | The page Doxygen opens the generated reference with |
 
 ## Design
 
