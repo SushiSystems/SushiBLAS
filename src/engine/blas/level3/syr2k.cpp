@@ -88,6 +88,8 @@ namespace SushiBLAS
             Dispatch::require_same_batch_axes(A, a, C, c, op, "A", "C");
             Dispatch::require_same_batch_axes(B, b, C, c, op, "B", "C");
 
+            Internal::require_local_tile<Kernels::SYCL::Syr2kTile>(recorder, C, op);
+
             // C is read and written whatever beta is: one triangle is kept; see src/README.md.
             OperandSet operands;
             operands.reads(A).reads(B).updates(C);

@@ -415,6 +415,12 @@ for `dot`, its real component type for `asum` and `nrm2`, and INT64 for `iamax`.
 Every check in this section throws `std::invalid_argument`. No record-time check of the BLAS layer
 throws `std::runtime_error`.
 
+`syrk`, `herk`, `syr2k` and `her2k` also refuse a device at record time. Outside
+`ForceReference`, `require_local_tile` compares the local memory and the work-group size the
+tiled SYCL kernel stages for the dtype with the profile of the device of C, and throws
+`UnsupportedExecution` when the device cannot host them. `syrk` and `herk` ask only where the
+profile does not select the packed kernel.
+
 ## `utils.hpp`
 
 ### `is_complex`

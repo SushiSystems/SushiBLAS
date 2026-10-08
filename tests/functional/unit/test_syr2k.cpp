@@ -43,6 +43,7 @@
 #include <kernels/sycl/blas/level3/syr2k.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/traits.hpp>
+#include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
@@ -419,10 +420,7 @@ namespace SushiBLAS
             template<typename T>
             [[nodiscard]] bool hosts_syr2k_tile(const Device::Profile& profile) noexcept
             {
-                using Tile = Kernels::SYCL::Detail::Syr2kTileConfig<T>;
-                const Device::LocalTileDemand demand{Tile::local_mem_bytes(),
-                                                     static_cast<std::size_t>(Tile::K_WG_ITEMS)};
-                return Device::hosts_local_tile(profile, demand);
+                return Device::hosts_local_tile(profile, Kernels::SYCL::Syr2kTile::demand<T>());
             }
 
             /** @brief Returns whether the tile of T has the given geometry. */
@@ -1064,6 +1062,29 @@ namespace SushiBLAS
                 EXPECT_NO_THROW(engine->execute());
                 expect_same_bytes(read_tensor<float>(C), c.values);
             }
+        }
+
+        /**
+         * @brief Tests that the tile a record-time refusal measures is the tile of the dtype,
+         *        and that an integer dtype demands nothing.
+         */
+        TEST(Unit_Syr2kTile, TheRecordedDemandIsTheTileOfTheDtype)
+        {
+            using Kernels::SYCL::Syr2kTile;
+
+            const Device::LocalTileDemand single =
+                Internal::local_tile_demand<Syr2kTile>(Core::DataType::Float32);
+            EXPECT_EQ(Syr2kTile::demand<float>().local_bytes, single.local_bytes);
+            EXPECT_EQ(Syr2kTile::demand<float>().work_group_items, single.work_group_items);
+
+            const Device::LocalTileDemand wide =
+                Internal::local_tile_demand<Syr2kTile>(Core::DataType::Complex64);
+            EXPECT_EQ(Syr2kTile::demand<std::complex<double>>().local_bytes, wide.local_bytes);
+            EXPECT_GT(wide.local_bytes, single.local_bytes);
+
+            const Device::LocalTileDemand none =
+                Internal::local_tile_demand<Syr2kTile>(Core::DataType::Int32);
+            EXPECT_EQ(std::size_t{0}, none.local_bytes);
         }
     } // namespace Test
 } // namespace SushiBLAS

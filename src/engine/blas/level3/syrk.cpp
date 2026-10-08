@@ -81,6 +81,12 @@ namespace SushiBLAS
             OperandSet operands;
             operands.reads(A).updates(C);
 
+            // The tiled kernel runs only where the profile does not select the packed one.
+            if (C.storage && Internal::packed_product_scratch_bytes(
+                                 C.dtype, Device::profile_for(C.get_device()), n, n, k,
+                                 batch_size) == 0)
+                Internal::require_local_tile<Kernels::SYCL::SyrkTile>(recorder, C, op);
+
             const ScratchBuffer pack = Internal::allocate_packed_product_scratch(
                 recorder, C, n, n, k, batch_size, operands);
 
