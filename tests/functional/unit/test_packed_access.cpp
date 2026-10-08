@@ -295,6 +295,46 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Tests that a cursor walked along a row, forward and back, stands on the offset
+         *        index gives for every stored column.
+         */
+        TEST(Unit_PackedAccess, ARowCursorReachesTheOffsetOfEveryColumn)
+        {
+            for (const PackedStorage& storage : K_STORAGES)
+            {
+                for (const Transpose trans : {Transpose::NoTrans, Transpose::Trans})
+                {
+                    for (const int64_t n : {int64_t{1}, int64_t{2}, int64_t{7}})
+                    {
+                        SCOPED_TRACE(::testing::Message()
+                                     << layout_name(storage.layout) << ", "
+                                     << Core::to_string(storage.uplo) << ", "
+                                     << Core::to_string(trans) << ", order " << n);
+
+                        const Kernels::PackedAccess access =
+                            Kernels::packed_access(storage.layout, storage.uplo, trans, n);
+
+                        for (int64_t r = 0; r < n; ++r)
+                        {
+                            const int64_t first = access.first_column(r);
+                            const int64_t end = access.end_column(r, n);
+
+                            Kernels::RowCursor cursor = access.row_cursor(r, first);
+                            for (int64_t c = first; c < end; ++c, cursor.advance())
+                                EXPECT_EQ(access.index(r, c), cursor.offset)
+                                    << "forward, row " << r << ", column " << c;
+
+                            cursor = access.row_cursor(r, end - 1);
+                            for (int64_t c = end - 1; c >= first; --c, cursor.retreat())
+                                EXPECT_EQ(access.index(r, c), cursor.offset)
+                                    << "backward, row " << r << ", column " << c;
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
          * @brief Tests that a row of an upper triangle runs from its diagonal to the order and
          *        a row of a lower one from zero through its diagonal.
          */

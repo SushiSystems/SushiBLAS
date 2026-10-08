@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-08 — blas: Walked a row of a band or packed operand with a cursor that adds its way to the next column (`row_cursor.hpp`, `PackedAccess`, `BandAccess`, `triangular_solve.hpp`, `triangular_product.hpp`).
 - 2026-10-08 — blas: Solved the SYCL tbsv and tpsv in diagonal blocks with one work-item per updated row (`triangular_solve.hpp`, `plan_vector_solve`, `tbsv.hpp`, `tpsv.hpp`).
 - 2026-10-08 — blas: Ran the SYCL tbmv and tpmv one work-item per row from a snapshot of x (`triangular_product.hpp`, `vector_snapshot.hpp`, `tbmv.cpp`, `tpmv.cpp`).
 - 2026-10-08 — tests: Corrected the rotg mode bound, the width-one launch case and the `HALF` parity of the windowed product after the first build (`test_rotg.cpp`, `test_launch_shapes.cpp`, `test_spatial_window_dot.cpp`).

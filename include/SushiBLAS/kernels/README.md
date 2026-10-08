@@ -12,6 +12,7 @@ trait they share is in [../support/README.md](../support/README.md).
 | `blas/symmetric_access.hpp` | `SymmetricAccess`, which reads a symmetric or Hermitian matrix from one triangle |
 | `blas/band_access.hpp` | `BandAccess`, how a kernel reads element (row, col) of a band-stored op(X) |
 | `blas/packed_access.hpp` | `PackedAccess`, how a kernel reads element (row, col) of a packed op(X) |
+| `blas/row_cursor.hpp` | `RowCursor`, the offset of an element that moves along one row of a band-stored or packed op(X) |
 | `blas/conjugation.hpp` | `Unconjugated` and `Conjugated`, the policies that turn a symmetric kernel into its Hermitian sibling |
 | `blas/givens.hpp` | `GivensRotation` and `givens_rotation`, the arithmetic of xROTG |
 | `blas/modified_givens.hpp` | `ModifiedGivens` and `modified_givens`, the arithmetic of xROTMG |
@@ -61,6 +62,19 @@ stored at all, and `first_column(r)` and `end_column(r, columns)`, which bound t
 a row, so a kernel walks only what the storage holds. `band_access` takes the two band widths of
 X, not of op(X); `triangle_band_access` and `packed_access` take the `Uplo` of X, not of op(X).
 The Level 2 band and packed kernels of both back ends are written against these two bricks.
+
+## `blas/row_cursor.hpp`
+
+### `RowCursor`
+
+`row_cursor(r, c)` of a `BandAccess` or a `PackedAccess` returns the offset of element (r, c)
+with the distance to the next column of the row and how that distance changes; `advance()` and
+`retreat()` move one column, and `at(p, cursor)` reads the element. In a triangle packed by
+columns the offset of (r, c) holds `c * (c + 1) / 2`, so a loop over c that calls `at(p, r, c)`
+multiplies 64-bit integers once per element; the distance from column c to c + 1 is `c + 1`, or
+`order - c - 1` when the lines shrink, so a cursor reaches the same offsets with two additions.
+In band storage and in a triangle packed by rows the distance is constant and the slope is
+zero. The SYCL `triangular_product` and `triangular_solve` walk a row with a cursor.
 
 ## `blas/conjugation.hpp`
 

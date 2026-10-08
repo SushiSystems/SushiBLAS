@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
+#include <SushiBLAS/kernels/blas/row_cursor.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
 
 namespace SushiBLAS
@@ -69,6 +70,25 @@ namespace SushiBLAS
             [[nodiscard]] constexpr T at(const T* p, int64_t r, int64_t c) const noexcept
             {
                 return conjugate_if(conjugated, p[index(r, c)]);
+            }
+
+            /**
+             * @brief Returns a cursor on element (r, c) of op(X) that walks row r.
+             * @pre holds(r, c) before the cursor's offset is read.
+             */
+            [[nodiscard]] constexpr RowCursor row_cursor(int64_t r, int64_t c) const noexcept
+            {
+                return RowCursor{index(r, c), col, 0};
+            }
+
+            /**
+             * @brief Returns the element of op(X) a cursor stands on.
+             * @pre The cursor stands inside the stored band.
+             */
+            template<typename T>
+            [[nodiscard]] constexpr T at(const T* p, const RowCursor& cursor) const noexcept
+            {
+                return conjugate_if(conjugated, p[cursor.offset]);
             }
 
             /** @brief Returns the first column of row r of op(X) the storage holds. */

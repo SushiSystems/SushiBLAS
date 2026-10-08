@@ -36,6 +36,7 @@
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/running_solution.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/kernels/blas/row_cursor.hpp>
 #include "kernels/sycl/blas/level3/triangular_plan.hpp"
 
 namespace SushiBLAS
@@ -84,12 +85,38 @@ namespace SushiBLAS
                         return std::min(last, access.end_column(i, n));
                     }
 
-                    /** @brief Returns the term of column t in row i, in Accumulator<T>. */
-                    [[nodiscard]] Accumulator<T> term(const RunningSolution<T>& X, int64_t i,
-                                                      int64_t t) const noexcept
+                    /**
+                     * @brief Returns sum less the terms of columns [from, to) of row i, taken
+                     *        in ascending column order.
+                     */
+                    [[nodiscard]] Accumulator<T> less_ascending(const RunningSolution<T>& X,
+                                                                Accumulator<T> sum, int64_t i,
+                                                                int64_t from,
+                                                                int64_t to) const noexcept
                     {
                         using W = Accumulator<T>;
-                        return multiply(W(access.at(a, i, t)), X.get(t * incx));
+
+                        RowCursor cursor = access.row_cursor(i, from);
+                        for (int64_t t = from; t < to; ++t, cursor.advance())
+                            sum -= multiply(W(access.at(a, cursor)), X.get(t * incx));
+                        return sum;
+                    }
+
+                    /**
+                     * @brief Returns sum less the terms of columns [from, to) of row i, taken
+                     *        in descending column order.
+                     */
+                    [[nodiscard]] Accumulator<T> less_descending(const RunningSolution<T>& X,
+                                                                 Accumulator<T> sum, int64_t i,
+                                                                 int64_t from,
+                                                                 int64_t to) const noexcept
+                    {
+                        using W = Accumulator<T>;
+
+                        RowCursor cursor = access.row_cursor(i, to - 1);
+                        for (int64_t t = to - 1; t >= from; --t, cursor.retreat())
+                            sum -= multiply(W(access.at(a, cursor)), X.get(t * incx));
+                        return sum;
                     }
 
                     /** @brief Returns the running value of row i divided by its diagonal. */
@@ -138,9 +165,8 @@ namespace SushiBLAS
                         {
                             for (int64_t i = block.first; i < block.last; ++i)
                             {
-                                Accumulator<T> sum = X.get(i * block.incx);
-                                for (int64_t t = block.first_in_block(i); t < i; ++t)
-                                    sum -= block.term(X, i, t);
+                                const Accumulator<T> sum = block.less_ascending(
+                                    X, X.get(i * block.incx), i, block.first_in_block(i), i);
                                 X.set(i * block.incx, block.solved(sum, i));
                             }
                         }
@@ -148,9 +174,8 @@ namespace SushiBLAS
                         {
                             for (int64_t i = block.last - 1; i >= block.first; --i)
                             {
-                                Accumulator<T> sum = X.get(i * block.incx);
-                                for (int64_t t = block.end_in_block(i) - 1; t > i; --t)
-                                    sum -= block.term(X, i, t);
+                                const Accumulator<T> sum = block.less_descending(
+                                    X, X.get(i * block.incx), i, i + 1, block.end_in_block(i));
                                 X.set(i * block.incx, block.solved(sum, i));
                             }
                         }
@@ -174,18 +199,13 @@ namespace SushiBLAS
                         const RunningSolution<T> X = block.solution();
                         const int64_t i = trailing_first + static_cast<int64_t>(index);
 
-                        Accumulator<T> sum = X.get(i * block.incx);
-                        if (block.forward)
-                        {
-                            for (int64_t t = block.first_in_block(i); t < block.last; ++t)
-                                sum -= block.term(X, i, t);
-                        }
-                        else
-                        {
-                            for (int64_t t = block.end_in_block(i) - 1; t >= block.first; --t)
-                                sum -= block.term(X, i, t);
-                        }
-                        X.set(i * block.incx, sum);
+                        const Accumulator<T> running = X.get(i * block.incx);
+                        X.set(i * block.incx,
+                              block.forward
+                                  ? block.less_ascending(X, running, i, block.first_in_block(i),
+                                                         block.last)
+                                  : block.less_descending(X, running, i, block.first,
+                                                          block.end_in_block(i)));
                     }
                 };
 
