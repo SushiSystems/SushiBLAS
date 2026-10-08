@@ -167,10 +167,10 @@ For anything that is not sensitive, open a GitHub issue or Discussion.
 Do not open a public issue for a security problem. Report it privately by email to
 mustafagarip@sushisystems.io, to the maintainer on the community Discord server, or through
 GitHub's private vulnerability reporting under the repository's Security tab. The
-[security policy](../reference/SECURITY.md) says what to include and what is in scope; it
+[security policy](../../.github/SECURITY.md) says what to include and what is in scope; it
 promises an acknowledgement within 72 hours and an initial assessment within 7 days. Security
 fixes go to the latest `main`, so test against the current `main` before reporting.
 
 Conduct in project spaces is covered by the
-[code of conduct](../reference/CODE_OF_CONDUCT.md), which names the same email address and
+[code of conduct](../../.github/CODE_OF_CONDUCT.md), which names the same email address and
 Discord server for reports.

@@ -1,6 +1,6 @@
 # Examples
 
-Two programs that link the library the way a user would. `examples/CMakeLists.txt` builds them.
+Two programs that link the library the way a user would. `applications/examples/CMakeLists.txt` builds them.
 
 | File | What it runs |
 | --- | --- |

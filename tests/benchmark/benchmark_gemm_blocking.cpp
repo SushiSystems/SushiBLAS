@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* bench_gemm_blocking.cpp                                                */
+/* benchmark_gemm_blocking.cpp                                            */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -20,7 +20,7 @@
 /**************************************************************************/
 
 /**
- * @file bench_gemm_blocking.cpp
+ * @file benchmark_gemm_blocking.cpp
  * @brief Times one square GEMM kernel call under a cache blocking given on the command line.
  * @author Mustafa Garip
  */
@@ -39,7 +39,7 @@
 #include <SushiBLAS/kernels/blas/level3/packed_product_plan.hpp>
 #include <SushiBLAS/kernels/sycl/blas/level3/gemm_packed.hpp>
 
-#include "bench_common.hpp"
+#include "benchmark_common.hpp"
 
 namespace
 {
@@ -128,7 +128,7 @@ namespace
     {
         if (argc < 3)
             throw std::invalid_argument(
-                "usage: bench_gemm_blocking <f32|f64> <n> [kernel=packed|unpacked] [inner=BYTES] "
+                "usage: benchmark_gemm_blocking <f32|f64> <n> [kernel=packed|unpacked] [inner=BYTES] "
                 "[outer=BYTES] [stream=BYTES] [workers=PER_UNIT] [units=COUNT]");
 
         Request request;
@@ -239,7 +239,7 @@ namespace
     }
 } // namespace
 
-/// @brief Runs the blocking benchmark; see benchmarks/README.md for the arguments.
+/// @brief Runs the blocking benchmark; see tests/benchmark/README.md for the arguments.
 int main(int argc, char** argv)
 {
     return Bench::run_guarded(run, argc, argv);

@@ -16,7 +16,7 @@ were transcribed from. Random123 is listed with them because the tree does not r
 | portBLAS, Copyright (C) Codeplay Software Limited | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syrk.hpp`, `kernels/sycl/blas/level3/syr2k.hpp` | Apache-2.0 | `third_party/licenses/Apache-2.0.txt` |
 | Random123, Copyright 2010-2012, D. E. Shaw Research | `kernels/sycl/random/philox.hpp`, to the extent stated under "Algorithms written from a published reference" | BSD-3-Clause | not in `third_party/licenses/` |
 | Reference BLAS, as LAPACK distributes it | `include/SushiBLAS/kernels/blas/givens.hpp`, `include/SushiBLAS/kernels/blas/modified_givens.hpp`, to the extent stated under "Algorithms written from a published reference" | not read on this machine; LAPACK's licence file was not at hand | not in `third_party/licenses/` |
-| Contributor Covenant 2.1 | `docs/reference/CODE_OF_CONDUCT.md` | not read; the estate audit names CC BY 4.0 | not in `third_party/licenses/` |
+| Contributor Covenant 2.1 | `.github/CODE_OF_CONDUCT.md` | not read; the estate audit names CC BY 4.0 | not in `third_party/licenses/` |
 
 No other tracked file carries a third-party copyright line. Outside `LICENSE`, this file,
 `docs/`, `third_party/` and the fixtures under `tools/`, a search of every tracked file for
@@ -79,7 +79,7 @@ asks for is open in `docs/design/REMAINING_WORK.md`.
 
 | File | Source | Version | Licence |
 | --- | --- | --- | --- |
-| `docs/reference/CODE_OF_CONDUCT.md` | Contributor Covenant, https://www.contributor-covenant.org/version/2/1/code_of_conduct.html | 2.1 | unverified; the audit names CC BY 4.0 |
+| `.github/CODE_OF_CONDUCT.md` | Contributor Covenant, https://www.contributor-covenant.org/version/2/1/code_of_conduct.html | 2.1 | unverified; the audit names CC BY 4.0 |
 
 The file's "Attribution" section names the Covenant and its version. The Covenant's 2.1 text,
 fetched on 2026-10-07, states no licence in its body.

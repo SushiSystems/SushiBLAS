@@ -431,7 +431,7 @@ The access sets hold `Tensor::region()`, never `data()`. A `ResourceRegion` conv
 from a bare pointer, and a bare pointer widens to the whole allocation. Two views of one arena
 would become two unrelated resources, `overlaps` would answer false, and the tracker would emit no
 edge. `include/SushiBLAS/README.md`, under `Tensor::region`, describes the region, and
-`docs/api/mainpage.md` records that this defect has cost the stack two training runs.
+`docs/reference/MAINPAGE.md` records that this defect has cost the stack two training runs.
 
 The `switch` in `ElementwiseOps::convert` is the outer half of the dispatch and picks the source
 type. Together with `dispatch_destination` it makes two plain switches over function templates,

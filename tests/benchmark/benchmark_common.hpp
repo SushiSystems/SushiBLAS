@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* bench_common.hpp                                                       */
+/* benchmark_common.hpp                                                   */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -20,7 +20,7 @@
 /**************************************************************************/
 
 /**
- * @file bench_common.hpp
+ * @file benchmark_common.hpp
  * @brief Declares the argument, environment, fill, timing and table helpers the benchmarks share.
  * @author Mustafa Garip
  */

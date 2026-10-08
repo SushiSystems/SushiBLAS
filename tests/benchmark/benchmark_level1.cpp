@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* bench_elementwise.cpp                                                  */
+/* benchmark_level1.cpp                                                   */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -20,8 +20,8 @@
 /**************************************************************************/
 
 /**
- * @file bench_elementwise.cpp
- * @brief Times add, in-place exp and in-place relu and prints GB/s per element count.
+ * @file benchmark_level1.cpp
+ * @brief Times axpy, dot, nrm2, asum and iamax and prints GB/s per vector length.
  * @author Mustafa Garip
  */
 
@@ -29,56 +29,68 @@
 #include <vector>
 #include <SushiBLAS/SushiBLAS.h>
 
-#include "bench_common.hpp"
+#include "benchmark_common.hpp"
 
 namespace
 {
     namespace Bench = SushiBLAS::Bench;
     using SushiBLAS::Core::DataType;
 
-    /// @brief Element counts timed when no size is given: 2^16, 2^20 and 2^24.
+    /// @brief Vector lengths timed when no size is given: 2^16, 2^20 and 2^24.
     const std::vector<int64_t> K_DEFAULT_SIZES = {int64_t{1} << 16, int64_t{1} << 20,
                                                   int64_t{1} << 24};
 
-    /// @brief Data types timed for every count.
+    /// @brief Data types timed for every length.
     const std::vector<DataType> K_DTYPES = {DataType::Float32, DataType::Float64};
 
-    /// @brief Value written into every element of the first operand.
-    constexpr double K_A_VALUE = -0.25;
+    /// @brief Value written into every element of x.
+    constexpr double K_X_VALUE = 1.0;
 
-    /// @brief Value written into every element of the second operand.
-    constexpr double K_B_VALUE = 0.75;
+    /// @brief Value written into every element of y.
+    constexpr double K_Y_VALUE = 2.0;
 
-    /// @brief Times the three element-wise operations at one count and prints one row each.
-    void bench_count(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
-                     int64_t n)
+    /// @brief Scale axpy applies to x.
+    constexpr double K_ALPHA = 0.5;
+
+    /// @brief Times the five level 1 routines at one length and prints one row each.
+    void benchmark_length(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
+                      int64_t n)
     {
-        SushiBLAS::Tensor a = engine.create_tensor({n}, dtype);
-        SushiBLAS::Tensor b = engine.create_tensor({n}, dtype);
-        SushiBLAS::Tensor c = engine.create_tensor({n}, dtype);
-        Bench::fill_tensor(engine, a, K_A_VALUE);
-        Bench::fill_tensor(engine, b, K_B_VALUE);
+        SushiBLAS::Tensor x = engine.create_tensor({n}, dtype);
+        SushiBLAS::Tensor y = engine.create_tensor({n}, dtype);
+        SushiBLAS::Tensor scalar = engine.create_tensor({1}, dtype);
+        SushiBLAS::Tensor index = engine.create_tensor({1}, DataType::Int64);
+        Bench::fill_tensor(engine, x, K_X_VALUE);
+        Bench::fill_tensor(engine, y, K_Y_VALUE);
 
-        const double tensor_bytes =
+        const double vector_bytes =
             static_cast<double>(n) * static_cast<double>(Bench::dtype_bytes(dtype));
         const double gb = Bench::K_BYTES_PER_GIGABYTE;
 
-        // add reads two tensors and writes one; exp and relu read and write the same tensor.
-        table.print_row("add", dtype, n,
+        // Bytes count each input element read once and each output element written once.
+        table.print_row("axpy", dtype, n,
                         Bench::measure(
-                            engine, [&]() { SushiBLAS::ElementwiseOps(engine).add(a, b, c); }),
-                        3.0 * tensor_bytes, gb);
-        table.print_row("exp", dtype, n,
+                            engine, [&]() { SushiBLAS::BLASOps(engine).axpy(K_ALPHA, x, y); }),
+                        3.0 * vector_bytes, gb);
+        table.print_row("dot", dtype, n,
                         Bench::measure(
-                            engine, [&]() { SushiBLAS::ElementwiseOps(engine).exp(c); }),
-                        2.0 * tensor_bytes, gb);
-        table.print_row("relu", dtype, n,
+                            engine, [&]() { SushiBLAS::BLASOps(engine).dot(x, y, scalar); }),
+                        2.0 * vector_bytes, gb);
+        table.print_row("nrm2", dtype, n,
                         Bench::measure(
-                            engine, [&]() { SushiBLAS::NonLinearOps(engine).relu(a); }),
-                        2.0 * tensor_bytes, gb);
+                            engine, [&]() { SushiBLAS::BLASOps(engine).nrm2(x, scalar); }),
+                        vector_bytes, gb);
+        table.print_row("asum", dtype, n,
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::BLASOps(engine).asum(x, scalar); }),
+                        vector_bytes, gb);
+        table.print_row("iamax", dtype, n,
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::BLASOps(engine).iamax(x, index); }),
+                        vector_bytes, gb);
     }
 
-    /// @brief Times every data type at every requested count.
+    /// @brief Times every data type at every requested length.
     void run(int argc, char** argv)
     {
         const std::vector<int64_t> sizes = Bench::parse_sizes(argc, argv, K_DEFAULT_SIZES);
@@ -91,12 +103,12 @@ namespace
         for (const DataType dtype : K_DTYPES)
         {
             for (const int64_t n : sizes)
-                bench_count(engine, table, dtype, n);
+                benchmark_length(engine, table, dtype, n);
         }
     }
 } // namespace
 
-/// @brief Runs the element-wise benchmark; sizes are optional element counts.
+/// @brief Runs the level 1 benchmark; sizes are optional vector lengths.
 int main(int argc, char** argv)
 {
     return Bench::run_guarded(run, argc, argv);

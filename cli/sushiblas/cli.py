@@ -33,7 +33,7 @@ K_PROJECT = "Project"
 K_DOCUMENTATION = "Documentation"
 K_DIAGNOSTICS = "Diagnostics"
 K_DISTRIBUTION = "sushiblas-cli"
-K_API_XML = Path("docs") / "api-site" / "xml"
+K_API_XML = Path("build") / "docs" / "api-site" / "xml"
 
 _help_group = help_group(console.current)
 
@@ -86,7 +86,7 @@ def build(
         False, "--clean", help="Delete the build tree before configuring."),
     benchmarks: Optional[bool] = typer.Option(
         None, "--benchmarks/--no-benchmarks",
-        help="Build the benchmark programs under benchmarks/, or stop building them. "
+        help="Build the benchmark programs under tests/benchmark/, or stop building them. "
              "Left out, the setting of the last build stays."),
     define: Optional[list[str]] = typer.Option(
         None, "--define", "-D", metavar="VAR=VALUE",

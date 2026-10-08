@@ -62,7 +62,7 @@ not know, stops the command with one line naming the problem and exit code 1.
 | Command | What it's for |
 |---------|----------------|
 | `sb build` / `test` / `run` / `clean` | Build, test, run, and clean the C++ project |
-| `sb docs` | Generate the Doxygen API reference into `docs/api-site/html/` |
+| `sb docs` | Generate the Doxygen API reference into `build/docs/api-site/html/` |
 | `sb docs bundle` | Pack the published manual and the API reference for docs.sushisystems.io |
 | `sb config` | Show the resolved configuration |
 | `sb env` | Show the environment your builds run under |
@@ -221,7 +221,7 @@ exit code 2. It is never taken as the target name or passed to the program.
 
 ```bash
 sb clean                         # remove the build/ tree
-sb docs                          # generate the Doxygen API reference into docs/api-site/html/
+sb docs                          # generate the Doxygen API reference into build/docs/api-site/html/
 sb docs bundle --release 1.2.3   # pack the documentation bundle into build/docs/bundle/
 ```
 
@@ -237,10 +237,10 @@ names the new one on a terminal; it is removed after 2027-03-25. It builds the
 reference only and takes no subcommand.
 
 Bare `sb docs` runs Doxygen against the repo-root `Doxyfile`, which is committed, and opens
-the reference with `docs/api/mainpage.md`.
+the reference with `docs/reference/MAINPAGE.md`.
 
-Output lands in `docs/api-site/html/`, and warnings — every public symbol
-missing a doc comment — in `docs/api-site/doxygen-warnings.log`. Both are
+Output lands in `build/docs/api-site/html/`, and warnings — every public symbol
+missing a doc comment — in `build/docs/api-site/doxygen-warnings.log`. Both are
 gitignored; the log is where the documentation debt is read off, and
 `WARN_AS_ERROR` is deliberately `NO` so a missing `@param` cannot fail a docs
 build.
@@ -262,7 +262,7 @@ the build tools.
 `.sha256` file, the archive this repository publishes to docs.sushisystems.io.
 `docs/publish.toml` names the manual sections that go in and the pages that stay
 out. Because that file sets `api = true`, the command first runs the same
-Doxygen build as bare `sb docs`, then copies the XML from `docs/api-site/xml/`.
+Doxygen build as bare `sb docs`, then copies the XML from `build/docs/api-site/xml/`.
 `--release` is required and is three integers; leaving it out is a usage error
 with exit code 2. `--out` names another output folder. A page without a
 level-one heading, a page `docs/README.md` does not link, or a link to a file

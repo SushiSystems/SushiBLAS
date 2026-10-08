@@ -16,7 +16,7 @@ named follow the `documentation` skill. Neither is restated here.
 - A decision or work item cited by its short name (D1, D3, SB-6) is defined in
   [the glossary](reference/GLOSSARY.md).
 - The CLI's manual is [`cli/README.md`](../cli/README.md), beside the code it describes.
-- `docs/api/mainpage.md` is the page Doxygen opens the generated reference with. The `Doxyfile`
+- `docs/reference/MAINPAGE.md` is the page Doxygen opens the generated reference with. The `Doxyfile`
   at the root reads it by that path.
 
 ## Words
