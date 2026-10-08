@@ -103,6 +103,7 @@ made to the older ones that day, had not been built or run when this page was wr
 | `test_operand_check.cpp` | Tests the operand checks, the scalar binding and the Tensor constructor and transpose guards |
 | `test_orthogonal.cpp` | Tests that RandomOps::orthogonal fills a matrix with orthonormal rows or columns |
 | `test_packed_access.cpp` | Tests the offsets, the triangle test and the column ranges of PackedAccess |
+| `test_symmetric_row.cpp` | Tests that SymmetricRow visits a row of a band or packed symmetric matrix in order |
 | `test_packed_micro_kernel.cpp` | Tests the micro-kernel of a packed product on one register block per accumulation type |
 | `test_packed_panel.cpp` | Tests pack_panel, which copies a block of op(X) into unit-stride micro-panels |
 | `test_packed_product.cpp` | Tests the packed product kernel against the reference GEMM under injected blockings |

@@ -32,6 +32,7 @@
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/kernels/blas/conjugation.hpp>
+#include <SushiBLAS/kernels/blas/row_cursor.hpp>
 #include <SushiBLAS/kernels/blas/packed_access.hpp>
 #include "kernels/reference/blas/level2/syr2.hpp"
 
@@ -60,9 +61,11 @@ namespace SushiBLAS
                 for (int64_t i = 0; i < n; ++i)
                 {
                     const int64_t end = access.end_column(i, n);
-                    for (int64_t j = access.first_column(i); j < end; ++j)
+                    const int64_t first = access.first_column(i);
+                    RowCursor cursor = access.row_cursor(i, first);
+                    for (int64_t j = first; j < end; ++j, cursor.advance())
                     {
-                        T& ref = ap[access.index(i, j)];
+                        T& ref = ap[cursor.offset];
                         const W term = Detail::rank2_term(Conj{}, W(alpha),
                                                           W(x[i * incx]), W(y[j * incy]),
                                                           W(y[i * incy]), W(x[j * incx]));

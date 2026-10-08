@@ -30,13 +30,13 @@
 #include <vector>
 #include <cstddef>
 #include <cstdint>
-#include <algorithm>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/support/launch_1d.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
 #include <SushiBLAS/kernels/blas/conjugation.hpp>
+#include <SushiBLAS/kernels/blas/symmetric_row.hpp>
 #include "kernels/sycl/blas/level2/row_reduction.hpp"
 
 namespace SushiBLAS
@@ -66,21 +66,13 @@ namespace SushiBLAS
                 {
                     using W = Accumulator<T>;
 
-                    const Access mirror = access.transposed();
+                    const SymmetricRow<Conj, Access> rows = symmetric_row<Conj>(access, n);
                     auto sym_at = [=](int64_t r, int64_t c) -> T
                     {
                         if (r == c)
                             return Conj::diagonal(access.at(a, r, r));
                         return access.holds(r, c) ? access.at(a, r, c)
                                                   : Conj::apply(access.at(a, c, r));
-                    };
-                    auto first_of = [=](int64_t i) -> int64_t
-                    {
-                        return std::min(access.first_column(i), mirror.first_column(i));
-                    };
-                    auto end_of = [=](int64_t i) -> int64_t
-                    {
-                        return std::max(access.end_column(i, n), mirror.end_column(i, n));
                     };
 
                     const std::size_t width = (n > 0)
@@ -95,8 +87,8 @@ namespace SushiBLAS
                             reduce_rows_by_group<W>(h, n, longest_row, width,
                                 [=](int64_t i, int64_t term) -> W
                                 {
-                                    const int64_t j = first_of(i) + term;
-                                    if (j >= end_of(i))
+                                    const int64_t j = rows.first_column(i) + term;
+                                    if (j >= rows.end_column(i))
                                         return W(0);
                                     return multiply(W(sym_at(i, j)), W(x[j * incx]));
                                 },
@@ -117,11 +109,12 @@ namespace SushiBLAS
                             [=](std::size_t item)
                             {
                                 const int64_t i = static_cast<int64_t>(item);
-                                const int64_t end = end_of(i);
 
                                 W sum(0);
-                                for (int64_t j = first_of(i); j < end; ++j)
-                                    sum += multiply(W(sym_at(i, j)), W(x[j * incx]));
+                                rows.for_each(a, i, [&](T value, int64_t j)
+                                {
+                                    sum += multiply(W(value), W(x[j * incx]));
+                                });
 
                                 y[i * incy] = (beta == T(0))
                                     ? T(multiply(W(alpha), sum))

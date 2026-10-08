@@ -78,6 +78,7 @@ add_executable(sushiblas_tests
     functional/unit/test_rotmg.cpp
     functional/unit/test_band_access.cpp
     functional/unit/test_packed_access.cpp
+    functional/unit/test_symmetric_row.cpp
     functional/unit/test_structured_operands.cpp
     functional/unit/test_blas_structured_validation.cpp
     functional/unit/test_blas_band.cpp

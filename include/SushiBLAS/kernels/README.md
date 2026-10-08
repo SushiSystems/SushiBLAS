@@ -13,6 +13,7 @@ trait they share is in [../support/README.md](../support/README.md).
 | `blas/band_access.hpp` | `BandAccess`, how a kernel reads element (row, col) of a band-stored op(X) |
 | `blas/packed_access.hpp` | `PackedAccess`, how a kernel reads element (row, col) of a packed op(X) |
 | `blas/row_cursor.hpp` | `RowCursor`, the offset of an element that moves along one row of a band-stored or packed op(X) |
+| `blas/symmetric_row.hpp` | `SymmetricRow`, which walks one row of a band-stored or packed symmetric matrix |
 | `blas/conjugation.hpp` | `Unconjugated` and `Conjugated`, the policies that turn a symmetric kernel into its Hermitian sibling |
 | `blas/givens.hpp` | `GivensRotation` and `givens_rotation`, the arithmetic of xROTG |
 | `blas/modified_givens.hpp` | `ModifiedGivens` and `modified_givens`, the arithmetic of xROTMG |
@@ -74,7 +75,20 @@ columns the offset of (r, c) holds `c * (c + 1) / 2`, so a loop over c that call
 multiplies 64-bit integers once per element; the distance from column c to c + 1 is `c + 1`, or
 `order - c - 1` when the lines shrink, so a cursor reaches the same offsets with two additions.
 In band storage and in a triangle packed by rows the distance is constant and the slope is
-zero. The SYCL `triangular_product` and `triangular_solve` walk a row with a cursor.
+zero. The `triangular_product` and `triangular_solve` of both back ends walk a row with a
+cursor, and so do the reference `spr` and `spr2`.
+
+## `blas/symmetric_row.hpp`
+
+### `SymmetricRow`
+
+`symmetric_row<Conj>(access, n)` takes the `BandAccess` or `PackedAccess` of a stored triangle.
+`for_each(p, i, visit)` calls `visit(value, column)` for every element of row i of the full
+matrix in ascending column order: the columns left of the diagonal, the diagonal, then the
+columns right of it. One side is read from the stored triangle and the other from its transpose
+through `Conj`, each with a `RowCursor`. `first_column(i)` and `end_column(i)` bound the row.
+The reference `symmetric_product` and the per-row path of the SYCL one sum a row through it; the
+SYCL path that reduces a row across a work-group reads single elements and does not.
 
 ## `blas/conjugation.hpp`
 

@@ -34,6 +34,7 @@
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
 #include <SushiBLAS/kernels/blas/conjugation.hpp>
+#include <SushiBLAS/kernels/blas/row_cursor.hpp>
 #include <SushiBLAS/kernels/blas/packed_access.hpp>
 
 namespace SushiBLAS
@@ -64,9 +65,11 @@ namespace SushiBLAS
                 for (int64_t i = 0; i < n; ++i)
                 {
                     const int64_t end = access.end_column(i, n);
-                    for (int64_t j = access.first_column(i); j < end; ++j)
+                    const int64_t first = access.first_column(i);
+                    RowCursor cursor = access.row_cursor(i, first);
+                    for (int64_t j = first; j < end; ++j, cursor.advance())
                     {
-                        T& ref = ap[access.index(i, j)];
+                        T& ref = ap[cursor.offset];
                         const W updated = W(ref) + WS(alpha) * W(x[i * incx]) *
                                                        Conj::apply(W(x[j * incx]));
                         ref = T((i == j) ? Conj::diagonal(updated) : updated);
