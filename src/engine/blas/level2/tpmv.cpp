@@ -28,8 +28,11 @@
 #include <SushiBLAS/engine/blas/level2.hpp>
 
 #include <vector>
+#include <cstddef>
 #include <complex>
 #include <kernels/blas.hpp>
+#include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/blas/utils.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/blas/packed_operand.hpp>
@@ -56,14 +59,19 @@ namespace SushiBLAS
         const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
         Dispatch::require_vector_length(vx, ap.order, "the order of AP", op, "x");
 
+        const int64_t n = ap.order;
+
+        // The SYCL kernel reads the old x from a snapshot while it writes the new one.
         OperandSet operands;
         operands.reads(AP).updates(x);
+        const ScratchBuffer snapshot = Internal::allocate_blas_scratch(
+            recorder_, x, Core::bytes_per_element(AP.dtype) * static_cast<std::size_t>(n),
+            operands);
 
         const Internal::BlasMetadata meta =
             Internal::BlasMetadata(op, "blas.lvl2.tpmv"_op).flag(uplo).flag(trans).flag(diag);
 
         const Core::Layout layout = ap.layout;
-        const int64_t n = ap.order;
         const int64_t incx = vx.increment;
         const void* read_AP = AP.data_or_null();
         void* rw_x = x.data_or_null();
@@ -75,6 +83,7 @@ namespace SushiBLAS
                 using T = decltype(scalar_type);
                 auto pAP = static_cast<const T*>(read_AP);
                 auto px = static_cast<T*>(rw_x);
+                auto work = static_cast<T*>(snapshot.data());
 
                 return dispatcher.run(q, deps,
                     [=]
@@ -84,7 +93,7 @@ namespace SushiBLAS
                     [=](sycl::queue& q2, const std::vector<sycl::event>& deps2) -> sycl::event
                     {
                         return Kernels::SYCL::tpmv<T>(q2, layout, uplo, trans, diag, n, pAP, px,
-                                                      incx, deps2);
+                                                      incx, work, deps2);
                     });
             });
     }

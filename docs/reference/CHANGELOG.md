@@ -6,6 +6,8 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-08 — blas: Solved the SYCL tbsv and tpsv in diagonal blocks with one work-item per updated row (`triangular_solve.hpp`, `plan_vector_solve`, `tbsv.hpp`, `tpsv.hpp`).
+- 2026-10-08 — blas: Ran the SYCL tbmv and tpmv one work-item per row from a snapshot of x (`triangular_product.hpp`, `vector_snapshot.hpp`, `tbmv.cpp`, `tpmv.cpp`).
 - 2026-10-08 — tests: Corrected the rotg mode bound, the width-one launch case and the `HALF` parity of the windowed product after the first build (`test_rotg.cpp`, `test_launch_shapes.cpp`, `test_spatial_window_dot.cpp`).
 - 2026-10-07 — core: Breaking change: Renamed every enumerator to PascalCase and every namespace-scope and class-scope constant to K_UPPER_SNAKE (`tools/naming/sushiblas_0_1_0.tsv`, `core/common.hpp`, `core/blas_types.hpp`).
 - 2026-10-07 — core: Added `SB_LOG_TYPE_OF`, which expands a level name of `SB_ACTIVE_LOG_LEVEL` to its `LogType` enumerator (`core/logger.hpp`).

@@ -42,6 +42,8 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <kernels/sycl/blas/level2/trmv.hpp>
+#include <kernels/sycl/blas/level2/tbsv.hpp>
+#include <kernels/sycl/blas/level2/tpsv.hpp>
 #include <kernels/sycl/blas/level3/trsm.hpp>
 #include <kernels/sycl/blas/level3/triangular_plan.hpp>
 #include <SushiBLAS/SushiBLAS.h>
@@ -49,6 +51,8 @@
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
 #include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/kernels/blas/band_access.hpp>
+#include <SushiBLAS/kernels/blas/packed_access.hpp>
 #include "../../common/test_utils.hpp"
 #include "../../common/blas_truth.hpp"
 
@@ -144,6 +148,12 @@ namespace SushiBLAS
 
             /// @brief Holds the block widths the HALF system is solved at.
             constexpr int64_t K_HALF_WIDTHS[] = {8, K_HALF_ORDER};
+
+            /// @brief Holds the off-diagonals of the small band systems: none, a few, every one.
+            constexpr int64_t K_BAND_WIDTHS[] = {0, 3, K_ORDER - 1};
+
+            /// @brief Holds the off-diagonals at which a device of several units blocks a band.
+            constexpr int64_t K_LARGE_BAND = 400;
 
             /// @brief Holds the two modes a public call is run in.
             constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
@@ -407,6 +417,67 @@ namespace SushiBLAS
                     }
                 }
                 return full;
+            }
+
+            /** @brief Returns a full matrix with zero wherever a column is over k from its row. */
+            template<typename T>
+            [[nodiscard]] std::vector<T> banded(std::vector<T> full, int64_t order, int64_t k)
+            {
+                for (int64_t r = 0; r < order; ++r)
+                    for (int64_t c = 0; c < order; ++c)
+                        if (r - c > k || c - r > k)
+                            full[static_cast<std::size_t>(r * order + c)] = element_of<T>(0.0);
+                return full;
+            }
+
+            /** @brief Returns whether a triangular call reads element (r, c) of A. */
+            [[nodiscard]] bool is_read(const TriangularFlags& flags, int64_t r, int64_t c) noexcept
+            {
+                if (r == c)
+                    return flags.diag != Core::Diag::Unit;
+                return flags.uplo == Core::Uplo::Upper ? r < c : r > c;
+            }
+
+            /**
+             * @brief Returns the packed storage of the triangle a call reads, poisoned elsewhere.
+             * @param full order * order elements, row by row.
+             */
+            template<typename T>
+            [[nodiscard]] std::vector<T> packed_storage(const TriangularFlags& flags, int64_t order,
+                                                        const std::vector<T>& full)
+            {
+                const Kernels::PackedAccess stored = Kernels::packed_access(
+                    flags.layout, flags.uplo, Core::Transpose::NoTrans, order);
+
+                std::vector<T> packed(static_cast<std::size_t>(order * (order + 1) / 2),
+                                      poison<T>());
+                for (int64_t r = 0; r < order; ++r)
+                    for (int64_t c = 0; c < order; ++c)
+                        if (is_read(flags, r, c))
+                            packed[static_cast<std::size_t>(stored.index(r, c))] =
+                                full[static_cast<std::size_t>(r * order + c)];
+                return packed;
+            }
+
+            /**
+             * @brief Returns the band storage of the triangle a call reads, k + 1 elements per
+             *        line, poisoned elsewhere.
+             * @param full order * order elements, row by row.
+             */
+            template<typename T>
+            [[nodiscard]] std::vector<T> band_storage(const TriangularFlags& flags, int64_t order,
+                                                      int64_t k, const std::vector<T>& full)
+            {
+                const Kernels::BandAccess stored = Kernels::triangle_band_access(
+                    flags.layout, flags.uplo, Core::Transpose::NoTrans, k, k + 1);
+
+                std::vector<T> band(static_cast<std::size_t>(order * (k + 1)), poison<T>());
+                for (int64_t r = 0; r < order; ++r)
+                    for (int64_t c = 0; c < order; ++c)
+                        if (is_read(flags, r, c) && stored.holds(r, c))
+                            band[static_cast<std::size_t>(stored.index(r, c))] =
+                                full[static_cast<std::size_t>(r * order + c)];
+                return band;
             }
 
             /** @brief Returns every element of values times factor. */
@@ -845,6 +916,101 @@ namespace SushiBLAS
                                                pointer_of<T>(x), increment, pointer_of<T>(work),
                                                {})
                             .wait_and_throw();
+                        return read_buffer<T>(x);
+                    }
+
+                    /**
+                     * @brief Submits the SYCL TPSV kernel on device operands at one block width.
+                     * @param AP The packed storage of system's triangle.
+                     */
+                    [[nodiscard]] sycl::event submit_packed_solve(
+                        const HostSolve<T>& system, Tensor& AP, Tensor& x, int64_t increment,
+                        int64_t width, const std::vector<sycl::event>& deps)
+                    {
+                        const TriangularFlags& flags = system.flags();
+                        return Kernels::SYCL::tpsv<T>(
+                            test_queue(), Kernels::SYCL::TriangularSolvePlan{width}, flags.layout,
+                            flags.uplo, flags.trans, flags.diag, system.order(),
+                            pointer_of<const T>(AP), pointer_of<T>(x), increment, nullptr, deps);
+                    }
+
+                    /**
+                     * @brief Returns the whole buffer of x after the SYCL TPSV kernel solved it.
+                     * @param full The matrix system was built from.
+                     * @param spaced_b The right-hand side, increment apart.
+                     */
+                    [[nodiscard]] std::vector<T> solve_packed_with_kernel(
+                        const HostSolve<T>& system, const std::vector<T>& full,
+                        const std::vector<T>& spaced_b, int64_t increment, int64_t width)
+                    {
+                        Tensor AP = device_buffer<T>(
+                            *engine, packed_storage(system.flags(), system.order(), full));
+                        Tensor x = device_buffer<T>(*engine, spaced_b);
+                        submit_packed_solve(system, AP, x, increment, width, {}).wait_and_throw();
+                        return read_buffer<T>(x);
+                    }
+
+                    /**
+                     * @brief Returns the whole buffer of x after the SYCL TBSV kernel solved it.
+                     * @param full The matrix system was built from, zero beyond k off-diagonals.
+                     * @param spaced_b The right-hand side, increment apart.
+                     */
+                    [[nodiscard]] std::vector<T> solve_band_with_kernel(
+                        const HostSolve<T>& system, int64_t k, const std::vector<T>& full,
+                        const std::vector<T>& spaced_b, int64_t increment, int64_t width)
+                    {
+                        const TriangularFlags& flags = system.flags();
+                        Tensor A = device_buffer<T>(
+                            *engine, band_storage(flags, system.order(), k, full));
+                        Tensor x = device_buffer<T>(*engine, spaced_b);
+
+                        Kernels::SYCL::tbsv<T>(
+                            test_queue(), Kernels::SYCL::TriangularSolvePlan{width}, flags.layout,
+                            flags.uplo, flags.trans, flags.diag, system.order(), k,
+                            pointer_of<const T>(A), k + 1, pointer_of<T>(x), increment, nullptr,
+                            {})
+                            .wait_and_throw();
+                        return read_buffer<T>(x);
+                    }
+
+                    /** @brief Returns x of a packed system, solved by Level2::tpsv in ForceSycl. */
+                    [[nodiscard]] std::vector<T> solve_packed_through_view(
+                        const HostSolve<T>& system, const std::vector<T>& full,
+                        const std::vector<T>& b)
+                    {
+                        const TriangularFlags& flags = system.flags();
+                        engine->set_mode(ExecutionMode::ForceSycl);
+
+                        Tensor buffer = device_buffer<T>(
+                            *engine, packed_storage(flags, system.order(), full));
+                        Tensor x = device_buffer<T>(*engine, b);
+                        Tensor AP = matrix_view(
+                            buffer, {static_cast<int64_t>(buffer.num_elements)}, flags.layout);
+
+                        SushiBLAS::BLASOps(*engine).tpsv(AP, x, flags.uplo, flags.trans, flags.diag);
+                        engine->execute();
+                        return read_buffer<T>(x);
+                    }
+
+                    /** @brief Returns x of a band system, solved by Level2::tbsv in ForceSycl. */
+                    [[nodiscard]] std::vector<T> solve_band_through_view(
+                        const HostSolve<T>& system, int64_t k, const std::vector<T>& full,
+                        const std::vector<T>& b)
+                    {
+                        const TriangularFlags& flags = system.flags();
+                        const bool by_rows = (flags.layout == Core::Layout::RowMajor);
+                        engine->set_mode(ExecutionMode::ForceSycl);
+
+                        Tensor buffer = device_buffer<T>(
+                            *engine, band_storage(flags, system.order(), k, full));
+                        Tensor x = device_buffer<T>(*engine, b);
+                        Tensor A = by_rows
+                            ? matrix_view(buffer, {system.order(), k + 1}, flags.layout)
+                            : matrix_view(buffer, {k + 1, system.order()}, flags.layout);
+
+                        SushiBLAS::BLASOps(*engine).tbsv(A, x, flags.uplo, k, flags.trans,
+                                                         flags.diag);
+                        engine->execute();
                         return read_buffer<T>(x);
                     }
 
@@ -1289,6 +1455,175 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Tests that a packed and a band solve leave the same bytes at every block width.
+         */
+        TYPED_TEST(Unit_TriangularParallel, AVectorSolveGivesTheSameBitsAtEveryBlockWidth)
+        {
+            using T = TypeParam;
+            Draws draws(K_SEED);
+
+            for (const TriangularFlags& flags : flags_over<T>({Core::Side::Left}))
+            {
+                SCOPED_TRACE(describe(flags));
+                const std::vector<T> full = dominant_matrix<T>(K_ORDER, draws);
+                const std::vector<T> b =
+                    fraction_values<T>(static_cast<std::size_t>(K_ORDER), draws);
+
+                const HostSolve<T> packed(flags, K_ORDER, 1, full);
+                const std::vector<T> whole =
+                    this->solve_packed_with_kernel(packed, full, b, 1, K_ORDER);
+                for (const int64_t width : K_BLOCK_WIDTHS)
+                {
+                    SCOPED_TRACE(::testing::Message() << "packed, block width " << width);
+                    expect_same_bits(this->solve_packed_with_kernel(packed, full, b, 1, width),
+                                     whole);
+                }
+
+                for (const int64_t k : K_BAND_WIDTHS)
+                {
+                    const std::vector<T> narrow = banded(full, K_ORDER, k);
+                    const HostSolve<T> band(flags, K_ORDER, 1, narrow);
+                    const std::vector<T> whole_band =
+                        this->solve_band_with_kernel(band, k, narrow, b, 1, K_ORDER);
+                    for (const int64_t width : K_BLOCK_WIDTHS)
+                    {
+                        SCOPED_TRACE(::testing::Message() << "band of " << k << ", block width "
+                                                          << width);
+                        expect_same_bits(
+                            this->solve_band_with_kernel(band, k, narrow, b, 1, width),
+                            whole_band);
+                    }
+                }
+            }
+        }
+
+        /**
+         * @brief Tests that a blocked packed and a blocked band solve return the solution of an
+         *        integer system with no error and write nothing between the elements of x.
+         */
+        TYPED_TEST(Unit_TriangularParallel, ABlockedVectorSolveIsExactOnIntegerSystems)
+        {
+            using T = TypeParam;
+            Draws draws(K_SEED);
+            const T gap = element_of<T>(K_SENTINEL);
+
+            for (const TriangularFlags& flags : flags_over<T>({Core::Side::Left}))
+            {
+                const std::vector<T> full = exact_matrix<T>(K_ORDER, draws);
+                const std::vector<T> solution =
+                    integer_values<T>(static_cast<std::size_t>(K_ORDER), -3, 3, draws);
+
+                for (const int64_t increment : K_INCREMENTS)
+                {
+                    SCOPED_TRACE(describe(flags));
+                    SCOPED_TRACE(::testing::Message() << "increment " << increment);
+                    const std::vector<T> expected = spaced(solution, increment, gap);
+
+                    const HostSolve<T> packed(flags, K_ORDER, 1, full);
+                    const std::vector<T> packed_b =
+                        spaced(packed.product(solution), increment, gap);
+                    for (const int64_t width : K_EXACT_WIDTHS)
+                    {
+                        SCOPED_TRACE(::testing::Message() << "packed, block width " << width);
+                        expect_equal_values(
+                            this->solve_packed_with_kernel(packed, full, packed_b, increment,
+                                                           width),
+                            expected);
+                    }
+
+                    for (const int64_t k : K_BAND_WIDTHS)
+                    {
+                        const std::vector<T> narrow = banded(full, K_ORDER, k);
+                        const HostSolve<T> band(flags, K_ORDER, 1, narrow);
+                        const std::vector<T> band_b =
+                            spaced(band.product(solution), increment, gap);
+                        for (const int64_t width : K_EXACT_WIDTHS)
+                        {
+                            SCOPED_TRACE(::testing::Message() << "band of " << k
+                                                              << ", block width " << width);
+                            expect_equal_values(
+                                this->solve_band_with_kernel(band, k, narrow, band_b, increment,
+                                                             width),
+                                expected);
+                        }
+                    }
+                }
+            }
+        }
+
+        /**
+         * @brief Tests that every launch of a blocked packed solve stays behind the events it is
+         *        given.
+         */
+        TYPED_TEST(Unit_TriangularParallel, ABlockedVectorSolveWaitsForItsDependencies)
+        {
+            using T = TypeParam;
+            Draws draws(K_SEED);
+
+            const std::vector<T> full = exact_matrix<T>(K_ORDER, draws);
+            const HostSolve<T> system(TriangularFlags{}, K_ORDER, 1, full);
+            const std::vector<T> solution =
+                integer_values<T>(static_cast<std::size_t>(K_ORDER), -3, 3, draws);
+
+            Tensor AP = device_buffer<T>(*this->engine,
+                                         packed_storage(system.flags(), K_ORDER, full));
+            Tensor x = device_buffer<T>(*this->engine, system.product(solution));
+
+            DependencyGate gate(test_queue());
+            sycl::event done = this->submit_packed_solve(
+                system, AP, x, 1, K_NARROW_WIDTH, std::vector<sycl::event>{gate.event()});
+
+            EXPECT_FALSE(is_complete(done))
+                << "The solve's last event completed while its dependency was still running.";
+
+            gate.open();
+            done.wait_and_throw();
+            expect_equal_values(read_buffer<T>(x), solution);
+        }
+
+        /**
+         * @brief Tests that a packed and a band solve of no rows finish.
+         */
+        TYPED_TEST(Unit_TriangularParallel, AnEmptyVectorSolveReturnsAnEvent)
+        {
+            using T = TypeParam;
+            const HostSolve<T> empty(TriangularFlags{}, 0, 1, {});
+
+            EXPECT_TRUE(this->solve_packed_with_kernel(empty, {}, {}, 1, 1).empty());
+            EXPECT_TRUE(this->solve_band_with_kernel(empty, 0, {}, {}, 1, 1).empty());
+        }
+
+        /**
+         * @brief Tests that the public TPSV and TBSV solve a large integer system with no error
+         *        on the path the device plans.
+         */
+        TYPED_TEST(Unit_TriangularParallelReal, ThePlannedVectorPathIsExactAtALargeOrder)
+        {
+            using T = TypeParam;
+            Draws draws(K_SEED);
+
+            for (const Core::Uplo uplo : {Core::Uplo::Lower, Core::Uplo::Upper})
+            {
+                const TriangularFlags flags = plain_flags(uplo, Core::Transpose::NoTrans);
+                SCOPED_TRACE(describe(flags));
+
+                const std::vector<T> full = exact_matrix<T>(K_LARGE_ORDER, draws);
+                const std::vector<T> x =
+                    integer_values<T>(static_cast<std::size_t>(K_LARGE_ORDER), -3, 3, draws);
+
+                const HostSolve<T> packed(flags, K_LARGE_ORDER, 1, full);
+                expect_equal_values(
+                    this->solve_packed_through_view(packed, full, packed.product(x)), x);
+
+                const std::vector<T> narrow = banded(full, K_LARGE_ORDER, K_LARGE_BAND);
+                const HostSolve<T> band(flags, K_LARGE_ORDER, 1, narrow);
+                expect_equal_values(
+                    this->solve_band_through_view(band, K_LARGE_BAND, narrow, band.product(x)),
+                    x);
+            }
+        }
+
+        /**
          * @brief Tests that the public TRSV and TRSM solve a large integer system with no error
          *        on the path the device plans.
          */
@@ -1521,6 +1856,37 @@ namespace SushiBLAS
                     SCOPED_TRACE(::testing::Message() << "block width " << width);
                     expect_same_bits(solve_with_kernel(side, rows, cols, a, b, width), expected);
                 }
+            }
+        }
+
+        /**
+         * @brief Tests that a blocked HALF TPSV carries its solution in FLOAT32 at every width.
+         */
+        TEST_F(Unit_TriangularParallelHalf, ABlockedHalfVectorSolveCarriesTheSolutionInFloat)
+        {
+            TriangularFlags flags;
+            flags.diag = Core::Diag::Unit;
+
+            const std::vector<sycl::half> a = unit_lower_values();
+            const std::vector<sycl::half> b = right_hand_side_values(K_HALF_ORDER);
+            const std::vector<sycl::half> expected =
+                substitute_in_float(Core::Side::Left, K_HALF_ORDER, 1, a, b);
+
+            for (const int64_t width : K_HALF_WIDTHS)
+            {
+                SCOPED_TRACE(::testing::Message() << "block width " << width);
+                Tensor AP = device_buffer<sycl::half>(*engine,
+                                                      packed_storage(flags, K_HALF_ORDER, a));
+                Tensor x = device_buffer<sycl::half>(*engine, b);
+                Tensor work = device_buffer<float>(*engine, std::vector<float>(b.size(), 0.0f));
+
+                Kernels::SYCL::tpsv<sycl::half>(
+                    test_queue(), Kernels::SYCL::TriangularSolvePlan{width}, flags.layout,
+                    flags.uplo, flags.trans, flags.diag, K_HALF_ORDER,
+                    pointer_of<const sycl::half>(AP), pointer_of<sycl::half>(x), 1,
+                    pointer_of<float>(work), {})
+                    .wait_and_throw();
+                expect_same_bits(read_buffer<sycl::half>(x), expected);
             }
         }
 

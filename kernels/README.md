@@ -85,6 +85,7 @@ Dense BLAS, SYCL:
 | `sycl/blas/level2/tpmv.hpp` | Defines the SYCL kernel of TPMV |
 | `sycl/blas/level2/tpsv.hpp` | Defines the SYCL kernel of TPSV |
 | `sycl/blas/level2/triangular_product.hpp` | Defines the SYCL triangular matrix-vector product TBMV and TPMV share |
+| `sycl/blas/level2/vector_snapshot.hpp` | Defines the copy of x the in-place triangular products read |
 | `sycl/blas/level2/triangular_solve.hpp` | Defines the SYCL triangular substitution TBSV and TPSV share |
 | `sycl/blas/level2/trmv.hpp` | Defines the SYCL kernel of TRMV: a snapshot of x, then one row product per element |
 | `sycl/blas/level3/syr2k.hpp` | Defines the SYCL kernel of SYR2K and, under a conjugation policy, of HER2K |
@@ -545,7 +546,7 @@ triangle `uplo` names and launches on a `sycl::range<2>` for the reason given un
 ### `kernels/sycl/blas/level2/trmv.hpp`
 
 `trmv` is two launches. The first copies `x` into a contiguous device scratch of `n` elements,
-one work-item per element (`Detail::TrmvSnapshot`). The second computes each row product
+one work-item per element (`Detail::VectorSnapshot`, in `vector_snapshot.hpp`). The second computes each row product
 `sum_k op(A)(i, k) * x(k)` from the snapshot and stores it into `x`, rounded once to `T`
 (`Detail::TrmvTerm`, `Detail::TrmvStore`). Every row reads the snapshot and no row reads `x`, so
 the rows are independent and run in parallel; the in-place hazard the reference kernel orders its
@@ -563,10 +564,28 @@ is there so a test can run both shapes on one input.
 
 The SYCL forms of the three shared loops described under
 `kernels/reference/blas/level2/symmetric_product.hpp` above. `symmetric_product` runs per
-work-item or per work-group by row, as `symv` does. `triangular_product` and `triangular_solve`
-are one sequential task each: row `i` of the product reads only elements of `x` that no earlier
-row has overwritten, and row `i` of the solve reads only elements already solved. `tbmv`, `tpmv`,
-`tbsv` and `tpsv` are therefore not parallel; `trmv` and `trsv` are, through their own kernels.
+work-item or per work-group by row, as `symv` does.
+
+`triangular_product` is two launches, as `trmv` is: `Detail::VectorSnapshot` copies `x` into a
+device scratch of `n` elements, then `Detail::TriangularProductRow` computes one row per
+work-item from the snapshot, in ascending column order. `Level2::tbmv` and `Level2::tpmv` lease
+the scratch at record time. The product has the per-item shape only; it has no work-group
+shape.
+
+`triangular_solve` is the blocked substitution of TRSM for one vector, read through a
+`BandAccess` or a `PackedAccess`. One work-item solves the rows of a diagonal block in order
+(`Detail::VectorSolveSteps`), then one work-item per row subtracts the block from the rows
+still to be solved (`Detail::VectorSolveUpdate`). A solved row is subtracted from at most
+`reach` later rows: the order for a packed triangle, `k` for a band, so a band update launches
+`k` work-items and not `n`. Every row subtracts its terms in one column order at every block
+width, ascending in a forward solve and descending in a backward one, so the block width does
+not change a bit of the result. When `RunningSolution` needs a workspace, a first launch copies
+`x` into it (`Detail::VectorSolveOpen`).
+
+`plan_vector_solve` in `triangular_plan.hpp` picks the width. It asks `plan_triangular_solve`
+whether `min(n, reach)` rows repay the launches of a block, and returns one block of the whole
+order when they do not. A band narrower than the break-even therefore still runs as one
+sequential task: a row of it depends on the row before, and it has no work to spread.
 
 ### `kernels/sycl/blas/level3/syr2k.hpp`
 

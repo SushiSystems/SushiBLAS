@@ -45,20 +45,22 @@ namespace SushiBLAS
             /**
              * @brief Computes TPMV, x = op(A) * x, in place for a triangular matrix A packed in
              *        ap.
+             * @param work Device scratch of n elements that no other task touches; may be null when
+             *        n is 0.
              * @see kernels/README.md
              */
             template<typename T>
             [[nodiscard]] sycl::event tpmv(sycl::queue& queue, Core::Layout layout,
                                            Core::Uplo uplo, Core::Transpose trans, Core::Diag diag,
-                                           int64_t n, const T* ap, T* x, int64_t incx,
+                                           int64_t n, const T* ap, T* x, int64_t incx, T* work,
                                            const std::vector<sycl::event>& deps)
             {
                 SB_LOG_INFO("SYCL TPMV: {}x{}", n, n);
 
                 const PackedAccess access = packed_access(layout, uplo, trans, n);
                 const bool unit_diag = (diag == Core::Diag::Unit);
-                return Detail::triangular_product(queue, access, access.is_upper(), unit_diag, n,
-                                                  ap, x, incx, deps);
+                return Detail::triangular_product(queue, access, unit_diag, n, ap, x, incx, work,
+                                                  deps);
             }
         } // namespace SYCL
     } // namespace Kernels

@@ -68,8 +68,9 @@ it and holds the steps that have not run.
   into shared helpers.
 - Add `trmm`; `TrmvTerm` and `TriangleRow` are the bricks it starts from.
 - Add a `rot` that takes c and s as tensors, so `rotg` chains into it inside one graph.
-- Parallelise `tbmv` and `tbsv` after the dense forms have run, and coalesce the right-side
-  reads of TRSM.
+- Coalesce the right-side reads of TRSM.
+- Measure where a narrow-band `tbsv`, which runs as one sequential device task, is cheaper on
+  the host than on a GPU.
 - Merge the three texts of the mirrored read of a symmetric matrix (`symv`, `SymmetricAccess`,
   `symmetric_product`) into one brick, and express the dense `symv`, `trmv` and one-vector solve
   through the structured algorithm bricks.

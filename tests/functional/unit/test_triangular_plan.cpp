@@ -208,6 +208,24 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Tests that a one-vector solve blocks only when one block updates enough rows.
+         */
+        TEST(Unit_TriangularPlan, AVectorSolveBlocksByItsReach)
+        {
+            using Kernels::SYCL::K_GPU_SOLVE_BLOCK;
+            using Kernels::SYCL::plan_vector_solve;
+            const Device::Profile profile = gpu_profile();
+
+            EXPECT_EQ(K_GPU_SOLVE_BLOCK, plan_vector_solve(profile, 8192, 8192).block);
+            EXPECT_EQ(K_GPU_SOLVE_BLOCK, plan_vector_solve(profile, 8192, 257).block);
+
+            EXPECT_EQ(int64_t{8192}, plan_vector_solve(profile, 8192, 256).block);
+            EXPECT_EQ(int64_t{8192}, plan_vector_solve(profile, 8192, 0).block);
+            EXPECT_EQ(int64_t{256}, plan_vector_solve(profile, 256, 256).block);
+            EXPECT_EQ(int64_t{1}, plan_vector_solve(profile, 0, 0).block);
+        }
+
+        /**
          * @brief Tests that the resident work-items are the threads of a CPU and the grid of a GPU.
          */
         TEST(Unit_TriangularPlan, ResidentWorkItemsFollowTheProfile)

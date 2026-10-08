@@ -611,8 +611,11 @@ that does not match). `task_metadata.hpp` records the scalars and flags in the t
   same kernel with one right-hand side. The solved elements are carried in the accumulation type
   between steps through `RunningSolution`, in a leased workspace when that type is wider than the
   element.
-- *TBMV, TBSV, TPMV, TPSV.* One `single_task` each, through `triangular_product.hpp` and
-  `triangular_solve.hpp`.
+- *TBMV and TPMV.* `triangular_product.hpp` snapshots x, then computes one row product per
+  work-item, as TRMV does.
+- *TBSV and TPSV.* `triangular_solve.hpp` is the blocked substitution of TRSM for one vector:
+  one work-item solves a diagonal block, then one work-item per row subtracts it from the rows
+  it reaches. `plan_vector_solve` keeps a band too narrow to repay the launches in one block.
 - *GEMM.* `Kernels::SYCL::gemm` chooses among three shapes from the `Device::Profile` and logs
   the choice at `SB_LOG_INFO`. `gemm_local_tiled` stages tiles of A and B in work-group local
   memory, for a device with dedicated local memory. `gemm_no_local` uses no local accessor and no

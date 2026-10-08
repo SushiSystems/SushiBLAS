@@ -28,11 +28,15 @@
 #pragma once
 
 #include <vector>
+#include <cstddef>
 #include <cstdint>
+#include <algorithm>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/support/launch_1d.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/running_solution.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
+#include "kernels/sycl/blas/level3/triangular_plan.hpp"
 
 namespace SushiBLAS
 {
@@ -43,54 +47,217 @@ namespace SushiBLAS
             namespace Detail
             {
                 /**
-                 * @brief Solves op(A) * x = b in place for a triangular op(A) read through access,
-                 *        where x holds b on entry, in one sequential task.
+                 * @brief Holds what every launch of a one-vector solve reads: the triangle, the
+                 *        vector and the rows of one diagonal block.
                  * @tparam Access BandAccess or PackedAccess of op(A).
-                 * @param op_upper Whether op(A) is upper triangular.
-                 * @param work (n - 1) * incx + 1 elements if RunningSolution<T> needs them.
                  * @see kernels/README.md
                  */
                 template<typename T, typename Access>
-                [[nodiscard]] sycl::event triangular_solve(sycl::queue& queue, const Access& access,
-                                                           bool op_upper, bool unit_diag,
-                                                           int64_t n, const T* a, T* x,
-                                                           int64_t incx, Accumulator<T>* work,
+                struct VectorSolveBlock
+                {
+                    Access access;                  /**< How op(A) is read. */
+                    const T* a = nullptr;           /**< The stored triangle. */
+                    T* x = nullptr;                 /**< The right-hand side, then the solution. */
+                    int64_t incx = 1;               /**< Distance between elements of x. */
+                    Accumulator<T>* work = nullptr; /**< The wide solution, or null. */
+                    int64_t n = 0;                  /**< Rows and columns of op(A). */
+                    int64_t first = 0;              /**< The first row of the block. */
+                    int64_t last = 0;               /**< One past the last row of the block. */
+                    bool forward = true;            /**< Whether row i needs the rows above it. */
+                    bool unit_diag = false;         /**< Whether the diagonal is one, never read. */
+
+                    /** @brief Returns the running solution, addressed like x. */
+                    [[nodiscard]] RunningSolution<T> solution() const noexcept
+                    {
+                        return RunningSolution<T>(x, work, 0);
+                    }
+
+                    /** @brief Returns the first column of row i that lies in the block. */
+                    [[nodiscard]] int64_t first_in_block(int64_t i) const noexcept
+                    {
+                        return std::max(first, access.first_column(i));
+                    }
+
+                    /** @brief Returns one past the last column of row i that lies in the block. */
+                    [[nodiscard]] int64_t end_in_block(int64_t i) const noexcept
+                    {
+                        return std::min(last, access.end_column(i, n));
+                    }
+
+                    /** @brief Returns the term of column t in row i, in Accumulator<T>. */
+                    [[nodiscard]] Accumulator<T> term(const RunningSolution<T>& X, int64_t i,
+                                                      int64_t t) const noexcept
+                    {
+                        using W = Accumulator<T>;
+                        return multiply(W(access.at(a, i, t)), X.get(t * incx));
+                    }
+
+                    /** @brief Returns the running value of row i divided by its diagonal. */
+                    [[nodiscard]] Accumulator<T> solved(Accumulator<T> sum,
+                                                        int64_t i) const noexcept
+                    {
+                        using W = Accumulator<T>;
+                        return unit_diag ? sum : divide(sum, W(access.at(a, i, i)));
+                    }
+                };
+
+                /**
+                 * @brief Copies element i of the right-hand side into the running solution.
+                 * @see kernels/README.md
+                 */
+                template<typename T>
+                struct VectorSolveOpen
+                {
+                    T* x = nullptr;                 /**< The right-hand side. */
+                    int64_t incx = 1;               /**< Distance between elements of x. */
+                    Accumulator<T>* work = nullptr; /**< The wide solution. */
+
+                    /** @brief Opens element index. */
+                    void operator()(std::size_t index) const
+                    {
+                        const int64_t at = static_cast<int64_t>(index) * incx;
+                        RunningSolution<T>(x, work, 0).set(at, Accumulator<T>(x[at]));
+                    }
+                };
+
+                /**
+                 * @brief Solves the rows of one diagonal block in order, in one work-item.
+                 * @see kernels/README.md
+                 */
+                template<typename T, typename Access>
+                struct VectorSolveSteps
+                {
+                    VectorSolveBlock<T, Access> block; /**< The block whose rows are solved. */
+
+                    /** @brief Solves every row of the block. */
+                    void operator()() const
+                    {
+                        const RunningSolution<T> X = block.solution();
+
+                        if (block.forward)
+                        {
+                            for (int64_t i = block.first; i < block.last; ++i)
+                            {
+                                Accumulator<T> sum = X.get(i * block.incx);
+                                for (int64_t t = block.first_in_block(i); t < i; ++t)
+                                    sum -= block.term(X, i, t);
+                                X.set(i * block.incx, block.solved(sum, i));
+                            }
+                        }
+                        else
+                        {
+                            for (int64_t i = block.last - 1; i >= block.first; --i)
+                            {
+                                Accumulator<T> sum = X.get(i * block.incx);
+                                for (int64_t t = block.end_in_block(i) - 1; t > i; --t)
+                                    sum -= block.term(X, i, t);
+                                X.set(i * block.incx, block.solved(sum, i));
+                            }
+                        }
+                    }
+                };
+
+                /**
+                 * @brief Subtracts one solved diagonal block from the running value of one row
+                 *        outside it.
+                 * @see kernels/README.md
+                 */
+                template<typename T, typename Access>
+                struct VectorSolveUpdate
+                {
+                    VectorSolveBlock<T, Access> block; /**< The solved block. */
+                    int64_t trailing_first = 0;        /**< The first row updated. */
+
+                    /** @brief Updates row trailing_first + index. */
+                    void operator()(std::size_t index) const
+                    {
+                        const RunningSolution<T> X = block.solution();
+                        const int64_t i = trailing_first + static_cast<int64_t>(index);
+
+                        Accumulator<T> sum = X.get(i * block.incx);
+                        if (block.forward)
+                        {
+                            for (int64_t t = block.first_in_block(i); t < block.last; ++t)
+                                sum -= block.term(X, i, t);
+                        }
+                        else
+                        {
+                            for (int64_t t = block.end_in_block(i) - 1; t >= block.first; --t)
+                                sum -= block.term(X, i, t);
+                        }
+                        X.set(i * block.incx, sum);
+                    }
+                };
+
+                /**
+                 * @brief Solves op(A) * x = b in place, x holding b on entry, in a plan's blocks.
+                 * @tparam Access BandAccess or PackedAccess of op(A).
+                 * @param reach Later rows one solved row is subtracted from, at most.
+                 * @param work (n - 1) * incx + 1 elements if RunningSolution<T> needs them.
+                 * @return The event of the last launch; every launch is ordered behind deps.
+                 * @see kernels/README.md
+                 */
+                template<typename T, typename Access>
+                [[nodiscard]] sycl::event triangular_solve(sycl::queue& queue,
+                                                           const TriangularSolvePlan& plan,
+                                                           const Access& access, bool op_upper,
+                                                           bool unit_diag, int64_t n, int64_t reach,
+                                                           const T* a, T* x, int64_t incx,
+                                                           Accumulator<T>* work,
                                                            const std::vector<sycl::event>& deps)
                 {
-                    using W = Accumulator<T>;
+                    const int64_t width = plan.block_width(n);
+                    const int64_t blocks = plan.block_count(n);
+                    const bool forward = !op_upper;
 
-                    return queue.submit([&](sycl::handler& h)
+                    VectorSolveBlock<T, Access> block{access, a, x, incx, work, n, 0, 0, forward,
+                                                      unit_diag};
+                    std::vector<sycl::event> previous = deps;
+
+                    if (RunningSolution<T>::K_NEEDS_WORKSPACE)
                     {
-                        h.depends_on(deps);
-                        h.single_task([=]()
+                        const VectorSolveOpen<T> open{x, incx, work};
+                        const std::size_t rows = static_cast<std::size_t>(n);
+                        const sycl::event opened = queue.submit([&](sycl::handler& h)
                         {
-                            const RunningSolution<T> solution(x, work, 0);
-
-                            auto solve = [=](int64_t i, int64_t first, int64_t end)
-                            {
-                                W sum = W(x[i * incx]);
-                                for (int64_t c = first; c < end; ++c)
-                                    sum -= multiply(W(access.at(a, i, c)),
-                                                    solution.get(c * incx));
-
-                                solution.set(i * incx,
-                                             unit_diag ? sum
-                                                       : divide(sum, W(access.at(a, i, i))));
-                            };
-
-                            // Row i reads only elements of the solution that are already solved.
-                            if (op_upper)
-                            {
-                                for (int64_t i = n - 1; i >= 0; --i)
-                                    solve(i, i + 1, access.end_column(i, n));
-                            }
-                            else
-                            {
-                                for (int64_t i = 0; i < n; ++i)
-                                    solve(i, access.first_column(i), i);
-                            }
+                            h.depends_on(deps);
+                            Launch::indexed(h, queue, rows, open);
                         });
-                    });
+                        previous.assign(1, opened);
+                    }
+
+                    sycl::event last;
+                    for (int64_t pass = 0; pass < blocks; ++pass)
+                    {
+                        const int64_t position = forward ? pass : blocks - 1 - pass;
+                        block.first = position * width;
+                        block.last = std::min(n, block.first + width);
+
+                        const VectorSolveSteps<T, Access> steps{block};
+                        last = queue.submit([&](sycl::handler& h)
+                        {
+                            h.depends_on(previous);
+                            h.single_task(steps);
+                        });
+                        previous.assign(1, last);
+
+                        const int64_t remaining = forward ? n - block.last : block.first;
+                        const int64_t trailing = std::min(remaining, reach);
+                        if (trailing <= 0)
+                            continue;
+
+                        const VectorSolveUpdate<T, Access> update{
+                            block, forward ? block.last : block.first - trailing};
+                        const std::size_t rows = static_cast<std::size_t>(trailing);
+                        last = queue.submit([&](sycl::handler& h)
+                        {
+                            h.depends_on(previous);
+                            Launch::indexed(h, queue, rows, update);
+                        });
+                        previous.assign(1, last);
+                    }
+
+                    return last;
                 }
             } // namespace Detail
         } // namespace SYCL
