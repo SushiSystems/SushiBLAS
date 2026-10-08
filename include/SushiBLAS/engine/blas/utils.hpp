@@ -205,6 +205,59 @@ namespace SushiBLAS
         }
 
         /**
+         * @brief Returns the local tile a SYCL kernel stages for dtype.
+         * @tparam Tile A type whose static `demand<T>()` returns a Device::LocalTileDemand.
+         * @return An empty demand for an integer dtype.
+         */
+        template<typename Tile>
+        [[nodiscard]] constexpr Device::LocalTileDemand local_tile_demand(
+            Core::DataType dtype) noexcept
+        {
+            switch (dtype)
+            {
+                case Core::DataType::Half:
+                    return Tile::template demand<sycl::half>();
+                case Core::DataType::Float32:
+                    return Tile::template demand<float>();
+                case Core::DataType::Float64:
+                    return Tile::template demand<double>();
+                case Core::DataType::Complex32:
+                    return Tile::template demand<std::complex<float>>();
+                case Core::DataType::Complex64:
+                    return Tile::template demand<std::complex<double>>();
+                case Core::DataType::Int32:
+                case Core::DataType::Int64:
+                    break;
+            }
+            return Device::LocalTileDemand{};
+        }
+
+        /**
+         * @brief Throws unless the device of C hosts the tile the SYCL kernel of op stages.
+         * @tparam Tile A type whose static `demand<T>()` returns a Device::LocalTileDemand.
+         * @throws UnsupportedExecution outside FORCE_REFERENCE, which never runs that kernel.
+         * @see include/SushiBLAS/engine/blas/README.md
+         */
+        template<typename Tile>
+        void require_local_tile(const TaskRecorder& recorder, const Tensor& C, const char* op)
+        {
+            if (recorder.get_mode() == ExecutionMode::ForceReference || !C.storage)
+                return;
+
+            const Device::LocalTileDemand demand = local_tile_demand<Tile>(C.dtype);
+            const Device::Profile& profile = Device::profile_for(C.get_device());
+            if (Device::hosts_local_tile(profile, demand))
+                return;
+
+            Dispatch::Detail::throw_execution_error(
+                op,
+                "the SYCL kernel stages {} B of local memory in {}-item work-groups; the device "
+                "offers {} B and {}",
+                demand.local_bytes, demand.work_group_items, profile.local_mem_bytes,
+                profile.max_work_group_size);
+        }
+
+        /**
          * @brief Records one dtype-dispatched BLAS task whose body runs a reference and SYCL pair.
          * @param op_func Callable taking a value of the element type, a const
          *        KernelPairDispatcher&, the queue and the dependencies.

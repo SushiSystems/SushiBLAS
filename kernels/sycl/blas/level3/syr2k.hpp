@@ -94,11 +94,27 @@ namespace SushiBLAS
             } // namespace Detail
 
             /**
+             * @brief Names the work-group tile SYR2K stages in local memory, per element type.
+             * @see kernels/README.md
+             */
+            struct Syr2kTile
+            {
+                /** @brief Returns what the tile of element type T needs from a device. */
+                template<typename T>
+                [[nodiscard]] static constexpr Device::LocalTileDemand demand() noexcept
+                {
+                    using Cfg = Detail::Syr2kTileConfig<T>;
+                    return Device::LocalTileDemand{Cfg::local_mem_bytes(),
+                                                   static_cast<std::size_t>(Cfg::K_WG_ITEMS)};
+                }
+            };
+
+            /**
              * @brief Computes C = alpha * op(A) * Conj(op(B))^T
              *        + Conj(alpha) * op(B) * Conj(op(A))^T + beta * C on one triangle of C.
              * @tparam Conj Unconjugated for SYR2K, Conjugated for HER2K.
              * @tparam Scalar The type of beta: T for SYR2K, the real component type for HER2K.
-             * @throws std::runtime_error if the device cannot host the work-group and its tiles.
+             * @throws std::runtime_error if the device cannot host Syr2kTile::demand<T>().
              * @see kernels/README.md
              */
             template<typename T, typename Conj = Unconjugated, typename Scalar = T>
@@ -124,8 +140,7 @@ namespace SushiBLAS
                 constexpr int64_t tile_k = Cfg::K_TILE_K;
 
                 const Device::Profile& profile = Device::profile_for(queue);
-                const Device::LocalTileDemand demand{Cfg::local_mem_bytes(),
-                                                     static_cast<std::size_t>(wg_items)};
+                const Device::LocalTileDemand demand = Syr2kTile::demand<T>();
                 SB_THROW_IF(!Device::hosts_local_tile(profile, demand),
                             "SYCL SYR2K stages {} B of local memory in {}-item work-groups; the "
                             "device offers {} B and {}.",

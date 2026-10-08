@@ -592,7 +592,9 @@ sequential task: a row of it depends on the row before, and it has no work to sp
 `syr2k` computes the two products of SYR2K, or of HER2K under `Conjugated`, on one triangle of C
 in a tiled kernel of its own. `Detail::Syr2kTileConfig` fits two register blocks, one per
 product, in the byte budget GEMM gives one. It stages its tiles in local memory and throws
-`std::runtime_error` at execute time when the device cannot host the work-group and the tiles.
+`std::runtime_error` when the device cannot host the work-group and the tiles. `Syr2kTile`
+names that demand per element type, and the recorder refuses such a device at record time, so a
+call through `Level3` does not reach the throw.
 A zero `beta` does not read the prior C.
 
 ### `kernels/sycl/blas/level3/syrk.hpp`
@@ -608,8 +610,9 @@ composition are SushiBLAS work, not a port.
 register block cannot retune SYRK without anyone seeing it. `include/SushiBLAS/support/README.md`,
 under `device_policy.hpp`, makes the same argument for keeping tile sizes out of the device
 profile. SYRK does not have GEMM's split between a local-memory and a no-local kernel: its tiled
-kernel always takes the local-memory shape, and throws `std::runtime_error` at execute time when
-the device cannot host the tile's work-group.
+kernel always takes the local-memory shape, and throws `std::runtime_error` when the device
+cannot host the tile's work-group. `SyrkTile` names that demand per element type, and the
+recorder refuses such a device at record time.
 
 `syrk` has a second path. It plans the product with `plan_packed_product` and, when
 `packed_product_is_ready` holds for the scratch it was given, runs the packed product of

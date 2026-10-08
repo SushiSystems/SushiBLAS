@@ -157,6 +157,22 @@ namespace SushiBLAS
             } // namespace Detail
 
             /**
+             * @brief Names the work-group tile the tiled SYRK stages in local memory, per element type.
+             * @see kernels/README.md
+             */
+            struct SyrkTile
+            {
+                /** @brief Returns what the tile of element type T needs from a device. */
+                template<typename T>
+                [[nodiscard]] static constexpr Device::LocalTileDemand demand() noexcept
+                {
+                    using Cfg = Detail::SyrkTileConfig<T>;
+                    return Device::LocalTileDemand{Cfg::local_mem_bytes(),
+                                                   static_cast<std::size_t>(Cfg::K_WG_ITEMS)};
+                }
+            };
+
+            /**
              * @brief Computes C = alpha*op(A)*Conj(op(A))^T + beta*C on one triangle of C, packed
              *        where the profile selects it and tiled through local memory elsewhere.
              * @tparam Conj Unconjugated for SYRK, Conjugated for HERK.
@@ -213,8 +229,7 @@ namespace SushiBLAS
                         Detail::SyrkStore<T, Conj, Scalar>(upper, alpha, beta, c_access));
                 }
 
-                const Device::LocalTileDemand demand{Cfg::local_mem_bytes(),
-                                                     static_cast<std::size_t>(Cfg::K_WG_ITEMS)};
+                const Device::LocalTileDemand demand = SyrkTile::demand<T>();
                 SB_THROW_IF(!Device::hosts_local_tile(profile, demand),
                             "SYCL SYRK stages {} B of local memory in {}-item work-groups; the "
                             "device offers {} B and {}.",
