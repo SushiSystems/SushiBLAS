@@ -117,6 +117,25 @@ namespace SushiBLAS
                     return unblocked;
                 return TriangularSolvePlan{block};
             }
+
+            /**
+             * @brief Plans the diagonal blocks of a one-vector solve of order steps.
+             * @param reach Later steps one solved step is subtracted from, at most: the order for
+             *        a packed triangle, the off-diagonals for a band.
+             * @return One block of the whole order when the steps one block updates are too few
+             *         to repay the launches; the device's block otherwise.
+             * @see kernels/README.md
+             */
+            [[nodiscard]] inline TriangularSolvePlan plan_vector_solve(const Device::Profile& p,
+                                                                      int64_t order,
+                                                                      int64_t reach) noexcept
+            {
+                const TriangularSolvePlan unblocked{(order > 0) ? order : 1};
+                const int64_t spread = (reach < order) ? reach : order;
+                const TriangularSolvePlan plan = plan_triangular_solve(p, spread, 1);
+
+                return (plan.block >= spread) ? unblocked : plan;
+            }
         } // namespace SYCL
     } // namespace Kernels
 } // namespace SushiBLAS

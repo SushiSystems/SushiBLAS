@@ -46,21 +46,23 @@ namespace SushiBLAS
              * @brief Computes TBMV, x = op(A) * x, in place for a triangular band matrix A with k
              *        off-diagonals.
              * @param lda Elements stored per column of A (column-major) or per row (row-major).
+             * @param work Device scratch of n elements that no other task touches; may be null when
+             *        n is 0.
              * @see kernels/README.md
              */
             template<typename T>
             [[nodiscard]] sycl::event tbmv(sycl::queue& queue, Core::Layout layout,
                                            Core::Uplo uplo, Core::Transpose trans, Core::Diag diag,
                                            int64_t n, int64_t k, const T* a, int64_t lda, T* x,
-                                           int64_t incx, const std::vector<sycl::event>& deps)
+                                           int64_t incx, T* work,
+                                           const std::vector<sycl::event>& deps)
             {
                 SB_LOG_INFO("SYCL TBMV: {}x{}, k={}", n, n, k);
 
                 const BandAccess access = triangle_band_access(layout, uplo, trans, k, lda);
-                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
                 const bool unit_diag = (diag == Core::Diag::Unit);
-                return Detail::triangular_product(queue, access, op_upper, unit_diag, n, a, x,
-                                                  incx, deps);
+                return Detail::triangular_product(queue, access, unit_diag, n, a, x, incx, work,
+                                                  deps);
             }
         } // namespace SYCL
     } // namespace Kernels

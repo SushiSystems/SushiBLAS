@@ -34,6 +34,7 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/kernels/blas/packed_access.hpp>
 #include "kernels/sycl/blas/level2/triangular_solve.hpp"
 
@@ -45,7 +46,28 @@ namespace SushiBLAS
         {
             /**
              * @brief Computes TPSV: solves op(A) * x = b in place for a triangular matrix A
-             *        packed in ap, where x holds b on entry.
+             *        packed in ap, where x holds b on entry, in the blocks a plan gives.
+             * @param work The workspace Detail::triangular_solve states; null when none is needed.
+             * @see kernels/README.md
+             */
+            template<typename T>
+            [[nodiscard]] sycl::event tpsv(sycl::queue& queue, const TriangularSolvePlan& plan,
+                                           Core::Layout layout, Core::Uplo uplo,
+                                           Core::Transpose trans, Core::Diag diag,
+                                           int64_t n, const T* ap, T* x, int64_t incx,
+                                           Accumulator<T>* work,
+                                           const std::vector<sycl::event>& deps)
+            {
+                SB_LOG_INFO("SYCL TPSV: {}x{} block={}", n, n, plan.block_width(n));
+
+                const PackedAccess access = packed_access(layout, uplo, trans, n);
+                const bool unit_diag = (diag == Core::Diag::Unit);
+                return Detail::triangular_solve(queue, plan, access, access.is_upper(), unit_diag,
+                                                n, n, ap, x, incx, work, deps);
+            }
+
+            /**
+             * @brief Computes TPSV in the blocks the queue's device plans.
              * @param work The workspace Detail::triangular_solve states; null when none is needed.
              * @see kernels/README.md
              */
@@ -56,12 +78,9 @@ namespace SushiBLAS
                                            Accumulator<T>* work,
                                            const std::vector<sycl::event>& deps)
             {
-                SB_LOG_INFO("SYCL TPSV: {}x{}", n, n);
-
-                const PackedAccess access = packed_access(layout, uplo, trans, n);
-                const bool unit_diag = (diag == Core::Diag::Unit);
-                return Detail::triangular_solve(queue, access, access.is_upper(), unit_diag, n, ap,
-                                                x, incx, work, deps);
+                const TriangularSolvePlan plan =
+                    plan_vector_solve(Device::profile_for(queue), n, n);
+                return tpsv<T>(queue, plan, layout, uplo, trans, diag, n, ap, x, incx, work, deps);
             }
         } // namespace SYCL
     } // namespace Kernels

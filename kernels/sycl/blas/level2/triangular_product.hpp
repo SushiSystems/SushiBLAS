@@ -28,10 +28,13 @@
 #pragma once
 
 #include <vector>
+#include <cstddef>
 #include <cstdint>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/support/launch_1d.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
+#include "kernels/sycl/blas/level2/vector_snapshot.hpp"
 
 namespace SushiBLAS
 {
@@ -42,52 +45,70 @@ namespace SushiBLAS
             namespace Detail
             {
                 /**
-                 * @brief Computes x = op(A) * x in place for a triangular op(A) read through
-                 *        access, in one sequential task.
+                 * @brief Computes one row of x = op(A) * x in one work-item, in ascending column
+                 *        order, from a snapshot of x.
                  * @tparam Access BandAccess or PackedAccess of op(A).
-                 * @param op_upper Whether op(A) is upper triangular.
+                 * @see kernels/README.md
+                 */
+                template<typename T, typename Access>
+                struct TriangularProductRow
+                {
+                    Access access;               /**< How op(A) is read. */
+                    const T* a = nullptr;        /**< The stored triangle. */
+                    const T* snapshot = nullptr; /**< The values x held before the call. */
+                    T* x = nullptr;              /**< The vector the product overwrites. */
+                    int64_t incx = 1;            /**< Distance between consecutive elements of x. */
+                    int64_t n = 0;               /**< Rows and columns of op(A). */
+                    bool unit_diag = false;      /**< Whether the diagonal is one and never read. */
+
+                    /** @brief Computes row index and stores it into x, rounded once to T. */
+                    void operator()(std::size_t index) const
+                    {
+                        using W = Accumulator<T>;
+
+                        const int64_t i = static_cast<int64_t>(index);
+                        const int64_t end = access.end_column(i, n);
+
+                        W sum(0);
+                        for (int64_t k = access.first_column(i); k < end; ++k)
+                        {
+                            const T aval = (k == i && unit_diag) ? T(1) : access.at(a, i, k);
+                            sum += multiply(W(aval), W(snapshot[k]));
+                        }
+                        x[i * incx] = T(sum);
+                    }
+                };
+
+                /**
+                 * @brief Computes x = op(A) * x in place for a triangular op(A) read through
+                 *        access, one work-item per row.
+                 * @tparam Access BandAccess or PackedAccess of op(A).
+                 * @param work Device scratch of n elements that no other task touches; may be null
+                 *        when n is 0.
                  * @see kernels/README.md
                  */
                 template<typename T, typename Access>
                 [[nodiscard]] sycl::event triangular_product(sycl::queue& queue,
-                                                             const Access& access, bool op_upper,
-                                                             bool unit_diag, int64_t n, const T* a,
-                                                             T* x, int64_t incx,
+                                                             const Access& access, bool unit_diag,
+                                                             int64_t n, const T* a, T* x,
+                                                             int64_t incx, T* work,
                                                              const std::vector<sycl::event>& deps)
                 {
-                    using W = Accumulator<T>;
+                    const VectorSnapshot<T> snapshot{x, incx, work};
+                    const TriangularProductRow<T, Access> row{access, a, work, x, incx, n,
+                                                              unit_diag};
+                    const std::size_t rows = static_cast<std::size_t>(n);
+
+                    const sycl::event copied = queue.submit([&](sycl::handler& h)
+                    {
+                        h.depends_on(deps);
+                        Launch::indexed(h, queue, rows, snapshot);
+                    });
 
                     return queue.submit([&](sycl::handler& h)
                     {
-                        h.depends_on(deps);
-                        h.single_task([=]()
-                        {
-                            auto row = [=](int64_t i)
-                            {
-                                const int64_t end = access.end_column(i, n);
-
-                                W sum(0);
-                                for (int64_t k = access.first_column(i); k < end; ++k)
-                                {
-                                    const T aval =
-                                        (k == i && unit_diag) ? T(1) : access.at(a, i, k);
-                                    sum += multiply(W(aval), W(x[k * incx]));
-                                }
-                                x[i * incx] = T(sum);
-                            };
-
-                            // Row i reads only elements of x that no earlier row has overwritten.
-                            if (op_upper)
-                            {
-                                for (int64_t i = 0; i < n; ++i)
-                                    row(i);
-                            }
-                            else
-                            {
-                                for (int64_t i = n - 1; i >= 0; --i)
-                                    row(i);
-                            }
-                        });
+                        h.depends_on(copied);
+                        Launch::indexed(h, queue, rows, row);
                     });
                 }
             } // namespace Detail

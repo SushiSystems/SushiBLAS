@@ -34,6 +34,7 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/kernels/blas/band_access.hpp>
 #include "kernels/sycl/blas/level2/triangular_solve.hpp"
 
@@ -45,7 +46,30 @@ namespace SushiBLAS
         {
             /**
              * @brief Computes TBSV: solves op(A) * x = b in place for a triangular band matrix A
-             *        with k off-diagonals, where x holds b on entry.
+             *        with k off-diagonals, where x holds b on entry, in the blocks a plan gives.
+             * @param lda Elements stored per column of A (column-major) or per row (row-major).
+             * @param work The workspace Detail::triangular_solve states; null when none is needed.
+             * @see kernels/README.md
+             */
+            template<typename T>
+            [[nodiscard]] sycl::event tbsv(sycl::queue& queue, const TriangularSolvePlan& plan,
+                                           Core::Layout layout, Core::Uplo uplo,
+                                           Core::Transpose trans, Core::Diag diag,
+                                           int64_t n, int64_t k, const T* a, int64_t lda, T* x,
+                                           int64_t incx, Accumulator<T>* work,
+                                           const std::vector<sycl::event>& deps)
+            {
+                SB_LOG_INFO("SYCL TBSV: {}x{}, k={} block={}", n, n, k, plan.block_width(n));
+
+                const BandAccess access = triangle_band_access(layout, uplo, trans, k, lda);
+                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
+                const bool unit_diag = (diag == Core::Diag::Unit);
+                return Detail::triangular_solve(queue, plan, access, op_upper, unit_diag, n, k, a,
+                                                x, incx, work, deps);
+            }
+
+            /**
+             * @brief Computes TBSV in the blocks the queue's device plans.
              * @param lda Elements stored per column of A (column-major) or per row (row-major).
              * @param work The workspace Detail::triangular_solve states; null when none is needed.
              * @see kernels/README.md
@@ -57,13 +81,10 @@ namespace SushiBLAS
                                            int64_t incx, Accumulator<T>* work,
                                            const std::vector<sycl::event>& deps)
             {
-                SB_LOG_INFO("SYCL TBSV: {}x{}, k={}", n, n, k);
-
-                const BandAccess access = triangle_band_access(layout, uplo, trans, k, lda);
-                const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
-                const bool unit_diag = (diag == Core::Diag::Unit);
-                return Detail::triangular_solve(queue, access, op_upper, unit_diag, n, a, x, incx,
-                                                work, deps);
+                const TriangularSolvePlan plan =
+                    plan_vector_solve(Device::profile_for(queue), n, k);
+                return tbsv<T>(queue, plan, layout, uplo, trans, diag, n, k, a, lda, x, incx, work,
+                               deps);
             }
         } // namespace SYCL
     } // namespace Kernels

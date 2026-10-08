@@ -40,6 +40,7 @@
 #include <SushiBLAS/support/complex_arithmetic.hpp>
 #include <SushiBLAS/kernels/blas/operand_access.hpp>
 #include "kernels/sycl/blas/level2/row_reduction.hpp"
+#include "kernels/sycl/blas/level2/vector_snapshot.hpp"
 
 namespace SushiBLAS
 {
@@ -49,24 +50,6 @@ namespace SushiBLAS
         {
             namespace Detail
             {
-                /**
-                 * @brief Copies element i of a strided vector into slot i of a contiguous snapshot.
-                 * @see kernels/README.md
-                 */
-                template<typename T>
-                struct TrmvSnapshot
-                {
-                    const T* x = nullptr;  /**< The vector TRMV overwrites. */
-                    int64_t incx = 1;      /**< Distance between consecutive elements of x. */
-                    T* snapshot = nullptr; /**< Receives one element per element of x. */
-
-                    /** @brief Copies element index. */
-                    void operator()(std::size_t index) const
-                    {
-                        snapshot[index] = x[static_cast<int64_t>(index) * incx];
-                    }
-                };
-
                 /**
                  * @brief Returns the term op(A)(row, k) * x(k) of a row product, in Accumulator<T>.
                  * @see kernels/README.md
@@ -148,7 +131,7 @@ namespace SushiBLAS
                 using W = Accumulator<T>;
 
                 const bool eff_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);
-                const Detail::TrmvSnapshot<T> snapshot{x, incx, work};
+                const Detail::VectorSnapshot<T> snapshot{x, incx, work};
                 const Detail::TrmvTerm<T> term{operand_access(layout, trans, lda), a, work,
                                                diag == Core::Diag::Unit};
                 const Detail::TriangleRow columns{n, eff_upper};

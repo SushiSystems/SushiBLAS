@@ -183,7 +183,7 @@ made to the older ones that day, had not been built or run when this page was wr
 | `test_tensor_const_access.cpp` | Tests that Tensor's const and non-const data accessors return matching pointers |
 | `test_tensor_factory.cpp` | Tests TensorFactory and Engine::create_tensor: shapes, layout, device index and size |
 | `test_tensor_view.cpp` | Tests that a tensor view's offset and strides lead to the elements it occupies |
-| `test_triangular_parallel.cpp` | Tests the blocked TRSV and TRSM kernel and the parallel TRMV kernel against exact integer systems, a double-precision truth and each other |
+| `test_triangular_parallel.cpp` | Tests the blocked TRSV, TRSM, TPSV and TBSV kernels and the parallel TRMV kernel against exact integer systems, a double-precision truth and each other |
 | `test_triangular_plan.cpp` | Tests the block plan of a triangular solve and the decoding of a TRSM call into one substitution |
 | `test_trmv.cpp` | Tests BLASOps::trmv against fixed expected values |
 | `test_trsm.cpp` | Tests BLASOps::trsm in row-major and column-major layouts |
