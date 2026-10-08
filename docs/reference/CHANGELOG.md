@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-09 — engine: Added `Engine::discard_recorded`, which drops every recorded task that has not run (`engine.hpp`, `engine.cpp`).
 - 2026-10-09 — docs: Moved the security policy and the code of conduct to `.github/` and the Doxygen main page to `docs/reference/MAINPAGE.md`; Doxygen writes under `build/docs/api-site` (`Doxyfile`, `cli.py`).
 - 2026-10-09 — build: Moved `benchmarks/` to `tests/benchmark/` and renamed its programs from bench_ to `benchmark_*` (`CMakeLists.txt`).
 - 2026-10-09 — build: Moved `examples/` to `applications/examples/` (`CMakeLists.txt`).

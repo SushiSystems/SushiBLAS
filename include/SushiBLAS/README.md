@@ -57,6 +57,17 @@ read) even when nothing was queued: e.g. a tensor filled directly through its ho
 pointer, no add_task involved. IExecutionEngine::execute() throws on a graph with no root nodes,
 so an empty graph is a no-op instead.
 
+### `Engine::discard_recorded`
+
+Drops every task that was recorded through `get_recorder()` and has not run. A record call that
+throws leaves the tasks recorded before it on the graph, and the next `execute()` would run them;
+a caller that turns such a throw into a status calls `discard_recorded()` and goes on with the
+same engine. The tasks are destroyed with what their bodies captured, so the storage of their
+operands is held only by the tensors that still name it, and each scratch lease returns to the
+pool. Tensors are not changed: a task that has not run has written nothing. A graph the caller
+owns is emptied with `TaskGraph::take_nodes()`; this call is for the engine's own graph, which
+no accessor reaches.
+
 ### The scratch pool
 
 `Engine::get_scratch_pool()` returns the `ScratchPool` operations lease device scratch from; the
