@@ -56,10 +56,20 @@ int main()
         // 3. Demonstrate save_npy/load_npy
         std::cout << "Step 3: Testing save_npy() and load_npy()...\n";
         std::string npy_path = "io_test.npy";
-        SushiBLAS::IO(engine).save_npy(A, npy_path);
-        
+        const SushiBLAS::IoStatus saved = SushiBLAS::IO(engine).save_npy(A, npy_path);
+        if (saved != SushiBLAS::IoStatus::Ok)
+        {
+            std::cerr << "save_npy failed: " << SushiBLAS::to_string(saved) << std::endl;
+            return 1;
+        }
+
         auto B = engine.create_tensor({2, 3});
-        SushiBLAS::IO(engine).load_npy(B, npy_path);
+        const SushiBLAS::IoStatus loaded = SushiBLAS::IO(engine).load_npy(B, npy_path);
+        if (loaded != SushiBLAS::IoStatus::Ok)
+        {
+            std::cerr << "load_npy failed: " << SushiBLAS::to_string(loaded) << std::endl;
+            return 1;
+        }
 
         std::cout << "Loaded Tensor B from " << npy_path << ":\n";
         SushiBLAS::IO(engine).print(B, 2);

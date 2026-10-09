@@ -131,7 +131,8 @@ namespace SushiBLAS
                     const std::string path = temp_path(name);
                     auto source = engine->create_tensor({2, 3});
                     SushiBLAS::IO(*engine).from_vector(source, K_VALUES);
-                    SushiBLAS::IO(*engine).save_npy(source, path);
+                    EXPECT_EQ(SushiBLAS::IO(*engine).save_npy(source, path),
+                              SushiBLAS::IoStatus::Ok);
                     return path;
                 }
 
@@ -229,7 +230,7 @@ namespace SushiBLAS
             SushiBLAS::IO(*engine).from_vector(pending, K_PENDING_VALUES);
 
             SushiBLAS::BLASOps(*engine).copy(pending, t);
-            SushiBLAS::IO(*engine).load_npy(t, path);
+            ASSERT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IoStatus::Ok);
 
             EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
@@ -240,7 +241,7 @@ namespace SushiBLAS
             {
                 auto source = engine->create_tensor({2, 3});
                 SushiBLAS::IO(*engine).from_vector(source, K_VALUES);
-                SushiBLAS::IO(*engine).save_bin(source, path);
+                ASSERT_EQ(SushiBLAS::IO(*engine).save_bin(source, path), SushiBLAS::IoStatus::Ok);
             }
 
             auto pending = engine->create_tensor({2, 3});
@@ -248,7 +249,7 @@ namespace SushiBLAS
             SushiBLAS::IO(*engine).from_vector(pending, K_PENDING_VALUES);
 
             SushiBLAS::BLASOps(*engine).copy(pending, t);
-            SushiBLAS::IO(*engine).load_bin(t, path);
+            ASSERT_EQ(SushiBLAS::IO(*engine).load_bin(t, path), SushiBLAS::IoStatus::Ok);
 
             EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
@@ -258,7 +259,7 @@ namespace SushiBLAS
             const std::string path = save_values_npy("round_trip.npy");
 
             auto t = engine->create_tensor({2, 3});
-            SushiBLAS::IO(*engine).load_npy(t, path);
+            ASSERT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IoStatus::Ok);
 
             EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
@@ -283,12 +284,12 @@ namespace SushiBLAS
             write_bytes(path, v2);
 
             auto t = engine->create_tensor({2, 3});
-            SushiBLAS::IO(*engine).load_npy(t, path);
+            ASSERT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IoStatus::Ok);
 
             EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
-        TEST_F(Unit_HostTransfer, NpyWithAnotherDtypeThrows)
+        TEST_F(Unit_HostTransfer, NpyWithAnotherDtypeIsADtypeMismatch)
         {
             const std::string path = save_values_npy("dtype.npy");
             std::vector<char> bytes = read_bytes(path);
@@ -296,10 +297,10 @@ namespace SushiBLAS
             write_bytes(path, bytes);
 
             auto t = engine->create_tensor({2, 3});
-            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, path), std::runtime_error);
+            EXPECT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IoStatus::DtypeMismatch);
         }
 
-        TEST_F(Unit_HostTransfer, NpyWithAnotherShapeThrows)
+        TEST_F(Unit_HostTransfer, NpyWithAnotherShapeIsAShapeMismatch)
         {
             const std::string path = save_values_npy("shape.npy");
             std::vector<char> bytes = read_bytes(path);
@@ -307,10 +308,10 @@ namespace SushiBLAS
             write_bytes(path, bytes);
 
             auto t = engine->create_tensor({2, 3});
-            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, path), std::runtime_error);
+            EXPECT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IoStatus::ShapeMismatch);
         }
 
-        TEST_F(Unit_HostTransfer, NpyWithVersionFourThrows)
+        TEST_F(Unit_HostTransfer, NpyWithVersionFourIsMalformed)
         {
             const std::string path = save_values_npy("version_four.npy");
             std::vector<char> bytes = read_bytes(path);
@@ -321,10 +322,10 @@ namespace SushiBLAS
             write_bytes(path, bytes);
 
             auto t = engine->create_tensor({2, 3});
-            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, path), std::runtime_error);
+            EXPECT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IoStatus::MalformedFile);
         }
 
-        TEST_F(Unit_HostTransfer, NpyWithoutAShapeThrows)
+        TEST_F(Unit_HostTransfer, NpyWithoutAShapeIsMalformed)
         {
             const std::string path = save_values_npy("no_shape.npy");
             std::vector<char> bytes = read_bytes(path);
@@ -332,7 +333,7 @@ namespace SushiBLAS
             write_bytes(path, bytes);
 
             auto t = engine->create_tensor({2, 3});
-            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, path), std::runtime_error);
+            EXPECT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IoStatus::MalformedFile);
         }
 
         TEST_F(Unit_HostTransfer, NpyWithNumpyPaddingLoads)
@@ -341,28 +342,28 @@ namespace SushiBLAS
             write_npy_v1(path, "{'descr': '<f4', 'fortran_order': False, 'shape': (2, 3), }");
 
             auto t = engine->create_tensor({2, 3});
-            SushiBLAS::IO(*engine).load_npy(t, path);
+            ASSERT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IoStatus::Ok);
 
             EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
-        TEST_F(Unit_HostTransfer, NpyWithoutCommasThrows)
+        TEST_F(Unit_HostTransfer, NpyWithoutCommasIsMalformed)
         {
             const std::string path = temp_path("no_commas.npy");
             write_npy_v1(path, "{'descr': '<f4' 'fortran_order': False 'shape': (2, 3) }");
 
             auto t = engine->create_tensor({2, 3});
-            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, path), std::runtime_error);
+            EXPECT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IoStatus::MalformedFile);
         }
 
-        TEST_F(Unit_HostTransfer, NpyWithADuplicateKeyThrows)
+        TEST_F(Unit_HostTransfer, NpyWithADuplicateKeyIsMalformed)
         {
             const std::string path = temp_path("duplicate_key.npy");
             write_npy_v1(path, "{'descr': '<f4', 'descr': '<f4', 'fortran_order': False, "
                                "'shape': (2, 3), }");
 
             auto t = engine->create_tensor({2, 3});
-            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, path), std::runtime_error);
+            EXPECT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IoStatus::MalformedFile);
         }
 
         TEST_F(Unit_HostTransfer, LoadNpyRejectsAColumnMajorRankThreeTensor)
@@ -370,7 +371,7 @@ namespace SushiBLAS
             reinit_engine(Core::Layout::ColumnMajor);
             auto t = engine->create_tensor({2, 2, 2});
 
-            EXPECT_THROW(SushiBLAS::IO(*engine).load_npy(t, temp_path("column_major.npy")),
+            EXPECT_THROW((void)SushiBLAS::IO(*engine).load_npy(t, temp_path("column_major.npy")),
                          std::invalid_argument);
         }
 

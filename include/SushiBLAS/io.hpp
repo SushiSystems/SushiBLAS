@@ -35,6 +35,7 @@
 #include <utility>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor.hpp>
+#include <SushiBLAS/io_status.hpp>
 #include <SushiBLAS/core/common.hpp>
 
 namespace SushiBLAS
@@ -123,20 +124,20 @@ namespace SushiBLAS
             /**
              * @brief Saves a tensor in the native .sushi format: a header, then the raw data.
              * @param t The tensor to save; stored and contiguous.
+             * @return FileUnwritable when a write fails, after the partial file is removed.
              * @throws std::invalid_argument when t is strided or has no storage.
-             * @throws std::runtime_error when a write fails; the partial file is removed.
              */
-            void save(const Tensor& t, const std::string& path);
+            [[nodiscard]] IoStatus save(const Tensor& t, const std::string& path);
 
             /**
-             * @brief Load a .sushi file into a tensor.
-             *
-             * Runs the recorded graph first, then verifies that the file metadata matches the
-             * tensor.
-             * @param t The target tensor to load data into.
-             * @param path The filesystem path of the .sushi file.
+             * @brief Runs the recorded graph, then loads a .sushi file into a tensor.
+             * @param t A stored, contiguous tensor; the file's rank, shape, dtype and layout must
+             *        match it.
+             * @return The mismatch or the file defect found; t is unchanged unless the status is
+             *         FileUnreadable.
+             * @throws std::invalid_argument when t is strided or has no storage.
              */
-            void load(Tensor& t, const std::string& path);
+            [[nodiscard]] IoStatus load(Tensor& t, const std::string& path);
 
             /**
              * @brief Runs the recorded graph, then copies the tensor's elements into host memory.
@@ -184,38 +185,38 @@ namespace SushiBLAS
 
             /**
              * @brief Saves a tensor in NumPy .npy format, version 1.0.
-             * @param t Stored, contiguous, and not COLUMN_MAJOR at rank 3 or more.
+             * @param t Stored, contiguous, and not ColumnMajor at rank 3 or more.
+             * @return FileUnwritable when a write fails, after the partial file is removed.
              * @throws std::invalid_argument when t breaks one of those rules.
-             * @throws std::runtime_error when a write fails; the partial file is removed.
              */
-            void save_npy(const Tensor& t, const std::string& path);
+            [[nodiscard]] IoStatus save_npy(const Tensor& t, const std::string& path);
 
             /**
              * @brief Runs the recorded graph, then loads a .npy file of version 1.0, 2.0 or 3.0.
-             * @param t A stored, contiguous tensor, not COLUMN_MAJOR at rank 3 or more; the
+             * @param t A stored, contiguous tensor, not ColumnMajor at rank 3 or more; the
              *        header's descr, fortran_order and shape must match it.
+             * @return MalformedFile on another version or a malformed header, or the mismatch.
              * @throws std::invalid_argument when t breaks one of those rules.
-             * @throws std::runtime_error on another version, a malformed header or a mismatch.
              * @see include/SushiBLAS/README.md
              */
-            void load_npy(Tensor& t, const std::string& path);
+            [[nodiscard]] IoStatus load_npy(Tensor& t, const std::string& path);
 
             /**
-             * @brief Raw binary save (no header).
+             * @brief Saves the tensor's raw bytes, with no header.
              * @param t The tensor to save; stored and contiguous.
-             * @param path The filesystem path for the binary file.
-             * @throws std::runtime_error when a write fails; the partial file is removed.
+             * @return FileUnwritable when a write fails, after the partial file is removed.
+             * @throws std::invalid_argument when t is strided or has no storage.
              */
-            void save_bin(const Tensor& t, const std::string& path);
+            [[nodiscard]] IoStatus save_bin(const Tensor& t, const std::string& path);
 
             /**
-             * @brief Raw binary load (no header), after running the recorded graph.
-             * @param t The target tensor to load data into.
-             * @param path The filesystem path of the binary file.
-             * @throws std::runtime_error on a short file before any element changes, and on a
-             *         failed read after some have.
+             * @brief Runs the recorded graph, then loads raw bytes with no header.
+             * @param t The target tensor; stored and contiguous.
+             * @return Truncated on a short file, before any element changes; FileUnreadable on a
+             *         failed read, after some have.
+             * @throws std::invalid_argument when t is strided or has no storage.
              */
-            void load_bin(Tensor& t, const std::string& path);
+            [[nodiscard]] IoStatus load_bin(Tensor& t, const std::string& path);
 
             /**
              * @brief Print tensor content to the console in a readable format.
