@@ -19,26 +19,24 @@ from pathlib import Path
 def _ensure_sushicore() -> None:
     """Make :mod:`sushicore` importable, or fail with a message that says how.
 
-    Already installed (CI does `pip install -e <stack>/sushicore`) wins. Failing
-    that, it is found on disk: a workspace puts it at ``<workspace>/sushicore``,
-    a developer's flat checkout layout at ``<siblings>/sushistack/sushicore``.
+    An installed package wins. Failing that, it is taken from a SushiCore checkout
+    beside this repository, at ``<siblings>/sushicore``.
     """
     if importlib.util.find_spec("sushicore") is not None:
         return
 
     repo = Path(__file__).resolve().parents[2]
-    for candidate in (repo.parent / "sushicore", repo.parent / "sushistack" / "sushicore"):
-        if (candidate / "sushicore" / "__init__.py").is_file():
-            sys.path.insert(0, str(candidate))
-            importlib.invalidate_caches()
-            if importlib.util.find_spec("sushicore") is not None:
-                return
+    candidate = repo.parent / "sushicore"
+    if (candidate / "sushicore" / "__init__.py").is_file():
+        sys.path.insert(0, str(candidate))
+        importlib.invalidate_caches()
+        if importlib.util.find_spec("sushicore") is not None:
+            return
 
     raise RuntimeError(
         "sushicore is not importable, so the sushiblas CLI cannot be imported. "
-        "It ships in the SushiStack repository: install it with "
-        "`pip install -e <sushistack>/sushicore`, or place a SushiStack "
-        "checkout next to this one."
+        "Install it with `pip install sushicore`, or place a SushiCore checkout "
+        "next to this one."
     )
 
 
