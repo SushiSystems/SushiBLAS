@@ -36,6 +36,7 @@ from .suite import K_SUITE_LABEL_REGEX, Suite
 
 K_PACKAGE_CONSUMER = "sushiblas_package_consumer"
 K_BENCHMARKS_VARIABLE = "SB_BUILD_BENCHMARKS"
+K_DOXYFILE = Path(".config") / "doxygen" / "Doxyfile"
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,7 +234,7 @@ class ProjectService:
         cfg = self._load_config()
         env = self._build_env.load(cfg, _build_dir(root))
         (_build_dir(root) / "docs" / "api-site").mkdir(parents=True, exist_ok=True)
-        return self._driver.doxygen(cfg, root / "Doxyfile", root, env)
+        return self._driver.doxygen(cfg, root / K_DOXYFILE, root, env)
 
     def _remove_tree(self, tree: Path) -> bool:
         """Removes *tree* and returns whether it existed.

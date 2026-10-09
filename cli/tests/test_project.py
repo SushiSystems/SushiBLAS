@@ -336,12 +336,12 @@ def test_package_suite_refuses_ctest_options(parts):
 
 
 def test_docs_creates_the_site_folder_under_the_build_tree(parts, checkout):
-    """docs makes build/docs/api-site and hands the driver the root Doxyfile."""
+    """docs makes build/docs/api-site and hands the driver the Doxyfile under .config."""
     console, driver, service = parts
     assert service.docs() == 0
     assert (checkout / "build" / "docs" / "api-site").is_dir()
     assert not (checkout / "docs").exists()
-    assert driver.documented == [(checkout / "Doxyfile", checkout)]
+    assert driver.documented == [(checkout / ".config" / "doxygen" / "Doxyfile", checkout)]
 
 
 def test_an_interrupted_child_ends_in_exit_code_130(tmp_path, monkeypatch):

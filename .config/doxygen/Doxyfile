@@ -10,13 +10,9 @@
 # header <SushiBLAS/engine.hpp> and their ops are not all defined. A reference
 # that listed them would advertise an API that does not link.
 #
-# Build it with `sb doxygen` (never `doxygen Doxyfile` by hand - see
-# CLAUDE.md); output lands in build/docs/api-site/html and is gitignored.
-#
-# This file is COMMITTED, and that is the point of it existing. `sb doxygen`
-# reads a repo-root Doxyfile and fails without one, so while `Doxyfile` sat in
-# .gitignore the command was documented in CLI_GUIDE.md and could not work in a
-# fresh checkout. SushiRuntime commits its own for the same reason.
+# Build it with `sb docs`. Doxygen runs from the repository root, so every
+# path below resolves against the root and not against this folder. Output
+# lands in build/docs/api-site/html, which git ignores.
 PROJECT_NAME           = "SushiBLAS"
 PROJECT_BRIEF          = "SYCL tensor and BLAS engine — C++ API reference"
 PROJECT_NUMBER         = "0.1.0"
