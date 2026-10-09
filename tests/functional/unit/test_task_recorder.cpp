@@ -126,7 +126,7 @@ namespace SushiBLAS
             EXPECT_EQ(&engine->get_recorder().get_scratch_pool(), &engine->get_scratch_pool());
         }
 
-        /** @brief Tests that every family records and runs one task under FORCE_REFERENCE. */
+        /** @brief Tests that every family records and runs one task under ForceReference. */
         TEST_F(Unit_TaskRecorderTest, EveryFamilyRecordsUnderForceReference)
         {
             GraphProbe probe(ExecutionMode::ForceReference);

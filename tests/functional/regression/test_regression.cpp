@@ -73,8 +73,8 @@ namespace SushiBLAS
             for (auto mode : {ExecutionMode::ForceSycl, ExecutionMode::ForceReference})
             {
                 SCOPED_TRACE(mode == ExecutionMode::ForceSycl
-                    ? "FORCE_SYCL: column-major GEMM must index A and B by column stride"
-                    : "FORCE_REFERENCE: column-major GEMM must index A and B by column stride");
+                    ? "ForceSycl: column-major GEMM must index A and B by column stride"
+                    : "ForceReference: column-major GEMM must index A and B by column stride");
 
                 auto A = create_initialized_tensor<float>({3, 2}, {1, 3, 5, 2, 4, 6});
                 auto B = create_initialized_tensor<float>({2, 2}, {1, 1, 0, 1});

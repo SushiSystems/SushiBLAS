@@ -132,7 +132,7 @@ namespace SushiBLAS
 
             /**
              * @brief Throws as record_pair() would, for a caller that must refuse before a side effect.
-             * @throws UnsupportedExecution under FORCE_REFERENCE when a declared tensor is
+             * @throws UnsupportedExecution under ForceReference when a declared tensor is
              *         device-only USM.
              */
             void require_host_reachable(const OperandSet& operands, const char* family,
@@ -143,7 +143,7 @@ namespace SushiBLAS
 
                 Dispatch::Detail::throw_execution_error(
                     name,
-                    "{} cannot run under FORCE_REFERENCE: an operand is device-only USM, which "
+                    "{} cannot run under ForceReference: an operand is device-only USM, which "
                     "the host reference kernel cannot dereference",
                     family);
             }
@@ -153,7 +153,7 @@ namespace SushiBLAS
              * @param body Callable `(const Internal::KernelPairDispatcher&, sycl::queue&,
              *        const std::vector<sycl::event>&) -> sycl::event`, copyable, callable more
              *        than once, and ordering its work behind the events it is given.
-             * @throws UnsupportedExecution under FORCE_REFERENCE when a declared tensor is
+             * @throws UnsupportedExecution under ForceReference when a declared tensor is
              *         device-only USM; no task is recorded.
              */
             template<typename Body>

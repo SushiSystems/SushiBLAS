@@ -49,7 +49,7 @@ namespace SushiBLAS
             /** @brief Returns the name a failure message gives a forced mode. */
             const char* forced_mode_name(ExecutionMode mode) noexcept
             {
-                return mode == ExecutionMode::ForceReference ? "FORCE_REFERENCE" : "FORCE_SYCL";
+                return mode == ExecutionMode::ForceReference ? "ForceReference" : "ForceSycl";
             }
 
             /** @brief Returns the bit pattern of a HALF value. */
@@ -74,8 +74,8 @@ namespace SushiBLAS
                 }
 
                 const char* operation = ""; /**< The operation's name in a failure message. */
-                Tensor reference;           /**< The result under FORCE_REFERENCE. */
-                Tensor device;              /**< The result under FORCE_SYCL. */
+                Tensor reference;           /**< The result under ForceReference. */
+                Tensor device;              /**< The result under ForceSycl. */
             };
         } // namespace
 

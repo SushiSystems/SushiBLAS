@@ -148,8 +148,8 @@ namespace SushiBLAS
                 }
 
                 const char* name = "";    /**< The operation's name in a failure message. */
-                std::vector<T> reference; /**< The result under FORCE_REFERENCE. */
-                std::vector<T> device;    /**< The result under FORCE_SYCL. */
+                std::vector<T> reference; /**< The result under ForceReference. */
+                std::vector<T> device;    /**< The result under ForceSycl. */
             };
 
             /** @brief Returns value as an element of T, through FLOAT32 for HALF. */
@@ -627,8 +627,8 @@ namespace SushiBLAS
                             continue;
 
                         ADD_FAILURE() << result.name << " differs at element " << i
-                                      << ": FORCE_REFERENCE wrote " << printable(reference)
-                                      << ", FORCE_SYCL wrote " << printable(device);
+                                      << ": ForceReference wrote " << printable(reference)
+                                      << ", ForceSycl wrote " << printable(device);
                         return;
                     }
                 }
@@ -647,8 +647,8 @@ namespace SushiBLAS
                             continue;
 
                         ADD_FAILURE() << result.name << " differs at element " << i
-                                      << " by more than " << tolerance << ": FORCE_REFERENCE wrote "
-                                      << reference << ", FORCE_SYCL wrote " << device;
+                                      << " by more than " << tolerance << ": ForceReference wrote "
+                                      << reference << ", ForceSycl wrote " << device;
                         return;
                     }
                 }
@@ -829,7 +829,7 @@ namespace SushiBLAS
             expect_equal_bits(x_result);
         }
 
-        /** @brief Tests that AUTO takes the device-only operand that FORCE_REFERENCE refuses. */
+        /** @brief Tests that Auto takes the device-only operand that ForceReference refuses. */
         TEST_F(Unit_FunctorReference, AutoRunsTheSyclPath)
         {
             std::optional<Tensor> a = device_only_vector(4);
@@ -854,7 +854,7 @@ namespace SushiBLAS
             const std::string message =
                 refusal_of([&] { ElementwiseOps(reference.get_recorder()).add(*a, b, c); });
 
-            EXPECT_NE(message.find("FORCE_REFERENCE"), std::string::npos) << message;
+            EXPECT_NE(message.find("ForceReference"), std::string::npos) << message;
             EXPECT_TRUE(reference.take_nodes().empty());
         }
 

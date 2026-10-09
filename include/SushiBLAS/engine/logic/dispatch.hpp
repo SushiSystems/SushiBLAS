@@ -52,7 +52,7 @@ namespace SushiBLAS
          * @param result Must match x in size and dtype.
          * @param op_func Callable `(auto x) -> auto`, or a bind_reads bundle of one: device-copyable, by-value captures, no allocation, no throw.
          * @throws std::invalid_argument on an operand or declared-read violation, or too many params.
-         * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
+         * @throws UnsupportedExecution on a device-only tensor under ForceReference, or a dtype a tensor's device cannot compute in.
          * @see include/SushiBLAS/engine/logic/README.md
          */
         template<Domain Dom = Domain::Real, typename Func, typename Param = double>
@@ -98,7 +98,7 @@ namespace SushiBLAS
          * @param result Must match the inputs in size and dtype.
          * @param op_func Callable `(auto x, auto y) -> auto`, or a bind_reads bundle of one, under execute_logic_unary's constraints.
          * @throws std::invalid_argument on an operand or declared-read violation, or too many params.
-         * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
+         * @throws UnsupportedExecution on a device-only tensor under ForceReference, or a dtype a tensor's device cannot compute in.
          */
         template<Domain Dom = Domain::Real, typename Func, typename Param = double>
         TaskHandle execute_logic_binary(TaskRecorder& recorder, const Tensor& A, const Tensor& B,
@@ -150,7 +150,7 @@ namespace SushiBLAS
          * @param result Must match the inputs in size and dtype.
          * @param op_func Callable `(auto c, auto a, auto b) -> auto`, or a bind_reads bundle of one, under execute_logic_unary's constraints.
          * @throws std::invalid_argument on an operand or declared-read violation, or too many params.
-         * @throws UnsupportedExecution on a device-only tensor under FORCE_REFERENCE, or a dtype a tensor's device cannot compute in.
+         * @throws UnsupportedExecution on a device-only tensor under ForceReference, or a dtype a tensor's device cannot compute in.
          */
         template<Domain Dom = Domain::Real, typename Func, typename Param = double>
         TaskHandle execute_logic_ternary(TaskRecorder& recorder, const Tensor& cond, const Tensor& A,
@@ -237,7 +237,7 @@ namespace SushiBLAS
         template<typename T>
         inline bool logic_equal(const std::complex<T>& x, const std::complex<T>& y) { return x == y; }
 
-        // No complex overloads follow; the ordering ops are Domain::Real; see include/SushiBLAS/engine/logic/README.md.
+        // No complex overloads follow; the ordering ops are Domain::RealAndIntegral; see include/SushiBLAS/engine/logic/README.md.
 
         /**
          * @brief Less-than comparison of two real scalars.

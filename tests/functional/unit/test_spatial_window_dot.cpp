@@ -62,7 +62,7 @@ namespace SushiBLAS
             /** @brief Returns the name a failure message gives a forced mode. */
             const char* forced_mode_name(ExecutionMode mode) noexcept
             {
-                return mode == ExecutionMode::ForceReference ? "FORCE_REFERENCE" : "FORCE_SYCL";
+                return mode == ExecutionMode::ForceReference ? "ForceReference" : "ForceSycl";
             }
 
             /** @brief Returns how many elements a tensor of dims holds. */
@@ -839,7 +839,7 @@ namespace SushiBLAS
                            "geometry");
         }
 
-        /** @brief Tests that FORCE_REFERENCE refuses a device-only input and AUTO records it. */
+        /** @brief Tests that ForceReference refuses a device-only input and Auto records it. */
         TEST_F(Unit_SpatialWindowDot, ADeviceOnlyOperandIsRefusedUnderForceReference)
         {
             const WindowCase c = table_cases()[0];

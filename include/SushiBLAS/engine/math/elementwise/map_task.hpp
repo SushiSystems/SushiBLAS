@@ -145,7 +145,7 @@ namespace SushiBLAS
                             vec_ok_ = vec_ok_ && Launch::is_vector_aligned(input);
                     }
 
-                    /** @brief Runs the serial host loop under FORCE_REFERENCE, else submits the kernel. */
+                    /** @brief Runs the serial host loop under ForceReference, else submits the kernel. */
                     sycl::event operator()(const Internal::KernelPairDispatcher& pair,
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
@@ -289,7 +289,7 @@ namespace SushiBLAS
                             vec_ok_ = vec_ok_ && Launch::is_vector_aligned(operand);
                     }
 
-                    /** @brief Runs the serial host loop under FORCE_REFERENCE, else submits the kernel. */
+                    /** @brief Runs the serial host loop under ForceReference, else submits the kernel. */
                     sycl::event operator()(const Internal::KernelPairDispatcher& pair,
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const

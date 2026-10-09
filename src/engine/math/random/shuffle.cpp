@@ -77,7 +77,7 @@ namespace SushiBLAS
 
         /**
          * @brief Runs the Fisher-Yates permutation of size elements of T on the host or as one device task.
-         * @return The submitted event, or an empty one under FORCE_REFERENCE.
+         * @return The submitted event, or an empty one under ForceReference.
          * @see src/README.md
          */
         template<typename T>

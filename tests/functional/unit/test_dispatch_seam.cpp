@@ -894,7 +894,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadMayNotBeAnOutput)
 }
 
 /**
- * @brief Tests that FORCE_REFERENCE refuses a declared read in device-only USM and FORCE_SYCL
+ * @brief Tests that ForceReference refuses a declared read in device-only USM and ForceSycl
  *        records it.
  * @see tests/functional/unit/README.md
  */
@@ -908,7 +908,7 @@ TEST_F(Unit_DispatchSeamTest, ADeviceOnlyReadIsRefusedUnderForceReference)
     GraphProbe reference(sb::ExecutionMode::ForceReference);
     const std::string message =
         refusal_of([&] { record_scaled(reference.get_recorder(), y, *factor); });
-    EXPECT_NE(message.find("FORCE_REFERENCE"), std::string::npos) << message;
+    EXPECT_NE(message.find("ForceReference"), std::string::npos) << message;
     EXPECT_TRUE(reference.take_nodes().empty());
 
     GraphProbe device(sb::ExecutionMode::ForceSycl);
@@ -930,5 +930,5 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadReachesTheHostPath)
     ASSERT_EQ(reference.stepped.size(), reference.theta.size());
     EXPECT_NE(std::memcmp(reference.stepped.data(), reference.theta.data(),
                           reference.theta.size() * sizeof(double)), 0)
-        << "the update under FORCE_REFERENCE changed nothing";
+        << "the update under ForceReference changed nothing";
 }

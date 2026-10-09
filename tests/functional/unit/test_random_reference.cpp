@@ -144,8 +144,8 @@ namespace SushiBLAS
             template<typename T>
             struct ModeDraws
             {
-                std::vector<T> reference; /**< The elements written under FORCE_REFERENCE. */
-                std::vector<T> device;    /**< The elements written under FORCE_SYCL. */
+                std::vector<T> reference; /**< The elements written under ForceReference. */
+                std::vector<T> device;    /**< The elements written under ForceSycl. */
             };
 
             /** @brief Holds the allowance of a comparison: absolute + relative * |reference|. */
@@ -464,9 +464,9 @@ namespace SushiBLAS
                         run_in_both_modes(seed, dims, std::vector<T>(count, unwritten), fill);
 
                     EXPECT_EQ(count_holding(draws.reference, unwritten), std::size_t{0})
-                        << "FORCE_REFERENCE left elements unwritten";
+                        << "ForceReference left elements unwritten";
                     EXPECT_EQ(count_holding(draws.device, unwritten), std::size_t{0})
-                        << "FORCE_SYCL left elements unwritten";
+                        << "ForceSycl left elements unwritten";
                     return draws;
                 }
 
@@ -514,7 +514,7 @@ namespace SushiBLAS
                                           [](RandomOps& random, Tensor& t) { random.shuffle(t); });
 
                     EXPECT_GT(bit_difference(ordered, draws.reference).count, std::size_t{0})
-                        << "FORCE_REFERENCE left every element in place";
+                        << "ForceReference left every element in place";
                     expect_equal_bits(draws.reference, draws.device);
                 }
 
@@ -722,9 +722,9 @@ namespace SushiBLAS
                 });
 
             EXPECT_NEAR(norm_of(draws.reference), K_SINGLE_VECTOR_GAIN, K_NORM_TOLERANCE)
-                << "FORCE_REFERENCE";
+                << "ForceReference";
             EXPECT_NEAR(norm_of(draws.device), K_SINGLE_VECTOR_GAIN, K_NORM_TOLERANCE)
-                << "FORCE_SYCL";
+                << "ForceSycl";
         }
 
         /** @brief Tests that a call refused for a device-only tensor reserves no offset. */
@@ -753,7 +753,7 @@ namespace SushiBLAS
             engine->execute();
         }
 
-        /** @brief Tests that two FORCE_REFERENCE runs of normal from one seed write equal bits. */
+        /** @brief Tests that two ForceReference runs of normal from one seed write equal bits. */
         TEST_F(Unit_RandomReference, TheSameSeedGivesTheSameReferenceStreamTwice)
         {
             const Operation fill = [](RandomOps& random, Tensor& t)

@@ -114,7 +114,7 @@ namespace SushiBLAS
         /**
          * @brief Leases device scratch on the device of anchor and declares it written.
          * @return An empty buffer when anchor has no storage, bytes is zero, or the recorder's mode
-         *         is FORCE_REFERENCE, under which no SYCL kernel reads it.
+         *         is ForceReference, under which no SYCL kernel reads it.
          */
         [[nodiscard]] inline ScratchBuffer allocate_blas_scratch(TaskRecorder& recorder,
                                                                  const Tensor& anchor,
@@ -235,7 +235,7 @@ namespace SushiBLAS
         /**
          * @brief Throws unless the device of C hosts the tile the SYCL kernel of op stages.
          * @tparam Tile A type whose static `demand<T>()` returns a Device::LocalTileDemand.
-         * @throws UnsupportedExecution outside FORCE_REFERENCE, which never runs that kernel.
+         * @throws UnsupportedExecution outside ForceReference, which never runs that kernel.
          * @see include/SushiBLAS/engine/blas/README.md
          */
         template<typename Tile>

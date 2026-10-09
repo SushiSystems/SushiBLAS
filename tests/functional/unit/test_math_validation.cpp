@@ -281,7 +281,7 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that FORCE_REFERENCE records every family and refuses a device-only operand.
+         * @brief Tests that ForceReference records every family and refuses a device-only operand.
          * @see tests/functional/unit/README.md
          */
         TEST_F(Unit_MathValidationTest, ADeviceOnlyOperandIsRefusedInEveryFamily)
@@ -301,7 +301,7 @@ namespace SushiBLAS
 
             for (const RecordCase& c : record_cases(probe.get_recorder(), *device_only))
             {
-                EXPECT_TRUE(holds(refusal_of(c.record), "FORCE_REFERENCE"))
+                EXPECT_TRUE(holds(refusal_of(c.record), "ForceReference"))
                     << c.name << " did not refuse the device-only operand";
             }
             EXPECT_TRUE(probe.take_nodes().empty());
@@ -328,7 +328,7 @@ namespace SushiBLAS
 
                 const std::string text = refusal_of([&] { ops.add(a, b, c); });
                 EXPECT_TRUE(holds(text, "'B'")) << text;
-                EXPECT_FALSE(holds(text, "FORCE_REFERENCE")) << text;
+                EXPECT_FALSE(holds(text, "ForceReference")) << text;
 
                 if (mode == ExecutionMode::Auto)
                     text_under_auto = text;

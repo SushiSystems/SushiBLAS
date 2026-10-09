@@ -205,8 +205,8 @@ namespace SushiBLAS
             /** @brief Returns the name of a mode and a layout for a failure message. */
             [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
             {
-                return std::string(mode == ExecutionMode::ForceSycl ? "FORCE_SYCL"
-                                                                     : "FORCE_REFERENCE") +
+                return std::string(mode == ExecutionMode::ForceSycl ? "ForceSycl"
+                                                                     : "ForceReference") +
                        (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
             }
 
