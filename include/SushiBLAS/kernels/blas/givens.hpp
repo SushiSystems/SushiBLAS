@@ -17,6 +17,9 @@
 /* Noncommercial use is free. Commercial use requires a separate licence  */
 /* from Sushi Systems; see COMMERCIAL.md. The software is provided        */
 /* "as is", without warranty of any kind.                                 */
+/*                                                                        */
+/* Transcribed from the reference BLAS of LAPACK, Copyright (c) 1992-2025 */
+/* The University of Tennessee and others; modified BSD, see NOTICE.md    */
 /**************************************************************************/
 
 /**
