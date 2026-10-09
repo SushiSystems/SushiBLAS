@@ -26,4 +26,4 @@ foreach(benchmark IN LISTS SB_BENCHMARKS)
 endforeach()
 
 # benchmark_triangular times the TRSM kernel at block widths the public API does not select.
-target_include_directories(benchmark_triangular PRIVATE "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/source>")
+target_link_libraries(benchmark_triangular PRIVATE sushiblas_internal_headers)

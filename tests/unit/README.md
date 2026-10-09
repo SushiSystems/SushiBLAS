@@ -642,7 +642,7 @@ GEMM would disagree.
 
 `ExecuteGemmWithTheIdentityEpilogueIsPlainGemm` asserts what `Level3::gemm` now is: the unfused
 entry point and the seam with the identity must agree element for element, or the delegation in
-`source/engine/blas/level3/gemm.cpp` changed behaviour.
+`modules/operations/blas/source/level3/gemm.cpp` changed behaviour.
 
 ### The epilogue's own operands
 

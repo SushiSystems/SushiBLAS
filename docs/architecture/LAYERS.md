@@ -19,10 +19,10 @@
    │                         stamps the execution mode on the task  │
    ├───────────────────────┬────────────────────────────────────────┤
    │  Reference kernels    │  SYCL kernels                          │  kernels/,
-   │  plain C++ on the     │  take the queue and the dependency     │  include/SushiBLAS/kernels/
+   │  plain C++ on the     │  take the queue and the dependency     │  modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/
    │  host                 │  events, return a sycl::event          │
    ├───────────────────────┴────────────────────────────────────────┤
-   │  Support                launch and fold shapes, serial loops,  │  include/SushiBLAS/support/
+   │  Support                launch and fold shapes, serial loops,  │  modules/foundation/support/include/SushiBLAS/support/
    │                         accumulators, the device policy        │
    ├────────────────────────────────────────────────────────────────┤
    │  Tensor / Storage       shape, stride and dtype over a         │  tensor.hpp, storage.hpp,
@@ -43,10 +43,10 @@ sites:
   `elementwise()` accessor.
 - **A view knows the engine only as a source of bricks.** A view's constructor takes an `Engine&`
   and calls `get_recorder()` (and `get_rng()` for `RandomOps`), or takes the `TaskRecorder&`
-  directly. An operation source under `source/engine/` never includes `engine.hpp`.
+  directly. An operation source under `modules/operations/` never includes `engine.hpp`.
 - **Only `TaskRecorder` inserts into the graph.** No seam, view or operation source calls
   `TaskGraph::add_task`.
-- **A kernel knows neither `Engine` nor `Tensor`.** A header under `source/kernels/` or
-  `include/SushiBLAS/kernels/` includes no `engine/` header, no `tensor.hpp` and no sparse
+- **A kernel knows neither `Engine` nor `Tensor`.** A header under `modules/kernels/` or
+  `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/` includes no `engine/` header, no `tensor.hpp` and no sparse
   operand header. It receives pointers, extents and strides. A support header obeys the same rule
   and also includes no kernel.

@@ -1,0 +1,37 @@
+# CMakeLists.txt
+# SushiBLAS - https://github.com/SushiSystems/SushiBLAS
+# Copyright (c) 2026-present Mustafa Garip & Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
+sushiblas_add_module(
+    NAME nonlinear
+    LAYER operations
+    SOURCES
+        elu.cpp
+        gelu.cpp
+        leaky_relu.cpp
+        relu.cpp
+        sigmoid.cpp
+        silu.cpp
+        softplus.cpp
+        tanh.cpp
+    DEPENDS
+        core
+        support
+        tensor
+        engine
+        functor_map)
+
+sushiblas_add_module_tests(
+    MODULE nonlinear
+    SOURCES
+        test_complex_nonlinear.cpp
+        test_elu.cpp
+        test_gelu.cpp
+        test_leaky_relu.cpp
+        test_relu.cpp
+        test_sigmoid.cpp
+        test_silu.cpp
+        test_softplus.cpp
+        test_tanh.cpp)

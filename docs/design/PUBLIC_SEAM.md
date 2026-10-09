@@ -44,15 +44,15 @@ on 2026-10-09:
 
 | Folder | Installed | Holds |
 | --- | --- | --- |
-| `include/SushiBLAS/kernels/` | yes | The GEMM kernels, reference and SYCL, their epilogues, the packed product, and the access bricks of the BLAS operands |
-| `source/kernels/` | no | Every other kernel |
+| `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/` | yes | The GEMM kernels, reference and SYCL, their epilogues, the packed product, and the access bricks of the BLAS operands |
+| `modules/kernels/` | no | Every other kernel |
 
 `Dispatch::execute_gemm` takes an epilogue, a functor applied to each element of the product
 inside the kernel. The GEMM kernel is therefore a template the consumer's compiler has to see,
 and so is every header it includes. A kernel that takes no caller functor is compiled into the
 library and stays private.
 
-The rule for a new kernel follows: it goes under `source/kernels/` unless a dispatch seam inlines a
+The rule for a new kernel follows: it goes under `modules/kernels/` unless a dispatch seam inlines a
 caller's functor into it.
 
 `tools/layering/check_layering.py` holds the include direction: a kernel includes neither

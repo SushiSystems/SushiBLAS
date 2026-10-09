@@ -35,13 +35,13 @@
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/sparse_matrix.hpp>
-#include <SushiBLAS/sparse_vector.hpp>
-#include <SushiBLAS/sparse_builder.hpp>
+#include <SushiBLAS/sparse_storage/sparse_matrix.hpp>
+#include <SushiBLAS/sparse_storage/sparse_vector.hpp>
+#include <SushiBLAS/sparse_storage/sparse_builder.hpp>
 #include <SushiBLAS/core/sparse_types.hpp>
-#include <kernels/sparse/csr_pattern.hpp>
-#include <kernels/sparse/index_list.hpp>
-#include <kernels/reference/sparse/structure.hpp>
+#include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
+#include <SushiBLAS/sparse_kernels/index_list.hpp>
+#include <SushiBLAS/sparse_kernels/reference/structure.hpp>
 #include "../common/test_utils.hpp"
 #include "../common/sparse_samples.hpp"
 

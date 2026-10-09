@@ -4,7 +4,7 @@ The words this repository's documents use. Symbols are spelled as the code spell
 
 | Word | Meaning |
 | --- | --- |
-| Engine | The composition root a caller holds. It owns one task graph with its scratch pool, task recorder, tensor factory and random stream, sets the execution mode and runs the graph; it names no operation family (`include/SushiBLAS/engine.hpp`) |
+| Engine | The composition root a caller holds. It owns one task graph with its scratch pool, task recorder, tensor factory and random stream, sets the execution mode and runs the graph; it names no operation family (`modules/engine/engine/include/SushiBLAS/engine/engine.hpp`) |
 | View | A class that holds one operation family, such as `BLASOps`, `SparseOps` or `ReductionOps`. A caller builds it from an `Engine` or a `TaskRecorder` and calls the operations on it |
 | Task recorder | `TaskRecorder`, the one caller of the graph's `add_task`. It records onto the task graph it was given, under the execution mode it holds, and returns a task handle (`engine/task_recorder.hpp`) |
 | Task handle | `TaskHandle`, the value a record call returns: it identifies the task by its recorder and registration index, or names no task (`engine/task_handle.hpp`) |
@@ -18,9 +18,9 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | Dtype | A member of `Core::DataType`: `Half`, `Float32`, `Float64`, `Complex32`, `Complex64`, `Int32`, `Int64`, numbered 0 to 6. The numbers are a file-format contract and a new type is appended |
 | Domain | `Dispatch::Domain`, the dtype families an operation admits: `Real`, `Complex`, `Integral` and their unions |
 | Layout | `Core::Layout`, `RowMajor` or `ColumnMajor`; how a matrix operand is addressed |
-| Reference kernel | The plain C++ implementation of an operation, under `source/kernels/reference/`. The BLAS, sparse and spatial families have one per operation |
+| Reference kernel | The plain C++ implementation of an operation, under `modules/kernels/reference/`. The BLAS, sparse and spatial families have one per operation |
 | Reference path | What runs on the host under `ForceReference`: the reference kernel where an operation has one, and for the elementwise, nonlinear, logic, reduction and random families a serial loop over the same functor, fold or Philox counters as the SYCL kernel |
-| SYCL kernel | The device implementation of an operation, under `source/kernels/sycl/` |
+| SYCL kernel | The device implementation of an operation, under `modules/kernels/sycl/` |
 | Execution mode | `ExecutionMode`: `Auto` and `ForceSycl` run the SYCL kernel, `ForceReference` runs the reference path on the host. A task keeps the mode its recorder held when it was recorded |
 | Dispatch helper | `Internal::execute_typed_task` in `engine/task.hpp` records a task through the recorder and switches on the dtype; `Internal::KernelPairDispatcher` runs the reference or the SYCL kernel of a pair by the recorded mode |
 | Dispatch seam | The public `SushiBLAS::Dispatch` functions that take a recorder and a caller-written functor and record it as one task, such as `execute_binary` and `execute_gemm` |
@@ -29,7 +29,7 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | Launch shape | How a kernel maps work onto the device: per element (`launch_1d.hpp`), a whole-tensor fold (`reduce_1d.hpp`) or a segmented fold (`reduce_axis.hpp`) |
 | Segment | The run of elements an axis reduction folds into one output element |
 | Accumulation policy | A type such as `Reduce::CompensatedSum` or `Reduce::NaNPropagatingMax` that states how a fold combines values |
-| Conjugation policy | `Kernels::Unconjugated` or `Kernels::Conjugated`, the template argument that makes one kernel serve a symmetric routine and its Hermitian sibling (`include/SushiBLAS/kernels/blas/conjugation.hpp`) |
+| Conjugation policy | `Kernels::Unconjugated` or `Kernels::Conjugated`, the template argument that makes one kernel serve a symmetric routine and its Hermitian sibling (`modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/conjugation.hpp`) |
 | Operand access | `Kernels::OperandAccess`: the row step, the column step and the conjugation with which a kernel reads element (row, col) of op(X), resolved on the host from the layout and the `Transpose` flag |
 | BLAS flag | `Transpose`, `Uplo`, `Diag` or `Side`, the enumerations a BLAS call takes in place of a bool; they carry the CBLAS numbers, so a value-initialised flag is invalid (`core/blas_types.hpp`) |
 | `BlasScalar` | The type of alpha and beta in a BLAS call: a real or a complex value, built from `double` or `std::complex<double>` |
@@ -42,7 +42,7 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | Register block | The square of accumulators one GEMM work-item keeps in registers; 8x8 for 4-byte and narrower element types, 4x4 for wider ones |
 | Tile | The block of an operand a GEMM work-group stages in local memory |
 | AOT target | A device target compiled ahead of time through `SB_SYCL_TARGETS`, as opposed to SPIR-V compiled by the runtime |
-| Quarantine | The headers under `include/SushiBLAS/experimental/`: declared, outside the umbrella header, and not defined |
+| Quarantine | The headers under `modules/operations/experimental/include/SushiBLAS/experimental/`: declared, outside the umbrella header, and not defined |
 | Functional suite | The CTest tests labelled unit, integration or regression; the default of `sb test` |
 | Package suite | `sb test --suite package`: installs the package and builds and runs `tests/package/` against it |
 | Sibling checkout | A SushiRuntime checkout in the folder beside this repository, `../sushiruntime` |

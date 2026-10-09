@@ -1,13 +1,13 @@
 # Doxygen configuration for the SushiBLAS public API reference.
 #
-# Scope is include/SushiBLAS minus the quarantine. Unlike SushiRuntime - which
+# Scope is the installed headers under modules/ minus the quarantine. Unlike SushiRuntime - which
 # curates a fluent `api/` subtree and documents the layers beneath it in prose
 # only - SushiBLAS has no such split: the engine facade, the tensor and the
 # Dispatch seam are all surface a consumer writes against.
 #
 # `experimental/` is the one exclusion, and it is deliberate. Decision D1
 # quarantined the FFT and linalg headers: they are excluded from the umbrella
-# header <SushiBLAS/engine.hpp> and their ops are not all defined. A reference
+# header <SushiBLAS/engine/engine.hpp> and their ops are not all defined. A reference
 # that listed them would advertise an API that does not link.
 #
 # Build it with `sb docs`. Doxygen runs from the repository root, so every
@@ -29,7 +29,7 @@ FULL_SIDEBAR           = NO
 # The public headers plus the hand-written landing page. The reference and the
 # manual build together, the same arrangement SushiRuntime's Doxyfile sets up.
 INPUT                  = docs/reference/MAINPAGE.md \
-                         include/SushiBLAS
+                         modules
 FILE_PATTERNS          = *.hpp *.h *.md
 RECURSIVE              = YES
 USE_MDFILE_AS_MAINPAGE = docs/reference/MAINPAGE.md
@@ -37,7 +37,9 @@ USE_MDFILE_AS_MAINPAGE = docs/reference/MAINPAGE.md
 # Internal plumbing and the D1 quarantine. `Detail` is this library's spelling
 # of the same idea SushiRuntime spells `detail`; both are listed so a header
 # that borrows the other convention does not silently leak.
-EXCLUDE_PATTERNS       = */detail/* */Detail/* */experimental/*
+EXCLUDE_PATTERNS       = */detail/* */Detail/* */experimental/* \
+                         */blas_kernels/* */random_kernels/* */sparse_kernels/* \
+                         */spatial_kernels/* */tests/* */source/*
 EXCLUDE_SYMBOLS        = *::Detail *::Detail::* *::detail *::detail::*
 
 # Document what is written; do not invent docs for undocumented symbols, and

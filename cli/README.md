@@ -128,7 +128,7 @@ The options SushiBLAS itself defines:
 
 `SB_LOG_LEVEL` is the one to reach for when debugging: a release build logs at
 WARN, so `-D SB_LOG_LEVEL=INFO` turns the per-kernel-launch trace back on
-without editing `include/SushiBLAS/core/logger.hpp`. Put it back with
+without editing `modules/foundation/core/include/SushiBLAS/core/logger.hpp`. Put it back with
 `-D SB_LOG_LEVEL=auto`. Note that the level is a **public** compile definition —
 it lives in an `inline constexpr` variable in a header every consumer compiles,
 so the library and everything linking it must agree on it.
@@ -192,7 +192,7 @@ Two consequences worth knowing:
   be worse than refusing.
 
 Run it before publishing anything that adds a public header or touches
-`source/CMakeLists.txt`'s install rules.
+`modules/library/sushiblas/CMakeLists.txt`'s install rules.
 
 ## `sb run`
 
@@ -246,7 +246,8 @@ gitignored; the log is where the documentation debt is read off, and
 `WARN_AS_ERROR` is deliberately `NO` so a missing `@param` cannot fail a docs
 build.
 
-Scope is `include/SushiBLAS` minus `Detail` and minus `experimental/`.
+Scope is the installed headers under `modules/`, minus `Detail`, minus `experimental/` and
+minus the four internal kernel modules.
 Decision D1 put the FFT and linalg headers outside the umbrella header, and no
 operation declared there has a definition, so listing them would
 advertise an API that does not link. D1 is defined in

@@ -76,7 +76,7 @@ widths.
 
 ## The `Unit_Level2SyclParityTest` fixture
 
-`tests/unit/test_level2_sycl_parity.cpp` runs GEMV and SYMV in a chosen execution mode
+`modules/operations/blas/tests/test_level2_sycl_parity.cpp` runs GEMV and SYMV in a chosen execution mode
 and measures each against a `TruthSum`, as described under `blas_truth.hpp` above.
 
 ## test_utils.hpp
@@ -97,7 +97,7 @@ wants and the tensor's dtype decides how they are stored. Filling an integer ten
 
 Every helper here reads or writes `num_elements` consecutive elements from `tensor.data()`. They
 handle dense, contiguous tensors only. A strided view or a view at an offset needs its own
-comparison, as `tests/unit/test_storage_offset.cpp` does.
+comparison, as `modules/data/tensor/tests/test_storage_offset.cpp` does.
 
 ### verify_tensor
 

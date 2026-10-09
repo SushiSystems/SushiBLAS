@@ -33,9 +33,9 @@
 #include <initializer_list>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/engine/blas/band_operand.hpp>
-#include <SushiBLAS/engine/blas/packed_operand.hpp>
-#include <SushiBLAS/engine/blas/scalar_operand.hpp>
+#include <SushiBLAS/blas/band_operand.hpp>
+#include <SushiBLAS/blas/packed_operand.hpp>
+#include <SushiBLAS/blas/scalar_operand.hpp>
 #include "../common/test_utils.hpp"
 
 namespace SushiBLAS

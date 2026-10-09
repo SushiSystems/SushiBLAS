@@ -99,7 +99,7 @@ in either case, so every translation unit that
 includes `<SushiBLAS/SushiBLAS.h>` needs a compiler that can parse those types. Linking
 `SushiBLAS::sushiblas` carries `-fsycl` as a `PUBLIC` compile and link option for that reason.
 
-A parse error inside `<sycl/sycl.hpp>` or `<SushiBLAS/tensor.hpp>` means the file is being
+A parse error inside `<sycl/sycl.hpp>` or `<SushiBLAS/tensor/tensor.hpp>` means the file is being
 compiled by a non-SYCL compiler. See
 [section 1 of the integration guide](INTEGRATION.md#1-where-the-kernels-are-compiled).
 
@@ -141,7 +141,7 @@ repository's own CLI. The [glossary](../reference/GLOSSARY.md) defines these wor
 - The tree has run on one NVIDIA card, an RTX 3080 Ti, and on no OpenCL CPU device or other card.
 - `trmm` is not implemented. Sparse matrices are CSR only.
 - `LinalgOps` (SVD, QR, eigendecomposition) and `TransformsOps` (FFT, DFT) are declared under
-  `include/SushiBLAS/experimental/` and have no implementation. The umbrella header does not
+  `modules/operations/experimental/include/SushiBLAS/experimental/` and have no implementation. The umbrella header does not
   include them.
 
 Defects that are recorded and not yet fixed are in [known issues](../reference/KNOWN_ISSUES.md).

@@ -41,10 +41,10 @@
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
-#include <SushiBLAS/engine/blas/dispatch.hpp>
-#include <SushiBLAS/kernels/blas/level3/gemm_epilogue.hpp>
-#include <SushiBLAS/kernels/blas/level3/channel_bias_epilogue.hpp>
-#include <SushiBLAS/kernels/blas/level3/packed_product_plan.hpp>
+#include <SushiBLAS/blas/dispatch.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 #include "../common/test_utils.hpp"
 #include "../common/blas_truth.hpp"
 #include "../common/packed_product_harness.hpp"

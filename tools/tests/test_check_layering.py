@@ -29,10 +29,10 @@ from layering.check_layering import (  # noqa: E402
     rule_view_engine_calls,
 )
 
-K_KERNEL = "source/kernels/reference/add.hpp"
-K_SUPPORT = "include/SushiBLAS/support/launch_1d.hpp"
+K_KERNEL = "modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/add.hpp"
+K_SUPPORT = "modules/foundation/support/include/SushiBLAS/support/launch_1d.hpp"
 K_ENGINE_INCLUDE = "#include <SushiBLAS/engine/task.hpp>\n"
-K_ENGINE_HEADER_INCLUDE = "#include <SushiBLAS/engine.hpp>\n"
+K_ENGINE_HEADER_INCLUDE = "#include <SushiBLAS/engine/engine.hpp>\n"
 
 
 def _repository(folder: str, files: dict[str, str], known: tuple[KnownViolation, ...] = ()) -> Repository:
@@ -84,13 +84,13 @@ class SupportIndependenceTest(unittest.TestCase):
             self.assertEqual(list(rule_support_independence(_repository(folder, files))), [])
 
     def test_reports_engine_kernel_and_tensor_includes(self) -> None:
-        """Reports engine.hpp, engine/, source/kernels/ and tensor.hpp includes, each on its line."""
+        """Reports engine.hpp, engine/, modules/kernels/ and tensor.hpp includes, each on its line."""
         files = {
             K_SUPPORT: (
-                "#include <SushiBLAS/engine.hpp>\n"
+                "#include <SushiBLAS/engine/engine.hpp>\n"
                 '#include "SushiBLAS/engine/task.hpp"\n'
-                "#include <SushiBLAS/kernels/sycl/blas/level3/gemm.hpp>\n"
-                "#include <SushiBLAS/tensor.hpp>\n"
+                "#include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>\n"
+                "#include <SushiBLAS/tensor/tensor.hpp>\n"
             ),
         }
         with tempfile.TemporaryDirectory() as folder:
@@ -101,9 +101,9 @@ class SupportIndependenceTest(unittest.TestCase):
         """Reports sparse_vector.hpp, sparse_matrix.hpp and sparse_builder.hpp, each on its line."""
         files = {
             K_SUPPORT: (
-                "#include <SushiBLAS/sparse_vector.hpp>\n"
-                "#include <SushiBLAS/sparse_matrix.hpp>\n"
-                "#include <SushiBLAS/sparse_builder.hpp>\n"
+                "#include <SushiBLAS/sparse_storage/sparse_vector.hpp>\n"
+                "#include <SushiBLAS/sparse_storage/sparse_matrix.hpp>\n"
+                "#include <SushiBLAS/sparse_storage/sparse_builder.hpp>\n"
                 "#include <SushiBLAS/core/logger.hpp>\n"
             ),
         }
@@ -124,10 +124,10 @@ class KernelIncludesTest(unittest.TestCase):
     def test_reports_engine_and_tensor_includes(self) -> None:
         """Reports engine.hpp, an engine/ header and tensor.hpp, each on its line."""
         files = {
-            "include/SushiBLAS/kernels/sycl/k.hpp": (
-                "#include <SushiBLAS/engine.hpp>\n"
+            "modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/k.hpp": (
+                "#include <SushiBLAS/engine/engine.hpp>\n"
                 '#include "SushiBLAS/engine/task.hpp"\n'
-                "#include <SushiBLAS/tensor.hpp>\n"
+                "#include <SushiBLAS/tensor/tensor.hpp>\n"
             ),
         }
         with tempfile.TemporaryDirectory() as folder:
@@ -137,10 +137,10 @@ class KernelIncludesTest(unittest.TestCase):
     def test_reports_the_sparse_operand_headers(self) -> None:
         """Reports the three sparse operand headers and accepts a private kernel brick."""
         files = {
-            "source/kernels/sycl/sparse/k.hpp": (
-                "#include <SushiBLAS/sparse_vector.hpp>\n"
-                "#include <SushiBLAS/sparse_matrix.hpp>\n"
-                "#include <SushiBLAS/sparse_builder.hpp>\n"
+            "modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sycl/k.hpp": (
+                "#include <SushiBLAS/sparse_storage/sparse_vector.hpp>\n"
+                "#include <SushiBLAS/sparse_storage/sparse_matrix.hpp>\n"
+                "#include <SushiBLAS/sparse_storage/sparse_builder.hpp>\n"
                 '#include "kernels/sparse/csr_pattern.hpp"\n'
             ),
         }
@@ -175,9 +175,9 @@ class EngineHeaderIncludesTest(unittest.TestCase):
     def test_accepts_the_bricks_engine_composes(self) -> None:
         """Reports nothing for the tensor header and the four engine bricks."""
         files = {
-            "include/SushiBLAS/engine.hpp": (
-                "#include <SushiBLAS/tensor.hpp>\n"
-                "#include <SushiBLAS/tensor_factory.hpp>\n"
+            "modules/engine/engine/include/SushiBLAS/engine/engine.hpp": (
+                "#include <SushiBLAS/tensor/tensor.hpp>\n"
+                "#include <SushiBLAS/tensor/tensor_factory.hpp>\n"
                 "#include <SushiBLAS/engine/rng_stream.hpp>\n"
                 "#include <SushiBLAS/engine/scratch_pool.hpp>\n"
                 "#include <SushiBLAS/engine/task_recorder.hpp>\n"
@@ -190,19 +190,19 @@ class EngineHeaderIncludesTest(unittest.TestCase):
     def test_reports_a_view_a_seam_io_and_experimental(self) -> None:
         """Reports a family view, a dispatch seam, io.hpp and an experimental header."""
         files = {
-            "include/SushiBLAS/engine.hpp": (
-                "#include <SushiBLAS/engine/math/random.hpp>\n"
+            "modules/engine/engine/include/SushiBLAS/engine/engine.hpp": (
+                "#include <SushiBLAS/random/random.hpp>\n"
                 "#include <SushiBLAS/engine/task.hpp>\n"
-                "#include <SushiBLAS/io.hpp>\n"
+                "#include <SushiBLAS/io/io.hpp>\n"
                 "#include <SushiBLAS/experimental/lapack/linalg.hpp>\n"
             ),
         }
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_engine_header_includes(_repository(folder, files)))
             self.assertEqual([issue.message for issue in issues], [
-                "layering violation: SushiBLAS/engine/math/random.hpp",
+                "layering violation: SushiBLAS/random/random.hpp",
                 "layering violation: SushiBLAS/engine/task.hpp",
-                "layering violation: SushiBLAS/io.hpp",
+                "layering violation: SushiBLAS/io/io.hpp",
                 "layering violation: SushiBLAS/experimental/lapack/linalg.hpp",
             ])
 
@@ -210,13 +210,13 @@ class EngineHeaderIncludesTest(unittest.TestCase):
 class SeamEngineIncludesTest(unittest.TestCase):
     """Checks that only the views the umbrella lists include engine.hpp."""
 
-    K_UMBRELLA = "#include <SushiBLAS/engine.hpp>\n#include <SushiBLAS/engine/blas.hpp>\n"
+    K_UMBRELLA = "#include <SushiBLAS/engine/engine.hpp>\n#include <SushiBLAS/blas/blas.hpp>\n"
 
     def test_accepts_a_view_the_umbrella_lists(self) -> None:
         """Reports nothing for a view header that includes engine.hpp."""
         files = {
-            "include/SushiBLAS/SushiBLAS.h": self.K_UMBRELLA,
-            "include/SushiBLAS/engine/blas.hpp": K_ENGINE_HEADER_INCLUDE,
+            "modules/library/sushiblas/include/SushiBLAS/SushiBLAS.h": self.K_UMBRELLA,
+            "modules/operations/blas/include/SushiBLAS/blas/blas.hpp": K_ENGINE_HEADER_INCLUDE,
         }
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_seam_engine_includes(_repository(folder, files))), [])
@@ -224,9 +224,9 @@ class SeamEngineIncludesTest(unittest.TestCase):
     def test_reports_a_seam_and_an_operation_source(self) -> None:
         """Reports a dispatch seam and an operation source that include engine.hpp."""
         files = {
-            "include/SushiBLAS/SushiBLAS.h": self.K_UMBRELLA,
-            "include/SushiBLAS/engine/blas/dispatch.hpp": K_ENGINE_HEADER_INCLUDE,
-            "source/engine/blas/level1/dot.cpp": K_ENGINE_HEADER_INCLUDE,
+            "modules/library/sushiblas/include/SushiBLAS/SushiBLAS.h": self.K_UMBRELLA,
+            "modules/operations/blas/include/SushiBLAS/blas/dispatch.hpp": K_ENGINE_HEADER_INCLUDE,
+            "modules/operations/blas/source/level1/dot.cpp": K_ENGINE_HEADER_INCLUDE,
         }
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_seam_engine_includes(_repository(folder, files)))
@@ -238,13 +238,13 @@ class OperationEngineCallsTest(unittest.TestCase):
 
     def test_accepts_the_recorder_and_a_comment(self) -> None:
         """Reports nothing for a recorder call or for an engine call in a comment."""
-        files = {"source/engine/blas/a.cpp": "recorder_.record(meta, operands, family, body);\n// engine_.get_mode();\n"}
+        files = {"modules/operations/blas/source/a.cpp": "recorder_.record(meta, operands, family, body);\n// engine_.get_mode();\n"}
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_operation_engine_calls(_repository(folder, files))), [])
 
     def test_reports_every_member(self) -> None:
         """Reports get_recorder through a reference and create_tensor through a pointer."""
-        files = {"source/engine/blas/a.cpp": "engine_.get_recorder();\nengine->create_tensor({});\n"}
+        files = {"modules/operations/blas/source/a.cpp": "engine_.get_recorder();\nengine->create_tensor({});\n"}
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_operation_engine_calls(_repository(folder, files)))
             self.assertEqual([issue.message for issue in issues],
@@ -256,15 +256,15 @@ class ViewEngineCallsTest(unittest.TestCase):
 
     def test_accepts_get_recorder_and_get_rng(self) -> None:
         """Reports nothing for the two members a view constructor reads."""
-        files = {"include/SushiBLAS/engine/math/random.hpp": "RandomOps(engine.get_recorder(), engine.get_rng())\n"}
+        files = {"modules/operations/random/include/SushiBLAS/random/random.hpp": "RandomOps(engine.get_recorder(), engine.get_rng())\n"}
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_view_engine_calls(_repository(folder, files))), [])
 
     def test_reports_another_member_and_skips_engine_hpp(self) -> None:
         """Reports execute in a seam and nothing in engine.hpp itself."""
         files = {
-            "include/SushiBLAS/engine/task.hpp": "engine.execute();\n",
-            "include/SushiBLAS/engine.hpp": "engine.execute();\n",
+            "modules/engine/engine/include/SushiBLAS/engine/task.hpp": "engine.execute();\n",
+            "modules/engine/engine/include/SushiBLAS/engine/engine.hpp": "engine.execute();\n",
         }
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_view_engine_calls(_repository(folder, files)))
@@ -278,8 +278,8 @@ class GraphInsertionsTest(unittest.TestCase):
     def test_accepts_the_recorder_header_and_a_comment(self) -> None:
         """Reports nothing for add_task in task_recorder.hpp or in a comment."""
         files = {
-            "include/SushiBLAS/engine/task_recorder.hpp": "graph_->add_task(meta, reads, writes, work);\n",
-            "source/engine/logic/all.cpp": "// add_task(meta) is the recorder's call.\n",
+            "modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp": "graph_->add_task(meta, reads, writes, work);\n",
+            "modules/operations/logic/source/all.cpp": "// add_task(meta) is the recorder's call.\n",
         }
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_graph_insertions(_repository(folder, files))), [])
@@ -287,8 +287,8 @@ class GraphInsertionsTest(unittest.TestCase):
     def test_reports_a_seam_and_a_source(self) -> None:
         """Reports add_task in a dispatch seam and add_native in an operation source."""
         files = {
-            "include/SushiBLAS/engine/logic/dispatch.hpp": "graph.add_task(meta, reads, writes, body);\n",
-            "source/engine/logic/all.cpp": "graph.add_native(reads, writes, work);\n",
+            "modules/operations/logic/include/SushiBLAS/logic/dispatch.hpp": "graph.add_task(meta, reads, writes, body);\n",
+            "modules/operations/logic/source/all.cpp": "graph.add_native(reads, writes, work);\n",
         }
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_graph_insertions(_repository(folder, files)))
@@ -302,14 +302,14 @@ class TaskDependenciesTest(unittest.TestCase):
     def test_accepts_a_command_group_and_a_shortcut_that_name_their_dependencies(self) -> None:
         """Reports nothing for a command group with depends_on and a fill that passes deps."""
         files = {
-            "source/kernels/sycl/add.hpp": (
+            "modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/add.hpp": (
                 "return queue.submit([&](sycl::handler& h)\n"
                 "{\n"
                 "    h.depends_on(deps);\n"
                 "    h.parallel_for(range, body);\n"
                 "});\n"
             ),
-            "source/engine/math/random/constant.cpp": "return q.fill(pT, value, size, deps);\n",
+            "modules/operations/random/source/constant.cpp": "return q.fill(pT, value, size, deps);\n",
         }
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_task_dependencies(_repository(folder, files))), [])
@@ -317,13 +317,13 @@ class TaskDependenciesTest(unittest.TestCase):
     def test_reports_a_command_group_and_a_shortcut_that_drop_them(self) -> None:
         """Reports a command group without depends_on and a fill without deps."""
         files = {
-            "source/kernels/sycl/add.hpp": (
+            "modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/add.hpp": (
                 "return queue.submit([&](sycl::handler& h)\n"
                 "{\n"
                 "    h.parallel_for(range, body);\n"
                 "});\n"
             ),
-            "source/engine/math/random/constant.cpp": "return q.fill(pT, value, size);\n",
+            "modules/operations/random/source/constant.cpp": "return q.fill(pT, value, size);\n",
         }
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_task_dependencies(_repository(folder, files)))
@@ -334,7 +334,7 @@ class TaskDependenciesTest(unittest.TestCase):
     def test_accepts_a_second_stage_that_waits_on_the_first(self) -> None:
         """Reports nothing for a command group that depends on an earlier stage's event."""
         files = {
-            "include/SushiBLAS/support/reduce_1d.hpp": (
+            "modules/foundation/support/include/SushiBLAS/support/reduce_1d.hpp": (
                 "return queue.submit([&](sycl::handler& h)\n"
                 "{\n"
                 "    h.depends_on(staged);\n"

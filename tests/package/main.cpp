@@ -33,8 +33,8 @@
 #include <cstdint>
 #include <type_traits>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/engine/blas/dispatch.hpp>
-#include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+#include <SushiBLAS/blas/dispatch.hpp>
+#include <SushiBLAS/elementwise/dispatch.hpp>
 
 namespace sb = SushiBLAS;
 using namespace SushiRuntime::Graph::Literals;

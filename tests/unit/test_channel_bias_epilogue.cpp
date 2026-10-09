@@ -30,9 +30,9 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/engine/blas/dispatch.hpp>
-#include <SushiBLAS/kernels/blas/level3/gemm_epilogue.hpp>
-#include <SushiBLAS/kernels/blas/level3/channel_bias_epilogue.hpp>
+#include <SushiBLAS/blas/dispatch.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp>
 #include "../common/test_utils.hpp"
 #include "../common/graph_probe.hpp"
 

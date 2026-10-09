@@ -45,10 +45,10 @@ host from the test's data pattern.
 
 The fix is in the tree the second run tested. Every running sum of a reference BLAS kernel is a
 `Kernels::ReferenceSum<T>`: double for `HALF`, `FLOAT32` and `COMPLEX32` terms, a compensated
-double sum for `FLOAT64` and `COMPLEX64` (`include/SushiBLAS/support/reference_accumulator.hpp`).
+double sum for `FLOAT64` and `COMPLEX64` (`modules/foundation/support/include/SushiBLAS/support/reference_accumulator.hpp`).
 The parity test compares each kernel with a double-precision truth under a bound derived from
 the term count (`tests/common/blas_truth.hpp`,
-`tests/unit/test_level2_sycl_parity.cpp`).
+`modules/operations/blas/tests/test_level2_sycl_parity.cpp`).
 
 What the runs do not show:
 
@@ -90,7 +90,7 @@ If the build fails here, nothing below applies. Report the driver error; do not 
 ## 2. Confirm the device profile is what the kernels assume
 
 Every architecture decision in this library goes through `SushiBLAS::Device::Profile`
-(`include/SushiBLAS/support/device_policy.hpp`). On the development CPU it reports
+(`modules/foundation/support/include/SushiBLAS/support/device_policy.hpp`). On the development CPU it reports
 `has_dedicated_local_memory = false`, so the GPU-shaped code paths were never selected there.
 
 On an NVIDIA GPU it should report `is_cpu = false`, `has_dedicated_local_memory = true`,
@@ -105,7 +105,7 @@ saying so.
 
 ### 3.1 GEMM bank-conflict arithmetic
 
-`include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp` uses a padded tile (`K_TILE_K + 1 = 17`)
+`modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp` uses a padded tile (`K_TILE_K + 1 = 17`)
 and a strided ownership lattice in place of contiguous ownership. The reasoning, for 32 banks of
 4 bytes with an 8×8 register block:
 
@@ -121,7 +121,7 @@ Unverified. `ncu --metrics l1tex__data_bank_conflicts_pipe_lsu_mem_shared` measu
 
 ### 3.1a When an axis reduction switches to a work-group per segment
 
-`Reduce::plan_axis` (`include/SushiBLAS/support/reduce_axis.hpp`) picks between one work-item
+`Reduce::plan_axis` (`modules/foundation/support/include/SushiBLAS/support/reduce_axis.hpp`) picks between one work-item
 per segment and one work-group per segment. It takes the item-per-segment shape whenever there
 are `compute_units × K_WAVES_PER_COMPUTE_UNIT` segments or more, and otherwise takes the
 work-group shape only if each segment is at least one full group-width long.
@@ -194,7 +194,7 @@ paths those runs took was not recorded, so the two items stay open until a run p
 
 ### 4.1 The 128-bit vector path
 
-`include/SushiBLAS/support/launch_1d.hpp` issues `sycl::vec<T, W>` loads and stores where
+`modules/foundation/support/include/SushiBLAS/support/launch_1d.hpp` issues `sycl::vec<T, W>` loads and stores where
 `Device::vector_width` says a wide access pays. That function returns 1 on a CPU by design: the
 OpenCL CPU backend already vectorises across work-items, and a hand-written `sycl::vec` competes
 with it for the same lanes. On the development machine `vector_steps` was therefore always 0 and

@@ -43,6 +43,7 @@ include(SushiBLASBuildPolicy)
 # PUBLIC: the level lives in an inline constexpr variable in a public header, so a
 # consumer that disagreed with the library about it would be an ODR violation.
 include(SushiBLASLogging)
+include(SushiBLASModule)  # sushiblas_add_module() and the tier table
 
 # --- Policies ---
 if(POLICY CMP0135)
@@ -69,26 +70,24 @@ include(GNUInstallDirs)
 set(SB_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/SushiBLAS"
     CACHE STRING "Where the SushiBLAS CMake package files are installed")
 
-# The version literals in include/SushiBLAS/version.hpp are hand-written, so
+# The version literals in modules/foundation/core/include/SushiBLAS/core/version.hpp are hand-written, so
 # they are greppable and need no generated header on the include path. That
 # trade is only safe if they cannot silently disagree with the version the
 # build and the package advertise — so the disagreement is a configure-time
 # error, here, rather than a consumer discovering it later. Mirrors
 # sushiruntime's own version-drift check exactly.
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/include/SushiBLAS/version.hpp"
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/modules/foundation/core/include/SushiBLAS/core/version.hpp"
      SB_VERSION_STRING_LINE
      REGEX "^#define SUSHIBLAS_VERSION_STRING ")
 string(REGEX MATCH "\"([0-9]+\\.[0-9]+\\.[0-9]+)\"" _sb_unused "${SB_VERSION_STRING_LINE}")
 if(NOT CMAKE_MATCH_1 STREQUAL PROJECT_VERSION)
     message(FATAL_ERROR
         "Version mismatch: project() says ${PROJECT_VERSION}, "
-        "include/SushiBLAS/version.hpp says ${CMAKE_MATCH_1}. "
+        "modules/foundation/core/include/SushiBLAS/core/version.hpp says ${CMAKE_MATCH_1}. "
         "Update both — they are the same fact stated twice.")
 endif()
 
 # --- Subdirectories ---
-add_subdirectory(source)
-
 # Examples and tests are built when SushiBLAS is the top-level project, not when a consumer
 # pulls it in with add_subdirectory.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
@@ -96,6 +95,25 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 else()
     set(SB_IS_TOP_LEVEL OFF)
 endif()
+
+# --- Testing switch ---
+# Declared before the modules: a module registers its own test program, so the switch,
+# GoogleTest and enable_testing() have to exist by the time the first module is read.
+option(SB_BUILD_TESTS "Build and register the test programs of the modules and of tests/" ${SB_IS_TOP_LEVEL})
+if(SB_BUILD_TESTS)
+    if(CMAKE_VERSION VERSION_LESS 3.22)
+        message(FATAL_ERROR "SB_BUILD_TESTS needs CMake 3.22 for gtest_discover_tests(TEST_FILTER).")
+    endif()
+    enable_testing()
+    find_package(GTest CONFIG REQUIRED)
+    include(GoogleTest)
+endif()
+include(SushiBLASTests)  # sushiblas_add_test_program(), sushiblas_add_module_tests()
+
+# --- Modules ---
+# Every tier in order; the last one composes the `sushiblas` library from the object
+# libraries and the include roots the others record.
+add_subdirectory(modules)
 
 option(SB_BUILD_EXAMPLES "Build the example programs under applications/examples/" ${SB_IS_TOP_LEVEL})
 if(SB_BUILD_EXAMPLES)
@@ -108,7 +126,7 @@ if(SB_BUILD_BENCHMARKS)
 endif()
 
 # --- Package files (SB-6) ---
-# Written after add_subdirectory(source) so the sushiblas/SushiRuntime::SushiRuntime
+# Written after add_subdirectory(modules) so the sushiblas/SushiRuntime::SushiRuntime
 # targets it references already exist.
 include(CMakePackageConfigHelpers)
 
@@ -133,9 +151,7 @@ install(FILES
     DESTINATION "${SB_INSTALL_CMAKEDIR}"
 )
 
-# --- Testing ---
-option(SB_BUILD_TESTS "Build and register the test suite under tests/" ${SB_IS_TOP_LEVEL})
+# --- Cross-module tests ---
 if(SB_BUILD_TESTS)
-    enable_testing()
     add_subdirectory(tests)
 endif()

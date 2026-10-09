@@ -36,8 +36,8 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/support/device_policy.hpp>
-#include <SushiBLAS/kernels/blas/level3/packed_product_plan.hpp>
-#include <SushiBLAS/kernels/sycl/blas/level3/gemm_packed.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
+#include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_packed.hpp>
 
 #include "benchmark_common.hpp"
 

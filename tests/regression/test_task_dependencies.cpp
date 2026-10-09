@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <kernels/random.hpp>
+#include <SushiBLAS/random_kernels/random.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/support/spatial_geometry.hpp>
 #include "../common/test_utils.hpp"
