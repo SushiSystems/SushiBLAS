@@ -39,6 +39,7 @@
 #include <iomanip>
 #include <sstream>
 #include <iostream>
+#include <string_view>
 #include <SushiBLAS/io.hpp>
 #include <SushiBLAS/engine.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
@@ -49,6 +50,36 @@ namespace SushiBLAS
     {
         /** @brief Holds the only .sushi format version this build reads and writes. */
         constexpr uint32_t K_SUSHI_FORMAT_VERSION = 1;
+
+        /** @brief Carries the status of a failed file operation from its site to the IO call. */
+        struct IoFailure
+        {
+            IoStatus status; /**< Why the operation failed. */
+        };
+
+        /** @brief Logs why a file operation failed, once, and leaves through an IoFailure. */
+        template<typename... Args>
+        [[noreturn]] void fail_io(IoStatus status, [[maybe_unused]] std::string_view format,
+                                  [[maybe_unused]] const Args&... args)
+        {
+            SB_LOG_ERROR("io: {}", Core::Detail::format(format, args...));
+            throw IoFailure{status};
+        }
+
+        /** @brief Runs file work and returns Ok, or the status of the IoFailure that ended it. */
+        template<typename FileWork>
+        [[nodiscard]] IoStatus status_of(FileWork file_work)
+        {
+            try
+            {
+                file_work();
+            }
+            catch (const IoFailure& failure)
+            {
+                return failure.status;
+            }
+            return IoStatus::Ok;
+        }
 
         /** @brief Returns the number of bytes the tensor's elements occupy. */
         size_t payload_bytes(const Tensor& t)
@@ -113,7 +144,7 @@ namespace SushiBLAS
 
                 /**
                  * @brief Returns the parsed header.
-                 * @throws std::runtime_error on malformed text, an unknown key or a missing key.
+                 * @throws IoFailure with MalformedFile on malformed text or a wrong set of keys.
                  */
                 NpyHeader parse()
                 {
@@ -163,15 +194,15 @@ namespace SushiBLAS
                 }
 
             private:
-                /** @brief Throws a runtime_error naming the file and the defect. */
+                /** @brief Fails with MalformedFile, naming the file and the defect. */
                 [[noreturn]] void fail(const std::string& what) const
                 {
-                    SB_THROW_IF(true, "The .npy header of {} is malformed at byte {}: {}.", path_,
-                                pos_, what);
-                    throw std::runtime_error(what);
+                    fail_io(IoStatus::MalformedFile,
+                            "The .npy header of {} is malformed at byte {}: {}.", path_, pos_,
+                            what);
                 }
 
-                /** @brief Marks a key as seen and throws when it was seen before. */
+                /** @brief Marks a key as seen and fails when it was seen before. */
                 void claim_key(bool& seen, const std::string& key) const
                 {
                     if (seen)
@@ -193,7 +224,7 @@ namespace SushiBLAS
                     return pos_ < text_.size() ? text_[pos_] : '\0';
                 }
 
-                /** @brief Skips space and consumes @p c; throws when another character is there. */
+                /** @brief Skips space and consumes @p c; fails when another character is there. */
                 void expect(char c)
                 {
                     skip_space();
@@ -289,53 +320,59 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Throws unless a parsed .npy header gives exactly the tensor's dtype, order, shape.
-         * @throws std::runtime_error naming the first field that differs.
+         * @brief Fails unless a parsed .npy header gives exactly the tensor's dtype, order, shape.
+         * @throws IoFailure with the mismatch of the first field that differs.
          */
         void require_npy_header_matches(const NpyHeader& header, const Tensor& t,
                                         const std::string& path)
         {
             const std::string expected_descr = npy_descr(t.dtype);
-            SB_THROW_IF(header.descr != expected_descr,
+            if (header.descr != expected_descr)
+                fail_io(IoStatus::DtypeMismatch,
                         "File {} holds .npy dtype '{}'; the tensor it is loaded into needs '{}'.",
                         path, header.descr, expected_descr);
 
             const bool column_major = t.layout == Core::Layout::ColumnMajor;
 
             // At rank 0 and 1 C and Fortran order lay the elements out identically.
-            SB_THROW_IF(t.rank >= 2 && header.fortran_order != column_major,
+            if (t.rank >= 2 && header.fortran_order != column_major)
+                fail_io(IoStatus::LayoutMismatch,
                         "File {} has fortran_order {}; the tensor it is loaded into is {}.", path,
                         header.fortran_order ? "True" : "False",
-                        column_major ? "COLUMN_MAJOR" : "ROW_MAJOR");
+                        column_major ? "ColumnMajor" : "RowMajor");
 
             bool same_shape = header.shape.size() == static_cast<size_t>(t.rank);
             for (int i = 0; same_shape && i < t.rank; ++i)
                 same_shape = header.shape[i] == t.shape[i];
-            SB_THROW_IF(!same_shape,
+            if (!same_shape)
+                fail_io(IoStatus::ShapeMismatch,
                         "File {} holds a .npy array of rank {} whose shape differs from the "
                         "tensor's (rank {}).", path, header.shape.size(), t.rank);
         }
 
-        /** @brief Reads exactly @p bytes into @p destination; throws when the file ends first. */
+        /** @brief Reads exactly @p bytes into @p destination; fails Truncated on a short file. */
         void read_exact(std::ifstream& ifs, char* destination, size_t bytes,
                         const char* part, const std::string& path)
         {
             ifs.read(destination, static_cast<std::streamsize>(bytes));
 
             const size_t bytes_read = static_cast<size_t>(ifs.gcount());
-            SB_THROW_IF(bytes_read != bytes,
+            if (bytes_read != bytes)
+                fail_io(IoStatus::Truncated,
                         "File {} ends inside its {}: {} bytes expected, {} read; nothing was "
                         "loaded.",
                         path, part, bytes, bytes_read);
         }
 
-        /** @brief Writes @p bytes from @p source and throws when the stream reports a failure. */
+        /** @brief Writes @p bytes from @p source; fails FileUnwritable on a stream failure. */
         void write_checked(std::ofstream& ofs, const void* source, size_t bytes, const char* part,
                            const std::string& path)
         {
             ofs.write(static_cast<const char*>(source), static_cast<std::streamsize>(bytes));
-            SB_THROW_IF(!ofs, "Writing the {} of {} failed after {} bytes were requested.",
-                        part, path, bytes);
+            if (!ofs)
+                fail_io(IoStatus::FileUnwritable,
+                        "Writing the {} of {} failed after {} bytes were requested.", part, path,
+                        bytes);
         }
 
         /** @brief Holds the bytes one file transfer stages on the host for device storage. */
@@ -343,7 +380,7 @@ namespace SushiBLAS
 
         /**
          * @brief Returns the bytes left in the stream after its read position.
-         * @throws std::runtime_error if the stream cannot seek.
+         * @throws IoFailure with FileUnreadable if the stream cannot seek.
          */
         std::uintmax_t remaining_bytes(std::ifstream& ifs, const std::string& path)
         {
@@ -351,14 +388,16 @@ namespace SushiBLAS
             ifs.seekg(0, std::ios::end);
             const std::streampos end = ifs.tellg();
             ifs.seekg(here);
-            SB_THROW_IF(!ifs || here == std::streampos(-1) || end < here,
-                        "The length of file {} cannot be measured.", path);
+            if (!ifs || here == std::streampos(-1) || end < here)
+                fail_io(IoStatus::FileUnreadable, "The length of file {} cannot be measured.",
+                        path);
             return static_cast<std::uintmax_t>(end - here);
         }
 
         /**
          * @brief Reads bytes of tensor data into destination.
-         * @throws std::runtime_error if the stream fails; destination then holds a partial load.
+         * @throws IoFailure with FileUnreadable if the stream fails; destination then holds a
+         *         partial load.
          */
         void read_tensor_bytes(std::ifstream& ifs, char* destination, size_t bytes,
                                const std::string& path)
@@ -366,7 +405,8 @@ namespace SushiBLAS
             ifs.read(destination, static_cast<std::streamsize>(bytes));
 
             const size_t bytes_read = static_cast<size_t>(ifs.gcount());
-            SB_THROW_IF(bytes_read != bytes,
+            if (bytes_read != bytes)
+                fail_io(IoStatus::FileUnreadable,
                         "Reading the tensor data of {} failed after {} of {} bytes; the tensor "
                         "holds a partial load.",
                         path, bytes_read, bytes);
@@ -403,7 +443,7 @@ namespace SushiBLAS
         /**
          * @brief Reads the tensor's bytes from the stream, straight into host-readable storage
          *        and one chunk at a time into device storage.
-         * @throws std::runtime_error before any element changes if the file is too short.
+         * @throws IoFailure with Truncated before any element changes if the file is too short.
          */
         void read_payload(std::ifstream& ifs, Tensor& t, const std::string& path)
         {
@@ -412,7 +452,8 @@ namespace SushiBLAS
                 return;
 
             const std::uintmax_t available = remaining_bytes(ifs, path);
-            SB_THROW_IF(available < bytes,
+            if (available < bytes)
+                fail_io(IoStatus::Truncated,
                         "File {} ends inside its tensor data: {} bytes expected, {} present; "
                         "nothing was loaded.",
                         path, bytes, available);
@@ -437,19 +478,22 @@ namespace SushiBLAS
 
         /**
          * @brief Creates the file at @p path, runs @p write_body on it, deletes it on failure.
-         * @throws std::runtime_error when the file cannot be opened or a write or the close fails.
+         * @throws IoFailure with FileUnwritable when the open, a write or the close fails.
          */
         template<typename WriteBody>
         void write_file(const std::string& path, WriteBody write_body)
         {
             std::ofstream ofs(path, std::ios::binary | std::ios::trunc);
-            SB_THROW_IF(!ofs.is_open(), "Failed to open file for writing: {}", path);
+            if (!ofs.is_open())
+                fail_io(IoStatus::FileUnwritable, "Failed to open file for writing: {}", path);
 
             try
             {
                 write_body(ofs);
                 ofs.close();
-                SB_THROW_IF(ofs.fail(), "Closing {} failed; the file may be incomplete.", path);
+                if (ofs.fail())
+                    fail_io(IoStatus::FileUnwritable,
+                            "Closing {} failed; the file may be incomplete.", path);
             }
             catch (...)
             {
@@ -681,7 +725,8 @@ namespace SushiBLAS
         /**
          * @brief Reads the .npy version and header length, accepting versions 1.0, 2.0 and 3.0.
          * @return The header length in bytes.
-         * @throws std::runtime_error on any other version, an oversized header or a short file.
+         * @throws IoFailure with MalformedFile on any other version or an oversized header, and
+         *         with Truncated on a short file.
          */
         size_t read_npy_header_length(std::ifstream& ifs, const std::string& path)
         {
@@ -690,7 +735,8 @@ namespace SushiBLAS
 
             const bool known = version[1] == 0 &&
                                (version[0] == 1 || version[0] == 2 || version[0] == 3);
-            SB_THROW_IF(!known,
+            if (!known)
+                fail_io(IoStatus::MalformedFile,
                         "File {} has .npy format version {}.{}; versions 1.0, 2.0 and 3.0 load.",
                         path, static_cast<int>(version[0]), static_cast<int>(version[1]));
 
@@ -703,7 +749,8 @@ namespace SushiBLAS
             for (size_t i = field_bytes; i > 0; --i)
                 length = (length << 8) | field[i - 1];
 
-            SB_THROW_IF(length > K_MAX_NPY_HEADER_BYTES,
+            if (length > K_MAX_NPY_HEADER_BYTES)
+                fail_io(IoStatus::MalformedFile,
                         "File {} declares a .npy header of {} bytes; at most {} are read.", path,
                         length, K_MAX_NPY_HEADER_BYTES);
             return length;
@@ -733,7 +780,7 @@ namespace SushiBLAS
         int32_t layout;
     };
 
-    void IO::save(const Tensor& t, const std::string& path)
+    IoStatus IO::save(const Tensor& t, const std::string& path)
     {
         require_dense_payload(t, "io.save");
 
@@ -751,71 +798,100 @@ namespace SushiBLAS
 
         engine_.execute();
 
-        write_file(path, [&](std::ofstream& ofs)
+        const IoStatus status = status_of([&]()
         {
-            write_checked(ofs, &header, sizeof(SushiHeader), "header", path);
-            write_payload(ofs, t, path);
+            write_file(path, [&](std::ofstream& ofs)
+            {
+                write_checked(ofs, &header, sizeof(SushiHeader), "header", path);
+                write_payload(ofs, t, path);
+            });
         });
 
-        SB_LOG_INFO("Saved native SushiBLAS file: {}", path);
+        if (status == IoStatus::Ok)
+            SB_LOG_INFO("Saved native SushiBLAS file: {}", path);
+        return status;
     }
 
-    void IO::load(Tensor& t, const std::string& path)
+    IoStatus IO::load(Tensor& t, const std::string& path)
     {
         require_dense_payload(t, "io.load");
 
         engine_.execute();
 
-        std::ifstream ifs(path, std::ios::binary);
-        SB_THROW_IF(!ifs.is_open(), "Failed to open file for reading: {}", path);
+        return status_of([&]()
+        {
+            std::ifstream ifs(path, std::ios::binary);
+            if (!ifs.is_open())
+                fail_io(IoStatus::FileUnreadable, "Failed to open file for reading: {}", path);
 
-        SushiHeader header;
-        read_exact(ifs, reinterpret_cast<char*>(&header), sizeof(SushiHeader), "header", path);
+            SushiHeader header;
+            read_exact(ifs, reinterpret_cast<char*>(&header), sizeof(SushiHeader), "header", path);
 
-        SB_THROW_IF(std::string(header.magic, 5) != "SUSHI", "Invalid .sushi file magic.");
-        SB_THROW_IF(header.version != K_SUSHI_FORMAT_VERSION,
-                    "File {} has .sushi format version {}; this build reads version {} only.",
-                    path, header.version, K_SUSHI_FORMAT_VERSION);
-        SB_THROW_IF(header.rank != t.rank, "Rank mismatch in .sushi file.");
+            if (std::string(header.magic, 5) != "SUSHI")
+                fail_io(IoStatus::MalformedFile, "File {} does not start with the .sushi magic.",
+                        path);
+            if (header.version != K_SUSHI_FORMAT_VERSION)
+                fail_io(IoStatus::MalformedFile,
+                        "File {} has .sushi format version {}; this build reads version {} only.",
+                        path, header.version, K_SUSHI_FORMAT_VERSION);
+            if (header.rank != t.rank)
+                fail_io(IoStatus::ShapeMismatch,
+                        "File {} holds rank {}; the tensor it is loaded into has rank {}.", path,
+                        header.rank, t.rank);
 
-        for (int i = 0; i < t.rank; ++i)
-            SB_THROW_IF(header.shape[i] != t.shape[i], "Dimension mismatch at index {}", i);
+            for (int i = 0; i < t.rank; ++i)
+                if (header.shape[i] != t.shape[i])
+                    fail_io(IoStatus::ShapeMismatch,
+                            "File {} holds {} in dimension {}; the tensor it is loaded into "
+                            "has {}.",
+                            path, header.shape[i], i, t.shape[i]);
 
-        SB_THROW_IF(header.dtype != static_cast<int32_t>(t.dtype),
-                    "File {} holds dtype id {}; the tensor it is loaded into is {}.",
-                    path, header.dtype, Core::to_string(t.dtype));
-        SB_THROW_IF(header.layout != static_cast<int32_t>(t.layout),
-                    "File {} holds layout id {}; the tensor it is loaded into has layout id {}.",
-                    path, header.layout, static_cast<int32_t>(t.layout));
+            if (header.dtype != static_cast<int32_t>(t.dtype))
+                fail_io(IoStatus::DtypeMismatch,
+                        "File {} holds dtype id {}; the tensor it is loaded into is {}.", path,
+                        header.dtype, Core::to_string(t.dtype));
+            if (header.layout != static_cast<int32_t>(t.layout))
+                fail_io(IoStatus::LayoutMismatch,
+                        "File {} holds layout id {}; the tensor it is loaded into has layout "
+                        "id {}.",
+                        path, header.layout, static_cast<int32_t>(t.layout));
 
-        read_payload(ifs, t, path);
+            read_payload(ifs, t, path);
+        });
     }
 
-    void IO::save_bin(const Tensor& t, const std::string& path)
+    IoStatus IO::save_bin(const Tensor& t, const std::string& path)
     {
         require_dense_payload(t, "io.save_bin");
 
         engine_.execute();
 
-        write_file(path, [&](std::ofstream& ofs)
+        return status_of([&]()
         {
-            write_payload(ofs, t, path);
+            write_file(path, [&](std::ofstream& ofs)
+            {
+                write_payload(ofs, t, path);
+            });
         });
     }
 
-    void IO::load_bin(Tensor& t, const std::string& path)
+    IoStatus IO::load_bin(Tensor& t, const std::string& path)
     {
         require_dense_payload(t, "io.load_bin");
 
         engine_.execute();
 
-        std::ifstream ifs(path, std::ios::binary);
-        SB_THROW_IF(!ifs.is_open(), "Failed to open file: {}", path);
+        return status_of([&]()
+        {
+            std::ifstream ifs(path, std::ios::binary);
+            if (!ifs.is_open())
+                fail_io(IoStatus::FileUnreadable, "Failed to open file for reading: {}", path);
 
-        read_payload(ifs, t, path);
+            read_payload(ifs, t, path);
+        });
     }
 
-    void IO::save_npy(const Tensor& t, const std::string& path)
+    IoStatus IO::save_npy(const Tensor& t, const std::string& path)
     {
         require_dense_payload(t, "io.save_npy");
         require_npy_layout(t, "io.save_npy");
@@ -849,46 +925,59 @@ namespace SushiBLAS
 
         uint16_t header_len = static_cast<uint16_t>(dict.length());
 
-        write_file(path, [&](std::ofstream& ofs)
+        const IoStatus status = status_of([&]()
         {
-            write_checked(ofs, magic, 6, "magic string", path);
-            write_checked(ofs, &major, 1, "format version", path);
-            write_checked(ofs, &minor, 1, "format version", path);
-            write_checked(ofs, &header_len, 2, "header length", path);
-            write_checked(ofs, dict.c_str(), header_len, "header", path);
+            write_file(path, [&](std::ofstream& ofs)
+            {
+                write_checked(ofs, magic, 6, "magic string", path);
+                write_checked(ofs, &major, 1, "format version", path);
+                write_checked(ofs, &minor, 1, "format version", path);
+                write_checked(ofs, &header_len, 2, "header length", path);
+                write_checked(ofs, dict.c_str(), header_len, "header", path);
 
-            write_payload(ofs, t, path);
+                write_payload(ofs, t, path);
+            });
         });
 
-        SB_LOG_INFO("Exported NumPy file: {}", path);
+        if (status == IoStatus::Ok)
+            SB_LOG_INFO("Exported NumPy file: {}", path);
+        return status;
     }
 
-    void IO::load_npy(Tensor& t, const std::string& path)
+    IoStatus IO::load_npy(Tensor& t, const std::string& path)
     {
         require_dense_payload(t, "io.load_npy");
         require_npy_layout(t, "io.load_npy");
 
         engine_.execute();
 
-        std::ifstream ifs(path, std::ios::binary);
-        SB_THROW_IF(!ifs.is_open(), "Failed to open file for reading: {}", path);
+        const IoStatus status = status_of([&]()
+        {
+            std::ifstream ifs(path, std::ios::binary);
+            if (!ifs.is_open())
+                fail_io(IoStatus::FileUnreadable, "Failed to open file for reading: {}", path);
 
-        char magic[6];
-        read_exact(ifs, magic, 6, "magic string", path);
-        SB_THROW_IF(std::string(magic, 6) != "\x93NUMPY", "Invalid .npy file magic.");
+            char magic[6];
+            read_exact(ifs, magic, 6, "magic string", path);
+            if (std::string(magic, 6) != "\x93NUMPY")
+                fail_io(IoStatus::MalformedFile, "File {} does not start with the .npy magic.",
+                        path);
 
-        const size_t header_len = read_npy_header_length(ifs, path);
+            const size_t header_len = read_npy_header_length(ifs, path);
 
-        std::string text(header_len, ' ');
-        if (header_len > 0)
-            read_exact(ifs, &text[0], header_len, "header", path);
+            std::string text(header_len, ' ');
+            if (header_len > 0)
+                read_exact(ifs, &text[0], header_len, "header", path);
 
-        const NpyHeader header = NpyHeaderParser(text, path).parse();
-        require_npy_header_matches(header, t, path);
+            const NpyHeader header = NpyHeaderParser(text, path).parse();
+            require_npy_header_matches(header, t, path);
 
-        read_payload(ifs, t, path);
+            read_payload(ifs, t, path);
+        });
 
-        SB_LOG_INFO("Loaded NumPy file: {}", path);
+        if (status == IoStatus::Ok)
+            SB_LOG_INFO("Loaded NumPy file: {}", path);
+        return status;
     }
 
     void IO::read(const Tensor& t, void* dst, size_t bytes)
