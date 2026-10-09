@@ -16,7 +16,7 @@ Load before working here: `sushiskills`, `repository-layout`, `cpp-code-style`,
 - `Engine` is a composition root that names no operation family, an operation view is built
   from an `Engine` or a `TaskRecorder` and reaches the task graph only through the recorder, and
   a kernel knows nothing of the recorder or `Engine`. `tools/layering/check_layering.py` checks
-  all three, and `docs/architecture/ARCHITECTURE.md` describes the layers.
+  all three, and `docs/architecture/README.md` describes the layers.
 - Every operation has a SYCL kernel and a reference path, and an unsupported dtype throws. The
   BLAS, spatial and sparse families have a reference kernel beside the SYCL kernel; the functor
   families (elementwise, nonlinear, logic), the reductions and the random family run a host
@@ -31,11 +31,8 @@ Load before working here: `sushiskills`, `repository-layout`, `cpp-code-style`,
 ```
 python tools/documentation/check_docs_layout.py .
 python tools/documentation/check_changelog.py .
-python tools/documentation/check_source_comments.py . --rule rule_license_block
+python tools/documentation/check_source_comments.py .
 python tools/layering/check_layering.py .
 python tools/versioning/check_version.py .
 python -m unittest discover -s tools/tests
 ```
-
-Run without `--rule`, `check_source_comments.py` still reports a comment block over the
-ceiling; the known issues page names it.

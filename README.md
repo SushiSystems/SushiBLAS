@@ -2,15 +2,15 @@
 
 SushiBLAS is a C++17 tensor and BLAS library built on [SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph. You create tensors through an `Engine` and record operations on them through view objects built from it; the runtime tracks the dependencies between the recorded tasks and runs them on a CPU or a GPU through SYCL. No kernel calls a vendor math library: there is no oneMKL and no cuBLAS behind it.
 
-The v0.1.0 interface described here has been written and not yet built or run as a whole. This page says what the code does as written; it does not say that an operation has been verified or how fast it is.
+The v0.1.0 tree was built and its test suite run as a whole once, on 2026-10-09, on one NVIDIA card; [the known issues](docs/reference/KNOWN_ISSUES.md) say what that run does not cover. This page says what the code does; it gives no speed figure.
 
 The manual is in [docs/README.md](docs/README.md).
 
 - **Operations are recorded, then run.** `Engine::create_tensor()` allocates a `Tensor`, which is shape, stride and dtype metadata over a ref-counted `Storage` backed by SushiRuntime USM. Calling an operation, such as `SushiBLAS::BLASOps(engine).axpy(...)`, records one task on the engine's graph and returns a `TaskHandle`. `engine.execute()` compiles the graph, runs it and returns when every task has finished.
-- **Eight operation families.** Dense BLAS levels 1 to 3 with the band, packed, rotation, complex and Hermitian routines; sparse BLAS over CSR; elementwise arithmetic; non-linear activations; logic and comparison; reductions; random generation; and spatial (windowed) operations. [The architecture, section 7](docs/architecture/ARCHITECTURE.md#7-kernels-reference-and-sycl) lists the routines.
+- **Eight operation families.** Dense BLAS levels 1 to 3 with the band, packed, rotation, complex and Hermitian routines; sparse BLAS over CSR; elementwise arithmetic; non-linear activations; logic and comparison; reductions; random generation; and spatial (windowed) operations. [The architecture, section 7](docs/architecture/KERNELS.md) lists the routines.
 - **Every operation has a reference path and a SYCL kernel.** The BLAS, sparse and spatial families have a plain C++ reference kernel under `kernels/reference/` beside the SYCL kernel under `kernels/sycl/`. The other families run one functor two ways: inlined into a SYCL kernel, or in a serial host loop. The GEMM and SYRK tiling is ported from portBLAS; see [NOTICE.md](NOTICE.md).
-- **The execution mode is stamped on each task as it is recorded.** `Engine::set_mode()` selects `Auto`, `ForceSycl` or `ForceReference` for every later operation. See [the architecture, section 3](docs/architecture/ARCHITECTURE.md#3-execution-modes).
-- **A wrong call throws when it is recorded.** A wrong operand, flag or scalar throws `std::invalid_argument` and names the operation and the operand; a dtype with no meaning for an operation, such as `max` on a complex tensor, is one of those. An operation that cannot run under the mode or on the device throws `SushiBLAS::UnsupportedExecution`, which derives from it. See [the architecture, section 11](docs/architecture/ARCHITECTURE.md#11-exceptions).
+- **The execution mode is stamped on each task as it is recorded.** `Engine::set_mode()` selects `Auto`, `ForceSycl` or `ForceReference` for every later operation. See [the architecture, section 3](docs/architecture/EXECUTION_MODES.md).
+- **A wrong call throws when it is recorded.** A wrong operand, flag or scalar throws `std::invalid_argument` and names the operation and the operand; a dtype with no meaning for an operation, such as `max` on a complex tensor, is one of those. An operation that cannot run under the mode or on the device throws `SushiBLAS::UnsupportedExecution`, which derives from it. See [the architecture, section 11](docs/architecture/EXCEPTIONS.md).
 - **Fusion is written by the caller.** The `SushiBLAS::Dispatch` seams take a functor and run it as one kernel, and `Dispatch::execute_gemm` takes an epilogue applied to each element of the product. No pass fuses recorded tasks automatically.
 
 ## Requirements
@@ -18,7 +18,7 @@ The manual is in [docs/README.md](docs/README.md).
 - A SYCL 2020 compiler: the intel-llvm `clang++ -fsycl` that `sb setup` or SushiStack provisions. SushiBLAS selects no toolchain of its own; it builds with the one in the workspace `dependencies/` tree or under `~/.sushisystems`.
 - CMake 3.20 or newer, and 3.22 for the test suite's `gtest_discover_tests`.
 - GoogleTest for the test suite.
-- A SushiRuntime checkout, found by [the layered resolution of section 8](docs/architecture/ARCHITECTURE.md#8-the-sushiruntime-dependency-d3): a superproject target, an installed `find_package(SushiRuntime)`, or a sibling `../sushiruntime` checkout.
+- A SushiRuntime checkout, found by [the layered resolution of section 8](docs/architecture/RUNTIME_DEPENDENCY.md): a superproject target, an installed `find_package(SushiRuntime)`, or a sibling `../sushiruntime` checkout.
 - C++17 or later. The library is built at C++17; a C++20 consumer is supported.
 
 ## Quick start
@@ -62,7 +62,7 @@ sb build --clean              # wipe the build tree first
 
 ### Targeting an NVIDIA GPU
 
-By default the device image is SPIR-V, compiled by the runtime for the device it finds. That reaches every OpenCL and Level Zero device and no NVIDIA GPU: NVIDIA's OpenCL driver does not implement `clCreateProgramWithIL`, so it cannot ingest SPIR-V. The CUDA image has to be compiled ahead of time:
+By default the build takes the device targets SushiRuntime resolved. When SushiRuntime publishes none, the device image is SPIR-V, compiled by the runtime for the device it finds. That reaches every OpenCL and Level Zero device and no NVIDIA GPU: NVIDIA's OpenCL driver does not implement `clCreateProgramWithIL`, so it cannot ingest SPIR-V. The CUDA image has to be compiled ahead of time:
 
 ```bash
 sb build --type release -D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86"
@@ -80,7 +80,7 @@ To see whether a kernel spills registers:
 sb build --type release -D SB_SYCL_TARGETS=nvidia_gpu_sm_86 -D SB_SYCL_DEVICE_FLAGS="-Xcuda-ptxas;-v"
 ```
 
-The configure step prints the active targets. None of the GPU path has run on hardware yet; [the GPU validation design](docs/design/GPU_VALIDATION.md) lists what is unverified.
+The configure step prints the active targets. The functional suite has run on one card, an RTX 3080 Ti; [the GPU validation design](docs/design/GPU_VALIDATION.md) lists what is unverified.
 
 ### Building with CMake directly
 
@@ -149,7 +149,7 @@ engine.execute();          // compiles the graph, runs it, returns when every ta
 const std::vector<float> result = SushiBLAS::IO(engine).to_vector<float>(C);
 ```
 
-`Engine` owns the graph and has no accessor per operation family. A family is a view class built from the engine: `BLASOps`, `SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`, `SpatialOps` and `IO`. A view holds a reference and no other state. Each record call returns a `TaskHandle`, and nothing runs until `engine.execute()`.
+`Engine` owns the graph and has no accessor per operation family. A family is a view class built from the engine: `BLASOps`, `SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`, `SpatialOps` and `IO`. A view holds references and no other state. Each record call returns a `TaskHandle`, and nothing runs until `engine.execute()`.
 
 ```cpp
 using namespace SushiBLAS;
@@ -169,7 +169,7 @@ engine.execute();
 
 The BLAS flags are the enumerations `Core::Transpose`, `Core::Uplo`, `Core::Diag` and `Core::Side`, and a scalar argument is a `BlasScalar`, which converts from a `double` or a `std::complex<double>`.
 
-`Tensor` is a metadata view (shape, strides, rank, `Core::DataType`, layout) over a ref-counted `Storage`. `transpose()`, `reshape()` and `slice()` return new `Tensor` views over the same storage and move no data. A recorded task keeps the storage of its operands alive until the graph drops it. [The architecture](docs/architecture/ARCHITECTURE.md) describes each layer.
+`Tensor` is a metadata view (shape, strides, rank, `Core::DataType`, layout) over a ref-counted `Storage`. `transpose()`, `reshape()` and `slice()` return new `Tensor` views over the same storage and move no data. A recorded task keeps the storage of its operands alive until the graph drops it. [The architecture](docs/architecture/README.md) describes each layer.
 
 ## Project layout
 
@@ -183,7 +183,7 @@ include/SushiBLAS/     Public headers
     task_recorder.hpp     TaskRecorder: the one caller of TaskGraph::add_task
     operand_set.hpp       OperandSet: what a task reads, writes and retains
     task_handle.hpp       TaskHandle: what a record call returns
-    execution_mode.hpp    ExecutionMode: AUTO, FORCE_SYCL, FORCE_REFERENCE
+    execution_mode.hpp    ExecutionMode: Auto, ForceSycl, ForceReference
     kernel_pair_dispatcher.hpp
                           The mode switch a task body calls
     task.hpp              execute_typed_task: one dtype-dispatched kernel-pair task
@@ -237,7 +237,7 @@ cli/                    The `sb` / `sushiblas` CLI package; see cli/README.md
 cmake/                  CMake modules
 tools/                  Documentation, layering and licence checkers; see tools/README.md
 docs/                   The manual; see docs/README.md
-Doxyfile                Input of `sb docs`
+.config/                Configuration a flag can point a tool at; see .config/README.md
 sushi-module.toml       What `hub` reads about this module
 LICENSE                 PolyForm Noncommercial License 1.0.0
 COMMERCIAL.md           How to ask for a commercial licence

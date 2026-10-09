@@ -33,7 +33,7 @@ the flag it means at the call site and keeps its parameter list.
 
 ## blas_truth.hpp
 
-The reference kernel sums in `double` and the SYCL kernel in the element type, so the two do not
+The reference kernel sums in `double` and the SYCL kernel in the element type, FLOAT32 for HALF, so the two do not
 agree bit for bit on a rounded sum, and a comparison of one against the other cannot say which is
 off. Both are measured against a third value instead.
 
@@ -57,8 +57,8 @@ packed routine is then the result of its dense sibling on the same matrix.
 dimensions and batch strides larger than the extents, and runs the reference kernel, the packed
 kernel under a blocking a test chooses, and the kernel that takes no scratch on the same data.
 Each run returns the whole C buffer, padding included, so a test can check that no kernel wrote
-outside its matrices. C is filled with NaN before each run, so an element a kernel failed to
-write shows.
+outside its matrices. After `poison_output()` C starts each run as NaN, so an element a kernel
+failed to write shows.
 
 The three blockings are the edges of the plan: every block one register block and one term deep,
 every block larger than any matrix, and a depth of 7 with two register blocks of rows and three

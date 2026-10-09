@@ -13,13 +13,7 @@
 # Integration_* / Regression_*), matching sushiruntime/sushiengine, so
 # `ctest -L unit` (or the umbrella regex the CLI uses) selects a sub-suite and
 # new tests are picked up automatically as long as they follow the convention.
-#
-# SB-3: elementwise/nonlinear/logic/reductions/random are enabled (pure SYCL,
-# no oneMKL dependency). SB-3 follow-up: BLAS level1/level2/level3-trsm are
-# also enabled now, backed by from-scratch reference+SYCL kernels (see
-# kernels/{reference,sycl}/blas/{level1,level2,level3}/) instead of oneMKL,
-# which was fully removed from this project's CMake when GEMM/SYRK were
-# ported off it (see src/CMakeLists.txt). All BLAS levels now compile.
+# See tests/README.md.
 # ============================================================================
 
 cmake_minimum_required(VERSION 3.22) # gtest_discover_tests(TEST_FILTER ...)

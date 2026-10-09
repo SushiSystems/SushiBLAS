@@ -11,6 +11,7 @@ the core, storage, tensor, engine and version headers and every operation family
 | `tensor.hpp` | `Tensor`, a typed, strided view over a `Storage` |
 | `storage.hpp` | `Storage`, the reference-counted USM allocation, and `K_STORAGE_ALIGNMENT` |
 | `io.hpp` | `IO`, which saves, loads and displays tensors |
+| `io_status.hpp` | `IoStatus`, the result of a file operation of `IO` |
 | `sparse_matrix.hpp` | `SparseMatrix`, a matrix held in compressed sparse row form |
 | `sparse_vector.hpp` | `SparseVector`, the positions and values of a vector's stored entries |
 | `sparse_builder.hpp` | `SparseBuilder`, which builds both sparse containers from host data |
@@ -141,6 +142,14 @@ contiguous, and the host byte count must equal `num_elements * bytes_per_element
 helpers also check that `T` maps to the tensor's dtype through `Detail::HostDataType`. Every
 violation throws `std::invalid_argument`.
 
+### File operations return an `IoStatus`
+
+`save`, `load`, `save_bin`, `load_bin`, `save_npy` and `load_npy` return an `IoStatus` and are
+`[[nodiscard]]`. A wrong operand still throws `std::invalid_argument`; a file that is missing,
+short, malformed or of another shape, dtype or layout is reported through the status, and the
+reason is logged once at error level. `to_string(IoStatus)` gives the enumerator's name.
+[The architecture, section 11](../../docs/architecture/EXCEPTIONS.md) lists the values.
+
 ### Loads run the recorded graph first
 
 `load`, `load_bin` and `load_npy` call `Engine::execute()` before they write, so a task recorded
@@ -149,7 +158,7 @@ earlier that writes the same tensor finishes before the file's data arrives and 
 ### `IO::load_npy`
 
 The reader accepts format versions 1.0, 2.0 and 3.0. Version 1.0 stores the header length in two
-little-endian bytes; 2.0 and 3.0 store it in four. It rejects a header longer than 1 MiB. It parses
+little-endian bytes; 2.0 and 3.0 store it in four. A header longer than 1 MiB is `MalformedFile`. It parses
 the whole header dictionary and requires the `descr`, `fortran_order` and `shape` keys, no others.
 `descr` must equal the descriptor `save_npy` writes for the tensor's dtype, and `shape` must equal
 the tensor's shape exactly. `fortran_order` must be `True` for a COLUMN_MAJOR tensor of rank 2 and
@@ -215,7 +224,7 @@ layout's order, while every leading (batch) axis is outermost and slowest-varyin
 layout is**, so a rank-3 `{b, m, n}` tensor has batch stride `m * n` in both layouts.
 
 That asymmetry is deliberate. It is the only reading consistent with how the batch stride is
-consumed (`A.strides[rank - 3]` is handed to the GEMM/SYRK/TRSM drivers as the distance between
+consumed (`Dispatch::batch_stride` hands the GEMM/SYRK/TRSM drivers `rows * cols` to step between
 consecutive batch slices) and with every batched BLAS API, which takes a `stride_a` alongside a
 per-slice `lda` rather than folding the batch into the layout. Treating the batch axis as just
 another column-major dimension, which is what the old `for (i = 0; i < rank; ++i)` loop did, gave a
@@ -256,7 +265,7 @@ that already has a layout.
 Throws `std::runtime_error` if the rank is too high, a stride is negative, or the described elements
 reach past the end of `s`.
 
-The bounds check in the explicit-stride constructor uses `element_span()`, not `num_elements`: a
+The bounds check in the explicit-stride constructor uses the element span, not `num_elements`: a
 strided view spreads its elements over a wider interval than it has elements, and it is the wider
 interval that has to fit inside the allocation.
 
@@ -282,8 +291,8 @@ unnoticed, but a strided view (a slice along an inner axis, or a transpose of on
 which bytes the view can reach. `1 + sum((shape[i] - 1) * strides[i])` is the distance from the
 first element to the last, which bounds that interval exactly.
 
-Used by the capacity check and by `region`, both of which are questions about reachable memory
-rather than about element count.
+`region` uses it and the capacity check computes the same span; both are questions about reachable
+memory rather than about element count.
 
 ### `Tensor::region`
 

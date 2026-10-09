@@ -6,7 +6,7 @@ issues. This document states how a change is built, tested, documented and
 committed. SushiBLAS is source-available under the PolyForm Noncommercial
 License 1.0.0 (see [`LICENSE`](../LICENSE)).
 
-Read [the architecture](architecture/ARCHITECTURE.md) first. It explains the
+Read [the architecture](architecture/README.md) first. It explains the
 `Tensor` and `Storage` model, `Engine`, the recorder and the operation views,
 the `ExecutionMode` triad and the reference path every operation has beside
 its SYCL kernel.
@@ -52,7 +52,7 @@ machine-specific toolchain paths are resolved (`cli/config.local.toml`).
 - **Match the layer boundaries.** `Engine` knows nothing about individual
   operations; the operation views (`BLASOps`, `ElementwiseOps`, ...) record
   through a `TaskRecorder` and never insert into the task graph themselves;
-  kernels know nothing about the recorder or `Engine` (see ARCHITECTURE §2). New cross-layer coupling needs a
+  kernels know nothing about the recorder or `Engine` (see [the layers](architecture/LAYERS.md)). New cross-layer coupling needs a
   reason.
 
 ---
@@ -100,15 +100,16 @@ The codebase has a deliberate, consistent style. Match the file you're editing.
 
 Every source file opens with the license block of the `source-comments` skill:
 the file name, the project line `SushiBLAS - https://github.com/SushiSystems/SushiBLAS`,
-`Copyright (c) <year> Sushi Systems` and the two PolyForm Noncommercial lines.
+`Copyright (c) <year>-present Mustafa Garip & Sushi Systems` and the two
+PolyForm Noncommercial lines.
 `tools/licensing/write_license_block.py` in SushiSkills writes it; do not type
 or edit it by hand. [`NOTICE.md`](../NOTICE.md) records the exact command,
-which also keeps the upstream lines of the two files ported from portBLAS.
+which also keeps the upstream lines of the three files that carry portBLAS tiling.
 
 ### C++ standard and naming
 
 - **C++17**, matching SushiRuntime — see
-  [the architecture, section 1](architecture/ARCHITECTURE.md#1-what-sushiblas-is) for why the whole
+  [the architecture, section 1](architecture/OVERVIEW.md) for why the whole
   stack has to agree rather than each repo picking its own. Indentation is 4
   spaces.
 - **Classes/structs/namespaces**: `PascalCase` (`Engine`, `Tensor`,
@@ -176,9 +177,6 @@ included, and no `TODO`, history or design reasoning in source. Open work goes
 to [`design/REMAINING_WORK.md`](design/REMAINING_WORK.md); the reason for a
 design goes to a document under `design/`, cited by path.
 
-The existing source does not meet this yet.
-[`reference/KNOWN_ISSUES.md`](reference/KNOWN_ISSUES.md) records the gap.
-
 ### Error handling
 
 An operand rule (dtype, shape, layout, flag) is checked at record time by
@@ -194,8 +192,8 @@ never silently no-ops.
 ### Build-system names
 
 Every CMake target, function, macro, and internal artifact this repo defines
-starts with `sushiblas_` — `sushiblas_warnings`, `sushiblas_apply_build_policy`,
-`.sushi_env.json`. Never the bare `sushi_` prefix.
+starts with `sushiblas_` — `sushiblas_warnings`, `sushiblas_apply_build_policy`.
+Never the bare `sushi_` prefix.
 
 This is a **SushiStack-wide convention**, not a SushiBLAS one: each program
 prefixes with its own full name (`sushiruntime_`, `sushiengine_`, `sushiai_`).
@@ -210,7 +208,7 @@ exception and stay unprefixed; a file that defines a *differently-named*
 function per repo (`SushiBLASBuildPolicy.cmake` vs. a hypothetical
 `BuildPolicy.cmake` shared with sushiruntime) must be prefixed — this is
 exactly the collision SB-6 found and fixed (see
-[the architecture, section 10](architecture/ARCHITECTURE.md#10-packaging)).
+[the architecture, section 10](architecture/PACKAGING.md)).
 
 The rule covers build-system identifiers and build-tree artifacts, not C++
 symbols: the public C++ API is already scoped by the `SushiBLAS` namespace.
@@ -221,7 +219,7 @@ symbols: the public C++ API is already scoped by the `SushiBLAS` namespace.
 
 An operation is a view method, a seam call with an `OperandSet`, the code that
 runs under each execution mode, and tests in both modes. Sections 5 and 6 of
-[the architecture](architecture/ARCHITECTURE.md#5-engine-the-recorder-and-the-views)
+[the architecture](architecture/ENGINE_AND_RECORDER.md)
 describe the recorder and the seams this section names. What the operation
 carries depends on its family.
 
@@ -411,7 +409,7 @@ indexed in [`README.md`](README.md).
   scope, a past-tense verb, what changed and where, in at most 240 characters.
   The line never says why.
 - **A new or changed operation updates
-  [the architecture](architecture/ARCHITECTURE.md)** when it changes a class,
+  [the architecture](architecture/README.md)** when it changes a class,
   dispatch helper or kernel design the document names. Every symbol it names
   must still exist.
 - **A CLI change updates [`cli/README.md`](../cli/README.md)** and the build

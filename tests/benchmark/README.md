@@ -65,8 +65,8 @@ sb run benchmark_gemm_blocking -- <f32|f64> <n> [kernel=packed|unpacked] [inner=
     [outer=BYTES] [stream=BYTES] [workers=PER_UNIT] [units=COUNT]
 ```
 
-It times one square GEMM of order `n` by calling `Kernels::SYCL::gemm` on device USM it allocates
-itself, with no engine and no graph around the call. `kernel=` chooses the packed kernel or the
+It times one square GEMM of order `n` by calling `Kernels::SYCL::Detail::packed_gemm` or
+`Kernels::SYCL::gemm` on device USM it allocates itself, with no graph around the call. `kernel=` chooses the packed kernel or the
 one that takes no scratch. The other arguments override fields of the `Device::Profile` the
 device reports: `inner`, `outer` and `stream` are the three byte budgets of `CacheBlocking`,
 `workers` its work-items per compute unit and `units` the compute-unit count. It prints the plan

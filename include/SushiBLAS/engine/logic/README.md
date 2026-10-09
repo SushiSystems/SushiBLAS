@@ -42,8 +42,8 @@ device cannot compute in.
 The ordering helpers have no complex overloads, on purpose. `<`, `<=`, `>` and `>=` have no meaning
 on complex numbers; these helpers used to supply a lexicographic stand-in, which made `less(a, b)`
 on a COMPLEX32 tensor return a confident, well-formed, mathematically meaningless answer. The
-ordering ops now declare Domain::Real, so a complex operand throws at record time instead of being
-quietly re-interpreted.
+ordering ops now declare Domain::RealAndIntegral, so a complex operand throws at record time instead
+of being quietly re-interpreted.
 
 ## `logic.hpp`
 

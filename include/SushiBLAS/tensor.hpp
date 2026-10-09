@@ -89,7 +89,7 @@ namespace SushiBLAS
         /** @brief The type of data stored in the tensor (e.g., FLOAT32). */
         SushiBLAS::Core::DataType dtype = SushiBLAS::Core::DataType::Float32;
         
-        /** @brief How the data is arranged in memory (ROW_MAJOR or COLUMN_MAJOR). */
+        /** @brief How the data is arranged in memory (RowMajor or ColumnMajor). */
         SushiBLAS::Core::Layout layout = SushiBLAS::Core::Layout::RowMajor;
         
         /** @brief The total number of elements in the tensor. */
@@ -135,7 +135,7 @@ namespace SushiBLAS
                     running = Detail::checked_multiply(running, dims[i], "Stride");
                 }
             }
-            else // ROW_MAJOR
+            else // RowMajor
             {
                 for (int i = r - 1; i >= first_matrix_dim; --i)
                 {
@@ -195,7 +195,7 @@ namespace SushiBLAS
             {
                 SB_THROW_IF(storage_offset < 0, "Storage offset cannot be negative ({})", storage_offset);
 
-                // element_span() is checked, because a strided view spans more elements than it holds; see include/SushiBLAS/README.md.
+                // The element span is checked, because a strided view spans more elements than it holds; see include/SushiBLAS/README.md.
                 int64_t span = num_elements == 0 ? 0 : 1;
                 for (int i = 0; i < rank && num_elements != 0; ++i)
                     span = Detail::checked_add(span, Detail::checked_multiply(shape[i] - 1, strides[i], "Element span"), "Element span");

@@ -34,10 +34,11 @@ values in. It is `float` for `sycl::half` and `T` for every other element type. 
 significant bits, so a HALF running sum of ones stops growing at 2048: from there the spacing
 between HALF values is 2, and 2048 + 1 rounds back to 2048.
 
-The reference and SYCL kernels of GEMM, SYRK, TRSM (and TRSV through it), GEMV, SYMV, TRMV, GER,
-SYR and SYR2 widen each operand to `Accumulator<T>`, form the sum in it and round to `T` once, when
-the element is stored. GEMM's epilogue still receives a `T`. TRSM and TRSV read the solution
-elements they already stored, so those are rounded to `T` before a later row or column uses them.
+The SYCL kernels of GEMM, SYRK, TRSM (and TRSV through it), GEMV, SYMV, TRMV, GER, SYR and SYR2,
+and the reference kernels of GER, SYR and SYR2, widen each operand to `Accumulator<T>`, form the
+sum in it and round to `T` once, when the element is stored. GEMM's epilogue still receives a `T`.
+TRSM and TRSV read the solution elements they already solved through `RunningSolution`, which
+hands a later row or column the unrounded value.
 For every type but HALF the widening is the identity and the kernels run the same operations in the
 same order as before. `Reduce::Accumulation` and `Reduce::AccumulationOf` alias this trait.
 
@@ -113,8 +114,9 @@ maximum occupancy.
 ### `Profile`
 
 A plain aggregate of answers, queried once and cached. Everything here comes straight from
-`sycl::info::device` except `has_dedicated_local_memory`, which is a judgement the raw query cannot
-make on its own: see that field.
+a device query except `blocking`, which `cache_blocking_for` derives from `cache_bytes`, and
+`has_dedicated_local_memory`, which is a judgement the raw query cannot make on its own: see that
+field.
 
 ### `CacheBlocking`
 
@@ -146,11 +148,11 @@ it is guarded.
 ### `profile_for`
 
 Called on every task execution, so it must not re-query: a replayed graph runs the same fifty nodes
-thousands of times and eight `get_info` round trips per node per step is real overhead against a
+thousands of times and six `get_info` round trips per node per step is real overhead against a
 few-microsecond kernel.
 
 A std::deque, not a vector: a reference handed to an earlier caller must stay valid when a second
-device is probed, and only deque guarantees that across push_back.
+device is probed, and only deque guarantees that across emplace_back.
 
 Deliberately leaked. The entries hold sycl::device handles, and a static destructor running at exit
 is not ordered against the SYCL runtime tearing itself down: releasing a device handle afterwards is
@@ -246,7 +248,8 @@ rather than of any input array. Those get the device split and nothing else, whi
 was missing: before this they were the launch sites still spelling `sycl::range<1>(n)` by hand and
 therefore still getting the runtime's default geometry on a GPU.
 
-All three launch a **grid-stride** `nd_range` planned by `SushiBLAS::Device::plan_1d:` a grid sized
+Unless `Shape1D::flat` is set, all three launch a **grid-stride** `nd_range` planned by
+`SushiBLAS::Device::plan_1d:` a grid sized
 to what the device can hold resident, walked with a `for (i = gid; i < n; i += stride)` loop. Two
 things follow. The `i < n` test *is* the bounds check, so there is no padded, half-idle tail
 work-group; and the launch stops growing once the machine is full, which is what keeps a large
@@ -507,8 +510,8 @@ launch overhead and the two-stage shape pays it twice. Above it the single pass 
 says, one thread, one element at a time, while eleven other cores sit idle, and by 1M elements that
 costs 11.8x. The two shapes are level at 16K, which is where `K_CPU_TWO_STAGE_MIN_ELEMENTS` sits.
 
-A GPU always takes the two-stage shape: there a single task uses one lane of one SM and leaves the
-entire machine idle at every size.
+A GPU takes the two-stage shape whenever the plan comes to more than one group: there a single task
+uses one lane of one SM and leaves the entire machine idle at every size.
 
 Returns: The partial count, or 0 to request the single-pass shape.
 
@@ -726,15 +729,17 @@ be easy to read one as the other.
 
 Computes `finalize(fold(transform(in[i])), n)`, where `fold` is `Accum`'s operation applied in an
 order fixed entirely by the launch geometry. Submits one kernel on the single-pass shape and two on
-the two-stage one; see `plan` for which, and the file header for why the order is nailed down.
+the two-stage one; see `plan` for which, and the opening of this section for why the order is
+nailed down.
 
-**The accumulation type is separate from the element type**, and every existing caller deduces them
-equal without saying so. `sum`, `mean`, `asum`, `nrm2` and `prod` all fold a `T` into a `T`, which
-is why this was one parameter for as long as there was nothing else to do, but a reduction whose
-transform answers a *predicate* folds a count, and a count is not an element. Storing one in the
-input's own dtype is the trap `Dispatch::execute_index_reduction` was cut out to escape: a count is
-exact only below 2^24 in fp32 and only below 2048 in fp16, so a sufficiently bad tensor would report
-a rounded number of bad elements, and in fp16 a count past 65504 would come back as an infinity.
+**The accumulation type is separate from the element type**, and every caller through
+`Dispatch::FoldingReductionDispatch` deduces them equal without saying so. `sum`, `mean`, `asum`,
+`nrm2` and `prod` all fold a `T` into a `T`, which is why this was one parameter for as long as
+there was nothing else to do, but a reduction whose transform answers a *predicate* folds a count,
+and a count is not an element. Storing one in the input's own dtype is the trap
+`Dispatch::execute_counting_reduction` was cut out to escape: a count is exact only below 2^24 in
+fp32 and only below 2048 in fp16, so a sufficiently bad tensor would report a rounded number of bad
+elements, and in fp16 a count past 65504 would come back as an infinity.
 Splitting `A` off costs the existing callers nothing (both are deduced, and both deduce to `T`) and
 lets the counting reductions share this shape rather than hand-write a second copy of a two-stage
 fold.
@@ -771,7 +776,7 @@ same device produces the same bits on every run, which is the guarantee that was
 "sequential" here means "no cross-work-item combination this code has to pin down", not "provably
 index order all the way to the silicon".
 
-At `Accum<A> acc;`: A grid-strided slice: work-item g owns indices g, g + stride, g + 2*stride, ...
+At `Accum<W> acc;`: A grid-strided slice: work-item g owns indices g, g + stride, g + 2*stride, ...
 Which indices those are, and the order they are visited in, come only from the geometry, so they are
 the same on every run. Consecutive items also read consecutive addresses at every step, which is
 what keeps the loads coalesced.
@@ -783,7 +788,7 @@ kernel. This loop combines (lid, lid + off) for a fixed descending sequence of o
 is the same tree every time. `local` is a power of two by construction (see floor_pow2), which is
 what makes the halving visit every lane exactly once.
 
-At `Accum<A> acc;`: ascending index order over a count fixed at launch. Compensated as well, which
+At `Accum<W> acc;`: ascending index order over a count fixed at launch. Compensated as well, which
 costs nothing at this length and recovers the spread between partials that a plain walk would drop.
 
 `reduce` is a thin layer over `reduce_indexed`: it passes `read(i) = AccumulationOf<A>(transform(in[i]))`.
@@ -958,8 +963,8 @@ keep once every lane has at least one element to fold. One full
 group-width pass is that threshold.
 - **Otherwise** there is nothing to recover; take the cheap shape.
 
-Warning: The GPU side of this is **derived, not measured**: this project has no GPU (see
-`docs/design/GPU_VALIDATION.md`). The threshold is a floor below which the cooperative shape is
+Warning: The GPU side of this is **derived, not measured**: no GPU run has measured the crossover
+(see `docs/design/GPU_VALIDATION.md`). The threshold is a floor below which the cooperative shape is
 certainly wrong, not a tuned crossover, and it is the first knob to reach for if a row-wise
 reduction underperforms on real hardware. It cannot make an answer wrong: the shape is a pure
 function of the device and the span, so it is the same on every run, and both shapes compute the
@@ -983,13 +988,13 @@ is `Accum`'s operation applied in an order fixed entirely by the launch geometry
 submission, whichever shape `plan_axis` chose.
 
 A segment shorter than the work-group is still correct on the cooperative shape: a lane with no
-element of its own contributes `Accum<T>{}.value()`, which is the accumulator's identity by
-construction, and combining the identity changes nothing. `plan_axis` declines that shape below one
-full pass for cost, not correctness.
+element of its own contributes `Accum<AccumulationOf<T>>{}.value()`, which is the accumulator's
+identity by construction, and combining the identity changes nothing. `plan_axis` declines that
+shape below one full pass for cost, not correctness.
 
 - `Accum`: The accumulation policy (`CompensatedSum`, `NaNPropagatingMax`, `NaNPropagatingMin`,
-  `RunningProduct`), a class template on the element type supplying `identity()`, `combine(a, b)`,
-  `accumulate(x)` and `value()`.
+  `RunningProduct`), a class template on the accumulation type supplying `identity()`,
+  `combine(a, b)`, `accumulate(x)` and `value()`.
 - `span`: The segment layout, in element counts.
 - `in`: The input array; fold `s` starts at `in + (s / segments) * segment_stride2 + (s % segments)
   * segment_stride`, which is `in + s * segment_stride` whenever there is no second segment axis.
@@ -998,11 +1003,11 @@ full pass for cost, not correctness.
   so that the planner and the launcher stay separable: a test can then drive both shapes over one
   input and check they agree, which is the only way the cooperative tree gets exercised at a size
   the planner would not send to it.
-- `transform`: Callable `(T) -> T`, applied to each element before it is folded in. Pass the
+- `transform`: Callable `(T) -> auto`, applied to each element before it is folded in. Pass the
   identity when there is nothing to do.
-- `finalize`: Callable `(T value, std::size_t n) -> T`, applied once per segment, with `n` the
-  segment's own element count, so a per-axis mean is this seam plus `v / n` rather than a second
-  kernel.
+- `finalize`: Callable `(AccumulationOf<T> value, std::size_t n) -> auto`, applied once per
+  segment, with `n` the segment's own element count, so a per-axis mean is this seam plus `v / n`
+  rather than a second kernel.
 - `deps`: Events this submission must depend on.
 
 Returns: The event for the submitted kernel.
@@ -1010,10 +1015,10 @@ Returns: The event for the submitted kernel.
 Warning: `transform` and `finalize` are inlined into a SYCL device kernel: they must be
 device-copyable, capture by value, hold no host pointers, allocate nothing and throw nothing.
 
-At `const Device::Grid1D grid = Device::plan_1d(Device::profile_for(queue), total);`: one item per
-segment, over the same flat/grid-stride launch shape every elementwise op takes, so a CPU covers the
-segments in one pass of a wide group and a GPU walks a capped, resident grid. The stride loop's `s <
-total` test is the bounds check.
+At `const Device::Grid1D grid = Device::plan_1d(Device::profile_for(queue), segments);`: one item
+per segment, over the same flat/grid-stride launch shape every elementwise op takes, so a CPU covers
+the segments in one pass of a wide group and a GPU walks a capped, resident grid. The stride loop's
+`s < segments` test is the bounds check.
 
 At `for (std::size_t off = local / 2; off > 0; off >>= 1)`: the same hand-written halving tree as
 stage one of Reduce::reduce, and NOT sycl::reduce_over_group, for the reason recorded there: the
@@ -1021,17 +1026,17 @@ spec lets that function combine in any order it likes, which for a non-associati
 different bits on different launches of one kernel. `local` is a power of two (see
 Reduce::group_width), which is what makes the halving visit every lane exactly once.
 
-The flat branch of `reduce_axis` folds each segment in ascending index order, and no other work-item
-touches it. There is nothing in that loop whose order the SYCL specification leaves free.
+The flat branch of `reduce_segments` folds each segment in ascending index order, and no other
+work-item touches it. There is nothing in that loop whose order the SYCL specification leaves free.
 
-`const std::size_t s2 = s / segments;`, in both branches of `reduce_axis`: one integer division per
-fold, against an inner loop of `extent` elements. It is not worth a specialised `segments2 == 1`
-kernel, which would be a second instantiation of every reduction in the library.
+`const std::size_t s2 = s / segments_;`, in `Detail::AxisOpen`, for both branches: one integer
+division per fold, against an inner loop of `extent` elements. It is not worth a specialised
+`segments2 == 1` kernel, which would be a second instantiation of every reduction in the library.
 
-The lane loop in the work-group branch of `reduce_axis` walks a stride-`local` slice of one segment:
-lane `l` owns positions `l`, `l + local`, `l + 2*local`, and so on. Which positions those are comes
-only from the geometry, so it is the same on every run, and consecutive lanes read consecutive
-addresses at every step.
+The lane loop in the work-group branch of `reduce_segments` walks a stride-`local` slice of one
+segment: lane `l` owns positions `l`, `l + local`, `l + 2*local`, and so on. Which positions those
+are comes only from the geometry, so it is the same on every run, and consecutive lanes read
+consecutive addresses at every step.
 
 ## `serial_1d.hpp`
 

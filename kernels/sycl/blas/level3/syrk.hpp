@@ -173,8 +173,7 @@ namespace SushiBLAS
             };
 
             /**
-             * @brief Computes C = alpha*op(A)*Conj(op(A))^T + beta*C on one triangle of C, packed
-             *        where the profile selects it and tiled through local memory elsewhere.
+             * @brief Computes C = alpha*op(A)*Conj(op(A))^T + beta*C on one triangle of C.
              * @tparam Conj Unconjugated for SYRK, Conjugated for HERK.
              * @tparam Scalar The type of alpha and beta: T, or its real component for HERK.
              * @param scratch Device memory for the packed panels; may be null.

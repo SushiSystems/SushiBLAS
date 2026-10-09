@@ -299,13 +299,13 @@ stride of zero or less and a non-contiguous tensor of rank above 1. `require_vec
 
 `describe_band_operand` takes `kl` and `ku` and returns the stored lines, the leading dimension
 and the layout of a band-stored matrix. The tensor is a contiguous rank-2 matrix whose lines hold
-at least `kl + ku + 1` elements; a line is a column under COLUMN_MAJOR and a row under ROW_MAJOR.
+at least `kl + ku + 1` elements; a line is a column under `ColumnMajor` and a row under `RowMajor`.
 `describe_triangle_band_operand` is the form for one triangle with `k` off-diagonals, used by
 `sbmv`, `hbmv`, `tbmv` and `tbsv`.
 
 `describe_packed_operand` returns the order and the layout of a packed triangle. The tensor is
 rank 1 and unstrided and holds `n * (n + 1) / 2` elements for some `n`; `largest_packed_order`
-finds `n` exactly. ROW_MAJOR packs by rows and COLUMN_MAJOR by columns.
+finds `n` exactly. `RowMajor` packs by rows and `ColumnMajor` by columns.
 
 `require_scalar_operand` checks a tensor that stands for one scalar, as the four operands of
 `rotg` do: storage, the expected dtype and exactly one element.
@@ -426,7 +426,8 @@ profile does not select the packed kernel.
 ### `is_complex`
 
 `is_complex` / `is_complex_v` were declared here too, identically to two copies under src/. They now
-have one home, `<SushiBLAS/core/traits.hpp>`, which this header includes so anything that reached
+have one home, `<SushiBLAS/core/traits.hpp>`, which this header includes through
+`<SushiBLAS/engine/task.hpp>` so anything that reached
 the trait through utils.hpp still compiles: spell it `Core::is_complex_v<T>`.
 
 ### `allocate_blas_scratch`, `allocate_level1_scratch`, `allocate_packed_product_scratch`
@@ -443,19 +444,18 @@ solution is carried in the dtype itself.
 
 ### `execute_blas_task`
 
-Registers a single generically-dispatched BLAS task on the recorder's task graph. This is
-the level1_internal.hpp::execute_level1 shape (one add_task, one switch(dtype) dispatching a
-generically-templated closure) generalized for ops with matrix operands. Unsupported dtypes fail
+Registers a single generically-dispatched BLAS task on the recorder's task graph: one add_task
+and one switch(dtype) dispatching a generically-templated closure. Unsupported dtypes fail
 loudly (P1 corollary), never silently no-op.
 
 The body is `Internal::execute_typed_task`, which this forwards to with the family string "BLAS
 operation": the one thing about the recorder that was ever BLAS-specific. This name is kept because
-~40 call sites read better for it and because a BLAS op should not have to name its own family at
+33 call sites read better for it and because a BLAS op should not have to name its own family at
 every site.
 
 - `Dom`: Which element types to instantiate `op_func` for, in exactly the sense `Dispatch::Domain`
-  defines for the math and logic families. It defaults to REAL_AND_COMPLEX because that is what
-  every built-in BLAS *arithmetic* op wants and has always had; the parameter exists for
+  defines for the math and logic families. It defaults to `Domain::RealAndComplex` because that
+  is what every built-in BLAS *arithmetic* op wants and has always had; the parameter exists for
   `Dispatch::execute_gemm`, whose functor is written by the *caller* and is therefore no more likely
   to be well-formed for `std::complex` than an elementwise lambda is, and for `copy`, which moves
   elements without doing arithmetic to them and so passes Domain::All. Without it, a consumer's
@@ -469,10 +469,10 @@ every site.
 Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
 
 Throws `std::invalid_argument` at record time if `dtype` falls outside `Dom`. Throws
-`UnsupportedExecution` at record time if the recorder is in FORCE_REFERENCE and a declared tensor
+`UnsupportedExecution` at record time if the recorder is in `ForceReference` and a declared tensor
 is device-only USM.
 
 Each task body receives a `const Internal::KernelPairDispatcher&` and calls
 `dispatcher.run(q, deps, reference_fn, sycl_fn)`; the mode inside the dispatcher is the one the
 recorder held at record time. `include/SushiBLAS/engine/README.md` describes the recorder, the
-dispatcher and the FORCE_REFERENCE refusal.
+dispatcher and the `ForceReference` refusal.

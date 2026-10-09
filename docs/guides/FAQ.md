@@ -16,7 +16,7 @@ records a task and runs nothing; `engine.execute()` compiles and runs the graph.
 accessor per operation family. A family is a view class built from the engine: `BLASOps`,
 `SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`,
 `SpatialOps` and `IO`. The [root README](../../README.md#how-it-works) has a complete example, and
-[the architecture](../architecture/ARCHITECTURE.md) describes each layer.
+[the architecture](../architecture/README.md) describes each layer.
 
 ## What do I need to build SushiBLAS?
 
@@ -101,11 +101,12 @@ includes `<SushiBLAS/SushiBLAS.h>` needs a compiler that can parse those types. 
 
 A parse error inside `<sycl/sycl.hpp>` or `<SushiBLAS/tensor.hpp>` means the file is being
 compiled by a non-SYCL compiler. See
-[section 1 of the integration guide](INTEGRATION.md#1-the-fact-that-shapes-everything).
+[section 1 of the integration guide](INTEGRATION.md#1-where-the-kernels-are-compiled).
 
 ## Which devices does SushiBLAS run on?
 
-By default the device image is SPIR-V, compiled by the runtime for the device it finds. That
+By default the build takes the device targets SushiRuntime resolved. When SushiRuntime publishes
+none, the device image is SPIR-V, compiled by the runtime for the device it finds. That
 reaches every OpenCL and Level Zero device and no NVIDIA GPU, because NVIDIA's OpenCL driver
 cannot ingest SPIR-V. For an NVIDIA GPU the CUDA image is compiled ahead of time:
 
@@ -117,7 +118,7 @@ Keep `spir64` in the list to keep the CPU device reachable from the same build. 
 be an intel-llvm built with `--cuda`; a stock oneAPI release has no CUDA backend and rejects the
 triple. intel-llvm documents support for `sm_75` and newer.
 
-None of the GPU path has run on hardware yet. See
+The functional suite has run on one card, an RTX 3080 Ti. See
 [Targeting an NVIDIA GPU](../../README.md#targeting-an-nvidia-gpu) in the README.
 
 ## How does SushiBLAS relate to SushiRuntime and SushiStack?
@@ -127,7 +128,7 @@ SushiRuntime's. SushiBLAS adds a domain layer on top: the `Tensor` abstraction, 
 that owns one graph, the operation views that record tasks on it, and the kernels. It does not vendor
 SushiRuntime. The build looks for it in three places, in order: a target a superproject already
 brought in, an installed package through `find_package(SushiRuntime)`, then a sibling
-`../sushiruntime` checkout. [Section 8 of the architecture](../architecture/ARCHITECTURE.md#8-the-sushiruntime-dependency-d3)
+`../sushiruntime` checkout. [Section 8 of the architecture](../architecture/RUNTIME_DEPENDENCY.md)
 describes the resolution.
 
 SushiStack is the workspace: a folder that holds several module checkouts and one `dependencies/`
@@ -137,8 +138,7 @@ repository's own CLI. The [glossary](../reference/GLOSSARY.md) defines these wor
 ## What does SushiBLAS not do yet?
 
 - No release is tagged. The version in the build files is 0.1.0, and the project is pre-1.0.
-- None of the GPU path has run on hardware.
-- The v0.1.0 interface has been written and not yet built or run as a whole.
+- The tree has run on one NVIDIA card, an RTX 3080 Ti, and on no OpenCL CPU device or other card.
 - `trmm` is not implemented. Sparse matrices are CSR only.
 - `LinalgOps` (SVD, QR, eigendecomposition) and `TransformsOps` (FFT, DFT) are declared under
   `include/SushiBLAS/experimental/` and have no implementation. The umbrella header does not

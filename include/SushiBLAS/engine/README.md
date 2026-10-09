@@ -80,8 +80,8 @@ two-valued `{Real, RealAndComplex}` this codebase still spells everywhere, and t
 see. As flags, a new family costs one bit and the query stays `domain_admits`; the two original
 names survive as the combinations they always were, so no existing call site changes.
 
-Warning: REAL is the default deliberately: a functor written for real scalars always compiles under
-it. Widen it only when the functor is well-formed for the family being added: see the `safe_*`
+Warning: `Real` is the default deliberately: a functor written for real scalars always compiles
+under it. Widen it only when the functor is well-formed for the family being added: see the `safe_*`
 helpers in `<SushiBLAS/engine/math/safe_math.hpp>` for the complex case, and note that an integer
 functor must not use `sycl::` floating-point builtins.
 
@@ -206,7 +206,7 @@ live in `SushiBLAS::Dispatch` beside the dtype checks of `dispatch.hpp`.
 | `require_storage` | A tensor with `num_elements > 0` has storage. | `std::invalid_argument` |
 | `require_dtype` | The tensor holds the expected dtype. | `std::invalid_argument` |
 | `require_same_shape` | Two tensors have the same rank and the same size in every dimension. | `std::invalid_argument` |
-| `require_same_layout` | Two tensors have the same layout. | `std::invalid_argument` |
+| `require_same_layout` | Two tensors of rank 2 or more have the same layout. | `std::invalid_argument` |
 | `require_same_element_count` | Two tensors hold the same number of elements. | `std::invalid_argument` |
 | `require_min_elements` | The tensor holds at least the stated number of elements. | `std::invalid_argument` |
 | `require_contiguous` | The strides are the dense strides `Tensor::layout_strides` gives for the shape under the tensor's layout. | `std::invalid_argument` |
@@ -264,7 +264,7 @@ and write regions, and returns a `TaskHandle` of its own identity and that index
 Under `ForceReference`, throws `UnsupportedExecution` when `OperandSet::has_device_only_operand()`
 is true, that is, when a declared tensor's storage has `Residency::Device`. The host reference
 path would otherwise dereference device-only USM. Under any other mode it returns at once. The
-message is `<name>: <family> cannot run under FORCE_REFERENCE: an operand is device-only USM,
+message is `<name>: <family> cannot run under ForceReference: an operand is device-only USM,
 which the host reference kernel cannot dereference`. It is public for the caller that must refuse
 before a side effect: `execute_random` calls it before it reserves a stream offset, and the
 reduction executors before they lease scratch.
@@ -374,11 +374,12 @@ rank, dtype or extent throws `std::invalid_argument`. A dtype the operand's devi
 in, or a device-only operand under `ForceReference`, throws `UnsupportedExecution`.
 
 **Every backward here is a gather, never an atomic scatter.** SushiBLAS links
-`sushiruntime_deterministic_fp` PUBLIC, and a floating-point atomic add has a combination order that
+`SushiRuntime::SushiRuntime` PUBLIC and receives `sushiruntime_deterministic_fp` through it, and a
+floating-point atomic add has a combination order that
 varies between runs, so `col2im` written as "each column entry atomically adds into its pixel" would
 silently break the library's bit-reproducibility guarantee. Each output element gathers its own
 contributions in a fixed order instead. This is the same argument
-`docs/architecture/ARCHITECTURE.md` gives for rejecting `sycl::reduction` in the folding reductions,
+`docs/architecture/KERNELS.md` gives for rejecting `sycl::reduction` in the folding reductions,
 and `tests/functional/regression/test_spatial_determinism.cpp` is what keeps it true.
 
 ### `SpatialOps::im2col` with stated extents
@@ -396,8 +397,8 @@ form assume symmetry.
 
 Convenience over the explicit-extent overload, for the symmetric padding every convolution in the
 ResNet-18 and YOLOv3-tiny bodies uses: `W_o` follows from `Spatial::output_extent` with `pad_left`
-on both sides, and `H_o` from dividing the column matrix's row count by it. Asymmetric padding must
-use the explicit overload, which is why that one is documented first.
+on both sides, and `H_o` from dividing the column matrix's rows per image by it. Asymmetric padding
+must use the explicit overload, which is why that one is documented first.
 
 ### `SpatialOps::col2im`
 
@@ -474,7 +475,7 @@ a scatter either. `dweights` may share no byte with `dy` or `in`.
 
 Carries no `Spatial::ConvGeometry:` this operation has two numbers, not eight, and handing it a
 geometry it does not read would be six fields a reader has to rule out before trusting the call. It
-builds a `Spatial::WindowSpan` for the strides alone.
+builds a `Spatial::WindowSpan` by hand, for the extents and the strides.
 
 ### `SpatialOps::upsample_nearest_backward`
 
@@ -514,9 +515,9 @@ BatchNorm in evaluation mode.
 
 `out[n,h,w,c] = in[n,c] * scale`. Global average pooling's backward, with `scale = 1/(H*W)`.
 
-A **per-`(n, c)`** broadcast, which is neither of the two the library already has: `GEMM_BIAS`
-broadcasts a row vector down every row, and `channel_affine` broadcasts one value per channel across
-the whole batch.
+A **per-`(n, c)`** broadcast, which is neither of the two that already exist: SushiAI's
+`Ops::GEMM_BIAS` broadcasts a row vector down every row, and `channel_affine` broadcasts one
+value per channel across the whole batch.
 
 ### `SpatialOps::layout_convert`
 
@@ -553,11 +554,11 @@ operations record through it, so none of them reads the execution mode: the disp
 receives already holds it.
 
 - `Dom`: Which element types to instantiate `op_func` for, in exactly the sense `Dispatch::Domain`
-  defines for the math and logic families. It defaults to REAL_AND_COMPLEX because that is what
-  every built-in BLAS *arithmetic* op wants; the parameter exists for callers whose functor is
-  written outside this library and is therefore no more likely to be well-formed for `std::complex`
-  than an elementwise lambda is, and for operations that pass another domain: `window_dot` passes
-  `Domain::Real`.
+  defines for the math and logic families. It defaults to `Domain::RealAndComplex` because that
+  is what every built-in BLAS *arithmetic* op wants; the parameter exists for callers whose functor
+  is written outside this library and is therefore no more likely to be well-formed for
+  `std::complex` than an elementwise lambda is, and for operations that pass another domain:
+  `window_dot` passes `Domain::Real`.
 - `family`: What kind of operation this is, for diagnostics: "BLAS operation", "Spatial operation".
   A string literal, because the task body keeps the pointer.
 
@@ -572,8 +573,9 @@ type alongside the queue and the dependency list and returns the submitted event
 one-argument, void-returning arm that helper calls. Wrapping it to fit with a nested generic lambda
 crashes this project's clang outright under -fdelayed-template-parsing (a null-dereference during
 instantiation of the HALF arm; the device pass also fails with "SmallVector unable to grow"). The
-body is therefore a class with a member template `call<T>`, not a lambda. Seven arms, the same seven
-and the same domain rule as with_element_type, kept in step by hand until that compiler bug is gone.
+body is therefore a class, `Detail::TypedTaskBody`, whose `operator()` holds the switch, not a
+lambda. Seven arms, the same seven as with_element_type and the same domain rule on the complex
+and integer arms, kept in step by hand until that compiler bug is gone.
 
 The `SB_THROW_IF(true, ...)` that ends the dtype switch is unreachable in practice, because
 `require_domain` rejected the dtype at record time. A switch that can fall through to nothing is how

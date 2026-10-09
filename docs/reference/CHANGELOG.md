@@ -6,6 +6,14 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-09 — io: Made the six file operations of IO, from save to load_npy, return an `IoStatus` where they threw std::runtime_error for a file (`io_status.hpp`, `io.hpp`, `io.cpp`).
+- 2026-10-09 — docs: Added the Random123 and LAPACK licence texts under `third_party/licenses/` and named both works in the license blocks of `philox.hpp`, `givens.hpp` and `modified_givens.hpp`.
+- 2026-10-09 — engine: Spelled the execution modes `ForceReference`, `ForceSycl` and `Auto` in every exception message, where they read FORCE_REFERENCE, FORCE_SYCL and AUTO (`task_recorder.hpp`).
+- 2026-10-09 — docs: Read the manual and every module README against the code and corrected about 150 sentences (`docs/agent/2026_10_09_MANUAL_READ/REPORT.md`).
+- 2026-10-09 — docs: Split the architecture page into one file per section under `docs/architecture/`, and added `tests/README.md` and the design page `PUBLIC_SEAM.md`.
+- 2026-10-09 — cli: Removed the dead `sushistack/sushicore` candidate from the test fixture (`cli/tests/conftest.py`).
+- 2026-10-09 — docs: Corrected the stale paths, symbols and claims of the manual and removed the em dashes from the integration guide and the GPU checklist (`INTEGRATION.md`, `GPU_VALIDATION.md`, `kernels/README.md`).
+- 2026-10-09 — build: Moved the Doxyfile from the root to `.config/doxygen/Doxyfile` (`project.py`, `check_version.py`).
 - 2026-10-09 — engine: Added `Engine::discard_recorded`, which drops every recorded task that has not run (`engine.hpp`, `engine.cpp`).
 - 2026-10-09 — docs: Moved the security policy and the code of conduct to `.github/` and the Doxygen main page to `docs/reference/MAINPAGE.md`; Doxygen writes under `build/docs/api-site` (`Doxyfile`, `cli.py`).
 - 2026-10-09 — build: Moved `benchmarks/` to `tests/benchmark/` and renamed its programs from bench_ to `benchmark_*` (`CMakeLists.txt`).

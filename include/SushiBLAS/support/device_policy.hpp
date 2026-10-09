@@ -253,7 +253,6 @@ namespace SushiBLAS
 
         /**
          * @brief Returns whether a device can host a work-group with demand's local memory and size.
-         * @see include/SushiBLAS/support/README.md
          */
         [[nodiscard]] inline bool hosts_local_tile(const Profile& p,
                                                    const LocalTileDemand& demand) noexcept

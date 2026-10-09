@@ -16,7 +16,7 @@ in [the backlog](../design/REMAINING_WORK.md).
 | The record-time refusal of a device that cannot host the `syrk` or `syr2k` tile was never seen to throw: the one device the tree ran on hosts both tiles | `include/SushiBLAS/engine/blas/utils.hpp`, `require_local_tile` |
 | With `SB_BUILD_TESTS` and `SB_BUILD_EXAMPLES` off, as under a consumer, the tree was never configured | `CMakeLists.txt` |
 | The last syntax sweep of the whole tree ran at commit `1746b03`, over 250 translation units. Every later commit was checked file by file only, so an error between two files that were each parsed alone is still possible | `docs/agent/2026_10_07_V010/SPEC.md`, `OWNER_DECISIONS_LATE` |
-| The GPU evidence is one run on one card, an RTX 3080 Ti, of the tree before the first commit of this work. The tree after the break has run on no device | [GPU_VALIDATION.md](../design/GPU_VALIDATION.md), "The one GPU run" |
+| The GPU evidence is two functional runs on one card, an RTX 3080 Ti. Neither recorded the device profile or which GPU-shaped paths it took, and nothing in sections 2 to 5 of the checklist is measured | [GPU_VALIDATION.md](../design/GPU_VALIDATION.md), section 0 |
 | No kernel written since the break has been compiled for an ahead-of-time target. `Kernels::multiply`, `divide` and `conjugate`, which keep `std::complex` functions out of the SYCL BLAS kernels, are among them | `include/SushiBLAS/support/complex_arithmetic.hpp`, `kernels/sycl/` |
 | Whether `sycl::aligned_alloc_device` returns 128-byte aligned memory on every backend is unverified; `Storage` throws when an address is not aligned | `include/SushiBLAS/storage.hpp` |
 | The speed of the packed GEMM path is unmeasured, and its blocking defaults are derived from the cache size a device reports, which was never read on a real run | `include/SushiBLAS/support/device_policy.hpp`, `include/SushiBLAS/kernels/blas/level3/packed_product_plan.hpp` |
@@ -53,28 +53,20 @@ in [the backlog](../design/REMAINING_WORK.md).
 | The installed-package test calls no `SparseOps` routine, so it does not show that the sparse headers install | `tests/package/main.cpp` |
 | On the pinned intel-llvm for Windows, a generic lambda handed to `with_element_type` that calls a task body holding a SYCL kernel leaves the `HostKernel` members of that kernel undefined, and the test executable fails to link; the dtype arms of `execute_random` and `execute_typed_task` are named classes for that reason | `include/SushiBLAS/engine/math/random/dispatch.hpp`, `include/SushiBLAS/engine/task.hpp` |
 | `gelu.cpp` includes `<numbers>`, a C++20 header, in a library built at C++17 | `src/engine/math/nonlinear/gelu.cpp` |
-| `CMakePresets.json` describes a toolchain the project left | `CMakePresets.json` |
 | `sb test --suite package` ends in a traceback when a DLL beside the consumer is locked | `cli/sushiblas/services/project.py` |
+| The fixture `Regression_AxisSpanTest` sits in the unit folder, so its tests carry the label `regression` | `tests/functional/unit/test_mean_spatial.cpp` |
 | `sb run --sort` keeps a flag name the sibling CLIs renamed to `--pick` | `cli/sushiblas/cli.py` |
 
 ## Comments and documents
 
 | Issue | Where |
 | --- | --- |
-| The manual and the module READMEs were being rewritten to the recorder shape in the working tree, uncommitted, on 2026-10-07, and no one has read every page against the code. A search that day still found `engine.get_graph()` in the contributing guide, `ExecutionMode::VERIFY` in two READMEs, the removed accessor form `engine.blas()` in the FAQ and the security policy, a `SparseBLAS` reached through that accessor in the FAQ, and the removed `Reduce::RunningMax` in three READMEs | `docs/CONTRIBUTING.md`, `kernels/README.md`, `tests/functional/unit/README.md`, `docs/guides/FAQ.md`, `docs/reference/SECURITY.md`, `src/README.md`, `include/SushiBLAS/support/README.md` |
-| Four `@throws` lines name `std::runtime_error` where the code throws `std::invalid_argument`: `clamp`, `convert`, `truncated_normal` and `orthogonal` | `include/SushiBLAS/engine/math/elementwise.hpp`, `include/SushiBLAS/engine/math/random.hpp` |
-| The source comment checker reports 1 finding, a block over the ceiling | `kernels/sycl/blas/level3/syrk.hpp` |
-| The CLI manual says `sushicore` is published to no index, while the changelog records it taken from PyPI on 2026-09-22; which versions PyPI holds was not checked | `cli/README.md` |
-| The integration and GPU validation pages have not been through the humanizer pass; they hold 13 em dashes in about 1 000 words and 29 in about 2 800 | `docs/guides/INTEGRATION.md`, `docs/design/GPU_VALIDATION.md` |
-| The archived wave 1 report says it created `docs/reference/CHANGELOG.md` and that no commit was made; the entry went to the old `docs/CHANGELOG.md` and commit `e7783de` is on main | `docs/archive/agent/reports/2026-09-22-wave-1-task-7d.md` |
-| The archived help screen report says its branch is unmerged and that `sb` has seven commands; the work is on main and `sb` has eleven | `docs/archive/agent/reports/2026-09-22-help-screen-task-28.md` |
-| Comments cite documents by their old paths: `docs/CLAUDE.md` and `CLI_GUIDE.md`, now `CLAUDE.md` and `cli/README.md`, and `docs/INTEGRATION.md`, now `docs/guides/INTEGRATION.md` | `.github/workflows/ci.yml`, `Doxyfile`, `tests/package/CMakeLists.txt` |
+| The manual and the module READMEs were read against the code once, on 2026-10-09, by nine agents, and about 150 sentences were corrected. Each report lists the sentences it could not check: measurements, history, and claims about another repository or a device | `docs/agent/2026_10_09_MANUAL_READ/REPORT.md` |
 
 ## Layout
 
 | Issue | Where |
 | --- | --- |
-| `Doxyfile` sits in the root, where the layout forbids it | `Doxyfile` |
 | The source folder is `src/` where the layout names `source/`, as in SushiRuntime, SushiDSP and SushiAI. `kernels/` is a top-level folder outside the layout and stays there by the owner's decision of 2026-10-09 | repository root |
 | `tests/` has a `functional/` level over unit, integration and regression, and a `package/` folder the layout does not name | `tests/` |
 | `sushi-module.toml` spells the remote in lower case, the remote itself is `SushiSystems/SushiBLAS` | `sushi-module.toml` |
@@ -87,8 +79,6 @@ in [the backlog](../design/REMAINING_WORK.md).
 | The `functional` job runs on Linux only and calls cmake and ctest directly | `.github/workflows/ci.yml` |
 | The release workflow has never run | `.github/workflows/release.yml` |
 | The pyflakes step ends in `\|\| true` and cannot fail | `.github/workflows/ci.yml` |
-| The workflow says the repository has no `Doxyfile` and names the hub command `ss install` | `.github/workflows/ci.yml` |
-| The CLI test fixture probes `sushistack/sushicore`, a path that no longer exists | `cli/tests/conftest.py` |
 
 ## Release state
 

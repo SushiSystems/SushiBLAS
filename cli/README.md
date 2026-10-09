@@ -24,12 +24,10 @@ They are identical; use whichever you prefer. Every example below uses `sb`.
 hub install-cli sushiblas      # always editable, against this checkout
 ```
 
-This installs through **pipx** on every platform, into an isolated venv, then
-injects the shared `sushicore` package — which is published to no index, so pipx
-cannot resolve it as an ordinary dependency. The install is always editable and
-there is no flag to make it otherwise: a frozen copy would stop tracking
-`git pull`s on this checkout without ever saying so. `pipx install ./cli` on its
-own fails for the same reason: nothing resolves `sushicore` for it.
+This installs through **pipx** on every platform, into an isolated venv, and pipx resolves the
+shared `sushicore` package from PyPI as an ordinary dependency. The install is always editable
+and there is no flag to make it otherwise: a frozen copy would stop tracking `git pull`s on this
+checkout without ever saying so.
 
 To remove it later:
 
@@ -81,7 +79,7 @@ it a glow; `COLORFGBG` is read when the terminal sets it, and Windows Terminal d
 
 ## `sb build`
 
-Configures (if needed) and builds the library, examples, and test binary.
+Configures and builds the library, examples, and test binary.
 
 ```bash
 sb build                  # Release build (the default)
@@ -121,6 +119,9 @@ The options SushiBLAS itself defines:
 | Option | Default | What it does |
 |--------|---------|--------------|
 | `SB_LOG_LEVEL` | `auto` | Compiled-in log level: `auto`, `OFF`, `ERR`, `WARN`, `INFO`, `DEBUG`. `auto` means WARN for a release build and DEBUG for a debug build. |
+| `SB_BUILD_TESTS` | `ON` at the top level, `OFF` under a consumer | Build and register the test suite under `tests/`. |
+| `SB_BUILD_EXAMPLES` | `ON` at the top level, `OFF` under a consumer | Build the example programs under `applications/examples/`. |
+| `SB_BUILD_BENCHMARKS` | `OFF` | Build the benchmark programs under `tests/benchmark/`; `sb build --benchmarks` sets it. |
 | `SB_NATIVE_ARCH` | `OFF` | Build for the host CPU's own instruction set. |
 | `SB_SYCL_TARGETS` | *(empty)* | AOT device targets; empty means the targets SushiRuntime resolved. |
 | `SB_SYCL_DEVICE_FLAGS` | *(empty)* | Extra flags for the device compilation pass. |
@@ -236,7 +237,7 @@ docs bundle` is its one subcommand.
 names the new one on a terminal; it is removed after 2027-03-25. It builds the
 reference only and takes no subcommand.
 
-Bare `sb docs` runs Doxygen against the repo-root `Doxyfile`, which is committed, and opens
+Bare `sb docs` runs Doxygen against `.config/doxygen/Doxyfile`, from the repository root, and opens
 the reference with `docs/reference/MAINPAGE.md`.
 
 Output lands in `build/docs/api-site/html/`, and warnings — every public symbol
@@ -246,8 +247,8 @@ gitignored; the log is where the documentation debt is read off, and
 build.
 
 Scope is `include/SushiBLAS` minus `Detail` and minus `experimental/`.
-Decision D1 put the FFT and linalg headers outside the umbrella header, and not
-every operation declared there has a definition, so listing them would
+Decision D1 put the FFT and linalg headers outside the umbrella header, and no
+operation declared there has a definition, so listing them would
 advertise an API that does not link. D1 is defined in
 [the glossary](../docs/reference/GLOSSARY.md).
 
