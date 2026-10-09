@@ -7,15 +7,15 @@ License 1.0.0; see `LICENSE`. The material below keeps its own licence.
 
 Three third-party works have code or text in the tracked files: portBLAS, the Contributor
 Covenant and the reference BLAS that LAPACK distributes, whose Fortran the two rotation bricks
-were transcribed from. Random123 is listed with them because the tree does not record whether
-`philox.hpp` was adapted from its source. Licence texts live in `third_party/licenses/`, which holds
-`Apache-2.0.txt` today.
+were transcribed from. Random123 is listed with them: the owner does not recall whether
+`philox.hpp` was adapted from its source, so the file is treated as if it was. Licence texts live
+in `third_party/licenses/`.
 
 | Work | Files here | Licence | Licence text |
 | --- | --- | --- | --- |
 | portBLAS, Copyright (C) Codeplay Software Limited | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syrk.hpp`, `kernels/sycl/blas/level3/syr2k.hpp` | Apache-2.0 | `third_party/licenses/Apache-2.0.txt` |
-| Random123, Copyright 2010-2012, D. E. Shaw Research | `kernels/sycl/random/philox.hpp`, to the extent stated under "Algorithms written from a published reference" | BSD-3-Clause | not in `third_party/licenses/` |
-| Reference BLAS, as LAPACK distributes it | `include/SushiBLAS/kernels/blas/givens.hpp`, `include/SushiBLAS/kernels/blas/modified_givens.hpp`, to the extent stated under "Algorithms written from a published reference" | not read on this machine; LAPACK's licence file was not at hand | not in `third_party/licenses/` |
+| Random123, Copyright 2010-2012, D. E. Shaw Research | `kernels/sycl/random/philox.hpp` | BSD-3-Clause | `third_party/licenses/BSD-3-Clause-Random123.txt` |
+| Reference BLAS, as LAPACK distributes it, Copyright (c) 1992-2025 The University of Tennessee and The University of Tennessee Research Foundation, (c) 2000-2025 The University of California Berkeley, (c) 2006-2025 The University of Colorado Denver | `include/SushiBLAS/kernels/blas/givens.hpp`, `include/SushiBLAS/kernels/blas/modified_givens.hpp` | modified BSD, SPDX `BSD-3-Clause-Open-MPI` | `third_party/licenses/BSD-3-Clause-Open-MPI-LAPACK.txt` |
 | Contributor Covenant 2.1 | `.github/CODE_OF_CONDUCT.md` | not read; the estate audit names CC BY 4.0 | not in `third_party/licenses/` |
 
 No other tracked file carries a third-party copyright line. Outside `LICENSE`, this file,
@@ -58,22 +58,20 @@ that form.
 
 | File | Reference | Licence of the reference |
 | --- | --- | --- |
-| `kernels/sycl/random/philox.hpp` | Philox4x32-10 from Salmon, Moraes, Dror and Shaw, "Parallel Random Numbers: As Easy as 1, 2, 3", SC'11; round constants checked against Random123, https://github.com/DEShawResearch/random123, `include/Random123/philox.h` | The paper carries no code licence. Random123 is BSD-3-Clause, Copyright 2010-2012, D. E. Shaw Research; its `LICENSE` on `main` was read on 2026-10-07 |
+| `kernels/sycl/random/philox.hpp` | Philox4x32-10 from Salmon, Moraes, Dror and Shaw, "Parallel Random Numbers: As Easy as 1, 2, 3", SC'11; round constants checked against Random123, https://github.com/DEShawResearch/random123, `include/Random123/philox.h` | The paper carries no code licence. Random123 is BSD-3-Clause, Copyright 2010-2012, D. E. Shaw Research; its `LICENSE` on `main` was fetched on 2026-10-09 and is in `third_party/licenses/` |
 | `kernels/sycl/random/poisson.hpp`, `poisson_ptrs` | Hoermann's transformed rejection with squeeze (PTRS), Insurance: Mathematics and Economics 12, 1993, as `kernels/README.md` cites it | A journal article; no code licence |
 | `kernels/sycl/random/poisson.hpp`, `poisson_knuth` | Knuth's multiplication loop for a Poisson draw, as `kernels/README.md` names it | A textbook algorithm; no code licence |
-| `include/SushiBLAS/kernels/blas/givens.hpp` | The `xROTG` algorithm LAPACK 3.10 introduced, transcribed from the reference BLAS sources `drotg.f90` and `zrotg.f90` as a web fetch returned them on 2026-10-07 | LAPACK's licence was not read; no copy of the sources or of the licence was on this machine |
+| `include/SushiBLAS/kernels/blas/givens.hpp` | The `xROTG` algorithm LAPACK 3.10 introduced, transcribed from the reference BLAS sources `drotg.f90` and `zrotg.f90` as a web fetch returned them on 2026-10-07 | LAPACK's `LICENSE` on `master`, fetched on 2026-10-09 and kept in `third_party/licenses/` |
 | `include/SushiBLAS/kernels/blas/modified_givens.hpp` | The modified Givens construction, transcribed from the reference BLAS source `drotmg.f` the same way | as above |
 
 Whether `philox.hpp` was written from the paper or adapted from the Random123 source is not
-recorded in the tree. The file holds the four Philox constants (`philox.hpp:65-68`) and no
-Random123 copyright line. If the owner states it was adapted from Random123, the BSD-3-Clause
-text goes into `third_party/licenses/` and its copyright line into the file's license block.
+recorded, and the owner does not recall. The file is treated as adapted: its license block names
+Random123 and the BSD-3-Clause text is in `third_party/licenses/`.
 
-The two rotation bricks are a different case: they were written from source text, through a fetch
-that passes the page through a summarising model, so they follow the reference BLAS line by line
-as far as that fetch was faithful. Neither file carries an upstream copyright line, and
-`third_party/licenses/` holds no LAPACK licence. Reading LAPACK's licence file and adding what it
-asks for is open in `docs/design/REMAINING_WORK.md`.
+The two rotation bricks were written from source text, through a fetch that passes the page
+through a summarising model, so they follow the reference BLAS line by line as far as that fetch
+was faithful. Each file's license block names LAPACK, and LAPACK's licence text is in
+`third_party/licenses/`.
 
 ## Adapted text
 
@@ -93,8 +91,7 @@ in this repository. The licence column says where each licence was read.
 | Component | Used by | Source | Version | Licence |
 | --- | --- | --- | --- | --- |
 | SushiRuntime | `cmake/Runtime.cmake` | https://github.com/SushiSystems/SushiRuntime | sibling checkout or installed package, not pinned | PolyForm Noncommercial 1.0.0, from the sibling checkout's `LICENSE` |
-| SYCL headers and runtime, Intel oneAPI DPC++ | every `<sycl/...>` include; `intel-oneapi-compiler-dpcpp-cpp` from Intel's apt repository in `.github/actions/setup-oneapi/action.yml`; `CMakePresets.json` | https://github.com/intel/llvm | not pinned | unverified |
-| oneTBB | `CMakePresets.json` include and library paths | Intel oneAPI | not pinned | unverified |
+| SYCL headers and runtime, Intel oneAPI DPC++ | every `<sycl/...>` include; `intel-oneapi-compiler-dpcpp-cpp` from Intel's apt repository in `.github/actions/setup-oneapi/action.yml` | https://github.com/intel/llvm | not pinned | unverified |
 | GoogleTest | `tests/CMakeLists.txt`; `libgtest-dev` in `.github/actions/setup-oneapi/action.yml` | https://github.com/google/googletest | not pinned | BSD-3-Clause, Copyright 2008, Google Inc., from the workspace's vcpkg `share/gtest/copyright` |
 | hwloc | through SushiRuntime, from vcpkg on Windows (`cmake/Vcpkg.cmake`); `libhwloc-dev` in `.github/actions/setup-oneapi/action.yml` | https://github.com/open-mpi/hwloc | not pinned | a BSD licence, from the workspace's vcpkg `share/hwloc/copyright`; the audit names BSD-3-Clause |
 | sushicore | `cli/pyproject.toml` | PyPI | >=0.7.0 | Sushi Systems' own; the 0.5.0 installed on this machine declares Apache-2.0, and no 0.7.0 or later was read |
@@ -172,7 +169,7 @@ these kernels is SushiBLAS's own responsibility from here on.
   `doc/MissingFeatures.md` lists SYRK as unimplemented. `C =
   alpha*op(A)*op(A)^T + beta*C` is mathematically `GEMM(A, A, transA=trans,
   transB=!trans)` restricted to one triangle of `C`, so this file reuses
-  `gemm.hpp`'s operand-addressing primitives (`Detail::strides_for`,
+  `gemm.hpp`'s operand-addressing primitives (`OperandAccess`,
   `Detail::load_operand`) with the second GEMM operand set to `A` itself,
   and adds a triangular output-write mask (per-tile early skip when the
   whole work-group block falls outside the requested triangle, plus a

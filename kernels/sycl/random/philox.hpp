@@ -17,6 +17,9 @@
 /* Noncommercial use is free. Commercial use requires a separate licence  */
 /* from Sushi Systems; see COMMERCIAL.md. The software is provided        */
 /* "as is", without warranty of any kind.                                 */
+/*                                                                        */
+/* Philox as in Random123, Copyright 2010-2012, D. E. Shaw Research       */
+/* BSD-3-Clause, see NOTICE.md                                            */
 /**************************************************************************/
 
 /**
