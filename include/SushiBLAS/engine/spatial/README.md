@@ -13,8 +13,10 @@ this page.
 
 ## `window.hpp`
 
-The single place a layout is interpreted. Everything downstream of `window_span_for` sees element
-counts, so adding NCHW later is a second stride assignment here and nothing else anywhere.
+The place a layout is interpreted for the windowed operations. Everything downstream of
+`window_span_for` sees element counts, so adding NCHW later is a second stride assignment here and
+in the spans `src/engine/spatial/broadcast.cpp`, `channels.cpp` and `upsample_nearest.cpp` build
+by hand.
 
 ### `window_span_for` with stated extents
 
@@ -37,8 +39,8 @@ request, and the shape it produces is plausible enough to survive every other ch
 
 ### `window_span_for` from two operands
 
-The form every operation with an image output takes: pooling, the window product, upsampling, the
-channel copies, the affine. `H_o` and `W_o` come from `out`, which the caller sized with
+The form the window product and its two gradients take, and pooling through `pooling_span_for`.
+`H_o` and `W_o` come from `out`, which the caller sized with
 `output_extent` while the trailing padding it needs was still in scope.
 
 ### `require_valid_geometry`

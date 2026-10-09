@@ -41,7 +41,23 @@ from a layout, a `Core::Transpose` and a leading dimension. `at(p, r, c)` return
 of op(X), conjugated when the operand was given as `ConjTrans`. A kernel written against it
 carries no layout branch and no transpose branch in its inner loop, and `transposed()` gives the
 access of the transpose without going back to the flags. The four (layout, transposed) cases are
-two stride pairs; the table is under `Detail::strides_for` below.
+two stride pairs; the table is under `operand_access` below.
+
+### `operand_access`
+
+The full table, checked element for element against `Kernels::Reference::gemm`. "Transposed" is
+`Core::is_transposed(trans)`, which holds for `Trans` and `ConjTrans`:
+
+| Layout | Transposed | Row step | Column step |
+| --- | --- | --- | --- |
+| `RowMajor` | no | `ld` | 1 |
+| `RowMajor` | yes | 1 | `ld` |
+| `ColumnMajor` | no | 1 | `ld` |
+| `ColumnMajor` | yes | `ld` | 1 |
+
+Transposing an operand and flipping its layout are the same operation, so the table is the XOR
+of the two properties: `RowMajor` transposed and `ColumnMajor` untransposed address the same way,
+and so do the other two.
 
 ## `blas/symmetric_access.hpp`
 
@@ -56,6 +72,9 @@ their symmetric factor, so a symmetric product runs on the same kernel as a gene
 ## `blas/band_access.hpp`, `blas/packed_access.hpp`
 
 ### `BandAccess`, `PackedAccess`
+
+"Packed" here is BLAS packed storage: one triangle of a matrix kept as a vector, the storage of
+`spmv`, `spr`, `tpmv` and `tpsv`. It is not the packed panel of the CPU GEMM.
 
 The same contract as `OperandAccess` for a band-stored and a packed operand: `at(p, r, c)`
 returns element (r, c) of op(X). Both add `holds(r, c)`, which reports whether the element is
@@ -113,11 +132,14 @@ and returns a zero `z`.
 
 ### `modified_givens`
 
-Builds the modified Givens transformation as the reference xROTMG does, with its rescaling window
+Builds the modified Givens transformation as the reference xROTMG does, with its rescaling factor
 of `2^12` and the flag values -2, -1, 0 and 1. `K_MODIFIED_GIVENS_PARAMETERS` is the length, 5,
 of the parameter array `rotmg` writes and `rotm` reads.
 
 ## `blas/level3/packed_product_plan.hpp`
+
+"Packed" here is the packed panel of the CPU GEMM: a block of an operand copied into contiguous,
+aligned scratch before the micro-kernel reads it. It is not BLAS packed storage.
 
 ### `PackedRegisterBlock`
 
@@ -166,7 +188,7 @@ its documentation).
 
 See Kernels::GemmIdentityEpilogue for the no-op this degenerates to at a zero bias, and
 SushiBLAS::Dispatch::execute_gemm for the fusion contract and the host-readability constraint
-FORCE_REFERENCE adds.
+`ForceReference` adds.
 
 ## `blas/level3/gemm_epilogue.hpp`
 
@@ -189,9 +211,9 @@ training-correctness trap that comes with any *activation* epilogue.
 ### `gemm`
 
 Addressing an operand is two strides, not four cases: transposing it and flipping its layout are the
-same operation, so ROW_MAJOR+transposed and COLUMN_MAJOR+untransposed index identically (as do the
+same operation, so `RowMajor`+transposed and `ColumnMajor`+untransposed index identically (as do the
 other pair). That identity is the sanity check worth keeping in mind here: an earlier version of
-this file had the COLUMN_MAJOR arm of A and B inverted, which made `layout` a no-op for both
+this file had the `ColumnMajor` arm of A and B inverted, which made `layout` a no-op for both
 operands and, with the column-major leading dimension the driver passes, read past the end of A
 whenever m > k.
 
@@ -225,30 +247,6 @@ staging copies the data twice and every group_barrier is a real rendezvous betwe
 nothing. portBLAS ships exactly this split; so does this file. The fact table both variants dispatch
 on lives in `<SushiBLAS/support/device_policy.hpp>` and knows nothing about GEMM: tile sizes are
 chosen here, because only this file knows what its accumulator costs in registers.
-
-### `Detail::OperandStrides`
-
-The point of carrying these instead of a (layout, transposed) pair is that the four combinations of
-the two are only ever two strides, and resolving them once on the host removes a branch from the
-innermost loop of every kernel in the file without adding a single template instantiation.
-
-### `Detail::strides_for`
-
-The full table, verified element for element against `Kernels::Reference::gemm` (which is this
-operation's specification). "Transposed" is `Core::is_transposed(trans)`, which holds for `Trans`
-and `ConjTrans`:
-
-| layout       | transposed | row stride | col stride |
-|--------------|------------|------------|------------|
-| ROW_MAJOR    | no         | `ld`       | 1          |
-| ROW_MAJOR    | yes        | 1          | `ld`       |
-| COLUMN_MAJOR | no         | 1          | `ld`       |
-| COLUMN_MAJOR | yes        | `ld`       | 1          |
-
-Transposing an operand and flipping its layout are the same operation, so the table is just the XOR
-of the two properties, which is the sanity check worth remembering: ROW_MAJOR+transposed and
-COLUMN_MAJOR+untransposed are literally the same addressing, and so are ROW_MAJOR+untransposed and
-COLUMN_MAJOR+transposed.
 
 ### `Detail::load_operand`
 
@@ -376,7 +374,7 @@ register block reads (K_ITEM_ROWS + K_ITEM_COLS) operand elements per (K_ITEM_RO
 just happens out of cache instead of out of scratchpad.
 
 At `const int64_t row0 =`: same strided-lattice ownership as the local-tiled variant: this
-work-item's rows are row0 + ii*K_WG_ROWS and its columns col0 + jj*K_WG_COLS. The reason is different
+work-item's rows are row0 + ii*wg_rows and its columns col0 + jj*wg_cols. The reason is different
 here, there is no local memory to conflict on, but the payoff is the same and matters more. A CPU
 backend vectorises across neighbouring work-items, so neighbouring items reading and writing
 neighbouring addresses is what turns the B load and the C store into contiguous vector accesses
@@ -393,8 +391,8 @@ uninitialised. This matches standard BLAS semantics.
 
 ### `gemm`
 
-Resolves the four (layout, transpose) combinations into plain row/column strides on the host, see
-`Detail::strides_for`, so the innermost loop carries no layout branch and no extra template
+Resolves the four (layout, transpose) combinations into plain row/column strides on the host, through
+`operand_access`, so the innermost loop carries no layout branch and no extra template
 instantiation, then picks one of two kernel shapes from the device profile:
 
 - **LOCAL_TILED** when the device has genuine scratchpad memory and the
@@ -434,7 +432,7 @@ epilogue, which is invertible.
 
 Returns: The submitted work's event.
 
-At `if (profile.has_dedicated_local_memory && tile_fits && group_fits)`: both variants are named
+At `if (profile.has_dedicated_local_memory && tile_hosted)`: both variants are named
 from this one function, so both are instantiated and both reach the device image whichever branch a
 given machine takes at runtime: there is no dead-stripping hazard to guard against, and no
 configuration in which one of them stops compiling unnoticed.

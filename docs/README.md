@@ -7,7 +7,7 @@ to run its tests. This index reaches every other document.
 
 | Document | Holds |
 | --- | --- |
-| [Architecture](architecture/ARCHITECTURE.md) | The layers, the execution modes, the tensor, storage and memory model, the engine, the recorder and the views, the dispatch seams and fusion hooks, the kernels and routines of each family, the SushiRuntime dependency, packaging and the exception types |
+| [Architecture](architecture/README.md) | The layers, the execution modes, the tensor, storage and memory model, the engine, the recorder and the views, the dispatch seams and fusion hooks, the kernels and routines of each family, the SushiRuntime dependency, packaging and the exception types |
 
 ## Guides
 
@@ -44,4 +44,4 @@ to run its tests. This index reaches every other document.
 | [Documentation style guide](DOCUMENTATION_STYLE_GUIDE.md) | How prose is written here |
 
 Agent work folders are under `agent/`. Finished material is under `archive/` and is not edited.
-`api-site/` is Doxygen output, written by `sb docs` and ignored by git.
+Doxygen output is written by `sb docs` to `build/docs/api-site/`, outside this folder.

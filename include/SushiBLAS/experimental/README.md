@@ -10,12 +10,12 @@ name of the file. The header's first class block cites this page.
 
 `linalg.hpp` is experimental and quarantined under decision SB-2/D1. `engine.hpp` does not include
 it, and `Engine::linalg()`, the accessor that reached it, was removed. No `.cpp` file implements any
-method it declares. The LAPACK backend strategy is the named follow-up P8; the presence of
-`linalg.hpp` does not settle it.
+method it declares. The LAPACK backend strategy is an open item of
+`docs/design/REMAINING_WORK.md`; the presence of `linalg.hpp` does not settle it.
 
 ## `signal/transforms.hpp`
 
 `transforms.hpp` is experimental and quarantined under decision SB-2/D1. `engine.hpp` does not
 include it, and `Engine::signal()`, the accessor that reached it, was removed. No `.cpp` file
-implements any method it declares. The FFT backend strategy is the named follow-up P8; the presence
-of `transforms.hpp` does not settle it.
+implements any method it declares. The FFT backend strategy is an open item of
+`docs/design/REMAINING_WORK.md`; the presence of `transforms.hpp` does not settle it.

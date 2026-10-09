@@ -39,11 +39,9 @@ The whole suite passed on 2026-10-09 on the CUDA build with an RTX 3080 Ti, 2 04
 
 ## GPU validation
 
-One GPU run exists, on the tree before the break. [GPU_VALIDATION.md](GPU_VALIDATION.md) records
-it and holds the steps that have not run.
+Two functional runs exist, both on one RTX 3080 Ti. [GPU_VALIDATION.md](GPU_VALIDATION.md)
+records them and holds the steps that have not run.
 
-- Run the functional suite of the tree after the break on the CUDA build, and confirm there that
-  both kernels of `Unit_Level2SyclParityTest` stay inside their bounds.
 - Confirm `Device::Profile` reports `has_dedicated_local_memory = true` on the card.
 - Measure the bank conflicts of the tiled GEMM and the register spill of its 8x8 block.
 - Run the 128-bit vector path and the grid-stride launch shape of `launch_1d.hpp`.
@@ -155,44 +153,17 @@ it and holds the steps that have not run.
 
 ## Documentation
 
-- Finish bringing the manual and the module READMEs to the recorder shape, and read every page
-  against the code once the tree has built. A rewrite was uncommitted in the working tree on
-  2026-10-07, and the known issues page names the seven pages a search still found stale that
-  day. `DESIGN_SUPPORT_MEMORY`, section 14.4, and `DESIGN_YOLO26`, section 12.5, list more stale
-  sentences.
-- Say in the READMEs of the band and packed routines and of the packed GEMM which "packed" is
-  meant.
-- Correct the four `@throws` lines that name `std::runtime_error` (`elementwise.hpp`,
-  `random.hpp`).
-- Split `architecture/ARCHITECTURE.md` by its sections (D12), and run the humanizer pass over
-  `guides/INTEGRATION.md` and `GPU_VALIDATION.md` (D15).
-- Add a `README.md` to `tests/`, and move each folder's facts out of the architecture and
-  contributing pages into the folder READMEs (D17).
-- Write a design document for the public seam decisions the audit raised: SYCL types in the
-  interface, exceptions against statuses, and why GEMM's kernels are installed (C15, C21).
-- Correct what the manual says about `sushicore` and PyPI once the published versions are known
-  (licence L12).
-- Read LAPACK's licence file and give `givens.hpp` and `modified_givens.hpp` the attribution it
-  asks for; both were transcribed from the reference BLAS and `NOTICE.md` records the licence as
-  unread.
-- Add the third-party licence texts that `NOTICE.md` marks unverified, and answer whether
-  `philox.hpp` was written from the paper or adapted from Random123 source; the second puts a
-  BSD-3-Clause text into `third_party/licenses/`. Owner's statement.
+- Read the licence of the Contributor Covenant 2.1 and record it in `NOTICE.md`, which marks it
+  unverified.
 
 ## Layout, needing the owner
 
 - Move `src/` to `source/` in the four repositories of the stack at once; SushiRuntime, SushiDSP
   and SushiAI have the same folder. `kernels/` stays in the root, by the owner's decision of
   2026-10-09. Decide the `functional/` level of `tests/` (L8, L14).
-- Move `Doxyfile` out of the root, with the sibling repositories (L7).
-- Update the paths that `Doxyfile`, `.github/workflows/ci.yml` and
-  `tests/package/CMakeLists.txt` cite for documents that moved on 2026-10-05.
-- Push main, and delete the remote branches `origin/ci-fix` and
-  `origin/feature/blas-spatial-domain`, which are merged (L17).
 
 ## Continuous integration
 
-- Remove the dead candidate path from `cli/tests/conftest.py` (L13, L15).
 - Remove `|| true` from the pyflakes step and correct the stale comments (L4, L5).
 - Add a Windows functional job, and build through `sb` where the job calls cmake and ctest (L3).
 - Run the release workflow once before the tag depends on it.

@@ -3,12 +3,12 @@
 The translation units of the SushiBLAS library. Each file under `engine/` defines the methods of
 one operation: it checks the operands, declares the tensors the task reads and writes in an
 `OperandSet`, and records the task through the view's `TaskRecorder`. Every method returns the
-`TaskHandle` of the task it recorded. The kernels a task runs are in `kernels/` and under
-`include/SushiBLAS/kernels/`.
+`TaskHandle` of the task it recorded, except `RandomOps::set_seed`, which records no task and
+returns `void`. The kernels a task runs are in `kernels/` and under `include/SushiBLAS/kernels/`.
 
 | Path | Defines |
 | --- | --- |
-| `engine.cpp` | The `Engine` constructor and `Engine::execute` |
+| `engine.cpp` | The `Engine` constructor, `Engine::execute` and `Engine::discard_recorded` |
 | `io.cpp` | `IO`: the `.sushi`, raw binary and `.npy` readers and writers, and the text rendering |
 | `sparse_builder.cpp` | The members of `SparseBuilder` that are not templates |
 | `engine/blas/level1/`, `level2/`, `level3/` | `Level1`, `Level2` and `Level3`, one file per BLAS routine; a routine and its Hermitian or conjugated sibling share a file |
@@ -24,7 +24,7 @@ one operation: it checks the operands, declares the tensors the task reads and w
 
 | File | Defines |
 | --- | --- |
-| `engine.cpp` | Defines the Engine constructor and Engine::execute |
+| `engine.cpp` | Defines the Engine constructor, Engine::execute and Engine::discard_recorded |
 | `io.cpp` | Defines IO, which saves and loads tensors as .sushi, raw binary and .npy files and renders them as text |
 | `sparse_builder.cpp` | Defines the allocation, the host transfers and the dense compression of SparseBuilder |
 

@@ -42,7 +42,7 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | Register block | The square of accumulators one GEMM work-item keeps in registers; 8x8 for 4-byte and narrower element types, 4x4 for wider ones |
 | Tile | The block of an operand a GEMM work-group stages in local memory |
 | AOT target | A device target compiled ahead of time through `SB_SYCL_TARGETS`, as opposed to SPIR-V compiled by the runtime |
-| Quarantine | The headers under `include/SushiBLAS/experimental/`: declared, outside the umbrella header, and not all defined |
+| Quarantine | The headers under `include/SushiBLAS/experimental/`: declared, outside the umbrella header, and not defined |
 | Functional suite | The CTest tests labelled unit, integration or regression; the default of `sb test` |
 | Package suite | `sb test --suite package`: installs the package and builds and runs `tests/package/` against it |
 | Sibling checkout | A SushiRuntime checkout in the folder beside this repository, `../sushiruntime` |

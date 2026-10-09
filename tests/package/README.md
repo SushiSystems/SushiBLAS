@@ -43,7 +43,7 @@ inference-shaped, so it is not affected.
 
 ### The fused binary kernel
 
-`execute_binary` runs multiply, add and divide as one device-side expression. No SYCL is written
+`execute_binary` runs multiply, add and divide as one device-side expression. No SYCL kernel is written
 in this file, and the graph holds one task where separate ops would make three.
 
 ### The variadic in-place seam

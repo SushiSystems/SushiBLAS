@@ -11,7 +11,7 @@ are not here: they are under `include/SushiBLAS/kernels/`, for the reason given 
 | --- | --- |
 | `blas.hpp`, `sparse.hpp`, `spatial.hpp`, `random.hpp` | The include of every kernel of one family |
 | `math.hpp` | No include |
-| `reference/blas/`, `sycl/blas/` | Levels 1 to 3. `level1.hpp` holds the vector routines of one side and the three rotation builders have a file each; levels 2 and 3 have one file per routine, and one per shared loop |
+| `reference/blas/`, `sycl/blas/` | Levels 1 to 3. `level1.hpp` holds the vector routines of one side and `rotg`, `rotm` and `rotmg` have a file each; levels 2 and 3 have one file per routine, and one per shared loop |
 | `sparse/` | `CsrPattern` and `IndexList`, how a kernel of either side reads a sparse operand |
 | `reference/sparse/`, `sycl/sparse/` | The sparse-dense level 1 routines, the CSR products and the triangular solve |
 | `reference/spatial/`, `sycl/spatial/` | im2col, col2im, pooling, the window product, upsampling, channel and broadcast copies |
@@ -146,9 +146,7 @@ Random:
 | `sycl/random/poisson.hpp` | Defines the Poisson draw: Knuth's product below lambda 10, Hoermann's PTRS above |
 | `sycl/random/truncated_normal.hpp` | Defines the truncated standard normal draw by bisection of the distribution function |
 
-`math.hpp` includes nothing. Until 2026-10-05 it carried, commented out and marked as planned, the
-includes of `kernels/reference/math/reductions/sum.hpp` and `kernels/sycl/math/reductions/sum.hpp`;
-neither file exists.
+`math.hpp` includes nothing.
 
 ## Notes by file
 
@@ -201,17 +199,18 @@ A ground truth that shares an implementation with the kernel it checks does not 
 `nrm2` folds an infinity or a NaN in unscaled, because such an element has no magnitude to be
 relative to. That saturates the sum, which is the answer BLAS gives.
 
-Every sum in this file is formed in `Kernels::ReferenceSum`: in `double` for HALF, FLOAT32 and
+`asum` and `dot` form their sums in `Kernels::ReferenceSum`: in `double` for HALF, FLOAT32 and
 COMPLEX32, and in a compensated `double` sum for FLOAT64 and COMPLEX64. The result is rounded to
 the element type once, on the store. `include/SushiBLAS/support/README.md`, under
-`reference_accumulator.hpp`, says why a reference sums wider than the kernel it judges. The other
-reference kernels that sum (`gemv`, `symv`, `trmv`, `gbmv`, the shared symmetric and triangular
+`reference_accumulator.hpp`, says why a reference sums wider than the kernel it judges. Of the other
+reference kernels that sum, `gemv`, `symv`, `trmv`, `gbmv`, the shared symmetric and triangular
 loops, `syrk`, `syr2k`, `trsm`, the sparse kernels, the orthonormalisation sweep and
-`window_dot_weights`) do the same.
+`window_dot_weights` do the same.
 
 ### `kernels/reference/blas/level1/rotg.hpp`, `rotm.hpp`, `rotmg.hpp`
 
-The three rotation builders have one file each on each side. The arithmetic is not in them: it is
+`rotg`, `rotm` and `rotmg` have one file each on each side. The arithmetic of `rotg` and `rotmg` is
+not in them: it is
 `givens_rotation` and `modified_givens` under `include/SushiBLAS/kernels/blas/`, shared with the
 SYCL kernels. The reference `rotg` passes a host square root, `Detail::HostRoot`, where the SYCL
 kernel passes `Detail::DeviceRoot`. `rotm` applies the transformation H that a five-element
@@ -225,20 +224,20 @@ triangle is stored: `sbmv` and `hbmv` call it with a `BandAccess`, `spmv` and `h
 `PackedAccess`. `triangular_product` is `x = op(A) * x` in place, shared by `tbmv` and `tpmv`, and
 `triangular_solve` is the substitution shared by `tbsv` and `tpsv`. A brick answers `holds(r, c)`
 and bounds the stored part of a row, so each loop visits only what the storage holds. The dense
-routines `symv`, `trmv` and `trsv` keep their own kernels.
+routines `symv` and `trmv` keep their own kernels, and `trsv` runs on the kernel of `trsm`.
 
 `gbmv`, `spr` and `spr2` have a kernel each: `gbmv` reads a general band through `BandAccess`,
 and `spr`, `hpr`, `spr2` and `hpr2` write a packed triangle through `PackedAccess`. The
 conjugation policy, `Unconjugated` or `Conjugated`, is the only difference between a symmetric
-routine and its Hermitian sibling in every one of these files.
+routine and its Hermitian sibling in every one of these files but `spr.hpp`, where `hpr` also
+takes a real `alpha`.
 
 ### `kernels/reference/blas/level2/trmv.hpp`
 
 `trmv` runs in place without a temporary copy of `x`. The effective triangle of op(A) sets the
 direction of the walk: upper if the support after the transpose is k >= i, lower otherwise. The
 walk visits `i` in the order that reads each `x[i]` before the kernel overwrites it and never
-after. The section on `kernels/sycl/blas/level2/trmv.hpp` below shows why both directions are
-safe.
+after.
 
 ### `kernels/reference/blas/level3/syrk.hpp`
 
@@ -260,8 +259,8 @@ whose `beta` is real and whose diagonal is stored real. A zero `beta` does not r
 
 The left side is solved one column of B at a time, by forward substitution when the effective
 triangle of A is lower and by backward substitution when it is upper. The section on
-`kernels/sycl/blas/level3/trsm.hpp` below derives the effective triangle. The right side is the
-same system transposed once more, row by row: X\*op(A) = alpha\*B is equivalent to
+`kernels/sycl/blas/level3/triangular_system.hpp` below derives the effective triangle. The right
+side is the same system transposed once more, row by row: X\*op(A) = alpha\*B is equivalent to
 op(A)^T \* X^T = alpha\*B^T.
 
 The solved elements are carried between steps in a `RunningSolution`, so a HALF solve does not
@@ -297,13 +296,13 @@ it.
 
 Plain loops in stored order. `spmv` and `spmm` go row by row; `spsymv` reads the one stored
 triangle and applies each off-diagonal entry on both sides, conjugated under `Conjugated` for
-`sphemv`; `sptrsv` solves a lower triangle from row 0 down and an upper one upwards, carrying the
+`sphemv`; `sptrsv` solves a lower op(A) from row 0 down and an upper one upwards, carrying the
 solution in a `RunningSolution`. The dot products sum in a `ReferenceSum`.
 
 ### `kernels/reference/spatial/broadcast.hpp`
 
 No kernel in `broadcast.hpp` accumulates. Each one writes one output element per iteration from
-one input element and at most one per-channel scalar. There is no running total, no reduction,
+one input element and at most two per-channel scalars. There is no running total, no reduction,
 and no operand whose combination order could differ between two runs or between the reference and
 the device. The other spatial kernels do accumulate, and they are written as gathers, never as
 atomic scatters, to keep that order fixed. Here there is no order to fix, so the reference and the
@@ -464,14 +463,15 @@ The elementwise level 1 kernels (`axpy`, `copy`, `scal`, `swap`, `rot`) run one 
 element. The reductions (`asum`, `nrm2`, `dot`, `dotc`, `iamax`) run through
 `Reduce::reduce_indexed` in `<SushiBLAS/support/reduce_1d.hpp>`, so they take the same single-pass or
 two-stage shape, and the same fixed combination order, as the whole-tensor reductions. `asum` and
-`dot` fold with `CompensatedSum`, `dotc` with `CompensatedComplexSum`, `nrm2` with
-`ScaledSumOfSquares` and `iamax` with `RunningArgMax`. A HALF input accumulates in FLOAT32 and is
-rounded once when the result is stored. The reference `asum`, `nrm2` and `dot` accumulate in
-`double`, through `Kernels::ReferenceSum`, so on a long vector the two modes agree to the
+a real `dot` fold with `CompensatedSum`, a complex `dot` and `dotc` with `CompensatedComplexSum`,
+`nrm2` with `ScaledSumOfSquares` and `iamax` with `RunningArgMax`. A HALF input accumulates in
+FLOAT32 and is rounded once when the result is stored. The reference `asum` and `dot` accumulate in
+`double`, through `Kernels::ReferenceSum`, and `nrm2` in a plain `double`, so on a long vector the
+two modes agree to the
 precision of the SYCL sum, not bit for bit. The serial loops these kernels replaced summed without
 compensation, so a result can differ from theirs in the last bits.
 
-Each kernel takes a scratch pointer and its size in bytes. The caller in `src/engine/blas/level1/`
+Each reduction takes a scratch pointer and its size in bytes. The caller in `src/engine/blas/level1/`
 leases it through `Internal::allocate_level1_scratch` (`engine/blas/utils.hpp`), from the recorder's
 scratch pool on the device of x, sized as `Reduce::planned_partials` over the folded count (2n for a
 complex `nrm2`) times `K_LEVEL1_PARTIAL_BYTES`, the largest partial any of the five kernels stores
@@ -680,9 +680,10 @@ A CSR product that is transposed, or symmetric from one stored triangle, scatter
 entry adds into an output element chosen by its column, and two rows can choose the same one.
 Giving each row a work-item would need an atomic add, whose combination order varies between
 runs. The kernels split the rows into blocks instead. `scatter_blocks` picks the count: the
-smallest of the work-items the device keeps running at once, `K_MAX_SCATTER_BLOCKS` = 256, and
-the count at which the partial sums reach `K_SCATTER_PARTIALS_PER_ENTRY` = 2 per stored entry,
-and never below 1. `block_first_row` cuts the rows so the blocks hold about the same number of
+smallest of the compute units of a CPU or the resident work-groups of another device,
+`K_MAX_SCATTER_BLOCKS` = 256, and the count at which the partial sums reach
+`K_SCATTER_PARTIALS_PER_ENTRY` = 2 per stored entry, and never below 1 while the result has an
+element. `block_first_row` cuts the rows so the blocks hold about the same number of
 entries. Block `b` alone writes its own slice of the scratch,
 `partials[b * outputs, (b + 1) * outputs)`, walking its rows in order. A second launch, one
 work-item per output, folds the blocks' partials in ascending block order and stores
@@ -697,9 +698,10 @@ twice, so no two work-items write one element. The dot products fold through a c
 as the dense `dot` does.
 
 `spmv` without a transpose gives each row of the output one work-item. With a transpose it
-scatters through `row_blocks.hpp`, and so does `spsymv` in every case. `spmm` gives each column
-of C one work-item, so no element has two writers. `sptrsv` is one work-item that solves the
-whole system in order, a lower triangle from row 0 down and an upper one upwards. It computes
+scatters through `row_blocks.hpp`, and so does `spsymv` in every case. `spmm` without a transpose
+gives each element of C one work-item and with one each column of C, so no element has two
+writers. `sptrsv` is one work-item that solves the
+whole system in order, a lower op(A) from row 0 down and an upper one upwards. It computes
 no dependency levels of the rows.
 
 ### `kernels/sycl/spatial/window_dot.hpp`, `window_dot_weights.hpp`
@@ -813,7 +815,7 @@ as -1e30 would otherwise end tens of orders of magnitude away from the mass.
 ### `kernels/sycl/spatial/broadcast.hpp`
 
 No kernel in the SYCL `broadcast.hpp` accumulates. Each work-item writes one output element from
-one input element and at most one per-channel scalar. There is no reduction, no running total, and
+one input element and at most two per-channel scalars. There is no reduction, no running total, and
 nothing whose combination order could vary between two runs or differ from the reference kernel's.
 The file contains no `sycl::reduction`, no `sycl::reduce_over_group` and no floating-point
 `sycl::atomic_ref`, and none may be added. The pooling backwards avoid those constructs as a

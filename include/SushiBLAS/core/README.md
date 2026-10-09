@@ -87,7 +87,8 @@ it on each read through `Kernels::Sparse::CsrPattern` and `IndexList`.
 
 Thrown when an operation cannot run under the execution mode or on the device: a device-only
 operand under `ForceReference`, FLOAT64 or COMPLEX64 storage on a device without the fp64 aspect,
-HALF storage on a device without fp16. It derives from `std::invalid_argument`, so a `catch (const
+HALF storage on a device without fp16, a SYRK or SYR2K on a device that cannot host the local
+tile of its SYCL kernel, `random.poisson` on a device without fp64. It derives from `std::invalid_argument`, so a `catch (const
 std::invalid_argument&)` still catches it, and a caller that wants to tell a refusal from a wrong
 operand puts `catch (const SushiBLAS::UnsupportedExecution&)` first. It is thrown at record time
 only, by `Dispatch::Detail::throw_execution_error` in `engine/operand_check.hpp`.
@@ -108,7 +109,7 @@ into it would couple SushiBLAS's diagnostics to another repo's private implement
 approach is mirrored; the code is not shared.
 
 SushiAI, which links SushiBLAS unconditionally, *does* share this one: through the public
-`SushiBLAS::Core::format` entry below. See its doc comment for why a third copy of this file would
+`SushiBLAS::Core::format` entry below. See `Core::format` below for why a third copy of this file would
 have been the wrong answer.
 
 **What it supports, exactly.** Positional `{}` fields filled left to right, `{{` and `}}` for
@@ -162,7 +163,7 @@ is `std::format`'s sign-aware zero padding, which is what std::internal spells, 
 A pointer to the value plus a function pointer that streams it, which is the same shape
 `std::vformat` uses and is here for the same reason: it keeps the substitution loop a single
 non-template function. The alternative, a recursive variadic template, instantiates a fresh loop for
-every distinct argument list, and this library has 240-odd `SB_LOG_*` / `SB_THROW_IF` call sites, so
+every distinct argument list, and this library has 130-odd `SB_LOG_*` / `SB_THROW_IF` call sites, so
 that cost lands on every build.
 
 Warning: Non-owning. A `FormatArg` is only valid for the full-expression that created it, which is
@@ -212,7 +213,7 @@ call to `std::vformat`.
 
 That makes it an **addition** to SushiBLAS's public API, not a change to it: `Detail::format` is
 untouched, every existing caller still resolves to it, and this forwards rather than reimplements.
-The supported grammar is the file-level comment's, exactly.
+The supported grammar is the one the opening of the `format.hpp` section gives, exactly.
 
 - `fmt`: The format string; `{}` fields are filled left to right.
 - `args`: The values to substitute, in order.
@@ -301,5 +302,4 @@ The project's compile-time type vocabulary.
 random one. Three identical primary templates in one namespace is only harmless while no translation
 unit sees more than one of them, and promoting the op-dispatch helpers to public headers (which a
 downstream consumer will include side by side) made that guarantee disappear. Collapsed to this
-single definition; utils.hpp now includes this file so anything that reached the trait through it
-still compiles.
+single definition; a header that uses the trait includes this file.

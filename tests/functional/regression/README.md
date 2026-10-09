@@ -6,7 +6,7 @@ which `tests/CMakeLists.txt` turns into the `regression` CTest label.
 
 | File | What it pins |
 | --- | --- |
-| `test_io.cpp` | IO refuses a file it cannot read whole and reaches device storage by copy |
+| `test_io.cpp` | IO reports a file it cannot read whole through its status and reaches device storage by copy |
 | `test_logger.cpp` | The logger writes every line before an assertion aborts or a shutdown returns |
 | `test_regression.cpp` | One sentinel per fixed defect in the BLAS, RNG, tensor and reduction paths |
 | `test_spatial_determinism.cpp` | The spatial backward kernels give the same bits on every run |
@@ -109,7 +109,7 @@ entry point.
 ### BatchedGemmAdvancesEveryBatchSlice
 
 Tensor's column-major constructor gave the batch axis of a rank-3 tensor stride 1. The GEMM
-driver reads `str_a = A.strides[rank-3]`, which came back as 1 where it should be m*k, and every
+driver read `str_a = A.strides[rank-3]`, which came back as 1 where it should be m*k, and every
 batch element read the same slice.
 
 The rule the test pins: the batch axis of a rank-3 tensor is outermost and slowest-varying in
@@ -174,7 +174,7 @@ exploded is the vector whose squares overflow. The mechanism meant to rescue the
 
 The test input is {1.2e38, 1.6e38}. Its norm is 2e38, inside fp32's range, while 1.2e38 squared
 is 1.44e76. Both entry points are checked: `ReductionOps::nrm2`, the deterministic folding
-reduction, and `Level1::nrm2`, a serial Level 1 kernel pair. They are separate implementations
+reduction, and `Level1::nrm2`, a Level 1 kernel pair. They are separate implementations
 and both had the defect.
 
 ### Nrm2DoesNotUnderflowOnDenormalInput

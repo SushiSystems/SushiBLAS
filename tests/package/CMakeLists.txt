@@ -46,7 +46,7 @@ cmake_minimum_required(VERSION 3.20)
 # compiled into the sushiblas static library already), but because the
 # public headers include <sycl/sycl.hpp> and use sycl::event/sycl::queue in
 # their own signatures, so this translation unit needs a SYCL-aware compiler
-# to parse them at all. See docs/INTEGRATION.md.
+# to parse them at all. See docs/guides/INTEGRATION.md.
 
 project(SushiBLASPackageConsumer LANGUAGES CXX)
 

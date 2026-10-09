@@ -120,7 +120,7 @@ made to the older ones that day, had not been built or run when this page was wr
 | `test_reduction_determinism.cpp` | Tests that the folding reductions repeat to the bit and sum accurately |
 | `test_reductions.cpp` | Tests each reduction's results and refusals, and that its host and SYCL paths agree |
 | `test_reference_accumulator.cpp` | Tests the type and the running sum a reference kernel accumulates in |
-| `test_reference_mode_guard.cpp` | Tests that FORCE_REFERENCE refuses device-only USM and runs on host-reachable USM |
+| `test_reference_mode_guard.cpp` | Tests that ForceReference refuses device-only USM and runs on host-reachable USM |
 | `test_relu.cpp` | Tests NonLinearOps::relu and relu_backward against fixed expected values |
 | `test_remainder.cpp` | Tests ElementwiseOps::remainder against fixed expected values |
 | `test_rng_stream.cpp` | Tests RngStream's reseed, offset reservation, thread safety and seed determinism |
@@ -211,10 +211,10 @@ The `TheSyclKernelAgreesWithTheReferenceKernel` tests fill two buffers under
 the library checks kernel agreement: `ExecutionMode` has no mode that runs both, and
 `Engine::set_mode` is `noexcept`.
 
-A kernel that sums is not compared this way. The reference sums in `double` and the SYCL
-kernel in the element type, so the BLAS parity tests measure each against a `TruthSum` within a
-rounding bound; see `blas_truth.hpp` in `tests/common/README.md`. A kernel that only moves
-elements is still compared bit for bit.
+A BLAS kernel that sums is not compared this way. The reference sums in `double` and the SYCL
+kernel in the element type, FLOAT32 for HALF, so the BLAS parity tests measure each against a
+`TruthSum` within a rounding bound; see `blas_truth.hpp` in `tests/common/README.md`. A kernel
+that only moves elements is still compared bit for bit.
 
 ### Comparing floats by bit pattern
 
@@ -323,7 +323,7 @@ not merely to a tolerance. Segment `s` peaks at `100 * s + 1`, at a position tha
 `RowSumsAreCompensated`: each row is one large head followed by 4096 ones. In float, 1e8 has an
 ulp of 8, so `1e8 + 1` rounds straight back to 1e8 and an uncompensated serial fold returns
 exactly 1e8, short by the entire tail. 100004096 is a multiple of 8 and therefore exactly
-representable, so the test asserts a value, not a tolerance.
+representable, so the test asserts that value with `EXPECT_FLOAT_EQ`, which allows four ulps.
 
 `BothShapesAreBitwiseStable`: the guarantee SushiBLAS inherits from
 `sushiruntime_deterministic_fp` is byte equality for the same binary on the same device, so the
@@ -363,7 +363,7 @@ only in the axis it was broadcast along, and a swapped stride pair fails one of 
 
 `TheSameEpilogueAppliesOnTheReferencePath`: the reference kernel is this operation's
 specification and invokes the epilogue on the host, so an addressing arm that only works in the
-SYCL instantiation would make every FORCE_SYCL against FORCE_REFERENCE comparison of a fused
+SYCL instantiation would make every ForceSycl against ForceReference comparison of a fused
 GEMM disagree. The row orientation
 is the one pinned here, since nothing else in the library exercises that arm.
 
@@ -443,7 +443,7 @@ its elements are not where a flat walk would look for them.
 `OverlappingOperandsAreRefused`: overlapping operands are a race between work-items, not an
 in-place update, because each item reads one element and writes another of a different width.
 
-`AConvertIsOrderedBehindTheOpThatWroteItsSource`: both operands are views at a non-zero offset,
+`AConvertIsOrderedBehindTheOpThatWroteItsSource`: the source is a view at a non-zero offset,
 for the reason given under "Views at a non-zero offset". Verified by mutation: rewriting
 `src.region()` as the bare pointer makes the assertion report 0.
 
@@ -487,7 +487,7 @@ headers, defines `small` as a macro for `char`.
 exist. `asum` would nearly have served: a sum of magnitudes is non-finite whenever any element
 is, and a caller could have written `isfinite(asum(g))`. The test runs both operations on one
 tensor of eight finite fp16 values, and they disagree. The tensor is clean, and `asum` says it
-is not, because it accumulates in the input's own dtype and 8 x 20000 leaves binary16's range
+is not, because it stores its total in a HALF result and 8 x 20000 leaves binary16's range
 long before any element does. It is a measurement, not an assertion of intent. In a
 loss-scaling loop that disagreement halves the scale on a step that never overflowed, and does
 it again on the next step, for ever; the mechanism meant to rescue a mixed-precision run would
@@ -533,9 +533,9 @@ does the same against a `find_package()`'d install.
 
 `float_bits` serves the determinism checks; see "Comparing floats by bit pattern".
 
-`RealOnlyDomainRejectsComplexAtRecordTime`: the default domain is REAL, so a functor that was
-only ever meant for real scalars is rejected before it can be handed a complex operand. It is
-not compiled for one, and it is not silently skipped as it once was.
+`RealOnlyDomainRejectsComplexAtRecordTime`: the default domain is `Domain::Real`, so a functor
+that was only ever meant for real scalars is rejected before it can be handed a complex operand.
+It is not compiled for one, and it is not silently skipped as it once was.
 
 `FusesAFiveTensorAdamWUpdateIntoOneKernel` uses 1023 elements on purpose. That is not a
 multiple of any plausible work-group size, so the grid-stride loop has to wrap, and not a
@@ -598,8 +598,8 @@ reference kernel had the identical defect.
 Without it the SYCL kernel could only ever be as right as whatever the reference does.
 
 `TransposedAMatchesHandComputedResult`: op(A) is the same `[[1,2,3],[4,5,6]]`, so A is stored
-3x2 as its transpose `[[1,4],[2,5],[3,6]]`. This pins the ROW_MAJOR and transposed arm, which
-must address identically to COLUMN_MAJOR and untransposed.
+3x2 as its transpose `[[1,4],[2,5],[3,6]]`. This pins the RowMajor and transposed arm, which
+must address identically to ColumnMajor and untransposed.
 
 `EpilogueFusesBiasAndReluIntoTheStore` is worked out as follows, with A (2x2) =
 `[[1,2],[3,4]]`, B (2x3) = `[[1,0,-1],[0,1,-1]]`, alpha = 2, row_bias = `[0, 1]` and col_bias =
@@ -636,8 +636,8 @@ jointly.
 and the ReLU clamps the three negatives to zero.
 
 `ExecuteGemmAppliesTheSameEpilogueOnTheReferencePath`: the reference kernel is this operation's
-specification, so it has to apply the epilogue too. Otherwise FORCE_REFERENCE would quietly
-compute a different function from FORCE_SYCL, and every comparison of the two modes on a fused
+specification, so it has to apply the epilogue too. Otherwise ForceReference would quietly
+compute a different function from ForceSycl, and every comparison of the two modes on a fused
 GEMM would disagree.
 
 `ExecuteGemmWithTheIdentityEpilogueIsPlainGemm` asserts what `Level3::gemm` now is: the unfused
@@ -715,7 +715,7 @@ the profile will not select on that machine.
 
 `StrideTableMatchesTheStandardIdentity`: transposing an operand and flipping its layout are the
 same operation. The check is cheap to state, and it would have caught the inverted
-COLUMN_MAJOR arm the moment it was written.
+ColumnMajor arm the moment it was written.
 
 ## test_iamax.cpp
 
@@ -792,8 +792,8 @@ cooperative shape. Both shapes compute their segment's base address, and both ha
 computation changed, so covering only the item-per-segment shape would leave half the change
 untested.
 
-`ASpanWithNoSecondAxisReducesExactlyAsItAlwaysDid`: every existing caller aggregate-initialises
-`AxisSpan` with five values and so gets `segments2 = 1`, `segment_stride2 = 0` by default. If
+`ASpanWithNoSecondAxisReducesExactlyAsItAlwaysDid`: every existing caller sets five members of
+`AxisSpan` and so gets `segments2 = 1`, `segment_stride2 = 0` by default. If
 the fold index is decomposed wrongly at that default, every row-wise reduction in the library
 is wrong, and this is the cheapest place in the suite to see it.
 
@@ -850,9 +850,10 @@ on an input built to lose it: one large magnitude followed by many small ones. I
 has an ulp of 8, so `1e8 + 1` rounds straight back to 1e8 and a naive running sum discards
 every one of the 4096 ones that follow. It returns exactly 1e8, off by the entire tail. The
 compensation term holds what each addition dropped and gives back 100004096, which is exactly
-representable because it is a multiple of 8, so the test asserts an exact value. The gap
-between right and wrong is 4096, not an ulp, so the test cannot pass by accident. It was
-verified to fail without the compensation by removing it: the result came back as 1e8.
+representable because it is a multiple of 8, so the test asserts that value with
+`EXPECT_FLOAT_EQ`. The gap between right and wrong is 4096, not an ulp, so the test cannot pass
+by accident. It was verified to fail without the compensation by removing it: the result came
+back as 1e8.
 
 `CompensatedSumBeatsNaiveSummationOnRepeatedTenths` checks the same property on a long run of
 0.1f, a value with no exact binary representation, so every addition rounds. The test pins no
@@ -1000,9 +1001,9 @@ forced modes" for why the comparison is made in the test.
 
 `TheAverageIsOverTheWholeWindowIncludingPaddedTaps` is the pin for decision D-A4. Without a
 padded case the convention is invisible: an unpadded pool divides by the area and by the
-in-bounds count at once, so every other test in the file passes under either rule. The top-left
-window's only in-bounds tap is the element 4. Divided by the window area that is 1; divided by
-the in-bounds count it would be 4. That difference is the whole of `count_include_pad`.
+in-bounds count at once, so every other forward test in the file passes under either rule. The
+top-left window's only in-bounds tap is the element 4. Divided by the window area that is 1;
+divided by the in-bounds count it would be 4. That difference is the whole of `count_include_pad`.
 
 `OverlappingWindowsSumTheirShares`: with a 2x2 stride-1 window over a 3x3 image, the centre
 pixel is covered by all four windows and the corners by one each. A gather that stopped at its
@@ -1015,8 +1016,8 @@ computed per window from the in-bounds count would make the border pixels larger
 
 ## test_spatial_pool_max.cpp
 
-`four_by_four` returns the image every hand-checked case pools. It is chosen so each 2x2
-stride-2 window's maximum sits in a different corner of the window. A kernel that always
+`four_by_four` returns the image every hand-checked case pools. It is chosen so the 2x2
+stride-2 windows' maxima do not all sit in the same corner of the window. A kernel that always
 picked, say, the last tap in scan order would pass a window whose maximum happened to be there.
 
 ```
@@ -1077,7 +1078,8 @@ are the same address. That the poison bytes before and after the view survive un
 pass by accident, because an operation that ignores the offset writes over them.
 
 The tests run in family order: BLAS levels 1 to 3, elementwise, nonlinear, logic, reductions,
-random, and last the two tests about what an offset counts.
+random, the two tests about what an offset counts, and last three about alignment and one
+about `get_device`.
 
 `OffsetIsCountedInElementsNotBytes`: the unit of `storage_offset` is a decision, not an
 accident, and it is the one that keeps every view naturally aligned. An element count scaled by
@@ -1169,7 +1171,7 @@ whole matrix, and it always did, which makes it a useful control on `element_spa
 `StrideExplicitConstructorRejectsIncoherentMetadata`: the stride-explicit constructor is the
 seam `slice` now goes through, so its guards are the last thing between a mis-described view
 and a kernel reading past the end of an allocation. In the last case, 4 rows at a stride of 64
-reach element 193 of a 16-element allocation. The element count alone (16) would have fitted,
+reach element 195 of a 16-element allocation. The element count alone (16) would have fitted,
 which is why the capacity check has to be asked in terms of the span.
 
 ## test_trsm.cpp

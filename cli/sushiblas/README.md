@@ -42,7 +42,8 @@ from there. `config.toml` does not repeat it.
 ### Config.sushiruntime_dir
 
 The field names the SushiRuntime sibling checkout. Empty means `../sushiruntime` relative to the
-project root, which matches the default of `SUSHIRUNTIME_DIR` in `cmake/Runtime.cmake`.
+project root, which matches the default of `SUSHIRUNTIME_DIR` in `cmake/Runtime.cmake` when
+`SUSHISTACK_HOME` is not set.
 
 ## console.py
 

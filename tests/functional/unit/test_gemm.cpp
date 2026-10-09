@@ -162,7 +162,7 @@ namespace SushiBLAS
                 /**
                 * @brief A type- and reduction-length-appropriate comparison tolerance.
                 *
-                * Both implementations accumulate in float for half and in T otherwise.
+                * The SYCL kernel accumulates in float for half and in T otherwise, the reference in double.
                 * They differ only in summation order, so the gap they can open grows with
                 * the length of the reduction instead of staying fixed. That only matters
                 * for half, which has about three decimal digits to spend in the result.

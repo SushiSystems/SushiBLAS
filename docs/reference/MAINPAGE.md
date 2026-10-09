@@ -7,11 +7,11 @@ The order of every floating-point sum is fixed by the device and the extents: th
 folds are hand-written and use no `sycl::reduction`.
 
 This is the generated API reference. It documents what the headers say. The v0.1.0 interface it
-describes has been written and not yet built or run as a whole. The reasoning behind the design
-is in the prose documents, which are the better place to start:
+describes was built and its test suite run as a whole once, on 2026-10-09, on one NVIDIA card.
+The reasoning behind the design is in the prose documents, which are the better place to start:
 
 - `README.md`: what the library is and how to build it.
-- `docs/architecture/ARCHITECTURE.md`: the layers, the recorder, the execution modes, the seams
+- `docs/architecture/README.md`: the layers, the recorder, the execution modes, the seams
   and the kernels of each family.
 - `docs/guides/INTEGRATION.md`: consuming SushiBLAS from your own CMake project.
 - `cli/README.md`: every `sb` command.
@@ -45,8 +45,8 @@ would advertise an API that does not link.
 
 ## A caution about the reference
 
-Doxygen lists every public symbol, which flattens a deliberate hierarchy. Three headers carry
-warnings that matter more than their signatures do:
+Doxygen lists every public symbol, which flattens a deliberate hierarchy. Three headers have
+warnings that matter more than their signatures do, written in the module README each cites:
 
 - `engine/operand_set.hpp` and `engine/blas/dispatch.hpp`: why a task's operands, and an
   epilogue's, are declared as a `Tensor` and never as a `ResourceRegion`. A region converts
@@ -55,6 +55,6 @@ warnings that matter more than their signatures do:
   cost this stack two silently wrong training runs.
 - `engine/math/elementwise/read_binding.hpp`: a tensor a functor reads at execution time is
   declared through `bind_reads`. A pointer captured inside a bare functor is not ordered, not kept
-  alive and not checked under `FORCE_REFERENCE`.
+  alive and not checked under `ForceReference`.
 - `engine/math/reductions.hpp`: why a count or an index is an `INT64` and not a value in the
   input's own dtype.

@@ -58,8 +58,8 @@ constraint. A converting op dispatches on *two* runtime dtypes, so the naive spe
 `with_element_type` nested inside `with_element_type`, is 7 x 7 = 49 kernel instantiations for one
 operation, more than this library's entire elementwise family costs put together. It is also a shape
 this tree's clang is known to miscompile: the nested generic lambda is exactly what crashes it
-during instantiation, which is why `Internal::execute_blas_task` spells its own switch out by hand
-(`<SushiBLAS/engine/blas/utils.hpp>`). So the pair is restricted to `Dispatch::Domain::Real` on
+during instantiation, which is why `Internal::execute_typed_task` spells its own switch out by
+hand (`<SushiBLAS/engine/task.hpp>`). So the pair is restricted to `Dispatch::Domain::Real` on
 **both** sides, HALF, FLOAT32, FLOAT64, nine arms, and the switch is written as two plain, un-nested
 `switch` statements over ordinary function templates rather than as lambdas.
 
@@ -67,7 +67,7 @@ REAL x REAL is not an arbitrary trim. It is what mixed precision consists of, an
 it is either meaningless or a bug wearing a cast: a complex operand has no single real value to
 narrow to, and a float-to-int conversion is a *rounding policy* decision (truncate, round-half-even,
 saturate?) that this layer has no basis to make on the caller's behalf. Both therefore throw at
-record time, **naming both dtypes**, rather than silently doing nothing: the defect this project has
+record time, **naming the dtype**, rather than silently doing nothing: the defect this project has
 called out by name more than once. An integer conversion, if one is ever wanted, belongs in its own
 op whose name states the rounding it performs.
 
@@ -84,7 +84,7 @@ write, taken from `Tensor::region` and never from a bare pointer. A `ResourceReg
 implicitly from a pointer and a bare pointer widens to the *whole* allocation, so two views of one
 arena become two unrelated resources, `overlaps` answers false and the tracker emits no edge at all,
 not a wrong edge, none. That mistake has produced a silently wrong training loss in this stack twice
-(`<SushiBLAS/engine/math/reductions/dispatch.hpp>` records one of them), and it is exactly the
+(the `reductions/dispatch.hpp` section of this page records one of them), and it is exactly the
 arena-packed fp32/fp16 pair this op exists to serve.
 
 - `src`: The tensor to read. Must be contiguous and have storage.
@@ -94,8 +94,8 @@ arena-packed fp32/fp16 pair this op exists to serve.
 
 Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
 
-Throws `std::invalid_argument`, naming the offending operand, if it is storage-less or
-non-contiguous, if the two shapes or layouts disagree, if its dtype falls outside `Domain::Real`,
+Throws `std::invalid_argument`, naming the offending operand, if it has elements but no storage
+or is non-contiguous, if the two shapes or layouts disagree, if its dtype falls outside `Domain::Real`,
 and if the operands overlap. Throws `UnsupportedExecution` as `Dispatch::require_device_dtype` and
 `TaskRecorder::record_pair` state.
 
@@ -260,8 +260,8 @@ handed to `op_func`, and written back, so a write through one operand is not vis
 operand that happens to name the same address. Disjoint views of one arena are fine; two views of
 the same bytes are not.
 
-Throws `std::invalid_argument` if a tensor is null, storage-less or non-contiguous, if its shape,
-layout or dtype differs from operand 0's (the message names which one), if
+Throws `std::invalid_argument` if a tensor is null, has elements but no storage or is non-contiguous,
+if its shape, layout or dtype differs from operand 0's (the message names which one), if
 the dtype falls outside `Dom`, or if `params` exceeds the metadata's inline capacity.
 
 `execute_zip_inplace` declares every operand as both a read and a write: the functor may touch any
@@ -354,12 +354,6 @@ own parameters so that their position is the same for every random op, whatever 
 profiler or replay tool reading the metadata does not have to know which distribution produced the
 task in order to find them.
 
-They used to be written to slots 10 and 11. `TaskMetadata` holds eight, and `set_param` ignores an
-out-of-range index without a word, so every random task recorded so far carried a zero seed and a
-zero offset in its metadata. The kernels themselves were unaffected (they capture seed/offset by
-value, not through the metadata), so the bug never changed a number: it only blanked the record of
-which draw a task made.
-
 ### `Sampling` and `require_random_dtype`
 
 Every random op names the element families it serves as a `Dispatch::Domain` and says whether it
@@ -370,7 +364,7 @@ domain: HALF has too little mantissa for the inverse-CDF and Box-Muller transfor
 `require_random_dtype` throws `std::invalid_argument` with one message for all of them: the op,
 the operand `t`, its dtype and the dtypes the op accepts. The distributions call it through
 `execute_random`; `shuffle`, `constant`, `orthogonal` and `truncated_normal` call it directly,
-before any other work.
+before a task is recorded.
 
 ### `submit_random_fill`
 
@@ -427,7 +421,7 @@ on the device: it must be device-copyable, capture by value, hold no host pointe
 nothing and throw nothing. Draw through `Kernels::SYCL::Random` rather than a stateful host RNG.
 
 Throws `std::invalid_argument` through `require_random_dtype` for HALF, the integer dtypes and any
-dtype outside `Dom`, for a tensor without storage or not contiguous, and if `params` exceeds
+dtype outside `Dom`, for a tensor with elements but no storage or not contiguous, and if `params` exceeds
 `K_MAX_RNG_PARAMS`. Throws `UnsupportedExecution` for a dtype the device of `t` cannot compute in
 and for a device-only `t` under `ForceReference`. All of these fire at record time and before the
 offset is reserved, so a refused call does not move the stream.
@@ -586,8 +580,8 @@ any lambda it nests must be device-copyable, capture by value, hold no host poin
 nothing and throw nothing. The SYCL path itself runs on the host at execution time and owns the
 `depends_on(deps)` call: dropping it silently breaks the graph's ordering guarantees.
 
-Throws `std::invalid_argument` if an operand has no storage, if `t` is not contiguous, if `result`
-is not scalar, if the dtypes disagree, or if the dtype is one reductions do not support (HALF,
+Throws `std::invalid_argument` if an operand has elements but no storage, if `t` is not contiguous,
+if `result` is not scalar, if the dtypes disagree, or if the dtype is one reductions do not support (HALF,
 FLOAT32 and FLOAT64 are; the complex types are not, since a reduction's operators need an ordering
 and an identity that `std::complex` does not supply). Throws `UnsupportedExecution` for a dtype a
 tensor's device cannot compute in and for a device-only tensor under `ForceReference`; the
@@ -705,7 +699,7 @@ The seam every order-sensitive reduction in the library goes through: `sum`, `me
 `finalize`. It is `execute_reduction` with a `FoldingReductionDispatch`, whose SYCL path is
 `Reduce::reduce<Accum>` and whose host path is `Serial::reduce<Accum>`. That is
 the point: the part of a reduction that is hard to get right is the *combination order*, and putting
-it in five places is five chances to get it wrong. See `<SushiBLAS/support/reduce_1d.hpp>` for the
+it in five places is five chances to get it wrong. See `include/SushiBLAS/support/README.md` for the
 shape and for why `sycl::reduction` and `sycl::reduce_over_group` are both unusable here.
 
 It sizes and requests the partials scratch itself, from the device the tensor's storage lives on, so
@@ -740,7 +734,7 @@ pointers, no allocation, no exceptions.
 Throws `std::invalid_argument` and `UnsupportedExecution` for the same reasons `execute_reduction`
 does. The storage check runs before the partials are sized.
 
-At `const std::size_t partials =`: sized from the device the data lives on, which is the device the
+At `planned_partials_for(t)`: sized from the device the data lives on, which is the device the
 scheduler routes the task to. Should the two ever disagree, Reduce::plan clamps to whatever scratch
 actually exists and falls back to the single-pass shape: slower, never wrong.
 
@@ -798,11 +792,11 @@ not `[N, C]`, or if `t` is a row-sliced view whose H and W cannot be walked as o
 ### `execute_folding_span_reduction`
 
 The axis-wise counterpart of `execute_folding_reduction`, and the seam every axis reduction in the
-library goes through. `max_along`, `min_along` and `sum_along` are each one call to this,
-differing only in `Accum`; a per-axis mean is `Reduce::CompensatedSum` with `v / n` as its
-finalizer, which re-cuts nothing here. The task body is a `Detail::SpanReductionTask`: the SYCL
-path is the segmented launch of `<SushiBLAS/support/reduce_axis.hpp>`, and the host path folds
-each segment in index order.
+library goes through. `max_along`, `min_along` and `sum_along` each reach it through
+`execute_folding_axis_reduction`, differing only in `Accum`; a per-axis mean is
+`Reduce::CompensatedSum` with `v / n` as its finalizer, which re-cuts nothing here. The task
+body is a `Detail::SpanReductionTask`: the SYCL path is the segmented launch of
+`<SushiBLAS/support/reduce_axis.hpp>`, and the host path folds each segment in index order.
 
 ```cpp
 // Row-wise maximum of a [rows, cols] tensor into a [rows] vector -
@@ -814,8 +808,8 @@ Dispatch::execute_folding_axis_reduction<Reduce::NaNPropagatingMax>(
 
 **It asks for no scratch**, unlike `execute_folding_reduction`, and that is a property of the shape
 rather than an omission: a segmented reduction's work-groups never contribute to a shared answer, so
-there are no partials to stage between two kernels. See `<SushiBLAS/support/reduce_axis.hpp>` for the
-two launch shapes and for the determinism argument, which is the same one `reduce_1d.hpp` makes.
+there are no partials to stage between two kernels. See `include/SushiBLAS/support/README.md` for the
+two launch shapes and for the determinism argument, which is the one it makes for `reduce_1d.hpp`.
 
 - `Accum`: The accumulation policy: `SushiBLAS::Reduce::NaNPropagatingMax` or
   `NaNPropagatingMin`, `SushiBLAS::Reduce::CompensatedSum` for anything additive,
@@ -853,7 +847,7 @@ capacity to clamp against.
 
 `execute_folding_span_reduction` dispatches over `Domain::Real` only, matching `execute_reduction`:
 a fold needs an ordering and an identity, which `std::complex` does not supply, and an integer
-tensor is not an arithmetic type in this library (see `Dispatch::Domain`).
+tensor is not a dtype the folding reductions serve (see `Dispatch::Domain`).
 
 ### `execute_folding_axis_reduction`
 
@@ -887,7 +881,8 @@ imaginary part unchanged, sign included, when the input's imaginary part is zero
 Only operations with an unambiguous complex meaning appear here. There is deliberately no `safe_max`
 / `safe_floor` / `safe_clamp`: those need a total order on the element type, complex numbers do not
 have one, and inventing a lexicographic stand-in would be a silently-wrong answer rather than a
-missing feature. Ops built on them declare Domain::Real and throw for complex inputs.
+missing feature. Ops built on them declare Domain::Real or Domain::RealAndIntegral and
+throw for complex inputs.
 
 Lived in src/engine/math/nonlinear/nonlinear_internal.hpp before the dispatch seam went public;
 hoisted here so the elementwise and nonlinear families share one definition instead of growing a

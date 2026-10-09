@@ -46,7 +46,7 @@ A few properties are intentional design decisions rather than
 vulnerabilities — please keep them in mind:
 
 - **SushiBLAS executes the operations you ask it to.** It is a compute
-  library, not a sandbox: calling `engine.blas().gemm(...)` runs a genuine
+  library, not a sandbox: calling `BLASOps(engine).gemm(...)` runs a genuine
   matrix multiplication against the memory you gave it. We are interested in
   memory-safety bugs *inside* SushiBLAS's own kernels and dispatch code
   (out-of-bounds reads/writes from a valid-looking but malicious shape/stride

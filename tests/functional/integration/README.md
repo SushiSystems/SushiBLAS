@@ -1,8 +1,8 @@
 # Integration tests
 
 These tests run whole graphs through the engine and the SushiRuntime scheduler. They check that
-the graph executes and report how long it took. They do not check numeric results; the unit and
-regression tiers do. The suites carry the `Integration_` prefix, which `tests/CMakeLists.txt`
+the graph executes, compare its results with values computed on the host and report how long it
+took. The suites carry the `Integration_` prefix, which `tests/CMakeLists.txt`
 turns into the `integration` CTest label.
 
 | File | What it runs |
@@ -26,8 +26,8 @@ C operand there, so the tracker records a write. Each of the 5000 following GEMM
 
 The DependencyTracker picks a shard with `(ptr >> 6) % 1024`. With 3000 independent GEMMs over
 9000 distinct tensors, many tensors fall into the same shard. That produces false dependencies
-and contention on the shard spinlocks. The tensors are left unfilled to keep the test short,
-because only the tracker is under load.
+and contention on the shard spinlocks. Each A is filled with a constant that depends on its
+index and each B with 0.5, so the test knows what every C must hold.
 
 ## test_framework_sim.cpp
 
@@ -42,8 +42,8 @@ H2  = H1 * W2
 H_n = H_{n-1} * W_n
 ```
 
-A ReLU follows every GEMM except the last. The weights are filled with 0.01 so the activations
-do not grow out of range across ten layers.
+A ReLU follows every GEMM except the last. The weights are 0.01 in even columns and -0.01 in
+odd ones, so the activations do not grow out of range across ten layers.
 
 ### ParallelBatchedInference
 
