@@ -43,10 +43,10 @@ sites:
   `elementwise()` accessor.
 - **A view knows the engine only as a source of bricks.** A view's constructor takes an `Engine&`
   and calls `get_recorder()` (and `get_rng()` for `RandomOps`), or takes the `TaskRecorder&`
-  directly. An operation source under `src/engine/` never includes `engine.hpp`.
+  directly. An operation source under `source/engine/` never includes `engine.hpp`.
 - **Only `TaskRecorder` inserts into the graph.** No seam, view or operation source calls
   `TaskGraph::add_task`.
-- **A kernel knows neither `Engine` nor `Tensor`.** A header under `kernels/` or
+- **A kernel knows neither `Engine` nor `Tensor`.** A header under `source/kernels/` or
   `include/SushiBLAS/kernels/` includes no `engine/` header, no `tensor.hpp` and no sparse
   operand header. It receives pointers, extents and strides. A support header obeys the same rule
   and also includes no kernel.

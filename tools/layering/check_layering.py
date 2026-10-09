@@ -29,14 +29,14 @@ K_ANGLE_INCLUDE = re.compile(r'^\s*#\s*include\s*<[^/>]+/([^/>]+)/[^>]+>')
 K_QUOTED_INCLUDE = re.compile(r'^\s*#\s*include\s*"([^"]+)"')
 K_CMAKE_SOURCE_REACH = re.compile(r"(?:^|[/\s\"'])([A-Za-z0-9_]+)/source\b")
 
-K_KERNEL_FOLDERS = ("kernels", "include/SushiBLAS/kernels")
+K_KERNEL_FOLDERS = ("source/kernels", "include/SushiBLAS/kernels")
 K_SUPPORT_FOLDER = "include/SushiBLAS/support"
 K_INCLUDE_FOLDER = "include/SushiBLAS"
 K_ENGINE_HEADER = "include/SushiBLAS/engine.hpp"
 K_UMBRELLA_HEADER = "include/SushiBLAS/SushiBLAS.h"
 K_RECORDER_HEADER = "include/SushiBLAS/engine/task_recorder.hpp"
-K_SOURCE_FOLDER = "src"
-K_OPERATION_FOLDER = "src/engine"
+K_SOURCE_FOLDER = "source"
+K_OPERATION_FOLDER = "source/engine"
 K_KERNEL_FORBIDDEN_INCLUDE = re.compile(
     r'^\s*#\s*include\s*[<"]'
     r'(SushiBLAS/(?:engine\.hpp|engine/[^>"]+|tensor\.hpp'
@@ -62,7 +62,7 @@ K_ENGINE_MEMBER_CALL = re.compile(r"\bengine_?\s*(?:\.|->)\s*([A-Za-z_]\w*)\s*\(
 K_OPERATION_ALLOWED_MEMBERS: frozenset[str] = frozenset()
 K_VIEW_ALLOWED_MEMBERS = frozenset({"get_recorder", "get_rng"})
 K_GRAPH_INSERTION = re.compile(r"\b(add_(?:task|node|native|offload_dynamic))\s*\(")
-K_TASK_BODY_FOLDERS = ("kernels", "include/SushiBLAS", "src/engine")
+K_TASK_BODY_FOLDERS = ("source/kernels", "include/SushiBLAS", "source/engine")
 K_COMMAND_GROUP = re.compile(r"\.\s*(submit)\s*\(")
 K_QUEUE_SHORTCUT = re.compile(
     r"\b(?:q|q2|queue)\s*\.\s*(parallel_for|single_task|memcpy|memset|fill|copy)\s*\("
@@ -234,7 +234,7 @@ def find_kernel_includes(root: Path) -> Iterator[Violation]:
 
 
 def find_support_includes(root: Path) -> Iterator[Violation]:
-    """Yields each include of Engine, engine/, kernels/ or the tensor header from support/."""
+    """Yields each include of Engine, engine/, source/kernels/ or the tensor header from support/."""
     yield from _include_matches(_source_lines(root / K_SUPPORT_FOLDER), K_SUPPORT_FORBIDDEN_INCLUDE)
 
 

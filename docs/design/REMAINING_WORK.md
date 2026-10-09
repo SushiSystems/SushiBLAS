@@ -134,7 +134,7 @@ records them and holds the steps that have not run.
 - Add categories, TRACE and FATAL to the logger and send log output to stderr (C3, C6).
 - Give reduction kernels one home (C9).
 - Split the Level 1 kernel headers into one file per routine (C12).
-- Remove `core/export.hpp`, `kernels/math.hpp` and the `<numbers>` include (C13). Owner approval.
+- Remove `core/export.hpp`, `source/kernels/math.hpp` and the `<numbers>` include (C13). Owner approval.
 - Shorten the two comment blocks `check_source_comments.py` still reports, then drop
   `--rule rule_license_block` from the check list of `AGENTS.md` (C14).
 - Split `test_regression.cpp` per defect and state every test tolerance (C17).
@@ -158,9 +158,10 @@ records them and holds the steps that have not run.
 
 ## Layout, needing the owner
 
-- Move `src/` to `source/` in the four repositories of the stack at once; SushiRuntime, SushiDSP
-  and SushiAI have the same folder. `kernels/` stays in the root, by the owner's decision of
-  2026-10-09. Decide the `functional/` level of `tests/` (L8, L14).
+- SushiRuntime, SushiDSP and SushiAI still name their source folder `src/`; this repository
+  moved to `source/` on 2026-10-09 (L8).
+- The layout skill names four test folders. Add `benchmark/` and `package/` to it, or move the
+  two (L14).
 
 ## Continuous integration
 

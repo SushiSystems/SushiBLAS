@@ -31,7 +31,7 @@
 # sushiblas_sanitizers) are PRIVATE, in-tree-only policy. Unlike SushiRuntime,
 # SushiBLAS does not own a floating-point contract to export: it already
 # receives SushiRuntime's `sushiruntime_deterministic_fp` transitively (PUBLIC
-# link on SushiRuntime::SushiRuntime, see src/CMakeLists.txt), which is the
+# link on SushiRuntime::SushiRuntime, see source/CMakeLists.txt), which is the
 # correct owner of that guarantee since SushiBLAS's kernels sit downstream of
 # it, not beside it.
 #

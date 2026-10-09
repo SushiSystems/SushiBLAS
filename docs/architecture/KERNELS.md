@@ -3,14 +3,14 @@
 A kernel is a function template on the element type that receives pointers, extents, strides and
 flags. The dense BLAS, sparse and spatial families have a kernel pair per operation:
 
-- **`kernels/reference/<family>/...`** is plain C++ with no dependency beyond the support
+- **`source/kernels/reference/<family>/...`** is plain C++ with no dependency beyond the support
   headers. It handles both `Core::Layout` values and states the result the operation is defined
   to have.
-- **`kernels/sycl/<family>/...`** takes the `sycl::queue&` and a
+- **`source/kernels/sycl/<family>/...`** takes the `sycl::queue&` and a
   `const std::vector<sycl::event>& deps`, makes every command group depend on `deps`, and returns
   the event of its last submission.
 
-`kernels/` is private and never installed. A kernel a public seam instantiates in a consumer's
+`source/kernels/` is private and never installed. A kernel a public seam instantiates in a consumer's
 translation unit cannot be private, so those live under `include/SushiBLAS/kernels/` and are
 installed: GEMM's reference and SYCL kernels with the packed product they share with SYRK, the
 epilogue headers, the access policies (`operand_access.hpp`, `symmetric_access.hpp`,
@@ -196,12 +196,12 @@ sparse.spmv(S, x, y, Core::Transpose::Trans, 1.0, 1.0);       // y = S^T x + y
 The record-time checks (`engine/sparse/`) cover the index base, the rank, length, stride and
 storage of each array, the index dtype and whether it can hold the largest index. They do not
 read the index values: a kernel takes the structure on trust, and
-`kernels/reference/sparse/structure.hpp` holds the host checks the reference kernels assert in a
+`source/kernels/reference/sparse/structure.hpp` holds the host checks the reference kernels assert in a
 build without `NDEBUG`.
 
 **The scattering scheme.** A product with `NoTrans` gives each output row to one work-item,
 which adds that row's terms in stored order. A transposed product has no such owner: output `j`
-is column `j`, and every row scatters into the output. `kernels/sycl/sparse/row_blocks.hpp` makes
+is column `j`, and every row scatters into the output. `source/kernels/sycl/sparse/row_blocks.hpp` makes
 that safe without atomic adds, in two stages. The rows are cut into consecutive blocks that hold
 equal shares of the stored entries, found by a binary search of the row offsets, and one
 work-item per block zero-fills a private slice of leased scratch and adds its rows' terms into
@@ -300,7 +300,7 @@ empty tensor `all` writes 1 and `any` writes 0.
 
 ## Random
 
-`kernels/sycl/random/philox.hpp` is a Philox4x32-10 counter-based generator. Every distribution
+`source/kernels/sycl/random/philox.hpp` is a Philox4x32-10 counter-based generator. Every distribution
 is a pure function of `(seed, offset, block index)`, so a fill is reproducible however the work
 was scheduled. `RandomOps` has `constant`, `uniform`, `normal`, `log_normal`, `exponential`,
 `poisson`, `discrete_uniform`, `truncated_normal`, `bernoulli`, the Xavier and He initialisers,

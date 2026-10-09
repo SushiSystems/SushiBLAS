@@ -29,7 +29,7 @@ from layering.check_layering import (  # noqa: E402
     rule_view_engine_calls,
 )
 
-K_KERNEL = "kernels/reference/add.hpp"
+K_KERNEL = "source/kernels/reference/add.hpp"
 K_SUPPORT = "include/SushiBLAS/support/launch_1d.hpp"
 K_ENGINE_INCLUDE = "#include <SushiBLAS/engine/task.hpp>\n"
 K_ENGINE_HEADER_INCLUDE = "#include <SushiBLAS/engine.hpp>\n"
@@ -84,7 +84,7 @@ class SupportIndependenceTest(unittest.TestCase):
             self.assertEqual(list(rule_support_independence(_repository(folder, files))), [])
 
     def test_reports_engine_kernel_and_tensor_includes(self) -> None:
-        """Reports engine.hpp, engine/, kernels/ and tensor.hpp includes, each on its line."""
+        """Reports engine.hpp, engine/, source/kernels/ and tensor.hpp includes, each on its line."""
         files = {
             K_SUPPORT: (
                 "#include <SushiBLAS/engine.hpp>\n"
@@ -137,7 +137,7 @@ class KernelIncludesTest(unittest.TestCase):
     def test_reports_the_sparse_operand_headers(self) -> None:
         """Reports the three sparse operand headers and accepts a private kernel brick."""
         files = {
-            "kernels/sycl/sparse/k.hpp": (
+            "source/kernels/sycl/sparse/k.hpp": (
                 "#include <SushiBLAS/sparse_vector.hpp>\n"
                 "#include <SushiBLAS/sparse_matrix.hpp>\n"
                 "#include <SushiBLAS/sparse_builder.hpp>\n"
@@ -226,7 +226,7 @@ class SeamEngineIncludesTest(unittest.TestCase):
         files = {
             "include/SushiBLAS/SushiBLAS.h": self.K_UMBRELLA,
             "include/SushiBLAS/engine/blas/dispatch.hpp": K_ENGINE_HEADER_INCLUDE,
-            "src/engine/blas/level1/dot.cpp": K_ENGINE_HEADER_INCLUDE,
+            "source/engine/blas/level1/dot.cpp": K_ENGINE_HEADER_INCLUDE,
         }
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_seam_engine_includes(_repository(folder, files)))
@@ -238,13 +238,13 @@ class OperationEngineCallsTest(unittest.TestCase):
 
     def test_accepts_the_recorder_and_a_comment(self) -> None:
         """Reports nothing for a recorder call or for an engine call in a comment."""
-        files = {"src/engine/blas/a.cpp": "recorder_.record(meta, operands, family, body);\n// engine_.get_mode();\n"}
+        files = {"source/engine/blas/a.cpp": "recorder_.record(meta, operands, family, body);\n// engine_.get_mode();\n"}
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_operation_engine_calls(_repository(folder, files))), [])
 
     def test_reports_every_member(self) -> None:
         """Reports get_recorder through a reference and create_tensor through a pointer."""
-        files = {"src/engine/blas/a.cpp": "engine_.get_recorder();\nengine->create_tensor({});\n"}
+        files = {"source/engine/blas/a.cpp": "engine_.get_recorder();\nengine->create_tensor({});\n"}
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_operation_engine_calls(_repository(folder, files)))
             self.assertEqual([issue.message for issue in issues],
@@ -279,7 +279,7 @@ class GraphInsertionsTest(unittest.TestCase):
         """Reports nothing for add_task in task_recorder.hpp or in a comment."""
         files = {
             "include/SushiBLAS/engine/task_recorder.hpp": "graph_->add_task(meta, reads, writes, work);\n",
-            "src/engine/logic/all.cpp": "// add_task(meta) is the recorder's call.\n",
+            "source/engine/logic/all.cpp": "// add_task(meta) is the recorder's call.\n",
         }
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_graph_insertions(_repository(folder, files))), [])
@@ -288,7 +288,7 @@ class GraphInsertionsTest(unittest.TestCase):
         """Reports add_task in a dispatch seam and add_native in an operation source."""
         files = {
             "include/SushiBLAS/engine/logic/dispatch.hpp": "graph.add_task(meta, reads, writes, body);\n",
-            "src/engine/logic/all.cpp": "graph.add_native(reads, writes, work);\n",
+            "source/engine/logic/all.cpp": "graph.add_native(reads, writes, work);\n",
         }
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_graph_insertions(_repository(folder, files)))
@@ -302,14 +302,14 @@ class TaskDependenciesTest(unittest.TestCase):
     def test_accepts_a_command_group_and_a_shortcut_that_name_their_dependencies(self) -> None:
         """Reports nothing for a command group with depends_on and a fill that passes deps."""
         files = {
-            "kernels/sycl/add.hpp": (
+            "source/kernels/sycl/add.hpp": (
                 "return queue.submit([&](sycl::handler& h)\n"
                 "{\n"
                 "    h.depends_on(deps);\n"
                 "    h.parallel_for(range, body);\n"
                 "});\n"
             ),
-            "src/engine/math/random/constant.cpp": "return q.fill(pT, value, size, deps);\n",
+            "source/engine/math/random/constant.cpp": "return q.fill(pT, value, size, deps);\n",
         }
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_task_dependencies(_repository(folder, files))), [])
@@ -317,13 +317,13 @@ class TaskDependenciesTest(unittest.TestCase):
     def test_reports_a_command_group_and_a_shortcut_that_drop_them(self) -> None:
         """Reports a command group without depends_on and a fill without deps."""
         files = {
-            "kernels/sycl/add.hpp": (
+            "source/kernels/sycl/add.hpp": (
                 "return queue.submit([&](sycl::handler& h)\n"
                 "{\n"
                 "    h.parallel_for(range, body);\n"
                 "});\n"
             ),
-            "src/engine/math/random/constant.cpp": "return q.fill(pT, value, size);\n",
+            "source/engine/math/random/constant.cpp": "return q.fill(pT, value, size);\n",
         }
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_task_dependencies(_repository(folder, files)))

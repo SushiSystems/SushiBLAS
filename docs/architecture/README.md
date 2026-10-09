@@ -1,7 +1,7 @@
 # SushiBLAS architecture
 
 These pages describe how SushiBLAS is built, layer by layer, for a contributor who has to change
-it. Every class and file they name exists under `include/SushiBLAS/`, `src/` or `kernels/`. To
+it. Every class and file they name exists under `include/SushiBLAS/`, `source/` or `source/kernels/`. To
 use the library, the [root README](../../README.md) is enough; its
 [project layout](../../README.md#project-layout) section holds the directory tree.
 

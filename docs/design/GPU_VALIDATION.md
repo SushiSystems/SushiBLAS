@@ -48,7 +48,7 @@ The fix is in the tree the second run tested. Every running sum of a reference B
 double sum for `FLOAT64` and `COMPLEX64` (`include/SushiBLAS/support/reference_accumulator.hpp`).
 The parity test compares each kernel with a double-precision truth under a bound derived from
 the term count (`tests/common/blas_truth.hpp`,
-`tests/functional/unit/test_level2_sycl_parity.cpp`).
+`tests/unit/test_level2_sycl_parity.cpp`).
 
 What the runs do not show:
 
