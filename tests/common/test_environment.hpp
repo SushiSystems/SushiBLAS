@@ -28,7 +28,7 @@
 #pragma once
 
 #include <gtest/gtest.h>
-#include <SushiBLAS/engine.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
 
 namespace SushiBLAS 

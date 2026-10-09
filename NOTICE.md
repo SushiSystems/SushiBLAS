@@ -13,9 +13,9 @@ in `third_party/licenses/`.
 
 | Work | Files here | Licence | Licence text |
 | --- | --- | --- | --- |
-| portBLAS, Copyright (C) Codeplay Software Limited | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `source/kernels/sycl/blas/level3/syrk.hpp`, `source/kernels/sycl/blas/level3/syr2k.hpp` | Apache-2.0 | `third_party/licenses/Apache-2.0.txt` |
-| Random123, Copyright 2010-2012, D. E. Shaw Research | `source/kernels/sycl/random/philox.hpp` | BSD-3-Clause | `third_party/licenses/BSD-3-Clause-Random123.txt` |
-| Reference BLAS, as LAPACK distributes it, Copyright (c) 1992-2025 The University of Tennessee and The University of Tennessee Research Foundation, (c) 2000-2025 The University of California Berkeley, (c) 2006-2025 The University of Colorado Denver | `include/SushiBLAS/kernels/blas/givens.hpp`, `include/SushiBLAS/kernels/blas/modified_givens.hpp` | modified BSD, SPDX `BSD-3-Clause-Open-MPI` | `third_party/licenses/BSD-3-Clause-Open-MPI-LAPACK.txt` |
+| portBLAS, Copyright (C) Codeplay Software Limited | `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp`, `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/syrk.hpp`, `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/syr2k.hpp` | Apache-2.0 | `third_party/licenses/Apache-2.0.txt` |
+| Random123, Copyright 2010-2012, D. E. Shaw Research | `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/philox.hpp` | BSD-3-Clause | `third_party/licenses/BSD-3-Clause-Random123.txt` |
+| Reference BLAS, as LAPACK distributes it, Copyright (c) 1992-2025 The University of Tennessee and The University of Tennessee Research Foundation, (c) 2000-2025 The University of California Berkeley, (c) 2006-2025 The University of Colorado Denver | `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp`, `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/modified_givens.hpp` | modified BSD, SPDX `BSD-3-Clause-Open-MPI` | `third_party/licenses/BSD-3-Clause-Open-MPI-LAPACK.txt` |
 | Contributor Covenant 2.1 | `.github/CODE_OF_CONDUCT.md` | not read; the estate audit names CC BY 4.0 | not in `third_party/licenses/` |
 
 No other tracked file carries a third-party copyright line. Outside `LICENSE`, this file,
@@ -28,9 +28,9 @@ search was not repeated.
 
 | File | Source | Version | Licence |
 | --- | --- | --- | --- |
-| `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp` | portBLAS, https://github.com/codeplaysoftware/portBLAS, `src/operations/blas3/gemm_local.hpp` and `gemm_no_local.hpp` | no upstream commit is recorded in this tree; the repository was archived in January 2025 | Apache-2.0, Copyright (C) Codeplay Software Limited; text in `third_party/licenses/Apache-2.0.txt` |
-| `source/kernels/sycl/blas/level3/syrk.hpp` | The GEMM tiling above, composed for SYRK; portBLAS has no SYRK kernel | as above | Apache-2.0 for the tiling it carries over, as above |
-| `source/kernels/sycl/blas/level3/syr2k.hpp` | The same tiling with two register blocks, composed for SYR2K and HER2K | as above | Apache-2.0 for the tiling it carries over, as above |
+| `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp` | portBLAS, https://github.com/codeplaysoftware/portBLAS, `src/operations/blas3/gemm_local.hpp` and `gemm_no_local.hpp` | no upstream commit is recorded in this tree; the repository was archived in January 2025 | Apache-2.0, Copyright (C) Codeplay Software Limited; text in `third_party/licenses/Apache-2.0.txt` |
+| `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/syrk.hpp` | The GEMM tiling above, composed for SYRK; portBLAS has no SYRK kernel | as above | Apache-2.0 for the tiling it carries over, as above |
+| `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/syr2k.hpp` | The same tiling with two register blocks, composed for SYR2K and HER2K | as above | Apache-2.0 for the tiling it carries over, as above |
 
 ```
 portBLAS / oneMath SYCL BLAS
@@ -48,7 +48,7 @@ Lines 21 and 22 of each file's license block carry the upstream lines. This comm
 repository root, writes every license block in the repository and keeps them:
 
 ```
-python tools/licensing/write_license_block.py . --project "SushiBLAS - https://github.com/SushiSystems/SushiBLAS" --upstream "include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syrk.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syr2k.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md"
+python tools/licensing/write_license_block.py . --project "SushiBLAS - https://github.com/SushiSystems/SushiBLAS" --upstream "modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syrk.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md" --upstream "kernels/sycl/blas/level3/syr2k.hpp=Tiling ported from portBLAS, Copyright (C) Codeplay Software Limited;Apache-2.0, see NOTICE.md"
 ```
 
 The command was extended with the `syr2k.hpp` argument on 2026-10-07 and has not been run in
@@ -58,11 +58,11 @@ that form.
 
 | File | Reference | Licence of the reference |
 | --- | --- | --- |
-| `source/kernels/sycl/random/philox.hpp` | Philox4x32-10 from Salmon, Moraes, Dror and Shaw, "Parallel Random Numbers: As Easy as 1, 2, 3", SC'11; round constants checked against Random123, https://github.com/DEShawResearch/random123, `include/Random123/philox.h` | The paper carries no code licence. Random123 is BSD-3-Clause, Copyright 2010-2012, D. E. Shaw Research; its `LICENSE` on `main` was fetched on 2026-10-09 and is in `third_party/licenses/` |
-| `source/kernels/sycl/random/poisson.hpp`, `poisson_ptrs` | Hoermann's transformed rejection with squeeze (PTRS), Insurance: Mathematics and Economics 12, 1993, as `kernels/README.md` cites it | A journal article; no code licence |
-| `source/kernels/sycl/random/poisson.hpp`, `poisson_knuth` | Knuth's multiplication loop for a Poisson draw, as `kernels/README.md` names it | A textbook algorithm; no code licence |
-| `include/SushiBLAS/kernels/blas/givens.hpp` | The `xROTG` algorithm LAPACK 3.10 introduced, transcribed from the reference BLAS sources `drotg.f90` and `zrotg.f90` as a web fetch returned them on 2026-10-07 | LAPACK's `LICENSE` on `master`, fetched on 2026-10-09 and kept in `third_party/licenses/` |
-| `include/SushiBLAS/kernels/blas/modified_givens.hpp` | The modified Givens construction, transcribed from the reference BLAS source `drotmg.f` the same way | as above |
+| `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/philox.hpp` | Philox4x32-10 from Salmon, Moraes, Dror and Shaw, "Parallel Random Numbers: As Easy as 1, 2, 3", SC'11; round constants checked against Random123, https://github.com/DEShawResearch/random123, `include/Random123/philox.h` | The paper carries no code licence. Random123 is BSD-3-Clause, Copyright 2010-2012, D. E. Shaw Research; its `LICENSE` on `main` was fetched on 2026-10-09 and is in `third_party/licenses/` |
+| `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/poisson.hpp`, `poisson_ptrs` | Hoermann's transformed rejection with squeeze (PTRS), Insurance: Mathematics and Economics 12, 1993, as `kernels/README.md` cites it | A journal article; no code licence |
+| `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/poisson.hpp`, `poisson_knuth` | Knuth's multiplication loop for a Poisson draw, as `kernels/README.md` names it | A textbook algorithm; no code licence |
+| `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp` | The `xROTG` algorithm LAPACK 3.10 introduced, transcribed from the reference BLAS sources `drotg.f90` and `zrotg.f90` as a web fetch returned them on 2026-10-07 | LAPACK's `LICENSE` on `master`, fetched on 2026-10-09 and kept in `third_party/licenses/` |
+| `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/modified_givens.hpp` | The modified Givens construction, transcribed from the reference BLAS source `drotmg.f` the same way | as above |
 
 Whether `philox.hpp` was written from the paper or adapted from the Random123 source is not
 recorded, and the owner does not recall. The file is treated as adapted: its license block names
@@ -110,7 +110,7 @@ executor framework into SushiBLAS's flat template-function convention. There
 is no free rebase from upstream after this point - tuning and maintenance of
 these kernels is SushiBLAS's own responsibility from here on.
 
-- **`include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`**
+- **`modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp`**
   Tiling/blocking algorithms ported from `src/operations/blas3/gemm_local.hpp`
   and `src/operations/blas3/gemm_no_local.hpp`, and the reason upstream ships
   both. `Detail::gemm_local_tiled` is the local-memory form: the work-group
@@ -164,7 +164,7 @@ these kernels is SushiBLAS's own responsibility from here on.
     neighbouring elements. The arithmetic for both is written out at the read
     site.
 
-- **`source/kernels/sycl/blas/level3/syrk.hpp`**
+- **`modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/syrk.hpp`**
   **No dedicated SYRK tiling kernel exists upstream** - portBLAS's own
   `doc/MissingFeatures.md` lists SYRK as unimplemented. `C =
   alpha*op(A)*op(A)^T + beta*C` is mathematically `GEMM(A, A, transA=trans,
@@ -187,7 +187,7 @@ these kernels is SushiBLAS's own responsibility from here on.
 ## Not ported
 
 FFT/DFT and LAPACK (`SVD`, `QR`, eigendecomposition, etc.) remain quarantined
-per decision D1 - see `include/SushiBLAS/experimental/`. The backend
+per decision D1 - see `modules/operations/experimental/include/SushiBLAS/experimental/`. The backend
 strategy for those is a named follow-up, not solved here.
 
 ## Earlier versions

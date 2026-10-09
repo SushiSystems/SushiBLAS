@@ -3,7 +3,7 @@
 SushiBLAS is found with `find_package`: `SushiBLAS::sushiblas` is a `STATIC` library, aliased
 in-tree and exported under the same name, with `install(EXPORT)`, `export(EXPORT)` and a
 generated `SushiBLASConfig.cmake` (`SameMinorVersion` compatibility before 1.0). The configure
-step checks `include/SushiBLAS/version.hpp` against the CMake project version. `tests/package/`
+step checks `modules/foundation/core/include/SushiBLAS/core/version.hpp` against the CMake project version. `tests/package/`
 is an out-of-tree consumer; see [the integration guide](../guides/INTEGRATION.md).
 
 Because `sushiblas` is a `STATIC` library, its build-policy targets (`sushiblas_warnings`,

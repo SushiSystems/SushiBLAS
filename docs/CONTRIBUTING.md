@@ -79,7 +79,7 @@ working in this repository always uses `sb` (see `CLAUDE.md` at the root).
 Expectations for a mergeable change:
 
 1. **Every CTest test passes** (`sb test --suite all`). A change that adds a
-   public header or touches the install rules in `source/CMakeLists.txt` also
+   public header or touches the install rules in `modules/library/sushiblas/CMakeLists.txt` also
    passes `sb test --suite package`, which `all` does not include.
 2. **A new operation ships with a typed test.** Every test suite runs across
    every dtype the op claims to support (`float`, `double`, `half`, and the
@@ -184,7 +184,7 @@ An operand rule (dtype, shape, layout, flag) is checked at record time by
 `std::invalid_argument` with the operation and the operand named. A refusal
 by mode or device throws `UnsupportedExecution`, which derives from it.
 `SB_THROW_IF(condition, message, ...)` throws `std::runtime_error` and is for
-an error that is not an operand rule, as in `source/io.cpp`, `tensor.hpp` and
+an error that is not an operand rule, as in `modules/operations/io/source/io.cpp`, `tensor.hpp` and
 `storage.hpp`. Assertions are for internal bugs, not user-facing input
 validation. An unsupported case (dtype, layout, mode) always throws; it
 never silently no-ops.
@@ -227,14 +227,14 @@ carries depends on its family.
 
 | Piece | Where |
 | --- | --- |
-| View method, returning `TaskHandle`, with its `@throws` lines | The family's view header: `engine/blas/level<N>.hpp`, `engine/sparse.hpp`, `engine/spatial.hpp` |
-| Operation source | `source/engine/<family>/<op>.cpp`, listed in `source/CMakeLists.txt` |
-| Reference kernel | `source/kernels/reference/<family>/<op>.hpp` |
-| SYCL kernel | `source/kernels/sycl/<family>/<op>.hpp` |
-| Both kernels' include line | The family's kernel header: `source/kernels/blas.hpp`, `source/kernels/sparse.hpp`, `source/kernels/spatial.hpp` |
-| Test | `tests/unit/test_<op>.cpp`, listed in `tests/CMakeLists.txt` |
+| View method, returning `TaskHandle`, with its `@throws` lines | The family's view header: `blas/level<N>.hpp`, `sparse/sparse.hpp`, `spatial/spatial.hpp` |
+| Operation source | `modules/operations/<family>/source/<op>.cpp`, listed in the module's `CMakeLists.txt` |
+| Reference kernel | `modules/kernels/<family>_kernels/include/SushiBLAS/<family>_kernels/reference/<op>.hpp` |
+| SYCL kernel | `modules/kernels/<family>_kernels/include/SushiBLAS/<family>_kernels/sycl/<op>.hpp` |
+| Both kernels' include line | The family's kernel header: `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/blas.hpp`, `modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sparse.hpp`, `modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/spatial.hpp` |
+| Test | `modules/operations/<family>/tests/test_<op>.cpp`, listed in the module's `CMakeLists.txt` |
 
-The operation source has four steps. This is `source/engine/blas/level1/axpy.cpp`:
+The operation source has four steps. This is `modules/operations/blas/source/level1/axpy.cpp`:
 
 ```cpp
 TaskHandle Level1::axpy(BlasScalar alpha, const Tensor& x, Tensor& y)
@@ -336,7 +336,7 @@ operation source at record time and passed in.
 
 Neither kernel includes an `engine/` header or `tensor.hpp`. A kernel that a
 public `Dispatch` seam instantiates in a consumer's translation unit goes under
-`include/SushiBLAS/kernels/`; every other kernel stays in `source/kernels/`.
+`modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/`; every other kernel stays in `modules/kernels/`.
 
 ### A functor operation (elementwise, non-linear, logic, reductions, random)
 
@@ -344,7 +344,7 @@ These families have no kernel files. The operation is a view method and a
 source that hands one functor to the family's `Dispatch::execute_*` seam. The
 seam runs the checks, builds the `OperandSet`, and runs the functor in a SYCL
 kernel or, under `ForceReference`, in a serial host loop. This is
-`source/engine/math/elementwise/add.cpp`:
+`modules/operations/elementwise/source/add.cpp`:
 
 ```cpp
 TaskHandle ElementwiseOps::add(const Tensor& A, const Tensor& B, Tensor& C)

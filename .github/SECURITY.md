@@ -59,7 +59,7 @@ vulnerabilities — please keep them in mind:
 
 In scope, and especially valued:
 
-- Memory-safety bugs in any kernel (`source/kernels/reference/`, `source/kernels/sycl/`) —
+- Memory-safety bugs in any kernel (`modules/kernels/reference/`, `modules/kernels/sycl/`) —
   out-of-bounds access, use-after-free through `Storage`'s reference
   counting, an integer overflow in a shape/stride/offset computation.
 - Parsing flaws in the tensor file loaders (`IO::load`, `load_npy`,

@@ -8,8 +8,8 @@ named follow the `documentation` skill. Neither is restated here.
 
 - A symbol, path, CMake option or command is written in a code span and spelled as the code
   spells it: `Core::DataType`, `SB_SYCL_TARGETS`, `sb test --suite package`.
-- A path is written from the repository root, such as `include/SushiBLAS/engine/task.hpp`. A
-  header named alone, such as `engine/task.hpp`, is relative to `include/SushiBLAS/`.
+- A path is written from the repository root, such as `modules/engine/engine/include/SushiBLAS/engine/task.hpp`. A
+  header named alone, such as `engine/task.hpp`, is its include path after `SushiBLAS/`.
 - A figure states what was measured, on which device and when. A claim that was derived and not
   measured says so; [the GPU validation design](design/GPU_VALIDATION.md) holds the claims that
   wait for hardware.

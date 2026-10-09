@@ -22,7 +22,7 @@ others listed in
 [the architecture, section 6](../architecture/DISPATCH_SEAMS.md).
 They are templates that inline your functor into a kernel, so a call to one does instantiate
 device code in your translation unit. The GEMM kernels are installed under
-`include/SushiBLAS/kernels/` for that reason.
+`modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/` for that reason.
 
 You still need a SYCL-capable compiler, because the public headers include `<sycl/sycl.hpp>`
 and use `sycl::queue`, `sycl::event` and `sycl::device` in their own declarations:
@@ -110,7 +110,7 @@ You must supply:
 ## 4. Checking the binary you linked
 
 ```cpp
-#include <SushiBLAS/version.hpp>
+#include <SushiBLAS/core/version.hpp>
 
 std::printf("Built against SushiBLAS headers %s\n", SUSHIBLAS_VERSION_STRING);
 ```
@@ -130,7 +130,7 @@ You can also branch at compile time:
 
 ## 5. Troubleshooting
 
-**A parse error inside `<sycl/sycl.hpp>` or `<SushiBLAS/tensor.hpp>`.** A compiler without SYCL
+**A parse error inside `<sycl/sycl.hpp>` or `<SushiBLAS/tensor/tensor.hpp>`.** A compiler without SYCL
 support is compiling the translation unit. Every file that includes a SushiBLAS header needs
 the SYCL-aware compiler; see section 1.
 

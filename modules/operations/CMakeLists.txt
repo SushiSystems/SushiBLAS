@@ -1,0 +1,17 @@
+# CMakeLists.txt
+# SushiBLAS - https://github.com/SushiSystems/SushiBLAS
+# Copyright (c) 2026-present Mustafa Garip & Sushi Systems
+# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
+# Commercial use requires a licence from Sushi Systems.
+
+# The operations tier: one module per operation family.
+add_subdirectory(blas)
+add_subdirectory(elementwise)
+add_subdirectory(nonlinear)
+add_subdirectory(reductions)
+add_subdirectory(random)
+add_subdirectory(logic)
+add_subdirectory(sparse)
+add_subdirectory(spatial)
+add_subdirectory(io)
+add_subdirectory(experimental)

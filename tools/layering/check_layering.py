@@ -16,39 +16,39 @@ import sys
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from functools import cache
-from itertools import groupby
+from itertools import chain, groupby
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common.checker import Checker, Issue, run  # noqa: E402
 
-K_TIER_ORDER: tuple[str, ...] = ()
+K_TIER_ORDER: tuple[str, ...] = ("foundation", "data", "kernels", "engine", "operations", "library")
 K_SOURCE_SUFFIXES = frozenset({".h", ".hpp", ".cpp", ".glsl", ".comp", ".vert", ".frag"})
 K_ANGLE_INCLUDE = re.compile(r'^\s*#\s*include\s*<[^/>]+/([^/>]+)/[^>]+>')
 K_QUOTED_INCLUDE = re.compile(r'^\s*#\s*include\s*"([^"]+)"')
 K_CMAKE_SOURCE_REACH = re.compile(r"(?:^|[/\s\"'])([A-Za-z0-9_]+)/source\b")
 
-K_KERNEL_FOLDERS = ("source/kernels", "include/SushiBLAS/kernels")
-K_SUPPORT_FOLDER = "include/SushiBLAS/support"
-K_INCLUDE_FOLDER = "include/SushiBLAS"
-K_ENGINE_HEADER = "include/SushiBLAS/engine.hpp"
-K_UMBRELLA_HEADER = "include/SushiBLAS/SushiBLAS.h"
-K_RECORDER_HEADER = "include/SushiBLAS/engine/task_recorder.hpp"
-K_SOURCE_FOLDER = "source"
-K_OPERATION_FOLDER = "source/engine"
+K_MODULES_FOLDER = "modules"
+K_KERNEL_TIER = "kernels"
+K_OPERATION_TIER = "operations"
+K_SUPPORT_FOLDER = "modules/foundation/support/include"
+K_ENGINE_HEADER = "modules/engine/engine/include/SushiBLAS/engine/engine.hpp"
+K_UMBRELLA_HEADER = "modules/library/sushiblas/include/SushiBLAS/SushiBLAS.h"
+K_RECORDER_HEADER = "modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp"
+K_UNSCREENED_OPERATION_MODULES = frozenset({"io"})
 K_KERNEL_FORBIDDEN_INCLUDE = re.compile(
     r'^\s*#\s*include\s*[<"]'
-    r'(SushiBLAS/(?:engine\.hpp|engine/[^>"]+|tensor\.hpp'
-    r'|sparse_(?:vector|matrix|builder)\.hpp))[>"]'
+    r'(SushiBLAS/(?:engine|operands|functor_map|tensor|sparse_storage)/[^>"]+)[>"]'
 )
 K_SUPPORT_FORBIDDEN_INCLUDE = re.compile(
     r'^\s*#\s*include\s*[<"]'
-    r'(SushiBLAS/(?:engine\.hpp|engine/[^>"]+|kernels/[^>"]+|tensor\.hpp'
-    r'|sparse_(?:vector|matrix|builder)\.hpp))[>"]'
+    r'(SushiBLAS/(?:engine|operands|functor_map|tensor|sparse_storage|[a-z_]+_kernels)/[^>"]+)[>"]'
 )
 K_ENGINE_COMPOSED_INCLUDE = re.compile(
-    r'^\s*#\s*include\s*[<"](SushiBLAS/(?:io\.hpp|experimental/[^>"]+|engine/[^>"]+))[>"]'
+    r'^\s*#\s*include\s*[<"]'
+    r'(SushiBLAS/(?:engine|operands|functor_map|io|experimental|blas|elementwise|nonlinear'
+    r'|reductions|random|logic|sparse|spatial)/[^>"]+)[>"]'
 )
 K_ENGINE_BRICKS = frozenset({
     "SushiBLAS/engine/rng_stream.hpp",
@@ -56,13 +56,12 @@ K_ENGINE_BRICKS = frozenset({
     "SushiBLAS/engine/task_recorder.hpp",
     "SushiBLAS/engine/execution_mode.hpp",
 })
-K_ENGINE_INCLUDE = re.compile(r'^\s*#\s*include\s*[<"](SushiBLAS/engine\.hpp)[>"]')
+K_ENGINE_INCLUDE = re.compile(r'^\s*#\s*include\s*[<"](SushiBLAS/engine/engine\.hpp)[>"]')
 K_UMBRELLA_INCLUDE = re.compile(r"^\s*#\s*include\s*<SushiBLAS/([^>]+)>")
 K_ENGINE_MEMBER_CALL = re.compile(r"\bengine_?\s*(?:\.|->)\s*([A-Za-z_]\w*)\s*\(")
 K_OPERATION_ALLOWED_MEMBERS: frozenset[str] = frozenset()
 K_VIEW_ALLOWED_MEMBERS = frozenset({"get_recorder", "get_rng"})
 K_GRAPH_INSERTION = re.compile(r"\b(add_(?:task|node|native|offload_dynamic))\s*\(")
-K_TASK_BODY_FOLDERS = ("source/kernels", "include/SushiBLAS", "source/engine")
 K_COMMAND_GROUP = re.compile(r"\.\s*(submit)\s*\(")
 K_QUEUE_SHORTCUT = re.compile(
     r"\b(?:q|q2|queue)\s*\.\s*(parallel_for|single_task|memcpy|memset|fill|copy)\s*\("
@@ -227,14 +226,42 @@ def _include_matches(lines: Iterable[tuple[Path, int, str]], pattern: re.Pattern
             yield Violation(path, number, match.group(1))
 
 
+def _module_folders(root: Path, tier: str | None = None) -> Iterator[Path]:
+    """Yields each module folder below root/modules, of one tier or of every tier."""
+    base = root / K_MODULES_FOLDER
+    if not base.is_dir():
+        return
+    for tier_folder in sorted(base.iterdir()):
+        if tier_folder.is_dir() and tier in (None, tier_folder.name):
+            yield from sorted(folder for folder in tier_folder.iterdir() if folder.is_dir())
+
+
+def _header_lines(root: Path, tier: str | None = None) -> Iterator[tuple[Path, int, str]]:
+    """Yields the lines of every file under the include/ tree of each module."""
+    for module in _module_folders(root, tier):
+        yield from _source_lines(module / "include")
+
+
+def _operation_source_lines(root: Path) -> Iterator[tuple[Path, int, str]]:
+    """Yields the lines of the sources of each operation family, which IO is not."""
+    for module in _module_folders(root, K_OPERATION_TIER):
+        if module.name not in K_UNSCREENED_OPERATION_MODULES:
+            yield from _source_lines(module / "source")
+
+
+def _source_tree_lines(root: Path) -> Iterator[tuple[Path, int, str]]:
+    """Yields the lines of every file under the source/ tree of each module."""
+    for module in _module_folders(root):
+        yield from _source_lines(module / "source")
+
+
 def find_kernel_includes(root: Path) -> Iterator[Violation]:
-    """Yields each include of Engine, an engine/ header or the tensor header from a kernel."""
-    for folder in K_KERNEL_FOLDERS:
-        yield from _include_matches(_source_lines(root / folder), K_KERNEL_FORBIDDEN_INCLUDE)
+    """Yields each include of an engine-tier header or a tensor header from a kernel."""
+    yield from _include_matches(_header_lines(root, K_KERNEL_TIER), K_KERNEL_FORBIDDEN_INCLUDE)
 
 
 def find_support_includes(root: Path) -> Iterator[Violation]:
-    """Yields each include of Engine, engine/, source/kernels/ or the tensor header from support/."""
+    """Yields each include of an engine-tier header, a kernel or a tensor header from support."""
     yield from _include_matches(_source_lines(root / K_SUPPORT_FOLDER), K_SUPPORT_FORBIDDEN_INCLUDE)
 
 
@@ -248,10 +275,12 @@ def find_engine_header_includes(root: Path) -> Iterator[Violation]:
 def _view_headers(root: Path) -> frozenset[str]:
     """Returns the operation views the umbrella header includes, as repository-relative paths."""
     views: set[str] = set()
+    families = {module.name: module for module in _module_folders(root, K_OPERATION_TIER)}
     for _, _, line in _file_lines(root / K_UMBRELLA_HEADER):
         match = K_UMBRELLA_INCLUDE.match(line)
-        if match and (match.group(1) == "io.hpp" or match.group(1).startswith("engine/")):
-            views.add(f"{K_INCLUDE_FOLDER}/{match.group(1)}")
+        family = families.get(match.group(1).split("/")[0]) if match else None
+        if family is not None:
+            views.add(_relative(family / "include" / "SushiBLAS" / match.group(1), root))
     return frozenset(views)
 
 
@@ -259,11 +288,11 @@ def find_seam_engine_includes(root: Path) -> Iterator[Violation]:
     """Yields each include of engine.hpp from an operation source or a header that is not a view."""
     exempt = _view_headers(root) | {K_ENGINE_HEADER, K_UMBRELLA_HEADER}
     headers = (
-        entry for entry in _source_lines(root / K_INCLUDE_FOLDER)
+        entry for entry in _header_lines(root)
         if _relative(entry[0], root) not in exempt
     )
     yield from _include_matches(headers, K_ENGINE_INCLUDE)
-    yield from _include_matches(_source_lines(root / K_OPERATION_FOLDER), K_ENGINE_INCLUDE)
+    yield from _include_matches(_operation_source_lines(root), K_ENGINE_INCLUDE)
 
 
 def _engine_calls(lines: Iterable[tuple[Path, int, str]], allowed: frozenset[str]) -> Iterator[Violation]:
@@ -278,13 +307,13 @@ def _engine_calls(lines: Iterable[tuple[Path, int, str]], allowed: frozenset[str
 
 def find_operation_engine_calls(root: Path) -> Iterator[Violation]:
     """Yields each call on an engine or engine_ variable from an operation source."""
-    yield from _engine_calls(_source_lines(root / K_OPERATION_FOLDER), K_OPERATION_ALLOWED_MEMBERS)
+    yield from _engine_calls(_operation_source_lines(root), K_OPERATION_ALLOWED_MEMBERS)
 
 
 def find_view_engine_calls(root: Path) -> Iterator[Violation]:
     """Yields each call on an engine variable from a public header, other than get_recorder() and get_rng()."""
     headers = (
-        entry for entry in _source_lines(root / K_INCLUDE_FOLDER)
+        entry for entry in _header_lines(root)
         if _relative(entry[0], root) != K_ENGINE_HEADER
     )
     yield from _engine_calls(headers, K_VIEW_ALLOWED_MEMBERS)
@@ -292,12 +321,11 @@ def find_view_engine_calls(root: Path) -> Iterator[Violation]:
 
 def find_graph_insertions(root: Path) -> Iterator[Violation]:
     """Yields each add_task, add_node, add_native or add_offload_dynamic call outside TaskRecorder."""
-    for folder in (K_INCLUDE_FOLDER, K_SOURCE_FOLDER):
-        for path, number, line in _source_lines(root / folder):
-            if K_LINE_COMMENT.match(line) or _relative(path, root) == K_RECORDER_HEADER:
-                continue
-            for call in K_GRAPH_INSERTION.findall(line):
-                yield Violation(path, number, call)
+    for path, number, line in chain(_header_lines(root), _source_tree_lines(root)):
+        if K_LINE_COMMENT.match(line) or _relative(path, root) == K_RECORDER_HEADER:
+            continue
+        for call in K_GRAPH_INSERTION.findall(line):
+            yield Violation(path, number, call)
 
 
 def _call_text(lines: list[str], index: int, column: int) -> str:
@@ -321,16 +349,16 @@ def _call_text(lines: list[str], index: int, column: int) -> str:
 def find_task_dependencies(root: Path) -> Iterator[Violation]:
     """Yields each command group without depends_on and each queue shortcut that names no deps."""
     wanted = ((K_COMMAND_GROUP, K_DEPENDS_ON_CALL), (K_QUEUE_SHORTCUT, K_DEPENDENCY_ARGUMENT))
-    for folder in K_TASK_BODY_FOLDERS:
-        for path, entries in groupby(_source_lines(root / folder), key=lambda entry: entry[0]):
-            lines = [line for _, _, line in entries]
-            for index, line in enumerate(lines):
-                if K_LINE_COMMENT.match(line):
-                    continue
-                for call, evidence in wanted:
-                    for match in call.finditer(line):
-                        if not evidence.search(_call_text(lines, index, match.end() - 1)):
-                            yield Violation(path, index + 1, match.group(1))
+    bodies = chain(_header_lines(root), _operation_source_lines(root))
+    for path, entries in groupby(bodies, key=lambda entry: entry[0]):
+        lines = [line for _, _, line in entries]
+        for index, line in enumerate(lines):
+            if K_LINE_COMMENT.match(line):
+                continue
+            for call, evidence in wanted:
+                for match in call.finditer(line):
+                    if not evidence.search(_call_text(lines, index, match.end() - 1)):
+                        yield Violation(path, index + 1, match.group(1))
 
 
 @cache

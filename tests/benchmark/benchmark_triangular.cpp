@@ -31,7 +31,7 @@
 #include <string>
 #include <vector>
 #include <sycl/sycl.hpp>
-#include <kernels/blas.hpp>
+#include <SushiBLAS/blas_kernels/blas.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 
 #include "benchmark_common.hpp"

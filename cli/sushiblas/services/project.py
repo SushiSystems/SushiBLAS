@@ -336,7 +336,7 @@ class ProjectService:
             raise StepFailedError(
                 "The consumer failed to compile against the installed headers.\n"
                 "  - a missing header means it is not covered by install(DIRECTORY) "
-                "in source/CMakeLists.txt.\n"
+                "in modules/library/sushiblas/CMakeLists.txt.\n"
                 "  - the consumer compiles at C++20 while the library builds at "
                 "C++17, so a construct valid only in one of the two fails here.",
                 rc,

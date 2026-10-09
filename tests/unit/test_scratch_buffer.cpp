@@ -38,8 +38,8 @@
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
-#include <SushiBLAS/engine/math/reductions.hpp>
-#include <SushiBLAS/engine/math/reductions/dispatch.hpp>
+#include <SushiBLAS/reductions/reductions.hpp>
+#include <SushiBLAS/reductions/dispatch.hpp>
 #include <SushiRuntime/SushiRuntime.h>
 #include <SushiRuntime/graph/task_graph.hpp>
 #include "../common/test_utils.hpp"

@@ -90,7 +90,7 @@ records them and holds the steps that have not run.
 - Give host `HALF` a conversion that rounds in the subnormal range.
 - Decide whether ELU accepts complex input; it is real-only today.
 - Decide the backend of the quarantined FFT and LAPACK declarations
-  (`include/SushiBLAS/experimental/`), then implement them.
+  (`modules/operations/experimental/include/SushiBLAS/experimental/`), then implement them.
 
 ## Sparse
 
@@ -111,7 +111,7 @@ records them and holds the steps that have not run.
 - Split `IO` into one reader and writer per format over a shared host-copy helper, with a load
   that returns a status, and narrow it off `Engine&` in the same change (C4). The boundary needs
   the owner's approval.
-- Make `save` asynchronous through the task graph (`include/SushiBLAS/io.hpp`).
+- Make `save` asynchronous through the task graph (`modules/operations/io/include/SushiBLAS/io/io.hpp`).
 - Route `Shared` storage through the queue for a print and a save, or fix the fault in
   SushiRuntime; today the host pointer is read.
 - Print a rank-0 tensor as its value and stop `to_vector` zero-filling before it reads.
@@ -134,7 +134,7 @@ records them and holds the steps that have not run.
 - Add categories, TRACE and FATAL to the logger and send log output to stderr (C3, C6).
 - Give reduction kernels one home (C9).
 - Split the Level 1 kernel headers into one file per routine (C12).
-- Remove `core/export.hpp`, `source/kernels/math.hpp` and the `<numbers>` include (C13). Owner approval.
+- Remove `core/export.hpp`, `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/math.hpp` and the `<numbers>` include (C13). Owner approval.
 - Shorten the two comment blocks `check_source_comments.py` still reports, then drop
   `--rule rule_license_block` from the check list of `AGENTS.md` (C14).
 - Split `test_regression.cpp` per defect and state every test tolerance (C17).
@@ -158,8 +158,10 @@ records them and holds the steps that have not run.
 
 ## Layout, needing the owner
 
-- SushiRuntime, SushiDSP and SushiAI still name their source folder `src/`; this repository
-  moved to `source/` on 2026-10-09 (L8).
+- Split the library into modules under `modules/<tier>/<module>/`; [MODULE_SPLIT.md](MODULE_SPLIT.md)
+  holds the measured include graph, the proposed tree and four decisions that are open.
+- SushiRuntime, SushiDSP and SushiAI still name their source folder `src/` and are one
+  module each; this repository moved to `modules/` on 2026-10-09 (L8).
 - The layout skill names four test folders. Add `benchmark/` and `package/` to it, or move the
   two (L14).
 
@@ -179,7 +181,7 @@ In the order the tag needs them.
 - Pin the runtime: `find_dependency(SushiRuntime 0.4)` in `cmake/SushiBLASConfig.cmake.in`, the
   same version in `cmake/Runtime.cmake`, and a version check of a sibling checkout (`PLAN`,
   section 3).
-- Install without `include/SushiBLAS/experimental/` and make the package consumer test fail if
+- Install without `modules/operations/experimental/include/SushiBLAS/experimental/` and make the package consumer test fail if
   the installed tree holds that folder or a document among its headers (`PLAN`, section 3),
   then run `sb test --suite package`.
 - Migrate SushiAI onto the views, the enums and `BlasScalar`. The sushiai session does it, once,

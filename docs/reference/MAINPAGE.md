@@ -39,7 +39,7 @@ library one functor that does the work of several operations.
 
 ## Not in this reference
 
-`include/SushiBLAS/experimental/` is excluded. Decision D1 quarantined the FFT and linear-algebra
+`modules/operations/experimental/include/SushiBLAS/experimental/` is excluded. Decision D1 quarantined the FFT and linear-algebra
 headers: they are outside the umbrella header and have no implementation, so listing them here
 would advertise an API that does not link.
 

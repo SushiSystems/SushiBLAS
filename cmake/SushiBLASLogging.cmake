@@ -7,7 +7,7 @@
 # SushiBLASLogging.cmake — the compiled-in log level, as a build option.
 #
 # Single responsibility: turn one cache variable into the one compile definition
-# include/SushiBLAS/core/logger.hpp reads, and expose a function that applies it.
+# modules/foundation/core/include/SushiBLAS/core/logger.hpp reads, and expose a function that applies it.
 #
 # The level used to be a bare `#ifndef`/`#ifdef NDEBUG` pair inside the header, which
 # meant raising it for a debugging session required editing a tracked file. It is a
@@ -40,7 +40,8 @@ set(_sb_log_enumerator_WARN Warn)
 set(_sb_log_enumerator_INFO Info)
 set(_sb_log_enumerator_DEBUG Debug)
 
-# Applies the configured log level to one target.
+# Applies the configured log level to one target. The scope is PUBLIC unless the caller
+# names another, which an INTERFACE target has to.
 #
 # PUBLIC, unlike the warning/sanitizer policy: K_ACTIVE_LOG_LEVEL is an `inline constexpr`
 # variable in a header every consumer compiles, so the library and everything linking it
@@ -48,8 +49,12 @@ set(_sb_log_enumerator_DEBUG Debug)
 # definition is a value, not a target name, so it travels through install(EXPORT)
 # without the export-set problem sushiblas_apply_build_policy() exists to avoid.
 function(sushiblas_apply_log_level target)
+    set(scope PUBLIC)
+    if(ARGC GREATER 1)
+        set(scope ${ARGV1})
+    endif()
     if(NOT SB_LOG_LEVEL STREQUAL "auto")
-        target_compile_definitions(${target} PUBLIC
+        target_compile_definitions(${target} ${scope}
             SB_ACTIVE_LOG_LEVEL=${_sb_log_enumerator_${SB_LOG_LEVEL}})
     endif()
 endfunction()

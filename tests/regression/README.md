@@ -58,7 +58,7 @@ bit for bit.
 
 SYRK's oneMKL-backed implementation threw for `sycl::half`, because oneMKL has no half-precision
 SYRK. The SB-2 port to the tiling kernel lifted that restriction. The typed suite in
-`tests/unit/test_syrk.cpp` covers float, double and complex only, so nothing else
+`modules/operations/blas/tests/test_syrk.cpp` covers float, double and complex only, so nothing else
 would catch a return of the restriction.
 
 ### GemmColumnMajorOperandsUseColumnStrides

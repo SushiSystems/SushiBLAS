@@ -43,11 +43,11 @@
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
-#include <SushiBLAS/kernels/blas/operand_access.hpp>
-#include <SushiBLAS/kernels/blas/level3/gemm_epilogue.hpp>
-#include <SushiBLAS/kernels/blas/level3/packed_product_plan.hpp>
-#include <SushiBLAS/kernels/sycl/blas/level3/gemm_packed.hpp>
-#include <SushiBLAS/kernels/reference/blas/level3/gemm.hpp>
+#include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
+#include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
+#include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_packed.hpp>
+#include <SushiBLAS/blas_seam_kernels/reference/level3/gemm.hpp>
 
 namespace SushiBLAS
 {

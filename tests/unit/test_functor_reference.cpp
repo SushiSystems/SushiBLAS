@@ -43,7 +43,7 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/engine/math/elementwise/dispatch.hpp>
+#include <SushiBLAS/elementwise/dispatch.hpp>
 #include <SushiRuntime/SushiRuntime.h>
 #include "../common/test_utils.hpp"
 #include "../common/graph_probe.hpp"

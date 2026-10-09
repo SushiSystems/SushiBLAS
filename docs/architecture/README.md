@@ -1,7 +1,7 @@
 # SushiBLAS architecture
 
 These pages describe how SushiBLAS is built, layer by layer, for a contributor who has to change
-it. Every class and file they name exists under `include/SushiBLAS/`, `source/` or `source/kernels/`. To
+it. Every class and file they name exists under `modules/`. To
 use the library, the [root README](../../README.md) is enough; its
 [project layout](../../README.md#project-layout) section holds the directory tree.
 
@@ -21,6 +21,6 @@ here.
 | 6 | [The dispatch seams and the fusion hooks](DISPATCH_SEAMS.md) |
 | 7 | [Kernels: reference and SYCL](KERNELS.md) |
 | 8 | [The SushiRuntime dependency (D3)](RUNTIME_DEPENDENCY.md) |
-| 9 | [Quarantined surface (`include/SushiBLAS/experimental/`)](QUARANTINE.md) |
+| 9 | [Quarantined surface (`modules/operations/experimental/include/SushiBLAS/experimental/`)](QUARANTINE.md) |
 | 10 | [Packaging](PACKAGING.md) |
 | 11 | [Exceptions and statuses](EXCEPTIONS.md) |

@@ -32,7 +32,7 @@ from versioning.check_version import (  # noqa: E402
 )
 
 K_CMAKE = "CMakeLists.txt"
-K_HEADER = "include/SushiBLAS/version.hpp"
+K_HEADER = "modules/foundation/core/include/SushiBLAS/core/version.hpp"
 K_DOXYFILE = ".config/doxygen/Doxyfile"
 K_PYPROJECT = "cli/pyproject.toml"
 K_MANIFEST = "sushi-module.toml"

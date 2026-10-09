@@ -73,7 +73,7 @@ def _dotted(version: Version) -> str:
     return version.dotted
 
 
-K_HEADER_FILE = "include/SushiBLAS/version.hpp"
+K_HEADER_FILE = "modules/foundation/core/include/SushiBLAS/core/version.hpp"
 K_TOML_VERSION = re.compile(r"""^\s*version\s*=\s*["']([^"']*)["']""")
 K_HEADER_COPIES = (
     Copy(

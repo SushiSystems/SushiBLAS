@@ -29,15 +29,15 @@
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
-#include <SushiBLAS/tensor.hpp>
-#include <SushiBLAS/storage.hpp>
-#include <SushiBLAS/sparse_matrix.hpp>
-#include <SushiBLAS/sparse_vector.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiBLAS/tensor/storage.hpp>
+#include <SushiBLAS/sparse_storage/sparse_matrix.hpp>
+#include <SushiBLAS/sparse_storage/sparse_vector.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/sparse_types.hpp>
-#include <SushiBLAS/engine/sparse/accumulator_size.hpp>
-#include <kernels/sparse/csr_pattern.hpp>
-#include <kernels/sparse/index_list.hpp>
+#include <SushiBLAS/sparse/accumulator_size.hpp>
+#include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
+#include <SushiBLAS/sparse_kernels/index_list.hpp>
 
 namespace SushiBLAS
 {

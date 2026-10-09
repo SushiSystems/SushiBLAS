@@ -17,6 +17,10 @@ Load before working here: `sushiskills`, `repository-layout`, `cpp-code-style`,
   from an `Engine` or a `TaskRecorder` and reaches the task graph only through the recorder, and
   a kernel knows nothing of the recorder or `Engine`. `tools/layering/check_layering.py` checks
   all three, and `docs/architecture/README.md` describes the layers.
+- The source is one tree per module under `modules/<tier>/<module>/`. A module is declared with
+  `sushiblas_add_module()` and names the modules it includes in `DEPENDS`;
+  `cmake/SushiBLASLayers.cmake` holds the tier order and refuses a dependency that points up.
+  A header is included as `<SushiBLAS/<module>/<name>.hpp>`.
 - Every operation has a SYCL kernel and a reference path, and an unsupported dtype throws. The
   BLAS, spatial and sparse families have a reference kernel beside the SYCL kernel; the functor
   families (elementwise, nonlinear, logic), the reductions and the random family run a host
