@@ -8,7 +8,6 @@ It depends on `core` and `support`. Its headers are included as
 
 | File | Declares |
 | --- | --- |
-| `math.hpp` | Reserves the include point of the math kernels and includes nothing |
 | `random.hpp` | Includes the random kernels: the SYCL ones and the reference orthonormalisation |
 | `reference/orthonormalize.hpp` | The reference kernel of the orthonormalisation sweep |
 | `sycl/orthonormalize.hpp` | The work-group parallel Gram-Schmidt sweep behind RandomOps::orthogonal |

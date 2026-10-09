@@ -6,6 +6,11 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-09 — blas: Split `utils.hpp` into five headers; the scalar result check and the scratch leases stay in `operands`, and the packed product, the local tile and the task helper move to `blas`.
+- 2026-10-09 — kernels: Removed `math.hpp`, which included nothing and was included by nothing.
+- 2026-10-09 — docs: Moved the notes of each unit test to its module's `tests/README.md` and the notes of the spatial view to the spatial module, and repaired sixteen dead links in the module READMEs.
+- 2026-10-09 — tools: Added a test that holds the tier order of the checker to the CMake table and the table to the module folders (`test_tier_table.py`).
+- 2026-10-09 — docs: Recorded that no page of the Contributor Covenant states a licence for its text (`NOTICE.md`).
 - 2026-10-09 — tensor: Moved `HostDataType` from the IO header to `tensor/host_data_type.hpp`, so the sparse builder no longer includes IO (`io.hpp`, `sparse_builder.hpp`).
 - 2026-10-09 — build: Split the library into 23 modules under `modules/<tier>/<module>/` and composed the one archive from their object libraries; a header is now `<SushiBLAS/<module>/<name>.hpp>` (`docs/design/MODULE_SPLIT.md`).
 - 2026-10-09 — tests: Gave each module its own test program and kept the tests that cross modules under `tests/` (`cmake/SushiBLASTests.cmake`).

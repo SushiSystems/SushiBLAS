@@ -4,7 +4,7 @@
 translation unit: the GEMM kernels and epilogues behind `Dispatch::execute_gemm`, the packed
 product they block for CPU caches, and the access and arithmetic bricks the BLAS kernels of both
 back ends share. The private kernels are in the `modules/kernels/` tree. The accumulator
-trait they share is in [../support/README.md](../support/README.md).
+trait they share is in [the support module](../../foundation/support/README.md).
 
 | File | Declares |
 | --- | --- |

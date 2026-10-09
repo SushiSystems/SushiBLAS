@@ -134,7 +134,7 @@ records them and holds the steps that have not run.
 - Add categories, TRACE and FATAL to the logger and send log output to stderr (C3, C6).
 - Give reduction kernels one home (C9).
 - Split the Level 1 kernel headers into one file per routine (C12).
-- Remove `core/export.hpp`, `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/math.hpp` and the `<numbers>` include (C13). Owner approval.
+- Remove `core/export.hpp` and the `<numbers>` include (C13). Owner approval.
 - Shorten the two comment blocks `check_source_comments.py` still reports, then drop
   `--rule rule_license_block` from the check list of `AGENTS.md` (C14).
 - Split `test_regression.cpp` per defect and state every test tolerance (C17).
@@ -153,8 +153,8 @@ records them and holds the steps that have not run.
 
 ## Documentation
 
-- Read the licence of the Contributor Covenant 2.1 and record it in `NOTICE.md`, which marks it
-  unverified.
+- Decide what to do about the code of conduct: four pages of the Contributor Covenant were read
+  on 2026-10-09 and none states a licence for its text (`NOTICE.md`, "Adapted text"). Owner.
 
 ## Layout, needing the owner
 

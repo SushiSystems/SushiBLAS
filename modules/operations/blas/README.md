@@ -17,7 +17,9 @@ so one view records all three levels.
 | `packed_operand.hpp` | `PackedOperand`, the geometry of one packed triangle operand |
 | `scalar_operand.hpp` | The check on a tensor that stands for one scalar of a call |
 | `task_metadata.hpp` | `BlasMetadata`, which fills a task's metadata slots in one fixed order |
-| `utils.hpp` | The helpers that size a result, lease scratch and record a typed task |
+| `blas_task.hpp` | `execute_blas_task`, which records one dtype-dispatched BLAS task |
+| `local_tile.hpp` | The local-memory demand of a tiled kernel and its record-time check |
+| `packed_product_scratch.hpp` | The helpers that size and lease the panels of a packed product |
 | `dispatch.hpp` | The GEMM executor of the dispatch seam and the epilogue bundle it accepts |
 | `sparse.hpp` | `SparseBLAS`, a placeholder class that declares no operation |
 
@@ -421,14 +423,16 @@ tiled SYCL kernel stages for the dtype with the profile of the device of C, and 
 `UnsupportedExecution` when the device cannot host them. `syrk` and `herk` ask only where the
 profile does not select the packed kernel.
 
-## `utils.hpp`
+## The record-time helpers
+
+These were one header, `utils.hpp`, until 2026-10-09. `blas_task.hpp`, `local_tile.hpp` and
+`packed_product_scratch.hpp` are here; `scalar_result.hpp` and `scratch_lease.hpp` are in the
+`operands` module, because `sparse` uses them too.
 
 ### `is_complex`
 
-`is_complex` / `is_complex_v` were declared here too, identically to two copies under source/. They now
-have one home, `<SushiBLAS/core/traits.hpp>`, which this header includes through
-`<SushiBLAS/engine/task.hpp>` so anything that reached
-the trait through utils.hpp still compiles: spell it `Core::is_complex_v<T>`.
+`is_complex` / `is_complex_v` have one home, `<SushiBLAS/core/traits.hpp>`: spell the trait
+`Core::is_complex_v<T>`.
 
 ### `allocate_blas_scratch`, `allocate_level1_scratch`, `allocate_packed_product_scratch`
 

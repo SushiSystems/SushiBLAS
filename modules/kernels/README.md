@@ -14,7 +14,6 @@ The paths in the table are relative to `<module>/include/SushiBLAS/<module>/`.
 | Module | Path | Holds |
 | --- | --- | --- |
 | each | `blas.hpp`, `sparse.hpp`, `spatial.hpp`, `random.hpp` | The include of every kernel of one family |
-| `random_kernels` | `math.hpp` | No include |
 | `blas_kernels` | `reference/`, `sycl/` | Levels 1 to 3. `level1.hpp` holds the vector routines of one side and `rotg`, `rotm` and `rotmg` have a file each |
 | `sparse_kernels` | `csr_pattern.hpp`, `index_list.hpp` | `CsrPattern` and `IndexList`, how a kernel of either side reads a sparse operand |
 | `sparse_kernels` | `reference/`, `sycl/` | The sparse-dense level 1 routines, the CSR products and the triangular solve |
@@ -29,7 +28,6 @@ The include points:
 | File | Holds |
 | --- | --- |
 | `blas.hpp` | Includes every BLAS kernel, reference and SYCL |
-| `math.hpp` | Reserves the include point of the math kernels and includes nothing |
 | `random.hpp` | Includes the random kernels: the SYCL ones and the reference orthonormalisation |
 | `sparse.hpp` | Includes every sparse kernel, reference and SYCL |
 | `spatial.hpp` | Includes every spatial kernel, reference and SYCL |
@@ -150,7 +148,7 @@ Random:
 | `sycl/random/poisson.hpp` | Defines the Poisson draw: Knuth's product below lambda 10, Hoermann's PTRS above |
 | `sycl/random/truncated_normal.hpp` | Defines the truncated standard normal draw by bisection of the distribution function |
 
-`math.hpp` includes nothing.
+
 
 ## Notes by file
 
@@ -475,7 +473,7 @@ precision of the SYCL sum, not bit for bit. The serial loops these kernels repla
 compensation, so a result can differ from theirs in the last bits.
 
 Each reduction takes a scratch pointer and its size in bytes. The caller in `modules/operations/blas/source/level1/`
-leases it through `Internal::allocate_level1_scratch` (`engine/blas/utils.hpp`), from the recorder's
+leases it through `Internal::allocate_level1_scratch` (`operands/scratch_lease.hpp`), from the recorder's
 scratch pool on the device of x, sized as `Reduce::planned_partials` over the folded count (2n for a
 complex `nrm2`) times `K_LEVEL1_PARTIAL_BYTES`, the largest partial any of the five kernels stores
 (a `std::complex<double>` or an `IndexedValue<double>`, 16 bytes). Each kernel divides the bytes by

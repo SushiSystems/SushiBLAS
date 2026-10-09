@@ -301,7 +301,7 @@ fmt` parameter binds the first argument, so every existing call site is unchange
 The project's compile-time type vocabulary.
 
 `is_complex` used to be written out three separate times, all three in the same
-`SushiBLAS::Internal` namespace: engine/blas/utils.hpp, the elementwise private helper, and the
+`SushiBLAS::Internal` namespace: the BLAS helpers of `operands` and `blas`, the elementwise private helper, and the
 random one. Three identical primary templates in one namespace is only harmless while no translation
 unit sees more than one of them, and promoting the op-dispatch helpers to public headers (which a
 downstream consumer will include side by side) made that guarantee disappear. Collapsed to this

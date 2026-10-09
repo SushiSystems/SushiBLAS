@@ -38,7 +38,8 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
-#include <SushiBLAS/operands/utils.hpp>
+#include <SushiBLAS/blas/blas_task.hpp>
+#include <SushiBLAS/blas/packed_product_scratch.hpp>
 #include <SushiBLAS/operands/scalar.hpp>
 #include <SushiBLAS/operands/task_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>

@@ -1,0 +1,10 @@
+# Tests of io
+
+The unit tests of the `io` module, built into `sushiblas_io_tests` by the
+module's `CMakeLists.txt`. The source comments state what a test checks; a section below
+holds why a test is written the way it is. `tests/unit/README.md` holds the reasoning the
+tests share, and `tests/common/README.md` describes the fixtures.
+
+| File | Tests |
+| --- | --- |
+| `test_host_transfer.cpp` | Tests IO's host transfer calls, load ordering, the .npy reader and the text of a tensor |

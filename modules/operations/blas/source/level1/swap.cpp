@@ -30,7 +30,7 @@
 #include <vector>
 #include <complex>
 #include <SushiBLAS/blas_kernels/blas.hpp>
-#include <SushiBLAS/operands/utils.hpp>
+#include <SushiBLAS/blas/blas_task.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/operands/task_metadata.hpp>

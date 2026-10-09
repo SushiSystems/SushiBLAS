@@ -37,7 +37,7 @@
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
-#include <SushiBLAS/operands/utils.hpp>
+#include <SushiBLAS/operands/scratch_lease.hpp>
 #include <SushiBLAS/operands/task_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
