@@ -43,7 +43,7 @@
 #include <SushiBLAS/blas_kernels/sycl/level3/syr2k.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/traits.hpp>
-#include <SushiBLAS/operands/utils.hpp>
+#include <SushiBLAS/blas/local_tile.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>

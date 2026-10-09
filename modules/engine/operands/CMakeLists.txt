@@ -11,7 +11,6 @@ sushiblas_add_module(
         core
         support
         tensor
-        blas_seam_kernels
         engine)
 
 sushiblas_add_module_tests(

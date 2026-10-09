@@ -13,7 +13,11 @@ SushiBLAS/engine/blas/scalar.hpp	SushiBLAS/operands/scalar.hpp
 SushiBLAS/engine/blas/scalar_operand.hpp	SushiBLAS/blas/scalar_operand.hpp
 SushiBLAS/engine/blas/sparse.hpp	SushiBLAS/blas/sparse.hpp
 SushiBLAS/engine/blas/task_metadata.hpp	SushiBLAS/operands/task_metadata.hpp
-SushiBLAS/engine/blas/utils.hpp	SushiBLAS/operands/utils.hpp
+SushiBLAS/engine/blas/utils.hpp (real_result_dtype, require_scalar_result)	SushiBLAS/operands/scalar_result.hpp
+SushiBLAS/engine/blas/utils.hpp (running_solution_bytes, allocate_blas_scratch, allocate_level1_scratch)	SushiBLAS/operands/scratch_lease.hpp
+SushiBLAS/engine/blas/utils.hpp (packed_product_scratch_bytes, allocate_packed_product_scratch)	SushiBLAS/blas/packed_product_scratch.hpp
+SushiBLAS/engine/blas/utils.hpp (local_tile_demand, require_local_tile)	SushiBLAS/blas/local_tile.hpp
+SushiBLAS/engine/blas/utils.hpp (execute_blas_task)	SushiBLAS/blas/blas_task.hpp
 SushiBLAS/engine/blas/vector_operand.hpp	SushiBLAS/operands/vector_operand.hpp
 SushiBLAS/engine/logic/dispatch.hpp	SushiBLAS/logic/dispatch.hpp
 SushiBLAS/engine/logic/logic.hpp	SushiBLAS/logic/logic.hpp

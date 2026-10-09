@@ -16,7 +16,7 @@ in `third_party/licenses/`.
 | portBLAS, Copyright (C) Codeplay Software Limited | `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp`, `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/syrk.hpp`, `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/syr2k.hpp` | Apache-2.0 | `third_party/licenses/Apache-2.0.txt` |
 | Random123, Copyright 2010-2012, D. E. Shaw Research | `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/philox.hpp` | BSD-3-Clause | `third_party/licenses/BSD-3-Clause-Random123.txt` |
 | Reference BLAS, as LAPACK distributes it, Copyright (c) 1992-2025 The University of Tennessee and The University of Tennessee Research Foundation, (c) 2000-2025 The University of California Berkeley, (c) 2006-2025 The University of Colorado Denver | `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp`, `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/modified_givens.hpp` | modified BSD, SPDX `BSD-3-Clause-Open-MPI` | `third_party/licenses/BSD-3-Clause-Open-MPI-LAPACK.txt` |
-| Contributor Covenant 2.1 | `.github/CODE_OF_CONDUCT.md` | not read; the estate audit names CC BY 4.0 | not in `third_party/licenses/` |
+| Contributor Covenant 2.1 | `.github/CODE_OF_CONDUCT.md` | not established; see "Adapted text" below | not in `third_party/licenses/` |
 
 No other tracked file carries a third-party copyright line. Outside `LICENSE`, this file,
 `docs/`, `third_party/` and the fixtures under `tools/`, a search of every tracked file for
@@ -77,10 +77,14 @@ was faithful. Each file's license block names LAPACK, and LAPACK's licence text 
 
 | File | Source | Version | Licence |
 | --- | --- | --- | --- |
-| `.github/CODE_OF_CONDUCT.md` | Contributor Covenant, https://www.contributor-covenant.org/version/2/1/code_of_conduct.html | 2.1 | unverified; the audit names CC BY 4.0 |
+| `.github/CODE_OF_CONDUCT.md` | Contributor Covenant, https://www.contributor-covenant.org/version/2/1/code_of_conduct.html | 2.1 | not established on 2026-10-09 |
 
 The file's "Attribution" section names the Covenant and its version. The Covenant's 2.1 text,
-fetched on 2026-10-07, states no licence in its body.
+fetched on 2026-10-07, states no licence in its body. On 2026-10-09 the Covenant's home page,
+its 2.1 page and its FAQ stated no licence for the text either, and the `LICENSE.md` of its
+repository, https://github.com/EthicalSource/contributor_covenant, was the Hippocratic License 3.0,
+which the site's footer applies to the site's source code. The CC BY 4.0 the estate audit names
+was not found in any of the four. The licence of the adapted text is therefore not established.
 
 ## Third-party components that do not ship
 

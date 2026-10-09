@@ -32,7 +32,8 @@
 #include <complex>
 #include <SushiBLAS/blas_kernels/blas.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
-#include <SushiBLAS/operands/utils.hpp>
+#include <SushiBLAS/blas/blas_task.hpp>
+#include <SushiBLAS/operands/scratch_lease.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/blas/band_operand.hpp>
 #include <SushiBLAS/operands/task_metadata.hpp>

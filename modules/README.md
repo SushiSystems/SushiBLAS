@@ -1,37 +1,33 @@
 # SushiBLAS modules
 
-The modules hold every header a consumer of the library includes, each under
-`modules/<tier>/<module>/include/SushiBLAS/<module>/`. `SushiBLAS.h` includes
-the core, storage, tensor, engine and version headers and every operation family in one line.
+The library is one tree per module, `modules/<tier>/<module>/`, and a header is included as
+`<SushiBLAS/<module>/<name>.hpp>`. A tier depends only on the tiers above it in the table;
+`cmake/SushiBLASLayers.cmake` holds the order and the few edges allowed inside a tier.
+`SushiBLAS.h`, in `library/sushiblas`, includes the core, tensor and engine headers and every
+operation family in one line.
 
-| File | Declares |
-| --- | --- |
-| `SushiBLAS.h` | The one include a consumer needs |
-| `engine.hpp` | `Engine`, which owns one task graph and the bricks that record on it, and runs it |
-| `tensor_factory.hpp` | `TensorFactory`, which allocates dense tensors from one runtime context |
-| `tensor.hpp` | `Tensor`, a typed, strided view over a `Storage` |
-| `storage.hpp` | `Storage`, the reference-counted USM allocation, and `K_STORAGE_ALIGNMENT` |
-| `io.hpp` | `IO`, which saves, loads and displays tensors |
-| `io_status.hpp` | `IoStatus`, the result of a file operation of `IO` |
-| `sparse_matrix.hpp` | `SparseMatrix`, a matrix held in compressed sparse row form |
-| `sparse_vector.hpp` | `SparseVector`, the positions and values of a vector's stored entries |
-| `sparse_builder.hpp` | `SparseBuilder`, which builds both sparse containers from host data |
-| `version.hpp` | The version macros |
+| Tier | Module | Holds | Reasoning |
+| --- | --- | --- | --- |
+| foundation | `core` | Element types, type traits, the format stand-in, the logger, the version macros | [README](foundation/core/README.md) |
+| foundation | `support` | The accumulator traits, the device policy, the launch and reduction shapes, the serial host loops, the window geometry, the sparse assembly | [README](foundation/support/README.md) |
+| data | `tensor` | `Storage`, `Tensor`, `TensorFactory` and `HostDataType` | [README](data/tensor/README.md) |
+| data | `sparse_storage` | `SparseMatrix`, `SparseVector` and `SparseBuilder` | [README](data/sparse_storage/README.md) |
+| kernels | `blas_seam_kernels` | The GEMM kernels and epilogues a public seam instantiates, and the access bricks the BLAS kernels share | [README](kernels/blas_seam_kernels/README.md) |
+| kernels | `blas_kernels`, `random_kernels`, `sparse_kernels`, `spatial_kernels` | The internal kernels of each family | [README](kernels/README.md) |
+| engine | `engine` | `Engine`, the task recorder, the operand set and checks, the scratch pool, the dispatch seam | [README](engine/engine/README.md) |
+| engine | `operands` | The operand checks and views `blas` and `sparse` share | [README](engine/operands/README.md) |
+| engine | `functor_map` | The per-element seam: the map task and its bindings | [README](engine/functor_map/README.md) |
+| operations | `blas` | BLAS levels 1 to 3 and the GEMM executor | [README](operations/blas/README.md) |
+| operations | `elementwise`, `nonlinear`, `random`, `reductions` | The four math families | [elementwise](operations/elementwise/README.md), [nonlinear](operations/nonlinear/README.md), [random](operations/random/README.md), [reductions](operations/reductions/README.md) |
+| operations | `logic` | Comparison and logical operations | [README](operations/logic/README.md) |
+| operations | `sparse` | The sparse operations, their record-time checks and operand describers | [README](operations/sparse/README.md) |
+| operations | `spatial` | The window, pooling, channel and broadcast operations | [README](operations/spatial/README.md) |
+| operations | `io` | `IO` and `IoStatus` | [README](operations/io/README.md) |
+| operations | `experimental` | LAPACK and signal declarations that have no implementation | [README](operations/experimental/README.md) |
+| library | `sushiblas` | The umbrella header and the one library a consumer links | [README](library/sushiblas/README.md) |
 
-| Folder | Holds | Reasoning |
-| --- | --- | --- |
-| `core/` | Element types, type traits, the format stand-in, the logger | [the core module](../../modules/foundation/core/README.md) |
-| `engine/` | The task recorder, the operand set and checks, the scratch pool, the dispatch seam, the operation views | [engine/README.md](engine/README.md) |
-| `engine/blas/` | BLAS levels 1 to 3, the operand describers and the GEMM executor | [engine/blas/README.md](engine/blas/README.md) |
-| `engine/logic/` | Comparison and logical operations | [engine/logic/README.md](engine/logic/README.md) |
-| `engine/math/` | Elementwise, non-linear, random and reduction operations | [engine/math/README.md](engine/math/README.md) |
-| `engine/sparse/` | The record-time checks and operand describers of the sparse operations | [engine/sparse/README.md](engine/sparse/README.md) |
-| `engine/spatial/` | Window span builders of the spatial operations | [engine/spatial/README.md](engine/spatial/README.md) |
-| `experimental/` | LAPACK and signal declarations that have no implementation | [experimental/README.md](experimental/README.md) |
-| `kernels/` | The GEMM kernels and epilogues a public seam instantiates, and the access bricks the BLAS kernels share | [kernels/README.md](kernels/README.md) |
-| `support/` | The accumulator traits, the device policy, the launch and reduction shapes, the serial host loops, the window geometry, the sparse assembly | [support/README.md](support/README.md) |
-
-Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
+The sections below are about the headers of `tensor`, `sparse_storage`, `engine` and `io` that
+a consumer meets first. Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to. The header states the rule in one line and cites
 this page.
 
@@ -75,7 +71,7 @@ no accessor reaches.
 `Engine::get_scratch_pool()` returns the `ScratchPool` operations lease device scratch from; the
 recorder hands the same pool out through `TaskRecorder::get_scratch_pool()`. The engine declares
 the pool before the graph, so the graph and the tasks it holds are destroyed before the pool is.
-[engine/README.md](engine/README.md) describes the pool, the shelf and the lease.
+[The engine module](engine/engine/README.md) describes the pool, the shelf and the lease.
 
 ### `RngStream::reseed`
 
@@ -149,7 +145,7 @@ violation throws `std::invalid_argument`.
 `[[nodiscard]]`. A wrong operand still throws `std::invalid_argument`; a file that is missing,
 short, malformed or of another shape, dtype or layout is reported through the status, and the
 reason is logged once at error level. `to_string(IoStatus)` gives the enumerator's name.
-[The architecture, section 11](../../docs/architecture/EXCEPTIONS.md) lists the values.
+[The architecture, section 11](../docs/architecture/EXCEPTIONS.md) lists the values.
 
 ### Loads run the recorded graph first
 

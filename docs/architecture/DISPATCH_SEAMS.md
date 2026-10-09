@@ -8,7 +8,7 @@ return a `TaskHandle`. There are two kinds.
 (`engine/task.hpp`) checks the dtype against the domain and records one task whose body switches
 on the runtime dtype and calls `op_func(T{}, dispatcher, q, deps)` with a value of the matching
 element type. `op_func` calls `dispatcher.run` with its reference kernel and its SYCL kernel.
-`Internal::execute_blas_task` (`engine/blas/utils.hpp`) is the same call with the family string
+`Internal::execute_blas_task` (`blas/blas_task.hpp`) is the same call with the family string
 `"BLAS operation"`. Section 5 of [CONTRIBUTING.md](../CONTRIBUTING.md) shows a whole operation
 written on it.
 

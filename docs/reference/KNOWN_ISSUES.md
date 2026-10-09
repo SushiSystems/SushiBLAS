@@ -13,7 +13,7 @@ in [the backlog](../design/REMAINING_WORK.md).
 | --- | --- |
 | The whole suite ran once on this tree, on 2026-10-09, on the CUDA build with an RTX 3080 Ti: 2 047 of 2 047 tests passed, the ones CTest lists as skipped among them. The tree has not run on the OpenCL CPU device or on any other card | the whole tree |
 | Of the benchmark programs only `benchmark_band_packed` has run, on that card; no other design figure about speed is a measurement | `tests/benchmark/` |
-| The record-time refusal of a device that cannot host the `syrk` or `syr2k` tile was never seen to throw: the one device the tree ran on hosts both tiles | `modules/engine/operands/include/SushiBLAS/operands/utils.hpp`, `require_local_tile` |
+| The record-time refusal of a device that cannot host the `syrk` or `syr2k` tile was never seen to throw: the one device the tree ran on hosts both tiles | `modules/operations/blas/include/SushiBLAS/blas/local_tile.hpp`, `require_local_tile` |
 | With `SB_BUILD_TESTS` and `SB_BUILD_EXAMPLES` off, as under a consumer, the tree was never configured | `CMakeLists.txt` |
 | The last syntax sweep of the whole tree ran at commit `1746b03`, over 250 translation units. Every later commit was checked file by file only, so an error between two files that were each parsed alone is still possible | `docs/agent/2026_10_07_V010/SPEC.md`, `OWNER_DECISIONS_LATE` |
 | The GPU evidence is two functional runs on one card, an RTX 3080 Ti. Neither recorded the device profile or which GPU-shaped paths it took, and nothing in sections 2 to 5 of the checklist is measured | [GPU_VALIDATION.md](../design/GPU_VALIDATION.md), section 0 |
@@ -68,11 +68,7 @@ in [the backlog](../design/REMAINING_WORK.md).
 | Issue | Where |
 | --- | --- |
 | On the module tree the build, the package suite and 463 filtered tests pass; the rest of the suite has not run and the benchmarks were not built | `modules/` |
-| The tier order is written twice, in the CMake table and in the layering checker | `cmake/SushiBLASLayers.cmake`, `tools/layering/check_layering.py` |
-| `utils.hpp` of `operands` includes a BLAS kernel plan, so the module both families share depends on `blas_seam_kernels` | `modules/engine/operands/` |
-| `math.hpp` reserves an include point, includes nothing and is included by nothing | `modules/kernels/random_kernels/` |
-| The engine README holds the notes of the spatial view, and the unit test README still describes the tests that moved to their modules | `modules/engine/engine/README.md`, `tests/unit/README.md` |
-| A module test that includes only the umbrella header can use any module, and the layering checker does not see it | `modules/*/*/tests/` |
+| No test includes each header of a header-only module first and alone, so a header that forgot an include is caught only where a source of its own module includes it | `modules/foundation/`, `modules/kernels/`, `modules/engine/operands/`, `modules/engine/functor_map/` |
 | `sushi-module.toml` spells the remote in lower case, the remote itself is `SushiSystems/SushiBLAS` | `sushi-module.toml` |
 
 ## Continuous integration
