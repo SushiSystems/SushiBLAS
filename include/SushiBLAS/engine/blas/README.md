@@ -340,7 +340,7 @@ not conjugate and `dotc` conjugates `x`.
 
 `rotg` builds the Givens rotation that maps (a, b) to (r, 0), from four scalar tensors. `rotm`
 applies the modified rotation a five-element `param` describes, and `rotmg` builds one. The
-arithmetic of the three is in `kernels/blas/givens.hpp` and `modified_givens.hpp`, shared by the
+arithmetic of the three is in `include/SushiBLAS/kernels/blas/givens.hpp` and `modified_givens.hpp`, shared by the
 reference and the SYCL kernel.
 
 ### `Level1::nrm2`
@@ -376,7 +376,7 @@ it finishes.
 
 `symm` computes `C = alpha * A * B + beta * C` or `C = alpha * B * A + beta * C` for a symmetric
 `A` of which one triangle is read, and `hemm` the same for a Hermitian `A`. Both are in
-`src/engine/blas/level3/symm.cpp`. The operation builds a `Kernels::SymmetricAccess` for `A` and
+`source/engine/blas/level3/symm.cpp`. The operation builds a `Kernels::SymmetricAccess` for `A` and
 calls `gemm_accessed`, so it runs on the GEMM kernels, the packed one included, and leases the
 same packed-panel scratch. `C` is declared with `writes` when `beta` is exactly zero and with
 `updates` otherwise, as in `execute_gemm`.
@@ -425,7 +425,7 @@ profile does not select the packed kernel.
 
 ### `is_complex`
 
-`is_complex` / `is_complex_v` were declared here too, identically to two copies under src/. They now
+`is_complex` / `is_complex_v` were declared here too, identically to two copies under source/. They now
 have one home, `<SushiBLAS/core/traits.hpp>`, which this header includes through
 `<SushiBLAS/engine/task.hpp>` so anything that reached
 the trait through utils.hpp still compiles: spell it `Core::is_complex_v<T>`.

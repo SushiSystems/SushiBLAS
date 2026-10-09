@@ -8,7 +8,7 @@ The manual is in [docs/README.md](docs/README.md).
 
 - **Operations are recorded, then run.** `Engine::create_tensor()` allocates a `Tensor`, which is shape, stride and dtype metadata over a ref-counted `Storage` backed by SushiRuntime USM. Calling an operation, such as `SushiBLAS::BLASOps(engine).axpy(...)`, records one task on the engine's graph and returns a `TaskHandle`. `engine.execute()` compiles the graph, runs it and returns when every task has finished.
 - **Eight operation families.** Dense BLAS levels 1 to 3 with the band, packed, rotation, complex and Hermitian routines; sparse BLAS over CSR; elementwise arithmetic; non-linear activations; logic and comparison; reductions; random generation; and spatial (windowed) operations. [The architecture, section 7](docs/architecture/KERNELS.md) lists the routines.
-- **Every operation has a reference path and a SYCL kernel.** The BLAS, sparse and spatial families have a plain C++ reference kernel under `kernels/reference/` beside the SYCL kernel under `kernels/sycl/`. The other families run one functor two ways: inlined into a SYCL kernel, or in a serial host loop. The GEMM and SYRK tiling is ported from portBLAS; see [NOTICE.md](NOTICE.md).
+- **Every operation has a reference path and a SYCL kernel.** The BLAS, sparse and spatial families have a plain C++ reference kernel under `source/kernels/reference/` beside the SYCL kernel under `source/kernels/sycl/`. The other families run one functor two ways: inlined into a SYCL kernel, or in a serial host loop. The GEMM and SYRK tiling is ported from portBLAS; see [NOTICE.md](NOTICE.md).
 - **The execution mode is stamped on each task as it is recorded.** `Engine::set_mode()` selects `Auto`, `ForceSycl` or `ForceReference` for every later operation. See [the architecture, section 3](docs/architecture/EXECUTION_MODES.md).
 - **A wrong call throws when it is recorded.** A wrong operand, flag or scalar throws `std::invalid_argument` and names the operation and the operand; a dtype with no meaning for an operation, such as `max` on a complex tensor, is one of those. An operation that cannot run under the mode or on the device throws `SushiBLAS::UnsupportedExecution`, which derives from it. See [the architecture, section 11](docs/architecture/EXCEPTIONS.md).
 - **Fusion is written by the caller.** The `SushiBLAS::Dispatch` seams take a functor and run it as one kernel, and `Dispatch::execute_gemm` takes an epilogue applied to each element of the product. No pass fuses recorded tasks automatically.
@@ -222,16 +222,18 @@ include/SushiBLAS/     Public headers
                         The CSR matrix, the sparse vector and the builder of both
   io.hpp                Host transfer, save, load and print (native, .npy, raw binary)
   version.hpp           SUSHIBLAS_VERSION_* macros
-src/                    Implementations (engine/<domain>/<op>.cpp, engine.cpp, io.cpp,
-                         sparse_builder.cpp)
-kernels/                Private kernels, never installed
-  reference/            Plain C++ kernels
-  sycl/                 SYCL kernels
-applications/examples/               example.cpp, io_example.cpp
-tests/benchmark/             benchmark_*.cpp, built with sb build --benchmarks
+source/                 Private to the library, never installed
+  engine/               One <op>.cpp per operation, by family
+  engine.cpp, io.cpp, sparse_builder.cpp
+  kernels/
+    reference/          Plain C++ kernels
+    sycl/               SYCL kernels
+applications/examples/  example.cpp, io_example.cpp
 tests/
   common/               Shared GoogleTest entry point and helpers
-  functional/           unit, integration, regression
+  unit/, integration/, regression/
+                        The tests of sushiblas_tests, one folder per label
+  benchmark/            benchmark_*.cpp, built with sb build --benchmarks
   package/              Out-of-tree find_package(SushiBLAS) consumer
 cli/                    The `sb` / `sushiblas` CLI package; see cli/README.md
 cmake/                  CMake modules

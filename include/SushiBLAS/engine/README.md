@@ -53,7 +53,7 @@ family headers are:
 `<SushiBLAS/engine/math/reductions/dispatch.hpp>` `<SushiBLAS/engine/math/random/dispatch.hpp>`
 `<SushiBLAS/engine/logic/dispatch.hpp>`
 
-These used to be private `*_internal.hpp` headers under src/, uninstalled and therefore unreachable
+These used to be private `*_internal.hpp` headers under source/, uninstalled and therefore unreachable
 from outside this tree. They are public now because they are the seam a layer above (an autodiff/NN
 framework) needs in order to fuse: composing several math ops into one functor and handing it to
 `execute_binary` produces ONE kernel launch instead of one per op, and it does so without the
@@ -380,7 +380,7 @@ varies between runs, so `col2im` written as "each column entry atomically adds i
 silently break the library's bit-reproducibility guarantee. Each output element gathers its own
 contributions in a fixed order instead. This is the same argument
 `docs/architecture/KERNELS.md` gives for rejecting `sycl::reduction` in the folding reductions,
-and `tests/functional/regression/test_spatial_determinism.cpp` is what keeps it true.
+and `tests/regression/test_spatial_determinism.cpp` is what keeps it true.
 
 ### `SpatialOps::im2col` with stated extents
 

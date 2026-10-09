@@ -192,7 +192,7 @@ Two consequences worth knowing:
   be worse than refusing.
 
 Run it before publishing anything that adds a public header or touches
-`src/CMakeLists.txt`'s install rules.
+`source/CMakeLists.txt`'s install rules.
 
 ## `sb run`
 

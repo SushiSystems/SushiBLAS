@@ -15,7 +15,7 @@ this page.
 
 The place a layout is interpreted for the windowed operations. Everything downstream of
 `window_span_for` sees element counts, so adding NCHW later is a second stride assignment here and
-in the spans `src/engine/spatial/broadcast.cpp`, `channels.cpp` and `upsample_nearest.cpp` build
+in the spans `source/engine/spatial/broadcast.cpp`, `channels.cpp` and `upsample_nearest.cpp` build
 by hand.
 
 ### `window_span_for` with stated extents

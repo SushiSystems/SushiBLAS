@@ -3,7 +3,7 @@
 `include/SushiBLAS/kernels` holds the kernel code a public header instantiates in a consumer's
 translation unit: the GEMM kernels and epilogues behind `Dispatch::execute_gemm`, the packed
 product they block for CPU caches, and the access and arithmetic bricks the BLAS kernels of both
-back ends share. The private kernels are in the repository-root `kernels/` tree. The accumulator
+back ends share. The private kernels are in the `source/kernels/` tree. The accumulator
 trait they share is in [../support/README.md](../support/README.md).
 
 | File | Declares |
@@ -168,8 +168,8 @@ NCHW the same convolution transposes and the channel becomes the **row**. Encodi
 `(row_stride, col_stride)` makes the second layout cost two integers on the host instead of a second
 epilogue type, a second fused lowering recorder and a second set of tests.
 
-It lives under `include/` rather than the private repo-root `kernels/` tree for the reason
-`kernels/blas.hpp` states: `Dispatch::execute_gemm` (`<SushiBLAS/engine/blas/dispatch.hpp>`)
+It lives under `include/` rather than the private `source/kernels/` tree for the reason
+`source/kernels/blas.hpp` states: `Dispatch::execute_gemm` (`<SushiBLAS/engine/blas/dispatch.hpp>`)
 instantiates the epilogue in a *consumer's* translation unit, and a template a public seam
 instantiates cannot stay private.
 

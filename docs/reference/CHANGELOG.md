@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-09 — build: Moved `src/` to `source/` with the private kernels under it, and lifted the unit, integration and regression tests out of `tests/functional/`, as the repository layout names them.
 - 2026-10-09 — io: Made the six file operations of IO, from save to load_npy, return an `IoStatus` where they threw std::runtime_error for a file (`io_status.hpp`, `io.hpp`, `io.cpp`).
 - 2026-10-09 — docs: Added the Random123 and LAPACK licence texts under `third_party/licenses/` and named both works in the license blocks of `philox.hpp`, `givens.hpp` and `modified_givens.hpp`.
 - 2026-10-09 — engine: Spelled the execution modes `ForceReference`, `ForceSycl` and `Auto` in every exception message, where they read FORCE_REFERENCE, FORCE_SYCL and AUTO (`task_recorder.hpp`).

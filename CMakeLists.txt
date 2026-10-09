@@ -87,7 +87,7 @@ if(NOT CMAKE_MATCH_1 STREQUAL PROJECT_VERSION)
 endif()
 
 # --- Subdirectories ---
-add_subdirectory(src)
+add_subdirectory(source)
 
 # Examples and tests are built when SushiBLAS is the top-level project, not when a consumer
 # pulls it in with add_subdirectory.
@@ -108,7 +108,7 @@ if(SB_BUILD_BENCHMARKS)
 endif()
 
 # --- Package files (SB-6) ---
-# Written after add_subdirectory(src) so the sushiblas/SushiRuntime::SushiRuntime
+# Written after add_subdirectory(source) so the sushiblas/SushiRuntime::SushiRuntime
 # targets it references already exist.
 include(CMakePackageConfigHelpers)
 

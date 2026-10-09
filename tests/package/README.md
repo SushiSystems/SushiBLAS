@@ -18,7 +18,7 @@ in this project's translation unit under the toolchain the consumer chose, and t
 links and runs end to end through SushiBLAS and its SushiRuntime dependency.
 
 The second thing under test came with the promotion of the five `*_internal.hpp` op-dispatch
-helpers out of `src/` into the installed headers: that `SushiBLAS::Dispatch` is reachable from
+helpers out of `source/` into the installed headers: that `SushiBLAS::Dispatch` is reachable from
 here. `execute_binary` receives `engine.get_recorder()` and a lambda this file wrote, and it
 compiles and runs. That is the
 difference between "the fusion seam was moved" and "the fusion seam is public API". Nothing in

@@ -800,7 +800,7 @@ operations performed and their order are the same as before the split.
 The same two shapes as `reduce`, over indices `[0, n)` instead of a pointer. The caller supplies
 `read(i)`, which returns the accumulator input for element `i`, so a strided read (`x[i * incx]`), a
 read of two operands (`x[i] * y[i]` for a dot product) or a read that yields a pair (value and index
-for `iamax`) is expressible. The level 1 kernels in `kernels/sycl/blas/level1/level1.hpp` call it
+for `iamax`) is expressible. The level 1 kernels in `source/kernels/sycl/blas/level1/level1.hpp` call it
 directly.
 
 - `Accum`: The accumulation policy, instantiated on `W`.

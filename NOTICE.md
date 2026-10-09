@@ -13,8 +13,8 @@ in `third_party/licenses/`.
 
 | Work | Files here | Licence | Licence text |
 | --- | --- | --- | --- |
-| portBLAS, Copyright (C) Codeplay Software Limited | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `kernels/sycl/blas/level3/syrk.hpp`, `kernels/sycl/blas/level3/syr2k.hpp` | Apache-2.0 | `third_party/licenses/Apache-2.0.txt` |
-| Random123, Copyright 2010-2012, D. E. Shaw Research | `kernels/sycl/random/philox.hpp` | BSD-3-Clause | `third_party/licenses/BSD-3-Clause-Random123.txt` |
+| portBLAS, Copyright (C) Codeplay Software Limited | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp`, `source/kernels/sycl/blas/level3/syrk.hpp`, `source/kernels/sycl/blas/level3/syr2k.hpp` | Apache-2.0 | `third_party/licenses/Apache-2.0.txt` |
+| Random123, Copyright 2010-2012, D. E. Shaw Research | `source/kernels/sycl/random/philox.hpp` | BSD-3-Clause | `third_party/licenses/BSD-3-Clause-Random123.txt` |
 | Reference BLAS, as LAPACK distributes it, Copyright (c) 1992-2025 The University of Tennessee and The University of Tennessee Research Foundation, (c) 2000-2025 The University of California Berkeley, (c) 2006-2025 The University of Colorado Denver | `include/SushiBLAS/kernels/blas/givens.hpp`, `include/SushiBLAS/kernels/blas/modified_givens.hpp` | modified BSD, SPDX `BSD-3-Clause-Open-MPI` | `third_party/licenses/BSD-3-Clause-Open-MPI-LAPACK.txt` |
 | Contributor Covenant 2.1 | `.github/CODE_OF_CONDUCT.md` | not read; the estate audit names CC BY 4.0 | not in `third_party/licenses/` |
 
@@ -29,8 +29,8 @@ search was not repeated.
 | File | Source | Version | Licence |
 | --- | --- | --- | --- |
 | `include/SushiBLAS/kernels/sycl/blas/level3/gemm.hpp` | portBLAS, https://github.com/codeplaysoftware/portBLAS, `src/operations/blas3/gemm_local.hpp` and `gemm_no_local.hpp` | no upstream commit is recorded in this tree; the repository was archived in January 2025 | Apache-2.0, Copyright (C) Codeplay Software Limited; text in `third_party/licenses/Apache-2.0.txt` |
-| `kernels/sycl/blas/level3/syrk.hpp` | The GEMM tiling above, composed for SYRK; portBLAS has no SYRK kernel | as above | Apache-2.0 for the tiling it carries over, as above |
-| `kernels/sycl/blas/level3/syr2k.hpp` | The same tiling with two register blocks, composed for SYR2K and HER2K | as above | Apache-2.0 for the tiling it carries over, as above |
+| `source/kernels/sycl/blas/level3/syrk.hpp` | The GEMM tiling above, composed for SYRK; portBLAS has no SYRK kernel | as above | Apache-2.0 for the tiling it carries over, as above |
+| `source/kernels/sycl/blas/level3/syr2k.hpp` | The same tiling with two register blocks, composed for SYR2K and HER2K | as above | Apache-2.0 for the tiling it carries over, as above |
 
 ```
 portBLAS / oneMath SYCL BLAS
@@ -58,9 +58,9 @@ that form.
 
 | File | Reference | Licence of the reference |
 | --- | --- | --- |
-| `kernels/sycl/random/philox.hpp` | Philox4x32-10 from Salmon, Moraes, Dror and Shaw, "Parallel Random Numbers: As Easy as 1, 2, 3", SC'11; round constants checked against Random123, https://github.com/DEShawResearch/random123, `include/Random123/philox.h` | The paper carries no code licence. Random123 is BSD-3-Clause, Copyright 2010-2012, D. E. Shaw Research; its `LICENSE` on `main` was fetched on 2026-10-09 and is in `third_party/licenses/` |
-| `kernels/sycl/random/poisson.hpp`, `poisson_ptrs` | Hoermann's transformed rejection with squeeze (PTRS), Insurance: Mathematics and Economics 12, 1993, as `kernels/README.md` cites it | A journal article; no code licence |
-| `kernels/sycl/random/poisson.hpp`, `poisson_knuth` | Knuth's multiplication loop for a Poisson draw, as `kernels/README.md` names it | A textbook algorithm; no code licence |
+| `source/kernels/sycl/random/philox.hpp` | Philox4x32-10 from Salmon, Moraes, Dror and Shaw, "Parallel Random Numbers: As Easy as 1, 2, 3", SC'11; round constants checked against Random123, https://github.com/DEShawResearch/random123, `include/Random123/philox.h` | The paper carries no code licence. Random123 is BSD-3-Clause, Copyright 2010-2012, D. E. Shaw Research; its `LICENSE` on `main` was fetched on 2026-10-09 and is in `third_party/licenses/` |
+| `source/kernels/sycl/random/poisson.hpp`, `poisson_ptrs` | Hoermann's transformed rejection with squeeze (PTRS), Insurance: Mathematics and Economics 12, 1993, as `kernels/README.md` cites it | A journal article; no code licence |
+| `source/kernels/sycl/random/poisson.hpp`, `poisson_knuth` | Knuth's multiplication loop for a Poisson draw, as `kernels/README.md` names it | A textbook algorithm; no code licence |
 | `include/SushiBLAS/kernels/blas/givens.hpp` | The `xROTG` algorithm LAPACK 3.10 introduced, transcribed from the reference BLAS sources `drotg.f90` and `zrotg.f90` as a web fetch returned them on 2026-10-07 | LAPACK's `LICENSE` on `master`, fetched on 2026-10-09 and kept in `third_party/licenses/` |
 | `include/SushiBLAS/kernels/blas/modified_givens.hpp` | The modified Givens construction, transcribed from the reference BLAS source `drotmg.f` the same way | as above |
 
@@ -164,7 +164,7 @@ these kernels is SushiBLAS's own responsibility from here on.
     neighbouring elements. The arithmetic for both is written out at the read
     site.
 
-- **`kernels/sycl/blas/level3/syrk.hpp`**
+- **`source/kernels/sycl/blas/level3/syrk.hpp`**
   **No dedicated SYRK tiling kernel exists upstream** - portBLAS's own
   `doc/MissingFeatures.md` lists SYRK as unimplemented. `C =
   alpha*op(A)*op(A)^T + beta*C` is mathematically `GEMM(A, A, transA=trans,
