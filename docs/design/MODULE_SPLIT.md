@@ -1,6 +1,6 @@
 # Splitting the library into modules
 
-**Status:** Shipped on 2026-10-09; the whole suite has not run on the module tree
+**Status:** Shipped on 2026-10-09
 
 SushiBLAS is laid out as one module: `include/SushiBLAS/` and `source/` under the root, one CMake
 target, one test program. The tree already has boundaries, and `tools/layering/check_layering.py`
@@ -185,7 +185,8 @@ What was checked on 2026-10-09, on one machine with an RTX 3080 Ti:
 - `sb test` with a filter ran 463 tests, the same 463 the filter found before the move, and all
   passed.
 - The six checks of `AGENTS.md` and the 79 tests of the command line pass.
+- `sb test` ran the whole suite on the module tree: 2 049 tests, of which 2 014 passed, none
+  failed and 35 were skipped.
 
-What was not: the other tests of the suite have not run on the module tree, and the benchmark
-programs were not built. `tools/naming/sushiblas_include_paths_0_1_0.tsv` lists the include
-paths that changed.
+What was not: the benchmark programs were not built.
+`tools/naming/sushiblas_include_paths_0_1_0.tsv` lists the include paths that changed.

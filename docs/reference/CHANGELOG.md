@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-09 — docs: Recorded the first whole run of the suite on the module tree, 2 049 tests with none failed and 35 skipped (`MODULE_SPLIT.md`, `KNOWN_ISSUES.md`).
 - 2026-10-09 — blas: Split `utils.hpp` into five headers; the scalar result check and the scratch leases stay in `operands`, and the packed product, the local tile and the task helper move to `blas`.
 - 2026-10-09 — kernels: Removed `math.hpp`, which included nothing and was included by nothing.
 - 2026-10-09 — docs: Moved the notes of each unit test to its module's `tests/README.md` and the notes of the spatial view to the spatial module, and repaired sixteen dead links in the module READMEs.

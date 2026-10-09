@@ -8,7 +8,8 @@ such as `DESIGN_BLAS_L3`, `PLAN` or `PLAN_EXT` is a heading of `SPEC.md` or `PLA
 
 ## Full run of the v0.1.0 tree
 
-The whole suite passed on 2026-10-09 on the CUDA build with an RTX 3080 Ti, 2 047 tests.
+The whole suite ran on the module tree on 2026-10-09, on the CUDA build with an RTX 3080 Ti:
+2 049 tests, 2 014 passed, none failed, 35 skipped.
 
 - Run `sb build --benchmarks` and `sb test` on the OpenCL CPU device, where this tree has never
   run, and fix what it finds.
@@ -158,12 +159,8 @@ records them and holds the steps that have not run.
 
 ## Layout, needing the owner
 
-- Split the library into modules under `modules/<tier>/<module>/`; [MODULE_SPLIT.md](MODULE_SPLIT.md)
-  holds the measured include graph, the proposed tree and four decisions that are open.
 - SushiRuntime, SushiDSP and SushiAI still name their source folder `src/` and are one
   module each; this repository moved to `modules/` on 2026-10-09 (L8).
-- The layout skill names four test folders. Add `benchmark/` and `package/` to it, or move the
-  two (L14).
 
 ## Continuous integration
 
