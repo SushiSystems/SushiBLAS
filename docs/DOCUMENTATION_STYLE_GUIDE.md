@@ -16,8 +16,8 @@ named follow the `documentation` skill. Neither is restated here.
 - A decision or work item cited by its short name (D1, D3, SB-6) is defined in
   [the glossary](reference/GLOSSARY.md).
 - The CLI's manual is [`cli/README.md`](../cli/README.md), beside the code it describes.
-- `docs/reference/MAINPAGE.md` is the page Doxygen opens the generated reference with. The `Doxyfile`
-  at the root reads it by that path.
+- `docs/reference/MAINPAGE.md` is the page Doxygen opens the generated reference with. The Doxyfile,
+  `.config/doxygen/Doxyfile`, reads it by that path.
 
 ## Words
 
@@ -26,6 +26,6 @@ spelling the code uses, such as `K_LICENSE_LINES` or the `LICENSE` file.
 
 ## Pages not yet through the humanizer pass
 
-`architecture/ARCHITECTURE.md`, `guides/INTEGRATION.md` and `design/GPU_VALIDATION.md` predate
+`architecture/README.md`, `guides/INTEGRATION.md` and `design/GPU_VALIDATION.md` predate
 this guide and were moved without a rewrite.
 [`design/REMAINING_WORK.md`](design/REMAINING_WORK.md) lists the pass.

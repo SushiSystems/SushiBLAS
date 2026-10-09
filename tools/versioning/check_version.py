@@ -97,7 +97,7 @@ K_HEADER_COPIES = (
         lambda version: str(version.patch),
     ),
 )
-K_DOXYFILE = "Doxyfile"
+K_DOXYFILE = ".config/doxygen/Doxyfile"
 K_DOXYFILE_COPIES = (
     Copy(
         "PROJECT_NUMBER",

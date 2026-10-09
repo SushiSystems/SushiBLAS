@@ -33,7 +33,7 @@ from versioning.check_version import (  # noqa: E402
 
 K_CMAKE = "CMakeLists.txt"
 K_HEADER = "include/SushiBLAS/version.hpp"
-K_DOXYFILE = "Doxyfile"
+K_DOXYFILE = ".config/doxygen/Doxyfile"
 K_PYPROJECT = "cli/pyproject.toml"
 K_MANIFEST = "sushi-module.toml"
 K_README = "README.md"
@@ -337,7 +337,7 @@ class CommandLineTest(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertEqual(
                 output,
-                "Doxyfile:1: rule_doxyfile: PROJECT_NUMBER is '1.0.0', "
+                ".config/doxygen/Doxyfile:1: rule_doxyfile: PROJECT_NUMBER is '1.0.0', "
                 "CMakeLists.txt:3 expects 1.2.3\n",
             )
 
