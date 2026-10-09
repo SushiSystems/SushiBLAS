@@ -349,7 +349,7 @@ namespace SushiBLAS
             {
                 refusal = error.what();
             }
-            EXPECT_NE(refusal.find("FORCE_REFERENCE"), std::string::npos)
+            EXPECT_NE(refusal.find("ForceReference"), std::string::npos)
                 << "spmv threw \"" << refusal << "\" for device-only values";
             EXPECT_TRUE(probe.take_nodes().empty());
         }

@@ -101,7 +101,7 @@ namespace SushiBLAS
             /** @brief Returns the name of a mode for a failure message. */
             [[nodiscard]] const char* mode_name(ExecutionMode mode) noexcept
             {
-                return mode == ExecutionMode::ForceSycl ? "FORCE_SYCL" : "FORCE_REFERENCE";
+                return mode == ExecutionMode::ForceSycl ? "ForceSycl" : "ForceReference";
             }
 
             /** @brief Returns the value that marks an element no kernel may read. */
@@ -764,7 +764,7 @@ namespace SushiBLAS
             try
             {
                 SushiBLAS::BLASOps(*engine).symm(*A, B, C, Core::Side::Left, Core::Uplo::Upper);
-                FAIL() << "FORCE_REFERENCE must refuse a device-only operand.";
+                FAIL() << "ForceReference must refuse a device-only operand.";
             }
             catch (const std::invalid_argument& e)
             {

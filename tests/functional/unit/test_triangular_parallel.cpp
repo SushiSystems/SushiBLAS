@@ -21,8 +21,8 @@
 
 /**
  * @file test_triangular_parallel.cpp
- * @brief Tests the blocked TRSV and TRSM kernel and the parallel TRMV kernel against exact
- *        integer systems, a double-precision truth and each other.
+ * @brief Tests the blocked TRSV, TBSV, TPSV and TRSM kernels and the parallel TRMV kernel
+ *        against exact integer systems, a double-precision truth and each other.
  * @author Mustafa Garip
  */
 
@@ -1204,7 +1204,7 @@ namespace SushiBLAS
                                         expected);
                 }
 
-                SCOPED_TRACE("FORCE_REFERENCE");
+                SCOPED_TRACE("ForceReference");
                 expect_equal_values(this->solve_through_view(system, b, K_EXACT_ALPHA,
                                                              ExecutionMode::ForceReference),
                                     expected);
@@ -1674,8 +1674,8 @@ namespace SushiBLAS
                 for (const ExecutionMode mode : K_MODES)
                 {
                     SCOPED_TRACE(describe(flags));
-                    SCOPED_TRACE(mode == ExecutionMode::ForceSycl ? "FORCE_SYCL"
-                                                                   : "FORCE_REFERENCE");
+                    SCOPED_TRACE(mode == ExecutionMode::ForceSycl ? "ForceSycl"
+                                                                   : "ForceReference");
                     this->expect_residual_within_bound(
                         system, b, K_ROUNDED_ALPHA,
                         this->solve_through_view(system, b, K_ROUNDED_ALPHA, mode), mode);
@@ -1903,8 +1903,8 @@ namespace SushiBLAS
 
             for (const ExecutionMode mode : K_MODES)
             {
-                SCOPED_TRACE(mode == ExecutionMode::ForceSycl ? "FORCE_SYCL"
-                                                               : "FORCE_REFERENCE");
+                SCOPED_TRACE(mode == ExecutionMode::ForceSycl ? "ForceSycl"
+                                                               : "ForceReference");
                 engine->set_mode(mode);
 
                 Tensor a_buffer = device_buffer<sycl::half>(*engine, a);

@@ -201,7 +201,7 @@ namespace SushiBLAS
                 /**
                  * @brief Fills `out[b*K + k] = draw_block(b)[k]` below n.
                  * @param draw_block Callable `(uint64_t block) -> std::array<T, K>` under the constraints of a device kernel.
-                 * @return The submitted event, or an empty one under FORCE_REFERENCE.
+                 * @return The submitted event, or an empty one under ForceReference.
                  */
                 template<typename T, typename DrawBlock>
                 [[nodiscard]] sycl::event operator()(int64_t n, T* out, DrawBlock draw_block) const
@@ -273,7 +273,7 @@ namespace SushiBLAS
          * @tparam Dom The element families the distribution draws; HALF is always refused.
          * @param params The distribution's parameters, recorded in metadata slots 0..n-1.
          * @param task_func Fills one element type of Dom through the RandomFill it is handed.
-         * @throws std::invalid_argument on an operand violation; UnsupportedExecution on a device-only t under FORCE_REFERENCE or a dtype its device cannot compute in. A refused call reserves no offset.
+         * @throws std::invalid_argument on an operand violation; UnsupportedExecution on a device-only t under ForceReference or a dtype its device cannot compute in. A refused call reserves no offset.
          * @see include/SushiBLAS/engine/math/README.md
          */
         template<Domain Dom, typename Func>

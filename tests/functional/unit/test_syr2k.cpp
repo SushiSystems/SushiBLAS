@@ -127,7 +127,7 @@ namespace SushiBLAS
             /** @brief Returns the name of a mode for a failure message. */
             [[nodiscard]] const char* mode_name(ExecutionMode mode) noexcept
             {
-                return mode == ExecutionMode::ForceSycl ? "FORCE_SYCL" : "FORCE_REFERENCE";
+                return mode == ExecutionMode::ForceSycl ? "ForceSycl" : "ForceReference";
             }
 
             /** @brief Returns the names of a layout, a triangle and a transpose for a message. */

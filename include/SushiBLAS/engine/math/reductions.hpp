@@ -39,7 +39,7 @@ namespace SushiBLAS
      * @brief Records reductions of a tensor into a scalar result tensor or along an axis.
      * @note A whole-tensor reduction needs a contiguous operand. Sum, prod, asum, nrm2,
      * count_nonfinite and sum_along of an empty tensor write their identity; every other
-     * reduction rejects an empty tensor. Under FORCE_REFERENCE a reduction folds on the host in
+     * reduction rejects an empty tensor. Under ForceReference a reduction folds on the host in
      * index order, a sum in double.
      */
     class ReductionOps final

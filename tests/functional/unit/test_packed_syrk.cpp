@@ -388,8 +388,8 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Expects one recorded update of order s to pack under FORCE_SYCL and to
-                 *        lie within the bound of the FORCE_REFERENCE result.
+                 * @brief Expects one recorded update of order s to pack under ForceSycl and to
+                 *        lie within the bound of the ForceReference result.
                  * @param record Records the update of C by A on the fixture's engine.
                  */
                 template<typename Record>

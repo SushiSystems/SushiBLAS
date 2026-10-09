@@ -21,7 +21,7 @@
 
 /**
  * @file test_reference_mode_guard.cpp
- * @brief Tests that FORCE_REFERENCE refuses device-only USM and runs on host-reachable USM.
+ * @brief Tests that ForceReference refuses device-only USM and runs on host-reachable USM.
  * @author Mustafa Garip
  */
 
@@ -59,7 +59,7 @@ namespace
     const std::string K_GEMM_NAME = "blas.lvl3.gemm";
 } // namespace
 
-/// @brief Fixture for the FORCE_REFERENCE host-pointer guard tests.
+/// @brief Fixture for the ForceReference host-pointer guard tests.
 class Unit_ReferenceModeGuardTest : public SushiBLASTest
 {
     protected:
@@ -136,7 +136,7 @@ TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceGemmRefusesADeviceOperand)
     try
     {
         SushiBLAS::BLASOps(*engine).gemm(*a, b, c);
-        FAIL() << "FORCE_REFERENCE must refuse a device-only operand.";
+        FAIL() << "ForceReference must refuse a device-only operand.";
     }
     catch (const std::invalid_argument& e)
     {

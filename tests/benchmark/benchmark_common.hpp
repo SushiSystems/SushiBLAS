@@ -94,11 +94,11 @@ namespace SushiBLAS::Bench
         switch (mode)
         {
             case ExecutionMode::Auto:
-                return "AUTO";
+                return "Auto";
             case ExecutionMode::ForceSycl:
-                return "FORCE_SYCL";
+                return "ForceSycl";
             case ExecutionMode::ForceReference:
-                return "FORCE_REFERENCE";
+                return "ForceReference";
         }
         return "UNKNOWN";
     }

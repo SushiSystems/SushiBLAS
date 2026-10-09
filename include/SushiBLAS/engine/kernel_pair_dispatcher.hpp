@@ -50,10 +50,10 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Runs reference_fn on the host under FORCE_REFERENCE, else sycl_fn.
+                 * @brief Runs reference_fn on the host under ForceReference, else sycl_fn.
                  * @param reference_fn Callable `() -> void` running the reference kernel.
                  * @param sycl_fn Callable `(sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`.
-                 * @return The submitted event, or an empty one under FORCE_REFERENCE.
+                 * @return The submitted event, or an empty one under ForceReference.
                  */
                 template<typename ReferenceFn, typename SyclFn>
                 sycl::event run(sycl::queue& q, const std::vector<sycl::event>& deps,

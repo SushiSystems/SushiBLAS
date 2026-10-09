@@ -432,8 +432,8 @@ namespace
     template<typename Out>
     struct ModeResults
     {
-        std::vector<Out> reference; /**< The result under FORCE_REFERENCE. */
-        std::vector<Out> device;    /**< The result under FORCE_SYCL. */
+        std::vector<Out> reference; /**< The result under ForceReference. */
+        std::vector<Out> device;    /**< The result under ForceSycl. */
     };
 
     /// @brief Names one reduction call and the shape of the result it writes.
@@ -757,13 +757,13 @@ namespace
 class Unit_ReductionOps : public SushiBLASTest
 {
     protected:
-        /** @brief Expects record to throw a std::invalid_argument that names FORCE_REFERENCE. */
+        /** @brief Expects record to throw a std::invalid_argument that names ForceReference. */
         template<typename Record>
         void expect_mode_refusal(const char* name, Record&& record)
         {
             SCOPED_TRACE(name);
             const std::string message = refusal_of(record);
-            EXPECT_NE(std::string::npos, message.find("FORCE_REFERENCE")) << message;
+            EXPECT_NE(std::string::npos, message.find("ForceReference")) << message;
         }
 
         /**
@@ -886,7 +886,7 @@ TEST_F(Unit_ReductionOps, NonRealDtypesAreRefusedByName)
 }
 
 /**
- * @brief Tests that a device-only operand is refused under FORCE_REFERENCE on every reduction seam.
+ * @brief Tests that a device-only operand is refused under ForceReference on every reduction seam.
  */
 TEST_F(Unit_ReductionOps, ADeviceOnlyOperandIsRefusedOnEverySeam)
 {
@@ -968,7 +968,7 @@ TEST_F(Unit_ReductionOps, EmptyOperandsBehaveAlikeInBothModes)
 }
 
 /**
- * @brief Tests that a reduction recorded under FORCE_REFERENCE leases no scratch and allocates none.
+ * @brief Tests that a reduction recorded under ForceReference leases no scratch and allocates none.
  */
 TEST_F(Unit_ReductionOps, AReferenceReductionLeasesNoScratch)
 {

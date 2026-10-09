@@ -500,7 +500,7 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that mean_spatial of an 8 by 8 HALF map of 2000 is 2000 in each channel under FORCE_SYCL, though each channel sums to 128 000. */
+        /** @brief Tests that mean_spatial of an 8 by 8 HALF map of 2000 is 2000 in each channel under ForceSycl, though each channel sums to 128 000. */
         TEST_F(Unit_ReduceSegments, AHalfMeanSpatialDoesNotOverflow)
         {
             if (!queue().get_device().has(sycl::aspect::fp16))
