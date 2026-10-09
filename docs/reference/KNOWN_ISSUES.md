@@ -11,7 +11,7 @@ in [the backlog](../design/REMAINING_WORK.md).
 
 | Issue | Where |
 | --- | --- |
-| The whole suite ran once on this tree, on 2026-10-09, on the CUDA build with an RTX 3080 Ti: 2 047 of 2 047 tests passed, the ones CTest lists as skipped among them. The tree has not run on the OpenCL CPU device or on any other card | the whole tree |
+| The whole suite ran on the module tree on 2026-10-09, on the CUDA build with an RTX 3080 Ti: of 2 049 tests 2 014 passed, none failed and 35 were skipped. The tree has not run on the OpenCL CPU device or on any other card | the whole tree |
 | Of the benchmark programs only `benchmark_band_packed` has run, on that card; no other design figure about speed is a measurement | `tests/benchmark/` |
 | The record-time refusal of a device that cannot host the `syrk` or `syr2k` tile was never seen to throw: the one device the tree ran on hosts both tiles | `modules/operations/blas/include/SushiBLAS/blas/local_tile.hpp`, `require_local_tile` |
 | With `SB_BUILD_TESTS` and `SB_BUILD_EXAMPLES` off, as under a consumer, the tree was never configured | `CMakeLists.txt` |
@@ -67,7 +67,7 @@ in [the backlog](../design/REMAINING_WORK.md).
 
 | Issue | Where |
 | --- | --- |
-| On the module tree the build, the package suite and 463 filtered tests pass; the rest of the suite has not run and the benchmarks were not built | `modules/` |
+| The benchmark programs were not built on the module tree | `tests/benchmark/` |
 | No test includes each header of a header-only module first and alone, so a header that forgot an include is caught only where a source of its own module includes it | `modules/foundation/`, `modules/kernels/`, `modules/engine/operands/`, `modules/engine/functor_map/` |
 | `sushi-module.toml` spells the remote in lower case, the remote itself is `SushiSystems/SushiBLAS` | `sushi-module.toml` |
 
