@@ -7,6 +7,7 @@ exists.
 | --- | --- | --- |
 | What has not run on GPU hardware, and how to check it | [GPU_VALIDATION.md](GPU_VALIDATION.md) | Open |
 | SYCL types in the interface, exceptions against statuses, and which kernels are installed | [PUBLIC_SEAM.md](PUBLIC_SEAM.md) | Shipped |
+| The split of the library into modules: the measured include graph, the tree and what the move did | [MODULE_SPLIT.md](MODULE_SPLIT.md) | Shipped |
 | The backlog | [REMAINING_WORK.md](REMAINING_WORK.md) | |
 
 ## Decisions without a document here
