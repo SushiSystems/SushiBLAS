@@ -9,8 +9,8 @@ cannot be collected without it.
 
 These tests once ran against a hand-written stub of that package. The stub cost twice. It had to
 grow every time sushicore did, and a test could end up pinning the imitation and not the
-contract: one of them asserted on an attribute only the fake had. sushicore now ships inside the
-SushiStack repository, so the real package is reachable, installed in the environment or sitting
+contract: one of them asserted on an attribute only the fake had. sushicore ships as its own
+package, so the real package is reachable, installed in the environment or sitting
 next door, and the tests use it.
 
 ## test_console_lazy.py
@@ -27,7 +27,7 @@ part a shared implementation cannot check on its own.
 
 ## test_suites.py
 
-`sb test` maps every suite to a `ctest -L` regex through `_SUITE_LABEL_REGEX`, with two
+`sb test` maps every suite to a `ctest -L` regex through `K_SUITE_LABEL_REGEX`, with two
 deliberate exceptions: `all`, which selects no label, and `package`, which runs no ctest. Both
 are absent from the mapping, so both depend on `test()` branching before it indexes the mapping.
 A missing branch is a `KeyError` at the moment the user runs the command. These tests exist to
