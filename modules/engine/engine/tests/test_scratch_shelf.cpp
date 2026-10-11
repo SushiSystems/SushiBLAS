@@ -124,7 +124,8 @@ namespace SushiBLAS
         {
             const std::size_t live_baseline = TestEnvironment::live_allocation_count();
 
-            EXPECT_THROW((void)shelf_->take(128, TestEnvironment::device_count()), std::runtime_error);
+            EXPECT_THROW((void)shelf_->take(128, TestEnvironment::device_count()),
+                         std::runtime_error);
             EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
         }
     } // namespace Test

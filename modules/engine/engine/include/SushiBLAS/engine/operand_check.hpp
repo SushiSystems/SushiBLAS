@@ -286,7 +286,7 @@ namespace SushiBLAS
             if ((!needs_fp64 && !needs_fp16) || !t.storage)
                 return;
 
-            const Device::Profile& profile = Device::profile_for(t.get_device());
+            const Device::Profile& profile = Device::profile_for(t.device());
             if (needs_fp64 && !profile.supports_fp64)
                 Detail::throw_execution_error(op,
                                               "operand '{}' has dtype {} but lives on a device "

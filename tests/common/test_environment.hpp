@@ -45,7 +45,7 @@ namespace SushiBLAS
         class TestEnvironment : public ::testing::Environment
         {
             public:
-                /** @brief Creates the runtime; a runtime that cannot be created stops the process. */
+                /** @brief Creates the runtime, or stops the process if it cannot be created. */
                 void SetUp() override
                 {
                     SB_LOG_INFO("--- Initializing SushiBLAS Test Environment ---");

@@ -44,7 +44,7 @@ namespace SushiBLAS
         public:
             /** @brief Builds the view over the recorder an engine composes. */
             explicit BLASOps(Engine& engine) noexcept
-                : BLASOps(engine.get_recorder())
+                : BLASOps(engine.recorder())
             {
 
             }

@@ -63,8 +63,9 @@ namespace SushiBLAS
             using SushiRuntime::Reads;
             using SushiRuntime::Runtime;
             using SushiRuntime::Writes;
-            using SushiRuntime::SushiException;
-            using SushiRuntime::Internal::Observability::ExecutionLayer;
+
+            /// @brief Names the layer a run report says the run took.
+            using ExecutionLayer = decltype(std::declval<Graph&>().run().value().layer);
 
             /// @brief Holds the steps one recording runs.
             constexpr std::size_t K_STEPS = 48;
@@ -106,10 +107,11 @@ namespace SushiBLAS
                 Harness(Runtime& runtime, std::size_t capacity)
                     : counter(runtime.buffer<std::uint32_t>(
                           1, SushiRuntime::DeviceIndex{0},
-                          SushiRuntime::Residency::Host)),
-                      step(runtime.buffer<std::uint32_t>(1)),
-                      schedule(runtime.buffer<std::uint32_t>(schedule_for(capacity).size())),
-                      history(runtime.buffer<std::uint32_t>(K_STEPS))
+                          SushiRuntime::Residency::Host).value()),
+                      step(runtime.buffer<std::uint32_t>(1).value()),
+                      schedule(runtime.buffer<std::uint32_t>(schedule_for(capacity).size())
+                                   .value()),
+                      history(runtime.buffer<std::uint32_t>(K_STEPS).value())
                 {
                     const std::vector<std::uint32_t> counts = schedule_for(capacity);
                     for (std::size_t i = 0; i < counts.size(); ++i)
@@ -186,7 +188,7 @@ namespace SushiBLAS
                 Recording record(Graph& graph)
                 {
                     Recording recording;
-                    const auto report = graph.run(K_STEPS);
+                    const auto report = graph.run(K_STEPS).value();
                     EXPECT_TRUE(report.is_successful);
                     recording.layer = report.layer;
                     recording.digests.assign(history.data(), history.data() + K_STEPS);
@@ -200,10 +202,10 @@ namespace SushiBLAS
              */
             void expect_chain_matches_scheduler(const std::function<Recording(Runtime&)>& workload)
             {
-                auto chained_runtime = Runtime::create();
+                auto chained_runtime = Runtime::create().value();
                 SushiRuntime::RuntimeConfig forced;
                 forced.force_scheduler = true;
-                auto scheduled_runtime = Runtime::create(forced);
+                auto scheduled_runtime = Runtime::create(forced).value();
 
                 const Recording chained = workload(chained_runtime);
                 const Recording scheduled = workload(scheduled_runtime);
@@ -230,16 +232,16 @@ namespace SushiBLAS
             expect_chain_matches_scheduler([](Runtime& runtime)
             {
                 Harness harness(runtime, K_CAPACITY);
-                auto values = runtime.buffer<float>(K_CAPACITY);
-                auto result = runtime.buffer<float>(1);
-                auto bits = runtime.buffer<std::uint32_t>(1);
+                auto values = runtime.buffer<float>(K_CAPACITY).value();
+                auto result = runtime.buffer<float>(1).value();
+                auto bits = runtime.buffer<std::uint32_t>(1).value();
                 for (std::size_t i = 0; i < K_CAPACITY; ++i)
                     values[i] = static_cast<float>((i * 7919u) % 1013u) * 0.001f + 0.1f;
 
                 auto graph = runtime.graph();
                 harness.add_producer(graph);
                 GraphPrimitives::reduce(graph.recorder(), values, result,
-                                        harness.device_count(K_CAPACITY), Sum<float>{});
+                                        harness.device_count(K_CAPACITY), Sum<float>{}).value();
                 const float* r = result.data();
                 std::uint32_t* b = bits.data();
                 // The float result reaches the digest as its bit pattern.
@@ -262,17 +264,17 @@ namespace SushiBLAS
             expect_chain_matches_scheduler([](Runtime& runtime)
             {
                 Harness harness(runtime, K_SEGMENTS);
-                auto offsets = runtime.buffer<std::uint32_t>(K_SEGMENTS + 1);
+                auto offsets = runtime.buffer<std::uint32_t>(K_SEGMENTS + 1).value();
                 std::uint32_t at = 0;
                 for (std::size_t s = 0; s <= K_SEGMENTS; ++s)
                 {
                     offsets[s] = at;
                     at += static_cast<std::uint32_t>(s % 5);
                 }
-                auto values = runtime.buffer<std::uint32_t>(at);
+                auto values = runtime.buffer<std::uint32_t>(at).value();
                 for (std::size_t i = 0; i < at; ++i)
                     values[i] = static_cast<std::uint32_t>(i) * 2654435761u;
-                auto out = runtime.buffer<std::uint32_t>(K_SEGMENTS);
+                auto out = runtime.buffer<std::uint32_t>(K_SEGMENTS).value();
                 for (std::size_t s = 0; s < K_SEGMENTS; ++s)
                     out[s] = 0;
 
@@ -280,7 +282,7 @@ namespace SushiBLAS
                 harness.add_producer(graph);
                 GraphPrimitives::segmented_reduce(graph.recorder(), values, offsets, out,
                                                   harness.device_count(K_SEGMENTS),
-                                                  Sum<std::uint32_t>{});
+                                                  Sum<std::uint32_t>{}).value();
                 // A segment past the live count keeps an earlier fold, so later steps differ.
                 std::uint32_t* o = out.data();
                 graph.add(K_SEGMENTS, Reads(out), Writes(out),
@@ -300,9 +302,9 @@ namespace SushiBLAS
             expect_chain_matches_scheduler([](Runtime& runtime)
             {
                 Harness harness(runtime, K_CAPACITY);
-                auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY);
-                auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1);
-                auto total = runtime.buffer<std::uint32_t>(1);
+                auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY).value();
+                auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1).value();
+                auto total = runtime.buffer<std::uint32_t>(1).value();
                 for (std::size_t i = 0; i < K_CAPACITY; ++i)
                     counts[i] = static_cast<std::uint32_t>((i * 31u) % 9u);
                 for (std::size_t i = 0; i <= K_CAPACITY; ++i)
@@ -311,7 +313,7 @@ namespace SushiBLAS
                 auto graph = runtime.graph();
                 harness.add_producer(graph);
                 GraphPrimitives::prefix_scan(graph.recorder(), counts, offsets, total,
-                                             harness.device_count(K_CAPACITY));
+                                             harness.device_count(K_CAPACITY)).value();
                 harness.add_live_digest(graph, offsets, 1);
                 return harness.record(graph);
             });
@@ -327,11 +329,11 @@ namespace SushiBLAS
             expect_chain_matches_scheduler([](Runtime& runtime)
             {
                 Harness harness(runtime, K_COUNT_CAPACITY);
-                auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY);
-                auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY);
-                auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1);
-                auto total = runtime.buffer<std::uint32_t>(1);
-                auto packed = runtime.buffer<std::uint32_t>(K_PACKED);
+                auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
+                auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
+                auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
+                auto total = runtime.buffer<std::uint32_t>(1).value();
+                auto packed = runtime.buffer<std::uint32_t>(K_PACKED).value();
                 for (std::size_t i = 0; i < K_COUNT_CAPACITY; ++i)
                 {
                     keys[i] = static_cast<std::uint32_t>((i * 7u + i / 13u) % K_BUCKETS);
@@ -347,7 +349,8 @@ namespace SushiBLAS
                 auto graph = runtime.graph();
                 harness.add_producer(graph);
                 GraphPrimitives::counting_sort(graph.recorder(), keys, indices, offsets, total,
-                                               harness.device_count(K_COUNT_CAPACITY), key_range);
+                                               harness.device_count(K_COUNT_CAPACITY), key_range)
+                    .value();
 
                 const std::uint32_t* ip = indices.data();
                 const std::uint32_t* op = offsets.data();
@@ -373,12 +376,12 @@ namespace SushiBLAS
         {
             constexpr std::size_t K_CAPACITY = 100;
 
-            auto runtime = Runtime::create();
+            auto runtime = Runtime::create().value();
             auto counter = runtime.buffer<std::uint32_t>(
-                1, SushiRuntime::DeviceIndex{0}, SushiRuntime::Residency::Host);
-            auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY);
-            auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+                1, SushiRuntime::DeviceIndex{0}, SushiRuntime::Residency::Host).value();
+            auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
             std::uint32_t* c = counter.data();
 
             auto graph = runtime.graph();
@@ -388,15 +391,15 @@ namespace SushiBLAS
                           c[0] = static_cast<std::uint32_t>(K_CAPACITY) + 1u;
                       });
             GraphPrimitives::prefix_scan(graph.recorder(), counts, offsets, total,
-                                         LateCount::from_device(K_CAPACITY, counter));
-            EXPECT_THROW(graph.run(4), SushiException);
+                                         LateCount::from_device(K_CAPACITY, counter)).value();
+            EXPECT_FALSE(graph.run(4).has_value());
 
             // A later graph with a count inside the capacity runs clean on the same runtime.
             auto valid = runtime.graph();
             valid.add(std::size_t{1}, Reads{}, Writes(counter), [c](std::size_t) { c[0] = 3u; });
             GraphPrimitives::prefix_scan(valid.recorder(), counts, offsets, total,
-                                         LateCount::from_device(K_CAPACITY, counter));
-            const auto report = valid.run(2);
+                                         LateCount::from_device(K_CAPACITY, counter)).value();
+            const auto report = valid.run(2).value();
             EXPECT_TRUE(report.is_successful);
             EXPECT_EQ(report.layer, ExecutionLayer::Chain);
         }

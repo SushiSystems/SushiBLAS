@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <SushiRuntime/api/data/buffer.hpp>
@@ -55,14 +56,15 @@ namespace SushiBLAS
          * @param counts  Holds at least n.capacity() elements.
          * @param offsets Holds at least n.capacity() + 1; offsets[live n] receives the sum.
          * @param total   Holds at least one element; total[0] receives the sum.
-         * @throws SushiRuntime::SushiException With invalid_graph for a short buffer or
-         *         for counts and offsets on different devices; a run throws past n.capacity().
+         * @return Nothing, or an error; modules/foundation/graph_primitives/README.md lists them.
+         *         A run returns an error past n.capacity().
          */
-        inline void prefix_scan(SushiRuntime::Recorder& recorder,
-                                const SushiRuntime::Buffer<std::uint32_t>& counts,
-                                const SushiRuntime::Buffer<std::uint32_t>& offsets,
-                                const SushiRuntime::Buffer<std::uint32_t>& total,
-                                SushiRuntime::LateCount n)
+        [[nodiscard]] inline SushiRuntime::Result<void>
+        prefix_scan(SushiRuntime::Recorder& recorder,
+                    const SushiRuntime::Buffer<std::uint32_t>& counts,
+                    const SushiRuntime::Buffer<std::uint32_t>& offsets,
+                    const SushiRuntime::Buffer<std::uint32_t>& total,
+                    SushiRuntime::LateCount n)
         {
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
@@ -74,18 +76,18 @@ namespace SushiBLAS
 
             const std::size_t capacity = n.capacity();
             if (capacity > counts.size())
-                Detail::throw_invalid_graph(
+                return Detail::invalid_graph(
                     "prefix_scan: n.capacity() (" + std::to_string(capacity) +
                     ") exceeds the counts buffer's size (" + std::to_string(counts.size()) +
                     ").");
             if (offsets.size() < capacity + 1)
-                Detail::throw_invalid_graph(
+                return Detail::invalid_graph(
                     "prefix_scan: offsets holds " + std::to_string(offsets.size()) +
                     " elements but " + std::to_string(capacity + 1) + " are required.");
             if (total.size() == 0)
-                Detail::throw_invalid_graph("prefix_scan: the total buffer holds no elements.");
+                return Detail::invalid_graph("prefix_scan: the total buffer holds no elements.");
             if (offsets.device_index() != counts.device_index())
-                Detail::throw_invalid_graph(
+                return Detail::invalid_graph(
                     "prefix_scan: counts and offsets must live on the same device.");
 
             const std::vector<Detail::ReduceLevel> levels = Detail::plan_tiled_levels(capacity);
@@ -105,7 +107,7 @@ namespace SushiBLAS
                         total_base[0] = 0;
                     },
                     NodeOptions{std::size_t{1}});
-                return;
+                return Detail::recording_outcome(recorder);
             }
 
             const std::size_t level_count = levels.size();
@@ -116,17 +118,27 @@ namespace SushiBLAS
             std::uint32_t* down_scratch = nullptr;
             if (sweep_scratch_count != 0)
             {
-                up_scratch = recorder.scratch<std::uint32_t>(
+                auto up_block = recorder.scratch<std::uint32_t>(
                     sweep_scratch_count, counts.device_index(), counts.residency());
-                down_scratch = recorder.scratch<std::uint32_t>(
+                if (!up_block)
+                    return SushiRuntime::make_error(std::move(up_block.error()));
+                up_scratch = *up_block;
+
+                auto down_block = recorder.scratch<std::uint32_t>(
                     sweep_scratch_count, counts.device_index(), counts.residency());
+                if (!down_block)
+                    return SushiRuntime::make_error(std::move(down_block.error()));
+                down_scratch = *down_block;
             }
 
             // state[i] is the live in_count of level i, state[level_count + i] its out_count.
             const std::size_t state_words = 2 * level_count;
-            std::uint32_t* state = recorder.scratch<std::uint32_t>(
+            auto state_block = recorder.scratch<std::uint32_t>(
                 state_words, counts.device_index(), counts.residency());
-            const ResourceRegion state_region{state, 0, state_words * sizeof(std::uint32_t)};
+            if (!state_block)
+                return SushiRuntime::make_error(std::move(state_block.error()));
+            std::uint32_t* state = *state_block;
+            const BufferRegion state_region{state, 0, state_words * sizeof(std::uint32_t)};
 
             // Every node this call records belongs to one rule.
             auto rule = recorder.rule();
@@ -141,8 +153,8 @@ namespace SushiBLAS
 
             const auto words = [](std::uint32_t* base, std::size_t offset, std::size_t count)
             {
-                return ResourceRegion{static_cast<void*>(base), offset * sizeof(std::uint32_t),
-                                      count * sizeof(std::uint32_t)};
+                return BufferRegion{static_cast<void*>(base), offset * sizeof(std::uint32_t),
+                                    count * sizeof(std::uint32_t)};
             };
 
             // The up-sweep folds every level but the top into scratch for the down-sweep.
@@ -213,7 +225,7 @@ namespace SushiBLAS
 
                 // The base of each tile is the exclusive prefix the level above wrote for it.
                 const std::uint32_t* tile_bases = down_scratch + level.out_offset;
-                const ResourceRegion bases_region =
+                const BufferRegion bases_region =
                     words(down_scratch, level.out_offset, level.out_count);
 
                 const Reads reads = first
@@ -244,7 +256,7 @@ namespace SushiBLAS
             }
 
             if (level_count == 1)
-                return;
+                return Detail::recording_outcome(recorder);
 
             // Level 0 stops at offsets[live n - 1]; this node copies total into offsets[live n].
             recorder.kernel(
@@ -255,6 +267,8 @@ namespace SushiBLAS
                     offsets_base[live_n] = total_base[0];
                 },
                 NodeOptions{std::size_t{1}});
+
+            return Detail::recording_outcome(recorder);
         }
 
     } // namespace GraphPrimitives

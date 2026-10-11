@@ -61,7 +61,7 @@
 
 /**
  * @def SB_ACTIVE_LOG_LEVEL
- * @brief Names the SushiBLAS::Core::LogType enumerator of the compiled-in log level: Off, Err,
+ * @brief Names the SushiBLAS::Core::LogLevel enumerator of the compiled-in log level: Off, Err,
  *        Warn, Info or Debug.
  * @see modules/foundation/core/README.md
  */
@@ -80,7 +80,7 @@ namespace SushiBLAS
         /**
          * @brief Logging levels to filter messages.
          */
-        enum class LogType : int 
+        enum class LogLevel : int 
         {
             Off   = 0, /**< Logging is disabled */
             Err   = 1, /**< Only error messages */
@@ -97,9 +97,9 @@ namespace SushiBLAS
          * the call.
          */
         #if SB_ENABLE_LOGGING
-            inline constexpr LogType K_ACTIVE_LOG_LEVEL = LogType::SB_ACTIVE_LOG_LEVEL;
+            inline constexpr LogLevel K_ACTIVE_LOG_LEVEL = LogLevel::SB_ACTIVE_LOG_LEVEL;
         #else
-            inline constexpr LogType K_ACTIVE_LOG_LEVEL = LogType::Off;
+            inline constexpr LogLevel K_ACTIVE_LOG_LEVEL = LogLevel::Off;
         #endif
 
         /**
@@ -110,7 +110,7 @@ namespace SushiBLAS
             class AsyncLogger 
             {
                 private:
-                    std::queue<std::pair<LogType, std::string>> queue_;
+                    std::queue<std::pair<LogLevel, std::string>> queue_;
                     std::mutex mutex_;
                     std::condition_variable cv_;
                     /// @brief Wakes flush() each time the worker has written every queued line.
@@ -132,7 +132,7 @@ namespace SushiBLAS
                                 auto log_entry = std::move(queue_.front());
                                 lock.unlock(); // Unlock while writing to file/terminal
 
-                                FILE* stream = (log_entry.first <= LogType::Err) ? stderr : stdout;
+                                FILE* stream = (log_entry.first <= LogLevel::Err) ? stderr : stdout;
 
                                 #ifdef _WIN32
                                     _lock_file(stream);
@@ -178,7 +178,7 @@ namespace SushiBLAS
                         }
                     }
 
-                    void enqueue(LogType level, std::string&& msg) 
+                    void enqueue(LogLevel level, std::string&& msg) 
                     {
                         {
                             std::lock_guard<std::mutex> lock(mutex_);
@@ -200,10 +200,10 @@ namespace SushiBLAS
                 private:
                     std::mutex sync_mutex_;
                 public:
-                    void enqueue(LogType level, std::string&& msg) 
+                    void enqueue(LogLevel level, std::string&& msg) 
                     {
                         std::lock_guard<std::mutex> lock(sync_mutex_);
-                        FILE* stream = (level <= LogType::Err) ? stderr : stdout;
+                        FILE* stream = (level <= LogLevel::Err) ? stderr : stdout;
                         #ifdef _WIN32
                             _lock_file(stream);
                             fputs(msg.c_str(), stream);
@@ -231,7 +231,7 @@ namespace SushiBLAS
                 return logger;
             }
 
-            inline void dispatch_log(LogType level, std::string&& msg)
+            inline void dispatch_log(LogLevel level, std::string&& msg)
             {
                 if (is_sync_logging_enabled().load(std::memory_order_relaxed))
                 {
@@ -269,7 +269,7 @@ namespace SushiBLAS
              * @brief Creates a timestamp with millisecond precision.
              * @return Formatted time string (HH:MM:SS.mmm).
              */
-            inline std::string get_timestamp()
+            inline std::string timestamp()
             {
                 auto now = std::chrono::system_clock::now();
                 auto time = std::chrono::system_clock::to_time_t(now);
@@ -331,12 +331,12 @@ namespace SushiBLAS
             };
 
             template<typename... Args>
-            void log_base(LogType level, std::string_view prefix, const SourceLocation& loc, std::string_view fmt, const Args&... args)
+            void log_base(LogLevel level, std::string_view prefix, const SourceLocation& loc, std::string_view fmt, const Args&... args)
             {
                 #if SB_ENABLE_LOGGING
                     // Only the message is formatted; the prefix is streamed; see modules/foundation/core/README.md.
                     std::ostringstream os;
-                    os << '[' << get_timestamp() << "] ["
+                    os << '[' << timestamp() << "] ["
                        << prefix << "] ["
                        << loc.file_name() << ':' << loc.line() << "] ["
                        << loc.function_name() << "] "
@@ -350,7 +350,7 @@ namespace SushiBLAS
              * @brief Emits a message through the logger when Level is within the compiled-in level.
              * @see modules/foundation/core/README.md
              */
-            template<LogType Level, typename... Args>
+            template<LogLevel Level, typename... Args>
             inline void log_if(std::string_view prefix, const SourceLocation& loc, std::string_view fmt, Args&&... args)
             {
                 if constexpr (K_ACTIVE_LOG_LEVEL >= Level)
@@ -385,19 +385,19 @@ namespace SushiBLAS
     // The macros take (...) so the format string binds to log_if's fmt parameter; see modules/foundation/core/README.md.
     #if SB_ENABLE_LOGGING
         #define SB_LOG_ERROR(...) \
-            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::Err>("ERROR", SB_CURRENT_LOCATION, __VA_ARGS__)
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogLevel::Err>("ERROR", SB_CURRENT_LOCATION, __VA_ARGS__)
 
         /** @brief Logs a message at warning level. */
         #define SB_LOG_WARN(...) \
-            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::Warn>("WARN", SB_CURRENT_LOCATION, __VA_ARGS__)
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogLevel::Warn>("WARN", SB_CURRENT_LOCATION, __VA_ARGS__)
 
         /** @brief Logs a message at info level. */
         #define SB_LOG_INFO(...) \
-            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::Info>("INFO", SB_CURRENT_LOCATION, __VA_ARGS__)
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogLevel::Info>("INFO", SB_CURRENT_LOCATION, __VA_ARGS__)
 
         /** @brief Logs a message at debug level. */
         #define SB_LOG_DEBUG(...) \
-            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogType::Debug>("DEBUG", SB_CURRENT_LOCATION, __VA_ARGS__)
+            SushiBLAS::Core::Detail::log_if<SushiBLAS::Core::LogLevel::Debug>("DEBUG", SB_CURRENT_LOCATION, __VA_ARGS__)
     #else
         #define SB_LOG_ERROR(...) ((void)0)
         #define SB_LOG_WARN(...)  ((void)0)

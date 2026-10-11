@@ -103,7 +103,7 @@ Dispatch::execute_gemm(engine.recorder(), X, W, Y,
                            .reads(bias));
 ```
 
-**Operands are named as tensors, never as regions.** A `ResourceRegion` converts implicitly from a
+**Operands are named as tensors, never as regions.** A `BufferRegion` converts implicitly from a
 bare pointer, and a bare pointer widens to the whole allocation of whatever it points at, so two
 views of one arena become two unrelated resources, `overlaps` says false, and the tracker emits no
 edge at all. That is exactly the mistake that cost a training run in the reduction seam (see

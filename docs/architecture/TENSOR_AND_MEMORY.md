@@ -50,9 +50,9 @@ ordered.
 ## Storage and alignment
 
 `Storage` (`storage.hpp`) owns one reference-counted USM allocation with a
-`SushiRuntime::API::Residency` (`Shared`, `Device` or `Host`) on one device queue of the
+`SushiRuntime::Residency` (`Shared`, `Device` or `Host`) on one device queue of the
 `RuntimeContext`. Every allocation base is aligned to `K_STORAGE_ALIGNMENT`, 128 bytes, which is
-`SushiRuntime::Core::DEFAULT_ALIGNMENT` (a `static_assert` holds the two equal), and the allocated
+`SushiRuntime::K_DEFAULT_ALIGNMENT` (a `static_assert` holds the two equal), and the allocated
 size is the requested size rounded up to that. The context is a non-owning pointer and must
 outlive every `Storage`. The allocation is freed when the last reference to the `Storage` goes.
 

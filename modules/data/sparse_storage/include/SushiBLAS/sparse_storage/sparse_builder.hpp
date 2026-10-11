@@ -39,7 +39,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/sparse_types.hpp>
 #include <SushiBLAS/support/sparse_assembly.hpp>
-#include <SushiRuntime/SushiRuntime.h>
+#include <SushiRuntime/sushiruntime.hpp>
 
 namespace SushiBLAS
 {
@@ -57,7 +57,7 @@ namespace SushiBLAS
              */
             explicit SparseBuilder(
                 TensorFactory& factory,
-                SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared,
+                SushiRuntime::Residency residency = SushiRuntime::Residency::Shared,
                 std::size_t device_index = 0) noexcept
                 : factory_(&factory), residency_(residency), device_index_(device_index)
             {
@@ -173,7 +173,7 @@ namespace SushiBLAS
             TensorFactory* factory_;
 
             /// @brief The kind of USM every built tensor lives in.
-            SushiRuntime::API::Residency residency_;
+            SushiRuntime::Residency residency_;
 
             /// @brief The device queue that owns every built tensor.
             std::size_t device_index_;

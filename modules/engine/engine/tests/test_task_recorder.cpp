@@ -155,7 +155,7 @@ namespace SushiBLAS
                 EXPECT_EQ(1u, probe.take_recorded_count());
             }
 
-            // take_recorded_count() emptied the graph, so every call is recorded again before it runs.
+            // take_recorded_count() emptied the graph, so every call is recorded again.
             for (const FamilyCall& entry : calls)
                 entry.call();
             probe.execute().value();

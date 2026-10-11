@@ -139,10 +139,10 @@ perform would cost the scheduler a false edge.
 pointers where every other op family passes `Tensor::region()`. This family was missed in the
 conversion. For a tensor at offset zero the two are the same, so nothing caught it.
 
-For a view inside a shared arena they differ. A `ResourceRegion` built from a bare pointer keys
+For a view inside a shared arena they differ. A `BufferRegion` built from a bare pointer keys
 on that pointer as its allocation base. A region from `Tensor::region()` keys on the allocation
 base and carries the view's byte interval. Two views of one arena got two different bases,
-`ResourceRegion::overlaps` returned false, and the tracker emitted no edge. The reduction was
+`BufferRegion::overlaps` returned false, and the tracker emitted no edge. The reduction was
 free to run before the op that produced its input.
 
 This happened in practice. SushiAI's first arena-packed training run reported a loss of -57 where

@@ -50,7 +50,6 @@ namespace SushiBLAS
             using GraphPrimitives::prefix_scan;
             using SushiRuntime::LateCount;
             using SushiRuntime::Runtime;
-            using SushiRuntime::SushiException;
 
             /// @brief Holds the tile size the level plan of a scan is built on.
             constexpr std::size_t K_TILE = GraphPrimitives::K_REDUCE_TILE;
@@ -98,10 +97,10 @@ namespace SushiBLAS
 
             for (std::size_t n : sizes)
             {
-                auto runtime = Runtime::create();
-                auto counts = runtime.buffer<std::uint32_t>(n == 0 ? 1 : n);
-                auto offsets = runtime.buffer<std::uint32_t>(n + 2);
-                auto total = runtime.buffer<std::uint32_t>(1);
+                auto runtime = Runtime::create().value();
+                auto counts = runtime.buffer<std::uint32_t>(n == 0 ? 1 : n).value();
+                auto offsets = runtime.buffer<std::uint32_t>(n + 2).value();
+                auto total = runtime.buffer<std::uint32_t>(1).value();
 
                 const std::vector<std::uint32_t> host_counts = cycling_counts(n);
                 for (std::size_t i = 0; i < n; ++i)
@@ -115,8 +114,8 @@ namespace SushiBLAS
                     host_exclusive_scan(host_counts, n, expected_offsets);
 
                 auto graph = runtime.graph();
-                prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(n));
-                graph.run();
+                prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(n)).value();
+                graph.run().value();
 
                 EXPECT_EQ(total[0], expected_total) << "n = " << n;
                 for (std::size_t i = 0; i <= n; ++i)
@@ -131,16 +130,17 @@ namespace SushiBLAS
         {
             constexpr std::size_t K_COUNT = K_TILE + 1;
 
-            auto runtime = Runtime::create();
-            auto counts = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto offsets = runtime.buffer<std::uint32_t>(K_COUNT + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto counts = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_COUNT + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
             for (std::size_t i = 0; i < K_COUNT; ++i)
                 counts[i] = static_cast<std::uint32_t>(i + 1);
 
             auto graph = runtime.graph();
-            prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(K_COUNT));
-            graph.run();
+            prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(K_COUNT))
+                .value();
+            graph.run().value();
 
             EXPECT_EQ(total[0], static_cast<std::uint32_t>(K_COUNT * (K_COUNT + 1) / 2));
             EXPECT_EQ(offsets[K_COUNT], total[0]);
@@ -151,10 +151,10 @@ namespace SushiBLAS
         {
             constexpr std::size_t K_CAPACITY = 1000003;
 
-            auto runtime = Runtime::create();
-            auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY);
-            auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
             for (std::size_t i = 0; i < K_CAPACITY; ++i)
                 counts[i] = 1;
 
@@ -163,19 +163,19 @@ namespace SushiBLAS
                 LateCount::from_host(K_CAPACITY, [&live_n]() { return live_n; });
 
             auto graph = runtime.graph();
-            prefix_scan(graph.recorder(), counts, offsets, total, count);
+            prefix_scan(graph.recorder(), counts, offsets, total, count).value();
 
-            graph.run();
+            graph.run().value();
             EXPECT_EQ(total[0], 1000u);
             EXPECT_EQ(offsets[1000], 1000u);
 
             live_n = 700000;
-            graph.run();
+            graph.run().value();
             EXPECT_EQ(total[0], 700000u);
             EXPECT_EQ(offsets[700000], 700000u);
 
             live_n = 3;
-            graph.run();
+            graph.run().value();
             EXPECT_EQ(total[0], 3u);
             EXPECT_EQ(offsets[3], 3u);
 
@@ -188,13 +188,14 @@ namespace SushiBLAS
         {
             constexpr std::size_t K_CAPACITY = 300;
 
-            auto runtime = Runtime::create();
-            auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY);
-            auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
 
             auto graph = runtime.graph();
-            prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(K_CAPACITY));
+            prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(K_CAPACITY))
+                .value();
 
             for (std::uint32_t step = 0; step < 4; ++step)
             {
@@ -209,7 +210,7 @@ namespace SushiBLAS
                 const std::uint32_t expected_total =
                     host_exclusive_scan(host_counts, K_CAPACITY, expected_offsets);
 
-                graph.run();
+                graph.run().value();
 
                 EXPECT_EQ(total[0], expected_total) << "step " << step;
                 for (std::size_t i = 0; i <= K_CAPACITY; ++i)
@@ -227,21 +228,21 @@ namespace SushiBLAS
             constexpr std::size_t K_EXPECTED_PASSES = 5;
             constexpr std::size_t K_STEPS = 4;
 
-            auto runtime = Runtime::create();
-            auto counts = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY);
-            auto offsets = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto counts = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
             for (std::size_t i = 0; i < K_TWO_LEVEL_CAPACITY; ++i)
                 counts[i] = static_cast<std::uint32_t>((i % 7) + 1);
 
             auto graph = runtime.graph();
             graph.set_profiling(true);
             prefix_scan(graph.recorder(), counts, offsets, total,
-                        LateCount::fixed(K_TWO_LEVEL_CAPACITY));
+                        LateCount::fixed(K_TWO_LEVEL_CAPACITY)).value();
             EXPECT_EQ(graph.recorder().node_count(), K_EXPECTED_PASSES);
             EXPECT_EQ(graph.recorder().rule_count(), 1u);
 
-            const auto report = graph.run(K_STEPS);
+            const auto report = graph.run(K_STEPS).value();
 
             ASSERT_EQ(report.node_events.size(), K_EXPECTED_PASSES * K_STEPS);
 
@@ -264,19 +265,19 @@ namespace SushiBLAS
             // The nodes are the resolver, up 0, the top down pass, down 0 and the closing write.
             const std::vector<std::uint32_t> expected_widths = {1u, 3u, 1u, 3u, 1u};
 
-            auto runtime = Runtime::create();
-            auto counts = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY);
-            auto offsets = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto counts = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
             for (std::size_t i = 0; i < K_TWO_LEVEL_CAPACITY; ++i)
                 counts[i] = static_cast<std::uint32_t>((i % 7) + 1);
 
             auto graph = runtime.graph();
             graph.set_profiling(true);
             prefix_scan(graph.recorder(), counts, offsets, total,
-                        LateCount::fixed(K_TWO_LEVEL_CAPACITY));
+                        LateCount::fixed(K_TWO_LEVEL_CAPACITY)).value();
 
-            const auto report = graph.run();
+            const auto report = graph.run().value();
 
             ASSERT_EQ(report.node_events.size(), expected_widths.size());
             for (std::size_t i = 0; i < expected_widths.size(); ++i)
@@ -290,16 +291,16 @@ namespace SushiBLAS
         /** @brief Tests that a capacity of zero writes a zero total and a zero offsets[0]. */
         TEST(Unit_GraphPrimitivesPrefixScan, ZeroCapacityWritesZeroTotal)
         {
-            auto runtime = Runtime::create();
-            auto counts = runtime.buffer<std::uint32_t>(1);
-            auto offsets = runtime.buffer<std::uint32_t>(1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto counts = runtime.buffer<std::uint32_t>(1).value();
+            auto offsets = runtime.buffer<std::uint32_t>(1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
             offsets[0] = K_CANARY;
             total[0] = K_CANARY;
 
             auto graph = runtime.graph();
-            prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(0));
-            graph.run();
+            prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(0)).value();
+            graph.run().value();
 
             EXPECT_EQ(offsets[0], 0u);
             EXPECT_EQ(total[0], 0u);
@@ -310,35 +311,29 @@ namespace SushiBLAS
         {
             using Words = SushiRuntime::Buffer<std::uint32_t>;
 
-            auto runtime = Runtime::create();
-            auto counts = runtime.buffer<std::uint32_t>(8);
-            auto offsets = runtime.buffer<std::uint32_t>(9);
-            auto total = runtime.buffer<std::uint32_t>(1);
-            auto empty = runtime.buffer<std::uint32_t>(0);
+            auto runtime = Runtime::create().value();
+            auto counts = runtime.buffer<std::uint32_t>(8).value();
+            auto offsets = runtime.buffer<std::uint32_t>(9).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            auto empty = runtime.buffer<std::uint32_t>(0).value();
 
             auto graph = runtime.graph();
             const auto refused_code = [&graph](const Words& c, const Words& o, const Words& t,
                                                std::size_t capacity)
             {
-                try
-                {
+                const SushiRuntime::Result<void> recorded =
                     prefix_scan(graph.recorder(), c, o, t, LateCount::fixed(capacity));
-                }
-                catch (const SushiException& refused)
-                {
-                    return refused.error().code;
-                }
-                return SushiRuntime::Errc::ok;
+                return recorded ? SushiRuntime::ErrorCode::Ok : recorded.error().code;
             };
 
             EXPECT_EQ(refused_code(counts, offsets, total, 9),
-                      SushiRuntime::Errc::invalid_graph)
+                      SushiRuntime::ErrorCode::InvalidGraph)
                 << "nine counts do not fit a buffer of eight";
             EXPECT_EQ(refused_code(counts, counts, total, 8),
-                      SushiRuntime::Errc::invalid_graph)
+                      SushiRuntime::ErrorCode::InvalidGraph)
                 << "eight offsets cannot hold the sentinel of eight counts";
             EXPECT_EQ(refused_code(counts, offsets, empty, 8),
-                      SushiRuntime::Errc::invalid_graph)
+                      SushiRuntime::ErrorCode::InvalidGraph)
                 << "an empty total cannot receive the sum";
             EXPECT_EQ(graph.recorder().node_count(), 0u);
         }
@@ -346,15 +341,15 @@ namespace SushiBLAS
         /** @brief Tests that a live count above its capacity fails the run. */
         TEST(Unit_GraphPrimitivesPrefixScan, LateBoundAboveCapacityFailsTheRun)
         {
-            auto runtime = Runtime::create();
-            auto counts = runtime.buffer<std::uint32_t>(100);
-            auto offsets = runtime.buffer<std::uint32_t>(101);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto counts = runtime.buffer<std::uint32_t>(100).value();
+            auto offsets = runtime.buffer<std::uint32_t>(101).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
 
             auto graph = runtime.graph();
             prefix_scan(graph.recorder(), counts, offsets, total,
-                        LateCount::from_host(100, []() { return std::size_t{101}; }));
-            EXPECT_THROW(graph.run(), SushiException);
+                        LateCount::from_host(100, []() { return std::size_t{101}; })).value();
+            EXPECT_FALSE(graph.run().has_value());
         }
 
     } // namespace Test

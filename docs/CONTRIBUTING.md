@@ -166,7 +166,7 @@ if (condition)
 #include <cstddef>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiRuntime/SushiRuntime.h>
+#include <SushiRuntime/sushiruntime.hpp>
 ```
 
 ### Comments

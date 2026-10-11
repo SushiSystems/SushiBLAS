@@ -387,9 +387,9 @@ namespace SushiBLAS
                              std::to_string(dims.front()));
                 const SushiRuntime::span<const int64_t> span(dims.data(), dims.size());
                 auto shared = engine->create_tensor(span, Core::DataType::Float32,
-                                                    SushiRuntime::API::Residency::Shared);
+                                                    SushiRuntime::Residency::Shared);
                 auto device = engine->create_tensor(span, Core::DataType::Float32,
-                                                    SushiRuntime::API::Residency::Device);
+                                                    SushiRuntime::Residency::Device);
 
                 std::vector<float> values(static_cast<size_t>(shared.num_elements));
                 for (size_t i = 0; i < values.size(); ++i)
@@ -407,7 +407,7 @@ namespace SushiBLAS
             const std::vector<float> values{0.0f, 1.0f, 2.0f, 3.0f, 4.0f,  5.0f,
                                             6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f};
             auto device = engine->create_tensor({3, 4}, Core::DataType::Float32,
-                                                SushiRuntime::API::Residency::Device);
+                                                SushiRuntime::Residency::Device);
             SushiBLAS::IO(*engine).from_vector(device, values);
 
             const Tensor transposed = device.transpose(0, 1);

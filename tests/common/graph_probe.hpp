@@ -101,7 +101,7 @@ namespace SushiBLAS
                     return graph_.recorder().node_count();
                 }
 
-                /** @brief Returns how many tasks were recorded since the last call and drops them. */
+                /** @brief Returns how many tasks wait on the graph and drops them. */
                 [[nodiscard]] std::size_t take_recorded_count()
                 {
                     const std::size_t count = recorded_count();

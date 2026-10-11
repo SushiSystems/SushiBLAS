@@ -28,7 +28,7 @@ pass by accident, because an operation that ignores the offset writes over them.
 
 The tests run in family order: BLAS levels 1 to 3, elementwise, nonlinear, logic, reductions,
 random, the two tests about what an offset counts, and last three about alignment and one
-about `get_device`.
+about `device`.
 
 `OffsetIsCountedInElementsNotBytes`: the unit of `storage_offset` is a decision, not an
 accident, and it is the one that keeps every view naturally aligned. An element count scaled by

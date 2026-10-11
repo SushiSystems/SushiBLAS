@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <SushiRuntime/api/data/buffer.hpp>
@@ -53,15 +54,16 @@ namespace SushiBLAS
          * @brief Records a reduction of the first n values whose combination order never varies.
          * @tparam Combine Binary functor; must be trivially copyable.
          * @param output Receives the result in output[0]; identity when n is zero.
-         * @throws SushiRuntime::SushiException With invalid_graph if n exceeds the size
-         *         of input or output is empty, or allocation_failed if scratch does not fit.
+         * @return Nothing, or an error: InvalidGraph if n exceeds the size of input or output
+         *         is empty, AllocationFailed if scratch does not fit, or the recorder's refusal.
          * @see modules/foundation/graph_primitives/README.md
          */
         template <typename T, class Combine>
-        void reduce(SushiRuntime::Recorder& recorder,
-                    const SushiRuntime::Buffer<T>& input,
-                    const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op,
-                    T identity)
+        [[nodiscard]] SushiRuntime::Result<void>
+        reduce(SushiRuntime::Recorder& recorder,
+               const SushiRuntime::Buffer<T>& input,
+               const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op,
+               T identity)
         {
             using SushiRuntime::Access;
             using SushiRuntime::NodeOptions;
@@ -70,11 +72,11 @@ namespace SushiBLAS
             using SushiRuntime::BufferRegion;
 
             if (n > input.size())
-                Detail::throw_invalid_graph(
+                return Detail::invalid_graph(
                     "reduce: n (" + std::to_string(n) + ") exceeds the input buffer's size (" +
                     std::to_string(input.size()) + ").");
             if (output.size() == 0)
-                Detail::throw_invalid_graph("reduce: the output buffer holds no elements.");
+                return Detail::invalid_graph("reduce: the output buffer holds no elements.");
 
             T* out_base = output.data();
             if (n == 0)
@@ -86,7 +88,7 @@ namespace SushiBLAS
                         out_base[0] = identity;
                     },
                     NodeOptions{std::size_t{1}});
-                return;
+                return Detail::recording_outcome(recorder);
             }
 
             const std::vector<Detail::ReduceLevel> levels = Detail::plan_reduction(n);
@@ -95,8 +97,13 @@ namespace SushiBLAS
             // A single level writes the output directly and takes no scratch.
             T* scratch = nullptr;
             if (scratch_count != 0)
-                scratch = recorder.scratch<T>(scratch_count, input.device_index(),
-                                              input.residency());
+            {
+                auto scratch_block = recorder.scratch<T>(
+                    scratch_count, input.device_index(), input.residency());
+                if (!scratch_block)
+                    return SushiRuntime::make_error(std::move(scratch_block.error()));
+                scratch = *scratch_block;
+            }
 
             const T* in_base = input.data();
             void* scratch_key = static_cast<void*>(scratch);
@@ -116,12 +123,12 @@ namespace SushiBLAS
 
                 const Reads reads = first
                     ? Reads(input)
-                    : Reads(ResourceRegion{scratch_key, level.in_offset * sizeof(T),
-                                           level.in_count * sizeof(T)});
+                    : Reads(BufferRegion{scratch_key, level.in_offset * sizeof(T),
+                                         level.in_count * sizeof(T)});
                 const Writes writes = last
                     ? Writes(output)
-                    : Writes(ResourceRegion{scratch_key, level.out_offset * sizeof(T),
-                                            level.out_count * sizeof(T)});
+                    : Writes(BufferRegion{scratch_key, level.out_offset * sizeof(T),
+                                          level.out_count * sizeof(T)});
 
                 recorder.kernel(level.out_count, Access(reads, writes),
                     [src, dst, in_count, op](std::size_t t)
@@ -130,21 +137,23 @@ namespace SushiBLAS
                     },
                     NodeOptions{level.out_count});
             }
+
+            return Detail::recording_outcome(recorder);
         }
 
         /**
          * @brief Records a reduction whose live element count is resolved once per run.
          * @tparam Combine Binary functor; must be trivially copyable.
          * @param output Receives the result in output[0]; identity when the live count is zero.
-         * @throws SushiRuntime::SushiException With invalid_graph if n.capacity() exceeds
-         *         the size of input or output is empty; a run throws if the live count exceeds
-         *         n.capacity().
+         * @return Nothing, or an error as the fixed-count overload returns, for n.capacity();
+         *         a run returns an error if the live count exceeds n.capacity().
          */
         template <typename T, class Combine>
-        void reduce(SushiRuntime::Recorder& recorder,
-                    const SushiRuntime::Buffer<T>& input,
-                    const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
-                    Combine op, T identity)
+        [[nodiscard]] SushiRuntime::Result<void>
+        reduce(SushiRuntime::Recorder& recorder,
+               const SushiRuntime::Buffer<T>& input,
+               const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
+               Combine op, T identity)
         {
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
@@ -156,11 +165,11 @@ namespace SushiBLAS
 
             const std::size_t capacity = n.capacity();
             if (capacity > input.size())
-                Detail::throw_invalid_graph(
+                return Detail::invalid_graph(
                     "reduce: n.capacity() (" + std::to_string(capacity) +
                     ") exceeds the input buffer's size (" + std::to_string(input.size()) + ").");
             if (output.size() == 0)
-                Detail::throw_invalid_graph("reduce: the output buffer holds no elements.");
+                return Detail::invalid_graph("reduce: the output buffer holds no elements.");
 
             const std::vector<Detail::ReduceLevel> levels = Detail::plan_tiled_levels(capacity);
             T* out_base = output.data();
@@ -173,20 +182,28 @@ namespace SushiBLAS
                     {
                         out_base[0] = identity;
                     });
-                return;
+                return Detail::recording_outcome(recorder);
             }
 
             const std::size_t scratch_count = Detail::reduce_scratch_count(levels);
             T* scratch = nullptr;
             if (scratch_count != 0)
-                scratch = recorder.scratch<T>(scratch_count, input.device_index(),
-                                              input.residency());
+            {
+                auto scratch_block = recorder.scratch<T>(
+                    scratch_count, input.device_index(), input.residency());
+                if (!scratch_block)
+                    return SushiRuntime::make_error(std::move(scratch_block.error()));
+                scratch = *scratch_block;
+            }
 
             // state[i] is the live in_count of level i, state[level_count + i] its out_count.
             const std::size_t level_count = levels.size();
-            std::uint32_t* state = recorder.scratch<std::uint32_t>(
+            auto state_block = recorder.scratch<std::uint32_t>(
                 2 * level_count, input.device_index(), input.residency());
-            const ResourceRegion state_region{state, 0, 2 * level_count * sizeof(std::uint32_t)};
+            if (!state_block)
+                return SushiRuntime::make_error(std::move(state_block.error()));
+            std::uint32_t* state = *state_block;
+            const BufferRegion state_region{state, 0, 2 * level_count * sizeof(std::uint32_t)};
 
             // Every node this call records belongs to one rule.
             auto rule = recorder.rule();
@@ -213,13 +230,13 @@ namespace SushiBLAS
 
                 const Reads reads = first
                     ? Reads(input, state_region)
-                    : Reads(ResourceRegion{scratch_key, level.in_offset * sizeof(T),
-                                           level.in_count * sizeof(T)},
+                    : Reads(BufferRegion{scratch_key, level.in_offset * sizeof(T),
+                                         level.in_count * sizeof(T)},
                             state_region);
                 const Writes writes = last
                     ? Writes(output)
-                    : Writes(ResourceRegion{scratch_key, level.out_offset * sizeof(T),
-                                            level.out_count * sizeof(T)});
+                    : Writes(BufferRegion{scratch_key, level.out_offset * sizeof(T),
+                                          level.out_count * sizeof(T)});
 
                 recorder.kernel(
                     DeviceSized{level.out_count, state + level_count + i, state + i},
@@ -241,33 +258,39 @@ namespace SushiBLAS
                         out_base[0] = identity;
                 },
                 NodeOptions{std::size_t{1}});
+
+            return Detail::recording_outcome(recorder);
         }
 
         /**
          * @brief Records a fixed-count reduction that takes identity from Combine::identity().
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
-         * @throws SushiRuntime::SushiException As the overload that takes an identity.
+         * @return As the overload that takes an identity.
          */
         template <typename T, class Combine>
-        void reduce(SushiRuntime::Recorder& recorder,
-                    const SushiRuntime::Buffer<T>& input,
-                    const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op)
+        [[nodiscard]] SushiRuntime::Result<void>
+        reduce(SushiRuntime::Recorder& recorder,
+               const SushiRuntime::Buffer<T>& input,
+               const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op)
         {
-            GraphPrimitives::reduce(recorder, input, output, n, op, Combine::identity());
+            return GraphPrimitives::reduce(recorder, input, output, n, op,
+                                           Combine::identity());
         }
 
         /**
          * @brief Records a late-bound reduction that takes identity from Combine::identity().
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
-         * @throws SushiRuntime::SushiException As the overload that takes an identity.
+         * @return As the overload that takes an identity.
          */
         template <typename T, class Combine>
-        void reduce(SushiRuntime::Recorder& recorder,
-                    const SushiRuntime::Buffer<T>& input,
-                    const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
-                    Combine op)
+        [[nodiscard]] SushiRuntime::Result<void>
+        reduce(SushiRuntime::Recorder& recorder,
+               const SushiRuntime::Buffer<T>& input,
+               const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
+               Combine op)
         {
-            GraphPrimitives::reduce(recorder, input, output, n, op, Combine::identity());
+            return GraphPrimitives::reduce(recorder, input, output, n, op,
+                                           Combine::identity());
         }
 
     } // namespace GraphPrimitives

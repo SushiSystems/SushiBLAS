@@ -52,7 +52,6 @@ namespace SushiBLAS
             using GraphPrimitives::segmented_reduce;
             using SushiRuntime::LateCount;
             using SushiRuntime::Runtime;
-            using SushiRuntime::SushiException;
 
             /// @brief Holds a value no segment of these tests folds to.
             constexpr float K_UNWRITTEN = -1.0f;
@@ -90,10 +89,10 @@ namespace SushiBLAS
             const std::size_t segments = offsets.size() - 1;
             const std::size_t value_count = offsets.back();
 
-            auto runtime = Runtime::create();
-            auto values = runtime.buffer<float>(value_count);
-            auto bounds = runtime.buffer<std::uint32_t>(offsets.size());
-            auto out = runtime.buffer<float>(segments);
+            auto runtime = Runtime::create().value();
+            auto values = runtime.buffer<float>(value_count).value();
+            auto bounds = runtime.buffer<std::uint32_t>(offsets.size()).value();
+            auto out = runtime.buffer<float>(segments).value();
 
             std::vector<float> host(value_count);
             for (std::size_t i = 0; i < value_count; ++i)
@@ -107,8 +106,8 @@ namespace SushiBLAS
                 out[s] = K_UNWRITTEN;
 
             auto graph = runtime.graph();
-            segmented_reduce(graph.recorder(), values, bounds, out, segments, Sum<float>{});
-            graph.run();
+            segmented_reduce(graph.recorder(), values, bounds, out, segments, Sum<float>{}).value();
+            graph.run().value();
 
             for (std::size_t s = 0; s < segments; ++s)
             {
@@ -125,10 +124,10 @@ namespace SushiBLAS
             const std::size_t segments = offsets.size() - 1;
             const std::size_t value_count = offsets.back();
 
-            auto runtime = Runtime::create();
-            auto values = runtime.buffer<float>(value_count);
-            auto bounds = runtime.buffer<std::uint32_t>(offsets.size());
-            auto out = runtime.buffer<float>(segments);
+            auto runtime = Runtime::create().value();
+            auto values = runtime.buffer<float>(value_count).value();
+            auto bounds = runtime.buffer<std::uint32_t>(offsets.size()).value();
+            auto out = runtime.buffer<float>(segments).value();
 
             std::vector<float> host(value_count);
             for (std::size_t i = 0; i < value_count; ++i)
@@ -144,7 +143,7 @@ namespace SushiBLAS
                 LateCount::from_host(segments, [&live_segments]() { return live_segments; });
 
             auto graph = runtime.graph();
-            segmented_reduce(graph.recorder(), values, bounds, out, count, Sum<float>{});
+            segmented_reduce(graph.recorder(), values, bounds, out, count, Sum<float>{}).value();
 
             for (std::size_t live : {std::size_t{2}, segments, std::size_t{0}, std::size_t{4}})
             {
@@ -152,7 +151,7 @@ namespace SushiBLAS
                 for (std::size_t s = 0; s < segments; ++s)
                     out[s] = K_UNWRITTEN;
 
-                graph.run();
+                graph.run().value();
 
                 for (std::size_t s = 0; s < segments; ++s)
                 {
@@ -169,44 +168,36 @@ namespace SushiBLAS
         /** @brief Tests that short offsets or a short output are refused when the call records. */
         TEST(Unit_GraphPrimitivesSegmentedReduce, RejectsMisSizedArguments)
         {
-            auto runtime = Runtime::create();
-            auto values = runtime.buffer<float>(16);
-            auto out = runtime.buffer<float>(1);
-            auto wide_out = runtime.buffer<float>(4);
-            auto short_bounds = runtime.buffer<std::uint32_t>(2);
-            auto wide_bounds = runtime.buffer<std::uint32_t>(5);
+            auto runtime = Runtime::create().value();
+            auto values = runtime.buffer<float>(16).value();
+            auto out = runtime.buffer<float>(1).value();
+            auto wide_out = runtime.buffer<float>(4).value();
+            auto short_bounds = runtime.buffer<std::uint32_t>(2).value();
+            auto wide_bounds = runtime.buffer<std::uint32_t>(5).value();
 
             auto graph = runtime.graph();
             const auto refused_code = [&](const SushiRuntime::Buffer<std::uint32_t>& bounds,
                                           const SushiRuntime::Buffer<float>& output,
                                           bool late)
             {
-                try
-                {
-                    if (late)
-                        segmented_reduce(graph.recorder(), values, bounds, output,
-                                         LateCount::fixed(4), Sum<float>{});
-                    else
-                        segmented_reduce(graph.recorder(), values, bounds, output, std::size_t{4},
-                                         Sum<float>{});
-                }
-                catch (const SushiException& refused)
-                {
-                    return refused.error().code;
-                }
-                return SushiRuntime::Errc::ok;
+                const SushiRuntime::Result<void> recorded =
+                    late ? segmented_reduce(graph.recorder(), values, bounds, output,
+                                            LateCount::fixed(4), Sum<float>{})
+                         : segmented_reduce(graph.recorder(), values, bounds, output,
+                                            std::size_t{4}, Sum<float>{});
+                return recorded ? SushiRuntime::ErrorCode::Ok : recorded.error().code;
             };
 
             for (const bool late : {false, true})
             {
                 EXPECT_EQ(refused_code(short_bounds, wide_out, late),
-                          SushiRuntime::Errc::invalid_graph)
+                          SushiRuntime::ErrorCode::InvalidGraph)
                     << "two offsets cannot bound four segments; late = " << late;
                 EXPECT_EQ(refused_code(wide_bounds, out, late),
-                          SushiRuntime::Errc::invalid_graph)
+                          SushiRuntime::ErrorCode::InvalidGraph)
                     << "one output element cannot hold four results; late = " << late;
                 EXPECT_EQ(refused_code(short_bounds, out, late),
-                          SushiRuntime::Errc::invalid_graph)
+                          SushiRuntime::ErrorCode::InvalidGraph)
                     << "late = " << late;
             }
             EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
@@ -218,21 +209,21 @@ namespace SushiBLAS
             constexpr std::size_t K_SEGMENTS = 64;
 
             // The offsets and the output are padded by different amounts past the count.
-            auto runtime = Runtime::create();
-            auto offsets = runtime.buffer<std::uint32_t>(K_SEGMENTS + 9);
+            auto runtime = Runtime::create().value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_SEGMENTS + 9).value();
             for (std::size_t s = 0; s <= K_SEGMENTS; ++s)
                 offsets[s] = static_cast<std::uint32_t>(s);
-            auto values = runtime.buffer<std::uint32_t>(K_SEGMENTS);
+            auto values = runtime.buffer<std::uint32_t>(K_SEGMENTS).value();
             for (std::size_t i = 0; i < K_SEGMENTS; ++i)
                 values[i] = 1u;
-            auto out = runtime.buffer<std::uint32_t>(K_SEGMENTS + 8);
+            auto out = runtime.buffer<std::uint32_t>(K_SEGMENTS + 8).value();
 
             auto graph = runtime.graph();
             graph.set_profiling(true);
             segmented_reduce(graph.recorder(), values, offsets, out, K_SEGMENTS,
-                             Sum<std::uint32_t>{});
+                             Sum<std::uint32_t>{}).value();
 
-            const auto report = graph.run();
+            const auto report = graph.run().value();
 
             ASSERT_EQ(report.node_events.size(), 1u);
             EXPECT_EQ(report.node_events[0].launched_width,
@@ -250,22 +241,22 @@ namespace SushiBLAS
                 1u, static_cast<std::uint32_t>(K_SEGMENTS)};
 
             // The offsets and the output are padded by different amounts past the capacity.
-            auto runtime = Runtime::create();
-            auto offsets = runtime.buffer<std::uint32_t>(K_SEGMENTS + 9);
+            auto runtime = Runtime::create().value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_SEGMENTS + 9).value();
             for (std::size_t s = 0; s <= K_SEGMENTS; ++s)
                 offsets[s] = static_cast<std::uint32_t>(s);
-            auto values = runtime.buffer<std::uint32_t>(K_SEGMENTS);
+            auto values = runtime.buffer<std::uint32_t>(K_SEGMENTS).value();
             for (std::size_t i = 0; i < K_SEGMENTS; ++i)
                 values[i] = 1u;
-            auto out = runtime.buffer<std::uint32_t>(K_SEGMENTS + 8);
+            auto out = runtime.buffer<std::uint32_t>(K_SEGMENTS + 8).value();
 
             auto graph = runtime.graph();
             graph.set_profiling(true);
             segmented_reduce(graph.recorder(), values, offsets, out, LateCount::fixed(K_SEGMENTS),
-                             Sum<std::uint32_t>{});
+                             Sum<std::uint32_t>{}).value();
             EXPECT_EQ(graph.recorder().rule_count(), 1u) << "both nodes of one call are one rule";
 
-            const auto report = graph.run();
+            const auto report = graph.run().value();
 
             ASSERT_EQ(report.node_events.size(), expected_widths.size());
             for (std::size_t i = 0; i < expected_widths.size(); ++i)

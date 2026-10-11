@@ -103,9 +103,10 @@ namespace SushiBLAS
                 template<typename T>
                 [[nodiscard]] static constexpr Device::LocalTileDemand demand() noexcept
                 {
-                    using Cfg = Detail::Syr2kTileConfig<T>;
-                    return Device::LocalTileDemand{Cfg::local_mem_bytes(),
-                                                   static_cast<std::size_t>(Cfg::K_WG_ITEMS)};
+                    using Configuration = Detail::Syr2kTileConfig<T>;
+                    return Device::LocalTileDemand{
+                        Configuration::local_mem_bytes(),
+                        static_cast<std::size_t>(Configuration::K_WG_ITEMS)};
                 }
             };
 
@@ -129,15 +130,15 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
                 using WS = Accumulator<Scalar>;
-                using Cfg = Detail::Syr2kTileConfig<T>;
-                constexpr int64_t item_rows = Cfg::K_ITEM_ROWS;
-                constexpr int64_t item_cols = Cfg::K_ITEM_COLS;
-                constexpr int64_t wg_rows = Cfg::K_WG_ROWS;
-                constexpr int64_t wg_cols = Cfg::K_WG_COLS;
-                constexpr int64_t wg_items = Cfg::K_WG_ITEMS;
-                constexpr int64_t block_m = Cfg::K_BLOCK_M;
-                constexpr int64_t block_n = Cfg::K_BLOCK_N;
-                constexpr int64_t tile_k = Cfg::K_TILE_K;
+                using Configuration = Detail::Syr2kTileConfig<T>;
+                constexpr int64_t item_rows = Configuration::K_ITEM_ROWS;
+                constexpr int64_t item_cols = Configuration::K_ITEM_COLS;
+                constexpr int64_t wg_rows = Configuration::K_WG_ROWS;
+                constexpr int64_t wg_cols = Configuration::K_WG_COLS;
+                constexpr int64_t wg_items = Configuration::K_WG_ITEMS;
+                constexpr int64_t block_m = Configuration::K_BLOCK_M;
+                constexpr int64_t block_n = Configuration::K_BLOCK_N;
+                constexpr int64_t tile_k = Configuration::K_TILE_K;
 
                 const Device::Profile& profile = Device::profile_for(queue);
                 const Device::LocalTileDemand demand = Syr2kTile::demand<T>();

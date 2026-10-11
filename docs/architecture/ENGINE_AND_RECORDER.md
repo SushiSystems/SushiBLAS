@@ -2,7 +2,7 @@
 
 `Engine` (`engine.hpp`) is the composition root a program constructs once on a
 `RuntimeContext`, with the layout of the tensors it creates. It owns, in this order, the
-`ScratchPool`, the `SushiRuntime::Graph::TaskGraph`, the `TaskRecorder` bound to both, the
+`ScratchPool`, the `SushiRuntime::Internal::Graph::TaskGraph`, the `TaskRecorder` bound to both, the
 `TensorFactory` and the `RNGStream`. Its interface is short:
 
 - `create_tensor(dims, dtype, residency, device_index)`, from a brace list or a span.
@@ -58,7 +58,7 @@ A view is a small class of record calls bound to a recorder. Each has two constr
 from an `Engine` and one from a `TaskRecorder` the caller owns:
 
 ```cpp
-SushiRuntime::Graph::TaskGraph graph(ctx);
+SushiRuntime::Internal::Graph::TaskGraph graph(ctx);
 ScratchPool pool(ctx);
 TaskRecorder recorder(graph, pool, ExecutionMode::ForceReference);
 

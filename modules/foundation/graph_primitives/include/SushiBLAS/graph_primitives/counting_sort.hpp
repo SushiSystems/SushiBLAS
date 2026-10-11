@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <utility>
 
 #include <SushiRuntime/api/data/buffer.hpp>
 #include <SushiRuntime/api/graph/access.hpp>
@@ -54,17 +55,17 @@ namespace SushiBLAS
          * @param indices Receives the sorted order; holds n.capacity() elements.
          * @param offsets Receives the bucket starts; holds key_range.capacity() + 1 elements.
          * @param counts  Optional bucket sizes; holds key_range.capacity() elements.
-         * @throws SushiRuntime::SushiException With invalid_graph for a broken size rule.
-         * @see modules/foundation/graph_primitives/README.md
+         * @return Nothing, or an error; modules/foundation/graph_primitives/README.md lists them.
          */
-        inline void counting_sort(SushiRuntime::Recorder& recorder,
-                                  const SushiRuntime::Buffer<std::uint32_t>& keys,
-                                  const SushiRuntime::Buffer<std::uint32_t>& indices,
-                                  const SushiRuntime::Buffer<std::uint32_t>& offsets,
-                                  const SushiRuntime::Buffer<std::uint32_t>& total,
-                                  SushiRuntime::LateCount n,
-                                  SushiRuntime::LateCount key_range,
-                                  const SushiRuntime::Buffer<std::uint32_t>* counts = nullptr)
+        [[nodiscard]] inline SushiRuntime::Result<void>
+        counting_sort(SushiRuntime::Recorder& recorder,
+                      const SushiRuntime::Buffer<std::uint32_t>& keys,
+                      const SushiRuntime::Buffer<std::uint32_t>& indices,
+                      const SushiRuntime::Buffer<std::uint32_t>& offsets,
+                      const SushiRuntime::Buffer<std::uint32_t>& total,
+                      SushiRuntime::LateCount n,
+                      SushiRuntime::LateCount key_range,
+                      const SushiRuntime::Buffer<std::uint32_t>* counts = nullptr)
         {
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
@@ -78,29 +79,29 @@ namespace SushiBLAS
             const std::size_t key_capacity = key_range.capacity();
 
             if (key_capacity == 0)
-                Detail::throw_invalid_graph("counting_sort: key_range.capacity() is zero.");
+                return Detail::invalid_graph("counting_sort: key_range.capacity() is zero.");
             if (n_capacity > keys.size())
-                Detail::throw_invalid_graph(
+                return Detail::invalid_graph(
                     "counting_sort: n.capacity() (" + std::to_string(n_capacity) +
                     ") exceeds the keys buffer's size (" + std::to_string(keys.size()) + ").");
             if (indices.size() < n_capacity)
-                Detail::throw_invalid_graph(
+                return Detail::invalid_graph(
                     "counting_sort: indices holds " + std::to_string(indices.size()) +
                     " elements but " + std::to_string(n_capacity) + " are required.");
             if (offsets.size() < key_capacity + 1)
-                Detail::throw_invalid_graph(
+                return Detail::invalid_graph(
                     "counting_sort: offsets holds " + std::to_string(offsets.size()) +
                     " elements but " + std::to_string(key_capacity + 1) + " are required.");
             if (total.size() == 0)
-                Detail::throw_invalid_graph("counting_sort: the total buffer holds no elements.");
+                return Detail::invalid_graph("counting_sort: the total buffer holds no elements.");
             if (counts != nullptr && counts->size() < key_capacity)
-                Detail::throw_invalid_graph(
+                return Detail::invalid_graph(
                     "counting_sort: counts holds " + std::to_string(counts->size()) +
                     " elements but " + std::to_string(key_capacity) + " are required.");
             if (indices.device_index() != keys.device_index() ||
                 offsets.device_index() != keys.device_index() ||
                 (counts != nullptr && counts->device_index() != keys.device_index()))
-                Detail::throw_invalid_graph(
+                return Detail::invalid_graph(
                     "counting_sort: keys, indices, offsets and counts must live on the same "
                     "device.");
 
@@ -108,23 +109,31 @@ namespace SushiBLAS
             const std::size_t plan_words = digit_count * Detail::K_RADIX_PLAN_WORDS;
             const auto words = [](std::uint32_t* base, std::size_t count)
             {
-                return ResourceRegion{static_cast<void*>(base), 0, count * sizeof(std::uint32_t)};
+                return BufferRegion{static_cast<void*>(base), 0, count * sizeof(std::uint32_t)};
             };
 
             // Every node this call records belongs to one rule.
             auto rule = recorder.rule();
 
             // n_state[0] is the live element count, n_state[1] its live tile count.
-            std::uint32_t* n_state = recorder.scratch<std::uint32_t>(
+            auto n_state_block = recorder.scratch<std::uint32_t>(
                 2, keys.device_index(), keys.residency());
-            const ResourceRegion n_state_region = words(n_state, 2);
+            if (!n_state_block)
+                return SushiRuntime::make_error(std::move(n_state_block.error()));
+            std::uint32_t* n_state = *n_state_block;
+            const BufferRegion n_state_region = words(n_state, 2);
 
             // The plan holds, per digit, its live work counts and where its placement lands.
             std::uint32_t* plan = nullptr;
             if (n_capacity != 0)
-                plan = recorder.scratch<std::uint32_t>(plan_words, keys.device_index(),
-                                                       keys.residency());
-            const ResourceRegion plan_region = words(plan, plan_words);
+            {
+                auto plan_block = recorder.scratch<std::uint32_t>(
+                    plan_words, keys.device_index(), keys.residency());
+                if (!plan_block)
+                    return SushiRuntime::make_error(std::move(plan_block.error()));
+                plan = *plan_block;
+            }
+            const BufferRegion plan_region = words(plan, plan_words);
 
             // One node resolves both counts, publishes total and fills the digit plan.
             std::uint32_t* total_base = total.data();
@@ -159,36 +168,49 @@ namespace SushiBLAS
                             counts_base[k] = 0;
                     },
                     NodeOptions{key_capacity + 1});
-                return;
+                return Detail::recording_outcome(recorder);
             }
 
             const std::size_t tile_capacity = Detail::next_live_tile_count(n_capacity);
 
             // hist holds raw counts until the column scan overwrites it in place with prefixes.
-            std::uint32_t* hist = recorder.scratch<std::uint32_t>(
-                Detail::K_RADIX_DIGIT_BINS * tile_capacity, keys.device_index(),
-                keys.residency());
-            std::uint32_t* column_total = recorder.scratch<std::uint32_t>(
+            auto hist_block = recorder.scratch<std::uint32_t>(
+                Detail::K_RADIX_DIGIT_BINS * tile_capacity, keys.device_index(), keys.residency());
+            if (!hist_block)
+                return SushiRuntime::make_error(std::move(hist_block.error()));
+            std::uint32_t* hist = *hist_block;
+            auto column_total_block = recorder.scratch<std::uint32_t>(
                 Detail::K_RADIX_DIGIT_BINS, keys.device_index(), keys.residency());
-            std::uint32_t* bin_base = recorder.scratch<std::uint32_t>(
+            if (!column_total_block)
+                return SushiRuntime::make_error(std::move(column_total_block.error()));
+            std::uint32_t* column_total = *column_total_block;
+            auto bin_base_block = recorder.scratch<std::uint32_t>(
                 Detail::K_RADIX_DIGIT_BINS, keys.device_index(), keys.residency());
+            if (!bin_base_block)
+                return SushiRuntime::make_error(std::move(bin_base_block.error()));
+            std::uint32_t* bin_base = *bin_base_block;
 
             // The digits alternate between indices and this buffer; one digit never needs it.
             std::uint32_t* alternate = nullptr;
             if (digit_count >= 2)
-                alternate = recorder.scratch<std::uint32_t>(n_capacity, keys.device_index(),
-                                                            keys.residency());
+            {
+                auto alternate_block = recorder.scratch<std::uint32_t>(
+                    n_capacity, keys.device_index(), keys.residency());
+                if (!alternate_block)
+                    return SushiRuntime::make_error(std::move(alternate_block.error()));
+                alternate = *alternate_block;
+            }
 
             const std::uint32_t* keys_base = keys.data();
             std::uint32_t* indices_base = indices.data();
 
-            const ResourceRegion indices_region = words(indices_base, n_capacity);
-            const ResourceRegion alternate_region = words(alternate, n_capacity);
-            const ResourceRegion hist_region =
+            const BufferRegion indices_region = words(indices_base, n_capacity);
+            const BufferRegion alternate_region = words(alternate, n_capacity);
+            const BufferRegion hist_region =
                 words(hist, Detail::K_RADIX_DIGIT_BINS * tile_capacity);
-            const ResourceRegion column_total_region =
+            const BufferRegion column_total_region =
                 words(column_total, Detail::K_RADIX_DIGIT_BINS);
-            const ResourceRegion bin_base_region = words(bin_base, Detail::K_RADIX_DIGIT_BINS);
+            const BufferRegion bin_base_region = words(bin_base, Detail::K_RADIX_DIGIT_BINS);
 
             for (std::size_t d = 0; d < digit_count; ++d)
             {
@@ -328,7 +350,7 @@ namespace SushiBLAS
                 NodeOptions{key_capacity + 1});
 
             if (counts == nullptr)
-                return;
+                return Detail::recording_outcome(recorder);
 
             // Counts are differences of two settled offsets and need no live scalar.
             recorder.kernel(
@@ -339,6 +361,8 @@ namespace SushiBLAS
                     counts_base[k] = offsets_base[k + 1] - offsets_base[k];
                 },
                 NodeOptions{key_capacity});
+
+            return Detail::recording_outcome(recorder);
         }
 
     } // namespace GraphPrimitives

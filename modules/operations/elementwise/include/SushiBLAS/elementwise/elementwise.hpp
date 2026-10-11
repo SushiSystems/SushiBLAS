@@ -48,7 +48,7 @@ namespace SushiBLAS
 
             /** @brief Builds a view that records on engine's own graph. */
             explicit ElementwiseOps(Engine& engine) noexcept
-                : ElementwiseOps(engine.get_recorder())
+                : ElementwiseOps(engine.recorder())
             {
 
             }

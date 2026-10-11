@@ -830,7 +830,8 @@ namespace SushiBLAS
                 using Configuration = Kernels::SYCL::Detail::GemmLocalTile<float>;
 
                 if (profile.local_mem_bytes < Configuration::local_mem_bytes() ||
-                    profile.max_work_group_size < static_cast<std::size_t>(Configuration::K_WG_ITEMS))
+                    profile.max_work_group_size <
+                        static_cast<std::size_t>(Configuration::K_WG_ITEMS))
                     GTEST_SKIP() << "device cannot host the local-tiled work-group";
 
                 auto A = engine->create_tensor({m, k}, Core::DataType::Float32);
@@ -867,7 +868,8 @@ namespace SushiBLAS
                 using Configuration = Kernels::SYCL::Detail::GemmLocalTile<float>;
 
                 if (profile.local_mem_bytes < Configuration::local_mem_bytes() ||
-                    profile.max_work_group_size < static_cast<std::size_t>(Configuration::K_WG_ITEMS))
+                    profile.max_work_group_size <
+                        static_cast<std::size_t>(Configuration::K_WG_ITEMS))
                     GTEST_SKIP() << "device cannot host the local-tiled work-group";
 
                 // A is stored k x m and used transposed; B is stored n x k likewise.

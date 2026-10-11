@@ -47,7 +47,7 @@ namespace SushiBLAS
             explicit SpatialOps(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
 
             /** @brief Builds a view that records on engine's own graph. */
-            explicit SpatialOps(Engine& engine) noexcept : SpatialOps(engine.get_recorder()) {}
+            explicit SpatialOps(Engine& engine) noexcept : SpatialOps(engine.recorder()) {}
 
             SpatialOps(const SpatialOps&) = default;
             SpatialOps& operator=(const SpatialOps&) = delete;
