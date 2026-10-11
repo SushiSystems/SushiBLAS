@@ -21,18 +21,16 @@
 
 /**
  * @file test_sparse_recording.cpp
- * @brief Tests that a recorded sparse task waits for its dependencies, keeps its operands and is
+ * @brief Tests that a recorded sparse task computes its result, keeps its operands and is
  *        ordered behind the task that wrote them.
  * @author Mustafa Garip
  */
 
 #include <atomic>
-#include <future>
 #include <vector>
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include "../common/test_utils.hpp"
 #include "../common/graph_probe.hpp"
@@ -46,56 +44,6 @@ namespace SushiBLAS
         {
             /// @brief Absolute error allowed on a result; every expectation is a small integer.
             constexpr double K_TOLERANCE = 1e-5;
-
-            /** @brief Holds a queued event that stays incomplete until the gate is opened. */
-            class SparseDependencyGate final
-            {
-                public:
-                    /** @brief Submits a host task to queue that blocks until open() is called. */
-                    explicit SparseDependencyGate(sycl::queue& queue)
-                        : event_(queue.submit(
-                              [opened = opened_.get_future().share()](sycl::handler& h)
-                              {
-                                  h.host_task([opened]() { opened.wait(); });
-                              }))
-                    {
-
-                    }
-
-                    SparseDependencyGate(const SparseDependencyGate&) = delete;
-                    SparseDependencyGate& operator=(const SparseDependencyGate&) = delete;
-                    SparseDependencyGate(SparseDependencyGate&&) = delete;
-                    SparseDependencyGate& operator=(SparseDependencyGate&&) = delete;
-
-                    /** @brief Opens the gate, so that a test leaving early blocks no host task. */
-                    ~SparseDependencyGate()
-                    {
-                        open();
-                    }
-
-                    /** @brief Returns the event a task body is handed as its dependency. */
-                    [[nodiscard]] const sycl::event& event() const noexcept { return event_; }
-
-                    /** @brief Lets the host task finish; a second call does nothing. */
-                    void open()
-                    {
-                        if (is_open_)
-                            return;
-
-                        is_open_ = true;
-                        opened_.set_value();
-                    }
-
-                private:
-                    /// @brief Fulfilled by open(); declared first, because event_ is built from it.
-                    std::promise<void> opened_;
-
-                    /// @brief The event of the blocked host task.
-                    sycl::event event_;
-
-                    /// @brief Whether open() has fulfilled the promise.
-                    bool is_open_ = false;
-            };
         } // namespace
 
         /**
@@ -151,13 +99,13 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Expects the one task record adds to stay incomplete behind a closed gate.
+                 * @brief Expects the one task record adds to compute what verify compares.
                  * @param record Callable `(TaskRecorder&) -> TaskHandle` that records one task.
                  * @param verify Callable `() -> void` comparing the task's output with the host
-                 *        formula; it runs after the gate is open and the task has finished.
+                 *        formula; it runs after the probe has run the task.
                  */
                 template<typename Record, typename Verify>
-                void expect_body_waits(const char* routine, Record&& record, Verify&& verify)
+                void expect_task_computes(const char* routine, Record&& record, Verify&& verify)
                 {
                     SCOPED_TRACE(routine);
 
@@ -166,30 +114,17 @@ namespace SushiBLAS
 
                     ASSERT_EQ(1u, probe.recorded_count());
                     const auto tasks = probe.recorded_tasks();
-                    if (!tasks)
-                        GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
-                    ASSERT_TRUE(static_cast<bool>((*tasks)[0].body));
+                    ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
+                    ASSERT_EQ(1u, tasks->size());
+                    EXPECT_EQ(0u, (*tasks)[0].dependency_count);
 
-                    sycl::queue& queue = TestEnvironment::queue();
-                    SparseDependencyGate gate(queue);
-
-                    sycl::event done =
-                        (*tasks)[0].body(queue, std::vector<sycl::event>{gate.event()});
-
-                    const auto status =
-                        done.get_info<sycl::info::event::command_execution_status>();
-                    EXPECT_TRUE(status != sycl::info::event_command_status::complete)
-                        << "The body's event completed while its dependency was still running, "
-                           "so a command group it submitted does not depend on the events it "
-                           "was given.";
-
-                    gate.open();
-                    done.wait_and_throw();
+                    const SushiRuntime::Result<void> ran = probe.execute();
+                    ASSERT_TRUE(ran.has_value()) << ran.error().message;
                     verify();
                 }
         };
 
-        TEST_F(Regression_SparseRecording, ARecordedBodyWaitsForItsDependencies)
+        TEST_F(Regression_SparseRecording, ARecordedTaskComputesItsResult)
         {
             const std::vector<float> four = {1.0f, 2.0f, 3.0f, 4.0f};
             const std::vector<float> five = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
@@ -201,7 +136,7 @@ namespace SushiBLAS
                     8, std::vector<int32_t>{6, 1, 4}, std::vector<float>{10.0f, 20.0f, 30.0f});
                 const Tensor y = vector_of({1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f});
                 Tensor result = vector_of({0.0f});
-                expect_body_waits("doti",
+                expect_task_computes("doti",
                     [&](TaskRecorder& r) { return SparseOps(r).doti(x, y, result); },
                     [&] { verify_tensor(result, std::vector<float>{260.0f}, K_TOLERANCE); });
             }
@@ -210,7 +145,7 @@ namespace SushiBLAS
                 const SparseMatrix A = sample();
                 const Tensor x = vector_of(five);
                 Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
-                expect_body_waits("spmv under NO_TRANS",
+                expect_task_computes("spmv under NO_TRANS",
                     [&](TaskRecorder& r) { return SparseOps(r).spmv(A, x, y); },
                     [&] { verify_tensor(y, std::vector<float>{9, 0, 43, 41}, K_TOLERANCE); });
             }
@@ -219,7 +154,7 @@ namespace SushiBLAS
                 const SparseMatrix A = sample();
                 const Tensor x = vector_of(four);
                 Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
-                expect_body_waits("spmv under TRANS",
+                expect_task_computes("spmv under TRANS",
                     [&](TaskRecorder& r)
                     {
                         return SparseOps(r).spmv(A, x, y, Core::Transpose::Trans);
@@ -231,7 +166,7 @@ namespace SushiBLAS
                 const SparseMatrix A = lower_triangle();
                 const Tensor x = vector_of(four);
                 Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
-                expect_body_waits("spsymv",
+                expect_task_computes("spsymv",
                     [&](TaskRecorder& r)
                     {
                         return SparseOps(r).spsymv(A, x, y, Core::Uplo::Lower);
@@ -245,7 +180,7 @@ namespace SushiBLAS
                 const Tensor B =
                     create_initialized_tensor<float>({4, 2}, {1, 0, 2, 0, 3, 0, 4, 0});
                 Tensor C = create_initialized_tensor<float>({5, 2}, std::vector<float>(10, 0.0f));
-                expect_body_waits("spmm under TRANS",
+                expect_task_computes("spmm under TRANS",
                     [&](TaskRecorder& r)
                     {
                         return SparseOps(r).spmm(A, B, C, Core::Transpose::Trans);
@@ -260,7 +195,7 @@ namespace SushiBLAS
             {
                 const SparseMatrix A = lower_triangle();
                 Tensor b = vector_of({2.0f, 7.0f, 23.0f, 59.0f});
-                expect_body_waits("sptrsv",
+                expect_task_computes("sptrsv",
                     [&](TaskRecorder& r) { return SparseOps(r).sptrsv(A, b, Core::Uplo::Lower); },
                     [&] { verify_tensor(b, four, K_TOLERANCE); });
             }
@@ -301,8 +236,7 @@ namespace SushiBLAS
 
                 ASSERT_EQ(2u, probe.recorded_count());
                 const auto tasks = probe.recorded_tasks();
-                if (!tasks)
-                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
                 EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                     << "The product reads A.values and must depend on the task that wrote them.";
             }
@@ -318,8 +252,7 @@ namespace SushiBLAS
 
                 ASSERT_EQ(2u, probe.recorded_count());
                 const auto tasks = probe.recorded_tasks();
-                if (!tasks)
-                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
                 EXPECT_EQ(0u, (*tasks)[1].dependency_count)
                     << "The product reads nothing the first task wrote.";
             }

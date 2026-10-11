@@ -606,8 +606,7 @@ namespace SushiBLAS
 
                 ASSERT_EQ(2u, probe.recorded_count());
                 const auto tasks = probe.recorded_tasks();
-                if (!tasks)
-                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
                 EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                     << "The GEMM whose epilogue dereferences `bias` must depend on the op "
                        "that wrote it. An in-degree of 0 means the declaration made through "
@@ -635,8 +634,7 @@ namespace SushiBLAS
 
                 ASSERT_EQ(2u, probe.recorded_count());
                 const auto tasks = probe.recorded_tasks();
-                if (!tasks)
-                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
                 EXPECT_EQ(0u, (*tasks)[1].dependency_count)
                     << "A bare epilogue declares nothing, so the GEMM must be a root - "
                        "unordered against the op writing the bias it reads. If this is 1, "
@@ -676,8 +674,7 @@ namespace SushiBLAS
 
                 ASSERT_EQ(2u, probe.recorded_count());
                 const auto tasks = probe.recorded_tasks();
-                if (!tasks)
-                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
                 EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                     << "The declared read must be described by Tensor::region() - keyed on "
                        "the allocation base and narrowed to the view's byte interval. An "
@@ -711,8 +708,7 @@ namespace SushiBLAS
 
                 ASSERT_EQ(2u, probe.recorded_count());
                 const auto tasks = probe.recorded_tasks();
-                if (!tasks)
-                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
                 EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                     << "The op reading the epilogue's spill buffer must depend on the GEMM "
                        "that filled it. An in-degree of 0 means the declared write never "
@@ -742,8 +738,7 @@ namespace SushiBLAS
 
                 ASSERT_EQ(2u, probe.recorded_count());
                 const auto tasks = probe.recorded_tasks();
-                if (!tasks)
-                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
                 EXPECT_EQ(0u, (*tasks)[1].dependency_count)
                     << "Nothing can see an undeclared write, so the reader must be a root.";
             }

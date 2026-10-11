@@ -191,6 +191,8 @@ namespace SushiBLAS
             EXPECT_EQ(3u, second.recorded_count());
             const auto first_counts = first.dependency_counts();
             const auto second_counts = second.dependency_counts();
+            ASSERT_TRUE(first_counts.has_value()) << first_counts.error().message;
+            ASSERT_TRUE(second_counts.has_value()) << second_counts.error().message;
 
             first.execute().value();
             second.execute().value();
@@ -202,8 +204,6 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(first_outputs.total, expected_total, 1e-5);
             EXPECT_TENSOR_NEAR(second_outputs.total, expected_total, 1e-5);
 
-            if (!first_counts || !second_counts)
-                GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
             EXPECT_EQ((std::vector<std::size_t>{0, 1, 1}), *first_counts)
                 << "mul has no producer; add reads mul's output and sum reads add's.";
             EXPECT_EQ(*first_counts, *second_counts);

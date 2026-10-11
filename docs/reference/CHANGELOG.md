@@ -6,6 +6,8 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — tests: Made `GraphProbe::recorded_tasks()` answer from `Graph::plan()` as a `Result`, removed `RecordedTask::body` and `K_NO_RECORDED_TASK_VIEW`, and ran the assertions that were skipped (`graph_probe.hpp`).
+- 2026-10-12 — tests: Replaced `ARecordedBodyWaitsForItsDependencies` with `ARecordedTaskComputesItsResult`, which runs the task and no longer calls its body (`test_task_dependencies.cpp`, `test_sparse_recording.cpp`).
 - 2026-10-12 — tensor: Made `Storage` pass `K_STORAGE_ALIGNMENT` to `Runtime::buffer`; an address off that boundary fails an `SB_ASSERT` in place of throwing `std::runtime_error` (`storage.hpp`).
 - 2026-10-11 — graph_primitives: Breaking change: Made the four recording primitives return `Result<void>` with `ErrorCode::InvalidGraph` in place of throwing `SushiException` (`reduce.hpp`, `invalid_graph.hpp`).
 - 2026-10-11 — engine: Breaking change: Added `TaskDescription`, which every record call takes in place of the runtime's `TaskMetadata`; the task type is gone (`task_description.hpp`, `task_recorder.hpp`).

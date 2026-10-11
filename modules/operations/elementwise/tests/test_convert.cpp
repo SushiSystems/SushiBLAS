@@ -468,8 +468,7 @@ namespace SushiBLAS
 
             ASSERT_EQ(2u, probe.recorded_count());
             const auto tasks = probe.recorded_tasks();
-            if (!tasks)
-                GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
             EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                 << "The convert reading `src` must depend on the op that wrote it. An "
                    "in-degree of 0 means the read was declared from a bare pointer rather "
@@ -497,8 +496,7 @@ namespace SushiBLAS
 
             ASSERT_EQ(2u, probe.recorded_count());
             const auto tasks = probe.recorded_tasks();
-            if (!tasks)
-                GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
             EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                 << "The write set must name `dst` by its own byte interval, so the "
                    "reduction reading it is ordered behind the conversion. `dst` is a view "
@@ -535,8 +533,7 @@ namespace SushiBLAS
 
             ASSERT_EQ(2u, probe.recorded_count());
             const auto tasks = probe.recorded_tasks();
-            if (!tasks)
-                GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
             EXPECT_EQ(0u, (*tasks)[0].dependency_count);
             EXPECT_EQ(0u, (*tasks)[1].dependency_count)
                 << "Two conversions over non-overlapping halves of one arena share no "
