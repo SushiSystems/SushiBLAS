@@ -11,6 +11,7 @@ headers, SYCL and the standard library, and `tools/layering/check_layering.py` e
 | `reference_accumulator.hpp` | `ReferenceAccumulatorOf` and `ReferenceSum`, the type and the running sum of a reference kernel |
 | `running_solution.hpp` | `RunningSolution`, which carries a substitution's solution unrounded |
 | `complex_arithmetic.hpp` | The conjugation, product and quotient a SYCL device can run on any element type |
+| `device_math.hpp` | `Math`, the scalar functions a kernel may call: `std::` on the host, `sycl::` on the device |
 | `device_policy.hpp` | `Profile`, `CacheBlocking` and the launch geometry a kernel dispatches on |
 | `launch_1d.hpp` | The launch primitives every per-element kernel shares: `map`, `zip_inplace`, `indexed` |
 | `serial_1d.hpp` | The serial host loops that are the reference path of those three launch shapes |
@@ -78,6 +79,22 @@ the four-product formula, the quotient by Smith's algorithm, which returns NaN c
 zero divisor. Each has a real overload that is the plain operator, so a kernel template calls one
 name for every element type. `RealType<T>` names the real component type, and the conjugation
 helpers return a real value unchanged.
+
+## `device_math.hpp`
+
+`SushiBLAS::Math` names the scalar functions that code shared by the host and a kernel may call:
+`abs`, `asin`, `atan2`, `cbrt`, `copysign`, `cos`, `exp`, `floor`, `fmod`, `isfinite`, `log`,
+`pow`, `sin` and `sqrt`. On the host each is the `std::` function. In the device pass of a SYCL
+compiler each is the `sycl::` function, and `abs` is a template over `sycl::fabs`. A function
+written once against `Math::sqrt` therefore runs in both places.
+
+The switch is `__SYCL_DEVICE_ONLY__`, which the compiler defines only while it compiles device
+code. Every host translation unit sees the `std::` names, whether it is a SYCL one or not, so the
+header gives one definition across a program's host objects.
+
+`<sycl/sycl.hpp>` is included only when `SYCL_LANGUAGE_VERSION` is defined. A translation unit
+built without SYCL includes `<cmath>` and nothing else, which is what lets
+`modules/foundation/geometry` compile in a consumer's build lane that has no SYCL.
 
 ## `device_policy.hpp`
 

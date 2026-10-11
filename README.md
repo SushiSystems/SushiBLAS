@@ -178,6 +178,7 @@ modules/                One tree per module: README.md, CMakeLists.txt, include/
   foundation/
     core/               Element types, traits, the logger, errors, the version macros
     support/            Launch shapes, reductions, accumulators, device policy, geometry
+    geometry/           Vector3T, QuaternionT, Matrix4T, interpolation and transforms
     graph_primitives/   Reduce, segmented reduce, prefix scan and counting sort on a task graph
   data/
     tensor/             Storage, Tensor, TensorFactory
