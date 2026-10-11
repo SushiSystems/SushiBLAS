@@ -37,6 +37,7 @@
 #include <SushiRuntime/api/data/buffer.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 #include <SushiBLAS/random_kernels/random.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 
 namespace SushiBLAS
 {
@@ -74,9 +75,8 @@ namespace SushiBLAS
 
         void* ptr = t.data();
 
-        SushiRuntime::Internal::Graph::TaskMetadata meta;
+        TaskDescription meta;
         meta.name = name;
-        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "random.orthogonal"_op;
         meta.set_param(0, gain);
 

@@ -37,6 +37,7 @@
 #include <SushiRuntime/api/data/buffer.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 #include <SushiBLAS/random_kernels/random.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 
 namespace SushiBLAS
 {
@@ -115,9 +116,8 @@ namespace SushiBLAS
         OperandSet operands;
         operands.updates(t);
 
-        SushiRuntime::Internal::Graph::TaskMetadata meta;
+        TaskDescription meta;
         meta.name = name;
-        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "random.shuffle"_op;
 
         recorder_.require_host_reachable(operands, "RNG operation", name);

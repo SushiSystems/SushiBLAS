@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-11 — engine: Breaking change: Added `TaskDescription`, which replaces the runtime's `TaskMetadata` in every record call, `set_task_params` and `BLASMetadata`; the task type is gone (`task_description.hpp`, `task_recorder.hpp`).
 - 2026-10-11 — engine: Breaking change: Built `Engine`, `Storage`, `TensorFactory` and `ScratchPool` on `SushiRuntime::Runtime`; `Engine::execute` returns `Result<void>` and `runtime()` replaces `context()` (`engine.hpp`, `storage.hpp`).
 - 2026-10-11 — api: Breaking change: Spelled ReLU in capitals, so `BiasReluEpilogue` and `BiasRelu` became BiasReLUEpilogue and BiasReLU.
 - 2026-10-11 — api: Breaking change: Wrote every acronym of a type name in capitals, so `BlasScalar`, `IoStatus`, `ForceSycl`, `UsmArray` and `RngStream` became BLASScalar, IOStatus, ForceSYCL, USMArray and RNGStream.

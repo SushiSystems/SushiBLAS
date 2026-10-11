@@ -32,6 +32,7 @@
 #include <SushiBLAS/spatial/spatial.hpp>
 #include <SushiBLAS/spatial/window.hpp>
 #include <SushiBLAS/spatial_kernels/spatial.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 
 namespace SushiBLAS
 {
@@ -60,9 +61,8 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(in).writes(cols);
 
-        SushiRuntime::Internal::Graph::TaskMetadata meta;
+        TaskDescription meta;
         meta.name = K_IM2COL_NAME;
-        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.im2col"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(

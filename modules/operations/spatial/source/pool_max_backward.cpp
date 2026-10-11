@@ -32,6 +32,7 @@
 #include <SushiBLAS/spatial/spatial.hpp>
 #include <SushiBLAS/spatial/window.hpp>
 #include <SushiBLAS/spatial_kernels/spatial.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 
 namespace SushiBLAS
 {
@@ -67,9 +68,8 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(dy).reads(indices).writes(dx);
 
-        SushiRuntime::Internal::Graph::TaskMetadata meta;
+        TaskDescription meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.pool_max_backward"_op;
 
         const auto* index_in = static_cast<const int64_t*>(read_indices);

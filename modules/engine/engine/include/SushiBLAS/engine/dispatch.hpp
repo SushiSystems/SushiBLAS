@@ -39,6 +39,7 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
@@ -236,15 +237,15 @@ namespace SushiBLAS
          * @see modules/engine/engine/README.md
          */
         template<typename T>
-        inline void set_task_params(SushiRuntime::Internal::Graph::TaskMetadata& meta,
+        inline void set_task_params(TaskDescription& meta,
                                     std::initializer_list<T> params, const char* name,
                                     std::size_t reserved_slots = 0)
         {
-            constexpr std::size_t k_capacity = SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS;
+            constexpr std::size_t k_capacity = TaskDescription::K_MAX_PARAMS;
             if (params.size() + reserved_slots > k_capacity)
                 Detail::throw_operand_error(name, "params",
                                             "lists {} task parameters (+{} reserved) but "
-                                            "TaskMetadata holds only {}",
+                                            "TaskDescription holds only {}",
                                             params.size(), reserved_slots, k_capacity);
 
             int slot = 0;

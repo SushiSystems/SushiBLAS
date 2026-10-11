@@ -35,6 +35,7 @@
 #include <SushiBLAS/random/random.hpp>
 #include <SushiBLAS/random/dispatch.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 #include <SushiRuntime/api/data/buffer.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
@@ -50,7 +51,7 @@ namespace SushiBLAS
          * @throws UnsupportedExecution under ForceReference when the tensor is device-only USM.
          */
         template<typename T>
-        TaskHandle record_fill(TaskRecorder& recorder, const SushiRuntime::Internal::Graph::TaskMetadata& meta,
+        TaskHandle record_fill(TaskRecorder& recorder, const TaskDescription& meta,
                                const OperandSet& operands, T* out, T value, int64_t size)
         {
             return recorder.record_pair(meta, operands, "RNG operation",
@@ -74,9 +75,8 @@ namespace SushiBLAS
     TaskHandle RandomOps::constant(Tensor& t, double value) 
     {
         auto op_id = "random.constant"_op;
-        SushiRuntime::Internal::Graph::TaskMetadata meta;
+        TaskDescription meta;
         meta.name = "random.constant";
-        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = op_id;
         meta.set_param(0, value);
 

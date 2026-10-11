@@ -32,6 +32,7 @@
 #include <SushiBLAS/spatial/spatial.hpp>
 #include <SushiBLAS/spatial/window.hpp>
 #include <SushiBLAS/spatial_kernels/spatial.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 
 namespace SushiBLAS
 {
@@ -68,9 +69,8 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(in).writes(out).writes(indices);
 
-        SushiRuntime::Internal::Graph::TaskMetadata meta;
+        TaskDescription meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.pool_max"_op;
 
         // The switch runs on the value dtype; the index pointer is int64_t*; see modules/operations/README.md.

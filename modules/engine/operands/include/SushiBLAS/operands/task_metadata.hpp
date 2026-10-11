@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/operands/scalar.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
@@ -37,7 +38,7 @@ namespace SushiBLAS
     namespace Internal
     {
         /**
-         * @brief Builds the TaskMetadata of one BLAS task: scalars, then flags, then extents.
+         * @brief Builds the TaskDescription of one BLAS task: scalars, then flags, then extents.
          * @see modules/operations/blas/README.md
          */
         class BLASMetadata final
@@ -50,7 +51,6 @@ namespace SushiBLAS
                 BLASMetadata(const char* name, SushiRuntime::OperationID op_id) noexcept
                 {
                     meta_.name = name;
-                    meta_.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
                     meta_.op_id = op_id;
                 }
 
@@ -81,7 +81,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns the metadata built so far. */
-                [[nodiscard]] const SushiRuntime::Internal::Graph::TaskMetadata& get() const noexcept
+                [[nodiscard]] const TaskDescription& get() const noexcept
                 {
                     return meta_;
                 }
@@ -91,15 +91,14 @@ namespace SushiBLAS
                 template<typename Value>
                 void push(Value value) noexcept
                 {
-                    SB_ASSERT(next_ < static_cast<int>(
-                                          SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS),
-                              "A BLAS task declared more metadata slots than TaskMetadata holds");
+                    SB_ASSERT(next_ < static_cast<int>(TaskDescription::K_MAX_PARAMS),
+                              "A BLAS task declared more slots than TaskDescription holds");
                     meta_.set_param(next_, value);
                     ++next_;
                 }
 
                 /// @brief The metadata being built.
-                SushiRuntime::Internal::Graph::TaskMetadata meta_;
+                TaskDescription meta_;
 
                 /// @brief The next free slot.
                 int next_ = 0;

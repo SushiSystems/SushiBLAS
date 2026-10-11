@@ -48,6 +48,7 @@
 #include <SushiBLAS/support/serial_reduce.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 #include <SushiRuntime/api/data/buffer.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
@@ -289,9 +290,8 @@ namespace SushiBLAS
                                         reduction_device_index(t, result));
             operands.scratch(scratch);
 
-            SushiRuntime::Internal::Graph::TaskMetadata meta;
+            TaskDescription meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
 
             using D = std::decay_t<Dispatcher>;
@@ -335,7 +335,7 @@ namespace SushiBLAS
                 /** @brief Holds the recorder the task is recorded through. */
                 TaskRecorder& recorder;
                 /** @brief Holds the metadata the task is recorded with. */
-                const SushiRuntime::Internal::Graph::TaskMetadata& meta;
+                const TaskDescription& meta;
                 /** @brief Holds the operands the task declares. */
                 const OperandSet& operands;
                 /** @brief Holds the dispatcher the task body calls. */
@@ -383,7 +383,7 @@ namespace SushiBLAS
                 /** @brief Holds the recorder the task is recorded through. */
                 TaskRecorder& recorder;
                 /** @brief Holds the metadata the task is recorded with. */
-                const SushiRuntime::Internal::Graph::TaskMetadata& meta;
+                const TaskDescription& meta;
                 /** @brief Holds the operands the task declares. */
                 const OperandSet& operands;
                 /** @brief Holds the dispatcher the task body calls. */
@@ -499,7 +499,7 @@ namespace SushiBLAS
                 /** @brief Holds the recorder the task is recorded through. */
                 TaskRecorder& recorder;
                 /** @brief Holds the metadata the task is recorded with. */
-                const SushiRuntime::Internal::Graph::TaskMetadata& meta;
+                const TaskDescription& meta;
                 /** @brief Holds the operands the task declares. */
                 const OperandSet& operands;
                 /** @brief Holds the segment geometry the fold walks. */
@@ -570,9 +570,8 @@ namespace SushiBLAS
                                         t.storage->device_index());
             operands.scratch(scratch);
 
-            SushiRuntime::Internal::Graph::TaskMetadata meta;
+            TaskDescription meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
 
             TaskHandle handle;
@@ -626,9 +625,8 @@ namespace SushiBLAS
                                         reduction_device_index(t, result));
             operands.scratch(scratch);
 
-            SushiRuntime::Internal::Graph::TaskMetadata meta;
+            TaskDescription meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
 
             TaskHandle handle;
@@ -806,9 +804,8 @@ namespace SushiBLAS
             OperandSet operands;
             operands.reads(t).writes(result);
 
-            SushiRuntime::Internal::Graph::TaskMetadata meta;
+            TaskDescription meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
 
             TaskHandle handle;
