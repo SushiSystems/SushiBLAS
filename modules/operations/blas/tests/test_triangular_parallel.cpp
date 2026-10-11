@@ -1407,7 +1407,8 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(*this->engine).trmv(A, x, Core::Uplo::Lower);
             this->engine->execute().value();
 
-            EXPECT_EQ(outstanding_before, TestEnvironment::live_allocation_count() - pool.idle_block_count())
+            EXPECT_EQ(outstanding_before,
+                      TestEnvironment::live_allocation_count() - pool.idle_block_count())
                 << "Every allocation the product made must be idle in the pool or freed.";
 
             const std::size_t live_after_first = TestEnvironment::live_allocation_count();

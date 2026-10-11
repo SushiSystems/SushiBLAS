@@ -61,7 +61,7 @@ namespace SushiBLAS
 
             /** @brief Builds a view that records on engine's graph and draws from engine's stream. */
             explicit RandomOps(Engine& engine) noexcept
-                : RandomOps(engine.get_recorder(), engine.get_rng())
+                : RandomOps(engine.recorder(), engine.rng())
             {
 
             }

@@ -48,7 +48,7 @@ namespace SushiBLAS
             explicit NonLinearOps(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
 
             /** @brief Builds a view that records on engine's own graph. */
-            explicit NonLinearOps(Engine& engine) noexcept : NonLinearOps(engine.get_recorder()) {}
+            explicit NonLinearOps(Engine& engine) noexcept : NonLinearOps(engine.recorder()) {}
 
             NonLinearOps(const NonLinearOps&) = default;
             NonLinearOps& operator=(const NonLinearOps&) = delete;

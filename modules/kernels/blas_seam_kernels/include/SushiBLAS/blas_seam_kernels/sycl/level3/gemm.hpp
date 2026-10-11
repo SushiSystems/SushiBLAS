@@ -221,40 +221,50 @@ namespace SushiBLAS
                     Epilogue epilogue)
                 {
                     using W = Accumulator<T>;
-                    using Cfg = GemmLocalTile<T>;
+                    using Configuration = GemmLocalTile<T>;
 
-                    SB_ASSERT(Device::hosts_local_tile(Device::profile_for(queue),
-                                                       {Cfg::local_mem_bytes(),
-                                                        static_cast<std::size_t>(Cfg::K_WG_ITEMS)}),
+                    SB_ASSERT(Device::hosts_local_tile(
+                                  Device::profile_for(queue),
+                                  {Configuration::local_mem_bytes(),
+                                   static_cast<std::size_t>(Configuration::K_WG_ITEMS)}),
                               "gemm_local_tiled launched on a device that cannot host its local tile");
 
-                    const int64_t m_groups = group_count(m, Cfg::K_BLOCK_M);
-                    const int64_t n_groups = group_count(n, Cfg::K_BLOCK_N);
+                    const int64_t m_groups = group_count(m, Configuration::K_BLOCK_M);
+                    const int64_t n_groups = group_count(n, Configuration::K_BLOCK_N);
 
-                    const sycl::range<3> global(static_cast<std::size_t>(batch_size),
-                                                static_cast<std::size_t>(m_groups * Cfg::K_WG_ROWS),
-                                                static_cast<std::size_t>(n_groups * Cfg::K_WG_COLS));
-                    const sycl::range<3> local(1, static_cast<std::size_t>(Cfg::K_WG_ROWS),
-                                                  static_cast<std::size_t>(Cfg::K_WG_COLS));
+                    const sycl::range<3> global(
+                        static_cast<std::size_t>(batch_size),
+                        static_cast<std::size_t>(m_groups * Configuration::K_WG_ROWS),
+                        static_cast<std::size_t>(n_groups * Configuration::K_WG_COLS));
+                    const sycl::range<3> local(
+                        1, static_cast<std::size_t>(Configuration::K_WG_ROWS),
+                        static_cast<std::size_t>(Configuration::K_WG_COLS));
 
                     return queue.submit([&](sycl::handler& h)
                     {
                         h.depends_on(deps);
 
                         sycl::local_accessor<T, 1> tile_a(
-                            sycl::range<1>(static_cast<std::size_t>(Cfg::K_BLOCK_M) * Cfg::K_TILE_A_LD), h);
+                            sycl::range<1>(static_cast<std::size_t>(Configuration::K_BLOCK_M) *
+                                           Configuration::K_TILE_A_LD),
+                            h);
                         sycl::local_accessor<T, 1> tile_b(
-                            sycl::range<1>(static_cast<std::size_t>(Cfg::K_TILE_K) * Cfg::K_BLOCK_N), h);
+                            sycl::range<1>(static_cast<std::size_t>(Configuration::K_TILE_K) *
+                                           Configuration::K_BLOCK_N),
+                            h);
 
                         h.parallel_for(sycl::nd_range<3>(global, local), [=](sycl::nd_item<3> item)
                         {
                             // Only global offsets and strides are 64-bit; see modules/kernels/blas_seam_kernels/README.md.
                             const int64_t batch_id = static_cast<int64_t>(item.get_group(0));
-                            const int64_t row0 = static_cast<int64_t>(item.get_group(1)) * Cfg::K_BLOCK_M;
-                            const int64_t col0 = static_cast<int64_t>(item.get_group(2)) * Cfg::K_BLOCK_N;
+                            const int64_t row0 =
+                                static_cast<int64_t>(item.get_group(1)) * Configuration::K_BLOCK_M;
+                            const int64_t col0 =
+                                static_cast<int64_t>(item.get_group(2)) * Configuration::K_BLOCK_N;
                             const int local_row = static_cast<int>(item.get_local_id(1));
                             const int local_col = static_cast<int>(item.get_local_id(2));
-                            const int local_linear = local_row * Cfg::K_WG_COLS + local_col;
+                            const int local_linear =
+                                local_row * Configuration::K_WG_COLS + local_col;
 
                             const T* A = a + batch_id * str_a;
                             const T* B = b + batch_id * str_b;
@@ -262,30 +272,30 @@ namespace SushiBLAS
                             // Only C is __restrict__: a and b may alias; see modules/kernels/blas_seam_kernels/README.md.
                             T* __restrict__ C = c + batch_id * str_c;
 
-                            W acc[Cfg::K_ITEM_ROWS][Cfg::K_ITEM_COLS];
-                            for (int ii = 0; ii < Cfg::K_ITEM_ROWS; ++ii)
-                                for (int jj = 0; jj < Cfg::K_ITEM_COLS; ++jj)
+                            W acc[Configuration::K_ITEM_ROWS][Configuration::K_ITEM_COLS];
+                            for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
+                                for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                     acc[ii][jj] = W(0);
 
                             // One local buffer and two barriers per K-step; see modules/kernels/blas_seam_kernels/README.md.
-                            for (int64_t k0 = 0; k0 < k; k0 += Cfg::K_TILE_K)
+                            for (int64_t k0 = 0; k0 < k; k0 += Configuration::K_TILE_K)
                             {
                                 // The whole group stages block_m x tile_k of A and tile_k x block_n of B; see modules/kernels/blas_seam_kernels/README.md.
                                 for (int idx = local_linear;
-                                     idx < Cfg::K_BLOCK_M * Cfg::K_TILE_K;
-                                     idx += Cfg::K_WG_ITEMS)
+                                     idx < Configuration::K_BLOCK_M * Configuration::K_TILE_K;
+                                     idx += Configuration::K_WG_ITEMS)
                                 {
-                                    const int r = idx / Cfg::K_TILE_K;
-                                    const int kk = idx % Cfg::K_TILE_K;
-                                    tile_a[r * Cfg::K_TILE_A_LD + kk] =
+                                    const int r = idx / Configuration::K_TILE_K;
+                                    const int kk = idx % Configuration::K_TILE_K;
+                                    tile_a[r * Configuration::K_TILE_A_LD + kk] =
                                         load_operand(A, row0 + r, k0 + kk, m, k, a_access);
                                 }
                                 for (int idx = local_linear;
-                                     idx < Cfg::K_TILE_K * Cfg::K_BLOCK_N;
-                                     idx += Cfg::K_WG_ITEMS)
+                                     idx < Configuration::K_TILE_K * Configuration::K_BLOCK_N;
+                                     idx += Configuration::K_WG_ITEMS)
                                 {
-                                    const int kk = idx / Cfg::K_BLOCK_N;
-                                    const int cc = idx % Cfg::K_BLOCK_N;
+                                    const int kk = idx / Configuration::K_BLOCK_N;
+                                    const int cc = idx % Configuration::K_BLOCK_N;
                                     tile_b[idx] =
                                         load_operand(B, k0 + kk, col0 + cc, k, n, b_access);
                                 }
@@ -293,35 +303,39 @@ namespace SushiBLAS
                                 sycl::group_barrier(item.get_group());
 
                                 // Staged out-of-range elements are zero, so the full tile_k width sums exactly; see modules/kernels/blas_seam_kernels/README.md.
-                                for (int kk = 0; kk < Cfg::K_TILE_K; ++kk)
+                                for (int kk = 0; kk < Configuration::K_TILE_K; ++kk)
                                 {
                                     // tile_a_ld is padded to 17; see modules/kernels/blas_seam_kernels/README.md.
-                                    T reg_a[Cfg::K_ITEM_ROWS];
-                                    T reg_b[Cfg::K_ITEM_COLS];
+                                    T reg_a[Configuration::K_ITEM_ROWS];
+                                    T reg_b[Configuration::K_ITEM_COLS];
 
-                                    for (int ii = 0; ii < Cfg::K_ITEM_ROWS; ++ii)
-                                        reg_a[ii] = tile_a[(local_row + ii * Cfg::K_WG_ROWS) *
-                                                           Cfg::K_TILE_A_LD + kk];
-                                    for (int jj = 0; jj < Cfg::K_ITEM_COLS; ++jj)
-                                        reg_b[jj] = tile_b[kk * Cfg::K_BLOCK_N +
-                                                           (local_col + jj * Cfg::K_WG_COLS)];
+                                    for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
+                                        reg_a[ii] =
+                                            tile_a[(local_row + ii * Configuration::K_WG_ROWS) *
+                                                   Configuration::K_TILE_A_LD + kk];
+                                    for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
+                                        reg_b[jj] =
+                                            tile_b[kk * Configuration::K_BLOCK_N +
+                                                   (local_col + jj * Configuration::K_WG_COLS)];
 
-                                    for (int ii = 0; ii < Cfg::K_ITEM_ROWS; ++ii)
-                                        for (int jj = 0; jj < Cfg::K_ITEM_COLS; ++jj)
+                                    for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
+                                        for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                             acc[ii][jj] += multiply(W(reg_a[ii]), W(reg_b[jj]));
                                 }
 
                                 sycl::group_barrier(item.get_group());
                             }
 
-                            for (int ii = 0; ii < Cfg::K_ITEM_ROWS; ++ii)
+                            for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
                             {
-                                const int64_t global_row = row0 + local_row + ii * Cfg::K_WG_ROWS;
+                                const int64_t global_row =
+                                    row0 + local_row + ii * Configuration::K_WG_ROWS;
                                 if (global_row >= m) continue;
 
-                                for (int jj = 0; jj < Cfg::K_ITEM_COLS; ++jj)
+                                for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                 {
-                                    const int64_t global_col = col0 + local_col + jj * Cfg::K_WG_COLS;
+                                    const int64_t global_col =
+                                        col0 + local_col + jj * Configuration::K_WG_COLS;
                                     if (global_col >= n) continue;
 
                                     const int64_t c_idx = c_access.index(global_row, global_col);
@@ -356,14 +370,16 @@ namespace SushiBLAS
                     Epilogue epilogue)
                 {
                     using W = Accumulator<T>;
-                    using Cfg = GemmNoLocalTile<T>;
+                    using Configuration = GemmNoLocalTile<T>;
 
                     const GroupShape group = group_shape(Device::work_group_size(profile));
                     const int wg_rows = static_cast<int>(group.rows);
                     const int wg_cols = static_cast<int>(group.cols);
 
-                    const int64_t block_m = static_cast<int64_t>(wg_rows) * Cfg::K_ITEM_ROWS;
-                    const int64_t block_n = static_cast<int64_t>(wg_cols) * Cfg::K_ITEM_COLS;
+                    const int64_t block_m =
+                        static_cast<int64_t>(wg_rows) * Configuration::K_ITEM_ROWS;
+                    const int64_t block_n =
+                        static_cast<int64_t>(wg_cols) * Configuration::K_ITEM_COLS;
 
                     const int64_t m_groups = group_count(m, block_m);
                     const int64_t n_groups = group_count(n, block_n);
@@ -395,35 +411,35 @@ namespace SushiBLAS
                             // Only C is __restrict__, because a and b may alias each other; see modules/kernels/blas_seam_kernels/README.md.
                             T* __restrict__ C = c + batch_id * str_c;
 
-                            W acc[Cfg::K_ITEM_ROWS][Cfg::K_ITEM_COLS];
-                            for (int ii = 0; ii < Cfg::K_ITEM_ROWS; ++ii)
-                                for (int jj = 0; jj < Cfg::K_ITEM_COLS; ++jj)
+                            W acc[Configuration::K_ITEM_ROWS][Configuration::K_ITEM_COLS];
+                            for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
+                                for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                     acc[ii][jj] = W(0);
 
                             for (int64_t kk = 0; kk < k; ++kk)
                             {
-                                T reg_a[Cfg::K_ITEM_ROWS];
-                                T reg_b[Cfg::K_ITEM_COLS];
+                                T reg_a[Configuration::K_ITEM_ROWS];
+                                T reg_b[Configuration::K_ITEM_COLS];
 
                                 // load_operand's zero fill is the tail guard, so no remainder loop is needed; see modules/kernels/blas_seam_kernels/README.md.
-                                for (int ii = 0; ii < Cfg::K_ITEM_ROWS; ++ii)
+                                for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
                                     reg_a[ii] = load_operand(A, row0 + ii * wg_rows, kk,
                                                              m, k, a_access);
-                                for (int jj = 0; jj < Cfg::K_ITEM_COLS; ++jj)
+                                for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                     reg_b[jj] = load_operand(B, kk, col0 + jj * wg_cols,
                                                              k, n, b_access);
 
-                                for (int ii = 0; ii < Cfg::K_ITEM_ROWS; ++ii)
-                                    for (int jj = 0; jj < Cfg::K_ITEM_COLS; ++jj)
+                                for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
+                                    for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                         acc[ii][jj] += multiply(W(reg_a[ii]), W(reg_b[jj]));
                             }
 
-                            for (int ii = 0; ii < Cfg::K_ITEM_ROWS; ++ii)
+                            for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
                             {
                                 const int64_t global_row = row0 + ii * wg_rows;
                                 if (global_row >= m) continue;
 
-                                for (int jj = 0; jj < Cfg::K_ITEM_COLS; ++jj)
+                                for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                 {
                                     const int64_t global_col = col0 + jj * wg_cols;
                                     if (global_col >= n) continue;
@@ -462,9 +478,10 @@ namespace SushiBLAS
                             int64_t batch_size, const std::vector<sycl::event>& deps,
                             Epilogue epilogue = Epilogue{})
             {
-                using LocalCfg = Detail::GemmLocalTile<T>;
-                constexpr std::size_t local_bytes = LocalCfg::local_mem_bytes();
-                constexpr std::size_t local_items = static_cast<std::size_t>(LocalCfg::K_WG_ITEMS);
+                using LocalConfiguration = Detail::GemmLocalTile<T>;
+                constexpr std::size_t local_bytes = LocalConfiguration::local_mem_bytes();
+                constexpr std::size_t local_items =
+                    static_cast<std::size_t>(LocalConfiguration::K_WG_ITEMS);
 
                 const Device::Profile& profile = Device::profile_for(queue);
                 const Device::LocalTileDemand local_demand{local_bytes, local_items};
@@ -475,7 +492,8 @@ namespace SushiBLAS
                 {
                     SB_LOG_INFO("SYCL GEMM [local_tiled]: batch={} {}x{}x{} block={}x{} tile_k={} local={}B",
                                 batch_size, m, n, k,
-                                LocalCfg::K_BLOCK_M, LocalCfg::K_BLOCK_N, LocalCfg::K_TILE_K, local_bytes);
+                                LocalConfiguration::K_BLOCK_M, LocalConfiguration::K_BLOCK_N,
+                                LocalConfiguration::K_TILE_K, local_bytes);
 
                     return Detail::gemm_local_tiled<T>(
                         queue, m, n, k,

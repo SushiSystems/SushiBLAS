@@ -323,7 +323,8 @@ unaliased is sound. `a` and `b` are deliberately NOT qualified: a caller computi
 one pointer for both, which is legal, and __restrict__ on both would make it undefined behaviour. Do
 not "fix" this by adding it.
 
-At `for (int64_t k0 = 0; k0 < k; k0 += Cfg::K_TILE_K)`: no double buffering, deliberately. Alternating
+At `for (int64_t k0 = 0; k0 < k; k0 += Configuration::K_TILE_K)`: no double buffering,
+deliberately. Alternating
 between two local buffers would elide one of the two barriers in the K-step loop, but the win over a
 correctly bank-padded single-buffered kernel is modest, and this project has no GPU to measure it
 on: the only reachable device is an OpenCL CPU, which takes the no-local variant and has no barriers

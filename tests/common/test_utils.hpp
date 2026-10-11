@@ -220,7 +220,9 @@ namespace SushiBLAS
             {
                 const size_t size = static_cast<size_t>(tensor.num_elements);
                 std::vector<H> host(size);
-                TestEnvironment::queue().memcpy(host.data(), tensor.data(), size * sizeof(H)).wait();
+                TestEnvironment::queue()
+                    .memcpy(host.data(), tensor.data(), size * sizeof(H))
+                    .wait();
 
                 for (size_t i = 0; i < size; ++i)
                 {
@@ -367,7 +369,8 @@ namespace SushiBLAS
 
                 void SetUp() override 
                 {
-                    engine = std::make_unique<Engine>(TestEnvironment::runtime(), Core::Layout::RowMajor);
+                    engine = std::make_unique<Engine>(TestEnvironment::runtime(),
+                                                      Core::Layout::RowMajor);
                     reset_fill_random_generator();
                 }
 

@@ -21,7 +21,7 @@
 
 /**
  * @file invalid_graph.hpp
- * @brief Declares the throw a primitive reports a broken recording precondition with.
+ * @brief Declares the two outcomes a primitive returns: a broken precondition and a refusal.
  * @author Mustafa Garip
  */
 
@@ -30,7 +30,9 @@
 #include <string>
 #include <utility>
 
+#include <SushiRuntime/api/graph/recorder.hpp>
 #include <SushiRuntime/core/error.hpp>
+#include <SushiRuntime/core/result.hpp>
 
 namespace SushiBLAS
 {
@@ -39,15 +41,29 @@ namespace SushiBLAS
         namespace Detail
         {
             /**
-             * @brief Throws the runtime's exception with Errc::invalid_graph.
+             * @brief Returns the InvalidGraph error of a broken recording precondition.
              * @param message Names the primitive, the argument at fault and the values involved.
-             * @throws SushiRuntime::Core::SushiException Always.
              * @see modules/foundation/graph_primitives/README.md
              */
-            [[noreturn]] inline void throw_invalid_graph(std::string message)
+            [[nodiscard]] inline SushiRuntime::ErrorWrapper<SushiRuntime::Error>
+            invalid_graph(std::string message)
             {
-                throw SushiRuntime::Core::SushiException(SushiRuntime::Core::Error{
-                    SushiRuntime::Core::Errc::invalid_graph, std::move(message)});
+                return SushiRuntime::make_error(SushiRuntime::Error{
+                    SushiRuntime::ErrorCode::InvalidGraph, std::move(message)});
+            }
+
+            /**
+             * @brief Returns what a primitive reports once it has recorded its nodes.
+             * @return Nothing, or the first recording the recorder refused since it was cleared.
+             * @see modules/foundation/graph_primitives/README.md
+             */
+            [[nodiscard]] inline SushiRuntime::Result<void>
+            recording_outcome(const SushiRuntime::Recorder& recorder)
+            {
+                if (const SushiRuntime::Error* refused = recorder.refusal())
+                    return SushiRuntime::make_error(*refused);
+
+                return {};
             }
 
         } // namespace Detail

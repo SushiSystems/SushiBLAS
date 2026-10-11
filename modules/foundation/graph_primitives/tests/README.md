@@ -51,8 +51,8 @@ thermal rebalancer on, which migrates tasks between workers during a run.
 `DeviceCountIsReadAfterItsProducer`: a kernel of the same graph writes the count. The reduce has
 to fold the count written in its own run, not the one the previous run left.
 
-`RejectsMisSizedArguments` checks the code of the exception, `invalid_graph`, and that the
-recorder holds no node afterwards.
+`RejectsMisSizedArguments` checks that each call returns an `ErrorCode::InvalidGraph` error and
+that the recorder holds no node afterwards.
 
 ## test_segmented_reduce.cpp
 
@@ -109,5 +109,5 @@ provider that cycles through four ranges, so one, two and three digit passes all
 
 The cases that pinned a mechanism of the runtime itself stayed there, on a test-local kernel:
 the resolution of a bare `LateCount`, a `sized_from_device` launch, and the refusal of a device
-count slot that is not host-resident, which `LateCount::from_device` now throws before a
-primitive is called.
+count slot that is not host-resident, which `LateCount::from_device` stops the process on
+before a primitive is called.

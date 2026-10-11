@@ -196,7 +196,7 @@ At `operands.reads(t).writes(result);`: `Tensor::region()`,
 never the bare `data()` pointer. A region is keyed on the *allocation base* and narrowed to the
 view's byte interval; a bare pointer converts to the whole-buffer region of whatever it points at.
 For a tensor at offset zero those are the same thing, which is why this went unnoticed, but for two
-views inside one arena the bare pointers are two different bases, `ResourceRegion::overlaps` returns
+views inside one arena the bare pointers are two different bases, `BufferRegion::overlaps` returns
 false, and the tracker emits no edge at all. Not a wrong edge: none. A reduction then races the op
 that produced its input, and the result is a plausible wrong number with no error anywhere.
 SushiAI's first arena-packed training run lost exactly this way (a loss of -57 where ln 6 was
@@ -300,7 +300,7 @@ the caller never sees an allocator.
 // A root-mean-square reduction a consumer could write, deterministic and
 // compensated, in one call and one kernel:
 Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(
-    engine.get_recorder(), t, result, "nn.rms", "nn.rms"_op,
+    engine.recorder(), t, result, "nn.rms", "nn.rms"_op,
     [](auto x) { return x * x; },
     [](auto v, std::size_t n) { return sycl::sqrt(v / decltype(v)(n)); });
 ```
@@ -393,7 +393,7 @@ body is a `Detail::SpanReductionTask`: the SYCL path is the segmented launch of
 // Row-wise maximum of a [rows, cols] tensor into a [rows] vector -
 // the shift a numerically honest log-softmax needs.
 Dispatch::execute_folding_axis_reduction<Reduce::NaNPropagatingMax>(
-    engine.get_recorder(), x, 1, row_max, "math.max_along", "math.max_along"_op,
+    engine.recorder(), x, 1, row_max, "math.max_along", "math.max_along"_op,
     Dispatch::ReduceIdentityTransform{}, Dispatch::ReduceIdentityFinalize{});
 ```
 

@@ -23,8 +23,8 @@ graph.run();
 | Header | Includes |
 | --- | --- |
 | `combiners.hpp`, `fixed_order_fold.hpp`, `fixed_order_reduce.hpp`, `fixed_order_scan.hpp`, `radix_plan.hpp` | The standard library and each other |
-| `invalid_graph.hpp` | `<SushiRuntime/core/error.hpp>` |
-| `reduce.hpp`, `segmented_reduce.hpp`, `prefix_scan.hpp`, `counting_sort.hpp` | The headers above and SushiRuntime's public graph headers: `Recorder`, `Access`, `DeviceSized`, `NodeOptions`, `Reads`, `Writes`, `LateCount`, `Buffer`, `Memory::ResourceRegion` |
+| `invalid_graph.hpp` | `<SushiRuntime/core/error.hpp>`, `<SushiRuntime/core/result.hpp>` and `<SushiRuntime/api/graph/recorder.hpp>` |
+| `reduce.hpp`, `segmented_reduce.hpp`, `prefix_scan.hpp`, `counting_sort.hpp` | The headers above and SushiRuntime's public graph headers: `Recorder`, `Access`, `DeviceSized`, `NodeOptions`, `Reads`, `Writes`, `LateCount`, `Buffer`, `BufferRegion`, `Result` |
 
 No header includes another SushiBLAS module, and none names `SushiRuntime::Detail`.
 
@@ -47,7 +47,7 @@ place the tile size is written.
 | `fixed_order_reduce.hpp` | `Detail::ReduceLevel`, `Detail::plan_reduction`, `Detail::reduce_scratch_count` |
 | `fixed_order_scan.hpp` | `Detail::LiveTileLevel`, `Detail::plan_tiled_levels`, `Detail::next_live_tile_count`, `Detail::fill_live_tile_levels`, `Detail::fill_live_level_words`, `Detail::live_tile_levels` |
 | `radix_plan.hpp` | `Detail::K_RADIX_*`, `Detail::radix_digit_count`, `Detail::radix_digit`, `Detail::fill_radix_plan` |
-| `invalid_graph.hpp` | `Detail::throw_invalid_graph` |
+| `invalid_graph.hpp` | `Detail::invalid_graph`, `Detail::recording_outcome` |
 
 A `LateCount` carries a capacity, which the primitive plans for when it records, and the source
 of the live count, which the runtime resolves once per run: `LateCount::fixed`,
@@ -55,14 +55,21 @@ of the live count, which the runtime resolves once per run: `LateCount::fixed`,
 
 ## Errors
 
-A broken size or device rule throws `SushiRuntime::SushiException` with
-`Errc::invalid_graph` when the call records, before any node or scratch is added. The message
-starts with the name of the primitive. A caller that catches the runtime's exception around graph
-building catches these with it. A live count above its capacity fails the run, not the recording;
-the runtime reports that one.
+Every primitive returns `SushiRuntime::Result<void>`, and nothing in this module throws. The
+result is `[[nodiscard]]`; a caller with no way to go on writes `reduce(...).value();`, which
+stops the process on an error.
 
-Nothing in this module logs: a primitive records nodes and returns, and its only failure is the
-exception above.
+| Error | When |
+| --- | --- |
+| `ErrorCode::InvalidGraph` | A size or device rule is broken. The call returns before any node or scratch is added, and the message starts with the name of the primitive. |
+| `ErrorCode::AllocationFailed` | `Recorder::scratch()` could not allocate. The nodes recorded before it stay on the recorder; `Recorder::clear()` drops them. |
+| The recorder's refusal | The recorder refused a node. The primitive returns the first refusal the recorder holds since its last `clear()`, which is the error the next run returns as well. |
+
+`Detail::invalid_graph` builds the first and `Detail::recording_outcome` returns the third or
+success. A live count above its capacity fails the run, not the recording: `Graph::run()` returns
+that error.
+
+Nothing in this module logs: a primitive records nodes and returns its result.
 
 ## What stays fixed
 

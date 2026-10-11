@@ -6,8 +6,10 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
-- 2026-10-11 — engine: Breaking change: Added `TaskDescription`, which replaces the runtime's `TaskMetadata` in every record call, `set_task_params` and `BLASMetadata`; the task type is gone (`task_description.hpp`, `task_recorder.hpp`).
-- 2026-10-11 — engine: Breaking change: Built `Engine`, `Storage`, `TensorFactory` and `ScratchPool` on `SushiRuntime::Runtime`; `Engine::execute` returns `Result<void>` and `runtime()` replaces `context()` (`engine.hpp`, `storage.hpp`).
+- 2026-10-11 — graph_primitives: Breaking change: Made the four recording primitives return `Result<void>` with `ErrorCode::InvalidGraph` in place of throwing `SushiException` (`reduce.hpp`, `invalid_graph.hpp`).
+- 2026-10-11 — engine: Breaking change: Added `TaskDescription`, which every record call takes in place of the runtime's `TaskMetadata`; the task type is gone (`task_description.hpp`, `task_recorder.hpp`).
+- 2026-10-11 — tensor: Breaking change: Made `Storage` own a runtime `Buffer` and take a `SushiRuntime::Runtime`; `queue()` replaces `context()`.
+- 2026-10-11 — engine: Breaking change: Built `Engine` on `SushiRuntime::Runtime`; `execute` returns `Result<void>` and `runtime()` replaces `context()`.
 - 2026-10-11 — api: Breaking change: Spelled ReLU in capitals, so `BiasReluEpilogue` and `BiasRelu` became BiasReLUEpilogue and BiasReLU.
 - 2026-10-11 — api: Breaking change: Wrote every acronym of a type name in capitals, so `BlasScalar`, `IoStatus`, `ForceSycl`, `UsmArray` and `RngStream` became BLASScalar, IOStatus, ForceSYCL, USMArray and RNGStream.
 - 2026-10-11 — build: Added `sushiblas_declare_header_modules()`, which gives a consumer the header-only modules as targets without building the library (`SushiBLASHeaderModules.cmake`).

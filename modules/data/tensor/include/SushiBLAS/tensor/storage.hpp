@@ -137,7 +137,7 @@ namespace SushiBLAS
             /** @brief The runtime's device view, which hands out the queue of the allocation. */
             SushiRuntime::AdvancedControls controls_;
 
-            /** @brief The buffer the runtime allocated; it frees the memory when it is destroyed. */
+            /** @brief The buffer the runtime allocated, which frees the memory with itself. */
             SushiRuntime::Buffer<std::byte> buffer_;
     };
 } // namespace SushiBLAS

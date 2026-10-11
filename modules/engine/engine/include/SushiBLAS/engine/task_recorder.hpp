@@ -173,7 +173,8 @@ namespace SushiBLAS
         private:
             /**
              * @brief Records one task under the name, the operation and the parameters of meta.
-             * @param work Callable `(sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`.
+             * @param work Callable `(sycl::queue&, const std::vector<sycl::event>&)` that returns
+             *        the event ending its work.
              * @return The handle of the task, or the handle of no task when the graph recorder
              *         refused the recording; the refusal is what the next run returns.
              */

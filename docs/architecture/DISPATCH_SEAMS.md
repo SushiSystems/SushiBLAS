@@ -77,7 +77,7 @@ Dispatch::execute_binary(recorder, A, B, C, "nn.gated_add", "nn.gated_add"_op,
                          Dispatch::read_as_element(gain)));
 ```
 
-The `"..."_op` literal comes from `SushiRuntime::Graph::Literals`.
+The `"..."_op` literal comes from `SushiRuntime::Literals`.
 
 *The GEMM epilogue.* `Dispatch::execute_gemm` records
 `C = epilogue(alpha * op(A) * op(B) + beta * C, row, col)` as one task. The epilogue is a functor

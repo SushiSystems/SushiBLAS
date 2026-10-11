@@ -78,11 +78,11 @@ namespace SushiBLAS
         template<typename Tile>
         void require_local_tile(const TaskRecorder& recorder, const Tensor& C, const char* op)
         {
-            if (recorder.get_mode() == ExecutionMode::ForceReference || !C.storage)
+            if (recorder.mode() == ExecutionMode::ForceReference || !C.storage)
                 return;
 
             const Device::LocalTileDemand demand = local_tile_demand<Tile>(C.dtype);
-            const Device::Profile& profile = Device::profile_for(C.get_device());
+            const Device::Profile& profile = Device::profile_for(C.device());
             if (Device::hosts_local_tile(profile, demand))
                 return;
 

@@ -57,7 +57,6 @@ namespace SushiBLAS
             using GraphPrimitives::prefix_scan;
             using SushiRuntime::LateCount;
             using SushiRuntime::Runtime;
-            using SushiRuntime::SushiException;
 
             /// @brief Holds a value no sort of these tests writes.
             constexpr std::uint32_t K_CANARY = 0xDEADBEEFu;
@@ -140,12 +139,12 @@ namespace SushiBLAS
             ASSERT_NE(unstable_order(host_keys), reference.indices)
                 << "the input must exercise stability, or this test proves nothing";
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT + 1);
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 2);
-            auto total = runtime.buffer<std::uint32_t>(1);
-            auto counts = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto indices = runtime.buffer<std::uint32_t>(K_COUNT + 1).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 2).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            auto counts = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
             for (std::size_t i = 0; i < K_COUNT; ++i)
                 keys[i] = host_keys[i];
             indices[K_COUNT] = K_CANARY;
@@ -154,8 +153,9 @@ namespace SushiBLAS
 
             auto graph = runtime.graph();
             counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE), &counts);
-            graph.run();
+                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE), &counts)
+                .value();
+            graph.run().value();
 
             EXPECT_EQ(total[0], K_COUNT);
             for (std::size_t i = 0; i < K_COUNT; ++i)
@@ -186,18 +186,18 @@ namespace SushiBLAS
             ASSERT_NE(unstable_order(host_keys), reference.indices)
                 << "the input must exercise stability, or this test proves nothing";
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
             for (std::size_t i = 0; i < K_COUNT; ++i)
                 keys[i] = host_keys[i];
 
             auto graph = runtime.graph();
             counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_CAPACITY));
-            graph.run();
+                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_CAPACITY)).value();
+            graph.run().value();
 
             EXPECT_EQ(total[0], K_COUNT);
             for (std::size_t i = 0; i < K_COUNT; ++i)
@@ -215,11 +215,11 @@ namespace SushiBLAS
             const std::vector<std::uint32_t> host_keys =
                 seeded_keys(K_COUNT, K_KEY_RANGE, 20260918);
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
             for (std::size_t i = 0; i < K_COUNT; ++i)
                 keys[i] = host_keys[i];
 
@@ -227,8 +227,8 @@ namespace SushiBLAS
 
             auto graph = runtime.graph();
             counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE));
-            graph.run();
+                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE)).value();
+            graph.run().value();
 
             EXPECT_EQ(total[0], K_COUNT);
             for (std::size_t i = 0; i < K_COUNT; ++i)
@@ -243,18 +243,18 @@ namespace SushiBLAS
             constexpr std::size_t K_COUNT = 777;
             constexpr std::size_t K_KEY_RANGE = 4;
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
             for (std::size_t i = 0; i < K_COUNT; ++i)
                 keys[i] = 2;
 
             auto graph = runtime.graph();
             counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE));
-            graph.run();
+                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE)).value();
+            graph.run().value();
 
             for (std::size_t i = 0; i < K_COUNT; ++i)
                 ASSERT_EQ(indices[i], i) << "i = " << i;
@@ -266,17 +266,17 @@ namespace SushiBLAS
         /** @brief Tests one element, the smallest input that runs every pass. */
         TEST(Unit_GraphPrimitivesCountingSort, OneElement)
         {
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(1);
-            auto indices = runtime.buffer<std::uint32_t>(1);
-            auto offsets = runtime.buffer<std::uint32_t>(9);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(1).value();
+            auto indices = runtime.buffer<std::uint32_t>(1).value();
+            auto offsets = runtime.buffer<std::uint32_t>(9).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
             keys[0] = 5;
 
             auto graph = runtime.graph();
             counting_sort(graph.recorder(), keys, indices, offsets, total, LateCount::fixed(1),
-                          LateCount::fixed(8));
-            graph.run();
+                          LateCount::fixed(8)).value();
+            graph.run().value();
 
             EXPECT_EQ(indices[0], 0u);
             EXPECT_EQ(offsets[5], 0u);
@@ -289,12 +289,12 @@ namespace SushiBLAS
         {
             constexpr std::size_t K_KEY_RANGE = 16;
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(1);
-            auto indices = runtime.buffer<std::uint32_t>(1);
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 2);
-            auto total = runtime.buffer<std::uint32_t>(1);
-            auto counts = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(1).value();
+            auto indices = runtime.buffer<std::uint32_t>(1).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 2).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            auto counts = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
             for (std::size_t k = 0; k < offsets.size(); ++k)
                 offsets[k] = K_CANARY;
             for (std::size_t k = 0; k < counts.size(); ++k)
@@ -303,8 +303,8 @@ namespace SushiBLAS
 
             auto graph = runtime.graph();
             counting_sort(graph.recorder(), keys, indices, offsets, total, LateCount::fixed(0),
-                          LateCount::fixed(K_KEY_RANGE), &counts);
-            graph.run();
+                          LateCount::fixed(K_KEY_RANGE), &counts).value();
+            graph.run().value();
 
             EXPECT_EQ(total[0], 0u);
             for (std::size_t k = 0; k <= K_KEY_RANGE; ++k)
@@ -323,18 +323,18 @@ namespace SushiBLAS
             const std::vector<std::uint32_t> host_keys = {largest, 0, largest, 1, 0};
             const std::size_t count = host_keys.size();
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(count);
-            auto indices = runtime.buffer<std::uint32_t>(count);
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(count).value();
+            auto indices = runtime.buffer<std::uint32_t>(count).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
             for (std::size_t i = 0; i < count; ++i)
                 keys[i] = host_keys[i];
 
             auto graph = runtime.graph();
             counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(count), LateCount::fixed(K_KEY_RANGE));
-            graph.run();
+                          LateCount::fixed(count), LateCount::fixed(K_KEY_RANGE)).value();
+            graph.run().value();
 
             const HostReference reference = host_counting_sort(host_keys, K_KEY_RANGE);
             for (std::size_t i = 0; i < count; ++i)
@@ -349,19 +349,19 @@ namespace SushiBLAS
             const auto nodes_for = [](std::size_t key_capacity) -> std::size_t
             {
                 constexpr std::size_t K_COUNT = 10;
-                auto runtime = Runtime::create();
-                auto keys = runtime.buffer<std::uint32_t>(K_COUNT);
-                auto indices = runtime.buffer<std::uint32_t>(K_COUNT);
-                auto offsets = runtime.buffer<std::uint32_t>(key_capacity + 1);
-                auto total = runtime.buffer<std::uint32_t>(1);
+                auto runtime = Runtime::create().value();
+                auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
+                auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
+                auto offsets = runtime.buffer<std::uint32_t>(key_capacity + 1).value();
+                auto total = runtime.buffer<std::uint32_t>(1).value();
                 for (std::size_t i = 0; i < K_COUNT; ++i)
                     keys[i] = 0;
 
                 auto graph = runtime.graph();
                 graph.set_profiling(true);
                 counting_sort(graph.recorder(), keys, indices, offsets, total,
-                              LateCount::fixed(K_COUNT), LateCount::fixed(key_capacity));
-                const auto report = graph.run();
+                              LateCount::fixed(K_COUNT), LateCount::fixed(key_capacity)).value();
+                const auto report = graph.run().value();
                 EXPECT_EQ(report.node_events.size(), graph.recorder().node_count());
                 return report.node_events.size();
             };
@@ -380,11 +380,11 @@ namespace SushiBLAS
             constexpr std::size_t K_COUNT_CAPACITY = 2000;
             constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 16;
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY);
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY);
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
+            auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
 
             std::size_t live_n = 10;
             std::size_t live_key_range = 4;
@@ -394,7 +394,8 @@ namespace SushiBLAS
                 K_KEY_CAPACITY, [&live_key_range]() { return live_key_range; });
 
             auto graph = runtime.graph();
-            counting_sort(graph.recorder(), keys, indices, offsets, total, count, key_range);
+            counting_sort(graph.recorder(), keys, indices, offsets, total, count, key_range)
+                .value();
 
             const auto run_and_check = [&](std::size_t n, std::size_t range)
             {
@@ -405,7 +406,7 @@ namespace SushiBLAS
                 for (std::size_t i = 0; i < n; ++i)
                     keys[i] = host_keys[i];
 
-                graph.run();
+                graph.run().value();
 
                 const HostReference reference = host_counting_sort(host_keys, range);
                 for (std::size_t i = 0; i < n; ++i)
@@ -431,11 +432,11 @@ namespace SushiBLAS
             constexpr std::size_t K_COUNT = 3000;
             constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 24;
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
 
             std::size_t live_key_range = 0;
             const LateCount key_range = LateCount::from_host(
@@ -443,7 +444,7 @@ namespace SushiBLAS
 
             auto graph = runtime.graph();
             counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT), key_range);
+                          LateCount::fixed(K_COUNT), key_range).value();
 
             for (std::size_t range : {std::size_t{200}, std::size_t{40000}, std::size_t{5000000},
                                       std::size_t{3}})
@@ -454,7 +455,7 @@ namespace SushiBLAS
                 for (std::size_t i = 0; i < K_COUNT; ++i)
                     keys[i] = host_keys[i];
 
-                graph.run();
+                graph.run().value();
 
                 const HostReference reference = host_counting_sort(host_keys, range);
                 for (std::size_t i = 0; i < K_COUNT; ++i)
@@ -473,11 +474,11 @@ namespace SushiBLAS
             constexpr std::size_t K_COUNT = 4;
             constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 16;
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
 
             // One digit puts 0x0101 between 0 and 2; a second digit would put it last.
             keys[0] = 0x0101;
@@ -488,8 +489,9 @@ namespace SushiBLAS
             auto graph = runtime.graph();
             counting_sort(graph.recorder(), keys, indices, offsets, total,
                           LateCount::fixed(K_COUNT),
-                          LateCount::from_host(K_KEY_CAPACITY, []() { return std::size_t{4}; }));
-            graph.run();
+                          LateCount::from_host(K_KEY_CAPACITY, []() { return std::size_t{4}; }))
+                .value();
+            graph.run().value();
 
             const std::vector<std::uint32_t> one_digit_order = {2, 0, 1, 3};
             for (std::size_t i = 0; i < K_COUNT; ++i)
@@ -502,13 +504,13 @@ namespace SushiBLAS
             constexpr std::size_t K_COUNT_CAPACITY = 700;
             constexpr std::size_t K_KEY_CAPACITY = 1000;
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY);
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY);
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
-            auto scan_offsets = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY + 1);
-            auto scan_total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
+            auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            auto scan_offsets = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY + 1).value();
+            auto scan_total = runtime.buffer<std::uint32_t>(1).value();
 
             std::size_t live_n = 0;
             std::size_t live_key_range = 0;
@@ -519,8 +521,8 @@ namespace SushiBLAS
 
             auto world = runtime.dynamic_graph();
             counting_sort(world.region(1).recorder(), keys, indices, offsets, total, count,
-                          key_range);
-            prefix_scan(world.region(2).recorder(), keys, scan_offsets, scan_total, count);
+                          key_range).value();
+            prefix_scan(world.region(2).recorder(), keys, scan_offsets, scan_total, count).value();
 
             for (const auto& live : {std::pair<std::size_t, std::size_t>{300, 200},
                                      std::pair<std::size_t, std::size_t>{700, 1000}})
@@ -532,7 +534,7 @@ namespace SushiBLAS
                 for (std::size_t i = 0; i < live_n; ++i)
                     keys[i] = host_keys[i];
 
-                world.run();
+                world.run().value();
 
                 const HostReference reference = host_counting_sort(host_keys, live_key_range);
                 for (std::size_t i = 0; i < live_n; ++i)
@@ -559,15 +561,15 @@ namespace SushiBLAS
             constexpr std::size_t K_KEY_RANGE = 20;
             constexpr std::uint32_t K_STEPS = 4;
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT);
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto indices = runtime.buffer<std::uint32_t>(K_COUNT).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
 
             auto graph = runtime.graph();
             counting_sort(graph.recorder(), keys, indices, offsets, total,
-                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE));
+                          LateCount::fixed(K_COUNT), LateCount::fixed(K_KEY_RANGE)).value();
 
             for (std::uint32_t step = 0; step < K_STEPS; ++step)
             {
@@ -578,7 +580,7 @@ namespace SushiBLAS
                     keys[i] = host_keys[i];
                 }
 
-                graph.run();
+                graph.run().value();
 
                 const HostReference reference = host_counting_sort(host_keys, K_KEY_RANGE);
                 for (std::size_t i = 0; i < K_COUNT; ++i)
@@ -599,12 +601,12 @@ namespace SushiBLAS
             constexpr std::size_t K_EXPECTED_PASSES = K_NODES_PER_DIGIT + 3;
             constexpr std::size_t K_STEPS = 4;
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY);
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY);
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
-            auto counts = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
+            auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            auto counts = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY).value();
             for (std::size_t i = 0; i < K_COUNT_CAPACITY; ++i)
                 keys[i] = static_cast<std::uint32_t>(i % K_KEY_CAPACITY);
 
@@ -612,10 +614,10 @@ namespace SushiBLAS
             graph.set_profiling(true);
             counting_sort(graph.recorder(), keys, indices, offsets, total,
                           LateCount::fixed(K_COUNT_CAPACITY), LateCount::fixed(K_KEY_CAPACITY),
-                          &counts);
+                          &counts).value();
             EXPECT_EQ(graph.recorder().rule_count(), 1u);
 
-            const auto report = graph.run(K_STEPS);
+            const auto report = graph.run(K_STEPS).value();
 
             ASSERT_EQ(report.node_events.size(), K_EXPECTED_PASSES * K_STEPS);
 
@@ -642,12 +644,12 @@ namespace SushiBLAS
                 static_cast<std::uint32_t>(GraphPrimitives::Detail::K_RADIX_DIGIT_BINS);
             const std::vector<std::uint32_t> expected_widths = {1u, 2u, bins, 1u, 2u, 51u, 50u};
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY);
-            auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY);
-            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1);
-            auto total = runtime.buffer<std::uint32_t>(1);
-            auto counts = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
+            auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            auto counts = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY).value();
             for (std::size_t i = 0; i < K_COUNT_CAPACITY; ++i)
                 keys[i] = static_cast<std::uint32_t>(i % K_KEY_CAPACITY);
 
@@ -655,9 +657,9 @@ namespace SushiBLAS
             graph.set_profiling(true);
             counting_sort(graph.recorder(), keys, indices, offsets, total,
                           LateCount::fixed(K_COUNT_CAPACITY), LateCount::fixed(K_KEY_CAPACITY),
-                          &counts);
+                          &counts).value();
 
-            const auto report = graph.run();
+            const auto report = graph.run().value();
 
             ASSERT_EQ(report.node_events.size(), expected_widths.size());
             for (std::size_t i = 0; i < expected_widths.size(); ++i)
@@ -673,31 +675,25 @@ namespace SushiBLAS
         {
             using Words = SushiRuntime::Buffer<std::uint32_t>;
 
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(8);
-            auto indices = runtime.buffer<std::uint32_t>(8);
-            auto offsets = runtime.buffer<std::uint32_t>(5);
-            auto total = runtime.buffer<std::uint32_t>(1);
-            auto small = runtime.buffer<std::uint32_t>(3);
-            auto empty = runtime.buffer<std::uint32_t>(0);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(8).value();
+            auto indices = runtime.buffer<std::uint32_t>(8).value();
+            auto offsets = runtime.buffer<std::uint32_t>(5).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            auto small = runtime.buffer<std::uint32_t>(3).value();
+            auto empty = runtime.buffer<std::uint32_t>(0).value();
 
             auto graph = runtime.graph();
             const auto refused_code = [&graph, &keys](const Words& i, const Words& o,
                                                       const Words& t, std::size_t n,
                                                       std::size_t range, const Words* c)
             {
-                try
-                {
+                const SushiRuntime::Result<void> recorded =
                     counting_sort(graph.recorder(), keys, i, o, t, LateCount::fixed(n),
                                   LateCount::fixed(range), c);
-                }
-                catch (const SushiException& refused)
-                {
-                    return refused.error().code;
-                }
-                return SushiRuntime::Errc::ok;
+                return recorded ? SushiRuntime::ErrorCode::Ok : recorded.error().code;
             };
-            const auto invalid = SushiRuntime::Errc::invalid_graph;
+            const auto invalid = SushiRuntime::ErrorCode::InvalidGraph;
 
             EXPECT_EQ(refused_code(indices, offsets, total, 8, 0, nullptr), invalid)
                 << "a key range capacity of zero has no bucket";
@@ -717,32 +713,32 @@ namespace SushiBLAS
         /** @brief Tests that a live element count above its capacity fails the run. */
         TEST(Unit_GraphPrimitivesCountingSort, LateBoundCountAboveCapacityFailsTheRun)
         {
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(100);
-            auto indices = runtime.buffer<std::uint32_t>(100);
-            auto offsets = runtime.buffer<std::uint32_t>(17);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(100).value();
+            auto indices = runtime.buffer<std::uint32_t>(100).value();
+            auto offsets = runtime.buffer<std::uint32_t>(17).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
 
             auto graph = runtime.graph();
             counting_sort(graph.recorder(), keys, indices, offsets, total,
                           LateCount::from_host(100, []() { return std::size_t{101}; }),
-                          LateCount::fixed(16));
-            EXPECT_THROW(graph.run(), SushiException);
+                          LateCount::fixed(16)).value();
+            EXPECT_FALSE(graph.run().has_value());
         }
 
         /** @brief Tests that a live key range above its capacity fails the run. */
         TEST(Unit_GraphPrimitivesCountingSort, LateBoundKeyRangeAboveCapacityFailsTheRun)
         {
-            auto runtime = Runtime::create();
-            auto keys = runtime.buffer<std::uint32_t>(100);
-            auto indices = runtime.buffer<std::uint32_t>(100);
-            auto offsets = runtime.buffer<std::uint32_t>(17);
-            auto total = runtime.buffer<std::uint32_t>(1);
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(100).value();
+            auto indices = runtime.buffer<std::uint32_t>(100).value();
+            auto offsets = runtime.buffer<std::uint32_t>(17).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
 
             auto graph = runtime.graph();
             counting_sort(graph.recorder(), keys, indices, offsets, total, LateCount::fixed(100),
-                          LateCount::from_host(16, []() { return std::size_t{17}; }));
-            EXPECT_THROW(graph.run(), SushiException);
+                          LateCount::from_host(16, []() { return std::size_t{17}; })).value();
+            EXPECT_FALSE(graph.run().has_value());
         }
 
     } // namespace Test

@@ -55,7 +55,7 @@ namespace SushiBLAS
 
             /** @brief Builds a view that records on engine's own graph. */
             explicit SparseOps(Engine& engine) noexcept
-                : SparseOps(engine.get_recorder())
+                : SparseOps(engine.recorder())
             {
 
             }

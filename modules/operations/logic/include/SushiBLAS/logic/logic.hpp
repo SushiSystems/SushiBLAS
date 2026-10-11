@@ -47,7 +47,7 @@ namespace SushiBLAS
             explicit LogicOps(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
 
             /** @brief Builds a view that records on engine's own graph. */
-            explicit LogicOps(Engine& engine) noexcept : LogicOps(engine.get_recorder()) {}
+            explicit LogicOps(Engine& engine) noexcept : LogicOps(engine.recorder()) {}
 
             LogicOps(const LogicOps&) = default;
             LogicOps& operator=(const LogicOps&) = delete;

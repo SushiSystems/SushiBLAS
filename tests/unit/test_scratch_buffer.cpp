@@ -207,7 +207,8 @@ namespace SushiBLAS
         TEST_F(Unit_ScratchBuffer, LeasesAreSafeAcrossThreads)
         {
             ScratchPool pool(TestEnvironment::runtime());
-            const std::size_t baseline = TestEnvironment::live_allocation_count() - pool.idle_block_count();
+            const std::size_t baseline =
+                TestEnvironment::live_allocation_count() - pool.idle_block_count();
             const std::array<std::size_t, 6> requests = {128, 256, 512, 1024, 2048, 4096};
 
             // GoogleTest assertions are not thread-safe on Windows, so a worker only counts.

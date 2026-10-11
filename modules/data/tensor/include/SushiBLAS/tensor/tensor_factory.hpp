@@ -96,7 +96,7 @@ namespace SushiBLAS
 
             /**
              * @brief Creates a dense tensor; a shape with a zero dimension gets no storage.
-             * @param device_index Device queue that owns the allocation, below the runtime's device count.
+             * @param device_index Device queue that owns the allocation; a device of the runtime.
              * @throws std::runtime_error on a rank too high, a negative dimension, an overflowing
              *         byte count, a device index out of range or a failed allocation.
              */

@@ -49,7 +49,7 @@ namespace SushiBLAS
             explicit ReductionOps(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
 
             /** @brief Builds a view that records on engine's own graph. */
-            explicit ReductionOps(Engine& engine) noexcept : ReductionOps(engine.get_recorder()) {}
+            explicit ReductionOps(Engine& engine) noexcept : ReductionOps(engine.recorder()) {}
 
             ReductionOps(const ReductionOps&) = default;
             ReductionOps& operator=(const ReductionOps&) = delete;

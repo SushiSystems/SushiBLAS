@@ -535,7 +535,8 @@ namespace SushiBLAS
                     this->engine->execute().value();
 
                     this->engine->set_mode(ExecutionMode::ForceReference);
-                    const std::size_t live_before_reference = TestEnvironment::live_allocation_count();
+                    const std::size_t live_before_reference =
+                        TestEnvironment::live_allocation_count();
                     record_product(*this->engine, routine, A, B, reference_result, side,
                                    Core::Uplo::Upper);
                     EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before_reference);

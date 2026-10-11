@@ -86,11 +86,11 @@ namespace SushiBLAS
                                                                  OperandSet& operands)
         {
             if (!anchor.storage || bytes == 0 ||
-                recorder.get_mode() == ExecutionMode::ForceReference)
+                recorder.mode() == ExecutionMode::ForceReference)
                 return ScratchBuffer();
 
-            ScratchBuffer scratch(recorder.get_scratch_pool(), bytes,
-                                  anchor.storage->get_device_index());
+            ScratchBuffer scratch(recorder.scratch_pool(), bytes,
+                                  anchor.storage->device_index());
             operands.scratch(scratch);
             return scratch;
         }
@@ -110,7 +110,7 @@ namespace SushiBLAS
                 return ScratchBuffer();
 
             const std::size_t partials =
-                Reduce::planned_partials(Device::profile_for(x.get_device()), elements);
+                Reduce::planned_partials(Device::profile_for(x.device()), elements);
             return allocate_blas_scratch(recorder, x, partials * partial_bytes, operands);
         }
     } // namespace Internal

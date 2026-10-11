@@ -63,7 +63,7 @@ written, so the dependency edges a caller gets are the same whatever the two dty
 the property that actually has to hold for a graph to be correct.
 
 **What it declares to the dependency tracker.** `src.region()` as a read and `dst.region()` as a
-write, taken from `Tensor::region` and never from a bare pointer. A `ResourceRegion` converts
+write, taken from `Tensor::region` and never from a bare pointer. A `BufferRegion` converts
 implicitly from a pointer and a bare pointer widens to the *whole* allocation, so two views of one
 arena become two unrelated resources, `overlaps` answers false and the tracker emits no edge at all,
 not a wrong edge, none. That mistake has produced a silently wrong training loss in this stack twice
@@ -145,7 +145,7 @@ launch and one pass over memory:
 
 ```cpp
 // theta, g, m, v and ema advanced together, in one kernel.
-Dispatch::execute_zip_inplace(engine.get_recorder(), std::array{&theta, &g, &m, &v, &ema},
+Dispatch::execute_zip_inplace(engine.recorder(), std::array{&theta, &g, &m, &v, &ema},
     "optim.adamw", "optim.adamw"_op,
     [b1, b2, lr, wd, eps, inv_bc1, inv_bc2, decay]
     (auto& theta_i, auto& g_i, auto& m_i, auto& v_i, auto& ema_i)
