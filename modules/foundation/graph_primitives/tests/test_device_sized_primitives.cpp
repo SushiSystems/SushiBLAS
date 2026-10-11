@@ -43,6 +43,7 @@
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 #include <SushiRuntime/core/error.hpp>
+#include <SushiRuntime/observability/run_report.hpp>
 
 #include <SushiBLAS/graph_primitives/combiners.hpp>
 #include <SushiBLAS/graph_primitives/counting_sort.hpp>
@@ -58,14 +59,12 @@ namespace SushiBLAS
         {
             using GraphPrimitives::Sum;
             using SushiRuntime::Buffer;
+            using SushiRuntime::ExecutionLayer;
             using SushiRuntime::Graph;
             using SushiRuntime::LateCount;
             using SushiRuntime::Reads;
             using SushiRuntime::Runtime;
             using SushiRuntime::Writes;
-
-            /// @brief Names the layer a run report says the run took.
-            using ExecutionLayer = decltype(std::declval<Graph&>().run().value().layer);
 
             /// @brief Holds the steps one recording runs.
             constexpr std::size_t K_STEPS = 48;
