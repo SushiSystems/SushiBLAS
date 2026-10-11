@@ -43,7 +43,7 @@
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 #include <SushiRuntime/core/error.hpp>
-#include <SushiRuntime/observability/run_report.hpp>
+#include <SushiRuntime/report/run_report.hpp>
 
 #include <SushiBLAS/graph_primitives/combiners.hpp>
 #include <SushiBLAS/graph_primitives/counting_sort.hpp>
