@@ -129,7 +129,7 @@ namespace SushiBLAS
                 {
                     engine->execute();
                     float host = 0.0f;
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(&host, t.data(), sizeof(float)).wait();
                     return host;
                 }
@@ -170,7 +170,7 @@ namespace SushiBLAS
                     {
                         RecordOperands on = operands_in(SushiRuntime::API::Residency::Device);
                         const sycl::context context =
-                            TestEnvironment::get_context().get_queue().get_context();
+                            TestEnvironment::get_context().devices().queue(0).get_context();
 
                         for (const Tensor* t :
                              {&on.a, &on.b, &on.c, &on.scalar, &on.matrix, &on.index})

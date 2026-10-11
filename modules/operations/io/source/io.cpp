@@ -99,7 +99,7 @@ namespace SushiBLAS
          */
         sycl::queue& storage_queue(const Tensor& t)
         {
-            return t.storage->get_context().get_queue(t.storage->get_device_index());
+            return t.storage->get_context().devices().queue(t.storage->get_device_index());
         }
 
         /** @brief Holds the fields of a .npy header dictionary. */

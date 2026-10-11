@@ -497,7 +497,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SparseBuilderRules, TheDeviceIndexReachesTheStorageOfEveryTensor)
         {
-            const std::size_t last = TestEnvironment::get_context().device_count() - 1;
+            const std::size_t last = TestEnvironment::get_context().devices().count() - 1;
             const SparseBuilder builder(engine->get_tensor_factory(),
                                         SushiRuntime::API::Residency::Shared, last);
 
@@ -514,7 +514,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SparseBuilderRules, ADeviceIndexPastTheLastThrows)
         {
-            const std::size_t past = TestEnvironment::get_context().device_count();
+            const std::size_t past = TestEnvironment::get_context().devices().count();
             const SparseBuilder builder(engine->get_tensor_factory(),
                                         SushiRuntime::API::Residency::Shared, past);
 

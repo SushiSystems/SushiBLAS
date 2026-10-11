@@ -126,7 +126,7 @@ namespace SushiBLAS
             [[nodiscard]] bool device_runs()
             {
                 if constexpr (std::is_same_v<T, double>)
-                    return TestEnvironment::get_context().get_queue().get_device().has(
+                    return TestEnvironment::get_context().devices().queue(0).get_device().has(
                         sycl::aspect::fp64);
                 else
                     return true;
@@ -193,7 +193,7 @@ namespace SushiBLAS
                     Tensor tensor = this->engine->create_tensor({count}, get_sushiblas_dtype<T>());
                     const std::vector<T> values(static_cast<std::size_t>(count),
                                                 static_cast<T>(value));
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(tensor.data(), values.data(), values.size() * sizeof(T)).wait();
                     return tensor;
                 }

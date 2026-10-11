@@ -34,7 +34,7 @@
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/scratch_shelf.hpp>
 #include <SushiRuntime/SushiRuntime.h>
-#include <SushiRuntime/core/resource_region.hpp>
+#include <SushiRuntime/memory/resource_region.hpp>
 
 namespace SushiBLAS
 {
@@ -128,7 +128,7 @@ namespace SushiBLAS
              * @brief Returns the region a task that writes the scratch declares.
              * @pre is_empty() is false.
              */
-            [[nodiscard]] SushiRuntime::Core::ResourceRegion region() const noexcept
+            [[nodiscard]] SushiRuntime::Memory::ResourceRegion region() const noexcept
             {
                 return {data(), 0, bytes_};
             }

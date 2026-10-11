@@ -467,7 +467,7 @@ namespace SushiBLAS
                 /** @brief Returns the queue of the test environment. */
                 [[nodiscard]] static sycl::queue& queue()
                 {
-                    return TestEnvironment::get_context().get_queue();
+                    return TestEnvironment::get_context().devices().queue(0);
                 }
 
                 /** @brief Returns a square tensor of T of order s with elements in [-1, 1]. */
@@ -529,17 +529,17 @@ namespace SushiBLAS
                     Tensor reference_result = this->engine->create_tensor({s, s}, dtype);
 
                     this->engine->set_mode(ExecutionMode::ForceSycl);
-                    const std::size_t live_before_sycl = context.live_usm_count();
+                    const std::size_t live_before_sycl = context.memory().live_count();
                     record_product(*this->engine, routine, A, B, sycl_result, side,
                                    Core::Uplo::Upper);
-                    EXPECT_EQ(context.live_usm_count(), live_before_sycl + 1);
+                    EXPECT_EQ(context.memory().live_count(), live_before_sycl + 1);
                     this->engine->execute();
 
                     this->engine->set_mode(ExecutionMode::ForceReference);
-                    const std::size_t live_before_reference = context.live_usm_count();
+                    const std::size_t live_before_reference = context.memory().live_count();
                     record_product(*this->engine, routine, A, B, reference_result, side,
                                    Core::Uplo::Upper);
-                    EXPECT_EQ(context.live_usm_count(), live_before_reference);
+                    EXPECT_EQ(context.memory().live_count(), live_before_reference);
                     this->engine->execute();
 
                     const std::vector<T> got = read_tensor<T>(sycl_result);

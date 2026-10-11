@@ -33,7 +33,7 @@
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiRuntime/SushiRuntime.h>
-#include <SushiRuntime/graph/node.hpp>
+#include <SushiRuntime/task/node.hpp>
 #include <SushiRuntime/graph/task_graph.hpp>
 #include <SushiRuntime/execution/execution_engine.hpp>
 #include "test_environment.hpp"
@@ -52,7 +52,7 @@ namespace SushiBLAS
                 /** @brief Builds an empty graph whose recorder records under mode. */
                 explicit GraphProbe(ExecutionMode mode = ExecutionMode::Auto)
                     : scratch_pool_(TestEnvironment::get_context()),
-                      graph_(TestEnvironment::get_context()),
+                      graph_(),
                       recorder_(graph_, scratch_pool_, mode)
                 {
 

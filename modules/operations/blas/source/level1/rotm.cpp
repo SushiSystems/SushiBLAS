@@ -37,7 +37,7 @@
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiBLAS/blas_seam_kernels/modified_givens.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 
 namespace SushiBLAS
 {

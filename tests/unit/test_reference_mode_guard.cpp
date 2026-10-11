@@ -74,7 +74,7 @@ class Unit_ReferenceModeGuardTest : public SushiBLASTest
                 Tensor t = engine->create_tensor(dims, Core::DataType::Float32,
                                                  SushiRuntime::API::Residency::Device);
                 const sycl::context context =
-                    TestEnvironment::get_context().get_queue().get_context();
+                    TestEnvironment::get_context().devices().queue(0).get_context();
                 if (sycl::get_pointer_type(t.data(), context) != sycl::usm::alloc::device)
                     return std::nullopt;
                 return t;

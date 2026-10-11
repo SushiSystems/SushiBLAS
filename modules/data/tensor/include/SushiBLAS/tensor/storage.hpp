@@ -81,7 +81,7 @@ namespace SushiBLAS
 
                 if (reinterpret_cast<std::uintptr_t>(data_ptr_) % K_STORAGE_ALIGNMENT != 0)
                 {
-                    context_->free_usm(data_ptr_);
+                    context_->memory().release(data_ptr_);
                     data_ptr_ = nullptr;
                     SB_THROW_IF(true, "The device returned an allocation that is not {}-byte aligned",
                                 K_STORAGE_ALIGNMENT);
@@ -128,11 +128,29 @@ namespace SushiBLAS
             {
                 if (data_ptr_)
                 {
-                    context_->free_usm(data_ptr_);
+                    context_->memory().release(data_ptr_);
                 }
             }
 
         private:
+            /**
+             * @brief Returns the USM kind the allocator uses for one residency.
+             */
+            [[nodiscard]] static SushiRuntime::Memory::UsmKind
+            usm_kind_of(SushiRuntime::API::Residency residency) noexcept
+            {
+                switch (residency)
+                {
+                    case SushiRuntime::API::Residency::Device:
+                        return SushiRuntime::Memory::UsmKind::Device;
+                    case SushiRuntime::API::Residency::Host:
+                        return SushiRuntime::Memory::UsmKind::Host;
+                    case SushiRuntime::API::Residency::Shared:
+                        return SushiRuntime::Memory::UsmKind::Shared;
+                }
+                return SushiRuntime::Memory::UsmKind::Shared;
+            }
+
             /**
              * @brief Allocates USM of one residency, aligned to K_STORAGE_ALIGNMENT, on one device queue.
              * @return The USM pointer, or nullptr on failure.
@@ -140,16 +158,12 @@ namespace SushiBLAS
             static void* allocate_usm(SushiRuntime::Execution::RuntimeContext& ctx, std::size_t bytes,
                                       SushiRuntime::API::Residency residency, std::size_t device_index)
             {
-                switch (residency)
-                {
-                    case SushiRuntime::API::Residency::Device:
-                        return ctx.aligned_malloc_device_on(K_STORAGE_ALIGNMENT, bytes, device_index);
-                    case SushiRuntime::API::Residency::Host:
-                        return ctx.aligned_malloc_host_on(K_STORAGE_ALIGNMENT, bytes, device_index);
-                    case SushiRuntime::API::Residency::Shared:
-                        return ctx.aligned_malloc_shared_on(K_STORAGE_ALIGNMENT, bytes, device_index);
-                }
-                return nullptr;
+                SushiRuntime::Memory::UsmRequest request;
+                request.kind = usm_kind_of(residency);
+                request.bytes = bytes;
+                request.alignment = K_STORAGE_ALIGNMENT;
+                request.device_index = device_index;
+                return ctx.memory().allocate(request);
             }
 
             /** @brief The base address of the allocation, read through allocation_base(). */

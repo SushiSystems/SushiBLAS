@@ -64,7 +64,7 @@ namespace SushiBLAS
                  */
                 [[nodiscard]] static bool is_two_stage(int64_t n)
                 {
-                    auto& q = TestEnvironment::get_context().get_queue();
+                    auto& q = TestEnvironment::get_context().devices().queue(0);
                     return Reduce::planned_partials(Device::profile_for(q),
                                                     static_cast<std::size_t>(n)) > 0;
                 }
@@ -74,7 +74,7 @@ namespace SushiBLAS
                 {
                     auto t = engine->create_tensor({n});
                     const std::vector<float> host(static_cast<std::size_t>(n), v);
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(t.data(), host.data(), host.size() * sizeof(float)).wait();
                     return t;
                 }
@@ -83,7 +83,7 @@ namespace SushiBLAS
                 [[nodiscard]] static float scalar(const Tensor& t)
                 {
                     float out = 0.0f;
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(&out, t.data(), sizeof(float)).wait();
                     return out;
                 }
@@ -110,7 +110,7 @@ namespace SushiBLAS
                         std::vector<float> host(static_cast<std::size_t>(n));
                         for (std::size_t i = 0; i < host.size(); ++i)
                             host[i] = gen(i);
-                        ctx.get_queue().memcpy(t.data(), host.data(),
+                        ctx.devices().queue(0).memcpy(t.data(), host.data(),
                                                host.size() * sizeof(float)).wait();
 
                         op(eng, t, res);
@@ -162,7 +162,7 @@ namespace SushiBLAS
          */
         TEST_F(Unit_ReductionDeterminism, BothShapesAreReachedHere)
         {
-            auto& q = TestEnvironment::get_context().get_queue();
+            auto& q = TestEnvironment::get_context().devices().queue(0);
             const Device::Profile& p = Device::profile_for(q);
 
             EXPECT_TRUE(is_two_stage(K_LARGE))
@@ -263,7 +263,7 @@ namespace SushiBLAS
             auto t = engine->create_tensor({kOnes + 1});
             std::vector<float> host(static_cast<std::size_t>(kOnes + 1), 1.0f);
             host[0] = kHead;
-            TestEnvironment::get_context().get_queue()
+            TestEnvironment::get_context().devices().queue(0)
                 .memcpy(t.data(), host.data(), host.size() * sizeof(float)).wait();
 
             auto res = engine->create_tensor({1});
@@ -321,7 +321,7 @@ namespace SushiBLAS
             constexpr std::size_t kN = 3000;   // not a multiple of any group width
 
             auto& ctx = TestEnvironment::get_context();
-            auto& q = ctx.get_queue();
+            auto& q = ctx.devices().queue(0);
 
             auto in = engine->create_tensor({static_cast<int64_t>(kN)});
             auto out_seq = engine->create_tensor({1});

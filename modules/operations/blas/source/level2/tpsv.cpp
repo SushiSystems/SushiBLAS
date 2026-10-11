@@ -40,7 +40,7 @@
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 
 namespace SushiBLAS
 {

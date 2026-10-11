@@ -34,8 +34,8 @@
 #include <SushiBLAS/random/dispatch.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiBLAS/support/orthonormal_sweep.hpp>
-#include <SushiRuntime/core/resource_region.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/memory/resource_region.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 #include <SushiBLAS/random_kernels/random.hpp>
 
 namespace SushiBLAS

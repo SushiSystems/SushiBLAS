@@ -223,7 +223,7 @@ namespace
         SushiBLAS::Engine engine(context, SushiBLAS::Core::Layout::ColumnMajor);
         Bench::print_environment(engine);
 
-        sycl::queue& q = context.get_queue();
+        sycl::queue& q = context.devices().queue(0);
         const Request request = parse_request(argc, argv, Device::profile_for(q));
 
         const Device::CacheBlocking& blocking = request.profile.blocking;

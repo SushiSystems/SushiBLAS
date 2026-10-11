@@ -119,7 +119,7 @@ namespace SushiBLAS
                  * @param context Allocates and frees every block; must outlive the shelf.
                  */
                 explicit ScratchShelf(SushiRuntime::Execution::RuntimeContext& context)
-                    : context_(&context), idle_(context.device_count())
+                    : context_(&context), idle_(context.devices().count())
                 {
                     for (auto& classes : idle_)
                     {

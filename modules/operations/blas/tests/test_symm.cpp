@@ -244,7 +244,7 @@ namespace SushiBLAS
             {
                 Tensor tensor = engine.create_tensor(dims, get_sushiblas_dtype<T>());
                 EXPECT_EQ(values.size(), static_cast<std::size_t>(tensor.num_elements));
-                TestEnvironment::get_context().get_queue()
+                TestEnvironment::get_context().devices().queue(0)
                     .memcpy(tensor.data(), values.data(), values.size() * sizeof(T)).wait();
                 return tensor;
             }
@@ -585,7 +585,7 @@ namespace SushiBLAS
                         Tensor tensor = engine->create_tensor(dims, Core::DataType::Float32,
                                                               SushiRuntime::API::Residency::Device);
                         const sycl::context context =
-                            TestEnvironment::get_context().get_queue().get_context();
+                            TestEnvironment::get_context().devices().queue(0).get_context();
                         if (sycl::get_pointer_type(tensor.data(), context) !=
                             sycl::usm::alloc::device)
                             return std::nullopt;
@@ -642,7 +642,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SymmHemmEdges, HalfSumsInFloat)
         {
-            const sycl::queue& queue = TestEnvironment::get_context().get_queue();
+            const sycl::queue& queue = TestEnvironment::get_context().devices().queue(0);
             if (!queue.get_device().has(sycl::aspect::fp16))
                 GTEST_SKIP() << "the device does not report the fp16 aspect";
 

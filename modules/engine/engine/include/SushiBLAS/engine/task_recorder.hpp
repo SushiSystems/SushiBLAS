@@ -40,7 +40,7 @@
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiRuntime/graph/task_graph.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 
 namespace SushiBLAS
 {

@@ -91,7 +91,7 @@ namespace SushiBLAS
                     SushiBLASTest::SetUp();
 
                     const sycl::device device =
-                        TestEnvironment::get_context().get_queue().get_device();
+                        TestEnvironment::get_context().devices().queue(0).get_device();
                     if (!device.has(sycl::aspect::fp16))
                         GTEST_SKIP() << "the device does not report the fp16 aspect";
                 }

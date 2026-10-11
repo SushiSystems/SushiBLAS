@@ -268,7 +268,7 @@ namespace SushiBLAS
                 {
                     Tensor tensor = raw(dims);
                     EXPECT_EQ(values.size(), static_cast<std::size_t>(tensor.num_elements));
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(tensor.data(), values.data(), values.size() * sizeof(float))
                         .wait();
                     return tensor;

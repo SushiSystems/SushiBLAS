@@ -65,7 +65,7 @@ namespace SushiBLAS
         TEST_F(Unit_TensorFactoryTest, AZeroDimensionGivesATensorWithoutStorage)
         {
             const std::vector<int64_t> dims = {0, 3};
-            const std::size_t live_before = context().live_usm_count();
+            const std::size_t live_before = context().memory().live_count();
 
             const Tensor tensor = factory_.create(span_of(dims));
 
@@ -74,7 +74,7 @@ namespace SushiBLAS
             EXPECT_EQ(2, tensor.rank);
             EXPECT_EQ(0, tensor.shape[0]);
             EXPECT_EQ(3, tensor.shape[1]);
-            EXPECT_EQ(live_before, context().live_usm_count());
+            EXPECT_EQ(live_before, context().memory().live_count());
         }
 
         /** @brief Tests that the storage reports the device index the factory was asked for. */
@@ -82,7 +82,7 @@ namespace SushiBLAS
         {
             const std::vector<int64_t> dims = {4};
 
-            for (std::size_t device = 0; device < context().device_count(); ++device)
+            for (std::size_t device = 0; device < context().devices().count(); ++device)
             {
                 SCOPED_TRACE(device);
                 const Tensor tensor = factory_.create(span_of(dims), Core::DataType::Float32,
@@ -98,7 +98,7 @@ namespace SushiBLAS
         {
             const std::vector<int64_t> dims = {4};
             const std::vector<int64_t> empty_dims = {0, 3};
-            const std::size_t past_the_last = context().device_count();
+            const std::size_t past_the_last = context().devices().count();
 
             EXPECT_THROW((void)factory_.create(span_of(dims), Core::DataType::Float32,
                                                SushiRuntime::API::Residency::Shared, past_the_last),

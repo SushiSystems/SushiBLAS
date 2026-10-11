@@ -35,7 +35,7 @@
 namespace SushiBLAS
 {
     Engine::Engine(SushiRuntime::Execution::RuntimeContext& context, Core::Layout layout)
-        : context_(context), scratch_pool_(context), graph_(context),
+        : context_(context), scratch_pool_(context), graph_(),
           recorder_(graph_, scratch_pool_), tensor_factory_(context, layout)
     {
         SB_LOG_INFO("SushiBLAS Engine initialized with {} layout.",

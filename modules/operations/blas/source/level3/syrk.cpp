@@ -38,7 +38,7 @@
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/matrix_operand.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 
 namespace SushiBLAS
 {

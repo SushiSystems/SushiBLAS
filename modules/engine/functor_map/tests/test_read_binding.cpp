@@ -172,10 +172,10 @@ namespace SushiBLAS
                 "A kernel copies a ReadingOp byte by byte.");
 
             SushiRuntime::Execution::RuntimeContext& context = TestEnvironment::get_context();
-            const std::size_t live_baseline = context.live_usm_count();
+            const std::size_t live_baseline = context.memory().live_count();
 
             std::optional<Tensor> a(engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32));
-            ASSERT_EQ(context.live_usm_count(), live_baseline + 1);
+            ASSERT_EQ(context.memory().live_count(), live_baseline + 1);
 
             const auto addressed =
                 Dispatch::bind_reads(fn, Dispatch::read_as_element(*a)).addressed();
@@ -185,7 +185,7 @@ namespace SushiBLAS
                 std::is_same_v<decltype(addressed),
                                const Dispatch::AddressedOp<Fn, Dispatch::ElementRead>>,
                 "addressed() hands the task closure an AddressedOp, which holds no Tensor.");
-            EXPECT_EQ(context.live_usm_count(), live_baseline);
+            EXPECT_EQ(context.memory().live_count(), live_baseline);
         }
 
         TEST_F(Unit_ReadBinding, AReadIsCheckedAsAnOperand)

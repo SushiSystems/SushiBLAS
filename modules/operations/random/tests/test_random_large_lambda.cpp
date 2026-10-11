@@ -84,7 +84,7 @@ class Unit_RandomLargeLambdaTest : public SushiBLASTest
             engine->execute();
 
             std::vector<double> host(static_cast<size_t>(K_DRAWS));
-            auto& q = TestEnvironment::get_context().get_queue();
+            auto& q = TestEnvironment::get_context().devices().queue(0);
             q.memcpy(host.data(), t.data(), host.size() * sizeof(double)).wait();
             return host;
         }
@@ -149,7 +149,7 @@ TEST_F(Unit_RandomLargeLambdaTest, PoissonAcceptsTheCap)
     engine->execute();
 
     std::vector<double> host(4);
-    auto& q = TestEnvironment::get_context().get_queue();
+    auto& q = TestEnvironment::get_context().devices().queue(0);
     q.memcpy(host.data(), t.data(), host.size() * sizeof(double)).wait();
     for (double v : host)
     {

@@ -41,7 +41,7 @@
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/functor_map/map_task.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 
 namespace SushiBLAS
 {

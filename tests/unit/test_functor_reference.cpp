@@ -522,7 +522,7 @@ namespace SushiBLAS
                 /** @brief Reports whether the test device computes in HALF. */
                 [[nodiscard]] static bool device_has_fp16()
                 {
-                    return TestEnvironment::get_context().get_queue().get_device().has(
+                    return TestEnvironment::get_context().devices().queue(0).get_device().has(
                         sycl::aspect::fp16);
                 }
 
@@ -548,7 +548,7 @@ namespace SushiBLAS
                         Tensor t = engine->create_tensor({count}, Core::DataType::Float32,
                                                          SushiRuntime::API::Residency::Device);
                         const sycl::context context =
-                            TestEnvironment::get_context().get_queue().get_context();
+                            TestEnvironment::get_context().devices().queue(0).get_context();
                         if (sycl::get_pointer_type(t.data(), context) != sycl::usm::alloc::device)
                             return std::nullopt;
                         return t;

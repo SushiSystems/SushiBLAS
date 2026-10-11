@@ -30,7 +30,7 @@
 #include <limits>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/random/random.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 #include <SushiBLAS/random_kernels/random.hpp>
 #include <SushiBLAS/random/dispatch.hpp>
 

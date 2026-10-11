@@ -92,7 +92,7 @@ namespace SushiBLAS
                     this->engine->execute();
 
                     int64_t host = -1;
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(&host, result.data(), sizeof(int64_t)).wait();
                     return host;
                 }
@@ -204,7 +204,7 @@ namespace SushiBLAS
                 int64_t read_count(const Tensor& t)
                 {
                     int64_t host = -1;
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(&host, t.data(), sizeof(int64_t)).wait();
                     return host;
                 }
@@ -213,7 +213,7 @@ namespace SushiBLAS
                 float read_half(const Tensor& t)
                 {
                     sycl::half host{};
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(&host, t.data(), sizeof(sycl::half)).wait();
                     return static_cast<float>(host);
                 }

@@ -330,7 +330,7 @@ namespace
         SushiBLAS::Engine engine(context, K_LAYOUT);
         Bench::print_environment(engine);
 
-        sycl::queue& queue = context.get_queue();
+        sycl::queue& queue = context.devices().queue(0);
         const Bench::ResultTable table("GFLOP/s");
         for (const DataType dtype : K_DTYPES)
         {

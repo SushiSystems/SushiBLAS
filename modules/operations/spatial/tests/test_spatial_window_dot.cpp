@@ -422,7 +422,7 @@ namespace SushiBLAS
             template<typename T>
             bool device_computes()
             {
-                const sycl::device device = TestEnvironment::get_context().get_queue().get_device();
+                const sycl::device device = TestEnvironment::get_context().devices().queue(0).get_device();
 
                 if constexpr (std::is_same_v<T, sycl::half>)
                     return device.has(sycl::aspect::fp16);
@@ -701,7 +701,7 @@ namespace SushiBLAS
             ASSERT_EQ(element_count(cases[1].tap_dims()), std::size_t{144});
 
             const Device::Profile& profile =
-                Device::profile_for(TestEnvironment::get_context().get_queue());
+                Device::profile_for(TestEnvironment::get_context().devices().queue(0));
 
             for (const WindowCase& c : cases)
             {
@@ -857,7 +857,7 @@ namespace SushiBLAS
                 GTEST_SKIP() << "the device gives no device-only USM: " << error.what();
             }
 
-            const sycl::context context = TestEnvironment::get_context().get_queue().get_context();
+            const sycl::context context = TestEnvironment::get_context().devices().queue(0).get_context();
             if (sycl::get_pointer_type(in->data(), context) != sycl::usm::alloc::device)
                 GTEST_SKIP() << "the allocation is not device-only USM";
 

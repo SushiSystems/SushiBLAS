@@ -124,7 +124,7 @@ namespace SushiBLAS
                     ASSERT_EQ(1u, nodes.size());
                     ASSERT_TRUE(static_cast<bool>(nodes[0]->host_work));
 
-                    sycl::queue& queue = TestEnvironment::get_context().get_queue();
+                    sycl::queue& queue = TestEnvironment::get_context().devices().queue(0);
                     DependencyGate gate(queue);
 
                     sycl::event done =

@@ -82,7 +82,7 @@ namespace SushiBLAS
                 {
                     const size_t n = static_cast<size_t>(t.num_elements);
                     std::vector<double> out(n);
-                    auto& q = TestEnvironment::get_context().get_queue();
+                    auto& q = TestEnvironment::get_context().devices().queue(0);
 
                     if (t.dtype == Core::DataType::Half)
                     {
@@ -108,7 +108,7 @@ namespace SushiBLAS
                 {
                     const size_t n = values.size();
                     ASSERT_EQ(n, static_cast<size_t>(t.num_elements));
-                    auto& q = TestEnvironment::get_context().get_queue();
+                    auto& q = TestEnvironment::get_context().devices().queue(0);
 
                     if (t.dtype == Core::DataType::Half)
                     {

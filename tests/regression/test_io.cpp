@@ -174,7 +174,7 @@ namespace SushiBLAS
 
         TEST_F(Regression_IO, BinRoundTripsDeviceAllocatedStorage)
         {
-            if (!TestEnvironment::get_context().get_queue().get_device().is_gpu())
+            if (!TestEnvironment::get_context().devices().queue(0).get_device().is_gpu())
                 GTEST_SKIP() << "Device USM is host-readable on this device; "
                                 "the test proves nothing here.";
 
