@@ -215,8 +215,6 @@ namespace SushiBLAS
          */
         TEST_F(Regression_Sentinel, AccumulatingOpsDeclareTheirAccumulatorRead)
         {
-            GraphProbe probe;
-
             auto contains = [](const std::vector<SushiRuntime::BufferRegion>& set,
                                const SushiRuntime::BufferRegion& r)
             {
@@ -225,6 +223,7 @@ namespace SushiBLAS
             };
 
             {
+                GraphProbe probe;
                 auto x = engine->create_tensor({2});
                 auto y = engine->create_tensor({3});
                 auto A = engine->create_tensor({2, 3});
@@ -232,14 +231,14 @@ namespace SushiBLAS
 
                 ASSERT_EQ(1u, probe.recorded_count());
                 const auto tasks = probe.recorded_tasks();
-                if (!tasks)
-                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
                 EXPECT_TRUE(contains((*tasks)[0].reads, A.region()))
                     << "GER accumulates into A: `A = alpha * x * y^H + A` reads it.";
                 EXPECT_TRUE(contains((*tasks)[0].writes, A.region()));
             }
 
             {
+                GraphProbe probe;
                 auto A = engine->create_tensor({2, 3});
                 auto x = engine->create_tensor({3});
                 auto y = engine->create_tensor({2});
@@ -253,8 +252,7 @@ namespace SushiBLAS
 
                 ASSERT_EQ(2u, probe.recorded_count());
                 const auto tasks = probe.recorded_tasks();
-                if (!tasks)
-                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
                 EXPECT_TRUE(contains((*tasks)[0].reads, y.region()))
                     << "GEMV with beta != 0 reads y back before overwriting it.";
                 EXPECT_TRUE(contains((*tasks)[0].writes, y.region()));
@@ -300,8 +298,7 @@ namespace SushiBLAS
 
             ASSERT_EQ(2u, probe.recorded_count());
             const auto tasks = probe.recorded_tasks();
-            if (!tasks)
-                GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
             EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                 << "The reduction reading `packed` must depend on the op that wrote it. "
                    "An in-degree of 0 means execute_reduction described its operand with "

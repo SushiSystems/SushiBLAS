@@ -28,11 +28,9 @@
 #pragma once
 
 #include <cstddef>
-#include <functional>
-#include <optional>
+#include <string>
 #include <utility>
 #include <vector>
-#include <sycl/sycl.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
@@ -44,11 +42,17 @@ namespace SushiBLAS
     namespace Test
     {
         /**
-         * @brief Holds what one recorded task declared and the body it runs.
+         * @brief Holds what the compiled plan reports for one recorded task.
          * @see tests/common/README.md
          */
         struct RecordedTask
         {
+            /** @brief The label the task reports under. */
+            std::string name;
+
+            /** @brief The operation the task names; a default id names none. */
+            SushiRuntime::OperationID operation;
+
             /** @brief How many recorded tasks the task waits for. */
             std::size_t dependency_count = 0;
 
@@ -57,9 +61,6 @@ namespace SushiBLAS
 
             /** @brief The regions the task declared as written, in the order given. */
             std::vector<SushiRuntime::BufferRegion> writes;
-
-            /** @brief The body of the task, which returns the event that ends its work. */
-            std::function<sycl::event(sycl::queue&, const std::vector<sycl::event>&)> body;
         };
 
         /**
@@ -69,11 +70,6 @@ namespace SushiBLAS
         class GraphProbe final
         {
             public:
-                /** @brief Says why a test that reads a recorded task is skipped. */
-                static constexpr const char* K_NO_RECORDED_TASK_VIEW =
-                    "SushiRuntime's public surface gives no view of a recorded task: its "
-                    "dependency count, its regions and its body; see tests/common/README.md.";
-
                 /** @brief Builds an empty graph whose recorder records under mode. */
                 explicit GraphProbe(ExecutionMode mode = ExecutionMode::Auto)
                     : scratch_pool_(TestEnvironment::runtime()),
@@ -110,25 +106,43 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Returns the recorded tasks that have not run, in record order.
-                 * @return Nothing while the runtime's surface has no view of a recorded task.
+                 * @brief Returns the recorded tasks that have not run, in record order, building
+                 *        the plan of the graph when none is current.
+                 * @return The tasks, none when nothing is recorded, or the error that kept the
+                 *         graph from compiling.
                  * @see tests/common/README.md
                  */
-                [[nodiscard]] std::optional<std::vector<RecordedTask>> recorded_tasks() const
+                [[nodiscard]] SushiRuntime::Result<std::vector<RecordedTask>> recorded_tasks()
                 {
-                    return std::nullopt;
+                    if (recorded_count() == 0 && graph_.recorder().refusal() == nullptr)
+                        return std::vector<RecordedTask>{};
+
+                    SushiRuntime::Result<SushiRuntime::PlanView> plan = graph_.plan();
+                    if (!plan)
+                        return SushiRuntime::make_error(std::move(plan.error()));
+
+                    std::vector<RecordedTask> tasks;
+                    tasks.reserve(plan->nodes.size());
+                    for (SushiRuntime::PlanNode& node : plan->nodes)
+                    {
+                        tasks.push_back(RecordedTask{std::move(node.name), node.operation,
+                                                     node.predecessor_count,
+                                                     std::move(node.reads),
+                                                     std::move(node.writes)});
+                    }
+                    return tasks;
                 }
 
                 /**
                  * @brief Returns how many recorded tasks each recorded task waits for, in record
                  *        order.
-                 * @return Nothing when recorded_tasks() returns nothing.
+                 * @return The counts, or the error recorded_tasks() returns.
                  */
-                [[nodiscard]] std::optional<std::vector<std::size_t>> dependency_counts() const
+                [[nodiscard]] SushiRuntime::Result<std::vector<std::size_t>> dependency_counts()
                 {
-                    const std::optional<std::vector<RecordedTask>> tasks = recorded_tasks();
+                    SushiRuntime::Result<std::vector<RecordedTask>> tasks = recorded_tasks();
                     if (!tasks)
-                        return std::nullopt;
+                        return SushiRuntime::make_error(std::move(tasks.error()));
 
                     std::vector<std::size_t> counts;
                     counts.reserve(tasks->size());

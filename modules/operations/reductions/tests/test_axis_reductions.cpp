@@ -282,8 +282,7 @@ namespace SushiBLAS
 
             ASSERT_EQ(2u, probe.recorded_count());
             const auto tasks = probe.recorded_tasks();
-            if (!tasks)
-                GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+            ASSERT_TRUE(tasks.has_value()) << tasks.error().message;
             EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                 << "The axis reduction reading `packed` must depend on the op that "
                    "wrote it. An in-degree of 0 means the seam described its operand "

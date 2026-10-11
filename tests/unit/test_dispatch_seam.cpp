@@ -760,8 +760,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsOrderedBehindItsWriter)
     sb::RandomOps(declared.recorder(), engine->rng()).constant(factor, 2.0);
     record_scaled(declared.recorder(), y, factor);
     const auto declared_counts = declared.dependency_counts();
-    if (!declared_counts)
-        GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+    ASSERT_TRUE(declared_counts.has_value()) << declared_counts.error().message;
     EXPECT_EQ(*declared_counts, (std::vector<std::size_t>{0, 1}));
 
     GraphProbe captured;
@@ -770,7 +769,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsOrderedBehindItsWriter)
         captured.recorder(), y, "test.captured_pointer", "test.captured_pointer"_op,
         [pointer = factor.data_as<float>()](auto v) { return v * decltype(v)(pointer[0]); });
     const auto captured_counts = captured.dependency_counts();
-    ASSERT_TRUE(captured_counts.has_value());
+    ASSERT_TRUE(captured_counts.has_value()) << captured_counts.error().message;
     EXPECT_EQ(*captured_counts, (std::vector<std::size_t>{0, 0}));
 }
 

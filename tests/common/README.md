@@ -35,12 +35,14 @@ cannot read it from an engine. `GraphProbe` owns a `ScratchPool`, a `SushiRuntim
 recorded and returns the result, as `Engine::execute` does. The constructor takes the execution
 mode the recorder records under.
 
-`recorded_tasks()` is the view a test reads a recorded task through: a `RecordedTask` holds the
-task's `dependency_count`, the regions it declared as `reads` and `writes`, and its `body`.
-`dependency_counts()` returns the counts alone. SushiRuntime's public surface gives no view of a
-recorded task, so `recorded_tasks()` returns nothing, and a test that needs it reports itself
-skipped with `K_NO_RECORDED_TASK_VIEW`. The assertions stay written against `RecordedTask`, and
-`recorded_tasks()` is the one function to fill in when the runtime offers the view.
+`recorded_tasks()` is the view a test reads a recorded task through. It calls `Graph::plan()`,
+which compiles the graph when no plan is current and runs nothing, and copies each `PlanNode`
+into a `RecordedTask`: the task's `name` and `operation`, its `dependency_count` (the node's
+`predecessor_count`), and the regions it declared as `reads` and `writes`. It returns a
+`SushiRuntime::Result`: the tasks in record order, an empty list when nothing is recorded, or the
+error that kept the graph from compiling. `dependency_counts()` returns the counts alone. A test
+reads the tasks before `execute()`, which leaves the graph empty. The plan holds no task body, so
+a test cannot call one; it runs a task through `execute()`.
 
 ## blas_flags.hpp
 

@@ -10,19 +10,23 @@ which `tests/CMakeLists.txt` turns into the `regression` CTest label.
 | `test_logger.cpp` | The logger writes every line before an assertion aborts or a shutdown returns |
 | `test_regression.cpp` | One sentinel per fixed defect in the BLAS, RNG, tensor and reduction paths |
 | `test_spatial_determinism.cpp` | The spatial backward kernels give the same bits on every run |
-| `test_task_dependencies.cpp` | A recorded task body orders its device work behind the events it is given |
+| `test_task_dependencies.cpp` | One recorded task of each recording seam runs and computes its result |
 | `test_operand_lifetime.cpp` | A recorded task keeps its operands and its scratch allocated until it has run |
-| `test_sparse_recording.cpp` | A recorded sparse task waits for its dependencies, keeps its operands and is ordered behind the task that wrote them |
+| `test_sparse_recording.cpp` | A recorded sparse task computes its result, keeps its operands and is ordered behind the task that wrote them |
 | `test_blas_symmetric_bits.cpp` | The unconjugated reference kernels equal a plain host loop bit for bit |
 
 None of the four files added on 2026-10-07 had been built or run when this page was written.
 
 ## test_task_dependencies.cpp
 
-`ARecordedBodyWaitsForItsDependencies`: a task body receives the events of the tasks it depends
-on and must order its own device work behind them. A body that submits without them runs when
-the queue pleases, and the result is right only by luck. `tools/layering/check_layering.py`
-checks the same rule in the source, under `rule_task_dependencies`.
+`ARecordedTaskComputesItsResult` records one operation of each recording seam on a `GraphProbe`,
+reads from the plan that it is one task with no dependency, runs it and compares the output with
+the host formula.
+
+A task body receives the events of the tasks it depends on and must order its own device work
+behind them. No test checks that at run time: the runtime's plan view holds no body, so a test
+cannot hand one a dependency that has not finished. `tools/layering/check_layering.py` checks the
+rule in the source, under `rule_task_dependencies`.
 
 ## test_operand_lifetime.cpp
 
@@ -37,8 +41,8 @@ second.
 
 ## test_sparse_recording.cpp
 
-The same three properties for a sparse task, whose operand is three tensors and not one:
-`ARecordedBodyWaitsForItsDependencies`, `AMatrixDestroyedBeforeExecuteIsKept`, and
+Three properties of a sparse task, whose operand is three tensors and not one:
+`ARecordedTaskComputesItsResult`, `AMatrixDestroyedBeforeExecuteIsKept`, and
 `AProductIsOrderedBehindTheTaskThatWroteItsValues`, which asserts on the recorded graph that a
 product depends on the task that wrote the matrix's `values` and on no task it reads nothing
 from. `TheSameCallsReplayIntoASecondGraph`
