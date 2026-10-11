@@ -44,13 +44,13 @@ namespace SushiBLAS
              * @brief Records y = alpha * x + y.
              * @throws std::invalid_argument on an operand or a scalar the call does not accept.
              */
-            TaskHandle axpy(BlasScalar alpha, const Tensor& x, Tensor& y);
+            TaskHandle axpy(BLASScalar alpha, const Tensor& x, Tensor& y);
 
             /**
              * @brief Records x = alpha * x.
              * @throws std::invalid_argument on an operand or a scalar the call does not accept.
              */
-            TaskHandle scal(BlasScalar alpha, Tensor& x);
+            TaskHandle scal(BLASScalar alpha, Tensor& x);
 
             /**
              * @brief Records a copy of every element of x into y.

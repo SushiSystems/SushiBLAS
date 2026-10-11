@@ -69,8 +69,8 @@ namespace SushiBLAS
             recorder_, x, Core::bytes_per_element(AP.dtype) * static_cast<std::size_t>(n),
             operands);
 
-        const Internal::BlasMetadata meta =
-            Internal::BlasMetadata(op, "blas.lvl2.tpmv"_op).flag(uplo).flag(trans).flag(diag);
+        const Internal::BLASMetadata meta =
+            Internal::BLASMetadata(op, "blas.lvl2.tpmv"_op).flag(uplo).flag(trans).flag(diag);
 
         const Core::Layout layout = ap.layout;
         const int64_t incx = vx.increment;

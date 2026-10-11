@@ -53,7 +53,7 @@ namespace SushiBLAS
     {
         public:
             /** @brief Builds a view over a recorder and a stream; both must outlive the view. */
-            RandomOps(TaskRecorder& recorder, RngStream& stream) noexcept
+            RandomOps(TaskRecorder& recorder, RNGStream& stream) noexcept
                 : recorder_(recorder), rng_(stream)
             {
 
@@ -211,7 +211,7 @@ namespace SushiBLAS
             TaskRecorder& recorder_;
 
             /// @brief The stream every operation of this view reserves its offset from.
-            RngStream& rng_;
+            RNGStream& rng_;
     };
 
 } // namespace SushiBLAS

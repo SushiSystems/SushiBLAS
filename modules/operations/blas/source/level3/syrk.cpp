@@ -55,7 +55,7 @@ namespace SushiBLAS
                                SushiRuntime::Graph::OpID op_id,
                                const Tensor& A, Tensor& C,
                                Core::Uplo uplo, Core::Transpose trans,
-                               BlasScalar alpha, BlasScalar beta)
+                               BLASScalar alpha, BLASScalar beta)
         {
             Dispatch::require_flag(uplo, op, "uplo");
             Dispatch::require_flag(trans, op, "trans");
@@ -92,7 +92,7 @@ namespace SushiBLAS
             const ScratchBuffer pack = Internal::allocate_packed_product_scratch(
                 recorder, C, n, n, k, batch_size, operands);
 
-            const Internal::BlasMetadata meta = Internal::BlasMetadata(op, op_id)
+            const Internal::BLASMetadata meta = Internal::BLASMetadata(op, op_id)
                                                     .scalar(alpha).scalar(beta)
                                                     .flag(uplo).flag(trans);
 
@@ -134,7 +134,7 @@ namespace SushiBLAS
     } // namespace
 
     TaskHandle Level3::syrk(const Tensor& A, Tensor& C, Core::Uplo uplo, Core::Transpose trans,
-                            BlasScalar alpha, BlasScalar beta)
+                            BLASScalar alpha, BLASScalar beta)
     {
         const char* const op = "blas.lvl3.syrk";
         if (Core::is_complex_dtype(A.dtype))
@@ -155,6 +155,6 @@ namespace SushiBLAS
 
         return record_syrk<Kernels::Conjugated>(recorder_, op, "blas.lvl3.herk"_op,
                                                 A, C, uplo, trans,
-                                                BlasScalar(alpha), BlasScalar(beta));
+                                                BLASScalar(alpha), BLASScalar(beta));
     }
 } // namespace SushiBLAS

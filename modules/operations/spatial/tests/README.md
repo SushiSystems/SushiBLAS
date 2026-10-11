@@ -69,7 +69,7 @@ form writes every pixel exactly once, so those must come back zero, which is wha
 pass an uninitialised destination. The destination is seeded with a sentinel so "left alone" is
 visible.
 
-`TheSyclKernelAgreesWithTheReferenceKernel` uses a ramp for the column entries and not all
+`TheSYCLKernelAgreesWithTheReferenceKernel` uses a ramp for the column entries and not all
 ones, so a pixel's total depends on which entries it gathered and not only on how many. The
 all-ones case cannot tell a wrong set of the right size from the right one.
 
@@ -92,7 +92,7 @@ padded on the bottom and right only gives 3x3 windows. The two-operand overload 
 this, because it has no `pad_right` to read, and the test checks that it refuses and does not
 silently produce a differently shaped answer.
 
-`TheSyclKernelAgreesWithTheReferenceKernel` compares bit-exact, not near. im2col only ever
+`TheSYCLKernelAgreesWithTheReferenceKernel` compares bit-exact, not near. im2col only ever
 copies an element or writes a zero, so the two kernels must produce the same bits or one of
 them is addressing memory differently from the other. See "Comparing two kernels under the two
 forced modes" for why the comparison is made in the test.
@@ -154,7 +154,7 @@ pixel is selected by all four windows, so its gradient is the sum of all four. A
 have needed an atomic add for this case, and a gather that stopped at its first match would get
 it wrong.
 
-`TheSyclKernelAgreesWithTheReferenceKernel` compares the indices as well as the values. Two
+`TheSYCLKernelAgreesWithTheReferenceKernel` compares the indices as well as the values. Two
 kernels can agree on every maximum and still disagree on where it came from, which is what a
 tie broken the other way is, and the gradient follows the index, not the value.
 

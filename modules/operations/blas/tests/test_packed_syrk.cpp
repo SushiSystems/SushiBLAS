@@ -235,7 +235,7 @@ namespace SushiBLAS
                             (a_access.conjugated != std::is_same_v<Conj, Kernels::Conjugated>);
 
                         // The scratch starts off its alignment, so the kernel has to align it.
-                        const UsmArray<unsigned char> scratch(
+                        const USMArray<unsigned char> scratch(
                             queue_, plan.scratch_bytes + K_PACKED_TEST_SCRATCH_SKEW);
                         Kernels::SYCL::Detail::packed_product<T>(
                             queue_, plan, n_, n_, k_, a_.get(), a_access, str_a_,
@@ -328,10 +328,10 @@ namespace SushiBLAS
                     int64_t str_c_;
 
                     /// @brief The matrix A.
-                    UsmArray<T> a_;
+                    USMArray<T> a_;
 
                     /// @brief The matrix C the packed product writes.
-                    UsmArray<T> c_;
+                    USMArray<T> c_;
 
                     /// @brief The contents C starts every run from.
                     std::vector<T> initial_c_;
@@ -388,7 +388,7 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Expects one recorded update of order s to pack under ForceSycl and to
+                 * @brief Expects one recorded update of order s to pack under ForceSYCL and to
                  *        lie within the bound of the ForceReference result.
                  * @param record Records the update of C by A on the fixture's engine.
                  */
@@ -409,7 +409,7 @@ namespace SushiBLAS
 
                     auto& context = TestEnvironment::get_context();
 
-                    engine->set_mode(ExecutionMode::ForceSycl);
+                    engine->set_mode(ExecutionMode::ForceSYCL);
                     const std::size_t live_before = context.memory().live_count();
                     record(A, sycl_result);
                     EXPECT_EQ(context.memory().live_count(), live_before + 1);

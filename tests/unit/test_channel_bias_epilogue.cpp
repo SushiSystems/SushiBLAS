@@ -94,7 +94,7 @@ namespace SushiBLAS
 
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NoTrans,
                                    Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.gemm_channel_bias_col",
@@ -118,7 +118,7 @@ namespace SushiBLAS
 
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 1, 0};
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NoTrans,
                                    Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.gemm_channel_bias_row",
@@ -164,7 +164,7 @@ namespace SushiBLAS
             auto plain = engine->create_tensor({3, 3}, Core::DataType::Float32);
             auto bias = create_initialized_tensor<float>({3}, {0.0f, 0.0f, 0.0f});
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             Dispatch::execute_gemm(engine->get_recorder(), A, B, fused, Core::Transpose::NoTrans,
                                    Core::Transpose::NoTrans, 1.5, 0.0,
                                    "test.gemm_zero_channel_bias",
@@ -234,7 +234,7 @@ namespace SushiBLAS
             // bias = seed*seed = [1, 4, 9], a value no uninitialised buffer would hold.
             SushiBLAS::ElementwiseOps(*engine).mul(seed, seed, bias);
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NoTrans,
                                    Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.gemm_channel_bias_produced",

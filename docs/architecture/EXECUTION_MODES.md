@@ -6,7 +6,7 @@ the mode of every operation recorded from then on.
 | Mode | What a task recorded under it runs |
 | --- | --- |
 | `Auto` | The library's choice, which is the SYCL kernel. The default. |
-| `ForceSycl` | The SYCL kernel. |
+| `ForceSYCL` | The SYCL kernel. |
 | `ForceReference` | The reference path, on the host thread that executes the task. |
 
 There is no `VERIFY` mode. `set_mode` is `noexcept` and accepts all three values.
@@ -23,7 +23,7 @@ auto from_sycl = engine.create_tensor({64, 64});
 BLASOps blas(engine);
 engine.set_mode(ExecutionMode::ForceReference);
 blas.gemm(A, B, from_reference);
-engine.set_mode(ExecutionMode::ForceSycl);
+engine.set_mode(ExecutionMode::ForceSYCL);
 blas.gemm(A, B, from_sycl);
 engine.execute();
 ```

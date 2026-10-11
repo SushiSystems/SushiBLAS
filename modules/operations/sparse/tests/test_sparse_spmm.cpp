@@ -169,8 +169,8 @@ namespace SushiBLAS
                     const SparseMatrix A = build(host, base);
                     const Tensor B = matrix_of(b);
                     Tensor C = matrix_of(c);
-                    SushiBLAS::SparseOps(*engine).spmm(A, B, C, trans, BlasScalar(alpha),
-                                                       BlasScalar(beta));
+                    SushiBLAS::SparseOps(*engine).spmm(A, B, C, trans, BLASScalar(alpha),
+                                                       BLASScalar(beta));
                     engine->execute();
                     return columns_of(C);
                 }

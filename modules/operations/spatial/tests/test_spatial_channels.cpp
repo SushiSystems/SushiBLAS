@@ -227,7 +227,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], expected[i]) << "element " << i;
         }
 
-        TEST_F(Unit_SpatialChannelsTest, TheSyclKernelAgreesWithTheReferenceKernel)
+        TEST_F(Unit_SpatialChannelsTest, TheSYCLKernelAgreesWithTheReferenceKernel)
         {
             // The two forced modes are compared here. See tests/unit/README.md.
             const int64_t N = 2, H = 3, W = 4, C = 3, WIDE = 7, OFFSET = 2;
@@ -241,7 +241,7 @@ namespace SushiBLAS
             SushiBLAS::SpatialOps(*engine).concat_channels(src, from_reference, OFFSET);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             SushiBLAS::SpatialOps(*engine).concat_channels(src, from_device, OFFSET);
             engine->execute();
 
@@ -259,7 +259,7 @@ namespace SushiBLAS
             SushiBLAS::SpatialOps(*engine).slice_channels(from_reference, OFFSET, sliced_reference);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             SushiBLAS::SpatialOps(*engine).slice_channels(from_reference, OFFSET, sliced_device);
             engine->execute();
 

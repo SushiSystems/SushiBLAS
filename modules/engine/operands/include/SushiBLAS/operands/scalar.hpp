@@ -21,7 +21,7 @@
 
 /**
  * @file scalar.hpp
- * @brief Declares BlasScalar, the real or complex scalar argument of a BLAS call.
+ * @brief Declares BLASScalar, the real or complex scalar argument of a BLAS call.
  * @author Mustafa Garip
  */
 
@@ -38,18 +38,18 @@ namespace SushiBLAS
      * @brief Holds one scalar argument of a BLAS call as a complex double, on the host.
      * @see modules/operations/blas/README.md
      */
-    class BlasScalar final
+    class BLASScalar final
     {
         public:
             /** @brief Converts a real value, so a call site passes a literal. */
-            BlasScalar(double value) noexcept
+            BLASScalar(double value) noexcept
                 : real_(value), imag_(0.0)
             {
 
             }
 
             /** @brief Converts a complex value. */
-            BlasScalar(const std::complex<double>& value) noexcept
+            BLASScalar(const std::complex<double>& value) noexcept
                 : real_(value.real()), imag_(value.imag())
             {
 
@@ -100,7 +100,7 @@ namespace SushiBLAS
                 else
                 {
                     static_assert(std::is_floating_point_v<T>,
-                                  "BlasScalar serves HALF, FLOAT32, FLOAT64, COMPLEX32 and "
+                                  "BLASScalar serves HALF, FLOAT32, FLOAT64, COMPLEX32 and "
                                   "COMPLEX64.");
                     return static_cast<T>(real_);
                 }

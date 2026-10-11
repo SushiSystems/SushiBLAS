@@ -88,7 +88,7 @@ namespace SushiBLAS
 
         /// @brief The two execution modes every sparse routine is tested in.
         constexpr ExecutionMode K_BOTH_MODES[2] = {ExecutionMode::ForceReference,
-                                                   ExecutionMode::ForceSycl};
+                                                   ExecutionMode::ForceSYCL};
 
         /// @brief The two index bases every sparse routine is tested in.
         constexpr Core::IndexBase K_BOTH_BASES[2] = {Core::IndexBase::Zero, Core::IndexBase::One};

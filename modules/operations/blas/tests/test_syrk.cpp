@@ -69,7 +69,7 @@ namespace SushiBLAS
                     double beta = 0.5;
 
                     // 2. Compute SYCL (Optimized) result
-                    engine->set_mode(ExecutionMode::ForceSycl);
+                    engine->set_mode(ExecutionMode::ForceSYCL);
                     SushiBLAS::BLASOps(*engine).syrk(A, C_actual, uplo_of(upper),
                                                      transpose_of(transA), alpha, beta);
                     engine->execute();

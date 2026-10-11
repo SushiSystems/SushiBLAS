@@ -207,7 +207,7 @@ namespace SushiBLAS
             EXPECT_TRUE(negative_threw) << "a negative scale was accepted";
         }
 
-        TEST_F(Unit_SpatialUpsampleTest, TheSyclKernelAgreesWithTheReferenceKernel)
+        TEST_F(Unit_SpatialUpsampleTest, TheSYCLKernelAgreesWithTheReferenceKernel)
         {
             // The two forced modes are compared here. See tests/unit/README.md.
             const int64_t N = 2, H = 5, W = 3, C = 3;
@@ -228,7 +228,7 @@ namespace SushiBLAS
             SushiBLAS::SpatialOps(*engine).upsample_nearest(in, from_reference, scale_h, scale_w);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             SushiBLAS::SpatialOps(*engine).upsample_nearest(in, from_device, scale_h, scale_w);
             engine->execute();
 

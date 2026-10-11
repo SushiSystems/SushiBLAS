@@ -196,7 +196,7 @@ namespace SushiBLAS
         template<Domain Dom = Domain::Real, typename Epilogue>
         TaskHandle execute_gemm(TaskRecorder& recorder, const Tensor& A, const Tensor& B, Tensor& C,
                                 Core::Transpose transA, Core::Transpose transB,
-                                BlasScalar alpha, BlasScalar beta,
+                                BLASScalar alpha, BLASScalar beta,
                                 const char* name, SushiRuntime::Graph::OpID op_id,
                                 Epilogue epilogue)
         {
@@ -255,7 +255,7 @@ namespace SushiBLAS
             // Only the functor enters the kernel closure, never the bundle and its operand set.
             const auto kernel_epilogue = Detail::epilogue_functor(epilogue);
 
-            const Internal::BlasMetadata meta = Internal::BlasMetadata(name, op_id)
+            const Internal::BLASMetadata meta = Internal::BLASMetadata(name, op_id)
                                                     .scalar(alpha).scalar(beta)
                                                     .flag(transA).flag(transB);
 

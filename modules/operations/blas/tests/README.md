@@ -83,7 +83,7 @@ Without it the SYCL kernel could only ever be as right as whatever the reference
 3x2 as its transpose `[[1,4],[2,5],[3,6]]`. This pins the RowMajor and transposed arm, which
 must address identically to ColumnMajor and untransposed.
 
-`EpilogueFusesBiasAndReluIntoTheStore` is worked out as follows, with A (2x2) =
+`EpilogueFusesBiasAndReLUIntoTheStore` is worked out as follows, with A (2x2) =
 `[[1,2],[3,4]]`, B (2x3) = `[[1,0,-1],[0,1,-1]]`, alpha = 2, row_bias = `[0, 1]` and col_bias =
 `[0.5, -1, 5]`:
 
@@ -119,7 +119,7 @@ and the ReLU clamps the three negatives to zero.
 
 `ExecuteGemmAppliesTheSameEpilogueOnTheReferencePath`: the reference kernel is this operation's
 specification, so it has to apply the epilogue too. Otherwise ForceReference would quietly
-compute a different function from ForceSycl, and every comparison of the two modes on a fused
+compute a different function from ForceSYCL, and every comparison of the two modes on a fused
 GEMM would disagree.
 
 `ExecuteGemmWithTheIdentityEpilogueIsPlainGemm` asserts what `Level3::gemm` now is: the unfused
@@ -136,7 +136,7 @@ value that had not arrived yet. `Dispatch::gemm_epilogue(...).reads(t)/.writes(t
 caller hands that back. Every assertion in this group is on `in_degree`; see "Ordering is
 asserted on in-degree".
 
-`BiasColumnEpilogue` is deliberately simpler than `BiasReluEpilogue`. These tests are about
+`BiasColumnEpilogue` is deliberately simpler than `BiasReLUEpilogue`. These tests are about
 what the task declares, not about what it computes, and a bias-only epilogue is the one the
 ordering hazard was found on.
 

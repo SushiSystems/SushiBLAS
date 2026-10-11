@@ -280,7 +280,7 @@ namespace SushiBLAS
 
                     EXPECT_TRUE(differs(summed_in_float, carried_in_half));
                     EXPECT_TRUE(differs(summed_in_double, carried_in_half));
-                    expect_same_bits(run(ExecutionMode::ForceSycl), summed_in_float);
+                    expect_same_bits(run(ExecutionMode::ForceSYCL), summed_in_float);
                     expect_same_bits(run(ExecutionMode::ForceReference), summed_in_double);
                 }
 
@@ -370,7 +370,7 @@ namespace SushiBLAS
         TEST_F(Unit_BlasHalfAccumulationTest, GemmSumsEveryTermOfALongReduction)
         {
             const auto expected = run_gemm(ExecutionMode::ForceReference);
-            const auto actual = run_gemm(ExecutionMode::ForceSycl);
+            const auto actual = run_gemm(ExecutionMode::ForceSYCL);
             expect_full_sum(expected);
             expect_full_sum(actual);
             expect_match(actual, expected);
@@ -379,7 +379,7 @@ namespace SushiBLAS
         TEST_F(Unit_BlasHalfAccumulationTest, SyrkSumsEveryTermOfALongReduction)
         {
             const auto expected = run_syrk(ExecutionMode::ForceReference);
-            const auto actual = run_syrk(ExecutionMode::ForceSycl);
+            const auto actual = run_syrk(ExecutionMode::ForceSYCL);
             expect_full_sum(expected);
             expect_full_sum(actual);
             expect_match(actual, expected);
@@ -388,7 +388,7 @@ namespace SushiBLAS
         TEST_F(Unit_BlasHalfAccumulationTest, GemvSumsEveryTermOfALongReduction)
         {
             const auto expected = run_gemv(ExecutionMode::ForceReference);
-            const auto actual = run_gemv(ExecutionMode::ForceSycl);
+            const auto actual = run_gemv(ExecutionMode::ForceSYCL);
             expect_full_sum(expected);
             expect_full_sum(actual);
             expect_match(actual, expected);
@@ -402,7 +402,7 @@ namespace SushiBLAS
             };
             EXPECT_NEAR(run_level1(ExecutionMode::ForceReference, dot), K_EXPECTED_SUM,
                         K_HALF_ROUNDING_AT_SUM);
-            EXPECT_NEAR(run_level1(ExecutionMode::ForceSycl, dot), K_EXPECTED_SUM,
+            EXPECT_NEAR(run_level1(ExecutionMode::ForceSYCL, dot), K_EXPECTED_SUM,
                         K_HALF_ROUNDING_AT_SUM);
         }
 
@@ -414,7 +414,7 @@ namespace SushiBLAS
             };
             EXPECT_NEAR(run_level1(ExecutionMode::ForceReference, asum), K_EXPECTED_SUM,
                         K_HALF_ROUNDING_AT_SUM);
-            EXPECT_NEAR(run_level1(ExecutionMode::ForceSycl, asum), K_EXPECTED_SUM,
+            EXPECT_NEAR(run_level1(ExecutionMode::ForceSYCL, asum), K_EXPECTED_SUM,
                         K_HALF_ROUNDING_AT_SUM);
         }
 
@@ -426,7 +426,7 @@ namespace SushiBLAS
             };
             EXPECT_NEAR(run_level1(ExecutionMode::ForceReference, nrm2), K_EXPECTED_NORM,
                         K_HALF_ROUNDING_AT_NORM);
-            EXPECT_NEAR(run_level1(ExecutionMode::ForceSycl, nrm2), K_EXPECTED_NORM,
+            EXPECT_NEAR(run_level1(ExecutionMode::ForceSYCL, nrm2), K_EXPECTED_NORM,
                         K_HALF_ROUNDING_AT_NORM);
         }
 

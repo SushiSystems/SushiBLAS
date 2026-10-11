@@ -136,19 +136,19 @@ namespace SushiBLAS
             /**
              * @brief Returns the USM kind the allocator uses for one residency.
              */
-            [[nodiscard]] static SushiRuntime::Memory::UsmKind
+            [[nodiscard]] static SushiRuntime::Memory::USMKind
             usm_kind_of(SushiRuntime::API::Residency residency) noexcept
             {
                 switch (residency)
                 {
                     case SushiRuntime::API::Residency::Device:
-                        return SushiRuntime::Memory::UsmKind::Device;
+                        return SushiRuntime::Memory::USMKind::Device;
                     case SushiRuntime::API::Residency::Host:
-                        return SushiRuntime::Memory::UsmKind::Host;
+                        return SushiRuntime::Memory::USMKind::Host;
                     case SushiRuntime::API::Residency::Shared:
-                        return SushiRuntime::Memory::UsmKind::Shared;
+                        return SushiRuntime::Memory::USMKind::Shared;
                 }
-                return SushiRuntime::Memory::UsmKind::Shared;
+                return SushiRuntime::Memory::USMKind::Shared;
             }
 
             /**
@@ -158,7 +158,7 @@ namespace SushiBLAS
             static void* allocate_usm(SushiRuntime::Execution::RuntimeContext& ctx, std::size_t bytes,
                                       SushiRuntime::API::Residency residency, std::size_t device_index)
             {
-                SushiRuntime::Memory::UsmRequest request;
+                SushiRuntime::Memory::USMRequest request;
                 request.kind = usm_kind_of(residency);
                 request.bytes = bytes;
                 request.alignment = K_STORAGE_ALIGNMENT;

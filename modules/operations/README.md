@@ -272,7 +272,7 @@ each sits in both access sets.
 ### `modules/operations/blas/source/level2/gemv.cpp`
 
 `Level2::gemv` declares a read of `y` whenever `beta` is non-zero, because `y = alpha * op(A) * x +
-beta * y` reads it then. The test is `BlasScalar::is_zero` on the caller's value, not on the value
+beta * y` reads it then. The test is `BLASScalar::is_zero` on the caller's value, not on the value
 narrowed to the element type. A `beta` that is non-zero as a double and flushes to zero in the
 element type declares an edge the kernel does not need. It can never drop an edge the kernel does
 need.

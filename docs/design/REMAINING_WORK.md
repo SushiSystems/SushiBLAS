@@ -74,7 +74,7 @@ records them and holds the steps that have not run.
   through the structured algorithm bricks.
 - Move the reference rank updates onto `ReferenceAccumulator<T>` and give the parity tests a
   complex truth.
-- Add an implicit `BlasScalar` from `std::complex<float>`, and `rotmg` for `HALF`.
+- Add an implicit `BLASScalar` from `std::complex<float>`, and `rotmg` for `HALF`.
 - Move the complex operators of the elementwise and nonlinear kernels onto `safe_mul` and
   `safe_div`.
 - Confirm whether `BLASOps::nrm2` uses the scaled form that `ReductionOps::nrm2` uses
@@ -181,7 +181,7 @@ In the order the tag needs them.
 - Install without `modules/operations/experimental/include/SushiBLAS/experimental/` and make the package consumer test fail if
   the installed tree holds that folder or a document among its headers (`PLAN`, section 3),
   then run `sb test --suite package`.
-- Migrate SushiAI onto the views, the enums and `BlasScalar`. The sushiai session does it, once,
+- Migrate SushiAI onto the views, the enums and `BLASScalar`. The sushiai session does it, once,
   after this tree has built.
 - Get CI green on the commit to be tagged, with the `functional` job on the tagged runtime.
   Whether that is a release condition is the owner's decision.

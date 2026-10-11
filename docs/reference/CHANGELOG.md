@@ -6,6 +6,8 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-11 — api: Breaking change: Spelled ReLU in capitals, so `BiasReluEpilogue` and `BiasRelu` became BiasReLUEpilogue and BiasReLU.
+- 2026-10-11 — api: Breaking change: Wrote every acronym of a type name in capitals, so `BlasScalar`, `IoStatus`, `ForceSycl`, `UsmArray` and `RngStream` became BLASScalar, IOStatus, ForceSYCL, USMArray and RNGStream.
 - 2026-10-11 — build: Added `sushiblas_declare_header_modules()`, which gives a consumer the header-only modules as targets without building the library (`SushiBLASHeaderModules.cmake`).
 - 2026-10-11 — geometry: Added `Vector3T`, `QuaternionT`, `Matrix4T`, the blends and the transform builders as a header-only module (`vector3.hpp`, `transform.hpp`).
 - 2026-10-11 — support: Added `Math`, the scalar functions a kernel calls, `std` on the host and `sycl` on the device (`device_math.hpp`).

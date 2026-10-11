@@ -186,7 +186,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SpatialIm2ColTest, TheSyclKernelAgreesWithTheReferenceKernel)
+        TEST_F(Unit_SpatialIm2ColTest, TheSYCLKernelAgreesWithTheReferenceKernel)
         {
             // The two forced modes are compared here. See tests/unit/README.md.
             auto in = ramp(2, 7, 5, 3);
@@ -212,7 +212,7 @@ namespace SushiBLAS
             SushiBLAS::SpatialOps(*engine).im2col(in, from_reference, g, out_h, out_w);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             SushiBLAS::SpatialOps(*engine).im2col(in, from_device, g, out_h, out_w);
             engine->execute();
 

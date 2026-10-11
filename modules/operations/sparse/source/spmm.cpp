@@ -65,7 +65,7 @@ namespace SushiBLAS
                                const Dispatch::SparseMatrixOperand& a, const Tensor& B,
                                const Dispatch::MatrixOperand& b, Tensor& C,
                                const Dispatch::MatrixOperand& c, Core::Transpose trans,
-                               BlasScalar alpha, BlasScalar beta)
+                               BLASScalar alpha, BLASScalar beta)
         {
             OperandSet operands;
             operands.reads(A.row_offsets).reads(A.column_indices).reads(A.values).reads(B);
@@ -82,7 +82,7 @@ namespace SushiBLAS
                 recorder, A.row_offsets,
                 Internal::running_solution_bytes(A.values.dtype) * work_elements, operands);
 
-            const Internal::BlasMetadata meta = Internal::BlasMetadata(K_OP, "sparse.spmm"_op)
+            const Internal::BLASMetadata meta = Internal::BLASMetadata(K_OP, "sparse.spmm"_op)
                                                     .scalar(alpha).scalar(beta).flag(trans);
 
             const Core::Layout layout = c.layout;
@@ -132,7 +132,7 @@ namespace SushiBLAS
     } // namespace
 
     TaskHandle SparseOps::spmm(const SparseMatrix& A, const Tensor& B, Tensor& C,
-                               Core::Transpose trans, BlasScalar alpha, BlasScalar beta)
+                               Core::Transpose trans, BLASScalar alpha, BLASScalar beta)
     {
         Dispatch::require_flag(trans, K_OP, "trans");
         Dispatch::require_dtype(B, A.values.dtype, K_OP, "B");

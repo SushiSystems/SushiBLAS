@@ -54,7 +54,7 @@ namespace SushiBLAS
         TaskHandle record_syr2(TaskRecorder& recorder, const char* op,
                                SushiRuntime::Graph::OpID op_id,
                                const Tensor& x, const Tensor& y, Tensor& A,
-                               Core::Uplo uplo, BlasScalar alpha)
+                               Core::Uplo uplo, BLASScalar alpha)
         {
             Dispatch::require_flag(uplo, op, "uplo");
             Dispatch::require_dtype(x, A.dtype, op, "x");
@@ -72,8 +72,8 @@ namespace SushiBLAS
             OperandSet operands;
             operands.reads(x).reads(y).updates(A);
 
-            const Internal::BlasMetadata meta =
-                Internal::BlasMetadata(op, op_id).scalar(alpha).flag(uplo);
+            const Internal::BLASMetadata meta =
+                Internal::BLASMetadata(op, op_id).scalar(alpha).flag(uplo);
 
             const Core::Layout layout = a.layout;
             const int64_t n = a.cols;
@@ -111,14 +111,14 @@ namespace SushiBLAS
     } // namespace
 
     TaskHandle Level2::syr2(const Tensor& x, const Tensor& y, Tensor& A, Core::Uplo uplo,
-                            BlasScalar alpha)
+                            BLASScalar alpha)
     {
         return record_syr2<Kernels::Unconjugated>(recorder_, "blas.lvl2.syr2", "blas.lvl2.syr2"_op,
                                                   x, y, A, uplo, alpha);
     }
 
     TaskHandle Level2::her2(const Tensor& x, const Tensor& y, Tensor& A, Core::Uplo uplo,
-                            BlasScalar alpha)
+                            BLASScalar alpha)
     {
         if (!Core::is_complex_dtype(A.dtype))
             return syr2(x, y, A, uplo, alpha);

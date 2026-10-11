@@ -88,7 +88,7 @@ an activation are one task. `Level3::gemm` is this function with
 `ForceReference` runs a fused GEMM too.
 
 ```cpp
-struct BiasRelu
+struct BiasReLU
 {
     const float* bias;   // one value per column of C
 
@@ -104,7 +104,7 @@ struct BiasRelu
 Dispatch::execute_gemm(recorder, X, W, Y,
                        Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                        "nn.linear_relu", "nn.linear_relu"_op,
-                       Dispatch::gemm_epilogue(BiasRelu{bias.data_as<float>()}).reads(bias));
+                       Dispatch::gemm_epilogue(BiasReLU{bias.data_as<float>()}).reads(bias));
 ```
 
 `Dispatch::gemm_epilogue(functor)` bundles the functor with the tensors it touches, and

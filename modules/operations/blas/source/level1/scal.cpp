@@ -41,7 +41,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    TaskHandle Level1::scal(BlasScalar alpha, Tensor& x)
+    TaskHandle Level1::scal(BLASScalar alpha, Tensor& x)
     {
         const char* const op = "blas.lvl1.scal";
 
@@ -52,8 +52,8 @@ namespace SushiBLAS
         OperandSet operands;
         operands.updates(x);
 
-        const Internal::BlasMetadata meta =
-            Internal::BlasMetadata(op, "blas.lvl1.scal"_op).scalar(alpha);
+        const Internal::BLASMetadata meta =
+            Internal::BLASMetadata(op, "blas.lvl1.scal"_op).scalar(alpha);
 
         const int64_t n = vx.length;
         const int64_t incx = vx.increment;

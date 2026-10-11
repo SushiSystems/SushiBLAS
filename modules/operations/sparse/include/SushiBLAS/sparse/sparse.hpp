@@ -80,7 +80,7 @@ namespace SushiBLAS
              * @param y Dense, of the length x.size.
              * @throws std::invalid_argument on an operand or a scalar the call does not accept.
              */
-            TaskHandle axpyi(BlasScalar alpha, const SparseVector& x, Tensor& y);
+            TaskHandle axpyi(BLASScalar alpha, const SparseVector& x, Tensor& y);
 
             /**
              * @brief Records the dot product of a real sparse x and a dense y into result.
@@ -140,7 +140,7 @@ namespace SushiBLAS
              */
             TaskHandle spmv(const SparseMatrix& A, const Tensor& x, Tensor& y,
                             Core::Transpose trans = Core::Transpose::NoTrans,
-                            BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
+                            BLASScalar alpha = 1.0, BLASScalar beta = 0.0);
 
             /**
              * @brief Records y = alpha * A * x + beta * y for a symmetric A stored as one triangle.
@@ -149,7 +149,7 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
             TaskHandle spsymv(const SparseMatrix& A, const Tensor& x, Tensor& y, Core::Uplo uplo,
-                              BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
+                              BLASScalar alpha = 1.0, BLASScalar beta = 0.0);
 
             /**
              * @brief Records y = alpha * A * x + beta * y for a Hermitian A stored as one triangle.
@@ -158,7 +158,7 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an operand, flag or scalar the call does not accept.
              */
             TaskHandle sphemv(const SparseMatrix& A, const Tensor& x, Tensor& y, Core::Uplo uplo,
-                              BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
+                              BLASScalar alpha = 1.0, BLASScalar beta = 0.0);
 
             /**
              * @brief Records C = alpha * op(A) * B + beta * C for a CSR matrix A and dense B, C.
@@ -168,7 +168,7 @@ namespace SushiBLAS
              */
             TaskHandle spmm(const SparseMatrix& A, const Tensor& B, Tensor& C,
                             Core::Transpose trans = Core::Transpose::NoTrans,
-                            BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
+                            BLASScalar alpha = 1.0, BLASScalar beta = 0.0);
 
             /**
              * @brief Records the solution of op(A) * x = b for a triangular CSR A, overwriting b.

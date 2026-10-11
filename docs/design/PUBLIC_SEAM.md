@@ -37,7 +37,7 @@ on 2026-10-09:
 | Failure | Mechanism | Reason |
 | --- | --- | --- |
 | A wrong operand, flag or scalar | `std::invalid_argument` | A programmer error the style would assert on. A record call cannot abort the caller's process over an operand it was handed, and the exception names the operation and the operand |
-| A file that is missing, damaged or of another shape | `IoStatus`, returned | A failure outside the program, which a caller handles on every call |
+| A file that is missing, damaged or of another shape | `IOStatus`, returned | A failure outside the program, which a caller handles on every call |
 | Tensor creation: a rule of the shape, or a failed allocation | `std::runtime_error` | Every record call already throws, so a status here would give one caller two mechanisms, and each of the tree's 1 120 creation calls would unwrap a result to catch the one outside failure, an exhausted device |
 
 ## 3. Some kernels are installed and the rest are private

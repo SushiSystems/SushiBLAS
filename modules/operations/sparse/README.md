@@ -35,7 +35,7 @@ as the tensors they are.
 | `sptrsv` | The solution of `op(A) * x = b` for a triangular CSR `A`, overwriting `b` |
 
 Flags are `Core::Transpose`, `Core::Uplo` and `Core::Diag`, and a scalar that may be complex is a
-`BlasScalar`, as in the dense BLAS; see [../blas/README.md](../blas/README.md). `doti` is defined
+`BLASScalar`, as in the dense BLAS; see [../blas/README.md](../blas/README.md). `doti` is defined
 for real operands and refuses a complex one. `beta` exactly zero skips reading the output of a
 product. The output of a product may not overlap an input or an array of `A`.
 

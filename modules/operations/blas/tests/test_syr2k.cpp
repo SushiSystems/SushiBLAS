@@ -111,7 +111,7 @@ namespace SushiBLAS
             constexpr double K_UNTOUCHED = -77.0;
 
             /// @brief The two modes every case runs in.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceSycl,
+            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceSYCL,
                                                  ExecutionMode::ForceReference};
 
             /// @brief The two layouts the exact cases run in.
@@ -122,12 +122,12 @@ namespace SushiBLAS
             constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
 
             /// @brief A scalar with a non-zero imaginary part, which a real tensor refuses.
-            const BlasScalar K_COMPLEX_SCALAR = std::complex<double>(1.0, 2.0);
+            const BLASScalar K_COMPLEX_SCALAR = std::complex<double>(1.0, 2.0);
 
             /** @brief Returns the name of a mode for a failure message. */
             [[nodiscard]] const char* mode_name(ExecutionMode mode) noexcept
             {
-                return mode == ExecutionMode::ForceSycl ? "ForceSycl" : "ForceReference";
+                return mode == ExecutionMode::ForceSYCL ? "ForceSYCL" : "ForceReference";
             }
 
             /** @brief Returns the names of a layout, a triangle and a transpose for a message. */
@@ -163,9 +163,9 @@ namespace SushiBLAS
             }
 
             /** @brief Returns a scalar of the public interface, real when value is. */
-            [[nodiscard]] BlasScalar blas_scalar(Wide value) noexcept
+            [[nodiscard]] BLASScalar blas_scalar(Wide value) noexcept
             {
-                return value.imag() == 0.0 ? BlasScalar(value.real()) : BlasScalar(value);
+                return value.imag() == 0.0 ? BLASScalar(value.real()) : BLASScalar(value);
             }
 
             /** @brief Returns whether (r, c) lies in the updated triangle. */
@@ -358,7 +358,7 @@ namespace SushiBLAS
             template<typename Conj>
             TaskHandle record_update(SushiBLAS::BLASOps& ops, const Tensor& A, const Tensor& B,
                                      Tensor& C, Core::Uplo uplo, Core::Transpose trans,
-                                     BlasScalar alpha, double beta)
+                                     BLASScalar alpha, double beta)
             {
                 if constexpr (std::is_same_v<Conj, Kernels::Conjugated>)
                     return ops.her2k(A, B, C, uplo, trans, alpha, beta);

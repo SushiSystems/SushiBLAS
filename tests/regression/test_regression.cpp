@@ -52,7 +52,7 @@ namespace SushiBLAS
             fill_random<sycl::half>(A);
             fill_random<sycl::half>(C);
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             EXPECT_NO_THROW({
                 SushiBLAS::BLASOps(*engine).syrk(A, C, Core::Uplo::Lower,
                                                  Core::Transpose::NoTrans, 1.0, 0.0);
@@ -70,10 +70,10 @@ namespace SushiBLAS
 
             const std::vector<float> expected{3, 7, 11, 2, 4, 6};
 
-            for (auto mode : {ExecutionMode::ForceSycl, ExecutionMode::ForceReference})
+            for (auto mode : {ExecutionMode::ForceSYCL, ExecutionMode::ForceReference})
             {
-                SCOPED_TRACE(mode == ExecutionMode::ForceSycl
-                    ? "ForceSycl: column-major GEMM must index A and B by column stride"
+                SCOPED_TRACE(mode == ExecutionMode::ForceSYCL
+                    ? "ForceSYCL: column-major GEMM must index A and B by column stride"
                     : "ForceReference: column-major GEMM must index A and B by column stride");
 
                 auto A = create_initialized_tensor<float>({3, 2}, {1, 3, 5, 2, 4, 6});
@@ -92,7 +92,7 @@ namespace SushiBLAS
          * @brief Tests that re-seeding an engine that has drawn reproduces the stream bit for bit.
          * @see tests/regression/README.md
          */
-        TEST_F(Regression_Sentinel, SetSeedRewindsTheRngStream)
+        TEST_F(Regression_Sentinel, SetSeedRewindsTheRNGStream)
         {
             constexpr size_t kN = 64;
 
@@ -184,9 +184,9 @@ namespace SushiBLAS
 
             for (const auto& c : cases)
             {
-                for (auto mode : {ExecutionMode::ForceSycl, ExecutionMode::ForceReference})
+                for (auto mode : {ExecutionMode::ForceSYCL, ExecutionMode::ForceReference})
                 {
-                    SCOPED_TRACE(std::string(c.name) + (mode == ExecutionMode::ForceSycl ? " / SYCL" : " / reference"));
+                    SCOPED_TRACE(std::string(c.name) + (mode == ExecutionMode::ForceSYCL ? " / SYCL" : " / reference"));
 
                     reinit_engine(c.layout);
 

@@ -43,14 +43,14 @@ Where each type comes from:
 - `SB_THROW_IF` (`core/logger.hpp`) throws `std::runtime_error`. It ends every dtype switch, so a
   dtype that slipped past the record-time check cannot fall through to nothing.
 - `IO` throws `std::invalid_argument` for an operand rule (a strided tensor, a dtype or byte-count
-  mismatch). A file does not throw: the six file operations return an `IoStatus`.
+  mismatch). A file does not throw: the six file operations return an `IOStatus`.
 
 Every helper logs at error level before it throws.
 
 ## File operations return a status
 
 `IO::save`, `load`, `save_bin`, `load_bin`, `save_npy` and `load_npy` are `[[nodiscard]]` and
-return an `IoStatus` (`io_status.hpp`). A missing or damaged file is a failure outside the
+return an `IOStatus` (`io_status.hpp`). A missing or damaged file is a failure outside the
 program, so the caller is handed a value to branch on. The reason is logged once, at error
 level, where the failure is found.
 

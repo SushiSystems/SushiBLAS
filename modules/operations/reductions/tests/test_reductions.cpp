@@ -433,7 +433,7 @@ namespace
     struct ModeResults
     {
         std::vector<Out> reference; /**< The result under ForceReference. */
-        std::vector<Out> device;    /**< The result under ForceSycl. */
+        std::vector<Out> device;    /**< The result under ForceSYCL. */
     };
 
     /// @brief Names one reduction call and the shape of the result it writes.
@@ -580,7 +580,7 @@ namespace
     {
         ModeResults<Out> results;
 
-        for (ExecutionMode mode : {ExecutionMode::ForceReference, ExecutionMode::ForceSycl})
+        for (ExecutionMode mode : {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
         {
             engine.set_mode(mode);
 
@@ -776,7 +776,7 @@ class Unit_ReductionOps : public SushiBLASTest
             SCOPED_TRACE(name);
 
             GraphProbe on_host(ExecutionMode::ForceReference);
-            GraphProbe on_device(ExecutionMode::ForceSycl);
+            GraphProbe on_device(ExecutionMode::ForceSYCL);
             ReductionOps host_reductions(on_host.get_recorder());
             ReductionOps device_reductions(on_device.get_recorder());
 
@@ -913,7 +913,7 @@ TEST_F(Unit_ReductionOps, ADeviceOnlyOperandIsRefusedOnEverySeam)
     expect_mode_refusal("mean_spatial", [&] { refused.mean_spatial(*image, per_channel); });
     EXPECT_TRUE(on_host.take_nodes().empty());
 
-    GraphProbe on_device(ExecutionMode::ForceSycl);
+    GraphProbe on_device(ExecutionMode::ForceSYCL);
     ReductionOps recorded(on_device.get_recorder());
 
     EXPECT_NO_THROW(recorded.sum(*t, scalar));

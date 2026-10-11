@@ -63,7 +63,7 @@ namespace SushiBLAS
             OperandSet operands;
             operands.reads(x.indices).reads(x.values).updates(y);
 
-            const Internal::BlasMetadata meta = Internal::BlasMetadata(K_OP, "sparse.sctr"_op);
+            const Internal::BLASMetadata meta = Internal::BLASMetadata(K_OP, "sparse.sctr"_op);
 
             const int64_t count = sx.nnz;
             const int64_t extent = sx.size;

@@ -188,8 +188,8 @@ namespace SushiBLAS
                     const SparseMatrix A = build(host, base);
                     const Tensor tx = vector_of(x);
                     Tensor ty = vector_of(y);
-                    SushiBLAS::SparseOps(*engine).spmv(A, tx, ty, trans, BlasScalar(alpha),
-                                                       BlasScalar(beta));
+                    SushiBLAS::SparseOps(*engine).spmv(A, tx, ty, trans, BLASScalar(alpha),
+                                                       BLASScalar(beta));
                     engine->execute();
                     return read_tensor<T>(ty);
                 }
@@ -420,8 +420,8 @@ namespace SushiBLAS
             HostTriplets<T> no_columns;
             no_columns.rows = 5;
 
-            const BlasScalar alpha = 3.0;
-            const BlasScalar beta = -2.0;
+            const BLASScalar alpha = 3.0;
+            const BLASScalar beta = -2.0;
             const Wide five = counting(5, 1.0);
             const Wide scaled = {{-2.0, 0.0}, {-4.0, 0.0}, {-6.0, 0.0}, {-8.0, 0.0}, {-10.0, 0.0}};
 
@@ -474,8 +474,8 @@ namespace SushiBLAS
                     const Tensor tx = this->every_second(wide_x);
                     Tensor ty = this->every_second(wide_y);
 
-                    SparseOps(*this->engine).spmv(A, tx, ty, trans, BlasScalar(alpha),
-                                                  BlasScalar(beta));
+                    SparseOps(*this->engine).spmv(A, tx, ty, trans, BLASScalar(alpha),
+                                                  BLASScalar(beta));
                     this->engine->execute();
 
                     this->expect_interleaved(read_tensor<T>(wide_y), expected,

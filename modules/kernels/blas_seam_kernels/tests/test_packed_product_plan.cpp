@@ -396,7 +396,7 @@ namespace SushiBLAS
         /**
          * @brief Tests each of the three conditions a profile sets on taking the packed kernel.
          */
-        TEST(Unit_PackedProductPlan, SelectionNeedsACpuASpanAndEnoughBytes)
+        TEST(Unit_PackedProductPlan, SelectionNeedsACPUASpanAndEnoughBytes)
         {
             using Block = Kernels::PackedRegisterBlock<float>;
             constexpr int64_t m = 4 * Block::K_ROWS;

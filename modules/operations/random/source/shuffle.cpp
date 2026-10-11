@@ -121,7 +121,7 @@ namespace SushiBLAS
         meta.op_id = "random.shuffle"_op;
 
         recorder_.require_host_reachable(operands, "RNG operation", name);
-        const RngPosition position = rng_.reserve(1);
+        const RNGPosition position = rng_.reserve(1);
         const uint64_t seed = position.seed;
         const uint64_t offset = position.offset;
         Dispatch::set_rng_params(meta, seed, offset);

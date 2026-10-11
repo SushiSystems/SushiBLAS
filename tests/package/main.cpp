@@ -44,7 +44,7 @@ using namespace SushiRuntime::Graph::Literals;
  * @warning Fused into a forward training pass, it needs the pre-activation spilled too.
  * @see tests/package/README.md
  */
-struct ConsumerBiasRelu
+struct ConsumerBiasReLU
 {
     /** @brief One value per row of C. */
     const float* row_bias;
@@ -167,7 +167,7 @@ int main()
         engine.get_recorder(), gemm_a, gemm_b, gemm_c,
         sb::Core::Transpose::NoTrans, sb::Core::Transpose::NoTrans, 1.0, 0.0,
         "consumer.linear_relu", "consumer.linear_relu"_op,
-        ConsumerBiasRelu{row_bias.data_as<float>(), col_bias.data_as<float>()});
+        ConsumerBiasReLU{row_bias.data_as<float>(), col_bias.data_as<float>()});
     engine.execute();
     ctx.wait_all();
 

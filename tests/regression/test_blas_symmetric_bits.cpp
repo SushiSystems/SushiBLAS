@@ -396,7 +396,7 @@ namespace SushiBLAS
 
                 SushiBLAS::BLASOps ops(*this->engine);
                 if constexpr (Core::is_complex_v<T>)
-                    ops.geru(x_tensor, y_tensor, a_tensor, BlasScalar(alpha));
+                    ops.geru(x_tensor, y_tensor, a_tensor, BLASScalar(alpha));
                 else
                     ops.ger(x_tensor, y_tensor, a_tensor, static_cast<double>(alpha));
                 this->engine->execute();
@@ -426,7 +426,7 @@ namespace SushiBLAS
                         Tensor y_tensor = this->tensor_of({K_BITS_ORDER}, y);
 
                         SushiBLAS::BLASOps(*this->engine).symv(a_tensor, x_tensor, y_tensor, uplo,
-                                                               BlasScalar(alpha), BlasScalar(beta));
+                                                               BLASScalar(alpha), BLASScalar(beta));
                         this->engine->execute();
 
                         this->host_symv(uplo, K_BITS_ORDER, alpha, a, x, beta, y);
@@ -452,7 +452,7 @@ namespace SushiBLAS
                     Tensor a_tensor = this->tensor_of({K_BITS_ORDER, K_BITS_ORDER}, a);
 
                     SushiBLAS::BLASOps(*this->engine).syr(x_tensor, a_tensor, uplo,
-                                                          BlasScalar(alpha));
+                                                          BLASScalar(alpha));
                     this->engine->execute();
 
                     this->host_syr(uplo, K_BITS_ORDER, alpha, x, a);
@@ -479,7 +479,7 @@ namespace SushiBLAS
                     Tensor a_tensor = this->tensor_of({K_BITS_ORDER, K_BITS_ORDER}, a);
 
                     SushiBLAS::BLASOps(*this->engine).syr2(x_tensor, y_tensor, a_tensor, uplo,
-                                                           BlasScalar(alpha));
+                                                           BLASScalar(alpha));
                     this->engine->execute();
 
                     this->host_syr2(uplo, K_BITS_ORDER, alpha, x, y, a);
@@ -513,8 +513,8 @@ namespace SushiBLAS
                             Tensor c_tensor = this->tensor_of({n, n}, c);
 
                             SushiBLAS::BLASOps(*this->engine).syrk(a_tensor, c_tensor, uplo, trans,
-                                                                   BlasScalar(alpha),
-                                                                   BlasScalar(beta));
+                                                                   BLASScalar(alpha),
+                                                                   BLASScalar(beta));
                             this->engine->execute();
 
                             this->host_syrk(uplo, trans, n, k, alpha, a, beta, c);
@@ -552,7 +552,7 @@ namespace SushiBLAS
 
                                 SushiBLAS::BLASOps(*this->engine).trsm(a_tensor, b_tensor, side,
                                                                        uplo, trans, diag,
-                                                                       BlasScalar(alpha));
+                                                                       BLASScalar(alpha));
                                 this->engine->execute();
 
                                 this->host_trsm(side, uplo, trans, diag, m, n, alpha, a, b);

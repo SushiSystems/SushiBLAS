@@ -55,9 +55,9 @@ namespace SushiBLAS
                  * @param sycl_fn Callable `(sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`.
                  * @return The submitted event, or an empty one under ForceReference.
                  */
-                template<typename ReferenceFn, typename SyclFn>
+                template<typename ReferenceFn, typename SYCLFn>
                 sycl::event run(sycl::queue& q, const std::vector<sycl::event>& deps,
-                                ReferenceFn&& reference_fn, SyclFn&& sycl_fn) const
+                                ReferenceFn&& reference_fn, SYCLFn&& sycl_fn) const
                 {
                     if (mode_ == ExecutionMode::ForceReference)
                     {
@@ -66,7 +66,7 @@ namespace SushiBLAS
                         return sycl::event();
                     }
 
-                    return std::forward<SyclFn>(sycl_fn)(q, deps);
+                    return std::forward<SYCLFn>(sycl_fn)(q, deps);
                 }
 
             private:

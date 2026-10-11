@@ -65,7 +65,7 @@ namespace SushiBLAS
         TaskHandle record_spmv(TaskRecorder& recorder, const SparseMatrix& A,
                                const Dispatch::SparseMatrixOperand& a, const Tensor& x,
                                int64_t incx, Tensor& y, int64_t incy, Core::Transpose trans,
-                               BlasScalar alpha, BlasScalar beta)
+                               BLASScalar alpha, BLASScalar beta)
         {
             OperandSet operands;
             operands.reads(A.row_offsets).reads(A.column_indices).reads(A.values).reads(x);
@@ -84,7 +84,7 @@ namespace SushiBLAS
             const ScratchBuffer scratch =
                 Internal::allocate_blas_scratch(recorder, A.row_offsets, partial_bytes, operands);
 
-            const Internal::BlasMetadata meta = Internal::BlasMetadata(K_OP, "sparse.spmv"_op)
+            const Internal::BLASMetadata meta = Internal::BLASMetadata(K_OP, "sparse.spmv"_op)
                                                     .scalar(alpha).scalar(beta).flag(trans);
 
             const int64_t rows = a.rows;
@@ -130,7 +130,7 @@ namespace SushiBLAS
     } // namespace
 
     TaskHandle SparseOps::spmv(const SparseMatrix& A, const Tensor& x, Tensor& y,
-                               Core::Transpose trans, BlasScalar alpha, BlasScalar beta)
+                               Core::Transpose trans, BLASScalar alpha, BLASScalar beta)
     {
         Dispatch::require_flag(trans, K_OP, "trans");
         Dispatch::require_dtype(x, A.values.dtype, K_OP, "x");

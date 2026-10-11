@@ -24,7 +24,7 @@ operation family in one line.
 | operations | `logic` | Comparison and logical operations | [README](operations/logic/README.md) |
 | operations | `sparse` | The sparse operations, their record-time checks and operand describers | [README](operations/sparse/README.md) |
 | operations | `spatial` | The window, pooling, channel and broadcast operations | [README](operations/spatial/README.md) |
-| operations | `io` | `IO` and `IoStatus` | [README](operations/io/README.md) |
+| operations | `io` | `IO` and `IOStatus` | [README](operations/io/README.md) |
 | operations | `experimental` | LAPACK and signal declarations that have no implementation | [README](operations/experimental/README.md) |
 | library | `sushiblas` | The umbrella header and the one library a consumer links | [README](library/sushiblas/README.md) |
 
@@ -39,14 +39,14 @@ this page.
 
 `Engine` is a composition root. It holds the runtime context it was built on and owns five bricks:
 a `ScratchPool`, the `TaskGraph`, a `TaskRecorder` bound to that graph and pool, a `TensorFactory`
-and an `RngStream`. It declares no operation and has no accessor for the graph. An operation view
+and an `RNGStream`. It declares no operation and has no accessor for the graph. An operation view
 (`BLASOps`, `SparseOps`, `SpatialOps`, `ElementwiseOps`, `NonLinearOps`, `ReductionOps`,
 `RandomOps`, `LogicOps`) is built from an `Engine&` or from the bricks it needs: `BLASOps
 blas(engine)` and `BLASOps blas(engine.get_recorder())` record on the same graph. Every operation
 of a view returns a `TaskHandle`, and the work runs in `Engine::execute()`.
 
 `set_mode` and `get_mode` forward to the recorder, and `get_layout` to the factory. `set_mode` is
-`noexcept`: `ExecutionMode` has the three enumerators `Auto`, `ForceSycl` and `ForceReference`,
+`noexcept`: `ExecutionMode` has the three enumerators `Auto`, `ForceSYCL` and `ForceReference`,
 and none of them is refused.
 
 ### `Engine::execute`
@@ -75,7 +75,7 @@ recorder hands the same pool out through `TaskRecorder::get_scratch_pool()`. The
 the pool before the graph, so the graph and the tasks it holds are destroyed before the pool is.
 [The engine module](engine/engine/README.md) describes the pool, the shelf and the lease.
 
-### `RngStream::reseed`
+### `RNGStream::reseed`
 
 Rewinds the counter offset to zero as well as setting the seed. Every RNG kernel mixes `(seed,
 offset)` into Philox, so the seed alone does not name a stream position: setting the seed while
@@ -90,7 +90,7 @@ the old behaviour. Nothing is therefore exposed to opt out of the reset; if a us
 it belongs as a distinct named method (`advance_rng_stream()`), never as a side effect of setting a
 seed.
 
-### `RngStream::reserve`
+### `RNGStream::reserve`
 
 Every distribution draw takes a fresh position so two tasks never reuse a Philox (key, counter)
 pair, even under concurrent submission. The sequence restarts at zero on `reseed`.
@@ -141,12 +141,12 @@ contiguous, and the host byte count must equal `num_elements * bytes_per_element
 helpers also check that `T` maps to the tensor's dtype through `Detail::HostDataType`. Every
 violation throws `std::invalid_argument`.
 
-### File operations return an `IoStatus`
+### File operations return an `IOStatus`
 
-`save`, `load`, `save_bin`, `load_bin`, `save_npy` and `load_npy` return an `IoStatus` and are
+`save`, `load`, `save_bin`, `load_bin`, `save_npy` and `load_npy` return an `IOStatus` and are
 `[[nodiscard]]`. A wrong operand still throws `std::invalid_argument`; a file that is missing,
 short, malformed or of another shape, dtype or layout is reported through the status, and the
-reason is logged once at error level. `to_string(IoStatus)` gives the enumerator's name.
+reason is logged once at error level. `to_string(IOStatus)` gives the enumerator's name.
 [The architecture, section 11](../docs/architecture/EXCEPTIONS.md) lists the values.
 
 ### Loads run the recorded graph first

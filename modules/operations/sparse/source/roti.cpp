@@ -59,13 +59,13 @@ namespace SushiBLAS
         template<typename Index>
         TaskHandle record_roti(TaskRecorder& recorder, SparseVector& x,
                                const Dispatch::SparseVectorOperand& sx, Tensor& y, int64_t incy,
-                               BlasScalar c, BlasScalar s)
+                               BLASScalar c, BLASScalar s)
         {
             OperandSet operands;
             operands.reads(x.indices).updates(x.values).updates(y);
 
-            const Internal::BlasMetadata meta =
-                Internal::BlasMetadata(K_OP, "sparse.roti"_op).scalar(c).scalar(s);
+            const Internal::BLASMetadata meta =
+                Internal::BLASMetadata(K_OP, "sparse.roti"_op).scalar(c).scalar(s);
 
             const int64_t count = sx.nnz;
             const int64_t extent = sx.size;

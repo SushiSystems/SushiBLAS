@@ -43,13 +43,13 @@ namespace SushiBLAS
         namespace
         {
             /// @brief The forced modes every case runs in.
-            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceSycl,
+            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceSYCL,
                                                         ExecutionMode::ForceReference};
 
             /** @brief Returns the name a failure message gives a forced mode. */
             const char* forced_mode_name(ExecutionMode mode) noexcept
             {
-                return mode == ExecutionMode::ForceReference ? "ForceReference" : "ForceSycl";
+                return mode == ExecutionMode::ForceReference ? "ForceReference" : "ForceSYCL";
             }
 
             /** @brief Returns the bit pattern of a HALF value. */
@@ -75,7 +75,7 @@ namespace SushiBLAS
 
                 const char* operation = ""; /**< The operation's name in a failure message. */
                 Tensor reference;           /**< The result under ForceReference. */
-                Tensor device;              /**< The result under ForceSycl. */
+                Tensor device;              /**< The result under ForceSYCL. */
             };
         } // namespace
 

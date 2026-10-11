@@ -56,7 +56,7 @@ namespace SushiBLAS
          * @brief Throws if a scalar with a non-zero imaginary part is given to a real dtype.
          * @throws std::invalid_argument naming the imaginary part and the dtype.
          */
-        inline void require_real_scalar(const BlasScalar& value, Core::DataType dtype,
+        inline void require_real_scalar(const BLASScalar& value, Core::DataType dtype,
                                         const char* op, const char* argument)
         {
             if (!Core::is_complex_dtype(dtype) && !value.is_real())

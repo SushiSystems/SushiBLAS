@@ -53,7 +53,7 @@ namespace SushiBLAS
         TaskHandle record_sbmv(TaskRecorder& recorder, const char* op,
                                SushiRuntime::Graph::OpID op_id,
                                const Tensor& A, const Tensor& x, Tensor& y,
-                               Core::Uplo uplo, int64_t k, BlasScalar alpha, BlasScalar beta)
+                               Core::Uplo uplo, int64_t k, BLASScalar alpha, BLASScalar beta)
         {
             Dispatch::require_flag(uplo, op, "uplo");
             Dispatch::require_dtype(x, A.dtype, op, "x");
@@ -75,7 +75,7 @@ namespace SushiBLAS
             else
                 operands.updates(y);
 
-            const Internal::BlasMetadata meta = Internal::BlasMetadata(op, op_id)
+            const Internal::BLASMetadata meta = Internal::BLASMetadata(op, op_id)
                                                     .scalar(alpha).scalar(beta)
                                                     .flag(uplo).extent(k);
 
@@ -117,14 +117,14 @@ namespace SushiBLAS
     } // namespace
 
     TaskHandle Level2::sbmv(const Tensor& A, const Tensor& x, Tensor& y, Core::Uplo uplo,
-                            int64_t k, BlasScalar alpha, BlasScalar beta)
+                            int64_t k, BLASScalar alpha, BLASScalar beta)
     {
         return record_sbmv<Kernels::Unconjugated>(recorder_, "blas.lvl2.sbmv", "blas.lvl2.sbmv"_op,
                                                   A, x, y, uplo, k, alpha, beta);
     }
 
     TaskHandle Level2::hbmv(const Tensor& A, const Tensor& x, Tensor& y, Core::Uplo uplo,
-                            int64_t k, BlasScalar alpha, BlasScalar beta)
+                            int64_t k, BLASScalar alpha, BLASScalar beta)
     {
         if (!Core::is_complex_dtype(A.dtype))
             return sbmv(A, x, y, uplo, k, alpha, beta);

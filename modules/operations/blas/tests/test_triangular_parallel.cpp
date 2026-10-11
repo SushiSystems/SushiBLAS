@@ -157,7 +157,7 @@ namespace SushiBLAS
 
             /// @brief Holds the two modes a public call is run in.
             constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
-                                                 ExecutionMode::ForceSycl};
+                                                 ExecutionMode::ForceSYCL};
 
             /** @brief Holds a queued event that stays incomplete until the gate is opened. */
             class DependencyGate final
@@ -973,13 +973,13 @@ namespace SushiBLAS
                         return read_buffer<T>(x);
                     }
 
-                    /** @brief Returns x of a packed system, solved by Level2::tpsv in ForceSycl. */
+                    /** @brief Returns x of a packed system, solved by Level2::tpsv in ForceSYCL. */
                     [[nodiscard]] std::vector<T> solve_packed_through_view(
                         const HostSolve<T>& system, const std::vector<T>& full,
                         const std::vector<T>& b)
                     {
                         const TriangularFlags& flags = system.flags();
-                        engine->set_mode(ExecutionMode::ForceSycl);
+                        engine->set_mode(ExecutionMode::ForceSYCL);
 
                         Tensor buffer = device_buffer<T>(
                             *engine, packed_storage(flags, system.order(), full));
@@ -992,14 +992,14 @@ namespace SushiBLAS
                         return read_buffer<T>(x);
                     }
 
-                    /** @brief Returns x of a band system, solved by Level2::tbsv in ForceSycl. */
+                    /** @brief Returns x of a band system, solved by Level2::tbsv in ForceSYCL. */
                     [[nodiscard]] std::vector<T> solve_band_through_view(
                         const HostSolve<T>& system, int64_t k, const std::vector<T>& full,
                         const std::vector<T>& b)
                     {
                         const TriangularFlags& flags = system.flags();
                         const bool by_rows = (flags.layout == Core::Layout::RowMajor);
-                        engine->set_mode(ExecutionMode::ForceSycl);
+                        engine->set_mode(ExecutionMode::ForceSYCL);
 
                         Tensor buffer = device_buffer<T>(
                             *engine, band_storage(flags, system.order(), k, full));
@@ -1377,9 +1377,9 @@ namespace SushiBLAS
             const std::vector<T> x = fraction_values<T>(order, draws);
 
             const std::vector<T> first =
-                this->multiply_through_view(system, x, 1, ExecutionMode::ForceSycl);
+                this->multiply_through_view(system, x, 1, ExecutionMode::ForceSYCL);
             const std::vector<T> second =
-                this->multiply_through_view(system, x, 1, ExecutionMode::ForceSycl);
+                this->multiply_through_view(system, x, 1, ExecutionMode::ForceSYCL);
             expect_same_bits(first, second);
         }
 
@@ -1401,7 +1401,7 @@ namespace SushiBLAS
 
             auto& context = TestEnvironment::get_context();
             ScratchPool& pool = this->engine->get_scratch_pool();
-            this->engine->set_mode(ExecutionMode::ForceSycl);
+            this->engine->set_mode(ExecutionMode::ForceSYCL);
             const std::size_t outstanding_before =
                 context.memory().live_count() - pool.idle_block_count();
 
@@ -1642,7 +1642,7 @@ namespace SushiBLAS
                 const std::vector<T> x = integer_values<T>(single.elements(), -3, 3, draws);
                 expect_equal_values(
                     this->solve_vector_through_view(single, single.product(x),
-                                                    ExecutionMode::ForceSycl),
+                                                    ExecutionMode::ForceSYCL),
                     x);
 
                 const HostSolve<T> several(flags, K_LARGE_ORDER, K_LARGE_VECTORS,
@@ -1651,7 +1651,7 @@ namespace SushiBLAS
                     integer_values<T>(several.elements(), -3, 3, draws);
                 expect_equal_values(
                     this->solve_through_view(several, several.product(solution), K_EXACT_ALPHA,
-                                             ExecutionMode::ForceSycl),
+                                             ExecutionMode::ForceSYCL),
                     scaled(solution, element_of<T>(K_EXACT_ALPHA)));
             }
         }
@@ -1674,7 +1674,7 @@ namespace SushiBLAS
                 for (const ExecutionMode mode : K_MODES)
                 {
                     SCOPED_TRACE(describe(flags));
-                    SCOPED_TRACE(mode == ExecutionMode::ForceSycl ? "ForceSycl"
+                    SCOPED_TRACE(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
                                                                    : "ForceReference");
                     this->expect_residual_within_bound(
                         system, b, K_ROUNDED_ALPHA,
@@ -1711,7 +1711,7 @@ namespace SushiBLAS
 
                     this->expect_product_within_bound(
                         system, x, this->multiply_with_kernel(system, x, 1, K_GROUP_WIDTH),
-                        ExecutionMode::ForceSycl);
+                        ExecutionMode::ForceSYCL);
                 }
             }
         }
@@ -1903,7 +1903,7 @@ namespace SushiBLAS
 
             for (const ExecutionMode mode : K_MODES)
             {
-                SCOPED_TRACE(mode == ExecutionMode::ForceSycl ? "ForceSycl"
+                SCOPED_TRACE(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
                                                                : "ForceReference");
                 engine->set_mode(mode);
 

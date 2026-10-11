@@ -72,7 +72,7 @@ namespace SushiBLAS
                 Internal::running_solution_bytes(A.values.dtype) * static_cast<std::size_t>(a.rows),
                 operands);
 
-            const Internal::BlasMetadata meta = Internal::BlasMetadata(K_OP, "sparse.sptrsv"_op)
+            const Internal::BLASMetadata meta = Internal::BLASMetadata(K_OP, "sparse.sptrsv"_op)
                                                     .flag(uplo).flag(trans).flag(diag);
 
             const int64_t rows = a.rows;

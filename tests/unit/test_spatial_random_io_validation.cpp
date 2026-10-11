@@ -347,10 +347,10 @@ namespace SushiBLAS
             const std::string path = temp_path("round_trip.sushi");
 
             auto source = create_initialized_tensor<float>({2, 2}, values);
-            ASSERT_EQ(SushiBLAS::IO(*engine).save(source, path), SushiBLAS::IoStatus::Ok);
+            ASSERT_EQ(SushiBLAS::IO(*engine).save(source, path), SushiBLAS::IOStatus::Ok);
 
             auto target = engine->create_tensor({2, 2}, Core::DataType::Float32);
-            ASSERT_EQ(SushiBLAS::IO(*engine).load(target, path), SushiBLAS::IoStatus::Ok);
+            ASSERT_EQ(SushiBLAS::IO(*engine).load(target, path), SushiBLAS::IOStatus::Ok);
 
             EXPECT_TENSOR_NEAR(target, values, 0.0);
         }

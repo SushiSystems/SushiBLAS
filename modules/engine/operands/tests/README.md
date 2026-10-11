@@ -7,4 +7,4 @@ tests share, and `tests/common/README.md` describes the fixtures.
 
 | File | Tests |
 | --- | --- |
-| `test_blas_scalar.cpp` | Tests BlasScalar: what converts to it, what it narrows to and what it reports |
+| `test_blas_scalar.cpp` | Tests BLASScalar: what converts to it, what it narrows to and what it reports |

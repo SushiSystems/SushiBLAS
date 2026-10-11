@@ -21,7 +21,7 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | Reference kernel | The plain C++ implementation of an operation, under `modules/kernels/reference/`. The BLAS, sparse and spatial families have one per operation |
 | Reference path | What runs on the host under `ForceReference`: the reference kernel where an operation has one, and for the elementwise, nonlinear, logic, reduction and random families a serial loop over the same functor, fold or Philox counters as the SYCL kernel |
 | SYCL kernel | The device implementation of an operation, under `modules/kernels/sycl/` |
-| Execution mode | `ExecutionMode`: `Auto` and `ForceSycl` run the SYCL kernel, `ForceReference` runs the reference path on the host. A task keeps the mode its recorder held when it was recorded |
+| Execution mode | `ExecutionMode`: `Auto` and `ForceSYCL` run the SYCL kernel, `ForceReference` runs the reference path on the host. A task keeps the mode its recorder held when it was recorded |
 | Dispatch helper | `Internal::execute_typed_task` in `engine/task.hpp` records a task through the recorder and switches on the dtype; `Internal::KernelPairDispatcher` runs the reference or the SYCL kernel of a pair by the recorded mode |
 | Dispatch seam | The public `SushiBLAS::Dispatch` functions that take a recorder and a caller-written functor and record it as one task, such as `execute_binary` and `execute_gemm` |
 | Declared read | A tensor a caller's functor reads at execution time, named through `Dispatch::bind_reads` so the graph orders the task after its writers and keeps the storage (`engine/math/elementwise/read_binding.hpp`) |
@@ -32,7 +32,7 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | Conjugation policy | `Kernels::Unconjugated` or `Kernels::Conjugated`, the template argument that makes one kernel serve a symmetric routine and its Hermitian sibling (`modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/conjugation.hpp`) |
 | Operand access | `Kernels::OperandAccess`: the row step, the column step and the conjugation with which a kernel reads element (row, col) of op(X), resolved on the host from the layout and the `Transpose` flag |
 | BLAS flag | `Transpose`, `Uplo`, `Diag` or `Side`, the enumerations a BLAS call takes in place of a bool; they carry the CBLAS numbers, so a value-initialised flag is invalid (`core/blas_types.hpp`) |
-| `BlasScalar` | The type of alpha and beta in a BLAS call: a real or a complex value, built from `double` or `std::complex<double>` |
+| `BLASScalar` | The type of alpha and beta in a BLAS call: a real or a complex value, built from `double` or `std::complex<double>` |
 | Band storage | The CBLAS layout of a band matrix: only the `kl` sub-diagonals and `ku` super-diagonals, in a rank-2 tensor whose leading dimension is at least `kl + ku + 1`; `gbmv`, `sbmv`, `hbmv`, `tbmv` and `tbsv` read it |
 | Packed storage | One triangle of a matrix of order n in a rank-1 tensor of `n * (n + 1) / 2` elements; `spmv`, `hpmv`, `tpmv`, `tpsv` and the `spr` and `hpr` updates read it. Not the packed panels below |
 | Packed product | The CPU path of GEMM, SYRK and SYMM: it blocks over the three dimensions, copies the A and B panels into contiguous scratch and runs a fixed register-block micro-kernel |

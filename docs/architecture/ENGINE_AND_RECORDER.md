@@ -3,7 +3,7 @@
 `Engine` (`engine.hpp`) is the composition root a program constructs once on a
 `RuntimeContext`, with the layout of the tensors it creates. It owns, in this order, the
 `ScratchPool`, the `SushiRuntime::Graph::TaskGraph`, the `TaskRecorder` bound to both, the
-`TensorFactory` and the `RngStream`. Its interface is short:
+`TensorFactory` and the `RNGStream`. Its interface is short:
 
 - `create_tensor(dims, dtype, residency, device_index)`, from a brace list or a span.
 - `set_mode` and `get_mode`, which forward to the recorder, and `get_layout`.
@@ -67,7 +67,7 @@ const TaskHandle recorded = BLASOps(recorder).axpy(2.0, x, y);
 
 `BLASOps(engine)` is the same view over `engine.get_recorder()`. A caller that builds its own
 recorder owns the graph and compiles and runs it as `Engine::execute` does. `RandomOps` also
-takes the `RngStream` it draws from, and `IO` (`io.hpp`) takes an `Engine`, because every host
+takes the `RNGStream` it draws from, and `IO` (`io.hpp`) takes an `Engine`, because every host
 transfer runs the recorded graph first.
 
 | View | Header | Family |
@@ -87,7 +87,7 @@ state. It can be copied and cannot be re-bound.
 
 ## The random stream
 
-`RngStream` (`engine/rng_stream.hpp`) is a seed and an offset counter under one mutex.
+`RNGStream` (`engine/rng_stream.hpp`) is a seed and an offset counter under one mutex.
 `reserve(count)` returns the seed with the current offset and advances the counter, so two
 random tasks never share a Philox counter range, even when recorded from two threads.
 `reseed(seed)` sets the seed and rewinds the offset, so one seed followed by one sequence of calls

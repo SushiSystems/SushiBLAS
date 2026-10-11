@@ -21,7 +21,7 @@
 
 /**
  * @file rng_stream.hpp
- * @brief Declares RngStream, the seed and counter offset random operations draw from.
+ * @brief Declares RNGStream, the seed and counter offset random operations draw from.
  * @author Mustafa Garip
  */
 
@@ -33,7 +33,7 @@
 namespace SushiBLAS
 {
     /// @brief Holds the seed and first offset one random task draws from.
-    struct RngPosition
+    struct RNGPosition
     {
         std::uint64_t seed;   /**< Seed of the stream at reservation time. */
         std::uint64_t offset; /**< First of the offsets reserved for the task. */
@@ -43,15 +43,15 @@ namespace SushiBLAS
      * @brief Holds one counter-based random stream: a seed and an offset counter under one lock.
      * @see modules/engine/engine/README.md
      */
-    class RngStream final
+    class RNGStream final
     {
         public:
-            RngStream() = default;
-            RngStream(const RngStream&) = delete;
-            RngStream& operator=(const RngStream&) = delete;
-            RngStream(RngStream&&) = delete;
-            RngStream& operator=(RngStream&&) = delete;
-            ~RngStream() = default;
+            RNGStream() = default;
+            RNGStream(const RNGStream&) = delete;
+            RNGStream& operator=(const RNGStream&) = delete;
+            RNGStream(RNGStream&&) = delete;
+            RNGStream& operator=(RNGStream&&) = delete;
+            ~RNGStream() = default;
 
             /// @brief Sets the seed and rewinds the offset counter to zero, as one atomic step.
             void reseed(std::uint64_t seed)
@@ -72,10 +72,10 @@ namespace SushiBLAS
              * @brief Reserves @p count consecutive offsets and returns them with their seed.
              * @param count Number of offsets taken; concurrent callers receive disjoint ranges.
              */
-            [[nodiscard]] RngPosition reserve(std::uint64_t count)
+            [[nodiscard]] RNGPosition reserve(std::uint64_t count)
             {
                 const std::lock_guard<std::mutex> lock(mutex_);
-                const RngPosition position{seed_, offset_};
+                const RNGPosition position{seed_, offset_};
                 offset_ += count;
                 return position;
             }

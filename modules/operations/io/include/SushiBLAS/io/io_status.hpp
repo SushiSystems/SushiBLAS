@@ -21,7 +21,7 @@
 
 /**
  * @file io_status.hpp
- * @brief Declares IoStatus, the result of a file operation of IO.
+ * @brief Declares IOStatus, the result of a file operation of IO.
  * @author Mustafa Garip
  */
 
@@ -32,7 +32,7 @@
 namespace SushiBLAS
 {
     /** @brief Says whether a file operation of IO succeeded, and why it did not. */
-    enum class IoStatus : std::uint8_t
+    enum class IOStatus : std::uint8_t
     {
         Ok,             /**< The file was written or loaded whole. */
         FileUnreadable, /**< The file could not be opened, measured or read. */
@@ -45,18 +45,18 @@ namespace SushiBLAS
     };
 
     /** @brief Returns the enumerator's name. */
-    [[nodiscard]] inline constexpr const char* to_string(IoStatus status) noexcept
+    [[nodiscard]] inline constexpr const char* to_string(IOStatus status) noexcept
     {
         switch (status)
         {
-            case IoStatus::Ok:             return "Ok";
-            case IoStatus::FileUnreadable: return "FileUnreadable";
-            case IoStatus::FileUnwritable: return "FileUnwritable";
-            case IoStatus::MalformedFile:  return "MalformedFile";
-            case IoStatus::Truncated:      return "Truncated";
-            case IoStatus::ShapeMismatch:  return "ShapeMismatch";
-            case IoStatus::DtypeMismatch:  return "DtypeMismatch";
-            case IoStatus::LayoutMismatch: return "LayoutMismatch";
+            case IOStatus::Ok:             return "Ok";
+            case IOStatus::FileUnreadable: return "FileUnreadable";
+            case IOStatus::FileUnwritable: return "FileUnwritable";
+            case IOStatus::MalformedFile:  return "MalformedFile";
+            case IOStatus::Truncated:      return "Truncated";
+            case IOStatus::ShapeMismatch:  return "ShapeMismatch";
+            case IOStatus::DtypeMismatch:  return "DtypeMismatch";
+            case IOStatus::LayoutMismatch: return "LayoutMismatch";
         }
         return "Unknown";
     }

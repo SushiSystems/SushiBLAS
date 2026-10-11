@@ -53,7 +53,7 @@ namespace SushiBLAS
         template<typename Conj>
         TaskHandle record_ger(TaskRecorder& recorder, const char* op,
                               SushiRuntime::Graph::OpID op_id,
-                              const Tensor& x, const Tensor& y, Tensor& A, BlasScalar alpha)
+                              const Tensor& x, const Tensor& y, Tensor& A, BLASScalar alpha)
         {
             Dispatch::require_dtype(x, A.dtype, op, "x");
             Dispatch::require_dtype(y, A.dtype, op, "y");
@@ -69,7 +69,7 @@ namespace SushiBLAS
             OperandSet operands;
             operands.reads(x).reads(y).updates(A);
 
-            const Internal::BlasMetadata meta = Internal::BlasMetadata(op, op_id).scalar(alpha);
+            const Internal::BLASMetadata meta = Internal::BLASMetadata(op, op_id).scalar(alpha);
 
             const Core::Layout layout = a.layout;
             const int64_t m = a.rows;
@@ -113,10 +113,10 @@ namespace SushiBLAS
 
         Dispatch::require_real_dtype(A, op, "A", "geru or gerc");
         return record_ger<Kernels::Unconjugated>(recorder_, op, "blas.lvl2.ger"_op, x, y, A,
-                                                 BlasScalar(alpha));
+                                                 BLASScalar(alpha));
     }
 
-    TaskHandle Level2::geru(const Tensor& x, const Tensor& y, Tensor& A, BlasScalar alpha)
+    TaskHandle Level2::geru(const Tensor& x, const Tensor& y, Tensor& A, BLASScalar alpha)
     {
         const char* const op = "blas.lvl2.geru";
 
@@ -130,7 +130,7 @@ namespace SushiBLAS
                                                  alpha);
     }
 
-    TaskHandle Level2::gerc(const Tensor& x, const Tensor& y, Tensor& A, BlasScalar alpha)
+    TaskHandle Level2::gerc(const Tensor& x, const Tensor& y, Tensor& A, BLASScalar alpha)
     {
         const char* const op = "blas.lvl2.gerc";
 

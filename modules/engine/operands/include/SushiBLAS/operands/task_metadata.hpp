@@ -21,7 +21,7 @@
 
 /**
  * @file task_metadata.hpp
- * @brief Declares BlasMetadata, which fills a BLAS task's metadata slots in one fixed order.
+ * @brief Declares BLASMetadata, which fills a BLAS task's metadata slots in one fixed order.
  * @author Mustafa Garip
  */
 
@@ -40,14 +40,14 @@ namespace SushiBLAS
          * @brief Builds the TaskMetadata of one BLAS task: scalars, then flags, then extents.
          * @see modules/operations/blas/README.md
          */
-        class BlasMetadata final
+        class BLASMetadata final
         {
             public:
                 /**
                  * @brief Names the task and its operation.
                  * @param name Must outlive the recorded task; a string literal does.
                  */
-                BlasMetadata(const char* name, SushiRuntime::Graph::OpID op_id) noexcept
+                BLASMetadata(const char* name, SushiRuntime::Graph::OpID op_id) noexcept
                 {
                     meta_.name = name;
                     meta_.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
@@ -55,7 +55,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Appends a scalar as two slots: its real part, then its imaginary part. */
-                BlasMetadata& scalar(const BlasScalar& value) noexcept
+                BLASMetadata& scalar(const BLASScalar& value) noexcept
                 {
                     push(value.real());
                     push(value.imag());
@@ -67,14 +67,14 @@ namespace SushiBLAS
                  * @tparam Flag Core::Transpose, Core::Uplo, Core::Diag or Core::Side.
                  */
                 template<typename Flag>
-                BlasMetadata& flag(Flag value) noexcept
+                BLASMetadata& flag(Flag value) noexcept
                 {
                     push(static_cast<uint64_t>(value));
                     return *this;
                 }
 
                 /** @brief Appends an extent of the call, such as a band width, as one slot. */
-                BlasMetadata& extent(int64_t value) noexcept
+                BLASMetadata& extent(int64_t value) noexcept
                 {
                     push(value);
                     return *this;

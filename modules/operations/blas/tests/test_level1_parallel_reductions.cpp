@@ -82,7 +82,7 @@ namespace SushiBLAS
                 void SetUp() override
                 {
                     SushiBLASTest::SetUp();
-                    engine->set_mode(ExecutionMode::ForceSycl);
+                    engine->set_mode(ExecutionMode::ForceSYCL);
                 }
 
                 /** @brief Returns a FLOAT32 tensor holding @p host. */

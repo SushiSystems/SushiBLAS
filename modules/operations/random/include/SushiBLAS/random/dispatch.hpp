@@ -277,7 +277,7 @@ namespace SushiBLAS
          * @see modules/operations/MATH_README.md
          */
         template<Domain Dom, typename Func>
-        TaskHandle execute_random(TaskRecorder& recorder, RngStream& stream, Tensor& t,
+        TaskHandle execute_random(TaskRecorder& recorder, RNGStream& stream, Tensor& t,
                                   const char* name, SushiRuntime::Graph::OpID op_id,
                                   std::initializer_list<double> params, Func&& task_func)
         {
@@ -299,7 +299,7 @@ namespace SushiBLAS
             meta.op_id = op_id;
             set_task_params(meta, params, name, SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS - K_MAX_RNG_PARAMS);
 
-            const RngPosition position = stream.reserve(1);
+            const RNGPosition position = stream.reserve(1);
             const uint64_t seed = position.seed;
             const uint64_t offset = position.offset;
             set_rng_params(meta, seed, offset);
