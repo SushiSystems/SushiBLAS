@@ -23,6 +23,7 @@ set(SUSHIBLAS_LAYER_ORDER
 set(SUSHIBLAS_MODULE_LAYERS
     core                foundation
     support             foundation
+    graph_primitives    foundation
     tensor              data
     sparse_storage      data
     blas_seam_kernels   kernels
