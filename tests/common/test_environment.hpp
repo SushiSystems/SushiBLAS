@@ -91,7 +91,7 @@ namespace SushiBLAS
                  */
                 [[nodiscard]] static std::size_t live_allocation_count()
                 {
-                    return runtime_->unsafe_context().memory().live_count();
+                    return runtime_->advanced().live_allocation_count();
                 }
 
             private:

@@ -22,8 +22,7 @@ hands it out through `runtime()`. `queue(device_index)` and `device_count()` for
 runtime's `advanced()` view.
 
 `live_allocation_count()` returns how many USM allocations of the runtime are live; the lifetime
-tests count with it. SushiRuntime's stable surface has no such count, so this one function reads
-it through `Runtime::unsafe_context()`. It is the only place in the tests that does.
+tests count with it. It forwards to `AdvancedControls::live_allocation_count()`.
 
 ## graph_probe.hpp
 
