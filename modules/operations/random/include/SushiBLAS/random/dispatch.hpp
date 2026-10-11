@@ -47,8 +47,8 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
-#include <SushiRuntime/core/resource_region.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/memory/resource_region.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 
 namespace SushiBLAS
 {

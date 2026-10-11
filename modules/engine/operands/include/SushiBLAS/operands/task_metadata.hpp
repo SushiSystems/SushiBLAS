@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/operands/scalar.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 
 namespace SushiBLAS
 {

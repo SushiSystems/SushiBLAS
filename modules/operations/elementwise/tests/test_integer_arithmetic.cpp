@@ -32,7 +32,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/elementwise/dispatch.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 #include "test_utils.hpp"
 #include "graph_probe.hpp"
 

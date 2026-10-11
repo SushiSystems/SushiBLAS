@@ -135,7 +135,7 @@ namespace SushiBLAS
                 /** @brief Returns the queue of the test environment. */
                 [[nodiscard]] static sycl::queue& queue()
                 {
-                    return TestEnvironment::get_context().get_queue();
+                    return TestEnvironment::get_context().devices().queue(0);
                 }
         };
 

@@ -200,7 +200,7 @@ namespace SushiBLAS
             {
                 using R = Kernels::RealType<T>;
                 const sycl::device device =
-                    TestEnvironment::get_context().get_queue().get_device();
+                    TestEnvironment::get_context().devices().queue(0).get_device();
                 if constexpr (std::is_same_v<R, sycl::half>)
                     return device.has(sycl::aspect::fp16);
                 else if constexpr (std::is_same_v<R, double>)
@@ -326,7 +326,7 @@ namespace SushiBLAS
                 [[nodiscard]] Tensor scalar_tensor(const V& value)
                 {
                     Tensor tensor = this->engine->create_tensor({1}, get_sushiblas_dtype<V>());
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(tensor.data(), &value, sizeof(V)).wait();
                     return tensor;
                 }
@@ -503,7 +503,7 @@ namespace SushiBLAS
                                                               get_sushiblas_dtype<T>());
                     const std::vector<T> one_values(static_cast<std::size_t>(K_DOT_LENGTH),
                                                     make<T>(1.0));
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(ones.data(), one_values.data(), one_values.size() * sizeof(T))
                         .wait();
 

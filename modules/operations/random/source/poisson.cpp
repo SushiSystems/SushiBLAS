@@ -31,7 +31,7 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/random/random.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 #include <SushiBLAS/random_kernels/random.hpp>
 #include <SushiBLAS/random/dispatch.hpp>
 

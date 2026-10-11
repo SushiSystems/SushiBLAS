@@ -39,7 +39,7 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/SushiRuntime.h>
-#include <SushiRuntime/core/resource_region.hpp>
+#include <SushiRuntime/memory/resource_region.hpp>
 
 namespace SushiBLAS
 {
@@ -225,7 +225,7 @@ namespace SushiBLAS
         inline sycl::device get_device() const
         {
             SB_THROW_IF(!storage, "Tensor has no valid storage/context");
-            return storage->get_context().get_queue(storage->get_device_index()).get_device();
+            return storage->get_context().devices().queue(storage->get_device_index()).get_device();
         }
 
         /**
@@ -307,7 +307,7 @@ namespace SushiBLAS
          * @return The region, or an empty base-less region if the tensor has no storage.
          * @see modules/README.md
          */
-        inline SushiRuntime::Core::ResourceRegion region() const
+        inline SushiRuntime::Memory::ResourceRegion region() const
         {
             if (!storage) return {};
 

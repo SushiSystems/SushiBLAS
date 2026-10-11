@@ -354,7 +354,7 @@ namespace SushiBLAS
                 /** @brief Returns the queue of the test environment. */
                 [[nodiscard]] static sycl::queue& queue()
                 {
-                    return TestEnvironment::get_context().get_queue();
+                    return TestEnvironment::get_context().devices().queue(0);
                 }
 
                 /**
@@ -410,9 +410,9 @@ namespace SushiBLAS
                     auto& context = TestEnvironment::get_context();
 
                     engine->set_mode(ExecutionMode::ForceSycl);
-                    const std::size_t live_before = context.live_usm_count();
+                    const std::size_t live_before = context.memory().live_count();
                     record(A, sycl_result);
-                    EXPECT_EQ(context.live_usm_count(), live_before + 1);
+                    EXPECT_EQ(context.memory().live_count(), live_before + 1);
                     engine->execute();
 
                     engine->set_mode(ExecutionMode::ForceReference);

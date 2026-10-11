@@ -98,7 +98,7 @@ namespace SushiBLAS
         TEST_F(Unit_ScratchBuffer, ZeroBytesLeaseNothing)
         {
             ScratchPool pool(context());
-            const std::size_t live_baseline = context().live_usm_count();
+            const std::size_t live_baseline = context().memory().live_count();
             const std::size_t idle_baseline = pool.idle_block_count();
 
             {
@@ -108,7 +108,7 @@ namespace SushiBLAS
                 EXPECT_EQ(lease.data(), nullptr);
                 EXPECT_EQ(lease.bytes(), std::size_t{0});
                 EXPECT_EQ(lease.storage().get(), nullptr);
-                EXPECT_EQ(context().live_usm_count(), live_baseline);
+                EXPECT_EQ(context().memory().live_count(), live_baseline);
             }
 
             EXPECT_EQ(pool.idle_block_count(), idle_baseline);
@@ -173,7 +173,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_ScratchBuffer, ALeaseOutlivesItsPool)
         {
-            const std::size_t live_baseline = context().live_usm_count();
+            const std::size_t live_baseline = context().memory().live_count();
 
             {
                 std::optional<ScratchPool> pool(std::in_place, context());
@@ -183,13 +183,13 @@ namespace SushiBLAS
 
                 EXPECT_EQ(lease.data(), leased);
                 EXPECT_EQ(lease.bytes(), std::size_t{256});
-                EXPECT_EQ(context().live_usm_count(), live_baseline + 1);
+                EXPECT_EQ(context().memory().live_count(), live_baseline + 1);
 
                 // The block is still allocated, so the device accepts a write over all of it.
-                context().get_queue(K_DEVICE).memset(lease.data(), 0, lease.bytes()).wait();
+                context().devices().queue(K_DEVICE).memset(lease.data(), 0, lease.bytes()).wait();
             }
 
-            EXPECT_EQ(context().live_usm_count(), live_baseline);
+            EXPECT_EQ(context().memory().live_count(), live_baseline);
         }
 
         TEST_F(Unit_ScratchBuffer, LiveLeasesNeverShareABlock)
@@ -214,7 +214,7 @@ namespace SushiBLAS
         TEST_F(Unit_ScratchBuffer, LeasesAreSafeAcrossThreads)
         {
             ScratchPool pool(context());
-            const std::size_t baseline = context().live_usm_count() - pool.idle_block_count();
+            const std::size_t baseline = context().memory().live_count() - pool.idle_block_count();
             const std::array<std::size_t, 6> requests = {128, 256, 512, 1024, 2048, 4096};
 
             // GoogleTest assertions are not thread-safe on Windows, so a worker only counts.
@@ -240,7 +240,7 @@ namespace SushiBLAS
                 worker.join();
 
             EXPECT_EQ(empty_leases.load(), std::size_t{0});
-            EXPECT_EQ(context().live_usm_count() - pool.idle_block_count(), baseline);
+            EXPECT_EQ(context().memory().live_count() - pool.idle_block_count(), baseline);
         }
 
         TEST_F(Unit_ScratchBuffer, ARecordedReductionReusesItsScratch)
@@ -250,17 +250,17 @@ namespace SushiBLAS
             if (!plans_partials(input))
                 GTEST_SKIP() << "This device plans no partials for 2^20 elements.";
 
-            const std::size_t live_before_record = context().live_usm_count();
+            const std::size_t live_before_record = context().memory().live_count();
             ReductionOps(*engine).sum(input, result);
-            ASSERT_EQ(context().live_usm_count(), live_before_record + 1);
+            ASSERT_EQ(context().memory().live_count(), live_before_record + 1);
 
             engine->execute();
-            const std::size_t live_after_first = context().live_usm_count();
+            const std::size_t live_after_first = context().memory().live_count();
             verify_tensor(result, {static_cast<float>(K_REDUCTION_ELEMENTS)}, K_SUM_TOLERANCE);
 
             ReductionOps(*engine).sum(input, result);
             engine->execute();
-            const std::size_t live_after_second = context().live_usm_count();
+            const std::size_t live_after_second = context().memory().live_count();
             verify_tensor(result, {static_cast<float>(K_REDUCTION_ELEMENTS)}, K_SUM_TOLERANCE);
 
             EXPECT_EQ(live_after_first, live_before_record + 1);
@@ -276,24 +276,24 @@ namespace SushiBLAS
                 GTEST_SKIP() << "This device plans no partials for 2^20 elements.";
 
             ScratchPool pool(context());
-            SushiRuntime::Graph::TaskGraph first_graph(context());
-            SushiRuntime::Graph::TaskGraph second_graph(context());
+            SushiRuntime::Graph::TaskGraph first_graph;
+            SushiRuntime::Graph::TaskGraph second_graph;
             TaskRecorder first_recorder(first_graph, pool);
             TaskRecorder second_recorder(second_graph, pool);
 
-            const std::size_t live_before_record = context().live_usm_count();
+            const std::size_t live_before_record = context().memory().live_count();
             ReductionOps(first_recorder).sum(input, first_result);
-            ASSERT_EQ(context().live_usm_count(), live_before_record + 1);
+            ASSERT_EQ(context().memory().live_count(), live_before_record + 1);
 
             // Dropping the nodes destroys the recorded task, the only holder of the lease.
             first_graph.take_nodes().clear();
             ASSERT_EQ(pool.idle_block_count(), std::size_t{1});
-            const std::size_t live_after_drop = context().live_usm_count();
+            const std::size_t live_after_drop = context().memory().live_count();
 
             ReductionOps(second_recorder).sum(input, second_result);
 
             EXPECT_EQ(pool.idle_block_count(), std::size_t{0});
-            EXPECT_EQ(context().live_usm_count(), live_after_drop);
+            EXPECT_EQ(context().memory().live_count(), live_after_drop);
         }
     } // namespace Test
 } // namespace SushiBLAS

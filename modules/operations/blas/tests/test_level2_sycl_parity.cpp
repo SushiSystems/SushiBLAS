@@ -123,7 +123,7 @@ namespace SushiBLAS
                     std::vector<T> host(static_cast<std::size_t>(t.num_elements));
                     for (std::size_t i = 0; i < host.size(); ++i)
                         host[i] = static_cast<T>(data.value(i + seed));
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(t.data(), host.data(), host.size() * sizeof(T)).wait();
                     return t;
                 }
@@ -132,7 +132,7 @@ namespace SushiBLAS
                 [[nodiscard]] static std::vector<T> read_back(const Tensor& t)
                 {
                     std::vector<T> host(static_cast<std::size_t>(t.num_elements));
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(host.data(), t.data(), host.size() * sizeof(T)).wait();
                     return host;
                 }

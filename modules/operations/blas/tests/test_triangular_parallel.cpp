@@ -701,7 +701,7 @@ namespace SushiBLAS
             /** @brief Returns the queue every kernel of this file is launched on. */
             [[nodiscard]] sycl::queue& test_queue()
             {
-                return TestEnvironment::get_context().get_queue();
+                return TestEnvironment::get_context().devices().queue(0);
             }
 
             /**
@@ -1403,21 +1403,21 @@ namespace SushiBLAS
             ScratchPool& pool = this->engine->get_scratch_pool();
             this->engine->set_mode(ExecutionMode::ForceSycl);
             const std::size_t outstanding_before =
-                context.live_usm_count() - pool.idle_block_count();
+                context.memory().live_count() - pool.idle_block_count();
 
             SushiBLAS::BLASOps(*this->engine).trmv(A, x, Core::Uplo::Lower);
             this->engine->execute();
 
-            EXPECT_EQ(outstanding_before, context.live_usm_count() - pool.idle_block_count())
+            EXPECT_EQ(outstanding_before, context.memory().live_count() - pool.idle_block_count())
                 << "Every allocation the product made must be idle in the pool or freed.";
 
-            const std::size_t live_after_first = context.live_usm_count();
+            const std::size_t live_after_first = context.memory().live_count();
             const std::size_t idle_after_first = pool.idle_block_count();
 
             SushiBLAS::BLASOps(*this->engine).trmv(A, x, Core::Uplo::Lower);
             this->engine->execute();
 
-            EXPECT_EQ(live_after_first, context.live_usm_count());
+            EXPECT_EQ(live_after_first, context.memory().live_count());
             EXPECT_EQ(idle_after_first, pool.idle_block_count());
         }
 

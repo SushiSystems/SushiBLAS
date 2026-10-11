@@ -61,7 +61,7 @@ namespace SushiBLAS
                     fill_random<T>(C_actual);
                     
                     // Copy C_actual to C_expected so they start exactly the same (important if beta != 0)
-                    auto& q = TestEnvironment::get_context().get_queue();
+                    auto& q = TestEnvironment::get_context().devices().queue(0);
                     size_t c_size_bytes = n * n * sizeof(T);
                     q.memcpy(C_expected.data(), C_actual.data(), c_size_bytes).wait();
 

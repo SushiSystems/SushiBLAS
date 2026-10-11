@@ -44,7 +44,7 @@ namespace SushiBLAS
                 std::vector<int64_t> read_i64(const Tensor& t)
                 {
                     std::vector<int64_t> host(static_cast<size_t>(t.num_elements));
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(host.data(), t.data(), host.size() * sizeof(int64_t)).wait();
                     return host;
                 }
@@ -53,7 +53,7 @@ namespace SushiBLAS
                 std::vector<int32_t> read_i32(const Tensor& t)
                 {
                     std::vector<int32_t> host(static_cast<size_t>(t.num_elements));
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(host.data(), t.data(), host.size() * sizeof(int32_t)).wait();
                     return host;
                 }
@@ -228,7 +228,7 @@ namespace SushiBLAS
 
             // Plant the maximum at an index a float cannot name.
             const float peak = 2.0f;
-            TestEnvironment::get_context().get_queue()
+            TestEnvironment::get_context().devices().queue(0)
                 .memcpy(t.data_as<float>() + kPeak, &peak, sizeof(float)).wait();
 
             SushiBLAS::ReductionOps(*engine).argmax(t, r);

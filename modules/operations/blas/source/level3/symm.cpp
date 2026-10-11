@@ -41,7 +41,7 @@
 #include <SushiBLAS/blas_seam_kernels/symmetric_access.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_accessed_packed.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 
 namespace SushiBLAS
 {

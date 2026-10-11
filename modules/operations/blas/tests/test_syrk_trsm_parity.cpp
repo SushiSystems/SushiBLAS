@@ -119,7 +119,7 @@ namespace SushiBLAS
                 /** @brief Copies every element of @p source into @p target. */
                 static void copy_contents(const Tensor& source, Tensor& target)
                 {
-                    auto& q = TestEnvironment::get_context().get_queue();
+                    auto& q = TestEnvironment::get_context().devices().queue(0);
                     q.memcpy(target.data(), source.data(),
                              static_cast<std::size_t>(source.num_elements) * sizeof(T)).wait();
                 }
@@ -127,7 +127,7 @@ namespace SushiBLAS
                 /** @brief Divides every off-diagonal element of @p A by K_N and adds 2 to the diagonal. */
                 static void make_diagonally_dominant(Tensor& A)
                 {
-                    auto& q = TestEnvironment::get_context().get_queue();
+                    auto& q = TestEnvironment::get_context().devices().queue(0);
                     std::vector<T> host(static_cast<std::size_t>(A.num_elements));
                     q.memcpy(host.data(), A.data(), host.size() * sizeof(T)).wait();
 

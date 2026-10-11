@@ -44,8 +44,8 @@
 #include <SushiBLAS/operands/task_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/matrix_operand.hpp>
-#include <SushiRuntime/core/resource_region.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/memory/resource_region.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_packed.hpp>
@@ -108,14 +108,14 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns the regions declared through reads. */
-                [[nodiscard]] const std::vector<SushiRuntime::Core::ResourceRegion>&
+                [[nodiscard]] const std::vector<SushiRuntime::Memory::ResourceRegion>&
                 read_regions() const noexcept
                 {
                     return operands_.read_regions();
                 }
 
                 /** @brief Returns the regions declared through writes. */
-                [[nodiscard]] const std::vector<SushiRuntime::Core::ResourceRegion>&
+                [[nodiscard]] const std::vector<SushiRuntime::Memory::ResourceRegion>&
                 write_regions() const noexcept
                 {
                     return operands_.write_regions();

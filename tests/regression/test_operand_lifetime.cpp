@@ -49,7 +49,7 @@ namespace SushiBLAS
                 /** @brief Returns how many USM allocations of the test context are alive. */
                 [[nodiscard]] static std::size_t live_allocations()
                 {
-                    return TestEnvironment::get_context().live_usm_count();
+                    return TestEnvironment::get_context().memory().live_count();
                 }
         };
 

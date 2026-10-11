@@ -104,7 +104,7 @@ namespace SushiBLAS
                 engine->execute();
 
                 std::vector<float> host(kN);
-                auto& q = TestEnvironment::get_context().get_queue();
+                auto& q = TestEnvironment::get_context().devices().queue(0);
                 q.memcpy(host.data(), t.data(), kN * sizeof(float)).wait();
                 return host;
             };
@@ -130,7 +130,7 @@ namespace SushiBLAS
             ASSERT_EQ(1.0, static_cast<double>(static_cast<float>(kAlpha)))
                 << "the test's premise: this alpha is not representable in float.";
 
-            auto& q = TestEnvironment::get_context().get_queue();
+            auto& q = TestEnvironment::get_context().devices().queue(0);
 
             auto x = engine->create_tensor({1}, Core::DataType::Float64);
             auto y = engine->create_tensor({1}, Core::DataType::Float64);
@@ -217,8 +217,8 @@ namespace SushiBLAS
         {
             GraphProbe probe;
 
-            auto contains = [](const std::vector<SushiRuntime::Core::ResourceRegion>& set,
-                               const SushiRuntime::Core::ResourceRegion& r)
+            auto contains = [](const std::vector<SushiRuntime::Memory::ResourceRegion>& set,
+                               const SushiRuntime::Memory::ResourceRegion& r)
             {
                 return std::any_of(set.begin(), set.end(),
                                    [&](const auto& e) { return e.base == r.base && e.offset == r.offset; });
@@ -316,7 +316,7 @@ namespace SushiBLAS
             float scalar_of(const Tensor& t)
             {
                 float host = 0.0f;
-                TestEnvironment::get_context().get_queue()
+                TestEnvironment::get_context().devices().queue(0)
                     .memcpy(&host, t.data(), sizeof(float)).wait();
                 return host;
             }

@@ -987,7 +987,7 @@ TEST_F(Unit_ReductionOps, AReferenceReductionLeasesNoScratch)
 
     auto& context = TestEnvironment::get_context();
     const std::size_t idle_before = probe.get_scratch_pool().idle_block_count();
-    const std::size_t live_before = context.live_usm_count();
+    const std::size_t live_before = context.memory().live_count();
 
     reductions.sum(t, total);
     reductions.var(t, variance);
@@ -995,12 +995,12 @@ TEST_F(Unit_ReductionOps, AReferenceReductionLeasesNoScratch)
     reductions.count_nonfinite(t, count);
 
     // A lease would be a live allocation from the moment its task is recorded.
-    EXPECT_EQ(live_before, context.live_usm_count());
+    EXPECT_EQ(live_before, context.memory().live_count());
 
     probe.execute();
 
     EXPECT_EQ(idle_before, probe.get_scratch_pool().idle_block_count());
-    EXPECT_EQ(live_before, context.live_usm_count());
+    EXPECT_EQ(live_before, context.memory().live_count());
     EXPECT_EQ(0, read_tensor<int64_t>(count)[0]);
 }
 
@@ -1171,7 +1171,7 @@ class Unit_ReductionReferenceTyped : public SushiBLASTest
         {
             SushiBLASTest::SetUp();
 
-            const sycl::device device = TestEnvironment::get_context().get_queue().get_device();
+            const sycl::device device = TestEnvironment::get_context().devices().queue(0).get_device();
             if (std::is_same_v<T, sycl::half> && !device.has(sycl::aspect::fp16))
                 GTEST_SKIP() << "the device does not report the fp16 aspect";
         }

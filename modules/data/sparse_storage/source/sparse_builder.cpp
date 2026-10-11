@@ -79,7 +79,7 @@ namespace SushiBLAS
                 static_cast<std::size_t>(std::min(lines, lines_per_chunk) * line_length));
 
             sycl::queue& source_queue =
-                dense.storage->get_context().get_queue(dense.storage->get_device_index());
+                dense.storage->get_context().devices().queue(dense.storage->get_device_index());
             const T* source = static_cast<const T*>(dense.data());
 
             for (int64_t first = 0; first < lines; first += lines_per_chunk)
@@ -130,7 +130,7 @@ namespace SushiBLAS
 
         const std::size_t bytes =
             static_cast<std::size_t>(elements) * Core::bytes_per_element(dtype);
-        sycl::queue& target_queue = factory_->get_context().get_queue(device_index_);
+        sycl::queue& target_queue = factory_->get_context().devices().queue(device_index_);
         target_queue.memcpy(tensor.data(), source, bytes).wait();
         return tensor;
     }

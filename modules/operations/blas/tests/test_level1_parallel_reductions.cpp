@@ -89,7 +89,7 @@ namespace SushiBLAS
                 Tensor upload(const std::vector<float>& host)
                 {
                     auto t = engine->create_tensor({static_cast<int64_t>(host.size())});
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(t.data(), host.data(), host.size() * sizeof(float)).wait();
                     return t;
                 }
@@ -99,7 +99,7 @@ namespace SushiBLAS
                 [[nodiscard]] T read_scalar(const Tensor& t)
                 {
                     T value{};
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(&value, t.data(), sizeof(T)).wait();
                     return value;
                 }
@@ -265,7 +265,7 @@ namespace SushiBLAS
          */
         TEST_F(Unit_Level1ParallelReductions, IamaxTieAcrossWorkGroupsTakesTheLowerIndex)
         {
-            auto& q = TestEnvironment::get_context().get_queue();
+            auto& q = TestEnvironment::get_context().devices().queue(0);
             const Device::Profile& profile = Device::profile_for(q);
 
             // Long enough that the two-stage shape takes it on any device this suite runs on.

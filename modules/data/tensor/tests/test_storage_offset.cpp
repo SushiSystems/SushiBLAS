@@ -66,7 +66,7 @@ namespace SushiBLAS
                         SushiRuntime::API::Residency::Shared);
 
                     // Poisons the view too; each test writes its inputs first.
-                    auto& q = TestEnvironment::get_context().get_queue();
+                    auto& q = TestEnvironment::get_context().devices().queue(0);
                     q.memset(storage->allocation_base(), K_POISON_BYTE, storage->size_bytes()).wait();
 
                     return Tensor(storage, dims, dtype, K_PAD, engine->get_layout());
@@ -87,7 +87,7 @@ namespace SushiBLAS
                     const size_t tail = head + static_cast<size_t>(v.num_elements) * bpe;
 
                     std::vector<unsigned char> host(total);
-                    auto& q = TestEnvironment::get_context().get_queue();
+                    auto& q = TestEnvironment::get_context().devices().queue(0);
                     q.memcpy(host.data(), v.storage->allocation_base(), total).wait();
 
                     for (size_t i = 0; i < total; ++i)
@@ -302,7 +302,7 @@ namespace SushiBLAS
 
             // The uniform draw is checked for range only; test_uniform.cpp owns the distribution.
             std::vector<float> host(8);
-            auto& q = TestEnvironment::get_context().get_queue();
+            auto& q = TestEnvironment::get_context().devices().queue(0);
             q.memcpy(host.data(), u.data(), host.size() * sizeof(float)).wait();
             for (float v : host)
             {
@@ -406,7 +406,7 @@ namespace SushiBLAS
             const Tensor t(storage, {4}, Core::DataType::Float32);
 
             auto& context = TestEnvironment::get_context();
-            EXPECT_EQ(t.get_device(), context.get_queue(storage->get_device_index()).get_device());
+            EXPECT_EQ(t.get_device(), context.devices().queue(storage->get_device_index()).get_device());
         }
 
     } // namespace Test

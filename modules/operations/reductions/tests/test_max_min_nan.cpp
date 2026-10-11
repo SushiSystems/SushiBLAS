@@ -208,7 +208,7 @@ TEST_F(Unit_MaxMinNaNTest, AxisExtremaPropagateNaN)
     verify_tensor(max, expected_max, K_TOLERANCE);
     verify_tensor(min, expected_min, K_TOLERANCE);
 
-    auto& q = TestEnvironment::get_context().get_queue();
+    auto& q = TestEnvironment::get_context().devices().queue(0);
     const std::size_t local = Reduce::group_width(SushiBLAS::Device::profile_for(q));
     ASSERT_GT(local, 1u) << "the cooperative shape needs a group wider than one";
 

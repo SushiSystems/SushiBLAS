@@ -73,17 +73,17 @@ namespace SushiBLAS
             Detail::ScratchBlock* first = shelf_->take(128, 0);
             const void* first_base = first->storage->allocation_base();
             shelf_->give_back(first);
-            const std::size_t live_after_return = context().live_usm_count();
+            const std::size_t live_after_return = context().memory().live_count();
 
             Detail::ScratchBlock* second = shelf_->take(128, 0);
             EXPECT_EQ(second->storage->allocation_base(), first_base);
-            EXPECT_EQ(context().live_usm_count(), live_after_return);
+            EXPECT_EQ(context().memory().live_count(), live_after_return);
             shelf_->give_back(second);
         }
 
         TEST_F(Unit_ScratchShelf, ARequestAboveTheLargestClassIsNotPooled)
         {
-            const std::size_t live_baseline = context().live_usm_count();
+            const std::size_t live_baseline = context().memory().live_count();
             const std::size_t idle_baseline = shelf_->idle_block_count();
 
             Detail::ScratchBlock* block = shelf_->take(4097, 0);
@@ -91,12 +91,12 @@ namespace SushiBLAS
             shelf_->give_back(block);
 
             EXPECT_EQ(shelf_->idle_block_count(), idle_baseline);
-            EXPECT_EQ(context().live_usm_count(), live_baseline);
+            EXPECT_EQ(context().memory().live_count(), live_baseline);
         }
 
         TEST_F(Unit_ScratchShelf, AFullClassFreesWhatItCannotKeep)
         {
-            const std::size_t live_baseline = context().live_usm_count();
+            const std::size_t live_baseline = context().memory().live_count();
             const std::size_t taken = Detail::K_SCRATCH_IDLE_BLOCKS_PER_CLASS + 1;
 
             std::vector<Detail::ScratchBlock*> blocks;
@@ -107,12 +107,12 @@ namespace SushiBLAS
                 shelf_->give_back(block);
 
             EXPECT_EQ(shelf_->idle_block_count(), std::size_t{64});
-            EXPECT_EQ(context().live_usm_count(), live_baseline + 64);
+            EXPECT_EQ(context().memory().live_count(), live_baseline + 64);
         }
 
         TEST_F(Unit_ScratchShelf, TrimFreesEveryIdleBlock)
         {
-            const std::size_t live_baseline = context().live_usm_count();
+            const std::size_t live_baseline = context().memory().live_count();
 
             Detail::ScratchBlock* narrow = shelf_->take(128, 0);
             Detail::ScratchBlock* wide = shelf_->take(4096, 0);
@@ -123,15 +123,15 @@ namespace SushiBLAS
             shelf_->trim();
 
             EXPECT_EQ(shelf_->idle_block_count(), std::size_t{0});
-            EXPECT_EQ(context().live_usm_count(), live_baseline);
+            EXPECT_EQ(context().memory().live_count(), live_baseline);
         }
 
         TEST_F(Unit_ScratchShelf, AnUnknownDeviceIsRefused)
         {
-            const std::size_t live_baseline = context().live_usm_count();
+            const std::size_t live_baseline = context().memory().live_count();
 
-            EXPECT_THROW((void)shelf_->take(128, context().device_count()), std::runtime_error);
-            EXPECT_EQ(context().live_usm_count(), live_baseline);
+            EXPECT_THROW((void)shelf_->take(128, context().devices().count()), std::runtime_error);
+            EXPECT_EQ(context().memory().live_count(), live_baseline);
         }
     } // namespace Test
 } // namespace SushiBLAS

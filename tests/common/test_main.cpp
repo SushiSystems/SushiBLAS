@@ -27,7 +27,7 @@
 
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiRuntime/core/logger.hpp>
+#include <SushiRuntime/logging/logger.hpp>
 #include "test_environment.hpp"
 
 int main(int argc, char **argv) 

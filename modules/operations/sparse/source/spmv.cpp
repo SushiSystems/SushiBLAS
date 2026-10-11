@@ -45,7 +45,7 @@
 #include <SushiBLAS/sparse/sparse_matrix_operand.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 
 namespace SushiBLAS
 {

@@ -447,7 +447,7 @@ namespace SushiBLAS
                     Tensor tensor = engine->create_tensor(dims, get_sushiblas_dtype<T>());
                     EXPECT_EQ(values.size(), static_cast<std::size_t>(tensor.num_elements));
                     if (!values.empty())
-                        TestEnvironment::get_context().get_queue()
+                        TestEnvironment::get_context().devices().queue(0)
                             .memcpy(tensor.data(), values.data(), values.size() * sizeof(T)).wait();
                     return tensor;
                 }
@@ -735,7 +735,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_Syr2kFixedType, HalfSumsInFloat)
         {
-            const sycl::queue& queue = TestEnvironment::get_context().get_queue();
+            const sycl::queue& queue = TestEnvironment::get_context().devices().queue(0);
             if (!queue.get_device().has(sycl::aspect::fp16))
                 GTEST_SKIP() << "the device does not report the fp16 aspect";
 
@@ -769,7 +769,7 @@ namespace SushiBLAS
             const Tensor B = upload(matrix_of<float>(2, 3, layout, {1, 0, -1, 2, 1, 0}));
             Tensor C = upload(matrix_of<float>(2, 2, layout, {1, 10, 20, 1}));
 
-            sycl::queue& queue = TestEnvironment::get_context().get_queue();
+            sycl::queue& queue = TestEnvironment::get_context().devices().queue(0);
             DependencyGate gate(queue);
 
             sycl::event done = Kernels::SYCL::syr2k<float>(
@@ -800,7 +800,7 @@ namespace SushiBLAS
                           "The COMPLEX64 tile changed.");
 
             const Device::Profile& profile =
-                Device::profile_for(TestEnvironment::get_context().get_queue());
+                Device::profile_for(TestEnvironment::get_context().devices().queue(0));
             EXPECT_TRUE(hosts_syr2k_tile<sycl::half>(profile));
             EXPECT_TRUE(hosts_syr2k_tile<float>(profile));
             EXPECT_TRUE(hosts_syr2k_tile<double>(profile));

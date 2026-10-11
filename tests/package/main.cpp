@@ -86,7 +86,7 @@ int main()
     auto b = engine.create_tensor({N});
     auto c = engine.create_tensor({N});
 
-    auto& q = ctx.get_queue();
+    auto& q = ctx.devices().queue(0);
     std::vector<float> host_a(N), host_b(N);
     for (int64_t i = 0; i < N; ++i)
     {

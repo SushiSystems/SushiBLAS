@@ -541,7 +541,7 @@ namespace SushiBLAS
                     Tensor tensor = engine->create_tensor(
                         SushiRuntime::span<const int64_t>(dims.data(), dims.size()),
                         get_sushiblas_dtype<T>());
-                    TestEnvironment::get_context().get_queue()
+                    TestEnvironment::get_context().devices().queue(0)
                         .memcpy(tensor.data(), stored.data(), stored.size() * sizeof(T)).wait();
                     return tensor;
                 }

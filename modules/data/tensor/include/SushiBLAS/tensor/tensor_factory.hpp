@@ -107,9 +107,9 @@ namespace SushiBLAS
                 std::size_t device_index = 0) const
             {
                 const std::size_t bytes = allocation_bytes(dims, dtype);
-                SB_THROW_IF(device_index >= context_->device_count(),
+                SB_THROW_IF(device_index >= context_->devices().count(),
                             "Device index {} is out of range; the runtime context has {} device queues",
-                            device_index, context_->device_count());
+                            device_index, context_->devices().count());
 
                 if (bytes == 0)
                     return Tensor(SushiRuntime::sushi_ptr<Storage>(), dims, dtype, 0, layout_);

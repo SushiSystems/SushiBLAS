@@ -52,7 +52,7 @@ class Unit_ShuffleTest : public SushiBLASTest
             engine->execute();
 
             std::vector<float> out(K_N);
-            auto& q = TestEnvironment::get_context().get_queue();
+            auto& q = TestEnvironment::get_context().devices().queue(0);
             q.memcpy(out.data(), t.data(), K_N * sizeof(float)).wait();
             return out;
         }
@@ -117,7 +117,7 @@ TEST_F(Unit_ShuffleTest, ConsecutiveShufflesOnOneEngineDiffer)
     engine->execute();
 
     std::vector<float> ha(K_N), hb(K_N);
-    auto& q = TestEnvironment::get_context().get_queue();
+    auto& q = TestEnvironment::get_context().devices().queue(0);
     q.memcpy(ha.data(), a.data(), K_N * sizeof(float)).wait();
     q.memcpy(hb.data(), b.data(), K_N * sizeof(float)).wait();
 
@@ -139,7 +139,7 @@ TEST_F(Unit_ShuffleTest, PermutesHalfPrecisionToo)
     engine->execute();
 
     std::vector<sycl::half> out(kSmall);
-    auto& q = TestEnvironment::get_context().get_queue();
+    auto& q = TestEnvironment::get_context().devices().queue(0);
     q.memcpy(out.data(), t.data(), kSmall * sizeof(sycl::half)).wait();
 
     std::vector<float> sorted;

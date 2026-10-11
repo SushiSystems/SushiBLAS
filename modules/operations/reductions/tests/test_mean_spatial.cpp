@@ -43,7 +43,7 @@ namespace SushiBLAS
             {
                 const std::size_t n = static_cast<std::size_t>(t.num_elements);
                 std::vector<float> host(n);
-                auto& q = TestEnvironment::get_context().get_queue();
+                auto& q = TestEnvironment::get_context().devices().queue(0);
                 q.memcpy(host.data(), t.data(), n * sizeof(float)).wait();
                 return host;
             }

@@ -46,7 +46,7 @@
 #include <SushiBLAS/functor_map/read_binding.hpp>
 #include <SushiBLAS/elementwise/wrapping_math.hpp>
 #include <SushiBLAS/functor_map/scalar_binding.hpp>
-#include <SushiRuntime/graph/task_types.hpp>
+#include <SushiRuntime/task/task_types.hpp>
 
 namespace SushiBLAS
 {

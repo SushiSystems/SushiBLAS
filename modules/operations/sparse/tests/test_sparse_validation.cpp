@@ -336,7 +336,7 @@ namespace SushiBLAS
                 GTEST_SKIP() << "This device offers no device-only USM.";
             }
 
-            const sycl::context context = TestEnvironment::get_context().get_queue().get_context();
+            const sycl::context context = TestEnvironment::get_context().devices().queue(0).get_context();
             if (sycl::get_pointer_type(A.values.data(), context) != sycl::usm::alloc::device)
                 GTEST_SKIP() << "This device offers no device-only USM.";
 

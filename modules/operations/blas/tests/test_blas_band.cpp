@@ -254,7 +254,7 @@ namespace SushiBLAS
             {
                 using R = Kernels::RealType<T>;
                 const sycl::device device =
-                    TestEnvironment::get_context().get_queue().get_device();
+                    TestEnvironment::get_context().devices().queue(0).get_device();
                 if constexpr (std::is_same_v<R, sycl::half>)
                     return device.has(sycl::aspect::fp16);
                 else if constexpr (std::is_same_v<R, double>)
@@ -502,7 +502,7 @@ namespace SushiBLAS
                         get_sushiblas_dtype<T>());
                     EXPECT_EQ(stored.size(), static_cast<std::size_t>(tensor.num_elements));
                     if (!stored.empty())
-                        TestEnvironment::get_context().get_queue()
+                        TestEnvironment::get_context().devices().queue(0)
                             .memcpy(tensor.data(), stored.data(), stored.size() * sizeof(T))
                             .wait();
                     return tensor;

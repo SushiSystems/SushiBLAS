@@ -154,7 +154,7 @@ namespace SushiBLAS
 
                     fill_random<T>(actual);
 
-                    auto& q = TestEnvironment::get_context().get_queue();
+                    auto& q = TestEnvironment::get_context().devices().queue(0);
                     q.memcpy(expected.data(), actual.data(),
                              static_cast<std::size_t>(actual.num_elements) * sizeof(T)).wait();
                 }
@@ -308,7 +308,7 @@ namespace SushiBLAS
                     [[nodiscard]] static std::vector<float> download(const Tensor& t)
                     {
                         std::vector<float> host(static_cast<std::size_t>(t.num_elements));
-                        auto& q = TestEnvironment::get_context().get_queue();
+                        auto& q = TestEnvironment::get_context().devices().queue(0);
                         q.memcpy(host.data(), t.data(), host.size() * sizeof(float)).wait();
                         return host;
                     }
@@ -415,7 +415,7 @@ namespace SushiBLAS
                 auto row_bias = create_initialized_tensor<float>({2}, {0.0f, 1.0f});
                 auto col_bias = create_initialized_tensor<float>({3}, {0.5f, -1.0f, 5.0f});
 
-                auto& q = TestEnvironment::get_context().get_queue();
+                auto& q = TestEnvironment::get_context().devices().queue(0);
                 const BiasReluEpilogue epilogue{static_cast<const float*>(row_bias.data()),
                                                 static_cast<const float*>(col_bias.data())};
 
@@ -798,7 +798,7 @@ namespace SushiBLAS
                                                 alpha, host_a.data(), k, host_b.data(), n,
                                                 0.0f, expected.data(), n);
 
-                auto& q = TestEnvironment::get_context().get_queue();
+                auto& q = TestEnvironment::get_context().devices().queue(0);
                 Kernels::SYCL::Detail::gemm_no_local<float>(
                     q, Device::profile_for(q), m, n, k,
                     alpha, static_cast<const float*>(A.data()), row_major(k), 0,
@@ -815,7 +815,7 @@ namespace SushiBLAS
                 constexpr int64_t m = 37, n = 45, k = 23;
                 constexpr float alpha = 1.5f;
 
-                auto& q = TestEnvironment::get_context().get_queue();
+                auto& q = TestEnvironment::get_context().devices().queue(0);
                 const Device::Profile& profile = Device::profile_for(q);
                 using Cfg = Kernels::SYCL::Detail::GemmLocalTile<float>;
 
@@ -852,7 +852,7 @@ namespace SushiBLAS
                 // The profile never selects this path here. See tests/unit/README.md.
                 constexpr int64_t m = 19, n = 21, k = 17;
 
-                auto& q = TestEnvironment::get_context().get_queue();
+                auto& q = TestEnvironment::get_context().devices().queue(0);
                 const Device::Profile& profile = Device::profile_for(q);
                 using Cfg = Kernels::SYCL::Detail::GemmLocalTile<float>;
 

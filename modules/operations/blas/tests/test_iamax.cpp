@@ -39,7 +39,7 @@ namespace
     int64_t index_of(const SushiBLAS::Tensor& t)
     {
         int64_t host = -1;
-        SushiBLAS::Test::TestEnvironment::get_context().get_queue()
+        SushiBLAS::Test::TestEnvironment::get_context().devices().queue(0)
             .memcpy(&host, t.data(), sizeof(int64_t)).wait();
         return host;
     }

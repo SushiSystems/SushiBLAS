@@ -349,7 +349,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_OperandCheckTest, TheProfileReportsTheFp16AspectOfItsDevice)
         {
-            const sycl::queue& q = TestEnvironment::get_context().get_queue();
+            const sycl::queue& q = TestEnvironment::get_context().devices().queue(0);
             EXPECT_EQ(Device::profile_for(q).supports_fp16,
                       q.get_device().has(sycl::aspect::fp16));
         }

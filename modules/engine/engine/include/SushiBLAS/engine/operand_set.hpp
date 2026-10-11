@@ -35,7 +35,7 @@
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiRuntime/SushiRuntime.h>
-#include <SushiRuntime/core/resource_region.hpp>
+#include <SushiRuntime/memory/resource_region.hpp>
 
 namespace SushiBLAS
 {
@@ -155,9 +155,9 @@ namespace SushiBLAS
             /** @brief Adds every declaration of other to this set. */
             OperandSet& merge(const OperandSet& other)
             {
-                for (const SushiRuntime::Core::ResourceRegion& region : other.reads_)
+                for (const SushiRuntime::Memory::ResourceRegion& region : other.reads_)
                     append(reads_, region);
-                for (const SushiRuntime::Core::ResourceRegion& region : other.writes_)
+                for (const SushiRuntime::Memory::ResourceRegion& region : other.writes_)
                     append(writes_, region);
                 retained_.retain_all(other.retained_);
                 has_device_only_operand_ = has_device_only_operand_ || other.has_device_only_operand_;
@@ -165,14 +165,14 @@ namespace SushiBLAS
             }
 
             /** @brief Returns the byte intervals the task reads, in declaration order. */
-            [[nodiscard]] const std::vector<SushiRuntime::Core::ResourceRegion>&
+            [[nodiscard]] const std::vector<SushiRuntime::Memory::ResourceRegion>&
             read_regions() const noexcept
             {
                 return reads_;
             }
 
             /** @brief Returns the byte intervals the task writes, in declaration order. */
-            [[nodiscard]] const std::vector<SushiRuntime::Core::ResourceRegion>&
+            [[nodiscard]] const std::vector<SushiRuntime::Memory::ResourceRegion>&
             write_regions() const noexcept
             {
                 return writes_;
@@ -195,8 +195,8 @@ namespace SushiBLAS
             static constexpr std::size_t K_TYPICAL_REGIONS = 4;
 
             /** @brief Appends region, reserving K_TYPICAL_REGIONS on the first call. */
-            static void append(std::vector<SushiRuntime::Core::ResourceRegion>& regions,
-                               const SushiRuntime::Core::ResourceRegion& region)
+            static void append(std::vector<SushiRuntime::Memory::ResourceRegion>& regions,
+                               const SushiRuntime::Memory::ResourceRegion& region)
             {
                 if (regions.empty())
                     regions.reserve(K_TYPICAL_REGIONS);
@@ -215,10 +215,10 @@ namespace SushiBLAS
             }
 
             /// @brief The regions declared through reads() and updates().
-            std::vector<SushiRuntime::Core::ResourceRegion> reads_;
+            std::vector<SushiRuntime::Memory::ResourceRegion> reads_;
 
             /// @brief The regions declared through writes(), updates() and scratch().
-            std::vector<SushiRuntime::Core::ResourceRegion> writes_;
+            std::vector<SushiRuntime::Memory::ResourceRegion> writes_;
 
             /// @brief One reference per distinct storage behind the declared regions.
             Internal::StorageKeepAlive retained_;

@@ -416,7 +416,7 @@ namespace SushiBLAS
             std::vector<float> host_floats(const Tensor& t)
             {
                 std::vector<float> out(static_cast<std::size_t>(t.num_elements));
-                TestEnvironment::get_context().get_queue()
+                TestEnvironment::get_context().devices().queue(0)
                     .memcpy(out.data(), t.data(), out.size() * sizeof(float)).wait();
                 return out;
             }
@@ -431,7 +431,7 @@ namespace SushiBLAS
             constexpr std::size_t kSegments = 5;
             constexpr std::size_t kExtent = 733;
 
-            auto& q = TestEnvironment::get_context().get_queue();
+            auto& q = TestEnvironment::get_context().devices().queue(0);
 
             auto in = engine->create_tensor({static_cast<int64_t>(kSegments),
                                              static_cast<int64_t>(kExtent)});
@@ -492,7 +492,7 @@ namespace SushiBLAS
             constexpr std::size_t kSegments = 5;
             constexpr std::size_t kExtent = 733;
 
-            auto& q = TestEnvironment::get_context().get_queue();
+            auto& q = TestEnvironment::get_context().devices().queue(0);
 
             auto in = engine->create_tensor({static_cast<int64_t>(kSegments),
                                              static_cast<int64_t>(kExtent)});
@@ -555,7 +555,7 @@ namespace SushiBLAS
             std::vector<float> host(static_cast<std::size_t>(kRows * (kOnes + 1)), 1.0f);
             for (int64_t r = 0; r < kRows; ++r)
                 host[static_cast<std::size_t>(r * (kOnes + 1))] = kHead;
-            TestEnvironment::get_context().get_queue()
+            TestEnvironment::get_context().devices().queue(0)
                 .memcpy(x.data(), host.data(), host.size() * sizeof(float)).wait();
 
             auto out = engine->create_tensor({kRows});
@@ -583,7 +583,7 @@ namespace SushiBLAS
             constexpr std::size_t kExtent = 733;
             constexpr int kRuns = 16;
 
-            auto& q = TestEnvironment::get_context().get_queue();
+            auto& q = TestEnvironment::get_context().devices().queue(0);
             const std::size_t local = Reduce::group_width(Device::profile_for(q));
 
             std::vector<float> host(kSegments * kExtent);
@@ -647,7 +647,7 @@ namespace SushiBLAS
             constexpr int64_t kCols = 3;
             constexpr float kGap = 104.0f;
 
-            auto& q = TestEnvironment::get_context().get_queue();
+            auto& q = TestEnvironment::get_context().devices().queue(0);
 
             auto logits = engine->create_tensor({kRows, kCols});
             fill_tensor(logits, {0.0f, 0.0f, 0.0f, -kGap, -kGap, -kGap});

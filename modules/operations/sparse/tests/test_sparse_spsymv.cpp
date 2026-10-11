@@ -200,7 +200,7 @@ namespace SushiBLAS
                 {
                     SushiBLASTest::SetUp();
                     if (std::is_same_v<T, sycl::half> &&
-                        !TestEnvironment::get_context().get_queue().get_device().has(
+                        !TestEnvironment::get_context().devices().queue(0).get_device().has(
                             sycl::aspect::fp16))
                         GTEST_SKIP() << "the device does not report the fp16 aspect";
                 }
@@ -533,7 +533,7 @@ namespace SushiBLAS
                         A.rows, A.cols, A.nnz(), 0, A.row_offsets.data_as<int32_t>(),
                         A.column_indices.data_as<int32_t>()};
                     Kernels::SYCL::spsymv<float, int32_t>(
-                        TestEnvironment::get_context().get_queue(), Core::Uplo::Lower, pattern,
+                        TestEnvironment::get_context().devices().queue(0), Core::Uplo::Lower, pattern,
                         A.values.data_as<float>(), 1.0f, tx.data_as<float>(), 1, 0.0f,
                         ty.data_as<float>(), 1, partials.data_as<float>(), blocks, {}).wait();
                     return read_tensor<float>(ty);

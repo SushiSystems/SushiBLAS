@@ -103,7 +103,7 @@ namespace SushiBLAS
                 {
                     SushiBLASTest::SetUp();
                     if (std::is_same_v<T, sycl::half> &&
-                        !TestEnvironment::get_context().get_queue().get_device().has(
+                        !TestEnvironment::get_context().devices().queue(0).get_device().has(
                             sycl::aspect::fp16))
                         GTEST_SKIP() << "the device does not report the fp16 aspect";
                 }

@@ -147,7 +147,7 @@ namespace SushiBLAS
                 /** @brief Returns how many USM allocations of the test context are alive. */
                 [[nodiscard]] static std::size_t live_allocations()
                 {
-                    return TestEnvironment::get_context().live_usm_count();
+                    return TestEnvironment::get_context().memory().live_count();
                 }
 
                 /**
@@ -168,7 +168,7 @@ namespace SushiBLAS
                     ASSERT_EQ(1u, nodes.size());
                     ASSERT_TRUE(static_cast<bool>(nodes[0]->host_work));
 
-                    sycl::queue& queue = TestEnvironment::get_context().get_queue();
+                    sycl::queue& queue = TestEnvironment::get_context().devices().queue(0);
                     SparseDependencyGate gate(queue);
 
                     sycl::event done =

@@ -276,7 +276,7 @@ namespace SushiBLAS
                 /** @brief Returns the queue of the test environment. */
                 [[nodiscard]] static sycl::queue& queue()
                 {
-                    return TestEnvironment::get_context().get_queue();
+                    return TestEnvironment::get_context().devices().queue(0);
                 }
 
                 /** @brief Expects the packed result to equal the reference under every blocking. */
@@ -568,7 +568,7 @@ namespace SushiBLAS
                 /** @brief Returns the queue of the test environment. */
                 [[nodiscard]] static sycl::queue& queue()
                 {
-                    return TestEnvironment::get_context().get_queue();
+                    return TestEnvironment::get_context().devices().queue(0);
                 }
 
                 /** @brief Returns a square tensor of T of order s with elements in [-1, 1]. */
@@ -643,15 +643,15 @@ namespace SushiBLAS
             auto& context = TestEnvironment::get_context();
 
             engine->set_mode(ExecutionMode::ForceSycl);
-            const std::size_t live_before_sycl = context.live_usm_count();
+            const std::size_t live_before_sycl = context.memory().live_count();
             SushiBLAS::BLASOps(*engine).gemm(A, B, sycl_result);
-            EXPECT_EQ(context.live_usm_count(), live_before_sycl + 1);
+            EXPECT_EQ(context.memory().live_count(), live_before_sycl + 1);
             engine->execute();
 
             engine->set_mode(ExecutionMode::ForceReference);
-            const std::size_t live_before_reference = context.live_usm_count();
+            const std::size_t live_before_reference = context.memory().live_count();
             SushiBLAS::BLASOps(*engine).gemm(A, B, reference_result);
-            EXPECT_EQ(context.live_usm_count(), live_before_reference);
+            EXPECT_EQ(context.memory().live_count(), live_before_reference);
             engine->execute();
 
             expect_parity<float>(sycl_result, reference_result, s, 0.0);
@@ -667,9 +667,9 @@ namespace SushiBLAS
             auto& context = TestEnvironment::get_context();
 
             engine->set_mode(ExecutionMode::ForceSycl);
-            const std::size_t live_before = context.live_usm_count();
+            const std::size_t live_before = context.memory().live_count();
             SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-            EXPECT_EQ(context.live_usm_count(), live_before);
+            EXPECT_EQ(context.memory().live_count(), live_before);
             engine->execute();
         }
 

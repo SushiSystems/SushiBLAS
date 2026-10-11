@@ -78,7 +78,7 @@ namespace SushiBLAS
                 [[nodiscard]] static std::vector<float> download(const Tensor& t)
                 {
                     std::vector<float> host(static_cast<std::size_t>(t.num_elements));
-                    auto& q = TestEnvironment::get_context().get_queue();
+                    auto& q = TestEnvironment::get_context().devices().queue(0);
                     q.memcpy(host.data(), t.data(), host.size() * sizeof(float)).wait();
                     return host;
                 }

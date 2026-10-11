@@ -304,7 +304,7 @@ class Unit_DispatchSeamTest : public SushiBLASTest
                 sb::Tensor t = engine->create_tensor(dims, DataType::Float32,
                                                      SushiRuntime::API::Residency::Device);
                 const sycl::context context =
-                    TestEnvironment::get_context().get_queue().get_context();
+                    TestEnvironment::get_context().devices().queue(0).get_context();
                 if (sycl::get_pointer_type(t.data(), context) != sycl::usm::alloc::device)
                     return std::nullopt;
                 return t;
@@ -583,7 +583,7 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
         engine->execute();
 
         std::vector<float> out(static_cast<size_t>(k_n) * 3);
-        auto& q = SushiBLAS::Test::TestEnvironment::get_context().get_queue();
+        auto& q = SushiBLAS::Test::TestEnvironment::get_context().devices().queue(0);
         q.memcpy(out.data(), a.data(), static_cast<size_t>(k_n) * sizeof(float)).wait();
         q.memcpy(out.data() + k_n, b.data(), static_cast<size_t>(k_n) * sizeof(float)).wait();
         q.memcpy(out.data() + 2 * k_n, c.data(), static_cast<size_t>(k_n) * sizeof(float)).wait();
@@ -788,9 +788,9 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsKeptAllocated)
 
     record_scaled(engine->get_recorder(), y, *factor);
 
-    const size_t live_before = context.live_usm_count();
+    const size_t live_before = context.memory().live_count();
     factor.reset();
-    EXPECT_EQ(context.live_usm_count(), live_before);
+    EXPECT_EQ(context.memory().live_count(), live_before);
 
     engine->execute();
     verify_tensor(y, {2.0f, 4.0f, 6.0f, 8.0f}, K_EXACT_TOLERANCE);

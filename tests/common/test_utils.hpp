@@ -66,7 +66,7 @@ namespace SushiBLAS
             std::vector<T> host_expected(size);
 
             // Fetch runtime queue for synchronization and copy
-            auto& q = TestEnvironment::get_context().get_queue();
+            auto& q = TestEnvironment::get_context().devices().queue(0);
 
             q.memcpy(host_actual.data(), actual.data(), size * sizeof(T)).wait();
             q.memcpy(host_expected.data(), expected.data(), size * sizeof(T)).wait();
@@ -116,7 +116,7 @@ namespace SushiBLAS
             size_t size = static_cast<size_t>(tensor.num_elements);
             ASSERT_EQ(values.size(), size) << "fill_tensor: value count does not match tensor size.";
 
-            auto& q = TestEnvironment::get_context().get_queue();
+            auto& q = TestEnvironment::get_context().devices().queue(0);
             switch (tensor.dtype)
             {
                 case Core::DataType::Half:
@@ -220,7 +220,7 @@ namespace SushiBLAS
             {
                 const size_t size = static_cast<size_t>(tensor.num_elements);
                 std::vector<H> host(size);
-                TestEnvironment::get_context().get_queue().memcpy(host.data(), tensor.data(), size * sizeof(H)).wait();
+                TestEnvironment::get_context().devices().queue(0).memcpy(host.data(), tensor.data(), size * sizeof(H)).wait();
 
                 for (size_t i = 0; i < size; ++i)
                 {
@@ -295,7 +295,7 @@ namespace SushiBLAS
 
             const size_t size = static_cast<size_t>(tensor.num_elements);
             std::vector<T> host(size);
-            TestEnvironment::get_context().get_queue()
+            TestEnvironment::get_context().devices().queue(0)
                 .memcpy(host.data(), tensor.data(), size * sizeof(T))
                 .wait();
             return host;
@@ -353,7 +353,7 @@ namespace SushiBLAS
                     host_data[i] = static_cast<T>(get_rand());
             }
 
-            auto& q = TestEnvironment::get_context().get_queue();
+            auto& q = TestEnvironment::get_context().devices().queue(0);
             q.memcpy(tensor.data(), host_data.data(), size * sizeof(T)).wait();
         }
 
@@ -388,7 +388,7 @@ namespace SushiBLAS
                 Tensor create_initialized_tensor(std::initializer_list<int64_t> dims, const std::vector<T>& data)
                 {
                     auto t = engine->create_tensor(dims, get_sushiblas_dtype<T>());
-                    auto& q = TestEnvironment::get_context().get_queue();
+                    auto& q = TestEnvironment::get_context().devices().queue(0);
                     q.memcpy(t.data(), data.data(), data.size() * sizeof(T)).wait();
                     return t;
                 }
