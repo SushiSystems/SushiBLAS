@@ -32,6 +32,7 @@
 #include <SushiBLAS/spatial/spatial.hpp>
 #include <SushiBLAS/spatial/window.hpp>
 #include <SushiBLAS/spatial_kernels/spatial.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 
 namespace SushiBLAS
 {
@@ -68,9 +69,8 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(in).reads(weights).writes(out);
 
-        SushiRuntime::Internal::Graph::TaskMetadata meta;
+        TaskDescription meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.window_dot"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
@@ -130,9 +130,8 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(dy).reads(weights).writes(dx);
 
-        SushiRuntime::Internal::Graph::TaskMetadata meta;
+        TaskDescription meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.window_dot_backward"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(

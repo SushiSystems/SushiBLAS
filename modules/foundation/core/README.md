@@ -72,7 +72,7 @@ The enumerators carry the CBLAS numbers: `NoTrans`, `Trans` and `ConjTrans` are 
 142. A value-initialised flag is therefore 0 and names nothing. `is_valid` reports that, and the
 record-time flag check in `engine/blas/argument_check.hpp` throws `std::invalid_argument` for it,
 so a flag a caller forgot to set never reads as `NoTrans` or `Upper`. Each enumeration is one
-byte and fits one `TaskMetadata` slot. `is_transposed` and `is_conjugated` answer the two
+byte and fits one `TaskDescription` slot. `is_transposed` and `is_conjugated` answer the two
 questions a kernel asks of a `Transpose`; for a real element type `ConjTrans` is `Trans`.
 
 ## `sparse_types.hpp`
@@ -105,7 +105,7 @@ is the one thing logging happens to need, and keeping it separate is what lets i
 and eventually **deleted** on its own. When the whole stack can assume C++20 again, this file goes
 away and `SushiBLAS::Core::format` becomes a call to `std::vformat`; nothing else moves.
 
-SushiRuntime carries the same stand-in (`SushiRuntime::Core::Detail::sr_format`), and this is
+SushiRuntime carries the same stand-in (`SushiRuntime::Detail::sr_format`), and this is
 deliberately *not* a call into it: that one lives in SushiRuntime's own `Detail` namespace inside
 its logger header, internal by this stack's own convention, not a utility it publishes, so reaching
 into it would couple SushiBLAS's diagnostics to another repo's private implementation detail. The
@@ -239,7 +239,7 @@ Set it from the build rather than by editing this header: the `SB_LOG_LEVEL` CMa
 (`cmake/SushiBLASLogging.cmake`) forwards its value here, so `sb build -D SB_LOG_LEVEL=INFO` raises
 the level for a debugging session and `sb build -D SB_LOG_LEVEL=auto` puts it back. Valid values are
 the level names `OFF`, `ERR`, `WARN`, `INFO` and `DEBUG`; CMake rejects any other at configure time
-and defines `SB_ACTIVE_LOG_LEVEL` as the `LogType` enumerator of the level, `Off` to `Debug`. A
+and defines `SB_ACTIVE_LOG_LEVEL` as the `LogLevel` enumerator of the level, `Off` to `Debug`. A
 build that defines the macro itself names the enumerator.
 
 The default is WARN for a release build and DEBUG for a debug build. Release used to default to
@@ -249,7 +249,7 @@ function signature, several hundred characters at the dispatch seam, and pushes 
 mutex-guarded queue. The kernel launch path logs at INFO once per launch, so a training loop paid
 that on every operation of every step.
 
-### `get_timestamp`
+### `timestamp`
 
 At `char buf[16];`: snprintf rather than the library's own formatter: this is the one format string
 in the codebase that runs on every single log line, and its shape never varies, so there is nothing

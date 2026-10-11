@@ -41,6 +41,7 @@
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 
 namespace SushiBLAS
 {
@@ -61,7 +62,7 @@ namespace SushiBLAS
                     /**
                      * @brief Holds everything the body needs at execute time.
                      * @param family Stored, not copied; must outlive the task.
-                     * @param name Stored, not copied; must outlive the task, as TaskMetadata::name must.
+                     * @param name Stored, not copied; must outlive the task.
                      */
                     TypedTaskBody(Core::DataType dtype, const char* family, const char* name,
                                   Func op_func)
@@ -135,7 +136,7 @@ namespace SushiBLAS
          */
         template<Dispatch::Domain Dom = Dispatch::Domain::RealAndComplex, typename Func>
         TaskHandle execute_typed_task(TaskRecorder& recorder,
-                                      const SushiRuntime::Internal::Graph::TaskMetadata& meta,
+                                      const TaskDescription& meta,
                                       const OperandSet& operands, Core::DataType dtype,
                                       const char* family, Func&& op_func)
         {

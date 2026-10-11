@@ -46,6 +46,7 @@
 #include <SushiBLAS/functor_map/read_binding.hpp>
 #include <SushiBLAS/elementwise/wrapping_math.hpp>
 #include <SushiBLAS/functor_map/scalar_binding.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
@@ -78,9 +79,8 @@ namespace SushiBLAS
             operands.updates(t);
             Detail::declare_reads(op_func, operands, name);
 
-            SushiRuntime::Internal::Graph::TaskMetadata meta;
+            TaskDescription meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 
@@ -131,9 +131,8 @@ namespace SushiBLAS
             operands.reads(A).reads(B).writes(C);
             Detail::declare_reads(op_func, operands, name);
 
-            SushiRuntime::Internal::Graph::TaskMetadata meta;
+            TaskDescription meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 
@@ -194,9 +193,8 @@ namespace SushiBLAS
             }
             Detail::declare_reads(op_func, operands, name);
 
-            SushiRuntime::Internal::Graph::TaskMetadata meta;
+            TaskDescription meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 

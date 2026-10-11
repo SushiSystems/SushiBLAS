@@ -50,6 +50,7 @@
 #include <SushiBLAS/random/dispatch.hpp>
 #include <SushiBLAS/reductions/dispatch.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include "../common/test_utils.hpp"
 #include "../common/graph_probe.hpp"
@@ -635,38 +636,41 @@ TEST_F(Unit_DispatchSeamTest, RNGMetadataSlotsAreInRangeAndRoundTrip)
     constexpr uint64_t kSeed = 0xDEADBEEFCAFEF00Dull;
     constexpr uint64_t kOffset = 42;
 
-    static_assert(sb::Dispatch::K_RNG_SEED_PARAM < static_cast<int>(SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS));
-    static_assert(sb::Dispatch::K_RNG_OFFSET_PARAM < static_cast<int>(SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS));
+    constexpr int K_SLOTS = static_cast<int>(sb::TaskDescription::K_MAX_PARAMS);
+    static_assert(sb::Dispatch::K_RNG_SEED_PARAM < K_SLOTS);
+    static_assert(sb::Dispatch::K_RNG_OFFSET_PARAM < K_SLOTS);
 
-    SushiRuntime::Internal::Graph::TaskMetadata meta;
+    sb::TaskDescription meta;
     sb::Dispatch::set_rng_params(meta, kSeed, kOffset);
 
-    EXPECT_EQ(meta.get_param<uint64_t>(sb::Dispatch::K_RNG_SEED_PARAM), kSeed);
-    EXPECT_EQ(meta.get_param<uint64_t>(sb::Dispatch::K_RNG_OFFSET_PARAM), kOffset);
+    EXPECT_EQ(meta.param<uint64_t>(sb::Dispatch::K_RNG_SEED_PARAM), kSeed);
+    EXPECT_EQ(meta.param<uint64_t>(sb::Dispatch::K_RNG_OFFSET_PARAM), kOffset);
 }
 
 TEST_F(Unit_DispatchSeamTest, DistributionParamsDoNotCollideWithTheRNGSlots)
 {
-    SushiRuntime::Internal::Graph::TaskMetadata meta;
+    sb::TaskDescription meta;
     const std::initializer_list<double> params = {1.0, 2.0, 3.0, 4.0};
 
-    sb::Dispatch::set_task_params(meta, params, "test.params",
-                                  SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS - sb::Dispatch::K_MAX_RNG_PARAMS);
+    sb::Dispatch::set_task_params(
+        meta, params, "test.params",
+        sb::TaskDescription::K_MAX_PARAMS - sb::Dispatch::K_MAX_RNG_PARAMS);
     sb::Dispatch::set_rng_params(meta, 7, 8);
 
     for (size_t i = 0; i < params.size(); ++i)
     {
-        EXPECT_DOUBLE_EQ(meta.get_param<double>(static_cast<int>(i)), params.begin()[i]);
+        EXPECT_DOUBLE_EQ(meta.param<double>(static_cast<int>(i)), params.begin()[i]);
     }
-    EXPECT_EQ(meta.get_param<uint64_t>(sb::Dispatch::K_RNG_SEED_PARAM), 7u);
-    EXPECT_EQ(meta.get_param<uint64_t>(sb::Dispatch::K_RNG_OFFSET_PARAM), 8u);
+    EXPECT_EQ(meta.param<uint64_t>(sb::Dispatch::K_RNG_SEED_PARAM), 7u);
+    EXPECT_EQ(meta.param<uint64_t>(sb::Dispatch::K_RNG_OFFSET_PARAM), 8u);
 }
 
 TEST_F(Unit_DispatchSeamTest, TooManyTaskParamsThrowsInsteadOfDroppingThem)
 {
     auto t = engine->create_tensor({4});
 
-    static_assert(SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS == 8, "the list below is one longer than the capacity");
+    static_assert(sb::TaskDescription::K_MAX_PARAMS == 8,
+                  "the list below is one longer than the capacity");
     EXPECT_THROW(
         sb::Dispatch::execute_unary_inplace(
             engine->recorder(), t, "test.overflow", "test.overflow"_op,
@@ -719,9 +723,8 @@ TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
 {
     auto t = engine->create_tensor({4}, DataType::Complex32);
 
-    SushiRuntime::Internal::Graph::TaskMetadata meta;
+    SushiBLAS::TaskDescription meta;
     meta.name = "spatial.im2col";
-    meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
 
     try
     {

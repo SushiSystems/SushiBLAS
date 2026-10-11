@@ -40,6 +40,7 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
@@ -159,7 +160,7 @@ namespace SushiBLAS
              *         device-only USM; no task is recorded.
              */
             template<typename Body>
-            TaskHandle record_pair(const SushiRuntime::Internal::Graph::TaskMetadata& meta,
+            TaskHandle record_pair(const TaskDescription& meta,
                                    const OperandSet& operands, const char* family, Body&& body)
             {
                 require_host_reachable(operands, family, meta.name);
@@ -177,14 +178,14 @@ namespace SushiBLAS
              *         refused the recording; the refusal is what the next run returns.
              */
             template<typename Work>
-            TaskHandle insert(const SushiRuntime::Internal::Graph::TaskMetadata& meta,
+            TaskHandle insert(const TaskDescription& meta,
                               const OperandSet& operands, Work&& work)
             {
                 SushiRuntime::NodeOptions options;
                 options.name = meta.name;
                 options.operation = meta.op_id;
                 options.parameters = SushiRuntime::span<const std::uint64_t>(
-                    meta.params, SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS);
+                    meta.params, TaskDescription::K_MAX_PARAMS);
 
                 const std::size_t recorded_before = recorder_->node_count();
                 recorder_->task(

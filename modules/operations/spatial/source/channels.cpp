@@ -32,6 +32,7 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/spatial/spatial.hpp>
 #include <SushiBLAS/spatial_kernels/spatial.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 
 namespace SushiBLAS
 {
@@ -116,9 +117,8 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(src).writes(dst);
 
-        SushiRuntime::Internal::Graph::TaskMetadata meta;
+        TaskDescription meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.concat_channels"_op;
 
         // A copy does no arithmetic, so it serves Domain::All; see modules/operations/README.md.
@@ -166,9 +166,8 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(src).writes(dst);
 
-        SushiRuntime::Internal::Graph::TaskMetadata meta;
+        TaskDescription meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.slice_channels"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::All>(

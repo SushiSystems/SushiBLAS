@@ -8,6 +8,7 @@ geometry are support headers; see [the support module](../../foundation/support/
 | --- | --- |
 | `task_recorder.hpp` | `TaskRecorder`, the one caller of `SushiRuntime::Recorder::task` in SushiBLAS |
 | `task_handle.hpp` | `TaskHandle`, the value a record call returns for the task it recorded |
+| `task_description.hpp` | `TaskDescription`, what an operation states about the task it records |
 | `operand_set.hpp` | `OperandSet`, the tensors one task reads and writes, and the storage it retains |
 | `execution_mode.hpp` | `ExecutionMode`, which names the kernel a recorded task runs |
 | `kernel_pair_dispatcher.hpp` | `KernelPairDispatcher`, which runs one kernel of a reference and SYCL pair |
@@ -29,7 +30,7 @@ and `ReductionOps` in `math/`, `LogicOps` in `logic/`.
 
 Every view holds a `TaskRecorder&` and nothing else of the engine; `RandomOps` also holds the
 `RNGStream&`. A view is built from an `Engine&` or from the recorder itself. An operation checks
-its operands, declares them in an `OperandSet`, and hands the set, a `TaskMetadata` and a task
+its operands, declares them in an `OperandSet`, and hands the set, a `TaskDescription` and a task
 body to the recorder, directly or through a seam (`execute_typed_task`, `execute_blas_task`, an
 executor of `Dispatch`). It returns the `TaskHandle` of the recorded task. Nothing runs until
 `Engine::execute()`. An operation that has nothing to do, such as one over a tensor without
@@ -189,8 +190,8 @@ all.
 
 ### `set_task_params`
 
-`TaskMetadata::set_param` silently ignores an out-of-range index, so a caller that writes past
-`K_MAX_PARAMS` loses the value with no diagnostic at all. This wrapper throws
+`TaskDescription::set_param` ignores an out-of-range index in a build with `NDEBUG`, so a caller
+that writes past `K_MAX_PARAMS` loses the value with no diagnostic at all. This wrapper throws
 `std::invalid_argument` at record time instead (P1: fail loudly, never silently).
 
 ## `operand_check.hpp`
@@ -251,7 +252,7 @@ the recorder of one `SushiRuntime::Graph` and to one `ScratchPool`, and holds th
 
 ### `TaskRecorder::record_pair`
 
-Takes a `TaskMetadata`, an `OperandSet`, the family name for diagnostics, and a body callable as
+Takes a `TaskDescription`, an `OperandSet`, the family name for diagnostics, and a body callable as
 `(const Internal::KernelPairDispatcher&, sycl::queue&, const std::vector<sycl::event>&) ->
 sycl::event`. It first calls `require_host_reachable`. It then wraps the body in a
 `Detail::RecordedPairTask` with a dispatcher that holds the current mode and with the set's
@@ -283,6 +284,22 @@ process-wide counter value that is never 0, and the count of tasks that recorder
 before this one. A default handle has identity 0 and `is_valid()` false. Two handles are equal when
 both fields are. The handle exposes no event and no way to wait: the work finishes in
 `Engine::execute()`.
+
+## `task_description.hpp`
+
+`TaskDescription` is what an operation states about one task besides its operands: the `name` it
+reports under, the `SushiRuntime::OperationID` in `op_id`, and `K_MAX_PARAMS` (eight) slots of 64
+bits in `params`. `set_param<T>(index, value)` copies the bytes of a trivially copyable value of
+at most 64 bits into one slot and `param<T>(index)` reads them back; a slot never written holds 0.
+An index outside the slots is an `SB_ASSERT`, and a build with `NDEBUG` ignores the write and
+reads `T{}`.
+
+The type belongs to SushiBLAS and names nothing of the runtime but `OperationID`.
+`TaskRecorder` turns it into `SushiRuntime::NodeOptions` when it records: the name, the
+operation, and all eight slots as the node's parameters. The runtime copies the name and the
+slots, so `name` has to outlive the record call only as far as the runtime is concerned; a seam
+that keeps the pointer for its own diagnostics, as `execute_typed_task` does, needs it for the
+life of the task, and every operation passes a string literal.
 
 ## `operand_set.hpp`
 
@@ -376,7 +393,7 @@ The header includes the recorder, the operand set and the dispatcher, and not
 Calls `Dispatch::require_domain<Dom>` and then `TaskRecorder::record_pair` with a
 `Detail::TypedTaskBody`: one `switch (dtype)` that calls the operation's closure with a value of
 the element type. An unsupported dtype fails at record time (P1 corollary), never silently
-no-ops. Its arguments are the recorder, the `TaskMetadata`, the `OperandSet`, the dtype, the
+no-ops. Its arguments are the recorder, the `TaskDescription`, the `OperandSet`, the dtype, the
 family and `op_func`, which is callable as `(auto scalar_type, const KernelPairDispatcher&,
 sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`. The BLAS, sparse and spatial
 operations record through it, so none of them reads the execution mode: the dispatcher the body

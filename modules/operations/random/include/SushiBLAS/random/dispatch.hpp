@@ -47,6 +47,7 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
 #include <SushiRuntime/api/data/buffer.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
@@ -70,12 +71,12 @@ namespace SushiBLAS
         inline constexpr size_t K_MAX_RNG_PARAMS = 6;
 
         /// @brief Stamps the seed and offset a random task draws from into its metadata.
-        inline void set_rng_params(SushiRuntime::Internal::Graph::TaskMetadata& meta, uint64_t seed,
+        inline void set_rng_params(TaskDescription& meta, uint64_t seed,
                                    uint64_t offset)
         {
             static_assert(K_RNG_OFFSET_PARAM <
-                              static_cast<int>(SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS),
-                          "RNG metadata slots must fit inside TaskMetadata's parameter array.");
+                              static_cast<int>(TaskDescription::K_MAX_PARAMS),
+                          "RNG metadata slots must fit inside TaskDescription's parameter array.");
             meta.set_param(K_RNG_SEED_PARAM, seed);
             meta.set_param(K_RNG_OFFSET_PARAM, offset);
         }
@@ -293,11 +294,10 @@ namespace SushiBLAS
             operands.writes(t);
             recorder.require_host_reachable(operands, "RNG operation", name);
 
-            SushiRuntime::Internal::Graph::TaskMetadata meta;
+            TaskDescription meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
-            set_task_params(meta, params, name, SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS - K_MAX_RNG_PARAMS);
+            set_task_params(meta, params, name, TaskDescription::K_MAX_PARAMS - K_MAX_RNG_PARAMS);
 
             const RNGPosition position = stream.reserve(1);
             const uint64_t seed = position.seed;

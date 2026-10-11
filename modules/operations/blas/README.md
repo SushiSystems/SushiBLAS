@@ -96,7 +96,7 @@ reads that buffer afterwards needs an edge for exactly the same reason the bias'
 
 ```cpp
 // One launch, and the task that writes `bias` is ordered before it.
-Dispatch::execute_gemm(engine.get_recorder(), X, W, Y,
+Dispatch::execute_gemm(engine.recorder(), X, W, Y,
                        Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                        "nn.linear_relu", "nn.linear_relu"_op,
                        Dispatch::gemm_epilogue(BiasReLU{bias.data_as<float>()})
@@ -178,7 +178,7 @@ struct BiasReLU
     }
 };
 
-Dispatch::execute_gemm(engine.get_recorder(), X, W, Y,
+Dispatch::execute_gemm(engine.recorder(), X, W, Y,
                        Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                        "nn.linear_relu", "nn.linear_relu"_op,
                        Dispatch::gemm_epilogue(BiasReLU{bias.data_as<float>()})
@@ -199,7 +199,7 @@ at the same time. See `GemmEpilogue`.
   runtime value and every arm inside the domain is instantiated. A bare functor declares no operands
   of its own and produces exactly the access set this seam has always built; a `GemmEpilogue` adds
   whatever the caller declared on it.
-- `recorder`: The recorder the task is recorded through; `engine.get_recorder()` for an engine.
+- `recorder`: The recorder the task is recorded through; `engine.recorder()` for an engine.
 - `transA`, `transB`: `Core::Transpose` values. A value outside the enumeration throws.
 - `C`: The output; must not overlap `A` or `B`.
 - `alpha`, `beta`: `BLASScalar` values. A non-zero imaginary part throws for a real dtype. `beta`
@@ -316,10 +316,10 @@ finds `n` exactly. `RowMajor` packs by rows and `ColumnMajor` by columns.
 
 ### `BLASMetadata`
 
-Builds the `TaskMetadata` of one BLAS task in one fixed order: each scalar as two slots, real part
+Builds the `TaskDescription` of one BLAS task in one fixed order: each scalar as two slots, real part
 then imaginary part, then each flag as one slot holding its CBLAS number, then each extent, such
 as a band width. Every routine fills its slots through it, so a reader of a recorded graph finds a
-flag in the same place for every routine. Writing past `TaskMetadata::K_MAX_PARAMS` is an
+flag in the same place for every routine. Writing past `TaskDescription::K_MAX_PARAMS` is an
 `SB_ASSERT`, which aborts in a build without `NDEBUG` and is empty with it.
 
 ## `level1.hpp`
