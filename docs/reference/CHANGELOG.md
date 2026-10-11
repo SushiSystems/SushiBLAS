@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — tensor: Made `Storage` pass `K_STORAGE_ALIGNMENT` to `Runtime::buffer`; an address off that boundary fails an `SB_ASSERT` in place of throwing `std::runtime_error` (`storage.hpp`).
 - 2026-10-11 — graph_primitives: Breaking change: Made the four recording primitives return `Result<void>` with `ErrorCode::InvalidGraph` in place of throwing `SushiException` (`reduce.hpp`, `invalid_graph.hpp`).
 - 2026-10-11 — engine: Breaking change: Added `TaskDescription`, which every record call takes in place of the runtime's `TaskMetadata`; the task type is gone (`task_description.hpp`, `task_recorder.hpp`).
 - 2026-10-11 — tensor: Breaking change: Made `Storage` own a runtime `Buffer` and take a `SushiRuntime::Runtime`; `queue()` replaces `context()`.
