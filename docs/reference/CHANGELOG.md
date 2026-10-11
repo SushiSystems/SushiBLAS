@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — tests: Spelled the run layer `SushiRuntime::ExecutionLayer` and included `<SushiRuntime/api/runtime/logging.hpp>` for `set_log_synchronous` (`test_device_sized_primitives.cpp`, `test_main.cpp`).
 - 2026-10-12 — tests: Made `TestEnvironment::live_allocation_count()` call `AdvancedControls::live_allocation_count()`; no test reaches the runtime's context any more (`test_environment.hpp`).
 - 2026-10-12 — tests: Made `GraphProbe::recorded_tasks()` answer from `Graph::plan()` as a `Result`, removed `RecordedTask::body` and `K_NO_RECORDED_TASK_VIEW`, and ran the assertions that were skipped (`graph_probe.hpp`).
 - 2026-10-12 — tests: Replaced `ARecordedBodyWaitsForItsDependencies` with `ARecordedTaskComputesItsResult`, which runs the task and no longer calls its body (`test_task_dependencies.cpp`, `test_sparse_recording.cpp`).
