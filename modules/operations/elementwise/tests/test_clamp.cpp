@@ -40,7 +40,7 @@ TEST_F(Unit_ClampTest, FloatForward)
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
     SushiBLAS::ElementwiseOps(*engine).clamp(t, -1.5f, 1.5f);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(t, {1.00000f, 1.50000f, -1.50000f, 0.50000f});
 }

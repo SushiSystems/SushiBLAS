@@ -119,11 +119,11 @@ namespace SushiBLAS
                 [[nodiscard]] Tensor filled(std::initializer_list<int64_t> dims,
                                             const ParityData& data, std::size_t seed)
                 {
-                    Tensor t = engine->create_tensor(dims, get_sushiblas_dtype<T>());
+                    Tensor t = engine->create_tensor(dims, sushiblas_dtype<T>());
                     std::vector<T> host(static_cast<std::size_t>(t.num_elements));
                     for (std::size_t i = 0; i < host.size(); ++i)
                         host[i] = static_cast<T>(data.value(i + seed));
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(t.data(), host.data(), host.size() * sizeof(T)).wait();
                     return t;
                 }
@@ -132,7 +132,7 @@ namespace SushiBLAS
                 [[nodiscard]] static std::vector<T> read_back(const Tensor& t)
                 {
                     std::vector<T> host(static_cast<std::size_t>(t.num_elements));
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(host.data(), t.data(), host.size() * sizeof(T)).wait();
                     return host;
                 }
@@ -147,7 +147,7 @@ namespace SushiBLAS
                     Tensor y = filled({m}, data, K_SEED_Y);
                     SushiBLAS::BLASOps(*engine).gemv(A, x, y, Core::Transpose::NoTrans,
                                                      data.alpha, data.beta);
-                    engine->execute();
+                    engine->execute().value();
                     return read_back(y);
                 }
 
@@ -161,7 +161,7 @@ namespace SushiBLAS
                     Tensor y = filled({n}, data, K_SEED_Y);
                     SushiBLAS::BLASOps(*engine).symv(A, x, y, uplo_of(upper), data.alpha,
                                                      data.beta);
-                    engine->execute();
+                    engine->execute().value();
                     return read_back(y);
                 }
 

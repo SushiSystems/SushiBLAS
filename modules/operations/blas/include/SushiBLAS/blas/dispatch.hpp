@@ -44,8 +44,8 @@
 #include <SushiBLAS/operands/task_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/matrix_operand.hpp>
-#include <SushiRuntime/memory/resource_region.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/api/data/buffer.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_packed.hpp>
@@ -108,14 +108,14 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns the regions declared through reads. */
-                [[nodiscard]] const std::vector<SushiRuntime::Memory::ResourceRegion>&
+                [[nodiscard]] const std::vector<SushiRuntime::BufferRegion>&
                 read_regions() const noexcept
                 {
                     return operands_.read_regions();
                 }
 
                 /** @brief Returns the regions declared through writes. */
-                [[nodiscard]] const std::vector<SushiRuntime::Memory::ResourceRegion>&
+                [[nodiscard]] const std::vector<SushiRuntime::BufferRegion>&
                 write_regions() const noexcept
                 {
                     return operands_.write_regions();
@@ -197,7 +197,7 @@ namespace SushiBLAS
         TaskHandle execute_gemm(TaskRecorder& recorder, const Tensor& A, const Tensor& B, Tensor& C,
                                 Core::Transpose transA, Core::Transpose transB,
                                 BLASScalar alpha, BLASScalar beta,
-                                const char* name, SushiRuntime::Graph::OpID op_id,
+                                const char* name, SushiRuntime::OperationID op_id,
                                 Epilogue epilogue)
         {
             require_flag(transA, name, "transA");

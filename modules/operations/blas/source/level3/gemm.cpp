@@ -32,7 +32,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     // Plain GEMM is the fused GEMM with the identity epilogue; see modules/operations/README.md.
     TaskHandle Level3::gemm(const Tensor& A, const Tensor& B, Tensor& C,

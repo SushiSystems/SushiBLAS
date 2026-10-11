@@ -30,7 +30,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     // Sum of magnitudes: the same fold as `sum` with `fabs` as the transform.
     TaskHandle ReductionOps::asum(const Tensor& t, Tensor& result)

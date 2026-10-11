@@ -40,7 +40,7 @@ TEST_F(Unit_AcosTest, FloatForward)
     fill_tensor(t, {0.0f, 0.5f, -0.5f, 1.0f});
     
     SushiBLAS::ElementwiseOps(*engine).acos(t);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(t, {1.570796f, 1.047197f, 2.094395f, 0.00000f});
 }

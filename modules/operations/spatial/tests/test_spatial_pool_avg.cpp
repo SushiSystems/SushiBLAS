@@ -90,7 +90,7 @@ namespace SushiBLAS
 
             auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
             SushiBLAS::SpatialOps(*engine).pool_avg(in, out, g);
-            engine->execute();
+            engine->execute().value();
 
             const float* got = out.data_as<float>();
 
@@ -116,7 +116,7 @@ namespace SushiBLAS
 
             auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
             SushiBLAS::SpatialOps(*engine).pool_avg(in, out, g);
-            engine->execute();
+            engine->execute().value();
 
             const float* got = out.data_as<float>();
             EXPECT_FLOAT_EQ(got[0], 2.5f);   // (1+3+4+2)/4
@@ -138,7 +138,7 @@ namespace SushiBLAS
             auto dx = engine->create_tensor({1, 4, 4, 1}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
-            engine->execute();
+            engine->execute().value();
 
             // Non-overlapping quadrants, each receiving its window's dy/4.
             const std::vector<float> expected = {1, 1, 2, 2,
@@ -163,7 +163,7 @@ namespace SushiBLAS
             auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
-            engine->execute();
+            engine->execute().value();
 
             const float* got = dx.data_as<float>();
             EXPECT_FLOAT_EQ(got[0], 0.25f);                    // (0,0): window 0 only
@@ -186,7 +186,7 @@ namespace SushiBLAS
             auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
-            engine->execute();
+            engine->execute().value();
 
             const float* got = dx.data_as<float>();
             for (int64_t i = 0; i < dx.num_elements; ++i)
@@ -220,11 +220,11 @@ namespace SushiBLAS
 
             engine->set_mode(ExecutionMode::ForceReference);
             SushiBLAS::SpatialOps(*engine).pool_avg(in, from_reference, g);
-            engine->execute();
+            engine->execute().value();
 
             engine->set_mode(ExecutionMode::ForceSYCL);
             SushiBLAS::SpatialOps(*engine).pool_avg(in, from_device, g);
-            engine->execute();
+            engine->execute().value();
 
             const float* expected = from_reference.data_as<float>();
             const float* got = from_device.data_as<float>();

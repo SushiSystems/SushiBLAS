@@ -44,7 +44,7 @@ namespace SushiBLAS
                 std::vector<int64_t> read_i64(const Tensor& t)
                 {
                     std::vector<int64_t> host(static_cast<size_t>(t.num_elements));
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(host.data(), t.data(), host.size() * sizeof(int64_t)).wait();
                     return host;
                 }
@@ -53,7 +53,7 @@ namespace SushiBLAS
                 std::vector<int32_t> read_i32(const Tensor& t)
                 {
                     std::vector<int32_t> host(static_cast<size_t>(t.num_elements));
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(host.data(), t.data(), host.size() * sizeof(int32_t)).wait();
                     return host;
                 }
@@ -91,7 +91,7 @@ namespace SushiBLAS
 
             SushiBLAS::RandomOps(*engine).constant(a, 7.0);
             SushiBLAS::RandomOps(*engine).constant(b, 1234567890.0);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_EQ(std::vector<int32_t>(4, 7), read_i32(a));
             EXPECT_EQ(std::vector<int64_t>(4, 1234567890), read_i64(b));
@@ -109,7 +109,7 @@ namespace SushiBLAS
             fill_tensor(src, {10.0f, -20.0f, 30.0f});
             SushiBLAS::RandomOps(*engine).constant(dst, 0.0);
             SushiBLAS::BLASOps(*engine).copy(src, dst);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_EQ((std::vector<int64_t>{10, -20, 30}), read_i64(dst));
         }
@@ -128,15 +128,15 @@ namespace SushiBLAS
             fill_tensor(b, {2.0f, 5.0f, 1.0f, 0.0f});
 
             SushiBLAS::LogicOps(*engine).less(a, b, r);
-            engine->execute();
+            engine->execute().value();
             EXPECT_EQ((std::vector<int32_t>{1, 0, 0, 0}), read_i32(r));
 
             SushiBLAS::LogicOps(*engine).equal(a, b, r);
-            engine->execute();
+            engine->execute().value();
             EXPECT_EQ((std::vector<int32_t>{0, 1, 0, 0}), read_i32(r));
 
             SushiBLAS::LogicOps(*engine).greater_equal(a, b, r);
-            engine->execute();
+            engine->execute().value();
             EXPECT_EQ((std::vector<int32_t>{0, 1, 1, 1}), read_i32(r));
         }
 
@@ -151,11 +151,11 @@ namespace SushiBLAS
             fill_tensor(b, {1.0f, 0.0f, 1.0f, 0.0f});
 
             SushiBLAS::LogicOps(*engine).logical_and(a, b, r);
-            engine->execute();
+            engine->execute().value();
             EXPECT_EQ((std::vector<int64_t>{1, 0, 0, 0}), read_i64(r));
 
             SushiBLAS::LogicOps(*engine).logical_xor(a, b, r);
-            engine->execute();
+            engine->execute().value();
             EXPECT_EQ((std::vector<int64_t>{0, 1, 1, 0}), read_i64(r));
 
             auto lhs = engine->create_tensor({4}, Core::DataType::Int64);
@@ -164,7 +164,7 @@ namespace SushiBLAS
             fill_tensor(rhs, {-1.0f, -2.0f, -3.0f, -4.0f});
 
             SushiBLAS::LogicOps(*engine).where(a, lhs, rhs, r);
-            engine->execute();
+            engine->execute().value();
             EXPECT_EQ((std::vector<int64_t>{100, 200, -3, -4}), read_i64(r));
         }
 
@@ -179,15 +179,15 @@ namespace SushiBLAS
             fill_tensor(ones, {1.0f, 1.0f, 1.0f, 1.0f});
 
             SushiBLAS::LogicOps(*engine).all(mixed, r);
-            engine->execute();
+            engine->execute().value();
             EXPECT_EQ(0, read_i32(r)[0]);
 
             SushiBLAS::LogicOps(*engine).all(ones, r);
-            engine->execute();
+            engine->execute().value();
             EXPECT_EQ(1, read_i32(r)[0]);
 
             SushiBLAS::LogicOps(*engine).any(mixed, r);
-            engine->execute();
+            engine->execute().value();
             EXPECT_EQ(1, read_i32(r)[0]);
         }
 
@@ -203,11 +203,11 @@ namespace SushiBLAS
             fill_tensor(t, {3.0f, -1.0f, 42.0f, 7.0f, 41.0f});
 
             SushiBLAS::ReductionOps(*engine).argmax(t, r);
-            engine->execute();
+            engine->execute().value();
             EXPECT_EQ(2, read_i64(r)[0]);
 
             SushiBLAS::ReductionOps(*engine).argmin(t, r);
-            engine->execute();
+            engine->execute().value();
             EXPECT_EQ(1, read_i64(r)[0]);
         }
 
@@ -224,15 +224,15 @@ namespace SushiBLAS
             auto r = engine->create_tensor({1}, Core::DataType::Int64);
 
             SushiBLAS::RandomOps(*engine).constant(t, 1.0);
-            engine->execute();
+            engine->execute().value();
 
             // Plant the maximum at an index a float cannot name.
             const float peak = 2.0f;
-            TestEnvironment::get_context().devices().queue(0)
+            TestEnvironment::queue()
                 .memcpy(t.data_as<float>() + kPeak, &peak, sizeof(float)).wait();
 
             SushiBLAS::ReductionOps(*engine).argmax(t, r);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_EQ(kPeak, read_i64(r)[0])
                 << "An index stored as a float rounds to " << static_cast<int64_t>(static_cast<float>(kPeak))
@@ -253,44 +253,44 @@ namespace SushiBLAS
 
             // Elementwise transcendentals.
             EXPECT_THROW(
-                SushiBLAS::ElementwiseOps(probe.get_recorder()).exp(a),
+                SushiBLAS::ElementwiseOps(probe.recorder()).exp(a),
                 std::invalid_argument);
             EXPECT_THROW(
-                SushiBLAS::ElementwiseOps(probe.get_recorder()).sqrt(a),
+                SushiBLAS::ElementwiseOps(probe.recorder()).sqrt(a),
                 std::invalid_argument);
 
             // Non-linearities.
             EXPECT_THROW(
-                SushiBLAS::NonLinearOps(probe.get_recorder()).relu(a),
+                SushiBLAS::NonLinearOps(probe.recorder()).relu(a),
                 std::invalid_argument);
             EXPECT_THROW(
-                SushiBLAS::NonLinearOps(probe.get_recorder()).sigmoid(a),
+                SushiBLAS::NonLinearOps(probe.recorder()).sigmoid(a),
                 std::invalid_argument);
 
             // Random distributions - no fractional part for a continuous draw to land in.
             EXPECT_THROW(
-                SushiBLAS::RandomOps(probe.get_recorder(), engine->get_rng()).uniform(a, 0.0, 1.0),
+                SushiBLAS::RandomOps(probe.recorder(), engine->rng()).uniform(a, 0.0, 1.0),
                 std::invalid_argument);
             EXPECT_THROW(
-                SushiBLAS::RandomOps(probe.get_recorder(), engine->get_rng()).normal(a, 0.0, 1.0),
+                SushiBLAS::RandomOps(probe.recorder(), engine->rng()).normal(a, 0.0, 1.0),
                 std::invalid_argument);
 
             // BLAS arithmetic. `copy` is the exception and is covered above.
             EXPECT_THROW(
-                SushiBLAS::BLASOps(probe.get_recorder()).axpy(1.0, a, b),
+                SushiBLAS::BLASOps(probe.recorder()).axpy(1.0, a, b),
                 std::invalid_argument);
             EXPECT_THROW(
-                SushiBLAS::BLASOps(probe.get_recorder()).scal(2.0, a),
+                SushiBLAS::BLASOps(probe.recorder()).scal(2.0, a),
                 std::invalid_argument);
             EXPECT_THROW(
-                SushiBLAS::BLASOps(probe.get_recorder()).dot(a, b, scalar),
+                SushiBLAS::BLASOps(probe.recorder()).dot(a, b, scalar),
                 std::invalid_argument);
             EXPECT_THROW(
-                SushiBLAS::BLASOps(probe.get_recorder()).nrm2(a, scalar),
+                SushiBLAS::BLASOps(probe.recorder()).nrm2(a, scalar),
                 std::invalid_argument);
 
             // Nothing above should have reached the graph.
-            EXPECT_TRUE(probe.take_nodes().empty())
+            EXPECT_EQ(0u, probe.take_recorded_count())
                 << "A rejected op must throw before it records a task, not while executing one.";
         }
 
@@ -309,7 +309,7 @@ namespace SushiBLAS
 
             // Equality has no such problem and must still work.
             EXPECT_NO_THROW(SushiBLAS::LogicOps(*engine).equal(a, b, r));
-            engine->execute();
+            engine->execute().value();
         }
 
     } // namespace Test

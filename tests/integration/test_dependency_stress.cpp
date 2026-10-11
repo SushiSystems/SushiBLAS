@@ -76,7 +76,7 @@ TEST_F(Integration_DependencyStressTest, ManyReadersOneWriter)
     
     SB_LOG_INFO("Executing DAG with massive reader fan-out...");
     auto start = std::chrono::high_resolution_clock::now();
-    engine->execute();
+    engine->execute().value();
     auto end = std::chrono::high_resolution_clock::now();
     
     std::chrono::duration<double, std::milli> duration = end - start;
@@ -121,7 +121,7 @@ TEST_F(Integration_DependencyStressTest, ShardCollisionStress)
     
     SB_LOG_INFO("Executing DAG. Watch for false dependency serialization...");
     auto start = std::chrono::high_resolution_clock::now();
-    engine->execute();
+    engine->execute().value();
     auto end = std::chrono::high_resolution_clock::now();
     
     std::chrono::duration<double, std::milli> duration = end - start;

@@ -218,7 +218,7 @@ namespace SushiBLAS
                     Tensor B = half_tensor({rows, cols}, right_hand_side_values(rows * cols));
                     SushiBLAS::BLASOps(*engine).trsm(A, B, side, Core::Uplo::Lower,
                                                      Core::Transpose::NoTrans, Core::Diag::Unit);
-                    engine->execute();
+                    engine->execute().value();
                     return SushiBLAS::IO(*engine).to_vector<sycl::half>(B);
                 }
 
@@ -231,7 +231,7 @@ namespace SushiBLAS
                                            right_hand_side_values(K_SYSTEM_ORDER));
                     SushiBLAS::BLASOps(*engine).trsv(A, b, Core::Uplo::Lower,
                                                      Core::Transpose::NoTrans, Core::Diag::Unit);
-                    engine->execute();
+                    engine->execute().value();
                     return SushiBLAS::IO(*engine).to_vector<sycl::half>(b);
                 }
 
@@ -293,7 +293,7 @@ namespace SushiBLAS
                     Tensor C = zeros({K_OUTPUT_EDGE, K_OUTPUT_EDGE});
                     SushiBLAS::BLASOps(*engine).gemm(A, B, C, Core::Transpose::NoTrans,
                                                      Core::Transpose::NoTrans, 1.0, 0.0);
-                    engine->execute();
+                    engine->execute().value();
                     return SushiBLAS::IO(*engine).to_vector<sycl::half>(C);
                 }
 
@@ -305,7 +305,7 @@ namespace SushiBLAS
                     Tensor C = zeros({K_OUTPUT_EDGE, K_OUTPUT_EDGE});
                     SushiBLAS::BLASOps(*engine).syrk(A, C, Core::Uplo::Lower,
                                                      Core::Transpose::NoTrans, 1.0, 0.0);
-                    engine->execute();
+                    engine->execute().value();
 
                     const std::vector<sycl::half> full =
                         SushiBLAS::IO(*engine).to_vector<sycl::half>(C);
@@ -324,7 +324,7 @@ namespace SushiBLAS
                     Tensor x = ones({K_REDUCTION_LENGTH});
                     Tensor y = zeros({K_OUTPUT_EDGE});
                     SushiBLAS::BLASOps(*engine).gemv(A, x, y, Core::Transpose::NoTrans, 1.0, 0.0);
-                    engine->execute();
+                    engine->execute().value();
                     return SushiBLAS::IO(*engine).to_vector<sycl::half>(y);
                 }
 
@@ -340,7 +340,7 @@ namespace SushiBLAS
                     Tensor x = ones({K_REDUCTION_LENGTH});
                     Tensor result = zeros({1});
                     call(x, result);
-                    engine->execute();
+                    engine->execute().value();
                     const sycl::half value =
                         SushiBLAS::IO(*engine).to_vector<sycl::half>(result)[0];
                     return static_cast<double>(static_cast<float>(value));

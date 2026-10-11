@@ -41,7 +41,7 @@
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/functor_map/map_task.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
@@ -57,7 +57,7 @@ namespace SushiBLAS
          */
         template<Domain Dom = Domain::Real, typename Func, typename Param = double>
         TaskHandle execute_logic_unary(TaskRecorder& recorder, const Tensor& x, Tensor& result,
-                                       const char* name, SushiRuntime::Graph::OpID op_id,
+                                       const char* name, SushiRuntime::OperationID op_id,
                                        Func&& op_func, std::initializer_list<Param> params = {})
         {
             require_storage(x, name, "x");
@@ -80,9 +80,9 @@ namespace SushiBLAS
             operands.reads(x).writes(result);
             Detail::declare_reads(op_func, operands, name);
 
-            SushiRuntime::Graph::TaskMetadata meta;
+            SushiRuntime::Internal::Graph::TaskMetadata meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 
@@ -103,7 +103,7 @@ namespace SushiBLAS
         template<Domain Dom = Domain::Real, typename Func, typename Param = double>
         TaskHandle execute_logic_binary(TaskRecorder& recorder, const Tensor& A, const Tensor& B,
                                         Tensor& result, const char* name,
-                                        SushiRuntime::Graph::OpID op_id, Func&& op_func,
+                                        SushiRuntime::OperationID op_id, Func&& op_func,
                                         std::initializer_list<Param> params = {})
         {
             require_storage(A, name, "A");
@@ -132,9 +132,9 @@ namespace SushiBLAS
             operands.reads(A).reads(B).writes(result);
             Detail::declare_reads(op_func, operands, name);
 
-            SushiRuntime::Graph::TaskMetadata meta;
+            SushiRuntime::Internal::Graph::TaskMetadata meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 
@@ -155,7 +155,7 @@ namespace SushiBLAS
         template<Domain Dom = Domain::Real, typename Func, typename Param = double>
         TaskHandle execute_logic_ternary(TaskRecorder& recorder, const Tensor& cond, const Tensor& A,
                                          const Tensor& B, Tensor& result, const char* name,
-                                         SushiRuntime::Graph::OpID op_id, Func&& op_func,
+                                         SushiRuntime::OperationID op_id, Func&& op_func,
                                          std::initializer_list<Param> params = {})
         {
             require_storage(cond, name, "cond");
@@ -190,9 +190,9 @@ namespace SushiBLAS
             operands.reads(cond).reads(A).reads(B).writes(result);
             Detail::declare_reads(op_func, operands, name);
 
-            SushiRuntime::Graph::TaskMetadata meta;
+            SushiRuntime::Internal::Graph::TaskMetadata meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
             set_task_params(meta, params, name);
 

@@ -40,7 +40,7 @@ TEST_F(Unit_SoftplusTest, Forward)
     fill_tensor(t, {-1.0f, 0.0f, 1.0f, 2.0f});
     
     SushiBLAS::NonLinearOps(*engine).softplus(t);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(t, {0.313262f, 0.693147f, 1.313262f, 2.126928f});
 }
@@ -56,7 +56,7 @@ TEST_F(Unit_SoftplusTest, Backward)
     fill_tensor(dx, {0.0f, 0.0f, 0.0f, 0.0f});
     
     SushiBLAS::NonLinearOps(*engine).softplus_backward(dy, x, dx);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(dx, {0.268941f, 0.5f, 0.731059f, 0.880797f});
 }

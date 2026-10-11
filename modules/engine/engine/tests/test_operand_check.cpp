@@ -50,9 +50,9 @@ namespace SushiBLAS
                 SushiRuntime::sushi_ptr<Storage> make_storage(int64_t elements)
                 {
                     return SushiRuntime::make_sushi<Storage>(
-                        TestEnvironment::get_context(),
+                        TestEnvironment::runtime(),
                         static_cast<size_t>(elements) * sizeof(float),
-                        SushiRuntime::API::Residency::Shared);
+                        SushiRuntime::Residency::Shared);
                 }
 
                 /** @brief Returns a dense FLOAT32 tensor over a storage of its own. */
@@ -273,7 +273,7 @@ namespace SushiBLAS
 
             // Eight FLOAT32 elements are the 32 bytes four FLOAT64 elements need.
             Tensor wide(make_storage(8), {4}, Core::DataType::Float64);
-            if (Device::profile_for(wide.get_device()).supports_fp64)
+            if (Device::profile_for(wide.device()).supports_fp64)
                 EXPECT_NO_THROW(Dispatch::require_device_dtype(wide, "op", "x"));
             else
                 EXPECT_THROW(Dispatch::require_device_dtype(wide, "op", "x"),
@@ -336,7 +336,7 @@ namespace SushiBLAS
             // Two FLOAT32 elements are the 8 bytes four HALF elements need.
             Tensor half(make_storage(2), {4}, Core::DataType::Half);
             const auto check = [&] { Dispatch::require_device_dtype(half, "op", "x"); };
-            if (Device::profile_for(half.get_device()).supports_fp16)
+            if (Device::profile_for(half.device()).supports_fp16)
             {
                 EXPECT_NO_THROW(check());
             }
@@ -349,7 +349,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_OperandCheckTest, TheProfileReportsTheFp16AspectOfItsDevice)
         {
-            const sycl::queue& q = TestEnvironment::get_context().devices().queue(0);
+            const sycl::queue& q = TestEnvironment::queue();
             EXPECT_EQ(Device::profile_for(q).supports_fp16,
                       q.get_device().has(sycl::aspect::fp16));
         }

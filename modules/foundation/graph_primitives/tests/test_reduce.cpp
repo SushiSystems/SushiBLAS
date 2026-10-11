@@ -55,11 +55,11 @@ namespace SushiBLAS
             using GraphPrimitives::Minimum;
             using GraphPrimitives::Sum;
             using GraphPrimitives::reduce;
-            using SushiRuntime::API::LateCount;
-            using SushiRuntime::API::Reads;
-            using SushiRuntime::API::Runtime;
-            using SushiRuntime::API::Writes;
-            using SushiRuntime::Core::SushiException;
+            using SushiRuntime::LateCount;
+            using SushiRuntime::Reads;
+            using SushiRuntime::Runtime;
+            using SushiRuntime::Writes;
+            using SushiRuntime::SushiException;
 
             /// @brief Holds the tile size the host reference folds with.
             constexpr std::size_t K_TILE = GraphPrimitives::K_REDUCE_TILE;
@@ -128,7 +128,7 @@ namespace SushiBLAS
                 }
                 catch (const SushiException& refused)
                 {
-                    EXPECT_EQ(refused.error().code, SushiRuntime::Core::Errc::invalid_graph);
+                    EXPECT_EQ(refused.error().code, SushiRuntime::Errc::invalid_graph);
                 }
             }
         } // namespace
@@ -421,8 +421,8 @@ namespace SushiBLAS
         TEST(Unit_GraphPrimitivesReduce, DeviceCountIsReadAfterItsProducer)
         {
             constexpr std::size_t K_CAPACITY = 1000;
-            using SushiRuntime::API::DeviceIndex;
-            using SushiRuntime::API::Residency;
+            using SushiRuntime::DeviceIndex;
+            using SushiRuntime::Residency;
 
             auto runtime = Runtime::create();
             auto values = runtime.buffer<double>(K_CAPACITY);

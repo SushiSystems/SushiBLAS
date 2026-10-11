@@ -75,7 +75,7 @@ namespace SushiBLAS
 
             Spatial::ConvGeometry g;   // 1x1, stride 1, dilation 1, no pad
             SushiBLAS::SpatialOps(*engine).im2col(in, cols, g);
-            engine->execute();
+            engine->execute().value();
 
             const float* out = cols.data_as<float>();
             for (int64_t i = 0; i < in.num_elements; ++i)
@@ -93,7 +93,7 @@ namespace SushiBLAS
             g.kernel_w = 2;
 
             SushiBLAS::SpatialOps(*engine).im2col(in, cols, g);
-            engine->execute();
+            engine->execute().value();
 
             // Element (h, w, c) holds (h*3 + w)*2 + c; row 0 is the window at (0,0).
             const std::vector<float> row0 = {0, 1, 2, 3, 6, 7, 8, 9};
@@ -124,7 +124,7 @@ namespace SushiBLAS
             g.pad_left = 1;
 
             SushiBLAS::SpatialOps(*engine).im2col(in, cols, g);
-            engine->execute();
+            engine->execute().value();
 
             // Row 0 is the window centred on (0,0); only taps 4, 5, 7, 8 of its 3x3 are in bounds.
             const std::vector<float> row0 = {0, 0, 0, 0, 0, 1, 0, 2, 3};
@@ -146,7 +146,7 @@ namespace SushiBLAS
             g.dilation_w = 2;
 
             SushiBLAS::SpatialOps(*engine).im2col(in, cols, g);
-            engine->execute();
+            engine->execute().value();
 
             // The single window's taps are rows {0,2,4} x columns {0,2,4}.
             const std::vector<float> expected = {0, 2, 4, 10, 12, 14, 20, 22, 24};
@@ -170,7 +170,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::SpatialOps(*engine).im2col(in, cols, g), std::exception);
 
             SushiBLAS::SpatialOps(*engine).im2col(in, cols, g, 3, 3);
-            engine->execute();
+            engine->execute().value();
 
             const float* out = cols.data_as<float>();
 
@@ -210,11 +210,11 @@ namespace SushiBLAS
 
             engine->set_mode(ExecutionMode::ForceReference);
             SushiBLAS::SpatialOps(*engine).im2col(in, from_reference, g, out_h, out_w);
-            engine->execute();
+            engine->execute().value();
 
             engine->set_mode(ExecutionMode::ForceSYCL);
             SushiBLAS::SpatialOps(*engine).im2col(in, from_device, g, out_h, out_w);
-            engine->execute();
+            engine->execute().value();
 
             const float* expected = from_reference.data_as<float>();
             const float* got = from_device.data_as<float>();

@@ -35,7 +35,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     namespace
     {
@@ -116,9 +116,9 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(src).writes(dst);
 
-        SushiRuntime::Graph::TaskMetadata meta;
+        SushiRuntime::Internal::Graph::TaskMetadata meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.concat_channels"_op;
 
         // A copy does no arithmetic, so it serves Domain::All; see modules/operations/README.md.
@@ -166,9 +166,9 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(src).writes(dst);
 
-        SushiRuntime::Graph::TaskMetadata meta;
+        SushiRuntime::Internal::Graph::TaskMetadata meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.slice_channels"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::All>(

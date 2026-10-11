@@ -40,11 +40,11 @@
 #include <SushiBLAS/operands/task_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle Level2::tpmv(const Tensor& AP, Tensor& x, Core::Uplo uplo, Core::Transpose trans,
                             Core::Diag diag)

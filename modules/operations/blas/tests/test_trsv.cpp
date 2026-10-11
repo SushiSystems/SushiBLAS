@@ -52,7 +52,7 @@ TEST_F(Unit_TRSVTest, SimpleTRSV)
                                      SushiBLAS::Core::Transpose::NoTrans,
                                      SushiBLAS::Core::Diag::NonUnit);
     
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: b solved to x = [1, 1, 1]
@@ -90,7 +90,7 @@ class Unit_TRSVPoisonTest : public SushiBLASTest
 
             SushiBLAS::BLASOps(*engine).trsv(A, b, uplo_of(upper), transpose_of(trans_a),
                                              SushiBLAS::Core::Diag::NonUnit);
-            engine->execute();
+            engine->execute().value();
 
             verify_tensor(b, K_SOLUTION);
         }

@@ -161,9 +161,9 @@ namespace SushiBLAS
                     try
                     {
                         Tensor t = engine->create_tensor(dims, Core::DataType::Float32,
-                                                         SushiRuntime::API::Residency::Device);
+                                                         SushiRuntime::Residency::Device);
                         const sycl::context context =
-                            TestEnvironment::get_context().devices().queue(0).get_context();
+                            TestEnvironment::queue().get_context();
                         if (sycl::get_pointer_type(t.data(), context) != sycl::usm::alloc::device)
                             return std::nullopt;
                         return t;
@@ -221,9 +221,9 @@ namespace SushiBLAS
             const Tensor half = engine->create_tensor({4}, Core::DataType::Half);
 
             EXPECT_EQ(outcome_of([&] { Dispatch::require_device_dtype(wide, "op", "x"); }),
-                      outcome_on(Device::profile_for(wide.get_device()).supports_fp64));
+                      outcome_on(Device::profile_for(wide.device()).supports_fp64));
             EXPECT_EQ(outcome_of([&] { Dispatch::require_device_dtype(half, "op", "x"); }),
-                      outcome_on(Device::profile_for(half.get_device()).supports_fp16));
+                      outcome_on(Device::profile_for(half.device()).supports_fp16));
         }
 
         TEST_F(Unit_UnsupportedExecutionSites, PoissonWithoutFp64IsARefusal)
@@ -233,9 +233,9 @@ namespace SushiBLAS
             const Outcome outcome =
                 outcome_of([&] { SushiBLAS::RandomOps(*engine).poisson(t, 1.0); });
             if (outcome == Outcome::Returned)
-                engine->execute();
+                engine->execute().value();
 
-            EXPECT_EQ(outcome, outcome_on(Device::profile_for(t.get_device()).supports_fp64));
+            EXPECT_EQ(outcome, outcome_on(Device::profile_for(t.device()).supports_fp64));
         }
     } // namespace Test
 } // namespace SushiBLAS

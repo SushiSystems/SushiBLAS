@@ -247,7 +247,7 @@ namespace SushiBLAS
             {
                 using R = Kernels::RealType<T>;
                 const sycl::device device =
-                    TestEnvironment::get_context().devices().queue(0).get_device();
+                    TestEnvironment::queue().get_device();
                 if constexpr (std::is_same_v<R, sycl::half>)
                     return device.has(sycl::aspect::fp16);
                 else if constexpr (std::is_same_v<R, double>)
@@ -506,10 +506,10 @@ namespace SushiBLAS
                 {
                     Tensor tensor = this->engine->create_tensor(
                         SushiRuntime::span<const int64_t>(dims.data(), dims.size()),
-                        get_sushiblas_dtype<T>());
+                        sushiblas_dtype<T>());
                     EXPECT_EQ(stored.size(), static_cast<std::size_t>(tensor.num_elements));
                     if (!stored.empty())
-                        TestEnvironment::get_context().devices().queue(0)
+                        TestEnvironment::queue()
                             .memcpy(tensor.data(), stored.data(), stored.size() * sizeof(T))
                             .wait();
                     return tensor;
@@ -525,20 +525,20 @@ namespace SushiBLAS
                 [[nodiscard]] Tensor dense_of(int64_t n, const std::vector<T>& row_ordered)
                 {
                     return tensor_of({n, n},
-                                     in_layout(row_ordered, n, n, this->engine->get_layout()));
+                                     in_layout(row_ordered, n, n, this->engine->layout()));
                 }
 
                 /** @brief Returns the packed values of one triangle of a dense n x n matrix. */
                 [[nodiscard]] std::vector<T> packed(const std::vector<T>& dense, int64_t n,
                                                     Core::Uplo uplo) const
                 {
-                    return to_packed(dense, n, uplo, this->engine->get_layout());
+                    return to_packed(dense, n, uplo, this->engine->layout());
                 }
 
                 /** @brief Returns the packed tensor of K_HAND_GROWING or K_HAND_SHRINKING. */
                 [[nodiscard]] Tensor hand_triangle(Core::Uplo uplo)
                 {
-                    return vector_of(elements<T>(is_growing(uplo, this->engine->get_layout())
+                    return vector_of(elements<T>(is_growing(uplo, this->engine->layout())
                                                      ? K_HAND_GROWING
                                                      : K_HAND_SHRINKING));
                 }
@@ -582,7 +582,7 @@ namespace SushiBLAS
                     Tensor from_second = vector_of(initial);
                     first(from_first);
                     second(from_second);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     const std::vector<T> result = read_tensor<T>(from_first);
                     expect_equal(result, read_tensor<T>(from_second));
@@ -603,7 +603,7 @@ namespace SushiBLAS
                     Tensor from_dense = dense_of(n, dense);
                     packed_call(from_packed);
                     dense_call(from_dense);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     expect_equal(read_tensor<T>(from_packed),
                                  packed(read_row_ordered(from_dense, n), n, uplo));
@@ -638,7 +638,7 @@ namespace SushiBLAS
                     ops.hpr(x, results[K_HPR], in.uplo, in.alpha);
                     ops.spr2(x, y, results[K_SPR2], in.uplo, in.alpha);
                     ops.hpr2(x, y, results[K_HPR2], in.uplo, in.alpha);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     std::vector<std::vector<T>> values;
                     values.reserve(results.size());
@@ -667,7 +667,7 @@ namespace SushiBLAS
                     SushiBLAS::BLASOps ops(*this->engine);
                     ops.spmv(ap, x, from_packed, Core::Uplo::Upper, K_ALPHA, K_BETA);
                     ops.symv(full, x, from_dense, Core::Uplo::Upper, K_ALPHA, K_BETA);
-                    this->engine->execute();
+                    this->engine->execute().value();
                     return {{read_tensor<T>(from_packed), read_tensor<T>(from_dense)}};
                 }
         };
@@ -718,7 +718,7 @@ namespace SushiBLAS
                     Tensor y = this->vector_of(std::vector<T>(3, poison<T>()));
 
                     SushiBLAS::BLASOps(*this->engine).spmv(AP, x, y, uplo);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     expect_equal(read_tensor<T>(y), elements<T>({5, 8, 10}));
                 }
@@ -741,7 +741,7 @@ namespace SushiBLAS
                     Tensor x = this->vector_of(elements<T>({1, 2, 3}));
 
                     SushiBLAS::BLASOps(*this->engine).tpmv(AP, x, row.uplo, row.trans, row.diag);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     expect_equal(read_tensor<T>(x),
                                  elements<T>({row.product[0], row.product[1], row.product[2]}));
@@ -766,7 +766,7 @@ namespace SushiBLAS
                         elements<T>({row.product[0], row.product[1], row.product[2]}));
 
                     SushiBLAS::BLASOps(*this->engine).tpsv(AP, b, row.uplo, row.trans, row.diag);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     expect_equal(read_tensor<T>(b), elements<T>({1, 2, 3}));
                 }
@@ -789,7 +789,7 @@ namespace SushiBLAS
                     Tensor AP = this->vector_of(elements<T>({0, 0, 0, 0, 0, 0}));
 
                     SushiBLAS::BLASOps(*this->engine).spr(x, AP, uplo, 2.0);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     expect_equal(read_tensor<T>(AP),
                                  is_growing(uplo, layout) ? elements<T>({2, 4, 8, 6, 12, 18})
@@ -815,7 +815,7 @@ namespace SushiBLAS
                     Tensor AP = this->vector_of(elements<T>({0, 0, 0}));
 
                     SushiBLAS::BLASOps(*this->engine).spr2(x, y, AP, uplo, 1.0);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     expect_equal(read_tensor<T>(AP), elements<T>({6, 11, 20}));
                 }
@@ -1039,7 +1039,7 @@ namespace SushiBLAS
                     Tensor y = this->vector_of(std::vector<T>(3, poison<T>()));
 
                     SushiBLAS::BLASOps(*this->engine).hpmv(AP, x_tensor, y, uplo);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     expect_equal(read_tensor<T>(y),
                                  narrowed_all<T>({Wide(0, 2), Wide(10, -2), Wide(8, 4)}));
@@ -1065,7 +1065,7 @@ namespace SushiBLAS
                         narrowed_all<T>({Wide(0, 7), Wide(0, 0), Wide(0, 7)}));
 
                     SushiBLAS::BLASOps(*this->engine).hpr(x, AP, uplo, 2.0);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     const double sign = (uplo == Core::Uplo::Upper) ? 1.0 : -1.0;
                     expect_equal(read_tensor<T>(AP),
@@ -1091,7 +1091,7 @@ namespace SushiBLAS
                     Tensor AP = this->vector_of(std::vector<T>(3));
 
                     SushiBLAS::BLASOps(*this->engine).hpr2(x, y, AP, uplo, Wide(0.0, 1.0));
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     const double sign = (uplo == Core::Uplo::Upper) ? 1.0 : -1.0;
                     expect_equal(read_tensor<T>(AP),
@@ -1122,7 +1122,7 @@ namespace SushiBLAS
                 ops.spmv(AP, ones, from_spmv, Core::Uplo::Upper);
                 Tensor from_tpmv = vector_of(elements<T>({1, 1, 1, 1}));
                 ops.tpmv(AP, from_tpmv, Core::Uplo::Upper);
-                engine->execute();
+                engine->execute().value();
 
                 expect_equal(read_tensor<T>(from_spmv), elements<T>({2, 1, 1, -2048}));
                 expect_equal(read_tensor<T>(from_tpmv), elements<T>({2, 0, 0, 0}));
@@ -1145,7 +1145,7 @@ namespace SushiBLAS
                 Tensor b = vector_of(elements<T>({2048, 1, 2050}));
 
                 SushiBLAS::BLASOps(*engine).tpsv(AP, b, Core::Uplo::Lower);
-                engine->execute();
+                engine->execute().value();
 
                 expect_equal(read_tensor<T>(b), elements<T>({2048, 2048, 1}));
             });

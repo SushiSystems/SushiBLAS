@@ -31,7 +31,7 @@
 
 namespace SushiBLAS 
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle NonLinearOps::sigmoid(Tensor& t) 
     {

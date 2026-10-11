@@ -80,7 +80,7 @@ class Unit_MaxMinNaNTest : public SushiBLASTest
             auto min = engine->create_tensor({1});
             SushiBLAS::ReductionOps(*engine).max(t, max);
             SushiBLAS::ReductionOps(*engine).min(t, min);
-            engine->execute();
+            engine->execute().value();
 
             verify_tensor(max, {expected_max}, K_TOLERANCE);
             verify_tensor(min, {expected_min}, K_TOLERANCE);
@@ -115,7 +115,7 @@ TEST_F(Unit_MaxMinNaNTest, SignedZerosGivePositiveMaxAndNegativeMinInEitherOrder
         auto min = engine->create_tensor({1});
         SushiBLAS::ReductionOps(*engine).max(t, max);
         SushiBLAS::ReductionOps(*engine).min(t, min);
-        engine->execute();
+        engine->execute().value();
 
         const float got_max = read_tensor<float>(max)[0];
         const float got_min = read_tensor<float>(min)[0];
@@ -133,7 +133,7 @@ TEST_F(Unit_MaxMinNaNTest, MaxAlongARowOfNegativeInfinitiesGivesNegativeInfinity
 
     auto out = engine->create_tensor({1});
     SushiBLAS::ReductionOps(*engine).max_along(x, 1, out);
-    engine->execute();
+    engine->execute().value();
 
     verify_tensor(out, {-K_INF}, K_TOLERANCE);
 }
@@ -203,12 +203,12 @@ TEST_F(Unit_MaxMinNaNTest, AxisExtremaPropagateNaN)
     auto min = engine->create_tensor({static_cast<int64_t>(K_AXIS_ROWS)});
     SushiBLAS::ReductionOps(*engine).max_along(x, 1, max);
     SushiBLAS::ReductionOps(*engine).min_along(x, 1, min);
-    engine->execute();
+    engine->execute().value();
 
     verify_tensor(max, expected_max, K_TOLERANCE);
     verify_tensor(min, expected_min, K_TOLERANCE);
 
-    auto& q = TestEnvironment::get_context().devices().queue(0);
+    auto& q = TestEnvironment::queue();
     const std::size_t local = Reduce::group_width(SushiBLAS::Device::profile_for(q));
     ASSERT_GT(local, 1u) << "the cooperative shape needs a group wider than one";
 

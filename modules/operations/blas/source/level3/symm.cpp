@@ -41,11 +41,11 @@
 #include <SushiBLAS/blas_seam_kernels/symmetric_access.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_accessed_packed.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     namespace
     {
@@ -56,7 +56,7 @@ namespace SushiBLAS
          */
         template<typename Conj>
         TaskHandle record_symm(TaskRecorder& recorder, const char* op,
-                               SushiRuntime::Graph::OpID op_id,
+                               SushiRuntime::OperationID op_id,
                                const Tensor& A, const Tensor& B, Tensor& C,
                                Core::Side side, Core::Uplo uplo,
                                BLASScalar alpha, BLASScalar beta)

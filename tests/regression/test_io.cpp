@@ -174,11 +174,11 @@ namespace SushiBLAS
 
         TEST_F(Regression_IO, BinRoundTripsDeviceAllocatedStorage)
         {
-            if (!TestEnvironment::get_context().devices().queue(0).get_device().is_gpu())
+            if (!TestEnvironment::queue().get_device().is_gpu())
                 GTEST_SKIP() << "Device USM is host-readable on this device; "
                                 "the test proves nothing here.";
 
-            const auto device = SushiRuntime::API::Residency::Device;
+            const auto device = SushiRuntime::Residency::Device;
             const std::vector<float> values{1.0f, 2.0f, 3.0f, 4.0f};
 
             const std::string path = temp_path("device.bin");
@@ -208,10 +208,10 @@ namespace SushiBLAS
             drop_tail(npy_path, 1);
 
             const std::vector<float> sentinel{7.0f, 7.0f, 7.0f, 7.0f};
-            for (const auto residency : {SushiRuntime::API::Residency::Shared,
-                                         SushiRuntime::API::Residency::Device})
+            for (const auto residency : {SushiRuntime::Residency::Shared,
+                                         SushiRuntime::Residency::Device})
             {
-                SCOPED_TRACE(residency == SushiRuntime::API::Residency::Device ? "Device"
+                SCOPED_TRACE(residency == SushiRuntime::Residency::Device ? "Device"
                                                                                : "Shared");
                 auto target = engine->create_tensor({4}, Core::DataType::Float32, residency);
                 fill_tensor(target, sentinel);
@@ -239,10 +239,10 @@ namespace SushiBLAS
             for (size_t i = 0; i < values.size(); ++i)
                 values[i] = static_cast<float>(i % 8191) - 4095.0f;
 
-            for (const auto residency : {SushiRuntime::API::Residency::Device,
-                                         SushiRuntime::API::Residency::Shared})
+            for (const auto residency : {SushiRuntime::Residency::Device,
+                                         SushiRuntime::Residency::Shared})
             {
-                const bool on_device = residency == SushiRuntime::API::Residency::Device;
+                const bool on_device = residency == SushiRuntime::Residency::Device;
                 SCOPED_TRACE(on_device ? "Device" : "Shared");
                 const std::string path =
                     temp_path(on_device ? "chunks_device.bin" : "chunks_shared.bin");

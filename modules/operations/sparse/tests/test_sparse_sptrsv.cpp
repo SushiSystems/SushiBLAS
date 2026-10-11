@@ -140,7 +140,7 @@ namespace SushiBLAS
                 {
                     SushiBLASTest::SetUp();
                     if (std::is_same_v<T, sycl::half> &&
-                        !TestEnvironment::get_context().devices().queue(0).get_device().has(
+                        !TestEnvironment::queue().get_device().has(
                             sycl::aspect::fp16))
                         GTEST_SKIP() << "the device does not report the fp16 aspect";
                 }
@@ -148,7 +148,7 @@ namespace SushiBLAS
                 /** @brief Returns the CSR matrix of host triplets, stored with base. */
                 [[nodiscard]] SparseMatrix build(const HostTriplets<T>& host, Core::IndexBase base)
                 {
-                    const SparseBuilder builder(engine->get_tensor_factory());
+                    const SparseBuilder builder(engine->tensor_factory());
                     return builder.matrix_from_triplets(
                         host.rows, host.cols, stored_indices<Index>(host.row_indices, base),
                         stored_indices<Index>(host.column_indices, base), host.values, base);
@@ -198,7 +198,7 @@ namespace SushiBLAS
                     engine->set_mode(mode);
                     Tensor tb = vector_of(b);
                     SushiBLAS::SparseOps(*engine).sptrsv(A, tb, uplo, trans, diag);
-                    engine->execute();
+                    engine->execute().value();
                     return read_tensor<T>(tb);
                 }
 
@@ -422,9 +422,9 @@ namespace SushiBLAS
 
                 this->engine->set_mode(mode);
                 const SparseMatrix A = this->build(empty, Core::IndexBase::Zero);
-                Tensor b = this->engine->create_tensor({0}, get_sushiblas_dtype<T>());
+                Tensor b = this->engine->create_tensor({0}, sushiblas_dtype<T>());
                 EXPECT_NO_THROW(SparseOps(*this->engine).sptrsv(A, b, Core::Uplo::Lower));
-                EXPECT_NO_THROW(this->engine->execute());
+                EXPECT_TRUE(this->engine->execute().has_value());
             }
         }
 

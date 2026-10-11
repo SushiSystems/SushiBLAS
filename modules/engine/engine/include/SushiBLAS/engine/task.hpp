@@ -41,7 +41,6 @@
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
-#include <SushiRuntime/task/task_types.hpp>
 
 namespace SushiBLAS
 {
@@ -136,7 +135,7 @@ namespace SushiBLAS
          */
         template<Dispatch::Domain Dom = Dispatch::Domain::RealAndComplex, typename Func>
         TaskHandle execute_typed_task(TaskRecorder& recorder,
-                                      const SushiRuntime::Graph::TaskMetadata& meta,
+                                      const SushiRuntime::Internal::Graph::TaskMetadata& meta,
                                       const OperandSet& operands, Core::DataType dtype,
                                       const char* family, Func&& op_func)
         {

@@ -82,10 +82,10 @@ TYPED_TEST(Unit_ReductionOpsTyped, Sum)
     T expected = ReferenceKernels::sum(data);
 
     auto t = this->template create_initialized_tensor<T>({100}, data);
-    auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+    auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
     SushiBLAS::ReductionOps(*this->engine).sum(t, res);
-    this->engine->execute();
+    this->engine->execute().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -97,10 +97,10 @@ TYPED_TEST(Unit_ReductionOpsTyped, Mean)
     T expected = ReferenceKernels::mean(data);
 
     auto t = this->template create_initialized_tensor<T>({100}, data);
-    auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+    auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
     SushiBLAS::ReductionOps(*this->engine).mean(t, res);
-    this->engine->execute();
+    this->engine->execute().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -113,10 +113,10 @@ TYPED_TEST(Unit_ReductionOpsTyped, Max)
     T expected = ReferenceKernels::max(data);
 
     auto t = this->template create_initialized_tensor<T>({100}, data);
-    auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+    auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
     SushiBLAS::ReductionOps(*this->engine).max(t, res);
-    this->engine->execute();
+    this->engine->execute().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -129,10 +129,10 @@ TYPED_TEST(Unit_ReductionOpsTyped, Min)
     T expected = ReferenceKernels::min(data);
 
     auto t = this->template create_initialized_tensor<T>({100}, data);
-    auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+    auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
     SushiBLAS::ReductionOps(*this->engine).min(t, res);
-    this->engine->execute();
+    this->engine->execute().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -150,7 +150,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, ArgMax)
     auto res = this->engine->create_tensor({1}, Core::DataType::Int64);
 
     SushiBLAS::ReductionOps(*this->engine).argmax(t, res);
-    this->engine->execute();
+    this->engine->execute().value();
 
     EXPECT_TENSOR_NEAR(res, {static_cast<float>(expected)}, 0.0);
 }
@@ -168,7 +168,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, ArgMin)
     auto res = this->engine->create_tensor({1}, Core::DataType::Int64);
 
     SushiBLAS::ReductionOps(*this->engine).argmin(t, res);
-    this->engine->execute();
+    this->engine->execute().value();
 
     EXPECT_TENSOR_NEAR(res, {static_cast<float>(expected)}, 0.0);
 }
@@ -180,10 +180,10 @@ TYPED_TEST(Unit_ReductionOpsTyped, Var)
     T expected = ReferenceKernels::var(data);
 
     auto t = this->template create_initialized_tensor<T>({5}, data);
-    auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+    auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
     SushiBLAS::ReductionOps(*this->engine).var(t, res);
-    this->engine->execute();
+    this->engine->execute().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -195,10 +195,10 @@ TYPED_TEST(Unit_ReductionOpsTyped, Std)
     T expected = ReferenceKernels::std_dev(data);
 
     auto t = this->template create_initialized_tensor<T>({5}, data);
-    auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+    auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
     SushiBLAS::ReductionOps(*this->engine).std(t, res);
-    this->engine->execute();
+    this->engine->execute().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -210,10 +210,10 @@ TYPED_TEST(Unit_ReductionOpsTyped, Prod)
     T expected = ReferenceKernels::prod(data);
 
     auto t = this->template create_initialized_tensor<T>({5}, data);
-    auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+    auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
     SushiBLAS::ReductionOps(*this->engine).prod(t, res);
-    this->engine->execute();
+    this->engine->execute().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -225,10 +225,10 @@ TYPED_TEST(Unit_ReductionOpsTyped, LogSumExp)
     T expected = ReferenceKernels::logsumexp(data);
 
     auto t = this->template create_initialized_tensor<T>({3}, data);
-    auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+    auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
     SushiBLAS::ReductionOps(*this->engine).logsumexp(t, res);
-    this->engine->execute();
+    this->engine->execute().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -240,10 +240,10 @@ TYPED_TEST(Unit_ReductionOpsTyped, Asum)
     T expected = ReferenceKernels::asum(data);
 
     auto t = this->template create_initialized_tensor<T>({5}, data);
-    auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+    auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
     SushiBLAS::ReductionOps(*this->engine).asum(t, res);
-    this->engine->execute();
+    this->engine->execute().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -255,10 +255,10 @@ TYPED_TEST(Unit_ReductionOpsTyped, Nrm2)
     T expected = ReferenceKernels::nrm2(data);
 
     auto t = this->template create_initialized_tensor<T>({4}, data);
-    auto res = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+    auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
     SushiBLAS::ReductionOps(*this->engine).nrm2(t, res);
-    this->engine->execute();
+    this->engine->execute().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -558,7 +558,7 @@ namespace
     Tensor tensor_of(Engine& engine, const std::vector<int64_t>& dims, const std::vector<T>& values)
     {
         Tensor t = engine.create_tensor(SushiRuntime::span<const int64_t>(dims.data(), dims.size()),
-                                        get_sushiblas_dtype<T>());
+                                        sushiblas_dtype<T>());
         SushiBLAS::IO(engine).from_vector(t, values);
         return t;
     }
@@ -586,13 +586,13 @@ namespace
 
             Tensor result = engine.create_tensor(
                 SushiRuntime::span<const int64_t>(call.result_dims.data(), call.result_dims.size()),
-                get_sushiblas_dtype<Out>());
+                sushiblas_dtype<Out>());
             fill_tensor(result, std::vector<float>(static_cast<std::size_t>(result.num_elements),
                                                    K_UNWRITTEN));
 
             ReductionOps reductions(engine);
             call.record(reductions, result);
-            engine.execute();
+            engine.execute().value();
 
             std::vector<Out>& written =
                 mode == ExecutionMode::ForceReference ? results.reference : results.device;
@@ -777,16 +777,16 @@ class Unit_ReductionOps : public SushiBLASTest
 
             GraphProbe on_host(ExecutionMode::ForceReference);
             GraphProbe on_device(ExecutionMode::ForceSYCL);
-            ReductionOps host_reductions(on_host.get_recorder());
-            ReductionOps device_reductions(on_device.get_recorder());
+            ReductionOps host_reductions(on_host.recorder());
+            ReductionOps device_reductions(on_device.recorder());
 
             const std::string host_message = refusal_of([&] { record(host_reductions); });
             const std::string device_message = refusal_of([&] { record(device_reductions); });
 
             EXPECT_FALSE(host_message.empty());
             EXPECT_EQ(host_message, device_message);
-            EXPECT_TRUE(on_host.take_nodes().empty());
-            EXPECT_TRUE(on_device.take_nodes().empty());
+            EXPECT_EQ(0u, on_host.take_recorded_count());
+            EXPECT_EQ(0u, on_device.take_recorded_count());
         }
 
         /** @brief Returns a FLOAT32 tensor of dims in device-only USM, or nothing where none can be had. */
@@ -795,7 +795,7 @@ class Unit_ReductionOps : public SushiBLASTest
             try
             {
                 return engine->create_tensor(dims, Core::DataType::Float32,
-                                             SushiRuntime::API::Residency::Device);
+                                             SushiRuntime::Residency::Device);
             }
             catch (const std::exception&)
             {
@@ -811,7 +811,7 @@ class Unit_ReductionOps : public SushiBLASTest
 
             auto result = engine->create_tensor({1});
             SushiBLAS::ReductionOps(*engine).logsumexp(t, result);
-            engine->execute();
+            engine->execute().value();
 
             verify_tensor(result, {expected}, K_LOGSUMEXP_TOLERANCE);
         }
@@ -827,7 +827,7 @@ class Unit_ReductionOps : public SushiBLASTest
 
             SushiBLAS::ReductionOps(*engine).argmax(t, at_max);
             SushiBLAS::ReductionOps(*engine).argmin(t, at_min);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_EQ(expected_max, read_tensor<int64_t>(at_max)[0]);
             EXPECT_EQ(expected_min, read_tensor<int64_t>(at_min)[0]);
@@ -902,7 +902,7 @@ TEST_F(Unit_ReductionOps, ADeviceOnlyOperandIsRefusedOnEverySeam)
     auto per_channel = engine->create_tensor({1, 3});
 
     GraphProbe on_host(ExecutionMode::ForceReference);
-    ReductionOps refused(on_host.get_recorder());
+    ReductionOps refused(on_host.recorder());
 
     // One call per seam: folding, centred, index, counting, and the span seam twice.
     expect_mode_refusal("sum", [&] { refused.sum(*t, scalar); });
@@ -911,10 +911,10 @@ TEST_F(Unit_ReductionOps, ADeviceOnlyOperandIsRefusedOnEverySeam)
     expect_mode_refusal("count_nonfinite", [&] { refused.count_nonfinite(*t, index); });
     expect_mode_refusal("sum_along", [&] { refused.sum_along(*matrix, 1, per_row); });
     expect_mode_refusal("mean_spatial", [&] { refused.mean_spatial(*image, per_channel); });
-    EXPECT_TRUE(on_host.take_nodes().empty());
+    EXPECT_EQ(0u, on_host.take_recorded_count());
 
     GraphProbe on_device(ExecutionMode::ForceSYCL);
-    ReductionOps recorded(on_device.get_recorder());
+    ReductionOps recorded(on_device.recorder());
 
     EXPECT_NO_THROW(recorded.sum(*t, scalar));
     EXPECT_NO_THROW(recorded.var(*t, scalar));
@@ -922,7 +922,7 @@ TEST_F(Unit_ReductionOps, ADeviceOnlyOperandIsRefusedOnEverySeam)
     EXPECT_NO_THROW(recorded.count_nonfinite(*t, index));
     EXPECT_NO_THROW(recorded.sum_along(*matrix, 1, per_row));
     EXPECT_NO_THROW(recorded.mean_spatial(*image, per_channel));
-    EXPECT_EQ(6u, on_device.take_nodes().size());
+    EXPECT_EQ(6u, on_device.take_recorded_count());
 }
 
 /**
@@ -983,11 +983,10 @@ TEST_F(Unit_ReductionOps, AReferenceReductionLeasesNoScratch)
     auto count = engine->create_tensor({1}, Core::DataType::Int64);
 
     GraphProbe probe(ExecutionMode::ForceReference);
-    ReductionOps reductions(probe.get_recorder());
+    ReductionOps reductions(probe.recorder());
 
-    auto& context = TestEnvironment::get_context();
-    const std::size_t idle_before = probe.get_scratch_pool().idle_block_count();
-    const std::size_t live_before = context.memory().live_count();
+    const std::size_t idle_before = probe.scratch_pool().idle_block_count();
+    const std::size_t live_before = TestEnvironment::live_allocation_count();
 
     reductions.sum(t, total);
     reductions.var(t, variance);
@@ -995,12 +994,12 @@ TEST_F(Unit_ReductionOps, AReferenceReductionLeasesNoScratch)
     reductions.count_nonfinite(t, count);
 
     // A lease would be a live allocation from the moment its task is recorded.
-    EXPECT_EQ(live_before, context.memory().live_count());
+    EXPECT_EQ(live_before, TestEnvironment::live_allocation_count());
 
-    probe.execute();
+    probe.execute().value();
 
-    EXPECT_EQ(idle_before, probe.get_scratch_pool().idle_block_count());
-    EXPECT_EQ(live_before, context.memory().live_count());
+    EXPECT_EQ(idle_before, probe.scratch_pool().idle_block_count());
+    EXPECT_EQ(live_before, TestEnvironment::live_allocation_count());
     EXPECT_EQ(0, read_tensor<int64_t>(count)[0]);
 }
 
@@ -1023,7 +1022,7 @@ TEST_F(Unit_ReductionOps, AHostMeanDividesBeforeItNarrows)
 
     ReductionOps(*engine).mean(t, mean);
     ReductionOps(*engine).mean_spatial(image, spatial_mean);
-    engine->execute();
+    engine->execute().value();
 
     const float got_mean = read_tensor<float>(mean)[0];
     const float got_spatial_mean = read_tensor<float>(spatial_mean)[0];
@@ -1140,12 +1139,12 @@ TYPED_TEST(Unit_ReductionMomentsTyped, VarianceMatchesATwoPassHostReference)
             value = static_cast<T>(distribution(generator));
 
         auto t = this->template create_initialized_tensor<T>({static_cast<int64_t>(size)}, values);
-        auto variance = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
-        auto deviation = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+        auto variance = this->engine->create_tensor({1}, sushiblas_dtype<T>());
+        auto deviation = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
         SushiBLAS::ReductionOps(*this->engine).var(t, variance);
         SushiBLAS::ReductionOps(*this->engine).std(t, deviation);
-        this->engine->execute();
+        this->engine->execute().value();
 
         const long double expected_variance = host_variance(values);
         const long double expected_deviation = std::sqrt(expected_variance);
@@ -1171,7 +1170,7 @@ class Unit_ReductionReferenceTyped : public SushiBLASTest
         {
             SushiBLASTest::SetUp();
 
-            const sycl::device device = TestEnvironment::get_context().devices().queue(0).get_device();
+            const sycl::device device = TestEnvironment::queue().get_device();
             if (std::is_same_v<T, sycl::half> && !device.has(sycl::aspect::fp16))
                 GTEST_SKIP() << "the device does not report the fp16 aspect";
         }

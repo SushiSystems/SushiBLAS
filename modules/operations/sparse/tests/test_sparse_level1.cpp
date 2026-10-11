@@ -118,7 +118,7 @@ namespace SushiBLAS
                 {
                     SushiBLASTest::SetUp();
                     if (std::is_same_v<T, sycl::half> &&
-                        !TestEnvironment::get_context().devices().queue(0).get_device().has(
+                        !TestEnvironment::queue().get_device().has(
                             sycl::aspect::fp16))
                         GTEST_SKIP() << "the device does not report the fp16 aspect";
                 }
@@ -132,7 +132,7 @@ namespace SushiBLAS
                     for (std::size_t i = 0; i < values.size(); ++i)
                         host[i] = narrowed<T>(values[i]);
 
-                    const SparseBuilder builder(engine->get_tensor_factory());
+                    const SparseBuilder builder(engine->tensor_factory());
                     return builder.vector_from_entries(size, stored_indices<Index>(positions, base),
                                                        host, base);
                 }
@@ -208,7 +208,7 @@ namespace SushiBLAS
                 {
                     auto on = this->operands(mode, base);
                     SparseOps(*this->engine).axpyi(2.0, on.x, on.y);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     this->expect_near(read_tensor<T>(on.y), reals({1, 42, 3, 4, 65, 6, 27, 8}),
                                       0.0);
@@ -229,7 +229,7 @@ namespace SushiBLAS
                     {
                         // 10 * 7 + 20 * 2 + 30 * 5.
                         SparseOps(*this->engine).doti(on.x, on.y, on.result);
-                        this->engine->execute();
+                        this->engine->execute().value();
                         this->expect_near(read_tensor<T>(on.result), reals({260}), 0.0);
                         continue;
                     }
@@ -268,7 +268,7 @@ namespace SushiBLAS
                     SparseOps ops(*this->engine);
                     ops.dotui(on.x, on.y, on.result);
                     ops.dotci(on.x, on.y, conjugated);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     if (Core::is_complex_v<T>)
                     {
@@ -301,7 +301,7 @@ namespace SushiBLAS
                 ops.doti(on.x, on.y, on.result);
                 ops.dotui(on.x, on.y, unconjugated);
                 ops.dotci(on.x, on.y, conjugated);
-                this->engine->execute();
+                this->engine->execute().value();
 
                 const T plain = read_tensor<T>(on.result)[0];
                 EXPECT_EQ(widened(plain), std::complex<double>(260.0, 0.0));
@@ -320,7 +320,7 @@ namespace SushiBLAS
                 {
                     auto on = this->operands(mode, base);
                     SparseOps(*this->engine).gthr(on.y, on.x);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     this->expect_near(read_tensor<T>(on.x.values), reals({7, 2, 5}), 0.0);
                     this->expect_near(read_tensor<T>(on.y), reals({1, 2, 3, 4, 5, 6, 7, 8}), 0.0);
@@ -338,7 +338,7 @@ namespace SushiBLAS
                 {
                     auto on = this->operands(mode, base);
                     SparseOps(*this->engine).gthrz(on.y, on.x);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     this->expect_near(read_tensor<T>(on.x.values), reals({7, 2, 5}), 0.0);
                     this->expect_near(read_tensor<T>(on.y), reals({1, 0, 3, 4, 0, 6, 0, 8}), 0.0);
@@ -356,7 +356,7 @@ namespace SushiBLAS
                 {
                     auto on = this->operands(mode, base);
                     SparseOps(*this->engine).sctr(on.x, on.y);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     this->expect_near(read_tensor<T>(on.y), reals({1, 20, 3, 4, 30, 6, 10, 8}),
                                       0.0);
@@ -376,7 +376,7 @@ namespace SushiBLAS
                 {
                     auto on = this->operands(mode, base);
                     SparseOps(*this->engine).roti(on.x, on.y, 0.25, 0.5);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     this->expect_near(read_tensor<T>(on.x.values), reals({6, 6, 10}), 0.0);
                     this->expect_near(read_tensor<T>(on.y),
@@ -410,7 +410,7 @@ namespace SushiBLAS
                     Tensor y = this->every_second(wide);
 
                     SparseOps(*this->engine).axpyi(2.0, x, y);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     this->expect_near(read_tensor<T>(wide), expected, 0.0);
                 }
@@ -434,7 +434,7 @@ namespace SushiBLAS
                     SparseOps ops(*this->engine);
                     ops.axpyi(2.0, on.x, on.y);
                     ops.dotui(on.x, on.y, on.result);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     this->expect_near(read_tensor<T>(on.y), dense, 0.0);
                     this->expect_near(read_tensor<T>(on.result), reals({0}), 0.0);
@@ -466,7 +466,7 @@ namespace SushiBLAS
             {
                 auto on = this->operands(mode, Core::IndexBase::One, positions, entries, dense);
                 SparseOps(*this->engine).dotui(on.x, on.y, on.result);
-                this->engine->execute();
+                this->engine->execute().value();
 
                 this->expect_near(read_tensor<T>(on.result), reals({sum}), 0.0);
             }
@@ -491,7 +491,7 @@ namespace SushiBLAS
             {
                 auto on = operands(mode, Core::IndexBase::Zero, {2}, reals({683}), dense);
                 SparseOps(*engine).axpyi(3.0, on.x, on.y);
-                engine->execute();
+                engine->execute().value();
 
                 expect_near(read_tensor<sycl::half>(on.y), expected, 0.0);
             }
@@ -516,12 +516,12 @@ namespace SushiBLAS
                 [[nodiscard]] Operands operands(ExecutionMode mode)
                 {
                     engine->set_mode(mode);
-                    const SparseBuilder builder(engine->get_tensor_factory());
+                    const SparseBuilder builder(engine->tensor_factory());
                     return Operands{
                         builder.vector_from_entries(K_SIZE, std::vector<int32_t>{6, 1, 4},
                                                     std::vector<V>{10, 20, 30}),
                         create_initialized_tensor<V>({K_SIZE}, {1, 2, 3, 4, 5, 6, 7, 8}),
-                        engine->create_tensor({1}, get_sushiblas_dtype<V>())};
+                        engine->create_tensor({1}, sushiblas_dtype<V>())};
                 }
 
                 /** @brief Expects gthr, gthrz and sctr to move values of type V as they stand. */
@@ -532,21 +532,21 @@ namespace SushiBLAS
                     {
                         Operands gathered = operands<V>(mode);
                         SparseOps(*engine).gthr(gathered.y, gathered.x);
-                        engine->execute();
+                        engine->execute().value();
                         EXPECT_EQ(read_tensor<V>(gathered.x.values), (std::vector<V>{7, 2, 5}));
                         EXPECT_EQ(read_tensor<V>(gathered.y),
                                   (std::vector<V>{1, 2, 3, 4, 5, 6, 7, 8}));
 
                         Operands zeroed = operands<V>(mode);
                         SparseOps(*engine).gthrz(zeroed.y, zeroed.x);
-                        engine->execute();
+                        engine->execute().value();
                         EXPECT_EQ(read_tensor<V>(zeroed.x.values), (std::vector<V>{7, 2, 5}));
                         EXPECT_EQ(read_tensor<V>(zeroed.y),
                                   (std::vector<V>{1, 0, 3, 4, 0, 6, 0, 8}));
 
                         Operands scattered = operands<V>(mode);
                         SparseOps(*engine).sctr(scattered.x, scattered.y);
-                        engine->execute();
+                        engine->execute().value();
                         EXPECT_EQ(read_tensor<V>(scattered.y),
                                   (std::vector<V>{1, 20, 3, 4, 30, 6, 10, 8}));
                     }

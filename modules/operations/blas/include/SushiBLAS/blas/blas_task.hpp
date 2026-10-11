@@ -33,7 +33,6 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
-#include <SushiRuntime/task/task_types.hpp>
 
 namespace SushiBLAS
 {
@@ -49,7 +48,7 @@ namespace SushiBLAS
          */
         template<Dispatch::Domain Dom = Dispatch::Domain::RealAndComplex, typename Func>
         TaskHandle execute_blas_task(TaskRecorder& recorder,
-                                     const SushiRuntime::Graph::TaskMetadata& meta,
+                                     const SushiRuntime::Internal::Graph::TaskMetadata& meta,
                                      const OperandSet& operands, Core::DataType dtype,
                                      Func&& op_func)
         {

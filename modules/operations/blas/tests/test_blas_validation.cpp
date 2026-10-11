@@ -39,7 +39,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        using namespace SushiRuntime::Graph::Literals;
+        using namespace SushiRuntime::Literals;
 
         namespace
         {
@@ -111,7 +111,7 @@ namespace SushiBLAS
             auto C = engine->create_tensor({2, 2, 2});
 
             SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-            engine->execute();
+            engine->execute().value();
 
             verify_tensor(C, K_BROADCAST_C, K_TOLERANCE);
         }
@@ -185,7 +185,7 @@ namespace SushiBLAS
             auto C = engine->create_tensor({2, 2, 2});
 
             SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-            engine->execute();
+            engine->execute().value();
 
             verify_tensor(C, K_BROADCAST_C, K_TOLERANCE);
         }
@@ -424,7 +424,7 @@ namespace SushiBLAS
             auto C = engine->create_tensor({2, 2}, Core::DataType::Complex32);
 
             EXPECT_THROW(Dispatch::execute_gemm<Dispatch::Domain::Real>(
-                             engine->get_recorder(), A, B, C, Core::Transpose::NoTrans,
+                             engine->recorder(), A, B, C, Core::Transpose::NoTrans,
                              Core::Transpose::NoTrans, 1.0, 0.0, "test.gemm_real_domain",
                              "test.gemm_real_domain"_op, Kernels::GemmIdentityEpilogue{}),
                          std::invalid_argument);

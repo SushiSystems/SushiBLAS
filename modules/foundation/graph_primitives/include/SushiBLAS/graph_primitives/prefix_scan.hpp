@@ -40,7 +40,6 @@
 #include <SushiRuntime/api/graph/recorder.hpp>
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
-#include <SushiRuntime/memory/resource_region.hpp>
 
 #include <SushiBLAS/graph_primitives/combiners.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
@@ -56,22 +55,22 @@ namespace SushiBLAS
          * @param counts  Holds at least n.capacity() elements.
          * @param offsets Holds at least n.capacity() + 1; offsets[live n] receives the sum.
          * @param total   Holds at least one element; total[0] receives the sum.
-         * @throws SushiRuntime::Core::SushiException With invalid_graph for a short buffer or
+         * @throws SushiRuntime::SushiException With invalid_graph for a short buffer or
          *         for counts and offsets on different devices; a run throws past n.capacity().
          */
-        inline void prefix_scan(SushiRuntime::API::Recorder& recorder,
-                                const SushiRuntime::API::Buffer<std::uint32_t>& counts,
-                                const SushiRuntime::API::Buffer<std::uint32_t>& offsets,
-                                const SushiRuntime::API::Buffer<std::uint32_t>& total,
-                                SushiRuntime::API::LateCount n)
+        inline void prefix_scan(SushiRuntime::Recorder& recorder,
+                                const SushiRuntime::Buffer<std::uint32_t>& counts,
+                                const SushiRuntime::Buffer<std::uint32_t>& offsets,
+                                const SushiRuntime::Buffer<std::uint32_t>& total,
+                                SushiRuntime::LateCount n)
         {
-            using SushiRuntime::API::Access;
-            using SushiRuntime::API::DeviceSized;
-            using SushiRuntime::API::LateCount;
-            using SushiRuntime::API::NodeOptions;
-            using SushiRuntime::API::Reads;
-            using SushiRuntime::API::Writes;
-            using SushiRuntime::Memory::ResourceRegion;
+            using SushiRuntime::Access;
+            using SushiRuntime::DeviceSized;
+            using SushiRuntime::LateCount;
+            using SushiRuntime::NodeOptions;
+            using SushiRuntime::Reads;
+            using SushiRuntime::Writes;
+            using SushiRuntime::BufferRegion;
 
             const std::size_t capacity = n.capacity();
             if (capacity > counts.size())

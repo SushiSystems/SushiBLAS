@@ -123,7 +123,7 @@ namespace
     void benchmark_order(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                      int64_t n)
     {
-        const SushiBLAS::SparseBuilder builder(engine.get_tensor_factory());
+        const SushiBLAS::SparseBuilder builder(engine.tensor_factory());
 
         const Triplets<T> general = spread_triplets<T>(n);
         const SushiBLAS::SparseMatrix A =
@@ -208,8 +208,8 @@ namespace
     {
         const std::vector<int64_t> sizes = Bench::parse_sizes(argc, argv, K_DEFAULT_SIZES);
 
-        SushiRuntime::Execution::RuntimeContext context;
-        SushiBLAS::Engine engine(context);
+        SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+        SushiBLAS::Engine engine(runtime);
         Bench::print_environment(engine);
 
         const Bench::ResultTable table("GB/s");

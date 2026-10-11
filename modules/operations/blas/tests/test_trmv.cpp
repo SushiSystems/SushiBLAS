@@ -52,7 +52,7 @@ TEST_F(Unit_TRMVTest, SimpleTRMV)
                                      SushiBLAS::Core::Transpose::NoTrans,
                                      SushiBLAS::Core::Diag::NonUnit);
     
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // X = A * X = [1, 2+4, 3+5+6] = [1, 6, 14].
@@ -90,7 +90,7 @@ class Unit_TRMVPoisonTest : public SushiBLASTest
 
             SushiBLAS::BLASOps(*engine).trmv(A, X, uplo_of(upper), transpose_of(trans_a),
                                              SushiBLAS::Core::Diag::NonUnit);
-            engine->execute();
+            engine->execute().value();
 
             verify_tensor(X, expected);
         }

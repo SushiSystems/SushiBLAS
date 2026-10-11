@@ -31,7 +31,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle ReductionOps::logsumexp(const Tensor& t, Tensor& result)
     {

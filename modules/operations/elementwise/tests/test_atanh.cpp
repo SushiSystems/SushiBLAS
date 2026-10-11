@@ -40,7 +40,7 @@ TEST_F(Unit_AtanhTest, FloatForward)
     fill_tensor(t, {0.0f, 0.5f, -0.5f, 0.8f});
     
     SushiBLAS::ElementwiseOps(*engine).atanh(t);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(t, {0.00000f, 0.549306f, -0.549306f, 1.098612f});
 }

@@ -126,7 +126,7 @@ namespace SushiBLAS
             [[nodiscard]] bool device_runs()
             {
                 if constexpr (std::is_same_v<T, double>)
-                    return TestEnvironment::get_context().devices().queue(0).get_device().has(
+                    return TestEnvironment::queue().get_device().has(
                         sycl::aspect::fp64);
                 else
                     return true;
@@ -190,10 +190,10 @@ namespace SushiBLAS
                 /** @brief Returns a rank-1 tensor of count elements that all hold value. */
                 [[nodiscard]] Tensor filled(int64_t count, double value)
                 {
-                    Tensor tensor = this->engine->create_tensor({count}, get_sushiblas_dtype<T>());
+                    Tensor tensor = this->engine->create_tensor({count}, sushiblas_dtype<T>());
                     const std::vector<T> values(static_cast<std::size_t>(count),
                                                 static_cast<T>(value));
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(tensor.data(), values.data(), values.size() * sizeof(T)).wait();
                     return tensor;
                 }
@@ -225,7 +225,7 @@ namespace SushiBLAS
                         param.push_back(filled(K_PARAMETERS, K_UNWRITTEN));
                         ops.rotmg(d1.back(), d2.back(), x1.back(), y1.back(), param.back());
                     }
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     std::vector<Outcome> outcomes;
                     outcomes.reserve(calls.size());

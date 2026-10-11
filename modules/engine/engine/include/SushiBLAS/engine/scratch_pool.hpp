@@ -29,7 +29,7 @@
 
 #include <cstddef>
 #include <SushiBLAS/engine/scratch_shelf.hpp>
-#include <SushiRuntime/SushiRuntime.h>
+#include <SushiRuntime/sushiruntime.hpp>
 
 namespace SushiBLAS
 {
@@ -42,11 +42,11 @@ namespace SushiBLAS
     {
         public:
             /**
-             * @brief Builds an empty pool over a runtime context.
-             * @param context Allocates every block; must outlive every ScratchBuffer leased here.
+             * @brief Builds an empty pool over a runtime.
+             * @param runtime Allocates every block; must outlive every ScratchBuffer leased here.
              */
-            explicit ScratchPool(SushiRuntime::Execution::RuntimeContext& context)
-                : shelf_(SushiRuntime::make_sushi<Detail::ScratchShelf>(context))
+            explicit ScratchPool(SushiRuntime::Runtime& runtime)
+                : shelf_(SushiRuntime::make_sushi<Detail::ScratchShelf>(runtime))
             {
 
             }

@@ -89,17 +89,6 @@ namespace SushiBLAS
                                                             outputs.shifted);
                     SushiBLAS::ReductionOps(recorder).sum(outputs.shifted, outputs.total);
                 }
-
-                /** @brief Returns the in-degree of every node, in the order they were recorded. */
-                [[nodiscard]] static std::vector<int32_t> in_degrees_of(
-                    const std::vector<SushiRuntime::sushi_ptr<SushiRuntime::Graph::Node>>& nodes)
-                {
-                    std::vector<int32_t> degrees;
-                    degrees.reserve(nodes.size());
-                    for (const auto& node : nodes)
-                        degrees.push_back(node->in_degree.load(std::memory_order_relaxed));
-                    return degrees;
-                }
         };
 
         /** @brief Tests that a record call adds its node to the recorder's graph only. */
@@ -111,10 +100,10 @@ namespace SushiBLAS
             auto x = vector_of_four();
             auto y = vector_of_four();
 
-            SushiBLAS::BLASOps(first.get_recorder()).axpy(2.0, x, y);
+            SushiBLAS::BLASOps(first.recorder()).axpy(2.0, x, y);
 
-            EXPECT_EQ(1u, first.take_nodes().size());
-            EXPECT_TRUE(second.take_nodes().empty());
+            EXPECT_EQ(1u, first.take_recorded_count());
+            EXPECT_EQ(0u, second.take_recorded_count());
         }
 
         /** @brief Tests that a recorder returns the pool it was built on. */
@@ -122,15 +111,15 @@ namespace SushiBLAS
         {
             GraphProbe probe;
 
-            EXPECT_EQ(&probe.get_recorder().get_scratch_pool(), &probe.get_scratch_pool());
-            EXPECT_EQ(&engine->get_recorder().get_scratch_pool(), &engine->get_scratch_pool());
+            EXPECT_EQ(&probe.recorder().scratch_pool(), &probe.scratch_pool());
+            EXPECT_EQ(&engine->recorder().scratch_pool(), &engine->scratch_pool());
         }
 
         /** @brief Tests that every family records and runs one task under ForceReference. */
         TEST_F(Unit_TaskRecorderTest, EveryFamilyRecordsUnderForceReference)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
-            TaskRecorder& recorder = probe.get_recorder();
+            TaskRecorder& recorder = probe.recorder();
 
             const std::vector<float> signed_values = {1.0f, -2.0f, 3.0f, -4.0f};
             const std::vector<float> counting_values = {1.0f, 2.0f, 3.0f, 4.0f};
@@ -153,7 +142,7 @@ namespace SushiBLAS
                 {"logic", [&] { SushiBLAS::LogicOps(recorder).equal(a, b, compared); }},
                 {"reduction", [&] { SushiBLAS::ReductionOps(recorder).sum(a, total); }},
                 {"random",
-                 [&] { SushiBLAS::RandomOps(recorder, engine->get_rng()).uniform(drawn); }},
+                 [&] { SushiBLAS::RandomOps(recorder, engine->rng()).uniform(drawn); }},
                 {"blas", [&] { SushiBLAS::BLASOps(recorder).axpy(2.0, a, y); }},
                 {"spatial",
                  [&] { SushiBLAS::SpatialOps(recorder).im2col(image, columns, unit_window); }},
@@ -163,13 +152,13 @@ namespace SushiBLAS
             {
                 SCOPED_TRACE(entry.family);
                 EXPECT_NO_THROW(entry.call());
-                EXPECT_EQ(1u, probe.take_nodes().size());
+                EXPECT_EQ(1u, probe.take_recorded_count());
             }
 
-            // take_nodes() emptied the graph, so every call is recorded again before it runs.
+            // take_recorded_count() emptied the graph, so every call is recorded again before it runs.
             for (const FamilyCall& entry : calls)
                 entry.call();
-            probe.execute();
+            probe.execute().value();
 
             EXPECT_TENSOR_NEAR(added, (std::vector<float>{2.0f, 0.0f, 6.0f, 0.0f}), K_EXACT);
             EXPECT_TENSOR_NEAR(rectified, (std::vector<float>{1.0f, 0.0f, 3.0f, 0.0f}), K_EXACT);
@@ -195,20 +184,16 @@ namespace SushiBLAS
             ChainOutputs first_outputs = chain_outputs();
             ChainOutputs second_outputs = chain_outputs();
 
-            record_chain(first.get_recorder(), input, first_outputs);
-            record_chain(second.get_recorder(), input, second_outputs);
+            record_chain(first.recorder(), input, first_outputs);
+            record_chain(second.recorder(), input, second_outputs);
 
-            const std::vector<int32_t> first_degrees = in_degrees_of(first.take_nodes());
-            const std::vector<int32_t> second_degrees = in_degrees_of(second.take_nodes());
-            EXPECT_EQ((std::vector<int32_t>{0, 1, 1}), first_degrees)
-                << "mul has no producer; add reads mul's output and sum reads add's.";
-            EXPECT_EQ(first_degrees, second_degrees);
+            EXPECT_EQ(3u, first.recorded_count());
+            EXPECT_EQ(3u, second.recorded_count());
+            const auto first_counts = first.dependency_counts();
+            const auto second_counts = second.dependency_counts();
 
-            // take_nodes() emptied both graphs, so the chain is recorded again before it runs.
-            record_chain(first.get_recorder(), input, first_outputs);
-            record_chain(second.get_recorder(), input, second_outputs);
-            first.execute();
-            second.execute();
+            first.execute().value();
+            second.execute().value();
 
             const std::vector<float> expected_shifted = {2.0f, 6.0f, 12.0f, 20.0f};
             const std::vector<float> expected_total = {40.0f};
@@ -216,6 +201,12 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(second_outputs.shifted, expected_shifted, 1e-5);
             EXPECT_TENSOR_NEAR(first_outputs.total, expected_total, 1e-5);
             EXPECT_TENSOR_NEAR(second_outputs.total, expected_total, 1e-5);
+
+            if (!first_counts || !second_counts)
+                GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+            EXPECT_EQ((std::vector<std::size_t>{0, 1, 1}), *first_counts)
+                << "mul has no producer; add reads mul's output and sum reads add's.";
+            EXPECT_EQ(*first_counts, *second_counts);
         }
 
         /**
@@ -229,11 +220,11 @@ namespace SushiBLAS
 
             SushiBLAS::BLASOps(*engine).axpy(2.0, x, y);
             engine->discard_recorded();
-            engine->execute();
+            engine->execute().value();
             EXPECT_TENSOR_NEAR(y, (std::vector<float>{10.0f, 20.0f, 30.0f, 40.0f}), 0.0);
 
             SushiBLAS::BLASOps(*engine).axpy(2.0, x, y);
-            engine->execute();
+            engine->execute().value();
             EXPECT_TENSOR_NEAR(y, (std::vector<float>{12.0f, 24.0f, 36.0f, 48.0f}), 1e-6);
         }
 
@@ -244,7 +235,7 @@ namespace SushiBLAS
 
             engine->discard_recorded();
             engine->discard_recorded();
-            engine->execute();
+            engine->execute().value();
             EXPECT_TENSOR_NEAR(y, (std::vector<float>{5.0f, 6.0f}), 0.0);
         }
     } // namespace Test

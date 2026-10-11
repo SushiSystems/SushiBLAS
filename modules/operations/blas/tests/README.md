@@ -133,7 +133,7 @@ The functor is an opaque callable, and that opacity is the feature, so an undecl
 not a wrong dependency edge, it is no edge, and the graph is free to run this GEMM at the same
 time as whatever writes the bias. Nothing throws and nothing is NaN; the run computes with a
 value that had not arrived yet. `Dispatch::gemm_epilogue(...).reads(t)/.writes(t)` is how the
-caller hands that back. Every assertion in this group is on `in_degree`; see "Ordering is
+caller hands that back. Every assertion in this group is on `dependency_count`; see "Ordering is
 asserted on in-degree".
 
 `BiasColumnEpilogue` is deliberately simpler than `BiasReLUEpilogue`. These tests are about

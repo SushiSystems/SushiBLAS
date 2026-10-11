@@ -60,7 +60,7 @@ namespace SushiBLAS
                 void check_syrk(bool upper, bool trans_a)
                 {
                     std::srand(K_SEED);
-                    const auto dtype = get_sushiblas_dtype<T>();
+                    const auto dtype = sushiblas_dtype<T>();
 
                     auto A = engine->create_tensor({trans_a ? K_K : K_N, trans_a ? K_N : K_K}, dtype);
                     auto C_actual = engine->create_tensor({K_N, K_N}, dtype);
@@ -73,12 +73,12 @@ namespace SushiBLAS
                     engine->set_mode(ExecutionMode::ForceSYCL);
                     SushiBLAS::BLASOps(*engine).syrk(A, C_actual, uplo_of(upper),
                                                      transpose_of(trans_a), 1.5, 0.5);
-                    engine->execute();
+                    engine->execute().value();
 
                     engine->set_mode(ExecutionMode::ForceReference);
                     SushiBLAS::BLASOps(*engine).syrk(A, C_expected, uplo_of(upper),
                                                      transpose_of(trans_a), 1.5, 0.5);
-                    engine->execute();
+                    engine->execute().value();
 
                     SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, K_TOLERANCE, T);
                 }
@@ -87,7 +87,7 @@ namespace SushiBLAS
                 void check_trsm(bool left_side, bool upper, bool trans_a, bool unit_diag)
                 {
                     std::srand(K_SEED);
-                    const auto dtype = get_sushiblas_dtype<T>();
+                    const auto dtype = sushiblas_dtype<T>();
 
                     auto A = engine->create_tensor({K_N, K_N}, dtype);
                     auto B_actual = engine->create_tensor({left_side ? K_N : K_K,
@@ -104,13 +104,13 @@ namespace SushiBLAS
                     SushiBLAS::BLASOps(*engine).trsm(
                         A, B_actual, side_of(left_side), uplo_of(upper), transpose_of(trans_a),
                         diag_of(unit_diag), 1.5);
-                    engine->execute();
+                    engine->execute().value();
 
                     engine->set_mode(ExecutionMode::ForceReference);
                     SushiBLAS::BLASOps(*engine).trsm(
                         A, B_expected, side_of(left_side), uplo_of(upper), transpose_of(trans_a),
                         diag_of(unit_diag), 1.5);
-                    engine->execute();
+                    engine->execute().value();
 
                     SB_ASSERT_TENSOR_NEAR(B_actual, B_expected, K_TOLERANCE, T);
                 }
@@ -119,7 +119,7 @@ namespace SushiBLAS
                 /** @brief Copies every element of @p source into @p target. */
                 static void copy_contents(const Tensor& source, Tensor& target)
                 {
-                    auto& q = TestEnvironment::get_context().devices().queue(0);
+                    auto& q = TestEnvironment::queue();
                     q.memcpy(target.data(), source.data(),
                              static_cast<std::size_t>(source.num_elements) * sizeof(T)).wait();
                 }
@@ -127,7 +127,7 @@ namespace SushiBLAS
                 /** @brief Divides every off-diagonal element of @p A by K_N and adds 2 to the diagonal. */
                 static void make_diagonally_dominant(Tensor& A)
                 {
-                    auto& q = TestEnvironment::get_context().devices().queue(0);
+                    auto& q = TestEnvironment::queue();
                     std::vector<T> host(static_cast<std::size_t>(A.num_elements));
                     q.memcpy(host.data(), A.data(), host.size() * sizeof(T)).wait();
 

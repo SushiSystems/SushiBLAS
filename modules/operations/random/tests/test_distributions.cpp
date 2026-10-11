@@ -42,7 +42,7 @@ TEST_F(Unit_DistributionsTest, LogNormal)
     const int N = 100;
     auto t = engine->create_tensor({N});
     SushiBLAS::RandomOps(*engine).log_normal(t, 0.0, 1.0);
-    engine->execute();
+    engine->execute().value();
     
     // Log-normal distribution produces positive values.
     const float* ptr = t.data_as<float>();
@@ -56,7 +56,7 @@ TEST_F(Unit_DistributionsTest, Exponential)
     const int N = 100;
     auto t = engine->create_tensor({N});
     SushiBLAS::RandomOps(*engine).exponential(t, 1.0);
-    engine->execute();
+    engine->execute().value();
     
     // Exponential distribution produces non-negative values.
     const float* ptr = t.data_as<float>();
@@ -70,7 +70,7 @@ TEST_F(Unit_DistributionsTest, Poisson)
     const int N = 100;
     auto t = engine->create_tensor({N});
     SushiBLAS::RandomOps(*engine).poisson(t, 5.0);
-    engine->execute();
+    engine->execute().value();
     
     // Poisson distribution produces non-negative integer values.
     const float* ptr = t.data_as<float>();
@@ -85,7 +85,7 @@ TEST_F(Unit_DistributionsTest, Bernoulli)
     const int N = 100;
     auto t = engine->create_tensor({N});
     SushiBLAS::RandomOps(*engine).bernoulli(t, 0.5);
-    engine->execute();
+    engine->execute().value();
     
     // Bernoulli distribution produces only 0.0 or 1.0.
     const float* ptr = t.data_as<float>();
@@ -99,7 +99,7 @@ TEST_F(Unit_DistributionsTest, DiscreteUniform)
     const int N = 100;
     auto t = engine->create_tensor({N});
     SushiBLAS::RandomOps(*engine).discrete_uniform(t, 0, 10);
-    engine->execute();
+    engine->execute().value();
     
     // Discrete uniform produces integer values in [min, max].
     const float* ptr = t.data_as<float>();
@@ -116,7 +116,7 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalStaysInsideItsBounds)
     auto t = engine->create_tensor({N});
     SushiBLAS::RandomOps(*engine).set_seed(20261005);
     SushiBLAS::RandomOps(*engine).truncated_normal(t, 1.0, 0.5, -1.0, 1.5);
-    engine->execute();
+    engine->execute().value();
 
     // The bounds count standard deviations: 1.0 + 0.5 * [-1.0, 1.5] is [0.5, 1.75], exact in float.
     const float* ptr = t.data_as<float>();
@@ -132,7 +132,7 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalFollowsTheTruncatedLawInTheUpperTa
     auto t = engine->create_tensor({N});
     SushiBLAS::RandomOps(*engine).set_seed(20261005);
     SushiBLAS::RandomOps(*engine).truncated_normal(t, 0.0, 1.0, 1.0, 3.0);
-    engine->execute();
+    engine->execute().value();
 
     const float* ptr = t.data_as<float>();
     double sum = 0.0;
@@ -174,7 +174,7 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalDrawsAFarLowerBoundAsTheHalfOpenLa
     auto t = engine->create_tensor({N});
     SushiBLAS::RandomOps(*engine).set_seed(20261007);
     SushiBLAS::RandomOps(*engine).truncated_normal(t, 0.0, 1.0, -1.0e30, 2.0);
-    engine->execute();
+    engine->execute().value();
 
     const float* ptr = t.data_as<float>();
     double sum = 0.0;

@@ -40,7 +40,7 @@ TEST_F(Unit_AbsTest, FloatForward)
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
     SushiBLAS::ElementwiseOps(*engine).abs(t);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(t, {1.00000f, 2.00000f, 3.00000f, 0.50000f});
 }

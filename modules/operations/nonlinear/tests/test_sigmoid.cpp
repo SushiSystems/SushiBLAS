@@ -40,7 +40,7 @@ TEST_F(Unit_SigmoidTest, Forward)
     fill_tensor(t, {0.0f, 1.0f, -1.0f, 2.0f});
     
     SushiBLAS::NonLinearOps(*engine).sigmoid(t);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(t, {0.5f, 0.731058f, 0.268941f, 0.880797f});
 }
@@ -56,7 +56,7 @@ TEST_F(Unit_SigmoidTest, Backward)
     fill_tensor(dx, {0.0f, 0.0f, 0.0f, 0.0f});
     
     SushiBLAS::NonLinearOps(*engine).sigmoid_backward(dy, y, dx);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(dx, {0.25f, 0.196612f, 0.196612f, 0.104994f});
 }

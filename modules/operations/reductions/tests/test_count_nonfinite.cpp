@@ -89,10 +89,10 @@ namespace SushiBLAS
                     auto result = this->engine->create_tensor({1}, Core::DataType::Int64);
 
                     SushiBLAS::ReductionOps(*this->engine).count_nonfinite(t, result);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     int64_t host = -1;
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(&host, result.data(), sizeof(int64_t)).wait();
                     return host;
                 }
@@ -204,7 +204,7 @@ namespace SushiBLAS
                 int64_t read_count(const Tensor& t)
                 {
                     int64_t host = -1;
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(&host, t.data(), sizeof(int64_t)).wait();
                     return host;
                 }
@@ -213,7 +213,7 @@ namespace SushiBLAS
                 float read_half(const Tensor& t)
                 {
                     sycl::half host{};
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(&host, t.data(), sizeof(sycl::half)).wait();
                     return static_cast<float>(host);
                 }
@@ -248,7 +248,7 @@ namespace SushiBLAS
 
             SushiBLAS::ReductionOps(*engine).count_nonfinite(t, count);
             SushiBLAS::ReductionOps(*engine).asum(t, total);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_EQ(0, read_count(count))
                 << "Every element is 20000, which binary16 represents exactly. The tensor "
@@ -277,13 +277,13 @@ namespace SushiBLAS
                 const std::string msg = message_of(
                     [&]
                     {
-                        SushiBLAS::ReductionOps(probe.get_recorder()).count_nonfinite(t, result);
+                        SushiBLAS::ReductionOps(probe.recorder()).count_nonfinite(t, result);
                     });
                 EXPECT_NE(std::string::npos, msg.find(Core::to_string(dtype)))
                     << "dtype " << Core::to_string(dtype) << " gave: " << msg;
             }
 
-            EXPECT_TRUE(probe.take_nodes().empty())
+            EXPECT_EQ(0u, probe.take_recorded_count())
                 << "A refused reduction must not leave a task on the graph.";
         }
 
@@ -312,9 +312,9 @@ namespace SushiBLAS
 
             constexpr int64_t kN = 8;
             auto arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context(),
+                TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::API::Residency::Shared);
+                SushiRuntime::Residency::Shared);
 
             Tensor seed(arena, {kN}, Core::DataType::Float32, 0);
             Tensor gradient(arena, {kN}, Core::DataType::Float32, kN);
@@ -322,12 +322,14 @@ namespace SushiBLAS
 
             fill_tensor(seed, std::vector<float>(static_cast<size_t>(kN), 3.0f));
 
-            SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(seed, seed, gradient);
-            SushiBLAS::ReductionOps(probe.get_recorder()).count_nonfinite(gradient, count);
+            SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, gradient);
+            SushiBLAS::ReductionOps(probe.recorder()).count_nonfinite(gradient, count);
 
-            auto nodes = probe.take_nodes();
-            ASSERT_EQ(2u, nodes.size());
-            EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
+            ASSERT_EQ(2u, probe.recorded_count());
+            const auto tasks = probe.recorded_tasks();
+            if (!tasks)
+                GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+            EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                 << "The screen reading `gradient` must depend on the op that produced it. "
                    "An in-degree of 0 means the read was declared from a bare pointer, so "
                    "the tracker filed it under a resource nothing else touches - and the "
@@ -348,7 +350,7 @@ namespace SushiBLAS
             // 1e30 * 1e30 overflows binary32; the other three stay at 1.
             SushiBLAS::ElementwiseOps(*engine).mul(big, big, squared);
             SushiBLAS::ReductionOps(*engine).count_nonfinite(squared, count);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_EQ(1, read_count(count));
         }

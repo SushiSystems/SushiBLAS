@@ -38,7 +38,7 @@
 #include <SushiBLAS/functor_map/scalar.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
 #include <SushiBLAS/functor_map/scalar_binding.hpp>
-#include <SushiRuntime/SushiRuntime.h>
+#include <SushiRuntime/sushiruntime.hpp>
 #include "test_utils.hpp"
 
 namespace SushiBLAS
@@ -171,11 +171,10 @@ namespace SushiBLAS
                 std::is_trivially_copyable_v<Dispatch::ReadingOp<Fn, float, Dispatch::ElementRead>>,
                 "A kernel copies a ReadingOp byte by byte.");
 
-            SushiRuntime::Execution::RuntimeContext& context = TestEnvironment::get_context();
-            const std::size_t live_baseline = context.memory().live_count();
+            const std::size_t live_baseline = TestEnvironment::live_allocation_count();
 
             std::optional<Tensor> a(engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32));
-            ASSERT_EQ(context.memory().live_count(), live_baseline + 1);
+            ASSERT_EQ(TestEnvironment::live_allocation_count(), live_baseline + 1);
 
             const auto addressed =
                 Dispatch::bind_reads(fn, Dispatch::read_as_element(*a)).addressed();
@@ -185,7 +184,7 @@ namespace SushiBLAS
                 std::is_same_v<decltype(addressed),
                                const Dispatch::AddressedOp<Fn, Dispatch::ElementRead>>,
                 "addressed() hands the task closure an AddressedOp, which holds no Tensor.");
-            EXPECT_EQ(context.memory().live_count(), live_baseline);
+            EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
         }
 
         TEST_F(Unit_ReadBinding, AReadIsCheckedAsAnOperand)

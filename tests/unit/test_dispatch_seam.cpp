@@ -50,14 +50,14 @@
 #include <SushiBLAS/random/dispatch.hpp>
 #include <SushiBLAS/reductions/dispatch.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
-#include <SushiRuntime/SushiRuntime.h>
+#include <SushiRuntime/sushiruntime.hpp>
 #include "../common/test_utils.hpp"
 #include "../common/graph_probe.hpp"
 
 namespace sb = SushiBLAS;
 
 using namespace SushiBLAS::Test;
-using namespace SushiRuntime::Graph::Literals;
+using namespace SushiRuntime::Literals;
 using SushiBLAS::Core::DataType;
 
 namespace
@@ -218,7 +218,7 @@ class Unit_DispatchSeamTest : public SushiBLASTest
             auto t = create_initialized_tensor<T>({6}, input);
 
             sb::ElementwiseOps(*engine).clamp(t, K_CLAMP_LOW, K_CLAMP_HIGH);
-            engine->execute();
+            engine->execute().value();
 
             const T low = sb::Dispatch::ElementScalar(K_CLAMP_LOW).as<T>();
             const T high = sb::Dispatch::ElementScalar(K_CLAMP_HIGH).as<T>();
@@ -262,15 +262,15 @@ class Unit_DispatchSeamTest : public SushiBLASTest
             auto leaky = create_initialized_tensor<T>({4}, x);
             auto saved = create_initialized_tensor<T>({4}, x);
             auto dy = create_initialized_tensor<T>({4}, ones);
-            auto elu_dx = engine->create_tensor({4}, get_sushiblas_dtype<T>());
-            auto leaky_dx = engine->create_tensor({4}, get_sushiblas_dtype<T>());
+            auto elu_dx = engine->create_tensor({4}, sushiblas_dtype<T>());
+            auto leaky_dx = engine->create_tensor({4}, sushiblas_dtype<T>());
 
             sb::ElementwiseOps(*engine).pow(raised, K_POW_EXPONENT);
             sb::NonLinearOps(*engine).elu(elu, K_ALPHA);
             sb::NonLinearOps(*engine).elu_backward(dy, saved, elu_dx, K_ALPHA);
             sb::NonLinearOps(*engine).leaky_relu(leaky, K_ALPHA);
             sb::NonLinearOps(*engine).leaky_relu_backward(dy, saved, leaky_dx, K_ALPHA);
-            engine->execute();
+            engine->execute().value();
 
             expect_elements(raised, positive, tolerance, "pow",
                             [=](double v) { return std::pow(v, exponent); });
@@ -284,15 +284,6 @@ class Unit_DispatchSeamTest : public SushiBLASTest
                             [=](double v) { return v > 0.0 ? 1.0 : alpha; });
         }
 
-        /** @brief Returns the in-degree of every node a probe holds, in recording order. */
-        [[nodiscard]] static std::vector<int32_t> in_degrees_of(GraphProbe& probe)
-        {
-            std::vector<int32_t> degrees;
-            for (const auto& node : probe.take_nodes())
-                degrees.push_back(node->in_degree.load(std::memory_order_relaxed));
-            return degrees;
-        }
-
         /**
          * @brief Returns a FLOAT32 tensor of dims in device-only USM, or nothing without such USM.
          * @return Empty when the allocation fails or the pointer is not usm::alloc::device.
@@ -302,9 +293,9 @@ class Unit_DispatchSeamTest : public SushiBLASTest
             try
             {
                 sb::Tensor t = engine->create_tensor(dims, DataType::Float32,
-                                                     SushiRuntime::API::Residency::Device);
+                                                     SushiRuntime::Residency::Device);
                 const sycl::context context =
-                    TestEnvironment::get_context().devices().queue(0).get_context();
+                    TestEnvironment::queue().get_context();
                 if (sycl::get_pointer_type(t.data(), context) != sycl::usm::alloc::device)
                     return std::nullopt;
                 return t;
@@ -352,13 +343,13 @@ class Unit_DispatchSeamTest : public SushiBLASTest
             for (size_t slot = 0; slot < parameters.size(); ++slot)
             {
                 sb::Dispatch::execute_zip_inplace(
-                    probe.get_recorder(), std::array{parameters[slot], &gradient},
+                    probe.recorder(), std::array{parameters[slot], &gradient},
                     "test.gated_update", "test.gated_update"_op,
                     sb::Dispatch::bind_reads(GatedStep{static_cast<int64_t>(slot)},
                                              sb::Dispatch::read_as<float>(scalars),
                                              sb::Dispatch::read_as<int64_t>(gate)));
             }
-            probe.execute();
+            probe.execute().value();
 
             update.gated = read_tensor<double>(gated);
             update.stepped = read_tensor<double>(stepped);
@@ -387,9 +378,9 @@ TEST_F(Unit_DispatchSeamTest, FusesAConsumerFunctorIntoOneBinaryKernel)
 
     // mul, add and div in one functor: one task where the public API records three.
     sb::Dispatch::execute_binary(
-        engine->get_recorder(), a, b, c, "test.fused_binary", "test.fused_binary"_op,
+        engine->recorder(), a, b, c, "test.fused_binary", "test.fused_binary"_op,
         [](auto x, auto y) { return (x * y + decltype(x)(1)) / decltype(x)(2); });
-    engine->execute();
+    engine->execute().value();
 
     verify_tensor(c, {1.5f, 4.5f, 9.5f, 16.5f});
 }
@@ -401,9 +392,9 @@ TEST_F(Unit_DispatchSeamTest, FusesAConsumerFunctorIntoOneUnaryKernel)
 
     // A consumer's own softplus-like activation, written against safe_math.
     sb::Dispatch::execute_unary_inplace(
-        engine->get_recorder(), t, "test.fused_unary", "test.fused_unary"_op,
+        engine->recorder(), t, "test.fused_unary", "test.fused_unary"_op,
         [](auto x) { return sb::Dispatch::safe_log(decltype(x)(1) + sb::Dispatch::safe_exp(x)); });
-    engine->execute();
+    engine->execute().value();
 
     verify_tensor(t, {0.693147f, 1.313262f, 2.126928f, 3.048587f}, 1e-4);
 }
@@ -418,9 +409,9 @@ TEST_F(Unit_DispatchSeamTest, ConsumerFunctorCanOptIntoComplex)
 
     // (1+i)(i) + (1+i) = 2i and (2-i)(1+i) + (2-i) = 5.
     sb::Dispatch::execute_binary<sb::Dispatch::Domain::RealAndComplex>(
-        engine->get_recorder(), a, b, c, "test.fused_complex", "test.fused_complex"_op,
+        engine->recorder(), a, b, c, "test.fused_complex", "test.fused_complex"_op,
         [](auto x, auto y) { return x * y + x; });
-    engine->execute();
+    engine->execute().value();
 
     auto expected = create_initialized_tensor<cf>({2}, {cf(0.0f, 2.0f), cf(5.0f, 0.0f)});
     SB_ASSERT_TENSOR_NEAR(c, expected, 1e-4, cf);
@@ -436,19 +427,19 @@ TEST_F(Unit_DispatchSeamTest, ConsumerCanDriveTheLogicAndReductionSeamsToo)
 
     // "within 2 of b" - a predicate SushiBLAS does not ship.
     sb::Dispatch::execute_logic_binary(
-        engine->get_recorder(), a, b, mask, "test.near", "test.near"_op,
+        engine->recorder(), a, b, mask, "test.near", "test.near"_op,
         [](auto x, auto y)
         {
             auto d = x - y;
             return (d < decltype(x)(0) ? -d : d) <= decltype(x)(2) ? decltype(x)(1) : decltype(x)(0);
         });
-    engine->execute();
+    engine->execute().value();
     verify_tensor(mask, {1.0f, 1.0f, 1.0f, 0.0f});
 
     auto total = engine->create_tensor({1});
     sb::Dispatch::execute_reduction(
-        engine->get_recorder(), mask, total, "test.count", "test.count"_op, PlainSumDispatch{});
-    engine->execute();
+        engine->recorder(), mask, total, "test.count", "test.count"_op, PlainSumDispatch{});
+    engine->execute().value();
     verify_tensor(total, {3.0f});
 }
 
@@ -461,7 +452,7 @@ TEST_F(Unit_DispatchSeamTest, RealOnlyDomainRejectsComplexAtRecordTime)
     // The default domain is REAL. See tests/unit/README.md.
     EXPECT_THROW(
         sb::Dispatch::execute_binary(
-            engine->get_recorder(), a, b, c, "test.real_only", "test.real_only"_op,
+            engine->recorder(), a, b, c, "test.real_only", "test.real_only"_op,
             [](auto x, auto y) { return x + y; }),
         std::invalid_argument);
 }
@@ -501,7 +492,7 @@ TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
     auto th_steps = seeded(th0), m_steps = seeded(m0), v_steps = seeded(v0), ema_steps = seeded(th0);
 
     // g is an operand although the functor only reads it. See tests/unit/README.md.
-    sb::Dispatch::execute_zip_inplace(engine->get_recorder(),
+    sb::Dispatch::execute_zip_inplace(engine->recorder(),
         std::array{&th_fused, &g, &m_fused, &v_fused, &ema_fused},
         "test.adamw_fused", "test.adamw_fused"_op,
         [b1, b2, lr, wd, eps, inv_bc1, inv_bc2, ema_decay]
@@ -544,7 +535,7 @@ TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
     SushiBLAS::BLASOps(*engine).scal(static_cast<double>(ema_decay), ema_steps);
     SushiBLAS::BLASOps(*engine).axpy(static_cast<double>(1.0f - ema_decay), th_steps, ema_steps);
 
-    engine->execute();
+    engine->execute().value();
 
     SB_ASSERT_TENSOR_NEAR(m_fused, m_steps, 1e-6, float);
     SB_ASSERT_TENSOR_NEAR(v_fused, v_steps, 1e-6, float);
@@ -571,7 +562,7 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
         fill_tensor(b, seed);
         fill_tensor(c, seed);
 
-        sb::Dispatch::execute_zip_inplace(engine->get_recorder(), std::array{&a, &b, &c},
+        sb::Dispatch::execute_zip_inplace(engine->recorder(), std::array{&a, &b, &c},
             "test.zip_determinism", "test.zip_determinism"_op,
             [](auto& x, auto& y, auto& z)
             {
@@ -580,10 +571,10 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
                 y = y - x * T(0.25);
                 z = sb::Dispatch::safe_sqrt(x * x + y * y);
             });
-        engine->execute();
+        engine->execute().value();
 
         std::vector<float> out(static_cast<size_t>(k_n) * 3);
-        auto& q = SushiBLAS::Test::TestEnvironment::get_context().devices().queue(0);
+        auto& q = SushiBLAS::Test::TestEnvironment::queue();
         q.memcpy(out.data(), a.data(), static_cast<size_t>(k_n) * sizeof(float)).wait();
         q.memcpy(out.data() + k_n, b.data(), static_cast<size_t>(k_n) * sizeof(float)).wait();
         q.memcpy(out.data() + 2 * k_n, c.data(), static_cast<size_t>(k_n) * sizeof(float)).wait();
@@ -614,26 +605,26 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
     // The message names the disagreeing operand; "sizes must match" is no help at N = 5.
     EXPECT_THROW(
         sb::Dispatch::execute_zip_inplace(
-            engine->get_recorder(), std::array{&four, &eight},
+            engine->recorder(), std::array{&four, &eight},
             "test.zip_size", "test.zip_size"_op, accumulate),
         std::invalid_argument);
 
     EXPECT_THROW(
         sb::Dispatch::execute_zip_inplace(
-            engine->get_recorder(), std::array{&four, &wide},
+            engine->recorder(), std::array{&four, &wide},
             "test.zip_dtype", "test.zip_dtype"_op, accumulate),
         std::invalid_argument);
 
     EXPECT_THROW(
         sb::Dispatch::execute_zip_inplace(
-            engine->get_recorder(), std::array{&four, missing},
+            engine->recorder(), std::array{&four, missing},
             "test.zip_null", "test.zip_null"_op, accumulate),
         std::invalid_argument);
 
     // Default domain is REAL, exactly as for execute_unary_inplace/execute_binary.
     EXPECT_THROW(
         sb::Dispatch::execute_zip_inplace(
-            engine->get_recorder(), std::array{&cplx, &cplx},
+            engine->recorder(), std::array{&cplx, &cplx},
             "test.zip_complex", "test.zip_complex"_op, accumulate),
         std::invalid_argument);
 }
@@ -644,10 +635,10 @@ TEST_F(Unit_DispatchSeamTest, RNGMetadataSlotsAreInRangeAndRoundTrip)
     constexpr uint64_t kSeed = 0xDEADBEEFCAFEF00Dull;
     constexpr uint64_t kOffset = 42;
 
-    static_assert(sb::Dispatch::K_RNG_SEED_PARAM < static_cast<int>(SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS));
-    static_assert(sb::Dispatch::K_RNG_OFFSET_PARAM < static_cast<int>(SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS));
+    static_assert(sb::Dispatch::K_RNG_SEED_PARAM < static_cast<int>(SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS));
+    static_assert(sb::Dispatch::K_RNG_OFFSET_PARAM < static_cast<int>(SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS));
 
-    SushiRuntime::Graph::TaskMetadata meta;
+    SushiRuntime::Internal::Graph::TaskMetadata meta;
     sb::Dispatch::set_rng_params(meta, kSeed, kOffset);
 
     EXPECT_EQ(meta.get_param<uint64_t>(sb::Dispatch::K_RNG_SEED_PARAM), kSeed);
@@ -656,11 +647,11 @@ TEST_F(Unit_DispatchSeamTest, RNGMetadataSlotsAreInRangeAndRoundTrip)
 
 TEST_F(Unit_DispatchSeamTest, DistributionParamsDoNotCollideWithTheRNGSlots)
 {
-    SushiRuntime::Graph::TaskMetadata meta;
+    SushiRuntime::Internal::Graph::TaskMetadata meta;
     const std::initializer_list<double> params = {1.0, 2.0, 3.0, 4.0};
 
     sb::Dispatch::set_task_params(meta, params, "test.params",
-                                  SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS - sb::Dispatch::K_MAX_RNG_PARAMS);
+                                  SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS - sb::Dispatch::K_MAX_RNG_PARAMS);
     sb::Dispatch::set_rng_params(meta, 7, 8);
 
     for (size_t i = 0; i < params.size(); ++i)
@@ -675,10 +666,10 @@ TEST_F(Unit_DispatchSeamTest, TooManyTaskParamsThrowsInsteadOfDroppingThem)
 {
     auto t = engine->create_tensor({4});
 
-    static_assert(SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS == 8, "the list below is one longer than the capacity");
+    static_assert(SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS == 8, "the list below is one longer than the capacity");
     EXPECT_THROW(
         sb::Dispatch::execute_unary_inplace(
-            engine->get_recorder(), t, "test.overflow", "test.overflow"_op,
+            engine->recorder(), t, "test.overflow", "test.overflow"_op,
             [](auto x) { return x; },
             {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}),
         std::invalid_argument);
@@ -711,10 +702,10 @@ TEST_F(Unit_DispatchSeamTest, ABoundFunctorWorksInAFusedUpdate)
     auto x = create_initialized_tensor<float>({4}, {2.0f, 4.0f, 6.0f, 8.0f});
 
     sb::Dispatch::execute_zip_inplace(
-        engine->get_recorder(), std::array{&y, &x}, "test.zip_bound", "test.zip_bound"_op,
+        engine->recorder(), std::array{&y, &x}, "test.zip_bound", "test.zip_bound"_op,
         sb::Dispatch::bind_scalars([](auto& yi, auto& xi, auto a) { yi = yi + a * xi; },
                                    sb::Dispatch::ElementScalar(0.5)));
-    engine->execute();
+    engine->execute().value();
 
     verify_tensor(y, {2.0f, 4.0f, 6.0f, 8.0f}, K_REAL_TOLERANCE);
     verify_tensor(x, {2.0f, 4.0f, 6.0f, 8.0f}, K_REAL_TOLERANCE);
@@ -728,14 +719,14 @@ TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
 {
     auto t = engine->create_tensor({4}, DataType::Complex32);
 
-    SushiRuntime::Graph::TaskMetadata meta;
+    SushiRuntime::Internal::Graph::TaskMetadata meta;
     meta.name = "spatial.im2col";
-    meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+    meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
 
     try
     {
         (void)sb::Internal::execute_typed_task<sb::Dispatch::Domain::Real>(
-            engine->get_recorder(), meta, SushiBLAS::OperandSet(), t.dtype, "Spatial operation",
+            engine->recorder(), meta, SushiBLAS::OperandSet(), t.dtype, "Spatial operation",
             [](auto, const sb::Internal::KernelPairDispatcher&, sycl::queue&,
                const std::vector<sycl::event>&) -> sycl::event
             {
@@ -763,16 +754,21 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsOrderedBehindItsWriter)
     auto y = engine->create_tensor({4});
 
     GraphProbe declared;
-    sb::RandomOps(declared.get_recorder(), engine->get_rng()).constant(factor, 2.0);
-    record_scaled(declared.get_recorder(), y, factor);
-    EXPECT_EQ(in_degrees_of(declared), (std::vector<int32_t>{0, 1}));
+    sb::RandomOps(declared.recorder(), engine->rng()).constant(factor, 2.0);
+    record_scaled(declared.recorder(), y, factor);
+    const auto declared_counts = declared.dependency_counts();
+    if (!declared_counts)
+        GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+    EXPECT_EQ(*declared_counts, (std::vector<std::size_t>{0, 1}));
 
     GraphProbe captured;
-    sb::RandomOps(captured.get_recorder(), engine->get_rng()).constant(factor, 2.0);
+    sb::RandomOps(captured.recorder(), engine->rng()).constant(factor, 2.0);
     sb::Dispatch::execute_unary_inplace(
-        captured.get_recorder(), y, "test.captured_pointer", "test.captured_pointer"_op,
+        captured.recorder(), y, "test.captured_pointer", "test.captured_pointer"_op,
         [pointer = factor.data_as<float>()](auto v) { return v * decltype(v)(pointer[0]); });
-    EXPECT_EQ(in_degrees_of(captured), (std::vector<int32_t>{0, 0}));
+    const auto captured_counts = captured.dependency_counts();
+    ASSERT_TRUE(captured_counts.has_value());
+    EXPECT_EQ(*captured_counts, (std::vector<std::size_t>{0, 0}));
 }
 
 /**
@@ -781,18 +777,17 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsOrderedBehindItsWriter)
  */
 TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsKeptAllocated)
 {
-    SushiRuntime::Execution::RuntimeContext& context = TestEnvironment::get_context();
 
     auto y = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
     std::optional<sb::Tensor> factor(create_initialized_tensor<float>({1}, {2.0f}));
 
-    record_scaled(engine->get_recorder(), y, *factor);
+    record_scaled(engine->recorder(), y, *factor);
 
-    const size_t live_before = context.memory().live_count();
+    const size_t live_before = TestEnvironment::live_allocation_count();
     factor.reset();
-    EXPECT_EQ(context.memory().live_count(), live_before);
+    EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before);
 
-    engine->execute();
+    engine->execute().value();
     verify_tensor(y, {2.0f, 4.0f, 6.0f, 8.0f}, K_EXACT_TOLERANCE);
 }
 
@@ -832,7 +827,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadWorksOnEverySeam)
     auto logic_binary = engine->create_tensor({4});
     auto logic_ternary = engine->create_tensor({4});
 
-    sb::TaskRecorder& recorder = engine->get_recorder();
+    sb::TaskRecorder& recorder = engine->recorder();
     const auto read = sb::Dispatch::read_as_element(factor);
 
     sb::Dispatch::execute_binary(
@@ -868,7 +863,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadWorksOnEverySeam)
                 return c != decltype(c)(0) ? x * f[0] : y;
             },
             read));
-    engine->execute();
+    engine->execute().value();
 
     verify_tensor(binary, {6.0f, 10.0f, 18.0f, 22.0f}, K_EXACT_TOLERANCE);
     verify_tensor(forward, {2.0f, 4.0f, 6.0f, 8.0f}, K_EXACT_TOLERANCE);
@@ -887,10 +882,10 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadMayNotBeAnOutput)
     GraphProbe probe;
     auto y = engine->create_tensor({4});
 
-    const std::string message = refusal_of([&] { record_scaled(probe.get_recorder(), y, y); });
+    const std::string message = refusal_of([&] { record_scaled(probe.recorder(), y, y); });
 
     EXPECT_NE(message.find("'read 0'"), std::string::npos) << message;
-    EXPECT_TRUE(probe.take_nodes().empty());
+    EXPECT_EQ(0u, probe.take_recorded_count());
 }
 
 /**
@@ -907,13 +902,13 @@ TEST_F(Unit_DispatchSeamTest, ADeviceOnlyReadIsRefusedUnderForceReference)
 
     GraphProbe reference(sb::ExecutionMode::ForceReference);
     const std::string message =
-        refusal_of([&] { record_scaled(reference.get_recorder(), y, *factor); });
+        refusal_of([&] { record_scaled(reference.recorder(), y, *factor); });
     EXPECT_NE(message.find("ForceReference"), std::string::npos) << message;
-    EXPECT_TRUE(reference.take_nodes().empty());
+    EXPECT_EQ(0u, reference.take_recorded_count());
 
     GraphProbe device(sb::ExecutionMode::ForceSYCL);
-    EXPECT_NO_THROW(record_scaled(device.get_recorder(), y, *factor));
-    EXPECT_EQ(device.take_nodes().size(), 1u);
+    EXPECT_NO_THROW(record_scaled(device.recorder(), y, *factor));
+    EXPECT_EQ(device.take_recorded_count(), 1u);
 }
 
 /**

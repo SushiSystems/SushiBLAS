@@ -40,7 +40,7 @@ TEST_F(Unit_ELUTest, Forward)
     fill_tensor(t, {-1.0f, 0.0f, 1.0f, 2.0f});
     
     SushiBLAS::NonLinearOps(*engine).elu(t, 1.0f);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(t, {-0.632121f, 0.0f, 1.0f, 2.0f});
 }
@@ -56,7 +56,7 @@ TEST_F(Unit_ELUTest, Backward)
     fill_tensor(dx, {0.0f, 0.0f, 0.0f, 0.0f});
     
     SushiBLAS::NonLinearOps(*engine).elu_backward(dy, x, dx, 1.0f);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(dx, {0.367879f, 1.0f, 1.0f, 1.0f});
 }

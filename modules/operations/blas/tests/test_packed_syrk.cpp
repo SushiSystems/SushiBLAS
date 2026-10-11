@@ -354,7 +354,7 @@ namespace SushiBLAS
                 /** @brief Returns the queue of the test environment. */
                 [[nodiscard]] static sycl::queue& queue()
                 {
-                    return TestEnvironment::get_context().devices().queue(0);
+                    return TestEnvironment::queue();
                 }
 
                 /**
@@ -395,7 +395,7 @@ namespace SushiBLAS
                 template<typename Record>
                 void expect_seam_parity(int64_t s, Record record)
                 {
-                    const Core::DataType dtype = get_sushiblas_dtype<T>();
+                    const Core::DataType dtype = sushiblas_dtype<T>();
                     Tensor A = engine->create_tensor({s, s}, dtype);
                     Tensor sycl_result = engine->create_tensor({s, s}, dtype);
                     Tensor reference_result = engine->create_tensor({s, s}, dtype);
@@ -407,17 +407,16 @@ namespace SushiBLAS
                     queue().memcpy(reference_result.data(), start.data(),
                                    start.size() * sizeof(T)).wait();
 
-                    auto& context = TestEnvironment::get_context();
 
                     engine->set_mode(ExecutionMode::ForceSYCL);
-                    const std::size_t live_before = context.memory().live_count();
+                    const std::size_t live_before = TestEnvironment::live_allocation_count();
                     record(A, sycl_result);
-                    EXPECT_EQ(context.memory().live_count(), live_before + 1);
-                    engine->execute();
+                    EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before + 1);
+                    engine->execute().value();
 
                     engine->set_mode(ExecutionMode::ForceReference);
                     record(A, reference_result);
-                    engine->execute();
+                    engine->execute().value();
 
                     const std::vector<T> got = read_tensor<T>(sycl_result);
                     const std::vector<T> want = read_tensor<T>(reference_result);

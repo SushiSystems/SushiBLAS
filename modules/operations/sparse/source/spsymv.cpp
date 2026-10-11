@@ -46,11 +46,11 @@
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     namespace
     {
@@ -62,7 +62,7 @@ namespace SushiBLAS
          */
         template<typename Index, typename Conj>
         TaskHandle record_spsymv_task(TaskRecorder& recorder, const char* op,
-                                      SushiRuntime::Graph::OpID op_id, const SparseMatrix& A,
+                                      SushiRuntime::OperationID op_id, const SparseMatrix& A,
                                       const Dispatch::SparseMatrixOperand& a, const Tensor& x,
                                       int64_t incx, Tensor& y, int64_t incy, Core::Uplo uplo,
                                       BLASScalar alpha, BLASScalar beta)
@@ -76,7 +76,7 @@ namespace SushiBLAS
 
             // Every stored entry scatters to its mirror, so the product keeps partial sums.
             const std::size_t blocks = Kernels::SYCL::scatter_blocks(
-                Device::profile_for(A.row_offsets.get_device()), a.rows, a.nnz);
+                Device::profile_for(A.row_offsets.device()), a.rows, a.nnz);
             const std::size_t partial_bytes = blocks * static_cast<std::size_t>(a.rows) *
                                               Internal::accumulator_bytes(A.values.dtype);
             const ScratchBuffer scratch =
@@ -135,7 +135,7 @@ namespace SushiBLAS
          */
         template<typename Conj>
         TaskHandle record_spsymv(TaskRecorder& recorder, const char* op,
-                                 SushiRuntime::Graph::OpID op_id, const SparseMatrix& A,
+                                 SushiRuntime::OperationID op_id, const SparseMatrix& A,
                                  const Tensor& x, Tensor& y, Core::Uplo uplo, BLASScalar alpha,
                                  BLASScalar beta)
         {

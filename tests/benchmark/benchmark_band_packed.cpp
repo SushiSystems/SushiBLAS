@@ -152,8 +152,8 @@ namespace
     {
         const std::vector<int64_t> sizes = Bench::parse_sizes(argc, argv, K_DEFAULT_SIZES);
 
-        SushiRuntime::Execution::RuntimeContext context;
-        SushiBLAS::Engine engine(context, SushiBLAS::Core::Layout::ColumnMajor);
+        SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+        SushiBLAS::Engine engine(runtime, SushiBLAS::Core::Layout::ColumnMajor);
         Bench::print_environment(engine);
 
         const Bench::ResultTable table("Melem/s");

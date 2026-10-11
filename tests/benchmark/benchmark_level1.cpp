@@ -95,8 +95,8 @@ namespace
     {
         const std::vector<int64_t> sizes = Bench::parse_sizes(argc, argv, K_DEFAULT_SIZES);
 
-        SushiRuntime::Execution::RuntimeContext context;
-        SushiBLAS::Engine engine(context);
+        SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+        SushiBLAS::Engine engine(runtime);
         Bench::print_environment(engine);
 
         const Bench::ResultTable table("GB/s");

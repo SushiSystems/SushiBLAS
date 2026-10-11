@@ -43,7 +43,7 @@ TEST_F(Unit_AddTest, FloatForward)
     fill_tensor(b, {2.0f, 0.5f, 4.0f, -1.5f});
     
     SushiBLAS::ElementwiseOps(*engine).add(a, b, c);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(c, {3.00000f, 2.50000f, 1.00000f, -1.00000f});
 }

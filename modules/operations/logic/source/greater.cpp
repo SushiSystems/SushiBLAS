@@ -30,7 +30,7 @@
 
 namespace SushiBLAS 
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle LogicOps::greater(const Tensor& A, const Tensor& B, Tensor& result) 
     {

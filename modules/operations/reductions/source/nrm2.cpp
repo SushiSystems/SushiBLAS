@@ -30,7 +30,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     // The norm is the scaled form of xNRM2, kept inside the accumulator; see modules/operations/README.md.
     TaskHandle ReductionOps::nrm2(const Tensor& t, Tensor& result)

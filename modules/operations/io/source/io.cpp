@@ -66,6 +66,17 @@ namespace SushiBLAS
             throw IOFailure{status};
         }
 
+        /**
+         * @brief Runs the tasks recorded on the engine, so a file call sees what they wrote.
+         * @throws std::runtime_error if the run fails.
+         */
+        void run_recorded(Engine& engine)
+        {
+            const SushiRuntime::Result<void> ran = engine.execute();
+            SB_THROW_IF(!ran, "io: the recorded tasks failed before the file call: {}",
+                        ran.error().message);
+        }
+
         /** @brief Runs file work and returns Ok, or the status of the IOFailure that ended it. */
         template<typename FileWork>
         [[nodiscard]] IOStatus status_of(FileWork file_work)
@@ -90,7 +101,7 @@ namespace SushiBLAS
         /** @brief Reports whether the host reaches the tensor's storage only through the queue. */
         bool is_device_allocated(const Tensor& t)
         {
-            return t.storage->get_residency() == SushiRuntime::API::Residency::Device;
+            return t.storage->residency() == SushiRuntime::Residency::Device;
         }
 
         /**
@@ -99,7 +110,7 @@ namespace SushiBLAS
          */
         sycl::queue& storage_queue(const Tensor& t)
         {
-            return t.storage->get_context().devices().queue(t.storage->get_device_index());
+            return t.storage->queue();
         }
 
         /** @brief Holds the fields of a .npy header dictionary. */
@@ -796,7 +807,7 @@ namespace SushiBLAS
         for (int i = 0; i < t.rank; ++i)
             header.shape[i] = t.shape[i];
 
-        engine_.execute();
+        run_recorded(engine_);
 
         const IOStatus status = status_of([&]()
         {
@@ -816,7 +827,7 @@ namespace SushiBLAS
     {
         require_dense_payload(t, "io.load");
 
-        engine_.execute();
+        run_recorded(engine_);
 
         return status_of([&]()
         {
@@ -864,7 +875,7 @@ namespace SushiBLAS
     {
         require_dense_payload(t, "io.save_bin");
 
-        engine_.execute();
+        run_recorded(engine_);
 
         return status_of([&]()
         {
@@ -879,7 +890,7 @@ namespace SushiBLAS
     {
         require_dense_payload(t, "io.load_bin");
 
-        engine_.execute();
+        run_recorded(engine_);
 
         return status_of([&]()
         {
@@ -896,7 +907,7 @@ namespace SushiBLAS
         require_dense_payload(t, "io.save_npy");
         require_npy_layout(t, "io.save_npy");
 
-        engine_.execute();
+        run_recorded(engine_);
 
         const char magic[] = "\x93NUMPY";
         uint8_t major = 1;
@@ -949,7 +960,7 @@ namespace SushiBLAS
         require_dense_payload(t, "io.load_npy");
         require_npy_layout(t, "io.load_npy");
 
-        engine_.execute();
+        run_recorded(engine_);
 
         const IOStatus status = status_of([&]()
         {
@@ -985,7 +996,7 @@ namespace SushiBLAS
         require_dense_payload(t, "io.read");
         require_payload_bytes(t, bytes, "io.read");
 
-        engine_.execute();
+        run_recorded(engine_);
 
         if (bytes > 0)
             storage_queue(t).memcpy(dst, t.data(), bytes).wait();
@@ -996,7 +1007,7 @@ namespace SushiBLAS
         require_dense_payload(t, "io.write");
         require_payload_bytes(t, bytes, "io.write");
 
-        engine_.execute();
+        run_recorded(engine_);
 
         if (bytes > 0)
             storage_queue(t).memcpy(t.data(), src, bytes).wait();
@@ -1009,7 +1020,7 @@ namespace SushiBLAS
 
     std::string IO::to_string(const Tensor& t, int precision, int edge_items)
     {
-        engine_.execute();
+        run_recorded(engine_);
 
         Dispatch::require_storage(t, "io.to_string", "t");
 

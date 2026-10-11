@@ -59,7 +59,7 @@ namespace SushiBLAS
             auto result = engine->create_tensor({1});
 
             SushiBLAS::BLASOps(*engine).asum(x, result);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(result, K_EXPECTED, K_TOLERANCE);
         }
@@ -72,7 +72,7 @@ namespace SushiBLAS
             auto y = create_initialized_tensor<float>({3}, {10.0f, 20.0f, 30.0f});
 
             SushiBLAS::BLASOps(*engine).axpy(2.0, x, y);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
         }
@@ -85,7 +85,7 @@ namespace SushiBLAS
             auto y = create_initialized_tensor<float>({3}, {999.0f, 999.0f, 999.0f});
 
             SushiBLAS::BLASOps(*engine).copy(x, y);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
         }
@@ -99,7 +99,7 @@ namespace SushiBLAS
             auto result = engine->create_tensor({1});
 
             SushiBLAS::BLASOps(*engine).dot(x, y, result);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(result, K_EXPECTED, K_TOLERANCE);
         }
@@ -112,7 +112,7 @@ namespace SushiBLAS
             auto result = engine->create_tensor({1}, Core::DataType::Int64);
 
             SushiBLAS::BLASOps(*engine).iamax(x, result);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(result, K_EXPECTED_INDEX, 0.0);
         }
@@ -125,7 +125,7 @@ namespace SushiBLAS
             auto result = engine->create_tensor({1}, Core::DataType::Int64);
 
             SushiBLAS::BLASOps(*engine).iamax(x, result);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(result, K_EXPECTED_INDEX, 0.0);
         }
@@ -138,7 +138,7 @@ namespace SushiBLAS
             auto result = engine->create_tensor({1});
 
             SushiBLAS::BLASOps(*engine).nrm2(x, result);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(result, K_EXPECTED, K_TOLERANCE);
         }
@@ -152,7 +152,7 @@ namespace SushiBLAS
             auto y = create_initialized_tensor<float>({2}, {3.0f, 4.0f});
 
             SushiBLAS::BLASOps(*engine).rot(x, y, 0.6, 0.8);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(x, K_EXPECTED_X, K_TOLERANCE);
             EXPECT_TENSOR_NEAR(y, K_EXPECTED_Y, K_TOLERANCE);
@@ -165,7 +165,7 @@ namespace SushiBLAS
             auto x = create_initialized_tensor<float>({3}, {2.0f, -4.0f, 6.0f});
 
             SushiBLAS::BLASOps(*engine).scal(-0.5, x);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
@@ -179,7 +179,7 @@ namespace SushiBLAS
             auto y = create_initialized_tensor<float>({3}, {7.0f, 8.0f, 9.0f});
 
             SushiBLAS::BLASOps(*engine).swap(x, y);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(x, K_EXPECTED_X, K_TOLERANCE);
             EXPECT_TENSOR_NEAR(y, K_EXPECTED_Y, K_TOLERANCE);

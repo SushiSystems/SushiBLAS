@@ -50,7 +50,7 @@ TEST_F(Unit_ROTTest, SimpleROT)
     SB_LOG_INFO("Submitting ROT.");
     SushiBLAS::BLASOps(*engine).rot(X, Y, c, s);
     
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // With c = 0 and s = 1, x becomes y and y becomes -x.

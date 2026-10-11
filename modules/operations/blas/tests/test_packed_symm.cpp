@@ -467,13 +467,13 @@ namespace SushiBLAS
                 /** @brief Returns the queue of the test environment. */
                 [[nodiscard]] static sycl::queue& queue()
                 {
-                    return TestEnvironment::get_context().devices().queue(0);
+                    return TestEnvironment::queue();
                 }
 
                 /** @brief Returns a square tensor of T of order s with elements in [-1, 1]. */
                 [[nodiscard]] Tensor random_square(int64_t s)
                 {
-                    Tensor tensor = engine->create_tensor({s, s}, get_sushiblas_dtype<T>());
+                    Tensor tensor = engine->create_tensor({s, s}, sushiblas_dtype<T>());
                     fill_random<T>(tensor);
                     return tensor;
                 }
@@ -513,8 +513,7 @@ namespace SushiBLAS
                 GTEST_SKIP() << "no order up to " << K_LARGEST_SEAM_ORDER
                              << " selects the packed kernel; cache_bytes=" << profile.cache_bytes;
 
-            const Core::DataType dtype = get_sushiblas_dtype<T>();
-            auto& context = TestEnvironment::get_context();
+            const Core::DataType dtype = sushiblas_dtype<T>();
 
             for (const Routine routine : K_ROUTINES)
             {
@@ -529,18 +528,18 @@ namespace SushiBLAS
                     Tensor reference_result = this->engine->create_tensor({s, s}, dtype);
 
                     this->engine->set_mode(ExecutionMode::ForceSYCL);
-                    const std::size_t live_before_sycl = context.memory().live_count();
+                    const std::size_t live_before_sycl = TestEnvironment::live_allocation_count();
                     record_product(*this->engine, routine, A, B, sycl_result, side,
                                    Core::Uplo::Upper);
-                    EXPECT_EQ(context.memory().live_count(), live_before_sycl + 1);
-                    this->engine->execute();
+                    EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before_sycl + 1);
+                    this->engine->execute().value();
 
                     this->engine->set_mode(ExecutionMode::ForceReference);
-                    const std::size_t live_before_reference = context.memory().live_count();
+                    const std::size_t live_before_reference = TestEnvironment::live_allocation_count();
                     record_product(*this->engine, routine, A, B, reference_result, side,
                                    Core::Uplo::Upper);
-                    EXPECT_EQ(context.memory().live_count(), live_before_reference);
-                    this->engine->execute();
+                    EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before_reference);
+                    this->engine->execute().value();
 
                     const std::vector<T> got = read_tensor<T>(sycl_result);
                     const std::vector<T> want = read_tensor<T>(reference_result);

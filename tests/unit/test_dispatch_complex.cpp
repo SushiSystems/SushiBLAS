@@ -49,23 +49,23 @@ TEST_F(Unit_DispatchComplexTest, BinaryArithmeticOnComplex32)
     auto c = engine->create_tensor({2}, DataType::Complex32);
 
     SushiBLAS::ElementwiseOps(*engine).add(a, b, c);
-    engine->execute();
+    engine->execute().value();
     auto add_expected = create_initialized_tensor<cf>({2}, {cf(3.0f, 3.0f), cf(2.0f, 3.0f)});
     SB_ASSERT_TENSOR_NEAR(c, add_expected, 1e-4, cf);
 
     SushiBLAS::ElementwiseOps(*engine).sub(a, b, c);
-    engine->execute();
+    engine->execute().value();
     auto sub_expected = create_initialized_tensor<cf>({2}, {cf(-1.0f, 1.0f), cf(4.0f, -5.0f)});
     SB_ASSERT_TENSOR_NEAR(c, sub_expected, 1e-4, cf);
 
     // (1+2i)(2+i) = 5i and (3-i)(-1+4i) = 1+13i. See tests/unit/README.md.
     SushiBLAS::ElementwiseOps(*engine).mul(a, b, c);
-    engine->execute();
+    engine->execute().value();
     auto mul_expected = create_initialized_tensor<cf>({2}, {cf(0.0f, 5.0f), cf(1.0f, 13.0f)});
     SB_ASSERT_TENSOR_NEAR(c, mul_expected, 1e-4, cf);
 
     SushiBLAS::ElementwiseOps(*engine).div(a, b, c);
-    engine->execute();
+    engine->execute().value();
     auto div_expected = create_initialized_tensor<cf>({2}, {cf(0.8f, 0.6f), cf(-7.0f / 17.0f, -11.0f / 17.0f)});
     SB_ASSERT_TENSOR_NEAR(c, div_expected, 1e-4, cf);
 }
@@ -74,21 +74,21 @@ TEST_F(Unit_DispatchComplexTest, UnaryArithmeticOnComplex32)
 {
     auto neg = create_initialized_tensor<cf>({2}, {cf(1.0f, 2.0f), cf(-3.0f, 4.0f)});
     SushiBLAS::ElementwiseOps(*engine).neg(neg);
-    engine->execute();
+    engine->execute().value();
     auto neg_expected = create_initialized_tensor<cf>({2}, {cf(-1.0f, -2.0f), cf(3.0f, -4.0f)});
     SB_ASSERT_TENSOR_NEAR(neg, neg_expected, 1e-4, cf);
 
     // (1+2i)^2 = -3+4i ; i^2 = -1
     auto square = create_initialized_tensor<cf>({2}, {cf(1.0f, 2.0f), cf(0.0f, 1.0f)});
     SushiBLAS::ElementwiseOps(*engine).square(square);
-    engine->execute();
+    engine->execute().value();
     auto square_expected = create_initialized_tensor<cf>({2}, {cf(-3.0f, 4.0f), cf(-1.0f, 0.0f)});
     SB_ASSERT_TENSOR_NEAR(square, square_expected, 1e-4, cf);
 
     // 1/i = -i
     auto recip = create_initialized_tensor<cf>({2}, {cf(2.0f, 0.0f), cf(0.0f, 1.0f)});
     SushiBLAS::ElementwiseOps(*engine).reciprocal(recip);
-    engine->execute();
+    engine->execute().value();
     auto recip_expected = create_initialized_tensor<cf>({2}, {cf(0.5f, 0.0f), cf(0.0f, -1.0f)});
     SB_ASSERT_TENSOR_NEAR(recip, recip_expected, 1e-4, cf);
 }
@@ -98,28 +98,28 @@ TEST_F(Unit_DispatchComplexTest, TranscendentalsOnComplex32)
     // |3+4i| = 5 and |-5+12i| = 13, returned in complex storage with a zero imaginary part.
     auto abs_t = create_initialized_tensor<cf>({2}, {cf(3.0f, 4.0f), cf(-5.0f, 12.0f)});
     SushiBLAS::ElementwiseOps(*engine).abs(abs_t);
-    engine->execute();
+    engine->execute().value();
     auto abs_expected = create_initialized_tensor<cf>({2}, {cf(5.0f, 0.0f), cf(13.0f, 0.0f)});
     SB_ASSERT_TENSOR_NEAR(abs_t, abs_expected, 1e-4, cf);
 
     // sqrt(-9) = 3i - the principal branch, not a NaN and not a silently untouched -9.
     auto sqrt_t = create_initialized_tensor<cf>({2}, {cf(4.0f, 0.0f), cf(-9.0f, 0.0f)});
     SushiBLAS::ElementwiseOps(*engine).sqrt(sqrt_t);
-    engine->execute();
+    engine->execute().value();
     auto sqrt_expected = create_initialized_tensor<cf>({2}, {cf(2.0f, 0.0f), cf(0.0f, 3.0f)});
     SB_ASSERT_TENSOR_NEAR(sqrt_t, sqrt_expected, 1e-4, cf);
 
     // Euler: exp(i*pi/2) = i.
     auto exp_t = create_initialized_tensor<cf>({2}, {cf(1.0f, 0.0f), cf(0.0f, 1.5707963f)});
     SushiBLAS::ElementwiseOps(*engine).exp(exp_t);
-    engine->execute();
+    engine->execute().value();
     auto exp_expected = create_initialized_tensor<cf>({2}, {cf(2.7182818f, 0.0f), cf(0.0f, 1.0f)});
     SB_ASSERT_TENSOR_NEAR(exp_t, exp_expected, 1e-4, cf);
 
     // log(i) = i*pi/2.
     auto log_t = create_initialized_tensor<cf>({2}, {cf(1.0f, 0.0f), cf(0.0f, 1.0f)});
     SushiBLAS::ElementwiseOps(*engine).log(log_t);
-    engine->execute();
+    engine->execute().value();
     auto log_expected = create_initialized_tensor<cf>({2}, {cf(0.0f, 0.0f), cf(0.0f, 1.5707963f)});
     SB_ASSERT_TENSOR_NEAR(log_t, log_expected, 1e-4, cf);
 }
@@ -132,18 +132,18 @@ TEST_F(Unit_DispatchComplexTest, EqualityAndConnectivesOnComplex32)
 
     // Equality is component-wise, so (1,0) != (1,1) although the real parts match.
     SushiBLAS::LogicOps(*engine).equal(a, b, r);
-    engine->execute();
+    engine->execute().value();
     auto eq_expected = create_initialized_tensor<cf>({3}, {cf(1.0f, 0.0f), cf(0.0f, 0.0f), cf(0.0f, 0.0f)});
     SB_ASSERT_TENSOR_NEAR(r, eq_expected, 1e-4, cf);
 
     // Truthiness is "either component nonzero": a[1] is the only zero operand.
     SushiBLAS::LogicOps(*engine).logical_and(a, b, r);
-    engine->execute();
+    engine->execute().value();
     auto and_expected = create_initialized_tensor<cf>({3}, {cf(1.0f, 0.0f), cf(0.0f, 0.0f), cf(1.0f, 0.0f)});
     SB_ASSERT_TENSOR_NEAR(r, and_expected, 1e-4, cf);
 
     SushiBLAS::LogicOps(*engine).logical_not(a, r);
-    engine->execute();
+    engine->execute().value();
     auto not_expected = create_initialized_tensor<cf>({3}, {cf(0.0f, 0.0f), cf(1.0f, 0.0f), cf(0.0f, 0.0f)});
     SB_ASSERT_TENSOR_NEAR(r, not_expected, 1e-4, cf);
 }
@@ -156,7 +156,7 @@ TEST_F(Unit_DispatchComplexTest, WhereSelectsOnComplex32)
     auto out = engine->create_tensor({3}, DataType::Complex32);
 
     SushiBLAS::LogicOps(*engine).where(cond, a, b, out);
-    engine->execute();
+    engine->execute().value();
 
     auto expected = create_initialized_tensor<cf>({3}, {cf(7.0f, 7.0f), cf(-1.0f, -1.0f), cf(7.0f, 7.0f)});
     SB_ASSERT_TENSOR_NEAR(out, expected, 1e-4, cf);
@@ -220,10 +220,10 @@ TEST_F(Unit_DispatchComplexTest, RealDtypesAreUnaffected)
     fill_tensor(b, {2.0f, 0.5f, 4.0f, -1.5f});
 
     SushiBLAS::ElementwiseOps(*engine).max(a, b, c);
-    engine->execute();
+    engine->execute().value();
     verify_tensor(c, {2.0f, 2.0f, 4.0f, 0.5f});
 
     SushiBLAS::ElementwiseOps(*engine).min(a, b, c);
-    engine->execute();
+    engine->execute().value();
     verify_tensor(c, {1.0f, 0.5f, -3.0f, -1.5f});
 }

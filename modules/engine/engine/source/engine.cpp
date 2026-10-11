@@ -28,34 +28,41 @@
 #include <SushiBLAS/engine/engine.hpp>
 
 #include <cstddef>
+#include <utility>
 
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiRuntime/execution/execution_engine.hpp>
 
 namespace SushiBLAS
 {
-    Engine::Engine(SushiRuntime::Execution::RuntimeContext& context, Core::Layout layout)
-        : context_(context), scratch_pool_(context), graph_(),
-          recorder_(graph_, scratch_pool_), tensor_factory_(context, layout)
+    Engine::Engine(SushiRuntime::Runtime& runtime, Core::Layout layout)
+        : runtime_(runtime), scratch_pool_(runtime), graph_(runtime.graph()),
+          recorder_(graph_.recorder(), scratch_pool_), tensor_factory_(runtime, layout)
     {
         SB_LOG_INFO("SushiBLAS Engine initialized with {} layout.",
                     layout == Core::Layout::RowMajor ? "Row-Major" : "Column-Major");
     }
 
-    void Engine::execute()
+    SushiRuntime::Result<void> Engine::execute()
     {
-        SushiRuntime::Execution::CompiledGraph compiled = graph_.compile();
-        // An empty graph returns early; the execution engine throws on one; see modules/README.md.
-        if (compiled.roots.empty())
-            return;
+        SushiRuntime::Recorder& recorded = graph_.recorder();
+        // A graph with no task is not run: the runtime refuses one; see modules/README.md.
+        if (recorded.node_count() == 0 && recorded.refusal() == nullptr)
+            return {};
 
-        context_.get_execution_engine().execute(compiled);
+        auto report = graph_.run();
+        // A new graph replaces the one that ran, so its tasks die with what they captured.
+        graph_ = runtime_.graph();
+        if (!report)
+            return SushiRuntime::make_error(std::move(report.error()));
+
+        return {};
     }
 
     void Engine::discard_recorded()
     {
-        // The nodes die with the returned vector, and take what their bodies captured with them.
-        const std::size_t dropped = graph_.take_nodes().size();
+        const std::size_t dropped = graph_.recorder().node_count();
+        // The tasks die in clear(), and take what their bodies captured with them.
+        graph_.recorder().clear();
         SB_LOG_INFO("SushiBLAS Engine discarded {} recorded task(s).", dropped);
     }
 } // namespace SushiBLAS

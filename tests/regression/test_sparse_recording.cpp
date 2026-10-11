@@ -108,7 +108,7 @@ namespace SushiBLAS
                 [[nodiscard]] SparseMatrix build(const HostTriplets<float>& host)
                 {
                     const Core::IndexBase base = Core::IndexBase::Zero;
-                    const SparseBuilder builder(engine->get_tensor_factory());
+                    const SparseBuilder builder(engine->tensor_factory());
                     return builder.matrix_from_triplets(
                         host.rows, host.cols, stored_indices<int32_t>(host.row_indices, base),
                         stored_indices<int32_t>(host.column_indices, base), host.values);
@@ -147,7 +147,7 @@ namespace SushiBLAS
                 /** @brief Returns how many USM allocations of the test context are alive. */
                 [[nodiscard]] static std::size_t live_allocations()
                 {
-                    return TestEnvironment::get_context().memory().live_count();
+                    return TestEnvironment::live_allocation_count();
                 }
 
                 /**
@@ -162,17 +162,19 @@ namespace SushiBLAS
                     SCOPED_TRACE(routine);
 
                     GraphProbe probe(ExecutionMode::ForceSYCL);
-                    ASSERT_TRUE(record(probe.get_recorder()).is_valid());
+                    ASSERT_TRUE(record(probe.recorder()).is_valid());
 
-                    const auto nodes = probe.take_nodes();
-                    ASSERT_EQ(1u, nodes.size());
-                    ASSERT_TRUE(static_cast<bool>(nodes[0]->host_work));
+                    ASSERT_EQ(1u, probe.recorded_count());
+                    const auto tasks = probe.recorded_tasks();
+                    if (!tasks)
+                        GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                    ASSERT_TRUE(static_cast<bool>((*tasks)[0].body));
 
-                    sycl::queue& queue = TestEnvironment::get_context().devices().queue(0);
+                    sycl::queue& queue = TestEnvironment::queue();
                     SparseDependencyGate gate(queue);
 
                     sycl::event done =
-                        nodes[0]->host_work(queue, std::vector<sycl::event>{gate.event()});
+                        (*tasks)[0].body(queue, std::vector<sycl::event>{gate.event()});
 
                     const auto status =
                         done.get_info<sycl::info::event::command_execution_status>();
@@ -194,7 +196,7 @@ namespace SushiBLAS
             const std::vector<float> transposed = {25.0f, 9.0f, 12.0f, 2.0f, 43.0f};
 
             {
-                const SparseBuilder builder(engine->get_tensor_factory());
+                const SparseBuilder builder(engine->tensor_factory());
                 const SparseVector x = builder.vector_from_entries(
                     8, std::vector<int32_t>{6, 1, 4}, std::vector<float>{10.0f, 20.0f, 30.0f});
                 const Tensor y = vector_of({1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f});
@@ -279,7 +281,7 @@ namespace SushiBLAS
             EXPECT_GE(live_allocations(), live_with_matrix)
                 << "The recorded task is the last holder of the three arrays and must keep them.";
 
-            engine->execute();
+            engine->execute().value();
 
             verify_tensor(y, std::vector<float>{9, 0, 43, 41}, K_TOLERANCE);
         }
@@ -294,12 +296,14 @@ namespace SushiBLAS
                 SparseMatrix A = sample();
                 Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
 
-                ElementwiseOps(probe.get_recorder()).mul(ones, ones, A.values);
-                SparseOps(probe.get_recorder()).spmv(A, x, y);
+                ElementwiseOps(probe.recorder()).mul(ones, ones, A.values);
+                SparseOps(probe.recorder()).spmv(A, x, y);
 
-                const auto nodes = probe.take_nodes();
-                ASSERT_EQ(2u, nodes.size());
-                EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
+                ASSERT_EQ(2u, probe.recorded_count());
+                const auto tasks = probe.recorded_tasks();
+                if (!tasks)
+                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                     << "The product reads A.values and must depend on the task that wrote them.";
             }
 
@@ -309,12 +313,14 @@ namespace SushiBLAS
                 Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
                 Tensor unrelated = vector_of(std::vector<float>(7, 0.0f));
 
-                ElementwiseOps(probe.get_recorder()).mul(ones, ones, unrelated);
-                SparseOps(probe.get_recorder()).spmv(A, x, y);
+                ElementwiseOps(probe.recorder()).mul(ones, ones, unrelated);
+                SparseOps(probe.recorder()).spmv(A, x, y);
 
-                const auto nodes = probe.take_nodes();
-                ASSERT_EQ(2u, nodes.size());
-                EXPECT_EQ(0, nodes[1]->in_degree.load(std::memory_order_relaxed))
+                ASSERT_EQ(2u, probe.recorded_count());
+                const auto tasks = probe.recorded_tasks();
+                if (!tasks)
+                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                EXPECT_EQ(0u, (*tasks)[1].dependency_count)
                     << "The product reads nothing the first task wrote.";
             }
         }
@@ -330,10 +336,10 @@ namespace SushiBLAS
             Tensor y_first = vector_of({0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
             Tensor y_second = vector_of({0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
 
-            SparseOps(first.get_recorder()).spmv(A, x, y_first, Core::Transpose::Trans);
-            SparseOps(second.get_recorder()).spmv(A, x, y_second, Core::Transpose::Trans);
-            first.execute();
-            second.execute();
+            SparseOps(first.recorder()).spmv(A, x, y_first, Core::Transpose::Trans);
+            SparseOps(second.recorder()).spmv(A, x, y_second, Core::Transpose::Trans);
+            first.execute().value();
+            second.execute().value();
 
             verify_tensor(y_first, expected, K_TOLERANCE);
             EXPECT_EQ(read_tensor<float>(y_first), read_tensor<float>(y_second));

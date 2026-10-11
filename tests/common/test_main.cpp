@@ -27,13 +27,13 @@
 
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiRuntime/logging/logger.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
 #include "test_environment.hpp"
 
 int main(int argc, char **argv) 
 {
     // Force logs to stream synchronously during testing to avoid overlap with GTest output.
-    SR_LOGGER_SET_SYNC_MODE(true);
+    SushiRuntime::set_log_synchronous(true);
     SB_LOGGER_SET_SYNC_MODE(true);
     
     ::testing::InitGoogleTest(&argc, argv);

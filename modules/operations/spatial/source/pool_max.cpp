@@ -35,7 +35,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle SpatialOps::pool_max(const Tensor& in, Tensor& out, Tensor& indices,
                                     const Spatial::ConvGeometry& g)
@@ -68,9 +68,9 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(in).writes(out).writes(indices);
 
-        SushiRuntime::Graph::TaskMetadata meta;
+        SushiRuntime::Internal::Graph::TaskMetadata meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.pool_max"_op;
 
         // The switch runs on the value dtype; the index pointer is int64_t*; see modules/operations/README.md.

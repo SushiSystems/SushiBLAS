@@ -44,7 +44,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/elementwise/dispatch.hpp>
-#include <SushiRuntime/SushiRuntime.h>
+#include <SushiRuntime/sushiruntime.hpp>
 #include "../common/test_utils.hpp"
 #include "../common/graph_probe.hpp"
 
@@ -52,7 +52,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        using namespace SushiRuntime::Graph::Literals;
+        using namespace SushiRuntime::Literals;
 
         namespace
         {
@@ -522,7 +522,7 @@ namespace SushiBLAS
                 /** @brief Reports whether the test device computes in HALF. */
                 [[nodiscard]] static bool device_has_fp16()
                 {
-                    return TestEnvironment::get_context().devices().queue(0).get_device().has(
+                    return TestEnvironment::queue().get_device().has(
                         sycl::aspect::fp16);
                 }
 
@@ -546,9 +546,9 @@ namespace SushiBLAS
                     try
                     {
                         Tensor t = engine->create_tensor({count}, Core::DataType::Float32,
-                                                         SushiRuntime::API::Residency::Device);
+                                                         SushiRuntime::Residency::Device);
                         const sycl::context context =
-                            TestEnvironment::get_context().devices().queue(0).get_context();
+                            TestEnvironment::queue().get_context();
                         if (sycl::get_pointer_type(t.data(), context) != sycl::usm::alloc::device)
                             return std::nullopt;
                         return t;
@@ -587,9 +587,9 @@ namespace SushiBLAS
                             on.t = tensor_of(seed);
                             on.out = tensor_of(std::vector<T>(seed.size()));
                             on.scalar = tensor_of(std::vector<T>(1));
-                            written.push_back(c.record(probe.get_recorder(), on));
+                            written.push_back(c.record(probe.recorder(), on));
                         }
-                        probe.execute();
+                        probe.execute().value();
 
                         for (std::size_t k = 0; k < cases.size(); ++k)
                             results[k].in(mode) = read_tensor<T>(written[k]);
@@ -657,7 +657,7 @@ namespace SushiBLAS
                 template<typename T>
                 void expect_exact_operations_agree()
                 {
-                    SCOPED_TRACE(Core::to_string(get_sushiblas_dtype<T>()));
+                    SCOPED_TRACE(Core::to_string(sushiblas_dtype<T>()));
 
                     const HostInputs<T> arithmetic{signed_pattern<T>(K_ELEMENTS),
                                                    offset_pattern<T>(K_ELEMENTS),
@@ -676,7 +676,7 @@ namespace SushiBLAS
                 template<typename T>
                 void expect_integer_operations_agree()
                 {
-                    SCOPED_TRACE(Core::to_string(get_sushiblas_dtype<T>()));
+                    SCOPED_TRACE(Core::to_string(sushiblas_dtype<T>()));
 
                     HostInputs<T> host;
                     host.a = wrapping_pattern<T>(K_ELEMENTS);
@@ -691,7 +691,7 @@ namespace SushiBLAS
                 template<typename T>
                 void expect_math_operations_agree()
                 {
-                    SCOPED_TRACE(Core::to_string(get_sushiblas_dtype<T>()));
+                    SCOPED_TRACE(Core::to_string(sushiblas_dtype<T>()));
 
                     // Every input keeps exp, log and sqrt below 2, where their tolerance was set.
                     const HostInputs<T> around_zero{signed_pattern<T>(K_ELEMENTS, 16.0),
@@ -725,8 +725,8 @@ namespace SushiBLAS
                 template<typename Src, typename Dst>
                 void expect_convert_agrees()
                 {
-                    SCOPED_TRACE(std::string(Core::to_string(get_sushiblas_dtype<Src>())) + " to " +
-                                 Core::to_string(get_sushiblas_dtype<Dst>()));
+                    SCOPED_TRACE(std::string(Core::to_string(sushiblas_dtype<Src>())) + " to " +
+                                 Core::to_string(sushiblas_dtype<Dst>()));
 
                     CaseTensors inputs;
                     inputs.a = tensor_of(signed_pattern<Src>(K_ELEMENTS, 3.0));
@@ -816,10 +816,10 @@ namespace SushiBLAS
                 Tensor y = tensor_of(y_values);
                 Tensor x = tensor_of(x_values);
 
-                Dispatch::execute_zip_inplace(probe.get_recorder(), std::array{&y, &x},
+                Dispatch::execute_zip_inplace(probe.recorder(), std::array{&y, &x},
                                               "test.step_and_flip", "test.step_and_flip"_op,
                                               StepAndFlip{});
-                probe.execute();
+                probe.execute().value();
 
                 y_result.in(mode) = read_tensor<float>(y);
                 x_result.in(mode) = read_tensor<float>(x);
@@ -843,8 +843,8 @@ namespace SushiBLAS
                 GraphProbe probe(mode);
                 Tensor c = engine->create_tensor({4});
 
-                EXPECT_NO_THROW(ElementwiseOps(probe.get_recorder()).add(*a, b, c));
-                probe.execute();
+                EXPECT_NO_THROW(ElementwiseOps(probe.recorder()).add(*a, b, c));
+                probe.execute().value();
 
                 verify_tensor(c, {11.0f, 22.0f, 33.0f, 44.0f}, K_EXACT_TOLERANCE);
             }
@@ -852,10 +852,10 @@ namespace SushiBLAS
             GraphProbe reference(ExecutionMode::ForceReference);
             Tensor c = engine->create_tensor({4});
             const std::string message =
-                refusal_of([&] { ElementwiseOps(reference.get_recorder()).add(*a, b, c); });
+                refusal_of([&] { ElementwiseOps(reference.recorder()).add(*a, b, c); });
 
             EXPECT_NE(message.find("ForceReference"), std::string::npos) << message;
-            EXPECT_TRUE(reference.take_nodes().empty());
+            EXPECT_EQ(0u, reference.take_recorded_count());
         }
 
         /** @brief Tests that add over empty tensors records no task under either forced mode. */
@@ -868,8 +868,8 @@ namespace SushiBLAS
                 Tensor b = engine->create_tensor({0, 3});
                 Tensor c = engine->create_tensor({0, 3});
 
-                EXPECT_FALSE(ElementwiseOps(probe.get_recorder()).add(a, b, c).is_valid());
-                EXPECT_TRUE(probe.take_nodes().empty());
+                EXPECT_FALSE(ElementwiseOps(probe.recorder()).add(a, b, c).is_valid());
+                EXPECT_EQ(0u, probe.take_recorded_count());
             }
         }
     } // namespace Test

@@ -30,7 +30,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     // The sum is order-sensitive, so it takes the segmented compensated fold; see modules/operations/README.md.
     TaskHandle ReductionOps::sum_along(const Tensor& t, int axis, Tensor& result)

@@ -31,7 +31,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle ElementwiseOps::clamp(Tensor& t, double min_val, double max_val)
     {

@@ -35,7 +35,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     // The spans here are built by hand, not by Spatial::window_span_for; see modules/operations/README.md.
 
@@ -97,9 +97,9 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(in).reads(gamma).reads(beta).writes(out);
 
-        SushiRuntime::Graph::TaskMetadata meta;
+        SushiRuntime::Internal::Graph::TaskMetadata meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.channel_affine"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
@@ -164,9 +164,9 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(in).writes(out);
 
-        SushiRuntime::Graph::TaskMetadata meta;
+        SushiRuntime::Internal::Graph::TaskMetadata meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.broadcast_spatial"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
@@ -239,9 +239,9 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(in).writes(out);
 
-        SushiRuntime::Graph::TaskMetadata meta;
+        SushiRuntime::Internal::Graph::TaskMetadata meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.layout_convert"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(

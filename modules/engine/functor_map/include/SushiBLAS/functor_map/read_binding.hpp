@@ -280,8 +280,8 @@ namespace SushiBLAS
                     for (std::size_t k = 0; k < sizeof...(Reads); ++k)
                     {
                         const std::string operand = "read " + std::to_string(k);
-                        const SushiRuntime::Memory::ResourceRegion region = tensors_[k].region();
-                        for (const SushiRuntime::Memory::ResourceRegion& written :
+                        const SushiRuntime::BufferRegion region = tensors_[k].region();
+                        for (const SushiRuntime::BufferRegion& written :
                              operands.write_regions())
                             require_operand(!region.overlaps(written), name, operand.c_str(),
                                             "overlaps a tensor the operation writes");

@@ -292,7 +292,7 @@ namespace SushiBLAS
             {
                 Tensor t = engine.create_tensor(
                     SushiRuntime::span<const int64_t>(dims.data(), dims.data() + dims.size()),
-                    get_sushiblas_dtype<T>());
+                    sushiblas_dtype<T>());
 
                 if (t.num_elements > 0)
                     SushiBLAS::IO(engine).from_vector(t, elements_from<T>(values));
@@ -422,7 +422,7 @@ namespace SushiBLAS
             template<typename T>
             bool device_computes()
             {
-                const sycl::device device = TestEnvironment::get_context().devices().queue(0).get_device();
+                const sycl::device device = TestEnvironment::queue().get_device();
 
                 if constexpr (std::is_same_v<T, sycl::half>)
                     return device.has(sycl::aspect::fp16);
@@ -701,7 +701,7 @@ namespace SushiBLAS
             ASSERT_EQ(element_count(cases[1].tap_dims()), std::size_t{144});
 
             const Device::Profile& profile =
-                Device::profile_for(TestEnvironment::get_context().devices().queue(0));
+                Device::profile_for(TestEnvironment::queue());
 
             for (const WindowCase& c : cases)
             {
@@ -850,14 +850,14 @@ namespace SushiBLAS
             {
                 in = engine->create_tensor({c.batch, c.in_h, c.in_w, c.channels},
                                            Core::DataType::Float32,
-                                           SushiRuntime::API::Residency::Device);
+                                           SushiRuntime::Residency::Device);
             }
             catch (const std::exception& error)
             {
                 GTEST_SKIP() << "the device gives no device-only USM: " << error.what();
             }
 
-            const sycl::context context = TestEnvironment::get_context().devices().queue(0).get_context();
+            const sycl::context context = TestEnvironment::queue().get_context();
             if (sycl::get_pointer_type(in->data(), context) != sycl::usm::alloc::device)
                 GTEST_SKIP() << "the allocation is not device-only USM";
 
@@ -873,7 +873,7 @@ namespace SushiBLAS
 
             engine->set_mode(ExecutionMode::Auto);
             EXPECT_NO_THROW(spatial.window_dot(*in, weights, out, g));
-            engine->execute();
+            engine->execute().value();
         }
     }
 }

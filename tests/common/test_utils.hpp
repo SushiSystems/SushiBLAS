@@ -66,7 +66,7 @@ namespace SushiBLAS
             std::vector<T> host_expected(size);
 
             // Fetch runtime queue for synchronization and copy
-            auto& q = TestEnvironment::get_context().devices().queue(0);
+            auto& q = TestEnvironment::queue();
 
             q.memcpy(host_actual.data(), actual.data(), size * sizeof(T)).wait();
             q.memcpy(host_expected.data(), expected.data(), size * sizeof(T)).wait();
@@ -98,14 +98,14 @@ namespace SushiBLAS
         /**
         * @brief Maps a C++ scalar type to its corresponding SushiBLAS DataType enum value.
         */
-        template<typename T> Core::DataType get_sushiblas_dtype();
-        template<> inline Core::DataType get_sushiblas_dtype<sycl::half>() { return Core::DataType::Half; }
-        template<> inline Core::DataType get_sushiblas_dtype<float>() { return Core::DataType::Float32; }
-        template<> inline Core::DataType get_sushiblas_dtype<double>() { return Core::DataType::Float64; }
-        template<> inline Core::DataType get_sushiblas_dtype<std::complex<float>>() { return Core::DataType::Complex32; }
-        template<> inline Core::DataType get_sushiblas_dtype<std::complex<double>>() { return Core::DataType::Complex64; }
-        template<> inline Core::DataType get_sushiblas_dtype<int32_t>() { return Core::DataType::Int32; }
-        template<> inline Core::DataType get_sushiblas_dtype<int64_t>() { return Core::DataType::Int64; }
+        template<typename T> Core::DataType sushiblas_dtype();
+        template<> inline Core::DataType sushiblas_dtype<sycl::half>() { return Core::DataType::Half; }
+        template<> inline Core::DataType sushiblas_dtype<float>() { return Core::DataType::Float32; }
+        template<> inline Core::DataType sushiblas_dtype<double>() { return Core::DataType::Float64; }
+        template<> inline Core::DataType sushiblas_dtype<std::complex<float>>() { return Core::DataType::Complex32; }
+        template<> inline Core::DataType sushiblas_dtype<std::complex<double>>() { return Core::DataType::Complex64; }
+        template<> inline Core::DataType sushiblas_dtype<int32_t>() { return Core::DataType::Int32; }
+        template<> inline Core::DataType sushiblas_dtype<int64_t>() { return Core::DataType::Int64; }
 
         /**
         * @brief Writes a flat host-side value list into a tensor, dispatching on the tensor's
@@ -116,7 +116,7 @@ namespace SushiBLAS
             size_t size = static_cast<size_t>(tensor.num_elements);
             ASSERT_EQ(values.size(), size) << "fill_tensor: value count does not match tensor size.";
 
-            auto& q = TestEnvironment::get_context().devices().queue(0);
+            auto& q = TestEnvironment::queue();
             switch (tensor.dtype)
             {
                 case Core::DataType::Half:
@@ -220,7 +220,7 @@ namespace SushiBLAS
             {
                 const size_t size = static_cast<size_t>(tensor.num_elements);
                 std::vector<H> host(size);
-                TestEnvironment::get_context().devices().queue(0).memcpy(host.data(), tensor.data(), size * sizeof(H)).wait();
+                TestEnvironment::queue().memcpy(host.data(), tensor.data(), size * sizeof(H)).wait();
 
                 for (size_t i = 0; i < size; ++i)
                 {
@@ -289,13 +289,13 @@ namespace SushiBLAS
         template <typename T>
         std::vector<T> read_tensor(const Tensor& tensor)
         {
-            if (get_sushiblas_dtype<T>() != tensor.dtype)
+            if (sushiblas_dtype<T>() != tensor.dtype)
                 throw std::invalid_argument("read_tensor: T does not match the tensor's dtype " +
                                             std::string(Core::to_string(tensor.dtype)) + ".");
 
             const size_t size = static_cast<size_t>(tensor.num_elements);
             std::vector<T> host(size);
-            TestEnvironment::get_context().devices().queue(0)
+            TestEnvironment::queue()
                 .memcpy(host.data(), tensor.data(), size * sizeof(T))
                 .wait();
             return host;
@@ -353,7 +353,7 @@ namespace SushiBLAS
                     host_data[i] = static_cast<T>(get_rand());
             }
 
-            auto& q = TestEnvironment::get_context().devices().queue(0);
+            auto& q = TestEnvironment::queue();
             q.memcpy(tensor.data(), host_data.data(), size * sizeof(T)).wait();
         }
 
@@ -367,7 +367,7 @@ namespace SushiBLAS
 
                 void SetUp() override 
                 {
-                    engine = std::make_unique<Engine>(TestEnvironment::get_context(), Core::Layout::RowMajor);
+                    engine = std::make_unique<Engine>(TestEnvironment::runtime(), Core::Layout::RowMajor);
                     reset_fill_random_generator();
                 }
 
@@ -378,7 +378,7 @@ namespace SushiBLAS
 
                 void reinit_engine(Core::Layout layout)
                 {
-                    engine = std::make_unique<Engine>(TestEnvironment::get_context(), layout);
+                    engine = std::make_unique<Engine>(TestEnvironment::runtime(), layout);
                 }
 
                 /**
@@ -387,8 +387,8 @@ namespace SushiBLAS
                 template<typename T>
                 Tensor create_initialized_tensor(std::initializer_list<int64_t> dims, const std::vector<T>& data)
                 {
-                    auto t = engine->create_tensor(dims, get_sushiblas_dtype<T>());
-                    auto& q = TestEnvironment::get_context().devices().queue(0);
+                    auto t = engine->create_tensor(dims, sushiblas_dtype<T>());
+                    auto& q = TestEnvironment::queue();
                     q.memcpy(t.data(), data.data(), data.size() * sizeof(T)).wait();
                     return t;
                 }

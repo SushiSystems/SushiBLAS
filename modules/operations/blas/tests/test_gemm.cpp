@@ -41,7 +41,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        using namespace SushiRuntime::Graph::Literals;
+        using namespace SushiRuntime::Literals;
 
         template <typename T>
         class Unit_GEMMTest : public SushiBLASTest
@@ -62,7 +62,7 @@ namespace SushiBLAS
                 {
                     reinit_engine(layout);
 
-                    const auto dtype = get_sushiblas_dtype<T>();
+                    const auto dtype = sushiblas_dtype<T>();
 
                     // op(A) is m x k and op(B) is k x n; a set flag stores the transpose.
                     const int64_t a_rows = transA ? k : m;
@@ -84,12 +84,12 @@ namespace SushiBLAS
                     engine->set_mode(ExecutionMode::ForceSYCL);
                     SushiBLAS::BLASOps(*engine).gemm(A, B, C_actual, transpose_of(transA),
                                                      transpose_of(transB), alpha, beta);
-                    engine->execute();
+                    engine->execute().value();
 
                     engine->set_mode(ExecutionMode::ForceReference);
                     SushiBLAS::BLASOps(*engine).gemm(A, B, C_expected, transpose_of(transA),
                                                      transpose_of(transB), alpha, beta);
-                    engine->execute();
+                    engine->execute().value();
 
                     SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tolerance_for(dtype, k), T);
                 }
@@ -106,7 +106,7 @@ namespace SushiBLAS
                 {
                     reinit_engine(Core::Layout::RowMajor);
 
-                    const auto dtype = get_sushiblas_dtype<T>();
+                    const auto dtype = sushiblas_dtype<T>();
 
                     auto A = engine->create_tensor({batch, m, k}, dtype);
                     auto B = engine->create_tensor({batch, k, n}, dtype);
@@ -120,12 +120,12 @@ namespace SushiBLAS
                     engine->set_mode(ExecutionMode::ForceSYCL);
                     SushiBLAS::BLASOps(*engine).gemm(A, B, C_actual, Core::Transpose::NoTrans,
                                                      Core::Transpose::NoTrans, alpha, beta);
-                    engine->execute();
+                    engine->execute().value();
 
                     engine->set_mode(ExecutionMode::ForceReference);
                     SushiBLAS::BLASOps(*engine).gemm(A, B, C_expected, Core::Transpose::NoTrans,
                                                      Core::Transpose::NoTrans, alpha, beta);
-                    engine->execute();
+                    engine->execute().value();
 
                     SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tolerance_for(dtype, k), T);
                 }
@@ -154,7 +154,7 @@ namespace SushiBLAS
 
                     fill_random<T>(actual);
 
-                    auto& q = TestEnvironment::get_context().devices().queue(0);
+                    auto& q = TestEnvironment::queue();
                     q.memcpy(expected.data(), actual.data(),
                              static_cast<std::size_t>(actual.num_elements) * sizeof(T)).wait();
                 }
@@ -308,7 +308,7 @@ namespace SushiBLAS
                     [[nodiscard]] static std::vector<float> download(const Tensor& t)
                     {
                         std::vector<float> host(static_cast<std::size_t>(t.num_elements));
-                        auto& q = TestEnvironment::get_context().devices().queue(0);
+                        auto& q = TestEnvironment::queue();
                         q.memcpy(host.data(), t.data(), host.size() * sizeof(float)).wait();
                         return host;
                     }
@@ -323,7 +323,7 @@ namespace SushiBLAS
 
                 engine->set_mode(ExecutionMode::ForceSYCL);
                 SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-                engine->execute();
+                engine->execute().value();
 
                 // C = [[1+3, 2+3], [4+6, 5+6]] = [[4,5],[10,11]], row-major.
                 EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 5, 10, 11}), 1e-5);
@@ -340,7 +340,7 @@ namespace SushiBLAS
 
                 engine->set_mode(ExecutionMode::ForceSYCL);
                 SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-                engine->execute();
+                engine->execute().value();
 
                 // C = [[4,5],[10,11]] again, stored column-major with ldc = 2.
                 EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 10, 5, 11}), 1e-5);
@@ -357,7 +357,7 @@ namespace SushiBLAS
 
                 engine->set_mode(ExecutionMode::ForceReference);
                 SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-                engine->execute();
+                engine->execute().value();
 
                 EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 10, 5, 11}), 1e-5);
             }
@@ -372,7 +372,7 @@ namespace SushiBLAS
                 engine->set_mode(ExecutionMode::ForceSYCL);
                 SushiBLAS::BLASOps(*engine).gemm(A, B, C, Core::Transpose::Trans,
                                                  Core::Transpose::NoTrans);
-                engine->execute();
+                engine->execute().value();
 
                 EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 5, 10, 11}), 1e-5);
             }
@@ -415,7 +415,7 @@ namespace SushiBLAS
                 auto row_bias = create_initialized_tensor<float>({2}, {0.0f, 1.0f});
                 auto col_bias = create_initialized_tensor<float>({3}, {0.5f, -1.0f, 5.0f});
 
-                auto& q = TestEnvironment::get_context().devices().queue(0);
+                auto& q = TestEnvironment::queue();
                 const BiasReLUEpilogue epilogue{static_cast<const float*>(row_bias.data()),
                                                 static_cast<const float*>(col_bias.data())};
 
@@ -467,12 +467,12 @@ namespace SushiBLAS
                                                 col_bias.data_as<float>()};
 
                 engine->set_mode(ExecutionMode::ForceSYCL);
-                Dispatch::execute_gemm(engine->get_recorder(), A, B, C,
+                Dispatch::execute_gemm(engine->recorder(), A, B, C,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bias_relu", "test.gemm_bias_relu"_op,
                                        epilogue);
-                engine->execute();
+                engine->execute().value();
 
                 EXPECT_TENSOR_NEAR(C, expected(), 1e-5);
             }
@@ -490,12 +490,12 @@ namespace SushiBLAS
                                                 col_bias.data_as<float>()};
 
                 engine->set_mode(ExecutionMode::ForceReference);
-                Dispatch::execute_gemm(engine->get_recorder(), A, B, C,
+                Dispatch::execute_gemm(engine->recorder(), A, B, C,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bias_relu_ref", "test.gemm_bias_relu_ref"_op,
                                        epilogue);
-                engine->execute();
+                engine->execute().value();
 
                 EXPECT_TENSOR_NEAR(C, expected(), 1e-5);
             }
@@ -512,12 +512,12 @@ namespace SushiBLAS
 
                 SushiBLAS::BLASOps(*engine).gemm(A, B, via_api, Core::Transpose::NoTrans,
                                                  Core::Transpose::NoTrans, 1.5, 0.0);
-                Dispatch::execute_gemm(engine->get_recorder(), A, B, via_seam,
+                Dispatch::execute_gemm(engine->recorder(), A, B, via_seam,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.5, 0.0,
                                        "test.gemm_identity", "test.gemm_identity"_op,
                                        Kernels::GemmIdentityEpilogue{});
-                engine->execute();
+                engine->execute().value();
 
                 SB_ASSERT_TENSOR_NEAR(via_seam, via_api, 1e-6, float);
             }
@@ -595,18 +595,20 @@ namespace SushiBLAS
                 auto bias = engine->create_tensor({3}, Core::DataType::Float32);
 
                 // The in-degree counts the bias edge alone. See tests/unit/README.md.
-                SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(seed, seed, bias);
+                SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
 
-                Dispatch::execute_gemm(probe.get_recorder(), A, B, C,
+                Dispatch::execute_gemm(probe.recorder(), A, B, C,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_declared_bias", "test.gemm_declared_bias"_op,
                                        Dispatch::gemm_epilogue(
                                            BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
 
-                auto nodes = probe.take_nodes();
-                ASSERT_EQ(2u, nodes.size());
-                EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
+                ASSERT_EQ(2u, probe.recorded_count());
+                const auto tasks = probe.recorded_tasks();
+                if (!tasks)
+                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                     << "The GEMM whose epilogue dereferences `bias` must depend on the op "
                        "that wrote it. An in-degree of 0 means the declaration made through "
                        "Dispatch::gemm_epilogue never reached the task's read set.";
@@ -623,17 +625,19 @@ namespace SushiBLAS
                 auto seed = create_initialized_tensor<float>({3}, {1.0f, 2.0f, 3.0f});
                 auto bias = engine->create_tensor({3}, Core::DataType::Float32);
 
-                SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(seed, seed, bias);
+                SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
 
-                Dispatch::execute_gemm(probe.get_recorder(), A, B, C,
+                Dispatch::execute_gemm(probe.recorder(), A, B, C,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bare_bias", "test.gemm_bare_bias"_op,
                                        BiasColumnEpilogue{bias.data_as<float>()});
 
-                auto nodes = probe.take_nodes();
-                ASSERT_EQ(2u, nodes.size());
-                EXPECT_EQ(0, nodes[1]->in_degree.load(std::memory_order_relaxed))
+                ASSERT_EQ(2u, probe.recorded_count());
+                const auto tasks = probe.recorded_tasks();
+                if (!tasks)
+                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                EXPECT_EQ(0u, (*tasks)[1].dependency_count)
                     << "A bare epilogue declares nothing, so the GEMM must be a root - "
                        "unordered against the op writing the bias it reads. If this is 1, "
                        "something is inferring the epilogue's operands, which this layer "
@@ -648,9 +652,9 @@ namespace SushiBLAS
                 constexpr int64_t kN = 3;
 
                 auto storage = SushiRuntime::make_sushi<Storage>(
-                    TestEnvironment::get_context(),
+                    TestEnvironment::runtime(),
                     static_cast<size_t>(2 * kN) * sizeof(float),
-                    SushiRuntime::API::Residency::Shared);
+                    SushiRuntime::Residency::Shared);
 
                 Tensor seed(storage, {kN}, Core::DataType::Float32, 0);
                 Tensor bias(storage, {kN}, Core::DataType::Float32, kN);
@@ -661,18 +665,20 @@ namespace SushiBLAS
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
                 auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
 
-                SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(seed, seed, bias);
+                SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, bias);
 
-                Dispatch::execute_gemm(probe.get_recorder(), A, B, C,
+                Dispatch::execute_gemm(probe.recorder(), A, B, C,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_arena_bias", "test.gemm_arena_bias"_op,
                                        Dispatch::gemm_epilogue(
                                            BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
 
-                auto nodes = probe.take_nodes();
-                ASSERT_EQ(2u, nodes.size());
-                EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
+                ASSERT_EQ(2u, probe.recorded_count());
+                const auto tasks = probe.recorded_tasks();
+                if (!tasks)
+                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                     << "The declared read must be described by Tensor::region() - keyed on "
                        "the allocation base and narrowed to the view's byte interval. An "
                        "in-degree of 0 means it was described by a bare pointer, which keys "
@@ -691,7 +697,7 @@ namespace SushiBLAS
                 auto aux = engine->create_tensor({3, 3}, Core::DataType::Float32);
                 auto consumer = engine->create_tensor({3, 3}, Core::DataType::Float32);
 
-                Dispatch::execute_gemm(probe.get_recorder(), A, B, C,
+                Dispatch::execute_gemm(probe.recorder(), A, B, C,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_spill", "test.gemm_spill"_op,
@@ -701,11 +707,13 @@ namespace SushiBLAS
                                            .reads(bias)
                                            .writes(aux));
 
-                SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(aux, aux, consumer);
+                SushiBLAS::ElementwiseOps(probe.recorder()).mul(aux, aux, consumer);
 
-                auto nodes = probe.take_nodes();
-                ASSERT_EQ(2u, nodes.size());
-                EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
+                ASSERT_EQ(2u, probe.recorded_count());
+                const auto tasks = probe.recorded_tasks();
+                if (!tasks)
+                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                     << "The op reading the epilogue's spill buffer must depend on the GEMM "
                        "that filled it. An in-degree of 0 means the declared write never "
                        "reached the task's write set, and the spill buys nothing.";
@@ -723,18 +731,20 @@ namespace SushiBLAS
                 auto aux = engine->create_tensor({3, 3}, Core::DataType::Float32);
                 auto consumer = engine->create_tensor({3, 3}, Core::DataType::Float32);
 
-                Dispatch::execute_gemm(probe.get_recorder(), A, B, C,
+                Dispatch::execute_gemm(probe.recorder(), A, B, C,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_spill_bare", "test.gemm_spill_bare"_op,
                                        BiasSpillEpilogue{bias.data_as<float>(),
                                                          aux.data_as<float>(), 3});
 
-                SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(aux, aux, consumer);
+                SushiBLAS::ElementwiseOps(probe.recorder()).mul(aux, aux, consumer);
 
-                auto nodes = probe.take_nodes();
-                ASSERT_EQ(2u, nodes.size());
-                EXPECT_EQ(0, nodes[1]->in_degree.load(std::memory_order_relaxed))
+                ASSERT_EQ(2u, probe.recorded_count());
+                const auto tasks = probe.recorded_tasks();
+                if (!tasks)
+                    GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                EXPECT_EQ(0u, (*tasks)[1].dependency_count)
                     << "Nothing can see an undeclared write, so the reader must be a root.";
             }
 
@@ -748,18 +758,18 @@ namespace SushiBLAS
                 auto declared = engine->create_tensor({3, 3}, Core::DataType::Float32);
 
                 engine->set_mode(ExecutionMode::ForceSYCL);
-                Dispatch::execute_gemm(engine->get_recorder(), A, B, bare,
+                Dispatch::execute_gemm(engine->recorder(), A, B, bare,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bias_bare", "test.gemm_bias_bare"_op,
                                        BiasColumnEpilogue{bias.data_as<float>()});
-                Dispatch::execute_gemm(engine->get_recorder(), A, B, declared,
+                Dispatch::execute_gemm(engine->recorder(), A, B, declared,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bias_declared", "test.gemm_bias_declared"_op,
                                        Dispatch::gemm_epilogue(
                                            BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
-                engine->execute();
+                engine->execute().value();
 
                 // A*B = [[1,2,3], [4,5,6], [5,7,9]] plus the column bias [1, -8, 3].
                 EXPECT_TENSOR_NEAR(declared, (std::vector<float>{2, -6, 6,
@@ -798,7 +808,7 @@ namespace SushiBLAS
                                                 alpha, host_a.data(), k, host_b.data(), n,
                                                 0.0f, expected.data(), n);
 
-                auto& q = TestEnvironment::get_context().devices().queue(0);
+                auto& q = TestEnvironment::queue();
                 Kernels::SYCL::Detail::gemm_no_local<float>(
                     q, Device::profile_for(q), m, n, k,
                     alpha, static_cast<const float*>(A.data()), row_major(k), 0,
@@ -815,12 +825,12 @@ namespace SushiBLAS
                 constexpr int64_t m = 37, n = 45, k = 23;
                 constexpr float alpha = 1.5f;
 
-                auto& q = TestEnvironment::get_context().devices().queue(0);
+                auto& q = TestEnvironment::queue();
                 const Device::Profile& profile = Device::profile_for(q);
-                using Cfg = Kernels::SYCL::Detail::GemmLocalTile<float>;
+                using Configuration = Kernels::SYCL::Detail::GemmLocalTile<float>;
 
-                if (profile.local_mem_bytes < Cfg::local_mem_bytes() ||
-                    profile.max_work_group_size < static_cast<std::size_t>(Cfg::K_WG_ITEMS))
+                if (profile.local_mem_bytes < Configuration::local_mem_bytes() ||
+                    profile.max_work_group_size < static_cast<std::size_t>(Configuration::K_WG_ITEMS))
                     GTEST_SKIP() << "device cannot host the local-tiled work-group";
 
                 auto A = engine->create_tensor({m, k}, Core::DataType::Float32);
@@ -852,12 +862,12 @@ namespace SushiBLAS
                 // The profile never selects this path here. See tests/unit/README.md.
                 constexpr int64_t m = 19, n = 21, k = 17;
 
-                auto& q = TestEnvironment::get_context().devices().queue(0);
+                auto& q = TestEnvironment::queue();
                 const Device::Profile& profile = Device::profile_for(q);
-                using Cfg = Kernels::SYCL::Detail::GemmLocalTile<float>;
+                using Configuration = Kernels::SYCL::Detail::GemmLocalTile<float>;
 
-                if (profile.local_mem_bytes < Cfg::local_mem_bytes() ||
-                    profile.max_work_group_size < static_cast<std::size_t>(Cfg::K_WG_ITEMS))
+                if (profile.local_mem_bytes < Configuration::local_mem_bytes() ||
+                    profile.max_work_group_size < static_cast<std::size_t>(Configuration::K_WG_ITEMS))
                     GTEST_SKIP() << "device cannot host the local-tiled work-group";
 
                 // A is stored k x m and used transposed; B is stored n x k likewise.

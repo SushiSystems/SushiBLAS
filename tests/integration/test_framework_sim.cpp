@@ -93,7 +93,7 @@ TEST_F(Integration_FrameworkSimTest, DeepForwardPass)
     
     // Execute all deep operations asynchronously
     SB_LOG_INFO("Sim: Executing Deep Forward Pass Task DAG and waiting...");
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Sim: Deep Forward Pass execution complete");
     
     auto end_time = std::chrono::high_resolution_clock::now();
@@ -159,7 +159,7 @@ TEST_F(Integration_FrameworkSimTest, ParallelBatchedInference)
     
     // The scheduler should dispatch these horizontally to all worker threads
     SB_LOG_INFO("Sim: Executing Parallel Inference DAG across workers...");
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Sim: Parallel Inference execution complete");
     
     auto end_time = std::chrono::high_resolution_clock::now();

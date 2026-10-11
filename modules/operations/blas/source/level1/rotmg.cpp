@@ -38,11 +38,11 @@
 #include <SushiBLAS/blas/scalar_operand.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiBLAS/blas_seam_kernels/modified_givens.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle Level1::rotmg(Tensor& d1, Tensor& d2, Tensor& x1, const Tensor& y1, Tensor& param)
     {

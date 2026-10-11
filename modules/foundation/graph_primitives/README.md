@@ -2,9 +2,9 @@
 
 Four numeric primitives that record their work on a SushiRuntime task graph: a fixed-order
 reduction, a segmented reduction, an exclusive prefix scan and a stable counting sort. Each is a
-free function whose first parameter is a `SushiRuntime::API::Recorder&`, so it records on anything
+free function whose first parameter is a `SushiRuntime::Recorder&`, so it records on anything
 that has a `recorder()`: a `Graph`, a `Region` of a `DynamicGraph`. They work on
-`SushiRuntime::API::Buffer<T>`, not on tensors. SushiRuntime owned them until it stopped holding
+`SushiRuntime::Buffer<T>`, not on tensors. SushiRuntime owned them until it stopped holding
 any mathematics.
 
 The module is header-only. Its headers are included as `<SushiBLAS/graph_primitives/<name>.hpp>`,
@@ -26,7 +26,7 @@ graph.run();
 | `invalid_graph.hpp` | `<SushiRuntime/core/error.hpp>` |
 | `reduce.hpp`, `segmented_reduce.hpp`, `prefix_scan.hpp`, `counting_sort.hpp` | The headers above and SushiRuntime's public graph headers: `Recorder`, `Access`, `DeviceSized`, `NodeOptions`, `Reads`, `Writes`, `LateCount`, `Buffer`, `Memory::ResourceRegion` |
 
-No header includes another SushiBLAS module, and none names `SushiRuntime::API::detail`.
+No header includes another SushiBLAS module, and none names `SushiRuntime::Detail`.
 
 `combiners.hpp`, `fixed_order_fold.hpp`, `fixed_order_reduce.hpp` and `fixed_order_scan.hpp` compile
 with a plain C++17 compiler that has neither SYCL nor SushiRuntime on its include path. A consumer
@@ -55,7 +55,7 @@ of the live count, which the runtime resolves once per run: `LateCount::fixed`,
 
 ## Errors
 
-A broken size or device rule throws `SushiRuntime::Core::SushiException` with
+A broken size or device rule throws `SushiRuntime::SushiException` with
 `Errc::invalid_graph` when the call records, before any node or scratch is added. The message
 starts with the name of the primitive. A caller that catches the runtime's exception around graph
 building catches these with it. A live count above its capacity fails the run, not the recording;

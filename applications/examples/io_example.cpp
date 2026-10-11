@@ -34,8 +34,8 @@ int main()
 {
     try 
     {
-        SushiRuntime::Execution::RuntimeContext ctx;
-        SushiBLAS::Engine engine(ctx);
+        SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+        SushiBLAS::Engine engine(runtime);
 
         std::cout << "--- SushiBLAS IO: load_npy & to_string Example ---\n\n";
 

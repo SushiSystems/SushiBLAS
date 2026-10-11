@@ -40,7 +40,7 @@ TEST_F(Unit_PowTest, FloatForward)
     fill_tensor(t, {1.0f, 2.0f, 3.0f, 0.5f});
     
     SushiBLAS::ElementwiseOps(*engine).pow(t, 2.0f);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(t, {1.0f, 4.0f, 9.0f, 0.25f});
 }

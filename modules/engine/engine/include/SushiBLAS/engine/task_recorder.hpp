@@ -21,7 +21,7 @@
 
 /**
  * @file task_recorder.hpp
- * @brief Declares TaskRecorder, the one caller of TaskGraph::add_task in SushiBLAS.
+ * @brief Declares TaskRecorder, the one caller of SushiRuntime::Recorder::task in SushiBLAS.
  * @author Mustafa Garip
  */
 
@@ -29,6 +29,7 @@
 
 #include <atomic>
 #include <vector>
+#include <cstddef>
 #include <cstdint>
 #include <utility>
 #include <type_traits>
@@ -39,8 +40,8 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
-#include <SushiRuntime/graph/task_graph.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
@@ -93,20 +94,21 @@ namespace SushiBLAS
     } // namespace Internal
 
     /**
-     * @brief Records tasks on one TaskGraph under one execution mode.
+     * @brief Records tasks on one SushiRuntime::Recorder under one execution mode.
      * @see modules/engine/engine/README.md
      */
     class TaskRecorder final
     {
         public:
             /**
-             * @brief Binds the recorder to the graph it records on and the pool its tasks lease from.
-             * @param graph Receives every task; it must outlive the recorder.
+             * @brief Binds the recorder to the graph recorder it records on and the pool its tasks
+             *        lease from.
+             * @param recorder Receives every task; it must outlive this recorder.
              * @param scratch_pool Lends operation scratch; it must outlive the recorder.
              */
-            TaskRecorder(SushiRuntime::Graph::TaskGraph& graph, ScratchPool& scratch_pool,
+            TaskRecorder(SushiRuntime::Recorder& recorder, ScratchPool& scratch_pool,
                          ExecutionMode mode = ExecutionMode::Auto) noexcept
-                : graph_(&graph), scratch_pool_(&scratch_pool), mode_(mode),
+                : recorder_(&recorder), scratch_pool_(&scratch_pool), mode_(mode),
                   identity_(Internal::Detail::next_recorder_identity())
             {
 
@@ -119,13 +121,13 @@ namespace SushiBLAS
             ~TaskRecorder() = default;
 
             /** @brief Returns the mode every later record call is recorded under. */
-            [[nodiscard]] ExecutionMode get_mode() const noexcept { return mode_; }
+            [[nodiscard]] ExecutionMode mode() const noexcept { return mode_; }
 
             /** @brief Sets the mode every later record call is recorded under. */
             void set_mode(ExecutionMode mode) noexcept { mode_ = mode; }
 
             /** @brief Returns the pool recorded tasks lease their device scratch from. */
-            [[nodiscard]] ScratchPool& get_scratch_pool() const noexcept
+            [[nodiscard]] ScratchPool& scratch_pool() const noexcept
             {
                 return *scratch_pool_;
             }
@@ -157,7 +159,7 @@ namespace SushiBLAS
              *         device-only USM; no task is recorded.
              */
             template<typename Body>
-            TaskHandle record_pair(const SushiRuntime::Graph::TaskMetadata& meta,
+            TaskHandle record_pair(const SushiRuntime::Internal::Graph::TaskMetadata& meta,
                                    const OperandSet& operands, const char* family, Body&& body)
             {
                 require_host_reachable(operands, family, meta.name);
@@ -168,18 +170,34 @@ namespace SushiBLAS
             }
 
         private:
-            /** @brief Adds one task to the graph under a registration index drawn for it. */
-            TaskHandle insert(const SushiRuntime::Graph::TaskMetadata& meta,
-                              const OperandSet& operands, SushiRuntime::Graph::HostWork work)
+            /**
+             * @brief Records one task under the name, the operation and the parameters of meta.
+             * @param work Callable `(sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`.
+             * @return The handle of the task, or the handle of no task when the graph recorder
+             *         refused the recording; the refusal is what the next run returns.
+             */
+            template<typename Work>
+            TaskHandle insert(const SushiRuntime::Internal::Graph::TaskMetadata& meta,
+                              const OperandSet& operands, Work&& work)
             {
-                const std::uint32_t registration = graph_->reserve_registration();
-                graph_->add_task(meta, operands.read_regions(), operands.write_regions(),
-                                 std::move(work), std::vector<sycl::event>{}, registration);
-                return TaskHandle(identity_, registration);
+                SushiRuntime::NodeOptions options;
+                options.name = meta.name;
+                options.operation = meta.op_id;
+                options.parameters = SushiRuntime::span<const std::uint64_t>(
+                    meta.params, SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS);
+
+                const std::size_t recorded_before = recorder_->node_count();
+                recorder_->task(
+                    SushiRuntime::Access(operands.read_regions(), operands.write_regions()),
+                    std::forward<Work>(work), options);
+                if (recorder_->node_count() == recorded_before)
+                    return TaskHandle();
+
+                return TaskHandle(identity_, next_sequence_++);
             }
 
-            /// @brief The graph every record call adds to; never null.
-            SushiRuntime::Graph::TaskGraph* graph_;
+            /// @brief The graph recorder every record call adds to; never null.
+            SushiRuntime::Recorder* recorder_;
 
             /// @brief The pool handed to operations that lease scratch; never null.
             ScratchPool* scratch_pool_;
@@ -189,5 +207,8 @@ namespace SushiBLAS
 
             /// @brief The identity this recorder's handles carry.
             std::uint64_t identity_;
+
+            /// @brief The sequence number the next recorded task takes.
+            std::uint64_t next_sequence_ = 0;
     };
 } // namespace SushiBLAS

@@ -97,7 +97,7 @@ TYPED_TEST(Unit_ComplexNonlinearTest, SigmoidMatchesHostReference)
     auto t = this->template create_initialized_tensor<C>({5}, probe_inputs<TypeParam>());
 
     SushiBLAS::NonLinearOps(*this->engine).sigmoid(t);
-    this->engine->execute();
+    this->engine->execute().value();
 
     auto expected = this->template create_initialized_tensor<C>(
         {5}, host_expected<TypeParam>([](const C& x) { return C(1) / (C(1) + std::exp(-x)); }));
@@ -110,7 +110,7 @@ TYPED_TEST(Unit_ComplexNonlinearTest, TanhMatchesHostReference)
     auto t = this->template create_initialized_tensor<C>({5}, probe_inputs<TypeParam>());
 
     SushiBLAS::NonLinearOps(*this->engine).tanh(t);
-    this->engine->execute();
+    this->engine->execute().value();
 
     auto expected = this->template create_initialized_tensor<C>(
         {5}, host_expected<TypeParam>([](const C& x) { return std::tanh(x); }));
@@ -141,7 +141,7 @@ TEST_F(Unit_ComplexSqrtLogTest, SqrtOfInfiniteImaginaryPartIsInfinite)
     auto t = create_initialized_tensor<C>({2}, {C(4.0, inf), C(-4.0, inf)});
 
     SushiBLAS::ElementwiseOps(*engine).sqrt(t);
-    engine->execute();
+    engine->execute().value();
 
     const std::vector<C> got = read_tensor<C>(t);
     for (const C& z : got)
@@ -160,7 +160,7 @@ TEST_F(Unit_ComplexSqrtLogTest, LogNearTheUnitCircleKeepsItsRealPart)
     auto t = create_initialized_tensor<C>({1}, {C(1.0, 1e-4)});
 
     SushiBLAS::ElementwiseOps(*engine).log(t);
-    engine->execute();
+    engine->execute().value();
 
     const C got = read_tensor<C>(t)[0];
     EXPECT_NEAR(5.0e-9 - 2.5e-17, got.real(), 1e-22);

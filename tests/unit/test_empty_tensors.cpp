@@ -49,7 +49,7 @@ namespace SushiBLAS
                 /** @brief Returns whether the probe holds no recorded task, and clears it. */
                 bool graph_is_empty()
                 {
-                    return probe.take_nodes().empty();
+                    return probe.take_recorded_count() == 0;
                 }
 
                 /// @brief The graph the tests of this suite record on and read.
@@ -65,7 +65,7 @@ namespace SushiBLAS
             Tensor b = empty_tensor();
             Tensor c = empty_tensor();
 
-            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(probe.get_recorder()).add(a, b, c));
+            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(probe.recorder()).add(a, b, c));
             EXPECT_TRUE(graph_is_empty());
         }
 
@@ -76,7 +76,7 @@ namespace SushiBLAS
         {
             Tensor t = empty_tensor();
 
-            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(probe.get_recorder()).exp(t));
+            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(probe.recorder()).exp(t));
             EXPECT_TRUE(graph_is_empty());
         }
 
@@ -87,7 +87,7 @@ namespace SushiBLAS
         {
             Tensor t = empty_tensor();
 
-            EXPECT_NO_THROW(SushiBLAS::NonLinearOps(probe.get_recorder()).relu(t));
+            EXPECT_NO_THROW(SushiBLAS::NonLinearOps(probe.recorder()).relu(t));
             EXPECT_TRUE(graph_is_empty());
         }
 
@@ -100,8 +100,8 @@ namespace SushiBLAS
             Tensor b = empty_tensor();
             Tensor r = empty_tensor();
 
-            EXPECT_NO_THROW(SushiBLAS::LogicOps(probe.get_recorder()).logical_and(a, b, r));
-            EXPECT_NO_THROW(SushiBLAS::LogicOps(probe.get_recorder()).equal(a, b, r));
+            EXPECT_NO_THROW(SushiBLAS::LogicOps(probe.recorder()).logical_and(a, b, r));
+            EXPECT_NO_THROW(SushiBLAS::LogicOps(probe.recorder()).equal(a, b, r));
             EXPECT_TRUE(graph_is_empty());
         }
 
@@ -115,7 +115,7 @@ namespace SushiBLAS
             fill_tensor(out, {0.5f});
 
             EXPECT_NO_THROW(SushiBLAS::LogicOps(*engine).all(t, out));
-            engine->execute();
+            engine->execute().value();
             verify_tensor(out, {1.0f});
         }
 
@@ -129,7 +129,7 @@ namespace SushiBLAS
             fill_tensor(out, {0.5f});
 
             EXPECT_NO_THROW(SushiBLAS::LogicOps(*engine).any(t, out));
-            engine->execute();
+            engine->execute().value();
             verify_tensor(out, {0.0f});
         }
 
@@ -141,7 +141,7 @@ namespace SushiBLAS
             Tensor src = empty_tensor();
             Tensor dst(SushiRuntime::sushi_ptr<Storage>(), {0, 3}, Core::DataType::Float64);
 
-            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(probe.get_recorder()).convert(src, dst));
+            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(probe.recorder()).convert(src, dst));
             EXPECT_TRUE(graph_is_empty());
         }
 
@@ -155,7 +155,7 @@ namespace SushiBLAS
             Tensor c = empty_tensor();
 
             EXPECT_THROW(
-                SushiBLAS::ElementwiseOps(probe.get_recorder()).add(a, b, c),
+                SushiBLAS::ElementwiseOps(probe.recorder()).add(a, b, c),
                 std::invalid_argument);
             EXPECT_TRUE(graph_is_empty());
         }
@@ -186,7 +186,7 @@ namespace SushiBLAS
             EXPECT_NO_THROW(reductions.nrm2(t, nrm2));
             EXPECT_NO_THROW(reductions.prod(t, prod));
             EXPECT_NO_THROW(reductions.count_nonfinite(t, count));
-            engine->execute();
+            engine->execute().value();
 
             verify_tensor(sum, {0.0f});
             verify_tensor(asum, {0.0f});
@@ -202,7 +202,7 @@ namespace SushiBLAS
         {
             Tensor t = empty_tensor();
             Tensor image(SushiRuntime::sushi_ptr<Storage>(), {0, 2, 2, 3});
-            SushiBLAS::ReductionOps reductions(probe.get_recorder());
+            SushiBLAS::ReductionOps reductions(probe.recorder());
 
             Tensor scalar = engine->create_tensor({1});
             Tensor index = engine->create_tensor({1}, Core::DataType::Int64);
@@ -234,7 +234,7 @@ namespace SushiBLAS
             fill_tensor(sums, std::vector<float>(5, 0.5f));
 
             EXPECT_NO_THROW(SushiBLAS::ReductionOps(*engine).sum_along(no_rows, 0, sums));
-            engine->execute();
+            engine->execute().value();
             verify_tensor(sums, std::vector<float>(5, 0.0f));
 
             // Folding axis 0 of a [5, 0] tensor leaves no position to write.
@@ -242,7 +242,7 @@ namespace SushiBLAS
             Tensor nothing(SushiRuntime::sushi_ptr<Storage>(), {0});
 
             EXPECT_NO_THROW(
-                SushiBLAS::ReductionOps(probe.get_recorder()).sum_along(no_columns, 0, nothing));
+                SushiBLAS::ReductionOps(probe.recorder()).sum_along(no_columns, 0, nothing));
             EXPECT_TRUE(graph_is_empty());
         }
     } // namespace Test

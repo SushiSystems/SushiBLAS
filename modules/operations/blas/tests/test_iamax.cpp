@@ -39,7 +39,7 @@ namespace
     int64_t index_of(const SushiBLAS::Tensor& t)
     {
         int64_t host = -1;
-        SushiBLAS::Test::TestEnvironment::get_context().devices().queue(0)
+        SushiBLAS::Test::TestEnvironment::queue()
             .memcpy(&host, t.data(), sizeof(int64_t)).wait();
         return host;
     }
@@ -55,7 +55,7 @@ TEST_F(Unit_IAMAXTest, SimpleIAMAX)
     fill_tensor(X, {1.0f, -5.0f, 3.0f, 2.0f});
 
     SushiBLAS::BLASOps(*engine).iamax(X, R);
-    engine->execute();
+    engine->execute().value();
 
     // Largest magnitude is |-5| at index 1. Zero-based, as the C++ BLAS bindings are.
     EXPECT_EQ(1, index_of(R));
@@ -69,7 +69,7 @@ TEST_F(Unit_IAMAXTest, TiesGoToTheLowestIndex)
     fill_tensor(X, {2.0f, -7.0f, 1.0f, 7.0f, 0.0f});
 
     SushiBLAS::BLASOps(*engine).iamax(X, R);
-    engine->execute();
+    engine->execute().value();
 
     // |-7| and |7| tie, and BLAS specifies the first. See tests/unit/README.md.
     EXPECT_EQ(1, index_of(R));

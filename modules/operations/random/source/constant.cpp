@@ -35,12 +35,12 @@
 #include <SushiBLAS/random/random.hpp>
 #include <SushiBLAS/random/dispatch.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
-#include <SushiRuntime/memory/resource_region.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/api/data/buffer.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS 
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     namespace
     {
@@ -50,7 +50,7 @@ namespace SushiBLAS
          * @throws UnsupportedExecution under ForceReference when the tensor is device-only USM.
          */
         template<typename T>
-        TaskHandle record_fill(TaskRecorder& recorder, const SushiRuntime::Graph::TaskMetadata& meta,
+        TaskHandle record_fill(TaskRecorder& recorder, const SushiRuntime::Internal::Graph::TaskMetadata& meta,
                                const OperandSet& operands, T* out, T value, int64_t size)
         {
             return recorder.record_pair(meta, operands, "RNG operation",
@@ -74,9 +74,9 @@ namespace SushiBLAS
     TaskHandle RandomOps::constant(Tensor& t, double value) 
     {
         auto op_id = "random.constant"_op;
-        SushiRuntime::Graph::TaskMetadata meta;
+        SushiRuntime::Internal::Graph::TaskMetadata meta;
         meta.name = "random.constant";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = op_id;
         meta.set_param(0, value);
 

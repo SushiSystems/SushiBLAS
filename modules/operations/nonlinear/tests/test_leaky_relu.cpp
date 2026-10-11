@@ -40,7 +40,7 @@ TEST_F(Unit_LeakyReLUTest, Forward)
     fill_tensor(t, {-2.0f, -0.5f, 0.0f, 3.5f});
     
     SushiBLAS::NonLinearOps(*engine).leaky_relu(t, 0.01f);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(t, {-0.02f, -0.005f, 0.0f, 3.5f});
 }
@@ -56,7 +56,7 @@ TEST_F(Unit_LeakyReLUTest, Backward)
     fill_tensor(dx, {0.0f, 0.0f, 0.0f, 0.0f});
     
     SushiBLAS::NonLinearOps(*engine).leaky_relu_backward(dy, x, dx, 0.01f);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(dx, {0.01f, 0.02f, 3.0f, 4.0f});
 }

@@ -82,7 +82,7 @@ namespace SushiBLAS
                 {
                     const size_t n = static_cast<size_t>(t.num_elements);
                     std::vector<double> out(n);
-                    auto& q = TestEnvironment::get_context().devices().queue(0);
+                    auto& q = TestEnvironment::queue();
 
                     if (t.dtype == Core::DataType::Half)
                     {
@@ -108,7 +108,7 @@ namespace SushiBLAS
                 {
                     const size_t n = values.size();
                     ASSERT_EQ(n, static_cast<size_t>(t.num_elements));
-                    auto& q = TestEnvironment::get_context().devices().queue(0);
+                    auto& q = TestEnvironment::queue();
 
                     if (t.dtype == Core::DataType::Half)
                     {
@@ -155,7 +155,7 @@ namespace SushiBLAS
             write_exact(src, {static_cast<double>(0.1f)});
 
             SushiBLAS::ElementwiseOps(*engine).convert(src, dst);
-            engine->execute();
+            engine->execute().value();
 
             const auto got = read_exact(dst);
             EXPECT_EQ(K_TENTH_AS_HALF, got[0])
@@ -177,7 +177,7 @@ namespace SushiBLAS
                               1.0 + 0.000732421875});     // 1 + 3*2^-12, past halfway
 
             SushiBLAS::ElementwiseOps(*engine).convert(src, dst);
-            engine->execute();
+            engine->execute().value();
 
             const auto got = read_exact(dst);
             EXPECT_EQ(1.0, got[0]) << "A tie must resolve to the neighbour with the even mantissa.";
@@ -195,7 +195,7 @@ namespace SushiBLAS
             write_exact(src, {K_HALF_MAX, 70000.0, -70000.0, 1.0e30});
 
             SushiBLAS::ElementwiseOps(*engine).convert(src, dst);
-            engine->execute();
+            engine->execute().value();
 
             const auto got = read_exact(dst);
             EXPECT_EQ(K_HALF_MAX, got[0]) << "The largest finite binary16 value must stay finite.";
@@ -215,7 +215,7 @@ namespace SushiBLAS
             write_exact(src, {1.0e-8, 1.0e-7});
 
             SushiBLAS::ElementwiseOps(*engine).convert(src, dst);
-            engine->execute();
+            engine->execute().value();
 
             const auto got = read_exact(dst);
             EXPECT_EQ(0.0, got[0]) << "1e-8 is below half the smallest binary16 subnormal.";
@@ -239,7 +239,7 @@ namespace SushiBLAS
 
             SushiBLAS::ElementwiseOps(*engine).convert(src, down);
             SushiBLAS::ElementwiseOps(*engine).convert(src, up);
-            engine->execute();
+            engine->execute().value();
 
             for (const Tensor* t : {&down, &up})
             {
@@ -263,7 +263,7 @@ namespace SushiBLAS
 
             SushiBLAS::ElementwiseOps(*engine).convert(src, narrow);
             SushiBLAS::ElementwiseOps(*engine).convert(narrow, back);
-            engine->execute();
+            engine->execute().value();
 
             const auto got = read_exact(back);
             EXPECT_EQ(K_TENTH_AS_HALF, got[0])
@@ -288,7 +288,7 @@ namespace SushiBLAS
                     write_exact(src, values);
 
                     SushiBLAS::ElementwiseOps(*engine).convert(src, dst);
-                    engine->execute();
+                    engine->execute().value();
 
                     const auto got = read_exact(dst);
                     for (size_t i = 0; i < values.size(); ++i)
@@ -313,7 +313,7 @@ namespace SushiBLAS
             write_exact(src, {1.5, -2.25, 1099511627776.0});
 
             EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(*engine).convert(src, dst));
-            engine->execute();
+            engine->execute().value();
 
             const auto got = read_exact(dst);
             EXPECT_EQ(1.5, got[0]);
@@ -331,7 +331,7 @@ namespace SushiBLAS
             write_exact(src, values);
 
             SushiBLAS::ElementwiseOps(*engine).convert(src, dst);
-            engine->execute();
+            engine->execute().value();
 
             const auto got = read_exact(dst);
             for (size_t i = 0; i < values.size(); ++i) EXPECT_EQ(values[i], got[i]) << "at index " << i;
@@ -348,7 +348,7 @@ namespace SushiBLAS
             const std::string from_complex = message_of(
                 [&]
                 {
-                    SushiBLAS::ElementwiseOps(probe.get_recorder()).convert(cplx, real32);
+                    SushiBLAS::ElementwiseOps(probe.recorder()).convert(cplx, real32);
                 });
             EXPECT_NE(std::string::npos, from_complex.find("COMPLEX32")) << from_complex;
             EXPECT_NE(std::string::npos, from_complex.find("FLOAT32")) << from_complex;
@@ -356,13 +356,13 @@ namespace SushiBLAS
             const std::string to_integer = message_of(
                 [&]
                 {
-                    SushiBLAS::ElementwiseOps(probe.get_recorder()).convert(real32, integral);
+                    SushiBLAS::ElementwiseOps(probe.recorder()).convert(real32, integral);
                 });
             EXPECT_NE(std::string::npos, to_integer.find("FLOAT32")) << to_integer;
             EXPECT_NE(std::string::npos, to_integer.find("INT64")) << to_integer;
 
             // And nothing was recorded: a rejected conversion must not leave a task behind.
-            EXPECT_TRUE(probe.take_nodes().empty());
+            EXPECT_EQ(0u, probe.take_recorded_count());
         }
 
         /**
@@ -376,20 +376,20 @@ namespace SushiBLAS
             constexpr int64_t kCols = 3;
             constexpr size_t kElements = static_cast<size_t>(kRows * kCols);
 
-            auto f32 = SushiRuntime::make_sushi<Storage>(TestEnvironment::get_context(),
+            auto f32 = SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(),
                                                          kElements * sizeof(float),
-                                                         SushiRuntime::API::Residency::Shared);
-            auto f16 = SushiRuntime::make_sushi<Storage>(TestEnvironment::get_context(),
+                                                         SushiRuntime::Residency::Shared);
+            auto f16 = SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(),
                                                          kElements * sizeof(sycl::half),
-                                                         SushiRuntime::API::Residency::Shared);
+                                                         SushiRuntime::Residency::Shared);
 
             Tensor row_major(f32, {kRows, kCols}, Core::DataType::Float32, 0, Core::Layout::RowMajor);
             Tensor col_major(f16, {kRows, kCols}, Core::DataType::Half, 0, Core::Layout::ColumnMajor);
 
             EXPECT_THROW(
-                SushiBLAS::ElementwiseOps(probe.get_recorder()).convert(row_major, col_major),
+                SushiBLAS::ElementwiseOps(probe.recorder()).convert(row_major, col_major),
                 std::invalid_argument);
-            EXPECT_TRUE(probe.take_nodes().empty());
+            EXPECT_EQ(0u, probe.take_recorded_count());
         }
 
         TEST_F(Unit_ConvertTest, DisagreeingShapesThrowNamingWhatDisagreed)
@@ -431,9 +431,9 @@ namespace SushiBLAS
         {
             constexpr int64_t kN = 8;
             auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context(),
+                TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::API::Residency::Shared);
+                SushiRuntime::Residency::Shared);
 
             // Two FLOAT32 views four elements apart over eight elements share the middle four.
             Tensor a(storage, {kN}, Core::DataType::Float32, 0);
@@ -454,21 +454,23 @@ namespace SushiBLAS
 
             constexpr int64_t kN = 4;
             auto arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context(),
+                TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::API::Residency::Shared);
+                SushiRuntime::Residency::Shared);
 
             Tensor seed(arena, {kN}, Core::DataType::Float32, 0);
             Tensor src(arena, {kN}, Core::DataType::Float32, kN);
             auto dst = engine->create_tensor({kN}, Core::DataType::Half);
             write_exact(seed, {1.0, 2.0, 3.0, 4.0});
 
-            SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(seed, seed, src);
-            SushiBLAS::ElementwiseOps(probe.get_recorder()).convert(src, dst);
+            SushiBLAS::ElementwiseOps(probe.recorder()).mul(seed, seed, src);
+            SushiBLAS::ElementwiseOps(probe.recorder()).convert(src, dst);
 
-            auto nodes = probe.take_nodes();
-            ASSERT_EQ(2u, nodes.size());
-            EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
+            ASSERT_EQ(2u, probe.recorded_count());
+            const auto tasks = probe.recorded_tasks();
+            if (!tasks)
+                GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+            EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                 << "The convert reading `src` must depend on the op that wrote it. An "
                    "in-degree of 0 means the read was declared from a bare pointer rather "
                    "than from Tensor::region(), so the tracker filed it under a resource "
@@ -481,21 +483,23 @@ namespace SushiBLAS
 
             constexpr int64_t kN = 4;
             auto arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context(),
+                TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::API::Residency::Shared);
+                SushiRuntime::Residency::Shared);
 
             auto src = engine->create_tensor({kN}, Core::DataType::Float32);
             Tensor dst(arena, {kN}, Core::DataType::Float32, kN);
             auto total = engine->create_tensor({1}, Core::DataType::Float32);
             write_exact(src, {1.0, 2.0, 3.0, 4.0});
 
-            SushiBLAS::ElementwiseOps(probe.get_recorder()).convert(src, dst);
-            SushiBLAS::ReductionOps(probe.get_recorder()).sum(dst, total);
+            SushiBLAS::ElementwiseOps(probe.recorder()).convert(src, dst);
+            SushiBLAS::ReductionOps(probe.recorder()).sum(dst, total);
 
-            auto nodes = probe.take_nodes();
-            ASSERT_EQ(2u, nodes.size());
-            EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
+            ASSERT_EQ(2u, probe.recorded_count());
+            const auto tasks = probe.recorded_tasks();
+            if (!tasks)
+                GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+            EXPECT_EQ(1u, (*tasks)[1].dependency_count)
                 << "The write set must name `dst` by its own byte interval, so the "
                    "reduction reading it is ordered behind the conversion. `dst` is a view "
                    "partway into an arena, which is where a bare-pointer write set stops "
@@ -513,26 +517,28 @@ namespace SushiBLAS
             constexpr int64_t kN = 8;
 
             auto f32_arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context(),
+                TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::API::Residency::Shared);
+                SushiRuntime::Residency::Shared);
             auto f16_arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context(),
+                TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(sycl::half),
-                SushiRuntime::API::Residency::Shared);
+                SushiRuntime::Residency::Shared);
 
             Tensor src_a(f32_arena, {kN}, Core::DataType::Float32, 0);
             Tensor src_b(f32_arena, {kN}, Core::DataType::Float32, kN);
             Tensor dst_a(f16_arena, {kN}, Core::DataType::Half, 0);
             Tensor dst_b(f16_arena, {kN}, Core::DataType::Half, kN);
 
-            SushiBLAS::ElementwiseOps(probe.get_recorder()).convert(src_a, dst_a);
-            SushiBLAS::ElementwiseOps(probe.get_recorder()).convert(src_b, dst_b);
+            SushiBLAS::ElementwiseOps(probe.recorder()).convert(src_a, dst_a);
+            SushiBLAS::ElementwiseOps(probe.recorder()).convert(src_b, dst_b);
 
-            auto nodes = probe.take_nodes();
-            ASSERT_EQ(2u, nodes.size());
-            EXPECT_EQ(0, nodes[0]->in_degree.load(std::memory_order_relaxed));
-            EXPECT_EQ(0, nodes[1]->in_degree.load(std::memory_order_relaxed))
+            ASSERT_EQ(2u, probe.recorded_count());
+            const auto tasks = probe.recorded_tasks();
+            if (!tasks)
+                GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+            EXPECT_EQ(0u, (*tasks)[0].dependency_count);
+            EXPECT_EQ(0u, (*tasks)[1].dependency_count)
                 << "Two conversions over non-overlapping halves of one arena share no "
                    "bytes, so neither may depend on the other. An in-degree of 1 means the "
                    "operands were described by their allocation rather than by their own "
@@ -548,13 +554,13 @@ namespace SushiBLAS
             constexpr int64_t kN = 4;
 
             auto f32_arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context(),
+                TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(float),
-                SushiRuntime::API::Residency::Shared);
+                SushiRuntime::Residency::Shared);
             auto f16_arena = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context(),
+                TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kN) * sizeof(sycl::half),
-                SushiRuntime::API::Residency::Shared);
+                SushiRuntime::Residency::Shared);
 
             Tensor head(f32_arena, {kN}, Core::DataType::Float32, 0);
             Tensor tail(f32_arena, {kN}, Core::DataType::Float32, kN);
@@ -566,7 +572,7 @@ namespace SushiBLAS
             write_exact(out_head, {-1.0, -1.0, -1.0, -1.0});
 
             SushiBLAS::ElementwiseOps(*engine).convert(tail, out_tail);
-            engine->execute();
+            engine->execute().value();
 
             const auto got_tail = read_exact(out_tail);
             EXPECT_EQ(5.0, got_tail[0]);

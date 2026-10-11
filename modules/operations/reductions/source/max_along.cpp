@@ -30,7 +30,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     // An axis reduction has no sycl::reduction form, so it folds; see modules/operations/README.md.
     TaskHandle ReductionOps::max_along(const Tensor& t, int axis, Tensor& result)

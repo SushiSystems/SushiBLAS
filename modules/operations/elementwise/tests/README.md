@@ -50,7 +50,7 @@ range must come back as an infinity, and one below it must come back as zero.
 
 The expectations are exact, and they are worked out by hand from IEEE-754 binary16. A
 differential oracle against `static_cast` on the host would agree with a device kernel that
-made the same mistake. The ordering cases assert on `in_degree`; see "Ordering is asserted on
+made the same mistake. The ordering cases assert on `dependency_count`; see "Ordering is asserted on
 in-degree".
 
 The file is laid out in five groups: the cases the conversion has to change a value to pass,

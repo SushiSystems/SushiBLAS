@@ -45,11 +45,11 @@
 #include <SushiBLAS/sparse/sparse_matrix_operand.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     namespace
     {
@@ -76,7 +76,7 @@ namespace SushiBLAS
 
             // Only a transposed product keeps partial sums: blocks of them, each as long as y.
             const std::size_t blocks = Core::is_transposed(trans)
-                ? Kernels::SYCL::scatter_blocks(Device::profile_for(A.row_offsets.get_device()),
+                ? Kernels::SYCL::scatter_blocks(Device::profile_for(A.row_offsets.device()),
                                                 a.cols, a.nnz)
                 : std::size_t{0};
             const std::size_t partial_bytes = blocks * static_cast<std::size_t>(a.cols) *

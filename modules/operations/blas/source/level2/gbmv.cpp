@@ -36,11 +36,11 @@
 #include <SushiBLAS/operands/task_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle Level2::gbmv(const Tensor& A, const Tensor& x, Tensor& y, int64_t kl, int64_t ku,
                             Core::Transpose trans, BLASScalar alpha, BLASScalar beta)

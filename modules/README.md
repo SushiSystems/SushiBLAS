@@ -37,41 +37,49 @@ this page.
 
 ### `Engine`
 
-`Engine` is a composition root. It holds the runtime context it was built on and owns five bricks:
-a `ScratchPool`, the `TaskGraph`, a `TaskRecorder` bound to that graph and pool, a `TensorFactory`
-and an `RNGStream`. It declares no operation and has no accessor for the graph. An operation view
+`Engine` is a composition root. It is built on a `SushiRuntime::Runtime`, which `runtime()`
+returns, and owns five bricks: a `ScratchPool`, a `SushiRuntime::Graph`, a `TaskRecorder` bound to
+that graph's recorder and to the pool, a `TensorFactory` and an `RNGStream`. It declares no
+operation and has no accessor for the graph. A caller that needs a device queue or a wait takes
+it from the runtime: `runtime().advanced().queue(SushiRuntime::DeviceIndex{0})`,
+`runtime().wait()`. An operation view
 (`BLASOps`, `SparseOps`, `SpatialOps`, `ElementwiseOps`, `NonLinearOps`, `ReductionOps`,
 `RandomOps`, `LogicOps`) is built from an `Engine&` or from the bricks it needs: `BLASOps
-blas(engine)` and `BLASOps blas(engine.get_recorder())` record on the same graph. Every operation
+blas(engine)` and `BLASOps blas(engine.recorder())` record on the same graph. Every operation
 of a view returns a `TaskHandle`, and the work runs in `Engine::execute()`.
 
-`set_mode` and `get_mode` forward to the recorder, and `get_layout` to the factory. `set_mode` is
+`set_mode` and `mode` forward to the recorder, and `layout` to the factory. `set_mode` is
 `noexcept`: `ExecutionMode` has the three enumerators `Auto`, `ForceSYCL` and `ForceReference`,
 and none of them is refused.
 
 ### `Engine::execute`
 
-Returns `void` once every recorded task has finished. At `if (compiled.roots.empty()) return;`:
-several io.cpp paths call execute() defensively (flush any pending device write before a host-side
-read) even when nothing was queued: e.g. a tensor filled directly through its host-visible
-pointer, no add_task involved. IExecutionEngine::execute() throws on a graph with no root nodes,
-so an empty graph is a no-op instead.
+Returns a `SushiRuntime::Result<void>` once every recorded task has finished: success, or the
+`SushiRuntime::Error` that ended the run. The result is `[[nodiscard]]`; a caller with no way to go
+on writes `engine.execute().value();`, which stops the process on an error. A call with nothing
+recorded returns success without running: several io.cpp paths call `execute()` before a host-side
+read even when no task is pending, and `SushiRuntime::Graph::run()` refuses a graph with no task.
+A recording the runtime's recorder refused is not lost: the next `execute()` returns its error.
+
+After the run the engine replaces its graph with an empty one, whether the run failed or not. The
+tasks are destroyed with what their bodies captured, so operand storage and scratch leases are
+released when `execute()` returns.
 
 ### `Engine::discard_recorded`
 
-Drops every task that was recorded through `get_recorder()` and has not run. A record call that
+Drops every task that was recorded through `recorder()` and has not run. A record call that
 throws leaves the tasks recorded before it on the graph, and the next `execute()` would run them;
 a caller that turns such a throw into a status calls `discard_recorded()` and goes on with the
 same engine. The tasks are destroyed with what their bodies captured, so the storage of their
 operands is held only by the tensors that still name it, and each scratch lease returns to the
 pool. Tensors are not changed: a task that has not run has written nothing. A graph the caller
-owns is emptied with `TaskGraph::take_nodes()`; this call is for the engine's own graph, which
-no accessor reaches.
+owns is emptied with `SushiRuntime::Recorder::clear()`, which is what this call does to the
+engine's own graph, the one no accessor reaches.
 
 ### The scratch pool
 
-`Engine::get_scratch_pool()` returns the `ScratchPool` operations lease device scratch from; the
-recorder hands the same pool out through `TaskRecorder::get_scratch_pool()`. The engine declares
+`Engine::scratch_pool()` returns the `ScratchPool` operations lease device scratch from; the
+recorder hands the same pool out through `TaskRecorder::scratch_pool()`. The engine declares
 the pool before the graph, so the graph and the tasks it holds are destroyed before the pool is.
 [The engine module](engine/engine/README.md) describes the pool, the shelf and the lease.
 
@@ -104,7 +112,7 @@ and the device index before they allocate. `Tensor::reshape` takes a braced list
 
 ## `tensor_factory.hpp`
 
-`TensorFactory` holds a runtime context and a default layout, and `create` allocates a dense
+`TensorFactory` holds a `SushiRuntime::Runtime` and a default layout, and `create` allocates a dense
 tensor. `Engine::create_tensor` forwards to it, and `SparseBuilder` takes a factory, so it builds
 sparse operands without an `Engine`. `allocation_bytes` is the size check alone: it returns the
 byte count a shape and dtype need, and throws `std::runtime_error` on a rank above
@@ -135,7 +143,7 @@ refusal here is `std::runtime_error`.
 ### `IO::read`, `IO::write`, `IO::to_vector`, `IO::from_vector`
 
 These four calls move a tensor's elements between host memory and its storage. Each one first runs
-the recorded graph with `Engine::execute()`, then copies through the context's queue, so a
+the recorded graph with `Engine::execute()`, then copies through the storage's queue, so a
 `Residency::Device` tensor works the same way as a shared one. The tensor must have storage and be
 contiguous, and the host byte count must equal `num_elements * bytes_per_element(dtype)`. The typed
 helpers also check that `T` maps to the tensor's dtype through `Detail::HostDataType`. Every
@@ -166,23 +174,26 @@ same memory. A COLUMN_MAJOR tensor of rank 3 or more is rejected, as it is in `s
 
 ## `storage.hpp`
 
-### `Storage::get_context`, `get_residency`, `get_device_index`
+### `Storage::queue`, `residency`, `device_index`
 
-The context, residency and device index are fixed at construction and readable only through these
-accessors. `size_bytes()` returns the bytes allocated, which is the requested size rounded up to
-`K_STORAGE_ALIGNMENT`.
+A `Storage` owns the `SushiRuntime::Buffer<std::byte>` the runtime allocated for it, and the
+buffer frees the memory when the last reference to the `Storage` goes. The residency and the
+device index are fixed at construction and readable only through these accessors, and `queue()`
+returns the queue of that device. `size_bytes()` returns the bytes allocated, which is the
+requested size rounded up to `K_STORAGE_ALIGNMENT`. The buffer shares ownership of the runtime's
+state, so a `Storage` may outlive the `Runtime` object it was allocated from.
 
 ### `K_STORAGE_ALIGNMENT`
 
 Every allocation base is a multiple of 128 bytes, and so is every allocation size. The constant is
-`SushiRuntime::Core::DEFAULT_ALIGNMENT`, and a `static_assert` beside it fails the build if the
+`SushiRuntime::K_DEFAULT_ALIGNMENT`, and a `static_assert` beside it fails the build if the
 runtime's value stops being 128. `Tensor::is_aligned()` reports whether a view's first element sits
 on that boundary: a view at `storage_offset` 0 does, and a view at another offset is aligned to
 its element size only.
 
 ### `Storage::allocation_base`
 
-Returns: The pointer the runtime context handed back, or nullptr before construction completed.
+Returns: The base address of the runtime's buffer.
 
 Warning: This is the *allocation* base, never a tensor's data. Handing this pointer to a kernel
 silently ignores `Tensor::storage_offset`, so a tensor that is a view at a non-zero offset reads or

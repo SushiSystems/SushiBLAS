@@ -103,7 +103,7 @@ namespace SushiBLAS
                 {
                     SushiBLASTest::SetUp();
                     if (std::is_same_v<T, sycl::half> &&
-                        !TestEnvironment::get_context().devices().queue(0).get_device().has(
+                        !TestEnvironment::queue().get_device().has(
                             sycl::aspect::fp16))
                         GTEST_SKIP() << "the device does not report the fp16 aspect";
                 }
@@ -111,7 +111,7 @@ namespace SushiBLAS
                 /** @brief Returns the CSR matrix of host triplets, stored with base. */
                 [[nodiscard]] SparseMatrix build(const HostTriplets<T>& host, Core::IndexBase base)
                 {
-                    const SparseBuilder builder(engine->get_tensor_factory());
+                    const SparseBuilder builder(engine->tensor_factory());
                     return builder.matrix_from_triplets(
                         host.rows, host.cols, stored_indices<Index>(host.row_indices, base),
                         stored_indices<Index>(host.column_indices, base), host.values, base);
@@ -131,7 +131,7 @@ namespace SushiBLAS
                 /** @brief Returns a rank-1 tensor of T that holds no element. */
                 [[nodiscard]] Tensor vector_without_elements()
                 {
-                    return engine->create_tensor({0}, get_sushiblas_dtype<T>());
+                    return engine->create_tensor({0}, sushiblas_dtype<T>());
                 }
 
                 /**
@@ -190,7 +190,7 @@ namespace SushiBLAS
                     Tensor ty = vector_of(y);
                     SushiBLAS::SparseOps(*engine).spmv(A, tx, ty, trans, BLASScalar(alpha),
                                                        BLASScalar(beta));
-                    engine->execute();
+                    engine->execute().value();
                     return read_tensor<T>(ty);
                 }
 
@@ -443,7 +443,7 @@ namespace SushiBLAS
                 ops.spmv(wide_matrix, nothing, y_wide, Core::Transpose::Trans, alpha, beta);
                 ops.spmv(tall_matrix, nothing, y_tall, Core::Transpose::NoTrans, alpha, beta);
                 ops.spmv(tall_matrix, x, no_result, Core::Transpose::Trans, alpha, beta);
-                this->engine->execute();
+                this->engine->execute().value();
 
                 this->expect_near(read_tensor<T>(y_wide), scaled, 0.0);
                 this->expect_near(read_tensor<T>(y_tall), scaled, 0.0);
@@ -476,7 +476,7 @@ namespace SushiBLAS
 
                     SparseOps(*this->engine).spmv(A, tx, ty, trans, BLASScalar(alpha),
                                                   BLASScalar(beta));
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     this->expect_interleaved(read_tensor<T>(wide_y), expected,
                                              K_SAMPLE_TOLERANCE);
@@ -511,7 +511,7 @@ namespace SushiBLAS
                     SparseOps ops(*this->engine);
                     ops.spmv(A, by_columns, product);
                     ops.spmv(A, by_rows, transposed, Core::Transpose::Trans);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     this->expect_near(read_tensor<T>(product), {{50.0, 0.0}, {400.0, 0.0}}, 0.0);
                     this->expect_near(read_tensor<T>(transposed),
@@ -573,7 +573,7 @@ namespace SushiBLAS
                                                                     std::size_t blocks)
                 {
                     const Core::IndexBase base = Core::IndexBase::Zero;
-                    const SparseBuilder builder(engine->get_tensor_factory());
+                    const SparseBuilder builder(engine->tensor_factory());
                     const SparseMatrix A = builder.matrix_from_triplets(
                         host.rows, host.cols, stored_indices<int32_t>(host.row_indices, base),
                         stored_indices<int32_t>(host.column_indices, base), host.values);
@@ -586,7 +586,7 @@ namespace SushiBLAS
                         A.rows, A.cols, A.nnz(), 0, A.row_offsets.data_as<int32_t>(),
                         A.column_indices.data_as<int32_t>()};
                     Kernels::SYCL::spmv<float, int32_t>(
-                        TestEnvironment::get_context().devices().queue(0), Core::Transpose::Trans, pattern,
+                        TestEnvironment::queue(), Core::Transpose::Trans, pattern,
                         A.values.data_as<float>(), 1.0f, tx.data_as<float>(), 1, 0.0f,
                         ty.data_as<float>(), 1, partials.data_as<float>(), blocks, {}).wait();
                     return read_tensor<float>(ty);

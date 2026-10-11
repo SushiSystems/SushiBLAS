@@ -203,7 +203,7 @@ namespace SushiBLAS
             template<typename T>
             [[nodiscard]] std::string trace_of(const char* operation)
             {
-                const Core::DataType dtype = get_sushiblas_dtype<T>();
+                const Core::DataType dtype = sushiblas_dtype<T>();
                 return std::string(operation) + " over " + Core::to_string(dtype);
             }
 
@@ -385,7 +385,7 @@ namespace SushiBLAS
                 /** @brief Reports whether the device of the test context has aspect. */
                 [[nodiscard]] static bool device_has(sycl::aspect aspect)
                 {
-                    return TestEnvironment::get_context().devices().queue(0).get_device().has(aspect);
+                    return TestEnvironment::queue().get_device().has(aspect);
                 }
 
                 /**
@@ -398,9 +398,9 @@ namespace SushiBLAS
                     try
                     {
                         Tensor t = engine->create_tensor(dims, Core::DataType::Float32,
-                                                         SushiRuntime::API::Residency::Device);
+                                                         SushiRuntime::Residency::Device);
                         const sycl::context context =
-                            TestEnvironment::get_context().devices().queue(0).get_context();
+                            TestEnvironment::queue().get_context();
                         if (sycl::get_pointer_type(t.data(), context) != sycl::usm::alloc::device)
                             return std::nullopt;
                         return t;
@@ -424,7 +424,7 @@ namespace SushiBLAS
                 {
                     engine->set_mode(mode);
 
-                    Tensor t = engine->create_tensor(dims, get_sushiblas_dtype<T>());
+                    Tensor t = engine->create_tensor(dims, sushiblas_dtype<T>());
                     SushiBLAS::IO io(*engine);
                     io.from_vector(t, initial);
 
@@ -739,18 +739,18 @@ namespace SushiBLAS
             random.set_seed(K_SEED);
 
             engine->set_mode(ExecutionMode::ForceReference);
-            const uint64_t offset_before = engine->get_rng().reserve(0).offset;
+            const uint64_t offset_before = engine->rng().reserve(0).offset;
 
             EXPECT_THROW(random.uniform(*values), std::invalid_argument);
             EXPECT_THROW(random.shuffle(*values), std::invalid_argument);
             EXPECT_THROW(random.orthogonal(*matrix), std::invalid_argument);
-            EXPECT_EQ(offset_before, engine->get_rng().reserve(0).offset);
+            EXPECT_EQ(offset_before, engine->rng().reserve(0).offset);
 
             // The same call reserves one offset once the mode lets it record.
             engine->set_mode(ExecutionMode::ForceSYCL);
             random.uniform(*values);
-            EXPECT_EQ(offset_before + 1, engine->get_rng().reserve(0).offset);
-            engine->execute();
+            EXPECT_EQ(offset_before + 1, engine->rng().reserve(0).offset);
+            engine->execute().value();
         }
 
         /** @brief Tests that two ForceReference runs of normal from one seed write equal bits. */

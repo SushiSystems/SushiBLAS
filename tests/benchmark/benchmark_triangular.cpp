@@ -78,7 +78,7 @@ namespace
         public:
             /// @brief Records the engine's mode and sets the given one; the engine must outlive this.
             ModeScope(SushiBLAS::Engine& engine, ExecutionMode mode)
-                : engine_(engine), restored_(engine.get_mode())
+                : engine_(engine), restored_(engine.mode())
             {
                 engine_.set_mode(mode);
             }
@@ -326,11 +326,11 @@ namespace
     {
         const std::vector<int64_t> sizes = Bench::parse_sizes(argc, argv, K_DEFAULT_SIZES);
 
-        SushiRuntime::Execution::RuntimeContext context;
-        SushiBLAS::Engine engine(context, K_LAYOUT);
+        SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+        SushiBLAS::Engine engine(runtime, K_LAYOUT);
         Bench::print_environment(engine);
 
-        sycl::queue& queue = context.devices().queue(0);
+        sycl::queue& queue = runtime.advanced().queue(SushiRuntime::DeviceIndex{0});
         const Bench::ResultTable table("GFLOP/s");
         for (const DataType dtype : K_DTYPES)
         {

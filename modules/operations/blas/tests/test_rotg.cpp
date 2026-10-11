@@ -200,7 +200,7 @@ namespace SushiBLAS
             {
                 using R = Kernels::RealType<T>;
                 const sycl::device device =
-                    TestEnvironment::get_context().devices().queue(0).get_device();
+                    TestEnvironment::queue().get_device();
                 if constexpr (std::is_same_v<R, sycl::half>)
                     return device.has(sycl::aspect::fp16);
                 else if constexpr (std::is_same_v<R, double>)
@@ -325,8 +325,8 @@ namespace SushiBLAS
                 template<typename V>
                 [[nodiscard]] Tensor scalar_tensor(const V& value)
                 {
-                    Tensor tensor = this->engine->create_tensor({1}, get_sushiblas_dtype<V>());
-                    TestEnvironment::get_context().devices().queue(0)
+                    Tensor tensor = this->engine->create_tensor({1}, sushiblas_dtype<V>());
+                    TestEnvironment::queue()
                         .memcpy(tensor.data(), &value, sizeof(V)).wait();
                     return tensor;
                 }
@@ -353,7 +353,7 @@ namespace SushiBLAS
                         s.push_back(scalar_tensor(make<T>(K_POISON, K_POISON)));
                         ops.rotg(a.back(), b.back(), c.back(), s.back());
                     }
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     std::vector<Rotation> rotations;
                     rotations.reserve(pairs.size());
@@ -500,10 +500,10 @@ namespace SushiBLAS
                     this->start(layout, mode);
 
                     Tensor ones = this->engine->create_tensor({K_DOT_LENGTH},
-                                                              get_sushiblas_dtype<T>());
+                                                              sushiblas_dtype<T>());
                     const std::vector<T> one_values(static_cast<std::size_t>(K_DOT_LENGTH),
                                                     make<T>(1.0));
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(ones.data(), one_values.data(), one_values.size() * sizeof(T))
                         .wait();
 
@@ -515,7 +515,7 @@ namespace SushiBLAS
                     SushiBLAS::BLASOps ops(*this->engine);
                     ops.dot(ones, ones, a);
                     ops.rotg(a, b, c, s);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     EXPECT_EQ(Detail::to_double(read_tensor<T>(a)[0]), expected.r);
                     EXPECT_EQ(Detail::to_double(read_tensor<T>(b)[0]), expected.z);

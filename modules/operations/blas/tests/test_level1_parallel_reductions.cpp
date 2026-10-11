@@ -89,7 +89,7 @@ namespace SushiBLAS
                 Tensor upload(const std::vector<float>& host)
                 {
                     auto t = engine->create_tensor({static_cast<int64_t>(host.size())});
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(t.data(), host.data(), host.size() * sizeof(float)).wait();
                     return t;
                 }
@@ -99,7 +99,7 @@ namespace SushiBLAS
                 [[nodiscard]] T read_scalar(const Tensor& t)
                 {
                     T value{};
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(&value, t.data(), sizeof(T)).wait();
                     return value;
                 }
@@ -151,7 +151,7 @@ namespace SushiBLAS
                 auto y = upload(hy);
                 auto r = engine->create_tensor({1});
                 SushiBLAS::BLASOps(*engine).dot(x, y, r);
-                engine->execute();
+                engine->execute().value();
 
                 EXPECT_NEAR(static_cast<double>(read_scalar<float>(r)), expected, K_EXACT_TOLERANCE);
             }
@@ -174,7 +174,7 @@ namespace SushiBLAS
                 auto x = upload(hx);
                 auto r = engine->create_tensor({1});
                 SushiBLAS::BLASOps(*engine).asum(x, r);
-                engine->execute();
+                engine->execute().value();
 
                 EXPECT_NEAR(static_cast<double>(read_scalar<float>(r)), expected, K_EXACT_TOLERANCE);
             }
@@ -198,7 +198,7 @@ namespace SushiBLAS
                 auto x = upload(hx);
                 auto r = engine->create_tensor({1});
                 SushiBLAS::BLASOps(*engine).nrm2(x, r);
-                engine->execute();
+                engine->execute().value();
 
                 EXPECT_NEAR(static_cast<double>(read_scalar<float>(r)), expected,
                             expected * K_NRM2_RELATIVE_TOLERANCE);
@@ -222,7 +222,7 @@ namespace SushiBLAS
                 auto x = upload(hx);
                 auto r = engine->create_tensor({1}, Core::DataType::Int64);
                 SushiBLAS::BLASOps(*engine).iamax(x, r);
-                engine->execute();
+                engine->execute().value();
 
                 EXPECT_EQ(read_scalar<int64_t>(r), expected);
             }
@@ -250,9 +250,9 @@ namespace SushiBLAS
             auto second = engine->create_tensor({1});
 
             SushiBLAS::BLASOps(*engine).dot(x, y, first);
-            engine->execute();
+            engine->execute().value();
             SushiBLAS::BLASOps(*engine).dot(x, y, second);
-            engine->execute();
+            engine->execute().value();
 
             const float a = read_scalar<float>(first);
             const float b = read_scalar<float>(second);
@@ -265,7 +265,7 @@ namespace SushiBLAS
          */
         TEST_F(Unit_Level1ParallelReductions, IamaxTieAcrossWorkGroupsTakesTheLowerIndex)
         {
-            auto& q = TestEnvironment::get_context().devices().queue(0);
+            auto& q = TestEnvironment::queue();
             const Device::Profile& profile = Device::profile_for(q);
 
             // Long enough that the two-stage shape takes it on any device this suite runs on.
@@ -286,7 +286,7 @@ namespace SushiBLAS
             auto x = upload(hx);
             auto r = engine->create_tensor({1}, Core::DataType::Int64);
             SushiBLAS::BLASOps(*engine).iamax(x, r);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_EQ(read_scalar<int64_t>(r), static_cast<int64_t>(lower));
         }
@@ -306,7 +306,7 @@ namespace SushiBLAS
             auto r = engine->create_tensor({1}, Core::DataType::Half);
 
             SushiBLAS::ReductionOps(*engine).mean(t, r);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_EQ(static_cast<float>(read_scalar<sycl::half>(r)), K_EXPECTED_MEAN);
         }
@@ -324,7 +324,7 @@ namespace SushiBLAS
             auto r = engine->create_tensor({1}, Core::DataType::Half);
 
             SushiBLAS::ReductionOps(*engine).sum(t, r);
-            engine->execute();
+            engine->execute().value();
 
             const float value = static_cast<float>(read_scalar<sycl::half>(r));
             EXPECT_TRUE(std::isinf(value) && value > 0.0f);

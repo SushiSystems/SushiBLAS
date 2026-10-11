@@ -701,7 +701,7 @@ namespace SushiBLAS
             /** @brief Returns the queue every kernel of this file is launched on. */
             [[nodiscard]] sycl::queue& test_queue()
             {
-                return TestEnvironment::get_context().devices().queue(0);
+                return TestEnvironment::queue();
             }
 
             /**
@@ -712,7 +712,7 @@ namespace SushiBLAS
             [[nodiscard]] Tensor device_buffer(Engine& engine, const std::vector<E>& values)
             {
                 Tensor buffer = engine.create_tensor({static_cast<int64_t>(values.size())},
-                                                     get_sushiblas_dtype<E>());
+                                                     sushiblas_dtype<E>());
                 if (!values.empty())
                     test_queue().memcpy(buffer.data(), values.data(), values.size() * sizeof(E))
                         .wait();
@@ -850,7 +850,7 @@ namespace SushiBLAS
 
                         SushiBLAS::BLASOps(*engine).trsm(A, B, flags.side, flags.uplo, flags.trans,
                                                          flags.diag, alpha);
-                        engine->execute();
+                        engine->execute().value();
                         return read_buffer<T>(b_buffer);
                     }
 
@@ -867,7 +867,7 @@ namespace SushiBLAS
                                                flags.layout);
 
                         SushiBLAS::BLASOps(*engine).trsv(A, x, flags.uplo, flags.trans, flags.diag);
-                        engine->execute();
+                        engine->execute().value();
                         return read_buffer<T>(x);
                     }
 
@@ -889,7 +889,7 @@ namespace SushiBLAS
                         Tensor x = strided_view(x_buffer, system.order(), increment);
 
                         SushiBLAS::BLASOps(*engine).trmv(A, x, flags.uplo, flags.trans, flags.diag);
-                        engine->execute();
+                        engine->execute().value();
                         return read_buffer<T>(x_buffer);
                     }
 
@@ -988,7 +988,7 @@ namespace SushiBLAS
                             buffer, {static_cast<int64_t>(buffer.num_elements)}, flags.layout);
 
                         SushiBLAS::BLASOps(*engine).tpsv(AP, x, flags.uplo, flags.trans, flags.diag);
-                        engine->execute();
+                        engine->execute().value();
                         return read_buffer<T>(x);
                     }
 
@@ -1010,7 +1010,7 @@ namespace SushiBLAS
 
                         SushiBLAS::BLASOps(*engine).tbsv(A, x, flags.uplo, k, flags.trans,
                                                          flags.diag);
-                        engine->execute();
+                        engine->execute().value();
                         return read_buffer<T>(x);
                     }
 
@@ -1399,25 +1399,24 @@ namespace SushiBLAS
             Tensor A = matrix_view(a_buffer, {K_POOLED_ORDER, K_POOLED_ORDER},
                                    Core::Layout::RowMajor);
 
-            auto& context = TestEnvironment::get_context();
-            ScratchPool& pool = this->engine->get_scratch_pool();
+            ScratchPool& pool = this->engine->scratch_pool();
             this->engine->set_mode(ExecutionMode::ForceSYCL);
             const std::size_t outstanding_before =
-                context.memory().live_count() - pool.idle_block_count();
+                TestEnvironment::live_allocation_count() - pool.idle_block_count();
 
             SushiBLAS::BLASOps(*this->engine).trmv(A, x, Core::Uplo::Lower);
-            this->engine->execute();
+            this->engine->execute().value();
 
-            EXPECT_EQ(outstanding_before, context.memory().live_count() - pool.idle_block_count())
+            EXPECT_EQ(outstanding_before, TestEnvironment::live_allocation_count() - pool.idle_block_count())
                 << "Every allocation the product made must be idle in the pool or freed.";
 
-            const std::size_t live_after_first = context.memory().live_count();
+            const std::size_t live_after_first = TestEnvironment::live_allocation_count();
             const std::size_t idle_after_first = pool.idle_block_count();
 
             SushiBLAS::BLASOps(*this->engine).trmv(A, x, Core::Uplo::Lower);
-            this->engine->execute();
+            this->engine->execute().value();
 
-            EXPECT_EQ(live_after_first, context.memory().live_count());
+            EXPECT_EQ(live_after_first, TestEnvironment::live_allocation_count());
             EXPECT_EQ(idle_after_first, pool.idle_block_count());
         }
 
@@ -1913,7 +1912,7 @@ namespace SushiBLAS
                 Tensor A = matrix_view(a_buffer, {3, 3}, Core::Layout::RowMajor);
 
                 SushiBLAS::BLASOps(*engine).trmv(A, x, Core::Uplo::Lower);
-                engine->execute();
+                engine->execute().value();
 
                 const std::vector<sycl::half> product = read_buffer<sycl::half>(x);
                 ASSERT_EQ(std::size_t{3}, product.size());

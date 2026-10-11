@@ -21,7 +21,7 @@
 
 /**
  * @file tensor_factory.hpp
- * @brief Declares TensorFactory, which allocates dense tensors from one runtime context.
+ * @brief Declares TensorFactory, which allocates dense tensors from one runtime.
  * @author Mustafa Garip
  */
 
@@ -34,26 +34,26 @@
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiRuntime/SushiRuntime.h>
+#include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 
 namespace SushiBLAS
 {
     /**
-     * @brief Allocates dense tensors of one default layout from one runtime context.
+     * @brief Allocates dense tensors of one default layout from one runtime.
      * @see modules/README.md
      */
     class TensorFactory final
     {
         public:
             /**
-             * @brief Binds the factory to the context that allocates.
-             * @param context Performs every allocation; it must outlive the factory and its tensors.
+             * @brief Binds the factory to the runtime that allocates.
+             * @param runtime Performs every allocation; it must outlive the factory.
              * @param layout Memory layout of every tensor the factory creates.
              */
-            explicit TensorFactory(SushiRuntime::Execution::RuntimeContext& context,
+            explicit TensorFactory(SushiRuntime::Runtime& runtime,
                                    Core::Layout layout = Core::Layout::RowMajor) noexcept
-                : context_(&context), layout_(layout)
+                : runtime_(&runtime), layout_(layout)
             {
 
             }
@@ -65,12 +65,12 @@ namespace SushiBLAS
             ~TensorFactory() = default;
 
             /** @brief Returns the memory layout of every tensor the factory creates. */
-            [[nodiscard]] Core::Layout get_layout() const noexcept { return layout_; }
+            [[nodiscard]] Core::Layout layout() const noexcept { return layout_; }
 
-            /** @brief Returns the runtime context that allocates. */
-            [[nodiscard]] SushiRuntime::Execution::RuntimeContext& get_context() const noexcept
+            /** @brief Returns the runtime that allocates. */
+            [[nodiscard]] SushiRuntime::Runtime& runtime() const noexcept
             {
-                return *context_;
+                return *runtime_;
             }
 
             /**
@@ -96,32 +96,33 @@ namespace SushiBLAS
 
             /**
              * @brief Creates a dense tensor; a shape with a zero dimension gets no storage.
-             * @param device_index Device queue that owns the allocation, below the context's device_count().
+             * @param device_index Device queue that owns the allocation, below the runtime's device count.
              * @throws std::runtime_error on a rank too high, a negative dimension, an overflowing
              *         byte count, a device index out of range or a failed allocation.
              */
             [[nodiscard]] Tensor create(
                 SushiRuntime::span<const int64_t> dims,
                 Core::DataType dtype = Core::DataType::Float32,
-                SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared,
+                SushiRuntime::Residency residency = SushiRuntime::Residency::Shared,
                 std::size_t device_index = 0) const
             {
                 const std::size_t bytes = allocation_bytes(dims, dtype);
-                SB_THROW_IF(device_index >= context_->devices().count(),
-                            "Device index {} is out of range; the runtime context has {} device queues",
-                            device_index, context_->devices().count());
+                const std::size_t device_count = runtime_->advanced().device_count();
+                SB_THROW_IF(device_index >= device_count,
+                            "Device index {} is out of range; the runtime has {} device queues",
+                            device_index, device_count);
 
                 if (bytes == 0)
                     return Tensor(SushiRuntime::sushi_ptr<Storage>(), dims, dtype, 0, layout_);
 
                 SushiRuntime::sushi_ptr<Storage> storage =
-                    SushiRuntime::make_sushi<Storage>(*context_, bytes, residency, device_index);
+                    SushiRuntime::make_sushi<Storage>(*runtime_, bytes, residency, device_index);
                 return Tensor(std::move(storage), dims, dtype, 0, layout_);
             }
 
         private:
-            /// @brief The runtime context that allocates; never null.
-            SushiRuntime::Execution::RuntimeContext* context_;
+            /// @brief The runtime that allocates; never null.
+            SushiRuntime::Runtime* runtime_;
 
             /// @brief The memory layout of every created tensor.
             Core::Layout layout_;

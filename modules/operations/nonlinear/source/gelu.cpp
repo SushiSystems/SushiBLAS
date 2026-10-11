@@ -32,7 +32,7 @@
 
 namespace SushiBLAS 
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle NonLinearOps::gelu(Tensor& t) 
     {

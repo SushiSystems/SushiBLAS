@@ -46,7 +46,7 @@ TEST_F(Unit_SYRTest, SimpleSYR)
     SB_LOG_INFO("Submitting SYR.");
     SushiBLAS::BLASOps(*engine).syr(X, A, SushiBLAS::Core::Uplo::Lower);
     
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Only the lower triangle of x*x^T is written. See tests/unit/README.md.
