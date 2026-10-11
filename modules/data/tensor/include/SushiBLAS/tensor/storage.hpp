@@ -61,7 +61,7 @@ namespace SushiBLAS
              * @param n_bytes Number of bytes requested; above zero.
              * @param device_index Device queue that owns the allocation; a device of runtime.
              * @throws std::runtime_error if the size is zero or overflows, the device index is out
-             *         of range, the allocation fails, or the address is not aligned.
+             *         of range, or the allocation fails.
              */
             Storage(SushiRuntime::Runtime& runtime,
                     std::size_t n_bytes,
@@ -83,14 +83,14 @@ namespace SushiBLAS
 
                 SushiRuntime::Result<SushiRuntime::Buffer<std::byte>> allocated =
                     runtime.buffer<std::byte>(size_bytes, SushiRuntime::DeviceIndex{device_index},
-                                              residency);
+                                              residency, K_STORAGE_ALIGNMENT);
                 SB_THROW_IF(!allocated, "Allocation failed for {} bytes: {}", size_bytes,
                             allocated.error().message);
 
-                SB_THROW_IF(reinterpret_cast<std::uintptr_t>(allocated->data()) %
-                                    K_STORAGE_ALIGNMENT != 0,
-                            "The device returned an allocation that is not {}-byte aligned",
-                            K_STORAGE_ALIGNMENT);
+                SB_ASSERT(reinterpret_cast<std::uintptr_t>(allocated->data()) %
+                                  K_STORAGE_ALIGNMENT == 0,
+                          "The runtime returned an allocation that is not aligned to "
+                          "K_STORAGE_ALIGNMENT");
 
                 buffer_ = std::move(*allocated);
             }
