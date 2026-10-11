@@ -7,4 +7,5 @@
 # The foundation tier: what every other module is written in.
 add_subdirectory(core)
 add_subdirectory(support)
+add_subdirectory(geometry)
 add_subdirectory(graph_primitives)

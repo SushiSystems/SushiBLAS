@@ -23,6 +23,7 @@ set(SUSHIBLAS_LAYER_ORDER
 set(SUSHIBLAS_MODULE_LAYERS
     core                foundation
     support             foundation
+    geometry            foundation
     graph_primitives    foundation
     tensor              data
     sparse_storage      data
@@ -50,6 +51,7 @@ set(SUSHIBLAS_MODULE_LAYERS
 # inside a tier that is not listed here is refused.
 set(SUSHIBLAS_SAME_LAYER_EDGES
     support             core
+    geometry            support
     sparse_storage      tensor
     blas_kernels        blas_seam_kernels
     sparse_kernels      blas_seam_kernels
