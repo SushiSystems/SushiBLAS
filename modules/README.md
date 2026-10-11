@@ -10,6 +10,7 @@ operation family in one line.
 | --- | --- | --- | --- |
 | foundation | `core` | Element types, type traits, the format stand-in, the logger, the version macros | [README](foundation/core/README.md) |
 | foundation | `support` | The accumulator traits, the device policy, the launch and reduction shapes, the serial host loops, the window geometry, the sparse assembly | [README](foundation/support/README.md) |
+| foundation | `graph_primitives` | The fixed fold order and the four primitives that record on a SushiRuntime `Recorder`: reduce, segmented reduce, prefix scan, counting sort | [README](foundation/graph_primitives/README.md) |
 | data | `tensor` | `Storage`, `Tensor`, `TensorFactory` and `HostDataType` | [README](data/tensor/README.md) |
 | data | `sparse_storage` | `SparseMatrix`, `SparseVector` and `SparseBuilder` | [README](data/sparse_storage/README.md) |
 | kernels | `blas_seam_kernels` | The GEMM kernels and epilogues a public seam instantiates, and the access bricks the BLAS kernels share | [README](kernels/blas_seam_kernels/README.md) |
