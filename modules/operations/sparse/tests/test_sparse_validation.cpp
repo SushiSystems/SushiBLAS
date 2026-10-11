@@ -61,7 +61,7 @@ namespace SushiBLAS
                 /** @brief Returns the entries 10, 20, 30 at the positions 6, 1, 4 of eight. */
                 [[nodiscard]] SparseVector sample_vector()
                 {
-                    const SparseBuilder builder(engine->get_tensor_factory());
+                    const SparseBuilder builder(engine->tensor_factory());
                     return builder.vector_from_entries(K_VECTOR_SIZE,
                                                        std::vector<int32_t>{6, 1, 4},
                                                        std::vector<float>{10.0f, 20.0f, 30.0f});
@@ -71,7 +71,7 @@ namespace SushiBLAS
                 [[nodiscard]] SparseMatrix build(const HostTriplets<float>& host)
                 {
                     const Core::IndexBase base = Core::IndexBase::Zero;
-                    const SparseBuilder builder(engine->get_tensor_factory());
+                    const SparseBuilder builder(engine->tensor_factory());
                     return builder.matrix_from_triplets(
                         host.rows, host.cols, stored_indices<int32_t>(host.row_indices, base),
                         stored_indices<int32_t>(host.column_indices, base), host.values);
@@ -122,9 +122,9 @@ namespace SushiBLAS
                     SCOPED_TRACE(rule);
 
                     GraphProbe probe;
-                    SparseOps ops(probe.get_recorder());
+                    SparseOps ops(probe.recorder());
                     EXPECT_THROW(record(ops), std::invalid_argument);
-                    EXPECT_TRUE(probe.take_nodes().empty());
+                    EXPECT_EQ(0u, probe.take_recorded_count());
                 }
 
                 /** @brief Expects axpyi to refuse a sparse vector against a dense one of eight. */
@@ -317,26 +317,26 @@ namespace SushiBLAS
         TEST_F(Unit_SparseValidation, ForceReferenceRefusesAMatrixWithDeviceOnlyValues)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
-            SparseOps ops(probe.get_recorder());
+            SparseOps ops(probe.recorder());
 
             SparseMatrix A = sample();
             const Tensor x = dense(5);
             Tensor y = dense(4);
 
             EXPECT_NO_THROW(ops.spmv(A, x, y));
-            EXPECT_EQ(probe.take_nodes().size(), 1u) << "The matrix in shared USM must record.";
+            EXPECT_EQ(probe.take_recorded_count(), 1u) << "The matrix in shared USM must record.";
 
             try
             {
                 A.values = engine->create_tensor({A.nnz()}, Core::DataType::Float32,
-                                                 SushiRuntime::API::Residency::Device);
+                                                 SushiRuntime::Residency::Device);
             }
             catch (const std::exception&)
             {
                 GTEST_SKIP() << "This device offers no device-only USM.";
             }
 
-            const sycl::context context = TestEnvironment::get_context().devices().queue(0).get_context();
+            const sycl::context context = TestEnvironment::queue().get_context();
             if (sycl::get_pointer_type(A.values.data(), context) != sycl::usm::alloc::device)
                 GTEST_SKIP() << "This device offers no device-only USM.";
 
@@ -351,7 +351,7 @@ namespace SushiBLAS
             }
             EXPECT_NE(refusal.find("ForceReference"), std::string::npos)
                 << "spmv threw \"" << refusal << "\" for device-only values";
-            EXPECT_TRUE(probe.take_nodes().empty());
+            EXPECT_EQ(0u, probe.take_recorded_count());
         }
     } // namespace Test
 } // namespace SushiBLAS

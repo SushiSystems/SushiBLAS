@@ -65,7 +65,7 @@ namespace SushiBLAS
                 /** @brief Returns the queue every case submits to. */
                 static sycl::queue& queue()
                 {
-                    return TestEnvironment::get_context().devices().queue(0);
+                    return TestEnvironment::queue();
                 }
 
                 /** @brief Returns the exact INT64 sum of the first n values under geometry. */

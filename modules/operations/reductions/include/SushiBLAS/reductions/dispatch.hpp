@@ -48,8 +48,8 @@
 #include <SushiBLAS/support/serial_reduce.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
-#include <SushiRuntime/memory/resource_region.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/api/data/buffer.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
@@ -91,7 +91,7 @@ namespace SushiBLAS
             if (t.num_elements <= 0)
                 return 0;
 
-            return Reduce::planned_partials(Device::profile_for(t.get_device()),
+            return Reduce::planned_partials(Device::profile_for(t.device()),
                                             static_cast<std::size_t>(t.num_elements));
         }
 
@@ -102,8 +102,8 @@ namespace SushiBLAS
         [[nodiscard]] inline std::size_t reduction_device_index(const Tensor& t,
                                                                 const Tensor& result)
         {
-            return t.storage ? t.storage->get_device_index()
-                             : result.storage->get_device_index();
+            return t.storage ? t.storage->device_index()
+                             : result.storage->device_index();
         }
 
         /** @brief Holds the bytes one (value, index) partial of an index reduction takes. */
@@ -116,7 +116,7 @@ namespace SushiBLAS
         [[nodiscard]] inline std::size_t leased_partials(const TaskRecorder& recorder,
                                                          std::size_t planned) noexcept
         {
-            return recorder.get_mode() == ExecutionMode::ForceReference ? std::size_t{0}
+            return recorder.mode() == ExecutionMode::ForceReference ? std::size_t{0}
                                                                           : planned;
         }
 
@@ -261,7 +261,7 @@ namespace SushiBLAS
          */
         template<typename Dispatcher>
         TaskHandle execute_reduction(TaskRecorder& recorder, const Tensor& t, Tensor& result,
-                                     const char* name, SushiRuntime::Graph::OpID op_id,
+                                     const char* name, SushiRuntime::OperationID op_id,
                                      Dispatcher&& dispatch, std::size_t scratch_elements = 0)
         {
             require_storage(t, name, "t");
@@ -284,14 +284,14 @@ namespace SushiBLAS
 
             // The scratch is declared as a resource with its own region; see modules/operations/MATH_README.md.
             const std::size_t partials = leased_partials(recorder, scratch_elements);
-            const ScratchBuffer scratch(recorder.get_scratch_pool(),
+            const ScratchBuffer scratch(recorder.scratch_pool(),
                                         partials * partial_bytes(t.dtype),
                                         reduction_device_index(t, result));
             operands.scratch(scratch);
 
-            SushiRuntime::Graph::TaskMetadata meta;
+            SushiRuntime::Internal::Graph::TaskMetadata meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
 
             using D = std::decay_t<Dispatcher>;
@@ -335,7 +335,7 @@ namespace SushiBLAS
                 /** @brief Holds the recorder the task is recorded through. */
                 TaskRecorder& recorder;
                 /** @brief Holds the metadata the task is recorded with. */
-                const SushiRuntime::Graph::TaskMetadata& meta;
+                const SushiRuntime::Internal::Graph::TaskMetadata& meta;
                 /** @brief Holds the operands the task declares. */
                 const OperandSet& operands;
                 /** @brief Holds the dispatcher the task body calls. */
@@ -383,7 +383,7 @@ namespace SushiBLAS
                 /** @brief Holds the recorder the task is recorded through. */
                 TaskRecorder& recorder;
                 /** @brief Holds the metadata the task is recorded with. */
-                const SushiRuntime::Graph::TaskMetadata& meta;
+                const SushiRuntime::Internal::Graph::TaskMetadata& meta;
                 /** @brief Holds the operands the task declares. */
                 const OperandSet& operands;
                 /** @brief Holds the dispatcher the task body calls. */
@@ -499,7 +499,7 @@ namespace SushiBLAS
                 /** @brief Holds the recorder the task is recorded through. */
                 TaskRecorder& recorder;
                 /** @brief Holds the metadata the task is recorded with. */
-                const SushiRuntime::Graph::TaskMetadata& meta;
+                const SushiRuntime::Internal::Graph::TaskMetadata& meta;
                 /** @brief Holds the operands the task declares. */
                 const OperandSet& operands;
                 /** @brief Holds the segment geometry the fold walks. */
@@ -541,7 +541,7 @@ namespace SushiBLAS
          */
         template<typename Dispatcher>
         TaskHandle execute_index_reduction(TaskRecorder& recorder, const Tensor& t, Tensor& result,
-                                           const char* name, SushiRuntime::Graph::OpID op_id,
+                                           const char* name, SushiRuntime::OperationID op_id,
                                            Dispatcher&& dispatch,
                                            std::size_t scratch_elements = 0)
         {
@@ -565,14 +565,14 @@ namespace SushiBLAS
 
             // The partials are (value, index) pairs, 16 bytes for every element type served.
             const std::size_t partials = leased_partials(recorder, scratch_elements);
-            const ScratchBuffer scratch(recorder.get_scratch_pool(),
+            const ScratchBuffer scratch(recorder.scratch_pool(),
                                         partials * K_INDEXED_PARTIAL_BYTES,
-                                        t.storage->get_device_index());
+                                        t.storage->device_index());
             operands.scratch(scratch);
 
-            SushiRuntime::Graph::TaskMetadata meta;
+            SushiRuntime::Internal::Graph::TaskMetadata meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
 
             TaskHandle handle;
@@ -597,7 +597,7 @@ namespace SushiBLAS
         template<typename Dispatcher>
         TaskHandle execute_counting_reduction(TaskRecorder& recorder, const Tensor& t,
                                               Tensor& result, const char* name,
-                                              SushiRuntime::Graph::OpID op_id,
+                                              SushiRuntime::OperationID op_id,
                                               Dispatcher&& dispatch,
                                               std::size_t scratch_elements = 0)
         {
@@ -621,14 +621,14 @@ namespace SushiBLAS
 
             // Partials are INT64 whatever the input dtype, so the scratch is sized from sizeof(int64_t); see modules/operations/MATH_README.md.
             const std::size_t partials = leased_partials(recorder, scratch_elements);
-            const ScratchBuffer scratch(recorder.get_scratch_pool(),
+            const ScratchBuffer scratch(recorder.scratch_pool(),
                                         partials * sizeof(int64_t),
                                         reduction_device_index(t, result));
             operands.scratch(scratch);
 
-            SushiRuntime::Graph::TaskMetadata meta;
+            SushiRuntime::Internal::Graph::TaskMetadata meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
 
             TaskHandle handle;
@@ -700,7 +700,7 @@ namespace SushiBLAS
         template<template<typename> class Accum, typename Transform, typename Finalize>
         TaskHandle execute_folding_reduction(TaskRecorder& recorder, const Tensor& t,
                                              Tensor& result, const char* name,
-                                             SushiRuntime::Graph::OpID op_id, Transform transform,
+                                             SushiRuntime::OperationID op_id, Transform transform,
                                              Finalize finalize)
         {
             require_storage(t, name, "t");
@@ -786,7 +786,7 @@ namespace SushiBLAS
         TaskHandle execute_folding_span_reduction(TaskRecorder& recorder, const Tensor& t,
                                                   const Reduce::AxisSpan& span, Tensor& result,
                                                   const char* name,
-                                                  SushiRuntime::Graph::OpID op_id,
+                                                  SushiRuntime::OperationID op_id,
                                                   Transform transform, Finalize finalize)
         {
             require_storage(t, name, "t");
@@ -806,9 +806,9 @@ namespace SushiBLAS
             OperandSet operands;
             operands.reads(t).writes(result);
 
-            SushiRuntime::Graph::TaskMetadata meta;
+            SushiRuntime::Internal::Graph::TaskMetadata meta;
             meta.name = name;
-            meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+            meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
             meta.op_id = op_id;
 
             TaskHandle handle;
@@ -831,7 +831,7 @@ namespace SushiBLAS
         template<template<typename> class Accum, typename Transform, typename Finalize>
         TaskHandle execute_folding_axis_reduction(TaskRecorder& recorder, const Tensor& t, int axis,
                                                   Tensor& result, const char* name,
-                                                  SushiRuntime::Graph::OpID op_id,
+                                                  SushiRuntime::OperationID op_id,
                                                   Transform transform, Finalize finalize)
         {
             require_storage(t, name, "t");

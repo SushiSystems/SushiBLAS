@@ -107,16 +107,16 @@ namespace SushiBLAS::Bench
     inline void print_environment(Engine& engine)
     {
         const Tensor probe = engine.create_tensor({1});
-        const std::string device = probe.get_device().get_info<sycl::info::device::name>();
+        const std::string device = probe.device().get_info<sycl::info::device::name>();
         std::printf("device:        %s\n", device.c_str());
         std::printf("build:         %s\n", build_configuration_name());
-        const Device::Profile& profile = Device::profile_for(probe.get_device());
+        const Device::Profile& profile = Device::profile_for(probe.device());
         std::printf("compute units: %zu\n", profile.compute_units);
         std::printf("cache bytes:   %zu\n", profile.cache_bytes);
         std::printf("blocking:      inner %zu, outer %zu, stream %zu, min operand %zu\n",
                     profile.blocking.inner_bytes, profile.blocking.outer_bytes,
                     profile.blocking.stream_bytes, profile.blocking.min_operand_bytes);
-        std::printf("engine mode:   %s\n", execution_mode_name(engine.get_mode()));
+        std::printf("engine mode:   %s\n", execution_mode_name(engine.mode()));
         std::printf("iterations:    %d warm-up, %d timed\n\n", K_WARMUP_ITERATIONS,
                     K_TIMED_ITERATIONS);
     }
@@ -217,7 +217,7 @@ namespace SushiBLAS::Bench
         return time_iterations([&]()
         {
             record();
-            engine.execute();
+            engine.execute().value();
         });
     }
 

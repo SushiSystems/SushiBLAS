@@ -366,7 +366,7 @@ namespace SushiBLAS
                 /** @brief Returns the queue every case submits to. */
                 [[nodiscard]] static sycl::queue& queue()
                 {
-                    return TestEnvironment::get_context().devices().queue(0);
+                    return TestEnvironment::queue();
                 }
         };
 
@@ -515,7 +515,7 @@ namespace SushiBLAS
                                                 K_MAP_VALUE));
 
             SushiBLAS::ReductionOps(*engine).mean_spatial(map, means);
-            engine->execute();
+            engine->execute().value();
 
             const std::vector<sycl::half> got = read_tensor<sycl::half>(means);
             ASSERT_EQ(got.size(), static_cast<std::size_t>(K_MAP_CHANNELS));

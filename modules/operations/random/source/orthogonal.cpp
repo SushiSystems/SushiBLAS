@@ -34,13 +34,13 @@
 #include <SushiBLAS/random/dispatch.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiBLAS/support/orthonormal_sweep.hpp>
-#include <SushiRuntime/memory/resource_region.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/api/data/buffer.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 #include <SushiBLAS/random_kernels/random.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle RandomOps::orthogonal(Tensor& t, double gain)
     {
@@ -74,9 +74,9 @@ namespace SushiBLAS
 
         void* ptr = t.data();
 
-        SushiRuntime::Graph::TaskMetadata meta;
+        SushiRuntime::Internal::Graph::TaskMetadata meta;
         meta.name = name;
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "random.orthogonal"_op;
         meta.set_param(0, gain);
 

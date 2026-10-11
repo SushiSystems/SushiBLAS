@@ -46,7 +46,7 @@ TEST_F(Unit_AXPYTest, SimpleAXPY)
     SB_LOG_INFO("Submitting AXPY.");
     SushiBLAS::BLASOps(*engine).axpy(2.0f, X, Y);
     
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: 2 * X + Y = {2+4, 4+5, 6+6} = {6, 9, 12}

@@ -40,7 +40,6 @@
 #include <SushiRuntime/api/graph/recorder.hpp>
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
-#include <SushiRuntime/memory/resource_region.hpp>
 
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
@@ -54,21 +53,21 @@ namespace SushiBLAS
          * @brief Records a reduction of the first n values whose combination order never varies.
          * @tparam Combine Binary functor; must be trivially copyable.
          * @param output Receives the result in output[0]; identity when n is zero.
-         * @throws SushiRuntime::Core::SushiException With invalid_graph if n exceeds the size
+         * @throws SushiRuntime::SushiException With invalid_graph if n exceeds the size
          *         of input or output is empty, or allocation_failed if scratch does not fit.
          * @see modules/foundation/graph_primitives/README.md
          */
         template <typename T, class Combine>
-        void reduce(SushiRuntime::API::Recorder& recorder,
-                    const SushiRuntime::API::Buffer<T>& input,
-                    const SushiRuntime::API::Buffer<T>& output, std::size_t n, Combine op,
+        void reduce(SushiRuntime::Recorder& recorder,
+                    const SushiRuntime::Buffer<T>& input,
+                    const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op,
                     T identity)
         {
-            using SushiRuntime::API::Access;
-            using SushiRuntime::API::NodeOptions;
-            using SushiRuntime::API::Reads;
-            using SushiRuntime::API::Writes;
-            using SushiRuntime::Memory::ResourceRegion;
+            using SushiRuntime::Access;
+            using SushiRuntime::NodeOptions;
+            using SushiRuntime::Reads;
+            using SushiRuntime::Writes;
+            using SushiRuntime::BufferRegion;
 
             if (n > input.size())
                 Detail::throw_invalid_graph(
@@ -137,23 +136,23 @@ namespace SushiBLAS
          * @brief Records a reduction whose live element count is resolved once per run.
          * @tparam Combine Binary functor; must be trivially copyable.
          * @param output Receives the result in output[0]; identity when the live count is zero.
-         * @throws SushiRuntime::Core::SushiException With invalid_graph if n.capacity() exceeds
+         * @throws SushiRuntime::SushiException With invalid_graph if n.capacity() exceeds
          *         the size of input or output is empty; a run throws if the live count exceeds
          *         n.capacity().
          */
         template <typename T, class Combine>
-        void reduce(SushiRuntime::API::Recorder& recorder,
-                    const SushiRuntime::API::Buffer<T>& input,
-                    const SushiRuntime::API::Buffer<T>& output, SushiRuntime::API::LateCount n,
+        void reduce(SushiRuntime::Recorder& recorder,
+                    const SushiRuntime::Buffer<T>& input,
+                    const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
                     Combine op, T identity)
         {
-            using SushiRuntime::API::Access;
-            using SushiRuntime::API::DeviceSized;
-            using SushiRuntime::API::LateCount;
-            using SushiRuntime::API::NodeOptions;
-            using SushiRuntime::API::Reads;
-            using SushiRuntime::API::Writes;
-            using SushiRuntime::Memory::ResourceRegion;
+            using SushiRuntime::Access;
+            using SushiRuntime::DeviceSized;
+            using SushiRuntime::LateCount;
+            using SushiRuntime::NodeOptions;
+            using SushiRuntime::Reads;
+            using SushiRuntime::Writes;
+            using SushiRuntime::BufferRegion;
 
             const std::size_t capacity = n.capacity();
             if (capacity > input.size())
@@ -247,12 +246,12 @@ namespace SushiBLAS
         /**
          * @brief Records a fixed-count reduction that takes identity from Combine::identity().
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
-         * @throws SushiRuntime::Core::SushiException As the overload that takes an identity.
+         * @throws SushiRuntime::SushiException As the overload that takes an identity.
          */
         template <typename T, class Combine>
-        void reduce(SushiRuntime::API::Recorder& recorder,
-                    const SushiRuntime::API::Buffer<T>& input,
-                    const SushiRuntime::API::Buffer<T>& output, std::size_t n, Combine op)
+        void reduce(SushiRuntime::Recorder& recorder,
+                    const SushiRuntime::Buffer<T>& input,
+                    const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op)
         {
             GraphPrimitives::reduce(recorder, input, output, n, op, Combine::identity());
         }
@@ -260,12 +259,12 @@ namespace SushiBLAS
         /**
          * @brief Records a late-bound reduction that takes identity from Combine::identity().
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
-         * @throws SushiRuntime::Core::SushiException As the overload that takes an identity.
+         * @throws SushiRuntime::SushiException As the overload that takes an identity.
          */
         template <typename T, class Combine>
-        void reduce(SushiRuntime::API::Recorder& recorder,
-                    const SushiRuntime::API::Buffer<T>& input,
-                    const SushiRuntime::API::Buffer<T>& output, SushiRuntime::API::LateCount n,
+        void reduce(SushiRuntime::Recorder& recorder,
+                    const SushiRuntime::Buffer<T>& input,
+                    const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
                     Combine op)
         {
             GraphPrimitives::reduce(recorder, input, output, n, op, Combine::identity());

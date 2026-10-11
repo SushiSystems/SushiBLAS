@@ -40,7 +40,7 @@ TEST_F(Unit_AllTest, FloatForward)
     fill_tensor(t, {1.0f, 0.0f, 3.0f, 0.0f});
     auto out = engine->create_tensor({1});
     SushiBLAS::LogicOps(*engine).all(t, out);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(out, {0.0f});
 }

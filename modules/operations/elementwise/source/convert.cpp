@@ -41,12 +41,12 @@
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/elementwise/elementwise.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
-#include <SushiRuntime/memory/resource_region.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/api/data/buffer.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     namespace
     {
@@ -78,7 +78,7 @@ namespace SushiBLAS
          */
         template<typename Src, typename Dst>
         TaskHandle record_convert(TaskRecorder& recorder,
-                                  const SushiRuntime::Graph::TaskMetadata& meta,
+                                  const SushiRuntime::Internal::Graph::TaskMetadata& meta,
                                   const OperandSet& operands,
                                   const void* src_ptr, void* dst_ptr, int64_t n)
         {
@@ -117,7 +117,7 @@ namespace SushiBLAS
          */
         template<typename Src>
         TaskHandle dispatch_destination(Core::DataType dst_dtype, TaskRecorder& recorder,
-                                        const SushiRuntime::Graph::TaskMetadata& meta,
+                                        const SushiRuntime::Internal::Graph::TaskMetadata& meta,
                                         const OperandSet& operands,
                                         const void* src_ptr, void* dst_ptr, int64_t n)
         {
@@ -178,9 +178,9 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(src).writes(dst);
 
-        SushiRuntime::Graph::TaskMetadata meta;
+        SushiRuntime::Internal::Graph::TaskMetadata meta;
         meta.name = K_NAME;
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "math.ew.convert"_op;
 
         // The outer switch picks the source type; see modules/operations/README.md.

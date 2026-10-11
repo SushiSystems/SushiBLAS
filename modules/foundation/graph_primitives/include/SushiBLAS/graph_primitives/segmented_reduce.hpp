@@ -39,7 +39,6 @@
 #include <SushiRuntime/api/graph/recorder.hpp>
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
-#include <SushiRuntime/memory/resource_region.hpp>
 
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
@@ -54,7 +53,7 @@ namespace SushiBLAS
              * @brief Throws unless the offsets and the output hold what segment_count needs.
              * @param offsets_size Elements segment_offsets holds; segment_count + 1 are needed.
              * @param output_size  Elements output holds; segment_count are needed.
-             * @throws SushiRuntime::Core::SushiException With invalid_graph for a short buffer.
+             * @throws SushiRuntime::SushiException With invalid_graph for a short buffer.
              */
             inline void require_segment_room(std::size_t offsets_size, std::size_t output_size,
                                              std::size_t segment_count)
@@ -91,19 +90,19 @@ namespace SushiBLAS
          * @param segment_offsets segment_count + 1 non-decreasing entries, the last no larger
          *        than the size of values.
          * @param output Receives one result per segment; identity for an empty segment.
-         * @throws SushiRuntime::Core::SushiException With invalid_graph for a short buffer.
+         * @throws SushiRuntime::SushiException With invalid_graph for a short buffer.
          */
         template <typename T, class Combine>
-        void segmented_reduce(SushiRuntime::API::Recorder& recorder,
-                              const SushiRuntime::API::Buffer<T>& values,
-                              const SushiRuntime::API::Buffer<std::uint32_t>& segment_offsets,
-                              const SushiRuntime::API::Buffer<T>& output,
+        void segmented_reduce(SushiRuntime::Recorder& recorder,
+                              const SushiRuntime::Buffer<T>& values,
+                              const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
+                              const SushiRuntime::Buffer<T>& output,
                               std::size_t segment_count, Combine op, T identity)
         {
-            using SushiRuntime::API::Access;
-            using SushiRuntime::API::NodeOptions;
-            using SushiRuntime::API::Reads;
-            using SushiRuntime::API::Writes;
+            using SushiRuntime::Access;
+            using SushiRuntime::NodeOptions;
+            using SushiRuntime::Reads;
+            using SushiRuntime::Writes;
 
             Detail::require_segment_room(segment_offsets.size(), output.size(), segment_count);
 
@@ -125,23 +124,23 @@ namespace SushiBLAS
          * @tparam Combine Binary functor; must be trivially copyable.
          * @param segment_offsets segment_count.capacity() + 1 non-decreasing entries.
          * @param output segment_count.capacity() entries; those past the live count are kept.
-         * @throws SushiRuntime::Core::SushiException With invalid_graph for a short buffer; a
+         * @throws SushiRuntime::SushiException With invalid_graph for a short buffer; a
          *         run throws if the live count exceeds the capacity.
          */
         template <typename T, class Combine>
-        void segmented_reduce(SushiRuntime::API::Recorder& recorder,
-                              const SushiRuntime::API::Buffer<T>& values,
-                              const SushiRuntime::API::Buffer<std::uint32_t>& segment_offsets,
-                              const SushiRuntime::API::Buffer<T>& output,
-                              SushiRuntime::API::LateCount segment_count, Combine op, T identity)
+        void segmented_reduce(SushiRuntime::Recorder& recorder,
+                              const SushiRuntime::Buffer<T>& values,
+                              const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
+                              const SushiRuntime::Buffer<T>& output,
+                              SushiRuntime::LateCount segment_count, Combine op, T identity)
         {
-            using SushiRuntime::API::Access;
-            using SushiRuntime::API::DeviceSized;
-            using SushiRuntime::API::LateCount;
-            using SushiRuntime::API::NodeOptions;
-            using SushiRuntime::API::Reads;
-            using SushiRuntime::API::Writes;
-            using SushiRuntime::Memory::ResourceRegion;
+            using SushiRuntime::Access;
+            using SushiRuntime::DeviceSized;
+            using SushiRuntime::LateCount;
+            using SushiRuntime::NodeOptions;
+            using SushiRuntime::Reads;
+            using SushiRuntime::Writes;
+            using SushiRuntime::BufferRegion;
 
             const std::size_t capacity = segment_count.capacity();
             Detail::require_segment_room(segment_offsets.size(), output.size(), capacity);
@@ -179,13 +178,13 @@ namespace SushiBLAS
         /**
          * @brief Records a fixed-count segmented reduction with Combine::identity().
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
-         * @throws SushiRuntime::Core::SushiException As the overload that takes an identity.
+         * @throws SushiRuntime::SushiException As the overload that takes an identity.
          */
         template <typename T, class Combine>
-        void segmented_reduce(SushiRuntime::API::Recorder& recorder,
-                              const SushiRuntime::API::Buffer<T>& values,
-                              const SushiRuntime::API::Buffer<std::uint32_t>& segment_offsets,
-                              const SushiRuntime::API::Buffer<T>& output,
+        void segmented_reduce(SushiRuntime::Recorder& recorder,
+                              const SushiRuntime::Buffer<T>& values,
+                              const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
+                              const SushiRuntime::Buffer<T>& output,
                               std::size_t segment_count, Combine op)
         {
             GraphPrimitives::segmented_reduce(recorder, values, segment_offsets, output,
@@ -195,14 +194,14 @@ namespace SushiBLAS
         /**
          * @brief Records a late-bound segmented reduction with Combine::identity().
          * @tparam Combine Binary functor with a static identity(); must be trivially copyable.
-         * @throws SushiRuntime::Core::SushiException As the overload that takes an identity.
+         * @throws SushiRuntime::SushiException As the overload that takes an identity.
          */
         template <typename T, class Combine>
-        void segmented_reduce(SushiRuntime::API::Recorder& recorder,
-                              const SushiRuntime::API::Buffer<T>& values,
-                              const SushiRuntime::API::Buffer<std::uint32_t>& segment_offsets,
-                              const SushiRuntime::API::Buffer<T>& output,
-                              SushiRuntime::API::LateCount segment_count, Combine op)
+        void segmented_reduce(SushiRuntime::Recorder& recorder,
+                              const SushiRuntime::Buffer<T>& values,
+                              const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
+                              const SushiRuntime::Buffer<T>& output,
+                              SushiRuntime::LateCount segment_count, Combine op)
         {
             GraphPrimitives::segmented_reduce(recorder, values, segment_offsets, output,
                                               segment_count, op, Combine::identity());

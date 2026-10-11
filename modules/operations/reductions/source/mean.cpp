@@ -30,7 +30,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     // The division by n is the finalizer of the fold; see modules/operations/README.md.
     TaskHandle ReductionOps::mean(const Tensor& t, Tensor& result)

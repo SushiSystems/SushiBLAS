@@ -53,7 +53,7 @@ static Tensor run_axpy(Engine& engine, ExecutionMode mode)
     fill_tensor(y, {10.0f, 20.0f, 30.0f, 40.0f});
 
     SushiBLAS::BLASOps(engine).axpy(2.0, x, y);
-    engine.execute();
+    engine.execute().value();
     return y;
 }
 
@@ -61,7 +61,7 @@ TEST_F(Unit_ExecutionModeTest, SetModeIsReadBack)
 {
     engine->set_mode(ExecutionMode::ForceReference);
 
-    EXPECT_EQ(ExecutionMode::ForceReference, engine->get_mode());
+    EXPECT_EQ(ExecutionMode::ForceReference, engine->mode());
 }
 
 TEST_F(Unit_ExecutionModeTest, ForceReferenceAndForceSYCLAgreeOnAxpy)

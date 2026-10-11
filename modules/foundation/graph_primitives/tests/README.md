@@ -17,11 +17,11 @@ section below holds why a test is written the way it is.
 
 ## The runtime a test builds
 
-A primitive records through a `SushiRuntime::API::Recorder`, which a `Graph` or a `Region`
-hands out. The shared test environment owns a bare `RuntimeContext` and has no `Graph`, so each
-test builds its own `SushiRuntime::API::Runtime` with `Runtime::create()` and takes buffers and
-graphs from it. `test_device_sized_primitives.cpp` needs two runtimes with different settings in
-one test, which the shared context could not give either.
+A primitive records through a `SushiRuntime::Recorder`, which a `Graph` or a `Region`
+hands out. Each test builds its own `SushiRuntime::Runtime` with `Runtime::create()` and takes
+buffers and graphs from it, so a refusal one test provokes cannot reach another.
+`test_device_sized_primitives.cpp` needs two runtimes with different settings in one test, which
+the shared test runtime could not give.
 
 Four files (`test_combiners.cpp`, `test_fixed_order_fold.cpp`, `test_fixed_order_levels.cpp`,
 `test_radix_plan.cpp`) include

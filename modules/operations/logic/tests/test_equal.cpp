@@ -43,7 +43,7 @@ TEST_F(Unit_EqualTest, FloatForward)
     fill_tensor(b, {1.0f, 1.0f, 0.0f, 0.0f});
     
     SushiBLAS::LogicOps(*engine).equal(a, b, c);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(c, {1.00000f, 0.00000f, 0.00000f, 1.00000f});
 }

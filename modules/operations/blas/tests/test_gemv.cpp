@@ -53,7 +53,7 @@ TEST_F(Unit_GEMVTest, SimpleGEMV)
     SB_LOG_INFO("Submitting GEMV.");
     SushiBLAS::BLASOps(*engine).gemv(A, X, Y);
     
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: Y = A * X = [1+2+3, 4+5+6] = [6, 15]

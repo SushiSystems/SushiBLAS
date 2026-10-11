@@ -40,16 +40,10 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Builds one factory over the test environment's context for each test. */
+        /** @brief Builds one factory over the test environment's runtime for each test. */
         class Unit_TensorFactoryTest : public SushiBLASTest
         {
             protected:
-                /** @brief Returns the context the factory allocates from. */
-                [[nodiscard]] static SushiRuntime::Execution::RuntimeContext& context()
-                {
-                    return TestEnvironment::get_context();
-                }
-
                 /** @brief Returns a view of dims, which must outlive the call it is passed to. */
                 [[nodiscard]] static SushiRuntime::span<const int64_t> span_of(
                     const std::vector<int64_t>& dims)
@@ -58,14 +52,14 @@ namespace SushiBLAS
                 }
 
                 /// @brief The factory under test, row-major.
-                TensorFactory factory_{context()};
+                TensorFactory factory_{TestEnvironment::runtime()};
         };
 
         /** @brief Tests that a shape with a zero dimension keeps its rank and allocates nothing. */
         TEST_F(Unit_TensorFactoryTest, AZeroDimensionGivesATensorWithoutStorage)
         {
             const std::vector<int64_t> dims = {0, 3};
-            const std::size_t live_before = context().memory().live_count();
+            const std::size_t live_before = TestEnvironment::live_allocation_count();
 
             const Tensor tensor = factory_.create(span_of(dims));
 
@@ -74,7 +68,7 @@ namespace SushiBLAS
             EXPECT_EQ(2, tensor.rank);
             EXPECT_EQ(0, tensor.shape[0]);
             EXPECT_EQ(3, tensor.shape[1]);
-            EXPECT_EQ(live_before, context().memory().live_count());
+            EXPECT_EQ(live_before, TestEnvironment::live_allocation_count());
         }
 
         /** @brief Tests that the storage reports the device index the factory was asked for. */
@@ -82,14 +76,14 @@ namespace SushiBLAS
         {
             const std::vector<int64_t> dims = {4};
 
-            for (std::size_t device = 0; device < context().devices().count(); ++device)
+            for (std::size_t device = 0; device < TestEnvironment::device_count(); ++device)
             {
                 SCOPED_TRACE(device);
                 const Tensor tensor = factory_.create(span_of(dims), Core::DataType::Float32,
-                                                      SushiRuntime::API::Residency::Shared, device);
+                                                      SushiRuntime::Residency::Shared, device);
 
                 ASSERT_TRUE(tensor.storage != nullptr);
-                EXPECT_EQ(device, tensor.storage->get_device_index());
+                EXPECT_EQ(device, tensor.storage->device_index());
             }
         }
 
@@ -98,13 +92,13 @@ namespace SushiBLAS
         {
             const std::vector<int64_t> dims = {4};
             const std::vector<int64_t> empty_dims = {0, 3};
-            const std::size_t past_the_last = context().devices().count();
+            const std::size_t past_the_last = TestEnvironment::device_count();
 
             EXPECT_THROW((void)factory_.create(span_of(dims), Core::DataType::Float32,
-                                               SushiRuntime::API::Residency::Shared, past_the_last),
+                                               SushiRuntime::Residency::Shared, past_the_last),
                          std::runtime_error);
             EXPECT_THROW((void)factory_.create(span_of(empty_dims), Core::DataType::Float32,
-                                               SushiRuntime::API::Residency::Shared, past_the_last),
+                                               SushiRuntime::Residency::Shared, past_the_last),
                          std::runtime_error);
         }
 
@@ -133,7 +127,7 @@ namespace SushiBLAS
 
             const Tensor tensor = engine->create_tensor({2, 3});
 
-            EXPECT_EQ(Core::Layout::ColumnMajor, engine->get_tensor_factory().get_layout());
+            EXPECT_EQ(Core::Layout::ColumnMajor, engine->tensor_factory().layout());
             EXPECT_EQ(Core::Layout::ColumnMajor, tensor.layout);
             EXPECT_EQ(1, tensor.strides[0]);
             EXPECT_EQ(2, tensor.strides[1]);
@@ -146,7 +140,7 @@ namespace SushiBLAS
 
             ASSERT_TRUE(tensor.storage != nullptr);
             const std::size_t stored_bytes = tensor.storage->size_bytes();
-            EXPECT_EQ(0u, stored_bytes % SushiRuntime::Core::DEFAULT_ALIGNMENT);
+            EXPECT_EQ(0u, stored_bytes % SushiRuntime::K_DEFAULT_ALIGNMENT);
             EXPECT_GE(stored_bytes, std::size_t{12});
         }
     } // namespace Test

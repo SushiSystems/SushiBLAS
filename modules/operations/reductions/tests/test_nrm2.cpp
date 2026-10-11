@@ -47,7 +47,7 @@ TEST_F(Unit_NRM2Test, SimpleNRM2)
     SB_LOG_INFO("Submitting NRM2.");
     SushiBLAS::BLASOps(*engine).nrm2(X, R);
     
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected norm: sqrt(3^2 + 4^2 + 0^2) = sqrt(25) = 5

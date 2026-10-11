@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/operands/scalar.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
@@ -47,10 +47,10 @@ namespace SushiBLAS
                  * @brief Names the task and its operation.
                  * @param name Must outlive the recorded task; a string literal does.
                  */
-                BLASMetadata(const char* name, SushiRuntime::Graph::OpID op_id) noexcept
+                BLASMetadata(const char* name, SushiRuntime::OperationID op_id) noexcept
                 {
                     meta_.name = name;
-                    meta_.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+                    meta_.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
                     meta_.op_id = op_id;
                 }
 
@@ -81,7 +81,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns the metadata built so far. */
-                [[nodiscard]] const SushiRuntime::Graph::TaskMetadata& get() const noexcept
+                [[nodiscard]] const SushiRuntime::Internal::Graph::TaskMetadata& get() const noexcept
                 {
                     return meta_;
                 }
@@ -92,14 +92,14 @@ namespace SushiBLAS
                 void push(Value value) noexcept
                 {
                     SB_ASSERT(next_ < static_cast<int>(
-                                          SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS),
+                                          SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS),
                               "A BLAS task declared more metadata slots than TaskMetadata holds");
                     meta_.set_param(next_, value);
                     ++next_;
                 }
 
                 /// @brief The metadata being built.
-                SushiRuntime::Graph::TaskMetadata meta_;
+                SushiRuntime::Internal::Graph::TaskMetadata meta_;
 
                 /// @brief The next free slot.
                 int next_ = 0;

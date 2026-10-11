@@ -50,9 +50,9 @@ namespace SushiBLAS
         {
             using GraphPrimitives::Sum;
             using GraphPrimitives::segmented_reduce;
-            using SushiRuntime::API::LateCount;
-            using SushiRuntime::API::Runtime;
-            using SushiRuntime::Core::SushiException;
+            using SushiRuntime::LateCount;
+            using SushiRuntime::Runtime;
+            using SushiRuntime::SushiException;
 
             /// @brief Holds a value no segment of these tests folds to.
             constexpr float K_UNWRITTEN = -1.0f;
@@ -177,8 +177,8 @@ namespace SushiBLAS
             auto wide_bounds = runtime.buffer<std::uint32_t>(5);
 
             auto graph = runtime.graph();
-            const auto refused_code = [&](const SushiRuntime::API::Buffer<std::uint32_t>& bounds,
-                                          const SushiRuntime::API::Buffer<float>& output,
+            const auto refused_code = [&](const SushiRuntime::Buffer<std::uint32_t>& bounds,
+                                          const SushiRuntime::Buffer<float>& output,
                                           bool late)
             {
                 try
@@ -194,19 +194,19 @@ namespace SushiBLAS
                 {
                     return refused.error().code;
                 }
-                return SushiRuntime::Core::Errc::ok;
+                return SushiRuntime::Errc::ok;
             };
 
             for (const bool late : {false, true})
             {
                 EXPECT_EQ(refused_code(short_bounds, wide_out, late),
-                          SushiRuntime::Core::Errc::invalid_graph)
+                          SushiRuntime::Errc::invalid_graph)
                     << "two offsets cannot bound four segments; late = " << late;
                 EXPECT_EQ(refused_code(wide_bounds, out, late),
-                          SushiRuntime::Core::Errc::invalid_graph)
+                          SushiRuntime::Errc::invalid_graph)
                     << "one output element cannot hold four results; late = " << late;
                 EXPECT_EQ(refused_code(short_bounds, out, late),
-                          SushiRuntime::Core::Errc::invalid_graph)
+                          SushiRuntime::Errc::invalid_graph)
                     << "late = " << late;
             }
             EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";

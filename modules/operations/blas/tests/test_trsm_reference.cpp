@@ -101,7 +101,7 @@ namespace SushiBLAS
                     SushiBLAS::BLASOps(*engine).trsm(
                         A, B, side_of(left_side), uplo_of(upper), transpose_of(trans_a),
                         diag_of(unit_diag), alpha);
-                    engine->execute();
+                    engine->execute().value();
 
                     EXPECT_TENSOR_NEAR(B, expected, K_TOLERANCE);
                 }

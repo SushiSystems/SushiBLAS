@@ -108,7 +108,7 @@ namespace SushiBLAS
             auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Int64);
 
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
-            engine->execute();
+            engine->execute().value();
 
             const float* got = out.data_as<float>();
             EXPECT_FLOAT_EQ(got[0], -4.0f) << "the top-left window saw only element (0,0)";
@@ -124,7 +124,7 @@ namespace SushiBLAS
             auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Int64);
 
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, two_by_two_stride_two());
-            engine->execute();
+            engine->execute().value();
 
             const float* got = out.data_as<float>();
             EXPECT_FLOAT_EQ(got[0], 4.0f);   // max{1,3,4,2}
@@ -141,7 +141,7 @@ namespace SushiBLAS
             auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Int64);
 
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, two_by_two_stride_two());
-            engine->execute();
+            engine->execute().value();
 
             const int64_t* got = indices.data_as<int64_t>();
             EXPECT_EQ(got[0], 4);    // value 4 sits at (h=1, w=0)
@@ -159,7 +159,7 @@ namespace SushiBLAS
             auto indices = engine->create_tensor({1, 1, 1, 1}, Core::DataType::Int64);
 
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, two_by_two_stride_two());
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_FLOAT_EQ(out.data_as<float>()[0], 5.0f);
             EXPECT_EQ(indices.data_as<int64_t>()[0], 0) << "the window's first tap, in (r, s) order";
@@ -173,7 +173,7 @@ namespace SushiBLAS
 
             const Spatial::ConvGeometry g = two_by_two_stride_two();
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
-            engine->execute();
+            engine->execute().value();
 
             auto dy = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
             float* d = dy.data_as<float>();
@@ -181,7 +181,7 @@ namespace SushiBLAS
 
             auto dx = engine->create_tensor({1, 4, 4, 1}, Core::DataType::Float32);
             SushiBLAS::SpatialOps(*engine).pool_max_backward(dy, indices, dx, g);
-            engine->execute();
+            engine->execute().value();
 
             // Every non-argmax pixel is exactly zero. See tests/unit/README.md.
             const std::vector<float> expected = {0, 0, 0, 0,
@@ -208,7 +208,7 @@ namespace SushiBLAS
             auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
             auto indices = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Int64);
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
-            engine->execute();
+            engine->execute().value();
 
             const int64_t* selected = indices.data_as<int64_t>();
             for (int64_t k = 0; k < 4; ++k)
@@ -220,7 +220,7 @@ namespace SushiBLAS
 
             auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::Float32);
             SushiBLAS::SpatialOps(*engine).pool_max_backward(dy, indices, dx, g);
-            engine->execute();
+            engine->execute().value();
 
             const float* got = dx.data_as<float>();
             for (int64_t i = 0; i < dx.num_elements; ++i)
@@ -256,11 +256,11 @@ namespace SushiBLAS
 
             engine->set_mode(ExecutionMode::ForceReference);
             SushiBLAS::SpatialOps(*engine).pool_max(in, out_ref, idx_ref, g);
-            engine->execute();
+            engine->execute().value();
 
             engine->set_mode(ExecutionMode::ForceSYCL);
             SushiBLAS::SpatialOps(*engine).pool_max(in, out_dev, idx_dev, g);
-            engine->execute();
+            engine->execute().value();
 
             const float* value_expected = out_ref.data_as<float>();
             const float* value_got = out_dev.data_as<float>();

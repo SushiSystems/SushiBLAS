@@ -21,49 +21,82 @@
 
 /**
  * @file test_environment.hpp
- * @brief Declares the GoogleTest environment that owns the shared RuntimeContext.
+ * @brief Declares the GoogleTest environment that owns the shared runtime.
  * @author Mustafa Garip
  */
 
 #pragma once
 
+#include <cstddef>
+#include <optional>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
 
-namespace SushiBLAS 
+namespace SushiBLAS
 {
     namespace Test
     {
         /**
-        * @brief Global environment for SushiBLAS tests.
-        * 
-        * Handles one-time initialization of the RuntimeContext and provides access to it.
-        */
-        class TestEnvironment : public ::testing::Environment 
+         * @brief Owns the one runtime every test of a binary shares.
+         * @see tests/common/README.md
+         */
+        class TestEnvironment : public ::testing::Environment
         {
             public:
-                void SetUp() override 
+                /** @brief Creates the runtime; a runtime that cannot be created stops the process. */
+                void SetUp() override
                 {
                     SB_LOG_INFO("--- Initializing SushiBLAS Test Environment ---");
-                    context_ = std::make_unique<SushiRuntime::Execution::RuntimeContext>();
-                    
+                    runtime_.emplace(SushiRuntime::Runtime::create().value());
+
                     SB_LOG_INFO("Test environment ready.");
                 }
 
-                void TearDown() override 
+                /** @brief Destroys the runtime. */
+                void TearDown() override
                 {
                     SB_LOG_INFO("--- Tearing down SushiBLAS Test Environment ---");
-                    context_.reset();
+                    runtime_.reset();
                 }
 
-                static SushiRuntime::Execution::RuntimeContext& get_context() 
+                /**
+                 * @brief Returns the shared runtime.
+                 * @pre SetUp() has run and TearDown() has not.
+                 */
+                [[nodiscard]] static SushiRuntime::Runtime& runtime()
                 {
-                    return *context_;
+                    return *runtime_;
+                }
+
+                /**
+                 * @brief Returns the queue of one device of the shared runtime.
+                 * @param device_index Below device_count().
+                 */
+                [[nodiscard]] static sycl::queue& queue(std::size_t device_index = 0)
+                {
+                    return runtime_->advanced().queue(SushiRuntime::DeviceIndex{device_index});
+                }
+
+                /** @brief Returns how many devices the shared runtime drives. */
+                [[nodiscard]] static std::size_t device_count()
+                {
+                    return runtime_->advanced().device_count();
+                }
+
+                /**
+                 * @brief Returns how many USM allocations of the shared runtime are live.
+                 * @see tests/common/README.md
+                 */
+                [[nodiscard]] static std::size_t live_allocation_count()
+                {
+                    return runtime_->unsafe_context().memory().live_count();
                 }
 
             private:
-                static inline std::unique_ptr<SushiRuntime::Execution::RuntimeContext> context_;
+                /// @brief The shared runtime; empty outside SetUp() and TearDown().
+                static inline std::optional<SushiRuntime::Runtime> runtime_;
         };
 
     } // namespace Test

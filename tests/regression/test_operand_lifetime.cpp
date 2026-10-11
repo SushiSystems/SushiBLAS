@@ -40,7 +40,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        using namespace SushiRuntime::Graph::Literals;
+        using namespace SushiRuntime::Literals;
 
         /** @brief Counts the context's live USM allocations around record and execute calls. */
         class Regression_OperandLifetime : public SushiBLASTest
@@ -49,7 +49,7 @@ namespace SushiBLAS
                 /** @brief Returns how many USM allocations of the test context are alive. */
                 [[nodiscard]] static std::size_t live_allocations()
                 {
-                    return TestEnvironment::get_context().memory().live_count();
+                    return TestEnvironment::live_allocation_count();
                 }
         };
 
@@ -68,7 +68,7 @@ namespace SushiBLAS
             EXPECT_EQ(live_with_input, live_allocations())
                 << "The recorded task is the last holder of x's storage and must keep it.";
 
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(out, (std::vector<float>{2.0f, 4.0f, 6.0f, 8.0f}), 1e-5);
             EXPECT_EQ(live_with_input - 1, live_allocations())
@@ -89,7 +89,7 @@ namespace SushiBLAS
                 live_with_bias = live_allocations();
 
                 const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
-                Dispatch::execute_gemm(engine->get_recorder(), A, B, C, Core::Transpose::NoTrans,
+                Dispatch::execute_gemm(engine->recorder(), A, B, C, Core::Transpose::NoTrans,
                                        Core::Transpose::NoTrans, 1.0, 0.0,
                                        "test.gemm_kept_epilogue",
                                        "test.gemm_kept_epilogue"_op,
@@ -99,7 +99,7 @@ namespace SushiBLAS
             EXPECT_GE(live_allocations(), live_with_bias)
                 << "The recorded GEMM must keep the bias its epilogue reads.";
 
-            engine->execute();
+            engine->execute().value();
 
             // [[1,2,3],[4,5,6],[5,7,9]] plus bias[column] = [1,-8,3] down every row.
             EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, -6, 6,
@@ -117,11 +117,11 @@ namespace SushiBLAS
                 {K_ELEMENTS}, std::vector<float>(static_cast<std::size_t>(K_ELEMENTS), 1.0f));
             auto total = engine->create_tensor({1}, Core::DataType::Float32);
 
-            ScratchPool& pool = engine->get_scratch_pool();
+            ScratchPool& pool = engine->scratch_pool();
             const std::size_t outstanding_before = live_allocations() - pool.idle_block_count();
 
             SushiBLAS::ReductionOps(*engine).sum(values, total);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_EQ(outstanding_before, live_allocations() - pool.idle_block_count())
                 << "Every allocation the sum made must be idle in the pool or freed.";
@@ -131,7 +131,7 @@ namespace SushiBLAS
             const std::size_t idle_after_first = pool.idle_block_count();
 
             SushiBLAS::ReductionOps(*engine).sum(values, total);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_EQ(live_after_first, live_allocations());
             EXPECT_EQ(idle_after_first, pool.idle_block_count());

@@ -43,7 +43,7 @@ TEST_F(Unit_RemainderTest, FloatForward)
     fill_tensor(b, {2.0f, 0.5f, 4.0f, -1.5f});
     
     SushiBLAS::ElementwiseOps(*engine).remainder(a, b, c);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(c, {1.00000f, 0.00000f, 1.00000f, 0.50000f});
 }

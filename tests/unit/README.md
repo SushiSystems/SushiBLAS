@@ -70,7 +70,8 @@ blind spot.
 
 ### Ordering is asserted on in-degree
 
-The ordering tests assert on a node's `in_degree`, never on an output value. With no dependency
+The ordering tests assert on a recorded task's in-degree, which `GraphProbe` reports as
+`RecordedTask::dependency_count`, never on an output value. With no dependency
 edge the two tasks may still come out in the right order by luck, so a correct number proves
 nothing about ordering. `Regression_Sentinel.ReductionsOrderAgainstViewsOfOneAllocation`
 explains this at length.

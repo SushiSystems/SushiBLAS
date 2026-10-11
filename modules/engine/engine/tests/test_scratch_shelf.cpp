@@ -31,26 +31,20 @@
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/scratch_shelf.hpp>
-#include <SushiRuntime/SushiRuntime.h>
+#include <SushiRuntime/sushiruntime.hpp>
 #include "test_environment.hpp"
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Builds one empty shelf over the test environment's context for each test. */
+        /** @brief Builds one empty shelf over the test environment's runtime for each test. */
         class Unit_ScratchShelf : public ::testing::Test
         {
             protected:
-                /** @brief Returns the context the shelf allocates from. */
-                [[nodiscard]] static SushiRuntime::Execution::RuntimeContext& context()
-                {
-                    return TestEnvironment::get_context();
-                }
-
                 /// @brief The shelf under test; empty when a test starts.
                 SushiRuntime::sushi_ptr<Detail::ScratchShelf> shelf_ =
-                    SushiRuntime::make_sushi<Detail::ScratchShelf>(context());
+                    SushiRuntime::make_sushi<Detail::ScratchShelf>(TestEnvironment::runtime());
         };
 
         TEST_F(Unit_ScratchShelf, ARequestIsRoundedUpToItsClass)
@@ -73,17 +67,17 @@ namespace SushiBLAS
             Detail::ScratchBlock* first = shelf_->take(128, 0);
             const void* first_base = first->storage->allocation_base();
             shelf_->give_back(first);
-            const std::size_t live_after_return = context().memory().live_count();
+            const std::size_t live_after_return = TestEnvironment::live_allocation_count();
 
             Detail::ScratchBlock* second = shelf_->take(128, 0);
             EXPECT_EQ(second->storage->allocation_base(), first_base);
-            EXPECT_EQ(context().memory().live_count(), live_after_return);
+            EXPECT_EQ(TestEnvironment::live_allocation_count(), live_after_return);
             shelf_->give_back(second);
         }
 
         TEST_F(Unit_ScratchShelf, ARequestAboveTheLargestClassIsNotPooled)
         {
-            const std::size_t live_baseline = context().memory().live_count();
+            const std::size_t live_baseline = TestEnvironment::live_allocation_count();
             const std::size_t idle_baseline = shelf_->idle_block_count();
 
             Detail::ScratchBlock* block = shelf_->take(4097, 0);
@@ -91,12 +85,12 @@ namespace SushiBLAS
             shelf_->give_back(block);
 
             EXPECT_EQ(shelf_->idle_block_count(), idle_baseline);
-            EXPECT_EQ(context().memory().live_count(), live_baseline);
+            EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
         }
 
         TEST_F(Unit_ScratchShelf, AFullClassFreesWhatItCannotKeep)
         {
-            const std::size_t live_baseline = context().memory().live_count();
+            const std::size_t live_baseline = TestEnvironment::live_allocation_count();
             const std::size_t taken = Detail::K_SCRATCH_IDLE_BLOCKS_PER_CLASS + 1;
 
             std::vector<Detail::ScratchBlock*> blocks;
@@ -107,12 +101,12 @@ namespace SushiBLAS
                 shelf_->give_back(block);
 
             EXPECT_EQ(shelf_->idle_block_count(), std::size_t{64});
-            EXPECT_EQ(context().memory().live_count(), live_baseline + 64);
+            EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline + 64);
         }
 
         TEST_F(Unit_ScratchShelf, TrimFreesEveryIdleBlock)
         {
-            const std::size_t live_baseline = context().memory().live_count();
+            const std::size_t live_baseline = TestEnvironment::live_allocation_count();
 
             Detail::ScratchBlock* narrow = shelf_->take(128, 0);
             Detail::ScratchBlock* wide = shelf_->take(4096, 0);
@@ -123,15 +117,15 @@ namespace SushiBLAS
             shelf_->trim();
 
             EXPECT_EQ(shelf_->idle_block_count(), std::size_t{0});
-            EXPECT_EQ(context().memory().live_count(), live_baseline);
+            EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
         }
 
         TEST_F(Unit_ScratchShelf, AnUnknownDeviceIsRefused)
         {
-            const std::size_t live_baseline = context().memory().live_count();
+            const std::size_t live_baseline = TestEnvironment::live_allocation_count();
 
-            EXPECT_THROW((void)shelf_->take(128, context().devices().count()), std::runtime_error);
-            EXPECT_EQ(context().memory().live_count(), live_baseline);
+            EXPECT_THROW((void)shelf_->take(128, TestEnvironment::device_count()), std::runtime_error);
+            EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
         }
     } // namespace Test
 } // namespace SushiBLAS

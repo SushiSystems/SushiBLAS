@@ -152,12 +152,12 @@ namespace SushiBLAS
         TYPED_TEST(Unit_AxisReductionsTyped, RowMaxFoldsAxisOne)
         {
             using T = TypeParam;
-            auto x = this->engine->create_tensor({3, 4}, get_sushiblas_dtype<T>());
-            auto out = this->engine->create_tensor({3}, get_sushiblas_dtype<T>());
+            auto x = this->engine->create_tensor({3, 4}, sushiblas_dtype<T>());
+            auto out = this->engine->create_tensor({3}, sushiblas_dtype<T>());
             fill_tensor(x, K_ROW_MAJOR);
 
             SushiBLAS::ReductionOps(*this->engine).max_along(x, 1, out);
-            this->engine->execute();
+            this->engine->execute().value();
 
             verify_tensor(out, K_ROW_MAX);
         }
@@ -165,12 +165,12 @@ namespace SushiBLAS
         TYPED_TEST(Unit_AxisReductionsTyped, ColumnMaxFoldsAxisZero)
         {
             using T = TypeParam;
-            auto x = this->engine->create_tensor({3, 4}, get_sushiblas_dtype<T>());
-            auto out = this->engine->create_tensor({4}, get_sushiblas_dtype<T>());
+            auto x = this->engine->create_tensor({3, 4}, sushiblas_dtype<T>());
+            auto out = this->engine->create_tensor({4}, sushiblas_dtype<T>());
             fill_tensor(x, K_ROW_MAJOR);
 
             SushiBLAS::ReductionOps(*this->engine).max_along(x, 0, out);
-            this->engine->execute();
+            this->engine->execute().value();
 
             verify_tensor(out, K_COL_MAX);
         }
@@ -178,12 +178,12 @@ namespace SushiBLAS
         TYPED_TEST(Unit_AxisReductionsTyped, RowSumFoldsAxisOne)
         {
             using T = TypeParam;
-            auto x = this->engine->create_tensor({3, 4}, get_sushiblas_dtype<T>());
-            auto out = this->engine->create_tensor({3}, get_sushiblas_dtype<T>());
+            auto x = this->engine->create_tensor({3, 4}, sushiblas_dtype<T>());
+            auto out = this->engine->create_tensor({3}, sushiblas_dtype<T>());
             fill_tensor(x, K_ROW_MAJOR);
 
             SushiBLAS::ReductionOps(*this->engine).sum_along(x, 1, out);
-            this->engine->execute();
+            this->engine->execute().value();
 
             verify_tensor(out, K_ROW_SUM);
         }
@@ -191,12 +191,12 @@ namespace SushiBLAS
         TYPED_TEST(Unit_AxisReductionsTyped, ColumnSumFoldsAxisZero)
         {
             using T = TypeParam;
-            auto x = this->engine->create_tensor({3, 4}, get_sushiblas_dtype<T>());
-            auto out = this->engine->create_tensor({4}, get_sushiblas_dtype<T>());
+            auto x = this->engine->create_tensor({3, 4}, sushiblas_dtype<T>());
+            auto out = this->engine->create_tensor({4}, sushiblas_dtype<T>());
             fill_tensor(x, K_ROW_MAJOR);
 
             SushiBLAS::ReductionOps(*this->engine).sum_along(x, 0, out);
-            this->engine->execute();
+            this->engine->execute().value();
 
             verify_tensor(out, K_COL_SUM);
         }
@@ -218,7 +218,7 @@ namespace SushiBLAS
 
             SushiBLAS::ReductionOps(*engine).max_along(x, 1, rows);
             SushiBLAS::ReductionOps(*engine).sum_along(x, 0, cols);
-            engine->execute();
+            engine->execute().value();
 
             verify_tensor(rows, K_ROW_MAX);
             verify_tensor(cols, K_COL_SUM);
@@ -233,9 +233,9 @@ namespace SushiBLAS
             constexpr int64_t kElements = 12;
 
             auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context(),
+                TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kElements) * sizeof(float),
-                SushiRuntime::API::Residency::Shared);
+                SushiRuntime::Residency::Shared);
 
             Tensor head(storage, {3, 4}, Core::DataType::Float32, 0);
             Tensor tail(storage, {3, 4}, Core::DataType::Float32, kElements);
@@ -245,7 +245,7 @@ namespace SushiBLAS
 
             auto out = engine->create_tensor({3});
             SushiBLAS::ReductionOps(*engine).max_along(tail, 1, out);
-            engine->execute();
+            engine->execute().value();
 
             verify_tensor(out, K_ROW_MAX);
         }
@@ -261,9 +261,9 @@ namespace SushiBLAS
             constexpr int64_t kElements = 12;
 
             auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context(),
+                TestEnvironment::runtime(),
                 static_cast<size_t>(2 * kElements) * sizeof(float),
-                SushiRuntime::API::Residency::Shared);
+                SushiRuntime::Residency::Shared);
 
             Tensor source(storage, {3, 4}, Core::DataType::Float32, 0);
             Tensor packed(storage, {3, 4}, Core::DataType::Float32, kElements);
@@ -271,21 +271,23 @@ namespace SushiBLAS
 
             fill_tensor(source, std::vector<float>(static_cast<size_t>(kElements), 3.0f));
 
-            SushiBLAS::ElementwiseOps(probe.get_recorder()).mul(source, source, packed);
-            SushiBLAS::ReductionOps(probe.get_recorder()).sum_along(packed, 1, out);
-
-            auto nodes = probe.take_nodes();
-            ASSERT_EQ(2u, nodes.size());
-            EXPECT_EQ(1, nodes[1]->in_degree.load(std::memory_order_relaxed))
-                << "The axis reduction reading `packed` must depend on the op that "
-                   "wrote it. An in-degree of 0 means the seam described its operand "
-                   "with a bare data() pointer instead of Tensor::region().";
+            SushiBLAS::ElementwiseOps(probe.recorder()).mul(source, source, packed);
+            SushiBLAS::ReductionOps(probe.recorder()).sum_along(packed, 1, out);
 
             SushiBLAS::ElementwiseOps(*engine).mul(source, source, packed);
             SushiBLAS::ReductionOps(*engine).sum_along(packed, 1, out);
-            engine->execute();
+            engine->execute().value();
 
             verify_tensor(out, {36.0f, 36.0f, 36.0f});
+
+            ASSERT_EQ(2u, probe.recorded_count());
+            const auto tasks = probe.recorded_tasks();
+            if (!tasks)
+                GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+            EXPECT_EQ(1u, (*tasks)[1].dependency_count)
+                << "The axis reduction reading `packed` must depend on the op that "
+                   "wrote it. An in-degree of 0 means the seam described its operand "
+                   "with a bare data() pointer instead of Tensor::region().";
         }
 
         TEST_F(Unit_AxisReductions, MalformedOperandsAreRejectedAtRecordTime)
@@ -347,7 +349,7 @@ namespace SushiBLAS
 
             SushiBLAS::ReductionOps(*engine).min_along(matrix, 1, rows);
             SushiBLAS::ReductionOps(*engine).min_along(matrix, 0, cols);
-            engine->execute();
+            engine->execute().value();
 
             verify_tensor(rows, K_ROW_MIN);
             verify_tensor(cols, K_COL_MIN);
@@ -416,7 +418,7 @@ namespace SushiBLAS
             std::vector<float> host_floats(const Tensor& t)
             {
                 std::vector<float> out(static_cast<std::size_t>(t.num_elements));
-                TestEnvironment::get_context().devices().queue(0)
+                TestEnvironment::queue()
                     .memcpy(out.data(), t.data(), out.size() * sizeof(float)).wait();
                 return out;
             }
@@ -431,7 +433,7 @@ namespace SushiBLAS
             constexpr std::size_t kSegments = 5;
             constexpr std::size_t kExtent = 733;
 
-            auto& q = TestEnvironment::get_context().devices().queue(0);
+            auto& q = TestEnvironment::queue();
 
             auto in = engine->create_tensor({static_cast<int64_t>(kSegments),
                                              static_cast<int64_t>(kExtent)});
@@ -492,7 +494,7 @@ namespace SushiBLAS
             constexpr std::size_t kSegments = 5;
             constexpr std::size_t kExtent = 733;
 
-            auto& q = TestEnvironment::get_context().devices().queue(0);
+            auto& q = TestEnvironment::queue();
 
             auto in = engine->create_tensor({static_cast<int64_t>(kSegments),
                                              static_cast<int64_t>(kExtent)});
@@ -555,12 +557,12 @@ namespace SushiBLAS
             std::vector<float> host(static_cast<std::size_t>(kRows * (kOnes + 1)), 1.0f);
             for (int64_t r = 0; r < kRows; ++r)
                 host[static_cast<std::size_t>(r * (kOnes + 1))] = kHead;
-            TestEnvironment::get_context().devices().queue(0)
+            TestEnvironment::queue()
                 .memcpy(x.data(), host.data(), host.size() * sizeof(float)).wait();
 
             auto out = engine->create_tensor({kRows});
             SushiBLAS::ReductionOps(*engine).sum_along(x, 1, out);
-            engine->execute();
+            engine->execute().value();
 
             const std::vector<float> got = host_floats(out);
             for (int64_t r = 0; r < kRows; ++r)
@@ -583,7 +585,7 @@ namespace SushiBLAS
             constexpr std::size_t kExtent = 733;
             constexpr int kRuns = 16;
 
-            auto& q = TestEnvironment::get_context().devices().queue(0);
+            auto& q = TestEnvironment::queue();
             const std::size_t local = Reduce::group_width(Device::profile_for(q));
 
             std::vector<float> host(kSegments * kExtent);
@@ -607,7 +609,7 @@ namespace SushiBLAS
                 std::vector<float> first;
                 for (int r = 0; r < kRuns; ++r)
                 {
-                    Engine eng(TestEnvironment::get_context());
+                    Engine eng(TestEnvironment::runtime());
                     auto in = eng.create_tensor({static_cast<int64_t>(kSegments),
                                                  static_cast<int64_t>(kExtent)});
                     auto out = eng.create_tensor({static_cast<int64_t>(kSegments)});
@@ -647,7 +649,7 @@ namespace SushiBLAS
             constexpr int64_t kCols = 3;
             constexpr float kGap = 104.0f;
 
-            auto& q = TestEnvironment::get_context().devices().queue(0);
+            auto& q = TestEnvironment::queue();
 
             auto logits = engine->create_tensor({kRows, kCols});
             fill_tensor(logits, {0.0f, 0.0f, 0.0f, -kGap, -kGap, -kGap});
@@ -657,7 +659,7 @@ namespace SushiBLAS
 
             SushiBLAS::ReductionOps(*engine).max_along(logits, 1, row_max);
             SushiBLAS::ReductionOps(*engine).max(logits, global_max);
-            engine->execute();
+            engine->execute().value();
 
             const std::vector<float> peaks = host_floats(row_max);
             ASSERT_EQ(2u, peaks.size());
@@ -681,7 +683,7 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(*engine).ger(row_max, ones_cols, shifted, -1.0f);
             SushiBLAS::ElementwiseOps(*engine).exp(shifted);
             SushiBLAS::ReductionOps(*engine).sum_along(shifted, 1, row_sums);
-            engine->execute();
+            engine->execute().value();
 
             const std::vector<float> rowwise = host_floats(row_sums);
             for (std::size_t r = 0; r < rowwise.size(); ++r)
@@ -706,7 +708,7 @@ namespace SushiBLAS
             SushiBLAS::BLASOps(*engine).ger(ones_rows, peak_row, shifted, -1.0f);
             SushiBLAS::ElementwiseOps(*engine).exp(shifted);
             SushiBLAS::ReductionOps(*engine).sum_along(shifted, 1, global_sums);
-            engine->execute();
+            engine->execute().value();
 
             const std::vector<float> global = host_floats(global_sums);
             EXPECT_FLOAT_EQ(3.0f, global[0]);

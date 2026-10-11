@@ -30,7 +30,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     // The product folds in a fixed order through RunningProduct; see modules/operations/README.md.
     TaskHandle ReductionOps::prod(const Tensor& t, Tensor& result)

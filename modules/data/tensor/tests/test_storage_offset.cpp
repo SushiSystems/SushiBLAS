@@ -61,15 +61,15 @@ namespace SushiBLAS
 
                     const size_t bpe = Core::bytes_per_element(dtype);
                     auto storage = SushiRuntime::make_sushi<Storage>(
-                        TestEnvironment::get_context(),
+                        TestEnvironment::runtime(),
                         static_cast<size_t>(K_PAD + n + K_PAD) * bpe,
-                        SushiRuntime::API::Residency::Shared);
+                        SushiRuntime::Residency::Shared);
 
                     // Poisons the view too; each test writes its inputs first.
-                    auto& q = TestEnvironment::get_context().devices().queue(0);
+                    auto& q = TestEnvironment::queue();
                     q.memset(storage->allocation_base(), K_POISON_BYTE, storage->size_bytes()).wait();
 
-                    return Tensor(storage, dims, dtype, K_PAD, engine->get_layout());
+                    return Tensor(storage, dims, dtype, K_PAD, engine->layout());
                 }
 
                 /**
@@ -87,7 +87,7 @@ namespace SushiBLAS
                     const size_t tail = head + static_cast<size_t>(v.num_elements) * bpe;
 
                     std::vector<unsigned char> host(total);
-                    auto& q = TestEnvironment::get_context().devices().queue(0);
+                    auto& q = TestEnvironment::queue();
                     q.memcpy(host.data(), v.storage->allocation_base(), total).wait();
 
                     for (size_t i = 0; i < total; ++i)
@@ -113,7 +113,7 @@ namespace SushiBLAS
             fill_tensor(y, {10, 20, 30, 40});
 
             SushiBLAS::BLASOps(*engine).axpy(2.0, x, y);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(y, std::vector<float>({12, 24, 36, 48}), 1e-5);
             EXPECT_TRUE(padding_intact(x, "axpy x"));
@@ -126,7 +126,7 @@ namespace SushiBLAS
             fill_tensor(x, {1, 2, 3, 4});
 
             SushiBLAS::BLASOps(*engine).scal(3.0, x);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(x, std::vector<float>({3, 6, 9, 12}), 1e-5);
             EXPECT_TRUE(padding_intact(x, "scal x"));
@@ -140,7 +140,7 @@ namespace SushiBLAS
             fill_tensor(y, {0, 0, 0, 0});
 
             SushiBLAS::BLASOps(*engine).copy(x, y);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(y, std::vector<float>({5, 6, 7, 8}), 1e-5);
             EXPECT_TRUE(padding_intact(x, "copy x"));
@@ -159,7 +159,7 @@ namespace SushiBLAS
 
             SushiBLAS::BLASOps(*engine).gemv(
                 A, x, y, Core::Transpose::NoTrans, /*alpha=*/1.0, /*beta=*/2.0);
-            engine->execute();
+            engine->execute().value();
 
             // A*x = {6, 15}; + 2*{100, 200} = {206, 415}
             EXPECT_TENSOR_NEAR(y, std::vector<float>({206, 415}), 1e-4);
@@ -178,7 +178,7 @@ namespace SushiBLAS
             fill_tensor(A, {1, 1, 1, 1, 1, 1});
 
             SushiBLAS::BLASOps(*engine).ger(x, y, A, /*alpha=*/1.0);
-            engine->execute();
+            engine->execute().value();
 
             // A += x y^T = {{10,20,30},{20,40,60}}
             EXPECT_TENSOR_NEAR(A, std::vector<float>({11, 21, 31, 21, 41, 61}), 1e-4);
@@ -197,7 +197,7 @@ namespace SushiBLAS
             fill_tensor(C, {0, 0, 0, 0});
 
             SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(C, std::vector<float>({1, 2, 3, 4}), 1e-4);
             EXPECT_TRUE(padding_intact(A, "gemm A"));
@@ -216,7 +216,7 @@ namespace SushiBLAS
 
             SushiBLAS::ElementwiseOps(*engine).add(A, B, C);   // binary seam
             SushiBLAS::ElementwiseOps(*engine).neg(C);         // unary in-place seam
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(C, std::vector<float>({-11, -12, -13, -14}), 1e-5);
             EXPECT_TRUE(padding_intact(A, "add A"));
@@ -230,7 +230,7 @@ namespace SushiBLAS
             fill_tensor(t, {-2, -1, 1, 2});
 
             SushiBLAS::NonLinearOps(*engine).relu(t);          // forward seam
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(t, std::vector<float>({0, 0, 1, 2}), 1e-5);
             EXPECT_TRUE(padding_intact(t, "relu t"));
@@ -246,7 +246,7 @@ namespace SushiBLAS
             fill_tensor(dx, {0, 0, 0, 0});
 
             SushiBLAS::NonLinearOps(*engine).relu_backward(dy, x, dx);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(dx, std::vector<float>({0, 0, 1, 1}), 1e-5);
             EXPECT_TRUE(padding_intact(dy, "relu_backward dy"));
@@ -264,7 +264,7 @@ namespace SushiBLAS
             fill_tensor(R, {0, 0, 0, 0});
 
             SushiBLAS::LogicOps(*engine).greater(A, B, R);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(R, std::vector<float>({0, 1, 1, 1}), 1e-5);
             EXPECT_TRUE(padding_intact(A, "greater A"));
@@ -280,7 +280,7 @@ namespace SushiBLAS
             fill_tensor(r, {0});
 
             SushiBLAS::ReductionOps(*engine).sum(t, r);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(r, std::vector<float>({10}), 1e-5);
             EXPECT_TRUE(padding_intact(t, "sum t"));
@@ -294,7 +294,7 @@ namespace SushiBLAS
 
             SushiBLAS::RandomOps(*engine).constant(c, 7.0);    // the q.fill path
             SushiBLAS::RandomOps(*engine).uniform(u, 0.0, 1.0); // the Philox dispatch path
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TENSOR_NEAR(c, std::vector<float>(8, 7.0f), 1e-6);
             EXPECT_TRUE(padding_intact(c, "constant"));
@@ -302,7 +302,7 @@ namespace SushiBLAS
 
             // The uniform draw is checked for range only; test_uniform.cpp owns the distribution.
             std::vector<float> host(8);
-            auto& q = TestEnvironment::get_context().devices().queue(0);
+            auto& q = TestEnvironment::queue();
             q.memcpy(host.data(), u.data(), host.size() * sizeof(float)).wait();
             for (float v : host)
             {
@@ -335,9 +335,9 @@ namespace SushiBLAS
         {
             // Disjoint views of one arena must not alias. See tests/unit/README.md.
             auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context(),
+                TestEnvironment::runtime(),
                 32 * sizeof(float),
-                SushiRuntime::API::Residency::Shared);
+                SushiRuntime::Residency::Shared);
 
             Tensor first(storage, {8}, Core::DataType::Float32, 0);
             Tensor second(storage, {8}, Core::DataType::Float32, 8);
@@ -351,18 +351,18 @@ namespace SushiBLAS
 
         TEST_F(Unit_StorageOffsetTest, TheAllocationBaseIsAlignedForEveryResidency)
         {
-            const SushiRuntime::API::Residency residencies[] = {
-                SushiRuntime::API::Residency::Shared,
-                SushiRuntime::API::Residency::Host,
-                SushiRuntime::API::Residency::Device};
+            const SushiRuntime::Residency residencies[] = {
+                SushiRuntime::Residency::Shared,
+                SushiRuntime::Residency::Host,
+                SushiRuntime::Residency::Device};
             const int64_t element_counts[] = {1, 7, 1000};
 
-            for (const SushiRuntime::API::Residency residency : residencies)
+            for (const SushiRuntime::Residency residency : residencies)
             {
                 for (const int64_t count : element_counts)
                 {
                     auto storage = SushiRuntime::make_sushi<Storage>(
-                        TestEnvironment::get_context(),
+                        TestEnvironment::runtime(),
                         static_cast<size_t>(count) * sizeof(float),
                         residency);
                     const Tensor t(storage, {count}, Core::DataType::Float32);
@@ -379,9 +379,9 @@ namespace SushiBLAS
 
         TEST_F(Unit_StorageOffsetTest, TheAllocatedSizeIsAMultipleOfTheAlignment)
         {
-            auto one_byte = SushiRuntime::make_sushi<Storage>(TestEnvironment::get_context(), 1);
+            auto one_byte = SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(), 1);
             auto past_one_block =
-                SushiRuntime::make_sushi<Storage>(TestEnvironment::get_context(), 129);
+                SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(), 129);
 
             EXPECT_EQ(one_byte->size_bytes(), 128u);
             EXPECT_EQ(past_one_block->size_bytes(), 256u);
@@ -391,7 +391,7 @@ namespace SushiBLAS
         {
             const int64_t n = 64;
             auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context(), static_cast<size_t>(n) * sizeof(float));
+                TestEnvironment::runtime(), static_cast<size_t>(n) * sizeof(float));
             const Tensor whole(storage, {n}, Core::DataType::Float32);
 
             // One float past the base is 4 bytes in; 32 floats past it are 128 bytes in.
@@ -402,11 +402,10 @@ namespace SushiBLAS
         TEST_F(Unit_StorageOffsetTest, GetDeviceAnswersWithoutTheRegistry)
         {
             auto storage = SushiRuntime::make_sushi<Storage>(
-                TestEnvironment::get_context(), 4 * sizeof(float));
+                TestEnvironment::runtime(), 4 * sizeof(float));
             const Tensor t(storage, {4}, Core::DataType::Float32);
 
-            auto& context = TestEnvironment::get_context();
-            EXPECT_EQ(t.get_device(), context.devices().queue(storage->get_device_index()).get_device());
+            EXPECT_EQ(t.device(), TestEnvironment::queue(storage->device_index()).get_device());
         }
 
     } // namespace Test

@@ -6,7 +6,7 @@ geometry are support headers; see [the support module](../../foundation/support/
 
 | File | Declares |
 | --- | --- |
-| `task_recorder.hpp` | `TaskRecorder`, the one caller of `TaskGraph::add_task` in SushiBLAS |
+| `task_recorder.hpp` | `TaskRecorder`, the one caller of `SushiRuntime::Recorder::task` in SushiBLAS |
 | `task_handle.hpp` | `TaskHandle`, the value a record call returns for the task it recorded |
 | `operand_set.hpp` | `OperandSet`, the tensors one task reads and writes, and the storage it retains |
 | `execution_mode.hpp` | `ExecutionMode`, which names the kernel a recorded task runs |
@@ -245,9 +245,9 @@ not change a task already recorded.
 
 ## `task_recorder.hpp`
 
-`TaskRecorder` is the only caller of `TaskGraph::add_task` in SushiBLAS. It is bound to one graph
-and one `ScratchPool`, and holds the execution mode. `Engine` owns one; a test or a layer above
-may build its own over a graph it owns.
+`TaskRecorder` is the only caller of `SushiRuntime::Recorder::task` in SushiBLAS. It is bound to
+the recorder of one `SushiRuntime::Graph` and to one `ScratchPool`, and holds the execution mode.
+`Engine` owns one; a test or a layer above may build its own over a graph it owns.
 
 ### `TaskRecorder::record_pair`
 
@@ -255,8 +255,10 @@ Takes a `TaskMetadata`, an `OperandSet`, the family name for diagnostics, and a 
 `(const Internal::KernelPairDispatcher&, sycl::queue&, const std::vector<sycl::event>&) ->
 sycl::event`. It first calls `require_host_reachable`. It then wraps the body in a
 `Detail::RecordedPairTask` with a dispatcher that holds the current mode and with the set's
-`StorageKeepAlive`, reserves a registration index on the graph, adds the task with the set's read
-and write regions, and returns a `TaskHandle` of its own identity and that index.
+`StorageKeepAlive`, records the task with the set's read and write regions and with the name, the
+operation and the parameters as `SushiRuntime::NodeOptions`, and returns a `TaskHandle` of its own
+identity and the task's sequence number. If the runtime's recorder refuses the recording,
+`record_pair` returns the handle of no task, and the next run returns the refusal.
 
 ### `TaskRecorder::require_host_reachable`
 
@@ -277,8 +279,8 @@ the task even if the caller's `Tensor` is destroyed first.
 ## `task_handle.hpp`
 
 `TaskHandle` names one task a recorder recorded, or none. It holds the recorder's identity, a
-process-wide counter value that is never 0, and the registration index the recorder stamped on the
-graph node. A default handle has identity 0 and `is_valid()` false. Two handles are equal when
+process-wide counter value that is never 0, and the count of tasks that recorder had recorded
+before this one. A default handle has identity 0 and `is_valid()` false. Two handles are equal when
 both fields are. The handle exposes no event and no way to wait: the work finishes in
 `Engine::execute()`.
 
@@ -309,7 +311,7 @@ It is the one place the two branches are written.
 ## `rng_stream.hpp`
 
 `RNGStream` holds one counter-based random stream: a seed and an offset counter, both guarded by
-one `std::mutex`. The engine owns one by value and hands it out through `Engine::get_rng()`. A
+one `std::mutex`. The engine owns one by value and hands it out through `Engine::rng()`. A
 `RandomOps` view holds a reference to a stream, the engine's or one the caller built, and passes
 it to `Dispatch::execute_random` in `<SushiBLAS/random/dispatch.hpp>`, which reserves
 the offset of each task. No random operation reaches the engine.
@@ -343,7 +345,7 @@ builds a `Storage` for scratch itself.
 `ScratchPool` owns the shelf through a shared pointer, and a lent block holds the shelf too, so
 the shelf outlives the pool for as long as a lease is out. `idle_block_count()` reports how many
 blocks sit idle and `trim()` frees them; neither touches a block out on lease. `Engine` owns one
-pool and its recorder hands it to operations through `TaskRecorder::get_scratch_pool()`.
+pool and its recorder hands it to operations through `TaskRecorder::scratch_pool()`.
 
 ## `scratch_shelf.hpp`
 

@@ -28,13 +28,13 @@
 #include <cmath>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/random/random.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 #include <SushiBLAS/random_kernels/random.hpp>
 #include <SushiBLAS/random/dispatch.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle RandomOps::log_normal(Tensor& t, double mean, double stddev)
     {

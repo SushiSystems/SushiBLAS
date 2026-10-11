@@ -30,7 +30,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     // The fold is the one mean uses, over a span keyed by (n, c); see modules/operations/README.md.
     TaskHandle ReductionOps::mean_spatial(const Tensor& t, Tensor& result)

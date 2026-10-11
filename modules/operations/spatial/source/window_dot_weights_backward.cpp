@@ -38,7 +38,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle SpatialOps::window_dot_weights_backward(const Tensor& dy, const Tensor& in,
                                                        Tensor& dweights,
@@ -73,9 +73,9 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(dy).reads(in).writes(dweights);
 
-        SushiRuntime::Graph::TaskMetadata meta;
+        SushiRuntime::Internal::Graph::TaskMetadata meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.window_dot_weights_backward"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(

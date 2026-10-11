@@ -48,9 +48,9 @@ namespace SushiBLAS
         namespace
         {
             using GraphPrimitives::prefix_scan;
-            using SushiRuntime::API::LateCount;
-            using SushiRuntime::API::Runtime;
-            using SushiRuntime::Core::SushiException;
+            using SushiRuntime::LateCount;
+            using SushiRuntime::Runtime;
+            using SushiRuntime::SushiException;
 
             /// @brief Holds the tile size the level plan of a scan is built on.
             constexpr std::size_t K_TILE = GraphPrimitives::K_REDUCE_TILE;
@@ -308,7 +308,7 @@ namespace SushiBLAS
         /** @brief Tests that a short buffer is refused with invalid_graph and records nothing. */
         TEST(Unit_GraphPrimitivesPrefixScan, RejectsMisSizedArguments)
         {
-            using Words = SushiRuntime::API::Buffer<std::uint32_t>;
+            using Words = SushiRuntime::Buffer<std::uint32_t>;
 
             auto runtime = Runtime::create();
             auto counts = runtime.buffer<std::uint32_t>(8);
@@ -328,17 +328,17 @@ namespace SushiBLAS
                 {
                     return refused.error().code;
                 }
-                return SushiRuntime::Core::Errc::ok;
+                return SushiRuntime::Errc::ok;
             };
 
             EXPECT_EQ(refused_code(counts, offsets, total, 9),
-                      SushiRuntime::Core::Errc::invalid_graph)
+                      SushiRuntime::Errc::invalid_graph)
                 << "nine counts do not fit a buffer of eight";
             EXPECT_EQ(refused_code(counts, counts, total, 8),
-                      SushiRuntime::Core::Errc::invalid_graph)
+                      SushiRuntime::Errc::invalid_graph)
                 << "eight offsets cannot hold the sentinel of eight counts";
             EXPECT_EQ(refused_code(counts, offsets, empty, 8),
-                      SushiRuntime::Core::Errc::invalid_graph)
+                      SushiRuntime::Errc::invalid_graph)
                 << "an empty total cannot receive the sum";
             EXPECT_EQ(graph.recorder().node_count(), 0u);
         }

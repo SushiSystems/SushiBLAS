@@ -55,9 +55,9 @@ namespace SushiBLAS
         {
             using GraphPrimitives::counting_sort;
             using GraphPrimitives::prefix_scan;
-            using SushiRuntime::API::LateCount;
-            using SushiRuntime::API::Runtime;
-            using SushiRuntime::Core::SushiException;
+            using SushiRuntime::LateCount;
+            using SushiRuntime::Runtime;
+            using SushiRuntime::SushiException;
 
             /// @brief Holds a value no sort of these tests writes.
             constexpr std::uint32_t K_CANARY = 0xDEADBEEFu;
@@ -671,7 +671,7 @@ namespace SushiBLAS
         /** @brief Tests that broken size rules are refused with invalid_graph. */
         TEST(Unit_GraphPrimitivesCountingSort, RejectsMisSizedArguments)
         {
-            using Words = SushiRuntime::API::Buffer<std::uint32_t>;
+            using Words = SushiRuntime::Buffer<std::uint32_t>;
 
             auto runtime = Runtime::create();
             auto keys = runtime.buffer<std::uint32_t>(8);
@@ -695,9 +695,9 @@ namespace SushiBLAS
                 {
                     return refused.error().code;
                 }
-                return SushiRuntime::Core::Errc::ok;
+                return SushiRuntime::Errc::ok;
             };
-            const auto invalid = SushiRuntime::Core::Errc::invalid_graph;
+            const auto invalid = SushiRuntime::Errc::invalid_graph;
 
             EXPECT_EQ(refused_code(indices, offsets, total, 8, 0, nullptr), invalid)
                 << "a key range capacity of zero has no bucket";

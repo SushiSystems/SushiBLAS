@@ -44,7 +44,7 @@ TEST_F(Unit_SCALTest, SimpleSCAL)
     SB_LOG_INFO("Submitting SCAL.");
     SushiBLAS::BLASOps(*engine).scal(3.0f, X);
     
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: 3 * X = {3, 6, 9}

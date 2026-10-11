@@ -219,11 +219,11 @@ namespace
     /// @brief Parses the command line, prints the profile and times the requested kernel.
     void run(int argc, char** argv)
     {
-        SushiRuntime::Execution::RuntimeContext context;
-        SushiBLAS::Engine engine(context, SushiBLAS::Core::Layout::ColumnMajor);
+        SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+        SushiBLAS::Engine engine(runtime, SushiBLAS::Core::Layout::ColumnMajor);
         Bench::print_environment(engine);
 
-        sycl::queue& q = context.devices().queue(0);
+        sycl::queue& q = runtime.advanced().queue(SushiRuntime::DeviceIndex{0});
         const Request request = parse_request(argc, argv, Device::profile_for(q));
 
         const Device::CacheBlocking& blocking = request.profile.blocking;

@@ -163,7 +163,7 @@ namespace SushiBLAS
                 [[nodiscard]] std::size_t offset(int64_t r, int64_t c, int64_t rows,
                                                  int64_t cols) const
                 {
-                    return (engine->get_layout() == Core::Layout::RowMajor) ? index(r * cols + c)
+                    return (engine->layout() == Core::Layout::RowMajor) ? index(r * cols + c)
                                                                              : index(r + c * rows);
                 }
 
@@ -365,14 +365,14 @@ namespace SushiBLAS
                 const std::vector<T> y = this->random_values(K_BITS_VECTOR_LENGTH);
                 Tensor x_tensor = this->tensor_of({K_BITS_VECTOR_LENGTH}, x);
                 Tensor y_tensor = this->tensor_of({K_BITS_VECTOR_LENGTH}, y);
-                Tensor result = this->engine->create_tensor({1}, get_sushiblas_dtype<T>());
+                Tensor result = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
                 SushiBLAS::BLASOps ops(*this->engine);
                 if constexpr (Core::is_complex_v<T>)
                     ops.dotu(x_tensor, y_tensor, result);
                 else
                     ops.dot(x_tensor, y_tensor, result);
-                this->engine->execute();
+                this->engine->execute().value();
 
                 const std::vector<T> expected = {TestFixture::host_dot(x, y)};
                 TestFixture::expect_same_bits(read_tensor<T>(result), expected);
@@ -399,7 +399,7 @@ namespace SushiBLAS
                     ops.geru(x_tensor, y_tensor, a_tensor, BLASScalar(alpha));
                 else
                     ops.ger(x_tensor, y_tensor, a_tensor, static_cast<double>(alpha));
-                this->engine->execute();
+                this->engine->execute().value();
 
                 this->host_ger(K_BITS_ROWS, K_BITS_COLS, alpha, x, y, a);
                 TestFixture::expect_same_bits(read_tensor<T>(a_tensor), a);
@@ -427,7 +427,7 @@ namespace SushiBLAS
 
                         SushiBLAS::BLASOps(*this->engine).symv(a_tensor, x_tensor, y_tensor, uplo,
                                                                BLASScalar(alpha), BLASScalar(beta));
-                        this->engine->execute();
+                        this->engine->execute().value();
 
                         this->host_symv(uplo, K_BITS_ORDER, alpha, a, x, beta, y);
                         TestFixture::expect_same_bits(read_tensor<T>(y_tensor), y);
@@ -453,7 +453,7 @@ namespace SushiBLAS
 
                     SushiBLAS::BLASOps(*this->engine).syr(x_tensor, a_tensor, uplo,
                                                           BLASScalar(alpha));
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     this->host_syr(uplo, K_BITS_ORDER, alpha, x, a);
                     TestFixture::expect_same_bits(read_tensor<T>(a_tensor), a);
@@ -480,7 +480,7 @@ namespace SushiBLAS
 
                     SushiBLAS::BLASOps(*this->engine).syr2(x_tensor, y_tensor, a_tensor, uplo,
                                                            BLASScalar(alpha));
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     this->host_syr2(uplo, K_BITS_ORDER, alpha, x, y, a);
                     TestFixture::expect_same_bits(read_tensor<T>(a_tensor), a);
@@ -515,7 +515,7 @@ namespace SushiBLAS
                             SushiBLAS::BLASOps(*this->engine).syrk(a_tensor, c_tensor, uplo, trans,
                                                                    BLASScalar(alpha),
                                                                    BLASScalar(beta));
-                            this->engine->execute();
+                            this->engine->execute().value();
 
                             this->host_syrk(uplo, trans, n, k, alpha, a, beta, c);
                             TestFixture::expect_same_bits(read_tensor<T>(c_tensor), c);
@@ -553,7 +553,7 @@ namespace SushiBLAS
                                 SushiBLAS::BLASOps(*this->engine).trsm(a_tensor, b_tensor, side,
                                                                        uplo, trans, diag,
                                                                        BLASScalar(alpha));
-                                this->engine->execute();
+                                this->engine->execute().value();
 
                                 this->host_trsm(side, uplo, trans, diag, m, n, alpha, a, b);
                                 TestFixture::expect_same_bits(read_tensor<T>(b_tensor), b);

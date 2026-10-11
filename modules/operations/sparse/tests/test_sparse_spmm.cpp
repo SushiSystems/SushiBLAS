@@ -103,7 +103,7 @@ namespace SushiBLAS
                 {
                     SushiBLASTest::SetUp();
                     if (std::is_same_v<T, sycl::half> &&
-                        !TestEnvironment::get_context().devices().queue(0).get_device().has(
+                        !TestEnvironment::queue().get_device().has(
                             sycl::aspect::fp16))
                         GTEST_SKIP() << "the device does not report the fp16 aspect";
                 }
@@ -111,7 +111,7 @@ namespace SushiBLAS
                 /** @brief Returns the CSR matrix of host triplets, stored with base. */
                 [[nodiscard]] SparseMatrix build(const HostTriplets<T>& host, Core::IndexBase base)
                 {
-                    const SparseBuilder builder(engine->get_tensor_factory());
+                    const SparseBuilder builder(engine->tensor_factory());
                     return builder.matrix_from_triplets(
                         host.rows, host.cols, stored_indices<Index>(host.row_indices, base),
                         stored_indices<Index>(host.column_indices, base), host.values, base);
@@ -125,7 +125,7 @@ namespace SushiBLAS
                 {
                     const std::size_t rows = columns.front().size();
                     const std::size_t count = columns.size();
-                    const bool row_major = engine->get_layout() == Core::Layout::RowMajor;
+                    const bool row_major = engine->layout() == Core::Layout::RowMajor;
 
                     std::vector<T> host(rows * count);
                     for (std::size_t r = 0; r < count; ++r)
@@ -171,7 +171,7 @@ namespace SushiBLAS
                     Tensor C = matrix_of(c);
                     SushiBLAS::SparseOps(*engine).spmm(A, B, C, trans, BLASScalar(alpha),
                                                        BLASScalar(beta));
-                    engine->execute();
+                    engine->execute().value();
                     return columns_of(C);
                 }
 
@@ -365,11 +365,11 @@ namespace SushiBLAS
                 {
                     this->engine->set_mode(mode);
                     const SparseMatrix A = this->build(host, Core::IndexBase::Zero);
-                    const Tensor B = this->engine->create_tensor({5, 0}, get_sushiblas_dtype<T>());
-                    Tensor C = this->engine->create_tensor({4, 0}, get_sushiblas_dtype<T>());
+                    const Tensor B = this->engine->create_tensor({5, 0}, sushiblas_dtype<T>());
+                    Tensor C = this->engine->create_tensor({4, 0}, sushiblas_dtype<T>());
 
                     EXPECT_NO_THROW(SparseOps(*this->engine).spmm(A, B, C));
-                    EXPECT_NO_THROW(this->engine->execute());
+                    EXPECT_TRUE(this->engine->execute().has_value());
                 }
             }
         }

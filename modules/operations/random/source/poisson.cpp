@@ -31,13 +31,13 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/random/random.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 #include <SushiBLAS/random_kernels/random.hpp>
 #include <SushiBLAS/random/dispatch.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle RandomOps::poisson(Tensor& t, double lambda)
     {
@@ -46,7 +46,7 @@ namespace SushiBLAS
                                                   "is {}, outside [0, {}]", lambda,
                                                   K_MAX_POISSON_LAMBDA);
 
-        if (t.storage && t.num_elements > 0 && !Device::profile_for(t.get_device()).supports_fp64)
+        if (t.storage && t.num_elements > 0 && !Device::profile_for(t.device()).supports_fp64)
             Dispatch::Detail::throw_execution_error("random.poisson",
                                                     "operand 't' lives on a device without fp64; "
                                                     "random.poisson draws in double precision "

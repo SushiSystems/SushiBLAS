@@ -43,7 +43,7 @@ TEST_F(Unit_SqrtTest, FloatForward)
     fill_tensor(t, {1.0f, 2.0f, 3.0f, 4.0f});
     
     SushiBLAS::ElementwiseOps(*engine).sqrt(t);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(t, {1.00000f, 1.414213f, 1.732050f, 2.00000f});
 }
@@ -81,7 +81,7 @@ TEST_F(Unit_SqrtTest, ZeroInSingleElement)
     fill_tensor(t, {0.0f});
 
     SushiBLAS::ElementwiseOps(*engine).sqrt(t);
-    engine->execute();
+    engine->execute().value();
 
     // sqrt(0) is 0.
     verify_tensor(t, std::vector<double>{0.0}, K_FLOAT32_TOLERANCE);
@@ -93,7 +93,7 @@ TEST_F(Unit_SqrtTest, NegativeInputIsNaN)
     fill_tensor(t, {-4.0f});
 
     SushiBLAS::ElementwiseOps(*engine).sqrt(t);
-    engine->execute();
+    engine->execute().value();
 
     // sqrt(-4) is outside the real domain.
     verify_tensor(t, {K_NAN});
@@ -105,7 +105,7 @@ TEST_F(Unit_SqrtTest, PositiveInfinity)
     fill_tensor(t, {K_INF});
 
     SushiBLAS::ElementwiseOps(*engine).sqrt(t);
-    engine->execute();
+    engine->execute().value();
 
     verify_tensor(t, {K_INF});
 }
@@ -116,7 +116,7 @@ TEST_F(Unit_SqrtTest, ThousandElements)
     fill_tensor(t, std::vector<float>(K_LARGE_SIZE, K_LARGE_INPUT));
 
     SushiBLAS::ElementwiseOps(*engine).sqrt(t);
-    engine->execute();
+    engine->execute().value();
 
     verify_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
@@ -127,7 +127,7 @@ TEST_F(Unit_SqrtTest, Float64)
     fill_tensor(t, {0.25f, 1.0f, 2.0f, 9.0f});
 
     SushiBLAS::ElementwiseOps(*engine).sqrt(t);
-    engine->execute();
+    engine->execute().value();
 
     verify_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
 }

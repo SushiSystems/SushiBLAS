@@ -58,7 +58,7 @@ class Unit_ConstantTest : public SushiBLASTest
         {
             auto t = engine->create_tensor({size}, dtype);
             SushiBLAS::RandomOps(*engine).constant(t, value);
-            engine->execute();
+            engine->execute().value();
             verify_tensor(t, std::vector<double>(static_cast<size_t>(size), value), 0.0);
         }
 };
@@ -68,7 +68,7 @@ TEST_F(Unit_ConstantTest, Float32)
     const int N = 10;
     auto t = engine->create_tensor({N});
     SushiBLAS::RandomOps(*engine).constant(t, 2.5);
-    engine->execute();
+    engine->execute().value();
     verify_tensor(t, std::vector<float>(N, 2.5f));
 }
 

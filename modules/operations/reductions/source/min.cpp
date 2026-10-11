@@ -30,7 +30,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle ReductionOps::min(const Tensor& t, Tensor& result)
     {

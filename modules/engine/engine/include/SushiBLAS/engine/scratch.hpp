@@ -33,8 +33,7 @@
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/scratch_shelf.hpp>
-#include <SushiRuntime/SushiRuntime.h>
-#include <SushiRuntime/memory/resource_region.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
 
 namespace SushiBLAS
 {
@@ -52,7 +51,7 @@ namespace SushiBLAS
             /**
              * @brief Leases at least bytes of device memory from pool, or nothing when bytes is zero.
              * @param device_index Device queue that owns the block: the operand's
-             *        Storage::get_device_index().
+             *        Storage::device_index().
              * @throws std::runtime_error if the allocation of a new block fails.
              */
             ScratchBuffer(ScratchPool& pool, std::size_t bytes, std::size_t device_index)
@@ -128,7 +127,7 @@ namespace SushiBLAS
              * @brief Returns the region a task that writes the scratch declares.
              * @pre is_empty() is false.
              */
-            [[nodiscard]] SushiRuntime::Memory::ResourceRegion region() const noexcept
+            [[nodiscard]] SushiRuntime::BufferRegion region() const noexcept
             {
                 return {data(), 0, bytes_};
             }

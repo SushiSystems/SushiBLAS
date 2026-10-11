@@ -21,7 +21,7 @@
 
 /**
  * @file engine.hpp
- * @brief Declares the Engine, which owns one task graph, the bricks that record on it, and runs it.
+ * @brief Declares the Engine, which owns one graph, the bricks that record on it, and runs it.
  * @author Mustafa Garip
  */
 
@@ -37,15 +37,14 @@
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
-#include <SushiRuntime/SushiRuntime.h>
+#include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiRuntime/graph/task_graph.hpp>
 
 namespace SushiBLAS
 {
     /**
      * @class Engine
-     * @brief Owns one task graph with its scratch pool, recorder, tensor factory and random
+     * @brief Owns one graph with its scratch pool, recorder, tensor factory and random
      *        stream, and runs the graph.
      * @see modules/README.md
      */
@@ -53,11 +52,11 @@ namespace SushiBLAS
     {
         public:
             /**
-             * @brief Builds an engine on a runtime context.
-             * @param context Must outlive the engine and every tensor it creates.
+             * @brief Builds an engine on a runtime.
+             * @param runtime Must outlive the engine.
              * @param layout The memory layout of tensors this engine creates.
              */
-            explicit Engine(SushiRuntime::Execution::RuntimeContext& context,
+            explicit Engine(SushiRuntime::Runtime& runtime,
                             Core::Layout layout = Core::Layout::RowMajor);
 
             Engine(const Engine&) = delete;
@@ -67,50 +66,52 @@ namespace SushiBLAS
             ~Engine() = default;
 
             /** @brief Returns the recorder every operation view of this engine records through. */
-            [[nodiscard]] TaskRecorder& get_recorder() noexcept { return recorder_; }
+            [[nodiscard]] TaskRecorder& recorder() noexcept { return recorder_; }
 
             /** @brief Returns the factory create_tensor forwards to. */
-            [[nodiscard]] TensorFactory& get_tensor_factory() noexcept { return tensor_factory_; }
+            [[nodiscard]] TensorFactory& tensor_factory() noexcept { return tensor_factory_; }
 
             /**
              * @brief Returns the random stream every RandomOps view of this engine draws from.
              * @see modules/engine/engine/README.md
              */
-            [[nodiscard]] RNGStream& get_rng() noexcept { return rng_; }
+            [[nodiscard]] RNGStream& rng() noexcept { return rng_; }
 
             /**
              * @brief Returns the pool tasks recorded through this engine lease device scratch from.
              * @see modules/engine/engine/README.md
              */
-            [[nodiscard]] ScratchPool& get_scratch_pool() noexcept { return scratch_pool_; }
+            [[nodiscard]] ScratchPool& scratch_pool() noexcept { return scratch_pool_; }
 
-            /** @brief Returns the runtime context the engine was built on. */
-            [[nodiscard]] SushiRuntime::Execution::RuntimeContext& get_context() noexcept
+            /** @brief Returns the runtime the engine was built on. */
+            [[nodiscard]] SushiRuntime::Runtime& runtime() noexcept
             {
-                return context_;
+                return runtime_;
             }
 
             /** @brief Sets the execution mode of every operation recorded from now on. */
             void set_mode(ExecutionMode mode) noexcept { recorder_.set_mode(mode); }
 
             /** @brief Returns the execution mode operations are recorded under. */
-            [[nodiscard]] ExecutionMode get_mode() const noexcept { return recorder_.get_mode(); }
+            [[nodiscard]] ExecutionMode mode() const noexcept { return recorder_.mode(); }
 
             /** @brief Returns the memory layout of tensors this engine creates. */
-            [[nodiscard]] Core::Layout get_layout() const noexcept
+            [[nodiscard]] Core::Layout layout() const noexcept
             {
-                return tensor_factory_.get_layout();
+                return tensor_factory_.layout();
             }
 
             /**
-             * @brief Compiles the graph recorded through get_recorder(), runs it and returns when
-             *        every task has finished.
+             * @brief Runs the graph recorded through recorder(), returns when every task has
+             *        finished, and leaves the graph empty.
+             * @return Nothing, also when no task was recorded, or the error that ended the run.
              * @pre No thread is recording on this engine.
+             * @see modules/README.md
              */
-            void execute();
+            [[nodiscard]] SushiRuntime::Result<void> execute();
 
             /**
-             * @brief Drops every task recorded through get_recorder() that has not run, with the
+             * @brief Drops every task recorded through recorder() that has not run, with the
              *        operand storage and the scratch those tasks hold; the engine stays usable.
              * @pre No thread is recording on this engine or running execute().
              * @see modules/README.md
@@ -126,7 +127,7 @@ namespace SushiBLAS
             [[nodiscard]] Tensor create_tensor(
                 std::initializer_list<int64_t> dims,
                 Core::DataType dtype = Core::DataType::Float32,
-                SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared,
+                SushiRuntime::Residency residency = SushiRuntime::Residency::Shared,
                 std::size_t device_index = 0)
             {
                 return tensor_factory_.create(
@@ -143,23 +144,23 @@ namespace SushiBLAS
             [[nodiscard]] Tensor create_tensor(
                 SushiRuntime::span<const int64_t> dims,
                 Core::DataType dtype = Core::DataType::Float32,
-                SushiRuntime::API::Residency residency = SushiRuntime::API::Residency::Shared,
+                SushiRuntime::Residency residency = SushiRuntime::Residency::Shared,
                 std::size_t device_index = 0)
             {
                 return tensor_factory_.create(dims, dtype, residency, device_index);
             }
 
         private:
-            /// @brief The runtime context that allocates and executes.
-            SushiRuntime::Execution::RuntimeContext& context_;
+            /// @brief The runtime that allocates and executes.
+            SushiRuntime::Runtime& runtime_;
 
             /// @brief The pool recorded tasks lease scratch from; see modules/README.md.
             ScratchPool scratch_pool_;
 
             /// @brief The graph recorded tasks wait in until execute(); no accessor reaches it.
-            SushiRuntime::Graph::TaskGraph graph_;
+            SushiRuntime::Graph graph_;
 
-            /// @brief The recorder bound to graph_ and scratch_pool_.
+            /// @brief The recorder bound to the recorder of graph_ and to scratch_pool_.
             TaskRecorder recorder_;
 
             /// @brief The factory behind create_tensor.

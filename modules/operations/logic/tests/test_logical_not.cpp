@@ -40,7 +40,7 @@ TEST_F(Unit_Logical_notTest, FloatForward)
     auto c = engine->create_tensor({4});
     fill_tensor(a, {1.0f, 0.0f, 3.0f, 0.0f});
     SushiBLAS::LogicOps(*engine).logical_not(a, c);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(c, {0.00000f, 1.00000f, 0.00000f, 1.00000f});
 }

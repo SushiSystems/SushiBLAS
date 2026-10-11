@@ -52,7 +52,7 @@ namespace SushiBLAS
             /** @brief Reports whether two handles name the same record call, or both name none. */
             [[nodiscard]] friend constexpr bool operator==(TaskHandle a, TaskHandle b) noexcept
             {
-                return a.recorder_ == b.recorder_ && a.registration_ == b.registration_;
+                return a.recorder_ == b.recorder_ && a.sequence_ == b.sequence_;
             }
 
             /** @brief Reports whether two handles name different record calls. */
@@ -64,9 +64,9 @@ namespace SushiBLAS
         private:
             friend class TaskRecorder;
 
-            /** @brief Builds the handle of the task a recorder inserted under a registration index. */
-            constexpr TaskHandle(std::uint64_t recorder, std::uint32_t registration) noexcept
-                : recorder_(recorder), registration_(registration)
+            /** @brief Builds the handle of the task a recorder inserted under a sequence number. */
+            constexpr TaskHandle(std::uint64_t recorder, std::uint64_t sequence) noexcept
+                : recorder_(recorder), sequence_(sequence)
             {
 
             }
@@ -74,7 +74,7 @@ namespace SushiBLAS
             /// @brief Identity of the recorder that recorded the task; 0 names no task.
             std::uint64_t recorder_ = 0;
 
-            /// @brief Registration index the recorder stamped on the task's graph node.
-            std::uint32_t registration_ = 0;
+            /// @brief How many tasks the recorder had recorded before this one.
+            std::uint64_t sequence_ = 0;
     };
 } // namespace SushiBLAS

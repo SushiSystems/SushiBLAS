@@ -21,21 +21,22 @@
 
 /**
  * @file graph_probe.hpp
- * @brief Declares GraphProbe, a task graph a test owns so it can read what its record calls added.
+ * @brief Declares GraphProbe, a graph a test owns so it can read what its record calls added.
  * @author Mustafa Garip
- * @see tests/common/README.md
  */
 
 #pragma once
 
+#include <cstddef>
+#include <functional>
+#include <optional>
+#include <utility>
 #include <vector>
+#include <sycl/sycl.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
-#include <SushiRuntime/SushiRuntime.h>
-#include <SushiRuntime/task/node.hpp>
-#include <SushiRuntime/graph/task_graph.hpp>
-#include <SushiRuntime/execution/execution_engine.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
 #include "test_environment.hpp"
 
 namespace SushiBLAS
@@ -43,17 +44,41 @@ namespace SushiBLAS
     namespace Test
     {
         /**
-         * @brief Owns a task graph, a scratch pool and a recorder over them on the test context.
+         * @brief Holds what one recorded task declared and the body it runs.
+         * @see tests/common/README.md
+         */
+        struct RecordedTask
+        {
+            /** @brief How many recorded tasks the task waits for. */
+            std::size_t dependency_count = 0;
+
+            /** @brief The regions the task declared as read, in the order given. */
+            std::vector<SushiRuntime::BufferRegion> reads;
+
+            /** @brief The regions the task declared as written, in the order given. */
+            std::vector<SushiRuntime::BufferRegion> writes;
+
+            /** @brief The body of the task, which returns the event that ends its work. */
+            std::function<sycl::event(sycl::queue&, const std::vector<sycl::event>&)> body;
+        };
+
+        /**
+         * @brief Owns a graph, a scratch pool and a recorder over them on the test runtime.
          * @see tests/common/README.md
          */
         class GraphProbe final
         {
             public:
+                /** @brief Says why a test that reads a recorded task is skipped. */
+                static constexpr const char* K_NO_RECORDED_TASK_VIEW =
+                    "SushiRuntime's public surface gives no view of a recorded task: its "
+                    "dependency count, its regions and its body; see tests/common/README.md.";
+
                 /** @brief Builds an empty graph whose recorder records under mode. */
                 explicit GraphProbe(ExecutionMode mode = ExecutionMode::Auto)
-                    : scratch_pool_(TestEnvironment::get_context()),
-                      graph_(),
-                      recorder_(graph_, scratch_pool_, mode)
+                    : scratch_pool_(TestEnvironment::runtime()),
+                      graph_(TestEnvironment::runtime().graph()),
+                      recorder_(graph_.recorder(), scratch_pool_, mode)
                 {
 
                 }
@@ -65,26 +90,68 @@ namespace SushiBLAS
                 ~GraphProbe() = default;
 
                 /** @brief Returns the recorder a view or a seam records on this graph through. */
-                [[nodiscard]] TaskRecorder& get_recorder() noexcept { return recorder_; }
+                [[nodiscard]] TaskRecorder& recorder() noexcept { return recorder_; }
 
                 /** @brief Returns the pool tasks recorded here lease their scratch from. */
-                [[nodiscard]] ScratchPool& get_scratch_pool() noexcept { return scratch_pool_; }
+                [[nodiscard]] ScratchPool& scratch_pool() noexcept { return scratch_pool_; }
 
-                /** @brief Returns the nodes recorded since the last call and empties the graph. */
-                [[nodiscard]] std::vector<SushiRuntime::sushi_ptr<SushiRuntime::Graph::Node>>
-                take_nodes()
+                /** @brief Returns how many tasks are recorded and have not run. */
+                [[nodiscard]] std::size_t recorded_count() const noexcept
                 {
-                    return graph_.take_nodes();
+                    return graph_.recorder().node_count();
                 }
 
-                /** @brief Compiles the recorded graph, runs it and returns when it has finished. */
-                void execute()
+                /** @brief Returns how many tasks were recorded since the last call and drops them. */
+                [[nodiscard]] std::size_t take_recorded_count()
                 {
-                    SushiRuntime::Execution::CompiledGraph compiled = graph_.compile();
-                    if (compiled.roots.empty())
-                        return;
+                    const std::size_t count = recorded_count();
+                    graph_.recorder().clear();
+                    return count;
+                }
 
-                    TestEnvironment::get_context().get_execution_engine().execute(compiled);
+                /**
+                 * @brief Returns the recorded tasks that have not run, in record order.
+                 * @return Nothing while the runtime's surface has no view of a recorded task.
+                 * @see tests/common/README.md
+                 */
+                [[nodiscard]] std::optional<std::vector<RecordedTask>> recorded_tasks() const
+                {
+                    return std::nullopt;
+                }
+
+                /**
+                 * @brief Returns how many recorded tasks each recorded task waits for, in record
+                 *        order.
+                 * @return Nothing when recorded_tasks() returns nothing.
+                 */
+                [[nodiscard]] std::optional<std::vector<std::size_t>> dependency_counts() const
+                {
+                    const std::optional<std::vector<RecordedTask>> tasks = recorded_tasks();
+                    if (!tasks)
+                        return std::nullopt;
+
+                    std::vector<std::size_t> counts;
+                    counts.reserve(tasks->size());
+                    for (const RecordedTask& task : *tasks)
+                        counts.push_back(task.dependency_count);
+                    return counts;
+                }
+
+                /**
+                 * @brief Runs the recorded graph, returns when it has finished and leaves it empty.
+                 * @return Nothing, also when no task was recorded, or the error that ended the run.
+                 */
+                [[nodiscard]] SushiRuntime::Result<void> execute()
+                {
+                    if (recorded_count() == 0 && graph_.recorder().refusal() == nullptr)
+                        return {};
+
+                    auto report = graph_.run();
+                    graph_ = TestEnvironment::runtime().graph();
+                    if (!report)
+                        return SushiRuntime::make_error(std::move(report.error()));
+
+                    return {};
                 }
 
             private:
@@ -92,9 +159,9 @@ namespace SushiBLAS
                 ScratchPool scratch_pool_;
 
                 /// @brief The graph the test reads.
-                SushiRuntime::Graph::TaskGraph graph_;
+                SushiRuntime::Graph graph_;
 
-                /// @brief The recorder bound to graph_ and scratch_pool_.
+                /// @brief The recorder bound to the recorder of graph_ and to scratch_pool_.
                 TaskRecorder recorder_;
         };
     } // namespace Test

@@ -159,7 +159,7 @@ namespace SushiBLAS
             g.kernel_w = 3;
 
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_TRUE(std::isnan(out.data_as<float>()[0]));
             EXPECT_EQ(indices.data_as<int64_t>()[0], K_NAN_INDEX);
@@ -171,7 +171,7 @@ namespace SushiBLAS
 
             SushiBLAS::RandomOps(*engine).set_seed(K_UNIFORM_SEED);
             SushiBLAS::RandomOps(*engine).uniform(t, 0.0, 1.0);
-            engine->execute();
+            engine->execute().value();
 
             const float* p = t.data_as<float>();
             for (int64_t i = 0; i < K_UNIFORM_DRAWS; ++i)
@@ -225,7 +225,7 @@ namespace SushiBLAS
             g.kernel_w = 3;
 
             SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
-            engine->execute();
+            engine->execute().value();
 
             EXPECT_EQ(out.data_as<float>()[0], neg_inf);
             EXPECT_EQ(indices.data_as<int64_t>()[0], K_FIRST_TAP_INDEX);
@@ -237,7 +237,7 @@ namespace SushiBLAS
 
             SushiBLAS::RandomOps(*engine).set_seed(K_BERNOULLI_SEED);
             SushiBLAS::RandomOps(*engine).bernoulli(t, 0.0);
-            engine->execute();
+            engine->execute().value();
 
             const float* p = t.data_as<float>();
             for (int64_t i = 0; i < K_BERNOULLI_DRAWS; ++i)
@@ -250,7 +250,7 @@ namespace SushiBLAS
 
             SushiBLAS::RandomOps(*engine).set_seed(K_BERNOULLI_SEED);
             SushiBLAS::RandomOps(*engine).bernoulli(t, 1.0);
-            engine->execute();
+            engine->execute().value();
 
             const float* p = t.data_as<float>();
             for (int64_t i = 0; i < K_BERNOULLI_DRAWS; ++i)
@@ -294,7 +294,7 @@ namespace SushiBLAS
             auto t = engine->create_tensor({8}, Core::DataType::Float32);
 
             SushiBLAS::RandomOps(*engine).uniform(t, K_DEGENERATE_BOUND, K_DEGENERATE_BOUND);
-            engine->execute();
+            engine->execute().value();
 
             const float* p = t.data_as<float>();
             for (int64_t i = 0; i < t.num_elements; ++i)

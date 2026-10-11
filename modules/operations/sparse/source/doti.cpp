@@ -44,11 +44,11 @@
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiBLAS/sparse/sparse_vector_operand.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     namespace
     {
@@ -60,7 +60,7 @@ namespace SushiBLAS
          */
         template<typename Index, typename Conj>
         TaskHandle record_doti_task(TaskRecorder& recorder, const char* op,
-                                    SushiRuntime::Graph::OpID op_id, const SparseVector& x,
+                                    SushiRuntime::OperationID op_id, const SparseVector& x,
                                     const Dispatch::SparseVectorOperand& sx, const Tensor& y,
                                     int64_t incy, Tensor& result)
         {
@@ -114,7 +114,7 @@ namespace SushiBLAS
          */
         template<typename Conj>
         TaskHandle record_doti(TaskRecorder& recorder, const char* op,
-                               SushiRuntime::Graph::OpID op_id, const SparseVector& x,
+                               SushiRuntime::OperationID op_id, const SparseVector& x,
                                const Tensor& y, Tensor& result)
         {
             Dispatch::require_dtype(y, x.values.dtype, op, "y");

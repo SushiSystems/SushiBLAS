@@ -46,7 +46,7 @@ TEST_F(Unit_ASUMTest, SimpleASUM)
     SB_LOG_INFO("Submitting ASUM.");
     SushiBLAS::BLASOps(*engine).asum(X, R);
     
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected asum: |-1| + |2| + |-3| + |4| = 1 + 2 + 3 + 4 = 10

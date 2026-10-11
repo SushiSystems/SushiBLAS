@@ -37,11 +37,11 @@
 #include <SushiBLAS/operands/matrix_operand.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     namespace
     {
@@ -51,7 +51,7 @@ namespace SushiBLAS
          */
         template<typename Conj>
         TaskHandle record_symv(TaskRecorder& recorder, const char* op,
-                               SushiRuntime::Graph::OpID op_id,
+                               SushiRuntime::OperationID op_id,
                                const Tensor& A, const Tensor& x, Tensor& y,
                                Core::Uplo uplo, BLASScalar alpha, BLASScalar beta)
         {

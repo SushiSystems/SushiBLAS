@@ -31,7 +31,7 @@
 
 namespace SushiBLAS 
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle LogicOps::where(const Tensor& condition, const Tensor& A, const Tensor& B, Tensor& out) 
     {

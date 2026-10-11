@@ -40,8 +40,7 @@
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/reductions/reductions.hpp>
 #include <SushiBLAS/reductions/dispatch.hpp>
-#include <SushiRuntime/SushiRuntime.h>
-#include <SushiRuntime/graph/task_graph.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
 #include "../common/test_utils.hpp"
 
 namespace SushiBLAS
@@ -69,16 +68,10 @@ namespace SushiBLAS
             constexpr std::size_t K_LEASES_PER_THREAD = 1000;
         } // namespace
 
-        /** @brief Gives each test the fixture's engine and the test environment's context. */
+        /** @brief Gives each test the fixture's engine and the test environment's runtime. */
         class Unit_ScratchBuffer : public SushiBLASTest
         {
             protected:
-                /** @brief Returns the context every pool of this file allocates from. */
-                [[nodiscard]] static SushiRuntime::Execution::RuntimeContext& context()
-                {
-                    return TestEnvironment::get_context();
-                }
-
                 /** @brief Returns a FLOAT32 tensor of K_REDUCTION_ELEMENTS ones. */
                 [[nodiscard]] Tensor make_reduction_input()
                 {
@@ -97,8 +90,8 @@ namespace SushiBLAS
 
         TEST_F(Unit_ScratchBuffer, ZeroBytesLeaseNothing)
         {
-            ScratchPool pool(context());
-            const std::size_t live_baseline = context().memory().live_count();
+            ScratchPool pool(TestEnvironment::runtime());
+            const std::size_t live_baseline = TestEnvironment::live_allocation_count();
             const std::size_t idle_baseline = pool.idle_block_count();
 
             {
@@ -108,7 +101,7 @@ namespace SushiBLAS
                 EXPECT_EQ(lease.data(), nullptr);
                 EXPECT_EQ(lease.bytes(), std::size_t{0});
                 EXPECT_EQ(lease.storage().get(), nullptr);
-                EXPECT_EQ(context().memory().live_count(), live_baseline);
+                EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
             }
 
             EXPECT_EQ(pool.idle_block_count(), idle_baseline);
@@ -116,7 +109,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_ScratchBuffer, ALeaseHoldsABlockOfItsClass)
         {
-            ScratchPool pool(context());
+            ScratchPool pool(TestEnvironment::runtime());
             const std::array<std::size_t, 3> requests = {1, 129, 4096};
             const std::array<std::size_t, 3> block_bytes = {128, 256, 4096};
 
@@ -135,7 +128,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_ScratchBuffer, ACopyKeepsTheBlockOut)
         {
-            ScratchPool pool(context());
+            ScratchPool pool(TestEnvironment::runtime());
 
             std::optional<ScratchBuffer> original(std::in_place, pool, std::size_t{128}, K_DEVICE);
             const ScratchBuffer copy(*original);
@@ -150,7 +143,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_ScratchBuffer, TheLastCopyReturnsTheBlock)
         {
-            ScratchPool pool(context());
+            ScratchPool pool(TestEnvironment::runtime());
             const std::size_t idle_baseline = pool.idle_block_count();
             const void* leased = nullptr;
 
@@ -173,28 +166,28 @@ namespace SushiBLAS
 
         TEST_F(Unit_ScratchBuffer, ALeaseOutlivesItsPool)
         {
-            const std::size_t live_baseline = context().memory().live_count();
+            const std::size_t live_baseline = TestEnvironment::live_allocation_count();
 
             {
-                std::optional<ScratchPool> pool(std::in_place, context());
+                std::optional<ScratchPool> pool(std::in_place, TestEnvironment::runtime());
                 const ScratchBuffer lease(*pool, 256, K_DEVICE);
                 const void* leased = lease.data();
                 pool.reset();
 
                 EXPECT_EQ(lease.data(), leased);
                 EXPECT_EQ(lease.bytes(), std::size_t{256});
-                EXPECT_EQ(context().memory().live_count(), live_baseline + 1);
+                EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline + 1);
 
                 // The block is still allocated, so the device accepts a write over all of it.
-                context().devices().queue(K_DEVICE).memset(lease.data(), 0, lease.bytes()).wait();
+                TestEnvironment::queue(K_DEVICE).memset(lease.data(), 0, lease.bytes()).wait();
             }
 
-            EXPECT_EQ(context().memory().live_count(), live_baseline);
+            EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
         }
 
         TEST_F(Unit_ScratchBuffer, LiveLeasesNeverShareABlock)
         {
-            ScratchPool pool(context());
+            ScratchPool pool(TestEnvironment::runtime());
 
             std::vector<ScratchBuffer> leases;
             leases.reserve(K_LIVE_LEASES);
@@ -213,8 +206,8 @@ namespace SushiBLAS
 
         TEST_F(Unit_ScratchBuffer, LeasesAreSafeAcrossThreads)
         {
-            ScratchPool pool(context());
-            const std::size_t baseline = context().memory().live_count() - pool.idle_block_count();
+            ScratchPool pool(TestEnvironment::runtime());
+            const std::size_t baseline = TestEnvironment::live_allocation_count() - pool.idle_block_count();
             const std::array<std::size_t, 6> requests = {128, 256, 512, 1024, 2048, 4096};
 
             // GoogleTest assertions are not thread-safe on Windows, so a worker only counts.
@@ -240,7 +233,7 @@ namespace SushiBLAS
                 worker.join();
 
             EXPECT_EQ(empty_leases.load(), std::size_t{0});
-            EXPECT_EQ(context().memory().live_count() - pool.idle_block_count(), baseline);
+            EXPECT_EQ(TestEnvironment::live_allocation_count() - pool.idle_block_count(), baseline);
         }
 
         TEST_F(Unit_ScratchBuffer, ARecordedReductionReusesItsScratch)
@@ -250,17 +243,17 @@ namespace SushiBLAS
             if (!plans_partials(input))
                 GTEST_SKIP() << "This device plans no partials for 2^20 elements.";
 
-            const std::size_t live_before_record = context().memory().live_count();
+            const std::size_t live_before_record = TestEnvironment::live_allocation_count();
             ReductionOps(*engine).sum(input, result);
-            ASSERT_EQ(context().memory().live_count(), live_before_record + 1);
+            ASSERT_EQ(TestEnvironment::live_allocation_count(), live_before_record + 1);
 
-            engine->execute();
-            const std::size_t live_after_first = context().memory().live_count();
+            engine->execute().value();
+            const std::size_t live_after_first = TestEnvironment::live_allocation_count();
             verify_tensor(result, {static_cast<float>(K_REDUCTION_ELEMENTS)}, K_SUM_TOLERANCE);
 
             ReductionOps(*engine).sum(input, result);
-            engine->execute();
-            const std::size_t live_after_second = context().memory().live_count();
+            engine->execute().value();
+            const std::size_t live_after_second = TestEnvironment::live_allocation_count();
             verify_tensor(result, {static_cast<float>(K_REDUCTION_ELEMENTS)}, K_SUM_TOLERANCE);
 
             EXPECT_EQ(live_after_first, live_before_record + 1);
@@ -275,25 +268,25 @@ namespace SushiBLAS
             if (!plans_partials(input))
                 GTEST_SKIP() << "This device plans no partials for 2^20 elements.";
 
-            ScratchPool pool(context());
-            SushiRuntime::Graph::TaskGraph first_graph;
-            SushiRuntime::Graph::TaskGraph second_graph;
-            TaskRecorder first_recorder(first_graph, pool);
-            TaskRecorder second_recorder(second_graph, pool);
+            ScratchPool pool(TestEnvironment::runtime());
+            SushiRuntime::Graph first_graph = TestEnvironment::runtime().graph();
+            SushiRuntime::Graph second_graph = TestEnvironment::runtime().graph();
+            TaskRecorder first_recorder(first_graph.recorder(), pool);
+            TaskRecorder second_recorder(second_graph.recorder(), pool);
 
-            const std::size_t live_before_record = context().memory().live_count();
+            const std::size_t live_before_record = TestEnvironment::live_allocation_count();
             ReductionOps(first_recorder).sum(input, first_result);
-            ASSERT_EQ(context().memory().live_count(), live_before_record + 1);
+            ASSERT_EQ(TestEnvironment::live_allocation_count(), live_before_record + 1);
 
-            // Dropping the nodes destroys the recorded task, the only holder of the lease.
-            first_graph.take_nodes().clear();
+            // Clearing the recorder destroys the recorded task, the only holder of the lease.
+            first_graph.recorder().clear();
             ASSERT_EQ(pool.idle_block_count(), std::size_t{1});
-            const std::size_t live_after_drop = context().memory().live_count();
+            const std::size_t live_after_drop = TestEnvironment::live_allocation_count();
 
             ReductionOps(second_recorder).sum(input, second_result);
 
             EXPECT_EQ(pool.idle_block_count(), std::size_t{0});
-            EXPECT_EQ(context().memory().live_count(), live_after_drop);
+            EXPECT_EQ(TestEnvironment::live_allocation_count(), live_after_drop);
         }
     } // namespace Test
 } // namespace SushiBLAS

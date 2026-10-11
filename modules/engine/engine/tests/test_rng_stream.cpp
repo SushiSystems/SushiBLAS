@@ -67,7 +67,7 @@ class Unit_RngStreamTest : public SushiBLASTest
             auto t = engine->create_tensor({K_FILL_SIZE});
             SushiBLAS::RandomOps(*engine).set_seed(seed);
             SushiBLAS::RandomOps(*engine).normal(t, 0.0, 1.0);
-            engine->execute();
+            engine->execute().value();
             return read_tensor<float>(t);
         }
 };

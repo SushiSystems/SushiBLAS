@@ -102,7 +102,7 @@ namespace SushiBLAS
             [[nodiscard]] bool device_runs()
             {
                 const sycl::device device =
-                    TestEnvironment::get_context().devices().queue(0).get_device();
+                    TestEnvironment::queue().get_device();
                 if constexpr (std::is_same_v<T, sycl::half>)
                     return device.has(sycl::aspect::fp16);
                 else if constexpr (std::is_same_v<T, double>)
@@ -169,9 +169,9 @@ namespace SushiBLAS
                 [[nodiscard]] Tensor vector_of(const std::vector<T>& values)
                 {
                     Tensor tensor = this->engine->create_tensor(
-                        {static_cast<int64_t>(values.size())}, get_sushiblas_dtype<T>());
+                        {static_cast<int64_t>(values.size())}, sushiblas_dtype<T>());
                     if (!values.empty())
-                        TestEnvironment::get_context().devices().queue(0)
+                        TestEnvironment::queue()
                             .memcpy(tensor.data(), values.data(), values.size() * sizeof(T))
                             .wait();
                     return tensor;
@@ -243,7 +243,7 @@ namespace SushiBLAS
                         const Tensor param = this->vector_of(make_all<T>(row.param));
 
                         SushiBLAS::BLASOps(*this->engine).rotm(x, y, param);
-                        this->engine->execute();
+                        this->engine->execute().value();
 
                         expect_equal(read_tensor<T>(x), make_all<T>(row.x));
                         expect_equal(read_tensor<T>(y), make_all<T>(row.y));
@@ -273,7 +273,7 @@ namespace SushiBLAS
                     const Tensor param = this->vector_of(make_all<T>(identity));
 
                     SushiBLAS::BLASOps(*this->engine).rotm(x, y, param);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     const std::vector<T> x_after = read_tensor<T>(x);
                     const std::vector<T> y_after = read_tensor<T>(y);
@@ -312,7 +312,7 @@ namespace SushiBLAS
                     const Tensor param = this->vector_of(make_all<T>(K_ROWS[0].param));
 
                     SushiBLAS::BLASOps(*this->engine).rotm(x, y, param);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     expect_equal(read_tensor<T>(x_parent), make_all<T>(x_expected));
                     expect_equal(read_tensor<T>(y_parent), make_all<T>(y_expected));
@@ -339,7 +339,7 @@ namespace SushiBLAS
                     const Tensor param = this->vector_of(make_all<T>(K_FULL_PARAM));
 
                     EXPECT_NO_THROW(SushiBLAS::BLASOps(*this->engine).rotm(x, y, param));
-                    EXPECT_NO_THROW(this->engine->execute());
+                    EXPECT_TRUE(this->engine->execute().has_value());
                     expect_equal(read_tensor<T>(param), make_all<T>(K_FULL_PARAM));
                 }
             }
@@ -369,7 +369,7 @@ namespace SushiBLAS
                     const Tensor param = this->vector_of(make_all<T>(K_FULL_PARAM));
 
                     SushiBLAS::BLASOps(*this->engine).rotm(x, y, param);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     results[mode][0] = read_tensor<T>(x);
                     results[mode][1] = read_tensor<T>(y);
@@ -424,7 +424,7 @@ namespace SushiBLAS
                     SushiBLAS::BLASOps ops(*this->engine);
                     ops.rotmg(d1, d2, x1, y1, param);
                     ops.rotm(x, y, param);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     // H is [1, 0.5; -0.5, 1], so (4, 2) becomes (5, 0).
                     expect_equal(read_tensor<T>(x), std::vector<T>{make<T>(5.0)});

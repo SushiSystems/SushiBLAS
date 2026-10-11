@@ -43,7 +43,7 @@ TEST_F(Unit_CosTest, FloatForward)
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
     SushiBLAS::ElementwiseOps(*engine).cos(t);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(t, {0.54030f, -0.41615f, -0.98999f, 0.87758f});
 }
@@ -81,7 +81,7 @@ TEST_F(Unit_CosTest, ZeroInSingleElement)
     fill_tensor(t, {0.0f});
 
     SushiBLAS::ElementwiseOps(*engine).cos(t);
-    engine->execute();
+    engine->execute().value();
 
     // cos(0) is 1.
     verify_tensor(t, std::vector<double>{1.0}, K_FLOAT32_TOLERANCE);
@@ -93,7 +93,7 @@ TEST_F(Unit_CosTest, PositiveInfinity)
     fill_tensor(t, {K_INF});
 
     SushiBLAS::ElementwiseOps(*engine).cos(t);
-    engine->execute();
+    engine->execute().value();
 
     verify_tensor(t, {K_NAN});
 }
@@ -104,7 +104,7 @@ TEST_F(Unit_CosTest, ThousandElements)
     fill_tensor(t, std::vector<float>(K_LARGE_SIZE, K_LARGE_INPUT));
 
     SushiBLAS::ElementwiseOps(*engine).cos(t);
-    engine->execute();
+    engine->execute().value();
 
     verify_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
@@ -115,7 +115,7 @@ TEST_F(Unit_CosTest, Float64)
     fill_tensor(t, {-1.0f, 0.0f, 0.5f, 2.0f});
 
     SushiBLAS::ElementwiseOps(*engine).cos(t);
-    engine->execute();
+    engine->execute().value();
 
     verify_tensor(t, K_FLOAT64_EXPECTED, K_FLOAT64_TOLERANCE);
 }

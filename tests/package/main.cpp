@@ -37,7 +37,7 @@
 #include <SushiBLAS/elementwise/dispatch.hpp>
 
 namespace sb = SushiBLAS;
-using namespace SushiRuntime::Graph::Literals;
+using namespace SushiRuntime::Literals;
 
 /**
  * @brief Adds a row bias and a column bias to a GEMM element and clamps the sum at zero.
@@ -70,23 +70,23 @@ struct ConsumerBiasReLU
 
 int main()
 {
-    sr::Execution::RuntimeContext ctx;
-    sb::Engine engine(ctx);
+    sr::Runtime runtime = sr::Runtime::create().value();
+    sb::Engine engine(runtime);
 
     constexpr int64_t N = 64;
     auto x = engine.create_tensor({N});
     auto y = engine.create_tensor({N});
 
     SushiBLAS::BLASOps(engine).axpy(2.0f, x, y);
-    engine.execute();
-    ctx.wait_all();
+    engine.execute().value();
+    runtime.wait().value();
 
     // One consumer-authored functor runs multiply, add and divide as a single task.
     auto a = engine.create_tensor({N});
     auto b = engine.create_tensor({N});
     auto c = engine.create_tensor({N});
 
-    auto& q = ctx.devices().queue(0);
+    auto& q = runtime.advanced().queue(sr::DeviceIndex{0});
     std::vector<float> host_a(N), host_b(N);
     for (int64_t i = 0; i < N; ++i)
     {
@@ -97,10 +97,10 @@ int main()
     q.memcpy(b.data(), host_b.data(), N * sizeof(float)).wait();
 
     sb::Dispatch::execute_binary(
-        engine.get_recorder(), a, b, c, "consumer.fused", "consumer.fused"_op,
+        engine.recorder(), a, b, c, "consumer.fused", "consumer.fused"_op,
         [](auto p, auto r) { return (p * r + decltype(p)(1)) / decltype(p)(2); });
-    engine.execute();
-    ctx.wait_all();
+    engine.execute().value();
+    runtime.wait().value();
 
     std::vector<float> host_c(N);
     q.memcpy(host_c.data(), c.data(), N * sizeof(float)).wait();
@@ -119,7 +119,7 @@ int main()
     }
 
     // One consumer-authored functor advances three tensors in a single task.
-    sb::Dispatch::execute_zip_inplace(engine.get_recorder(), std::array{&a, &b, &c},
+    sb::Dispatch::execute_zip_inplace(engine.recorder(), std::array{&a, &b, &c},
         "consumer.zip", "consumer.zip"_op,
         [](auto& p, auto& r, auto& s)
         {
@@ -127,8 +127,8 @@ int main()
             s = p + r;
             p = p * T(2);
         });
-    engine.execute();
-    ctx.wait_all();
+    engine.execute().value();
+    runtime.wait().value();
 
     std::vector<float> host_p(N), host_s(N);
     q.memcpy(host_p.data(), a.data(), N * sizeof(float)).wait();
@@ -164,12 +164,12 @@ int main()
     q.memcpy(col_bias.data(), host_col_bias.data(), host_col_bias.size() * sizeof(float)).wait();
 
     sb::Dispatch::execute_gemm(
-        engine.get_recorder(), gemm_a, gemm_b, gemm_c,
+        engine.recorder(), gemm_a, gemm_b, gemm_c,
         sb::Core::Transpose::NoTrans, sb::Core::Transpose::NoTrans, 1.0, 0.0,
         "consumer.linear_relu", "consumer.linear_relu"_op,
         ConsumerBiasReLU{row_bias.data_as<float>(), col_bias.data_as<float>()});
-    engine.execute();
-    ctx.wait_all();
+    engine.execute().value();
+    runtime.wait().value();
 
     const std::vector<float> want_gemm{2, 0, 6, 0, 0, 3, 11, 4, 17};
     std::vector<float> host_gemm_c(want_gemm.size());

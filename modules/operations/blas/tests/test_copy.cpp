@@ -46,7 +46,7 @@ TEST_F(Unit_COPYTest, SimpleCOPY)
     SB_LOG_INFO("Submitting COPY.");
     SushiBLAS::BLASOps(*engine).copy(X, Y);
     
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: Y = X

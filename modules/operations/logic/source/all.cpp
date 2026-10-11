@@ -34,12 +34,12 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/logic/logic.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
-#include <SushiRuntime/memory/resource_region.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/api/data/buffer.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     namespace
     {
@@ -101,9 +101,9 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(t).writes(result);
 
-        SushiRuntime::Graph::TaskMetadata meta;
+        SushiRuntime::Internal::Graph::TaskMetadata meta;
         meta.name = "logic.all";
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "logic.all"_op;
 
         TaskHandle handle;

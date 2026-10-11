@@ -111,7 +111,7 @@ namespace SushiBLAS
             auto out = engine->create_tensor({1, 2, 2, 3}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, out);
-            engine->execute();
+            engine->execute().value();
 
             // Element k has channel k % 3, so it becomes k * gamma[k % 3] + beta[k % 3].
             const std::vector<float> expected = {10, 23, 38,
@@ -132,7 +132,7 @@ namespace SushiBLAS
             auto out = engine->create_tensor({2, 3, 4, 5}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, out);
-            engine->execute();
+            engine->execute().value();
 
             const float* source = in.data_as<float>();
             const float* got = out.data_as<float>();
@@ -150,7 +150,7 @@ namespace SushiBLAS
             auto out = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).broadcast_spatial(in, out, 0.5);
-            engine->execute();
+            engine->execute().value();
 
             const float* source = in.data_as<float>();
             const float* got = out.data_as<float>();
@@ -172,7 +172,7 @@ namespace SushiBLAS
             auto out = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
             SushiBLAS::SpatialOps(*engine).broadcast_spatial(in, out, scale);
-            engine->execute();
+            engine->execute().value();
 
             // float(1/20) is one rounding of an exact double, so every element is identical.
             const float share = static_cast<float>(scale);
@@ -207,9 +207,9 @@ namespace SushiBLAS
 
             // NHWC to NCHW and back: the same call, with the permuted strides on the other operand.
             SushiBLAS::SpatialOps(*engine).layout_convert(source, middle);
-            engine->execute();
+            engine->execute().value();
             SushiBLAS::SpatialOps(*engine).layout_convert(middle, destination);
-            engine->execute();
+            engine->execute().value();
 
             const float* expected = source.data_as<float>();
             const float* got = destination.data_as<float>();
@@ -228,7 +228,7 @@ namespace SushiBLAS
             auto nchw = nchw_view(nchw_storage, N, H, W, C);
 
             SushiBLAS::SpatialOps(*engine).layout_convert(source, nchw);
-            engine->execute();
+            engine->execute().value();
 
             // Element (h, w, c) sits at h*4 + w*2 + c and must land at c*4 + h*2 + w in NCHW.
             const std::vector<float> expected = {0, 2, 4, 6,    // channel 0
@@ -279,13 +279,13 @@ namespace SushiBLAS
             SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, affine_reference);
             SushiBLAS::SpatialOps(*engine).broadcast_spatial(plane, spread_reference, 1.0 / 15.0);
             SushiBLAS::SpatialOps(*engine).layout_convert(in, convert_reference);
-            engine->execute();
+            engine->execute().value();
 
             engine->set_mode(ExecutionMode::ForceSYCL);
             SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, affine_device);
             SushiBLAS::SpatialOps(*engine).broadcast_spatial(plane, spread_device, 1.0 / 15.0);
             SushiBLAS::SpatialOps(*engine).layout_convert(in, convert_device);
-            engine->execute();
+            engine->execute().value();
 
             const float* affine_expected = affine_reference.data_as<float>();
             const float* affine_got = affine_device.data_as<float>();

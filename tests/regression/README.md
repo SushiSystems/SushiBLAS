@@ -27,7 +27,7 @@ checks the same rule in the source, under `rule_task_dependencies`.
 ## test_operand_lifetime.cpp
 
 A task holds raw pointers into its operands, and the recorder retains the storage behind them
-(`OperandSet`, `Internal::StorageKeepAlive`). The fixture counts the context's live USM
+(`OperandSet`, `Internal::StorageKeepAlive`). The fixture counts the runtime's live USM
 allocations around the record and execute calls. `ATaskKeepsItsInputAllocatedUntilItHasRun`
 destroys an input tensor after the record call and checks its allocation lives until the task
 ran. `AnEpilogueOperandIsKept` does the same for a tensor declared through
@@ -127,8 +127,8 @@ A_i = (i+1) * I(2)     B_i = {{1,2},{3,4}} + i     C_i = A_i * B_i
 `ger`, and `gemv` with beta != 0, declared their accumulator write-only while reading it. The
 order still came out right because the tracker inserts a write-after-write edge anyway, so the
 defect was latent and no behavioural test could see it. The test reads the recorded graph
-instead: it records through a `GraphProbe` (`tests/common/graph_probe.hpp`), whose `take_nodes()`
-returns what the operation declared.
+instead: it records through a `GraphProbe` (`tests/common/graph_probe.hpp`), whose
+`recorded_tasks()` returns what the operation declared.
 
 `gemv` with beta == 0 overwrites y completely and must stay a pure write. A read it does not
 perform would cost the scheduler a false edge.
@@ -151,7 +151,7 @@ the `sum` reduction to the loss.
 
 The test asserts on the recorded graph and not on the answer. Without the edge the two tasks may
 still run in the right order by luck, and a test that passes by luck guards nothing. The
-in-degree of the second node decides it. The two views are disjoint and the consumer's operand is
+`dependency_count` of the second task decides it. The two views are disjoint and the consumer's operand is
 not at offset zero, which is the shape a memory planner produces and the one where a bare-pointer
 region and a real region disagree. The same pair of ops is then run once more and its sum
 compared, for a reader who wants to see the behaviour as well.

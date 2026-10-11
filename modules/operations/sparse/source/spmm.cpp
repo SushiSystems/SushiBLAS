@@ -44,11 +44,11 @@
 #include <SushiBLAS/operands/matrix_operand.hpp>
 #include <SushiBLAS/sparse/sparse_matrix_operand.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     namespace
     {

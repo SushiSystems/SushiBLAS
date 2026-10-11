@@ -40,7 +40,7 @@ TEST_F(Unit_SquareTest, FloatForward)
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
     SushiBLAS::ElementwiseOps(*engine).square(t);
-    engine->execute();
+    engine->execute().value();
     
     verify_tensor(t, {1.00000f, 4.00000f, 9.00000f, 0.25000f});
 }

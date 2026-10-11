@@ -35,7 +35,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle SpatialOps::col2im(const Tensor& cols, Tensor& image, const Spatial::ConvGeometry& g,
                                   int64_t out_h, int64_t out_w)
@@ -57,9 +57,9 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(cols).writes(image);
 
-        SushiRuntime::Graph::TaskMetadata meta;
+        SushiRuntime::Internal::Graph::TaskMetadata meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.col2im"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(

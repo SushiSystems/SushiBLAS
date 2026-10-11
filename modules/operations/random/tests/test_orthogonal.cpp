@@ -41,7 +41,7 @@ class Unit_OrthogonalTest : public SushiBLASTest
         std::vector<float> read_matrix(const SushiBLAS::Tensor& t)
         {
             std::vector<float> host(static_cast<size_t>(t.num_elements));
-            auto& q = TestEnvironment::get_context().devices().queue(0);
+            auto& q = TestEnvironment::queue();
             q.memcpy(host.data(), t.data(), host.size() * sizeof(float)).wait();
             return host;
         }
@@ -75,7 +75,7 @@ TEST_F(Unit_OrthogonalTest, TallMatrixHasOrthonormalColumns)
     auto t = engine->create_tensor({8, 4});
     SushiBLAS::RandomOps(*engine).set_seed(2026);
     SushiBLAS::RandomOps(*engine).orthogonal(t);
-    engine->execute();
+    engine->execute().value();
 
     auto m = read_matrix(t);
     expect_orthonormal(m, /*count=*/4, /*length=*/8, /*elem_stride=*/4, /*vec_stride=*/1, 1.0f);
@@ -87,7 +87,7 @@ TEST_F(Unit_OrthogonalTest, WideMatrixHasOrthonormalRows)
     auto t = engine->create_tensor({3, 7});
     SushiBLAS::RandomOps(*engine).set_seed(7);
     SushiBLAS::RandomOps(*engine).orthogonal(t);
-    engine->execute();
+    engine->execute().value();
 
     auto m = read_matrix(t);
     expect_orthonormal(m, /*count=*/3, /*length=*/7, /*elem_stride=*/1, /*vec_stride=*/7, 1.0f);
@@ -98,7 +98,7 @@ TEST_F(Unit_OrthogonalTest, SquareMatrixIsFullyOrthogonal)
     auto t = engine->create_tensor({6, 6});
     SushiBLAS::RandomOps(*engine).set_seed(31337);
     SushiBLAS::RandomOps(*engine).orthogonal(t);
-    engine->execute();
+    engine->execute().value();
 
     auto m = read_matrix(t);
     expect_orthonormal(m, 6, 6, /*elem_stride=*/6, /*vec_stride=*/1, 1.0f);
@@ -111,7 +111,7 @@ TEST_F(Unit_OrthogonalTest, SixtyFourSquareMatrixIsFullyOrthogonal)
     auto t = engine->create_tensor({kSide, kSide});
     SushiBLAS::RandomOps(*engine).set_seed(20261006);
     SushiBLAS::RandomOps(*engine).orthogonal(t);
-    engine->execute();
+    engine->execute().value();
 
     auto m = read_matrix(t);
     expect_orthonormal(m, kSide, kSide, /*elem_stride=*/kSide, /*vec_stride=*/1, 1.0f);
@@ -124,7 +124,7 @@ TEST_F(Unit_OrthogonalTest, GainScalesTheGramDiagonalQuadratically)
     auto t = engine->create_tensor({5, 5});
     SushiBLAS::RandomOps(*engine).set_seed(11);
     SushiBLAS::RandomOps(*engine).orthogonal(t, kGain);
-    engine->execute();
+    engine->execute().value();
 
     auto m = read_matrix(t);
     expect_orthonormal(m, 5, 5, 5, 1, kGain * kGain, 1e-3f);
@@ -136,7 +136,7 @@ TEST_F(Unit_OrthogonalTest, ResultIsNotJustAGaussianFill)
     auto t = engine->create_tensor({6, 6});
     SushiBLAS::RandomOps(*engine).set_seed(4242);
     SushiBLAS::RandomOps(*engine).orthogonal(t);
-    engine->execute();
+    engine->execute().value();
 
     auto m = read_matrix(t);
     for (int64_t c = 0; c < 6; ++c)

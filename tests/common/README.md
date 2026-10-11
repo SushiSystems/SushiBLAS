@@ -5,9 +5,9 @@ Support code the functional tests include.
 | File | What it holds |
 | --- | --- |
 | `test_main.cpp` | `main`: synchronous logging, the environment, then `RUN_ALL_TESTS` |
-| `test_environment.hpp` | The GoogleTest environment that owns the one `RuntimeContext` |
+| `test_environment.hpp` | The GoogleTest environment that owns the one `SushiRuntime::Runtime` |
 | `test_utils.hpp` | Tensor fill and comparison helpers, the `SushiBLASTest` fixture, the suite macros |
-| `graph_probe.hpp` | `GraphProbe`, a task graph a test owns so it can read what its record calls added |
+| `graph_probe.hpp` | `GraphProbe`, a graph a test owns so it can read what its record calls added |
 | `reference_reductions.hpp` | Serial reductions over a host vector, in namespace `ReferenceKernels` |
 | `blas_flags.hpp` | The mappings from a test's bool parameters to the BLAS flag enumerations |
 | `blas_truth.hpp` | The double-precision truth a BLAS parity test measures both kernels against |
@@ -15,14 +15,32 @@ Support code the functional tests include.
 | `packed_product_harness.hpp` | The problem, the data and the blockings the packed product tests share |
 | `sparse_samples.hpp` | The host matrices the sparse tests build from and the host products they expect |
 
+## test_environment.hpp
+
+`TestEnvironment` creates the runtime in `SetUp()` with `SushiRuntime::Runtime::create()` and
+hands it out through `runtime()`. `queue(device_index)` and `device_count()` forward to the
+runtime's `advanced()` view.
+
+`live_allocation_count()` returns how many USM allocations of the runtime are live; the lifetime
+tests count with it. SushiRuntime's stable surface has no such count, so this one function reads
+it through `Runtime::unsafe_context()`. It is the only place in the tests that does.
+
 ## graph_probe.hpp
 
 `Engine` has no accessor for its graph, so a test that asserts on what an operation declared
-cannot read it from an engine. `GraphProbe` owns a `ScratchPool`, a `TaskGraph` and a
-`TaskRecorder` over them on the shared test context. A test builds a view on
-`probe.get_recorder()`, records, and calls `take_nodes()`, which returns the nodes recorded
-since the last call and empties the graph. `execute()` compiles and runs what is recorded, as
-`Engine::execute` does. The constructor takes the execution mode the recorder records under.
+cannot read it from an engine. `GraphProbe` owns a `ScratchPool`, a `SushiRuntime::Graph` and a
+`TaskRecorder` over them on the shared test runtime. A test builds a view on
+`probe.recorder()` and records. `recorded_count()` returns how many tasks wait on the graph, and
+`take_recorded_count()` returns that count and clears the graph. `execute()` runs what is
+recorded and returns the result, as `Engine::execute` does. The constructor takes the execution
+mode the recorder records under.
+
+`recorded_tasks()` is the view a test reads a recorded task through: a `RecordedTask` holds the
+task's `dependency_count`, the regions it declared as `reads` and `writes`, and its `body`.
+`dependency_counts()` returns the counts alone. SushiRuntime's public surface gives no view of a
+recorded task, so `recorded_tasks()` returns nothing, and a test that needs it reports itself
+skipped with `K_NO_RECORDED_TASK_VIEW`. The assertions stay written against `RecordedTask`, and
+`recorded_tasks()` is the one function to fill in when the runtime offers the view.
 
 ## blas_flags.hpp
 

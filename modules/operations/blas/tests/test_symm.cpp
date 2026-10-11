@@ -242,9 +242,9 @@ namespace SushiBLAS
             [[nodiscard]] Tensor upload(Engine& engine, std::initializer_list<int64_t> dims,
                                         const std::vector<T>& values)
             {
-                Tensor tensor = engine.create_tensor(dims, get_sushiblas_dtype<T>());
+                Tensor tensor = engine.create_tensor(dims, sushiblas_dtype<T>());
                 EXPECT_EQ(values.size(), static_cast<std::size_t>(tensor.num_elements));
-                TestEnvironment::get_context().devices().queue(0)
+                TestEnvironment::queue()
                     .memcpy(tensor.data(), values.data(), values.size() * sizeof(T)).wait();
                 return tensor;
             }
@@ -335,7 +335,7 @@ namespace SushiBLAS
                                                             Core::Transpose::NoTrans,
                                                             Core::Transpose::NoTrans,
                                                             K_ALPHA, K_BETA);
-                            engine.execute();
+                            engine.execute().value();
 
                             expect_same_bytes(read_tensor<T>(from_routine),
                                               read_tensor<T>(from_gemm));
@@ -376,7 +376,7 @@ namespace SushiBLAS
 
                 SushiBLAS::BLASOps(*this->engine).symm(A, B, C, Core::Side::Left,
                                                        Core::Uplo::Upper, 2.0, -1.0);
-                this->engine->execute();
+                this->engine->execute().value();
 
                 // A * B is {22 28, 39 50, 48 62}; C is twice that minus one.
                 expect_equal(read_tensor<T>(C), elements<T>({43, 55, 77, 99, 95, 123}));
@@ -401,7 +401,7 @@ namespace SushiBLAS
 
                 SushiBLAS::BLASOps(*this->engine).symm(A, B, C, Core::Side::Right,
                                                        Core::Uplo::Lower, 1.0, 0.0);
-                this->engine->execute();
+                this->engine->execute().value();
 
                 expect_equal(read_tensor<T>(C), elements<T>({5, 8, 11, 18, 17, 28}));
             }
@@ -442,7 +442,7 @@ namespace SushiBLAS
                             upload(*this->engine, {K_BATCH, K_BATCH_ROWS, K_BATCH_COLS}, c);
                         SushiBLAS::BLASOps(*this->engine).symm(A, B, C, side, Core::Uplo::Upper,
                                                                2.0, -1.0);
-                        this->engine->execute();
+                        this->engine->execute().value();
                         const std::vector<T> batched = read_tensor<T>(C);
 
                         for (int64_t index = 0; index < K_BATCH; ++index)
@@ -458,7 +458,7 @@ namespace SushiBLAS
                                                   matrix_of(c, index, matrix));
                             SushiBLAS::BLASOps(*this->engine).symm(one_a, one_b, one_c, side,
                                                                    Core::Uplo::Upper, 2.0, -1.0);
-                            this->engine->execute();
+                            this->engine->execute().value();
 
                             expect_equal(matrix_of(batched, index, matrix),
                                          read_tensor<T>(one_c));
@@ -491,7 +491,7 @@ namespace SushiBLAS
 
                     SushiBLAS::BLASOps(*this->engine).symm(A, B, C, side, Core::Uplo::Lower,
                                                            K_ALPHA, 0.0);
-                    this->engine->execute();
+                    this->engine->execute().value();
 
                     const std::vector<T> result = read_tensor<T>(C);
                     for (std::size_t i = 0; i < result.size(); ++i)
@@ -502,7 +502,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_Symm, AnEmptyProductRecordsAndRuns)
         {
-            const Core::DataType dtype = get_sushiblas_dtype<TypeParam>();
+            const Core::DataType dtype = sushiblas_dtype<TypeParam>();
             const int64_t shapes[][2] = {{0, 3}, {3, 0}};
 
             for (const auto& shape : shapes)
@@ -524,7 +524,7 @@ namespace SushiBLAS
 
                         EXPECT_NO_THROW(SushiBLAS::BLASOps(*this->engine).symm(
                             A, B, C, side, Core::Uplo::Upper));
-                        EXPECT_NO_THROW(this->engine->execute());
+                        EXPECT_TRUE(this->engine->execute().has_value());
                     }
                 }
             }
@@ -562,7 +562,7 @@ namespace SushiBLAS
 
                 SushiBLAS::BLASOps(*this->engine).hemm(A, B, C, Core::Side::Left,
                                                        Core::Uplo::Upper, 1.0, 0.0);
-                this->engine->execute();
+                this->engine->execute().value();
 
                 // Row 0 is 2 * 1 + (1 + i) * i; row 1 is conj(1 + i) * 1 + 3 * i.
                 expect_equal(read_tensor<T>(C), std::vector<T>{T(1, 1), T(1, 2)});
@@ -583,9 +583,9 @@ namespace SushiBLAS
                     try
                     {
                         Tensor tensor = engine->create_tensor(dims, Core::DataType::Float32,
-                                                              SushiRuntime::API::Residency::Device);
+                                                              SushiRuntime::Residency::Device);
                         const sycl::context context =
-                            TestEnvironment::get_context().devices().queue(0).get_context();
+                            TestEnvironment::queue().get_context();
                         if (sycl::get_pointer_type(tensor.data(), context) !=
                             sycl::usm::alloc::device)
                             return std::nullopt;
@@ -605,9 +605,9 @@ namespace SushiBLAS
                 void expect_refused(const char* what, Record&& record)
                 {
                     SCOPED_TRACE(what);
-                    SushiBLAS::BLASOps ops(probe.get_recorder());
+                    SushiBLAS::BLASOps ops(probe.recorder());
                     EXPECT_THROW((void)record(ops), std::invalid_argument);
-                    EXPECT_TRUE(probe.take_nodes().empty());
+                    EXPECT_EQ(0u, probe.take_recorded_count());
                 }
 
                 /// @brief The graph the refusal cases record on and read.
@@ -634,7 +634,7 @@ namespace SushiBLAS
                                Core::Uplo::Upper, K_ALPHA, K_BETA);
                 record_product(*engine, Routine::Symm, A, B, from_symm, Core::Side::Left,
                                Core::Uplo::Upper, K_ALPHA, K_BETA);
-                engine->execute();
+                engine->execute().value();
 
                 expect_same_bytes(read_tensor<float>(from_hemm), read_tensor<float>(from_symm));
             }
@@ -642,7 +642,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SymmHemmEdges, HalfSumsInFloat)
         {
-            const sycl::queue& queue = TestEnvironment::get_context().devices().queue(0);
+            const sycl::queue& queue = TestEnvironment::queue();
             if (!queue.get_device().has(sycl::aspect::fp16))
                 GTEST_SKIP() << "the device does not report the fp16 aspect";
 
@@ -663,7 +663,7 @@ namespace SushiBLAS
 
                 SushiBLAS::BLASOps(*engine).symm(A, B, C, Core::Side::Left, Core::Uplo::Upper,
                                                  1.0, 0.0);
-                engine->execute();
+                engine->execute().value();
 
                 // Row 0 sums 2048 + 1 - 2048, which is 1 in FLOAT32 and 0 in HALF.
                 const std::vector<sycl::half> result = read_tensor<sycl::half>(C);

@@ -61,7 +61,7 @@ namespace SushiBLAS
                     fill_random<T>(C_actual);
                     
                     // Copy C_actual to C_expected so they start exactly the same (important if beta != 0)
-                    auto& q = TestEnvironment::get_context().devices().queue(0);
+                    auto& q = TestEnvironment::queue();
                     size_t c_size_bytes = n * n * sizeof(T);
                     q.memcpy(C_expected.data(), C_actual.data(), c_size_bytes).wait();
 
@@ -72,13 +72,13 @@ namespace SushiBLAS
                     engine->set_mode(ExecutionMode::ForceSYCL);
                     SushiBLAS::BLASOps(*engine).syrk(A, C_actual, uplo_of(upper),
                                                      transpose_of(transA), alpha, beta);
-                    engine->execute();
+                    engine->execute().value();
 
                     // 3. Compute Reference (CPU) result
                     engine->set_mode(ExecutionMode::ForceReference);
                     SushiBLAS::BLASOps(*engine).syrk(A, C_expected, uplo_of(upper),
                                                      transpose_of(transA), alpha, beta);
-                    engine->execute();
+                    engine->execute().value();
 
                     // 4. Compare
                     double tol = (dtype == Core::DataType::Half) ? 1e-2 : 1e-4;

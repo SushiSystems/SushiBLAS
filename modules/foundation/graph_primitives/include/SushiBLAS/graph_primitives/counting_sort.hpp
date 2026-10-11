@@ -39,7 +39,6 @@
 #include <SushiRuntime/api/graph/recorder.hpp>
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
-#include <SushiRuntime/memory/resource_region.hpp>
 
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
@@ -55,25 +54,25 @@ namespace SushiBLAS
          * @param indices Receives the sorted order; holds n.capacity() elements.
          * @param offsets Receives the bucket starts; holds key_range.capacity() + 1 elements.
          * @param counts  Optional bucket sizes; holds key_range.capacity() elements.
-         * @throws SushiRuntime::Core::SushiException With invalid_graph for a broken size rule.
+         * @throws SushiRuntime::SushiException With invalid_graph for a broken size rule.
          * @see modules/foundation/graph_primitives/README.md
          */
-        inline void counting_sort(SushiRuntime::API::Recorder& recorder,
-                                  const SushiRuntime::API::Buffer<std::uint32_t>& keys,
-                                  const SushiRuntime::API::Buffer<std::uint32_t>& indices,
-                                  const SushiRuntime::API::Buffer<std::uint32_t>& offsets,
-                                  const SushiRuntime::API::Buffer<std::uint32_t>& total,
-                                  SushiRuntime::API::LateCount n,
-                                  SushiRuntime::API::LateCount key_range,
-                                  const SushiRuntime::API::Buffer<std::uint32_t>* counts = nullptr)
+        inline void counting_sort(SushiRuntime::Recorder& recorder,
+                                  const SushiRuntime::Buffer<std::uint32_t>& keys,
+                                  const SushiRuntime::Buffer<std::uint32_t>& indices,
+                                  const SushiRuntime::Buffer<std::uint32_t>& offsets,
+                                  const SushiRuntime::Buffer<std::uint32_t>& total,
+                                  SushiRuntime::LateCount n,
+                                  SushiRuntime::LateCount key_range,
+                                  const SushiRuntime::Buffer<std::uint32_t>* counts = nullptr)
         {
-            using SushiRuntime::API::Access;
-            using SushiRuntime::API::DeviceSized;
-            using SushiRuntime::API::LateCount;
-            using SushiRuntime::API::NodeOptions;
-            using SushiRuntime::API::Reads;
-            using SushiRuntime::API::Writes;
-            using SushiRuntime::Memory::ResourceRegion;
+            using SushiRuntime::Access;
+            using SushiRuntime::DeviceSized;
+            using SushiRuntime::LateCount;
+            using SushiRuntime::NodeOptions;
+            using SushiRuntime::Reads;
+            using SushiRuntime::Writes;
+            using SushiRuntime::BufferRegion;
 
             const std::size_t n_capacity = n.capacity();
             const std::size_t key_capacity = key_range.capacity();

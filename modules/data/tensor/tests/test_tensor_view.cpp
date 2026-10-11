@@ -50,7 +50,7 @@ namespace SushiBLAS
                 std::vector<float> read_allocation(const Tensor& t, size_t elements)
                 {
                     std::vector<float> host(elements);
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(host.data(), t.storage->allocation_base(), elements * sizeof(float)).wait();
                     return host;
                 }
@@ -66,7 +66,7 @@ namespace SushiBLAS
                 {
                     std::vector<float> host(static_cast<size_t>(t.num_elements));
                     std::iota(host.begin(), host.end(), 0.0f);
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(t.data(), host.data(), host.size() * sizeof(float)).wait();
                 }
 

@@ -35,7 +35,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <SushiBLAS/tensor/storage.hpp>
-#include <SushiRuntime/SushiRuntime.h>
+#include <SushiRuntime/sushiruntime.hpp>
 
 namespace SushiBLAS
 {
@@ -108,18 +108,18 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Keeps the idle device scratch blocks of one runtime context, per device and size class.
+         * @brief Keeps the idle device scratch blocks of one runtime, per device and size class.
          * @see modules/engine/engine/README.md
          */
-        class ScratchShelf final : public SushiRuntime::Core::RefCounted
+        class ScratchShelf final : public SushiRuntime::RefCounted
         {
             public:
                 /**
                  * @brief Reserves the idle lists, so returning a block never allocates.
-                 * @param context Allocates and frees every block; must outlive the shelf.
+                 * @param runtime Allocates every block; must outlive the shelf.
                  */
-                explicit ScratchShelf(SushiRuntime::Execution::RuntimeContext& context)
-                    : context_(&context), idle_(context.devices().count())
+                explicit ScratchShelf(SushiRuntime::Runtime& runtime)
+                    : runtime_(&runtime), idle_(runtime.advanced().device_count())
                 {
                     for (auto& classes : idle_)
                     {
@@ -156,7 +156,7 @@ namespace SushiBLAS
 
                     auto block = std::make_unique<ScratchBlock>();
                     block->storage = SushiRuntime::make_sushi<Storage>(
-                        *context_, capacity, SushiRuntime::API::Residency::Device, device_index);
+                        *runtime_, capacity, SushiRuntime::Residency::Device, device_index);
                     block->device_index = device_index;
                     block->size_class = size_class;
                     return block.release();
@@ -215,8 +215,8 @@ namespace SushiBLAS
                 using ClassLists =
                     std::array<std::vector<std::unique_ptr<ScratchBlock>>, K_SCRATCH_CLASS_COUNT>;
 
-                /// @brief The context that allocates and frees every block; never null.
-                SushiRuntime::Execution::RuntimeContext* context_;
+                /// @brief The runtime that allocates every block; never null.
+                SushiRuntime::Runtime* runtime_;
 
                 /// @brief Serialises every read and write of idle_.
                 mutable std::mutex guard_;

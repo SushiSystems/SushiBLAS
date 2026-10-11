@@ -118,17 +118,19 @@ namespace SushiBLAS
                     SCOPED_TRACE(seam);
 
                     GraphProbe probe(ExecutionMode::ForceSYCL);
-                    ASSERT_TRUE(record(probe.get_recorder()).is_valid());
+                    ASSERT_TRUE(record(probe.recorder()).is_valid());
 
-                    const auto nodes = probe.take_nodes();
-                    ASSERT_EQ(1u, nodes.size());
-                    ASSERT_TRUE(static_cast<bool>(nodes[0]->host_work));
+                    ASSERT_EQ(1u, probe.recorded_count());
+                    const auto tasks = probe.recorded_tasks();
+                    if (!tasks)
+                        GTEST_SKIP() << GraphProbe::K_NO_RECORDED_TASK_VIEW;
+                    ASSERT_TRUE(static_cast<bool>((*tasks)[0].body));
 
-                    sycl::queue& queue = TestEnvironment::get_context().devices().queue(0);
+                    sycl::queue& queue = TestEnvironment::queue();
                     DependencyGate gate(queue);
 
                     sycl::event done =
-                        nodes[0]->host_work(queue, std::vector<sycl::event>{gate.event()});
+                        (*tasks)[0].body(queue, std::vector<sycl::event>{gate.event()});
 
                     const auto status =
                         done.get_info<sycl::info::event::command_execution_status>();
@@ -188,12 +190,12 @@ namespace SushiBLAS
                 constexpr std::uint64_t K_SEED = 20261007u;
 
                 auto t = vector_of(std::vector<float>(Random::K_DRAWS_PER_BLOCK<float>, 9.0f));
-                engine->get_rng().reseed(K_SEED);
-                const std::uint64_t offset = engine->get_rng().reserve(0).offset;
+                engine->rng().reseed(K_SEED);
+                const std::uint64_t offset = engine->rng().reserve(0).offset;
                 expect_body_waits("random uniform",
                     [&](TaskRecorder& r)
                     {
-                        return SushiBLAS::RandomOps(r, engine->get_rng()).uniform(t, 0.0, 1.0);
+                        return SushiBLAS::RandomOps(r, engine->rng()).uniform(t, 0.0, 1.0);
                     },
                     [&]
                     {

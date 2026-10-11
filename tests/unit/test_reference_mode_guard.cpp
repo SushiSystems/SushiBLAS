@@ -39,7 +39,7 @@
 
 using namespace SushiBLAS;
 using namespace SushiBLAS::Test;
-using namespace SushiRuntime::Graph::Literals;
+using namespace SushiRuntime::Literals;
 
 namespace
 {
@@ -72,9 +72,9 @@ class Unit_ReferenceModeGuardTest : public SushiBLASTest
             try
             {
                 Tensor t = engine->create_tensor(dims, Core::DataType::Float32,
-                                                 SushiRuntime::API::Residency::Device);
+                                                 SushiRuntime::Residency::Device);
                 const sycl::context context =
-                    TestEnvironment::get_context().devices().queue(0).get_context();
+                    TestEnvironment::queue().get_context();
                 if (sycl::get_pointer_type(t.data(), context) != sycl::usm::alloc::device)
                     return std::nullopt;
                 return t;
@@ -119,7 +119,7 @@ class Unit_ReferenceModeGuardTest : public SushiBLASTest
             Tensor c = engine->create_tensor({2, 2});
             fill_tensor(c, {0.0f, 0.0f, 0.0f, 0.0f});
             SushiBLAS::BLASOps(*engine).gemm(a, b, c);
-            engine->execute();
+            engine->execute().value();
             return SushiBLAS::IO(*engine).to_vector<float>(c);
         }
 };
@@ -156,7 +156,7 @@ TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceRefusesADeviceOperandDeclaredB
     const Kernels::ChannelBiasEpilogue epilogue{bias->data(), 0, 1};
 
     engine->set_mode(ExecutionMode::ForceReference);
-    EXPECT_THROW(Dispatch::execute_gemm(engine->get_recorder(), a, b, c, Core::Transpose::NoTrans,
+    EXPECT_THROW(Dispatch::execute_gemm(engine->recorder(), a, b, c, Core::Transpose::NoTrans,
                                         Core::Transpose::NoTrans, 1.0, 0.0,
                                         "test.gemm_device_bias", "test.gemm_device_bias"_op,
                                         Dispatch::gemm_epilogue(epilogue).reads(*bias)),

@@ -1110,7 +1110,7 @@ Includes `<cstdint>` and nothing else. Keep it that way.
 ### `ConvGeometry`
 
 Exactly eight numbers, and the count is load-bearing rather than tidy. SushiAI carries this into
-`Graph::Attributes`, whose capacity is bounded by `SushiRuntime::Graph::TaskMetadata::K_MAX_PARAMS`:
+`Graph::Attributes`, whose capacity is bounded by `SushiRuntime::Internal::Graph::TaskMetadata::K_MAX_PARAMS`:
 eight.
 
 **`pad_bottom` and `pad_right` are deliberately absent.** A kernel addresses its input as `h_in =

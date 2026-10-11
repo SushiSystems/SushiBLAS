@@ -102,17 +102,17 @@ namespace SushiBLAS
             auto b = engine->create_tensor({0, 3}, Core::DataType::Float32);
             auto c = engine->create_tensor({0, 3}, Core::DataType::Float32);
 
-            const TaskHandle handle = SushiBLAS::ElementwiseOps(probe.get_recorder()).add(a, b, c);
+            const TaskHandle handle = SushiBLAS::ElementwiseOps(probe.recorder()).add(a, b, c);
 
             EXPECT_FALSE(handle.is_valid());
             EXPECT_TRUE(handle == TaskHandle());
-            EXPECT_TRUE(probe.take_nodes().empty());
+            EXPECT_EQ(0u, probe.take_recorded_count());
         }
 
         /** @brief Tests that the first handles of two engines compare unequal. */
         TEST_F(Unit_TaskHandleTest, HandlesOfTwoRecordersDiffer)
         {
-            Engine other(TestEnvironment::get_context(), Core::Layout::RowMajor);
+            Engine other(TestEnvironment::runtime(), Core::Layout::RowMajor);
 
             auto a = vector_of_four(*engine);
             auto b = vector_of_four(*engine);

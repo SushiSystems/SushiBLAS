@@ -43,7 +43,7 @@ namespace SushiBLAS
             {
                 const std::size_t n = static_cast<std::size_t>(t.num_elements);
                 std::vector<float> host(n);
-                auto& q = TestEnvironment::get_context().devices().queue(0);
+                auto& q = TestEnvironment::queue();
                 q.memcpy(host.data(), t.data(), n * sizeof(float)).wait();
                 return host;
             }
@@ -70,7 +70,7 @@ namespace SushiBLAS
             fill_tensor(x, src);
 
             SushiBLAS::ReductionOps(*engine).mean_spatial(x, out);
-            engine->execute();
+            engine->execute().value();
 
             const std::vector<float> got = read_back(out);
             ASSERT_EQ(got.size(), static_cast<std::size_t>(N * C));
@@ -109,7 +109,7 @@ namespace SushiBLAS
             fill_tensor(x, {1.0f, 2.0f, 3.0f, 4.0f});
 
             SushiBLAS::ReductionOps(*engine).mean_spatial(x, out);
-            engine->execute();
+            engine->execute().value();
 
             const std::vector<float> got = read_back(out);
             ASSERT_EQ(got.size(), static_cast<std::size_t>(1));
@@ -134,7 +134,7 @@ namespace SushiBLAS
             fill_tensor(x, src);
 
             SushiBLAS::ReductionOps(*engine).mean_spatial(x, out);
-            engine->execute();
+            engine->execute().value();
 
             double acc = 0.0;
             for (std::size_t i = 0; i < total; ++i) acc += static_cast<double>(src[i]);
@@ -163,7 +163,7 @@ namespace SushiBLAS
             fill_tensor(in, src);
 
             SushiBLAS::ReductionOps(*engine).sum_along(in, 1, out);
-            engine->execute();
+            engine->execute().value();
 
             const std::vector<float> got = read_back(out);
             ASSERT_EQ(got.size(), static_cast<std::size_t>(R));

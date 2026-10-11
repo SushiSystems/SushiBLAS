@@ -36,11 +36,11 @@
 #include <SushiBLAS/operands/task_metadata.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
-#include <SushiRuntime/task/task_types.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle Level1::rot(Tensor& x, Tensor& y, double c, double s)
     {

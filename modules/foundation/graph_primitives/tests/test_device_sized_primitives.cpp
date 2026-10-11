@@ -43,7 +43,6 @@
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 #include <SushiRuntime/core/error.hpp>
-#include <SushiRuntime/observability/run_report.hpp>
 
 #include <SushiBLAS/graph_primitives/combiners.hpp>
 #include <SushiBLAS/graph_primitives/counting_sort.hpp>
@@ -58,14 +57,14 @@ namespace SushiBLAS
         namespace
         {
             using GraphPrimitives::Sum;
-            using SushiRuntime::API::Buffer;
-            using SushiRuntime::API::Graph;
-            using SushiRuntime::API::LateCount;
-            using SushiRuntime::API::Reads;
-            using SushiRuntime::API::Runtime;
-            using SushiRuntime::API::Writes;
-            using SushiRuntime::Core::SushiException;
-            using SushiRuntime::Observability::ExecutionLayer;
+            using SushiRuntime::Buffer;
+            using SushiRuntime::Graph;
+            using SushiRuntime::LateCount;
+            using SushiRuntime::Reads;
+            using SushiRuntime::Runtime;
+            using SushiRuntime::Writes;
+            using SushiRuntime::SushiException;
+            using SushiRuntime::Internal::Observability::ExecutionLayer;
 
             /// @brief Holds the steps one recording runs.
             constexpr std::size_t K_STEPS = 48;
@@ -106,8 +105,8 @@ namespace SushiBLAS
                 /** @brief Allocates the buffers and writes the schedule of a capacity. */
                 Harness(Runtime& runtime, std::size_t capacity)
                     : counter(runtime.buffer<std::uint32_t>(
-                          1, SushiRuntime::API::DeviceIndex{0},
-                          SushiRuntime::API::Residency::Host)),
+                          1, SushiRuntime::DeviceIndex{0},
+                          SushiRuntime::Residency::Host)),
                       step(runtime.buffer<std::uint32_t>(1)),
                       schedule(runtime.buffer<std::uint32_t>(schedule_for(capacity).size())),
                       history(runtime.buffer<std::uint32_t>(K_STEPS))
@@ -202,7 +201,7 @@ namespace SushiBLAS
             void expect_chain_matches_scheduler(const std::function<Recording(Runtime&)>& workload)
             {
                 auto chained_runtime = Runtime::create();
-                SushiRuntime::API::RuntimeConfig forced;
+                SushiRuntime::RuntimeConfig forced;
                 forced.force_scheduler = true;
                 auto scheduled_runtime = Runtime::create(forced);
 
@@ -376,7 +375,7 @@ namespace SushiBLAS
 
             auto runtime = Runtime::create();
             auto counter = runtime.buffer<std::uint32_t>(
-                1, SushiRuntime::API::DeviceIndex{0}, SushiRuntime::API::Residency::Host);
+                1, SushiRuntime::DeviceIndex{0}, SushiRuntime::Residency::Host);
             auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY);
             auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1);
             auto total = runtime.buffer<std::uint32_t>(1);

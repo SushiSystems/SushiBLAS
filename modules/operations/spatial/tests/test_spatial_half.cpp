@@ -91,7 +91,7 @@ namespace SushiBLAS
                     SushiBLASTest::SetUp();
 
                     const sycl::device device =
-                        TestEnvironment::get_context().devices().queue(0).get_device();
+                        TestEnvironment::queue().get_device();
                     if (!device.has(sycl::aspect::fp16))
                         GTEST_SKIP() << "the device does not report the fp16 aspect";
                 }
@@ -223,7 +223,7 @@ namespace SushiBLAS
                 Tensor image = half_zeros({1, 1, 5, 1});
 
                 SushiBLAS::SpatialOps(*engine).col2im(cols, image, g, 1, 5);
-                engine->execute();
+                engine->execute().value();
 
                 expect_values(image, {0, 0, 2050, 0, 0});
             }
@@ -250,7 +250,7 @@ namespace SushiBLAS
 
                 SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
                 SushiBLAS::SpatialOps(*engine).pool_max_backward(dy, indices, dx, g);
-                engine->execute();
+                engine->execute().value();
 
                 expect_values(dx, {0, 0, 2050, 0, 0});
             }
@@ -269,7 +269,7 @@ namespace SushiBLAS
                 Tensor dx = half_zeros({1, 1, 1, 1});
 
                 SushiBLAS::SpatialOps(*engine).upsample_nearest_backward(dy, dx, 2, 2);
-                engine->execute();
+                engine->execute().value();
 
                 expect_values(dx, {2050});
             }
@@ -292,7 +292,7 @@ namespace SushiBLAS
                 Tensor out = half_zeros({1, 1, 1, 1});
 
                 SushiBLAS::SpatialOps(*engine).pool_avg(in, out, g);
-                engine->execute();
+                engine->execute().value();
 
                 expect_values(out, {512.5f});
             }
@@ -315,7 +315,7 @@ namespace SushiBLAS
                 Tensor dx = half_zeros({1, 1, 4, 1});
 
                 SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
-                engine->execute();
+                engine->execute().value();
 
                 expect_values(dx, {2050, 2050, 2048, 2048});
             }
@@ -388,7 +388,7 @@ namespace SushiBLAS
                 spatial.channel_affine(image, gamma, beta, affine.in(mode));
                 spatial.broadcast_spatial(plane, broadcast.in(mode), 0.5);
                 spatial.layout_convert(image, converted);
-                engine->execute();
+                engine->execute().value();
             }
 
             for (const ModeOutputs* outputs :
@@ -417,7 +417,7 @@ namespace SushiBLAS
                 Tensor indices = engine->create_tensor({1, 1, 1, 1}, Core::DataType::Int64);
 
                 SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
-                engine->execute();
+                engine->execute().value();
 
                 expect_values(out, {-60000});
             }

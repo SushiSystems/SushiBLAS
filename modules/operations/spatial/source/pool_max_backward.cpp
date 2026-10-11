@@ -35,7 +35,7 @@
 
 namespace SushiBLAS
 {
-    using namespace SushiRuntime::Graph::Literals;
+    using namespace SushiRuntime::Literals;
 
     TaskHandle SpatialOps::pool_max_backward(const Tensor& dy, const Tensor& indices, Tensor& dx,
                                              const Spatial::ConvGeometry& g)
@@ -67,9 +67,9 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(dy).reads(indices).writes(dx);
 
-        SushiRuntime::Graph::TaskMetadata meta;
+        SushiRuntime::Internal::Graph::TaskMetadata meta;
         meta.name = NAME;
-        meta.task_type = SushiRuntime::Graph::TaskType::MATH_OP;
+        meta.task_type = SushiRuntime::Internal::Graph::TaskType::MathOp;
         meta.op_id = "spatial.pool_max_backward"_op;
 
         const auto* index_in = static_cast<const int64_t*>(read_indices);

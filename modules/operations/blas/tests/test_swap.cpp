@@ -46,7 +46,7 @@ TEST_F(Unit_SWAPTest, SimpleSWAP)
     SB_LOG_INFO("Submitting SWAP.");
     SushiBLAS::BLASOps(*engine).swap(X, Y);
     
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: X = {4, 5, 6}, Y = {1, 2, 3}

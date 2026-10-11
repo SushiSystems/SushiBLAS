@@ -38,7 +38,7 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiRuntime/SushiRuntime.h>
+#include <SushiRuntime/sushiruntime.hpp>
 #include "../common/test_utils.hpp"
 #include "../common/graph_probe.hpp"
 
@@ -127,9 +127,9 @@ namespace SushiBLAS
                 /** @brief Runs the recorded graph, then returns the first FLOAT32 of t. */
                 float run_and_read(const Tensor& t)
                 {
-                    engine->execute();
+                    engine->execute().value();
                     float host = 0.0f;
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(&host, t.data(), sizeof(float)).wait();
                     return host;
                 }
@@ -144,7 +144,7 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns the operands the record cases share, in one residency. */
-                RecordOperands operands_in(SushiRuntime::API::Residency residency)
+                RecordOperands operands_in(SushiRuntime::Residency residency)
                 {
                     const auto make = [&](std::initializer_list<int64_t> dims,
                                           Core::DataType dtype)
@@ -168,9 +168,9 @@ namespace SushiBLAS
                 {
                     try
                     {
-                        RecordOperands on = operands_in(SushiRuntime::API::Residency::Device);
+                        RecordOperands on = operands_in(SushiRuntime::Residency::Device);
                         const sycl::context context =
-                            TestEnvironment::get_context().devices().queue(0).get_context();
+                            TestEnvironment::queue().get_context();
 
                         for (const Tensor* t :
                              {&on.a, &on.b, &on.c, &on.scalar, &on.matrix, &on.index})
@@ -190,7 +190,7 @@ namespace SushiBLAS
                 /** @brief Returns one record call per seam and per hand-recorded source. */
                 std::vector<RecordCase> record_cases(TaskRecorder& recorder, RecordOperands& on)
                 {
-                    RNGStream& rng = engine->get_rng();
+                    RNGStream& rng = engine->rng();
                     return {
                         {"add", [&] { SushiBLAS::ElementwiseOps(recorder).add(on.a, on.b, on.c); }},
                         {"clamp", [&] { SushiBLAS::ElementwiseOps(recorder).clamp(on.c, 0.0, 1.0); }},
@@ -288,23 +288,23 @@ namespace SushiBLAS
         {
             GraphProbe probe(ExecutionMode::ForceReference);
 
-            RecordOperands shared = operands_in(SushiRuntime::API::Residency::Shared);
-            for (const RecordCase& c : record_cases(probe.get_recorder(), shared))
+            RecordOperands shared = operands_in(SushiRuntime::Residency::Shared);
+            for (const RecordCase& c : record_cases(probe.recorder(), shared))
             {
                 EXPECT_NO_THROW(c.record()) << c.name;
-                EXPECT_FALSE(probe.take_nodes().empty()) << c.name << " recorded nothing";
+                EXPECT_NE(0u, probe.take_recorded_count()) << c.name << " recorded nothing";
             }
 
             std::optional<RecordOperands> device_only = device_only_operands();
             if (!device_only)
                 GTEST_SKIP() << "This device offers no device-only USM.";
 
-            for (const RecordCase& c : record_cases(probe.get_recorder(), *device_only))
+            for (const RecordCase& c : record_cases(probe.recorder(), *device_only))
             {
                 EXPECT_TRUE(holds(refusal_of(c.record), "ForceReference"))
                     << c.name << " did not refuse the device-only operand";
             }
-            EXPECT_TRUE(probe.take_nodes().empty());
+            EXPECT_EQ(0u, probe.take_recorded_count());
         }
 
         /**
@@ -324,7 +324,7 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_EVERY_MODE)
             {
                 GraphProbe probe(mode);
-                SushiBLAS::ElementwiseOps ops(probe.get_recorder());
+                SushiBLAS::ElementwiseOps ops(probe.recorder());
 
                 const std::string text = refusal_of([&] { ops.add(a, b, c); });
                 EXPECT_TRUE(holds(text, "'B'")) << text;
@@ -335,7 +335,7 @@ namespace SushiBLAS
                 EXPECT_EQ(text_under_auto, text);
 
                 EXPECT_FALSE(ops.add(e0, e1, e2).is_valid());
-                EXPECT_TRUE(probe.take_nodes().empty());
+                EXPECT_EQ(0u, probe.take_recorded_count());
             }
         }
 

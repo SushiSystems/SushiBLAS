@@ -124,9 +124,9 @@ namespace SushiBLAS
                     make_storage(int64_t elements, DataType dtype)
                     {
                         return SushiRuntime::make_sushi<Storage>(
-                            TestEnvironment::get_context(),
+                            TestEnvironment::runtime(),
                             static_cast<std::size_t>(elements) * Core::bytes_per_element(dtype),
-                            SushiRuntime::API::Residency::Shared);
+                            SushiRuntime::Residency::Shared);
                     }
             };
 

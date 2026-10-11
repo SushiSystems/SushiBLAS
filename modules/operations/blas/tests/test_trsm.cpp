@@ -55,7 +55,7 @@ TEST_F(Unit_TRSMTest, SimpleTRSM)
                                      SushiBLAS::Core::Transpose::NoTrans,
                                      SushiBLAS::Core::Diag::NonUnit, 1.0f);
     
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // A * X = B solves to X = [2 3; 1 2], which overwrites B. See tests/unit/README.md.
@@ -82,7 +82,7 @@ TEST_F(Unit_TRSMTest, SimpleTRSMColumnMajor)
                                      SushiBLAS::Core::Transpose::NoTrans,
                                      SushiBLAS::Core::Diag::NonUnit, 1.0f);
     
-    engine->execute();
+    engine->execute().value();
     SB_LOG_INFO("Execution finished. Checking results.");
 
     // X is [1 1.25; 2 3.5], stored column-major. See tests/unit/README.md.

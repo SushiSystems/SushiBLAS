@@ -268,7 +268,7 @@ namespace SushiBLAS
                 {
                     Tensor tensor = raw(dims);
                     EXPECT_EQ(values.size(), static_cast<std::size_t>(tensor.num_elements));
-                    TestEnvironment::get_context().devices().queue(0)
+                    TestEnvironment::queue()
                         .memcpy(tensor.data(), values.data(), values.size() * sizeof(float))
                         .wait();
                     return tensor;
@@ -286,7 +286,7 @@ namespace SushiBLAS
                 /** @brief Returns the shape of a band of lines of ld elements in the layout. */
                 [[nodiscard]] std::vector<int64_t> band_dims(int64_t lines, int64_t ld) const
                 {
-                    if (engine->get_layout() == Core::Layout::ColumnMajor)
+                    if (engine->layout() == Core::Layout::ColumnMajor)
                         return {ld, lines};
                     return {lines, ld};
                 }
@@ -296,7 +296,7 @@ namespace SushiBLAS
                 {
                     return Tensor(SushiRuntime::sushi_ptr<Storage>(),
                                   SushiRuntime::span<const int64_t>(dims.data(), dims.size()),
-                                  DataType::Float32, 0, engine->get_layout());
+                                  DataType::Float32, 0, engine->layout());
                 }
 
                 /**
@@ -343,7 +343,7 @@ namespace SushiBLAS
                     SCOPED_TRACE(what);
                     SushiBLAS::BLASOps ops(*engine);
                     EXPECT_THROW((void)record(ops), std::invalid_argument);
-                    EXPECT_NO_THROW(engine->execute());
+                    EXPECT_TRUE(engine->execute().has_value());
                 }
 
                 /**
@@ -395,7 +395,7 @@ namespace SushiBLAS
                     Tensor from_second = holding(dims, initial);
                     first(from_first);
                     second(from_second);
-                    engine->execute();
+                    engine->execute().value();
 
                     const std::vector<float> a = read_tensor<float>(from_first);
                     const std::vector<float> b = read_tensor<float>(from_second);
@@ -417,7 +417,7 @@ namespace SushiBLAS
                     Operands operands = valid_operands();
                     SushiBLAS::BLASOps ops(*engine);
                     EXPECT_NO_THROW((void)routine.record(ops, operands));
-                    EXPECT_NO_THROW(engine->execute());
+                    EXPECT_TRUE(engine->execute().has_value());
                 }
 
                 Tensor a = ones({1});
@@ -432,7 +432,7 @@ namespace SushiBLAS
                 EXPECT_NO_THROW((void)ops.rotg(a, b, c, s));
                 EXPECT_NO_THROW((void)ops.rotmg(a, b, c, s, param));
                 EXPECT_NO_THROW((void)ops.rotm(x, y, param));
-                EXPECT_NO_THROW(engine->execute());
+                EXPECT_TRUE(engine->execute().has_value());
             });
         }
 
