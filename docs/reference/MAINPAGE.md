@@ -24,7 +24,7 @@ The reasoning behind the design is in the prose documents, which are the better 
 | Hold data | `SushiBLAS::Tensor`, `SushiBLAS::Storage`, `SushiBLAS::TensorFactory`: `tensor.hpp`, `storage.hpp`, `tensor_factory.hpp` |
 | Own a graph and run it | `SushiBLAS::Engine`: `engine.hpp` |
 | Call an operation | The view of its family, built from an `Engine` or a `TaskRecorder`: `SushiBLAS::BLASOps`, `SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`, `SpatialOps` under `engine/` |
-| Pass a BLAS flag or scalar | `SushiBLAS::Core::Transpose`, `Uplo`, `Diag`, `Side` in `core/blas_types.hpp`; `SushiBLAS::BlasScalar` in `engine/blas/scalar.hpp` |
+| Pass a BLAS flag or scalar | `SushiBLAS::Core::Transpose`, `Uplo`, `Diag`, `Side` in `core/blas_types.hpp`; `SushiBLAS::BLASScalar` in `engine/blas/scalar.hpp` |
 | Hold a sparse operand | `SushiBLAS::SparseMatrix`, `SparseVector`, `SparseBuilder`: `sparse_matrix.hpp`, `sparse_vector.hpp`, `sparse_builder.hpp` |
 | Move data to and from the host | `SushiBLAS::IO`: `io.hpp` |
 | Record on a graph of your own | `SushiBLAS::TaskRecorder`, `OperandSet`, `TaskHandle`: `engine/task_recorder.hpp`, `engine/operand_set.hpp`, `engine/task_handle.hpp` |

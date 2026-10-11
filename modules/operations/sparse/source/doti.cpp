@@ -71,7 +71,7 @@ namespace SushiBLAS
                 recorder, x.values, static_cast<std::size_t>(sx.nnz),
                 Kernels::SYCL::K_LEVEL1_PARTIAL_BYTES, operands);
 
-            const Internal::BlasMetadata meta = Internal::BlasMetadata(op, op_id);
+            const Internal::BLASMetadata meta = Internal::BLASMetadata(op, op_id);
 
             const int64_t count = sx.nnz;
             const int64_t extent = sx.size;

@@ -73,7 +73,7 @@ namespace SushiBLAS
         const ScratchBuffer work = Internal::allocate_blas_scratch(
             recorder_, b, Internal::running_solution_bytes(A.dtype) * span, operands);
 
-        const Internal::BlasMetadata meta = Internal::BlasMetadata(op, "blas.lvl2.tbsv"_op)
+        const Internal::BLASMetadata meta = Internal::BLASMetadata(op, "blas.lvl2.tbsv"_op)
                                                 .flag(uplo).flag(trans).flag(diag).extent(k);
 
         const Core::Layout layout = a.layout;

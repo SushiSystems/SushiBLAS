@@ -76,11 +76,11 @@ namespace SushiBLAS
             constexpr double K_BETA = -0.5;
 
             /// @brief A scalar with a non-zero imaginary part, which a real tensor refuses.
-            const BlasScalar K_COMPLEX_SCALAR = std::complex<double>(1.0, 2.0);
+            const BLASScalar K_COMPLEX_SCALAR = std::complex<double>(1.0, 2.0);
 
             /// @brief Both kernels an operation has.
             constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
-                                                 ExecutionMode::ForceSycl};
+                                                 ExecutionMode::ForceSYCL};
 
             /// @brief Both element orders a band or a packed triangle can be stored in.
             constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
@@ -108,8 +108,8 @@ namespace SushiBLAS
                 Core::Uplo uplo = Core::Uplo::Upper;               /**< The stored triangle. */
                 Core::Transpose trans = Core::Transpose::NoTrans; /**< The form of op(A). */
                 Core::Diag diag = Core::Diag::NonUnit;            /**< How the diagonal is read. */
-                BlasScalar alpha = 1.0;                            /**< Scales the product. */
-                BlasScalar beta = 1.0;                             /**< Scales the prior y. */
+                BLASScalar alpha = 1.0;                            /**< Scales the product. */
+                BLASScalar beta = 1.0;                             /**< Scales the prior y. */
             };
 
             /** @brief Holds one public routine and which of the operands it takes. */
@@ -123,8 +123,8 @@ namespace SushiBLAS
                 bool takes_uplo;                           /**< Whether it takes a Uplo. */
                 bool takes_trans;                          /**< Whether it takes a Transpose. */
                 bool takes_diag;                           /**< Whether it takes a Diag. */
-                bool takes_alpha;                          /**< Whether alpha is a BlasScalar. */
-                bool takes_beta;                           /**< Whether beta is a BlasScalar. */
+                bool takes_alpha;                          /**< Whether alpha is a BLASScalar. */
+                bool takes_beta;                           /**< Whether beta is a BLASScalar. */
             };
 
             /// @brief The thirteen band and packed routines.
@@ -205,7 +205,7 @@ namespace SushiBLAS
             /** @brief Returns the name of a mode and a layout for a failure message. */
             [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
             {
-                return std::string(mode == ExecutionMode::ForceSycl ? "ForceSycl"
+                return std::string(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
                                                                      : "ForceReference") +
                        (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
             }

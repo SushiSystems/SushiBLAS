@@ -41,7 +41,7 @@ namespace SushiBLAS
 {
     using namespace SushiRuntime::Graph::Literals;
 
-    TaskHandle Level1::axpy(BlasScalar alpha, const Tensor& x, Tensor& y)
+    TaskHandle Level1::axpy(BLASScalar alpha, const Tensor& x, Tensor& y)
     {
         const char* const op = "blas.lvl1.axpy";
 
@@ -55,8 +55,8 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(x).updates(y);
 
-        const Internal::BlasMetadata meta =
-            Internal::BlasMetadata(op, "blas.lvl1.axpy"_op).scalar(alpha);
+        const Internal::BLASMetadata meta =
+            Internal::BLASMetadata(op, "blas.lvl1.axpy"_op).scalar(alpha);
 
         const int64_t n = vx.length;
         const int64_t incx = vx.increment;

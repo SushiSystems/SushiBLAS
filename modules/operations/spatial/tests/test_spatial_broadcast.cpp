@@ -239,7 +239,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], expected[i]) << "NCHW element " << i;
         }
 
-        TEST_F(Unit_SpatialBroadcastTest, TheSyclKernelsAgreeWithTheReferenceKernels)
+        TEST_F(Unit_SpatialBroadcastTest, TheSYCLKernelsAgreeWithTheReferenceKernels)
         {
             // The two forced modes are compared here. See tests/unit/README.md.
             const int64_t N = 2, H = 5, W = 3, C = 4;
@@ -281,7 +281,7 @@ namespace SushiBLAS
             SushiBLAS::SpatialOps(*engine).layout_convert(in, convert_reference);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, affine_device);
             SushiBLAS::SpatialOps(*engine).broadcast_spatial(plane, spread_device, 1.0 / 15.0);
             SushiBLAS::SpatialOps(*engine).layout_convert(in, convert_device);

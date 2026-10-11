@@ -117,7 +117,7 @@ namespace SushiBLAS
                 {
                     SCOPED_TRACE(seam);
 
-                    GraphProbe probe(ExecutionMode::ForceSycl);
+                    GraphProbe probe(ExecutionMode::ForceSYCL);
                     ASSERT_TRUE(record(probe.get_recorder()).is_valid());
 
                     const auto nodes = probe.take_nodes();

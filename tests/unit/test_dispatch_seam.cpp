@@ -638,7 +638,7 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
         std::invalid_argument);
 }
 
-TEST_F(Unit_DispatchSeamTest, RngMetadataSlotsAreInRangeAndRoundTrip)
+TEST_F(Unit_DispatchSeamTest, RNGMetadataSlotsAreInRangeAndRoundTrip)
 {
     // The seed and offset slots read back exactly. See tests/unit/README.md.
     constexpr uint64_t kSeed = 0xDEADBEEFCAFEF00Dull;
@@ -654,7 +654,7 @@ TEST_F(Unit_DispatchSeamTest, RngMetadataSlotsAreInRangeAndRoundTrip)
     EXPECT_EQ(meta.get_param<uint64_t>(sb::Dispatch::K_RNG_OFFSET_PARAM), kOffset);
 }
 
-TEST_F(Unit_DispatchSeamTest, DistributionParamsDoNotCollideWithTheRngSlots)
+TEST_F(Unit_DispatchSeamTest, DistributionParamsDoNotCollideWithTheRNGSlots)
 {
     SushiRuntime::Graph::TaskMetadata meta;
     const std::initializer_list<double> params = {1.0, 2.0, 3.0, 4.0};
@@ -894,7 +894,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadMayNotBeAnOutput)
 }
 
 /**
- * @brief Tests that ForceReference refuses a declared read in device-only USM and ForceSycl
+ * @brief Tests that ForceReference refuses a declared read in device-only USM and ForceSYCL
  *        records it.
  * @see tests/unit/README.md
  */
@@ -911,7 +911,7 @@ TEST_F(Unit_DispatchSeamTest, ADeviceOnlyReadIsRefusedUnderForceReference)
     EXPECT_NE(message.find("ForceReference"), std::string::npos) << message;
     EXPECT_TRUE(reference.take_nodes().empty());
 
-    GraphProbe device(sb::ExecutionMode::ForceSycl);
+    GraphProbe device(sb::ExecutionMode::ForceSYCL);
     EXPECT_NO_THROW(record_scaled(device.get_recorder(), y, *factor));
     EXPECT_EQ(device.take_nodes().size(), 1u);
 }
@@ -923,7 +923,7 @@ TEST_F(Unit_DispatchSeamTest, ADeviceOnlyReadIsRefusedUnderForceReference)
 TEST_F(Unit_DispatchSeamTest, ADeclaredReadReachesTheHostPath)
 {
     const GatedUpdate reference = run_gated_update(sb::ExecutionMode::ForceReference);
-    const GatedUpdate device = run_gated_update(sb::ExecutionMode::ForceSycl);
+    const GatedUpdate device = run_gated_update(sb::ExecutionMode::ForceSYCL);
 
     expect_same_bits(reference.gated, device.gated, "the parameter whose gate is set");
     expect_same_bits(reference.stepped, device.stepped, "the parameter whose gate is clear");

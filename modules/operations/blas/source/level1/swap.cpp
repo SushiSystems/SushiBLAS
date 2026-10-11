@@ -54,7 +54,7 @@ namespace SushiBLAS
         OperandSet operands;
         operands.updates(x).updates(y);
 
-        const Internal::BlasMetadata meta(op, "blas.lvl1.swap"_op);
+        const Internal::BLASMetadata meta(op, "blas.lvl1.swap"_op);
 
         const int64_t n = vx.length;
         const int64_t incx = vx.increment;

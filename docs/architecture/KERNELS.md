@@ -72,7 +72,7 @@ of a sum.
 
 A flag outside its enumeration throws `std::invalid_argument` at record time (`require_flag`).
 
-**Scalars.** `BlasScalar` (`engine/blas/scalar.hpp`) is the scalar argument of a BLAS call. It
+**Scalars.** `BLASScalar` (`engine/blas/scalar.hpp`) is the scalar argument of a BLAS call. It
 converts from `double` and from `std::complex<double>`, holds the value as given, and
 `as<T>()` rounds it once to the element type inside the task. A scalar with a non-zero imaginary
 part passed to a real tensor throws at record time (`require_real_scalar`). The scalars the

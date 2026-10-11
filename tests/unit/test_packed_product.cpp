@@ -616,7 +616,7 @@ namespace SushiBLAS
                     Tensor reference_result =
                         engine->create_tensor({s, s}, get_sushiblas_dtype<T>());
 
-                    engine->set_mode(ExecutionMode::ForceSycl);
+                    engine->set_mode(ExecutionMode::ForceSYCL);
                     SushiBLAS::BLASOps(*engine).gemm(A, B, sycl_result);
                     engine->execute();
 
@@ -642,7 +642,7 @@ namespace SushiBLAS
             Tensor reference_result = engine->create_tensor({s, s}, Core::DataType::Float32);
             auto& context = TestEnvironment::get_context();
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             const std::size_t live_before_sycl = context.memory().live_count();
             SushiBLAS::BLASOps(*engine).gemm(A, B, sycl_result);
             EXPECT_EQ(context.memory().live_count(), live_before_sycl + 1);
@@ -666,7 +666,7 @@ namespace SushiBLAS
                                              Core::DataType::Float32);
             auto& context = TestEnvironment::get_context();
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             const std::size_t live_before = context.memory().live_count();
             SushiBLAS::BLASOps(*engine).gemm(A, B, C);
             EXPECT_EQ(context.memory().live_count(), live_before);
@@ -702,7 +702,7 @@ namespace SushiBLAS
             // (0, 1): the bias element is chosen by the column of C.
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             Dispatch::execute_gemm(engine->get_recorder(), A, B, sycl_result,
                                    Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.packed_gemm_bias", "test.packed_gemm_bias"_op,

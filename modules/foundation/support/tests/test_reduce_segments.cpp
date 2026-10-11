@@ -500,13 +500,13 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that mean_spatial of an 8 by 8 HALF map of 2000 is 2000 in each channel under ForceSycl, though each channel sums to 128 000. */
+        /** @brief Tests that mean_spatial of an 8 by 8 HALF map of 2000 is 2000 in each channel under ForceSYCL, though each channel sums to 128 000. */
         TEST_F(Unit_ReduceSegments, AHalfMeanSpatialDoesNotOverflow)
         {
             if (!queue().get_device().has(sycl::aspect::fp16))
                 GTEST_SKIP() << "the device does not report the fp16 aspect";
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
 
             Tensor map = engine->create_tensor({1, K_MAP_SIDE, K_MAP_SIDE, K_MAP_CHANNELS},
                                                Core::DataType::Half);

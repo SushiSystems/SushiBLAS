@@ -64,7 +64,7 @@ TEST_F(Unit_ExecutionModeTest, SetModeIsReadBack)
     EXPECT_EQ(ExecutionMode::ForceReference, engine->get_mode());
 }
 
-TEST_F(Unit_ExecutionModeTest, ForceReferenceAndForceSyclAgreeOnAxpy)
+TEST_F(Unit_ExecutionModeTest, ForceReferenceAndForceSYCLAgreeOnAxpy)
 {
     // 2 * {1, 2, 3, 4} + {10, 20, 30, 40}.
     const std::vector<float> expected = {12.0f, 24.0f, 36.0f, 48.0f};
@@ -72,6 +72,6 @@ TEST_F(Unit_ExecutionModeTest, ForceReferenceAndForceSyclAgreeOnAxpy)
     const Tensor reference = run_axpy(*engine, ExecutionMode::ForceReference);
     verify_tensor(reference, expected, 1e-6);
 
-    const Tensor device = run_axpy(*engine, ExecutionMode::ForceSycl);
+    const Tensor device = run_axpy(*engine, ExecutionMode::ForceSYCL);
     verify_tensor(device, expected, 1e-6);
 }

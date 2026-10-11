@@ -79,7 +79,7 @@ namespace SushiBLAS
             constexpr double K_DIAGONAL_IMAGINARY = 7.0;
 
             /// @brief The two modes every case runs in.
-            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceSycl,
+            constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceSYCL,
                                                  ExecutionMode::ForceReference};
 
             /// @brief The two sides A can stand on.
@@ -89,7 +89,7 @@ namespace SushiBLAS
             constexpr Core::Uplo K_TRIANGLES[] = {Core::Uplo::Upper, Core::Uplo::Lower};
 
             /// @brief A scalar with a non-zero imaginary part, which a real tensor refuses.
-            const BlasScalar K_COMPLEX_SCALAR = std::complex<double>(1.0, 2.0);
+            const BLASScalar K_COMPLEX_SCALAR = std::complex<double>(1.0, 2.0);
 
             /** @brief Names the routine a shared case calls. */
             enum class Routine : std::uint8_t
@@ -101,7 +101,7 @@ namespace SushiBLAS
             /** @brief Returns the name of a mode for a failure message. */
             [[nodiscard]] const char* mode_name(ExecutionMode mode) noexcept
             {
-                return mode == ExecutionMode::ForceSycl ? "ForceSycl" : "ForceReference";
+                return mode == ExecutionMode::ForceSYCL ? "ForceSYCL" : "ForceReference";
             }
 
             /** @brief Returns the value that marks an element no kernel may read. */
@@ -279,7 +279,7 @@ namespace SushiBLAS
             /** @brief Records the product of a routine on the recorder of engine. */
             TaskHandle record_product(Engine& engine, Routine routine, const Tensor& A,
                                       const Tensor& B, Tensor& C, Core::Side side,
-                                      Core::Uplo uplo, BlasScalar alpha, BlasScalar beta)
+                                      Core::Uplo uplo, BLASScalar alpha, BLASScalar beta)
             {
                 SushiBLAS::BLASOps ops(engine);
                 return routine == Routine::Hemm ? ops.hemm(A, B, C, side, uplo, alpha, beta)

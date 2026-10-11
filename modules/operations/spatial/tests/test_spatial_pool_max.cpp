@@ -227,7 +227,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], i == 4 ? 10.0f : 0.0f) << "pixel " << i;
         }
 
-        TEST_F(Unit_SpatialPoolMaxTest, TheSyclKernelAgreesWithTheReferenceKernel)
+        TEST_F(Unit_SpatialPoolMaxTest, TheSYCLKernelAgreesWithTheReferenceKernel)
         {
             // The two forced modes are compared here. See tests/unit/README.md.
             const int64_t N = 2, H = 7, W = 5, C = 3;
@@ -258,7 +258,7 @@ namespace SushiBLAS
             SushiBLAS::SpatialOps(*engine).pool_max(in, out_ref, idx_ref, g);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             SushiBLAS::SpatialOps(*engine).pool_max(in, out_dev, idx_dev, g);
             engine->execute();
 

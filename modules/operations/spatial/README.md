@@ -79,7 +79,7 @@ numbers around a grid.
 
 Every operation in this domain has both a pure-C++ reference kernel and a SYCL one, and the
 reference is the specification. The two are held to each other by this domain's unit tests, which
-run `ExecutionMode::ForceSycl` and `ExecutionMode::ForceReference` into two tensors and compare
+run `ExecutionMode::ForceSYCL` and `ExecutionMode::ForceReference` into two tensors and compare
 them. `ExecutionMode` has no mode that runs both.
 
 Every operation returns a `TaskHandle` and checks its operands when the call is recorded. A wrong

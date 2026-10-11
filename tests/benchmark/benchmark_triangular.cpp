@@ -312,9 +312,9 @@ namespace
         const SushiBLAS::Tensor a = unit_lower(engine, dtype, n);
 
         benchmark_products(engine, table, dtype, n, a);
-        benchmark_trmv(engine, table, dtype, n, a, ExecutionMode::ForceSycl, "trmv");
+        benchmark_trmv(engine, table, dtype, n, a, ExecutionMode::ForceSYCL, "trmv");
         benchmark_trmv(engine, table, dtype, n, a, ExecutionMode::ForceReference, "trmv ref");
-        benchmark_trsv(engine, table, dtype, n, a, ExecutionMode::ForceSycl, "trsv");
+        benchmark_trsv(engine, table, dtype, n, a, ExecutionMode::ForceSYCL, "trsv");
         benchmark_trsv(engine, table, dtype, n, a, ExecutionMode::ForceReference, "trsv ref");
         benchmark_trsm(engine, table, dtype, n, a, K_NARROW_COLUMNS, "trsm r=8");
         benchmark_trsm(engine, table, dtype, n, a, n, "trsm r=n");

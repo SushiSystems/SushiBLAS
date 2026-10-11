@@ -65,7 +65,7 @@ namespace SushiBLAS
                                       SushiRuntime::Graph::OpID op_id, const SparseMatrix& A,
                                       const Dispatch::SparseMatrixOperand& a, const Tensor& x,
                                       int64_t incx, Tensor& y, int64_t incy, Core::Uplo uplo,
-                                      BlasScalar alpha, BlasScalar beta)
+                                      BLASScalar alpha, BLASScalar beta)
         {
             OperandSet operands;
             operands.reads(A.row_offsets).reads(A.column_indices).reads(A.values).reads(x);
@@ -82,8 +82,8 @@ namespace SushiBLAS
             const ScratchBuffer scratch =
                 Internal::allocate_blas_scratch(recorder, A.row_offsets, partial_bytes, operands);
 
-            const Internal::BlasMetadata meta =
-                Internal::BlasMetadata(op, op_id).scalar(alpha).scalar(beta).flag(uplo);
+            const Internal::BLASMetadata meta =
+                Internal::BLASMetadata(op, op_id).scalar(alpha).scalar(beta).flag(uplo);
 
             const int64_t rows = a.rows;
             const int64_t cols = a.cols;
@@ -136,8 +136,8 @@ namespace SushiBLAS
         template<typename Conj>
         TaskHandle record_spsymv(TaskRecorder& recorder, const char* op,
                                  SushiRuntime::Graph::OpID op_id, const SparseMatrix& A,
-                                 const Tensor& x, Tensor& y, Core::Uplo uplo, BlasScalar alpha,
-                                 BlasScalar beta)
+                                 const Tensor& x, Tensor& y, Core::Uplo uplo, BLASScalar alpha,
+                                 BLASScalar beta)
         {
             Dispatch::require_flag(uplo, op, "uplo");
             Dispatch::require_dtype(x, A.values.dtype, op, "x");
@@ -164,14 +164,14 @@ namespace SushiBLAS
     } // namespace
 
     TaskHandle SparseOps::spsymv(const SparseMatrix& A, const Tensor& x, Tensor& y,
-                                 Core::Uplo uplo, BlasScalar alpha, BlasScalar beta)
+                                 Core::Uplo uplo, BLASScalar alpha, BLASScalar beta)
     {
         return record_spsymv<Kernels::Unconjugated>(recorder_, "sparse.spsymv", "sparse.spsymv"_op,
                                                     A, x, y, uplo, alpha, beta);
     }
 
     TaskHandle SparseOps::sphemv(const SparseMatrix& A, const Tensor& x, Tensor& y,
-                                 Core::Uplo uplo, BlasScalar alpha, BlasScalar beta)
+                                 Core::Uplo uplo, BLASScalar alpha, BLASScalar beta)
     {
         if (!Core::is_complex_dtype(A.values.dtype))
             return spsymv(A, x, y, uplo, alpha, beta);

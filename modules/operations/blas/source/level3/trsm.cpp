@@ -45,7 +45,7 @@ namespace SushiBLAS
     using namespace SushiRuntime::Graph::Literals;
 
     TaskHandle Level3::trsm(const Tensor& A, Tensor& B, Core::Side side, Core::Uplo uplo,
-                            Core::Transpose trans, Core::Diag diag, BlasScalar alpha)
+                            Core::Transpose trans, Core::Diag diag, BLASScalar alpha)
     {
         const char* const op = "blas.lvl3.trsm";
 
@@ -83,7 +83,7 @@ namespace SushiBLAS
                 static_cast<std::size_t>(batch_size * m * n),
             operands);
 
-        const Internal::BlasMetadata meta = Internal::BlasMetadata(op, "blas.lvl3.trsm"_op)
+        const Internal::BLASMetadata meta = Internal::BLASMetadata(op, "blas.lvl3.trsm"_op)
                                                 .scalar(alpha)
                                                 .flag(side).flag(uplo).flag(trans).flag(diag);
 

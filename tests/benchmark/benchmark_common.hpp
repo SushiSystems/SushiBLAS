@@ -95,8 +95,8 @@ namespace SushiBLAS::Bench
         {
             case ExecutionMode::Auto:
                 return "Auto";
-            case ExecutionMode::ForceSycl:
-                return "ForceSycl";
+            case ExecutionMode::ForceSYCL:
+                return "ForceSYCL";
             case ExecutionMode::ForceReference:
                 return "ForceReference";
         }

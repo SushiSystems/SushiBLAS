@@ -43,7 +43,7 @@ namespace SushiBLAS
     using namespace SushiRuntime::Graph::Literals;
 
     TaskHandle Level2::gbmv(const Tensor& A, const Tensor& x, Tensor& y, int64_t kl, int64_t ku,
-                            Core::Transpose trans, BlasScalar alpha, BlasScalar beta)
+                            Core::Transpose trans, BLASScalar alpha, BLASScalar beta)
     {
         const char* const op = "blas.lvl2.gbmv";
 
@@ -75,7 +75,7 @@ namespace SushiBLAS
         else
             operands.updates(y);
 
-        const Internal::BlasMetadata meta = Internal::BlasMetadata(op, "blas.lvl2.gbmv"_op)
+        const Internal::BLASMetadata meta = Internal::BLASMetadata(op, "blas.lvl2.gbmv"_op)
                                                 .scalar(alpha).scalar(beta)
                                                 .flag(trans).extent(kl).extent(ku);
 

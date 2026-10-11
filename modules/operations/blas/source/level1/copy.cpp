@@ -61,7 +61,7 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(x).writes(y);
 
-        const Internal::BlasMetadata meta(op, "blas.lvl1.copy"_op);
+        const Internal::BLASMetadata meta(op, "blas.lvl1.copy"_op);
 
         const int64_t n = vx.length;
         const int64_t incx = vx.increment;

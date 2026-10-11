@@ -56,14 +56,14 @@ namespace SushiBLAS
          * @pre The operands have passed the checks of SparseOps::axpyi.
          */
         template<typename Index>
-        TaskHandle record_axpyi(TaskRecorder& recorder, BlasScalar alpha, const SparseVector& x,
+        TaskHandle record_axpyi(TaskRecorder& recorder, BLASScalar alpha, const SparseVector& x,
                                 const Dispatch::SparseVectorOperand& sx, Tensor& y, int64_t incy)
         {
             OperandSet operands;
             operands.reads(x.indices).reads(x.values).updates(y);
 
-            const Internal::BlasMetadata meta =
-                Internal::BlasMetadata(K_OP, "sparse.axpyi"_op).scalar(alpha);
+            const Internal::BLASMetadata meta =
+                Internal::BLASMetadata(K_OP, "sparse.axpyi"_op).scalar(alpha);
 
             const int64_t count = sx.nnz;
             const int64_t extent = sx.size;
@@ -98,7 +98,7 @@ namespace SushiBLAS
         }
     } // namespace
 
-    TaskHandle SparseOps::axpyi(BlasScalar alpha, const SparseVector& x, Tensor& y)
+    TaskHandle SparseOps::axpyi(BLASScalar alpha, const SparseVector& x, Tensor& y)
     {
         Dispatch::require_dtype(y, x.values.dtype, K_OP, "y");
         Dispatch::require_real_scalar(alpha, x.values.dtype, K_OP, "alpha");

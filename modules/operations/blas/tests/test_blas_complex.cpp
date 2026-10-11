@@ -93,7 +93,7 @@ namespace SushiBLAS
 
         /// @brief Both kernels an operation has.
         constexpr std::array<ExecutionMode, 2> K_CASE_MODES = {ExecutionMode::ForceReference,
-                                                               ExecutionMode::ForceSycl};
+                                                               ExecutionMode::ForceSYCL};
 
         /// @brief Both triangles a symmetric, Hermitian or triangular call can name.
         constexpr std::array<Core::Uplo, 2> K_CASE_TRIANGLES = {Core::Uplo::Upper,
@@ -108,7 +108,7 @@ namespace SushiBLAS
          * @tparam T The element type of every operand.
          */
         template<typename T>
-        class BlasConjugationCases : public SushiBLASTest
+        class BLASConjugationCases : public SushiBLASTest
         {
             protected:
                 /** @brief Holds the transpose an operand is passed with and how it is drawn. */
@@ -157,13 +157,13 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns value as the scalar argument of a call. */
-                [[nodiscard]] static BlasScalar scalar(const T& value) noexcept
+                [[nodiscard]] static BLASScalar scalar(const T& value) noexcept
                 {
                     if constexpr (Core::is_complex_v<T>)
-                        return BlasScalar(std::complex<double>(static_cast<double>(value.real()),
+                        return BLASScalar(std::complex<double>(static_cast<double>(value.real()),
                                                                static_cast<double>(value.imag())));
                     else
-                        return BlasScalar(static_cast<double>(value));
+                        return BLASScalar(static_cast<double>(value));
                 }
 
                 /** @brief Returns the scalar that multiplies the product or the update. */
@@ -481,7 +481,7 @@ namespace SushiBLAS
                     {
                         start(layout, ExecutionMode::ForceReference);
                         const std::vector<T> reference = call();
-                        start(layout, ExecutionMode::ForceSycl);
+                        start(layout, ExecutionMode::ForceSYCL);
                         const std::vector<T> device = call();
 
                         expect_near(device, reference, parity_tolerance());
@@ -554,13 +554,13 @@ namespace SushiBLAS
          * @brief Runs the conjugating routines and CONJ_TRANS on a complex element type.
          */
         template<typename T>
-        class Unit_BlasComplex : public BlasConjugationCases<T>
+        class Unit_BlasComplex : public BLASConjugationCases<T>
         {
             protected:
                 /** @brief Returns real + imaginary * i in T. */
                 [[nodiscard]] static T z(double real, double imaginary) noexcept
                 {
-                    return BlasConjugationCases<T>::make(real, imaginary);
+                    return BLASConjugationCases<T>::make(real, imaginary);
                 }
 
                 /** @brief Returns full with the triangle uplo does not name poisoned. */
@@ -598,8 +598,8 @@ namespace SushiBLAS
                 }
         };
 
-        using BlasComplexTypes = ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_BlasComplex, BlasComplexTypes);
+        using BLASComplexTypes = ::testing::Types<std::complex<float>, std::complex<double>>;
+        SB_TYPED_TEST_SUITE(Unit_BlasComplex, BLASComplexTypes);
 
         TYPED_TEST(Unit_BlasComplex, DotuSumsTheUnconjugatedProducts)
         {
@@ -985,7 +985,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_BlasComplex, GeruAndGercMatchAcrossModes)
         {
-            const BlasScalar alpha = TestFixture::scalar(TestFixture::alpha());
+            const BLASScalar alpha = TestFixture::scalar(TestFixture::alpha());
 
             this->expect_modes_agree([&] { return this->run_ger(&Level2::geru, alpha); });
             this->expect_modes_agree([&] { return this->run_ger(&Level2::gerc, alpha); });
@@ -1085,7 +1085,7 @@ namespace SushiBLAS
         /**
          * @brief Runs each conjugating routine and its unconjugated sibling on a FLOAT32 tensor.
          */
-        class Unit_BlasRealForwards : public BlasConjugationCases<float>
+        class Unit_BlasRealForwards : public BLASConjugationCases<float>
         {
 
         };
@@ -1144,10 +1144,10 @@ namespace SushiBLAS
         TEST_F(Unit_BlasRealForwards, GeruAndGercGiveTheBitsOfGer)
         {
             expect_calls_give_the_same_bits(
-                [&] { return run_ger(&Level2::geru, BlasScalar(K_REAL_ALPHA)); },
+                [&] { return run_ger(&Level2::geru, BLASScalar(K_REAL_ALPHA)); },
                 [&] { return run_ger(&Level2::ger, K_REAL_ALPHA); });
             expect_calls_give_the_same_bits(
-                [&] { return run_ger(&Level2::gerc, BlasScalar(K_REAL_ALPHA)); },
+                [&] { return run_ger(&Level2::gerc, BLASScalar(K_REAL_ALPHA)); },
                 [&] { return run_ger(&Level2::ger, K_REAL_ALPHA); });
         }
 

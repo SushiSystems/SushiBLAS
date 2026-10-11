@@ -80,7 +80,7 @@ namespace SushiBLAS
 
             /// @brief Both kernels an operation has.
             constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
-                                                 ExecutionMode::ForceSycl};
+                                                 ExecutionMode::ForceSYCL};
 
             /// @brief Both element orders an engine can create tensors in.
             constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
@@ -116,7 +116,7 @@ namespace SushiBLAS
             /** @brief Returns the name of a mode and a layout for a failure message. */
             [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
             {
-                return std::string(mode == ExecutionMode::ForceSycl ? "ForceSycl"
+                return std::string(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
                                                                      : "ForceReference") +
                        (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
             }
@@ -364,7 +364,7 @@ namespace SushiBLAS
                 SCOPED_TRACE(layout == Core::Layout::RowMajor ? "ROW_MAJOR" : "COLUMN_MAJOR");
                 this->start(layout, ExecutionMode::ForceReference);
                 const auto reference = this->transform(calls);
-                this->start(layout, ExecutionMode::ForceSycl);
+                this->start(layout, ExecutionMode::ForceSYCL);
                 const auto device = this->transform(calls);
 
                 ASSERT_EQ(device.size(), reference.size());

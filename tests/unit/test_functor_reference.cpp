@@ -58,11 +58,11 @@ namespace SushiBLAS
         {
             /// @brief The forced modes every case is recorded under.
             constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceReference,
-                                                        ExecutionMode::ForceSycl};
+                                                        ExecutionMode::ForceSYCL};
 
             /// @brief The modes that run the SYCL kernel.
             constexpr ExecutionMode K_SYCL_MODES[] = {ExecutionMode::Auto,
-                                                      ExecutionMode::ForceSycl};
+                                                      ExecutionMode::ForceSYCL};
 
             /// @brief Element count of every case but the fused update.
             constexpr int64_t K_ELEMENTS = 1000;
@@ -149,7 +149,7 @@ namespace SushiBLAS
 
                 const char* name = "";    /**< The operation's name in a failure message. */
                 std::vector<T> reference; /**< The result under ForceReference. */
-                std::vector<T> device;    /**< The result under ForceSycl. */
+                std::vector<T> device;    /**< The result under ForceSYCL. */
             };
 
             /** @brief Returns value as an element of T, through FLOAT32 for HALF. */
@@ -628,7 +628,7 @@ namespace SushiBLAS
 
                         ADD_FAILURE() << result.name << " differs at element " << i
                                       << ": ForceReference wrote " << printable(reference)
-                                      << ", ForceSycl wrote " << printable(device);
+                                      << ", ForceSYCL wrote " << printable(device);
                         return;
                     }
                 }
@@ -648,7 +648,7 @@ namespace SushiBLAS
 
                         ADD_FAILURE() << result.name << " differs at element " << i
                                       << " by more than " << tolerance << ": ForceReference wrote "
-                                      << reference << ", ForceSycl wrote " << device;
+                                      << reference << ", ForceSYCL wrote " << device;
                         return;
                     }
                 }
@@ -830,7 +830,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that Auto takes the device-only operand that ForceReference refuses. */
-        TEST_F(Unit_FunctorReference, AutoRunsTheSyclPath)
+        TEST_F(Unit_FunctorReference, AutoRunsTheSYCLPath)
         {
             std::optional<Tensor> a = device_only_vector(4);
             if (!a)

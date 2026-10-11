@@ -59,7 +59,7 @@ namespace SushiBLAS
                                SushiRuntime::Graph::OpID op_id,
                                const Tensor& A, const Tensor& B, Tensor& C,
                                Core::Side side, Core::Uplo uplo,
-                               BlasScalar alpha, BlasScalar beta)
+                               BLASScalar alpha, BLASScalar beta)
         {
             Dispatch::require_flag(side, op, "side");
             Dispatch::require_flag(uplo, op, "uplo");
@@ -103,7 +103,7 @@ namespace SushiBLAS
             const ScratchBuffer pack = Internal::allocate_packed_product_scratch(
                 recorder, C, m, n, left ? m : n, batch_size, operands);
 
-            const Internal::BlasMetadata meta = Internal::BlasMetadata(op, op_id)
+            const Internal::BLASMetadata meta = Internal::BLASMetadata(op, op_id)
                                                     .scalar(alpha).scalar(beta)
                                                     .flag(side).flag(uplo);
 
@@ -176,7 +176,7 @@ namespace SushiBLAS
 
     TaskHandle Level3::symm(const Tensor& A, const Tensor& B, Tensor& C,
                             Core::Side side, Core::Uplo uplo,
-                            BlasScalar alpha, BlasScalar beta)
+                            BLASScalar alpha, BLASScalar beta)
     {
         return record_symm<Kernels::Unconjugated>(recorder_, "blas.lvl3.symm", "blas.lvl3.symm"_op,
                                                   A, B, C, side, uplo, alpha, beta);
@@ -184,7 +184,7 @@ namespace SushiBLAS
 
     TaskHandle Level3::hemm(const Tensor& A, const Tensor& B, Tensor& C,
                             Core::Side side, Core::Uplo uplo,
-                            BlasScalar alpha, BlasScalar beta)
+                            BLASScalar alpha, BLASScalar beta)
     {
         if (!Core::is_complex_dtype(A.dtype))
             return symm(A, B, C, side, uplo, alpha, beta);

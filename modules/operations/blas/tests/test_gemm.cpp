@@ -81,7 +81,7 @@ namespace SushiBLAS
                     // Both C buffers must start identical. See tests/unit/README.md.
                     seed_output(C_actual, C_expected, beta == 0.0);
 
-                    engine->set_mode(ExecutionMode::ForceSycl);
+                    engine->set_mode(ExecutionMode::ForceSYCL);
                     SushiBLAS::BLASOps(*engine).gemm(A, B, C_actual, transpose_of(transA),
                                                      transpose_of(transB), alpha, beta);
                     engine->execute();
@@ -117,7 +117,7 @@ namespace SushiBLAS
                     fill_random<T>(B);
                     seed_output(C_actual, C_expected, beta == 0.0);
 
-                    engine->set_mode(ExecutionMode::ForceSycl);
+                    engine->set_mode(ExecutionMode::ForceSYCL);
                     SushiBLAS::BLASOps(*engine).gemm(A, B, C_actual, Core::Transpose::NoTrans,
                                                      Core::Transpose::NoTrans, alpha, beta);
                     engine->execute();
@@ -321,7 +321,7 @@ namespace SushiBLAS
                 auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 0, 1, 1, 1});
                 auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::ForceSycl);
+                engine->set_mode(ExecutionMode::ForceSYCL);
                 SushiBLAS::BLASOps(*engine).gemm(A, B, C);
                 engine->execute();
 
@@ -338,7 +338,7 @@ namespace SushiBLAS
                 auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 1, 0, 1, 1});
                 auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::ForceSycl);
+                engine->set_mode(ExecutionMode::ForceSYCL);
                 SushiBLAS::BLASOps(*engine).gemm(A, B, C);
                 engine->execute();
 
@@ -369,7 +369,7 @@ namespace SushiBLAS
                 auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 0, 1, 1, 1});
                 auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::ForceSycl);
+                engine->set_mode(ExecutionMode::ForceSYCL);
                 SushiBLAS::BLASOps(*engine).gemm(A, B, C, Core::Transpose::Trans,
                                                  Core::Transpose::NoTrans);
                 engine->execute();
@@ -378,14 +378,14 @@ namespace SushiBLAS
             }
 
             /**
-            * @struct BiasReluEpilogue
+            * @struct BiasReLUEpilogue
             * @brief A deliberately non-trivial epilogue: two broadcasts and a clamp.
             *
             * The per-row and per-column terms are what prove both coordinates reach the
             * functor - a column bias alone would leave a wrong `row` undetected. The
             * clamp makes it non-linear, so it cannot be absorbed into alpha or beta.
             */
-            struct BiasReluEpilogue
+            struct BiasReLUEpilogue
             {
                 /** @brief One value per row of C, broadcast across its columns. */
                 const float* row_bias;
@@ -406,7 +406,7 @@ namespace SushiBLAS
                 }
             };
 
-            TEST_F(Unit_GEMMKernelTest, EpilogueFusesBiasAndReluIntoTheStore)
+            TEST_F(Unit_GEMMKernelTest, EpilogueFusesBiasAndReLUIntoTheStore)
             {
                 // 2*(A*B), plus both biases, clamped at 0. See tests/unit/README.md.
                 auto A = create_initialized_tensor<float>({2, 2}, {1, 2, 3, 4});
@@ -416,7 +416,7 @@ namespace SushiBLAS
                 auto col_bias = create_initialized_tensor<float>({3}, {0.5f, -1.0f, 5.0f});
 
                 auto& q = TestEnvironment::get_context().devices().queue(0);
-                const BiasReluEpilogue epilogue{static_cast<const float*>(row_bias.data()),
+                const BiasReLUEpilogue epilogue{static_cast<const float*>(row_bias.data()),
                                                 static_cast<const float*>(col_bias.data())};
 
                 Kernels::SYCL::gemm<float>(
@@ -455,7 +455,7 @@ namespace SushiBLAS
                     }
             };
 
-            TEST_F(Unit_GEMMSeamTest, ExecuteGemmFusesBiasBroadcastAndReluOnTheSyclPath)
+            TEST_F(Unit_GEMMSeamTest, ExecuteGemmFusesBiasBroadcastAndReLUOnTheSYCLPath)
             {
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
@@ -463,10 +463,10 @@ namespace SushiBLAS
                 auto row_bias = create_initialized_tensor<float>({3}, {0.0f, -6.0f, 5.0f});
                 auto col_bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
 
-                const BiasReluEpilogue epilogue{row_bias.data_as<float>(),
+                const BiasReLUEpilogue epilogue{row_bias.data_as<float>(),
                                                 col_bias.data_as<float>()};
 
-                engine->set_mode(ExecutionMode::ForceSycl);
+                engine->set_mode(ExecutionMode::ForceSYCL);
                 Dispatch::execute_gemm(engine->get_recorder(), A, B, C,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
@@ -486,7 +486,7 @@ namespace SushiBLAS
                 auto row_bias = create_initialized_tensor<float>({3}, {0.0f, -6.0f, 5.0f});
                 auto col_bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
 
-                const BiasReluEpilogue epilogue{row_bias.data_as<float>(),
+                const BiasReLUEpilogue epilogue{row_bias.data_as<float>(),
                                                 col_bias.data_as<float>()};
 
                 engine->set_mode(ExecutionMode::ForceReference);
@@ -528,7 +528,7 @@ namespace SushiBLAS
             * @struct BiasColumnEpilogue
             * @brief A per-column bias add - the shape a fused Linear layer uses.
             *
-            * Deliberately simpler than @ref BiasReluEpilogue: these tests are about
+            * Deliberately simpler than @ref BiasReLUEpilogue: these tests are about
             * what the task *declares*, not about what it computes, and a bias-only
             * epilogue is the one the ordering hazard was actually found on.
             */
@@ -747,7 +747,7 @@ namespace SushiBLAS
                 auto bare = engine->create_tensor({3, 3}, Core::DataType::Float32);
                 auto declared = engine->create_tensor({3, 3}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::ForceSycl);
+                engine->set_mode(ExecutionMode::ForceSYCL);
                 Dispatch::execute_gemm(engine->get_recorder(), A, B, bare,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,

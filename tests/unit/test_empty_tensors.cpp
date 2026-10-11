@@ -83,7 +83,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that relu of an empty tensor records no task and does not throw.
          */
-        TEST_F(Unit_EmptyTensorTest, ReluOfAnEmptyTensorIsANoOp)
+        TEST_F(Unit_EmptyTensorTest, ReLUOfAnEmptyTensorIsANoOp)
         {
             Tensor t = empty_tensor();
 

@@ -239,9 +239,9 @@ namespace SushiBLAS
 
                     SparseOps ops(*engine);
                     if (mirror == Mirror::Hermitian)
-                        ops.sphemv(A, tx, ty, uplo, BlasScalar(alpha), BlasScalar(beta));
+                        ops.sphemv(A, tx, ty, uplo, BLASScalar(alpha), BLASScalar(beta));
                     else
-                        ops.spsymv(A, tx, ty, uplo, BlasScalar(alpha), BlasScalar(beta));
+                        ops.spsymv(A, tx, ty, uplo, BLASScalar(alpha), BLASScalar(beta));
                     engine->execute();
                     return read_tensor<T>(ty);
                 }

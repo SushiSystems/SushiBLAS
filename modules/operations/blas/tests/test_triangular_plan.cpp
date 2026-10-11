@@ -163,7 +163,7 @@ namespace SushiBLAS
          * @brief Tests that a CPU blocks a solve only above its break-even order and below a
          *        full set of streams.
          */
-        TEST(Unit_TriangularPlan, ACpuBlocksOnlyWhereItPays)
+        TEST(Unit_TriangularPlan, ACPUBlocksOnlyWhereItPays)
         {
             const Device::Profile profile = cpu_profile(K_CPU_COMPUTE_UNITS);
 
@@ -194,7 +194,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a GPU blocks at its own width, between its two thresholds.
          */
-        TEST(Unit_TriangularPlan, AGpuBlocksAtItsOwnWidth)
+        TEST(Unit_TriangularPlan, AGPUBlocksAtItsOwnWidth)
         {
             const Device::Profile profile = gpu_profile();
 

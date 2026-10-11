@@ -50,7 +50,7 @@ namespace SushiBLAS
             TaskHandle gemm(const Tensor& A, const Tensor& B, Tensor& C,
                             Core::Transpose transA = Core::Transpose::NoTrans,
                             Core::Transpose transB = Core::Transpose::NoTrans,
-                            BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
+                            BLASScalar alpha = 1.0, BLASScalar beta = 0.0);
 
             /**
              * @brief Records C = alpha * A * B + beta * C or C = alpha * B * A + beta * C for a
@@ -62,7 +62,7 @@ namespace SushiBLAS
              */
             TaskHandle symm(const Tensor& A, const Tensor& B, Tensor& C,
                             Core::Side side, Core::Uplo uplo,
-                            BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
+                            BLASScalar alpha = 1.0, BLASScalar beta = 0.0);
 
             /**
              * @brief Records C = alpha * A * B + beta * C or C = alpha * B * A + beta * C for a
@@ -74,7 +74,7 @@ namespace SushiBLAS
              */
             TaskHandle hemm(const Tensor& A, const Tensor& B, Tensor& C,
                             Core::Side side, Core::Uplo uplo,
-                            BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
+                            BLASScalar alpha = 1.0, BLASScalar beta = 0.0);
 
             /**
              * @brief Records the solution of a triangular system, overwriting B with X.
@@ -83,7 +83,7 @@ namespace SushiBLAS
              */
             TaskHandle trsm(const Tensor& A, Tensor& B, Core::Side side, Core::Uplo uplo,
                             Core::Transpose trans = Core::Transpose::NoTrans,
-                            Core::Diag diag = Core::Diag::NonUnit, BlasScalar alpha = 1.0);
+                            Core::Diag diag = Core::Diag::NonUnit, BLASScalar alpha = 1.0);
 
             /**
              * @brief Records the symmetric rank-k update C = alpha * op(A) * op(A)^T + beta * C.
@@ -93,7 +93,7 @@ namespace SushiBLAS
              */
             TaskHandle syrk(const Tensor& A, Tensor& C, Core::Uplo uplo,
                             Core::Transpose trans = Core::Transpose::NoTrans,
-                            BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
+                            BLASScalar alpha = 1.0, BLASScalar beta = 0.0);
 
             /**
              * @brief Records the Hermitian rank-k update C = alpha * op(A) * op(A)^H + beta * C.
@@ -114,7 +114,7 @@ namespace SushiBLAS
              */
             TaskHandle syr2k(const Tensor& A, const Tensor& B, Tensor& C, Core::Uplo uplo,
                              Core::Transpose trans = Core::Transpose::NoTrans,
-                             BlasScalar alpha = 1.0, BlasScalar beta = 0.0);
+                             BLASScalar alpha = 1.0, BLASScalar beta = 0.0);
 
             /**
              * @brief Records the Hermitian rank-2k update
@@ -125,7 +125,7 @@ namespace SushiBLAS
              */
             TaskHandle her2k(const Tensor& A, const Tensor& B, Tensor& C, Core::Uplo uplo,
                              Core::Transpose trans = Core::Transpose::NoTrans,
-                             BlasScalar alpha = 1.0, double beta = 0.0);
+                             BLASScalar alpha = 1.0, double beta = 0.0);
 
         protected:
             /** @brief Binds the recorder every operation records on; it must outlive this view. */

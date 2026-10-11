@@ -227,7 +227,7 @@ namespace SushiBLAS
             Tensor y4 = dense(4);
             Tensor y5 = dense(5);
             Tensor y_double = engine->create_tensor({4}, Core::DataType::Float64);
-            const BlasScalar complex_alpha = std::complex<double>(1.0, 2.0);
+            const BLASScalar complex_alpha = std::complex<double>(1.0, 2.0);
 
             expect_refused("x of the wrong length under NO_TRANS",
                            [&](SparseOps& ops) { ops.spmv(A, four, y4); });

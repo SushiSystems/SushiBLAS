@@ -9,14 +9,14 @@ so one view records all three levels.
 | `level1.hpp` | `Level1`: `axpy`, `scal`, `copy`, `swap`, `dot`, `dotu`, `dotc`, `nrm2`, `asum`, `iamax`, `rot`, `rotg`, `rotm`, `rotmg` |
 | `level2.hpp` | `Level2`: the dense routines `gemv`, `ger`, `geru`, `gerc`, `symv`, `hemv`, `trmv`, `trsv`, `syr`, `her`, `syr2`, `her2`; the band routines `gbmv`, `sbmv`, `hbmv`, `tbmv`, `tbsv`; the packed routines `spmv`, `hpmv`, `tpmv`, `tpsv`, `spr`, `hpr`, `spr2`, `hpr2` |
 | `level3.hpp` | `Level3`: `gemm`, `symm`, `hemm`, `trsm`, `syrk`, `herk`, `syr2k`, `her2k` |
-| `scalar.hpp` | `BlasScalar`, the real or complex scalar argument of a call |
+| `scalar.hpp` | `BLASScalar`, the real or complex scalar argument of a call |
 | `argument_check.hpp` | The record-time checks on the flags, scalars and routine domain of a call |
 | `matrix_operand.hpp` | `MatrixOperand`, the batch and matrix geometry of one dense matrix operand |
 | `vector_operand.hpp` | `VectorOperand`, the length and increment of one vector operand |
 | `band_operand.hpp` | `BandOperand`, the geometry of one band-stored matrix operand |
 | `packed_operand.hpp` | `PackedOperand`, the geometry of one packed triangle operand |
 | `scalar_operand.hpp` | The check on a tensor that stands for one scalar of a call |
-| `task_metadata.hpp` | `BlasMetadata`, which fills a task's metadata slots in one fixed order |
+| `task_metadata.hpp` | `BLASMetadata`, which fills a task's metadata slots in one fixed order |
 | `blas_task.hpp` | `execute_blas_task`, which records one dtype-dispatched BLAS task |
 | `local_tile.hpp` | The local-memory demand of a tiled kernel and its record-time check |
 | `packed_product_scratch.hpp` | The helpers that size and lease the panels of a packed product |
@@ -27,7 +27,7 @@ so one view records all three levels.
 `SparseOps` in `../sparse.hpp`; see [../sparse/README.md](../sparse/README.md).
 
 Every routine returns a `TaskHandle`. A flag is a `Core::Transpose`, `Core::Uplo`, `Core::Diag` or
-`Core::Side`, never a `bool`, and a scalar that may be complex is a `BlasScalar`. Every record-time
+`Core::Side`, never a `bool`, and a scalar that may be complex is a `BLASScalar`. Every record-time
 refusal of an operand, a flag or a scalar is `std::invalid_argument`; a dtype the operand's
 device cannot compute in and a device-only operand under `ForceReference` are
 `UnsupportedExecution`.
@@ -99,7 +99,7 @@ reads that buffer afterwards needs an edge for exactly the same reason the bias'
 Dispatch::execute_gemm(engine.get_recorder(), X, W, Y,
                        Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                        "nn.linear_relu", "nn.linear_relu"_op,
-                       Dispatch::gemm_epilogue(BiasRelu{bias.data_as<float>()})
+                       Dispatch::gemm_epilogue(BiasReLU{bias.data_as<float>()})
                            .reads(bias));
 ```
 
@@ -166,7 +166,7 @@ would otherwise be two more kernel launches over the whole of C become zero.
 
 ```cpp
 // One launch: the product, the row and column biases, and the ReLU.
-struct BiasRelu
+struct BiasReLU
 {
     const float* bias;   // one value per column of C
 
@@ -181,7 +181,7 @@ struct BiasRelu
 Dispatch::execute_gemm(engine.get_recorder(), X, W, Y,
                        Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                        "nn.linear_relu", "nn.linear_relu"_op,
-                       Dispatch::gemm_epilogue(BiasRelu{bias.data_as<float>()})
+                       Dispatch::gemm_epilogue(BiasReLU{bias.data_as<float>()})
                            .reads(bias));
 ```
 
@@ -202,7 +202,7 @@ at the same time. See `GemmEpilogue`.
 - `recorder`: The recorder the task is recorded through; `engine.get_recorder()` for an engine.
 - `transA`, `transB`: `Core::Transpose` values. A value outside the enumeration throws.
 - `C`: The output; must not overlap `A` or `B`.
-- `alpha`, `beta`: `BlasScalar` values. A non-zero imaginary part throws for a real dtype. `beta`
+- `alpha`, `beta`: `BLASScalar` values. A non-zero imaginary part throws for a real dtype. `beta`
   exactly zero skips reading C.
 - `epilogue`: The per-element epilogue functor, bare or bundled with its operands by
   `gemm_epilogue`.
@@ -268,13 +268,13 @@ behind. Naming this instead of `epilogue` inside the closure is what keeps it ou
 
 ## `scalar.hpp`
 
-### `BlasScalar`
+### `BLASScalar`
 
 One scalar argument of a call, held on the host as two doubles. It converts implicitly from a
 `double` and from a `std::complex<double>`, so a call site writes `1.0` or
 `std::complex<double>(0.0, 1.0)`. `as<T>()` rounds it once to the element type at the kernel
 boundary, where that type is finally known; HALF goes through binary32 first. A routine that takes
-a `BlasScalar` checks it with `require_real_scalar`: a non-zero imaginary part given to a real
+a `BLASScalar` checks it with `require_real_scalar`: a non-zero imaginary part given to a real
 tensor throws `std::invalid_argument`. A routine whose scalar is real by definition, such as `her`
 or `rot`, takes a `double`.
 
@@ -314,7 +314,7 @@ finds `n` exactly. `RowMajor` packs by rows and `ColumnMajor` by columns.
 
 ## `task_metadata.hpp`
 
-### `BlasMetadata`
+### `BLASMetadata`
 
 Builds the `TaskMetadata` of one BLAS task in one fixed order: each scalar as two slots, real part
 then imaginary part, then each flag as one slot holding its CBLAS number, then each extent, such
@@ -326,7 +326,7 @@ flag in the same place for every routine. Writing past `TaskMetadata::K_MAX_PARA
 
 ### Scalar parameters of `Level1`
 
-Scalars are taken as `BlasScalar`, or as `double` where the routine defines a real scalar, at
+Scalars are taken as `BLASScalar`, or as `double` where the routine defines a real scalar, at
 every level of this API and narrowed to the tensor's element type at the kernel boundary, where
 that type is finally known. Declaring them `float`, as Level 1 and Level 2 used to, silently
 rounded an fp64 computation's scalar to about 1e-7 relative error with no diagnostic, which made
@@ -360,7 +360,7 @@ This is often used for pivoting in matrix factorizations.
 
 ### Scalar parameters of `Level2`
 
-Scalars (`alpha`, `beta`) are `BlasScalar`, or `double` where the routine defines a real scalar
+Scalars (`alpha`, `beta`) are `BLASScalar`, or `double` where the routine defines a real scalar
 (`ger`, `her`, `hpr`), matching Level 1 and Level 3, and are narrowed to the tensor's element type
 at the kernel boundary. See "Scalar parameters of `Level1`" for why.
 

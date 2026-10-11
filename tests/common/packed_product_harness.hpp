@@ -70,11 +70,11 @@ namespace SushiBLAS
          * @tparam T The element type; trivially copyable.
          */
         template<typename T>
-        class UsmArray final
+        class USMArray final
         {
             public:
                 /** @brief Allocates count elements, at least one, on the device of q. */
-                UsmArray(sycl::queue& q, std::size_t count)
+                USMArray(sycl::queue& q, std::size_t count)
                     : queue_(q), count_(count),
                       data_(sycl::aligned_alloc_shared<T>(K_PACKED_TEST_ALIGNMENT,
                                                           count ? count : std::size_t{1}, q))
@@ -84,15 +84,15 @@ namespace SushiBLAS
                 }
 
                 /** @brief Frees the array. */
-                ~UsmArray()
+                ~USMArray()
                 {
                     sycl::free(data_, queue_);
                 }
 
-                UsmArray(const UsmArray&) = delete;
-                UsmArray& operator=(const UsmArray&) = delete;
-                UsmArray(UsmArray&&) = delete;
-                UsmArray& operator=(UsmArray&&) = delete;
+                USMArray(const USMArray&) = delete;
+                USMArray& operator=(const USMArray&) = delete;
+                USMArray(USMArray&&) = delete;
+                USMArray& operator=(USMArray&&) = delete;
 
                 /** @brief Returns the first element. */
                 [[nodiscard]] T* get() const noexcept
@@ -319,7 +319,7 @@ namespace SushiBLAS
                     if (used.blocks > 0)
                     {
                         // The scratch starts off its alignment, so the kernel has to align it.
-                        const UsmArray<unsigned char> scratch(
+                        const USMArray<unsigned char> scratch(
                             queue_, used.scratch_bytes + K_PACKED_TEST_SCRATCH_SKEW);
                         Kernels::SYCL::Detail::packed_gemm<T>(
                             queue_, used, m_, n_, k_, alpha,
@@ -426,13 +426,13 @@ namespace SushiBLAS
                 int64_t str_c_;
 
                 /// @brief The batch of A.
-                UsmArray<T> a_;
+                USMArray<T> a_;
 
                 /// @brief The batch of B.
-                UsmArray<T> b_;
+                USMArray<T> b_;
 
                 /// @brief The batch of C the packed kernel writes.
-                UsmArray<T> c_;
+                USMArray<T> c_;
 
                 /// @brief The contents C starts every run from.
                 std::vector<T> initial_c_;

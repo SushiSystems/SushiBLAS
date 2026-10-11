@@ -70,7 +70,7 @@ namespace SushiBLAS
                     fill_random<T>(C_actual);
                     copy_contents(C_actual, C_expected);
 
-                    engine->set_mode(ExecutionMode::ForceSycl);
+                    engine->set_mode(ExecutionMode::ForceSYCL);
                     SushiBLAS::BLASOps(*engine).syrk(A, C_actual, uplo_of(upper),
                                                      transpose_of(trans_a), 1.5, 0.5);
                     engine->execute();
@@ -100,7 +100,7 @@ namespace SushiBLAS
                     fill_random<T>(B_actual);
                     copy_contents(B_actual, B_expected);
 
-                    engine->set_mode(ExecutionMode::ForceSycl);
+                    engine->set_mode(ExecutionMode::ForceSYCL);
                     SushiBLAS::BLASOps(*engine).trsm(
                         A, B_actual, side_of(left_side), uplo_of(upper), transpose_of(trans_a),
                         diag_of(unit_diag), 1.5);

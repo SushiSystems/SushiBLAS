@@ -37,7 +37,7 @@ namespace SushiBLAS
     // Plain GEMM is the fused GEMM with the identity epilogue; see modules/operations/README.md.
     TaskHandle Level3::gemm(const Tensor& A, const Tensor& B, Tensor& C,
                             Core::Transpose transA, Core::Transpose transB,
-                            BlasScalar alpha, BlasScalar beta)
+                            BLASScalar alpha, BLASScalar beta)
     {
         // REAL_AND_COMPLEX is named because the seam defaults to REAL; see modules/operations/README.md.
         return Dispatch::execute_gemm<Dispatch::Domain::RealAndComplex>(

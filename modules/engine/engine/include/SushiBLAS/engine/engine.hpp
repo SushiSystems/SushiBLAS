@@ -76,7 +76,7 @@ namespace SushiBLAS
              * @brief Returns the random stream every RandomOps view of this engine draws from.
              * @see modules/engine/engine/README.md
              */
-            [[nodiscard]] RngStream& get_rng() noexcept { return rng_; }
+            [[nodiscard]] RNGStream& get_rng() noexcept { return rng_; }
 
             /**
              * @brief Returns the pool tasks recorded through this engine lease device scratch from.
@@ -166,6 +166,6 @@ namespace SushiBLAS
             TensorFactory tensor_factory_;
 
             /// @brief The random stream of this engine.
-            RngStream rng_;
+            RNGStream rng_;
     };
 } // namespace SushiBLAS

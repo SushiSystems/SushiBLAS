@@ -145,7 +145,7 @@ namespace SushiBLAS
             struct ModeDraws
             {
                 std::vector<T> reference; /**< The elements written under ForceReference. */
-                std::vector<T> device;    /**< The elements written under ForceSycl. */
+                std::vector<T> device;    /**< The elements written under ForceSYCL. */
             };
 
             /** @brief Holds the allowance of a comparison: absolute + relative * |reference|. */
@@ -445,7 +445,7 @@ namespace SushiBLAS
                     draws.reference =
                         run_under(ExecutionMode::ForceReference, seed, dims, initial, operation);
                     draws.device =
-                        run_under(ExecutionMode::ForceSycl, seed, dims, initial, operation);
+                        run_under(ExecutionMode::ForceSYCL, seed, dims, initial, operation);
                     return draws;
                 }
 
@@ -466,7 +466,7 @@ namespace SushiBLAS
                     EXPECT_EQ(count_holding(draws.reference, unwritten), std::size_t{0})
                         << "ForceReference left elements unwritten";
                     EXPECT_EQ(count_holding(draws.device, unwritten), std::size_t{0})
-                        << "ForceSycl left elements unwritten";
+                        << "ForceSYCL left elements unwritten";
                     return draws;
                 }
 
@@ -724,7 +724,7 @@ namespace SushiBLAS
             EXPECT_NEAR(norm_of(draws.reference), K_SINGLE_VECTOR_GAIN, K_NORM_TOLERANCE)
                 << "ForceReference";
             EXPECT_NEAR(norm_of(draws.device), K_SINGLE_VECTOR_GAIN, K_NORM_TOLERANCE)
-                << "ForceSycl";
+                << "ForceSYCL";
         }
 
         /** @brief Tests that a call refused for a device-only tensor reserves no offset. */
@@ -747,7 +747,7 @@ namespace SushiBLAS
             EXPECT_EQ(offset_before, engine->get_rng().reserve(0).offset);
 
             // The same call reserves one offset once the mode lets it record.
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             random.uniform(*values);
             EXPECT_EQ(offset_before + 1, engine->get_rng().reserve(0).offset);
             engine->execute();

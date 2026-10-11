@@ -84,7 +84,7 @@ Expectations for a mergeable change:
 2. **A new operation ships with a typed test.** Every test suite runs across
    every dtype the op claims to support (`float`, `double`, `half`, and the
    complex types where applicable) — see [§5](#5-adding-a-new-operation).
-   A `ForceSycl` against `ForceReference` comparison is how a new SYCL kernel
+   A `ForceSYCL` against `ForceReference` comparison is how a new SYCL kernel
    is checked against its reference implementation.
 3. **A fixed bug gets a regression test** in
    `tests/regression/`, named for what it guards against (see
@@ -237,7 +237,7 @@ carries depends on its family.
 The operation source has four steps. This is `modules/operations/blas/source/level1/axpy.cpp`:
 
 ```cpp
-TaskHandle Level1::axpy(BlasScalar alpha, const Tensor& x, Tensor& y)
+TaskHandle Level1::axpy(BLASScalar alpha, const Tensor& x, Tensor& y)
 {
     const char* const op = "blas.lvl1.axpy";
 
@@ -252,8 +252,8 @@ TaskHandle Level1::axpy(BlasScalar alpha, const Tensor& x, Tensor& y)
     OperandSet operands;
     operands.reads(x).updates(y);
 
-    const Internal::BlasMetadata meta =
-        Internal::BlasMetadata(op, "blas.lvl1.axpy"_op).scalar(alpha);
+    const Internal::BLASMetadata meta =
+        Internal::BLASMetadata(op, "blas.lvl1.axpy"_op).scalar(alpha);
 
     // 3. Everything the body needs, captured by value.
     const int64_t n = vx.length;
@@ -380,7 +380,7 @@ TaskHandle ElementwiseOps::add(const Tensor& A, const Tensor& B, Tensor& C)
   modes is a differential check, and it passes when both paths are wrong the
   same way. For a functor operation the two modes share the formula, so only a
   hand-computed value tests it.
-- **Both modes.** Record the operation under `ForceSycl` and under
+- **Both modes.** Record the operation under `ForceSYCL` and under
   `ForceReference` into two tensors and compare them. Use
   `SB_ASSERT_TENSOR_NEAR` or `EXPECT_TENSOR_NEAR` with a tolerance for the
   dtype, and compare bits only where the two paths are defined to agree.

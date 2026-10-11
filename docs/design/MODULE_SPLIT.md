@@ -78,7 +78,7 @@ modules is declared in `cmake/` and nothing else is allowed.
 | `engine` | `Engine`, `TaskRecorder`, the execution mode, scratch and the random stream | `engine.hpp`, `source/engine.cpp`, the twelve headers directly under `include/SushiBLAS/engine/` | object |
 | `operands` | Operand checks and operand views every family shares, the map task and `safe_math` | the six `blas` headers of section 1, `map_task.hpp`, `safe_math.hpp` | interface |
 | `blas` and the seven other families | One operation view and its operations | `include/SushiBLAS/engine/<family>/`, `source/engine/<family>/` | object |
-| `io` | Host transfer, the three file formats, `IoStatus` | `io.hpp`, `io_status.hpp`, `source/io.cpp` | object |
+| `io` | Host transfer, the three file formats, `IOStatus` | `io.hpp`, `io_status.hpp`, `source/io.cpp` | object |
 | `experimental` | The quarantined LAPACK and signal declarations | `include/SushiBLAS/experimental/` | interface |
 | `sushiblas` | The umbrella header, the one linked library, the install and export rules | `SushiBLAS.h`, `source/CMakeLists.txt` | the library |
 

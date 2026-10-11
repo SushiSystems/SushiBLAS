@@ -71,7 +71,7 @@ namespace SushiBLAS
                 recorder, x, static_cast<std::size_t>(n),
                 Kernels::SYCL::K_LEVEL1_PARTIAL_BYTES, operands);
 
-            const Internal::BlasMetadata meta(op, op_id);
+            const Internal::BLASMetadata meta(op, op_id);
 
             const int64_t incx = vx.increment;
             const int64_t incy = vy.increment;

@@ -71,8 +71,8 @@ namespace SushiBLAS
             recorder_, b,
             Internal::running_solution_bytes(A.dtype) * static_cast<std::size_t>(n), operands);
 
-        const Internal::BlasMetadata meta =
-            Internal::BlasMetadata(op, "blas.lvl2.trsv"_op).flag(uplo).flag(trans).flag(diag);
+        const Internal::BLASMetadata meta =
+            Internal::BLASMetadata(op, "blas.lvl2.trsv"_op).flag(uplo).flag(trans).flag(diag);
 
         const Core::Layout layout = a.layout;
         const int64_t lda = a.leading_dimension;

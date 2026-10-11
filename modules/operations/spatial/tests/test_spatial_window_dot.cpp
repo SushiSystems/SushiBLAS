@@ -50,7 +50,7 @@ namespace SushiBLAS
         namespace
         {
             /// @brief The forced modes every case runs in.
-            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceSycl,
+            constexpr ExecutionMode K_FORCED_MODES[] = {ExecutionMode::ForceSYCL,
                                                         ExecutionMode::ForceReference};
 
             /// @brief The value an output holds before its operation runs.
@@ -62,7 +62,7 @@ namespace SushiBLAS
             /** @brief Returns the name a failure message gives a forced mode. */
             const char* forced_mode_name(ExecutionMode mode) noexcept
             {
-                return mode == ExecutionMode::ForceReference ? "ForceReference" : "ForceSycl";
+                return mode == ExecutionMode::ForceReference ? "ForceReference" : "ForceSYCL";
             }
 
             /** @brief Returns how many elements a tensor of dims holds. */
@@ -410,7 +410,7 @@ namespace SushiBLAS
             {
                 const double store = unit_roundoff<T>() * std::fabs(truth.value);
 
-                if (mode == ExecutionMode::ForceSycl)
+                if (mode == ExecutionMode::ForceSYCL)
                     return rounding_bound(16, unit_roundoff<Kernels::Accumulator<T>>(),
                                           truth.magnitude) + store;
 
@@ -620,7 +620,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the two gathers write equal bits in both modes on non-integer data. */
-        TYPED_TEST(Unit_SpatialWindowDotTyped, ReferenceAndSyclAgreeToTheBitOnTheGathers)
+        TYPED_TEST(Unit_SpatialWindowDotTyped, ReferenceAndSYCLAgreeToTheBitOnTheGathers)
         {
             using T = TypeParam;
             Engine& engine = *this->engine;
@@ -640,7 +640,7 @@ namespace SushiBLAS
                 const std::vector<T> reference_out = forward_of<T>(engine, c, in, weights);
                 const std::vector<T> reference_dx = input_gradient_of<T>(engine, c, dy, weights);
 
-                engine.set_mode(ExecutionMode::ForceSycl);
+                engine.set_mode(ExecutionMode::ForceSYCL);
                 const std::vector<T> device_out = forward_of<T>(engine, c, in, weights);
                 const std::vector<T> device_dx = input_gradient_of<T>(engine, c, dy, weights);
 

@@ -56,7 +56,7 @@ namespace SushiBLAS
             const std::vector<float> K_BROADCAST_C = {1, 3, 3, 7, 5, 11, 7, 15};
 
             /// @brief A scalar with a non-zero imaginary part, which a real tensor refuses.
-            const BlasScalar K_COMPLEX_ALPHA = std::complex<double>(1.0, 2.0);
+            const BLASScalar K_COMPLEX_ALPHA = std::complex<double>(1.0, 2.0);
         } // namespace
 
         /// @brief Fixture for the BLAS record-time validation tests.

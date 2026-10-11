@@ -298,7 +298,7 @@ namespace SushiBLAS
 
                 /// @brief The two modes every truth case runs in.
                 static constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
-                                                            ExecutionMode::ForceSycl};
+                                                            ExecutionMode::ForceSYCL};
         };
 
         /// @brief Element types the parity tests run on.
@@ -347,15 +347,15 @@ namespace SushiBLAS
 
         TYPED_TEST(Unit_Level2SyclParityTest, GemvRepeatsToTheBit)
         {
-            const auto first = this->run_gemv(ExecutionMode::ForceSycl, K_WIDE_ROWS, K_WIDE_COLS);
-            const auto second = this->run_gemv(ExecutionMode::ForceSycl, K_WIDE_ROWS, K_WIDE_COLS);
+            const auto first = this->run_gemv(ExecutionMode::ForceSYCL, K_WIDE_ROWS, K_WIDE_COLS);
+            const auto second = this->run_gemv(ExecutionMode::ForceSYCL, K_WIDE_ROWS, K_WIDE_COLS);
             this->expect_same_bits(first, second);
         }
 
         TYPED_TEST(Unit_Level2SyclParityTest, SymvRepeatsToTheBit)
         {
-            const auto first = this->run_symv(ExecutionMode::ForceSycl, K_LARGE_N, true);
-            const auto second = this->run_symv(ExecutionMode::ForceSycl, K_LARGE_N, true);
+            const auto first = this->run_symv(ExecutionMode::ForceSYCL, K_LARGE_N, true);
+            const auto second = this->run_symv(ExecutionMode::ForceSYCL, K_LARGE_N, true);
             this->expect_same_bits(first, second);
         }
     } // namespace Test

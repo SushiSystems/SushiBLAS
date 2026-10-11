@@ -65,7 +65,7 @@ namespace SushiBLAS
 
             /** @brief Holds every execution mode a record call can be made under. */
             constexpr ExecutionMode K_EVERY_MODE[] = {ExecutionMode::Auto,
-                                                      ExecutionMode::ForceSycl,
+                                                      ExecutionMode::ForceSYCL,
                                                       ExecutionMode::ForceReference};
 
             /** @brief Names one record call of an operation. */
@@ -190,7 +190,7 @@ namespace SushiBLAS
                 /** @brief Returns one record call per seam and per hand-recorded source. */
                 std::vector<RecordCase> record_cases(TaskRecorder& recorder, RecordOperands& on)
                 {
-                    RngStream& rng = engine->get_rng();
+                    RNGStream& rng = engine->get_rng();
                     return {
                         {"add", [&] { SushiBLAS::ElementwiseOps(recorder).add(on.a, on.b, on.c); }},
                         {"clamp", [&] { SushiBLAS::ElementwiseOps(recorder).clamp(on.c, 0.0, 1.0); }},
@@ -274,7 +274,7 @@ namespace SushiBLAS
             EXPECT_LE(value, K_SOFTPLUS_SMALL_BOUND);
         }
 
-        TEST_F(Unit_MathValidationTest, ReluRejectsComplexTensor)
+        TEST_F(Unit_MathValidationTest, ReLURejectsComplexTensor)
         {
             auto t = engine->create_tensor({2}, Core::DataType::Complex32);
             EXPECT_THROW(SushiBLAS::NonLinearOps(*engine).relu(t), std::invalid_argument);

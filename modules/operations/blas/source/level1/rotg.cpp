@@ -60,7 +60,7 @@ namespace SushiBLAS
             operands.updates(b);
         operands.writes(c).writes(s);
 
-        const Internal::BlasMetadata meta(op, "blas.lvl1.rotg"_op);
+        const Internal::BLASMetadata meta(op, "blas.lvl1.rotg"_op);
 
         void* rw_a = a.data_or_null();
         void* rw_b = b.data_or_null();

@@ -55,7 +55,7 @@ namespace SushiBLAS
                                 SushiRuntime::Graph::OpID op_id,
                                 const Tensor& A, const Tensor& B, Tensor& C,
                                 Core::Uplo uplo, Core::Transpose trans,
-                                BlasScalar alpha, BlasScalar beta)
+                                BLASScalar alpha, BLASScalar beta)
         {
             Dispatch::require_flag(uplo, op, "uplo");
             Dispatch::require_flag(trans, op, "trans");
@@ -95,7 +95,7 @@ namespace SushiBLAS
             OperandSet operands;
             operands.reads(A).reads(B).updates(C);
 
-            const Internal::BlasMetadata meta = Internal::BlasMetadata(op, op_id)
+            const Internal::BLASMetadata meta = Internal::BLASMetadata(op, op_id)
                                                     .scalar(alpha).scalar(beta)
                                                     .flag(uplo).flag(trans);
 
@@ -142,7 +142,7 @@ namespace SushiBLAS
     } // namespace
 
     TaskHandle Level3::syr2k(const Tensor& A, const Tensor& B, Tensor& C, Core::Uplo uplo,
-                             Core::Transpose trans, BlasScalar alpha, BlasScalar beta)
+                             Core::Transpose trans, BLASScalar alpha, BLASScalar beta)
     {
         const char* const op = "blas.lvl3.syr2k";
         if (Core::is_complex_dtype(A.dtype))
@@ -153,7 +153,7 @@ namespace SushiBLAS
     }
 
     TaskHandle Level3::her2k(const Tensor& A, const Tensor& B, Tensor& C, Core::Uplo uplo,
-                             Core::Transpose trans, BlasScalar alpha, double beta)
+                             Core::Transpose trans, BLASScalar alpha, double beta)
     {
         if (!Core::is_complex_dtype(A.dtype))
             return syr2k(A, B, C, uplo, trans, alpha, beta);
@@ -162,6 +162,6 @@ namespace SushiBLAS
         Dispatch::require_transpose_not(trans, Core::Transpose::Trans, op, "syr2k");
 
         return record_syr2k<Kernels::Conjugated>(recorder_, op, "blas.lvl3.her2k"_op,
-                                                 A, B, C, uplo, trans, alpha, BlasScalar(beta));
+                                                 A, B, C, uplo, trans, alpha, BLASScalar(beta));
     }
 } // namespace SushiBLAS

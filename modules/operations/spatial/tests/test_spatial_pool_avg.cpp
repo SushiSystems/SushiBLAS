@@ -193,7 +193,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], 1.0f) << "pixel " << i;
         }
 
-        TEST_F(Unit_SpatialPoolAvgTest, TheSyclKernelAgreesWithTheReferenceKernel)
+        TEST_F(Unit_SpatialPoolAvgTest, TheSYCLKernelAgreesWithTheReferenceKernel)
         {
             // The two forced modes are compared here. See tests/unit/README.md.
             const int64_t N = 2, H = 7, W = 5, C = 3;
@@ -222,7 +222,7 @@ namespace SushiBLAS
             SushiBLAS::SpatialOps(*engine).pool_avg(in, from_reference, g);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             SushiBLAS::SpatialOps(*engine).pool_avg(in, from_device, g);
             engine->execute();
 

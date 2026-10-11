@@ -114,7 +114,7 @@ receives. It holds the task's `KernelPairDispatcher`, the queue and the dependen
 ### `execute_random`
 
 The generic seam behind every `RandomOps` distribution. It owns the parts every distribution shares,
-graph bookkeeping, reserving a fresh counter offset from the `RngStream` it is given so two tasks
+graph bookkeeping, reserving a fresh counter offset from the `RNGStream` it is given so two tasks
 never reuse a Philox (key, counter) pair, and the dtype switch, and leaves the actual draw to the
 caller's functor.
 

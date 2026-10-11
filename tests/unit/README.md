@@ -47,8 +47,8 @@ differential tests agreed.
 
 ### Comparing two kernels under the two forced modes
 
-The `TheSyclKernelAgreesWithTheReferenceKernel` tests fill two buffers under
-`ExecutionMode::ForceSycl` and `ExecutionMode::ForceReference` and compare them. That is how
+The `TheSYCLKernelAgreesWithTheReferenceKernel` tests fill two buffers under
+`ExecutionMode::ForceSYCL` and `ExecutionMode::ForceReference` and compare them. That is how
 the library checks kernel agreement: `ExecutionMode` has no mode that runs both, and
 `Engine::set_mode` is `noexcept`.
 
@@ -108,7 +108,7 @@ only in the axis it was broadcast along, and a swapped stride pair fails one of 
 
 `TheSameEpilogueAppliesOnTheReferencePath`: the reference kernel is this operation's
 specification and invokes the epilogue on the host, so an addressing arm that only works in the
-SYCL instantiation would make every ForceSycl against ForceReference comparison of a fused
+SYCL instantiation would make every ForceSYCL against ForceReference comparison of a fused
 GEMM disagree. The row orientation
 is the one pinned here, since nothing else in the library exercises that arm.
 
@@ -179,7 +179,7 @@ value that was there is the value that returns".
 device, the element type, the element count and the operands' alignment, none of which change
 between two runs in one process. Two identical fused updates must agree exactly, not nearly.
 
-`RngMetadataSlotsAreInRangeAndRoundTrip` pins a bug. The random dispatch wrote the seed to slot
+`RNGMetadataSlotsAreInRangeAndRoundTrip` pins a bug. The random dispatch wrote the seed to slot
 10 and the offset to slot 11 of an eight-slot array. `TaskMetadata::set_param` ignores an
 out-of-range index without a word, so every random task recorded a zero seed and a zero offset.
 With the slots in range these read back exactly, including a seed whose value would not survive

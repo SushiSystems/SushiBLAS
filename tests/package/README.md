@@ -31,7 +31,7 @@ This one differs from the others. It instantiates a real tiling kernel
 (`kernels/.../level3/gemm.hpp`) in this translation unit, so it also checks that the kernel
 header is installed and not merely present in the source tree next door.
 
-### ConsumerBiasRelu
+### ConsumerBiasReLU
 
 The functor is a column-bias broadcast plus ReLU, the shape a linear layer wants. `col` is what
 makes the broadcast expressible, and `row` selects the per-row term. The functor reads both, so

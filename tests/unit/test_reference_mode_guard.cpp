@@ -163,13 +163,13 @@ TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceRefusesADeviceOperandDeclaredB
                  std::invalid_argument);
 }
 
-TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceGemmOnSharedOperandsMatchesSycl)
+TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceGemmOnSharedOperandsMatchesSYCL)
 {
     const Tensor a = make_shared_a();
     const Tensor b = make_shared_b();
 
     const std::vector<float> reference = run_gemm(ExecutionMode::ForceReference, a, b);
-    const std::vector<float> device = run_gemm(ExecutionMode::ForceSycl, a, b);
+    const std::vector<float> device = run_gemm(ExecutionMode::ForceSYCL, a, b);
 
     ASSERT_EQ(K_PRODUCT.size(), reference.size());
     ASSERT_EQ(K_PRODUCT.size(), device.size());
@@ -180,14 +180,14 @@ TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceGemmOnSharedOperandsMatchesSyc
     }
 }
 
-TEST_F(Unit_ReferenceModeGuardTest, ForceSyclGemmRunsOnADeviceOperand)
+TEST_F(Unit_ReferenceModeGuardTest, ForceSYCLGemmRunsOnADeviceOperand)
 {
     std::optional<Tensor> a = make_device_a();
     if (!a)
         GTEST_SKIP() << "This device offers no device-only USM.";
     const Tensor b = make_shared_b();
 
-    const std::vector<float> result = run_gemm(ExecutionMode::ForceSycl, *a, b);
+    const std::vector<float> result = run_gemm(ExecutionMode::ForceSYCL, *a, b);
 
     ASSERT_EQ(K_PRODUCT.size(), result.size());
     for (std::size_t i = 0; i < K_PRODUCT.size(); ++i)

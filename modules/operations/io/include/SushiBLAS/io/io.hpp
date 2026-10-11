@@ -68,7 +68,7 @@ namespace SushiBLAS
              * @return FileUnwritable when a write fails, after the partial file is removed.
              * @throws std::invalid_argument when t is strided or has no storage.
              */
-            [[nodiscard]] IoStatus save(const Tensor& t, const std::string& path);
+            [[nodiscard]] IOStatus save(const Tensor& t, const std::string& path);
 
             /**
              * @brief Runs the recorded graph, then loads a .sushi file into a tensor.
@@ -78,7 +78,7 @@ namespace SushiBLAS
              *         FileUnreadable.
              * @throws std::invalid_argument when t is strided or has no storage.
              */
-            [[nodiscard]] IoStatus load(Tensor& t, const std::string& path);
+            [[nodiscard]] IOStatus load(Tensor& t, const std::string& path);
 
             /**
              * @brief Runs the recorded graph, then copies the tensor's elements into host memory.
@@ -130,7 +130,7 @@ namespace SushiBLAS
              * @return FileUnwritable when a write fails, after the partial file is removed.
              * @throws std::invalid_argument when t breaks one of those rules.
              */
-            [[nodiscard]] IoStatus save_npy(const Tensor& t, const std::string& path);
+            [[nodiscard]] IOStatus save_npy(const Tensor& t, const std::string& path);
 
             /**
              * @brief Runs the recorded graph, then loads a .npy file of version 1.0, 2.0 or 3.0.
@@ -140,7 +140,7 @@ namespace SushiBLAS
              * @throws std::invalid_argument when t breaks one of those rules.
              * @see modules/README.md
              */
-            [[nodiscard]] IoStatus load_npy(Tensor& t, const std::string& path);
+            [[nodiscard]] IOStatus load_npy(Tensor& t, const std::string& path);
 
             /**
              * @brief Saves the tensor's raw bytes, with no header.
@@ -148,7 +148,7 @@ namespace SushiBLAS
              * @return FileUnwritable when a write fails, after the partial file is removed.
              * @throws std::invalid_argument when t is strided or has no storage.
              */
-            [[nodiscard]] IoStatus save_bin(const Tensor& t, const std::string& path);
+            [[nodiscard]] IOStatus save_bin(const Tensor& t, const std::string& path);
 
             /**
              * @brief Runs the recorded graph, then loads raw bytes with no header.
@@ -157,7 +157,7 @@ namespace SushiBLAS
              *         failed read, after some have.
              * @throws std::invalid_argument when t is strided or has no storage.
              */
-            [[nodiscard]] IoStatus load_bin(Tensor& t, const std::string& path);
+            [[nodiscard]] IOStatus load_bin(Tensor& t, const std::string& path);
 
             /**
              * @brief Print tensor content to the console in a readable format.

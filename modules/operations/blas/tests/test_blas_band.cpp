@@ -111,7 +111,7 @@ namespace SushiBLAS
 
             /// @brief Both kernels an operation has.
             constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
-                                                 ExecutionMode::ForceSycl};
+                                                 ExecutionMode::ForceSYCL};
 
             /// @brief Both element orders a band can be stored in.
             constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
@@ -235,7 +235,7 @@ namespace SushiBLAS
             /** @brief Returns the name of a mode and a layout for a failure message. */
             [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
             {
-                return std::string(mode == ExecutionMode::ForceSycl ? "ForceSycl"
+                return std::string(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
                                                                      : "ForceReference") +
                        (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
             }
@@ -457,7 +457,7 @@ namespace SushiBLAS
          *        routines on them.
          */
         template<typename T>
-        class BlasBandCases : public SushiBLASTest
+        class BLASBandCases : public SushiBLASTest
         {
             protected:
                 /** @brief Skips the case on a device that lacks the component type of T. */
@@ -561,7 +561,7 @@ namespace SushiBLAS
                                                          Core::Transpose trans,
                                                          const std::vector<double>& x,
                                                          const std::vector<T>& y,
-                                                         BlasScalar alpha, BlasScalar beta)
+                                                         BLASScalar alpha, BLASScalar beta)
                 {
                     const Tensor A = band_of(band, K_WORKED_ROWS, K_WORKED_COLS, ld);
                     const Tensor x_tensor = vector_of(elements<T>(x));
@@ -722,31 +722,31 @@ namespace SushiBLAS
 
         /** @brief Runs the band routines over the five element types. */
         template<typename T>
-        class Unit_BlasBand : public BlasBandCases<T>
+        class Unit_BlasBand : public BLASBandCases<T>
         {
 
         };
 
         /** @brief Runs the conjugating band cases over the complex element types. */
         template<typename T>
-        class Unit_BlasBandComplex : public BlasBandCases<T>
+        class Unit_BlasBandComplex : public BLASBandCases<T>
         {
 
         };
 
         /// @brief Names the suite of the HALF accumulation cases.
-        using Unit_BlasBandHalf = BlasBandCases<sycl::half>;
+        using Unit_BlasBandHalf = BLASBandCases<sycl::half>;
 
         /// @brief Names the suite of the FLOAT32 cases of order K_LARGE_ORDER.
-        using Unit_BlasBandLarge = BlasBandCases<float>;
+        using Unit_BlasBandLarge = BLASBandCases<float>;
 
         /// @brief Names the five element types the band routines accept.
-        using BlasBandTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
+        using BLASBandTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
                                                std::complex<double>>;
         /// @brief Names the complex element types, the only ones a conjugation changes.
-        using BlasBandComplexTypes = ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_BlasBand, BlasBandTypes);
-        SB_TYPED_TEST_SUITE(Unit_BlasBandComplex, BlasBandComplexTypes);
+        using BLASBandComplexTypes = ::testing::Types<std::complex<float>, std::complex<double>>;
+        SB_TYPED_TEST_SUITE(Unit_BlasBand, BLASBandTypes);
+        SB_TYPED_TEST_SUITE(Unit_BlasBandComplex, BLASBandComplexTypes);
 
         /**
          * @brief Tests gbmv on the literal band arrays of the worked matrix.
@@ -1127,11 +1127,11 @@ namespace SushiBLAS
                 for (const int64_t k : K_MODE_WIDTHS)
                 {
                     SCOPED_TRACE(::testing::Message()
-                                 << engine_name(layout, ExecutionMode::ForceSycl) << ", k " << k);
+                                 << engine_name(layout, ExecutionMode::ForceSYCL) << ", k " << k);
 
                     this->start(layout, ExecutionMode::ForceReference);
                     const std::vector<T> reference = this->banded_results(k);
-                    this->start(layout, ExecutionMode::ForceSycl);
+                    this->start(layout, ExecutionMode::ForceSYCL);
                     const std::vector<T> device = this->banded_results(k);
 
                     expect_near(device, reference);
@@ -1311,14 +1311,14 @@ namespace SushiBLAS
                                    first.size() * sizeof(float)) == 0;
             };
 
-            start(Core::Layout::RowMajor, ExecutionMode::ForceSycl);
+            start(Core::Layout::RowMajor, ExecutionMode::ForceSYCL);
             const std::vector<float> general = large_general_products()[0];
             EXPECT_TRUE(same_bits(general, large_general_products()[0])) << "gbmv";
 
             for (const Core::Layout layout : K_LAYOUTS)
             {
-                SCOPED_TRACE(engine_name(layout, ExecutionMode::ForceSycl));
-                start(layout, ExecutionMode::ForceSycl);
+                SCOPED_TRACE(engine_name(layout, ExecutionMode::ForceSYCL));
+                start(layout, ExecutionMode::ForceSYCL);
                 const std::vector<float> symmetric = large_symmetric_products()[0];
                 EXPECT_TRUE(same_bits(symmetric, large_symmetric_products()[0])) << "sbmv";
             }

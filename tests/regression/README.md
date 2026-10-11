@@ -84,7 +84,7 @@ B (2x2) = [[1,0],[1,1]]         column-major [1,1,0,1],       ldb = 2
 A*B     = [[3,2],[7,4],[11,6]]  column-major [3,7,11,2,4,6],  ldc = 3
 ```
 
-### SetSeedRewindsTheRngStream
+### SetSeedRewindsTheRNGStream
 
 Setting the seed, now `RandomOps::set_seed`, set the seed and left the RNG offset where earlier
 draws had pushed it. The

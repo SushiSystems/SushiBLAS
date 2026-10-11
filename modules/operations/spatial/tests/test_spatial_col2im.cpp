@@ -159,7 +159,7 @@ namespace SushiBLAS
                 }
         }
 
-        TEST_F(Unit_SpatialCol2ImTest, TheSyclKernelAgreesWithTheReferenceKernel)
+        TEST_F(Unit_SpatialCol2ImTest, TheSYCLKernelAgreesWithTheReferenceKernel)
         {
             // The two forced modes are compared here. See tests/unit/README.md.
             Spatial::ConvGeometry g;
@@ -188,7 +188,7 @@ namespace SushiBLAS
             SushiBLAS::SpatialOps(*engine).col2im(cols, from_reference, g, out_h, out_w);
             engine->execute();
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             SushiBLAS::SpatialOps(*engine).col2im(cols, from_device, g, out_h, out_w);
             engine->execute();
 

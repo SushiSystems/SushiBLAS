@@ -21,7 +21,7 @@
 
 /**
  * @file test_rng_stream.cpp
- * @brief Tests RngStream's reseed, offset reservation, thread safety and seed determinism.
+ * @brief Tests RNGStream's reseed, offset reservation, thread safety and seed determinism.
  * @author Mustafa Garip
  */
 
@@ -50,7 +50,7 @@ namespace
     constexpr int64_t K_FILL_SIZE = 4096;
 
     /// @brief Reserves K_RESERVATIONS_PER_THREAD single offsets from @p stream into @p out.
-    void reserve_many(SushiBLAS::RngStream& stream, std::vector<uint64_t>& out)
+    void reserve_many(SushiBLAS::RNGStream& stream, std::vector<uint64_t>& out)
     {
         out.reserve(K_RESERVATIONS_PER_THREAD);
         for (int i = 0; i < K_RESERVATIONS_PER_THREAD; ++i)
@@ -74,14 +74,14 @@ class Unit_RngStreamTest : public SushiBLASTest
 
 TEST_F(Unit_RngStreamTest, ReseedRewindsTheOffset)
 {
-    SushiBLAS::RngStream stream;
+    SushiBLAS::RNGStream stream;
     stream.reseed(K_SEED);
     (void)stream.reserve(5);
     (void)stream.reserve(3);
 
     stream.reseed(K_SEED + 1);
 
-    const SushiBLAS::RngPosition position = stream.reserve(1);
+    const SushiBLAS::RNGPosition position = stream.reserve(1);
     EXPECT_EQ(stream.seed(), K_SEED + 1);
     EXPECT_EQ(position.seed, K_SEED + 1);
     EXPECT_EQ(position.offset, 0u);
@@ -89,7 +89,7 @@ TEST_F(Unit_RngStreamTest, ReseedRewindsTheOffset)
 
 TEST_F(Unit_RngStreamTest, ReserveReturnsConsecutiveDisjointRanges)
 {
-    SushiBLAS::RngStream stream;
+    SushiBLAS::RNGStream stream;
     stream.reseed(K_SEED);
 
     EXPECT_EQ(stream.reserve(4).offset, 0u);
@@ -100,7 +100,7 @@ TEST_F(Unit_RngStreamTest, ReserveReturnsConsecutiveDisjointRanges)
 
 TEST_F(Unit_RngStreamTest, ConcurrentReservationsAreDistinct)
 {
-    SushiBLAS::RngStream stream;
+    SushiBLAS::RNGStream stream;
     stream.reseed(K_SEED);
 
     std::vector<uint64_t> first;
@@ -117,10 +117,10 @@ TEST_F(Unit_RngStreamTest, ConcurrentReservationsAreDistinct)
 
 TEST_F(Unit_RngStreamTest, ReseedRacingReservationsNeverPairsAForeignSeed)
 {
-    SushiBLAS::RngStream stream;
+    SushiBLAS::RNGStream stream;
     stream.reseed(K_SEED);
 
-    std::vector<SushiBLAS::RngPosition> positions;
+    std::vector<SushiBLAS::RNGPosition> positions;
     positions.reserve(K_RESERVATIONS_PER_THREAD);
     std::thread reserver([&stream, &positions]()
     {
@@ -136,7 +136,7 @@ TEST_F(Unit_RngStreamTest, ReseedRacingReservationsNeverPairsAForeignSeed)
     reseeder.join();
 
     ASSERT_EQ(positions.size(), static_cast<size_t>(K_RESERVATIONS_PER_THREAD));
-    for (const SushiBLAS::RngPosition& position : positions)
+    for (const SushiBLAS::RNGPosition& position : positions)
         EXPECT_TRUE(position.seed == K_SEED || position.seed == K_SEED + 1)
             << "Seed " << position.seed << " is neither of the two seeds used.";
 }

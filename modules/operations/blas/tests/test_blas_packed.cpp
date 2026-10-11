@@ -84,7 +84,7 @@ namespace SushiBLAS
 
             /// @brief Both kernels an operation has.
             constexpr ExecutionMode K_MODES[] = {ExecutionMode::ForceReference,
-                                                 ExecutionMode::ForceSycl};
+                                                 ExecutionMode::ForceSYCL};
 
             /// @brief Both orders a packed triangle can be stored in.
             constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
@@ -222,7 +222,7 @@ namespace SushiBLAS
             /** @brief Returns the name of a mode and a layout for a failure message. */
             [[nodiscard]] std::string engine_name(Core::Layout layout, ExecutionMode mode)
             {
-                return std::string(mode == ExecutionMode::ForceSycl ? "ForceSycl"
+                return std::string(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
                                                                      : "ForceReference") +
                        (layout == Core::Layout::RowMajor ? ", ROW_MAJOR" : ", COLUMN_MAJOR");
             }
@@ -450,7 +450,7 @@ namespace SushiBLAS
          *        packed routines on them.
          */
         template<typename T>
-        class BlasPackedCases : public SushiBLASTest
+        class BLASPackedCases : public SushiBLASTest
         {
             protected:
                 /** @brief Holds the operands and the scalars of one call of each routine. */
@@ -674,32 +674,32 @@ namespace SushiBLAS
 
         /** @brief Runs the packed routines over the five element types. */
         template<typename T>
-        class Unit_BlasPacked : public BlasPackedCases<T>
+        class Unit_BlasPacked : public BLASPackedCases<T>
         {
 
         };
 
         /** @brief Runs the conjugating packed cases over the complex element types. */
         template<typename T>
-        class Unit_BlasPackedComplex : public BlasPackedCases<T>
+        class Unit_BlasPackedComplex : public BLASPackedCases<T>
         {
 
         };
 
         /// @brief Names the suite of the HALF accumulation cases.
-        using Unit_BlasPackedHalf = BlasPackedCases<sycl::half>;
+        using Unit_BlasPackedHalf = BLASPackedCases<sycl::half>;
 
         /// @brief Names the suite of the FLOAT32 cases of order K_LARGE_ORDER.
-        using Unit_BlasPackedLarge = BlasPackedCases<float>;
+        using Unit_BlasPackedLarge = BLASPackedCases<float>;
 
         /// @brief Names the five element types the packed routines accept.
-        using BlasPackedTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
+        using BLASPackedTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
                                                  std::complex<double>>;
         /// @brief Names the complex element types, the only ones a conjugation changes.
-        using BlasPackedComplexTypes =
+        using BLASPackedComplexTypes =
             ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_BlasPacked, BlasPackedTypes);
-        SB_TYPED_TEST_SUITE(Unit_BlasPackedComplex, BlasPackedComplexTypes);
+        SB_TYPED_TEST_SUITE(Unit_BlasPacked, BLASPackedTypes);
+        SB_TYPED_TEST_SUITE(Unit_BlasPackedComplex, BLASPackedComplexTypes);
 
         /**
          * @brief Tests spmv on the literal packed arrays of [1 2 3; 2 4 5; 3 5 6].
@@ -987,7 +987,7 @@ namespace SushiBLAS
             {
                 for (const Core::Uplo uplo : K_TRIANGLES)
                 {
-                    SCOPED_TRACE(engine_name(layout, ExecutionMode::ForceSycl) + ", " +
+                    SCOPED_TRACE(engine_name(layout, ExecutionMode::ForceSYCL) + ", " +
                                  Core::to_string(uplo));
                     const Inputs in{uplo,
                                     to_packed(general, n, uplo, layout),
@@ -1001,7 +1001,7 @@ namespace SushiBLAS
 
                     this->start(layout, ExecutionMode::ForceReference);
                     const std::vector<std::vector<T>> reference = this->run_eight(in);
-                    this->start(layout, ExecutionMode::ForceSycl);
+                    this->start(layout, ExecutionMode::ForceSYCL);
                     const std::vector<std::vector<T>> device = this->run_eight(in);
 
                     ASSERT_EQ(device.size(), reference.size());
@@ -1171,8 +1171,8 @@ namespace SushiBLAS
         {
             for (const Core::Layout layout : K_LAYOUTS)
             {
-                SCOPED_TRACE(engine_name(layout, ExecutionMode::ForceSycl));
-                start(layout, ExecutionMode::ForceSycl);
+                SCOPED_TRACE(engine_name(layout, ExecutionMode::ForceSYCL));
+                start(layout, ExecutionMode::ForceSYCL);
                 const std::vector<float> first = large_symmetric_products()[0];
                 const std::vector<float> second = large_symmetric_products()[0];
 

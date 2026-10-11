@@ -52,7 +52,7 @@ namespace SushiBLAS
         template<typename Conj>
         TaskHandle record_syr(TaskRecorder& recorder, const char* op,
                               SushiRuntime::Graph::OpID op_id,
-                              const Tensor& x, Tensor& A, Core::Uplo uplo, BlasScalar alpha)
+                              const Tensor& x, Tensor& A, Core::Uplo uplo, BLASScalar alpha)
         {
             Dispatch::require_flag(uplo, op, "uplo");
             Dispatch::require_dtype(x, A.dtype, op, "x");
@@ -67,8 +67,8 @@ namespace SushiBLAS
             OperandSet operands;
             operands.reads(x).updates(A);
 
-            const Internal::BlasMetadata meta =
-                Internal::BlasMetadata(op, op_id).scalar(alpha).flag(uplo);
+            const Internal::BLASMetadata meta =
+                Internal::BLASMetadata(op, op_id).scalar(alpha).flag(uplo);
 
             const Core::Layout layout = a.layout;
             const int64_t n = a.cols;
@@ -103,7 +103,7 @@ namespace SushiBLAS
         }
     } // namespace
 
-    TaskHandle Level2::syr(const Tensor& x, Tensor& A, Core::Uplo uplo, BlasScalar alpha)
+    TaskHandle Level2::syr(const Tensor& x, Tensor& A, Core::Uplo uplo, BLASScalar alpha)
     {
         return record_syr<Kernels::Unconjugated>(recorder_, "blas.lvl2.syr", "blas.lvl2.syr"_op,
                                                  x, A, uplo, alpha);
@@ -115,6 +115,6 @@ namespace SushiBLAS
             return syr(x, A, uplo, alpha);
 
         return record_syr<Kernels::Conjugated>(recorder_, "blas.lvl2.her", "blas.lvl2.her"_op,
-                                               x, A, uplo, BlasScalar(alpha));
+                                               x, A, uplo, BLASScalar(alpha));
     }
 } // namespace SushiBLAS

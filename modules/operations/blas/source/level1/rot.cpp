@@ -55,8 +55,8 @@ namespace SushiBLAS
         OperandSet operands;
         operands.updates(x).updates(y);
 
-        const Internal::BlasMetadata meta =
-            Internal::BlasMetadata(op, "blas.lvl1.rot"_op).scalar(c).scalar(s);
+        const Internal::BLASMetadata meta =
+            Internal::BLASMetadata(op, "blas.lvl1.rot"_op).scalar(c).scalar(s);
 
         const int64_t n = vx.length;
         const int64_t incx = vx.increment;
@@ -72,8 +72,8 @@ namespace SushiBLAS
                 using Real = Kernels::RealType<T>;
                 auto pX = static_cast<T*>(rw_x);
                 auto pY = static_cast<T*>(rw_y);
-                const Real c_t = BlasScalar(c).as<Real>();
-                const Real s_t = BlasScalar(s).as<Real>();
+                const Real c_t = BLASScalar(c).as<Real>();
+                const Real s_t = BLASScalar(s).as<Real>();
 
                 return dispatcher.run(q, deps,
                     [=]

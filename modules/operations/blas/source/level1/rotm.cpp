@@ -62,7 +62,7 @@ namespace SushiBLAS
         OperandSet operands;
         operands.updates(x).updates(y).reads(param);
 
-        const Internal::BlasMetadata meta(op, "blas.lvl1.rotm"_op);
+        const Internal::BLASMetadata meta(op, "blas.lvl1.rotm"_op);
 
         const int64_t n = vx.length;
         const int64_t incx = vx.increment;

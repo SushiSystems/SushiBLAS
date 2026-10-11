@@ -320,7 +320,7 @@ namespace SushiBLAS
                             blocking, compute_units, m_, n_, order_, 1);
 
                         // The scratch starts off its alignment, so the kernel has to align it.
-                        const UsmArray<unsigned char> scratch(
+                        const USMArray<unsigned char> scratch(
                             queue_, plan.scratch_bytes + K_PACKED_TEST_SCRATCH_SKEW);
                         void* const panels = scratch.get() + K_PACKED_TEST_SCRATCH_SKEW;
                         const Kernels::OperandAccess at_c = at_b_;
@@ -386,13 +386,13 @@ namespace SushiBLAS
                     Kernels::OperandAccess at_b_;
 
                     /// @brief The matrix A.
-                    UsmArray<T> a_;
+                    USMArray<T> a_;
 
                     /// @brief The matrix B.
-                    UsmArray<T> b_;
+                    USMArray<T> b_;
 
                     /// @brief The matrix C the packed kernel writes.
-                    UsmArray<T> c_;
+                    USMArray<T> c_;
 
                     /// @brief The contents C starts every run from.
                     std::vector<T> initial_c_;
@@ -528,7 +528,7 @@ namespace SushiBLAS
                     Tensor sycl_result = this->engine->create_tensor({s, s}, dtype);
                     Tensor reference_result = this->engine->create_tensor({s, s}, dtype);
 
-                    this->engine->set_mode(ExecutionMode::ForceSycl);
+                    this->engine->set_mode(ExecutionMode::ForceSYCL);
                     const std::size_t live_before_sycl = context.memory().live_count();
                     record_product(*this->engine, routine, A, B, sycl_result, side,
                                    Core::Uplo::Upper);

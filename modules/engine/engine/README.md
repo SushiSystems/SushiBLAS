@@ -17,7 +17,7 @@ geometry are support headers; see [the support module](../../foundation/support/
 | `scratch.hpp` | `ScratchBuffer`, the lease on one pooled device scratch block |
 | `scratch_pool.hpp` | `ScratchPool`, the owner of the device scratch blocks an `Engine` lends |
 | `scratch_shelf.hpp` | The shelf of idle device scratch blocks and the block it lends |
-| `rng_stream.hpp` | `RngStream`, the seed and counter offset random operations draw from |
+| `rng_stream.hpp` | `RNGStream`, the seed and counter offset random operations draw from |
 | `blas.hpp` | `BLASOps`, the view that records every dense BLAS operation |
 | `sparse.hpp` | `SparseOps`, the view that records the sparse BLAS operations |
 | `spatial.hpp` | `SpatialOps`, the windowed and strided movement operations over an NHWC grid |
@@ -28,7 +28,7 @@ and `ReductionOps` in `math/`, `LogicOps` in `logic/`.
 ## How an operation is recorded
 
 Every view holds a `TaskRecorder&` and nothing else of the engine; `RandomOps` also holds the
-`RngStream&`. A view is built from an `Engine&` or from the recorder itself. An operation checks
+`RNGStream&`. A view is built from an `Engine&` or from the recorder itself. An operation checks
 its operands, declares them in an `OperandSet`, and hands the set, a `TaskMetadata` and a task
 body to the recorder, directly or through a seam (`execute_typed_task`, `execute_blas_task`, an
 executor of `Dispatch`). It returns the `TaskHandle` of the recorded task. Nothing runs until
@@ -237,7 +237,7 @@ family, the operation and the dtype it does not serve. `core/README.md` says how
 ## `execution_mode.hpp`
 
 `ExecutionMode` has three enumerators. `Auto` lets the library choose, and it chooses the SYCL
-kernel. `ForceSycl` runs the SYCL kernel. `ForceReference` runs the reference path on the host:
+kernel. `ForceSYCL` runs the SYCL kernel. `ForceReference` runs the reference path on the host:
 a reference kernel where the operation has one, and a serial loop over the operation's own
 functor in the elementwise, non-linear, logic, random and reduction families. The mode is a
 property of the recorder, read once per record call and fixed in the task; changing it later does
@@ -303,12 +303,12 @@ holds it once.
 `Internal::KernelPairDispatcher` holds the execution mode the recorder had when the task was
 recorded. A task body calls `dispatcher.run(q, deps, reference_fn, sycl_fn)`. Under
 `ForceReference` it waits on the dependencies, calls `reference_fn` on the calling thread and
-returns an empty event; under `Auto` and `ForceSycl` it returns what `sycl_fn(q, deps)` returns.
+returns an empty event; under `Auto` and `ForceSYCL` it returns what `sycl_fn(q, deps)` returns.
 It is the one place the two branches are written.
 
 ## `rng_stream.hpp`
 
-`RngStream` holds one counter-based random stream: a seed and an offset counter, both guarded by
+`RNGStream` holds one counter-based random stream: a seed and an offset counter, both guarded by
 one `std::mutex`. The engine owns one by value and hands it out through `Engine::get_rng()`. A
 `RandomOps` view holds a reference to a stream, the engine's or one the caller built, and passes
 it to `Dispatch::execute_random` in `<SushiBLAS/random/dispatch.hpp>`, which reserves
@@ -318,7 +318,7 @@ the offset of each task. No random operation reaches the engine.
   followed by one call sequence always draws the same numbers. It is what
   `RandomOps::set_seed` runs.
 - `seed()` returns the current seed.
-- `reserve(count)` returns an `RngPosition` holding the seed and the current offset, then adds
+- `reserve(count)` returns an `RNGPosition` holding the seed and the current offset, then adds
   `count` to the offset, all under the lock. Every random task reserves one offset, so tasks
   recorded from different threads get distinct `(seed, offset)` pairs, and a `reseed` racing a
   reservation can never pair one seed with the other seed's offset.

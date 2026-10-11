@@ -83,7 +83,7 @@ namespace SushiBLAS
             auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
             std::size_t live_with_bias = 0;
 
-            engine->set_mode(ExecutionMode::ForceSycl);
+            engine->set_mode(ExecutionMode::ForceSYCL);
             {
                 const Tensor bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
                 live_with_bias = live_allocations();
