@@ -8,8 +8,12 @@ License 1.0.0 (see [`LICENSE`](../LICENSE)).
 
 Read [the architecture](architecture/README.md) first. It explains the
 `Tensor` and `Storage` model, `Engine`, the recorder and the operation views,
-the `ExecutionMode` triad and the reference path every operation has beside
-its SYCL kernel.
+the three values of `ExecutionMode` and the reference path every operation has
+beside its SYCL kernel.
+
+The public interface is below 1.0.0 and may break in a MINOR release; the
+[root README](../README.md#stability) states the rule a consumer follows. A
+change that breaks a public name says so in its changelog entry.
 
 ---
 
@@ -51,8 +55,9 @@ machine-specific toolchain paths are resolved (`cli/config.local.toml`).
   behavior change together are hard to review and hard to revert.
 - **Match the layer boundaries.** `Engine` knows nothing about individual
   operations; the operation views (`BLASOps`, `ElementwiseOps`, ...) record
-  through a `TaskRecorder` and never insert into the task graph themselves;
-  kernels know nothing about the recorder or `Engine` (see [the layers](architecture/LAYERS.md)). New cross-layer coupling needs a
+  through a `TaskRecorder` and never call a `SushiRuntime::Recorder`
+  themselves; kernels know nothing about the recorder or `Engine` (see
+  [the layers](architecture/LAYERS.md)). New cross-layer coupling needs a
   reason.
 
 ---
@@ -83,7 +88,7 @@ Expectations for a mergeable change:
    passes `sb test --suite package`, which `all` does not include.
 2. **A new operation ships with a typed test.** Every test suite runs across
    every dtype the op claims to support (`float`, `double`, `half`, and the
-   complex types where applicable) — see [§5](#5-adding-a-new-operation).
+   complex types where applicable); see [section 5](#5-adding-a-new-operation).
    A `ForceSYCL` against `ForceReference` comparison is how a new SYCL kernel
    is checked against its reference implementation.
 3. **A fixed bug gets a regression test** in
@@ -108,15 +113,18 @@ which also keeps the upstream lines of the three files that carry portBLAS tilin
 
 ### C++ standard and naming
 
-- **C++17**, matching SushiRuntime — see
-  [the architecture, section 1](architecture/OVERVIEW.md) for why the whole
-  stack has to agree rather than each repo picking its own. Indentation is 4
+- **C++17**, the standard SushiRuntime is built at; see
+  [the architecture, section 1](architecture/OVERVIEW.md). Indentation is 4
   spaces.
 - **Classes/structs/namespaces**: `PascalCase` (`Engine`, `Tensor`,
   `SushiBLAS`, `Core`).
 - **Functions and variables**: `snake_case` (`create_tensor`,
   `num_elements`).
-- **Private members**: trailing underscore (`engine_`, `data_ptr_`).
+- **Private members**: trailing underscore (`engine_`, `recorder_`).
+- **Accessors**: the bare name, with no `get_` prefix (`recorder()`,
+  `mode()`, `layout()`).
+- **Acronyms** stay in capitals inside a name (`BLASOps`, `IOStatus`,
+  `RNGStream`, `ForceSYCL`).
 - **Enumerators**: `PascalCase` (`DataType::Float32`, `Transpose::NoTrans`).
   An explicit value stays as written; the values of `DataType`, of the BLAS
   flags and of `IndexBase` are contracts.
@@ -126,8 +134,8 @@ which also keeps the upstream lines of the three files that carry portBLAS tilin
 ### Braces
 
 Allman style (opening brace alone on its own line) for multi-statement
-blocks. A single-statement `if`/loop **omits** braces — put the statement on
-the same line if it's short, or indented on the next line if it's long:
+blocks. A single-statement `if` or loop omits braces. Put the statement on
+the same line if it is short, or indented on the next line if it is long:
 
 ```cpp
 // Correct: short single-line
@@ -154,10 +162,12 @@ if (condition)
 ### Include and declaration ordering
 
 1. `#pragma once`, then exactly one empty line.
-2. **Group 1: `<>` includes** (system headers) — sorted **shortest to
-   longest**; ties broken alphabetically.
-3. **Group 2: `""` includes** (local headers) — sorted **longest to
-   shortest**; ties broken alphabetically.
+2. **Group 1: `<>` includes**, sorted shortest to longest; ties broken
+   alphabetically. A header of SushiBLAS or SushiRuntime is included with
+   angle brackets by its module path.
+3. **Group 2: `""` includes**, for a header beside the file, as the tests
+   include `tests/common/`; sorted longest to shortest, ties broken
+   alphabetically.
 
 ```cpp
 #pragma once
@@ -184,31 +194,31 @@ An operand rule (dtype, shape, layout, flag) is checked at record time by
 `std::invalid_argument` with the operation and the operand named. A refusal
 by mode or device throws `UnsupportedExecution`, which derives from it.
 `SB_THROW_IF(condition, message, ...)` throws `std::runtime_error` and is for
-an error that is not an operand rule, as in `modules/operations/io/source/io.cpp`, `tensor.hpp` and
-`storage.hpp`. Assertions are for internal bugs, not user-facing input
-validation. An unsupported case (dtype, layout, mode) always throws; it
-never silently no-ops.
+an error that is not an operand rule, as in
+`modules/operations/io/source/io.cpp`, `tensor/tensor.hpp` and
+`tensor/storage.hpp`. An unsupported case (dtype, layout, mode) always throws;
+it never does nothing.
+
+Nothing throws at run time. `Engine::execute()` and the graph primitives
+return a `SushiRuntime::Result<void>`, and a file operation returns an
+`IOStatus`. `SB_ASSERT` is for a defect inside the library, not for a
+caller's input. [The architecture, section 11](architecture/EXCEPTIONS.md)
+lists every channel.
 
 ### Build-system names
 
-Every CMake target, function, macro, and internal artifact this repo defines
-starts with `sushiblas_` — `sushiblas_warnings`, `sushiblas_apply_build_policy`.
-Never the bare `sushi_` prefix.
+Every CMake target, function, macro and build-tree artifact this repository
+defines starts with `sushiblas_`, as `sushiblas_warnings` and
+`sushiblas_apply_build_policy` do. The bare `sushi_` prefix is not used.
 
-This is a **SushiStack-wide convention**, not a SushiBLAS one: each program
-prefixes with its own full name (`sushiruntime_`, `sushiengine_`, `sushiai_`).
-The reason is that these names share a single flat namespace the moment two
-of them meet — SushiBLAS consumes SushiRuntime by `add_subdirectory`, and a
-CMake target or function name defined twice in one configure is a hard error
-with no scoping to fall back on. `sushi_warnings` defined by both repos
-collides; `sushiblas_warnings` and `sushiruntime_warnings` cannot. Files whose
-logic is genuinely idempotent regardless of which sibling's copy loads first
-(`Vcpkg.cmake`, `Toolchain.cmake`, `SyclTarget.cmake`) are the deliberate
-exception and stay unprefixed; a file that defines a *differently-named*
-function per repo (`SushiBLASBuildPolicy.cmake` vs. a hypothetical
-`BuildPolicy.cmake` shared with sushiruntime) must be prefixed — this is
-exactly the collision SB-6 found and fixed (see
-[the architecture, section 10](architecture/PACKAGING.md)).
+Each program of the stack prefixes with its own full name (`sushiruntime_`,
+`sushiengine_`, `sushiai_`). CMake targets and functions share one flat
+namespace: SushiBLAS can consume SushiRuntime by `add_subdirectory`, and a
+name defined twice in one configure is an error. A CMake file that defines
+such names carries the program's name too, as `SushiBLASBuildPolicy.cmake`
+does. `Vcpkg.cmake`, `Toolchain.cmake` and `SyclTarget.cmake` stay unprefixed
+because their logic gives the same result whichever repository's copy loads
+first; see [the architecture, section 10](architecture/PACKAGING.md).
 
 The rule covers build-system identifiers and build-tree artifacts, not C++
 symbols: the public C++ API is already scoped by the `SushiBLAS` namespace.
@@ -288,8 +298,9 @@ TaskHandle Level1::axpy(BLASScalar alpha, const Tensor& x, Tensor& y)
 The numbered comments are this page's and are not in the source file.
 
 **1. Check at record time.** Every operand rule goes through
-`engine/operand_check.hpp` or the family's describers (`engine/blas/*_operand.hpp`,
-`engine/blas/argument_check.hpp`, `engine/sparse/`, `engine/spatial/window.hpp`),
+`engine/operand_check.hpp` or the family's describers (`operands/matrix_operand.hpp`,
+`operands/vector_operand.hpp`, `operands/argument_check.hpp`, the `*_operand.hpp` headers
+under `blas/` and `sparse/`, `spatial/window.hpp`),
 which throw `std::invalid_argument` with the operation and the operand named. A
 refusal by mode or device is `UnsupportedExecution`: `require_device_dtype`
 throws it, the describers call it, and the recorder throws it for a device-only
@@ -315,7 +326,7 @@ Pass the `Dispatch::Domain` when the operation does not serve the default,
 which is `RealAndComplex` for both: `Domain::All` for a copy, `Domain::Real`
 for a routine with no complex meaning. Inside the body, `dispatcher.run` takes the
 reference kernel and the SYCL kernel. An operation source never reads the
-execution mode, never includes `engine.hpp` and never calls
+execution mode, never includes `engine/engine.hpp` and never calls
 `SushiRuntime::Recorder::task`; `tools/layering/check_layering.py` reports the last two.
 
 **The reference kernel** is plain C++ with no dependency beyond the support
@@ -357,13 +368,14 @@ TaskHandle ElementwiseOps::add(const Tensor& A, const Tensor& B, Tensor& C)
 
 - State the `Domain` the functor is well-formed for. The default is
   `Domain::Real`. A functor instantiated for complex uses the `safe_*` helpers
-  of `engine/math/safe_math.hpp`, and one instantiated for the integers uses
-  `engine/math/elementwise/wrapping_math.hpp`.
+  of `support/safe_math.hpp`, and one instantiated for the integers uses
+  `elementwise/wrapping_math.hpp`.
 - The functor reaches a device: it is trivially copyable, captures by value,
   holds no host pointer, allocates nothing and throws nothing.
 - A scalar parameter is bound with `Dispatch::bind_scalars` as a
   `Dispatch::ElementScalar` and also listed in the seam's `params`, which
-  records it in the task metadata. Do not capture a `double` in the functor.
+  writes it to the parameter slots of the task's `TaskDescription`. Do not
+  capture a `double` in the functor.
 - A tensor the functor reads beyond the seam's operands is declared with
   `Dispatch::bind_reads`. A pointer captured in the functor is not declared.
 - A reduction passes a dispatcher with both members, the SYCL fold and
@@ -387,9 +399,10 @@ TaskHandle ElementwiseOps::add(const Tensor& A, const Tensor& B, Tensor& C)
 - **Each record-time refusal**, asserting the type: `std::invalid_argument`
   for a wrong operand, `SushiBLAS::UnsupportedExecution` for a mode or device
   refusal.
-- **Ordering on in-degree.** A test that the task is ordered against another
-  asserts on the node's `in_degree` through `GraphProbe`
-  (`tests/common/graph_probe.hpp`), not on an output value.
+- **Ordering on the dependency count.** A test that the task is ordered
+  against another asserts on the task's `dependency_count`, read from
+  `GraphProbe::recorded_tasks()` (`tests/common/graph_probe.hpp`), not on an
+  output value.
 - **More than one shape**: square, rectangular, a vector, an empty operand,
   and for BLAS both layouts and each flag value.
 
@@ -412,6 +425,10 @@ indexed in [`README.md`](README.md).
   [the architecture](architecture/README.md)** when it changes a class,
   dispatch helper or kernel design the document names. Every symbol it names
   must still exist.
+- **A fact about one module goes in that module's `README.md`**, and the
+  manual links to it.
+- **A code block in the manual comes from a file the build compiles** and
+  names that file; see the [style guide](DOCUMENTATION_STYLE_GUIDE.md).
 - **A CLI change updates [`cli/README.md`](../cli/README.md)** and the build
   and test snippets here and in the root README.
 - **A design decision with an open phase** is a document under `design/` with a
@@ -424,7 +441,7 @@ indexed in [`README.md`](README.md).
   `docs/agent/<YYYY_MM_DD>_<WORK_NAME>/`, as `SPEC.md`, `PLAN.md` and
   `REPORT.md`.
 - **A new dependency updates the dependency surface**; see
-  [§8](#8-adding-a-c-dependency).
+  [section 8](#8-adding-a-c-dependency).
 
 Before a commit that touches `docs/`, run the two documentation checkers; see
 [`tools/README.md`](../tools/README.md).
@@ -451,12 +468,15 @@ docs/architecture-dispatch-section
 
 ### Commit headers
 
-`type: short summary` — lowercase, imperative mood, no trailing period:
+`type(scope): short summary`, in lower case, with no trailing period. The
+scope is the module or subsystem folder, and a change that breaks a public
+interface puts `!` before the colon:
 
 ```
 feat(blas): port trsm off oneMKL onto a from-scratch tiled kernel
 fix(gemm): skip reading C when beta is exactly zero
-docs: document the ExecutionMode dispatch triad
+docs(architecture): describe the engine as the code has it
+fix(api)!: close the findings of the review made before the first build
 ```
 
 ### Commit body
@@ -469,8 +489,8 @@ Bullet points, each starting with a past-tense verb:
 - Removed the now-dead level1_internal.hpp after the level1 port.
 ```
 
-Plain English, technical, objective — state the mechanism and the effect, no
-marketing language.
+Plain English, technical, objective: state the mechanism and the effect, with
+no marketing language.
 
 ---
 
@@ -486,8 +506,8 @@ depends_on = ["sushiruntime"]
 ```
 
 `depends_on` folds SushiRuntime's own toolchain requirements (the SYCL
-compiler, hwloc, GoogleTest) into SushiBLAS's readiness picture — you do not
-need to re-declare anything SushiRuntime already provisions. If SushiBLAS
+compiler, hwloc, GoogleTest) into SushiBLAS's readiness picture, so nothing
+SushiRuntime already provisions is declared again. If SushiBLAS
 ever needs a library of its own, add a top-level TOML table the same way
 SushiRuntime's own fragment does:
 
@@ -511,7 +531,7 @@ and the link line) if the C++ build needs to find it. Verify with
 Open a GitHub issue. A good bug report includes the platform and
 toolchain, the build type, the exact `sb` command, and the smallest
 reproducer you can manage. For anything that looks like a **security** issue,
-do **not** open a public issue — follow [`SECURITY.md`](../.github/SECURITY.md).
+do not open a public issue; follow [`SECURITY.md`](../.github/SECURITY.md).
 
 ---
 
@@ -521,5 +541,5 @@ Open a GitHub Discussion, join the community Discord (see
 [`CODE_OF_CONDUCT.md`](../.github/CODE_OF_CONDUCT.md) for the invite), or email
 **mustafagarip@sushisystems.io**.
 
-Please be respectful in all project spaces — see
+Conduct in project spaces is covered by
 [`CODE_OF_CONDUCT.md`](../.github/CODE_OF_CONDUCT.md).
