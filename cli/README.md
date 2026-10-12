@@ -15,8 +15,8 @@ walks through setup.
 The CLI is a Python package that lives in the `cli/` folder. Install it once
 and it puts two commands on your `PATH`:
 
-- **`sb`** — short name.
-- **`sushiblas`** — long name.
+- **`sb`**: short name.
+- **`sushiblas`**: long name.
 
 They are identical; use whichever you prefer. Every example below uses `sb`.
 
@@ -37,12 +37,12 @@ pipx uninstall sushiblas-cli
 
 ### How the CLI finds your compiler and runtime
 
-SushiBLAS builds against the shared SushiStack SYCL toolchain — it selects no
-toolchain of its own — and against a **SushiRuntime sibling checkout**. The
+SushiBLAS builds against the shared SushiStack SYCL toolchain (it selects no
+toolchain of its own) and against a **SushiRuntime sibling checkout**. The
 CLI reads both from:
 
-- **`cli/config.toml`** — committed, shared defaults (the same for everyone).
-- **`cli/config.local.toml`** — your machine's absolute paths (compiler,
+- **`cli/config.toml`**: committed, shared defaults (the same for everyone).
+- **`cli/config.local.toml`**: your machine's absolute paths (compiler,
   vcpkg, the SushiRuntime checkout, if it isn't the default sibling
   location). This file is gitignored, so your personal paths never get
   committed.
@@ -111,7 +111,7 @@ a malformed one exits 2 and leaves the build tree untouched, even with
 `--clean`.
 
 Cache variables persist in the build tree, so dropping the flag on a later run
-does **not** unset them — pass `VAR=` to clear one, or `--clean` to start over.
+does **not** unset them. Pass `VAR=` to clear one, or `--clean` to start over.
 A change of `--type` starts over too, so pass the variables again with it.
 
 The options SushiBLAS itself defines:
@@ -129,13 +129,13 @@ The options SushiBLAS itself defines:
 `SB_LOG_LEVEL` is the one to reach for when debugging: a release build logs at
 WARN, so `-D SB_LOG_LEVEL=INFO` turns the per-kernel-launch trace back on
 without editing `modules/foundation/core/include/SushiBLAS/core/logger.hpp`. Put it back with
-`-D SB_LOG_LEVEL=auto`. Note that the level is a **public** compile definition —
+`-D SB_LOG_LEVEL=auto`. The level is a **public** compile definition:
 it lives in an `inline constexpr` variable in a header every consumer compiles,
 so the library and everything linking it must agree on it.
 
 If the SushiRuntime sibling can't be found, `sb build` fails fast with a
 clear message rather than letting CMake's own `add_subdirectory` error
-surface — see `sb config` for what the CLI resolved as the runtime location,
+surface. See `sb config` for what the CLI resolved as the runtime location,
 and set `sushiruntime_dir` in `cli/config.local.toml` (or `SUSHIRUNTIME_DIR`
 in the environment) to point it elsewhere.
 
@@ -173,7 +173,7 @@ flags after `--`.
 The one suite that isn't a CTest label. It installs the package to
 `build/package/prefix`, configures `tests/package/` into
 `build/package/consumer` against it, builds it, stages the shared libraries
-beside it and runs it — i.e. it consumes SushiBLAS the way SushiAI does, through
+beside it and runs it: it consumes SushiBLAS the way SushiAI does, through
 `find_package`, with no access to this source tree.
 
 It is what catches three things nothing else does: a header that exists in the
@@ -207,7 +207,7 @@ sb run --sort                         # interactively pick from the list of exec
 ```
 
 The target name is matched exactly first, then by substring. Anything after
-`--` is forwarded straight to the program — this is how you pass GoogleTest
+`--` is forwarded straight to the program, which is how you pass GoogleTest
 flags to the test binary:
 
 ```bash
@@ -240,8 +240,8 @@ reference only and takes no subcommand.
 Bare `sb docs` runs Doxygen against `.config/doxygen/Doxyfile`, from the repository root, and opens
 the reference with `docs/reference/MAINPAGE.md`.
 
-Output lands in `build/docs/api-site/html/`, and warnings — every public symbol
-missing a doc comment — in `build/docs/api-site/doxygen-warnings.log`. Both are
+Output lands in `build/docs/api-site/html/`, and warnings (every public symbol
+missing a doc comment) in `build/docs/api-site/doxygen-warnings.log`. Both are
 gitignored; the log is where the documentation debt is read off, and
 `WARN_AS_ERROR` is deliberately `NO` so a missing `@param` cannot fail a docs
 build.
@@ -270,12 +270,12 @@ with exit code 2. `--out` names another output folder. A page without a
 level-one heading, a page `docs/README.md` does not link, or a link to a file
 that does not exist stops the command with one line and exit code 1.
 
-## `sb config` and `sb env` — diagnostics
+## `sb config` and `sb env`: diagnostics
 
 ```bash
 sb config         # print the resolved config and where each value came from
 
-sb env            # print the environment cmake/ctest/run subprocesses run under
+sb env            # print the environment the cmake, ctest and run subprocesses see
 sb env --all      # show every variable, not just the build-relevant ones (-a)
 ```
 
@@ -283,7 +283,7 @@ Both commands come from `sushicore` and behave the same in every module CLI.
 
 `sb config` prints the resolved SushiRuntime sibling directory, compiler, and
 vcpkg root, plus which source (default / `config.toml` / `config.local.toml`
-/ an `SB_*` environment variable) supplied each field — the first thing to
+/ an `SB_*` environment variable) supplied each field. It is the first thing to
 check when a build picks an unexpected compiler or can't find its runtime
 dependency.
 
@@ -319,6 +319,6 @@ then `SUSHISTACK_HOME`, then the nearest ancestor directory that is a workspace.
 
 ## Building without the CLI
 
-The CLI is a convenience, not a requirement — it only runs CMake and CTest
+The CLI is a convenience, not a requirement: it only runs CMake and CTest
 for you. If you'd rather drive CMake yourself, see **Building with CMake
 directly** in the top-level [README.md](../README.md#building-with-cmake-directly).
