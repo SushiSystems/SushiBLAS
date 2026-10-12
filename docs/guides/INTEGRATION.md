@@ -138,88 +138,173 @@ You can also branch at compile time, with a guard such as
 
 ## 5. Write one adapter
 
-Keep every include of a SushiBLAS header in one module of your own, and give the rest of your
+Keep every include of a SushiBLAS header in one file of your own, and give the rest of your
 program functions in your own types. A release that changes a name, a signature or an error
-channel is then an edit to that module. SushiAI does this for the failure channels in
-`sushiai/modules/core/core/`, in `seam.hpp` and `seam.cpp`; the blocks below are from those two
-files.
+channel is then an edit to that file. `applications/examples/adapter/` is a program built this
+way, and the blocks below are from its three files;
+[the examples page](../../applications/examples/README.md) says what it prints.
 
-**What it includes.** `seam.hpp` includes `<SushiBLAS/engine/engine.hpp>` and
-`<SushiRuntime/sushiruntime.hpp>`; `seam.cpp` adds `<SushiBLAS/core/errors.hpp>` for
-`UnsupportedExecution`. No other SushiAI file reads a `SushiRuntime::Error` or catches a
-SushiBLAS exception.
+**What the program sees.** A header that includes the standard library alone. It declares the
+program's own value type and status, a backend it names and does not define, and the operations
+the program needs:
 
-**What it exposes.** Functions that return the host's own types. In SushiAI they return its
-`Status` or its `Result`, and take a `SeamPhase` that says what the call was doing:
-`status_of_error` maps a `SushiRuntime::Error`, `status_of_current_exception` maps the exception
-being handled, `guard` runs a callable and returns either, and `run_recorded` runs an engine.
-They are declared in `sushiai/modules/core/core/include/SushiAI/core/seam.hpp`.
+```cpp
+class Backend;
+
+// ...
+
+[[nodiscard]] Status create_backend(BackendHandle& backend);
+
+// ...
+
+[[nodiscard]] Status multiply_add(Backend& backend, const Matrix& a, const Matrix& b,
+                                  const Matrix& offset, Matrix& result, float& result_sum);
+```
+
+Source: `applications/examples/adapter/host_program.hpp`
+
+`BackendHandle` is a `std::unique_ptr` with a deleter the adapter defines, so the program owns
+a backend whose size it does not know.
+
+**What the adapter includes.** `sushiblas_adapter.cpp` includes `host_program.hpp` and
+`<SushiBLAS/SushiBLAS.h>`, and is the only file of the program that does. It defines the
+backend as the runtime and an engine built on it:
+
+```cpp
+class Backend final
+{
+    public:
+        /** @brief Takes the runtime and builds the engine on it. */
+        explicit Backend(SushiRuntime::Runtime&& created)
+            : runtime(std::move(created)), engine(runtime)
+        {
+
+        }
+
+        /// @brief The runtime the engine is built on; declared first, destroyed last.
+        SushiRuntime::Runtime runtime;
+        /// @brief The engine every operation of the host records on.
+        SushiBLAS::Engine engine;
+};
+```
+
+Source: `applications/examples/adapter/sushiblas_adapter.cpp`
 
 **How it turns a failure into the host's type.** SushiBLAS has two channels the adapter must
 close, and [the architecture, section 11](../architecture/EXCEPTIONS.md) lists what arrives on
-each. A record call and a creation throw. The adapter catches the three types most derived first:
+each. A record call and a creation throw. The adapter runs every operation inside one function
+that catches the types most derived first:
 
 ```cpp
-Status status_of_current_exception(SeamPhase phase) noexcept
+template<typename Work>
+[[nodiscard]] Status guarded(const Work& work)
 {
     try
     {
-        throw;
+        return work();
     }
     catch (const SushiBLAS::UnsupportedExecution& error)
     {
-        return failure_of(StatusCode::Unsupported, error.what());
+        return Status{StatusCode::Unsupported, error.what()};
     }
     catch (const std::invalid_argument& error)
     {
-        return failure_of(StatusCode::InvalidDescription, error.what());
-    }
-    catch (const std::runtime_error& error)
-    {
-        return status_of_runtime_error(error, phase);
+        return Status{StatusCode::InvalidRequest, error.what()};
     }
     catch (const std::bad_alloc& error)
     {
-        return failure_of(StatusCode::OutOfMemory, error.what());
+        return Status{StatusCode::OutOfMemory, error.what()};
     }
     catch (const std::exception& error)
     {
-        return failure_of(StatusCode::DeviceFailed, error.what());
-    }
-    catch (...)
-    {
-        return failure_of(StatusCode::DeviceFailed, K_UNKNOWN_EXCEPTION_MESSAGE);
+        return Status{StatusCode::BackendFailed, error.what()};
     }
 }
 ```
 
-Source: not compiled
+Source: `applications/examples/adapter/sushiblas_adapter.cpp`
 
-The block is `status_of_current_exception` of `sushiai/modules/core/core/source/seam.cpp`, a file
-of another repository.
+The last handler takes `std::runtime_error`, which a creation and a refused recording throw.
 
-A run returns a `SushiRuntime::Result<void>`. The adapter reads the `Error` out of it and maps
-the `ErrorCode`, inside the same guard, so a run has one return type whichever channel failed:
+A run returns a `SushiRuntime::Result<void>`, and so does `Runtime::create()` with a `Runtime`
+in it. The adapter maps the `ErrorCode` of the `Error` in a `switch` that names every value and
+has no `default`, so `-Wswitch` reports a code the function does not name:
 
 ```cpp
-Status run_recorded(SushiBLAS::Engine& engine) noexcept
+[[nodiscard]] Status status_of_error(const SushiRuntime::Error& error)
 {
-    return guard(SeamPhase::Execute, [&]()
+    switch (error.code)
     {
-        const SushiRuntime::Result<void> ran = engine.execute();
-        if (!ran)
-            return status_of_error(ran.error(), SeamPhase::Execute);
+        case SushiRuntime::ErrorCode::InvalidGraph:
+        case SushiRuntime::ErrorCode::InvalidAccess:
+        case SushiRuntime::ErrorCode::DanglingResource:
+        case SushiRuntime::ErrorCode::InvalidState:
+            return Status{StatusCode::InvalidRequest, error.message};
+        case SushiRuntime::ErrorCode::Unsupported:
+            return Status{StatusCode::Unsupported, error.message};
+        case SushiRuntime::ErrorCode::AllocationFailed:
+            return Status{StatusCode::OutOfMemory, error.message};
+        case SushiRuntime::ErrorCode::CompileFailed:
+        case SushiRuntime::ErrorCode::KernelFailed:
+        case SushiRuntime::ErrorCode::DeviceLost:
+        case SushiRuntime::ErrorCode::ProtocolMismatch:
+            return Status{StatusCode::BackendFailed, error.message};
+    }
 
-        return Status();
-    });
+    return Status{StatusCode::BackendFailed, error.message};
 }
 ```
 
-Source: not compiled
+Source: `applications/examples/adapter/sushiblas_adapter.cpp`
 
-The block is `run_recorded` of the same file. `status_of_error` in that file
-is a `switch` over the `SushiRuntime::ErrorCode` values with no `default`, so `-Wswitch` reports
-a code the function does not name.
+**An operation.** The work is a lambda handed to `guarded`: it records, runs, tests the result
+of the run and reads the tensors back into the host's types. Both channels leave it as one
+`Status`:
+
+```cpp
+const Status status = guarded([&]()
+{
+    // ...
+
+    SushiBLAS::BLASOps(engine).gemm(left, right, product);
+    SushiBLAS::ElementwiseOps(engine).add(product, shift, shifted);
+    SushiBLAS::ReductionOps(engine).sum(shifted, total);
+
+    const SushiRuntime::Result<void> ran = engine.execute();
+    if (!ran)
+        return status_of_error(ran.error());
+
+    SushiBLAS::IO io(engine);
+    result = Matrix{a.rows, b.columns, io.to_vector<float>(shifted)};
+    result_sum = io.to_vector<float>(total)[0];
+    return Status{};
+});
+
+// A record call that throws leaves the tasks recorded before it on the engine.
+if (status.code != StatusCode::Ok)
+    engine.discard_recorded();
+```
+
+Source: `applications/examples/adapter/sushiblas_adapter.cpp`
+
+The call to `discard_recorded()` lets the program go on with the same backend after a refused
+request: without it the next run would start with the tasks the failed call left behind.
+
+**The program.** `adapter_demo.cpp` includes `host_program.hpp` alone and tests a `Status`:
+
+```cpp
+HostProgram::Matrix result;
+float sum = 0.0f;
+const HostProgram::Status ran = HostProgram::multiply_add(*backend, a, b, offset, result, sum);
+if (ran.code != HostProgram::StatusCode::Ok)
+{
+    std::cerr << "multiply_add: " << HostProgram::to_string(ran.code) << ": " << ran.message
+              << "\n";
+    return 1;
+}
+```
+
+Source: `applications/examples/adapter/adapter_demo.cpp`
 
 An adapter for the rest of the surface follows the same rule: it names `Engine`, the views and
 `Tensor` inside, and hands out handles and functions of the host.

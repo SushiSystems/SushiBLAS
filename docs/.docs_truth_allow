@@ -6,7 +6,6 @@ sushiai/.+ # a file of the SushiAI repository, cited as the example adapter and 
 cli/config\.local\.toml # a gitignored file each machine creates for its own paths
 KernelFailed|DeviceLost|CompileFailed|sr_format|sized_from_device # names of SushiRuntime, which this repository does not hold
 memory_allocation # an enumerator of sycl::errc
-SeamPhase|StatusCode|failure_of|status_of_error|status_of_current_exception|status_of_runtime_error|InvalidDescription|OutOfMemory|DeviceFailed # names of SushiAI's seam, quoted as the example adapter
 sushiblas_[a-z_]+_tests # a test program cmake/SushiBLASTests.cmake names from its module
 do_(first|second|something)|execute_specific_logic_for_this_unique_case # placeholders of the brace-style illustration
 pkg_check_modules # a CMake command
