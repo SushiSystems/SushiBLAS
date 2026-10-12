@@ -14,9 +14,8 @@ turns into the `integration` CTest label.
 
 ### ManyReadersOneWriter
 
-One tensor is written once and then read by 5000 independent tasks. The shape targets the
-reallocation of the `std::vector<Node*>` of readers, which happens inside the DependencyTracker's
-spinlock.
+One tensor is written once and then read by 5000 independent tasks, so 5000 reads are appended
+to the access history SushiRuntime's dependency tracker keeps for that one allocation.
 
 The write is a GEMM of `dummy_weights` with itself into `writer_tensor`. `writer_tensor` is the
 C operand there, so the tracker records a write. Each of the 5000 following GEMMs takes
@@ -24,9 +23,9 @@ C operand there, so the tracker records a write. Each of the 5000 following GEMM
 
 ### ShardCollisionStress
 
-The DependencyTracker picks a shard with `(ptr >> 6) % 1024`. With 3000 independent GEMMs over
-9000 distinct tensors, many tensors fall into the same shard. That produces false dependencies
-and contention on the shard spinlocks. Each A is filled with a constant that depends on its
+SushiRuntime's dependency tracker files an allocation under one of 1024 shards, picked by a
+hash of its base address. With 3000 independent GEMMs over 9000 distinct tensors, many tensors
+share a shard, and no task may gain a dependency from that. Each A is filled with a constant that depends on its
 index and each B with 0.5, so the test knows what every C must hold.
 
 ## test_framework_sim.cpp

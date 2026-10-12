@@ -103,8 +103,7 @@ and measures each against a `TruthSum`, as described under `blas_truth.hpp` abov
 ### The complex-type trait
 
 The helpers use the library's own trait, `SushiBLAS::Core::is_complex_v` from
-`<SushiBLAS/core/traits.hpp>`. This file once carried its own copy, the fourth in the project.
-The project now has exactly one.
+`<SushiBLAS/core/traits.hpp>`, the one definition in the project.
 
 ### fill_tensor on integer tensors
 
@@ -162,4 +161,4 @@ inside a third-party header the project does not own and cannot fix.
 
 Naming a generator explicitly settles it. `DefaultTypeNames` restates GoogleTest's default
 against its public API, without reaching into its `internal` namespace. The suffix is the type's
-index, as before, so every generated test name is unchanged and the fix renames no test.
+index, which is the name GoogleTest's own default gives.

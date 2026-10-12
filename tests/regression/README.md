@@ -15,8 +15,6 @@ which `tests/CMakeLists.txt` turns into the `regression` CTest label.
 | `test_sparse_recording.cpp` | A recorded sparse task computes its result, keeps its operands and is ordered behind the task that wrote them |
 | `test_blas_symmetric_bits.cpp` | The unconjugated reference kernels equal a plain host loop bit for bit |
 
-None of the four files added on 2026-10-07 had been built or run when this page was written.
-
 ## test_task_dependencies.cpp
 
 `ARecordedTaskComputesItsResult` records one operation of each recording seam on a `GraphProbe`,

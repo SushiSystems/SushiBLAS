@@ -96,12 +96,9 @@ The shared argument, environment, fill, timing and table code is in `benchmark_c
 
 ## Caveats
 
-This repository is built and tested on the OpenCL CPU device only. No GPU number has been
-measured here.
-
-The four programs added on 2026-10-07 (`benchmark_gemm_blocking`, `benchmark_band_packed`,
-`benchmark_triangular`, `benchmark_sparse`) had not been built or run when this page was written. What
-they print is described from their source.
+The functional tests of this tree have run on one NVIDIA RTX 3080 Ti. Which benchmark programs
+have been built and run is in `docs/reference/KNOWN_ISSUES.md`; what a program prints is
+described here from its source.
 
 A number is meaningful only for the machine, device and build that printed it. Compare two
 numbers only when the device and build lines above them match.
