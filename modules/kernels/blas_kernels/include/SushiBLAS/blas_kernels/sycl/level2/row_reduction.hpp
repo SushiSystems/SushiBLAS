@@ -49,8 +49,10 @@ namespace SushiBLAS
                 [[nodiscard]] inline std::size_t row_reduction_width(const Device::Profile& p,
                                                                      int64_t len) noexcept
                 {
-                    if (len <= 0) return 0;
-                    if (Reduce::planned_partials(p, static_cast<std::size_t>(len)) == 0) return 0;
+                    if (len <= 0)
+                        return 0;
+                    if (Reduce::planned_partials(p, static_cast<std::size_t>(len)) == 0)
+                        return 0;
                     return Reduce::group_width(p);
                 }
 
@@ -129,11 +131,13 @@ namespace SushiBLAS
                         // width is a power of two, so the halving tree pairs every lane in a fixed order.
                         for (std::size_t off = width / 2; off > 0; off >>= 1)
                         {
-                            if (lid < off) tile[lid] = tile[lid] + tile[lid + off];
+                            if (lid < off)
+                                tile[lid] = tile[lid] + tile[lid + off];
                             sycl::group_barrier(it.get_group());
                         }
 
-                        if (lid == 0) store(row, tile[0]);
+                        if (lid == 0)
+                            store(row, tile[0]);
                     });
                 }
 

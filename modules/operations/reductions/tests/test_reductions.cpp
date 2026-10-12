@@ -63,11 +63,13 @@ protected:
         if constexpr (std::is_integral_v<T>) 
         {
             std::uniform_int_distribution<T> dist(-10, 10);
-            for (auto& v : data) v = dist(gen);
+            for (auto& v : data)
+                v = dist(gen);
         } else 
         {
             std::uniform_real_distribution<T> dist(static_cast<T>(-10.0), static_cast<T>(10.0));
-            for (auto& v : data) v = dist(gen);
+            for (auto& v : data)
+                v = dist(gen);
         }
         return data;
     }

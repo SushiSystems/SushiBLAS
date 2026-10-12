@@ -137,7 +137,8 @@ namespace SushiBLAS
             engine->execute().value();
 
             double acc = 0.0;
-            for (std::size_t i = 0; i < total; ++i) acc += static_cast<double>(src[i]);
+            for (std::size_t i = 0; i < total; ++i)
+                acc += static_cast<double>(src[i]);
             const double expected = acc / static_cast<double>(total);
 
             const std::vector<float> got = read_back(out);

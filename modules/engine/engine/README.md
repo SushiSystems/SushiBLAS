@@ -265,7 +265,7 @@ the threads took the lock. `run_exclusive(work)` runs a callable under the same 
 ### `TaskRecorder::record_pair`
 
 Takes a `TaskDescription`, an `OperandSet`, the family name for diagnostics, and a body callable as
-`(const Internal::KernelPairDispatcher&, sycl::queue&, const std::vector<sycl::event>&) ->
+`(const KernelPairDispatcher&, sycl::queue&, const std::vector<sycl::event>&) ->
 sycl::event`. It first calls `require_host_reachable`. It then wraps the body in a
 `Detail::RecordedPairTask` with a dispatcher that holds the current mode and with the set's
 `StorageKeepAlive`, records the task with the set's read and write regions and with the name, the
@@ -354,7 +354,7 @@ holds it once.
 
 ## `kernel_pair_dispatcher.hpp`
 
-`Internal::KernelPairDispatcher` holds the execution mode the recorder had when the task was
+`KernelPairDispatcher` holds the execution mode the recorder had when the task was
 recorded. A task body calls `dispatcher.run(q, deps, reference_fn, sycl_fn)`. Under
 `ForceReference` it waits on the dependencies, calls `reference_fn` on the calling thread and
 returns an empty event; under `Auto` and `ForceSYCL` it returns what `sycl_fn(q, deps)` returns.

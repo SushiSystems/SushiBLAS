@@ -32,7 +32,7 @@ recording call:
 whose reads and writes are the operand set's regions, and whose name, operation and parameters
 are those of the `TaskDescription`, handed to the runtime as `SushiRuntime::NodeOptions`. A
 recording the runtime refuses throws `std::runtime_error` with the runtime's message. The body
-is a copyable callable `(const Internal::KernelPairDispatcher&, sycl::queue&, const
+is a copyable callable `(const KernelPairDispatcher&, sycl::queue&, const
 std::vector<sycl::event>&) -> sycl::event` that must order its work behind the events it is
 given. On the SYCL side that means every command group calls `h.depends_on(deps)`;
 `check_layering.py` reports a command group without it.

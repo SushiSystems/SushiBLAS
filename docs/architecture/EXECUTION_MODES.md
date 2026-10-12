@@ -13,7 +13,7 @@ the mode of every operation recorded from then on.
 while it is called.
 
 **The mode belongs to the task.** `TaskRecorder::record_pair` builds an
-`Internal::KernelPairDispatcher` from the recorder's mode at the moment of the call and stores it
+`KernelPairDispatcher` from the recorder's mode at the moment of the call and stores it
 in the task. Changing the mode afterwards changes later record calls only, so one graph can hold
 tasks of different modes:
 

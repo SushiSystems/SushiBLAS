@@ -62,7 +62,8 @@ namespace SushiBLAS
                                                     int64_t rows, int64_t cols,
                                                     const Access& s) noexcept
                 {
-                    if (row >= rows || col >= cols) return T(0);
+                    if (row >= rows || col >= cols)
+                        return T(0);
                     return s.at(p, row, col);
                 }
 
@@ -183,11 +184,13 @@ namespace SushiBLAS
                 [[nodiscard]] inline GroupShape group_shape(std::size_t budget) noexcept
                 {
                     std::size_t side = 1;
-                    while ((side * 2) * (side * 2) <= budget) side *= 2;
+                    while ((side * 2) * (side * 2) <= budget)
+                        side *= 2;
 
                     // A non-square budget leaves room for a second row of sub-groups, which is taken; see modules/kernels/blas_seam_kernels/README.md.
                     std::size_t rows = side;
-                    if (rows * 2 * side <= budget) rows *= 2;
+                    if (rows * 2 * side <= budget)
+                        rows *= 2;
 
                     return GroupShape{rows, side};
                 }
@@ -330,13 +333,15 @@ namespace SushiBLAS
                             {
                                 const int64_t global_row =
                                     row0 + local_row + ii * Configuration::K_WG_ROWS;
-                                if (global_row >= m) continue;
+                                if (global_row >= m)
+                                    continue;
 
                                 for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                 {
                                     const int64_t global_col =
                                         col0 + local_col + jj * Configuration::K_WG_COLS;
-                                    if (global_col >= n) continue;
+                                    if (global_col >= n)
+                                        continue;
 
                                     const int64_t c_idx = c_access.index(global_row, global_col);
 
@@ -437,12 +442,14 @@ namespace SushiBLAS
                             for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
                             {
                                 const int64_t global_row = row0 + ii * wg_rows;
-                                if (global_row >= m) continue;
+                                if (global_row >= m)
+                                    continue;
 
                                 for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                 {
                                     const int64_t global_col = col0 + jj * wg_cols;
-                                    if (global_col >= n) continue;
+                                    if (global_col >= n)
+                                        continue;
 
                                     const int64_t c_idx = c_access.index(global_row, global_col);
 

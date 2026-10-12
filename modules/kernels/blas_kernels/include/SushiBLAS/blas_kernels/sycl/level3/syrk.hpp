@@ -270,7 +270,8 @@ namespace SushiBLAS
                         const bool tile_wanted = upper
                             ? (col0 + block_n - 1 >= row0)
                             : (row0 + block_m - 1 >= col0);
-                        if (!tile_wanted) return;
+                        if (!tile_wanted)
+                            return;
 
                         W acc[item_rows][item_cols];
                         for (int64_t ii = 0; ii < item_rows; ++ii)
@@ -314,13 +315,16 @@ namespace SushiBLAS
                         for (int64_t ii = 0; ii < item_rows; ++ii)
                         {
                             const int64_t global_row = row0 + local_row * item_rows + ii;
-                            if (global_row >= n) continue;
+                            if (global_row >= n)
+                                continue;
                             for (int64_t jj = 0; jj < item_cols; ++jj)
                             {
                                 const int64_t global_col = col0 + local_col * item_cols + jj;
-                                if (global_col >= n) continue;
+                                if (global_col >= n)
+                                    continue;
                                 // Upper keeps col >= row; lower keeps col <= row.
-                                if (upper ? (global_col < global_row) : (global_col > global_row)) continue;
+                                if (upper ? (global_col < global_row) : (global_col > global_row))
+                                    continue;
 
                                 const int64_t c_idx = c_access.index(global_row, global_col);
                                 // A zero beta must not read the prior value of C.

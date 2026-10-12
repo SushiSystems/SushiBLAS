@@ -53,25 +53,29 @@ namespace SushiBLAS
             template<typename T>
             void axpy(int64_t n, T alpha, const T* x, int64_t incx, T* y, int64_t incy)
             {
-                for (int64_t i = 0; i < n; ++i) y[i * incy] += alpha * x[i * incx];
+                for (int64_t i = 0; i < n; ++i)
+                    y[i * incy] += alpha * x[i * incx];
             }
 
             template<typename T>
             void copy(int64_t n, const T* x, int64_t incx, T* y, int64_t incy)
             {
-                for (int64_t i = 0; i < n; ++i) y[i * incy] = x[i * incx];
+                for (int64_t i = 0; i < n; ++i)
+                    y[i * incy] = x[i * incx];
             }
 
             template<typename T>
             void scal(int64_t n, T alpha, T* x, int64_t incx)
             {
-                for (int64_t i = 0; i < n; ++i) x[i * incx] *= alpha;
+                for (int64_t i = 0; i < n; ++i)
+                    x[i * incx] *= alpha;
             }
 
             template<typename T>
             void swap(int64_t n, T* x, int64_t incx, T* y, int64_t incy)
             {
-                for (int64_t i = 0; i < n; ++i) std::swap(x[i * incx], y[i * incy]);
+                for (int64_t i = 0; i < n; ++i)
+                    std::swap(x[i * incx], y[i * incy]);
             }
 
             template<typename T>

@@ -51,10 +51,12 @@ namespace SushiBLAS
                                            int64_t count, const T* in, T* out,
                                            const std::vector<sycl::event>& deps)
             {
-                if (count <= 0) return sycl::event();
+                if (count <= 0)
+                    return sycl::event();
 
                 const int64_t total = span.batch * span.in_h * span.in_w * count;
-                if (total <= 0) return sycl::event();
+                if (total <= 0)
+                    return sycl::event();
 
                 const int64_t in_h = span.in_h;
                 const int64_t in_w = span.in_w;

@@ -50,7 +50,8 @@ namespace SushiBLAS
                                const T* in, T* out, const std::vector<sycl::event>& deps)
             {
                 const int64_t total = span.column_elements();
-                if (total <= 0) return sycl::event();
+                if (total <= 0)
+                    return sycl::event();
 
                 // The device closure captures values, never a host reference.
                 const Spatial::ConvGeometry g = span.geometry;

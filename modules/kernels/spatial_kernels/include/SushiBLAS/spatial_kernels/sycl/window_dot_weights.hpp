@@ -210,7 +210,8 @@ namespace SushiBLAS
                 using W = Accumulator<T>;
 
                 const int64_t segments = span.patch_elements();
-                if (segments <= 0) return sycl::event();
+                if (segments <= 0)
+                    return sycl::event();
 
                 return Reduce::reduce_segments<Reduce::CompensatedSum, W>(
                     q, static_cast<std::size_t>(segments),

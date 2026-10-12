@@ -469,7 +469,7 @@ every site.
   real-only GEMM epilogue is a compile error in the two arms that will never run.
 - `operands`: The `OperandSet` the operation declared: every tensor the task reads or writes, and
   its scratch.
-- `op_func`: A callable `(auto scalar_type, const Internal::KernelPairDispatcher&, sycl::queue&,
+- `op_func`: A callable `(auto scalar_type, const KernelPairDispatcher&, sycl::queue&,
   const std::vector<sycl::event>&) -> sycl::event`, generic over the runtime dtype via
   `decltype(scalar_type)`.
 
@@ -479,7 +479,7 @@ Throws `std::invalid_argument` at record time if `dtype` falls outside `Dom`. Th
 `UnsupportedExecution` at record time if the recorder is in `ForceReference` and a declared tensor
 is device-only USM.
 
-Each task body receives a `const Internal::KernelPairDispatcher&` and calls
+Each task body receives a `const KernelPairDispatcher&` and calls
 `dispatcher.run(q, deps, reference_fn, sycl_fn)`; the mode inside the dispatcher is the one the
 recorder held at record time. `modules/engine/engine/README.md` describes the recorder, the
 dispatcher and the `ForceReference` refusal.

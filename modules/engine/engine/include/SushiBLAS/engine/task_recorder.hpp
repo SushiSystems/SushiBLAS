@@ -159,7 +159,7 @@ namespace SushiBLAS
 
             /**
              * @brief Records a task whose body runs a reference and SYCL kernel pair.
-             * @param body Callable `(const Internal::KernelPairDispatcher&, sycl::queue&,
+             * @param body Callable `(const KernelPairDispatcher&, sycl::queue&,
              *        const std::vector<sycl::event>&) -> sycl::event`, copyable, callable more
              *        than once, and ordering its work behind the events it is given.
              * @throws UnsupportedExecution for a device-only tensor under ForceReference, and
@@ -172,7 +172,7 @@ namespace SushiBLAS
                 require_host_reachable(operands, family, description.name);
                 return insert(description, operands,
                               Internal::Detail::RecordedPairTask<std::decay_t<Body>>(
-                                  std::forward<Body>(body), Internal::KernelPairDispatcher(mode_),
+                                  std::forward<Body>(body), KernelPairDispatcher(mode_),
                                   operands.retained()));
             }
 

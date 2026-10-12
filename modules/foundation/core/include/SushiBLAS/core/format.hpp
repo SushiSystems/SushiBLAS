@@ -86,7 +86,8 @@ namespace SushiBLAS
             inline void parse_format_spec(std::string_view field, FormatSpec& spec) noexcept
             {
                 // A field without a leading ':', such as an argument index, is unsupported and renders plain; see modules/foundation/core/README.md.
-                if (field.empty() || field.front() != ':') return;
+                if (field.empty() || field.front() != ':')
+                    return;
 
                 std::size_t i = 1;
 
@@ -126,7 +127,8 @@ namespace SushiBLAS
                     }
                 }
 
-                if (i < field.size()) spec.type = field[i];
+                if (i < field.size())
+                    spec.type = field[i];
             }
 
             /**
@@ -137,15 +139,21 @@ namespace SushiBLAS
             {
                 os << std::boolalpha;
 
-                if (spec.align == '<') os << std::left;
-                else if (spec.align == '>') os << std::right;
+                if (spec.align == '<')
+                    os << std::left;
+                else if (spec.align == '>')
+                    os << std::right;
 
                 // An explicit fill wins; '0' pads only without an alignment; see modules/foundation/core/README.md.
-                if (spec.fill != '\0') os << std::setfill(spec.fill);
-                else if (spec.zero_fill && spec.align == '\0') os << std::setfill('0') << std::internal;
+                if (spec.fill != '\0')
+                    os << std::setfill(spec.fill);
+                else if (spec.zero_fill && spec.align == '\0')
+                    os << std::setfill('0') << std::internal;
 
-                if (spec.width > 0) os << std::setw(spec.width);
-                if (spec.precision >= 0) os << std::setprecision(spec.precision);
+                if (spec.width > 0)
+                    os << std::setw(spec.width);
+                if (spec.precision >= 0)
+                    os << std::setprecision(spec.precision);
 
                 switch (spec.type)
                 {
@@ -295,7 +303,8 @@ namespace SushiBLAS
                     parse_format_spec(fmt.substr(i + 1, close - (i + 1)), spec);
 
                     // A field with no argument left to fill it is dropped; formatting never fails the program; see modules/foundation/core/README.md.
-                    if (next < arg_count) args[next++].write(os, spec);
+                    if (next < arg_count)
+                        args[next++].write(os, spec);
 
                     i = close;
                 }

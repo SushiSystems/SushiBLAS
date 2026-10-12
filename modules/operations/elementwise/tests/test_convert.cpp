@@ -89,13 +89,15 @@ namespace SushiBLAS
                     {
                         std::vector<sycl::half> host(n);
                         q.memcpy(host.data(), t.data(), n * sizeof(sycl::half)).wait();
-                        for (size_t i = 0; i < n; ++i) out[i] = static_cast<double>(host[i]);
+                        for (size_t i = 0; i < n; ++i)
+                            out[i] = static_cast<double>(host[i]);
                     }
                     else if (t.dtype == Core::DataType::Float32)
                     {
                         std::vector<float> host(n);
                         q.memcpy(host.data(), t.data(), n * sizeof(float)).wait();
-                        for (size_t i = 0; i < n; ++i) out[i] = static_cast<double>(host[i]);
+                        for (size_t i = 0; i < n; ++i)
+                            out[i] = static_cast<double>(host[i]);
                     }
                     else
                     {
@@ -114,13 +116,15 @@ namespace SushiBLAS
                     if (t.dtype == Core::DataType::Half)
                     {
                         std::vector<sycl::half> host(n);
-                        for (size_t i = 0; i < n; ++i) host[i] = static_cast<sycl::half>(static_cast<float>(values[i]));
+                        for (size_t i = 0; i < n; ++i)
+                            host[i] = static_cast<sycl::half>(static_cast<float>(values[i]));
                         q.memcpy(t.data(), host.data(), n * sizeof(sycl::half)).wait();
                     }
                     else if (t.dtype == Core::DataType::Float32)
                     {
                         std::vector<float> host(n);
-                        for (size_t i = 0; i < n; ++i) host[i] = static_cast<float>(values[i]);
+                        for (size_t i = 0; i < n; ++i)
+                            host[i] = static_cast<float>(values[i]);
                         q.memcpy(t.data(), host.data(), n * sizeof(float)).wait();
                     }
                     else
@@ -328,14 +332,16 @@ namespace SushiBLAS
             auto src = engine->create_tensor({3, 4}, Core::DataType::Float64);
             auto dst = engine->create_tensor({3, 4}, Core::DataType::Half);
             std::vector<double> values(12);
-            for (size_t i = 0; i < values.size(); ++i) values[i] = static_cast<double>(i) - 5.0;
+            for (size_t i = 0; i < values.size(); ++i)
+                values[i] = static_cast<double>(i) - 5.0;
             write_exact(src, values);
 
             SushiBLAS::ElementwiseOps(*engine).convert(src, dst);
             engine->execute().value();
 
             const auto got = read_exact(dst);
-            for (size_t i = 0; i < values.size(); ++i) EXPECT_EQ(values[i], got[i]) << "at index " << i;
+            for (size_t i = 0; i < values.size(); ++i)
+                EXPECT_EQ(values[i], got[i]) << "at index " << i;
         }
 
         TEST_F(Unit_ConvertTest, ADTypePairOutsideTheRealDomainThrowsNamingBoth)

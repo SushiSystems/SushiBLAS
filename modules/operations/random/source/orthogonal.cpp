@@ -81,7 +81,7 @@ namespace SushiBLAS
 
         return recorder_.record_pair(description, operands, "RNG operation",
             [dtype = t.dtype, ptr, set, gain, name]
-            (const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+            (const KernelPairDispatcher& pair, sycl::queue& q,
              const std::vector<sycl::event>& deps) -> sycl::event
             {
                 SB_LOG_INFO("RandomOps: {} ({} vectors of length {}, gain: {:.4f})", name, set.count, set.length, gain);

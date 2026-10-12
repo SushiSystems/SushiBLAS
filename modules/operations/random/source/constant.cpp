@@ -54,7 +54,7 @@ namespace SushiBLAS
                                const OperandSet& operands, T* out, T value, int64_t size)
         {
             return recorder.record_pair(description, operands, "RNG operation",
-                [out, value, size](const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+                [out, value, size](const KernelPairDispatcher& pair, sycl::queue& q,
                                    const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("RandomOps: constant ({} elements)", size);

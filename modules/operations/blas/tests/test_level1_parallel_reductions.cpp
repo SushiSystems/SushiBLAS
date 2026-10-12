@@ -108,7 +108,8 @@ namespace SushiBLAS
                 [[nodiscard]] static std::vector<float> x_vector(int64_t n)
                 {
                     std::vector<float> v(static_cast<std::size_t>(n));
-                    for (std::size_t i = 0; i < v.size(); ++i) v[i] = x_at(i);
+                    for (std::size_t i = 0; i < v.size(); ++i)
+                        v[i] = x_at(i);
                     return v;
                 }
 
@@ -116,7 +117,8 @@ namespace SushiBLAS
                 [[nodiscard]] static std::vector<float> y_vector(int64_t n)
                 {
                     std::vector<float> v(static_cast<std::size_t>(n));
-                    for (std::size_t i = 0; i < v.size(); ++i) v[i] = y_at(i);
+                    for (std::size_t i = 0; i < v.size(); ++i)
+                        v[i] = y_at(i);
                     return v;
                 }
 
@@ -169,7 +171,8 @@ namespace SushiBLAS
                 const auto hx = x_vector(n);
 
                 double expected = 0.0;
-                for (float v : hx) expected += std::fabs(static_cast<double>(v));
+                for (float v : hx)
+                    expected += std::fabs(static_cast<double>(v));
 
                 auto x = upload(hx);
                 auto r = engine->create_tensor({1});
@@ -192,7 +195,8 @@ namespace SushiBLAS
                 const auto hx = x_vector(n);
 
                 double ssq = 0.0;
-                for (float v : hx) ssq += static_cast<double>(v) * static_cast<double>(v);
+                for (float v : hx)
+                    ssq += static_cast<double>(v) * static_cast<double>(v);
                 const double expected = std::sqrt(ssq);
 
                 auto x = upload(hx);

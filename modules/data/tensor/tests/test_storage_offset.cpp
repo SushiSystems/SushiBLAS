@@ -58,7 +58,8 @@ namespace SushiBLAS
                                    Core::DataType dtype = Core::DataType::Float32)
                 {
                     int64_t n = 1;
-                    for (auto d : dims) n *= d;
+                    for (auto d : dims)
+                        n *= d;
 
                     const size_t bpe = Core::bytes_per_element(dtype);
                     auto storage = SushiRuntime::make_sushi<Storage>(
@@ -93,7 +94,8 @@ namespace SushiBLAS
 
                     for (size_t i = 0; i < total; ++i)
                     {
-                        if (i >= head && i < tail) continue;
+                        if (i >= head && i < tail)
+                            continue;
                         if (host[i] != static_cast<unsigned char>(K_POISON_BYTE))
                         {
                             return ::testing::AssertionFailure()

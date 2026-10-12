@@ -26,7 +26,7 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | Reference path | What runs on the host under `ForceReference`: the reference kernel where an operation has one, and for the elementwise, nonlinear, logic, reduction and random families a serial loop over the same functor, fold or Philox counters as the SYCL kernel |
 | SYCL kernel | The device implementation of an operation, in the `sycl/` folder of its family's kernel module under `modules/kernels/` |
 | Execution mode | `ExecutionMode`: `Auto` and `ForceSYCL` run the SYCL kernel, `ForceReference` runs the reference path on the host. A task keeps the mode its recorder held when it was recorded |
-| Dispatch helper | `Internal::execute_typed_task` in `engine/task.hpp` records a task through the recorder and switches on the dtype; `Internal::KernelPairDispatcher` runs the reference or the SYCL kernel of a pair by the recorded mode |
+| Dispatch helper | `Internal::execute_typed_task` in `engine/task.hpp` records a task through the recorder and switches on the dtype; `KernelPairDispatcher` runs the reference or the SYCL kernel of a pair by the recorded mode |
 | Dispatch seam | The public `SushiBLAS::Dispatch` functions that take a recorder and a caller-written functor and record it as one task, such as `execute_binary` and `execute_gemm` |
 | Declared read | A tensor a caller's functor reads at execution time, named through `Dispatch::bind_reads` so the graph orders the task after its writers and keeps the storage (`functor_map/read_binding.hpp`) |
 | Epilogue | A functor GEMM applies to each output element just before the store; it receives the value, the row and the column |

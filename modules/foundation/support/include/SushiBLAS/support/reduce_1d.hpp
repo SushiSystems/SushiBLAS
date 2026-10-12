@@ -766,7 +766,8 @@ namespace SushiBLAS
                     h.single_task([=]()
                     {
                         Accum<W> acc;
-                        for (std::size_t i = 0; i < n; ++i) acc.accumulate(read(i));
+                        for (std::size_t i = 0; i < n; ++i)
+                            acc.accumulate(read(i));
                         *out = static_cast<Out>(finalize(acc.value(), n));
                     });
                 });
@@ -818,7 +819,8 @@ namespace SushiBLAS
                 {
                     // Stage two folds the partials in ascending index order.
                     Accum<W> acc;
-                    for (std::size_t g = 0; g < groups; ++g) acc.accumulate(partials[g]);
+                    for (std::size_t g = 0; g < groups; ++g)
+                        acc.accumulate(partials[g]);
                     *out = static_cast<Out>(finalize(acc.value(), n));
                 });
             });

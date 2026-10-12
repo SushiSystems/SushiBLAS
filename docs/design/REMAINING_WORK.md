@@ -142,6 +142,14 @@ records them and holds the steps that have not run.
 - Add column-major and other-dtype cases to the reference tests of BLAS levels 1 and 2 and TRSM,
   and raise the remaining single-case smoke tests to the edge cases the five edited ones carry.
 - Give the eight older spatial operations the overlap check the `window_dot` triple has.
+- Bring the record-time errors to the error table of the `cpp-code-style` skill, as its own plan
+  after 0.2.0: an operand that breaks a rule (`std::invalid_argument` today) stops the process
+  through an `SB_VERIFY` with a handler a host can replace, and a refusal of the mode or the device
+  (`UnsupportedExecution`) is kept by the recorder and returned by the next `execute()`. It
+  touches the three helpers of `operand_check.hpp`, `SB_THROW_IF`, 310 `EXPECT_THROW` lines in 36
+  test files, two examples and the catch ladder of SushiAI's `seam.cpp`.
+- Group the includes of every source file as the contributing guide states, together with
+  SushiRuntime, whose files carry the same ungrouped order, so the two trees stay shaped alike.
 
 ## Command line
 
