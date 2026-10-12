@@ -11,7 +11,7 @@ and gives the reason where one is recorded.
 
 | Where | SYCL type |
 | --- | --- |
-| `Tensor::get_device()` | `sycl::device` |
+| `Tensor::device()` | `sycl::device` |
 | The task bodies a `TaskRecorder` records | `sycl::queue&` and `std::vector<sycl::event>` in, `sycl::event` out |
 | The `SushiBLAS::Dispatch` seams | The caller's functor is inlined into a SYCL kernel |
 
