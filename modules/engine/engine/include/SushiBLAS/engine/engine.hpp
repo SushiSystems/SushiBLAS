@@ -34,6 +34,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/tensor_factory.hpp>
 #include <SushiBLAS/engine/rng_stream.hpp>
+#include <SushiBLAS/engine/recorded_graph.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
@@ -105,6 +106,7 @@ namespace SushiBLAS
              * @brief Runs the graph recorded through recorder(), returns when every task has
              *        finished, and leaves the graph empty.
              * @return Nothing, also when no task was recorded, or the error that ended the run.
+             *         After InvalidState for a run in flight the recorded tasks are kept.
              * @pre No thread is recording on this engine.
              * @see modules/README.md
              */
@@ -158,7 +160,7 @@ namespace SushiBLAS
             ScratchPool scratch_pool_;
 
             /// @brief The graph recorded tasks wait in until execute(); no accessor reaches it.
-            SushiRuntime::Graph graph_;
+            RecordedGraph graph_;
 
             /// @brief The recorder bound to the recorder of graph_ and to scratch_pool_.
             TaskRecorder recorder_;

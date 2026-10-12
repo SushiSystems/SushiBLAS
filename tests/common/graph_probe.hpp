@@ -32,6 +32,7 @@
 #include <utility>
 #include <vector>
 #include <SushiBLAS/engine/scratch_pool.hpp>
+#include <SushiBLAS/engine/recorded_graph.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
@@ -73,7 +74,7 @@ namespace SushiBLAS
                 /** @brief Builds an empty graph whose recorder records under mode. */
                 explicit GraphProbe(ExecutionMode mode = ExecutionMode::Auto)
                     : scratch_pool_(TestEnvironment::runtime()),
-                      graph_(TestEnvironment::runtime().graph()),
+                      graph_(TestEnvironment::runtime()),
                       recorder_(graph_.recorder(), scratch_pool_, mode)
                 {
 
@@ -94,15 +95,13 @@ namespace SushiBLAS
                 /** @brief Returns how many tasks are recorded and have not run. */
                 [[nodiscard]] std::size_t recorded_count() const noexcept
                 {
-                    return graph_.recorder().node_count();
+                    return graph_.recorded_count();
                 }
 
                 /** @brief Returns how many tasks wait on the graph and drops them. */
                 [[nodiscard]] std::size_t take_recorded_count()
                 {
-                    const std::size_t count = recorded_count();
-                    graph_.recorder().clear();
-                    return count;
+                    return graph_.discard();
                 }
 
                 /**
@@ -114,7 +113,7 @@ namespace SushiBLAS
                  */
                 [[nodiscard]] SushiRuntime::Result<std::vector<RecordedTask>> recorded_tasks()
                 {
-                    if (recorded_count() == 0 && graph_.recorder().refusal() == nullptr)
+                    if (graph_.is_empty())
                         return std::vector<RecordedTask>{};
 
                     SushiRuntime::Result<SushiRuntime::PlanView> plan = graph_.plan();
@@ -157,15 +156,7 @@ namespace SushiBLAS
                  */
                 [[nodiscard]] SushiRuntime::Result<void> execute()
                 {
-                    if (recorded_count() == 0 && graph_.recorder().refusal() == nullptr)
-                        return {};
-
-                    auto report = graph_.run();
-                    graph_ = TestEnvironment::runtime().graph();
-                    if (!report)
-                        return SushiRuntime::make_error(std::move(report.error()));
-
-                    return {};
+                    return graph_.run();
                 }
 
             private:
@@ -173,7 +164,7 @@ namespace SushiBLAS
                 ScratchPool scratch_pool_;
 
                 /// @brief The graph the test reads.
-                SushiRuntime::Graph graph_;
+                RecordedGraph graph_;
 
                 /// @brief The recorder bound to the recorder of graph_ and to scratch_pool_.
                 TaskRecorder recorder_;

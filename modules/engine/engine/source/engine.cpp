@@ -28,14 +28,13 @@
 #include <SushiBLAS/engine/engine.hpp>
 
 #include <cstddef>
-#include <utility>
 
 #include <SushiBLAS/core/logger.hpp>
 
 namespace SushiBLAS
 {
     Engine::Engine(SushiRuntime::Runtime& runtime, Core::Layout layout)
-        : runtime_(runtime), scratch_pool_(runtime), graph_(runtime.graph()),
+        : runtime_(runtime), scratch_pool_(runtime), graph_(runtime),
           recorder_(graph_.recorder(), scratch_pool_), tensor_factory_(runtime, layout)
     {
         SB_LOG_INFO("SushiBLAS Engine initialized with {} layout.",
@@ -44,25 +43,12 @@ namespace SushiBLAS
 
     SushiRuntime::Result<void> Engine::execute()
     {
-        SushiRuntime::Recorder& recorded = graph_.recorder();
-        // A graph with no task is not run: the runtime refuses one; see modules/README.md.
-        if (recorded.node_count() == 0 && recorded.refusal() == nullptr)
-            return {};
-
-        auto report = graph_.run();
-        // A new graph replaces the one that ran, so its tasks die with what they captured.
-        graph_ = runtime_.graph();
-        if (!report)
-            return SushiRuntime::make_error(std::move(report.error()));
-
-        return {};
+        return graph_.run();
     }
 
     void Engine::discard_recorded()
     {
-        const std::size_t dropped = graph_.recorder().node_count();
-        // The tasks die in clear(), and take what their bodies captured with them.
-        graph_.recorder().clear();
+        const std::size_t dropped = graph_.discard();
         SB_LOG_INFO("SushiBLAS Engine discarded {} recorded task(s).", dropped);
     }
 } // namespace SushiBLAS
