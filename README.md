@@ -131,8 +131,8 @@ ctest --test-dir build -L regression
 ```cpp
 #include <SushiBLAS/SushiBLAS.h>
 
-sr::Execution::RuntimeContext ctx;
-SushiBLAS::Engine engine(ctx, SushiBLAS::Core::Layout::RowMajor);
+SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+SushiBLAS::Engine engine(runtime, SushiBLAS::Core::Layout::RowMajor);
 
 auto A = engine.create_tensor({1024, 1024});   // FLOAT32, shared USM, by default
 auto B = engine.create_tensor({1024, 1024});
@@ -144,7 +144,8 @@ random.uniform(B, 0.0, 1.0);
 
 SushiBLAS::BLASOps blas(engine);
 blas.gemm(A, B, C);        // records the task; nothing has run yet
-engine.execute();          // compiles the graph, runs it, returns when every task has finished
+engine.execute().value();  // runs the graph and returns when every task has finished; an
+                           // error stops the process here, or is read from the Result
 
 const std::vector<float> result = SushiBLAS::IO(engine).to_vector<float>(C);
 ```

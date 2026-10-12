@@ -15,7 +15,7 @@
    │                         TaskRecorder and an OperandSet, return │
    │                         a TaskHandle                           │
    ├────────────────────────────────────────────────────────────────┤
-   │  TaskRecorder           the one caller of TaskGraph::add_task; │  engine/task_recorder.hpp
+   │  TaskRecorder           the one caller of Recorder::task;      │  engine/task_recorder.hpp
    │                         stamps the execution mode on the task  │
    ├───────────────────────┬────────────────────────────────────────┤
    │  Reference kernels    │  SYCL kernels                          │  kernels/,
@@ -28,8 +28,8 @@
    │  Tensor / Storage       shape, stride and dtype over a         │  tensor.hpp, storage.hpp,
    │                         ref-counted USM allocation             │  tensor_factory.hpp
    ├────────────────────────────────────────────────────────────────┤
-   │  SushiRuntime           TaskGraph · RuntimeContext ·           │  not SushiBLAS's code
-   │                         Residency · execution engine           │
+   │  SushiRuntime           Runtime · Graph · Recorder · Buffer ·  │  not SushiBLAS's code
+   │                         Residency · Result                     │
    └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -37,15 +37,19 @@ A layer depends on the layers below it and on none above. Four rules state what 
 know, and `tools/layering/check_layering.py` checks them from the include lines and the call
 sites:
 
-- **`Engine` knows no operation.** `engine.hpp` includes the four bricks it composes
-  (`engine/rng_stream.hpp`, `engine/scratch_pool.hpp`, `engine/task_recorder.hpp`,
-  `engine/execution_mode.hpp`) and no view, seam or experimental header. It has no `blas()` or
+- **`Engine` knows no operation.** `engine.hpp` includes the five bricks it composes
+  (`engine/rng_stream.hpp`, `engine/recorded_graph.hpp`, `engine/scratch_pool.hpp`,
+  `engine/task_recorder.hpp`, `engine/execution_mode.hpp`) and no view, seam or experimental
+  header. It has no `blas()` or
   `elementwise()` accessor.
 - **A view knows the engine only as a source of bricks.** A view's constructor takes an `Engine&`
-  and calls `get_recorder()` (and `get_rng()` for `RandomOps`), or takes the `TaskRecorder&`
+  and calls `recorder()` (and `rng()` for `RandomOps`), or takes the `TaskRecorder&`
   directly. An operation source under `modules/operations/` never includes `engine.hpp`.
-- **Only `TaskRecorder` inserts into the graph.** No seam, view or operation source calls
-  `TaskGraph::add_task`.
+- **Only `TaskRecorder` records a tensor operation.** No seam, view or operation source calls a
+  recording member of `SushiRuntime::Recorder` (`task`, `kernel`, `state_rule`, `host`,
+  `untracked_kernel`, `dynamic_kernel`, `coupled_rule`). The graph primitives of
+  `modules/foundation/graph_primitives/` are the other caller: they record on a `Recorder` the
+  caller hands them and know no tensor.
 - **A kernel knows neither `Engine` nor `Tensor`.** A header under `modules/kernels/` or
   `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/` includes no `engine/` header, no `tensor.hpp` and no sparse
   operand header. It receives pointers, extents and strides. A support header obeys the same rule

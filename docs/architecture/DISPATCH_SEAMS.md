@@ -4,7 +4,7 @@ A seam is the function a view method calls to record its task. Seams take a `Tas
 return a `TaskHandle`. There are two kinds.
 
 **The kernel-pair seam** serves the dense BLAS, sparse and spatial families.
-`Internal::execute_typed_task<Dom>(recorder, meta, operands, dtype, family, op_func)`
+`Internal::execute_typed_task<Dom>(recorder, description, operands, dtype, family, op_func)`
 (`engine/task.hpp`) checks the dtype against the domain and records one task whose body switches
 on the runtime dtype and calls `op_func(T{}, dispatcher, q, deps)` with a value of the matching
 element type. `op_func` calls `dispatcher.run` with its reference kernel and its SYCL kernel.
