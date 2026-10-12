@@ -103,10 +103,13 @@ The codebase has a deliberate, consistent style. Match the file you're editing.
 
 ### License header
 
-Every source file opens with the license block of the `source-comments` skill:
-the file name, the project line `SushiBLAS - https://github.com/SushiSystems/SushiBLAS`,
-`Copyright (c) <year>-present Mustafa Garip & Sushi Systems` and the two
-PolyForm Noncommercial lines.
+Every source file opens with the license block of the `source-comments` skill.
+A C++ file carries the box, 76 columns wide: the file name, the project and
+its addresses, `Copyright (c) <year>-present Mustafa Garip & Sushi Systems`
+and the PolyForm Noncommercial text. A Python, shell or CMake file carries
+five `#` lines: the file name, the project line
+`SushiBLAS - https://github.com/SushiSystems/SushiBLAS`, the copyright line
+and two licence lines. The `@file` block follows the box after one blank line.
 `tools/licensing/write_license_block.py` in SushiSkills writes it; do not type
 or edit it by hand. [`NOTICE.md`](../NOTICE.md) records the exact command,
 which also keeps the upstream lines of the three files that carry portBLAS tiling.
@@ -115,7 +118,8 @@ which also keeps the upstream lines of the three files that carry portBLAS tilin
 
 - **C++17**, the standard SushiRuntime is built at; see
   [the architecture, section 1](architecture/OVERVIEW.md). Indentation is 4
-  spaces.
+  spaces with no tabs, and a line holds at most 100 columns.
+- **Files and folders**: `snake_case` (`task_recorder.hpp`).
 - **Classes/structs/namespaces**: `PascalCase` (`Engine`, `Tensor`,
   `SushiBLAS`, `Core`).
 - **Functions and variables**: `snake_case` (`create_tensor`,
@@ -133,10 +137,11 @@ which also keeps the upstream lines of the three files that carry portBLAS tilin
 
 ### Braces
 
-Allman style (opening brace alone on its own line) for multi-statement
-blocks. A single-statement `if` or loop omits braces: a short statement may
-share the line of its `if`, and a longer one goes indented on the next
-line. Braces around a single statement are wrong.
+Allman style: every opening brace is alone on its own line, for a namespace,
+a class, a function, control flow and a lambda with a body. A
+single-statement `if` or loop may omit its braces. Its statement goes on its
+own line, never on the line of the `if`. An empty body is `{` and `}` on
+their own lines with one blank line between them.
 
 ```cpp
 const HostProgram::Status ran = HostProgram::multiply_add(*backend, a, b, offset, result, sum);
@@ -155,37 +160,47 @@ for (const float value : expected.values)
 
 Source: `applications/examples/adapter/adapter_demo.cpp`
 
-The `if` holds two statements and takes braces, each on its own line. The
-`for` holds one statement and takes none.
+The `if` holds two statements and takes braces. The `for` holds one
+statement, on its own line, and here takes none.
 
 ### Include and declaration ordering
 
-1. `#pragma once`, then exactly one empty line.
-2. **Group 1: `<>` includes**, sorted shortest to longest; ties broken
-   alphabetically. A header of SushiBLAS or SushiRuntime is included with
-   angle brackets by its module path.
-3. **Group 2: `""` includes**, for a header beside the file, as the tests
-   include `tests/common/`; sorted longest to shortest, ties broken
-   alphabetically.
+1. `#pragma once` in every header.
+2. Includes come in groups with one blank line between groups, in this
+   order: the header the source file implements, the standard library,
+   third-party headers (SushiRuntime and SYCL are two), other modules of
+   SushiBLAS, this module. The groups are ordered by hand; no tool sorts
+   them.
+3. A header of SushiBLAS or SushiRuntime is included with angle brackets by
+   its module path. A header with no module path, one beside an example or
+   under `tests/common/`, is included in quotes.
+4. A header includes what it uses and forward-declares what it names only by
+   pointer or reference.
 
 ```cpp
-#pragma once
-
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <type_traits>
-#include <SushiBLAS/core/logger.hpp>
-#include <SushiRuntime/core/operation_id.hpp>
+#include <iostream>
+#include <vector>
+
+#include <SushiRuntime/sushiruntime.hpp>
+
+#include <SushiBLAS/graph_primitives/combiners.hpp>
+#include <SushiBLAS/graph_primitives/counting_sort.hpp>
+#include <SushiBLAS/graph_primitives/prefix_scan.hpp>
+#include <SushiBLAS/graph_primitives/reduce.hpp>
+#include <SushiBLAS/graph_primitives/segmented_reduce.hpp>
 ```
 
-Source: `modules/engine/engine/include/SushiBLAS/engine/task_description.hpp`
+Source: `applications/examples/graph_primitives_demo.cpp`
 
 ### Comments
 
 Source comments follow the `source-comments` skill of SushiSkills: a `@file`
 block after the license block, a `@brief` on every symbol, private members
-included, and no `TODO`, history or design reasoning in source. Open work goes
+included, and no `TODO`, history or design reasoning in source. A block is at
+most eight lines. A `//` comment inside a body is one line, alone, that
+states an invariant the code relies on; two in a row belong in a document. Open work goes
 to [`design/REMAINING_WORK.md`](design/REMAINING_WORK.md); the reason for a
 design goes to a document under `design/`, cited by path.
 
