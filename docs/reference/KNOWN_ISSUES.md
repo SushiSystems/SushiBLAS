@@ -59,7 +59,6 @@ in [the backlog](../design/REMAINING_WORK.md).
 
 | Issue | Where |
 | --- | --- |
-| The file table of `modules/operations/README.md` names 139 sources by paths the tree does not have, such as `engine/blas/level1/asum.cpp` for `modules/operations/blas/source/level1/asum.cpp`; `modules/README.md` and the READMEs of `engine`, `core` and `support` each cite one header that way | `modules/operations/README.md`, `modules/engine/engine/README.md` |
 
 ## Layout
 

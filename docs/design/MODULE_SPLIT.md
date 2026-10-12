@@ -174,7 +174,7 @@ inside a tier; `cmake/SushiBLASLayers.cmake` lists them.
 `utils.hpp` of `operands` included a BLAS kernel plan, so the module `blas` and `sparse` share
 depended on `blas_seam_kernels`. It is now five headers: `scalar_result.hpp` and
 `scratch_lease.hpp` in `operands`, and `packed_product_scratch.hpp`, `local_tile.hpp` and
-`blas_task.hpp` in `blas`. `operands` no longer names a kernel module.
+`blas_task.hpp` in `blas`. `operands` names no kernel module.
 
 What was checked on 2026-10-09, on one machine with an RTX 3080 Ti:
 

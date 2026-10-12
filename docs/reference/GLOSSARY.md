@@ -55,6 +55,6 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | `hub` | SushiStack's CLI; it provisions the toolchains and libraries of a workspace |
 | `sb` | This repository's CLI, also installed as `sushiblas`; see `cli/README.md` |
 | Dependency fragment | `cli/sushistack.deps.toml`, where this module declares what `sb setup` and `hub install` provision for it |
-| D1 | The decision that moved `LinalgOps` and `TransformsOps` out of the `Engine` facade into the quarantine. It is recorded in SushiAI's `docs/design/ROADMAP.md` |
+| D1 | The decision that moved `LinalgOps` and `TransformsOps` out of the `Engine` facade into the quarantine. It is recorded in `sushiai/docs/design/ROADMAP.md` |
 | D3 | The three-step resolution of the SushiRuntime dependency in `cmake/Runtime.cmake`: a superproject target, then `find_package(SushiRuntime)`, then a sibling `add_subdirectory` |
-| SB-0 to SB-12 | Numbered slices of the SushiBLAS build-out, used in commit subjects and in older documents. SB-6 is the packaging slice. The numbering comes from SushiAI's `docs/design/ROADMAP.md` |
+| SB-0 to SB-12 | Numbered slices of the SushiBLAS build-out, used in commit subjects and in older documents. SB-6 is the packaging slice. The numbering comes from `sushiai/docs/design/ROADMAP.md` |

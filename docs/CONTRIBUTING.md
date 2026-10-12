@@ -463,7 +463,7 @@ A type prefix and a short, lowercase, hyphenated description:
 feature/trsm-right-side
 fix/gemm-beta-zero-nan
 chore/bump-googletest
-docs/architecture-dispatch-section
+refactor/operand-describers
 ```
 
 ### Commit headers
