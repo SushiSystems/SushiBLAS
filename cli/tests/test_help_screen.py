@@ -84,7 +84,7 @@ def test_a_command_help_carries_examples():
 
 def test_a_command_with_arguments_carries_examples():
     out = _run("run", "--help")
-    assert "Examples" in out and "sb run sushiblas_example" in out
+    assert "Examples" in out and "sb run quickstart_demo" in out
 
 
 @pytest.mark.parametrize("name", [name for names in K_GROUPS.values() for name in names])

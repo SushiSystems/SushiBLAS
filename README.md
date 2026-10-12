@@ -172,7 +172,7 @@ int main()
 }
 ```
 
-Source: `applications/examples/example.cpp`
+Source: `applications/examples/quickstart_demo.cpp`
 
 The omitted lines compare every element of `C` with the value the host computes, print one element and return 1 on a mismatch. `create_tensor` gives FLOAT32 tensors in shared USM by default. `gemm` records a task and runs nothing. `IO::to_vector` runs the recorded graph and then copies `C` to the host, so the example never calls `execute()` itself.
 

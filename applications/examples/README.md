@@ -12,10 +12,10 @@ The numbers are the same on every machine, with or without a GPU.
 | `recording_demo.cpp` | `recording_demo` | Several operations recorded, one `execute()`, tensors of two residencies, results read back |
 | `operation_families_demo.cpp` | `operation_families_demo` | One checked call of each operation family |
 | `graph_primitives_demo.cpp` | `graph_primitives_demo` | The four graph primitives on a SushiRuntime graph, without an engine |
-| `example.cpp` | `sushiblas_example` | One 256 x 256 GEMM on shared-memory tensors with a column-major engine, the program the root README quotes |
+| `quickstart_demo.cpp` | `quickstart_demo` | One 256 x 256 GEMM on shared-memory tensors with a column-major engine, the program the root README quotes |
 | `io_demo.cpp` | `io_demo` | A tensor saved to a `.npy` file, loaded back and printed, with every `IOStatus` tested |
 
-`sb run` starts `sushiblas_example` by default; see `cli/README.md`.
+`sb run` starts `quickstart_demo` by default; see `cli/README.md`.
 
 ## `adapter/`: one file between a program and the library
 

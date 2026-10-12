@@ -158,7 +158,7 @@ def test(
 @app.command(
     "run",
     rich_help_panel=K_PROJECT,
-    epilog="sb run sushiblas_example\n"
+    epilog="sb run quickstart_demo\n"
            "sb run --sort  # Pick an executable from a list\n"
            "sb run sushiblas_tests -- --gtest_filter='Unit_GEMMTest.*'  # Flags after -- go to it",
     context_settings={"allow_extra_args": True},

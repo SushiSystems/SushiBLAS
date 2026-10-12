@@ -4,9 +4,9 @@
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
 
-add_executable(sushiblas_example example.cpp)
-target_link_libraries(sushiblas_example PRIVATE sushiblas)
-sushiblas_apply_build_policy(sushiblas_example)
+add_executable(quickstart_demo quickstart_demo.cpp)
+target_link_libraries(quickstart_demo PRIVATE sushiblas)
+sushiblas_apply_build_policy(quickstart_demo)
 
 add_executable(io_demo io_demo.cpp)
 target_link_libraries(io_demo PRIVATE sushiblas)
@@ -37,7 +37,7 @@ sushiblas_apply_build_policy(graph_primitives_demo)
 
 # Ensure RPATH is set
 set_target_properties(
-    sushiblas_example
+    quickstart_demo
     io_demo
     adapter_demo
     errors_demo
@@ -61,10 +61,10 @@ if(WIN32)
         COMMENT "Copying runtime DLL to example directory..."
     )
 
-    add_custom_command(TARGET sushiblas_example POST_BUILD
+    add_custom_command(TARGET quickstart_demo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
-            $<TARGET_FILE_DIR:sushiblas_example>
+            $<TARGET_FILE_DIR:quickstart_demo>
         COMMENT "Copying runtime DLL to example directory..."
     )
 

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* example.cpp                                                            */
+/* quickstart_demo.cpp                                                    */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -20,14 +20,15 @@
 /**************************************************************************/
 
 /**
- * @file example.cpp
+ * @file quickstart_demo.cpp
  * @brief Fills two matrices, multiplies them with GEMM and checks every element of the result.
  * @author Mustafa Garip
  */
 
-#include <vector>
 #include <cstdint>
 #include <iostream>
+#include <vector>
+
 #include <SushiBLAS/SushiBLAS.h>
 
 namespace sb = SushiBLAS;
@@ -58,7 +59,7 @@ int main()
     const float expected = static_cast<float>(K_SIZE) * K_A_VALUE * K_B_VALUE;
     const bool correct = result == std::vector<float>(count, expected);
     std::cout << "C[0][0] = " << result[0] << " (expected " << expected << ")\n";
-    std::cout << "example: " << (correct ? "ok" : "MISMATCH") << "\n";
+    std::cout << "quickstart_demo: " << (correct ? "ok" : "MISMATCH") << "\n";
 
     return correct ? 0 : 1;
 }
