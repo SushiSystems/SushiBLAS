@@ -448,8 +448,8 @@ solution is carried in the dtype itself.
 
 ### `execute_blas_task`
 
-Registers a single generically-dispatched BLAS task on the recorder's task graph: one add_task
-and one switch(dtype) dispatching a generically-templated closure. Unsupported dtypes fail
+Registers a single generically-dispatched BLAS task on the recorder's task graph: one
+`TaskRecorder::record_pair` call and one switch(dtype) dispatching a generically-templated closure. Unsupported dtypes fail
 loudly (P1 corollary), never silently no-op.
 
 The body is `Internal::execute_typed_task`, which this forwards to with the family string "BLAS

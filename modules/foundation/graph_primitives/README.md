@@ -4,8 +4,7 @@ Four numeric primitives that record their work on a SushiRuntime task graph: a f
 reduction, a segmented reduction, an exclusive prefix scan and a stable counting sort. Each is a
 free function whose first parameter is a `SushiRuntime::Recorder&`, so it records on anything
 that has a `recorder()`: a `Graph`, a `Region` of a `DynamicGraph`. They work on
-`SushiRuntime::Buffer<T>`, not on tensors. SushiRuntime owned them until it stopped holding
-any mathematics.
+`SushiRuntime::Buffer<T>`, not on tensors.
 
 The module is header-only. Its headers are included as `<SushiBLAS/graph_primitives/<name>.hpp>`,
 and everything is in namespace `SushiBLAS::GraphPrimitives`; what a caller of a primitive does not
@@ -13,9 +12,14 @@ name is in `SushiBLAS::GraphPrimitives::Detail`.
 
 ```cpp
 auto graph = runtime.graph();
-SushiBLAS::GraphPrimitives::reduce(graph.recorder(), values, total, count,
-                                   SushiBLAS::GraphPrimitives::Sum<float>{});
-graph.run();
+const SushiRuntime::Result<void> recorded = SushiBLAS::GraphPrimitives::reduce(
+    graph.recorder(), values, total, count, SushiBLAS::GraphPrimitives::Sum<float>{});
+if (!recorded)
+    return SushiRuntime::make_error(recorded.error());
+
+auto report = graph.run();
+if (!report)
+    return SushiRuntime::make_error(std::move(report.error()));
 ```
 
 ## What it depends on
@@ -63,7 +67,7 @@ stops the process on an error.
 | --- | --- |
 | `ErrorCode::InvalidGraph` | A size or device rule is broken. The call returns before any node or scratch is added, and the message starts with the name of the primitive. |
 | `ErrorCode::AllocationFailed` | `Recorder::scratch()` could not allocate. The nodes recorded before it stay on the recorder; `Recorder::clear()` drops them. |
-| The recorder's refusal | The recorder refused a node. The primitive returns the first refusal the recorder holds since its last `clear()`, which is the error the next run returns as well. |
+| The recorder's refusal | The recorder holds a refusal. The primitive returns the first recording the recorder refused since its last `clear()`, which may be older than the call: a refusal an earlier call left on the recorder is returned by every primitive recorded after it, until `clear()`. It is the error the next run returns as well. |
 
 `Detail::invalid_graph` builds the first and `Detail::recording_outcome` returns the third or
 success. A live count above its capacity fails the run, not the recording: `Graph::run()` returns

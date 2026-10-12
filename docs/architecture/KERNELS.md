@@ -114,7 +114,8 @@ not read the imaginary part of the diagonal and leaves an updated diagonal real.
 `packed_operand.hpp` and `scalar_operand.hpp` each turn a tensor into the extents, leading
 dimension and increment a kernel takes, and throw `std::invalid_argument` on a view the kernel
 cannot read (a non-contiguous matrix, a zero or negative increment, mixed layouts, a batch count
-that does not match). `task_metadata.hpp` records the scalars and flags in the task's metadata.
+that does not match). `blas_metadata.hpp` writes the scalars and flags into the parameter slots of the task's
+`TaskDescription`.
 
 **Kernel shapes.** These are the shapes as written; none is a claim about speed.
 
@@ -177,7 +178,7 @@ const std::vector<int32_t> rows = {0, 0, 1, 2};
 const std::vector<int32_t> cols = {0, 2, 1, 2};
 const std::vector<float> values = {4.0f, 1.0f, 3.0f, 2.0f};
 
-SparseBuilder builder(engine.get_tensor_factory());
+SparseBuilder builder(engine.tensor_factory());
 const SparseMatrix S = builder.matrix_from_triplets(3, 3, rows, cols, values);
 
 SparseOps sparse(engine);

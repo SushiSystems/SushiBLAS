@@ -50,14 +50,16 @@ ordered.
 ## Storage and alignment
 
 `Storage` (`storage.hpp`) owns one reference-counted USM allocation with a
-`SushiRuntime::Residency` (`Shared`, `Device` or `Host`) on one device queue of the
-`RuntimeContext`. Every allocation base is aligned to `K_STORAGE_ALIGNMENT`, 128 bytes, which is
-`SushiRuntime::K_DEFAULT_ALIGNMENT` (a `static_assert` holds the two equal), and the allocated
-size is the requested size rounded up to that. The context is a non-owning pointer and must
-outlive every `Storage`. The allocation is freed when the last reference to the `Storage` goes.
+`SushiRuntime::Residency` (`Shared`, `Device` or `Host`) on one device queue of a
+`SushiRuntime::Runtime`. The allocation is a `SushiRuntime::Buffer<std::byte>` from
+`Runtime::buffer`. Every allocation base is aligned to `K_STORAGE_ALIGNMENT`, 128 bytes, a
+constant `storage.hpp` states itself, and the allocated size is the requested size rounded up to
+that. The buffer shares ownership of the runtime's state, so a `Storage` may outlive the `Runtime`
+object it was allocated from. The allocation is freed when the last reference to the `Storage`
+goes. A failed allocation throws `std::runtime_error` with the runtime's message.
 
 `TensorFactory` (`tensor_factory.hpp`) allocates dense tensors of one default layout from one
-context. `create(dims, dtype, residency, device_index)` checks the rank, the sign of each
+runtime. `create(dims, dtype, residency, device_index)` checks the rank, the sign of each
 dimension, the byte count for overflow and the device index, and returns a tensor without storage
 when a dimension is 0. `Engine::create_tensor` forwards to it.
 
@@ -78,7 +80,7 @@ record time and the task holds the lease by value.
 
 - `ScratchPool` (`engine/scratch_pool.hpp`) owns a reference-counted `Detail::ScratchShelf`
   (`engine/scratch_shelf.hpp`) of idle device blocks per device queue. The engine owns one pool
-  and the recorder hands it out through `get_scratch_pool()`.
+  and the recorder hands it out through `scratch_pool()`.
 - `ScratchBuffer` (`engine/scratch.hpp`) is the lease. The block goes back to the shelf when the
   last copy of the handle is destroyed, which for a recorded task is when the graph drops the
   task.
