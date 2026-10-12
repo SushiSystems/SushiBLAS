@@ -8,31 +8,31 @@ trait they share is in [the support module](../../foundation/support/README.md).
 
 | File | Declares |
 | --- | --- |
-| `blas/operand_access.hpp` | `OperandAccess`, how a kernel reads element (row, col) of op(X) |
-| `blas/symmetric_access.hpp` | `SymmetricAccess`, which reads a symmetric or Hermitian matrix from one triangle |
-| `blas/band_access.hpp` | `BandAccess`, how a kernel reads element (row, col) of a band-stored op(X) |
-| `blas/packed_access.hpp` | `PackedAccess`, how a kernel reads element (row, col) of a packed op(X) |
-| `blas/row_cursor.hpp` | `RowCursor`, the offset of an element that moves along one row of a band-stored or packed op(X) |
-| `blas/symmetric_row.hpp` | `SymmetricRow`, which walks one row of a band-stored or packed symmetric matrix |
-| `blas/conjugation.hpp` | `Unconjugated` and `Conjugated`, the policies that turn a symmetric kernel into its Hermitian sibling |
-| `blas/givens.hpp` | `GivensRotation` and `givens_rotation`, the arithmetic of xROTG |
-| `blas/modified_givens.hpp` | `ModifiedGivens` and `modified_givens`, the arithmetic of xROTMG |
-| `blas/level3/gemm_epilogue.hpp` | `GemmIdentityEpilogue`, the default GEMM epilogue |
-| `blas/level3/channel_bias_epilogue.hpp` | `ChannelBiasEpilogue`, the per-channel bias add |
-| `blas/level3/packed_product_plan.hpp` | `PackedRegisterBlock`, `PackedProductPlan` and the functions that plan a packed product |
-| `reference/blas/level3/gemm.hpp` | The reference kernel of GEMM and its form over access bricks |
-| `sycl/blas/level3/gemm.hpp` | The SYCL GEMM kernels and the tile geometry they launch with |
-| `sycl/blas/level3/gemm_packed.hpp` | The form of the SYCL GEMM that packs its operands where the profile selects it |
-| `sycl/blas/level3/gemm_accessed_packed.hpp` | The same form of `gemm_accessed`, over access bricks |
-| `sycl/blas/level3/packed_product.hpp` | `PackedProductKernel` and `packed_product`, the blocked product |
-| `sycl/blas/level3/packed_panel.hpp` | `pack_panel`, which copies a block of op(X) into unit-stride micro-panels |
-| `sycl/blas/level3/packed_micro_kernel.hpp` | The micro-kernel, which accumulates one register block |
+| `operand_access.hpp` | `OperandAccess`, how a kernel reads element (row, col) of op(X) |
+| `symmetric_access.hpp` | `SymmetricAccess`, which reads a symmetric or Hermitian matrix from one triangle |
+| `band_access.hpp` | `BandAccess`, how a kernel reads element (row, col) of a band-stored op(X) |
+| `packed_access.hpp` | `PackedAccess`, how a kernel reads element (row, col) of a packed op(X) |
+| `row_cursor.hpp` | `RowCursor`, the offset of an element that moves along one row of a band-stored or packed op(X) |
+| `symmetric_row.hpp` | `SymmetricRow`, which walks one row of a band-stored or packed symmetric matrix |
+| `conjugation.hpp` | `Unconjugated` and `Conjugated`, the policies that turn a symmetric kernel into its Hermitian sibling |
+| `givens.hpp` | `GivensRotation` and `givens_rotation`, the arithmetic of xROTG |
+| `modified_givens.hpp` | `ModifiedGivens` and `modified_givens`, the arithmetic of xROTMG |
+| `level3/gemm_epilogue.hpp` | `GemmIdentityEpilogue`, the default GEMM epilogue |
+| `level3/channel_bias_epilogue.hpp` | `ChannelBiasEpilogue`, the per-channel bias add |
+| `level3/packed_product_plan.hpp` | `PackedRegisterBlock`, `PackedProductPlan` and the functions that plan a packed product |
+| `reference/level3/gemm.hpp` | The reference kernel of GEMM and its form over access bricks |
+| `sycl/level3/gemm.hpp` | The SYCL GEMM kernels and the tile geometry they launch with |
+| `sycl/level3/gemm_packed.hpp` | The form of the SYCL GEMM that packs its operands where the profile selects it |
+| `sycl/level3/gemm_accessed_packed.hpp` | The same form of `gemm_accessed`, over access bricks |
+| `sycl/level3/packed_product.hpp` | `PackedProductKernel` and `packed_product`, the blocked product |
+| `sycl/level3/packed_panel.hpp` | `pack_panel`, which copies a block of op(X) into unit-stride micro-panels |
+| `sycl/level3/packed_micro_kernel.hpp` | The micro-kernel, which accumulates one register block |
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
 name of the file and of the symbol it belongs to. The header states the rule in one line and cites
 this page.
 
-## `blas/operand_access.hpp`
+## `operand_access.hpp`
 
 ### `OperandAccess`
 
@@ -59,7 +59,7 @@ Transposing an operand and flipping its layout are the same operation, so the ta
 of the two properties: `RowMajor` transposed and `ColumnMajor` untransposed address the same way,
 and so do the other two.
 
-## `blas/symmetric_access.hpp`
+## `symmetric_access.hpp`
 
 ### `SymmetricAccess`
 
@@ -69,7 +69,7 @@ policy, and a diagonal element goes through the policy's `diagonal`, which drops
 part of a Hermitian diagonal. `symm` and `hemm` hand it to `gemm_accessed` as the access of
 their symmetric factor, so a symmetric product runs on the same kernel as a general one.
 
-## `blas/band_access.hpp`, `blas/packed_access.hpp`
+## `band_access.hpp`, `packed_access.hpp`
 
 ### `BandAccess`, `PackedAccess`
 
@@ -83,7 +83,7 @@ a row, so a kernel walks only what the storage holds. `band_access` takes the tw
 X, not of op(X); `triangle_band_access` and `packed_access` take the `Uplo` of X, not of op(X).
 The Level 2 band and packed kernels of both back ends are written against these two bricks.
 
-## `blas/row_cursor.hpp`
+## `row_cursor.hpp`
 
 ### `RowCursor`
 
@@ -97,7 +97,7 @@ In band storage and in a triangle packed by rows the distance is constant and th
 zero. The `triangular_product` and `triangular_solve` of both back ends walk a row with a
 cursor, and so do the reference `spr` and `spr2`.
 
-## `blas/symmetric_row.hpp`
+## `symmetric_row.hpp`
 
 ### `SymmetricRow`
 
@@ -109,7 +109,7 @@ through `Conj`, each with a `RowCursor`. `first_column(i)` and `end_column(i)` b
 The reference `symmetric_product` and the per-row path of the SYCL one sum a row through it; the
 SYCL path that reduces a row across a work-group reads single elements and does not.
 
-## `blas/conjugation.hpp`
+## `conjugation.hpp`
 
 ### `Unconjugated`, `Conjugated`
 
@@ -120,7 +120,7 @@ conjugated, and the diagonal is real. A kernel takes the policy as a template pa
 The header also names the scalar type of a rank-1 or rank-k update under a policy: the real
 component type under `Conjugated`, `T` otherwise.
 
-## `blas/givens.hpp`, `blas/modified_givens.hpp`
+## `givens.hpp`, `modified_givens.hpp`
 
 ### `givens_rotation`
 
@@ -136,7 +136,7 @@ Builds the modified Givens transformation as the reference xROTMG does, with its
 of `2^12` and the flag values -2, -1, 0 and 1. `K_MODIFIED_GIVENS_PARAMETERS` is the length, 5,
 of the parameter array `rotmg` writes and `rotm` reads.
 
-## `blas/level3/packed_product_plan.hpp`
+## `level3/packed_product_plan.hpp`
 
 "Packed" here is the packed panel of the CPU GEMM: a block of an operand copied into contiguous,
 aligned scratch before the micro-kernel reads it. It is not BLAS packed storage.
@@ -158,7 +158,7 @@ scratch (`Internal::allocate_packed_product_scratch`), and at launch. `packed_pr
 is the launch test: the profile selected the plan and the scratch holds its bytes. When it fails,
 the GEMM forms run the kernel they ran before the packed path existed.
 
-## `blas/level3/channel_bias_epilogue.hpp`
+## `level3/channel_bias_epilogue.hpp`
 
 The stride pair exists because "which axis is the channel" is a property of the *tensor layout*, not
 of the bias operation. In NHWC the convolution GEMM is `[N*H*W, C_in*R*S] x [C_in*R*S, C_out]`, so
@@ -190,7 +190,7 @@ See Kernels::GemmIdentityEpilogue for the no-op this degenerates to at a zero bi
 SushiBLAS::Dispatch::execute_gemm for the fusion contract and the host-readability constraint
 `ForceReference` adds.
 
-## `blas/level3/gemm_epilogue.hpp`
+## `level3/gemm_epilogue.hpp`
 
 It lives in its own header, under neither `reference/` nor `sycl/`, because it belongs to neither:
 `Kernels::Reference::gemm` and `Kernels::SYCL::gemm` both take it as a template parameter and both
@@ -206,7 +206,7 @@ the generated kernel is byte for byte the unfused one.
 See Kernels::SYCL::gemm and SushiBLAS::Dispatch::execute_gemm for the fusion contract, and for the
 training-correctness trap that comes with any *activation* epilogue.
 
-## `reference/blas/level3/gemm.hpp`
+## `reference/level3/gemm.hpp`
 
 ### `gemm`
 
@@ -232,7 +232,7 @@ uninitialised. This matches standard BLAS semantics.
   one matrix of the batch, matching `SushiBLAS::Kernels::SYCL::gemm`: a batch-aware epilogue would
   need a batch index the SYCL side does not supply either.
 
-## `sycl/blas/level3/gemm.hpp`
+## `sycl/level3/gemm.hpp`
 
 Tiling/blocking algorithm ported from portBLAS's gemm_local.hpp and gemm_no_local.hpp (see
 NOTICE.md) into SushiBLAS's flat template-function convention: upstream's three-level-hierarchy
@@ -438,7 +438,7 @@ from this one function, so both are instantiated and both reach the device image
 given machine takes at runtime: there is no dead-stripping hazard to guard against, and no
 configuration in which one of them stops compiling unnoticed.
 
-## `sycl/blas/level3/gemm_packed.hpp`, `gemm_accessed_packed.hpp`
+## `sycl/level3/gemm_packed.hpp`, `gemm_accessed_packed.hpp`
 
 Each declares one more overload of an existing entry point, `gemm` and `gemm_accessed`, that
 takes a scratch pointer and its byte count. It plans the product with `plan_packed_product` and,
@@ -447,7 +447,7 @@ without scratch. `Dispatch::execute_gemm` calls the scratch form. `GemmStore` is
 packed kernel hands each finished sum to: it writes `epilogue(alpha * sum + beta * C)` and does
 not read C when `beta` is exactly zero.
 
-## `sycl/blas/level3/packed_product.hpp`
+## `sycl/level3/packed_product.hpp`
 
 ### `PackedProductKernel`
 
@@ -459,7 +459,7 @@ col0, cols)` says whether a macro-block is written at all, which is how `syrk` s
 triangle it does not store, and `operator()` writes one element. `c` may overlap neither operand
 nor the scratch.
 
-## `sycl/blas/level3/packed_panel.hpp`
+## `sycl/level3/packed_panel.hpp`
 
 ### `pack_panel`
 
@@ -469,7 +469,7 @@ transpose. The last micro-panel may be short, and its missing lines are written 
 `has_adjacent_lines` only picks the order of the copy, to walk the axis the source stores
 contiguously; it does not change what is written.
 
-## `sycl/blas/level3/packed_micro_kernel.hpp`
+## `sycl/level3/packed_micro_kernel.hpp`
 
 Adds `depth` outer products of one slice of the A panel and one slice of the B panel to a
 `K_ROWS x K_COLS` micro-tile, in ascending term order. The real form works on `sycl::vec` rows

@@ -70,7 +70,7 @@ outside the enumeration.
 The enumerators carry the CBLAS numbers: `NoTrans`, `Trans` and `ConjTrans` are 111 to 113,
 `Upper` and `Lower` 121 and 122, `NonUnit` and `Unit` 131 and 132, `Left` and `Right` 141 and
 142. A value-initialised flag is therefore 0 and names nothing. `is_valid` reports that, and the
-record-time flag check in `engine/blas/argument_check.hpp` throws `std::invalid_argument` for it,
+record-time flag check in `operands/argument_check.hpp` throws `std::invalid_argument` for it,
 so a flag a caller forgot to set never reads as `NoTrans` or `Upper`. Each enumeration is one
 byte and fits one `TaskDescription` slot. `is_transposed` and `is_conjugated` answer the two
 questions a kernel asks of a `Transpose`; for a real element type `ConjTrans` is `Trans`.
