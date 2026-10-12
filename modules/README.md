@@ -48,6 +48,10 @@ it from the runtime: `runtime().advanced().queue(SushiRuntime::DeviceIndex{0})`,
 blas(engine)` and `BLASOps blas(engine.recorder())` record on the same graph. Every operation
 of a view returns a `TaskHandle`, and the work runs in `Engine::execute()`.
 
+Record calls from several threads on one engine are serialised by the mutex of its
+`TaskRecorder`; `execute()` and `set_mode` are not, and neither may be called while a thread
+records. See [the engine headers](engine/engine/README.md).
+
 `set_mode` and `mode` forward to the recorder, and `layout` to the factory. `set_mode` is
 `noexcept`: `ExecutionMode` has the three enumerators `Auto`, `ForceSYCL` and `ForceReference`,
 and none of them is refused.
