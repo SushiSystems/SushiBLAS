@@ -17,19 +17,16 @@ What is under test is the package: that the headers are found, that the kernel t
 in this project's translation unit under the toolchain the consumer chose, and that the library
 links and runs end to end through SushiBLAS and its SushiRuntime dependency.
 
-The second thing under test came with the promotion of the five `*_internal.hpp` op-dispatch
-helpers out of `source/` into the installed headers: that `SushiBLAS::Dispatch` is reachable from
-here. `execute_binary` receives `engine.recorder()` and a lambda this file wrote, and it
-compiles and runs. That is the
-difference between "the fusion seam was moved" and "the fusion seam is public API". Nothing in
+The second thing under test is that `SushiBLAS::Dispatch` is reachable from here: the
+`dispatch.hpp` headers of the families are installed. `execute_binary` receives
+`engine.recorder()` and a lambda this file wrote, and it compiles and runs. Nothing in
 sushiblas's own suite can show it, because in-tree every header is on the include path whether
 it gets installed or not.
 
-The third came with the promotion of the GEMM epilogue to a public seam: that
-`SushiBLAS::Dispatch::execute_gemm` reaches a consumer with the consumer's own epilogue functor.
-This one differs from the others. It instantiates a real tiling kernel
-(`kernels/.../level3/gemm.hpp`) in this translation unit, so it also checks that the kernel
-header is installed and not merely present in the source tree next door.
+The third is that `SushiBLAS::Dispatch::execute_gemm` reaches a consumer with the consumer's own
+epilogue functor. This one differs from the others. It instantiates a tiling kernel
+(`blas_seam_kernels/sycl/level3/gemm.hpp`) in this translation unit, so it also checks that the
+kernel header is installed and not merely present in the source tree next door.
 
 ### ConsumerBiasReLU
 
