@@ -12,8 +12,7 @@ refusal at record time is asserted as `std::invalid_argument`, and a mode or dev
 `SushiBLAS::UnsupportedExecution`.
 
 The files this page has no section for are described by the table below and by their own source
-comments. The table gives the `@brief` of each file, with an operation named by its view. The files added on 2026-10-07, and the changes
-made to the older ones that day, had not been built or run when this page was written.
+comments. The table gives the `@brief` of each file, with an operation named by its view.
 
 ## Files
 
