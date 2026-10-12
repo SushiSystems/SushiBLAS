@@ -125,13 +125,13 @@ records them and holds the steps that have not run.
   (`tools/naming/sushiblas_0_1_0.tsv` lists what it renamed).
 - Reword the comments and the failure messages that still spell an enumerator or a constant
   by its old bare name (`FORCE_REFERENCE`, `kLarge`); the sweep changed qualified names only.
-- Delete `engine/blas/sparse.hpp` or move it under `experimental/`. Owner approval.
+- Delete `blas/sparse.hpp` or move it under `experimental/`. Owner approval.
 - Move the recorder's identity counter into a source file.
-- Ask SushiRuntime for a public "run after" edge, `add_task` overloads that take a span of
-  regions and a small-buffer callable, and a statement of what concurrent `add_task` guarantees
+- Ask SushiRuntime for a public "run after" edge, `Recorder::task` overloads that take a span of
+  regions and a small-buffer callable, and a statement of what concurrent `Recorder::task` guarantees
   (`DESIGN_RECORDER`, section 15).
 - Route every runtime dtype switch through one table; `constant.cpp` and
-  `engine/math/reductions/dispatch.hpp` come first (C1).
+  `reductions/dispatch.hpp` come first (C1).
 - Add categories, TRACE and FATAL to the logger and send log output to stderr (C3, C6).
 - Give reduction kernels one home (C9).
 - Split the Level 1 kernel headers into one file per routine (C12).
