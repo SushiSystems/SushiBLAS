@@ -134,32 +134,29 @@ which also keeps the upstream lines of the three files that carry portBLAS tilin
 ### Braces
 
 Allman style (opening brace alone on its own line) for multi-statement
-blocks. A single-statement `if` or loop omits braces. Put the statement on
-the same line if it is short, or indented on the next line if it is long:
+blocks. A single-statement `if` or loop omits braces: a short statement may
+share the line of its `if`, and a longer one goes indented on the next
+line. Braces around a single statement are wrong.
 
 ```cpp
-// Correct: short single-line
-if (condition) return;
-
-// Correct: single statement on its own line (longer)
-if (very_long_condition_that_requires_careful_checking)
-    execute_specific_logic_for_this_unique_case();
-
-// Correct: multi-statement block, Allman braces
-if (condition)
+const HostProgram::Status ran = HostProgram::multiply_add(*backend, a, b, offset, result, sum);
+if (ran.code != HostProgram::StatusCode::Ok)
 {
-    do_first();
-    do_second();
+    std::cerr << "multiply_add: " << HostProgram::to_string(ran.code) << ": " << ran.message
+              << "\n";
+    return 1;
 }
 
-// Wrong: braces on a single-statement block
-if (condition)
-{
-    do_something();
-}
+const HostProgram::Matrix expected = host_multiply_add(a, b, offset);
+float expected_sum = 0.0f;
+for (const float value : expected.values)
+    expected_sum += value;
 ```
 
-Source: not compiled
+Source: `applications/examples/adapter/adapter_demo.cpp`
+
+The `if` holds two statements and takes braces, each on its own line. The
+`for` holds one statement and takes none.
 
 ### Include and declaration ordering
 

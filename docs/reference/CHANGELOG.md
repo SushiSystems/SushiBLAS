@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — docs: Replaced the uncompiled brace illustration of the contributing guide with a block of `adapter_demo.cpp`; no example of the manual is unverified (`CONTRIBUTING.md`, `.docs_truth_allow`).
 - 2026-10-12 — examples: Renamed `io_example.cpp` and its target to `io_demo`; it tests every `IOStatus`, checks the loaded tensor against the host and writes its file to the temporary directory.
 - 2026-10-12 — examples: Moved the failure mapping of the adapter example, `guarded` and `status_of_error`, to its own header (`status_mapping.hpp`, `sushiblas_adapter.cpp`).
 - 2026-10-12 — docs: Quoted the adapter example in the adapter guide and removed the quotation of SushiAI with its two uncompiled blocks (`INTEGRATION.md`, `README.md`, `.docs_truth_allow`).
