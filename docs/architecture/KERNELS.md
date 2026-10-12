@@ -3,16 +3,18 @@
 A kernel is a function template on the element type that receives pointers, extents, strides and
 flags. The dense BLAS, sparse and spatial families have a kernel pair per operation:
 
-- **`modules/kernels/reference/<family>/...`** is plain C++ with no dependency beyond the support
-  headers. It handles both `Core::Layout` values and states the result the operation is defined
-  to have.
-- **`modules/kernels/sycl/<family>/...`** takes the `sycl::queue&` and a
+- **`modules/kernels/<family>_kernels/include/SushiBLAS/<family>_kernels/reference/`** is plain
+  C++ with no dependency beyond the support headers. It handles both `Core::Layout` values and
+  states the result the operation is defined to have.
+- **`modules/kernels/<family>_kernels/include/SushiBLAS/<family>_kernels/sycl/`** takes the
+  `sycl::queue&` and a
   `const std::vector<sycl::event>& deps`, makes every command group depend on `deps`, and returns
   the event of its last submission.
 
-`modules/kernels/` is private and never installed. A kernel a public seam instantiates in a consumer's
-translation unit cannot be private, so those live under `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/` and are
-installed: GEMM's reference and SYCL kernels with the packed product they share with SYRK, the
+`blas_kernels`, `random_kernels`, `sparse_kernels` and `spatial_kernels` are internal modules:
+their headers are not installed and a consumer cannot include them. A kernel a public seam
+instantiates in a consumer's translation unit cannot be internal, so those live in
+`modules/kernels/blas_seam_kernels/` and are installed: GEMM's reference and SYCL kernels with the packed product they share with SYRK, the
 epilogue headers, the access policies (`operand_access.hpp`, `symmetric_access.hpp`,
 `band_access.hpp`, `packed_access.hpp`, `row_cursor.hpp`, `symmetric_row.hpp`,
 `conjugation.hpp`), `packed_product_plan.hpp` and the two Givens headers.
@@ -23,7 +25,7 @@ reference path is the serial loop of [section 3](EXECUTION_MODES.md).
 
 ## The support layer
 
-`modules/foundation/support/include/SushiBLAS/support/` sits below the kernels and the engine and includes neither.
+`modules/foundation/support/` sits below the kernels and the engine and includes neither.
 [Its README](../../modules/foundation/support/README.md) holds the reasoning behind each header.
 
 | Header | Holds |
@@ -72,7 +74,7 @@ of a sum.
 
 A flag outside its enumeration throws `std::invalid_argument` at record time (`require_flag`).
 
-**Scalars.** `BLASScalar` (`engine/blas/scalar.hpp`) is the scalar argument of a BLAS call. It
+**Scalars.** `BLASScalar` (`operands/scalar.hpp`) is the scalar argument of a BLAS call. It
 converts from `double` and from `std::complex<double>`, holds the value as given, and
 `as<T>()` rounds it once to the element type inside the task. A scalar with a non-zero imaginary
 part passed to a real tensor throws at record time (`require_real_scalar`). The scalars the
@@ -90,6 +92,9 @@ blas.herk(Z, H, Core::Uplo::Upper, Core::Transpose::ConjTrans, 1.0, 0.0);   // H
 blas.axpy(std::complex<double>(0.0, 1.0), zx, zy);                           // zy = i*zx + zy
 blas.trsv(H, zx, Core::Uplo::Upper, Core::Transpose::NoTrans, Core::Diag::NonUnit);
 ```
+
+No file compiles this block; each call was checked against `blas/level1.hpp`, `blas/level2.hpp`
+and `blas/level3.hpp`. It assumes `using namespace SushiBLAS;`, as the two blocks below do.
 
 **Routines.** The dtypes are HALF, FLOAT32, FLOAT64, COMPLEX32 and COMPLEX64 unless a row says
 otherwise.
@@ -110,11 +115,11 @@ band operand is the band storage of the standard with its `kl`, `ku` or `k` stat
 and a packed operand is a rank-1 tensor of `n * (n + 1) / 2` elements. A Hermitian routine does
 not read the imaginary part of the diagonal and leaves an updated diagonal real.
 
-**Operands are described once.** `matrix_operand.hpp`, `vector_operand.hpp`, `band_operand.hpp`,
-`packed_operand.hpp` and `scalar_operand.hpp` each turn a tensor into the extents, leading
+**Operands are described once.** `operands/matrix_operand.hpp`, `operands/vector_operand.hpp`,
+`blas/band_operand.hpp`, `blas/packed_operand.hpp` and `blas/scalar_operand.hpp` each turn a tensor into the extents, leading
 dimension and increment a kernel takes, and throw `std::invalid_argument` on a view the kernel
 cannot read (a non-contiguous matrix, a zero or negative increment, mixed layouts, a batch count
-that does not match). `blas_metadata.hpp` writes the scalars and flags into the parameter slots of the task's
+that does not match). `operands/blas_metadata.hpp` writes the scalars and flags into the parameter slots of the task's
 `TaskDescription`.
 
 **Kernel shapes.** These are the shapes as written; none is a claim about speed.
@@ -160,14 +165,14 @@ of the output and declare it as read and written whatever `beta` is.
 
 The sparse operands are plain structs of tensors, so they are views like any other:
 
-- `SparseMatrix` (`sparse_matrix.hpp`) is CSR as three rank-1 tensors, `row_offsets`
+- `SparseMatrix` (`sparse_storage/sparse_matrix.hpp`) is CSR as three rank-1 tensors, `row_offsets`
   (`rows + 1` elements), `column_indices` and `values`, with `rows`, `cols` and an
   `index_base`. The index tensors are `INT32` or `INT64` and share a dtype.
-- `SparseVector` (`sparse_vector.hpp`) is `indices` and `values` with a `size` and an
+- `SparseVector` (`sparse_storage/sparse_vector.hpp`) is `indices` and `values` with a `size` and an
   `index_base`, no position stored twice.
 - `Core::IndexBase` (`core/sparse_types.hpp`) is `Zero` or `One`.
 
-`SparseBuilder` (`sparse_builder.hpp`) builds them from host data on one device of a
+`SparseBuilder` (`sparse_storage/sparse_builder.hpp`) builds them from host data on one device of a
 `TensorFactory`. `matrix_from_triplets` takes COO arrays, adds the values of repeated
 `(row, column)` pairs and orders each row by ascending column. `matrix_from_dense` keeps every
 element that is not zero. `vector_from_entries` takes positions and values. The builder throws
@@ -186,6 +191,9 @@ sparse.spmv(S, x, y);                                         // y = S x
 sparse.spmv(S, x, y, Core::Transpose::Trans, 1.0, 1.0);       // y = S^T x + y
 ```
 
+No file compiles this block; it was checked against `sparse_storage/sparse_builder.hpp` and
+`sparse/sparse.hpp`.
+
 `SparseOps` records thirteen routines:
 
 | Kind | Routines |
@@ -194,7 +202,8 @@ sparse.spmv(S, x, y, Core::Transpose::Trans, 1.0, 1.0);       // y = S^T x + y
 | CSR matrix with dense vector | `spmv`, `spsymv`, `sphemv`, `sptrsv` |
 | CSR matrix with dense matrix | `spmm` |
 
-The record-time checks (`engine/sparse/`) cover the index base, the rank, length, stride and
+The record-time checks (`sparse/index_check.hpp`, `sparse/sparse_matrix_operand.hpp`,
+`sparse/sparse_vector_operand.hpp`) cover the index base, the rank, length, stride and
 storage of each array, the index dtype and whether it can hold the largest index. They do not
 read the index values: a kernel takes the structure on trust, and
 `modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/reference/structure.hpp` holds the host checks the reference kernels assert in a
@@ -225,7 +234,7 @@ of each that has one, and the windowed product. The family serves `Domain::Real`
 ownership, training mode and differentiation belong to the layer above.
 
 `Spatial::ConvGeometry` carries the kernel size, stride, dilation and the leading padding.
-`Spatial::window_span_for` (`engine/spatial/window.hpp`) resolves the operands' strides into a
+`Spatial::window_span_for` (`spatial/window.hpp`) resolves the operands' strides into a
 `WindowSpan` of element counts on the host, so a kernel carries no layout branch.
 
 **The windowed product.** `window_dot(in, weights, out, g)` sums each channel's window weighted
@@ -247,6 +256,9 @@ auto out = engine.create_tensor({1, 32, 32, 16});
 
 SpatialOps(engine).window_dot(image, taps, out, g);
 ```
+
+No file compiles this block; it was checked against `support/spatial_geometry.hpp` and
+`spatial/spatial.hpp`.
 
 **Every backward is a gather.** `col2im` written as "each column entry adds into its pixel" needs
 a floating-point atomic add wherever windows overlap, and the order of those additions varies

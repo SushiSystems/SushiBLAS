@@ -15,11 +15,29 @@ Because `sushiblas` is a `STATIC` library, its build-policy targets (`sushiblas_
 `INTERFACE_LINK_LIBRARIES` as `$<LINK_ONLY:...>`, which breaks the export with "requires target X
 that is not in any export set". Flag values record no target name.
 
-Five CMake modules that define SushiBLAS functions or targets (`SushiBLASBuildPolicy.cmake`,
-`SushiBLASCompilerWarnings.cmake`, `SushiBLASOptimization.cmake`, `SushiBLASSanitizers.cmake`,
-`SushiBLASLogging.cmake`)
-carry the program's full name. `Vcpkg.cmake`, `Toolchain.cmake` and `SyclTarget.cmake` do not,
+The CMake modules that define SushiBLAS functions or targets carry the program's full name:
+the nine `SushiBLAS*.cmake` files under `cmake/`. `Vcpkg.cmake`, `Toolchain.cmake` and `SyclTarget.cmake` do not,
 because their logic gives the same result whichever sibling repository's copy loads first.
 `SyclTarget.cmake` prefixes the two functions it defines, `sushiblas_runtime_device_targets` and
 `sushiblas_apply_sycl`.
 [CONTRIBUTING.md, section 4](../CONTRIBUTING.md#build-system-names) states the naming rule.
+
+## What is installed
+
+The install copies the include root of every module that is not internal, so a consumer of the
+package can include the umbrella header, any header it names, the `dispatch.hpp` of each family
+and the seam kernels of `blas_seam_kernels`. `blas_kernels`, `random_kernels`, `sparse_kernels`
+and `spatial_kernels` are declared `INTERNAL` in their `CMakeLists.txt` and are left out
+(`cmake/SushiBLASModule.cmake`).
+
+## The header-only modules without the library
+
+`cmake/SushiBLASHeaderModules.cmake` is for a consumer that wants the header-only foundation
+modules and not the library. It includes that file from a SushiBLAS checkout and calls
+`sushiblas_declare_header_modules()`, which declares three interface targets:
+
+| Target | Gives |
+| --- | --- |
+| `SushiBLAS::Geometry` | The vector, quaternion and matrix types of `geometry` and `Math`; needs no SYCL toolchain and no SushiRuntime |
+| `SushiBLAS::FixedOrderFold` | The fixed fold order and the combiners of `graph_primitives`; standard library only |
+| `SushiBLAS::GraphPrimitives` | `reduce`, `segmented_reduce`, `prefix_scan` and `counting_sort`; the consumer brings its own SushiRuntime target |
