@@ -191,7 +191,7 @@ namespace SushiBLAS
         {
             public:
                 /** @brief Binds the fill to one execution of a task; all three must outlive it. */
-                RandomFill(const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+                RandomFill(const KernelPairDispatcher& pair, sycl::queue& q,
                            const std::vector<sycl::event>& deps) noexcept
                     : pair_(pair), q_(q), deps_(deps)
                 {
@@ -217,7 +217,7 @@ namespace SushiBLAS
 
             private:
                 /// @brief The mode router of the task being run.
-                const Internal::KernelPairDispatcher& pair_;
+                const KernelPairDispatcher& pair_;
 
                 /// @brief The queue the SYCL fill is submitted to.
                 sycl::queue& q_;
@@ -306,7 +306,7 @@ namespace SushiBLAS
 
             return recorder.record_pair(description, operands, "RNG operation",
                 [dtype=t.dtype, size, seed, offset, task_func, pT = ptr, name]
-                (const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+                (const KernelPairDispatcher& pair, sycl::queue& q,
                  const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("RandomOps: {} ({} elements, seed: {}, offset: {})", name, size, seed, offset);

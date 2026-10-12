@@ -88,7 +88,7 @@ namespace SushiBLAS
             const std::size_t count = static_cast<std::size_t>(n);
 
             return recorder.record_pair(description, operands, "Elementwise operation",
-                [count, convert](const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+                [count, convert](const KernelPairDispatcher& pair, sycl::queue& q,
                                  const std::vector<sycl::event>& deps) -> sycl::event
                 {
                     SB_LOG_INFO("Elementwise convert: {} elements", count);

@@ -6,6 +6,8 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — engine: Breaking change: `KernelPairDispatcher` is `SushiBLAS::KernelPairDispatcher`; the body of `TaskRecorder::record_pair` names no type of `Internal` (`kernel_pair_dispatcher.hpp`).
+- 2026-10-12 — style: Moved the statement of 176 `if`, `for` and `while` heads to its own line in 46 source and test files; no behaviour changes.
 - 2026-10-12 — engine: Added tests of a run whose task body throws: `execute()` returns `KernelFailed` with the body's message, nothing stays recorded and the engine runs again (`test_run_failure.cpp`).
 - 2026-10-12 — examples: Added an example of a run that fails, through a task recorded with `TaskRecorder::record_pair` whose body throws (`run_failure_demo.cpp`, `EXCEPTIONS.md`).
 - 2026-10-12 — examples: Renamed `example.cpp` to `quickstart_demo.cpp` and its target `sushiblas_example` to `quickstart_demo`, which `sb run` starts by default.

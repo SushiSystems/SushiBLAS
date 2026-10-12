@@ -81,7 +81,7 @@ namespace SushiBLAS
          * @see modules/operations/README.md
          */
         template<typename T>
-        sycl::event shuffle_dispatch(const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+        sycl::event shuffle_dispatch(const KernelPairDispatcher& pair, sycl::queue& q,
                                      T* p, int64_t size, uint64_t seed, uint64_t offset,
                                      const std::vector<sycl::event>& deps)
         {
@@ -127,7 +127,7 @@ namespace SushiBLAS
 
         return recorder_.record_pair(description, operands, "RNG operation",
             [dtype = t.dtype, size, seed, offset, ptr, name]
-            (const Internal::KernelPairDispatcher& pair, sycl::queue& q,
+            (const KernelPairDispatcher& pair, sycl::queue& q,
              const std::vector<sycl::event>& deps) -> sycl::event
             {
                 SB_LOG_INFO("RandomOps: {} ({} elements, seed: {}, offset: {})", name, size, seed, offset);

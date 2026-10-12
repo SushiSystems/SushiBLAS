@@ -62,7 +62,8 @@ namespace SushiBLAS
                     auto t = engine->create_tensor({n, h, w, c}, Core::DataType::Float32);
                     float* p = t.data_as<float>();
                     int64_t i = 0;
-                    for (float v : values) p[i++] = v;
+                    for (float v : values)
+                        p[i++] = v;
                     return t;
                 }
 
@@ -71,7 +72,8 @@ namespace SushiBLAS
                 {
                     auto t = engine->create_tensor({n, h, w, c}, Core::DataType::Float32);
                     float* p = t.data_as<float>();
-                    for (int64_t i = 0; i < t.num_elements; ++i) p[i] = value;
+                    for (int64_t i = 0; i < t.num_elements; ++i)
+                        p[i] = value;
                     return t;
                 }
 

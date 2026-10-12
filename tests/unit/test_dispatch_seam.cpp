@@ -552,7 +552,8 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
     // Two identical fused updates must agree exactly. See tests/unit/README.md.
     constexpr int64_t k_n = 517;
     std::vector<float> seed(static_cast<size_t>(k_n));
-    for (int64_t i = 0; i < k_n; ++i) seed[static_cast<size_t>(i)] = 0.001f * static_cast<float>((i % 31) - 15);
+    for (int64_t i = 0; i < k_n; ++i)
+        seed[static_cast<size_t>(i)] = 0.001f * static_cast<float>((i % 31) - 15);
 
     auto run = [&]()
     {
@@ -730,7 +731,7 @@ TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
     {
         (void)sb::Internal::execute_typed_task<sb::Dispatch::Domain::Real>(
             engine->recorder(), description, SushiBLAS::OperandSet(), t.dtype, "Spatial operation",
-            [](auto, const sb::Internal::KernelPairDispatcher&, sycl::queue&,
+            [](auto, const sb::KernelPairDispatcher&, sycl::queue&,
                const std::vector<sycl::event>&) -> sycl::event
             {
                 return sycl::event();

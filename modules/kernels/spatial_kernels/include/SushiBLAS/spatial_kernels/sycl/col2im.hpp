@@ -52,7 +52,8 @@ namespace SushiBLAS
                                const T* in, T* out, const std::vector<sycl::event>& deps)
             {
                 const int64_t total = span.input_elements();
-                if (total <= 0) return sycl::event();
+                if (total <= 0)
+                    return sycl::event();
 
                 // The device closure captures values, never a host reference.
                 const Spatial::ConvGeometry g = span.geometry;
@@ -95,16 +96,20 @@ namespace SushiBLAS
                             for (int64_t r = 0; r < g.kernel_h; ++r)
                             {
                                 const int64_t h_num = h + g.pad_top - r * g.dilation_h;
-                                if (h_num < 0 || h_num % g.stride_h != 0) continue;
+                                if (h_num < 0 || h_num % g.stride_h != 0)
+                                    continue;
                                 const int64_t h_o = h_num / g.stride_h;
-                                if (h_o >= out_h) continue;
+                                if (h_o >= out_h)
+                                    continue;
 
                                 for (int64_t s = 0; s < g.kernel_w; ++s)
                                 {
                                     const int64_t w_num = w + g.pad_left - s * g.dilation_w;
-                                    if (w_num < 0 || w_num % g.stride_w != 0) continue;
+                                    if (w_num < 0 || w_num % g.stride_w != 0)
+                                        continue;
                                     const int64_t w_o = w_num / g.stride_w;
-                                    if (w_o >= out_w) continue;
+                                    if (w_o >= out_w)
+                                        continue;
 
                                     const int64_t row = (n * out_h + h_o) * out_w + w_o;
                                     const int64_t patch = (r * g.kernel_w + s) * channels + c;

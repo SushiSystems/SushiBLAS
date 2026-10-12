@@ -146,7 +146,7 @@ namespace SushiBLAS
                     }
 
                     /** @brief Runs the serial host loop under ForceReference, else submits the kernel. */
-                    sycl::event operator()(const Internal::KernelPairDispatcher& pair,
+                    sycl::event operator()(const KernelPairDispatcher& pair,
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
@@ -290,7 +290,7 @@ namespace SushiBLAS
                     }
 
                     /** @brief Runs the serial host loop under ForceReference, else submits the kernel. */
-                    sycl::event operator()(const Internal::KernelPairDispatcher& pair,
+                    sycl::event operator()(const KernelPairDispatcher& pair,
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {

@@ -184,7 +184,8 @@ namespace SushiBLAS
                  */
                 inline uint64_t draw_index(uint64_t seed, uint64_t offset, uint64_t index, uint64_t bound)
                 {
-                    if (bound <= 1) return 0;
+                    if (bound <= 1)
+                        return 0;
 
                     auto w = philox_block(seed, offset, index);
                     uint64_t raw = (static_cast<uint64_t>(w[1]) << 32) | static_cast<uint64_t>(w[0]);

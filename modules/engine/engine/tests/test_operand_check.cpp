@@ -61,7 +61,8 @@ namespace SushiBLAS
                                    Core::Layout layout = Core::Layout::RowMajor)
                 {
                     int64_t n = 1;
-                    for (auto d : dims) n *= d;
+                    for (auto d : dims)
+                        n *= d;
                     return Tensor(make_storage(n), dims, Core::DataType::Float32, 0, layout);
                 }
 

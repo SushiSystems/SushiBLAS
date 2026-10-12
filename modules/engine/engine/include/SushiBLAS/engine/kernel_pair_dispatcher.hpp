@@ -34,44 +34,41 @@
 
 namespace SushiBLAS
 {
-    namespace Internal
+    /**
+     * @brief Runs an operation's reference or SYCL kernel under the mode fixed at record time.
+     * @see modules/engine/engine/README.md
+     */
+    class KernelPairDispatcher final
     {
-        /**
-         * @brief Runs an operation's reference or SYCL kernel under the mode fixed at record time.
-         * @see modules/engine/engine/README.md
-         */
-        class KernelPairDispatcher final
-        {
-            public:
-                /** @brief Fixes the execution mode every run() routes by. */
-                explicit KernelPairDispatcher(ExecutionMode mode) noexcept : mode_(mode)
-                {
+        public:
+            /** @brief Fixes the execution mode every run() routes by. */
+            explicit KernelPairDispatcher(ExecutionMode mode) noexcept : mode_(mode)
+            {
 
+            }
+
+            /**
+             * @brief Runs reference_fn on the host under ForceReference, else sycl_fn.
+             * @param reference_fn Callable `() -> void` running the reference kernel.
+             * @param sycl_fn Callable `(sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`.
+             * @return The submitted event, or an empty one under ForceReference.
+             */
+            template<typename ReferenceFn, typename SYCLFn>
+            sycl::event run(sycl::queue& q, const std::vector<sycl::event>& deps,
+                            ReferenceFn&& reference_fn, SYCLFn&& sycl_fn) const
+            {
+                if (mode_ == ExecutionMode::ForceReference)
+                {
+                    sycl::event::wait(deps);
+                    std::forward<ReferenceFn>(reference_fn)();
+                    return sycl::event();
                 }
 
-                /**
-                 * @brief Runs reference_fn on the host under ForceReference, else sycl_fn.
-                 * @param reference_fn Callable `() -> void` running the reference kernel.
-                 * @param sycl_fn Callable `(sycl::queue&, const std::vector<sycl::event>&) -> sycl::event`.
-                 * @return The submitted event, or an empty one under ForceReference.
-                 */
-                template<typename ReferenceFn, typename SYCLFn>
-                sycl::event run(sycl::queue& q, const std::vector<sycl::event>& deps,
-                                ReferenceFn&& reference_fn, SYCLFn&& sycl_fn) const
-                {
-                    if (mode_ == ExecutionMode::ForceReference)
-                    {
-                        sycl::event::wait(deps);
-                        std::forward<ReferenceFn>(reference_fn)();
-                        return sycl::event();
-                    }
+                return std::forward<SYCLFn>(sycl_fn)(q, deps);
+            }
 
-                    return std::forward<SYCLFn>(sycl_fn)(q, deps);
-                }
-
-            private:
-                /// @brief The recorder's execution mode when the task was recorded.
-                ExecutionMode mode_;
-        };
-    } // namespace Internal
+        private:
+            /// @brief The recorder's execution mode when the task was recorded.
+            ExecutionMode mode_;
+    };
 } // namespace SushiBLAS

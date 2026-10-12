@@ -91,7 +91,8 @@ namespace SushiBLAS
                             for (int64_t wo = 0; wo < out_w; ++wo)
                                 for (int64_t r = 0; r < 3; ++r)
                                     for (int64_t s = 0; s < 3; ++s)
-                                        if (ho - 1 + r == h && wo - 1 + s == w) ++count;
+                                        if (ho - 1 + r == h && wo - 1 + s == w)
+                                            ++count;
 
                         for (int64_t ch = 0; ch < C; ++ch)
                             EXPECT_FLOAT_EQ(got[((n * H + h) * W + w) * C + ch],

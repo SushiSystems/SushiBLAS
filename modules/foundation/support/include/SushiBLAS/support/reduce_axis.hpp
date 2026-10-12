@@ -103,16 +103,19 @@ namespace SushiBLAS
                                                 std::size_t segments,
                                                 std::size_t extent) noexcept
         {
-            if (segments == 0 || extent == 0) return AxisPlan{1};
+            if (segments == 0 || extent == 0)
+                return AxisPlan{1};
 
             const std::size_t resident = p.is_cpu
                 ? p.compute_units
                 : p.compute_units * Device::K_WAVES_PER_COMPUTE_UNIT;
 
-            if (segments >= resident) return AxisPlan{1};
+            if (segments >= resident)
+                return AxisPlan{1};
 
             const std::size_t local = group_width(p);
-            if (local < 2 || extent < local) return AxisPlan{1};
+            if (local < 2 || extent < local)
+                return AxisPlan{1};
 
             return AxisPlan{local};
         }
@@ -184,11 +187,13 @@ namespace SushiBLAS
                     // A fixed-order halving tree; local is a power of two; see modules/foundation/support/README.md.
                     for (std::size_t off = local / 2; off > 0; off >>= 1)
                     {
-                        if (lid < off) tile[lid] = Accum<W>::combine(tile[lid], tile[lid + off]);
+                        if (lid < off)
+                            tile[lid] = Accum<W>::combine(tile[lid], tile[lid + off]);
                         sycl::group_barrier(it.get_group());
                     }
 
-                    if (lid == 0) store(s, tile[0]);
+                    if (lid == 0)
+                        store(s, tile[0]);
                 });
             });
         }

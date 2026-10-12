@@ -182,10 +182,13 @@ namespace SushiBLAS
                 p.sub_group_size = widths.empty()
                     ? std::size_t{1}
                     : *std::max_element(widths.begin(), widths.end());
-                if (p.sub_group_size == 0) p.sub_group_size = 1;
+                if (p.sub_group_size == 0)
+                    p.sub_group_size = 1;
 
-                if (p.max_work_group_size == 0) p.max_work_group_size = 1;
-                if (p.compute_units == 0) p.compute_units = 1;
+                if (p.max_work_group_size == 0)
+                    p.max_work_group_size = 1;
+                if (p.compute_units == 0)
+                    p.compute_units = 1;
 
                 const std::size_t reported_cache = static_cast<std::size_t>(
                     d.get_info<sycl::info::device::global_mem_cache_size>());
@@ -210,7 +213,8 @@ namespace SushiBLAS
 
             const std::lock_guard<std::mutex> lock(guard);
             for (auto& entry : *cache)
-                if (entry.first == d) return entry.second;
+                if (entry.first == d)
+                    return entry.second;
 
             cache->emplace_back(d, Detail::probe(d));
             return cache->back().second;
@@ -298,7 +302,8 @@ namespace SushiBLAS
         [[nodiscard]] inline std::size_t flat_work_group_size(const Profile& p,
                                                               std::size_t n) noexcept
         {
-            if (!p.is_cpu) return work_group_size(p);
+            if (!p.is_cpu)
+                return work_group_size(p);
 
             const std::size_t per_thread = (n + p.compute_units - 1) / p.compute_units;
             const std::size_t floor_size = std::min(K_CPU_WORK_GROUP_TARGET,
@@ -332,7 +337,8 @@ namespace SushiBLAS
                 const std::size_t resident = p.compute_units * K_WAVES_PER_COMPUTE_UNIT;
                 groups = std::min(groups, resident);
             }
-            if (groups == 0) groups = 1;
+            if (groups == 0)
+                groups = 1;
 
             return Grid1D{groups * local, local};
         }
@@ -345,8 +351,10 @@ namespace SushiBLAS
         [[nodiscard]] inline std::size_t vector_width(const Profile& p,
                                                       std::size_t element_bytes) noexcept
         {
-            if (p.is_cpu || element_bytes == 0) return 1;
-            if (element_bytes >= K_VECTOR_TRANSACTION_BYTES) return 1;
+            if (p.is_cpu || element_bytes == 0)
+                return 1;
+            if (element_bytes >= K_VECTOR_TRANSACTION_BYTES)
+                return 1;
             const std::size_t width = K_VECTOR_TRANSACTION_BYTES / element_bytes;
             return width ? width : std::size_t{1};
         }

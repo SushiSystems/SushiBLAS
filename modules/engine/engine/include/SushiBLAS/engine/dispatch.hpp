@@ -79,8 +79,10 @@ namespace SushiBLAS
          */
         [[nodiscard]] inline constexpr Domain domain_of(Core::DataType dtype) noexcept
         {
-            if (Core::is_complex_dtype(dtype)) return Domain::Complex;
-            if (Core::is_integer_dtype(dtype)) return Domain::Integral;
+            if (Core::is_complex_dtype(dtype))
+                return Domain::Complex;
+            if (Core::is_integer_dtype(dtype))
+                return Domain::Integral;
             return Domain::Real;
         }
 

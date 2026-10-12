@@ -144,7 +144,8 @@ TEST_F(Unit_ShuffleTest, PermutesHalfPrecisionToo)
 
     std::vector<float> sorted;
     sorted.reserve(kSmall);
-    for (auto h : out) sorted.push_back(static_cast<float>(h));
+    for (auto h : out)
+        sorted.push_back(static_cast<float>(h));
     std::sort(sorted.begin(), sorted.end());
 
     for (int i = 0; i < kSmall; ++i)

@@ -288,7 +288,7 @@ TaskHandle Level1::axpy(BLASScalar alpha, const Tensor& x, Tensor& y)
     void* rw_y = y.data_or_null();
 
     return Internal::execute_blas_task(recorder_, metadata.get(), operands, x.dtype,
-        [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
+        [=](auto scalar_type, const KernelPairDispatcher& dispatcher,
             sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
         {
             using T = decltype(scalar_type);

@@ -950,12 +950,15 @@ namespace SushiBLAS
         {
             dict += std::to_string(t.shape[i]);
 
-            if (t.rank == 1 || i < t.rank - 1) dict += ",";
-            if (i < t.rank - 1) dict += " ";
+            if (t.rank == 1 || i < t.rank - 1)
+                dict += ",";
+            if (i < t.rank - 1)
+                dict += " ";
         }
         dict += "), }";
 
-        while ((10 + dict.length() + 1) % 64 != 0) dict += " ";
+        while ((10 + dict.length() + 1) % 64 != 0)
+            dict += " ";
 
         dict += "\n";
 
@@ -1059,13 +1062,20 @@ namespace SushiBLAS
 
         ss << "], dtype=";
 
-        if (t.dtype == Core::DataType::Half) ss << "f16";
-        else if (t.dtype == Core::DataType::Float32) ss << "f32";
-        else if (t.dtype == Core::DataType::Float64) ss << "f64";
-        else if (t.dtype == Core::DataType::Complex32) ss << "c32";
-        else if (t.dtype == Core::DataType::Complex64) ss << "c64";
-        else if (t.dtype == Core::DataType::Int32) ss << "i32";
-        else if (t.dtype == Core::DataType::Int64) ss << "i64";
+        if (t.dtype == Core::DataType::Half)
+            ss << "f16";
+        else if (t.dtype == Core::DataType::Float32)
+            ss << "f32";
+        else if (t.dtype == Core::DataType::Float64)
+            ss << "f64";
+        else if (t.dtype == Core::DataType::Complex32)
+            ss << "c32";
+        else if (t.dtype == Core::DataType::Complex64)
+            ss << "c64";
+        else if (t.dtype == Core::DataType::Int32)
+            ss << "i32";
+        else if (t.dtype == Core::DataType::Int64)
+            ss << "i64";
 
         ss << "):" << std::endl;
         ss << std::fixed << std::setprecision(precision);

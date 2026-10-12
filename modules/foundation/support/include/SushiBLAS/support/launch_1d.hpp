@@ -80,7 +80,8 @@ namespace SushiBLAS
         [[nodiscard]] inline std::array<T*, N> typed_ptrs(const std::array<void*, N>& raw) noexcept
         {
             std::array<T*, N> out{};
-            for (std::size_t k = 0; k < N; ++k) out[k] = static_cast<T*>(raw[k]);
+            for (std::size_t k = 0; k < N; ++k)
+                out[k] = static_cast<T*>(raw[k]);
             return out;
         }
 
@@ -405,7 +406,8 @@ namespace SushiBLAS
 
             h.parallel_for(shape.grid.nd_range(), [=](sycl::nd_item<1> it)
             {
-                for (std::size_t i = it.get_global_id(0); i < n; i += stride) op(i);
+                for (std::size_t i = it.get_global_id(0); i < n; i += stride)
+                    op(i);
             });
         }
 

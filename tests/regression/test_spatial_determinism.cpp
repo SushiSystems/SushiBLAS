@@ -150,7 +150,8 @@ namespace SushiBLAS
             // One dominant pixel per channel plane, so every window in reach selects it.
             auto in = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             float* p = in.data_as<float>();
-            for (int64_t i = 0; i < in.num_elements; ++i) p[i] = 0.0f;
+            for (int64_t i = 0; i < in.num_elements; ++i)
+                p[i] = 0.0f;
             for (int64_t n = 0; n < N; ++n)
                 for (int64_t c = 0; c < C; ++c)
                     p[((n * H + 2) * W + 3) * C + c] = 1.0f;

@@ -53,7 +53,8 @@ namespace SushiBLAS
                                        const std::vector<sycl::event>& deps)
             {
                 const int64_t total = span.input_elements();
-                if (total <= 0) return sycl::event();
+                if (total <= 0)
+                    return sycl::event();
 
                 const int64_t channels = span.channels;
                 const int64_t in_h = span.in_h;
@@ -114,7 +115,8 @@ namespace SushiBLAS
                                           const std::vector<sycl::event>& deps)
             {
                 const int64_t total = span.output_elements();
-                if (total <= 0) return sycl::event();
+                if (total <= 0)
+                    return sycl::event();
 
                 const int64_t channels = span.channels;
                 const int64_t out_h = span.out_h;
@@ -166,7 +168,8 @@ namespace SushiBLAS
                                        const T* in, T* out, const std::vector<sycl::event>& deps)
             {
                 const int64_t total = span.input_elements();
-                if (total <= 0) return sycl::event();
+                if (total <= 0)
+                    return sycl::event();
 
                 const int64_t channels = span.channels;
                 const int64_t in_h = span.in_h;

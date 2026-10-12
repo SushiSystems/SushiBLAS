@@ -294,7 +294,8 @@ namespace SushiBLAS
                 const double exact = static_cast<double>(n) * static_cast<double>(0.1f);
 
                 float naive = 0.0f;
-                for (int64_t i = 0; i < n; ++i) naive += 0.1f;
+                for (int64_t i = 0; i < n; ++i)
+                    naive += 0.1f;
 
                 const double got_err = std::fabs(static_cast<double>(scalar(res)) - exact);
                 const double naive_err = std::fabs(static_cast<double>(naive) - exact);
@@ -348,7 +349,8 @@ namespace SushiBLAS
             const double exact = [&]
             {
                 double s = 0.0;
-                for (float v : host) s += static_cast<double>(v);
+                for (float v : host)
+                    s += static_cast<double>(v);
                 return s;
             }();
 

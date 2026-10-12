@@ -61,16 +61,20 @@ namespace SushiBLAS
                                 for (int64_t r = 0; r < g.kernel_h; ++r)
                                 {
                                     const int64_t h_num = h + g.pad_top - r * g.dilation_h;
-                                    if (h_num < 0 || h_num % g.stride_h != 0) continue;
+                                    if (h_num < 0 || h_num % g.stride_h != 0)
+                                        continue;
                                     const int64_t h_o = h_num / g.stride_h;
-                                    if (h_o >= span.out_h) continue;
+                                    if (h_o >= span.out_h)
+                                        continue;
 
                                     for (int64_t s = 0; s < g.kernel_w; ++s)
                                     {
                                         const int64_t w_num = w + g.pad_left - s * g.dilation_w;
-                                        if (w_num < 0 || w_num % g.stride_w != 0) continue;
+                                        if (w_num < 0 || w_num % g.stride_w != 0)
+                                            continue;
                                         const int64_t w_o = w_num / g.stride_w;
-                                        if (w_o >= span.out_w) continue;
+                                        if (w_o >= span.out_w)
+                                            continue;
 
                                         const int64_t row = (n * span.out_h + h_o) * span.out_w + w_o;
                                         const int64_t patch = (r * g.kernel_w + s) * span.channels + c;

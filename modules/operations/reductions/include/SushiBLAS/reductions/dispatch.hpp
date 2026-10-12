@@ -76,7 +76,8 @@ namespace SushiBLAS
          */
         [[nodiscard]] inline std::size_t partial_bytes(Core::DataType dtype)
         {
-            if (dtype == Core::DataType::Half) return sizeof(Reduce::AccumulationOf<sycl::half>);
+            if (dtype == Core::DataType::Half)
+                return sizeof(Reduce::AccumulationOf<sycl::half>);
             return Core::bytes_per_element(dtype);
         }
 
@@ -209,7 +210,7 @@ namespace SushiBLAS
                     }
 
                     /** @brief Runs the serial host fold under ForceReference, else submits the kernels. */
-                    sycl::event operator()(const Internal::KernelPairDispatcher& pair,
+                    sycl::event operator()(const KernelPairDispatcher& pair,
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
@@ -439,7 +440,7 @@ namespace SushiBLAS
                     }
 
                     /** @brief Runs the serial host folds under ForceReference, else submits the kernel. */
-                    sycl::event operator()(const Internal::KernelPairDispatcher& pair,
+                    sycl::event operator()(const KernelPairDispatcher& pair,
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {

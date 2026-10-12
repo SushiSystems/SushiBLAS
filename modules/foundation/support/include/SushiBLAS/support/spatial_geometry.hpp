@@ -69,11 +69,13 @@ namespace SushiBLAS
                                                       int64_t dilation, int64_t kernel,
                                                       int64_t stride) noexcept
         {
-            if (stride <= 0 || kernel <= 0 || dilation <= 0) return 0;
+            if (stride <= 0 || kernel <= 0 || dilation <= 0)
+                return 0;
 
             const int64_t covered = dilation * (kernel - 1) + 1;
             const int64_t padded = in + pad_before + pad_after;
-            if (padded < covered) return 0;
+            if (padded < covered)
+                return 0;
 
             return (padded - covered) / stride + 1;
         }

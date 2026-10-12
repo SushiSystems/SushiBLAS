@@ -65,12 +65,14 @@ namespace SushiBLAS
                                 for (int64_t h_o = 0; h_o < span.out_h; ++h_o)
                                 {
                                     const int64_t h_in = h_o * g.stride_h - g.pad_top + r * g.dilation_h;
-                                    if (h_in < 0 || h_in >= span.in_h) continue;
+                                    if (h_in < 0 || h_in >= span.in_h)
+                                        continue;
 
                                     for (int64_t w_o = 0; w_o < span.out_w; ++w_o)
                                     {
                                         const int64_t w_in = w_o * g.stride_w - g.pad_left + s * g.dilation_w;
-                                        if (w_in < 0 || w_in >= span.in_w) continue;
+                                        if (w_in < 0 || w_in >= span.in_w)
+                                            continue;
 
                                         sum.add(RW(dy[n * span.out_batch_stride
                                                       + h_o * span.out_row_stride

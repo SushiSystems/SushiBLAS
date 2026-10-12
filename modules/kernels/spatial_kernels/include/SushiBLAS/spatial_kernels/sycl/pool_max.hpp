@@ -53,7 +53,8 @@ namespace SushiBLAS
                                  const std::vector<sycl::event>& deps)
             {
                 const int64_t total = span.output_elements();
-                if (total <= 0) return sycl::event();
+                if (total <= 0)
+                    return sycl::event();
 
                 const Spatial::ConvGeometry g = span.geometry;
                 const int64_t channels = span.channels;
@@ -100,12 +101,14 @@ namespace SushiBLAS
                             for (int64_t r = 0; r < g.kernel_h; ++r)
                             {
                                 const int64_t h_in = h_o * g.stride_h - g.pad_top + r * g.dilation_h;
-                                if (h_in < 0 || h_in >= in_h) continue;
+                                if (h_in < 0 || h_in >= in_h)
+                                    continue;
 
                                 for (int64_t s = 0; s < g.kernel_w; ++s)
                                 {
                                     const int64_t w_in = w_o * g.stride_w - g.pad_left + s * g.dilation_w;
-                                    if (w_in < 0 || w_in >= in_w) continue;
+                                    if (w_in < 0 || w_in >= in_w)
+                                        continue;
 
                                     const T candidate = in[n * in_batch_stride
                                                          + h_in * in_row_stride
@@ -141,7 +144,8 @@ namespace SushiBLAS
                                           const std::vector<sycl::event>& deps)
             {
                 const int64_t total = span.input_elements();
-                if (total <= 0) return sycl::event();
+                if (total <= 0)
+                    return sycl::event();
 
                 const Spatial::ConvGeometry g = span.geometry;
                 const int64_t channels = span.channels;
@@ -186,21 +190,26 @@ namespace SushiBLAS
                             for (int64_t r = 0; r < g.kernel_h; ++r)
                             {
                                 const int64_t h_num = h + g.pad_top - r * g.dilation_h;
-                                if (h_num < 0 || h_num % g.stride_h != 0) continue;
+                                if (h_num < 0 || h_num % g.stride_h != 0)
+                                    continue;
                                 const int64_t h_o = h_num / g.stride_h;
-                                if (h_o >= out_h) continue;
+                                if (h_o >= out_h)
+                                    continue;
 
                                 for (int64_t s = 0; s < g.kernel_w; ++s)
                                 {
                                     const int64_t w_num = w + g.pad_left - s * g.dilation_w;
-                                    if (w_num < 0 || w_num % g.stride_w != 0) continue;
+                                    if (w_num < 0 || w_num % g.stride_w != 0)
+                                        continue;
                                     const int64_t w_o = w_num / g.stride_w;
-                                    if (w_o >= out_w) continue;
+                                    if (w_o >= out_w)
+                                        continue;
 
                                     const int64_t at = n * out_batch_stride + h_o * out_row_stride
                                                      + w_o * out_col_stride + c * out_channel_stride;
 
-                                    if (indices[at] == mine) total_value += Accumulator<T>(dy[at]);
+                                    if (indices[at] == mine)
+                                        total_value += Accumulator<T>(dy[at]);
                                 }
                             }
 

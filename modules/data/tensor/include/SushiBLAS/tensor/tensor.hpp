@@ -295,10 +295,12 @@ namespace SushiBLAS
          */
         [[nodiscard]] inline int64_t element_span() const
         {
-            if (num_elements == 0) return 0;
+            if (num_elements == 0)
+                return 0;
 
             int64_t span = 1;
-            for (int i = 0; i < rank; ++i) span += (shape[i] - 1) * strides[i];
+            for (int i = 0; i < rank; ++i)
+                span += (shape[i] - 1) * strides[i];
             return span;
         }
 
@@ -309,7 +311,8 @@ namespace SushiBLAS
          */
         inline SushiRuntime::BufferRegion region() const
         {
-            if (!storage) return {};
+            if (!storage)
+                return {};
 
             const size_t bpe = Core::bytes_per_element(dtype);
             return { storage->allocation_base(),
@@ -323,12 +326,14 @@ namespace SushiBLAS
          */
         bool is_contiguous() const
         {
-            if (num_elements == 0) return true;
+            if (num_elements == 0)
+                return true;
 
             const auto expected = layout_strides(SushiRuntime::span<const int64_t>(shape.data(), static_cast<size_t>(rank)), layout);
             for (int i = 0; i < rank; ++i)
             {
-                if (shape[i] != 1 && strides[i] != expected[i]) return false;
+                if (shape[i] != 1 && strides[i] != expected[i])
+                    return false;
             }
             return true;
         }
@@ -397,8 +402,10 @@ namespace SushiBLAS
             SB_THROW_IF(dim < 0 || dim >= rank, "Invalid dimension {}", dim);
             
             int64_t dim_size = shape[dim];
-            if (start < 0) start += dim_size;
-            if (end < 0) end += dim_size;
+            if (start < 0)
+                start += dim_size;
+            if (end < 0)
+                end += dim_size;
 
             start = std::max<int64_t>(0, std::min(start, dim_size));
             end = std::max<int64_t>(start, std::min(end, dim_size));
