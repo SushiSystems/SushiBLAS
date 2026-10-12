@@ -54,8 +54,7 @@ family headers are:
 `<SushiBLAS/reductions/dispatch.hpp>` `<SushiBLAS/random/dispatch.hpp>`
 `<SushiBLAS/logic/dispatch.hpp>`
 
-These used to be private `*_internal.hpp` headers under source/, uninstalled and therefore unreachable
-from outside this tree. They are public now because they are the seam a layer above (an autodiff/NN
+These headers are installed and public, because they are the seam a layer above (an autodiff/NN
 framework) needs in order to fuse: composing several math ops into one functor and handing it to
 `execute_binary` produces ONE kernel launch instead of one per op, and it does so without the
 consumer writing a line of SYCL: the functor is a plain C++ lambda. Keeping that capability private
@@ -120,9 +119,9 @@ tag exists to be:
 
 Runs `arm` instantiated for the C++ type `dtype` denotes, or throws.
 
-The dtype switch, once. Every per-element executor in this library used to write its own: seven
-`case` arms each, four of them differing only in a type name, two of them wrapped in an `if
-constexpr` domain guard, and one `default` carrying the failure message. Eight copies of that is
+The dtype switch, once. A switch written per executor is seven `case` arms, four of them
+differing only in a type name, two of them wrapped in an `if constexpr` domain guard, and one
+`default` carrying the failure message. Eight copies of that is
 eight places to forget an arm when a `DataType` is added, and eight slightly different wordings when
 one is rejected. This is the whole thing in one function: the caller supplies a generic callable and
 says nothing about dtypes at all.

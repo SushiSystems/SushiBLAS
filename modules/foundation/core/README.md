@@ -55,9 +55,9 @@ the handful of places that check a whole family at once rather than switching ar
 
 ### `bytes_per_element`
 
-The one place the dtype-to-width mapping is written down. It used to be open-coded as a four-branch
-`size_t bpe = 4; if (...)` chain in three separate places (the Tensor constructor's capacity check,
-Tensor::data(), and io.cpp), which is three chances for a new dtype to be added to two of them.
+The one place the dtype-to-width mapping is written down. Three callers need it (the Tensor
+constructor's capacity check, Tensor::data(), and io.cpp); a chain written in each is three
+chances for a new dtype to be added to two of them.
 
 The `return 4;` after the switch in `bytes_per_element` is unreachable for any enumerator. It
 matches the shape of `to_string()`, which needs a trailing return for a `DataType` holding a value
@@ -151,8 +151,8 @@ as a plain one.
 ### `apply_format_spec`
 
 `std::boolalpha` is unconditional rather than part of the spec: `std::format` renders `true` and
-`false` by name, `operator<<` renders them as 1 and 0 by default, and a log line that used to read
-"contiguous: true" must not start reading "contiguous: 1" because the formatter changed.
+`false` by name, `operator<<` renders them as 1 and 0 by default, and a log line that reads
+"contiguous: true" under `std::format` must not read "contiguous: 1" under the stand-in.
 
 Centring (`^`) is not expressible as stream state, iostreams has no such adjustfield, so it is
 absent here and handled by `FormatArg::write_centred` instead.
@@ -242,8 +242,8 @@ the level names `OFF`, `ERR`, `WARN`, `INFO` and `DEBUG`; CMake rejects any othe
 and defines `SB_ACTIVE_LOG_LEVEL` as the `LogLevel` enumerator of the level, `Off` to `Debug`. A
 build that defines the macro itself names the enumerator.
 
-The default is WARN for a release build and DEBUG for a debug build. Release used to default to
-INFO, which was expensive rather than merely noisy: every `SB_LOG_INFO` that survives the `if
+The default is WARN for a release build and DEBUG for a debug build. INFO in a release build
+is expensive and not merely noisy: every `SB_LOG_INFO` that survives the `if
 constexpr` formats a `SushiBLAS::Core::Detail::SourceLocation`, file, line, and the fully templated
 function signature, several hundred characters at the dispatch seam, and pushes the string through a
 mutex-guarded queue. The kernel launch path logs at INFO once per launch, so a training loop paid
@@ -273,11 +273,10 @@ that survives the level test.
 
 A function template rather than an `if constexpr` spelled out in the macro, for two reasons.
 
-First, arguments stay used. The macros used to expand to `if constexpr (level ok) log_base(...,
-args...)`; inside a template, a discarded statement is never instantiated, so lowering the
-compiled-in level turned every variable a log line was the sole reader of into an unused one,
-`-Wunused-lambda-capture` under `-Werror`, and the fix would have been to scatter `(void)x;` through
-the call sites. Passing the arguments to a function keeps them odr-used whatever the level, so the
+First, arguments stay used. A macro that expanded to `if constexpr (level ok) log_base(...,
+args...)` would not keep them: inside a template, a discarded statement is never instantiated, so
+lowering the compiled-in level turns every variable a log line is the sole reader of into an
+unused one, `-Wunused-lambda-capture` under `-Werror`, and the call sites would need `(void)x;`. Passing the arguments to a function keeps them odr-used whatever the level, so the
 level is a pure logging decision and never a compile error somewhere else.
 
 Second, it is an expression, not a statement, so `if (c) SB_LOG_INFO(...); else ...` binds the
@@ -300,9 +299,7 @@ fmt` parameter binds the first argument, so every existing call site is unchange
 
 The project's compile-time type vocabulary.
 
-`is_complex` used to be written out three separate times, all three in the same
-`SushiBLAS::Internal` namespace: the BLAS helpers of `operands` and `blas`, the elementwise private helper, and the
-random one. Three identical primary templates in one namespace is only harmless while no translation
-unit sees more than one of them, and promoting the op-dispatch helpers to public headers (which a
-downstream consumer will include side by side) made that guarantee disappear. Collapsed to this
-single definition; a header that uses the trait includes this file.
+`is_complex` has this one definition. The BLAS helpers of `operands` and `blas`, the
+elementwise seam and the random seam all need the trait, and their headers are public, so a
+consumer includes them side by side: a copy in each would be several identical primary templates
+of one namespace in one translation unit. A header that uses the trait includes this file.

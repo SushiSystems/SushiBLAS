@@ -229,7 +229,7 @@ BatchNorm in evaluation mode.
 `out[n,h,w,c] = in[n,c] * scale`. Global average pooling's backward, with `scale = 1/(H*W)`.
 
 A **per-`(n, c)`** broadcast, which is neither of the two that already exist: SushiAI's
-`Ops::GEMM_BIAS` broadcasts a row vector down every row, and `channel_affine` broadcasts one
+fused GEMM with bias broadcasts a row vector down every row, and `channel_affine` broadcasts one
 value per channel across the whole batch.
 
 ### `SpatialOps::layout_convert`

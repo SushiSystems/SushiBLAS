@@ -206,7 +206,7 @@ tensor of zeros returned 1 whenever the caller reused a result that had held 1.
 lives in the elementwise family, why the dtype pair is bounded to REAL x REAL, and why a
 conversion to the same dtype is legal. This section records the mechanics.
 
-`SushiBLAS::Dispatch` has no public `execute_convert` seam. Every other executor in `Dispatch` is
+`SushiBLAS::Dispatch` has no public seam for `convert`. Every other executor in `Dispatch` is
 public because it takes a functor the caller writes. That lets a consumer fuse several math
 operations into one kernel without writing SYCL, and it is why those headers were promoted out of
 `source/`. `convert` has no functor: the conversion is `static_cast`, fixed by the pair of dtypes, so

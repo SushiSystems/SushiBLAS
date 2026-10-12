@@ -91,7 +91,7 @@ loops, `syrk`, `syr2k`, `trsm`, the sparse kernels, the orthonormalisation sweep
 
 `rotg`, `rotm` and `rotmg` have one file each on each side. The arithmetic of `rotg` and `rotmg` is
 not in them: it is
-`givens_rotation` and `modified_givens` under `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/blas/`, shared with the
+`givens_rotation` and `modified_givens` under `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/`, shared with the
 SYCL kernels. The reference `rotg` passes a host square root, `Detail::HostRoot`, where the SYCL
 kernel passes `Detail::DeviceRoot`. `rotm` applies the transformation H that a five-element
 parameter array describes to every pair `(x_i, y_i)`; the SYCL kernel runs one work-item per pair.
@@ -124,7 +124,7 @@ after.
 `syrk` addresses its operand by the same two-stride rule as `Reference::gemm`. It once carried the
 same defect: the `ColumnMajor` arm was inverted, which made `layout` a no-op for A and read past
 its end for some shapes. The identity that catches the defect is in
-`modules/kernels/blas_seam_kernels/README.md`, under `reference/blas/level3/gemm.hpp`.
+`modules/kernels/blas_seam_kernels/README.md`, under `reference/level3/gemm.hpp`.
 
 ### `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level3/syr2k.hpp`
 
@@ -404,9 +404,9 @@ the row is long enough.
 plans one-dimensional geometries, and the index of `ger` has two dimensions: `A` is addressed by
 `(i, j)` under a runtime layout, and the two axes have different strides. Flattening the index to
 `i * n + j` to pass it through `Launch::indexed` would cost a division and a modulo per work-item,
-and the backend could no longer pick a two-dimensional work-group. It would also buy the
+and the backend could not pick a two-dimensional work-group. It would also buy the
 grid-stride shape for a kernel whose launch is already sized by the output matrix, not by a vector
-length. If `ger` ever needs the device split, the fix is a `plan_2d` beside `plan_1d`.
+length. If `ger` ever needs the device split, the fix is a two-dimensional plan beside `plan_1d`.
 
 ### `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/syr.hpp`
 
@@ -479,7 +479,7 @@ A zero `beta` does not read the prior C.
 
 ### `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/syrk.hpp`
 
-No SYRK tiling kernel exists upstream: portBLAS's `doc/MissingFeatures.md` lists SYRK as
+No SYRK tiling kernel exists upstream: portBLAS's MissingFeatures document lists SYRK as
 unimplemented (see `NOTICE.md`). `syrk` composes SushiBLAS's ported GEMM tiling, the way
 portBLAS's SYMM composes onto its GEMM kernel. C = alpha\*op(A)\*op(A)^T is
 GEMM(A, A, transA=trans, transB=!trans) restricted to one triangle of C, so `syrk` reuses the
@@ -631,7 +631,7 @@ probability zero.
 "Parallel Random Numbers: As Easy as 1, 2, 3", SC'11). It is stateless: the same (key, counter)
 pair always produces the same four words, so any block can be drawn independently and in
 parallel with no shared state. The round constants were checked against the reference Random123
-implementation (DEShawResearch/random123, `include/Random123/philox.h`).
+implementation (the `philox.h` of DEShawResearch/random123).
 
 The file replaces oneMKL's `philox4x32x10` (SB-2). The algorithm is unchanged; the backend is
 hand-written SYCL with no oneMKL dependency.

@@ -103,7 +103,7 @@ call a caller has to remember.
 No caller in this repository, and none in the SushiAI tree that consumes it, relies on the offset
 surviving a re-seed: SushiAI's dataset shuffling explicitly constructs a fresh Engine to work around
 the old behaviour. Nothing is therefore exposed to opt out of the reset; if a use for one appears,
-it belongs as a distinct named method (`advance_rng_stream()`), never as a side effect of setting a
+it belongs as a distinct named method, never as a side effect of setting a
 seed.
 
 ### `RNGStream::reserve`
@@ -246,7 +246,7 @@ layout is**, so a rank-3 `{b, m, n}` tensor has batch stride `m * n` in both lay
 
 That asymmetry is deliberate. It is the only reading consistent with how the batch stride is
 consumed (`Dispatch::batch_stride` hands the GEMM/SYRK/TRSM drivers `rows * cols` to step between
-consecutive batch slices) and with every batched BLAS API, which takes a `stride_a` alongside a
+consecutive batch slices) and with every batched BLAS API, which takes a batch stride alongside a
 per-slice `lda` rather than folding the batch into the layout. Treating the batch axis as just
 another column-major dimension, which is what the old `for (i = 0; i < rank; ++i)` loop did, gave a
 rank-3 column-major tensor `strides[0] == 1`, so the driver read slice 0 for every batch element and
@@ -268,8 +268,7 @@ element is the trailing two axes, or the whole tensor when there are fewer than 
 The construction path for a view that is **not contiguous**: a slice along an inner axis keeps its
 parent's strides, because that is where its elements actually are. The shape-derived constructor
 cannot express that: it lays the dimensions out afresh, which for such a slice describes memory the
-slice does not occupy, and `slice()` used to go through it, which is the defect the explicit-stride
-constructor exists to make unspellable.
+slice does not occupy. `slice()` goes through the explicit-stride constructor for that reason.
 
 Prefer the shape-derived constructor for anything being allocated; this one is for describing memory
 that already has a layout.
@@ -280,8 +279,8 @@ that already has a layout.
   count cannot disagree; every entry within the rank must be non-negative, since a negative one
   would make `element_span`, and therefore `region`, describe the wrong interval.
 - `offset`: The starting position in the storage, **in elements** (see `storage_offset`).
-- `l`: The memory layout this view is *interpreted* under. It no longer decides the strides, but it
-  still tells a BLAS driver how to read the view.
+- `l`: The memory layout this view is *interpreted* under. It does not decide the strides; it
+  tells a BLAS driver how to read the view.
 
 Throws `std::runtime_error` if the rank is too high, a stride is negative, or the described elements
 reach past the end of `s`.
@@ -301,8 +300,8 @@ every view: a slice, a reshape, or a tensor a memory planner placed inside a sha
 ### `Tensor::data_or_null`
 
 The operation drivers treat a tensor with no storage as "nothing to address" rather than as an
-error, and every one of them used to spell that as `t.storage ? t.storage->data_ptr : nullptr`: the
-exact expression that dropped `storage_offset`. This is that idiom, offset-correct, in one place.
+error. A driver that tested the storage and took the allocation base itself would drop
+`storage_offset`. This accessor is that test, offset-correct, in one place.
 
 ### `Tensor::element_span`
 
@@ -320,8 +319,7 @@ memory rather than about element count.
 Keyed on the allocation base (the tracker's identity for "same buffer") and narrowed to the view's
 own byte interval, so two disjoint views of one allocation, what a memory planner produces when it
 packs an arena, are correctly seen as *not* conflicting, while two overlapping views still are.
-Passing the bare base pointer instead, as every driver used to, made every tensor in an arena alias
-every other one.
+A bare base pointer passed instead makes every tensor in an arena alias every other one.
 
 The length is `element_span` rather than `num_elements`, so the bound stays true for a strided view
 as well as a contiguous one. Stopping at the element count would under-declare what the view
@@ -332,8 +330,8 @@ elements.
 
 "Continuous" means "laid out exactly as this tensor's layout would lay it out", so the answer is a
 comparison against `layout_strides` rather than a second, independently written walk over the
-dimensions: the two used to be written separately, which is how the rank-3 column-major batch stride
-could be changed in one and not the other.
+dimensions: with two walks, the rank-3 column-major batch stride can be changed in one and not
+in the other.
 
 Axes of extent 1 are exempt: their stride is unobservable, so a tensor is not declared
 non-contiguous over a stride nothing can ever use.
@@ -343,9 +341,9 @@ non-contiguous over a stride nothing can ever use.
 A view: it moves the offset and shortens one axis, and **keeps the parent's strides**, because
 narrowing an axis does not move any of the elements that remain.
 
-Keeping the parent's strides is the whole content of `slice`, and it used to be wrong. The slice was
-built through the shape-derived constructor, which recomputes contiguous strides from the new shape,
-so for `dim == 0` the answer happened to come out right (shortening the outermost axis of a
+Keeping the parent's strides is the whole content of `slice`. A slice built through the
+shape-derived constructor, which recomputes contiguous strides from the new shape, is wrong:
+for `dim == 0` the answer happens to come out right (shortening the outermost axis of a
 contiguous tensor leaves every inner stride unchanged) and for every other `dim` it came out wrong.
 A 4x4 row-major tensor sliced to columns [1, 3) reported strides {2, 1}, claiming its four elements
 sit at offsets 1, 2, 3, 4 when they really sit at 1, 2, 5, 6. Nothing in this tree called `slice`
