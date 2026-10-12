@@ -63,8 +63,8 @@ then does no `double` arithmetic for a parameter the public signature takes as `
 *`bind_reads`* (`functor_map/read_binding.hpp`) declares the tensors a functor reads
 at execution time beyond the seam's own operands: a table, a gain, a mask. `read_as_element(t)`
 hands the functor a `const T*` in the operation's element type and `read_as<U>(t)` a `const U*`.
-The seam checks each declared read (storage, at least one element, the declared dtype,
-contiguous, no overlap with a tensor the operation writes), adds it to the operand set so the
+The seam checks each declared read (storage, at least one element, the declared dtype, a
+device that computes in that dtype, contiguous, no overlap with a tensor the operation writes), adds it to the operand set so the
 graph orders against it and retains it, and passes the functor only the pointer. The two bindings
 nest: `bind_reads(bind_scalars(fn, ...), ...)`, pointers before scalars.
 

@@ -26,23 +26,11 @@ reference path is the serial loop of [section 3](EXECUTION_MODES.md).
 ## The support layer
 
 `modules/foundation/support/` sits below the kernels and the engine and includes neither.
-[Its README](../../modules/foundation/support/README.md) holds the reasoning behind each header.
-
-| Header | Holds |
-| --- | --- |
-| `device_policy.hpp` | `Device::Profile`, probed once per device by `profile_for`: CPU or not, dedicated local memory, `fp64` and `fp16` support, local memory bytes, work-group and sub-group sizes, compute units, cache bytes. The launch geometry (`plan_1d`, `flat_work_group_size`, `vector_width`, `hosts_local_tile`). `Device::CacheBlocking`, the byte budgets a cache-blocked kernel sizes its blocks from |
-| `launch_1d.hpp` | `Launch::map`, `zip_inplace` and `indexed`: the device launch of every per-element kernel, a grid-stride `nd_range` with a 128-bit wide pass where the device wants one and every operand is 16-byte aligned |
-| `serial_1d.hpp` | `Serial::map`, `zip_inplace` and `indexed`: the same three shapes as one loop on the calling thread |
-| `reduce_1d.hpp` | `Reduce::reduce` and `reduce_indexed`, the fixed-order whole-tensor fold, and the accumulators: `CompensatedSum`, `CompensatedComplexSum`, `ScaledSumOfSquares`, `RunningProduct`, `NaNPropagatingMax`, `NaNPropagatingMin`, `ExactSum`, `RunningArgMax`, `RunningArgMin` |
-| `reduce_axis.hpp` | `Reduce::AxisSpan`, `reduce_axis` and `reduce_segments`: many folds side by side over one buffer |
-| `serial_reduce.hpp` | `Serial::reduce`, `reduce_indexed` and `reduce_axis`: the host folds |
-| `accumulator.hpp` | `AccumulatorOf<T>`: the type a device kernel sums `T` in, which is `T` except that HALF sums in FLOAT32 |
-| `reference_accumulator.hpp` | `ReferenceAccumulatorOf<T>` and `Kernels::ReferenceSum<T>`: a reference kernel sums a real type in `double` and a complex type in `std::complex<double>`, compensated where the wide type is the element type itself |
-| `running_solution.hpp` | `RunningSolution`: carries a substitution's solved elements in the accumulation type between steps |
-| `complex_arithmetic.hpp` | Conjugation, the four-product complex product and Smith's quotient, written so a device can run them |
-| `orthonormal_sweep.hpp` | The vector layout and the two-sweep constant the orthonormalisation kernels share |
-| `sparse_assembly.hpp` | `Sparse::assemble_csr` and its input checks, on the host |
-| `spatial_geometry.hpp` | `Spatial::ConvGeometry`, `output_extent`, `WindowSpan`, `ColumnSpan`, `TapSpan` |
+[Its README](../../modules/foundation/support/README.md) lists each header with what it declares
+and holds the reasoning behind it. The headers this page names most are `device_policy.hpp`
+(`Device::Profile` and the launch geometry), `launch_1d.hpp` and `serial_1d.hpp` (the per-element
+launch and its host loop), and `reduce_1d.hpp`, `reduce_axis.hpp` and `serial_reduce.hpp` (the
+fixed-order folds, their accumulators and their host folds).
 
 **Cache blocking.** `Device::CacheBlocking` holds three byte budgets (the bytes the innermost
 loop keeps resident, the packed block the inner loops sweep again, and the block walked once per
@@ -128,7 +116,8 @@ that does not match). `operands/blas_metadata.hpp` writes the scalars and flags 
   `Launch::indexed`. `asum`, `nrm2`, `dot`, `dotu`, `dotc` and `iamax` fold through
   `Reduce::reduce_indexed` with a leased scratch for the partials. `rotg` and `rotmg` are scalar
   routines.
-- *GEMV, SYMV, HEMV, TRMV.* `row_reduction.hpp` launches one work-group per row for long rows and
+- *GEMV, SYMV, HEMV, TRMV, GBMV and the band and packed symmetric products.*
+  `row_reduction.hpp` launches one work-group per row for long rows and
   one work-item per row otherwise, each folding in a fixed order. TRMV takes a snapshot of `x`
   first, then computes one row product per element.
 - *TRSM and TRSV.* `trsm.hpp` is a blocked substitution: each diagonal block is solved for every
@@ -292,9 +281,11 @@ the same way. `var` and `std` are the population forms, dividing by `n`.
 that is not a NaN, and ties go to the lower index. That is the answer of a serial scan that starts
 from element 0 and replaces its best only on a strictly greater value.
 
-**Shapes.** A whole-tensor fold is `Reduce::reduce`: a grid-strided pass per work-item, a
-hand-written halving tree per work-group, then one task that adds a fixed number of partials in
-ascending order. The partials live in a scratch leased at record time. `sum`, `mean` and `asum`
+**Shapes.** A whole-tensor fold is `Reduce::reduce`, in one of two shapes its `Plan` picks. The
+two-stage shape is a grid-strided pass per work-item, a hand-written halving tree per
+work-group, then one task that adds a fixed number of partials in ascending order; the partials
+live in a scratch leased at record time. The single-pass shape is one kernel that folds in index
+order and stages no partials. `sum`, `mean` and `asum`
 use `CompensatedSum` (Neumaier), `nrm2` uses `ScaledSumOfSquares` so that squaring does not
 overflow or underflow, and a HALF input accumulates in FLOAT32. `var`, `std` and `logsumexp` are
 two fixed-order stages through `CentredReductionDispatch`: a centre (the mean, or the maximum),
@@ -328,5 +319,6 @@ so the two modes are not expected to agree to the bit there.
 ## `convert`
 
 `ElementwiseOps::convert(src, dst)` is the one operation whose operands may differ in dtype. It
-serves the nine pairs of HALF, FLOAT32 and FLOAT64, and a pair outside them throws at record time
-naming both dtypes. Converting a dtype to itself copies.
+serves the nine pairs of HALF, FLOAT32 and FLOAT64. A source or a destination of another dtype
+throws at record time and names the operand and its dtype, and so does a destination that
+overlaps the source. Converting a dtype to itself copies.

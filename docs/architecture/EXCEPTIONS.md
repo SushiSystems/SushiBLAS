@@ -82,11 +82,27 @@ recorded before it on the graph; `Engine::discard_recorded()` drops them.
 ## A run returns a `Result`
 
 `Engine::execute()` returns `SushiRuntime::Result<void>` and is `[[nodiscard]]`: success, or a
-`SushiRuntime::Error` with an `ErrorCode` and a message. A graph the compiler rejects, a task that
-throws, a scheduler failure and a device error all arrive as that value. The graph is empty after
-the call except after `ErrorCode::InvalidState` for a run in flight on the runtime, which started
-no task and keeps what was recorded. A caller with no way to go on writes
-`engine.execute().value();`, which stops the process on an error.
+`SushiRuntime::Error` with an `ErrorCode` and a message. The graph is empty after the call except
+after `ErrorCode::InvalidState` for a run in flight on the runtime, which started no task and
+keeps what was recorded. A caller with no way to go on writes `engine.execute().value();`, which
+stops the process on an error.
+
+The code says which kind of failure it was. The mapping is SushiRuntime's, made in engine
+modules that are internal to it and not installed (`task_scheduler.cpp`, `chain_run.cpp` and its
+two `error_translation.hpp` headers):
+
+| What failed | `ErrorCode` |
+| --- | --- |
+| A task body threw, on the host or while it submitted its kernels. A reference kernel that throws under `ForceReference` is one of these | `KernelFailed`; `AllocationFailed` when the object is a `std::bad_alloc` |
+| The device reported an error as a `sycl::exception`, at submission, while the scheduler polled the task's event, or at the final wait | `KernelFailed`; `AllocationFailed` when its `sycl::errc` is `memory_allocation`. A run does not return `DeviceLost` |
+| The scheduler could not place a node on a device when it dispatched it | `InvalidGraph` |
+| The graph did not compile | `CompileFailed`, or `InvalidGraph` for a graph the compiler names as unrunnable |
+| Another run was in flight on the runtime | `InvalidState` |
+| A recording the runtime refused earlier | The code of that refusal, which the recorder kept |
+
+For a failure of one task the message starts with the task: `node '<name>' (registration index
+<n>) failed: `, followed by the text of what was thrown. The name is the `name` of the task's
+`TaskDescription`.
 
 ## A graph primitive returns a `Result`
 
