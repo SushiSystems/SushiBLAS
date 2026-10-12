@@ -169,14 +169,12 @@ int main()
     const std::vector<float> result = SushiBLAS::IO(engine).to_vector<float>(C);
 
     // ...
-
-    return 0;
 }
 ```
 
 Source: `applications/examples/example.cpp`
 
-The omitted lines print one element. `create_tensor` gives FLOAT32 tensors in shared USM by default. `gemm` records a task and runs nothing. `IO::to_vector` runs the recorded graph and then copies `C` to the host, so the example never calls `execute()` itself.
+The omitted lines compare every element of `C` with the value the host computes, print one element and return 1 on a mismatch. `create_tensor` gives FLOAT32 tensors in shared USM by default. `gemm` records a task and runs nothing. `IO::to_vector` runs the recorded graph and then copies `C` to the host, so the example never calls `execute()` itself.
 
 A program that reads no tensor through `IO` runs the graph with `Engine::execute()`:
 
