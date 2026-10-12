@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — examples: Added an example of the three record-time exceptions, `discard_recorded`, a tested `execute()` result and an `IOStatus` (`errors_demo.cpp`).
 - 2026-10-12 — examples: Added the adapter example, a host program that reaches the library through one file and its own `Status` (`host_program.hpp`, `sushiblas_adapter.cpp`, `adapter_demo.cpp`).
 - 2026-10-12 — examples: Made `example.cpp` compare every element of the product with the host value and return 1 on a mismatch.
 - 2026-10-12 — docs: Replaced two stale file tables of the module READMEs, cited the file behind every example block and moved the notes of `reduce_1d.hpp` to an architecture page (`FIXED_ORDER_FOLD.md`, `.docs_truth_allow`).
