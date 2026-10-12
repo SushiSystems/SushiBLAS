@@ -252,7 +252,7 @@ TaskHandle Level1::axpy(BLASScalar alpha, const Tensor& x, Tensor& y)
     OperandSet operands;
     operands.reads(x).updates(y);
 
-    const Internal::BLASMetadata meta =
+    const Internal::BLASMetadata metadata =
         Internal::BLASMetadata(op, "blas.lvl1.axpy"_op).scalar(alpha);
 
     // 3. Everything the body needs, captured by value.
@@ -263,7 +263,7 @@ TaskHandle Level1::axpy(BLASScalar alpha, const Tensor& x, Tensor& y)
     void* rw_y = y.data_or_null();
 
     // 4. The seam call: one task, one kernel pair.
-    return Internal::execute_blas_task(recorder_, meta.get(), operands, x.dtype,
+    return Internal::execute_blas_task(recorder_, metadata.get(), operands, x.dtype,
         [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
             sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
         {
@@ -316,7 +316,7 @@ which is `RealAndComplex` for both: `Domain::All` for a copy, `Domain::Real`
 for a routine with no complex meaning. Inside the body, `dispatcher.run` takes the
 reference kernel and the SYCL kernel. An operation source never reads the
 execution mode, never includes `engine.hpp` and never calls
-`TaskGraph::add_task`; `tools/layering/check_layering.py` reports the last two.
+`SushiRuntime::Recorder::task`; `tools/layering/check_layering.py` reports the last two.
 
 **The reference kernel** is plain C++ with no dependency beyond the support
 headers. It handles both `Core::Layout` values, is templated on the element
