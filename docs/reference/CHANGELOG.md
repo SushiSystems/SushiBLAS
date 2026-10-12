@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — docs: Replaced two stale file tables of the module READMEs, cited the file behind every example block and moved the notes of `reduce_1d.hpp` to an architecture page (`FIXED_ORDER_FOLD.md`, `.docs_truth_allow`).
 - 2026-10-12 — docs: Added a stability section and an adapter guide, took the manual's code blocks from compiled files and cited every header by its module path (`README.md`, `INTEGRATION.md`, `KERNELS.md`, `CONTRIBUTING.md`).
 - 2026-10-12 — docs: Brought the root README example and five architecture pages to the runtime's `Runtime` and `Recorder`, the accessors without a get prefix and an `execute()` that returns a result (`ENGINE_AND_RECORDER.md`, `LAYERS.md`).
 - 2026-10-12 — layering: Made `rule_graph_insertions` report a call of a recording member of the runtime's `Recorder` outside `TaskRecorder` and the graph primitives, and allowed the accessors without a get prefix (`check_layering.py`).
