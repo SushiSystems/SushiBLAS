@@ -170,15 +170,16 @@ class KernelIncludesTest(unittest.TestCase):
 
 
 class EngineHeaderIncludesTest(unittest.TestCase):
-    """Checks that engine.hpp includes its four bricks and no view, seam or experimental header."""
+    """Checks that engine.hpp includes its five bricks and no view, seam or experimental header."""
 
     def test_accepts_the_bricks_engine_composes(self) -> None:
-        """Reports nothing for the tensor header and the four engine bricks."""
+        """Reports nothing for the tensor header and the five engine bricks."""
         files = {
             "modules/engine/engine/include/SushiBLAS/engine/engine.hpp": (
                 "#include <SushiBLAS/tensor/tensor.hpp>\n"
                 "#include <SushiBLAS/tensor/tensor_factory.hpp>\n"
                 "#include <SushiBLAS/engine/rng_stream.hpp>\n"
+                "#include <SushiBLAS/engine/recorded_graph.hpp>\n"
                 "#include <SushiBLAS/engine/scratch_pool.hpp>\n"
                 "#include <SushiBLAS/engine/task_recorder.hpp>\n"
                 "#include <SushiBLAS/engine/execution_mode.hpp>\n"
@@ -238,25 +239,25 @@ class OperationEngineCallsTest(unittest.TestCase):
 
     def test_accepts_the_recorder_and_a_comment(self) -> None:
         """Reports nothing for a recorder call or for an engine call in a comment."""
-        files = {"modules/operations/blas/source/a.cpp": "recorder_.record(meta, operands, family, body);\n// engine_.get_mode();\n"}
+        files = {"modules/operations/blas/source/a.cpp": "recorder_.record_pair(description, operands, family, body);\n// engine_.mode();\n"}
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_operation_engine_calls(_repository(folder, files))), [])
 
     def test_reports_every_member(self) -> None:
-        """Reports get_recorder through a reference and create_tensor through a pointer."""
-        files = {"modules/operations/blas/source/a.cpp": "engine_.get_recorder();\nengine->create_tensor({});\n"}
+        """Reports recorder through a reference and create_tensor through a pointer."""
+        files = {"modules/operations/blas/source/a.cpp": "engine_.recorder();\nengine->create_tensor({});\n"}
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_operation_engine_calls(_repository(folder, files)))
             self.assertEqual([issue.message for issue in issues],
-                             ["layering violation: get_recorder", "layering violation: create_tensor"])
+                             ["layering violation: recorder", "layering violation: create_tensor"])
 
 
 class ViewEngineCallsTest(unittest.TestCase):
     """Checks which Engine members a public header calls."""
 
-    def test_accepts_get_recorder_and_get_rng(self) -> None:
+    def test_accepts_recorder_and_rng(self) -> None:
         """Reports nothing for the two members a view constructor reads."""
-        files = {"modules/operations/random/include/SushiBLAS/random/random.hpp": "RandomOps(engine.get_recorder(), engine.get_rng())\n"}
+        files = {"modules/operations/random/include/SushiBLAS/random/random.hpp": "RandomOps(engine.recorder(), engine.rng())\n"}
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_view_engine_calls(_repository(folder, files))), [])
 
@@ -273,27 +274,47 @@ class ViewEngineCallsTest(unittest.TestCase):
 
 
 class GraphInsertionsTest(unittest.TestCase):
-    """Checks that TaskRecorder is the only caller of the graph's add functions."""
+    """Checks that TaskRecorder and the graph primitives are the only callers of the recording verbs."""
 
-    def test_accepts_the_recorder_header_and_a_comment(self) -> None:
-        """Reports nothing for add_task in task_recorder.hpp or in a comment."""
+    def test_accepts_the_recorder_header_a_primitive_and_a_comment(self) -> None:
+        """Reports nothing for task in task_recorder.hpp, kernel in a graph primitive, or a comment."""
         files = {
-            "modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp": "graph_->add_task(meta, reads, writes, work);\n",
-            "modules/operations/logic/source/all.cpp": "// add_task(meta) is the recorder's call.\n",
+            "modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp": "recorder_->task(access, work, options);\n",
+            "modules/foundation/graph_primitives/include/SushiBLAS/graph_primitives/reduce.hpp": "recorder.kernel(count, access, body, options);\n",
+            "modules/operations/logic/source/all.cpp": "// recorder.task(access, work) is the recorder's call.\n",
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(list(rule_graph_insertions(_repository(folder, files))), [])
+
+    def test_accepts_a_record_call_and_a_free_function(self) -> None:
+        """Reports nothing for TaskRecorder::record_pair or for a function named like a verb."""
+        files = {
+            "modules/operations/logic/source/all.cpp": "recorder_.record_pair(description, operands, family, body);\nkernel(q, deps);\n",
         }
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_graph_insertions(_repository(folder, files))), [])
 
     def test_reports_a_seam_and_a_source(self) -> None:
-        """Reports add_task in a dispatch seam and add_native in an operation source."""
+        """Reports task in a dispatch seam and host through a pointer in an operation source."""
         files = {
-            "modules/operations/logic/include/SushiBLAS/logic/dispatch.hpp": "graph.add_task(meta, reads, writes, body);\n",
-            "modules/operations/logic/source/all.cpp": "graph.add_native(reads, writes, work);\n",
+            "modules/operations/logic/include/SushiBLAS/logic/dispatch.hpp": "graph.recorder().task(access, body, options);\n",
+            "modules/operations/logic/source/all.cpp": "recorder->host(access, work);\n",
         }
         with tempfile.TemporaryDirectory() as folder:
             issues = list(rule_graph_insertions(_repository(folder, files)))
             self.assertEqual([issue.message for issue in issues],
-                             ["layering violation: add_task", "layering violation: add_native"])
+                             ["layering violation: task", "layering violation: host"])
+
+    def test_reports_every_recording_verb(self) -> None:
+        """Reports each member of SushiRuntime::Recorder that records a node."""
+        verbs = ("task", "kernel", "state_rule", "host", "untracked_kernel", "dynamic_kernel", "coupled_rule")
+        files = {
+            "modules/operations/logic/source/all.cpp": "".join(f"recorder.{verb}(arguments);\n" for verb in verbs),
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            issues = list(rule_graph_insertions(_repository(folder, files)))
+            self.assertEqual([issue.message for issue in issues],
+                             [f"layering violation: {verb}" for verb in verbs])
 
 
 class TaskDependenciesTest(unittest.TestCase):
