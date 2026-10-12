@@ -1,6 +1,6 @@
 # 5. `Engine`, the recorder and the views
 
-`Engine` (`engine.hpp`) is the composition root a program constructs once on a
+`Engine` (`engine/engine.hpp`) is the composition root a program constructs once on a
 `SushiRuntime::Runtime`, with the layout of the tensors it creates. It owns, in this order, the
 `ScratchPool`, the `RecordedGraph`, the `TaskRecorder` bound to both, the `TensorFactory` and the
 `RNGStream`. Its interface is short:
@@ -18,7 +18,8 @@
 
 No accessor reaches the graph. `RecordedGraph` (`engine/recorded_graph.hpp`) owns the
 `SushiRuntime::Graph` and has the two verbs that change it, `run()` and `discard()`; `execute()`
-and `discard_recorded()` call them. The engine is not copyable or movable, and the `Runtime`
+and `discard_recorded()` call them. After a run or a discard it replaces the graph with an empty
+one from the runtime, which is what destroys the recorded tasks and the plan. The engine is not copyable or movable, and the `Runtime`
 object must outlive it.
 
 ## `TaskRecorder`, `OperandSet` and `TaskHandle`
@@ -38,7 +39,8 @@ given. On the SYCL side that means every command group calls `h.depends_on(deps)
 
 One mutex in the recorder serialises record calls, so several threads may record on one engine
 at once; the tasks reach the graph in the order the threads took the lock. `execute()` and
-`set_mode` are outside that lock and must not overlap a record call.
+`set_mode` are outside that lock and must not overlap a record call. `run_exclusive(work)` runs a
+callable under the same mutex, and `Engine::discard_recorded()` discards through it.
 
 `OperandSet` (`engine/operand_set.hpp`) is how a task says what it touches, and it takes tensors,
 never raw regions:
@@ -70,16 +72,19 @@ A view is a small class of record calls bound to a recorder. Each has two constr
 from an `Engine` and one from a `TaskRecorder` the caller owns:
 
 ```cpp
-SushiRuntime::Graph graph = runtime.graph();
-ScratchPool pool(runtime);
-TaskRecorder recorder(graph.recorder(), pool, ExecutionMode::ForceReference);
+ScratchPool pool(TestEnvironment::runtime());
+SushiRuntime::Graph first_graph = TestEnvironment::runtime().graph();
+TaskRecorder first_recorder(first_graph.recorder(), pool);
 
-const TaskHandle recorded = BLASOps(recorder).axpy(2.0, x, y);
-graph.run().value();
+ReductionOps(first_recorder).sum(input, first_result);
 ```
 
-`BLASOps(engine)` is the same view over `engine.recorder()`. A caller that builds its own
-recorder owns the graph and runs it with `SushiRuntime::Graph::run()`. `RandomOps` also
+Source: `tests/unit/test_scratch_buffer.cpp`, one of its two recorders;
+`TestEnvironment::runtime()` returns the `SushiRuntime::Runtime&` of the test program. The
+recorder's third constructor argument is the `ExecutionMode`, `Auto` by default.
+
+`ReductionOps(engine)` is the same view over `engine.recorder()`. A caller that builds its own
+recorder owns the graph and runs it with the run verbs of `SushiRuntime::Graph`. `RandomOps` also
 takes the `RNGStream` it draws from, and `IO` (`io/io.hpp`) takes an `Engine`, because every host
 transfer runs the recorded graph first.
 

@@ -18,12 +18,15 @@ host loop under `ForceReference`:
 
 | Header | Executors |
 | --- | --- |
-| `engine/math/elementwise/dispatch.hpp` | `execute_unary_inplace`, `execute_binary`, `execute_zip_inplace` |
-| `engine/math/nonlinear/dispatch.hpp` | `execute_nonlinear_forward`, `execute_nonlinear_backward` |
-| `engine/logic/dispatch.hpp` | `execute_logic_unary`, `execute_logic_binary`, `execute_logic_ternary` |
-| `engine/math/reductions/dispatch.hpp` | `execute_reduction`, `execute_index_reduction`, `execute_counting_reduction`, `execute_folding_reduction`, `execute_folding_span_reduction`, `execute_folding_axis_reduction` |
-| `engine/math/random/dispatch.hpp` | `execute_random` |
-| `engine/blas/dispatch.hpp` | `execute_gemm` |
+| `elementwise/dispatch.hpp` | `execute_unary_inplace`, `execute_binary`, `execute_zip_inplace` |
+| `nonlinear/dispatch.hpp` | `execute_nonlinear_forward`, `execute_nonlinear_backward` |
+| `logic/dispatch.hpp` | `execute_logic_unary`, `execute_logic_binary`, `execute_logic_ternary` |
+| `reductions/dispatch.hpp` | `execute_reduction`, `execute_index_reduction`, `execute_counting_reduction`, `execute_folding_reduction`, `execute_folding_span_reduction`, `execute_folding_axis_reduction` |
+| `random/dispatch.hpp` | `execute_random` |
+| `blas/dispatch.hpp` | `execute_gemm` |
+
+The umbrella header does not include the `dispatch.hpp` headers; a caller of a seam includes the
+one it uses, as `tests/package/main.cpp` does.
 
 A functor that reaches a device is device-copyable and trivially copyable, captures by value,
 dereferences no host pointer, allocates nothing and throws nothing. The compiler does not
@@ -52,12 +55,12 @@ same-shaped tensors, each passed to the functor as an lvalue, so an optimiser st
 updates five tensors is one task. All N are declared as both read and written, since the seam
 cannot see which the functor touched.
 
-*`bind_scalars`* (`engine/math/elementwise/scalar_binding.hpp`) attaches scalar parameters to a
+*`bind_scalars`* (`functor_map/scalar_binding.hpp`) attaches scalar parameters to a
 functor. The scalars are `Dispatch::ElementScalar` values, narrowed on the host once per element
 type, and the functor receives them after its elements in that type. A HALF or FLOAT32 kernel
 then does no `double` arithmetic for a parameter the public signature takes as `double`.
 
-*`bind_reads`* (`engine/math/elementwise/read_binding.hpp`) declares the tensors a functor reads
+*`bind_reads`* (`functor_map/read_binding.hpp`) declares the tensors a functor reads
 at execution time beyond the seam's own operands: a table, a gain, a mask. `read_as_element(t)`
 hands the functor a `const T*` in the operation's element type and `read_as<U>(t)` a `const U*`.
 The seam checks each declared read (storage, at least one element, the declared dtype,
@@ -66,18 +69,34 @@ graph orders against it and retains it, and passes the functor only the pointer.
 nest: `bind_reads(bind_scalars(fn, ...), ...)`, pointers before scalars.
 
 ```cpp
-// Two scalars, narrowed on the host to the element type of each dtype arm.
-Dispatch::execute_unary_inplace(recorder, t, "nn.scale_shift", "nn.scale_shift"_op,
-    Dispatch::bind_scalars([](auto x, auto scale, auto shift) { return x * scale + shift; },
-                           Dispatch::ElementScalar(0.5), Dispatch::ElementScalar(1.0)));
+TaskHandle ElementwiseOps::clamp(Tensor& t, double min_val, double max_val)
+{
+    Dispatch::require_operand(!(min_val > max_val), "math.ew.clamp", "min_val",
+                              "is {}, above max_val {}", min_val, max_val);
 
-// A tensor the functor reads at execution time, declared so the graph orders against it.
-Dispatch::execute_binary(recorder, A, B, C, "nn.gated_add", "nn.gated_add"_op,
-    Dispatch::bind_reads([](auto a, auto b, const auto* g) { return a + b * g[0]; },
-                         Dispatch::read_as_element(gain)));
+    return Dispatch::execute_unary_inplace<Dispatch::Domain::RealAndIntegral>(
+        recorder_, t, "math.ew.clamp", "math.ew.clamp"_op,
+        Dispatch::bind_scalars([](auto x, auto lo, auto hi) { return sycl::clamp(x, lo, hi); },
+                               Dispatch::ElementScalar(min_val),
+                               Dispatch::ElementScalar(max_val)),
+        {min_val, max_val});
+}
 ```
 
-The `"..."_op` literal comes from `SushiRuntime::Literals`.
+Source: `modules/operations/elementwise/source/clamp.cpp`. The two scalars reach the functor in
+the element type of each dtype arm, and the trailing list records them in the task's parameter
+slots. The `"..."_op` literal comes from `SushiRuntime::Literals` and gives the
+`SushiRuntime::OperationID` of the name.
+
+A bundle of declared reads goes where the functor goes. With scalars inside it:
+
+```cpp
+Dispatch::bind_reads(Dispatch::bind_scalars(fn, Dispatch::ElementScalar(2.0)),
+                     Dispatch::read_as_element(a))
+```
+
+Source: `modules/engine/functor_map/tests/test_read_binding.cpp`, where `fn` takes
+`(float element, const float* pointer, float scalar)`.
 
 *The GEMM epilogue.* `Dispatch::execute_gemm` records
 `C = epilogue(alpha * op(A) * op(B) + beta * C, row, col)` as one task. The epilogue is a functor
@@ -88,24 +107,28 @@ an activation are one task. `Level3::gemm` is this function with
 `ForceReference` runs a fused GEMM too.
 
 ```cpp
-struct BiasReLU
+struct BiasColumnEpilogue
 {
-    const float* bias;   // one value per column of C
+    const float* bias;
 
     template<typename T>
-    T operator()(T value, int64_t, int64_t col) const
+    [[nodiscard]] T operator()(T value, int64_t, int64_t col) const noexcept
     {
-        const T y = value + static_cast<T>(bias[col]);
-        return y > T(0) ? y : T(0);
+        return value + static_cast<T>(bias[col]);
     }
 };
 
-// One task: the product, the bias broadcast and the ReLU.
-Dispatch::execute_gemm(recorder, X, W, Y,
-                       Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
-                       "nn.linear_relu", "nn.linear_relu"_op,
-                       Dispatch::gemm_epilogue(BiasReLU{bias.data_as<float>()}).reads(bias));
+Dispatch::execute_gemm(probe.recorder(), A, B, C,
+                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
+                       1.0, 0.0,
+                       "test.gemm_declared_bias", "test.gemm_declared_bias"_op,
+                       Dispatch::gemm_epilogue(
+                           BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
 ```
+
+Source: `modules/operations/blas/tests/test_gemm.cpp`, without the comments; `probe.recorder()` is
+a `TaskRecorder&`. The product and the bias broadcast are one task. `tests/package/main.cpp` has
+an epilogue that also clamps at zero, handed over as a bare functor.
 
 `Dispatch::gemm_epilogue(functor)` bundles the functor with the tensors it touches, and
 `.reads(t)` and `.writes(t)` declare them. `execute_gemm` merges those declarations into the

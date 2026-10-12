@@ -1,6 +1,6 @@
 # 4. `Tensor`, `Storage` and memory
 
-A `Tensor` (`tensor.hpp`) is metadata: `shape`, `strides`, `rank`, `dtype`, `layout`,
+A `Tensor` (`tensor/tensor.hpp`) is metadata: `shape`, `strides`, `rank`, `dtype`, `layout`,
 `num_elements`, a `storage` pointer and a `storage_offset`. `transpose()`, `reshape()` and
 `slice()` return a new `Tensor` over the same `SushiRuntime::sushi_ptr<Storage>` and move no
 data. `K_MAX_TENSOR_RANK` is 6.
@@ -49,17 +49,19 @@ ordered.
 
 ## Storage and alignment
 
-`Storage` (`storage.hpp`) owns one reference-counted USM allocation with a
+`Storage` (`tensor/storage.hpp`) owns one reference-counted USM allocation with a
 `SushiRuntime::Residency` (`Shared`, `Device` or `Host`) on one device queue of a
 `SushiRuntime::Runtime`. The allocation is a `SushiRuntime::Buffer<std::byte>` from
-`Runtime::buffer`. Every allocation base is aligned to `K_STORAGE_ALIGNMENT`, 128 bytes, a
-constant `storage.hpp` states itself, and the allocated size is the requested size rounded up to
-that. The buffer shares ownership of the runtime's state, so a `Storage` may outlive the `Runtime`
+`Runtime::buffer`, which takes the alignment as an argument. Every allocation base is aligned to
+`K_STORAGE_ALIGNMENT`, 128 bytes, and the allocated size is the requested size rounded up to
+that. An address off that boundary fails an `SB_ASSERT`. The buffer shares ownership of the runtime's state, so a `Storage` may outlive the `Runtime`
 object it was allocated from. The allocation is freed when the last reference to the `Storage`
-goes. A failed allocation throws `std::runtime_error` with the runtime's message.
+goes. A failed allocation throws `std::runtime_error` with the runtime's message, and so do a
+size of zero and a device index the runtime does not drive. `Storage::queue()` returns the
+`sycl::queue` of the device that owns the allocation.
 
-`TensorFactory` (`tensor_factory.hpp`) allocates dense tensors of one default layout from one
-runtime. `create(dims, dtype, residency, device_index)` checks the rank, the sign of each
+`TensorFactory` (`tensor/tensor_factory.hpp`) allocates dense tensors of one default layout from
+one `SushiRuntime::Runtime`, which must outlive it. `create(dims, dtype, residency, device_index)` checks the rank, the sign of each
 dimension, the byte count for overflow and the device index, and returns a tensor without storage
 when a dimension is 0. `Engine::create_tensor` forwards to it.
 

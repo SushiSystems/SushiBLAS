@@ -11,7 +11,8 @@ failure is found:
 | A file operation | `IOStatus` | `IO::save`, `load`, `save_bin`, `load_bin`, `save_npy`, `load_npy`: a file defect, a mismatch, or `RunFailed` |
 
 No exception leaves `Engine::execute()`, a graph primitive or the SushiRuntime calls below them.
-`SB_ASSERT` is none of the four: it logs and aborts in a build without `NDEBUG`.
+`SB_ASSERT` is none of the four: it logs and aborts in a build without `NDEBUG`, and is for a
+defect inside the library, such as an allocation the runtime returned off the storage alignment.
 
 ## Record time throws
 
@@ -28,21 +29,29 @@ for the operation. Three types cover the library:
 written for the base still catches it, and a caller that wants the two apart lists it first:
 
 ```cpp
-try
+template<typename Call>
+[[nodiscard]] Outcome outcome_of(const Call& call)
 {
-    SushiBLAS::BLASOps(engine).gemm(A, B, C);
-}
-catch (const SushiBLAS::UnsupportedExecution& refusal)
-{
-    // The operands are right; this mode or this device cannot run the operation.
-    std::printf("%s\n", refusal.what());
-}
-catch (const std::invalid_argument& rejected)
-{
-    // An operand, a flag or a scalar is wrong.
-    std::printf("%s\n", rejected.what());
+    try
+    {
+        call();
+    }
+    catch (const UnsupportedExecution&)
+    {
+        return Outcome::UnsupportedExecution;
+    }
+    catch (const std::invalid_argument&)
+    {
+        return Outcome::InvalidArgument;
+    }
+
+    return Outcome::Returned;
 }
 ```
+
+Source: `modules/engine/engine/tests/test_unsupported_execution.cpp`, where `Outcome` is an
+enumeration of the test. The first handler takes a refusal by mode or device, the second a wrong
+operand, flag or scalar.
 
 Where each type comes from:
 
@@ -91,7 +100,7 @@ once its nodes are recorded: success, or the first recording the recorder refuse
 ## File operations return a status
 
 `IO::save`, `load`, `save_bin`, `load_bin`, `save_npy` and `load_npy` are `[[nodiscard]]` and
-return an `IOStatus` (`io_status.hpp`). A missing or damaged file is a failure outside the
+return an `IOStatus` (`io/io_status.hpp`). A missing or damaged file is a failure outside the
 program, so the caller is handed a value to branch on. The reason is logged once, at error
 level, where the failure is found.
 
