@@ -1,6 +1,6 @@
 # Examples
 
-Three programs that link the library the way a user would. `applications/examples/CMakeLists.txt`
+Four programs that link the library the way a user would. `applications/examples/CMakeLists.txt`
 builds them, one target each. Every program but `io_example` compares what it computed with a
 value computed on the host, prints the outcome and returns 0, or 1 when the comparison fails.
 The numbers are the same on every machine, with or without a GPU.
@@ -8,6 +8,7 @@ The numbers are the same on every machine, with or without a GPU.
 | Source | Target | Subject |
 | --- | --- | --- |
 | `adapter/` | `adapter_demo` | A host program that reaches the library through one file, in its own types and its own status |
+| `errors_demo.cpp` | `errors_demo` | What a wrong record call throws, what `execute()` returns, and what a file operation returns |
 | `example.cpp` | `sushiblas_example` | One 256 x 256 GEMM on shared-memory tensors with a column-major engine, the program the root README quotes |
 | `io_example.cpp` | `io_example` | `to_string`, `save_npy` and `load_npy` on a 2 x 3 tensor, then a complex tensor printed |
 
@@ -44,3 +45,28 @@ followed by the library's sentence, then `adapter_demo: ok`.
 When a release of SushiBLAS or SushiRuntime breaks the interface, `sushiblas_adapter.cpp` is
 the file that changes. `host_program.hpp` and `adapter_demo.cpp` name no library type, so
 they compile as they are.
+
+## `errors_demo.cpp`: the failure channels
+
+The program provokes one failure on each channel a caller of an engine meets, and
+[the architecture, section 11](../../docs/architecture/EXCEPTIONS.md) lists what arrives on
+each.
+
+| Step | What the program does | What comes back |
+| --- | --- | --- |
+| A wrong operand | `axpy` on a vector of 4 elements and one of 3 | `std::invalid_argument` |
+| A recorded task dropped | `Engine::discard_recorded()` after that throw, then a read of `y` | `y` is unchanged: the `axpy` recorded before the throw did not run |
+| A mode that cannot run the call | `axpy` on a `Residency::Device` tensor under `ExecutionMode::ForceReference` | `SushiBLAS::UnsupportedExecution` |
+| A tensor that cannot be made | `create_tensor({-1})` | `std::runtime_error` |
+| A run | `execute()`, with its `SushiRuntime::Result<void>` tested and the `Error` printed on failure | Success, and `y` equals `2 * x` |
+| A file | `IO::load_npy` of a file that does not exist | `IOStatus::FileUnreadable` |
+
+`outcome_of` holds the three `catch` clauses, `UnsupportedExecution` first because it derives
+from `std::invalid_argument`. The program prints one line per step with the type and the
+library's message, and `errors_demo: ok` when every step gave the outcome in the table. The
+library also logs each refusal at error level before it throws, so its log lines appear
+between the program's own.
+
+The run in this program succeeds. No call of the public interface makes a run fail on every
+machine, so the branch that prints `ran.error().code` and `ran.error().message` is written
+and not taken; `graph_primitives_demo.cpp` prints a real `SushiRuntime::Error`.
