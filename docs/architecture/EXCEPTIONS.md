@@ -86,7 +86,27 @@ recorded before it on the graph; `Engine::discard_recorded()` drops them.
 `SushiRuntime::Error` with an `ErrorCode` and a message. The graph is empty after the call except
 after `ErrorCode::InvalidState` for a run in flight on the runtime, which started no task and
 keeps what was recorded. A caller with no way to go on writes `engine.execute().value();`, which
-stops the process on an error.
+stops the process on an error. A caller that goes on tests the result, as the example of a run
+that fails does:
+
+```cpp
+const SushiRuntime::Result<void> failed = engine.execute();
+if (failed)
+{
+    std::cerr << "execute: the run succeeded, and the task was meant to fail it\n";
+    return 1;
+}
+
+const SushiRuntime::Error& error = failed.error();
+std::cout << "execute: " << SushiRuntime::to_string(error.code) << ": " << error.message
+          << "\n";
+```
+
+Source: `applications/examples/run_failure_demo.cpp`
+
+The task that program records throws from its body, and the run returns `KernelFailed` with the
+body's sentence. The engine is usable afterwards: its graph is empty, and the next operation
+records and runs. `modules/engine/engine/tests/test_run_failure.cpp` tests all three.
 
 The code says which kind of failure it was. The mapping is SushiRuntime's, made in engine
 modules that are internal to it and not installed (`task_scheduler.cpp`, `chain_run.cpp` and its

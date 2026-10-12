@@ -1,6 +1,6 @@
 # Examples
 
-Seven programs that link the library the way a user would. `applications/examples/CMakeLists.txt`
+Eight programs that link the library the way a user would. `applications/examples/CMakeLists.txt`
 builds them, one target each. Every program compares what it computed with a value computed on
 the host, prints the outcome and returns 0, or 1 when the comparison fails.
 The numbers are the same on every machine, with or without a GPU.
@@ -9,6 +9,7 @@ The numbers are the same on every machine, with or without a GPU.
 | --- | --- | --- |
 | `adapter/` | `adapter_demo` | A host program that reaches the library through one file, in its own types and its own status |
 | `errors_demo.cpp` | `errors_demo` | What a wrong record call throws, what `execute()` returns, and what a file operation returns |
+| `run_failure_demo.cpp` | `run_failure_demo` | A run that fails: the error `execute()` returns, and the same engine running again |
 | `recording_demo.cpp` | `recording_demo` | Several operations recorded, one `execute()`, tensors of two residencies, results read back |
 | `operation_families_demo.cpp` | `operation_families_demo` | One checked call of each operation family |
 | `graph_primitives_demo.cpp` | `graph_primitives_demo` | The four graph primitives on a SushiRuntime graph, without an engine |
@@ -74,9 +75,31 @@ library's message, and `errors_demo: ok` when every step gave the outcome in the
 library also logs each refusal at error level before it throws, so its log lines appear
 between the program's own.
 
-The run in this program succeeds. No call of the public interface makes a run fail on every
-machine, so the branch that prints `ran.error().code` and `ran.error().message` is written
-and not taken; `graph_primitives_demo.cpp` prints a real `SushiRuntime::Error`.
+The run in this program succeeds, so the branch that prints `ran.error().code` and
+`ran.error().message` is not taken here. `run_failure_demo.cpp` takes it.
+
+## `run_failure_demo.cpp`: a run that fails
+
+No operation of the views fails a run on every machine, so the program records a task of
+its own whose body throws. `TaskRecorder::record_pair`, reached through
+`Engine::recorder()`, takes a `TaskDescription`, an `OperandSet` and a body; every view
+method records through it. The body is host code that the scheduler calls to submit the
+task's kernels, so it runs on the host under every `ExecutionMode` and on a machine with or
+without a GPU, and the program sets no mode. Recording succeeds, because the body has not
+run yet.
+
+`execute()` then returns an error and throws nothing. The program tests the `Result`, prints
+`ErrorCode::KernelFailed` and the message, which names the task and ends with the sentence
+the body threw, and goes on with the same engine: a second `execute()` succeeds because the
+failed run emptied the graph, and an `axpy` recorded after it gives `y = 2 * x`. The output
+is `execute: KernelFailed: node 'run_failure_demo.failing' (registration index 0) failed:
+the consumer's kernel refused to run`, then `execute after the failure: ok, y = 2 * x` and
+`run_failure_demo: ok`. The registration index in the message is the runtime's and may
+differ.
+
+The body's first parameter is the library's kernel-pair dispatcher, a type of its `Internal`
+namespace. The lambda takes it as `const auto&` and does not use it.
+`modules/engine/engine/tests/test_run_failure.cpp` pins the same behaviour.
 
 ## `recording_demo.cpp`: record, then run
 
