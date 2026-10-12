@@ -70,19 +70,16 @@ standard defines as real (`rot`'s `c` and `s`, the `alpha` of `her`, `hpr` and `
 of `herk` and `her2k`, and `ger`'s `alpha`) are `double`.
 
 ```cpp
-auto Z = engine.create_tensor({8, 8}, Core::DataType::Complex64);
-auto H = engine.create_tensor({8, 8}, Core::DataType::Complex64);
-auto zx = engine.create_tensor({8}, Core::DataType::Complex64);
-auto zy = engine.create_tensor({8}, Core::DataType::Complex64);
-
-BLASOps blas(engine);
-blas.herk(Z, H, Core::Uplo::Upper, Core::Transpose::ConjTrans, 1.0, 0.0);   // H = Z^H Z
-blas.axpy(std::complex<double>(0.0, 1.0), zx, zy);                           // zy = i*zx + zy
-blas.trsv(H, zx, Core::Uplo::Upper, Core::Transpose::NoTrans, Core::Diag::NonUnit);
+SushiBLAS::BLASOps(*this->engine).herk(A, C, uplo, Core::Transpose::ConjTrans,
+                                       2.0, 3.0);
+// ...
+SushiBLAS::BLASOps(*engine).trsv(A, b, uplo, a.trans, Core::Diag::NonUnit);
 ```
 
-No file compiles this block; each call was checked against `blas/level1.hpp`, `blas/level2.hpp`
-and `blas/level3.hpp`. It assumes `using namespace SushiBLAS;`, as the two blocks below do.
+Source: `modules/operations/blas/tests/test_blas_complex.cpp`
+
+`herk` takes its two scalars as `double`, and `trsv` takes the three flags of a triangular
+routine.
 
 **Routines.** The dtypes are HALF, FLOAT32, FLOAT64, COMPLEX32 and COMPLEX64 unless a row says
 otherwise.
@@ -168,20 +165,22 @@ element that is not zero. `vector_from_entries` takes positions and values. The 
 `std::runtime_error`, as the factory does.
 
 ```cpp
-const std::vector<int32_t> rows = {0, 0, 1, 2};
-const std::vector<int32_t> cols = {0, 2, 1, 2};
-const std::vector<float> values = {4.0f, 1.0f, 3.0f, 2.0f};
-
-SparseBuilder builder(engine.tensor_factory());
-const SparseMatrix S = builder.matrix_from_triplets(3, 3, rows, cols, values);
-
-SparseOps sparse(engine);
-sparse.spmv(S, x, y);                                         // y = S x
-sparse.spmv(S, x, y, Core::Transpose::Trans, 1.0, 1.0);       // y = S^T x + y
+const SparseBuilder builder(engine->tensor_factory());
+return builder.matrix_from_triplets(
+    host.rows, host.cols, stored_indices<Index>(host.row_indices, base),
+    stored_indices<Index>(host.column_indices, base), host.values, base);
+// ...
+const SparseMatrix A = build(host, base);
+const Tensor tx = vector_of(x);
+Tensor ty = vector_of(y);
+SushiBLAS::SparseOps(*engine).spmv(A, tx, ty, trans, BLASScalar(alpha),
+                                   BLASScalar(beta));
 ```
 
-No file compiles this block; it was checked against `sparse_storage/sparse_builder.hpp` and
-`sparse/sparse.hpp`.
+Source: `modules/operations/sparse/tests/test_sparse_spmv.cpp`
+
+The first statement pair is the body of the fixture's `build`, which the later lines call.
+`stored_indices` gives the host indices in the index type and base of the case.
 
 `SparseOps` records thirteen routines:
 
@@ -234,20 +233,23 @@ and `window_dot_weights_backward` the gradient with respect to the taps.
 
 ```cpp
 Spatial::ConvGeometry g;
-g.kernel_h = 3;
-g.kernel_w = 3;
-g.pad_top = 1;
-g.pad_left = 1;
-
-auto image = engine.create_tensor({1, 32, 32, 16});   // NHWC
-auto taps = engine.create_tensor({3, 3, 16});         // [kernel_h, kernel_w, C]
-auto out = engine.create_tensor({1, 32, 32, 16});
-
-SpatialOps(engine).window_dot(image, taps, out, g);
+g.kernel_h = kernel_h;
+g.kernel_w = kernel_w;
+g.stride_h = stride_h;
+g.stride_w = stride_w;
+g.dilation_h = dilation_h;
+g.dilation_w = dilation_w;
+g.pad_top = pad_top;
+g.pad_left = pad_left;
+// ...
+Tensor out = sentinel_tensor<T>(engine, c.output_dims());
+SushiBLAS::SpatialOps(engine).window_dot(in, weights, out, c.geometry);
 ```
 
-No file compiles this block; it was checked against `support/spatial_geometry.hpp` and
-`spatial/spatial.hpp`.
+Source: `modules/operations/spatial/tests/test_spatial_window_dot.cpp`
+
+The eight assignments are every field of `ConvGeometry`. `c.geometry` is one built that way, and
+`sentinel_tensor` is a helper of the test that allocates the output.
 
 **Every backward is a gather.** `col2im` written as "each column entry adds into its pixel" needs
 a floating-point atomic add wherever windows overlap, and the order of those additions varies

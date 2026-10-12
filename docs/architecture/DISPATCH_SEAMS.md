@@ -83,7 +83,9 @@ TaskHandle ElementwiseOps::clamp(Tensor& t, double min_val, double max_val)
 }
 ```
 
-Source: `modules/operations/elementwise/source/clamp.cpp`. The two scalars reach the functor in
+Source: `modules/operations/elementwise/source/clamp.cpp`
+
+The two scalars reach the functor in
 the element type of each dtype arm, and the trailing list records them in the task's parameter
 slots. The `"..."_op` literal comes from `SushiRuntime::Literals` and gives the
 `SushiRuntime::OperationID` of the name.
@@ -95,8 +97,9 @@ Dispatch::bind_reads(Dispatch::bind_scalars(fn, Dispatch::ElementScalar(2.0)),
                      Dispatch::read_as_element(a))
 ```
 
-Source: `modules/engine/functor_map/tests/test_read_binding.cpp`, where `fn` takes
-`(float element, const float* pointer, float scalar)`.
+Source: `modules/engine/functor_map/tests/test_read_binding.cpp`
+
+There `fn` takes `(float element, const float* pointer, float scalar)`.
 
 *The GEMM epilogue.* `Dispatch::execute_gemm` records
 `C = epilogue(alpha * op(A) * op(B) + beta * C, row, col)` as one task. The epilogue is a functor
@@ -118,6 +121,8 @@ struct BiasColumnEpilogue
     }
 };
 
+// ...
+
 Dispatch::execute_gemm(probe.recorder(), A, B, C,
                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                        1.0, 0.0,
@@ -126,8 +131,9 @@ Dispatch::execute_gemm(probe.recorder(), A, B, C,
                            BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
 ```
 
-Source: `modules/operations/blas/tests/test_gemm.cpp`, without the comments; `probe.recorder()` is
-a `TaskRecorder&`. The product and the bias broadcast are one task. `tests/package/main.cpp` has
+Source: `modules/operations/blas/tests/test_gemm.cpp`
+
+`probe.recorder()` is a `TaskRecorder&`. The product and the bias broadcast are one task. `tests/package/main.cpp` has
 an epilogue that also clamps at zero, handed over as a bare functor.
 
 `Dispatch::gemm_epilogue(functor)` bundles the functor with the tensors it touches, and

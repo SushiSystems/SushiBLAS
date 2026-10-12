@@ -13,6 +13,8 @@ in your translation units, which is the opposite of SushiRuntime. When you write
 SushiBLAS::BLASOps(engine).gemm(A, B, C);
 ```
 
+Source: `applications/examples/example.cpp`
+
 the call resolves to a function already compiled into the `sushiblas` static library. Your
 compiler does not
 see the GEMM kernel's source, instantiates no device lambda and produces no device code for it.
@@ -113,28 +115,26 @@ You must supply:
 
 ## 4. Checking the binary you linked
 
-```cpp
-#include <SushiBLAS/core/version.hpp>
+`<SushiBLAS/core/version.hpp>`, which the umbrella header includes, defines
+`SUSHIBLAS_VERSION_STRING`. The package consumer prints it:
 
-std::printf("Built against SushiBLAS headers %s\n", SUSHIBLAS_VERSION_STRING);
+```cpp
+std::printf("OK: SushiBLAS %s ran AXPY, a consumer-authored fused kernel, a "
+            "fused in-place update and a GEMM with a consumer-authored epilogue "
+            "against an installed package\n",
+            SUSHIBLAS_VERSION_STRING);
 ```
 
-`tests/package/main.cpp` prints the same macro in its last line.
+Source: `tests/package/main.cpp`
 
 SushiRuntime is a `SHARED` library, so the headers a program compiled against and the library
 it loads can disagree. SushiBLAS is `STATIC`: no separately loaded file exists whose version
 could differ from `SUSHIBLAS_VERSION_STRING` at run time, so the library has no runtime version
 check and needs none.
 
-You can also branch at compile time:
-
-```cpp
-#if SUSHIBLAS_VERSION >= SUSHIBLAS_VERSION_ENCODE(0, 2, 0)
-    // code that needs 0.2.0
-#endif
-```
-
-Both macros are in `modules/foundation/core/include/SushiBLAS/core/version.hpp`.
+You can also branch at compile time, with a guard such as
+`#if SUSHIBLAS_VERSION >= SUSHIBLAS_VERSION_ENCODE(0, 2, 0)`. Both macros are in
+`modules/foundation/core/include/SushiBLAS/core/version.hpp`.
 
 ## 5. Write one adapter
 
@@ -151,20 +151,9 @@ SushiBLAS exception.
 
 **What it exposes.** Functions that return the host's own types. In SushiAI they return its
 `Status` or its `Result`, and take a `SeamPhase` that says what the call was doing:
-
-```cpp
-[[nodiscard]] Status status_of_error(const SushiRuntime::Error& error,
-                                     SeamPhase phase) noexcept;
-
-[[nodiscard]] Status status_of_current_exception(SeamPhase phase) noexcept;
-
-template<typename Call>
-[[nodiscard]] Status guard(SeamPhase phase, Call&& call) noexcept;
-
-[[nodiscard]] Status run_recorded(SushiBLAS::Engine& engine) noexcept;
-```
-
-Source: `sushiai/modules/core/core/include/SushiAI/core/seam.hpp`, without the comments.
+`status_of_error` maps a `SushiRuntime::Error`, `status_of_current_exception` maps the exception
+being handled, `guard` runs a callable and returns either, and `run_recorded` runs an engine.
+They are declared in `sushiai/modules/core/core/include/SushiAI/core/seam.hpp`.
 
 **How it turns a failure into the host's type.** SushiBLAS has two channels the adapter must
 close, and [the architecture, section 11](../architecture/EXCEPTIONS.md) lists what arrives on
@@ -204,6 +193,11 @@ Status status_of_current_exception(SeamPhase phase) noexcept
 }
 ```
 
+Source: not compiled
+
+The block is `status_of_current_exception` of `sushiai/modules/core/core/source/seam.cpp`, a file
+of another repository.
+
 A run returns a `SushiRuntime::Result<void>`. The adapter reads the `Error` out of it and maps
 the `ErrorCode`, inside the same guard, so a run has one return type whichever channel failed:
 
@@ -221,7 +215,9 @@ Status run_recorded(SushiBLAS::Engine& engine) noexcept
 }
 ```
 
-Source of both: `sushiai/modules/core/core/source/seam.cpp`. `status_of_error` in the same file
+Source: not compiled
+
+The block is `run_recorded` of the same file. `status_of_error` in that file
 is a `switch` over the `SushiRuntime::ErrorCode` values with no `default`, so `-Wswitch` reports
 a code the function does not name.
 

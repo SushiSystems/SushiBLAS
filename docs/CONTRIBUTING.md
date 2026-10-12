@@ -159,6 +159,8 @@ if (condition)
 }
 ```
 
+Source: not compiled
+
 ### Include and declaration ordering
 
 1. `#pragma once`, then exactly one empty line.
@@ -172,12 +174,15 @@ if (condition)
 ```cpp
 #pragma once
 
-#include <cassert>
 #include <cstddef>
-#include <SushiBLAS/core/common.hpp>
+#include <cstdint>
+#include <cstring>
+#include <type_traits>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiRuntime/sushiruntime.hpp>
+#include <SushiRuntime/core/operation_id.hpp>
 ```
+
+Source: `modules/engine/engine/include/SushiBLAS/engine/task_description.hpp`
 
 ### Comments
 
@@ -251,28 +256,25 @@ TaskHandle Level1::axpy(BLASScalar alpha, const Tensor& x, Tensor& y)
 {
     const char* const op = "blas.lvl1.axpy";
 
-    // 1. Record-time checks, each naming the operation and the operand.
     Dispatch::require_dtype(y, x.dtype, op, "y");
     Dispatch::require_real_scalar(alpha, x.dtype, op, "alpha");
     const Dispatch::VectorOperand vx = Dispatch::describe_vector_operand(x, op, "x");
     const Dispatch::VectorOperand vy = Dispatch::describe_vector_operand(y, op, "y");
     Dispatch::require_same_element_count(x, y, op, "x", "y");
 
-    // 2. The operand set: what the task reads and writes, as tensors.
+    // y is read before it is written, so it sits in both access sets; see modules/operations/README.md.
     OperandSet operands;
     operands.reads(x).updates(y);
 
     const Internal::BLASMetadata metadata =
         Internal::BLASMetadata(op, "blas.lvl1.axpy"_op).scalar(alpha);
 
-    // 3. Everything the body needs, captured by value.
     const int64_t n = vx.length;
     const int64_t incx = vx.increment;
     const int64_t incy = vy.increment;
     const void* read_x = x.data_or_null();
     void* rw_y = y.data_or_null();
 
-    // 4. The seam call: one task, one kernel pair.
     return Internal::execute_blas_task(recorder_, metadata.get(), operands, x.dtype,
         [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
             sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
@@ -295,7 +297,10 @@ TaskHandle Level1::axpy(BLASScalar alpha, const Tensor& x, Tensor& y)
 }
 ```
 
-The numbered comments are this page's and are not in the source file.
+Source: `modules/operations/blas/source/level1/axpy.cpp`
+
+The source does four things in this order: it checks, it declares the operand set, it captures
+what the body needs, and it calls the seam.
 
 **1. Check at record time.** Every operand rule goes through
 `engine/operand_check.hpp` or the family's describers (`operands/matrix_operand.hpp`,
@@ -360,11 +365,12 @@ kernel or, under `ForceReference`, in a serial host loop. This is
 ```cpp
 TaskHandle ElementwiseOps::add(const Tensor& A, const Tensor& B, Tensor& C)
 {
-    return Dispatch::execute_binary<Dispatch::Domain::All>(
-        recorder_, A, B, C, "math.ew.add", "math.ew.add"_op,
+    return Dispatch::execute_binary<Dispatch::Domain::All>(recorder_, A, B, C, "math.ew.add", "math.ew.add"_op,
         [](auto x, auto y) { return Dispatch::wrapping_add(x, y); });
 }
 ```
+
+Source: `modules/operations/elementwise/source/add.cpp`
 
 - State the `Domain` the functor is well-formed for. The default is
   `Domain::Real`. A functor instantiated for complex uses the `safe_*` helpers
