@@ -303,12 +303,12 @@ measured on both sides, by the `EXPECT_EQ` of
 | 104 | `inf` | 0, exactly |
 | 200 | `inf` | 0, exactly |
 
-The after column is zero at every gap because the gap no longer enters the arithmetic, and the
+The after column is zero at every gap because the gap does not enter the arithmetic, and the
 assertion is an equality for that reason.
 
 Measured against the hand-computed expectation, and not against the answer at gap 0, the
 gap-100 case came out 2.7033e−02 off, which is 6.6% of the largest true log-probability
-(−0.40761). That is the "about 7% low at 100" this entry used to record.
+(−0.40761). That is the "about 7% low at 100" an earlier text of this entry recorded.
 
 The residual at the gaps that pass is not stated on either side, because it was not measured: a
 passing `EXPECT_NEAR` bounds it under 1e−4 and says no more. An earlier revision of this entry

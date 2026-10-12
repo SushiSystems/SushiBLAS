@@ -1,0 +1,19 @@
+# Names and paths the manual writes in code that this repository's source does not hold.
+# One word or regular expression per line, matched against the whole name, then ' # reason'.
+SushiRuntime/.+ # a header of SushiRuntime, which this repository builds against and does not hold
+sycl/sycl\.hpp # the SYCL header of the toolchain
+sushiai/.+ # a file of the SushiAI repository, cited as the example adapter and for its roadmap
+cli/config\.local\.toml # a gitignored file each machine creates for its own paths
+KernelFailed|DeviceLost|CompileFailed|sr_format|sized_from_device # names of SushiRuntime, which this repository does not hold
+memory_allocation # an enumerator of sycl::errc
+SeamPhase|StatusCode|failure_of|status_of_error|status_of_runtime_error|InvalidDescription|OutOfMemory|DeviceFailed # names of SushiAI's seam, quoted as the example adapter
+sushiblas_[a-z_]+_tests # a test program cmake/SushiBLASTests.cmake names from its module
+do_(first|second|something)|execute_specific_logic_for_this_unique_case # placeholders of the brace-style illustration
+pkg_check_modules # a CMake command
+doxygen_exe # a configuration key of sushicore, the shared layer of the CLI
+KeyError # a Python built-in exception
+HostKernel # a class of the intel-llvm SYCL runtime, named in a link error
+CaseName # a parameter name of GoogleTest's TYPED_TEST_SUITE macro
+count_include_pad|channels_last # PyTorch names, cited for comparison
+pad_bottom|safe_(max|floor|clamp) # named where a page says the library deliberately lacks it
+v_[im]|sum_k # index notation of a formula written in a code span

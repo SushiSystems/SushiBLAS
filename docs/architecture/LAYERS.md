@@ -10,7 +10,7 @@
    │                         NonLinearOps · LogicOps · ReductionOps │  built from an Engine
    │                         RandomOps · SpatialOps · IO            │  or a TaskRecorder
    ├────────────────────────────────────────────────────────────────┤
-   │  Seams                  Dispatch::execute_* and                │  <family>/dispatch.hpp
+   │  Seams                  Dispatch::execute_* and                │  dispatch.hpp of a family
    │                         Internal::execute_typed_task: take a   │  engine/task.hpp
    │                         TaskRecorder and an OperandSet, return │
    │                         a TaskHandle                           │
