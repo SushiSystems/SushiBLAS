@@ -221,7 +221,7 @@ modules/                One tree per module: README.md, CMakeLists.txt, include/
     experimental/       Quarantined FFT and LAPACK declarations
   library/
     sushiblas/          SushiBLAS.h and the one library a consumer links
-applications/examples/  Seven example programs, the adapter example among them
+applications/examples/  Eight example programs, the adapter example among them
 tests/                  The tests that cross module boundaries
   common/               Shared GoogleTest entry point and helpers
   unit/, integration/, regression/

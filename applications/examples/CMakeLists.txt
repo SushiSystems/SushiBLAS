@@ -23,6 +23,10 @@ add_executable(errors_demo errors_demo.cpp)
 target_link_libraries(errors_demo PRIVATE sushiblas)
 sushiblas_apply_build_policy(errors_demo)
 
+add_executable(run_failure_demo run_failure_demo.cpp)
+target_link_libraries(run_failure_demo PRIVATE sushiblas)
+sushiblas_apply_build_policy(run_failure_demo)
+
 add_executable(recording_demo recording_demo.cpp)
 target_link_libraries(recording_demo PRIVATE sushiblas)
 sushiblas_apply_build_policy(recording_demo)
@@ -41,6 +45,7 @@ set_target_properties(
     io_demo
     adapter_demo
     errors_demo
+    run_failure_demo
     recording_demo
     operation_families_demo
     graph_primitives_demo
@@ -79,6 +84,13 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
             $<TARGET_FILE_DIR:errors_demo>
+        COMMENT "Copying runtime DLL to example directory..."
+    )
+
+    add_custom_command(TARGET run_failure_demo POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+            $<TARGET_FILE_DIR:run_failure_demo>
         COMMENT "Copying runtime DLL to example directory..."
     )
 

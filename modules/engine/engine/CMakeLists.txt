@@ -20,6 +20,7 @@ sushiblas_add_module_tests(
         test_execution_mode.cpp
         test_operand_check.cpp
         test_rng_stream.cpp
+        test_run_failure.cpp
         test_scratch_shelf.cpp
         test_task_handle.cpp
         test_task_recorder.cpp

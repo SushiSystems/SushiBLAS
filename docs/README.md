@@ -19,7 +19,7 @@ SushiBLAS is below 1.0.0 and a MINOR release may break its public interface; rea
 | [Integration](guides/INTEGRATION.md) | How another CMake project consumes SushiBLAS, what it must supply, and how it writes one adapter over the interface |
 | [FAQ](guides/FAQ.md) | The questions a newcomer asks, each answered from this manual |
 | [The CLI](../cli/README.md) | Every `sb` command and option; the CLI's own README |
-| [Examples](../applications/examples/README.md) | The seven example programs the build compiles, what each shows and what it prints |
+| [Examples](../applications/examples/README.md) | The eight example programs the build compiles, what each shows and what it prints |
 
 ## Beside the code
 

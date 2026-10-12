@@ -6,6 +6,8 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — engine: Added tests of a run whose task body throws: `execute()` returns `KernelFailed` with the body's message, nothing stays recorded and the engine runs again (`test_run_failure.cpp`).
+- 2026-10-12 — examples: Added an example of a run that fails, through a task recorded with `TaskRecorder::record_pair` whose body throws (`run_failure_demo.cpp`, `EXCEPTIONS.md`).
 - 2026-10-12 — examples: Renamed `example.cpp` to `quickstart_demo.cpp` and its target `sushiblas_example` to `quickstart_demo`, which `sb run` starts by default.
 - 2026-10-12 — docs: Brought the brace, include, license block and comment rules of the contributing guide to the `cpp-code-style` and `source-comments` skills; a statement no longer shares the line of its `if` (`CONTRIBUTING.md`).
 - 2026-10-12 — docs: Replaced the uncompiled brace illustration of the contributing guide with a block of `adapter_demo.cpp`; no example of the manual is unverified (`CONTRIBUTING.md`, `.docs_truth_allow`).
