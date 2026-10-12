@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — blas: Included `<SushiRuntime/region/buffer_region.hpp>` for `BufferRegion` and removed `<SushiRuntime/api/data/buffer.hpp>` from seven files that name no `Buffer` (`blas/dispatch.hpp`, `convert.cpp`, `reductions/dispatch.hpp`).
 - 2026-10-12 — engine: Breaking change: a recording the runtime refuses throws `std::runtime_error` from `TaskRecorder::record_pair` and no longer returns the handle of no task (`task_recorder.hpp`).
 - 2026-10-12 — io: Added `IOStatus::RunFailed`, which the six file operations return when the recorded tasks fail, where they threw `std::runtime_error` (`io_status.hpp`, `io.cpp`).
 - 2026-10-12 — engine: Serialised record calls on one `TaskRecorder` with a mutex and ran `Engine::discard_recorded` under it through `TaskRecorder::run_exclusive` (`task_recorder.hpp`, `engine.cpp`).

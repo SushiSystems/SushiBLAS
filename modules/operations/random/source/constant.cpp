@@ -36,7 +36,6 @@
 #include <SushiBLAS/random/dispatch.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
-#include <SushiRuntime/api/data/buffer.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS 
