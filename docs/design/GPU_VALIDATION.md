@@ -15,16 +15,17 @@ Outside section 0, nothing below reports a passing test. It lists claims that wa
 
 ## 0. The GPU runs
 
-Both runs were on one card, an NVIDIA GeForce RTX 3080 Ti, which `sycl-ls` names
+All three runs were on one card, an NVIDIA GeForce RTX 3080 Ti, which `sycl-ls` named in the first
+two as
 `[cuda:gpu][cuda:0] NVIDIA CUDA BACKEND, NVIDIA GeForce RTX 3080 Ti 8.6 [CUDA 13.3]`.
 
-| | First run | Second run |
-| --- | --- | --- |
-| Date | 2026-10-07, at 14:15 and repeated at 14:53 | 2026-10-09 |
-| Tree | commit `dd5cdfc`, before the first commit of the v0.1.0 work | the v0.1.0 tree of that day, after the interface break |
-| Result | 790 of 792 tests passed | 2 047 of 2 047 tests passed |
-| Skipped | `Regression_LoggerDeathTest.AssertWritesItsMessageBeforeAborting`, a death test that needs a debug build | CTest lists some tests as skipped; their count and their reason were not recorded |
-| Failed | `Unit_Level2SyclParityTest.SymvMatchesReferenceLarge<float>` | none |
+| | First run | Second run | Third run |
+| --- | --- | --- | --- |
+| Date | 2026-10-07, at 14:15 and repeated at 14:53 | 2026-10-09 | 2026-10-12 |
+| Tree | commit `dd5cdfc`, before the first commit of the v0.1.0 work | the v0.1.0 tree of that day, after the interface break | branch `feature/api_refinement`, built by `sb build` on Windows with the pinned intel-llvm |
+| Result | 790 of 792 tests passed | 2 047 of 2 047 tests passed | 2 207 tests ran, none failed |
+| Skipped | `Regression_LoggerDeathTest.AssertWritesItsMessageBeforeAborting`, a death test that needs a debug build | CTest lists some tests as skipped; their count and their reason were not recorded | not recorded |
+| Failed | `Unit_Level2SyclParityTest.SymvMatchesReferenceLarge<float>` | none | none |
 
 The failure of the first run was a finding about the reference kernel. For n = 4096 and the
 lower triangle, at element 1148:
