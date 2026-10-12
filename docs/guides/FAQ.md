@@ -12,11 +12,19 @@ between the queued tasks and runs them on a CPU or a GPU through SYCL. No kernel
 math library: there is no oneMKL and no cuBLAS behind it.
 
 Operations are recorded, then run. A call such as `SushiBLAS::BLASOps(engine).gemm(A, B, C)`
-records a task and runs nothing; `engine.execute()` compiles and runs the graph. `Engine` has no
-accessor per operation family. A family is a view class built from the engine: `BLASOps`,
+records a task and runs nothing; `engine.execute()` runs the graph and returns a
+`SushiRuntime::Result<void>`. `Engine` is built on a `SushiRuntime::Runtime` and has no accessor
+per operation family. A family is a view class built from the engine: `BLASOps`,
 `SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`,
 `SpatialOps` and `IO`. The [root README](../../README.md#how-it-works) has a complete example, and
 [the architecture](../architecture/README.md) describes each layer.
+
+## Is the interface stable?
+
+No. SushiBLAS is below 1.0.0, and a MINOR release may change or remove any public name, signature
+or header path. Pin an exact tag and keep your includes of SushiBLAS in one adapter module of your
+own. The [README's stability section](../../README.md#stability) states the rule, and
+[section 5 of the integration guide](INTEGRATION.md#5-write-one-adapter) shows an adapter.
 
 ## What do I need to build SushiBLAS?
 
@@ -84,7 +92,7 @@ were installed to the same prefix. You must also supply the same SYCL compiler S
 built with, C++17 or later, and SushiRuntime's shared library on the loader path at run time.
 `add_subdirectory(path/to/sushiblas)` gives the same `SushiBLAS::sushiblas` target.
 
-While the project is pre-1.0 the package uses `SameMinorVersion` compatibility:
+While the project is below 1.0 the package uses `SameMinorVersion` compatibility:
 `find_package(SushiBLAS 0.1 REQUIRED)` accepts 0.1.x and rejects 0.2.0. `tests/package/` in the
 repository is a complete consumer. The [integration guide](INTEGRATION.md) covers what a consumer
 inherits, what it must supply and how to read common build errors.
@@ -137,7 +145,7 @@ repository's own CLI. The [glossary](../reference/GLOSSARY.md) defines these wor
 
 ## What does SushiBLAS not do yet?
 
-- No release is tagged. The version in the build files is 0.1.0, and the project is pre-1.0.
+- No release is tagged. The version in the build files is 0.1.0.
 - The tree has run on one NVIDIA card, an RTX 3080 Ti, and on no OpenCL CPU device or other card.
 - `trmm` is not implemented. Sparse matrices are CSR only.
 - `LinalgOps` (SVD, QR, eigendecomposition) and `TransformsOps` (FFT, DFT) are declared under
