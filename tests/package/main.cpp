@@ -37,6 +37,7 @@
 #include <SushiBLAS/elementwise/dispatch.hpp>
 
 namespace sb = SushiBLAS;
+namespace sr = SushiRuntime;
 using namespace SushiRuntime::Literals;
 
 /**
