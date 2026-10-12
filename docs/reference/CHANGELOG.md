@@ -18,13 +18,16 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 - 2026-10-12 — tensor: Included the runtime's `core/sushi_ptr.hpp` and `core/ref_counted.hpp` where their names are used, and stated `K_STORAGE_ALIGNMENT` as 128 in `storage.hpp` without the runtime's common header.
 - 2026-10-12 — tests: Spelled the run layer `SushiRuntime::ExecutionLayer` and included `<SushiRuntime/api/runtime/logging.hpp>` for `set_log_synchronous` (`test_device_sized_primitives.cpp`, `test_main.cpp`).
 - 2026-10-12 — tests: Made `TestEnvironment::live_allocation_count()` call `AdvancedControls::live_allocation_count()`; no test reaches the runtime's context any more (`test_environment.hpp`).
-- 2026-10-12 — tests: Made `GraphProbe::recorded_tasks()` answer from `Graph::plan()` as a `Result`, removed `RecordedTask::body` and `K_NO_RECORDED_TASK_VIEW`, and ran the assertions that were skipped (`graph_probe.hpp`).
+- 2026-10-12 — tests: Made `GraphProbe::recorded_tasks()` answer from `Graph::plan()` as a `Result` and ran the assertions that were skipped (`graph_probe.hpp`).
+- 2026-10-12 — tests: Removed `RecordedTask::body` and `K_NO_RECORDED_TASK_VIEW` (`graph_probe.hpp`).
 - 2026-10-12 — tests: Replaced `ARecordedBodyWaitsForItsDependencies` with `ARecordedTaskComputesItsResult`, which runs the task and no longer calls its body (`test_task_dependencies.cpp`, `test_sparse_recording.cpp`).
-- 2026-10-12 — tensor: Made `Storage` pass `K_STORAGE_ALIGNMENT` to `Runtime::buffer`; an address off that boundary fails an `SB_ASSERT` in place of throwing `std::runtime_error` (`storage.hpp`).
+- 2026-10-12 — tensor: Made `Storage` pass `K_STORAGE_ALIGNMENT` to `Runtime::buffer` (`storage.hpp`).
+- 2026-10-12 — tensor: Made an allocation address off `K_STORAGE_ALIGNMENT` fail an `SB_ASSERT` in place of throwing `std::runtime_error` (`storage.hpp`).
 - 2026-10-11 — graph_primitives: Breaking change: Made the four recording primitives return `Result<void>` with `ErrorCode::InvalidGraph` in place of throwing `SushiException` (`reduce.hpp`, `invalid_graph.hpp`).
 - 2026-10-11 — engine: Breaking change: Added `TaskDescription`, which every record call takes in place of the runtime's `TaskMetadata`; the task type is gone (`task_description.hpp`, `task_recorder.hpp`).
 - 2026-10-11 — tensor: Breaking change: Made `Storage` own a runtime `Buffer` and take a `SushiRuntime::Runtime`; `queue()` replaces `context()`.
-- 2026-10-11 — engine: Breaking change: Built `Engine` on `SushiRuntime::Runtime`; `execute` returns `Result<void>` and `runtime()` replaces `context()`.
+- 2026-10-11 — engine: Breaking change: Built `Engine` on `SushiRuntime::Runtime`, with `runtime()` in place of `context()`.
+- 2026-10-11 — engine: Breaking change: Made `Engine::execute` return `Result<void>`.
 - 2026-10-11 — api: Breaking change: Spelled ReLU in capitals, so `BiasReluEpilogue` and `BiasRelu` became BiasReLUEpilogue and BiasReLU.
 - 2026-10-11 — api: Breaking change: Wrote every acronym of a type name in capitals, so `BlasScalar`, `IoStatus`, `ForceSycl`, `UsmArray` and `RngStream` became BLASScalar, IOStatus, ForceSYCL, USMArray and RNGStream.
 - 2026-10-11 — build: Added `sushiblas_declare_header_modules()`, which gives a consumer the header-only modules as targets without building the library (`SushiBLASHeaderModules.cmake`).
