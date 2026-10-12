@@ -126,7 +126,8 @@ Keep `spir64` in the list to keep the CPU device reachable from the same build. 
 be an intel-llvm built with `--cuda`; a stock oneAPI release has no CUDA backend and rejects the
 triple. intel-llvm documents support for `sm_75` and newer.
 
-The functional suite has run on one card, an RTX 3080 Ti. See
+The functional suite has run on one card, an RTX 3080 Ti: on 2026-10-12, on Windows with the
+pinned intel-llvm toolchain, 2 207 tests ran and none failed. See
 [Targeting an NVIDIA GPU](../../README.md#targeting-an-nvidia-gpu) in the README.
 
 ## How does SushiBLAS relate to SushiRuntime and SushiStack?
@@ -146,7 +147,8 @@ repository's own CLI. The [glossary](../reference/GLOSSARY.md) defines these wor
 ## What does SushiBLAS not do yet?
 
 - No release is tagged. The version in the build files is 0.1.0.
-- The tree has run on one NVIDIA card, an RTX 3080 Ti, and on no OpenCL CPU device or other card.
+- The tree has run on one Windows machine with one NVIDIA card, an RTX 3080 Ti. It has not run on
+  Linux, on an AMD or Intel GPU, or on the OpenCL CPU device.
 - `trmm` is not implemented. Sparse matrices are CSR only.
 - `LinalgOps` (SVD, QR, eigendecomposition) and `TransformsOps` (FFT, DFT) are declared under
   `modules/operations/experimental/include/SushiBLAS/experimental/` and have no implementation. The umbrella header does not
