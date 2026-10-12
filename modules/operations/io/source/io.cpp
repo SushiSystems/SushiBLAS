@@ -67,14 +67,29 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Runs the tasks recorded on the engine, so a file call sees what they wrote.
-         * @throws std::runtime_error if the run fails.
+         * @brief Runs the tasks recorded on the engine, so a host transfer sees what they wrote.
+         * @throws std::runtime_error with the runtime's message if the run fails.
          */
         void run_recorded(Engine& engine)
         {
             const SushiRuntime::Result<void> ran = engine.execute();
-            SB_THROW_IF(!ran, "io: the recorded tasks failed before the file call: {}",
+            SB_THROW_IF(!ran, "io: the recorded tasks failed before the host transfer: {}",
                         ran.error().message);
+        }
+
+        /**
+         * @brief Runs the tasks recorded on the engine, so a file operation sees what they wrote.
+         * @return Ok, or RunFailed after the runtime's message is logged once.
+         */
+        [[nodiscard]] IOStatus run_before_file(Engine& engine)
+        {
+            const SushiRuntime::Result<void> ran = engine.execute();
+            if (ran)
+                return IOStatus::Ok;
+
+            SB_LOG_ERROR("io: the recorded tasks failed before the file operation: {}",
+                         ran.error().message);
+            return IOStatus::RunFailed;
         }
 
         /** @brief Runs file work and returns Ok, or the status of the IOFailure that ended it. */
@@ -807,7 +822,9 @@ namespace SushiBLAS
         for (int i = 0; i < t.rank; ++i)
             header.shape[i] = t.shape[i];
 
-        run_recorded(engine_);
+        const IOStatus ran = run_before_file(engine_);
+        if (ran != IOStatus::Ok)
+            return ran;
 
         const IOStatus status = status_of([&]()
         {
@@ -827,7 +844,9 @@ namespace SushiBLAS
     {
         require_dense_payload(t, "io.load");
 
-        run_recorded(engine_);
+        const IOStatus ran = run_before_file(engine_);
+        if (ran != IOStatus::Ok)
+            return ran;
 
         return status_of([&]()
         {
@@ -875,7 +894,9 @@ namespace SushiBLAS
     {
         require_dense_payload(t, "io.save_bin");
 
-        run_recorded(engine_);
+        const IOStatus ran = run_before_file(engine_);
+        if (ran != IOStatus::Ok)
+            return ran;
 
         return status_of([&]()
         {
@@ -890,7 +911,9 @@ namespace SushiBLAS
     {
         require_dense_payload(t, "io.load_bin");
 
-        run_recorded(engine_);
+        const IOStatus ran = run_before_file(engine_);
+        if (ran != IOStatus::Ok)
+            return ran;
 
         return status_of([&]()
         {
@@ -907,7 +930,9 @@ namespace SushiBLAS
         require_dense_payload(t, "io.save_npy");
         require_npy_layout(t, "io.save_npy");
 
-        run_recorded(engine_);
+        const IOStatus ran = run_before_file(engine_);
+        if (ran != IOStatus::Ok)
+            return ran;
 
         const char magic[] = "\x93NUMPY";
         uint8_t major = 1;
@@ -960,7 +985,9 @@ namespace SushiBLAS
         require_dense_payload(t, "io.load_npy");
         require_npy_layout(t, "io.load_npy");
 
-        run_recorded(engine_);
+        const IOStatus ran = run_before_file(engine_);
+        if (ran != IOStatus::Ok)
+            return ran;
 
         const IOStatus status = status_of([&]()
         {

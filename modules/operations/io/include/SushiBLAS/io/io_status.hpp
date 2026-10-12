@@ -42,6 +42,7 @@ namespace SushiBLAS
         ShapeMismatch,  /**< The file's rank or a dimension differs from the tensor's. */
         DtypeMismatch,  /**< The file's element type differs from the tensor's. */
         LayoutMismatch, /**< The file's memory order differs from the tensor's layout. */
+        RunFailed,      /**< The tasks recorded on the engine failed; no file was touched. */
     };
 
     /** @brief Returns the enumerator's name. */
@@ -57,6 +58,7 @@ namespace SushiBLAS
             case IOStatus::ShapeMismatch:  return "ShapeMismatch";
             case IOStatus::DtypeMismatch:  return "DtypeMismatch";
             case IOStatus::LayoutMismatch: return "LayoutMismatch";
+            case IOStatus::RunFailed:      return "RunFailed";
         }
         return "Unknown";
     }
