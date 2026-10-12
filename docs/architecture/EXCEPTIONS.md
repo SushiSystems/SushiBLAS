@@ -49,8 +49,9 @@ template<typename Call>
 }
 ```
 
-Source: `modules/engine/engine/tests/test_unsupported_execution.cpp`, where `Outcome` is an
-enumeration of the test. The first handler takes a refusal by mode or device, the second a wrong
+Source: `modules/engine/engine/tests/test_unsupported_execution.cpp`
+
+`Outcome` is an enumeration of the test. The first handler takes a refusal by mode or device, the second a wrong
 operand, flag or scalar.
 
 Where each type comes from:

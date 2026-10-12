@@ -76,11 +76,14 @@ ScratchPool pool(TestEnvironment::runtime());
 SushiRuntime::Graph first_graph = TestEnvironment::runtime().graph();
 TaskRecorder first_recorder(first_graph.recorder(), pool);
 
+// ...
+
 ReductionOps(first_recorder).sum(input, first_result);
 ```
 
-Source: `tests/unit/test_scratch_buffer.cpp`, one of its two recorders;
-`TestEnvironment::runtime()` returns the `SushiRuntime::Runtime&` of the test program. The
+Source: `tests/unit/test_scratch_buffer.cpp`
+
+The test builds two such recorders. `TestEnvironment::runtime()` returns the `SushiRuntime::Runtime&` of the test program. The
 recorder's third constructor argument is the `ExecutionMode`, `Auto` by default.
 
 `ReductionOps(engine)` is the same view over `engine.recorder()`. A caller that builds its own

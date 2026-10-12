@@ -168,11 +168,15 @@ int main()
 
     const std::vector<float> result = SushiBLAS::IO(engine).to_vector<float>(C);
 
+    // ...
+
     return 0;
 }
 ```
 
-This is `applications/examples/example.cpp` without its print. `create_tensor` gives FLOAT32 tensors in shared USM by default. `gemm` records a task and runs nothing. `IO::to_vector` runs the recorded graph and then copies `C` to the host, so the example never calls `execute()` itself.
+Source: `applications/examples/example.cpp`
+
+The omitted lines print one element. `create_tensor` gives FLOAT32 tensors in shared USM by default. `gemm` records a task and runs nothing. `IO::to_vector` runs the recorded graph and then copies `C` to the host, so the example never calls `execute()` itself.
 
 A program that reads no tensor through `IO` runs the graph with `Engine::execute()`:
 
@@ -181,7 +185,9 @@ SushiBLAS::BLASOps(engine).axpy(2.0f, x, y);
 engine.execute().value();
 ```
 
-This is from `tests/package/main.cpp`. `execute()` returns a `SushiRuntime::Result<void>` and is `[[nodiscard]]`. `.value()` on a result that holds an error stops the process; a caller that can go on tests the result and reads `error()`.
+Source: `tests/package/main.cpp`
+
+`execute()` returns a `SushiRuntime::Result<void>` and is `[[nodiscard]]`. `.value()` on a result that holds an error stops the process; a caller that can go on tests the result and reads `error()`.
 
 `Engine` is built on a `SushiRuntime::Runtime`, which must outlive it. It owns the graph and has no accessor per operation family. A family is a view class built from the engine: `BLASOps`, `SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`, `SpatialOps` and `IO`. A view holds references and no other state. Each record call returns a `TaskHandle`.
 
