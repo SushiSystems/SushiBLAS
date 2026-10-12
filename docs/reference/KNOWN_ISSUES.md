@@ -11,13 +11,12 @@ in [the backlog](../design/REMAINING_WORK.md).
 
 | Issue | Where |
 | --- | --- |
-| The whole suite ran on the module tree on 2026-10-09, on the CUDA build with an RTX 3080 Ti: of 2 049 tests 2 014 passed, none failed and 35 were skipped. The tree has not run on the OpenCL CPU device or on any other card | the whole tree |
+| The tree was configured, built and linked whole by `sb build`, test programs included, and `sb test` ran on 2026-10-12: 2 207 tests, none failed. That is one Windows machine, one card (an NVIDIA RTX 3080 Ti) and one toolchain (the pinned intel-llvm). The tree has not run on Linux, on an AMD or Intel GPU, on the OpenCL CPU device or on a second machine | the whole tree |
 | Of the benchmark programs only `benchmark_band_packed` has run, on that card; no other design figure about speed is a measurement | `tests/benchmark/` |
 | The record-time refusal of a device that cannot host the `syrk` or `syr2k` tile was never seen to throw: the one device the tree ran on hosts both tiles | `modules/operations/blas/include/SushiBLAS/blas/local_tile.hpp`, `require_local_tile` |
-| With `SB_BUILD_TESTS` and `SB_BUILD_EXAMPLES` off, as under a consumer, the tree was never configured | `CMakeLists.txt` |
-| The last syntax sweep of the whole tree ran at commit `1746b03`, over 250 translation units. Every later commit was checked file by file only, so an error between two files that were each parsed alone is still possible | `docs/agent/2026_10_07_V010/SPEC.md`, `OWNER_DECISIONS_LATE` |
-| The GPU evidence is two functional runs on one card, an RTX 3080 Ti. Neither recorded the device profile or which GPU-shaped paths it took, and nothing in sections 2 to 5 of the checklist is measured | [GPU_VALIDATION.md](../design/GPU_VALIDATION.md), section 0 |
-| No kernel written since the break has been compiled for an ahead-of-time target. `Kernels::multiply`, `divide` and `conjugate`, which keep `std::complex` functions out of the SYCL BLAS kernels, are among them | `modules/foundation/support/include/SushiBLAS/support/complex_arithmetic.hpp`, `modules/kernels/` |
+| With `SB_BUILD_TESTS` and `SB_BUILD_EXAMPLES` off, as under a consumer, the tree was never configured, and `tests/package/` was not built against an installed tree in the run of 2026-10-12 | `CMakeLists.txt`, `tests/package/` |
+| The GPU evidence is functional runs on one card, an RTX 3080 Ti, the last on 2026-10-12. None recorded the device profile or which GPU-shaped paths it took, and nothing in sections 2 to 5 of the checklist is measured | [GPU_VALIDATION.md](../design/GPU_VALIDATION.md), section 0 |
+| The kernels have been compiled by one toolchain, for the one card the tests ran on. No other ahead-of-time target has compiled them, and no SPIR-V device has. `Kernels::multiply`, `divide` and `conjugate`, which keep `std::complex` functions out of the SYCL BLAS kernels, are among them | `modules/foundation/support/include/SushiBLAS/support/complex_arithmetic.hpp`, `modules/kernels/` |
 | Whether every backend returns memory on the 128-byte boundary `Storage` asks `Runtime::buffer` for is unverified; an address off it fails an `SB_ASSERT`, which a build with `NDEBUG` compiles out | `modules/data/tensor/include/SushiBLAS/tensor/storage.hpp` |
 | The speed of the packed GEMM path is unmeasured, and its blocking defaults are derived from the cache size a device reports, which was never read on a real run | `modules/foundation/support/include/SushiBLAS/support/device_policy.hpp`, `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp` |
 | The solve block widths, 256 on a CPU and 128 on a GPU, come from assumed launch and step costs | `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp` |
@@ -25,7 +24,6 @@ in [the backlog](../design/REMAINING_WORK.md).
 | `Core::IndexBase` carries 221 and 222, written from memory of the Sparse BLAS header | `modules/foundation/core/include/SushiBLAS/core/sparse_types.hpp` |
 | The parity allowances of the random reference tests are estimates, and `LargeLambdaPoissonGivesTheSameCounts` asserts equality for one seed, which a device whose `log` or `lgamma` differs from the host's can break | `modules/operations/random/tests/test_random_reference.cpp` |
 | `ThePackedAndTheUnpackedKernelAgreeToTheBit` fails if the OpenCL CPU runtime contracts or reorders one GEMM kernel and not the other; whether it does was never observed | `tests/unit/test_packed_product.cpp` |
-| The link of the new task bodies on the pinned intel-llvm is untried. `all.cpp`, `any.cpp`, `shuffle.cpp` and `orthogonal.cpp` keep a generic lambda as their dtype arm, the shape the row on `HostKernel` symbols below describes | `modules/operations/logic/source/`, `modules/operations/random/source/` |
 | The open and unverified items each design lists | `docs/agent/2026_10_07_V010/SPEC.md`: `DESIGN_RECORDER` section 15, `DESIGN_SUPPORT_MEMORY` 18, `DESIGN_BLAS` 12, `DESIGN_BLAS_L3` 13, `DESIGN_BLAS_BAND_PACKED` 14, `DESIGN_GEMM_CPU` 10.3 and 13, `DESIGN_SPARSE` 18, `DESIGN_YOLO26` 13; and `REPORT.md`, section 7 |
 
 ## Behaviour
@@ -44,24 +42,24 @@ in [the backlog](../design/REMAINING_WORK.md).
 | A lease above 4 KiB is outside the scratch pool's size classes, so a recorded `trmv`, a packed GEMM (megabytes of panels) and a transposed or one-triangle sparse product each allocate and free device memory at every record | `modules/engine/engine/include/SushiBLAS/engine/scratch_shelf.hpp` |
 | A tensor that is recorded and then dropped stays allocated until its graph node dies, and a caller that keeps a compiled plan keeps every operand and scratch block of that plan | `modules/engine/engine/include/SushiBLAS/engine/operand_set.hpp` |
 | A recorder's identity comes from a `static` counter in an inline function, so two binaries that each link the static library can hand out one identity | `modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp` |
-| `rule_task_dependencies` reads text: a kernel that accepts `deps` and never uses it passes, and the regression test behind it covers seven operations | `tools/layering/check_layering.py`, `tests/regression/test_task_dependencies.cpp` |
+| `rule_task_dependencies` reads text: a kernel that accepts `deps` and never uses it passes. No test shows a kernel that drops its dependency events; `ARecordedTaskComputesItsResult` runs one operation of each seam alone | `tools/layering/check_layering.py`, `tests/regression/test_task_dependencies.cpp` |
 | A backward `tbsv` or `tpsv` and a backward `trsv` do not agree to the bit on inexact data, because the blocked dense solve subtracts from the top down | `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/trsm.hpp`, `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/triangular_solve.hpp` |
 | `sptrsv` solves on one work-item; whether a long `single_task` trips a driver watchdog on a display GPU is unknown | `modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sycl/sptrsv.hpp` |
 | A SYCL sum that overflows its accumulation type midway gives an infinity where the host fold in double gives the finite value | `modules/foundation/support/include/SushiBLAS/support/reduce_1d.hpp`, `serial_reduce.hpp` |
 | The eight older spatial operations do not check that a written tensor overlaps no read one; only the `window_dot` triple does | `modules/operations/spatial/source/` |
 | A rank-0 tensor prints as `[]`, and `IO::to_vector` zero-fills its result before reading into it | `modules/operations/io/source/io.cpp` |
 | The installed-package test calls no `SparseOps` routine, so it does not show that the sparse headers install | `tests/package/main.cpp` |
-| On the pinned intel-llvm for Windows, a generic lambda handed to `with_element_type` that calls a task body holding a SYCL kernel leaves the `HostKernel` members of that kernel undefined, and the test executable fails to link; the dtype arms of `execute_random` and `execute_typed_task` are named classes for that reason | `modules/operations/random/include/SushiBLAS/random/dispatch.hpp`, `modules/engine/engine/include/SushiBLAS/engine/task.hpp` |
+| On the pinned intel-llvm for Windows, a generic lambda handed to `with_element_type` that calls a task body holding a SYCL kernel left the `HostKernel` members of that kernel undefined, and the test executable failed to link; the dtype arms of `execute_random` and `execute_typed_task` are named classes for that reason. `all.cpp`, `any.cpp`, `shuffle.cpp` and `orthogonal.cpp` keep a generic lambda as their arm and linked in the build of 2026-10-12 | `modules/operations/random/include/SushiBLAS/random/dispatch.hpp`, `modules/engine/engine/include/SushiBLAS/engine/task.hpp` |
 | `gelu.cpp` includes `<numbers>`, a C++20 header, in a library built at C++17 | `modules/operations/nonlinear/source/gelu.cpp` |
 | `sb test --suite package` ends in a traceback when a DLL beside the consumer is locked | `cli/sushiblas/services/project.py` |
-| The fixture `Regression_AxisSpanTest` sits in the unit folder, so its tests carry the label `regression` | `modules/operations/reductions/tests/test_mean_spatial.cpp` |
+| The fixture `Regression_AxisSpanTest` sits among the tests of the `reductions` module, so its tests carry the label `regression` in a folder of unit tests | `modules/operations/reductions/tests/test_mean_spatial.cpp` |
 | `sb run --sort` keeps a flag name the sibling CLIs renamed to `--pick` | `cli/sushiblas/cli.py` |
 
 ## Comments and documents
 
 | Issue | Where |
 | --- | --- |
-| The manual and the module READMEs were read against the code once, on 2026-10-09, by nine agents, and about 150 sentences were corrected. Each report lists the sentences it could not check: measurements, history, and claims about another repository or a device | `docs/agent/2026_10_09_MANUAL_READ/REPORT.md` |
+| The file table of `modules/operations/README.md` names 139 sources by paths the tree does not have, such as `engine/blas/level1/asum.cpp` for `modules/operations/blas/source/level1/asum.cpp`; `modules/README.md` and the READMEs of `engine`, `core` and `support` each cite one header that way | `modules/operations/README.md`, `modules/engine/engine/README.md` |
 
 ## Layout
 
