@@ -1,6 +1,6 @@
 # Examples
 
-Six programs that link the library the way a user would. `applications/examples/CMakeLists.txt`
+Seven programs that link the library the way a user would. `applications/examples/CMakeLists.txt`
 builds them, one target each. Every program but `io_example` compares what it computed with a
 value computed on the host, prints the outcome and returns 0, or 1 when the comparison fails.
 The numbers are the same on every machine, with or without a GPU.
@@ -11,6 +11,7 @@ The numbers are the same on every machine, with or without a GPU.
 | `errors_demo.cpp` | `errors_demo` | What a wrong record call throws, what `execute()` returns, and what a file operation returns |
 | `recording_demo.cpp` | `recording_demo` | Several operations recorded, one `execute()`, tensors of two residencies, results read back |
 | `operation_families_demo.cpp` | `operation_families_demo` | One checked call of each operation family |
+| `graph_primitives_demo.cpp` | `graph_primitives_demo` | The four graph primitives on a SushiRuntime graph, without an engine |
 | `example.cpp` | `sushiblas_example` | One 256 x 256 GEMM on shared-memory tensors with a column-major engine, the program the root README quotes |
 | `io_example.cpp` | `io_example` | `to_string`, `save_npy` and `load_npy` on a 2 x 3 tensor, then a complex tensor printed |
 
@@ -112,3 +113,28 @@ comparison is `==`. The random draw is checked for equality between two draws of
 and for its range; the program prints no drawn number. A spatial tensor is rank 4 with the
 image index first and the channel last. The program prints one line per row, `ok` or
 `MISMATCH`, then `operation_families_demo: ok`.
+
+## `graph_primitives_demo.cpp`: the primitives on a runtime graph
+
+For a caller who uses SushiRuntime directly. The four primitives of
+[`graph_primitives`](../../modules/foundation/graph_primitives/README.md) take a
+`SushiRuntime::Recorder&` and `SushiRuntime::Buffer<T>` operands; no `Engine` and no `Tensor`
+is involved. The umbrella header does not include them, so this program includes
+`<SushiRuntime/sushiruntime.hpp>` and the headers under `<SushiBLAS/graph_primitives/>`.
+
+The program records all four on one `Graph` and runs it once:
+
+| Primitive | Input | Expected |
+| --- | --- | --- |
+| `reduce` with `Sum` | 1, 2, ..., 1000 | 500500 |
+| `segmented_reduce` with `Sum` | The same values with offsets 0, 10, 10, 1000 | 55, 0 and 500445; the empty segment gives the identity |
+| `prefix_scan` | Counts 3, 0, 2, 5 | Offsets 0, 3, 3, 5, 10 and a total of 10 |
+| `counting_sort` | Keys 2, 0, 2, 1, 0, 2 over a key range of 3 | Order 1, 4, 3, 0, 2, 5 and bucket starts 0, 2, 3, 6 |
+
+Each primitive returns a `SushiRuntime::Result<void>`, and the program stops on an error
+with `value()`. Before the run it shows the other branch: `segmented_reduce` asked for five
+segments over four offsets returns `ErrorCode::InvalidGraph` and records nothing, and the
+program prints `refused: InvalidGraph: ` followed by the message. It then prints one line per
+check and `graph_primitives_demo: ok`. A count is a `std::size_t` or a
+`SushiRuntime::LateCount`; `LateCount::fixed` gives one that is known when the call is
+recorded.

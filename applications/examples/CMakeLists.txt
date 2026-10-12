@@ -31,6 +31,10 @@ add_executable(operation_families_demo operation_families_demo.cpp)
 target_link_libraries(operation_families_demo PRIVATE sushiblas)
 sushiblas_apply_build_policy(operation_families_demo)
 
+add_executable(graph_primitives_demo graph_primitives_demo.cpp)
+target_link_libraries(graph_primitives_demo PRIVATE sushiblas)
+sushiblas_apply_build_policy(graph_primitives_demo)
+
 # Ensure RPATH is set
 set_target_properties(
     sushiblas_example
@@ -39,6 +43,7 @@ set_target_properties(
     errors_demo
     recording_demo
     operation_families_demo
+    graph_primitives_demo
     PROPERTIES
     BUILD_RPATH "${CMAKE_BINARY_DIR}/src"
 )
@@ -88,6 +93,13 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
             $<TARGET_FILE_DIR:operation_families_demo>
+        COMMENT "Copying runtime DLL to example directory..."
+    )
+
+    add_custom_command(TARGET graph_primitives_demo POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+            $<TARGET_FILE_DIR:graph_primitives_demo>
         COMMENT "Copying runtime DLL to example directory..."
     )
 endif()
