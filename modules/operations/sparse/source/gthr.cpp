@@ -36,7 +36,7 @@
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiBLAS/sparse/sparse_vector_operand.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
@@ -62,7 +62,7 @@ namespace SushiBLAS
             OperandSet operands;
             operands.reads(x.indices).reads(y).writes(x.values);
 
-            const Internal::BLASMetadata meta = Internal::BLASMetadata(K_OP, "sparse.gthr"_op);
+            const Internal::BLASMetadata metadata = Internal::BLASMetadata(K_OP, "sparse.gthr"_op);
 
             const int64_t count = sx.nnz;
             const int64_t extent = sx.size;
@@ -72,7 +72,7 @@ namespace SushiBLAS
             void* write_x = x.values.data_or_null();
 
             return Internal::execute_typed_task<Dispatch::Domain::All>(
-                recorder, meta.get(), operands, x.values.dtype, "Sparse operation",
+                recorder, metadata.get(), operands, x.values.dtype, "Sparse operation",
                 [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                     sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {

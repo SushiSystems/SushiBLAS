@@ -636,40 +636,40 @@ TEST_F(Unit_DispatchSeamTest, RNGMetadataSlotsAreInRangeAndRoundTrip)
     constexpr uint64_t kSeed = 0xDEADBEEFCAFEF00Dull;
     constexpr uint64_t kOffset = 42;
 
-    constexpr int K_SLOTS = static_cast<int>(sb::TaskDescription::K_MAX_PARAMS);
+    constexpr int K_SLOTS = static_cast<int>(sb::TaskDescription::K_MAX_PARAMETERS);
     static_assert(sb::Dispatch::K_RNG_SEED_PARAM < K_SLOTS);
     static_assert(sb::Dispatch::K_RNG_OFFSET_PARAM < K_SLOTS);
 
-    sb::TaskDescription meta;
-    sb::Dispatch::set_rng_params(meta, kSeed, kOffset);
+    sb::TaskDescription description;
+    sb::Dispatch::set_rng_params(description, kSeed, kOffset);
 
-    EXPECT_EQ(meta.param<uint64_t>(sb::Dispatch::K_RNG_SEED_PARAM), kSeed);
-    EXPECT_EQ(meta.param<uint64_t>(sb::Dispatch::K_RNG_OFFSET_PARAM), kOffset);
+    EXPECT_EQ(description.parameter<uint64_t>(sb::Dispatch::K_RNG_SEED_PARAM), kSeed);
+    EXPECT_EQ(description.parameter<uint64_t>(sb::Dispatch::K_RNG_OFFSET_PARAM), kOffset);
 }
 
 TEST_F(Unit_DispatchSeamTest, DistributionParamsDoNotCollideWithTheRNGSlots)
 {
-    sb::TaskDescription meta;
+    sb::TaskDescription description;
     const std::initializer_list<double> params = {1.0, 2.0, 3.0, 4.0};
 
     sb::Dispatch::set_task_params(
-        meta, params, "test.params",
-        sb::TaskDescription::K_MAX_PARAMS - sb::Dispatch::K_MAX_RNG_PARAMS);
-    sb::Dispatch::set_rng_params(meta, 7, 8);
+        description, params, "test.params",
+        sb::TaskDescription::K_MAX_PARAMETERS - sb::Dispatch::K_MAX_RNG_PARAMS);
+    sb::Dispatch::set_rng_params(description, 7, 8);
 
     for (size_t i = 0; i < params.size(); ++i)
     {
-        EXPECT_DOUBLE_EQ(meta.param<double>(static_cast<int>(i)), params.begin()[i]);
+        EXPECT_DOUBLE_EQ(description.parameter<double>(static_cast<int>(i)), params.begin()[i]);
     }
-    EXPECT_EQ(meta.param<uint64_t>(sb::Dispatch::K_RNG_SEED_PARAM), 7u);
-    EXPECT_EQ(meta.param<uint64_t>(sb::Dispatch::K_RNG_OFFSET_PARAM), 8u);
+    EXPECT_EQ(description.parameter<uint64_t>(sb::Dispatch::K_RNG_SEED_PARAM), 7u);
+    EXPECT_EQ(description.parameter<uint64_t>(sb::Dispatch::K_RNG_OFFSET_PARAM), 8u);
 }
 
 TEST_F(Unit_DispatchSeamTest, TooManyTaskParamsThrowsInsteadOfDroppingThem)
 {
     auto t = engine->create_tensor({4});
 
-    static_assert(sb::TaskDescription::K_MAX_PARAMS == 8,
+    static_assert(sb::TaskDescription::K_MAX_PARAMETERS == 8,
                   "the list below is one longer than the capacity");
     EXPECT_THROW(
         sb::Dispatch::execute_unary_inplace(
@@ -723,13 +723,13 @@ TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
 {
     auto t = engine->create_tensor({4}, DataType::Complex32);
 
-    SushiBLAS::TaskDescription meta;
-    meta.name = "spatial.im2col";
+    SushiBLAS::TaskDescription description;
+    description.name = "spatial.im2col";
 
     try
     {
         (void)sb::Internal::execute_typed_task<sb::Dispatch::Domain::Real>(
-            engine->recorder(), meta, SushiBLAS::OperandSet(), t.dtype, "Spatial operation",
+            engine->recorder(), description, SushiBLAS::OperandSet(), t.dtype, "Spatial operation",
             [](auto, const sb::Internal::KernelPairDispatcher&, sycl::queue&,
                const std::vector<sycl::event>&) -> sycl::event
             {

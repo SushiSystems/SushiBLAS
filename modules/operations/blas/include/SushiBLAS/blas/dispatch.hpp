@@ -41,7 +41,7 @@
 #include <SushiBLAS/blas/blas_task.hpp>
 #include <SushiBLAS/blas/packed_product_scratch.hpp>
 #include <SushiBLAS/operands/scalar.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/matrix_operand.hpp>
 #include <SushiRuntime/api/data/buffer.hpp>
@@ -255,7 +255,7 @@ namespace SushiBLAS
             // Only the functor enters the kernel closure, never the bundle and its operand set.
             const auto kernel_epilogue = Detail::epilogue_functor(epilogue);
 
-            const Internal::BLASMetadata meta = Internal::BLASMetadata(name, op_id)
+            const Internal::BLASMetadata metadata = Internal::BLASMetadata(name, op_id)
                                                     .scalar(alpha).scalar(beta)
                                                     .flag(transA).flag(transB);
 
@@ -267,7 +267,7 @@ namespace SushiBLAS
             const void* read_B = B.data_or_null();
             void* rw_C = C.data_or_null();
 
-            return Internal::execute_blas_task<Dom>(recorder, meta.get(), operands, A.dtype,
+            return Internal::execute_blas_task<Dom>(recorder, metadata.get(), operands, A.dtype,
                 [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                     sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {

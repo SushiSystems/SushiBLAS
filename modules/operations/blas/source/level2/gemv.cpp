@@ -32,7 +32,7 @@
 #include <SushiBLAS/blas_kernels/blas.hpp>
 #include <SushiBLAS/blas/blas_task.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/matrix_operand.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
@@ -70,7 +70,7 @@ namespace SushiBLAS
         else
             operands.updates(y);
 
-        const Internal::BLASMetadata meta =
+        const Internal::BLASMetadata metadata =
             Internal::BLASMetadata(op, "blas.lvl2.gemv"_op).scalar(alpha).scalar(beta).flag(trans);
 
         const Core::Layout layout = a.layout;
@@ -83,7 +83,7 @@ namespace SushiBLAS
         const void* read_x = x.data_or_null();
         void* rw_y = y.data_or_null();
 
-        return Internal::execute_blas_task(recorder_, meta.get(), operands, A.dtype,
+        return Internal::execute_blas_task(recorder_, metadata.get(), operands, A.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

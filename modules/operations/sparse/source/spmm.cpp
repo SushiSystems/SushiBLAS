@@ -39,7 +39,7 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/operands/scratch_lease.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/matrix_operand.hpp>
 #include <SushiBLAS/sparse/sparse_matrix_operand.hpp>
@@ -82,7 +82,7 @@ namespace SushiBLAS
                 recorder, A.row_offsets,
                 Internal::running_solution_bytes(A.values.dtype) * work_elements, operands);
 
-            const Internal::BLASMetadata meta = Internal::BLASMetadata(K_OP, "sparse.spmm"_op)
+            const Internal::BLASMetadata metadata = Internal::BLASMetadata(K_OP, "sparse.spmm"_op)
                                                     .scalar(alpha).scalar(beta).flag(trans);
 
             const Core::Layout layout = c.layout;
@@ -99,7 +99,7 @@ namespace SushiBLAS
             const void* read_B = B.data_or_null();
             void* rw_C = C.data_or_null();
 
-            return Internal::execute_typed_task(recorder, meta.get(), operands, A.values.dtype,
+            return Internal::execute_typed_task(recorder, metadata.get(), operands, A.values.dtype,
                                                 "Sparse operation",
                 [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                     sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

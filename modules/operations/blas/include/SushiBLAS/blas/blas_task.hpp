@@ -49,11 +49,11 @@ namespace SushiBLAS
          */
         template<Dispatch::Domain Dom = Dispatch::Domain::RealAndComplex, typename Func>
         TaskHandle execute_blas_task(TaskRecorder& recorder,
-                                     const TaskDescription& meta,
+                                     const TaskDescription& description,
                                      const OperandSet& operands, Core::DataType dtype,
                                      Func&& op_func)
         {
-            return execute_typed_task<Dom>(recorder, meta, operands, dtype, "BLAS operation",
+            return execute_typed_task<Dom>(recorder, description, operands, dtype, "BLAS operation",
                                            std::forward<Func>(op_func));
         }
     } // namespace Internal

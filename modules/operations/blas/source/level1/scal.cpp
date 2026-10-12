@@ -32,7 +32,7 @@
 #include <SushiBLAS/blas_kernels/blas.hpp>
 #include <SushiBLAS/blas/blas_task.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
@@ -52,14 +52,14 @@ namespace SushiBLAS
         OperandSet operands;
         operands.updates(x);
 
-        const Internal::BLASMetadata meta =
+        const Internal::BLASMetadata metadata =
             Internal::BLASMetadata(op, "blas.lvl1.scal"_op).scalar(alpha);
 
         const int64_t n = vx.length;
         const int64_t incx = vx.increment;
         void* rw_x = x.data_or_null();
 
-        return Internal::execute_blas_task(recorder_, meta.get(), operands, x.dtype,
+        return Internal::execute_blas_task(recorder_, metadata.get(), operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

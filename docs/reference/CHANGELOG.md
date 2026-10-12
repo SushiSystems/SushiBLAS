@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — engine: Breaking change: renamed the members of `TaskDescription` to `operation`, `parameters`, `K_MAX_PARAMETERS`, `set_parameter` and `parameter<T>`, and `task_metadata.hpp` to `blas_metadata.hpp`.
 - 2026-10-12 — tensor: Included `<SushiRuntime/core/sushi_ptr.hpp>` and `ref_counted.hpp` where they are named, and stated `K_STORAGE_ALIGNMENT` as 128 without `core/common.hpp` (`storage.hpp`, `tensor.hpp`, `scratch_shelf.hpp`).
 - 2026-10-12 — tests: Spelled the run layer `SushiRuntime::ExecutionLayer` and included `<SushiRuntime/api/runtime/logging.hpp>` for `set_log_synchronous` (`test_device_sized_primitives.cpp`, `test_main.cpp`).
 - 2026-10-12 — tests: Made `TestEnvironment::live_allocation_count()` call `AdvancedControls::live_allocation_count()`; no test reaches the runtime's context any more (`test_environment.hpp`).

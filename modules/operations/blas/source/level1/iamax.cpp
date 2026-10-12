@@ -35,7 +35,7 @@
 #include <SushiBLAS/operands/scalar_result.hpp>
 #include <SushiBLAS/operands/scratch_lease.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
@@ -60,13 +60,13 @@ namespace SushiBLAS
             recorder_, x, static_cast<std::size_t>(n),
             Kernels::SYCL::K_LEVEL1_PARTIAL_BYTES, operands);
 
-        const Internal::BLASMetadata meta(op, "blas.lvl1.iamax"_op);
+        const Internal::BLASMetadata metadata(op, "blas.lvl1.iamax"_op);
 
         const int64_t incx = vx.increment;
         const void* read_x = x.data_or_null();
         void* write_r = result.data_or_null();
 
-        return Internal::execute_blas_task(recorder_, meta.get(), operands, x.dtype,
+        return Internal::execute_blas_task(recorder_, metadata.get(), operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

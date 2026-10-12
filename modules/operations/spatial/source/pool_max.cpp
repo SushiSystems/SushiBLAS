@@ -69,15 +69,15 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(in).writes(out).writes(indices);
 
-        TaskDescription meta;
-        meta.name = NAME;
-        meta.op_id = "spatial.pool_max"_op;
+        TaskDescription description;
+        description.name = NAME;
+        description.operation = "spatial.pool_max"_op;
 
         // The switch runs on the value dtype; the index pointer is int64_t*; see modules/operations/README.md.
         auto* index_out = static_cast<int64_t*>(write_indices);
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
-            recorder_, meta, operands, in.dtype, "Spatial operation",
+            recorder_, description, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

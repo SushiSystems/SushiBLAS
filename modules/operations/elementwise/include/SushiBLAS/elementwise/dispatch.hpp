@@ -79,13 +79,13 @@ namespace SushiBLAS
             operands.updates(t);
             Detail::declare_reads(op_func, operands, name);
 
-            TaskDescription meta;
-            meta.name = name;
-            meta.op_id = op_id;
-            set_task_params(meta, params, name);
+            TaskDescription description;
+            description.name = name;
+            description.operation = op_id;
+            set_task_params(description, params, name);
 
             void* ptr = t.data();
-            return recorder.record_pair(meta, operands, "Elementwise operation",
+            return recorder.record_pair(description, operands, "Elementwise operation",
                 Detail::make_map_task<Dom>(t.dtype, "Elementwise operation", name,
                                            static_cast<std::size_t>(t.num_elements), ptr,
                                            Detail::task_functor(op_func),
@@ -131,12 +131,12 @@ namespace SushiBLAS
             operands.reads(A).reads(B).writes(C);
             Detail::declare_reads(op_func, operands, name);
 
-            TaskDescription meta;
-            meta.name = name;
-            meta.op_id = op_id;
-            set_task_params(meta, params, name);
+            TaskDescription description;
+            description.name = name;
+            description.operation = op_id;
+            set_task_params(description, params, name);
 
-            return recorder.record_pair(meta, operands, "Elementwise operation",
+            return recorder.record_pair(description, operands, "Elementwise operation",
                 Detail::make_map_task<Dom>(A.dtype, "Elementwise operation", name,
                                            static_cast<std::size_t>(A.num_elements), C.data(),
                                            Detail::task_functor(op_func), A.data(), B.data()));
@@ -193,13 +193,13 @@ namespace SushiBLAS
             }
             Detail::declare_reads(op_func, operands, name);
 
-            TaskDescription meta;
-            meta.name = name;
-            meta.op_id = op_id;
-            set_task_params(meta, params, name);
+            TaskDescription description;
+            description.name = name;
+            description.operation = op_id;
+            set_task_params(description, params, name);
 
             using Op = std::decay_t<decltype(Detail::task_functor(op_func))>;
-            return recorder.record_pair(meta, operands, "Elementwise operation",
+            return recorder.record_pair(description, operands, "Elementwise operation",
                 Detail::ZipTask<Dom, Op, N>(dtype, "Elementwise operation", name,
                                             static_cast<std::size_t>(size), ptrs,
                                             Detail::task_functor(op_func)));

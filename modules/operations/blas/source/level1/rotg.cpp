@@ -33,7 +33,7 @@
 #include <SushiBLAS/blas/blas_task.hpp>
 #include <SushiBLAS/operands/scalar_result.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/blas/scalar_operand.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
@@ -60,14 +60,14 @@ namespace SushiBLAS
             operands.updates(b);
         operands.writes(c).writes(s);
 
-        const Internal::BLASMetadata meta(op, "blas.lvl1.rotg"_op);
+        const Internal::BLASMetadata metadata(op, "blas.lvl1.rotg"_op);
 
         void* rw_a = a.data_or_null();
         void* rw_b = b.data_or_null();
         void* write_c = c.data_or_null();
         void* write_s = s.data_or_null();
 
-        return Internal::execute_blas_task(recorder_, meta.get(), operands, a.dtype,
+        return Internal::execute_blas_task(recorder_, metadata.get(), operands, a.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

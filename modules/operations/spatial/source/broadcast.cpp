@@ -98,12 +98,12 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(in).reads(gamma).reads(beta).writes(out);
 
-        TaskDescription meta;
-        meta.name = NAME;
-        meta.op_id = "spatial.channel_affine"_op;
+        TaskDescription description;
+        description.name = NAME;
+        description.operation = "spatial.channel_affine"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
-            recorder_, meta, operands, in.dtype, "Spatial operation",
+            recorder_, description, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
@@ -164,12 +164,12 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(in).writes(out);
 
-        TaskDescription meta;
-        meta.name = NAME;
-        meta.op_id = "spatial.broadcast_spatial"_op;
+        TaskDescription description;
+        description.name = NAME;
+        description.operation = "spatial.broadcast_spatial"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
-            recorder_, meta, operands, in.dtype, "Spatial operation",
+            recorder_, description, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
@@ -238,12 +238,12 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(in).writes(out);
 
-        TaskDescription meta;
-        meta.name = NAME;
-        meta.op_id = "spatial.layout_convert"_op;
+        TaskDescription description;
+        description.name = NAME;
+        description.operation = "spatial.layout_convert"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
-            recorder_, meta, operands, in.dtype, "Spatial operation",
+            recorder_, description, operands, in.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

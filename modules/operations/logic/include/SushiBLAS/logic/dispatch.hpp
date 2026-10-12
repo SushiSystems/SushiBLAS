@@ -81,12 +81,12 @@ namespace SushiBLAS
             operands.reads(x).writes(result);
             Detail::declare_reads(op_func, operands, name);
 
-            TaskDescription meta;
-            meta.name = name;
-            meta.op_id = op_id;
-            set_task_params(meta, params, name);
+            TaskDescription description;
+            description.name = name;
+            description.operation = op_id;
+            set_task_params(description, params, name);
 
-            return recorder.record_pair(meta, operands, "Logic operation",
+            return recorder.record_pair(description, operands, "Logic operation",
                 Detail::make_map_task<Dom>(x.dtype, "Logic operation", name,
                                            static_cast<std::size_t>(x.num_elements), result.data(),
                                            Detail::task_functor(op_func), x.data()));
@@ -132,12 +132,12 @@ namespace SushiBLAS
             operands.reads(A).reads(B).writes(result);
             Detail::declare_reads(op_func, operands, name);
 
-            TaskDescription meta;
-            meta.name = name;
-            meta.op_id = op_id;
-            set_task_params(meta, params, name);
+            TaskDescription description;
+            description.name = name;
+            description.operation = op_id;
+            set_task_params(description, params, name);
 
-            return recorder.record_pair(meta, operands, "Logic operation",
+            return recorder.record_pair(description, operands, "Logic operation",
                 Detail::make_map_task<Dom>(A.dtype, "Logic operation", name,
                                            static_cast<std::size_t>(A.num_elements), result.data(),
                                            Detail::task_functor(op_func), A.data(), B.data()));
@@ -189,12 +189,12 @@ namespace SushiBLAS
             operands.reads(cond).reads(A).reads(B).writes(result);
             Detail::declare_reads(op_func, operands, name);
 
-            TaskDescription meta;
-            meta.name = name;
-            meta.op_id = op_id;
-            set_task_params(meta, params, name);
+            TaskDescription description;
+            description.name = name;
+            description.operation = op_id;
+            set_task_params(description, params, name);
 
-            return recorder.record_pair(meta, operands, "Logic operation",
+            return recorder.record_pair(description, operands, "Logic operation",
                 Detail::make_map_task<Dom>(cond.dtype, "Logic operation", name,
                                            static_cast<std::size_t>(cond.num_elements),
                                            result.data(), Detail::task_functor(op_func),

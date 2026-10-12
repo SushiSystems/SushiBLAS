@@ -39,7 +39,7 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/operands/scalar_result.hpp>
 #include <SushiBLAS/operands/scratch_lease.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiBLAS/sparse/sparse_vector_operand.hpp>
@@ -71,7 +71,7 @@ namespace SushiBLAS
                 recorder, x.values, static_cast<std::size_t>(sx.nnz),
                 Kernels::SYCL::K_LEVEL1_PARTIAL_BYTES, operands);
 
-            const Internal::BLASMetadata meta = Internal::BLASMetadata(op, op_id);
+            const Internal::BLASMetadata metadata = Internal::BLASMetadata(op, op_id);
 
             const int64_t count = sx.nnz;
             const int64_t extent = sx.size;
@@ -81,7 +81,7 @@ namespace SushiBLAS
             const void* read_y = y.data_or_null();
             void* write_result = result.data_or_null();
 
-            return Internal::execute_typed_task(recorder, meta.get(), operands, x.values.dtype,
+            return Internal::execute_typed_task(recorder, metadata.get(), operands, x.values.dtype,
                                                 "Sparse operation",
                 [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                     sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

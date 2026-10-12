@@ -74,12 +74,12 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(dy).reads(in).writes(dweights);
 
-        TaskDescription meta;
-        meta.name = NAME;
-        meta.op_id = "spatial.window_dot_weights_backward"_op;
+        TaskDescription description;
+        description.name = NAME;
+        description.operation = "spatial.window_dot_weights_backward"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
-            recorder_, meta, operands, dy.dtype, "Spatial operation",
+            recorder_, description, operands, dy.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

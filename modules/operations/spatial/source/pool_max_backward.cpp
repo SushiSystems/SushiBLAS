@@ -68,14 +68,14 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(dy).reads(indices).writes(dx);
 
-        TaskDescription meta;
-        meta.name = NAME;
-        meta.op_id = "spatial.pool_max_backward"_op;
+        TaskDescription description;
+        description.name = NAME;
+        description.operation = "spatial.pool_max_backward"_op;
 
         const auto* index_in = static_cast<const int64_t*>(read_indices);
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
-            recorder_, meta, operands, dy.dtype, "Spatial operation",
+            recorder_, description, operands, dy.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

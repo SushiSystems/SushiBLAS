@@ -38,7 +38,7 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/operands/scratch_lease.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiBLAS/sparse/sparse_matrix_operand.hpp>
@@ -72,7 +72,7 @@ namespace SushiBLAS
                 Internal::running_solution_bytes(A.values.dtype) * static_cast<std::size_t>(a.rows),
                 operands);
 
-            const Internal::BLASMetadata meta = Internal::BLASMetadata(K_OP, "sparse.sptrsv"_op)
+            const Internal::BLASMetadata metadata = Internal::BLASMetadata(K_OP, "sparse.sptrsv"_op)
                                                     .flag(uplo).flag(trans).flag(diag);
 
             const int64_t rows = a.rows;
@@ -84,7 +84,7 @@ namespace SushiBLAS
             const void* read_values = A.values.data_or_null();
             void* rw_b = b.data_or_null();
 
-            return Internal::execute_typed_task(recorder, meta.get(), operands, A.values.dtype,
+            return Internal::execute_typed_task(recorder, metadata.get(), operands, A.values.dtype,
                                                 "Sparse operation",
                 [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                     sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

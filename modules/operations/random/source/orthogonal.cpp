@@ -75,12 +75,12 @@ namespace SushiBLAS
 
         void* ptr = t.data();
 
-        TaskDescription meta;
-        meta.name = name;
-        meta.op_id = "random.orthogonal"_op;
-        meta.set_param(0, gain);
+        TaskDescription description;
+        description.name = name;
+        description.operation = "random.orthogonal"_op;
+        description.set_parameter(0, gain);
 
-        return recorder_.record_pair(meta, operands, "RNG operation",
+        return recorder_.record_pair(description, operands, "RNG operation",
             [dtype = t.dtype, ptr, set, gain, name]
             (const Internal::KernelPairDispatcher& pair, sycl::queue& q,
              const std::vector<sycl::event>& deps) -> sycl::event

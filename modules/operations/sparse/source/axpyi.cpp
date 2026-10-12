@@ -35,7 +35,7 @@
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiBLAS/sparse/sparse_vector_operand.hpp>
@@ -62,7 +62,7 @@ namespace SushiBLAS
             OperandSet operands;
             operands.reads(x.indices).reads(x.values).updates(y);
 
-            const Internal::BLASMetadata meta =
+            const Internal::BLASMetadata metadata =
                 Internal::BLASMetadata(K_OP, "sparse.axpyi"_op).scalar(alpha);
 
             const int64_t count = sx.nnz;
@@ -72,7 +72,7 @@ namespace SushiBLAS
             const void* read_x = x.values.data_or_null();
             void* rw_y = y.data_or_null();
 
-            return Internal::execute_typed_task(recorder, meta.get(), operands, x.values.dtype,
+            return Internal::execute_typed_task(recorder, metadata.get(), operands, x.values.dtype,
                                                 "Sparse operation",
                 [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                     sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

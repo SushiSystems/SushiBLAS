@@ -58,12 +58,12 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(cols).writes(image);
 
-        TaskDescription meta;
-        meta.name = NAME;
-        meta.op_id = "spatial.col2im"_op;
+        TaskDescription description;
+        description.name = NAME;
+        description.operation = "spatial.col2im"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
-            recorder_, meta, operands, image.dtype, "Spatial operation",
+            recorder_, description, operands, image.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

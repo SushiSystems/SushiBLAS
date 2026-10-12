@@ -33,7 +33,7 @@
 #include <SushiBLAS/blas/blas_task.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiBLAS/blas_seam_kernels/modified_givens.hpp>
@@ -62,7 +62,7 @@ namespace SushiBLAS
         OperandSet operands;
         operands.updates(x).updates(y).reads(param);
 
-        const Internal::BLASMetadata meta(op, "blas.lvl1.rotm"_op);
+        const Internal::BLASMetadata metadata(op, "blas.lvl1.rotm"_op);
 
         const int64_t n = vx.length;
         const int64_t incx = vx.increment;
@@ -72,7 +72,7 @@ namespace SushiBLAS
         const void* read_param = param.data_or_null();
 
         return Internal::execute_blas_task<Dispatch::Domain::Real>(
-            recorder_, meta.get(), operands, x.dtype,
+            recorder_, metadata.get(), operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
