@@ -13,7 +13,7 @@ the `SparseBuilder` are in [the sparse_storage module](../../data/sparse_storage
 | `sparse_matrix_operand.hpp` | `SparseMatrixOperand` and `describe_sparse_matrix` |
 | `accumulator_size.hpp` | `accumulator_bytes`, the size of the type a kernel accumulates a dtype in |
 
-## `engine/sparse.hpp`
+## `sparse/sparse.hpp`
 
 `SparseOps` is a view over a `TaskRecorder`, built from the recorder or from an `Engine&`, as every
 other view is. It derives from nothing and no class derives from it. Each routine returns a

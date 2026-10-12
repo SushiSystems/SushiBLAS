@@ -9,7 +9,7 @@
 
 Every executor takes a `TaskRecorder&` and returns a `TaskHandle`. The three executors record the
 same `Detail::MapTask` the elementwise family does, so they accept a `bind_reads` bundle and have
-the serial host path under `ForceReference`; `modules/operations/MATH_README.md` describes
+the serial host path under `ForceReference`; `modules/engine/functor_map/README.md` describes
 both under "The per-element seam".
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
@@ -22,7 +22,8 @@ this page.
 
 Each executor checks shapes, layouts, dtypes and the domain, then returns a default `TaskHandle`
 without recording a task when `result` holds no elements. A tensor with zero elements needs no
-storage. `modules/operations/MATH_README.md` states the same rule for the elementwise family.
+storage. `modules/operations/elementwise/README.md` states the same rule for the elementwise
+family, under "Empty operands".
 
 ### `execute_logic_unary`
 
