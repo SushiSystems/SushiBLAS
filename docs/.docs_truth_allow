@@ -7,7 +7,6 @@ cli/config\.local\.toml # a gitignored file each machine creates for its own pat
 KernelFailed|DeviceLost|CompileFailed|sr_format|sized_from_device # names of SushiRuntime, which this repository does not hold
 memory_allocation # an enumerator of sycl::errc
 sushiblas_[a-z_]+_tests # a test program cmake/SushiBLASTests.cmake names from its module
-do_(first|second|something)|execute_specific_logic_for_this_unique_case # placeholders of the brace-style illustration
 pkg_check_modules # a CMake command
 doxygen_exe # a configuration key of sushicore, the shared layer of the CLI
 KeyError # a Python built-in exception
