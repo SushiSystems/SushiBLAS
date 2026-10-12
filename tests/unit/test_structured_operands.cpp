@@ -36,6 +36,7 @@
 #include <SushiBLAS/blas/band_operand.hpp>
 #include <SushiBLAS/blas/packed_operand.hpp>
 #include <SushiBLAS/blas/scalar_operand.hpp>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 #include "../common/test_utils.hpp"
 
 namespace SushiBLAS

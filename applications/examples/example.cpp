@@ -31,6 +31,7 @@
 #include <SushiBLAS/SushiBLAS.h>
 
 namespace sb = SushiBLAS;
+namespace sr = SushiRuntime;
 
 int main()
 {

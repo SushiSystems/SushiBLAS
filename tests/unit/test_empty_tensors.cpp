@@ -29,6 +29,7 @@
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 #include "../common/test_utils.hpp"
 #include "../common/graph_probe.hpp"
 

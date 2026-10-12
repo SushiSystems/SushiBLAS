@@ -36,6 +36,7 @@
 #include <SushiBLAS/support/reduce_axis.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/reductions/dispatch.hpp>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 #include "test_utils.hpp"
 #include "graph_probe.hpp"
 

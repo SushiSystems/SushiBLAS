@@ -32,6 +32,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/scratch_shelf.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 #include "test_environment.hpp"
 
 namespace SushiBLAS

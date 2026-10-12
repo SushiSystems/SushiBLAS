@@ -187,9 +187,8 @@ state, so a `Storage` may outlive the `Runtime` object it was allocated from.
 
 Every allocation base is a multiple of 128 bytes, and so is every allocation size. `Storage` passes
 the constant to `Runtime::buffer` as the alignment it asks for, and the runtime allocates at it;
-an `SB_ASSERT` checks the address in a debug build. The constant is
-`SushiRuntime::K_DEFAULT_ALIGNMENT`, and a `static_assert` beside it fails the build if the
-runtime's value stops being 128. `Tensor::is_aligned()` reports whether a view's first element sits
+an `SB_ASSERT` checks the address in a debug build. `storage.hpp` states the constant itself and
+takes it from no runtime header. `Tensor::is_aligned()` reports whether a view's first element sits
 on that boundary: a view at `storage_offset` 0 does, and a view at another offset is aligned to
 its element size only.
 

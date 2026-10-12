@@ -33,6 +33,7 @@
 #include <SushiBLAS/blas/dispatch.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
 #include <SushiBLAS/blas_seam_kernels/reference/level3/gemm.hpp>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 #include "test_utils.hpp"
 #include "blas_flags.hpp"
 #include "graph_probe.hpp"

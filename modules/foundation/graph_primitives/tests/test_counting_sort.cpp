@@ -32,6 +32,7 @@
 #include <numeric>
 #include <random>
 #include <utility>
+#include <optional>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -691,7 +692,10 @@ namespace SushiBLAS
                 const SushiRuntime::Result<void> recorded =
                     counting_sort(graph.recorder(), keys, i, o, t, LateCount::fixed(n),
                                   LateCount::fixed(range), c);
-                return recorded ? SushiRuntime::ErrorCode::Ok : recorded.error().code;
+                if (recorded)
+                    return std::optional<SushiRuntime::ErrorCode>();
+
+                return std::optional<SushiRuntime::ErrorCode>(recorded.error().code);
             };
             const auto invalid = SushiRuntime::ErrorCode::InvalidGraph;
 

@@ -43,6 +43,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/reductions/dispatch.hpp>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 #include "test_utils.hpp"
 #include "blas_truth.hpp"
 #include "graph_probe.hpp"

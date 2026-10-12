@@ -38,6 +38,7 @@
 #include <SushiBLAS/sparse/accumulator_size.hpp>
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
 #include <SushiBLAS/sparse_kernels/index_list.hpp>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 
 namespace SushiBLAS
 {

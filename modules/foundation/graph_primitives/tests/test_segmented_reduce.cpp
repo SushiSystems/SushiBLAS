@@ -29,6 +29,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -185,7 +186,10 @@ namespace SushiBLAS
                                             LateCount::fixed(4), Sum<float>{})
                          : segmented_reduce(graph.recorder(), values, bounds, output,
                                             std::size_t{4}, Sum<float>{});
-                return recorded ? SushiRuntime::ErrorCode::Ok : recorded.error().code;
+                if (recorded)
+                    return std::optional<SushiRuntime::ErrorCode>();
+
+                return std::optional<SushiRuntime::ErrorCode>(recorded.error().code);
             };
 
             for (const bool late : {false, true})

@@ -35,6 +35,7 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 #include "test_utils.hpp"
 #include "graph_probe.hpp"
 #include "sparse_samples.hpp"

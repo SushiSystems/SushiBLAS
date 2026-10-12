@@ -35,6 +35,7 @@
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 
 namespace SushiBLAS
 {

@@ -39,6 +39,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 #include "../common/test_utils.hpp"
 #include "../common/graph_probe.hpp"
 

@@ -33,6 +33,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiRuntime/core/ref_counted.hpp>
 
 namespace SushiBLAS
 {
@@ -41,11 +42,7 @@ namespace SushiBLAS
      *        multiple of.
      * @see modules/README.md
      */
-    inline constexpr std::size_t K_STORAGE_ALIGNMENT = SushiRuntime::K_DEFAULT_ALIGNMENT;
-
-    static_assert(K_STORAGE_ALIGNMENT == 128,
-                  "Storage documents a 128-byte alignment; SushiRuntime::K_DEFAULT_ALIGNMENT "
-                  "moved, and the documented guarantee has to move with it on purpose.");
+    inline constexpr std::size_t K_STORAGE_ALIGNMENT = 128;
 
     /**
      * @class Storage
