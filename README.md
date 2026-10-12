@@ -2,7 +2,7 @@
 
 SushiBLAS is a C++17 tensor and BLAS library built on [SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph. You create tensors through an `Engine` and record operations on them through view objects built from it; the runtime tracks the dependencies between the recorded tasks and runs them on a CPU or a GPU through SYCL. No kernel calls a vendor math library: there is no oneMKL and no cuBLAS behind it.
 
-No release is tagged; the version in `CMakeLists.txt` is 0.1.0. [The known issues](docs/reference/KNOWN_ISSUES.md) say which devices the tests have run on. This page says what the code does; it gives no speed figure.
+No release is tagged; the version in `CMakeLists.txt` is 0.1.0. The tree has been built and tested on one machine with one card, and [the known issues](docs/reference/KNOWN_ISSUES.md) say what that leaves out. This page says what the code does; it gives no speed figure.
 
 The manual is in [docs/README.md](docs/README.md).
 
@@ -91,7 +91,7 @@ To see whether a kernel spills registers:
 sb build --type release -D SB_SYCL_TARGETS=nvidia_gpu_sm_86 -D SB_SYCL_DEVICE_FLAGS="-Xcuda-ptxas;-v"
 ```
 
-The configure step prints the active targets. The functional suite has run on one card, an RTX 3080 Ti; [the GPU validation design](docs/design/GPU_VALIDATION.md) lists what is unverified.
+The configure step prints the active targets. The functional suite has run on one card, an RTX 3080 Ti: on 2026-10-12, on Windows with the pinned intel-llvm toolchain, 2 207 tests ran and none failed. [The GPU validation design](docs/design/GPU_VALIDATION.md) lists what is unverified.
 
 ### Building with CMake directly
 
