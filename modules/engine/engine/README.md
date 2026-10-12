@@ -7,6 +7,7 @@ geometry are support headers; see [the support module](../../foundation/support/
 | File | Declares |
 | --- | --- |
 | `task_recorder.hpp` | `TaskRecorder`, the one caller of `SushiRuntime::Recorder::task` in SushiBLAS |
+| `recorded_graph.hpp` | `RecordedGraph`, the one owner of the graph recorded tasks wait in |
 | `task_handle.hpp` | `TaskHandle`, the value a record call returns for the task it recorded |
 | `task_description.hpp` | `TaskDescription`, what an operation states about the task it records |
 | `operand_set.hpp` | `OperandSet`, the tensors one task reads and writes, and the storage it retains |
@@ -276,6 +277,24 @@ reduction executors before they lease scratch.
 The callable stored in the graph. It holds the body, the dispatcher and one reference to each
 distinct storage the task declared, so an operand's allocation stays alive until the graph drops
 the task even if the caller's `Tensor` is destroyed first.
+
+## `recorded_graph.hpp`
+
+`RecordedGraph` owns one `SushiRuntime::Graph` on one runtime and is the only place that runs or
+empties it. `Engine` holds one, and so does the `GraphProbe` of the tests. `recorder()` returns the
+runtime's recorder of that graph, and the reference stays valid across `run()` and `discard()`.
+`recorded_count()` is the number of tasks waiting, `is_empty()` is true when there is no task and
+no refused recording, and `plan()` returns the runtime's `PlanView` of what is recorded.
+
+- `run()` returns success at once when `is_empty()`. Otherwise it runs the graph into one
+  `SushiRuntime::RunReport` it keeps, so a run allocates no report, and leaves the graph empty.
+  A failed run empties the graph too, with one exception: `ErrorCode::InvalidState` for a run in
+  flight on the runtime, after which every recorded task is still waiting. A refused recording is
+  returned by `run()` and then forgotten, whatever its code.
+- `discard()` empties the graph without running it and returns how many tasks it dropped.
+
+Emptying replaces the graph with a new one from `Runtime::graph()`, so the compiled plan dies
+with the tasks and nothing keeps what their bodies captured.
 
 ## `task_handle.hpp`
 

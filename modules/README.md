@@ -38,7 +38,7 @@ this page.
 ### `Engine`
 
 `Engine` is a composition root. It is built on a `SushiRuntime::Runtime`, which `runtime()`
-returns, and owns five bricks: a `ScratchPool`, a `SushiRuntime::Graph`, a `TaskRecorder` bound to
+returns, and owns five bricks: a `ScratchPool`, a `RecordedGraph`, a `TaskRecorder` bound to
 that graph's recorder and to the pool, a `TensorFactory` and an `RNGStream`. It declares no
 operation and has no accessor for the graph. A caller that needs a device queue or a wait takes
 it from the runtime: `runtime().advanced().queue(SushiRuntime::DeviceIndex{0})`,
@@ -61,9 +61,11 @@ recorded returns success without running: several io.cpp paths call `execute()` 
 read even when no task is pending, and `SushiRuntime::Graph::run()` refuses a graph with no task.
 A recording the runtime's recorder refused is not lost: the next `execute()` returns its error.
 
-After the run the engine replaces its graph with an empty one, whether the run failed or not. The
-tasks are destroyed with what their bodies captured, so operand storage and scratch leases are
-released when `execute()` returns.
+`execute()` is `RecordedGraph::run()`. The graph is empty when it returns, whether the run
+succeeded or failed: the tasks are destroyed with what their bodies captured, so operand storage
+and scratch leases are released. One failure keeps the tasks: the runtime answers
+`ErrorCode::InvalidState` when another graph's run is in flight on the same runtime, no recorded
+task has started, and the caller can call `execute()` again once that run has settled.
 
 ### `Engine::discard_recorded`
 
@@ -72,9 +74,9 @@ throws leaves the tasks recorded before it on the graph, and the next `execute()
 a caller that turns such a throw into a status calls `discard_recorded()` and goes on with the
 same engine. The tasks are destroyed with what their bodies captured, so the storage of their
 operands is held only by the tensors that still name it, and each scratch lease returns to the
-pool. Tensors are not changed: a task that has not run has written nothing. A graph the caller
-owns is emptied with `SushiRuntime::Recorder::clear()`, which is what this call does to the
-engine's own graph, the one no accessor reaches.
+pool. Tensors are not changed: a task that has not run has written nothing. The call is
+`RecordedGraph::discard()` on the engine's own graph, the one no accessor reaches; a caller that
+owns a `SushiRuntime::Graph` empties it with `SushiRuntime::Recorder::clear()`.
 
 ### The scratch pool
 

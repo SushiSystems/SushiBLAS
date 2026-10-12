@@ -27,11 +27,11 @@ tests count with it. It forwards to `AdvancedControls::live_allocation_count()`.
 ## graph_probe.hpp
 
 `Engine` has no accessor for its graph, so a test that asserts on what an operation declared
-cannot read it from an engine. `GraphProbe` owns a `ScratchPool`, a `SushiRuntime::Graph` and a
+cannot read it from an engine. `GraphProbe` owns a `ScratchPool`, a `RecordedGraph` and a
 `TaskRecorder` over them on the shared test runtime. A test builds a view on
 `probe.recorder()` and records. `recorded_count()` returns how many tasks wait on the graph, and
-`take_recorded_count()` returns that count and clears the graph. `execute()` runs what is
-recorded and returns the result, as `Engine::execute` does. The constructor takes the execution
+`take_recorded_count()` returns that count and empties the graph with `RecordedGraph::discard()`.
+`execute()` is `RecordedGraph::run()`, the call `Engine::execute` makes. The constructor takes the execution
 mode the recorder records under.
 
 `recorded_tasks()` is the view a test reads a recorded task through. It calls `Graph::plan()`,
