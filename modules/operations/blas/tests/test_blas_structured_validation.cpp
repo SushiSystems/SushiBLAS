@@ -38,6 +38,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/blas_types.hpp>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 #include "test_utils.hpp"
 
 namespace SushiBLAS

@@ -37,6 +37,7 @@
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/functor_map/scalar.hpp>
 #include <SushiBLAS/functor_map/scalar_binding.hpp>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 #include "test_utils.hpp"
 
 namespace SushiBLAS

@@ -36,6 +36,8 @@
 #include <cstdint>
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiRuntime/core/sushi_ptr.hpp>
+#include <SushiRuntime/core/ref_counted.hpp>
 
 namespace SushiBLAS
 {

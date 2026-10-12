@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 #include "test_utils.hpp"
 
 namespace SushiBLAS

@@ -28,6 +28,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -323,7 +324,10 @@ namespace SushiBLAS
             {
                 const SushiRuntime::Result<void> recorded =
                     prefix_scan(graph.recorder(), c, o, t, LateCount::fixed(capacity));
-                return recorded ? SushiRuntime::ErrorCode::Ok : recorded.error().code;
+                if (recorded)
+                    return std::optional<SushiRuntime::ErrorCode>();
+
+                return std::optional<SushiRuntime::ErrorCode>(recorded.error().code);
             };
 
             EXPECT_EQ(refused_code(counts, offsets, total, 9),

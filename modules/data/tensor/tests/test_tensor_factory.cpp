@@ -33,7 +33,6 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/tensor/tensor_factory.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiRuntime/core/common.hpp>
 #include "test_utils.hpp"
 
 namespace SushiBLAS
@@ -140,7 +139,7 @@ namespace SushiBLAS
 
             ASSERT_TRUE(tensor.storage != nullptr);
             const std::size_t stored_bytes = tensor.storage->size_bytes();
-            EXPECT_EQ(0u, stored_bytes % SushiRuntime::K_DEFAULT_ALIGNMENT);
+            EXPECT_EQ(0u, stored_bytes % K_STORAGE_ALIGNMENT);
             EXPECT_GE(stored_bytes, std::size_t{12});
         }
     } // namespace Test

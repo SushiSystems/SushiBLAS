@@ -30,6 +30,7 @@
 #include <cstddef>
 #include <SushiBLAS/engine/scratch_shelf.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiRuntime/core/sushi_ptr.hpp>
 
 namespace SushiBLAS
 {
