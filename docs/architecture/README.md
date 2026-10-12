@@ -27,3 +27,4 @@ here.
 | 9 | [Quarantined surface (`modules/operations/experimental/include/SushiBLAS/experimental/`)](QUARANTINE.md) |
 | 10 | [Packaging](PACKAGING.md) |
 | 11 | [Exceptions and statuses](EXCEPTIONS.md) |
+| 12 | [The fixed-order fold (`reduce_1d.hpp`)](FIXED_ORDER_FOLD.md) |

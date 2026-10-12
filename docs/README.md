@@ -10,7 +10,7 @@ SushiBLAS is below 1.0.0 and a MINOR release may break its public interface; rea
 
 | Document | Holds |
 | --- | --- |
-| [Architecture](architecture/README.md) | The layers, the execution modes, the tensor, storage and memory model, the engine, the recorder and the views, the dispatch seams and fusion hooks, the kernels and routines of each family, the SushiRuntime dependency, packaging and the exception types |
+| [Architecture](architecture/README.md) | The layers, the execution modes, the tensor, storage and memory model, the engine, the recorder and the views, the dispatch seams and fusion hooks, the kernels and routines of each family, the SushiRuntime dependency, packaging, the exception types and the fixed-order fold |
 
 ## Guides
 
