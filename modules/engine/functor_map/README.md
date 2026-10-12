@@ -32,7 +32,7 @@ things:
   checks, declares on the task and passes as typed pointers after the elements. `fn` may itself
   be a `bind_scalars` bundle, and its scalars then come last.
 
-### `elementwise/map_task.hpp`
+### `functor_map/map_task.hpp`
 
 `MapTask` and `ZipTask` hold the dtype, the base addresses, the element count and the functor. Under
 `ForceReference` the body runs `Serial::map` or `Serial::zip_inplace` on the host; under any other
@@ -40,7 +40,7 @@ mode it submits one kernel through `Launch::map` or `Launch::zip_inplace`, with 
 planned from the queue's device. Both paths call the same functor, so the host path is not a second
 implementation of the operation. `make_map_task` builds a `MapTask` from the seam's arguments.
 
-### `elementwise/scalar_binding.hpp`
+### `functor_map/scalar_binding.hpp`
 
 `bind_scalars` returns a `ScalarBound`, which holds each scalar as an `ElementScalar` and stays on
 the host. Inside the `with_element_type` arm the seam calls `narrow_for(tag, op)`, which returns a
@@ -48,7 +48,7 @@ the host. Inside the `with_element_type` arm the seam calls `narrow_for(tag, op)
 captures. A HALF or FLOAT32 kernel therefore carries no double. A plain functor passes through
 `narrow_for` unchanged.
 
-### `elementwise/read_binding.hpp`
+### `functor_map/read_binding.hpp`
 
 A functor that dereferences a tensor the seam does not know about, such as a per-channel table,
 reads memory the task never declared, and the graph is free to run the task that writes it at the
@@ -66,7 +66,7 @@ Declaring a read also retains its storage until the task is destroyed, and a dev
 refused under `ForceReference` with the operands. A bare functor declares nothing:
 `require_declared_reads` and `declare_reads` are no-ops for it.
 
-## `elementwise/scalar.hpp`
+## `functor_map/scalar.hpp`
 
 ### `ElementScalar`
 

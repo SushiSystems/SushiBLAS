@@ -391,7 +391,7 @@ the block through a handle count; a task body captures the buffer by value, and 
 back to the shelf when the last copy is destroyed, which is when the graph drops the task.
 `bytes()` is what the caller asked for, not the size of the block. `region()` is the write region
 a task declares for the scratch, and `OperandSet::scratch` declares it and retains the block's
-storage. The reduction executors in `engine/math/reductions/dispatch.hpp` and
+storage. The reduction executors in `reductions/dispatch.hpp` and
 `Internal::allocate_blas_scratch` in `operands/scratch_lease.hpp` lease through it; none of them
 builds a `Storage` for scratch itself.
 
