@@ -1,7 +1,7 @@
 # BLAS headers
 
 `modules/operations/blas/include/SushiBLAS/blas` declares the dense BLAS surface and the bricks its operations
-check and record with. `BLASOps` in `../blas.hpp` derives from `Level1`, `Level2` and `Level3`,
+check and record with. `BLASOps` in `blas/blas.hpp` derives from `Level1`, `Level2` and `Level3`,
 so one view records all three levels.
 
 | File | Declares |
@@ -24,7 +24,7 @@ so one view records all three levels.
 | `sparse.hpp` | `SparseBLAS`, a placeholder class that declares no operation |
 
 `SparseBLAS` is not the sparse surface and no class derives from it. The sparse operations are
-`SparseOps` in `../sparse.hpp`; see [../sparse/README.md](../sparse/README.md).
+`SparseOps` in `sparse/sparse.hpp`; see [../sparse/README.md](../sparse/README.md).
 
 Every routine returns a `TaskHandle`. A flag is a `Core::Transpose`, `Core::Uplo`, `Core::Diag` or
 `Core::Side`, never a `bool`, and a scalar that may be complex is a `BLASScalar`. Every record-time

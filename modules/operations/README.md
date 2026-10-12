@@ -21,202 +21,33 @@ kernels a task runs are in the modules under `modules/kernels/`.
 | `reductions/source/` | `ReductionOps`, one file per reduction |
 | `spatial/source/` | `SpatialOps`: the window, pooling, window product, channel and broadcast operations |
 
-## Files
+## What a file holds
 
-| File | Defines |
-| --- | --- |
-| `engine.cpp` | Defines the Engine constructor, Engine::execute and Engine::discard_recorded |
-| `io.cpp` | Defines IO, which saves and loads tensors as .sushi, raw binary and .npy files and renders them as text |
-| `sparse_builder.cpp` | Defines the allocation, the host transfers and the dense compression of SparseBuilder |
+A source is named after the method it defines, so the folder is the list of operations. The
+files below hold more than one method, or none that records a task.
 
-BLAS level 1:
+**Dense BLAS** (`blas/source/level1/`, `level2/`, `level3/`). `dot.cpp` holds `dot`, `dotu` and
+`dotc`, and `ger.cpp` holds `ger`, `geru` and `gerc`. A symmetric routine shares its file with
+its Hermitian sibling: `sbmv.cpp` with `hbmv`, `spmv.cpp` with `hpmv`, `spr.cpp` with `hpr`,
+`spr2.cpp` with `hpr2`, `symv.cpp` with `hemv`, `syr.cpp` with `her`, `syr2.cpp` with `her2`,
+`symm.cpp` with `hemm`, `syrk.cpp` with `herk` and `syr2k.cpp` with `her2k`.
 
-| File | Defines |
-| --- | --- |
-| `engine/blas/level1/asum.cpp` | Defines Level1::asum, which records the BLAS ASUM task |
-| `engine/blas/level1/axpy.cpp` | Defines Level1::axpy, which records the BLAS AXPY task |
-| `engine/blas/level1/copy.cpp` | Defines Level1::copy, which records the BLAS COPY task |
-| `engine/blas/level1/dot.cpp` | Defines Level1::dot, dotu and dotc, which record the BLAS DOT, DOTU and DOTC tasks |
-| `engine/blas/level1/iamax.cpp` | Defines Level1::iamax, which records the BLAS IAMAX task |
-| `engine/blas/level1/nrm2.cpp` | Defines Level1::nrm2, which records the BLAS NRM2 task |
-| `engine/blas/level1/rot.cpp` | Defines Level1::rot, which records the BLAS ROT task |
-| `engine/blas/level1/rotg.cpp` | Defines Level1::rotg, which records the BLAS ROTG task |
-| `engine/blas/level1/rotm.cpp` | Defines Level1::rotm, which records the BLAS ROTM task |
-| `engine/blas/level1/rotmg.cpp` | Defines Level1::rotmg, which records the BLAS ROTMG task |
-| `engine/blas/level1/scal.cpp` | Defines Level1::scal, which records the BLAS SCAL task |
-| `engine/blas/level1/swap.cpp` | Defines Level1::swap, which records the BLAS SWAP task |
+**Sparse** (`sparse/source/`). `doti.cpp` holds `doti`, `dotui` and `dotci`, and `spsymv.cpp`
+holds `spsymv` and `sphemv`.
 
-BLAS level 2:
+**Spatial** (`spatial/source/`). `broadcast.cpp` holds `channel_affine`, `broadcast_spatial` and
+`layout_convert`; `channels.cpp` holds `concat_channels` and `slice_channels`; `im2col.cpp` holds
+both `im2col` overloads. `pool_avg.cpp`, `upsample_nearest.cpp` and `window_dot.cpp` each hold an
+operation and its input gradient. `pool_max_backward.cpp` and `window_dot_weights_backward.cpp`
+are gradients with a file of their own.
 
-| File | Defines |
-| --- | --- |
-| `engine/blas/level2/gbmv.cpp` | Defines Level2::gbmv, which records the BLAS GBMV task |
-| `engine/blas/level2/gemv.cpp` | Defines Level2::gemv, which records the BLAS GEMV task |
-| `engine/blas/level2/ger.cpp` | Defines Level2::ger, Level2::geru and Level2::gerc, which record the BLAS GER, GERU and GERC tasks |
-| `engine/blas/level2/sbmv.cpp` | Defines Level2::sbmv and Level2::hbmv, which record the BLAS SBMV and HBMV tasks |
-| `engine/blas/level2/spmv.cpp` | Defines Level2::spmv and Level2::hpmv, which record the BLAS SPMV and HPMV tasks |
-| `engine/blas/level2/spr.cpp` | Defines Level2::spr and Level2::hpr, which record the BLAS SPR and HPR tasks |
-| `engine/blas/level2/spr2.cpp` | Defines Level2::spr2 and Level2::hpr2, which record the BLAS SPR2 and HPR2 tasks |
-| `engine/blas/level2/symv.cpp` | Defines Level2::symv and Level2::hemv, which record the BLAS SYMV and HEMV tasks |
-| `engine/blas/level2/syr.cpp` | Defines Level2::syr and Level2::her, which record the BLAS SYR and HER tasks |
-| `engine/blas/level2/syr2.cpp` | Defines Level2::syr2 and Level2::her2, which record the BLAS SYR2 and HER2 tasks |
-| `engine/blas/level2/tbmv.cpp` | Defines Level2::tbmv, which records the BLAS TBMV task |
-| `engine/blas/level2/tbsv.cpp` | Defines Level2::tbsv, which records the BLAS TBSV task |
-| `engine/blas/level2/tpmv.cpp` | Defines Level2::tpmv, which records the BLAS TPMV task |
-| `engine/blas/level2/tpsv.cpp` | Defines Level2::tpsv, which records the BLAS TPSV task |
-| `engine/blas/level2/trmv.cpp` | Defines Level2::trmv, which records the BLAS TRMV task |
-| `engine/blas/level2/trsv.cpp` | Defines Level2::trsv, which records the BLAS TRSV task |
+**Non-linear** (`nonlinear/source/`). Each file holds an activation and its `_backward`.
 
-BLAS level 3:
+**Random** (`random/source/`). One file per distribution or initialiser. `set_seed.cpp` records
+no task: it reseeds the stream the view draws from.
 
-| File | Defines |
-| --- | --- |
-| `engine/blas/level3/gemm.cpp` | Defines Level3::gemm, which records the BLAS GEMM task |
-| `engine/blas/level3/symm.cpp` | Defines Level3::symm and Level3::hemm, which record the BLAS SYMM and HEMM tasks |
-| `engine/blas/level3/syr2k.cpp` | Defines Level3::syr2k and Level3::her2k, which record the BLAS SYR2K and HER2K tasks |
-| `engine/blas/level3/syrk.cpp` | Defines Level3::syrk and Level3::herk, which record the BLAS SYRK and HERK tasks |
-| `engine/blas/level3/trsm.cpp` | Defines Level3::trsm, which records the BLAS TRSM task |
-
-Sparse:
-
-| File | Defines |
-| --- | --- |
-| `engine/sparse/axpyi.cpp` | Defines SparseOps::axpyi, which records the sparse AXPYI task |
-| `engine/sparse/doti.cpp` | Defines SparseOps::doti, dotui and dotci, which record the sparse dot product tasks |
-| `engine/sparse/gthr.cpp` | Defines SparseOps::gthr, which records the sparse gather task |
-| `engine/sparse/gthrz.cpp` | Defines SparseOps::gthrz, which records the sparse gather-and-zero task |
-| `engine/sparse/roti.cpp` | Defines SparseOps::roti, which records the sparse plane rotation task |
-| `engine/sparse/sctr.cpp` | Defines SparseOps::sctr, which records the sparse scatter task |
-| `engine/sparse/spmm.cpp` | Defines SparseOps::spmm, which records the sparse-times-dense matrix product task |
-| `engine/sparse/spmv.cpp` | Defines SparseOps::spmv, which records the sparse matrix-vector product task |
-| `engine/sparse/spsymv.cpp` | Defines SparseOps::spsymv and sphemv, which record the one-triangle product tasks |
-| `engine/sparse/sptrsv.cpp` | Defines SparseOps::sptrsv, which records the sparse triangular solve task |
-
-Spatial:
-
-| File | Defines |
-| --- | --- |
-| `engine/spatial/broadcast.cpp` | Defines SpatialOps::channel_affine, broadcast_spatial and layout_convert, which record the three broadcast copies |
-| `engine/spatial/channels.cpp` | Defines SpatialOps::concat_channels and slice_channels, which record the copy of a run of channels |
-| `engine/spatial/col2im.cpp` | Defines SpatialOps::col2im, which records the scatter of a column matrix back onto an image |
-| `engine/spatial/im2col.cpp` | Defines the two SpatialOps::im2col overloads, which record the gather of image windows into a column matrix |
-| `engine/spatial/pool_avg.cpp` | Defines SpatialOps::pool_avg and pool_avg_backward, which record average pooling and its gradient |
-| `engine/spatial/pool_max.cpp` | Defines SpatialOps::pool_max, which records max pooling with its argmax indices |
-| `engine/spatial/pool_max_backward.cpp` | Defines SpatialOps::pool_max_backward, which records the gradient of max pooling |
-| `engine/spatial/upsample_nearest.cpp` | Defines SpatialOps::upsample_nearest and upsample_nearest_backward, which record nearest-neighbour upsampling and its gradient |
-| `engine/spatial/window_dot.cpp` | Defines SpatialOps::window_dot and window_dot_backward, which record the per-channel weighted window sum and its input gradient |
-| `engine/spatial/window_dot_weights_backward.cpp` | Defines SpatialOps::window_dot_weights_backward, which records the weight gradient of the per-channel weighted window sum |
-
-Logic:
-
-| File | Defines |
-| --- | --- |
-| `engine/logic/all.cpp` | Defines LogicOps::all, which records the reduction that tests whether every element is non-zero |
-| `engine/logic/any.cpp` | Defines LogicOps::any, which records the reduction that tests whether any element is non-zero |
-| `engine/logic/equal.cpp` | Defines LogicOps::equal, which records the elementwise equal task over two tensors |
-| `engine/logic/greater.cpp` | Defines LogicOps::greater, which records the elementwise greater task over two tensors |
-| `engine/logic/greater_equal.cpp` | Defines LogicOps::greater_equal, which records the elementwise greater_equal task over two tensors |
-| `engine/logic/less.cpp` | Defines LogicOps::less, which records the elementwise less task over two tensors |
-| `engine/logic/less_equal.cpp` | Defines LogicOps::less_equal, which records the elementwise less_equal task over two tensors |
-| `engine/logic/logical_and.cpp` | Defines LogicOps::logical_and, which records the elementwise logical_and task over two tensors |
-| `engine/logic/logical_not.cpp` | Defines LogicOps::logical_not, which records the elementwise logical_not task |
-| `engine/logic/logical_or.cpp` | Defines LogicOps::logical_or, which records the elementwise logical_or task over two tensors |
-| `engine/logic/logical_xor.cpp` | Defines LogicOps::logical_xor, which records the elementwise logical_xor task over two tensors |
-| `engine/logic/not_equal.cpp` | Defines LogicOps::not_equal, which records the elementwise not_equal task over two tensors |
-| `engine/logic/where.cpp` | Defines LogicOps::where, which records the elementwise choice between two tensors by a condition |
-
-Elementwise:
-
-| File | Defines |
-| --- | --- |
-| `engine/math/elementwise/abs.cpp` | Defines ElementwiseOps::abs, which records the in-place elementwise abs task |
-| `engine/math/elementwise/acos.cpp` | Defines ElementwiseOps::acos, which records the in-place elementwise acos task |
-| `engine/math/elementwise/acosh.cpp` | Defines ElementwiseOps::acosh, which records the in-place elementwise acosh task |
-| `engine/math/elementwise/add.cpp` | Defines ElementwiseOps::add, which records the elementwise add task over two tensors |
-| `engine/math/elementwise/asin.cpp` | Defines ElementwiseOps::asin, which records the in-place elementwise asin task |
-| `engine/math/elementwise/asinh.cpp` | Defines ElementwiseOps::asinh, which records the in-place elementwise asinh task |
-| `engine/math/elementwise/atan.cpp` | Defines ElementwiseOps::atan, which records the in-place elementwise atan task |
-| `engine/math/elementwise/atanh.cpp` | Defines ElementwiseOps::atanh, which records the in-place elementwise atanh task |
-| `engine/math/elementwise/ceil.cpp` | Defines ElementwiseOps::ceil, which records the in-place elementwise ceil task |
-| `engine/math/elementwise/clamp.cpp` | Defines ElementwiseOps::clamp, which records the in-place elementwise clamp task |
-| `engine/math/elementwise/convert.cpp` | Defines ElementwiseOps::convert, which records the dtype-converting copy between real tensors |
-| `engine/math/elementwise/cos.cpp` | Defines ElementwiseOps::cos, which records the in-place elementwise cos task |
-| `engine/math/elementwise/cosh.cpp` | Defines ElementwiseOps::cosh, which records the in-place elementwise cosh task |
-| `engine/math/elementwise/div.cpp` | Defines ElementwiseOps::div, which records the elementwise div task over two tensors |
-| `engine/math/elementwise/exp.cpp` | Defines ElementwiseOps::exp, which records the in-place elementwise exp task |
-| `engine/math/elementwise/floor.cpp` | Defines ElementwiseOps::floor, which records the in-place elementwise floor task |
-| `engine/math/elementwise/fmod.cpp` | Defines ElementwiseOps::fmod, which records the elementwise fmod task over two tensors |
-| `engine/math/elementwise/log.cpp` | Defines ElementwiseOps::log, which records the in-place elementwise log task |
-| `engine/math/elementwise/max.cpp` | Defines ElementwiseOps::max, which records the elementwise max task over two tensors |
-| `engine/math/elementwise/min.cpp` | Defines ElementwiseOps::min, which records the elementwise min task over two tensors |
-| `engine/math/elementwise/mul.cpp` | Defines ElementwiseOps::mul, which records the elementwise mul task over two tensors |
-| `engine/math/elementwise/neg.cpp` | Defines ElementwiseOps::neg, which records the in-place elementwise neg task |
-| `engine/math/elementwise/pow.cpp` | Defines ElementwiseOps::pow, which records the in-place elementwise pow task |
-| `engine/math/elementwise/reciprocal.cpp` | Defines ElementwiseOps::reciprocal, which records the in-place elementwise reciprocal task |
-| `engine/math/elementwise/remainder.cpp` | Defines ElementwiseOps::remainder, which records the elementwise remainder task over two tensors |
-| `engine/math/elementwise/round.cpp` | Defines ElementwiseOps::round, which records the in-place elementwise round task |
-| `engine/math/elementwise/sin.cpp` | Defines ElementwiseOps::sin, which records the in-place elementwise sin task |
-| `engine/math/elementwise/sinh.cpp` | Defines ElementwiseOps::sinh, which records the in-place elementwise sinh task |
-| `engine/math/elementwise/sqrt.cpp` | Defines ElementwiseOps::sqrt, which records the in-place elementwise sqrt task |
-| `engine/math/elementwise/square.cpp` | Defines ElementwiseOps::square, which records the in-place elementwise square task |
-| `engine/math/elementwise/sub.cpp` | Defines ElementwiseOps::sub, which records the elementwise sub task over two tensors |
-| `engine/math/elementwise/tan.cpp` | Defines ElementwiseOps::tan, which records the in-place elementwise tan task |
-
-Non-linear:
-
-| File | Defines |
-| --- | --- |
-| `engine/math/nonlinear/elu.cpp` | Defines NonLinearOps::elu and NonLinearOps::elu_backward, which record the elu activation and its gradient |
-| `engine/math/nonlinear/gelu.cpp` | Defines NonLinearOps::gelu and NonLinearOps::gelu_backward, which record the gelu activation and its gradient |
-| `engine/math/nonlinear/leaky_relu.cpp` | Defines NonLinearOps::leaky_relu and NonLinearOps::leaky_relu_backward, which record the leaky_relu activation and its gradient |
-| `engine/math/nonlinear/relu.cpp` | Defines NonLinearOps::relu and NonLinearOps::relu_backward, which record the relu activation and its gradient |
-| `engine/math/nonlinear/sigmoid.cpp` | Defines NonLinearOps::sigmoid and NonLinearOps::sigmoid_backward, which record the sigmoid activation and its gradient |
-| `engine/math/nonlinear/silu.cpp` | Defines NonLinearOps::silu and NonLinearOps::silu_backward, which record the silu activation and its gradient |
-| `engine/math/nonlinear/softplus.cpp` | Defines NonLinearOps::softplus and NonLinearOps::softplus_backward, which record the softplus activation and its gradient |
-| `engine/math/nonlinear/tanh.cpp` | Defines NonLinearOps::tanh and NonLinearOps::tanh_backward, which record the tanh activation and its gradient |
-
-Random:
-
-| File | Defines |
-| --- | --- |
-| `engine/math/random/bernoulli.cpp` | Defines RandomOps::bernoulli, which records the Bernoulli fill of a tensor |
-| `engine/math/random/constant.cpp` | Defines RandomOps::constant, which records the constant fill of a tensor |
-| `engine/math/random/discrete_uniform.cpp` | Defines RandomOps::discrete_uniform, which records the discrete uniform fill of a tensor |
-| `engine/math/random/exponential.cpp` | Defines RandomOps::exponential, which records the exponential fill of a tensor |
-| `engine/math/random/he_normal.cpp` | Defines RandomOps::he_normal, which records the He normal fill of a tensor |
-| `engine/math/random/he_uniform.cpp` | Defines RandomOps::he_uniform, which records the He uniform fill of a tensor |
-| `engine/math/random/log_normal.cpp` | Defines RandomOps::log_normal, which records the log-normal fill of a tensor |
-| `engine/math/random/normal.cpp` | Defines RandomOps::normal, which records the normal fill of a tensor |
-| `engine/math/random/orthogonal.cpp` | Defines RandomOps::orthogonal, which records the orthogonal initialisation of a matrix |
-| `engine/math/random/poisson.cpp` | Defines RandomOps::poisson, which records the Poisson fill of a tensor |
-| `engine/math/random/set_seed.cpp` | Defines RandomOps::set_seed, which reseeds the stream the view draws from |
-| `engine/math/random/shuffle.cpp` | Defines RandomOps::shuffle, which records the in-place shuffle of a tensor's elements |
-| `engine/math/random/truncated_normal.cpp` | Defines RandomOps::truncated_normal, which records the truncated normal fill of a tensor |
-| `engine/math/random/uniform.cpp` | Defines RandomOps::uniform, which records the uniform fill of a tensor |
-| `engine/math/random/xavier_normal.cpp` | Defines RandomOps::xavier_normal, which records the Xavier normal fill of a tensor |
-| `engine/math/random/xavier_uniform.cpp` | Defines RandomOps::xavier_uniform, which records the Xavier uniform fill of a tensor |
-
-Reductions:
-
-| File | Defines |
-| --- | --- |
-| `engine/math/reductions/argmax.cpp` | Defines ReductionOps::argmax, which records the argmax reduction |
-| `engine/math/reductions/argmin.cpp` | Defines ReductionOps::argmin, which records the argmin reduction |
-| `engine/math/reductions/asum.cpp` | Defines ReductionOps::asum, which records the sum-of-magnitudes reduction |
-| `engine/math/reductions/count_nonfinite.cpp` | Defines ReductionOps::count_nonfinite, which records the non-finite count reduction |
-| `engine/math/reductions/logsumexp.cpp` | Defines ReductionOps::logsumexp, which records the log-sum-exp reduction |
-| `engine/math/reductions/max.cpp` | Defines ReductionOps::max, which records the maximum reduction |
-| `engine/math/reductions/max_along.cpp` | Defines ReductionOps::max_along, which records the per-axis maximum reduction |
-| `engine/math/reductions/mean.cpp` | Defines ReductionOps::mean, which records the mean reduction |
-| `engine/math/reductions/mean_spatial.cpp` | Defines ReductionOps::mean_spatial, which records the spatial mean reduction |
-| `engine/math/reductions/min.cpp` | Defines ReductionOps::min, which records the minimum reduction |
-| `engine/math/reductions/min_along.cpp` | Defines ReductionOps::min_along, which records the minimum along one axis |
-| `engine/math/reductions/nrm2.cpp` | Defines ReductionOps::nrm2, which records the Euclidean norm reduction |
-| `engine/math/reductions/prod.cpp` | Defines ReductionOps::prod, which records the product reduction |
-| `engine/math/reductions/std.cpp` | Defines ReductionOps::std, which records the standard deviation reduction |
-| `engine/math/reductions/sum.cpp` | Defines ReductionOps::sum, which records the sum reduction |
-| `engine/math/reductions/sum_along.cpp` | Defines ReductionOps::sum_along, which records the per-axis sum reduction |
-| `engine/math/reductions/var.cpp` | Defines ReductionOps::var, which records the variance reduction |
+**Elementwise, logic, reductions** (`elementwise/source/`, `logic/source/`,
+`reductions/source/`). One method per file, each named after its method.
 
 ## Notes by file
 
@@ -371,7 +202,7 @@ tensor of zeros returned 1 whenever the caller reused a result that had held 1.
 ### `modules/operations/elementwise/source/convert.cpp`
 
 `convert.cpp` defines the copy that converts between dtypes. Three questions are answered in
-`modules/operations/MATH_README.md`, under `ElementwiseOps::convert`: why the operation
+`modules/operations/elementwise/README.md`, under `ElementwiseOps::convert`: why the operation
 lives in the elementwise family, why the dtype pair is bounded to REAL x REAL, and why a
 conversion to the same dtype is legal. This section records the mechanics.
 
@@ -532,7 +363,7 @@ why a result stored in the input's dtype was wrong above 2^24, and above 2048 in
 
 ### `modules/operations/reductions/source/count_nonfinite.cpp`
 
-`modules/operations/MATH_README.md`, under `ReductionOps::count_nonfinite`, answers two
+`modules/operations/reductions/README.md`, under `ReductionOps::count_nonfinite`, answers two
 questions about this operation. The first is why the result is an INT64 count and not a flag in
 the input's dtype. The second is why `asum`, which would almost have served, reports false
 positives on the mixed-precision input this operation exists for.
