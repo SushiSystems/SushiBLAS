@@ -33,7 +33,7 @@ from sushiblas.services.suite import Suite
 K_CONFIGURE_FAILED = 9
 K_CHILD_EXIT = 7
 K_INTERRUPTED = 130
-K_EXECUTABLE = "sushiblas_example"
+K_EXECUTABLE = "quickstart_demo"
 
 
 class _Console:

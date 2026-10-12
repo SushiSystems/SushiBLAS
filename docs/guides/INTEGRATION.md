@@ -13,7 +13,7 @@ in your translation units, which is the opposite of SushiRuntime. When you write
 SushiBLAS::BLASOps(engine).gemm(A, B, C);
 ```
 
-Source: `applications/examples/example.cpp`
+Source: `applications/examples/quickstart_demo.cpp`
 
 the call resolves to a function already compiled into the `sushiblas` static library. Your
 compiler does not

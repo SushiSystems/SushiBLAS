@@ -25,7 +25,7 @@ PROFILE = ModuleProfile(
     env_prefix="SB",
     root_marker="CMakeLists.txt",
     siblings=("sushiruntime",),
-    default_target="sushiblas_example",
+    default_target="quickstart_demo",
     # SUSHIRUNTIME_DIR is unprefixed because every CLI that builds against the checkout reads it.
     extra_env_overrides={"sushiruntime_dir": "SUSHIRUNTIME_DIR"},
     # SYCL, MSVC's INCLUDE/LIB, and every SUSHI* checkout override.

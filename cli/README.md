@@ -202,7 +202,7 @@ prints the value in effect.
 
 ```bash
 sb run                                # run the default target
-sb run sushiblas_example              # run a specific binary by name
+sb run quickstart_demo              # run a specific binary by name
 sb run --sort                         # interactively pick from the list of executables
 ```
 

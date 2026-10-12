@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — examples: Renamed `example.cpp` to `quickstart_demo.cpp` and its target `sushiblas_example` to `quickstart_demo`, which `sb run` starts by default.
 - 2026-10-12 — docs: Brought the brace, include, license block and comment rules of the contributing guide to the `cpp-code-style` and `source-comments` skills; a statement no longer shares the line of its `if` (`CONTRIBUTING.md`).
 - 2026-10-12 — docs: Replaced the uncompiled brace illustration of the contributing guide with a block of `adapter_demo.cpp`; no example of the manual is unverified (`CONTRIBUTING.md`, `.docs_truth_allow`).
 - 2026-10-12 — examples: Renamed `io_example.cpp` and its target to `io_demo`; it tests every `IOStatus`, checks the loaded tensor against the host and writes its file to the temporary directory.
