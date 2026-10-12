@@ -79,7 +79,7 @@ namespace SushiBLAS
          */
         template<typename Src, typename Dst>
         TaskHandle record_convert(TaskRecorder& recorder,
-                                  const TaskDescription& meta,
+                                  const TaskDescription& description,
                                   const OperandSet& operands,
                                   const void* src_ptr, void* dst_ptr, int64_t n)
         {
@@ -87,7 +87,7 @@ namespace SushiBLAS
                                                    static_cast<Dst*>(dst_ptr)};
             const std::size_t count = static_cast<std::size_t>(n);
 
-            return recorder.record_pair(meta, operands, "Elementwise operation",
+            return recorder.record_pair(description, operands, "Elementwise operation",
                 [count, convert](const Internal::KernelPairDispatcher& pair, sycl::queue& q,
                                  const std::vector<sycl::event>& deps) -> sycl::event
                 {
@@ -118,20 +118,20 @@ namespace SushiBLAS
          */
         template<typename Src>
         TaskHandle dispatch_destination(Core::DataType dst_dtype, TaskRecorder& recorder,
-                                        const TaskDescription& meta,
+                                        const TaskDescription& description,
                                         const OperandSet& operands,
                                         const void* src_ptr, void* dst_ptr, int64_t n)
         {
             switch (dst_dtype)
             {
                 case Core::DataType::Half:
-                    return record_convert<Src, sycl::half>(recorder, meta, operands,
+                    return record_convert<Src, sycl::half>(recorder, description, operands,
                                                            src_ptr, dst_ptr, n);
                 case Core::DataType::Float32:
-                    return record_convert<Src, float>(recorder, meta, operands,
+                    return record_convert<Src, float>(recorder, description, operands,
                                                       src_ptr, dst_ptr, n);
                 case Core::DataType::Float64:
-                    return record_convert<Src, double>(recorder, meta, operands,
+                    return record_convert<Src, double>(recorder, description, operands,
                                                        src_ptr, dst_ptr, n);
                 default:
                     break;
@@ -179,21 +179,21 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(src).writes(dst);
 
-        TaskDescription meta;
-        meta.name = K_NAME;
-        meta.op_id = "math.ew.convert"_op;
+        TaskDescription description;
+        description.name = K_NAME;
+        description.operation = "math.ew.convert"_op;
 
         // The outer switch picks the source type; see modules/operations/README.md.
         switch (src.dtype)
         {
             case Core::DataType::Half:
-                return dispatch_destination<sycl::half>(dst.dtype, recorder_, meta, operands,
+                return dispatch_destination<sycl::half>(dst.dtype, recorder_, description, operands,
                                                         read_src, write_dst, n);
             case Core::DataType::Float32:
-                return dispatch_destination<float>(dst.dtype, recorder_, meta, operands,
+                return dispatch_destination<float>(dst.dtype, recorder_, description, operands,
                                                    read_src, write_dst, n);
             case Core::DataType::Float64:
-                return dispatch_destination<double>(dst.dtype, recorder_, meta, operands,
+                return dispatch_destination<double>(dst.dtype, recorder_, description, operands,
                                                     read_src, write_dst, n);
             default:
                 break;

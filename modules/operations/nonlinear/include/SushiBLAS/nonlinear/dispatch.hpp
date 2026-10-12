@@ -76,13 +76,13 @@ namespace SushiBLAS
             operands.updates(t);
             Detail::declare_reads(op_func, operands, name);
 
-            TaskDescription meta;
-            meta.name = name;
-            meta.op_id = op_id;
-            set_task_params(meta, params, name);
+            TaskDescription description;
+            description.name = name;
+            description.operation = op_id;
+            set_task_params(description, params, name);
 
             void* ptr = t.data();
-            return recorder.record_pair(meta, operands, "Nonlinear operation",
+            return recorder.record_pair(description, operands, "Nonlinear operation",
                 Detail::make_map_task<Dom>(t.dtype, "Nonlinear operation", name,
                                            static_cast<std::size_t>(t.num_elements), ptr,
                                            Detail::task_functor(op_func),
@@ -129,12 +129,12 @@ namespace SushiBLAS
             operands.reads(dy).reads(x).writes(dx);
             Detail::declare_reads(op_func, operands, name);
 
-            TaskDescription meta;
-            meta.name = name;
-            meta.op_id = op_id;
-            set_task_params(meta, params, name);
+            TaskDescription description;
+            description.name = name;
+            description.operation = op_id;
+            set_task_params(description, params, name);
 
-            return recorder.record_pair(meta, operands, "Nonlinear operation",
+            return recorder.record_pair(description, operands, "Nonlinear operation",
                 Detail::make_map_task<Dom>(x.dtype, "Nonlinear operation", name,
                                            static_cast<std::size_t>(x.num_elements), dx.data(),
                                            Detail::task_functor(op_func), dy.data(), x.data()));

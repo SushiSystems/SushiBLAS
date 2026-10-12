@@ -136,15 +136,16 @@ namespace SushiBLAS
          */
         template<Dispatch::Domain Dom = Dispatch::Domain::RealAndComplex, typename Func>
         TaskHandle execute_typed_task(TaskRecorder& recorder,
-                                      const TaskDescription& meta,
+                                      const TaskDescription& description,
                                       const OperandSet& operands, Core::DataType dtype,
                                       const char* family, Func&& op_func)
         {
-            Dispatch::require_domain<Dom>(dtype, family, meta.name);
+            Dispatch::require_domain<Dom>(dtype, family, description.name);
 
-            return recorder.record_pair(meta, operands, family,
+            return recorder.record_pair(description, operands, family,
                                         Detail::TypedTaskBody<Dom, std::decay_t<Func>>(
-                                            dtype, family, meta.name, std::forward<Func>(op_func)));
+                                            dtype, family, description.name,
+                                            std::forward<Func>(op_func)));
         }
     } // namespace Internal
 } // namespace SushiBLAS

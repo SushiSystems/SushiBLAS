@@ -71,14 +71,14 @@ namespace SushiBLAS
         inline constexpr size_t K_MAX_RNG_PARAMS = 6;
 
         /// @brief Stamps the seed and offset a random task draws from into its metadata.
-        inline void set_rng_params(TaskDescription& meta, uint64_t seed,
+        inline void set_rng_params(TaskDescription& description, uint64_t seed,
                                    uint64_t offset)
         {
             static_assert(K_RNG_OFFSET_PARAM <
-                              static_cast<int>(TaskDescription::K_MAX_PARAMS),
+                              static_cast<int>(TaskDescription::K_MAX_PARAMETERS),
                           "RNG metadata slots must fit inside TaskDescription's parameter array.");
-            meta.set_param(K_RNG_SEED_PARAM, seed);
-            meta.set_param(K_RNG_OFFSET_PARAM, offset);
+            description.set_parameter(K_RNG_SEED_PARAM, seed);
+            description.set_parameter(K_RNG_OFFSET_PARAM, offset);
         }
 
         /**
@@ -294,17 +294,18 @@ namespace SushiBLAS
             operands.writes(t);
             recorder.require_host_reachable(operands, "RNG operation", name);
 
-            TaskDescription meta;
-            meta.name = name;
-            meta.op_id = op_id;
-            set_task_params(meta, params, name, TaskDescription::K_MAX_PARAMS - K_MAX_RNG_PARAMS);
+            TaskDescription description;
+            description.name = name;
+            description.operation = op_id;
+            set_task_params(description, params, name,
+                            TaskDescription::K_MAX_PARAMETERS - K_MAX_RNG_PARAMS);
 
             const RNGPosition position = stream.reserve(1);
             const uint64_t seed = position.seed;
             const uint64_t offset = position.offset;
-            set_rng_params(meta, seed, offset);
+            set_rng_params(description, seed, offset);
 
-            return recorder.record_pair(meta, operands, "RNG operation",
+            return recorder.record_pair(description, operands, "RNG operation",
                 [dtype=t.dtype, size, seed, offset, task_func, pT = ptr, name]
                 (const Internal::KernelPairDispatcher& pair, sycl::queue& q,
                  const std::vector<sycl::event>& deps) -> sycl::event

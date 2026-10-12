@@ -37,7 +37,7 @@
 #include <SushiBLAS/operands/scratch_lease.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/blas/band_operand.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
@@ -69,7 +69,7 @@ namespace SushiBLAS
         const ScratchBuffer snapshot = Internal::allocate_blas_scratch(
             recorder_, x, Core::bytes_per_element(A.dtype) * static_cast<std::size_t>(n), operands);
 
-        const Internal::BLASMetadata meta = Internal::BLASMetadata(op, "blas.lvl2.tbmv"_op)
+        const Internal::BLASMetadata metadata = Internal::BLASMetadata(op, "blas.lvl2.tbmv"_op)
                                                 .flag(uplo).flag(trans).flag(diag).extent(k);
 
         const Core::Layout layout = a.layout;
@@ -78,7 +78,7 @@ namespace SushiBLAS
         const void* read_A = A.data_or_null();
         void* rw_x = x.data_or_null();
 
-        return Internal::execute_blas_task(recorder_, meta.get(), operands, A.dtype,
+        return Internal::execute_blas_task(recorder_, metadata.get(), operands, A.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

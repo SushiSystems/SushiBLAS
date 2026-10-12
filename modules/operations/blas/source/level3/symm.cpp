@@ -33,7 +33,7 @@
 #include <SushiBLAS/blas/blas_task.hpp>
 #include <SushiBLAS/blas/packed_product_scratch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/matrix_operand.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
@@ -103,7 +103,7 @@ namespace SushiBLAS
             const ScratchBuffer pack = Internal::allocate_packed_product_scratch(
                 recorder, C, m, n, left ? m : n, batch_size, operands);
 
-            const Internal::BLASMetadata meta = Internal::BLASMetadata(op, op_id)
+            const Internal::BLASMetadata metadata = Internal::BLASMetadata(op, op_id)
                                                     .scalar(alpha).scalar(beta)
                                                     .flag(side).flag(uplo);
 
@@ -115,7 +115,7 @@ namespace SushiBLAS
             const void* read_B = B.data_or_null();
             void* rw_C = C.data_or_null();
 
-            return Internal::execute_blas_task(recorder, meta.get(), operands, A.dtype,
+            return Internal::execute_blas_task(recorder, metadata.get(), operands, A.dtype,
                 [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                     sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
                 {

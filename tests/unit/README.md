@@ -181,7 +181,7 @@ device, the element type, the element count and the operands' alignment, none of
 between two runs in one process. Two identical fused updates must agree exactly, not nearly.
 
 `RNGMetadataSlotsAreInRangeAndRoundTrip` pins a bug. The random dispatch wrote the seed to slot
-10 and the offset to slot 11 of an eight-slot array. `TaskDescription::set_param` ignores an
+10 and the offset to slot 11 of an eight-slot array. `TaskDescription::set_parameter` ignores an
 out-of-range index without a word, so every random task recorded a zero seed and a zero offset.
 With the slots in range these read back exactly, including a seed whose value would not survive
 the round trip through a double.

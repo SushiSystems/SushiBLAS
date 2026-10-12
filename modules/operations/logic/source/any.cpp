@@ -102,9 +102,9 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(t).writes(result);
 
-        TaskDescription meta;
-        meta.name = "logic.any";
-        meta.op_id = "logic.any"_op;
+        TaskDescription description;
+        description.name = "logic.any";
+        description.operation = "logic.any"_op;
 
         TaskHandle handle;
 
@@ -112,11 +112,11 @@ namespace SushiBLAS
         Dispatch::require_domain<Dispatch::Domain::RealAndIntegral>(t.dtype, "Logic operation",
                                                                       "logic.any");
         Dispatch::with_element_type<Dispatch::Domain::RealAndIntegral>(
-            t.dtype, "Logic operation", meta.name, [&](auto tag)
+            t.dtype, "Logic operation", description.name, [&](auto tag)
         {
             using T = typename decltype(tag)::type;
 
-            handle = recorder_.record_pair(meta, operands, "Logic operation",
+            handle = recorder_.record_pair(description, operands, "Logic operation",
                 [size, pT = static_cast<const T*>(read_T), pR = result.data_as<T>()]
                 (const Internal::KernelPairDispatcher& pair, sycl::queue& q,
                  const std::vector<sycl::event>& deps) -> sycl::event

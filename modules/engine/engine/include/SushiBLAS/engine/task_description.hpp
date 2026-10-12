@@ -43,48 +43,48 @@ namespace SushiBLAS
     struct TaskDescription
     {
         /** @brief Holds how many parameter slots a task carries. */
-        static constexpr std::size_t K_MAX_PARAMS = 8;
+        static constexpr std::size_t K_MAX_PARAMETERS = 8;
 
         /** @brief The label the task reports under; must outlive the record call. */
         const char* name = "unnamed_task";
 
         /** @brief The operation the task performs; a default id names none. */
-        SushiRuntime::OperationID op_id = SushiRuntime::OperationID();
+        SushiRuntime::OperationID operation = SushiRuntime::OperationID();
 
         /** @brief The parameter slots; a slot never written holds 0. */
-        std::uint64_t params[K_MAX_PARAMS] = {0};
+        std::uint64_t parameters[K_MAX_PARAMETERS] = {0};
 
         /**
          * @brief Writes the bytes of value to one slot.
          * @tparam T Trivially copyable and at most 64 bits wide.
-         * @pre 0 <= index < K_MAX_PARAMS; a release build ignores an index outside it.
+         * @pre 0 <= index < K_MAX_PARAMETERS; a release build ignores an index outside it.
          */
         template<typename T>
-        void set_param(int index, T value) noexcept
+        void set_parameter(int index, T value) noexcept
         {
             static_assert(std::is_trivially_copyable_v<T>, "A parameter is copied byte by byte.");
             static_assert(sizeof(T) <= sizeof(std::uint64_t), "A parameter fits in one slot.");
-            SB_ASSERT(index >= 0 && index < static_cast<int>(K_MAX_PARAMS),
+            SB_ASSERT(index >= 0 && index < static_cast<int>(K_MAX_PARAMETERS),
                       "A task parameter was written outside the slots of TaskDescription");
-            if (index >= 0 && index < static_cast<int>(K_MAX_PARAMS))
-                std::memcpy(&params[index], &value, sizeof(T));
+            if (index >= 0 && index < static_cast<int>(K_MAX_PARAMETERS))
+                std::memcpy(&parameters[index], &value, sizeof(T));
         }
 
         /**
          * @brief Returns the bytes of one slot read as T.
          * @tparam T Trivially copyable and at most 64 bits wide.
-         * @pre 0 <= index < K_MAX_PARAMS; a release build returns T{} for an index outside it.
+         * @pre 0 <= index < K_MAX_PARAMETERS; a release build returns T{} for an index outside it.
          */
         template<typename T>
-        [[nodiscard]] T param(int index) const noexcept
+        [[nodiscard]] T parameter(int index) const noexcept
         {
             static_assert(std::is_trivially_copyable_v<T>, "A parameter is copied byte by byte.");
             static_assert(sizeof(T) <= sizeof(std::uint64_t), "A parameter fits in one slot.");
-            SB_ASSERT(index >= 0 && index < static_cast<int>(K_MAX_PARAMS),
+            SB_ASSERT(index >= 0 && index < static_cast<int>(K_MAX_PARAMETERS),
                       "A task parameter was read outside the slots of TaskDescription");
             T value{};
-            if (index >= 0 && index < static_cast<int>(K_MAX_PARAMS))
-                std::memcpy(&value, &params[index], sizeof(T));
+            if (index >= 0 && index < static_cast<int>(K_MAX_PARAMETERS))
+                std::memcpy(&value, &parameters[index], sizeof(T));
             return value;
         }
     };

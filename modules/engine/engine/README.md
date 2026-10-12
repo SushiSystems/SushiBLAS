@@ -190,8 +190,8 @@ all.
 
 ### `set_task_params`
 
-`TaskDescription::set_param` ignores an out-of-range index in a build with `NDEBUG`, so a caller
-that writes past `K_MAX_PARAMS` loses the value with no diagnostic at all. This wrapper throws
+`TaskDescription::set_parameter` ignores an out-of-range index in a build with `NDEBUG`, so a caller
+that writes past `K_MAX_PARAMETERS` loses the value with no diagnostic at all. This wrapper throws
 `std::invalid_argument` at record time instead (P1: fail loudly, never silently).
 
 ## `operand_check.hpp`
@@ -288,11 +288,13 @@ both fields are. The handle exposes no event and no way to wait: the work finish
 ## `task_description.hpp`
 
 `TaskDescription` is what an operation states about one task besides its operands: the `name` it
-reports under, the `SushiRuntime::OperationID` in `op_id`, and `K_MAX_PARAMS` (eight) slots of 64
-bits in `params`. `set_param<T>(index, value)` copies the bytes of a trivially copyable value of
-at most 64 bits into one slot and `param<T>(index)` reads them back; a slot never written holds 0.
-An index outside the slots is an `SB_ASSERT`, and a build with `NDEBUG` ignores the write and
-reads `T{}`.
+reports under, the `SushiRuntime::OperationID` in `operation`, and `K_MAX_PARAMETERS` (eight) slots
+of 64 bits in `parameters`. `set_parameter<T>(index, value)` copies the bytes of a trivially
+copyable value of at most 64 bits into one slot and `parameter<T>(index)` reads them back; a slot
+never written holds 0. An index outside the slots is an `SB_ASSERT`, and a build with `NDEBUG`
+ignores the write and reads `T{}`. `TaskRecorder` hands the slots to the runtime as
+`NodeOptions::parameters`, and a `static_assert` beside that call holds `K_MAX_PARAMETERS` at or
+below `SushiRuntime::NodeOptions::K_MAX_PARAMETERS`.
 
 The type belongs to SushiBLAS and names nothing of the runtime but `OperationID`.
 `TaskRecorder` turns it into `SushiRuntime::NodeOptions` when it records: the name, the

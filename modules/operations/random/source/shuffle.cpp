@@ -116,17 +116,17 @@ namespace SushiBLAS
         OperandSet operands;
         operands.updates(t);
 
-        TaskDescription meta;
-        meta.name = name;
-        meta.op_id = "random.shuffle"_op;
+        TaskDescription description;
+        description.name = name;
+        description.operation = "random.shuffle"_op;
 
         recorder_.require_host_reachable(operands, "RNG operation", name);
         const RNGPosition position = rng_.reserve(1);
         const uint64_t seed = position.seed;
         const uint64_t offset = position.offset;
-        Dispatch::set_rng_params(meta, seed, offset);
+        Dispatch::set_rng_params(description, seed, offset);
 
-        return recorder_.record_pair(meta, operands, "RNG operation",
+        return recorder_.record_pair(description, operands, "RNG operation",
             [dtype = t.dtype, size, seed, offset, ptr, name]
             (const Internal::KernelPairDispatcher& pair, sycl::queue& q,
              const std::vector<sycl::event>& deps) -> sycl::event

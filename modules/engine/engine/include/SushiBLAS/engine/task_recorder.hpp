@@ -160,11 +160,11 @@ namespace SushiBLAS
              *         device-only USM; no task is recorded.
              */
             template<typename Body>
-            TaskHandle record_pair(const TaskDescription& meta,
+            TaskHandle record_pair(const TaskDescription& description,
                                    const OperandSet& operands, const char* family, Body&& body)
             {
-                require_host_reachable(operands, family, meta.name);
-                return insert(meta, operands,
+                require_host_reachable(operands, family, description.name);
+                return insert(description, operands,
                               Internal::Detail::RecordedPairTask<std::decay_t<Body>>(
                                   std::forward<Body>(body), Internal::KernelPairDispatcher(mode_),
                                   operands.retained()));
@@ -172,21 +172,26 @@ namespace SushiBLAS
 
         private:
             /**
-             * @brief Records one task under the name, the operation and the parameters of meta.
+             * @brief Records one task under the name, the operation and the parameters of
+             *        description.
              * @param work Callable `(sycl::queue&, const std::vector<sycl::event>&)` that returns
              *        the event ending its work.
              * @return The handle of the task, or the handle of no task when the graph recorder
              *         refused the recording; the refusal is what the next run returns.
              */
             template<typename Work>
-            TaskHandle insert(const TaskDescription& meta,
+            TaskHandle insert(const TaskDescription& description,
                               const OperandSet& operands, Work&& work)
             {
+                static_assert(TaskDescription::K_MAX_PARAMETERS <=
+                                  SushiRuntime::NodeOptions::K_MAX_PARAMETERS,
+                              "A task description carries more parameters than a runtime node "
+                              "takes.");
                 SushiRuntime::NodeOptions options;
-                options.name = meta.name;
-                options.operation = meta.op_id;
+                options.name = description.name;
+                options.operation = description.operation;
                 options.parameters = SushiRuntime::span<const std::uint64_t>(
-                    meta.params, TaskDescription::K_MAX_PARAMS);
+                    description.parameters, TaskDescription::K_MAX_PARAMETERS);
 
                 const std::size_t recorded_before = recorder_->node_count();
                 recorder_->task(

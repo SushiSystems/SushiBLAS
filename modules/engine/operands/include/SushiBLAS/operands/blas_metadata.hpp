@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* task_metadata.hpp                                                      */
+/* blas_metadata.hpp                                                      */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -20,7 +20,7 @@
 /**************************************************************************/
 
 /**
- * @file task_metadata.hpp
+ * @file blas_metadata.hpp
  * @brief Declares BLASMetadata, which fills a BLAS task's metadata slots in one fixed order.
  * @author Mustafa Garip
  */
@@ -50,8 +50,8 @@ namespace SushiBLAS
                  */
                 BLASMetadata(const char* name, SushiRuntime::OperationID op_id) noexcept
                 {
-                    meta_.name = name;
-                    meta_.op_id = op_id;
+                    description_.name = name;
+                    description_.operation = op_id;
                 }
 
                 /** @brief Appends a scalar as two slots: its real part, then its imaginary part. */
@@ -83,7 +83,7 @@ namespace SushiBLAS
                 /** @brief Returns the metadata built so far. */
                 [[nodiscard]] const TaskDescription& get() const noexcept
                 {
-                    return meta_;
+                    return description_;
                 }
 
             private:
@@ -91,14 +91,14 @@ namespace SushiBLAS
                 template<typename Value>
                 void push(Value value) noexcept
                 {
-                    SB_ASSERT(next_ < static_cast<int>(TaskDescription::K_MAX_PARAMS),
+                    SB_ASSERT(next_ < static_cast<int>(TaskDescription::K_MAX_PARAMETERS),
                               "A BLAS task declared more slots than TaskDescription holds");
-                    meta_.set_param(next_, value);
+                    description_.set_parameter(next_, value);
                     ++next_;
                 }
 
                 /// @brief The metadata being built.
-                TaskDescription meta_;
+                TaskDescription description_;
 
                 /// @brief The next free slot.
                 int next_ = 0;

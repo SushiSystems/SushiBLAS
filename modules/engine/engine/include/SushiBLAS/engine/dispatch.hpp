@@ -237,11 +237,11 @@ namespace SushiBLAS
          * @see modules/engine/engine/README.md
          */
         template<typename T>
-        inline void set_task_params(TaskDescription& meta,
+        inline void set_task_params(TaskDescription& description,
                                     std::initializer_list<T> params, const char* name,
                                     std::size_t reserved_slots = 0)
         {
-            constexpr std::size_t k_capacity = TaskDescription::K_MAX_PARAMS;
+            constexpr std::size_t k_capacity = TaskDescription::K_MAX_PARAMETERS;
             if (params.size() + reserved_slots > k_capacity)
                 Detail::throw_operand_error(name, "params",
                                             "lists {} task parameters (+{} reserved) but "
@@ -250,7 +250,7 @@ namespace SushiBLAS
 
             int slot = 0;
             for (const T& value : params)
-                meta.set_param(slot++, value);
+                description.set_parameter(slot++, value);
         }
 
     } // namespace Dispatch

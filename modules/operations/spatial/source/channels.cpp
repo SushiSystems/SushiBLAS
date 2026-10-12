@@ -117,13 +117,13 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(src).writes(dst);
 
-        TaskDescription meta;
-        meta.name = NAME;
-        meta.op_id = "spatial.concat_channels"_op;
+        TaskDescription description;
+        description.name = NAME;
+        description.operation = "spatial.concat_channels"_op;
 
         // A copy does no arithmetic, so it serves Domain::All; see modules/operations/README.md.
         return Internal::execute_typed_task<Dispatch::Domain::All>(
-            recorder_, meta, operands, src.dtype, "Spatial operation",
+            recorder_, description, operands, src.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {
@@ -166,12 +166,12 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(src).writes(dst);
 
-        TaskDescription meta;
-        meta.name = NAME;
-        meta.op_id = "spatial.slice_channels"_op;
+        TaskDescription description;
+        description.name = NAME;
+        description.operation = "spatial.slice_channels"_op;
 
         return Internal::execute_typed_task<Dispatch::Domain::All>(
-            recorder_, meta, operands, src.dtype, "Spatial operation",
+            recorder_, description, operands, src.dtype, "Spatial operation",
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

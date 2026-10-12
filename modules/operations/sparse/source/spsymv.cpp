@@ -38,7 +38,7 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/operands/scratch_lease.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiBLAS/sparse/accumulator_size.hpp>
@@ -82,7 +82,7 @@ namespace SushiBLAS
             const ScratchBuffer scratch =
                 Internal::allocate_blas_scratch(recorder, A.row_offsets, partial_bytes, operands);
 
-            const Internal::BLASMetadata meta =
+            const Internal::BLASMetadata metadata =
                 Internal::BLASMetadata(op, op_id).scalar(alpha).scalar(beta).flag(uplo);
 
             const int64_t rows = a.rows;
@@ -95,7 +95,7 @@ namespace SushiBLAS
             const void* read_x = x.data_or_null();
             void* rw_y = y.data_or_null();
 
-            return Internal::execute_typed_task(recorder, meta.get(), operands, A.values.dtype,
+            return Internal::execute_typed_task(recorder, metadata.get(), operands, A.values.dtype,
                                                 "Sparse operation",
                 [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                     sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event

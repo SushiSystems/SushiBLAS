@@ -33,7 +33,7 @@
 #include <SushiBLAS/blas/blas_task.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
-#include <SushiBLAS/operands/task_metadata.hpp>
+#include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
@@ -61,7 +61,7 @@ namespace SushiBLAS
         OperandSet operands;
         operands.reads(x).writes(y);
 
-        const Internal::BLASMetadata meta(op, "blas.lvl1.copy"_op);
+        const Internal::BLASMetadata metadata(op, "blas.lvl1.copy"_op);
 
         const int64_t n = vx.length;
         const int64_t incx = vx.increment;
@@ -71,7 +71,7 @@ namespace SushiBLAS
 
         // copy does no arithmetic, so it serves Domain::All; see modules/operations/README.md.
         return Internal::execute_blas_task<Dispatch::Domain::All>(
-            recorder_, meta.get(), operands, x.dtype,
+            recorder_, metadata.get(), operands, x.dtype,
             [=](auto scalar_type, const Internal::KernelPairDispatcher& dispatcher,
                 sycl::queue& q, const std::vector<sycl::event>& deps) -> sycl::event
             {

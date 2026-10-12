@@ -16,7 +16,7 @@ so one view records all three levels.
 | `band_operand.hpp` | `BandOperand`, the geometry of one band-stored matrix operand |
 | `packed_operand.hpp` | `PackedOperand`, the geometry of one packed triangle operand |
 | `scalar_operand.hpp` | The check on a tensor that stands for one scalar of a call |
-| `task_metadata.hpp` | `BLASMetadata`, which fills a task's metadata slots in one fixed order |
+| `blas_metadata.hpp` | `BLASMetadata`, which fills a task's metadata slots in one fixed order |
 | `blas_task.hpp` | `execute_blas_task`, which records one dtype-dispatched BLAS task |
 | `local_tile.hpp` | The local-memory demand of a tiled kernel and its record-time check |
 | `packed_product_scratch.hpp` | The helpers that size and lease the panels of a packed product |
@@ -312,14 +312,14 @@ finds `n` exactly. `RowMajor` packs by rows and `ColumnMajor` by columns.
 `require_scalar_operand` checks a tensor that stands for one scalar, as the four operands of
 `rotg` do: storage, the expected dtype and exactly one element.
 
-## `task_metadata.hpp`
+## `blas_metadata.hpp`
 
 ### `BLASMetadata`
 
 Builds the `TaskDescription` of one BLAS task in one fixed order: each scalar as two slots, real part
 then imaginary part, then each flag as one slot holding its CBLAS number, then each extent, such
 as a band width. Every routine fills its slots through it, so a reader of a recorded graph finds a
-flag in the same place for every routine. Writing past `TaskDescription::K_MAX_PARAMS` is an
+flag in the same place for every routine. Writing past `TaskDescription::K_MAX_PARAMETERS` is an
 `SB_ASSERT`, which aborts in a build without `NDEBUG` and is empty with it.
 
 ## `level1.hpp`

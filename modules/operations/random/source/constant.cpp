@@ -51,10 +51,10 @@ namespace SushiBLAS
          * @throws UnsupportedExecution under ForceReference when the tensor is device-only USM.
          */
         template<typename T>
-        TaskHandle record_fill(TaskRecorder& recorder, const TaskDescription& meta,
+        TaskHandle record_fill(TaskRecorder& recorder, const TaskDescription& description,
                                const OperandSet& operands, T* out, T value, int64_t size)
         {
-            return recorder.record_pair(meta, operands, "RNG operation",
+            return recorder.record_pair(description, operands, "RNG operation",
                 [out, value, size](const Internal::KernelPairDispatcher& pair, sycl::queue& q,
                                    const std::vector<sycl::event>& deps) -> sycl::event
                 {
@@ -75,10 +75,10 @@ namespace SushiBLAS
     TaskHandle RandomOps::constant(Tensor& t, double value) 
     {
         auto op_id = "random.constant"_op;
-        TaskDescription meta;
-        meta.name = "random.constant";
-        meta.op_id = op_id;
-        meta.set_param(0, value);
+        TaskDescription description;
+        description.name = "random.constant";
+        description.operation = op_id;
+        description.set_parameter(0, value);
 
         Dispatch::require_random_dtype(t, Dispatch::Domain::All, Dispatch::Sampling::MovesValues, "random.constant");
         Dispatch::require_storage(t, "random.constant", "t");
@@ -93,25 +93,28 @@ namespace SushiBLAS
         switch (t.dtype)
         {
             case Core::DataType::Half:
-                return record_fill(recorder_, meta, operands, t.data_as<sycl::half>(),
+                return record_fill(recorder_, description, operands, t.data_as<sycl::half>(),
                                    static_cast<sycl::half>(value), size);
             case Core::DataType::Float32:
-                return record_fill(recorder_, meta, operands, t.data_as<float>(),
+                return record_fill(recorder_, description, operands, t.data_as<float>(),
                                    static_cast<float>(value), size);
             case Core::DataType::Float64:
-                return record_fill(recorder_, meta, operands, t.data_as<double>(), value, size);
+                return record_fill(recorder_, description, operands, t.data_as<double>(), value,
+                                   size);
             case Core::DataType::Complex32:
-                return record_fill(recorder_, meta, operands, t.data_as<std::complex<float>>(),
+                return record_fill(recorder_, description, operands,
+                                   t.data_as<std::complex<float>>(),
                                    std::complex<float>(static_cast<float>(value), 0.0f), size);
             case Core::DataType::Complex64:
-                return record_fill(recorder_, meta, operands, t.data_as<std::complex<double>>(),
+                return record_fill(recorder_, description, operands,
+                                   t.data_as<std::complex<double>>(),
                                    std::complex<double>(value, 0.0), size);
             // An integer tensor stores the truncated double; see modules/operations/README.md.
             case Core::DataType::Int32:
-                return record_fill(recorder_, meta, operands, t.data_as<int32_t>(),
+                return record_fill(recorder_, description, operands, t.data_as<int32_t>(),
                                    static_cast<int32_t>(value), size);
             case Core::DataType::Int64:
-                return record_fill(recorder_, meta, operands, t.data_as<int64_t>(),
+                return record_fill(recorder_, description, operands, t.data_as<int64_t>(),
                                    static_cast<int64_t>(value), size);
             default:
                 SB_THROW_IF(true, "Operation 'random.constant' does not support dtype {}.",

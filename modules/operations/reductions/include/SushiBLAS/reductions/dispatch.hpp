@@ -290,27 +290,27 @@ namespace SushiBLAS
                                         reduction_device_index(t, result));
             operands.scratch(scratch);
 
-            TaskDescription meta;
-            meta.name = name;
-            meta.op_id = op_id;
+            TaskDescription description;
+            description.name = name;
+            description.operation = op_id;
 
             using D = std::decay_t<Dispatcher>;
 
             switch (t.dtype)
             {
                 case Core::DataType::Half:
-                    return recorder.record_pair(meta, operands, "Reduction",
+                    return recorder.record_pair(description, operands, "Reduction",
                         Detail::ReductionTask<sycl::half, float, sycl::half, D>(
                             static_cast<const sycl::half*>(read_T),
                             static_cast<sycl::half*>(write_R), size, scratch, partials, dispatch,
                             name));
                 case Core::DataType::Float32:
-                    return recorder.record_pair(meta, operands, "Reduction",
+                    return recorder.record_pair(description, operands, "Reduction",
                         Detail::ReductionTask<float, float, float, D>(
                             static_cast<const float*>(read_T), static_cast<float*>(write_R), size,
                             scratch, partials, dispatch, name));
                 case Core::DataType::Float64:
-                    return recorder.record_pair(meta, operands, "Reduction",
+                    return recorder.record_pair(description, operands, "Reduction",
                         Detail::ReductionTask<double, double, double, D>(
                             static_cast<const double*>(read_T), static_cast<double*>(write_R),
                             size, scratch, partials, dispatch, name));
@@ -335,7 +335,7 @@ namespace SushiBLAS
                 /** @brief Holds the recorder the task is recorded through. */
                 TaskRecorder& recorder;
                 /** @brief Holds the metadata the task is recorded with. */
-                const TaskDescription& meta;
+                const TaskDescription& description;
                 /** @brief Holds the operands the task declares. */
                 const OperandSet& operands;
                 /** @brief Holds the dispatcher the task body calls. */
@@ -365,7 +365,7 @@ namespace SushiBLAS
                     static_assert(sizeof(P) <= K_INDEXED_PARTIAL_BYTES,
                                   "An index partial must fit the bytes its scratch is sized by.");
 
-                    handle = recorder.record_pair(meta, operands, "Reduction",
+                    handle = recorder.record_pair(description, operands, "Reduction",
                         ReductionTask<T, P, int64_t, Dispatcher>(
                             static_cast<const T*>(read_T), write_R, size, scratch, partials,
                             dispatch, name));
@@ -383,7 +383,7 @@ namespace SushiBLAS
                 /** @brief Holds the recorder the task is recorded through. */
                 TaskRecorder& recorder;
                 /** @brief Holds the metadata the task is recorded with. */
-                const TaskDescription& meta;
+                const TaskDescription& description;
                 /** @brief Holds the operands the task declares. */
                 const OperandSet& operands;
                 /** @brief Holds the dispatcher the task body calls. */
@@ -409,7 +409,7 @@ namespace SushiBLAS
                 {
                     using T = typename Tag::type;
 
-                    handle = recorder.record_pair(meta, operands, "Reduction",
+                    handle = recorder.record_pair(description, operands, "Reduction",
                         ReductionTask<T, int64_t, int64_t, Dispatcher>(
                             static_cast<const T*>(read_T), write_R, size, scratch, partials,
                             dispatch, name));
@@ -499,7 +499,7 @@ namespace SushiBLAS
                 /** @brief Holds the recorder the task is recorded through. */
                 TaskRecorder& recorder;
                 /** @brief Holds the metadata the task is recorded with. */
-                const TaskDescription& meta;
+                const TaskDescription& description;
                 /** @brief Holds the operands the task declares. */
                 const OperandSet& operands;
                 /** @brief Holds the segment geometry the fold walks. */
@@ -523,7 +523,7 @@ namespace SushiBLAS
                 {
                     using T = typename Tag::type;
 
-                    handle = recorder.record_pair(meta, operands, "Axis reduction",
+                    handle = recorder.record_pair(description, operands, "Axis reduction",
                         SpanReductionTask<Accum, T, Transform, Finalize>(
                             span, static_cast<const T*>(read_T), static_cast<T*>(write_R),
                             transform, finalize, name));
@@ -570,15 +570,15 @@ namespace SushiBLAS
                                         t.storage->device_index());
             operands.scratch(scratch);
 
-            TaskDescription meta;
-            meta.name = name;
-            meta.op_id = op_id;
+            TaskDescription description;
+            description.name = name;
+            description.operation = op_id;
 
             TaskHandle handle;
 
             // REAL_AND_INTEGRAL: finding the largest element needs an ordering, which complex types lack; see modules/operations/MATH_README.md.
             const Detail::IndexReductionArm<std::remove_reference_t<Dispatcher>> arm{
-                recorder, meta, operands, dispatch, size, read_T, write_R, scratch, partials,
+                recorder, description, operands, dispatch, size, read_T, write_R, scratch, partials,
                 name, handle};
             with_element_type<Domain::RealAndIntegral>(t.dtype, "Reduction", name, arm);
 
@@ -625,15 +625,15 @@ namespace SushiBLAS
                                         reduction_device_index(t, result));
             operands.scratch(scratch);
 
-            TaskDescription meta;
-            meta.name = name;
-            meta.op_id = op_id;
+            TaskDescription description;
+            description.name = name;
+            description.operation = op_id;
 
             TaskHandle handle;
 
             // REAL only: an integer or complex tensor is rejected by name; see modules/operations/MATH_README.md.
             const Detail::CountingReductionArm<std::remove_reference_t<Dispatcher>> arm{
-                recorder, meta, operands, dispatch, size, read_T, write_R, scratch, partials,
+                recorder, description, operands, dispatch, size, read_T, write_R, scratch, partials,
                 name, handle};
             with_element_type<Domain::Real>(t.dtype, "Reduction", name, arm);
 
@@ -804,15 +804,16 @@ namespace SushiBLAS
             OperandSet operands;
             operands.reads(t).writes(result);
 
-            TaskDescription meta;
-            meta.name = name;
-            meta.op_id = op_id;
+            TaskDescription description;
+            description.name = name;
+            description.operation = op_id;
 
             TaskHandle handle;
 
             // REAL only: a fold needs an ordering and an identity, and integers are not arithmetic here; see modules/operations/MATH_README.md.
             const Detail::SpanReductionArm<Accum, Transform, Finalize> arm{
-                recorder, meta, operands, span, read_T, write_R, transform, finalize, name, handle};
+                recorder, description, operands, span, read_T, write_R, transform, finalize, name,
+                handle};
             with_element_type<Domain::Real>(t.dtype, "Axis reduction", name, arm);
 
             return handle;
