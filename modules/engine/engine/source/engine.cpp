@@ -48,7 +48,7 @@ namespace SushiBLAS
 
     void Engine::discard_recorded()
     {
-        const std::size_t dropped = graph_.discard();
+        const std::size_t dropped = recorder_.run_exclusive([this] { return graph_.discard(); });
         SB_LOG_INFO("SushiBLAS Engine discarded {} recorded task(s).", dropped);
     }
 } // namespace SushiBLAS

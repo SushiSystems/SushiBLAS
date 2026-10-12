@@ -90,7 +90,10 @@ namespace SushiBLAS
                 return runtime_;
             }
 
-            /** @brief Sets the execution mode of every operation recorded from now on. */
+            /**
+             * @brief Sets the execution mode of every operation recorded from now on.
+             * @pre No thread is recording on this engine.
+             */
             void set_mode(ExecutionMode mode) noexcept { recorder_.set_mode(mode); }
 
             /** @brief Returns the execution mode operations are recorded under. */
@@ -115,7 +118,7 @@ namespace SushiBLAS
             /**
              * @brief Drops every task recorded through recorder() that has not run, with the
              *        operand storage and the scratch those tasks hold; the engine stays usable.
-             * @pre No thread is recording on this engine or running execute().
+             * @pre No thread is running execute() on this engine.
              * @see modules/README.md
              */
             void discard_recorded();

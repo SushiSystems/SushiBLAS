@@ -251,6 +251,18 @@ not change a task already recorded.
 the recorder of one `SushiRuntime::Graph` and to one `ScratchPool`, and holds the execution mode.
 `Engine` owns one; a test or a layer above may build its own over a graph it owns.
 
+Record calls from several threads on one `TaskRecorder` are serialised by one `std::mutex` in it.
+The lock covers reading the recorder's node count, the call of `Recorder::task` and the draw of
+the sequence number, so each thread gets the handle of its own task and the runtime's recorder
+sees one caller at a time. The order of two tasks recorded from two threads is the order in which
+the threads took the lock. `run_exclusive(work)` runs a callable under the same lock;
+`Engine::discard_recorded` empties the graph through it. Three things are outside the lock:
+
+- A run. `Engine::execute()` must not be called while a thread records on the engine, and a task
+  body must not record on the engine that runs it.
+- `set_mode`. No thread may be recording while the mode changes.
+- A second `TaskRecorder` bound to the same `SushiRuntime::Recorder`. Each has its own mutex.
+
 ### `TaskRecorder::record_pair`
 
 Takes a `TaskDescription`, an `OperandSet`, the family name for diagnostics, and a body callable as
@@ -361,7 +373,9 @@ the offset of each task. No random operation reaches the engine.
 - `reserve(count)` returns an `RNGPosition` holding the seed and the current offset, then adds
   `count` to the offset, all under the lock. Every random task reserves one offset, so tasks
   recorded from different threads get distinct `(seed, offset)` pairs, and a `reseed` racing a
-  reservation can never pair one seed with the other seed's offset.
+  reservation can never pair one seed with the other seed's offset. The record call that follows
+  the reservation waits on the mutex of `TaskRecorder`, so two random tasks recorded from two
+  threads may reach the graph in the other order than their offsets.
 
 The lock is taken once per recorded random operation, never inside a kernel.
 

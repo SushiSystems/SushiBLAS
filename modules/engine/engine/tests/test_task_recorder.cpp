@@ -27,7 +27,9 @@
 
 #include <array>
 #include <atomic>
+#include <thread>
 #include <vector>
+#include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 #include <functional>
@@ -46,6 +48,9 @@ namespace SushiBLAS
         {
             /// @brief Holds the tolerance of a result made of small whole numbers: it is exact.
             constexpr double K_EXACT = 0.0;
+
+            /// @brief Holds how many tasks each thread of the two-thread test records.
+            constexpr std::size_t K_TASKS_PER_THREAD = 64;
         } // namespace
 
         /** @brief Builds the tensors and records the call chain the TaskRecorder tests share. */
@@ -104,6 +109,39 @@ namespace SushiBLAS
 
             EXPECT_EQ(1u, first.take_recorded_count());
             EXPECT_EQ(0u, second.take_recorded_count());
+        }
+
+        /** @brief Tests that two threads recording on one recorder each get their own tasks. */
+        TEST_F(Unit_TaskRecorderTest, TwoThreadsRecordOnOneRecorder)
+        {
+            GraphProbe probe;
+            const Tensor first_x = vector_of_four();
+            const Tensor second_x = vector_of_four();
+            Tensor first_y = vector_of_four();
+            Tensor second_y = vector_of_four();
+            std::vector<TaskHandle> first_handles(K_TASKS_PER_THREAD);
+            std::vector<TaskHandle> second_handles(K_TASKS_PER_THREAD);
+
+            const auto record_all = [&probe](const Tensor& x, Tensor& y,
+                                             std::vector<TaskHandle>& handles)
+            {
+                for (TaskHandle& handle : handles)
+                    handle = SushiBLAS::BLASOps(probe.recorder()).axpy(2.0, x, y);
+            };
+            std::thread first([&] { record_all(first_x, first_y, first_handles); });
+            std::thread second([&] { record_all(second_x, second_y, second_handles); });
+            first.join();
+            second.join();
+
+            std::vector<TaskHandle> handles = first_handles;
+            handles.insert(handles.end(), second_handles.begin(), second_handles.end());
+            for (std::size_t i = 0; i < handles.size(); ++i)
+            {
+                EXPECT_TRUE(handles[i].is_valid());
+                for (std::size_t j = i + 1; j < handles.size(); ++j)
+                    EXPECT_TRUE(handles[i] != handles[j]);
+            }
+            EXPECT_EQ(2 * K_TASKS_PER_THREAD, probe.take_recorded_count());
         }
 
         /** @brief Tests that a recorder returns the pool it was built on. */

@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <mutex>
 #include <atomic>
 #include <vector>
 #include <cstddef>
@@ -95,7 +96,8 @@ namespace SushiBLAS
     } // namespace Internal
 
     /**
-     * @brief Records tasks on one SushiRuntime::Recorder under one execution mode.
+     * @brief Records tasks on one SushiRuntime::Recorder under one execution mode, one record
+     *        call at a time.
      * @see modules/engine/engine/README.md
      */
     class TaskRecorder final
@@ -124,7 +126,10 @@ namespace SushiBLAS
             /** @brief Returns the mode every later record call is recorded under. */
             [[nodiscard]] ExecutionMode mode() const noexcept { return mode_; }
 
-            /** @brief Sets the mode every later record call is recorded under. */
+            /**
+             * @brief Sets the mode every later record call is recorded under.
+             * @pre No thread is recording on this recorder.
+             */
             void set_mode(ExecutionMode mode) noexcept { mode_ = mode; }
 
             /** @brief Returns the pool recorded tasks lease their device scratch from. */
@@ -170,6 +175,19 @@ namespace SushiBLAS
                                   operands.retained()));
             }
 
+            /**
+             * @brief Runs work while no record call of this recorder adds a task, and returns
+             *        what it returns.
+             * @param work Callable with no argument; it must not record on this recorder.
+             * @see modules/engine/engine/README.md
+             */
+            template<typename Work>
+            decltype(auto) run_exclusive(Work&& work)
+            {
+                const std::lock_guard<std::mutex> lock(recording_mutex_);
+                return std::forward<Work>(work)();
+            }
+
         private:
             /**
              * @brief Records one task under the name, the operation and the parameters of
@@ -193,6 +211,8 @@ namespace SushiBLAS
                 options.parameters = SushiRuntime::span<const std::uint64_t>(
                     description.parameters, TaskDescription::K_MAX_PARAMETERS);
 
+                // The count before, the recording and the sequence number are one step.
+                const std::lock_guard<std::mutex> lock(recording_mutex_);
                 const std::size_t recorded_before = recorder_->node_count();
                 recorder_->task(
                     SushiRuntime::Access(operands.read_regions(), operands.write_regions()),
@@ -215,7 +235,10 @@ namespace SushiBLAS
             /// @brief The identity this recorder's handles carry.
             std::uint64_t identity_;
 
-            /// @brief The sequence number the next recorded task takes.
+            /// @brief The sequence number the next recorded task takes; guarded by recording_mutex_.
             std::uint64_t next_sequence_ = 0;
+
+            /// @brief Serialises every use of recorder_ and next_sequence_.
+            std::mutex recording_mutex_;
     };
 } // namespace SushiBLAS
