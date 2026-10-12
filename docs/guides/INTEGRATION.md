@@ -1,7 +1,8 @@
 # Integrating SushiBLAS
 
 How to consume SushiBLAS from another project, and the one fact that decides what you need to
-set up.
+set up. SushiBLAS is below 1.0.0: read [the stability notice](../../README.md#stability) before
+you depend on it, and [section 5](#5-write-one-adapter) for how to keep a break in one place.
 
 ## 1. Where the kernels are compiled
 
@@ -12,7 +13,8 @@ in your translation units, which is the opposite of SushiRuntime. When you write
 SushiBLAS::BLASOps(engine).gemm(A, B, C);
 ```
 
-the call resolves to a function already compiled into `libsushiblas.a`. Your compiler does not
+the call resolves to a function already compiled into the `sushiblas` static library. Your
+compiler does not
 see the GEMM kernel's source, instantiates no device lambda and produces no device code for it.
 `Level3::gemm` is an ordinary library call that records a task and returns a `TaskHandle`; the
 task runs when you call `engine.execute()`.
@@ -26,7 +28,7 @@ device code in your translation unit. The GEMM kernels are installed under
 
 You still need a SYCL-capable compiler, because the public headers include `<sycl/sycl.hpp>`
 and use `sycl::queue`, `sycl::event` and `sycl::device` in their own declarations:
-`Tensor::get_device()` and the task bodies in `engine/task_recorder.hpp` are two places. A
+`Tensor::device()` and the task bodies in `engine/task_recorder.hpp` are two places. A
 translation unit that includes `<SushiBLAS/SushiBLAS.h>` needs a compiler that parses those
 types, even though it submits no kernel of its own. `sushiblas_apply_sycl()` in
 `cmake/SyclTarget.cmake` therefore puts `-fsycl` on `SushiBLAS::sushiblas` as a `PUBLIC` compile
@@ -46,8 +48,8 @@ whether or not it writes a kernel.
 sb build
 cmake --install build --prefix /opt/sushiblas
 
-# In your project (CMAKE_PREFIX_PATH needs BOTH SushiBLAS and its
-# SushiRuntime dependency's install prefixes)
+# In your project (CMAKE_PREFIX_PATH names the prefix of SushiBLAS and the
+# prefix of SushiRuntime)
 cmake -S . -B build \
     -DCMAKE_PREFIX_PATH="/opt/sushiblas;/opt/sushiruntime" \
     -DCMAKE_CXX_COMPILER=<the same SYCL compiler SushiBLAS was built with>
@@ -63,6 +65,10 @@ target_link_libraries(my_app PRIVATE SushiBLAS::sushiblas)
 `tests/package/` in this repository is a working example: a two-file consumer with no access to
 SushiBLAS's source tree. It also runs the flag assertion of
 [section 3](#3-what-you-inherit-and-what-you-must-supply).
+
+When SushiBLAS built SushiRuntime as a subdirectory, `cmake --install` on SushiBLAS's build tree
+installs SushiRuntime into the same prefix, and one prefix is enough. `sb test --suite package`
+installs that way.
 
 ### From a sibling checkout
 
@@ -97,11 +103,9 @@ You must supply:
 
 - The SYCL compiler SushiBLAS was built with. Mixing toolchains between the library and a
   consumer is not supported.
-- C++17 or later. SushiBLAS is built at C++17, as SushiRuntime is; a consumer on C++20 is
-  supported, and `tests/package/` compiles as one. A consumer whose standard disagrees with the
-  SushiRuntime it links is not supported: `SushiRuntime::span` is `std::span` at C++20 and
-  SushiRuntime's own type below it, and the difference shows in the mangled names of
-  SushiRuntime's compiled ABI.
+- C++17 or later. SushiBLAS is built at C++17, as SushiRuntime is, and `tests/package/` sets
+  its consumer to C++20. The spans in the public headers are `SushiRuntime::span`, which is one
+  class template at every standard; at C++20 it also converts from and to `std::span`.
 - A `CMAKE_PREFIX_PATH` that names both install prefixes, SushiBLAS's and SushiRuntime's,
   unless both were installed to one prefix.
 - SushiRuntime's shared library on the loader path at run time, and whatever your SYCL
@@ -115,6 +119,8 @@ You must supply:
 std::printf("Built against SushiBLAS headers %s\n", SUSHIBLAS_VERSION_STRING);
 ```
 
+`tests/package/main.cpp` prints the same macro in its last line.
+
 SushiRuntime is a `SHARED` library, so the headers a program compiled against and the library
 it loads can disagree. SushiBLAS is `STATIC`: no separately loaded file exists whose version
 could differ from `SUSHIBLAS_VERSION_STRING` at run time, so the library has no runtime version
@@ -124,11 +130,105 @@ You can also branch at compile time:
 
 ```cpp
 #if SUSHIBLAS_VERSION >= SUSHIBLAS_VERSION_ENCODE(0, 2, 0)
-    // use something introduced in 0.2.0
+    // code that needs 0.2.0
 #endif
 ```
 
-## 5. Troubleshooting
+Both macros are in `modules/foundation/core/include/SushiBLAS/core/version.hpp`.
+
+## 5. Write one adapter
+
+Keep every include of a SushiBLAS header in one module of your own, and give the rest of your
+program functions in your own types. A release that changes a name, a signature or an error
+channel is then an edit to that module. SushiAI does this for the failure channels in
+`sushiai/modules/core/core/`, in `seam.hpp` and `seam.cpp`; the blocks below are from those two
+files.
+
+**What it includes.** `seam.hpp` includes `<SushiBLAS/engine/engine.hpp>` and
+`<SushiRuntime/sushiruntime.hpp>`; `seam.cpp` adds `<SushiBLAS/core/errors.hpp>` for
+`UnsupportedExecution`. No other SushiAI file reads a `SushiRuntime::Error` or catches a
+SushiBLAS exception.
+
+**What it exposes.** Functions that return the host's own types. In SushiAI they return its
+`Status` or its `Result`, and take a `SeamPhase` that says what the call was doing:
+
+```cpp
+[[nodiscard]] Status status_of_error(const SushiRuntime::Error& error,
+                                     SeamPhase phase) noexcept;
+
+[[nodiscard]] Status status_of_current_exception(SeamPhase phase) noexcept;
+
+template<typename Call>
+[[nodiscard]] Status guard(SeamPhase phase, Call&& call) noexcept;
+
+[[nodiscard]] Status run_recorded(SushiBLAS::Engine& engine) noexcept;
+```
+
+Source: `sushiai/modules/core/core/include/SushiAI/core/seam.hpp`, without the comments.
+
+**How it turns a failure into the host's type.** SushiBLAS has two channels the adapter must
+close, and [the architecture, section 11](../architecture/EXCEPTIONS.md) lists what arrives on
+each. A record call and a creation throw. The adapter catches the three types most derived first:
+
+```cpp
+Status status_of_current_exception(SeamPhase phase) noexcept
+{
+    try
+    {
+        throw;
+    }
+    catch (const SushiBLAS::UnsupportedExecution& error)
+    {
+        return failure_of(StatusCode::Unsupported, error.what());
+    }
+    catch (const std::invalid_argument& error)
+    {
+        return failure_of(StatusCode::InvalidDescription, error.what());
+    }
+    catch (const std::runtime_error& error)
+    {
+        return status_of_runtime_error(error, phase);
+    }
+    catch (const std::bad_alloc& error)
+    {
+        return failure_of(StatusCode::OutOfMemory, error.what());
+    }
+    catch (const std::exception& error)
+    {
+        return failure_of(StatusCode::DeviceFailed, error.what());
+    }
+    catch (...)
+    {
+        return failure_of(StatusCode::DeviceFailed, K_UNKNOWN_EXCEPTION_MESSAGE);
+    }
+}
+```
+
+A run returns a `SushiRuntime::Result<void>`. The adapter reads the `Error` out of it and maps
+the `ErrorCode`, inside the same guard, so a run has one return type whichever channel failed:
+
+```cpp
+Status run_recorded(SushiBLAS::Engine& engine) noexcept
+{
+    return guard(SeamPhase::Execute, [&]()
+    {
+        const SushiRuntime::Result<void> ran = engine.execute();
+        if (!ran)
+            return status_of_error(ran.error(), SeamPhase::Execute);
+
+        return Status();
+    });
+}
+```
+
+Source of both: `sushiai/modules/core/core/source/seam.cpp`. `status_of_error` in the same file
+is a `switch` over the `SushiRuntime::ErrorCode` values with no `default`, so `-Wswitch` reports
+a code the function does not name.
+
+An adapter for the rest of the surface follows the same rule: it names `Engine`, the views and
+`Tensor` inside, and hands out handles and functions of the host.
+
+## 6. Troubleshooting
 
 **A parse error inside `<sycl/sycl.hpp>` or `<SushiBLAS/tensor/tensor.hpp>`.** A compiler without SYCL
 support is compiling the translation unit. Every file that includes a SushiBLAS header needs
@@ -144,5 +244,4 @@ private development flags leaked into the export set, which is a defect in Sushi
 `tests/package/` asserts against it; please report it.
 
 **Link errors on a BLAS symbol.** Confirm that you link `SushiBLAS::sushiblas`, the namespaced
-alias, and not a bare `sushiblas` target from an `add_subdirectory` older than the packaging
-work of SB-6.
+alias, and not a bare `sushiblas` target.
