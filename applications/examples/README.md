@@ -1,6 +1,6 @@
 # Examples
 
-Four programs that link the library the way a user would. `applications/examples/CMakeLists.txt`
+Five programs that link the library the way a user would. `applications/examples/CMakeLists.txt`
 builds them, one target each. Every program but `io_example` compares what it computed with a
 value computed on the host, prints the outcome and returns 0, or 1 when the comparison fails.
 The numbers are the same on every machine, with or without a GPU.
@@ -9,6 +9,7 @@ The numbers are the same on every machine, with or without a GPU.
 | --- | --- | --- |
 | `adapter/` | `adapter_demo` | A host program that reaches the library through one file, in its own types and its own status |
 | `errors_demo.cpp` | `errors_demo` | What a wrong record call throws, what `execute()` returns, and what a file operation returns |
+| `recording_demo.cpp` | `recording_demo` | Several operations recorded, one `execute()`, tensors of two residencies, results read back |
 | `example.cpp` | `sushiblas_example` | One 256 x 256 GEMM on shared-memory tensors with a column-major engine, the program the root README quotes |
 | `io_example.cpp` | `io_example` | `to_string`, `save_npy` and `load_npy` on a 2 x 3 tensor, then a complex tensor printed |
 
@@ -70,3 +71,19 @@ between the program's own.
 The run in this program succeeds. No call of the public interface makes a run fail on every
 machine, so the branch that prints `ran.error().code` and `ran.error().message` is written
 and not taken; `graph_primitives_demo.cpp` prints a real `SushiRuntime::Error`.
+
+## `recording_demo.cpp`: record, then run
+
+An operation of a view records a task and runs nothing. The program shows that with a tensor
+the host can read directly: it fills `result` with -1, records `scal`, `add` and `sum`, and
+reads `result[0]` through `Tensor::data_as` before and after `Engine::execute()`. The first
+read is still -1 and the second is `2 * a[0] + b[0]`, which is 12.
+
+`a` and `result` are `Residency::Shared`, the default, and `b` is `Residency::Device`. The
+host cannot dereference device memory, so `b` is filled and read through `IO::from_vector`
+and `IO::to_vector`, which work for every residency. One `add` reads both.
+
+The program also prints the bytes behind `result`: 6 FLOAT32 elements need 24 bytes and
+`Storage::size_bytes()` reports 128, because every allocation is a multiple of
+`K_STORAGE_ALIGNMENT`. A second `execute()` with nothing recorded returns success. The last
+lines are `total = 252 (expected 252)` and `recording_demo: ok`.
