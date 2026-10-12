@@ -44,7 +44,7 @@
 #include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/matrix_operand.hpp>
-#include <SushiRuntime/api/data/buffer.hpp>
+#include <SushiRuntime/region/buffer_region.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
