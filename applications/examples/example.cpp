@@ -21,7 +21,7 @@
 
 /**
  * @file example.cpp
- * @brief Fills two matrices, multiplies them with GEMM and prints one element of the result.
+ * @brief Fills two matrices, multiplies them with GEMM and checks every element of the result.
  * @author Mustafa Garip
  */
 
@@ -55,8 +55,10 @@ int main()
     const std::vector<float> result = SushiBLAS::IO(engine).to_vector<float>(C);
 
     // Every element of C is K_SIZE * K_A_VALUE * K_B_VALUE.
-    std::cout << "C[0][0] = " << result[0] << " (expected " << K_SIZE * K_A_VALUE * K_B_VALUE
-              << ")\n";
+    const float expected = static_cast<float>(K_SIZE) * K_A_VALUE * K_B_VALUE;
+    const bool correct = result == std::vector<float>(count, expected);
+    std::cout << "C[0][0] = " << result[0] << " (expected " << expected << ")\n";
+    std::cout << "example: " << (correct ? "ok" : "MISMATCH") << "\n";
 
-    return 0;
+    return correct ? 0 : 1;
 }
