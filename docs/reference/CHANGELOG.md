@@ -6,15 +6,15 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
-- 2026-10-12 — docs: Brought the root README example and five architecture pages to `Runtime`, `Recorder`, `TaskDescription`, the accessors without `get_` and an `execute()` that returns a `Result` (`ENGINE_AND_RECORDER.md`, `LAYERS.md`).
-- 2026-10-12 — layering: Made `rule_graph_insertions` report a call of a recording member of `SushiRuntime::Recorder` outside `TaskRecorder` and the graph primitives, and allowed `recorder` and `rng` to a view (`check_layering.py`).
-- 2026-10-12 — blas: Included `<SushiRuntime/region/buffer_region.hpp>` for `BufferRegion` and removed `<SushiRuntime/api/data/buffer.hpp>` from seven files that name no `Buffer` (`blas/dispatch.hpp`, `convert.cpp`, `reductions/dispatch.hpp`).
+- 2026-10-12 — docs: Brought the root README example and five architecture pages to the runtime's `Runtime` and `Recorder`, the accessors without a get prefix and an `execute()` that returns a result (`ENGINE_AND_RECORDER.md`, `LAYERS.md`).
+- 2026-10-12 — layering: Made `rule_graph_insertions` report a call of a recording member of the runtime's `Recorder` outside `TaskRecorder` and the graph primitives, and allowed the accessors without a get prefix (`check_layering.py`).
+- 2026-10-12 — blas: Included `<SushiRuntime/region/buffer_region.hpp>` where `BufferRegion` is named and removed the runtime's buffer header from seven files that name no buffer (`blas/dispatch.hpp`, `convert.cpp`).
 - 2026-10-12 — engine: Breaking change: a recording the runtime refuses throws `std::runtime_error` from `TaskRecorder::record_pair` and no longer returns the handle of no task (`task_recorder.hpp`).
 - 2026-10-12 — io: Added `IOStatus::RunFailed`, which the six file operations return when the recorded tasks fail, where they threw `std::runtime_error` (`io_status.hpp`, `io.cpp`).
 - 2026-10-12 — engine: Serialised record calls on one `TaskRecorder` with a mutex and ran `Engine::discard_recorded` under it through `TaskRecorder::run_exclusive` (`task_recorder.hpp`, `engine.cpp`).
-- 2026-10-12 — engine: Added `RecordedGraph`, which owns the graph and runs or discards it for `Engine` and `GraphProbe`; a run refused with `InvalidState` keeps the recorded tasks (`recorded_graph.hpp`, `engine.cpp`, `graph_probe.hpp`).
-- 2026-10-12 — engine: Breaking change: renamed the members of `TaskDescription` to `operation`, `parameters`, `K_MAX_PARAMETERS`, `set_parameter` and `parameter<T>`, and `task_metadata.hpp` to `blas_metadata.hpp`.
-- 2026-10-12 — tensor: Included `<SushiRuntime/core/sushi_ptr.hpp>` and `ref_counted.hpp` where they are named, and stated `K_STORAGE_ALIGNMENT` as 128 without `core/common.hpp` (`storage.hpp`, `tensor.hpp`, `scratch_shelf.hpp`).
+- 2026-10-12 — engine: Added `RecordedGraph`, which owns the graph and runs or discards it for `Engine` and the test probe; a run refused with `InvalidState` keeps the recorded tasks (`recorded_graph.hpp`, `graph_probe.hpp`).
+- 2026-10-12 — engine: Breaking change: renamed the members of `TaskDescription` to `operation`, `parameters`, `K_MAX_PARAMETERS` and `set_parameter`, and the header of the BLAS metadata to blas_metadata.hpp.
+- 2026-10-12 — tensor: Included the runtime's `core/sushi_ptr.hpp` and `core/ref_counted.hpp` where their names are used, and stated `K_STORAGE_ALIGNMENT` as 128 in `storage.hpp` without the runtime's common header.
 - 2026-10-12 — tests: Spelled the run layer `SushiRuntime::ExecutionLayer` and included `<SushiRuntime/api/runtime/logging.hpp>` for `set_log_synchronous` (`test_device_sized_primitives.cpp`, `test_main.cpp`).
 - 2026-10-12 — tests: Made `TestEnvironment::live_allocation_count()` call `AdvancedControls::live_allocation_count()`; no test reaches the runtime's context any more (`test_environment.hpp`).
 - 2026-10-12 — tests: Made `GraphProbe::recorded_tasks()` answer from `Graph::plan()` as a `Result`, removed `RecordedTask::body` and `K_NO_RECORDED_TASK_VIEW`, and ran the assertions that were skipped (`graph_probe.hpp`).

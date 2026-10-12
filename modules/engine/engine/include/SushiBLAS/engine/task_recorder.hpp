@@ -162,9 +162,8 @@ namespace SushiBLAS
              * @param body Callable `(const Internal::KernelPairDispatcher&, sycl::queue&,
              *        const std::vector<sycl::event>&) -> sycl::event`, copyable, callable more
              *        than once, and ordering its work behind the events it is given.
-             * @throws UnsupportedExecution under ForceReference when a declared tensor is
-             *         device-only USM, and std::runtime_error when the runtime refuses the
-             *         recording; no task is recorded.
+             * @throws UnsupportedExecution for a device-only tensor under ForceReference, and
+             *         std::runtime_error when the runtime refuses; no task is recorded.
              */
             template<typename Body>
             TaskHandle record_pair(const TaskDescription& description,
