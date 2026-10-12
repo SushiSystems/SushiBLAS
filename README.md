@@ -2,16 +2,27 @@
 
 SushiBLAS is a C++17 tensor and BLAS library built on [SushiRuntime](https://github.com/SushiSystems/SushiRuntime)'s task graph. You create tensors through an `Engine` and record operations on them through view objects built from it; the runtime tracks the dependencies between the recorded tasks and runs them on a CPU or a GPU through SYCL. No kernel calls a vendor math library: there is no oneMKL and no cuBLAS behind it.
 
-The v0.1.0 tree was built and its test suite run as a whole once, on 2026-10-09, on one NVIDIA card; [the known issues](docs/reference/KNOWN_ISSUES.md) say what that run does not cover. This page says what the code does; it gives no speed figure.
+No release is tagged; the version in `CMakeLists.txt` is 0.1.0. [The known issues](docs/reference/KNOWN_ISSUES.md) say which devices the tests have run on. This page says what the code does; it gives no speed figure.
 
 The manual is in [docs/README.md](docs/README.md).
 
-- **Operations are recorded, then run.** `Engine::create_tensor()` allocates a `Tensor`, which is shape, stride and dtype metadata over a ref-counted `Storage` backed by SushiRuntime USM. Calling an operation, such as `SushiBLAS::BLASOps(engine).axpy(...)`, records one task on the engine's graph and returns a `TaskHandle`. `engine.execute()` compiles the graph, runs it and returns when every task has finished.
-- **Eight operation families.** Dense BLAS levels 1 to 3 with the band, packed, rotation, complex and Hermitian routines; sparse BLAS over CSR; elementwise arithmetic; non-linear activations; logic and comparison; reductions; random generation; and spatial (windowed) operations. [The architecture, section 7](docs/architecture/KERNELS.md) lists the routines.
-- **Every operation has a reference path and a SYCL kernel.** The BLAS, sparse and spatial families have a plain C++ reference kernel under `modules/kernels/reference/` beside the SYCL kernel under `modules/kernels/sycl/`. The other families run one functor two ways: inlined into a SYCL kernel, or in a serial host loop. The GEMM and SYRK tiling is ported from portBLAS; see [NOTICE.md](NOTICE.md).
-- **The execution mode is stamped on each task as it is recorded.** `Engine::set_mode()` selects `Auto`, `ForceSYCL` or `ForceReference` for every later operation. See [the architecture, section 3](docs/architecture/EXECUTION_MODES.md).
-- **A wrong call throws when it is recorded.** A wrong operand, flag or scalar throws `std::invalid_argument` and names the operation and the operand; a dtype with no meaning for an operation, such as `max` on a complex tensor, is one of those. An operation that cannot run under the mode or on the device throws `SushiBLAS::UnsupportedExecution`, which derives from it. See [the architecture, section 11](docs/architecture/EXCEPTIONS.md).
-- **Fusion is written by the caller.** The `SushiBLAS::Dispatch` seams take a functor and run it as one kernel, and `Dispatch::execute_gemm` takes an epilogue applied to each element of the product. No pass fuses recorded tasks automatically.
+- Operations are recorded, then run. `Engine::create_tensor()` allocates a `Tensor`, which is shape, stride and dtype metadata over a ref-counted `Storage` backed by SushiRuntime USM. Calling an operation, such as `SushiBLAS::BLASOps(engine).axpy(...)`, records one task on the engine's graph and returns a `TaskHandle`. `engine.execute()` runs the graph, returns when every task has finished, and reports the run as a `SushiRuntime::Result<void>`.
+- There are eight operation families: dense BLAS levels 1 to 3 with the band, packed, rotation, complex and Hermitian routines; sparse BLAS over CSR; elementwise arithmetic; non-linear activations; logic and comparison; reductions; random generation; and spatial (windowed) operations. [The architecture, section 7](docs/architecture/KERNELS.md) lists the routines.
+- Every operation has a reference path and a SYCL kernel. The BLAS, sparse and spatial families have a plain C++ reference kernel in a `reference/` folder beside the SYCL kernel in a `sycl/` folder, under `modules/kernels/<family>_kernels/include/SushiBLAS/<family>_kernels/`. The other families run one functor two ways: inlined into a SYCL kernel, or in a serial host loop. The GEMM and SYRK tiling is ported from portBLAS; see [NOTICE.md](NOTICE.md).
+- The execution mode is stamped on each task as it is recorded. `Engine::set_mode()` selects `Auto`, `ForceSYCL` or `ForceReference` for every later operation. See [the architecture, section 3](docs/architecture/EXECUTION_MODES.md).
+- A wrong call throws when it is recorded. A wrong operand, flag or scalar throws `std::invalid_argument` and names the operation and the operand; a dtype with no meaning for an operation, such as `max` on a complex tensor, is one of those. An operation that cannot run under the mode or on the device throws `SushiBLAS::UnsupportedExecution`, which derives from it. A failed run throws nothing: `execute()` returns the error. See [the architecture, section 11](docs/architecture/EXCEPTIONS.md).
+- Fusion is written by the caller. The `SushiBLAS::Dispatch` seams take a functor and run it as one kernel, and `Dispatch::execute_gemm` takes an epilogue applied to each element of the product. No pass fuses recorded tasks automatically.
+
+## Stability
+
+SushiBLAS is below 1.0.0, and its public interface is not stable.
+
+- A MINOR release (0.2, 0.3) may change or remove any public name, signature, header path or binary layout. A PATCH release does not.
+- Pin an exact tag. Do not follow a branch. No tag exists yet; the version in `CMakeLists.txt` is 0.1.0.
+- Reach SushiBLAS through one adapter of your own: a single module that includes `<SushiBLAS/SushiBLAS.h>` and exposes only what your code needs, in your own types. When a release breaks the interface, that module is the only place you edit.
+- SushiBLAS's public headers include `<SushiRuntime/sushiruntime.hpp>` and name `SushiRuntime::Runtime`, `Result` and `Residency`, so a SushiRuntime release that changes those changes this interface too. The build names no SushiRuntime version: `cmake/Runtime.cmake` takes the package or the checkout it finds.
+
+SushiAI's seam (`sushiai/modules/core/core/source/seam.cpp`) is part of such an adapter: one file that turns every exception SushiBLAS throws and every `SushiRuntime::Error` a run returns into SushiAI's own `Status`. [The integration guide](docs/guides/INTEGRATION.md#5-write-one-adapter) shows how to write one.
 
 ## Requirements
 
@@ -117,8 +128,8 @@ sb test --suite package          # the out-of-tree consumer of the installed pac
 sb test --filter 'Gemm.*'        # ctest -R over 'Suite.Case' test names
 sb test --repeat 5               # re-run until first failure
 
-# or run the binary directly
-sb run sushiblas_tests -- --gtest_filter='Unit_GEMMTest.*'
+# or run one test program directly; a module's is sushiblas_<module>_tests
+sb run sushiblas_blas_tests -- --gtest_filter='Unit_GEMMTest.*'
 
 # or through ctest, by label
 ctest --test-dir build -L unit
@@ -129,44 +140,50 @@ ctest --test-dir build -L regression
 ## How it works
 
 ```cpp
+#include <vector>
+#include <cstdint>
 #include <SushiBLAS/SushiBLAS.h>
 
-SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
-SushiBLAS::Engine engine(runtime, SushiBLAS::Core::Layout::RowMajor);
+namespace sb = SushiBLAS;
+namespace sr = SushiRuntime;
 
-auto A = engine.create_tensor({1024, 1024});   // FLOAT32, shared USM, by default
-auto B = engine.create_tensor({1024, 1024});
-auto C = engine.create_tensor({1024, 1024});
+int main()
+{
+    constexpr int64_t K_SIZE = 256;
+    constexpr float K_A_VALUE = 1.0f;
+    constexpr float K_B_VALUE = 2.0f;
 
-SushiBLAS::RandomOps random(engine);
-random.uniform(A, 0.0, 1.0);
-random.uniform(B, 0.0, 1.0);
+    sr::Runtime runtime = sr::Runtime::create().value();
+    sb::Engine engine(runtime, sb::Core::Layout::ColumnMajor);
 
-SushiBLAS::BLASOps blas(engine);
-blas.gemm(A, B, C);        // records the task; nothing has run yet
-engine.execute().value();  // runs the graph and returns when every task has finished; an
-                           // error stops the process here, or is read from the Result
+    auto A = engine.create_tensor({K_SIZE, K_SIZE});
+    auto B = engine.create_tensor({K_SIZE, K_SIZE});
+    auto C = engine.create_tensor({K_SIZE, K_SIZE});
 
-const std::vector<float> result = SushiBLAS::IO(engine).to_vector<float>(C);
+    const size_t count = static_cast<size_t>(K_SIZE * K_SIZE);
+    SushiBLAS::IO(engine).from_vector(A, std::vector<float>(count, K_A_VALUE));
+    SushiBLAS::IO(engine).from_vector(B, std::vector<float>(count, K_B_VALUE));
+
+    SushiBLAS::BLASOps(engine).gemm(A, B, C);
+
+    const std::vector<float> result = SushiBLAS::IO(engine).to_vector<float>(C);
+
+    return 0;
+}
 ```
 
-`Engine` owns the graph and has no accessor per operation family. A family is a view class built from the engine: `BLASOps`, `SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`, `SpatialOps` and `IO`. A view holds references and no other state. Each record call returns a `TaskHandle`, and nothing runs until `engine.execute()`.
+This is `applications/examples/example.cpp` without its print. `create_tensor` gives FLOAT32 tensors in shared USM by default. `gemm` records a task and runs nothing. `IO::to_vector` runs the recorded graph and then copies `C` to the host, so the example never calls `execute()` itself.
+
+A program that reads no tensor through `IO` runs the graph with `Engine::execute()`:
 
 ```cpp
-using namespace SushiBLAS;
-
-ElementwiseOps(engine).add(A, B, C);             // C = A + B
-NonLinearOps(engine).relu(A);                    // in place
-LogicOps(engine).greater(A, B, mask);            // mask = 1 where A > B, else 0
-ReductionOps(engine).sum(A, total);              // total = sum(A)
-
-BLASOps blas(engine);
-blas.axpy(2.0, x, y);                                        // y = 2*x + y
-blas.gemv(A, x, y, Core::Transpose::Trans, 1.0, 1.0);        // y = A^T x + y
-blas.trsm(A, B, Core::Side::Left, Core::Uplo::Lower);        // solve A X = B, X replaces B
-
-engine.execute();
+SushiBLAS::BLASOps(engine).axpy(2.0f, x, y);
+engine.execute().value();
 ```
+
+This is from `tests/package/main.cpp`. `execute()` returns a `SushiRuntime::Result<void>` and is `[[nodiscard]]`. `.value()` on a result that holds an error stops the process; a caller that can go on tests the result and reads `error()`.
+
+`Engine` is built on a `SushiRuntime::Runtime`, which must outlive it. It owns the graph and has no accessor per operation family. A family is a view class built from the engine: `BLASOps`, `SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`, `SpatialOps` and `IO`. A view holds references and no other state. Each record call returns a `TaskHandle`.
 
 The BLAS flags are the enumerations `Core::Transpose`, `Core::Uplo`, `Core::Diag` and `Core::Side`, and a scalar argument is a `BLASScalar`, which converts from a `double` or a `std::complex<double>`.
 
@@ -204,7 +221,8 @@ applications/examples/  example.cpp, io_example.cpp
 tests/                  The tests that cross module boundaries
   common/               Shared GoogleTest entry point and helpers
   unit/, integration/, regression/
-                        The tests of sushiblas_tests, one folder per label
+                        The tests of sushiblas_tests, one folder per label; a module's
+                        own tests are in its tests/ folder
   benchmark/            benchmark_*.cpp, built with sb build --benchmarks
   package/              Out-of-tree find_package(SushiBLAS) consumer
 cli/                    The `sb` / `sushiblas` CLI package; see cli/README.md
