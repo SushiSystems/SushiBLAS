@@ -141,7 +141,7 @@ You can also branch at compile time, with a guard such as
 Keep every include of a SushiBLAS header in one file of your own, and give the rest of your
 program functions in your own types. A release that changes a name, a signature or an error
 channel is then an edit to that file. `applications/examples/adapter/` is a program built this
-way, and the blocks below are from its three files;
+way, and the blocks below are from its four files;
 [the examples page](../../applications/examples/README.md) says what it prints.
 
 **What the program sees.** A header that includes the standard library alone. It declares the
@@ -166,9 +166,10 @@ Source: `applications/examples/adapter/host_program.hpp`
 `BackendHandle` is a `std::unique_ptr` with a deleter the adapter defines, so the program owns
 a backend whose size it does not know.
 
-**What the adapter includes.** `sushiblas_adapter.cpp` includes `host_program.hpp` and
-`<SushiBLAS/SushiBLAS.h>`, and is the only file of the program that does. It defines the
-backend as the runtime and an engine built on it:
+**What the adapter includes.** The two adapter files, `sushiblas_adapter.cpp` and
+`status_mapping.hpp`, include `<SushiBLAS/SushiBLAS.h>`, and no other file of the program
+does. The first holds the operations and defines the backend as the runtime and an engine
+built on it:
 
 ```cpp
 class Backend final
@@ -192,8 +193,8 @@ Source: `applications/examples/adapter/sushiblas_adapter.cpp`
 
 **How it turns a failure into the host's type.** SushiBLAS has two channels the adapter must
 close, and [the architecture, section 11](../architecture/EXCEPTIONS.md) lists what arrives on
-each. A record call and a creation throw. The adapter runs every operation inside one function
-that catches the types most derived first:
+each. `status_mapping.hpp` closes both. A record call and a creation throw, so the adapter runs
+every operation inside one function that catches the types most derived first:
 
 ```cpp
 template<typename Work>
@@ -222,7 +223,7 @@ template<typename Work>
 }
 ```
 
-Source: `applications/examples/adapter/sushiblas_adapter.cpp`
+Source: `applications/examples/adapter/status_mapping.hpp`
 
 The last handler takes `std::runtime_error`, which a creation and a refused recording throw.
 
@@ -231,7 +232,7 @@ in it. The adapter maps the `ErrorCode` of the `Error` in a `switch` that names 
 has no `default`, so `-Wswitch` reports a code the function does not name:
 
 ```cpp
-[[nodiscard]] Status status_of_error(const SushiRuntime::Error& error)
+[[nodiscard]] inline Status status_of_error(const SushiRuntime::Error& error)
 {
     switch (error.code)
     {
@@ -255,7 +256,7 @@ has no `default`, so `-Wswitch` reports a code the function does not name:
 }
 ```
 
-Source: `applications/examples/adapter/sushiblas_adapter.cpp`
+Source: `applications/examples/adapter/status_mapping.hpp`
 
 **An operation.** The work is a lambda handed to `guarded`: it records, runs, tests the result
 of the run and reads the tensors back into the host's types. Both channels leave it as one

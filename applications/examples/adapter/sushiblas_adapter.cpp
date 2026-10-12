@@ -21,15 +21,14 @@
 
 /**
  * @file sushiblas_adapter.cpp
- * @brief Implements the host program's backend on SushiBLAS and maps every failure to its Status.
+ * @brief Implements the host program's backend and its operations on SushiBLAS.
  * @author Mustafa Garip
  */
 
 #include "host_program.hpp"
+#include "status_mapping.hpp"
 
 #include <cstdint>
-#include <new>
-#include <stdexcept>
 #include <utility>
 
 #include <SushiBLAS/SushiBLAS.h>
@@ -55,58 +54,8 @@ namespace HostProgram
 
     namespace
     {
-        /** @brief Returns the host status for an error a SushiRuntime call returned. */
-        [[nodiscard]] Status status_of_error(const SushiRuntime::Error& error)
-        {
-            switch (error.code)
-            {
-                case SushiRuntime::ErrorCode::InvalidGraph:
-                case SushiRuntime::ErrorCode::InvalidAccess:
-                case SushiRuntime::ErrorCode::DanglingResource:
-                case SushiRuntime::ErrorCode::InvalidState:
-                    return Status{StatusCode::InvalidRequest, error.message};
-                case SushiRuntime::ErrorCode::Unsupported:
-                    return Status{StatusCode::Unsupported, error.message};
-                case SushiRuntime::ErrorCode::AllocationFailed:
-                    return Status{StatusCode::OutOfMemory, error.message};
-                case SushiRuntime::ErrorCode::CompileFailed:
-                case SushiRuntime::ErrorCode::KernelFailed:
-                case SushiRuntime::ErrorCode::DeviceLost:
-                case SushiRuntime::ErrorCode::ProtocolMismatch:
-                    return Status{StatusCode::BackendFailed, error.message};
-            }
-
-            return Status{StatusCode::BackendFailed, error.message};
-        }
-
-        /**
-         * @brief Runs work and returns its status, or the status of the exception it threw.
-         * @tparam Work Callable with no argument that returns a Status.
-         */
-        template<typename Work>
-        [[nodiscard]] Status guarded(const Work& work)
-        {
-            try
-            {
-                return work();
-            }
-            catch (const SushiBLAS::UnsupportedExecution& error)
-            {
-                return Status{StatusCode::Unsupported, error.what()};
-            }
-            catch (const std::invalid_argument& error)
-            {
-                return Status{StatusCode::InvalidRequest, error.what()};
-            }
-            catch (const std::bad_alloc& error)
-            {
-                return Status{StatusCode::OutOfMemory, error.what()};
-            }
-            catch (const std::exception& error)
-            {
-                return Status{StatusCode::BackendFailed, error.what()};
-            }
-        }
+        using Detail::guarded;
+        using Detail::status_of_error;
 
         /** @brief Returns a tensor of the matrix's shape that holds its elements. */
         [[nodiscard]] SushiBLAS::Tensor tensor_of(SushiBLAS::Engine& engine, const Matrix& matrix)

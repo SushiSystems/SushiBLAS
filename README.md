@@ -22,7 +22,7 @@ SushiBLAS is below 1.0.0, and its public interface is not stable.
 - Reach SushiBLAS through one adapter of your own: a single module that includes `<SushiBLAS/SushiBLAS.h>` and exposes only what your code needs, in your own types. When a release breaks the interface, that module is the only place you edit.
 - SushiBLAS's public headers include `<SushiRuntime/sushiruntime.hpp>` and name `SushiRuntime::Runtime`, `Result` and `Residency`, so a SushiRuntime release that changes those changes this interface too. The build names no SushiRuntime version: `cmake/Runtime.cmake` takes the package or the checkout it finds.
 
-`applications/examples/adapter/` is such an adapter in a program this repository builds: `sushiblas_adapter.cpp` is the one file that includes the library, and it turns every exception SushiBLAS throws and every `SushiRuntime::Error` a run returns into the program's own `Status`. [The integration guide](docs/guides/INTEGRATION.md#5-write-one-adapter) walks through it. SushiAI's seam (`sushiai/modules/core/core/source/seam.cpp`) does the same for the failure channels of a larger consumer.
+`applications/examples/adapter/` is such an adapter in a program this repository builds: its two adapter files, `sushiblas_adapter.cpp` and `status_mapping.hpp`, are the only ones that include the library, and they turn every exception SushiBLAS throws and every `SushiRuntime::Error` a run returns into the program's own `Status`. [The integration guide](docs/guides/INTEGRATION.md#5-write-one-adapter) walks through it. SushiAI's seam (`sushiai/modules/core/core/source/seam.cpp`) does the same for the failure channels of a larger consumer.
 
 ## Requirements
 
