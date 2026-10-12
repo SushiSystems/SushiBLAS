@@ -1,6 +1,6 @@
 # Examples
 
-Five programs that link the library the way a user would. `applications/examples/CMakeLists.txt`
+Six programs that link the library the way a user would. `applications/examples/CMakeLists.txt`
 builds them, one target each. Every program but `io_example` compares what it computed with a
 value computed on the host, prints the outcome and returns 0, or 1 when the comparison fails.
 The numbers are the same on every machine, with or without a GPU.
@@ -10,6 +10,7 @@ The numbers are the same on every machine, with or without a GPU.
 | `adapter/` | `adapter_demo` | A host program that reaches the library through one file, in its own types and its own status |
 | `errors_demo.cpp` | `errors_demo` | What a wrong record call throws, what `execute()` returns, and what a file operation returns |
 | `recording_demo.cpp` | `recording_demo` | Several operations recorded, one `execute()`, tensors of two residencies, results read back |
+| `operation_families_demo.cpp` | `operation_families_demo` | One checked call of each operation family |
 | `example.cpp` | `sushiblas_example` | One 256 x 256 GEMM on shared-memory tensors with a column-major engine, the program the root README quotes |
 | `io_example.cpp` | `io_example` | `to_string`, `save_npy` and `load_npy` on a 2 x 3 tensor, then a complex tensor printed |
 
@@ -87,3 +88,27 @@ The program also prints the bytes behind `result`: 6 FLOAT32 elements need 24 by
 `Storage::size_bytes()` reports 128, because every allocation is a multiple of
 `K_STORAGE_ALIGNMENT`. A second `execute()` with nothing recorded returns success. The last
 lines are `total = 252 (expected 252)` and `recording_demo: ok`.
+
+## `operation_families_demo.cpp`: one call of each family
+
+Every family is a view built from the engine. The program records one operation of each,
+runs them with one `execute()` and compares each result with numbers written in the source.
+
+| View | Call | Expected |
+| --- | --- | --- |
+| `BLASOps` | `dot` of (1, 2, 3, 4) and (4, 3, 2, 1) | 20 |
+| `BLASOps` | `gemv` of [1 2; 3 4] and (1, 1) | (3, 7) |
+| `BLASOps` | `gemm` of [1 2; 3 4] with itself | [7 10; 15 22] |
+| `ElementwiseOps` | `mul` of the two vectors | (4, 6, 6, 4) |
+| `NonLinearOps` | `relu` of (-1, 2, -3, 4), in place | (0, 2, 0, 4) |
+| `LogicOps` | `greater` of the two vectors | (0, 0, 1, 1) |
+| `ReductionOps` | `max` of (1, 2, 3, 4) | 4 |
+| `SparseOps` | `spmv` of [1 0 2; 0 3 0], built by `SparseBuilder::matrix_from_triplets`, and (1, 2, 3) | (7, 6) |
+| `SpatialOps` | `upsample_nearest` of a 2 x 2 image by 2 in each direction | Each pixel repeated over a 2 x 2 block |
+| `RandomOps` | `set_seed(42)` and `uniform`, twice, on 64 elements each | The two draws are equal and every value is in [0, 1) |
+
+The inputs are small integers, so every expected value is exact in FLOAT32 and the
+comparison is `==`. The random draw is checked for equality between two draws of one seed
+and for its range; the program prints no drawn number. A spatial tensor is rank 4 with the
+image index first and the channel last. The program prints one line per row, `ok` or
+`MISMATCH`, then `operation_families_demo: ok`.

@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — examples: Added an example with one checked call of each operation family, from `BLASOps` to `RandomOps` (`operation_families_demo.cpp`).
 - 2026-10-12 — examples: Added an example that records three operations on a shared and a device tensor and runs them with one `execute()` (`recording_demo.cpp`).
 - 2026-10-12 — examples: Added an example of the three record-time exceptions, `discard_recorded`, a tested `execute()` result and an `IOStatus` (`errors_demo.cpp`).
 - 2026-10-12 — examples: Added the adapter example, a host program that reaches the library through one file and its own `Status` (`host_program.hpp`, `sushiblas_adapter.cpp`, `adapter_demo.cpp`).
