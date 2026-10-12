@@ -143,8 +143,9 @@ the old no-op path could never have produced, and what a real-only kernel would 
 The rejected operations threw nothing before; they enqueued nothing and returned. Each now
 fails at record time, at the call site, before a task reaches the graph.
 
-`OrderingComparisonsRejectComplex32`: C is not an ordered field. The dispatch used to answer
-these comparisons lexicographically, which is a well-formed answer to a question nobody asked.
+`OrderingComparisonsRejectComplex32`: C is not an ordered field. A lexicographic answer to
+these comparisons would be a well-formed answer to a question nobody asked, so the test holds the
+refusal.
 
 `RemainingRealOnlyOpsRejectComplex32`: trigonometry and `pow` do have complex extensions, but
 SushiBLAS does not implement them yet. The contract is that "not implemented" is observable:

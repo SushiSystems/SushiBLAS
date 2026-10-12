@@ -148,7 +148,7 @@ base and carries the view's byte interval. Two views of one arena got two differ
 free to run before the op that produced its input.
 
 This happened in practice. SushiAI's first arena-packed training run reported a loss of -57 where
-ln 6 was expected: the `max` reduction raced the `bias_add` feeding it, and the BLAS `scal` beat
+ln 6 was expected: the `max` reduction raced the bias add feeding it, and the BLAS `scal` beat
 the `sum` reduction to the loss.
 
 The test asserts on the recorded graph and not on the answer. Without the edge the two tasks may

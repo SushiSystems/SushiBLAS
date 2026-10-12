@@ -95,13 +95,17 @@ produce, and what the second warning on `execute_gemm` demands, is an auxiliary 
 reads that buffer afterwards needs an edge for exactly the same reason the bias's producer does.
 
 ```cpp
-// One launch, and the task that writes `bias` is ordered before it.
-Dispatch::execute_gemm(engine.recorder(), X, W, Y,
-                       Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
-                       "nn.linear_relu", "nn.linear_relu"_op,
-                       Dispatch::gemm_epilogue(BiasReLU{bias.data_as<float>()})
-                           .reads(bias));
+Dispatch::execute_gemm(probe.recorder(), A, B, C,
+                       Core::Transpose::NoTrans, Core::Transpose::NoTrans,
+                       1.0, 0.0,
+                       "test.gemm_declared_bias", "test.gemm_declared_bias"_op,
+                       Dispatch::gemm_epilogue(
+                           BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
 ```
+
+Source: `modules/operations/blas/tests/test_gemm.cpp`
+
+It is one launch, and the task that writes `bias` is ordered before it.
 
 **Operands are named as tensors, never as regions.** A `BufferRegion` converts implicitly from a
 bare pointer, and a bare pointer widens to the whole allocation of whatever it points at, so two
@@ -221,7 +225,7 @@ value and runs later. Staying alive is not the same as being *ordered*: declare 
 Warning: **An activation epilogue in a forward *training* pass is silently wrong** unless it also
 writes its pre-activation input to an auxiliary buffer, or is invertible. The backward pass has to
 differentiate the activation at its input; if the only thing that reached memory is the activation's
-output, that input no longer exists and the gradient is computed at the wrong point. Nothing throws,
+output, that input does not exist any more and the gradient is computed at the wrong point. Nothing throws,
 nothing produces NaN: the model simply trains towards the wrong place, which is the worst failure
 mode a numerical library has, because there is no symptom to debug. This is exactly why cuBLASLt
 exposes `GELU_AUX_BIAS`, which spills the pre-activation, and not merely `GELU_BIAS`. Inference-only
@@ -328,9 +332,8 @@ flag in the same place for every routine. Writing past `TaskDescription::K_MAX_P
 
 Scalars are taken as `BLASScalar`, or as `double` where the routine defines a real scalar, at
 every level of this API and narrowed to the tensor's element type at the kernel boundary, where
-that type is finally known. Declaring them `float`, as Level 1 and Level 2 used to, silently
-rounded an fp64 computation's scalar to about 1e-7 relative error with no diagnostic, which made
-FLOAT64 a partial lie. Templating the public signature instead was rejected: a tensor's dtype is a
+that type is finally known. A scalar declared `float` would round an fp64 computation's
+scalar to about 1e-7 relative error with no diagnostic. Templating the public signature instead was rejected: a tensor's dtype is a
 runtime value here, so a compile-time scalar type would push a dtype switch onto every caller.
 
 ### `Level1::dot`, `dotu`, `dotc`

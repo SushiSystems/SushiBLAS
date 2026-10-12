@@ -17,9 +17,9 @@ tests share, and `tests/common/README.md` describes the fixtures.
 Every operation family runs against tensors that are views at a non-zero `storage_offset`, not
 at the base of their allocation. This is the shape a memory planner produces: one arena
 allocation with many tensors packed into it, each handed to an operation as a view at an
-offset. Most families once captured `tensor.storage->data_ptr` and dropped the offset, so a
-view silently aliased the start of its arena, reading the wrong inputs and writing over
-whatever else lived there.
+offset. An operation that captures the allocation base of the storage drops the offset, so a
+view aliases the start of its arena, reads the wrong inputs and writes over whatever else lives
+there. These tests guard against that.
 
 Each test asserts two things, and the second carries the weight. That the result is correct
 often passes by accident: with a single tensor per allocation, offset 0 and "ignore the offset"

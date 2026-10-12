@@ -162,8 +162,8 @@ the GEMM forms run the kernel they ran before the packed path existed.
 
 The stride pair exists because "which axis is the channel" is a property of the *tensor layout*, not
 of the bias operation. In NHWC the convolution GEMM is `[N*H*W, C_in*R*S] x [C_in*R*S, C_out]`, so
-the channel index is the **column** of C, which means the row-vector broadcast the existing
-`Ops::GEMM_BIAS` family already performs applies to convolution verbatim, with no new arithmetic. In
+the channel index is the **column** of C, which means the row-vector broadcast of SushiAI's
+fused GEMM with bias applies to convolution verbatim, with no new arithmetic. In
 NCHW the same convolution transposes and the channel becomes the **row**. Encoding that as
 `(row_stride, col_stride)` makes the second layout cost two integers on the host instead of a second
 epilogue type, a second fused lowering recorder and a second set of tests.
@@ -177,7 +177,7 @@ instantiates cannot stay private.
 
 `value + bias[row * row_stride + col * col_stride]`, with the stride pair set on the host. `(0, 1)`
 makes the **column** the channel, which is what an NHWC convolution GEMM needs and what
-`Ops::GEMM_BIAS`'s existing row-vector broadcast already does; `(1, 0)` makes the **row** the
+the row-vector broadcast of SushiAI's fused GEMM with bias does; `(1, 0)` makes the **row** the
 channel, which is what an NCHW one would need. Neither is baked in, so a second layout costs two
 numbers rather than a second epilogue and a second fused lowering recorder.
 
@@ -420,7 +420,7 @@ supported seam; this entry point is the kernel underneath it.
 Warning: An **activation** epilogue used in a *forward training* pass is silently wrong unless it
 also writes its pre-activation input to an auxiliary buffer, or is invertible. The backward pass has
 to differentiate the activation at its input; if the only thing that reached memory is the
-activation's output, that input no longer exists and the gradient is computed at the wrong point.
+activation's output, that input does not exist any more and the gradient is computed at the wrong point.
 Nothing throws, nothing produces NaN: the model simply trains towards the wrong place. This is
 exactly why cuBLASLt exposes `GELU_AUX_BIAS`, which spills the pre-activation, and not merely
 `GELU_BIAS`. Inference-only fusion carries no such constraint, and neither does a bias-only

@@ -251,10 +251,10 @@ access is one transaction where four 32-bit accesses are four.
 
 ## `launch_1d.hpp`
 
-Every elementwise, non-linear and logic op used to launch with a bare `sycl::range<1>(n)`: one
-work-item per element, no work-group size, no vectorisation, and the runtime free to pick whatever
-geometry it liked. That is the shape a device is least likely to want. This header replaces it with
-three primitives, `Launch::map`, `Launch::zip_inplace` and `Launch::indexed`, that own the geometry
+A bare `sycl::range<1>(n)` launch is one work-item per element, with no work-group size, no
+vectorisation, and the runtime free to pick whatever geometry it likes. That is the shape a
+device is least likely to want. Every elementwise, non-linear and logic op launches through this
+header instead, which has three primitives, `Launch::map`, `Launch::zip_inplace` and `Launch::indexed`, that own the geometry
 once, so tuning it is one edit rather than fifty-five.
 
 `Launch::map` and `Launch::zip_inplace` serve the kernels whose memory access pattern this header
@@ -444,7 +444,7 @@ only, hold no host pointers, allocate nothing and throw nothing.
 `launch_1d.hpp` does this job for the per-element families; this is its counterpart for the folding
 ones, and it exists for a correctness reason rather than a performance one.
 
-**Why not `sycl::reduction`.** Every additive reduction in this library used to be a one-line
+**Why not `sycl::reduction`.** An additive reduction can be written as the one line
 `sycl::reduction(p, T(0), sycl::plus<T>())`. The SYCL specification does not fix the order in which
 such a reduction combines its partial results, and floating-point addition is not associative, so
 the order is visible in the result's bits and the implementation is free to change it with the
@@ -975,7 +975,7 @@ coalesced grid-stride launch, and the fold order is trivially fixed.
 what `Device::plan_1d` targets for a flat launch.
 - **Otherwise, is a segment long enough to be worth a work-group?** A
 group whose segment is shorter than the group is mostly idle lanes
-paying `log2(local)` pairs of barriers, so the tree only earns its
+paying log2 of `local` pairs of barriers, so the tree only earns its
 keep once every lane has at least one element to fold. One full
 group-width pass is that threshold.
 - **Otherwise** there is nothing to recover; take the cheap shape.

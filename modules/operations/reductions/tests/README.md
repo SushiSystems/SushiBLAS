@@ -30,7 +30,7 @@ Determinism for this seam is tested here and not in `test_reduction_determinism.
 that file's helpers are built around a scalar result and this seam's answer is a vector. The
 property and the means are the same: `std::memcmp`, not a tolerance.
 
-The file holds three fixtures, which the removed separator lines used to mark: the planner
+The file holds three fixtures: the planner
 (`Unit_AxisReductionPlan`, a pure function that needs no device), the public operations over
 every dtype a reduction serves (`Unit_AxisReductionsTyped`), and layout, shape, rejection and
 the two kernels (`Unit_AxisReductions`).

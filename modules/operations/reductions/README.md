@@ -443,7 +443,7 @@ tensor is not a dtype the folding reductions serve (see `Dispatch::Domain`).
 ### `execute_folding_axis_reduction`
 
 `execute_folding_span_reduction` with `axis_span_for` in front of it, which is the split the spatial
-fold forced: the geometry a segmented reduction runs on is no longer always derivable from "a tensor
+fold forced: the geometry a segmented reduction runs on is not always derivable from "a tensor
 and an axis number", but everything downstream of the span is identical, so the span is the seam and
 the axis is one way of building one.
 
