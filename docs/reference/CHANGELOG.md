@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — examples: Added the adapter example, a host program that reaches the library through one file and its own `Status` (`host_program.hpp`, `sushiblas_adapter.cpp`, `adapter_demo.cpp`).
 - 2026-10-12 — examples: Made `example.cpp` compare every element of the product with the host value and return 1 on a mismatch.
 - 2026-10-12 — docs: Replaced two stale file tables of the module READMEs, cited the file behind every example block and moved the notes of `reduce_1d.hpp` to an architecture page (`FIXED_ORDER_FOLD.md`, `.docs_truth_allow`).
 - 2026-10-12 — docs: Added a stability section and an adapter guide, took the manual's code blocks from compiled files and cited every header by its module path (`README.md`, `INTEGRATION.md`, `KERNELS.md`, `CONTRIBUTING.md`).

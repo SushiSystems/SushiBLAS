@@ -1,0 +1,175 @@
+/**************************************************************************/
+/* sushiblas_adapter.cpp                                                  */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                SushiBLAS                               */
+/*                https://github.com/SushiSystems/SushiBLAS               */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the PolyForm Noncommercial License 1.0.0 (the           */
+/* "License"); you may not use this file except in compliance with the    */
+/* License. You may obtain a copy of the License at                       */
+/*                                                                        */
+/*     https://polyformproject.org/licenses/noncommercial/1.0.0           */
+/*                                                                        */
+/* Noncommercial use is free. Commercial use requires a separate licence  */
+/* from Sushi Systems; see COMMERCIAL.md. The software is provided        */
+/* "as is", without warranty of any kind.                                 */
+/**************************************************************************/
+
+/**
+ * @file sushiblas_adapter.cpp
+ * @brief Implements the host program's backend on SushiBLAS and maps every failure to its Status.
+ * @author Mustafa Garip
+ */
+
+#include "host_program.hpp"
+
+#include <cstdint>
+#include <new>
+#include <stdexcept>
+#include <utility>
+
+#include <SushiBLAS/SushiBLAS.h>
+
+namespace HostProgram
+{
+    /** @brief Owns the runtime and the engine the host's operations record on. */
+    class Backend final
+    {
+        public:
+            /** @brief Takes the runtime and builds the engine on it. */
+            explicit Backend(SushiRuntime::Runtime&& created)
+                : runtime(std::move(created)), engine(runtime)
+            {
+
+            }
+
+            /// @brief The runtime the engine is built on; declared first, destroyed last.
+            SushiRuntime::Runtime runtime;
+            /// @brief The engine every operation of the host records on.
+            SushiBLAS::Engine engine;
+    };
+
+    namespace
+    {
+        /** @brief Returns the host status for an error a SushiRuntime call returned. */
+        [[nodiscard]] Status status_of_error(const SushiRuntime::Error& error)
+        {
+            switch (error.code)
+            {
+                case SushiRuntime::ErrorCode::InvalidGraph:
+                case SushiRuntime::ErrorCode::InvalidAccess:
+                case SushiRuntime::ErrorCode::DanglingResource:
+                case SushiRuntime::ErrorCode::InvalidState:
+                    return Status{StatusCode::InvalidRequest, error.message};
+                case SushiRuntime::ErrorCode::Unsupported:
+                    return Status{StatusCode::Unsupported, error.message};
+                case SushiRuntime::ErrorCode::AllocationFailed:
+                    return Status{StatusCode::OutOfMemory, error.message};
+                case SushiRuntime::ErrorCode::CompileFailed:
+                case SushiRuntime::ErrorCode::KernelFailed:
+                case SushiRuntime::ErrorCode::DeviceLost:
+                case SushiRuntime::ErrorCode::ProtocolMismatch:
+                    return Status{StatusCode::BackendFailed, error.message};
+            }
+
+            return Status{StatusCode::BackendFailed, error.message};
+        }
+
+        /**
+         * @brief Runs work and returns its status, or the status of the exception it threw.
+         * @tparam Work Callable with no argument that returns a Status.
+         */
+        template<typename Work>
+        [[nodiscard]] Status guarded(const Work& work)
+        {
+            try
+            {
+                return work();
+            }
+            catch (const SushiBLAS::UnsupportedExecution& error)
+            {
+                return Status{StatusCode::Unsupported, error.what()};
+            }
+            catch (const std::invalid_argument& error)
+            {
+                return Status{StatusCode::InvalidRequest, error.what()};
+            }
+            catch (const std::bad_alloc& error)
+            {
+                return Status{StatusCode::OutOfMemory, error.what()};
+            }
+            catch (const std::exception& error)
+            {
+                return Status{StatusCode::BackendFailed, error.what()};
+            }
+        }
+
+        /** @brief Returns a tensor of the matrix's shape that holds its elements. */
+        [[nodiscard]] SushiBLAS::Tensor tensor_of(SushiBLAS::Engine& engine, const Matrix& matrix)
+        {
+            const auto rows = static_cast<std::int64_t>(matrix.rows);
+            const auto columns = static_cast<std::int64_t>(matrix.columns);
+            SushiBLAS::Tensor tensor = engine.create_tensor({rows, columns});
+            SushiBLAS::IO(engine).from_vector(tensor, matrix.values);
+            return tensor;
+        }
+    } // namespace
+
+    void BackendDeleter::operator()(Backend* backend) const noexcept
+    {
+        delete backend;
+    }
+
+    Status create_backend(BackendHandle& backend)
+    {
+        return guarded([&]()
+        {
+            SushiRuntime::Result<SushiRuntime::Runtime> created = SushiRuntime::Runtime::create();
+            if (!created)
+                return status_of_error(created.error());
+
+            backend.reset(new Backend(std::move(created.value())));
+            return Status{};
+        });
+    }
+
+    Status multiply_add(Backend& backend, const Matrix& a, const Matrix& b, const Matrix& offset,
+                        Matrix& result, float& result_sum)
+    {
+        SushiBLAS::Engine& engine = backend.engine;
+        const Status status = guarded([&]()
+        {
+            const SushiBLAS::Tensor left = tensor_of(engine, a);
+            const SushiBLAS::Tensor right = tensor_of(engine, b);
+            const SushiBLAS::Tensor shift = tensor_of(engine, offset);
+            const auto rows = static_cast<std::int64_t>(a.rows);
+            const auto columns = static_cast<std::int64_t>(b.columns);
+            SushiBLAS::Tensor product = engine.create_tensor({rows, columns});
+            SushiBLAS::Tensor shifted = engine.create_tensor({rows, columns});
+            SushiBLAS::Tensor total = engine.create_tensor({1});
+
+            SushiBLAS::BLASOps(engine).gemm(left, right, product);
+            SushiBLAS::ElementwiseOps(engine).add(product, shift, shifted);
+            SushiBLAS::ReductionOps(engine).sum(shifted, total);
+
+            const SushiRuntime::Result<void> ran = engine.execute();
+            if (!ran)
+                return status_of_error(ran.error());
+
+            SushiBLAS::IO io(engine);
+            result = Matrix{a.rows, b.columns, io.to_vector<float>(shifted)};
+            result_sum = io.to_vector<float>(total)[0];
+            return Status{};
+        });
+
+        // A record call that throws leaves the tasks recorded before it on the engine.
+        if (status.code != StatusCode::Ok)
+            engine.discard_recorded();
+
+        return status;
+    }
+} // namespace HostProgram

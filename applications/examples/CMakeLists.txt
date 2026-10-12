@@ -12,8 +12,19 @@ add_executable(io_example io_example.cpp)
 target_link_libraries(io_example PRIVATE sushiblas)
 sushiblas_apply_build_policy(io_example)
 
+add_executable(adapter_demo
+    adapter/adapter_demo.cpp
+    adapter/sushiblas_adapter.cpp
+)
+target_link_libraries(adapter_demo PRIVATE sushiblas)
+sushiblas_apply_build_policy(adapter_demo)
+
 # Ensure RPATH is set
-set_target_properties(sushiblas_example io_example PROPERTIES
+set_target_properties(
+    sushiblas_example
+    io_example
+    adapter_demo
+    PROPERTIES
     BUILD_RPATH "${CMAKE_BINARY_DIR}/src"
 )
 
@@ -34,6 +45,13 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
             $<TARGET_FILE_DIR:sushiblas_example>
+        COMMENT "Copying runtime DLL to example directory..."
+    )
+
+    add_custom_command(TARGET adapter_demo POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+            $<TARGET_FILE_DIR:adapter_demo>
         COMMENT "Copying runtime DLL to example directory..."
     )
 endif()
