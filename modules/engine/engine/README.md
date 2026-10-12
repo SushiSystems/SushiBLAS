@@ -272,7 +272,10 @@ sycl::event`. It first calls `require_host_reachable`. It then wraps the body in
 `StorageKeepAlive`, records the task with the set's read and write regions and with the name, the
 operation and the parameters as `SushiRuntime::NodeOptions`, and returns a `TaskHandle` of its own
 identity and the task's sequence number. If the runtime's recorder refuses the recording,
-`record_pair` returns the handle of no task, and the next run returns the refusal.
+`record_pair` throws `std::runtime_error` whose message is `<name>: the runtime refused the
+recording: <the runtime's message>`, as every other record-time failure throws. The refusal stays
+in the runtime's recorder: the next run returns it and empties the graph, and
+`Engine::discard_recorded()` forgets it with the tasks.
 
 ### `TaskRecorder::require_host_reachable`
 

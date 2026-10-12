@@ -35,6 +35,7 @@
 #include <utility>
 #include <type_traits>
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
@@ -162,7 +163,8 @@ namespace SushiBLAS
              *        const std::vector<sycl::event>&) -> sycl::event`, copyable, callable more
              *        than once, and ordering its work behind the events it is given.
              * @throws UnsupportedExecution under ForceReference when a declared tensor is
-             *         device-only USM; no task is recorded.
+             *         device-only USM, and std::runtime_error when the runtime refuses the
+             *         recording; no task is recorded.
              */
             template<typename Body>
             TaskHandle record_pair(const TaskDescription& description,
@@ -194,8 +196,8 @@ namespace SushiBLAS
              *        description.
              * @param work Callable `(sycl::queue&, const std::vector<sycl::event>&)` that returns
              *        the event ending its work.
-             * @return The handle of the task, or the handle of no task when the graph recorder
-             *         refused the recording; the refusal is what the next run returns.
+             * @throws std::runtime_error with the runtime's message when the graph recorder
+             *         refuses the recording; the next run returns the same refusal.
              */
             template<typename Work>
             TaskHandle insert(const TaskDescription& description,
@@ -218,7 +220,12 @@ namespace SushiBLAS
                     SushiRuntime::Access(operands.read_regions(), operands.write_regions()),
                     std::forward<Work>(work), options);
                 if (recorder_->node_count() == recorded_before)
-                    return TaskHandle();
+                {
+                    const SushiRuntime::Error* refusal = recorder_->refusal();
+                    SB_THROW_IF(true, "{}: the runtime refused the recording: {}",
+                                description.name,
+                                refusal != nullptr ? refusal->message.c_str() : "no reason kept");
+                }
 
                 return TaskHandle(identity_, next_sequence_++);
             }

@@ -63,7 +63,9 @@ Returns a `SushiRuntime::Result<void>` once every recorded task has finished: su
 on writes `engine.execute().value();`, which stops the process on an error. A call with nothing
 recorded returns success without running: several io.cpp paths call `execute()` before a host-side
 read even when no task is pending, and `SushiRuntime::Graph::run()` refuses a graph with no task.
-A recording the runtime's recorder refused is not lost: the next `execute()` returns its error.
+A recording the runtime's recorder refused throws `std::runtime_error` from the record call, and
+the refusal stays with the graph: the next `execute()` returns its error unless
+`discard_recorded()` was called first.
 
 `execute()` is `RecordedGraph::run()`. The graph is empty when it returns, whether the run
 succeeded or failed: the tasks are destroyed with what their bodies captured, so operand storage
@@ -160,7 +162,9 @@ violation throws `std::invalid_argument`.
 `save`, `load`, `save_bin`, `load_bin`, `save_npy` and `load_npy` return an `IOStatus` and are
 `[[nodiscard]]`. A wrong operand still throws `std::invalid_argument`; a file that is missing,
 short, malformed or of another shape, dtype or layout is reported through the status, and the
-reason is logged once at error level. `to_string(IOStatus)` gives the enumerator's name.
+reason is logged once at error level. Each of the six runs the recorded graph first, and a run
+that fails returns `RunFailed` before the file is opened. `read`, `write` and `to_string` have no
+status to return and throw `std::runtime_error` with the runtime's message for the same failure. `to_string(IOStatus)` gives the enumerator's name.
 [The architecture, section 11](../docs/architecture/EXCEPTIONS.md) lists the values.
 
 ### Loads run the recorded graph first

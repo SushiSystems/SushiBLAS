@@ -6,6 +6,8 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-12 — engine: Breaking change: a recording the runtime refuses throws `std::runtime_error` from `TaskRecorder::record_pair` and no longer returns the handle of no task (`task_recorder.hpp`).
+- 2026-10-12 — io: Added `IOStatus::RunFailed`, which the six file operations return when the recorded tasks fail, where they threw `std::runtime_error` (`io_status.hpp`, `io.cpp`).
 - 2026-10-12 — engine: Serialised record calls on one `TaskRecorder` with a mutex and ran `Engine::discard_recorded` under it through `TaskRecorder::run_exclusive` (`task_recorder.hpp`, `engine.cpp`).
 - 2026-10-12 — engine: Added `RecordedGraph`, which owns the graph and runs or discards it for `Engine` and `GraphProbe`; a run refused with `InvalidState` keeps the recorded tasks (`recorded_graph.hpp`, `engine.cpp`, `graph_probe.hpp`).
 - 2026-10-12 — engine: Breaking change: renamed the members of `TaskDescription` to `operation`, `parameters`, `K_MAX_PARAMETERS`, `set_parameter` and `parameter<T>`, and `task_metadata.hpp` to `blas_metadata.hpp`.
