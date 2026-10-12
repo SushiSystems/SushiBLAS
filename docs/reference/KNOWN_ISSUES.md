@@ -17,14 +17,14 @@ in [the backlog](../design/REMAINING_WORK.md).
 | With `SB_BUILD_TESTS` and `SB_BUILD_EXAMPLES` off, as under a consumer, the tree was never configured | `CMakeLists.txt` |
 | The last syntax sweep of the whole tree ran at commit `1746b03`, over 250 translation units. Every later commit was checked file by file only, so an error between two files that were each parsed alone is still possible | `docs/agent/2026_10_07_V010/SPEC.md`, `OWNER_DECISIONS_LATE` |
 | The GPU evidence is two functional runs on one card, an RTX 3080 Ti. Neither recorded the device profile or which GPU-shaped paths it took, and nothing in sections 2 to 5 of the checklist is measured | [GPU_VALIDATION.md](../design/GPU_VALIDATION.md), section 0 |
-| No kernel written since the break has been compiled for an ahead-of-time target. `Kernels::multiply`, `divide` and `conjugate`, which keep `std::complex` functions out of the SYCL BLAS kernels, are among them | `modules/foundation/support/include/SushiBLAS/support/complex_arithmetic.hpp`, `modules/kernels/sycl/` |
-| Whether `sycl::aligned_alloc_device` returns 128-byte aligned memory on every backend is unverified; `Storage` throws when an address is not aligned | `modules/data/tensor/include/SushiBLAS/tensor/storage.hpp` |
+| No kernel written since the break has been compiled for an ahead-of-time target. `Kernels::multiply`, `divide` and `conjugate`, which keep `std::complex` functions out of the SYCL BLAS kernels, are among them | `modules/foundation/support/include/SushiBLAS/support/complex_arithmetic.hpp`, `modules/kernels/` |
+| Whether every backend returns memory on the 128-byte boundary `Storage` asks `Runtime::buffer` for is unverified; an address off it fails an `SB_ASSERT`, which a build with `NDEBUG` compiles out | `modules/data/tensor/include/SushiBLAS/tensor/storage.hpp` |
 | The speed of the packed GEMM path is unmeasured, and its blocking defaults are derived from the cache size a device reports, which was never read on a real run | `modules/foundation/support/include/SushiBLAS/support/device_policy.hpp`, `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp` |
 | The solve block widths, 256 on a CPU and 128 on a GPU, come from assumed launch and step costs | `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp` |
 | The rotation bricks were transcribed from the reference BLAS (`drotg.f90`, `zrotg.f90`, `drotmg.f`) through a summarising fetch, without the source at hand. Whether `drotmg.f` writes the implied entries of H only for flags 0 and 1, as the brick does, is not settled | `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp`, `modified_givens.hpp` |
 | `Core::IndexBase` carries 221 and 222, written from memory of the Sparse BLAS header | `modules/foundation/core/include/SushiBLAS/core/sparse_types.hpp` |
 | The parity allowances of the random reference tests are estimates, and `LargeLambdaPoissonGivesTheSameCounts` asserts equality for one seed, which a device whose `log` or `lgamma` differs from the host's can break | `modules/operations/random/tests/test_random_reference.cpp` |
-| `ThePackedAndTheUnpackedKernelAgreeToTheBit` fails if the OpenCL CPU runtime contracts or reorders one GEMM kernel and not the other; whether it does was never observed | `modules/kernels/blas_seam_kernels/tests/test_packed_product.cpp` |
+| `ThePackedAndTheUnpackedKernelAgreeToTheBit` fails if the OpenCL CPU runtime contracts or reorders one GEMM kernel and not the other; whether it does was never observed | `tests/unit/test_packed_product.cpp` |
 | The link of the new task bodies on the pinned intel-llvm is untried. `all.cpp`, `any.cpp`, `shuffle.cpp` and `orthogonal.cpp` keep a generic lambda as their dtype arm, the shape the row on `HostKernel` symbols below describes | `modules/operations/logic/source/`, `modules/operations/random/source/` |
 | The open and unverified items each design lists | `docs/agent/2026_10_07_V010/SPEC.md`: `DESIGN_RECORDER` section 15, `DESIGN_SUPPORT_MEMORY` 18, `DESIGN_BLAS` 12, `DESIGN_BLAS_L3` 13, `DESIGN_BLAS_BAND_PACKED` 14, `DESIGN_GEMM_CPU` 10.3 and 13, `DESIGN_SPARSE` 18, `DESIGN_YOLO26` 13; and `REPORT.md`, section 7 |
 
@@ -37,10 +37,10 @@ in [the backlog](../design/REMAINING_WORK.md).
 | The toolchain's host `sycl::half` truncates a result below 2^-13 (about 1.2e-4) where a device rounds it: its conversion treats the lowest normal exponent as subnormal. `HALF` parity between the two paths is bitwise only above that magnitude, and one unit in the last place apart below it | `modules/foundation/support/include/SushiBLAS/support/serial_1d.hpp` |
 | `poisson`, the normal family (`normal`, `he_normal`, `xavier_normal`, `log_normal`), `truncated_normal` and `orthogonal` are not bit-identical between the two paths: each path calls its own math library, and `orthogonal` also sums in another order | `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/`, `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/reference/orthonormalize.hpp` |
 | The permutation `shuffle` draws for a seed is not frozen; a parallel shuffle would change it | `modules/operations/random/source/shuffle.cpp` |
-| `IO` still takes an `Engine&` and calls `engine_.execute()` at nine sites, so it is the one class outside the recorder shape, and every call that reads or writes a tensor runs the whole recorded graph first | `modules/operations/io/include/SushiBLAS/io/io.hpp`, `modules/operations/io/source/io.cpp` |
+| `IO` takes an `Engine&`, so it is the one class outside the recorder shape, and every call that reads or writes a tensor runs the whole recorded graph first | `modules/operations/io/include/SushiBLAS/io/io.hpp`, `modules/operations/io/source/io.cpp` |
 | `spmv` names two routines: the packed symmetric product on `BLASOps` and the CSR product on `SparseOps`, with kernels of that name in the same two namespaces | `modules/operations/blas/include/SushiBLAS/blas/level2.hpp`, `modules/operations/sparse/include/SushiBLAS/sparse/sparse.hpp` |
 | "Packed" names two things: BLAS packed storage and the packed panels of the CPU GEMM | `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/packed_access.hpp`, `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_product.hpp` |
-| `engine/blas/sparse.hpp` is no longer included by anything and is still installed; it declares a `SparseBLAS` class that holds an `Engine&` | `modules/operations/blas/include/SushiBLAS/blas/sparse.hpp` |
+| `blas/sparse.hpp` is included by nothing and is installed; it declares a `SparseBLAS` class that holds an `Engine&` | `modules/operations/blas/include/SushiBLAS/blas/sparse.hpp` |
 | A lease above 4 KiB is outside the scratch pool's size classes, so a recorded `trmv`, a packed GEMM (megabytes of panels) and a transposed or one-triangle sparse product each allocate and free device memory at every record | `modules/engine/engine/include/SushiBLAS/engine/scratch_shelf.hpp` |
 | A tensor that is recorded and then dropped stays allocated until its graph node dies, and a caller that keeps a compiled plan keeps every operand and scratch block of that plan | `modules/engine/engine/include/SushiBLAS/engine/operand_set.hpp` |
 | A recorder's identity comes from a `static` counter in an inline function, so two binaries that each link the static library can hand out one identity | `modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp` |
@@ -75,7 +75,7 @@ in [the backlog](../design/REMAINING_WORK.md).
 
 | Issue | Where |
 | --- | --- |
-| The `functional` job checks out SushiRuntime `main`. `Storage` now calls the aligned shared and device allocation of `RuntimeContext`, which was uncommitted in the runtime's working tree when it was written, so the job cannot build until the runtime carries it | `.github/workflows/ci.yml`, `modules/data/tensor/include/SushiBLAS/tensor/storage.hpp` |
+| The `functional` job checks out SushiRuntime beside this repository and pins no tag of it, so it builds only while the runtime's default branch carries the interface this tree is written against (`Runtime::buffer` with an alignment, `Recorder::task`, `Graph::plan()`) | `.github/workflows/ci.yml`, `cmake/Runtime.cmake` |
 | The `functional` job runs on Linux only and calls cmake and ctest directly | `.github/workflows/ci.yml` |
 | The release workflow has never run | `.github/workflows/release.yml` |
 | The pyflakes step ends in `\|\| true` and cannot fail | `.github/workflows/ci.yml` |
@@ -84,5 +84,5 @@ in [the backlog](../design/REMAINING_WORK.md).
 
 | Issue | Where |
 | --- | --- |
-| No release was ever tagged, and the Unreleased section holds 197 entries | `docs/reference/CHANGELOG.md` |
-| The library builds only against a SushiRuntime with the aligned shared and device allocation; no runtime tag carries it, and the build files pin no runtime version | `cmake/Runtime.cmake`, `cmake/SushiBLASConfig.cmake.in` |
+| No release is tagged, and the Unreleased section holds every entry of the changelog | `docs/reference/CHANGELOG.md` |
+| The build files pin no SushiRuntime version: `find_package(SushiRuntime QUIET)` and `find_dependency(SushiRuntime)` name none, and the sibling step takes the checkout as it is | `cmake/Runtime.cmake`, `cmake/SushiBLASConfig.cmake.in` |
