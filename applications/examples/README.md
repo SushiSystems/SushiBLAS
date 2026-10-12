@@ -1,8 +1,8 @@
 # Examples
 
 Seven programs that link the library the way a user would. `applications/examples/CMakeLists.txt`
-builds them, one target each. Every program but `io_example` compares what it computed with a
-value computed on the host, prints the outcome and returns 0, or 1 when the comparison fails.
+builds them, one target each. Every program compares what it computed with a value computed on
+the host, prints the outcome and returns 0, or 1 when the comparison fails.
 The numbers are the same on every machine, with or without a GPU.
 
 | Source | Target | Subject |
@@ -13,7 +13,7 @@ The numbers are the same on every machine, with or without a GPU.
 | `operation_families_demo.cpp` | `operation_families_demo` | One checked call of each operation family |
 | `graph_primitives_demo.cpp` | `graph_primitives_demo` | The four graph primitives on a SushiRuntime graph, without an engine |
 | `example.cpp` | `sushiblas_example` | One 256 x 256 GEMM on shared-memory tensors with a column-major engine, the program the root README quotes |
-| `io_example.cpp` | `io_example` | `to_string`, `save_npy` and `load_npy` on a 2 x 3 tensor, then a complex tensor printed |
+| `io_demo.cpp` | `io_demo` | A tensor saved to a `.npy` file, loaded back and printed, with every `IOStatus` tested |
 
 `sb run` starts `sushiblas_example` by default; see `cli/README.md`.
 
@@ -142,3 +142,20 @@ program prints `refused: InvalidGraph: ` followed by the message. It then prints
 check and `graph_primitives_demo: ok`. A count is a `std::size_t` or a
 `SushiRuntime::LateCount`; `LateCount::fixed` gives one that is known when the call is
 recorded.
+
+## `io_demo.cpp`: save, load and print
+
+The program writes a 2 x 3 tensor with `IO::save_npy`, reads it into a second tensor with
+`IO::load_npy` and compares the six elements with the host's. Both calls return an `IOStatus`,
+and the program tests each one and returns 1 with the status name when it is not `Ok`. It then
+loads the same file into a 3 x 2 tensor, which the library refuses with
+`IOStatus::ShapeMismatch`.
+
+`IO::to_string` and `IO::print` render a tensor as text, a real one at two decimals and a
+COMPLEX32 one at the default precision. The text is printed and not compared; the complex
+tensor is checked through `IO::to_vector`.
+
+The file is `sushiblas_io_demo.npy` in `std::filesystem::temp_directory_path()`. A
+`TemporaryFile` in the source removes it when `main` returns, on the paths that return 1 too.
+The last lines are `load_npy into a 3 x 2 tensor: ShapeMismatch`, the complex tensor and
+`io_demo: ok`; the refused load also leaves one error line of the library's log.

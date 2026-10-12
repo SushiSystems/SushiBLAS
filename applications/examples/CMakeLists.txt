@@ -8,9 +8,9 @@ add_executable(sushiblas_example example.cpp)
 target_link_libraries(sushiblas_example PRIVATE sushiblas)
 sushiblas_apply_build_policy(sushiblas_example)
 
-add_executable(io_example io_example.cpp)
-target_link_libraries(io_example PRIVATE sushiblas)
-sushiblas_apply_build_policy(io_example)
+add_executable(io_demo io_demo.cpp)
+target_link_libraries(io_demo PRIVATE sushiblas)
+sushiblas_apply_build_policy(io_demo)
 
 add_executable(adapter_demo
     adapter/adapter_demo.cpp
@@ -38,7 +38,7 @@ sushiblas_apply_build_policy(graph_primitives_demo)
 # Ensure RPATH is set
 set_target_properties(
     sushiblas_example
-    io_example
+    io_demo
     adapter_demo
     errors_demo
     recording_demo
@@ -54,10 +54,10 @@ set_target_properties(
 # consumers, so only the runtime's own DLL needs copying here — matching
 # sushiruntime's own examples/tests precedent exactly.
 if(WIN32)
-    add_custom_command(TARGET io_example POST_BUILD
+    add_custom_command(TARGET io_demo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
-            $<TARGET_FILE_DIR:io_example>
+            $<TARGET_FILE_DIR:io_demo>
         COMMENT "Copying runtime DLL to example directory..."
     )
 
