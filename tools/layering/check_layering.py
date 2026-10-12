@@ -36,6 +36,7 @@ K_SUPPORT_FOLDER = "modules/foundation/support/include"
 K_ENGINE_HEADER = "modules/engine/engine/include/SushiBLAS/engine/engine.hpp"
 K_UMBRELLA_HEADER = "modules/library/sushiblas/include/SushiBLAS/SushiBLAS.h"
 K_RECORDER_HEADER = "modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp"
+K_GRAPH_PRIMITIVES_FOLDER = "modules/foundation/graph_primitives/"
 K_UNSCREENED_OPERATION_MODULES = frozenset({"io"})
 K_KERNEL_FORBIDDEN_INCLUDE = re.compile(
     r'^\s*#\s*include\s*[<"]'
@@ -52,6 +53,7 @@ K_ENGINE_COMPOSED_INCLUDE = re.compile(
 )
 K_ENGINE_BRICKS = frozenset({
     "SushiBLAS/engine/rng_stream.hpp",
+    "SushiBLAS/engine/recorded_graph.hpp",
     "SushiBLAS/engine/scratch_pool.hpp",
     "SushiBLAS/engine/task_recorder.hpp",
     "SushiBLAS/engine/execution_mode.hpp",
@@ -60,8 +62,20 @@ K_ENGINE_INCLUDE = re.compile(r'^\s*#\s*include\s*[<"](SushiBLAS/engine/engine\.
 K_UMBRELLA_INCLUDE = re.compile(r"^\s*#\s*include\s*<SushiBLAS/([^>]+)>")
 K_ENGINE_MEMBER_CALL = re.compile(r"\bengine_?\s*(?:\.|->)\s*([A-Za-z_]\w*)\s*\(")
 K_OPERATION_ALLOWED_MEMBERS: frozenset[str] = frozenset()
-K_VIEW_ALLOWED_MEMBERS = frozenset({"get_recorder", "get_rng"})
-K_GRAPH_INSERTION = re.compile(r"\b(add_(?:task|node|native|offload_dynamic))\s*\(")
+K_VIEW_ALLOWED_MEMBERS = frozenset({"recorder", "rng"})
+K_RECORDING_VERBS: tuple[str, ...] = (
+    "task",
+    "kernel",
+    "state_rule",
+    "host",
+    "untracked_kernel",
+    "dynamic_kernel",
+    "coupled_rule",
+    "raw_kernel",
+    "captured_kernel",
+    "untracked_raw_kernel",
+)
+K_GRAPH_INSERTION = re.compile(r"(?:\.|->)\s*(" + "|".join(K_RECORDING_VERBS) + r")\s*\(")
 K_COMMAND_GROUP = re.compile(r"\.\s*(submit)\s*\(")
 K_QUEUE_SHORTCUT = re.compile(
     r"\b(?:q|q2|queue)\s*\.\s*(parallel_for|single_task|memcpy|memset|fill|copy)\s*\("
@@ -311,7 +325,7 @@ def find_operation_engine_calls(root: Path) -> Iterator[Violation]:
 
 
 def find_view_engine_calls(root: Path) -> Iterator[Violation]:
-    """Yields each call on an engine variable from a public header, other than get_recorder() and get_rng()."""
+    """Yields each call on an engine variable from a public header, other than recorder() and rng()."""
     headers = (
         entry for entry in _header_lines(root)
         if _relative(entry[0], root) != K_ENGINE_HEADER
@@ -319,10 +333,15 @@ def find_view_engine_calls(root: Path) -> Iterator[Violation]:
     yield from _engine_calls(headers, K_VIEW_ALLOWED_MEMBERS)
 
 
+def _may_record(file: str) -> bool:
+    """Returns whether a repository-relative file is TaskRecorder or a graph primitive."""
+    return file == K_RECORDER_HEADER or file.startswith(K_GRAPH_PRIMITIVES_FOLDER)
+
+
 def find_graph_insertions(root: Path) -> Iterator[Violation]:
-    """Yields each add_task, add_node, add_native or add_offload_dynamic call outside TaskRecorder."""
+    """Yields each call of a recording member of SushiRuntime::Recorder outside TaskRecorder and the graph primitives."""
     for path, number, line in chain(_header_lines(root), _source_tree_lines(root)):
-        if K_LINE_COMMENT.match(line) or _relative(path, root) == K_RECORDER_HEADER:
+        if K_LINE_COMMENT.match(line) or _may_record(_relative(path, root)):
             continue
         for call in K_GRAPH_INSERTION.findall(line):
             yield Violation(path, number, call)
