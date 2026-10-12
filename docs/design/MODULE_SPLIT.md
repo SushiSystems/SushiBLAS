@@ -46,7 +46,7 @@ Four facts follow from the table.
 - **The engine includes no operation family.** `engine.hpp` reaches `tensor`, `core` and its
   own bricks only.
 - **Three families lean on a sibling.** `sparse` takes six operand headers from `blas`
-  (`argument_check`, `vector_operand`, `matrix_operand`, `scalar`, `task_metadata`, `utils`), and
+  (`argument_check`, `vector_operand`, `matrix_operand`, `scalar`, `blas_metadata`, `utils`), and
   `nonlinear` and `logic` take `map_task.hpp` from `elementwise`.
 
 ## 2. The module tree
