@@ -39,6 +39,7 @@
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/support/device_policy.hpp>
 #include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/support/reduce_1d.hpp>
 #include <SushiBLAS/support/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
@@ -161,6 +162,38 @@ namespace SushiBLAS
 
                     /** @brief Columns of C accumulated privately by one work-item. */
                     static constexpr int K_ITEM_COLS = K_ITEM_ROWS;
+                };
+
+                /**
+                 * @brief Holds the compile-time geometry of the DEPTH_SPLIT variant for element type T.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                template<typename T>
+                struct GemmDepthSplitTile
+                {
+                    /** @brief Rows of C accumulated privately by one work-item. */
+                    static constexpr int K_ITEM_ROWS = register_block_dim<Accumulator<T>>(K_NO_LOCAL_ACC_BYTES, 4);
+
+                    /** @brief Columns of C accumulated privately by one work-item. */
+                    static constexpr int K_ITEM_COLS = K_ITEM_ROWS;
+
+                    /** @brief Elements of C one work-group produces. */
+                    static constexpr int K_BLOCK_ITEMS = K_ITEM_ROWS * K_ITEM_COLS;
+
+                    /** @brief Most work-items of a group that sit side by side along a row of op(B). */
+                    static constexpr std::size_t K_MAX_COLUMN_LANES = 16;
+
+                    /** @brief K-steps every work-item of a group must have before the variant is chosen. */
+                    static constexpr int K_MIN_ITEM_DEPTH = 16;
+
+                    /**
+                     * @brief Returns the local memory one work-group of width work-items needs, in bytes.
+                     * @see modules/kernels/blas_seam_kernels/README.md
+                     */
+                    [[nodiscard]] static constexpr std::size_t local_mem_bytes(std::size_t width) noexcept
+                    {
+                        return width * static_cast<std::size_t>(K_BLOCK_ITEMS) * sizeof(Accumulator<T>);
+                    }
                 };
 
                 /**
@@ -465,6 +498,227 @@ namespace SushiBLAS
                         });
                     });
                 }
+
+                /**
+                 * @brief Holds the work-group geometry DEPTH_SPLIT launches one product with.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                struct DepthSplitPlan
+                {
+                    /** @brief Work-items in a work-group; 0 when the product keeps another variant. */
+                    std::size_t width = 0;
+
+                    /** @brief Work-items of a group that sit side by side along a row of op(B). */
+                    std::size_t column_lanes = 1;
+
+                    /** @brief Returns the work-items of a group that share the K extent. */
+                    [[nodiscard]] constexpr std::size_t depth_lanes() const noexcept
+                    {
+                        return width / column_lanes;
+                    }
+                };
+
+                /** @brief Returns whether neighbouring columns of op(B) are neighbouring elements. */
+                [[nodiscard]] inline constexpr bool has_contiguous_rows(const OperandAccess& access) noexcept
+                {
+                    return access.col == 1;
+                }
+
+                /** @brief Returns false: a row of an operand read through another brick is not known contiguous. */
+                template<typename Access>
+                [[nodiscard]] inline constexpr bool has_contiguous_rows(const Access&) noexcept
+                {
+                    return false;
+                }
+
+                /**
+                 * @brief Plans DEPTH_SPLIT for one product; the width is 0 when the product keeps
+                 *        one of the other two variants.
+                 * @param b_rows_contiguous Whether neighbouring columns of op(B) are neighbouring elements.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                template<typename T>
+                [[nodiscard]] inline DepthSplitPlan plan_depth_split(const Device::Profile& profile,
+                                                                     int64_t m, int64_t n, int64_t k,
+                                                                     int64_t batch_size,
+                                                                     bool b_rows_contiguous) noexcept
+                {
+                    using Tiled = GemmLocalTile<T>;
+                    using Split = GemmDepthSplitTile<T>;
+
+                    if (!profile.has_dedicated_local_memory)
+                        return DepthSplitPlan{};
+
+                    const std::size_t width = Reduce::group_width(profile);
+                    if (!Device::hosts_local_tile(profile, {Split::local_mem_bytes(width), width}))
+                        return DepthSplitPlan{};
+
+                    // A tiled launch with fewer groups than compute units leaves units idle.
+                    const int64_t units = static_cast<int64_t>(profile.compute_units);
+                    const int64_t tiled_groups = batch_size * group_count(m, Tiled::K_BLOCK_M) *
+                                                 group_count(n, Tiled::K_BLOCK_N);
+                    if (tiled_groups >= units)
+                        return DepthSplitPlan{};
+
+                    if (k < static_cast<int64_t>(width) * Split::K_MIN_ITEM_DEPTH)
+                        return DepthSplitPlan{};
+
+                    DepthSplitPlan plan{width, 1};
+                    if (!b_rows_contiguous)
+                        return plan;
+
+                    // Column lanes double while every compute unit still has a group; see modules/kernels/blas_seam_kernels/README.md.
+                    const int64_t row_blocks = batch_size * group_count(m, Split::K_ITEM_ROWS);
+                    while (plan.column_lanes * 2 <= Split::K_MAX_COLUMN_LANES &&
+                           plan.column_lanes * 2 <= width &&
+                           row_blocks * group_count(n, static_cast<int64_t>(plan.column_lanes * 2) *
+                                                           Split::K_ITEM_COLS) >= units)
+                        plan.column_lanes *= 2;
+
+                    return plan;
+                }
+
+                /**
+                 * @brief Computes GEMM with one work-group per block of C, whose work-items share
+                 *        the K extent and fold their sums in a fixed-order tree.
+                 * @pre plan is a return of plan_depth_split for this product with a non-zero width.
+                 * @param beta Exactly zero skips reading C.
+                 * @param c Must not overlap A or B.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                template<typename T, typename AccessA, typename AccessB, typename Epilogue>
+                [[nodiscard]] sycl::event gemm_depth_split(
+                    sycl::queue& queue, DepthSplitPlan plan,
+                    int64_t m, int64_t n, int64_t k,
+                    T alpha, const T* a, AccessA a_access, int64_t str_a,
+                    const T* b, AccessB b_access, int64_t str_b,
+                    T beta, T* c, OperandAccess c_access, int64_t str_c,
+                    int64_t batch_size, const std::vector<sycl::event>& deps,
+                    Epilogue epilogue)
+                {
+                    using W = Accumulator<T>;
+                    using Configuration = GemmDepthSplitTile<T>;
+
+                    const std::size_t width = plan.width;
+                    const std::size_t column_lanes = plan.column_lanes;
+                    const std::size_t depth_lanes = plan.depth_lanes();
+                    const int64_t block_cols =
+                        static_cast<int64_t>(column_lanes) * Configuration::K_ITEM_COLS;
+
+                    const int64_t n_blocks = group_count(n, block_cols);
+                    const int64_t blocks = group_count(m, Configuration::K_ITEM_ROWS) * n_blocks;
+                    const std::size_t global =
+                        static_cast<std::size_t>(batch_size * blocks) * width;
+
+                    return queue.submit([&](sycl::handler& h)
+                    {
+                        h.depends_on(deps);
+
+                        sycl::local_accessor<W, 1> tile(
+                            sycl::range<1>(static_cast<std::size_t>(Configuration::K_BLOCK_ITEMS) *
+                                           width),
+                            h);
+
+                        h.parallel_for(sycl::nd_range<1>(sycl::range<1>(global),
+                                                         sycl::range<1>(width)),
+                                       [=](sycl::nd_item<1> item)
+                        {
+                            const int64_t group = static_cast<int64_t>(item.get_group(0));
+                            const int64_t batch_id = group / blocks;
+                            const int64_t block = group % blocks;
+                            const std::size_t lane = item.get_local_id(0);
+
+                            // Neighbouring work-items take neighbouring columns, then neighbouring K-steps; see modules/kernels/blas_seam_kernels/README.md.
+                            const std::size_t column_lane = lane % column_lanes;
+                            const std::size_t depth_lane = lane / column_lanes;
+
+                            const int64_t row0 = (block / n_blocks) * Configuration::K_ITEM_ROWS;
+                            const int64_t col0 = (block % n_blocks) * block_cols +
+                                static_cast<int64_t>(column_lane) * Configuration::K_ITEM_COLS;
+
+                            const T* A = a + batch_id * str_a;
+                            const T* B = b + batch_id * str_b;
+
+                            // Only C is __restrict__: a and b may alias; see modules/kernels/blas_seam_kernels/README.md.
+                            T* __restrict__ C = c + batch_id * str_c;
+
+                            W acc[Configuration::K_ITEM_ROWS][Configuration::K_ITEM_COLS];
+                            for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
+                                for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
+                                    acc[ii][jj] = W(0);
+
+                            const int64_t step = static_cast<int64_t>(depth_lanes);
+                            for (int64_t kk = static_cast<int64_t>(depth_lane); kk < k; kk += step)
+                            {
+                                T reg_a[Configuration::K_ITEM_ROWS];
+                                T reg_b[Configuration::K_ITEM_COLS];
+
+                                for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
+                                    reg_a[ii] = load_operand(A, row0 + ii, kk, m, k, a_access);
+                                for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
+                                    reg_b[jj] = load_operand(B, kk, col0 + jj, k, n, b_access);
+
+                                for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
+                                    for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
+                                        acc[ii][jj] += multiply(W(reg_a[ii]), W(reg_b[jj]));
+                            }
+
+                            // Element e of a work-item's block keeps its partial at tile[e * width + lane].
+                            for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
+                                for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
+                                    tile[static_cast<std::size_t>(
+                                             ii * Configuration::K_ITEM_COLS + jj) * width + lane] =
+                                        acc[ii][jj];
+
+                            sycl::group_barrier(item.get_group());
+
+                            // depth_lanes is a power of two, so the halving tree pairs the depth lanes of one column lane in a fixed order.
+                            for (std::size_t off = depth_lanes / 2; off > 0; off >>= 1)
+                            {
+                                if (depth_lane < off)
+                                {
+                                    for (std::size_t e = 0;
+                                         e < static_cast<std::size_t>(Configuration::K_BLOCK_ITEMS);
+                                         ++e)
+                                        tile[e * width + lane] =
+                                            tile[e * width + lane] +
+                                            tile[e * width + lane + off * column_lanes];
+                                }
+                                sycl::group_barrier(item.get_group());
+                            }
+
+                            // The work-items of depth lane 0 hold the sums and store their own blocks.
+                            if (depth_lane != 0)
+                                return;
+
+                            for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
+                            {
+                                const int64_t global_row = row0 + ii;
+                                if (global_row >= m)
+                                    continue;
+
+                                for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
+                                {
+                                    const int64_t global_col = col0 + jj;
+                                    if (global_col >= n)
+                                        continue;
+
+                                    const int64_t c_idx = c_access.index(global_row, global_col);
+                                    const W sum = tile[static_cast<std::size_t>(
+                                        ii * Configuration::K_ITEM_COLS + jj) * width + lane];
+
+                                    // beta == 0 must not read the prior C value, which may be uninitialised; see modules/kernels/blas_seam_kernels/README.md.
+                                    const T value = (beta == T(0))
+                                        ? T(multiply(W(alpha), sum))
+                                        : T(multiply(W(alpha), sum) +
+                                            multiply(W(beta), W(C[c_idx])));
+
+                                    C[c_idx] = epilogue(value, global_row, global_col);
+                                }
+                            }
+                        });
+                    });
+                }
             } // namespace Detail
 
             /**
@@ -494,7 +748,26 @@ namespace SushiBLAS
                 const Device::LocalTileDemand local_demand{local_bytes, local_items};
                 const bool tile_hosted = Device::hosts_local_tile(profile, local_demand);
 
-                // Both variants are instantiated here, whichever branch runs; see modules/kernels/blas_seam_kernels/README.md.
+                const Detail::DepthSplitPlan split = Detail::plan_depth_split<T>(
+                    profile, m, n, k, batch_size, Detail::has_contiguous_rows(b_access));
+                if (split.width != 0)
+                {
+                    SB_LOG_INFO("SYCL GEMM [depth_split]: batch={} {}x{}x{} item_block={}x{} "
+                                "width={} column_lanes={}",
+                                batch_size, m, n, k,
+                                Detail::GemmDepthSplitTile<T>::K_ITEM_ROWS,
+                                Detail::GemmDepthSplitTile<T>::K_ITEM_COLS, split.width,
+                                split.column_lanes);
+
+                    return Detail::gemm_depth_split<T>(
+                        queue, split, m, n, k,
+                        alpha, a, a_access, str_a,
+                        b, b_access, str_b,
+                        beta, c, c_access, str_c,
+                        batch_size, deps, epilogue);
+                }
+
+                // Every variant is instantiated here, whichever branch runs; see modules/kernels/blas_seam_kernels/README.md.
                 if (profile.has_dedicated_local_memory && tile_hosted)
                 {
                     SB_LOG_INFO("SYCL GEMM [local_tiled]: batch={} {}x{}x{} block={}x{} tile_k={} local={}B",

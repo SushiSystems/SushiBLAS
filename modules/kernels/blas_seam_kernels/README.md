@@ -390,12 +390,74 @@ out-of-range row or column contributes nothing, so no ragged-remainder loop is n
 The store in `gemm_no_local`: `beta == 0` must not read the prior C value, which may be
 uninitialised. This matches standard BLAS semantics.
 
+### `Detail::GemmDepthSplitTile`
+
+The register block is the one `GemmNoLocalTile` takes, 4x4 for `half` and `float` and 2x2 for the
+8- and 16-byte types, because this variant reads its operands from global memory too.
+`K_MIN_ITEM_DEPTH` is 16: below 16 K-steps per work-item the fold of the partial sums, eight
+barriers at a width of 256, costs more than the sums. `K_MAX_COLUMN_LANES` is 16, so the
+work-items of one K-step read at most 64 neighbouring `float` values of op(B).
+
+### `Detail::DepthSplitPlan` and `Detail::plan_depth_split`
+
+Both tiled variants divide a product over the elements of C and give each work-item the whole K
+extent. A product with a small C and a long K then launches a handful of work-groups, each
+walking K alone, and most of the device idles. The weight gradient of a convolution is this
+shape: C is output channels by kernel elements, and K is batch times output height times width.
+
+The plan has a non-zero width, and so selects DEPTH_SPLIT, when all of these hold:
+
+- the device has dedicated local memory, so a CPU backend never takes the variant;
+- the device hosts `GemmDepthSplitTile::local_mem_bytes` of local memory at
+  `Reduce::group_width`;
+- LOCAL_TILED would launch fewer work-groups than the device has compute units;
+- K is at least the width times `K_MIN_ITEM_DEPTH`.
+
+A work-group has `width` work-items, `column_lanes` of them side by side along a row of op(B)
+and `depth_lanes()` of them along K. `column_lanes` is 1 unless neighbouring columns of op(B)
+are neighbouring elements, which `Detail::has_contiguous_rows` reads from an `OperandAccess`
+and denies for every other access brick. When they are, `column_lanes` doubles up to
+`K_MAX_COLUMN_LANES` for as long as the launch keeps one work-group per compute unit.
+
+### `Detail::gemm_depth_split`
+
+One work-group produces a block of C that is one register block tall and `column_lanes` register
+blocks wide. Work-item `lane` has column lane `lane % column_lanes` and depth lane
+`lane / column_lanes`. It owns one register block and takes the K-steps `depth_lane`,
+`depth_lane + depth_lanes`, and so on.
+
+The two lane kinds exist for the two ways an operand lies in memory. With one column lane,
+neighbouring work-items take neighbouring K-steps, which are neighbouring addresses of an
+operand that is contiguous along K. With several, the work-items of one K-step read neighbouring
+columns of one row of op(B), which is one contiguous run when K is the leading axis in memory.
+
+Each work-item keeps its block's partial sums in registers and writes them to local memory. The
+group folds the depth lanes of each column lane in a halving tree of fixed order, so one device
+repeats a result to the bit. The work-items of depth lane 0 store their blocks.
+
+The sum of one element is formed in a different order than LOCAL_TILED forms it, so the two
+variants differ in the last bits of a `float` result.
+
+Measured on an RTX 3080 Ti in FLOAT32 by `benchmark_gemm`, median of 10, against LOCAL_TILED on
+the same product:
+
+| C | K | K in memory | LOCAL_TILED | DEPTH_SPLIT |
+| --- | --- | --- | --- | --- |
+| 32 x 27 | 739328 | contiguous | 383 ms | 1.4 ms |
+| 64 x 288 | 184832 | contiguous | 122 ms | 3.8 ms |
+| 128 x 576 | 46208 | contiguous | 30 ms | 4.0 ms |
+| 32 x 27 | 86528 | leading axis | 57 ms | 0.37 ms |
+| 64 x 576 | 21632 | leading axis | 16 ms | 0.58 ms |
+| 128 x 1152 | 5408 | leading axis | 4.1 ms | 0.46 ms |
+
 ### `gemm`
 
 Resolves the four (layout, transpose) combinations into plain row/column strides on the host, through
 `operand_access`, so the innermost loop carries no layout branch and no extra template
-instantiation, then picks one of two kernel shapes from the device profile:
+instantiation, then picks one of three kernel shapes from the device profile:
 
+- **DEPTH_SPLIT** when `Detail::plan_depth_split` returns a width: a GPU, a small C and a
+long K.
 - **LOCAL_TILED** when the device has genuine scratchpad memory and the
 tile fits it. Cooperative A/B staging, bank-padded, barrier-synchronised.
 - **NO_LOCAL** otherwise, and always on a CPU backend. No `local_accessor`,
@@ -433,8 +495,8 @@ epilogue, which is invertible.
 
 Returns: The submitted work's event.
 
-At `if (profile.has_dedicated_local_memory && tile_hosted)`: both variants are named
-from this one function, so both are instantiated and both reach the device image whichever branch a
+At `if (profile.has_dedicated_local_memory && tile_hosted)`: all three variants are named
+from this one function, so each is instantiated and each reaches the device image whichever branch a
 given machine takes at runtime: there is no dead-stripping hazard to guard against, and no
 configuration in which one of them stops compiling unnoticed.
 

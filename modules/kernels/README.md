@@ -392,9 +392,12 @@ and fold them in a halving tree of fixed order, so the same device repeats a res
 `row_reduction_width` picks the shape: it takes the work-group shape when
 `Reduce::planned_partials` would split a one-dimensional reduction of the row's length into two
 stages on that device. On a CPU that means a row of at least `Reduce::K_CPU_TWO_STAGE_MIN_ELEMENTS`
-elements. `gemv` takes the work-group shape only when the row of `op(A)` is contiguous: row-major
+elements. `gemv` takes the work-group shape when the row of `op(A)` is contiguous: row-major
 without a transpose, or column-major with one. In the other two cases the per-item shape already
-reads neighbouring addresses across neighbouring work-items. `symv` reads half of each row
+reads neighbouring addresses across neighbouring work-items, and `gemv` keeps it unless the
+device is a GPU and the output has fewer elements than `compute_units` times
+`Device::work_group_size`. With that few rows the per-item launch leaves most of the device
+idle, so each row takes a work-group and reads with stride `lda`. `symv` reads half of each row
 contiguously and half with stride `lda` in either shape, so it takes the work-group shape whenever
 the row is long enough.
 

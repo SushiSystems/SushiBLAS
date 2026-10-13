@@ -65,9 +65,15 @@ namespace SushiBLAS
 
                 SB_LOG_INFO("SYCL GEMV: {}x{}", m, n);
 
+                const Device::Profile& profile = Device::profile_for(queue);
                 const bool row_contiguous = (layout == Core::Layout::RowMajor) != transposed;
-                const std::size_t width = (row_contiguous && out_len > 0)
-                    ? Detail::row_reduction_width(Device::profile_for(queue), in_len)
+
+                // Fewer rows than one work-group per compute unit leave units idle; see kernels/README.md.
+                const bool few_rows = !profile.is_cpu &&
+                    out_len < static_cast<int64_t>(profile.compute_units *
+                                                   Device::work_group_size(profile));
+                const std::size_t width = ((row_contiguous || few_rows) && out_len > 0)
+                    ? Detail::row_reduction_width(profile, in_len)
                     : std::size_t{0};
 
                 if (width != 0)
@@ -75,7 +81,6 @@ namespace SushiBLAS
                     return queue.submit([&](sycl::handler& h)
                     {
                         h.depends_on(deps);
-                        // A row-contiguous op(A) holds (o, k) at a[o * lda + k] in both layouts.
                         Detail::reduce_rows_by_group<W>(h, out_len, in_len, width,
                             [=](int64_t o, int64_t k) -> W
                             {
