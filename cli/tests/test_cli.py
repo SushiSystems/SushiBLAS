@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -27,6 +28,7 @@ K_VISIBLE_COMMANDS = [
 ]
 K_ENVIRONMENT = ("SUSHI_CLI_THEME", "SUSHI_CLI_ICONS", "SUSHI_CLI_COLOR", "SUSHISTACK_HOME")
 K_DOCS_EXIT_CODE = 6
+K_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 K_GIT = (
     "git", "-c", "user.name=tests", "-c", "user.email=tests@example.invalid",
     "-c", "commit.gpgsign=false",
@@ -151,7 +153,7 @@ def test_docs_runs_the_api_build_and_bundle_is_its_subcommand(monkeypatch, tmp_p
     assert runner.invoke(cli.app, ["doxygen"]).exit_code == K_DOCS_EXIT_CODE
     missing = runner.invoke(cli.app, ["docs", "bundle"])
     assert missing.exit_code == 2
-    assert "--release" in missing.output
+    assert "--release" in K_ANSI_ESCAPE.sub("", missing.output)
 
 
 def _published_checkout(root: Path) -> None:
