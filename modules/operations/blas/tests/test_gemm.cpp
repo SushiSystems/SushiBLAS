@@ -222,6 +222,49 @@ namespace SushiBLAS
                 this->test_accuracy(40, 40, 3);
             }
 
+            /**
+             * @brief Tests a small result under a K long enough for the depth-split kernel on a GPU.
+             * @see tests/unit/README.md
+             */
+            TYPED_TEST(Unit_GEMMTest, DeepProduct)
+            {
+                this->test_accuracy(5, 7, 4133, Core::Layout::RowMajor, false, false,
+                                    1.0 / 4096.0, 0.0);
+            }
+
+            TYPED_TEST(Unit_GEMMTest, DeepProductTransposeB)
+            {
+                this->test_accuracy(5, 7, 4133, Core::Layout::RowMajor, false, true,
+                                    1.0 / 4096.0, 0.5);
+            }
+
+            TYPED_TEST(Unit_GEMMTest, DeepProductTransposeBothColMajor)
+            {
+                this->test_accuracy(9, 4, 4133, Core::Layout::ColumnMajor, true, true,
+                                    1.0 / 4096.0, 0.5);
+            }
+
+            /**
+             * @brief Tests a result wide enough for sixteen column lanes, ragged on both axes.
+             * @see tests/unit/README.md
+             */
+            TYPED_TEST(Unit_GEMMTest, DeepProductColumnLanes)
+            {
+                this->test_accuracy(130, 131, 4133, Core::Layout::RowMajor, false, false,
+                                    1.0 / 4096.0, 0.5);
+            }
+
+            TYPED_TEST(Unit_GEMMTest, DeepProductColumnLanesTransposeA)
+            {
+                this->test_accuracy(41, 70, 4133, Core::Layout::RowMajor, true, false,
+                                    1.0 / 4096.0, 0.0);
+            }
+
+            TYPED_TEST(Unit_GEMMTest, DeepProductBatched)
+            {
+                this->test_batched(3, 5, 6, 4100, 1.0 / 4096.0, 0.5);
+            }
+
             TYPED_TEST(Unit_GEMMTest, SingleElement)
             {
                 this->test_accuracy(1, 1, 1);

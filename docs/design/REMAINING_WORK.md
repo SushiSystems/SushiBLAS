@@ -69,6 +69,10 @@ records them and holds the steps that have not run.
   RTX 3080 Ti); the cost per block does not grow with the order beyond that step.
 - Measure where a narrow-band `tbsv`, which runs as one sequential device task, is cheaper on
   the host than on a GPU.
+- Measure the two bounds of `plan_depth_split`, fewer LOCAL_TILED work-groups than compute units
+  and a K of at least 16 times the width, on a second GPU. Both are set from one RTX 3080 Ti,
+  where a 255 x 256 product with a K of 1352 stays on LOCAL_TILED at 250 GFLOP/s.
+- Measure the `gemv` with few strided rows: it has a test and no benchmark row.
 - Merge the three texts of the mirrored read of a symmetric matrix (`symv`, `SymmetricAccess`,
   `symmetric_product`) into one brick, and express the dense `symv`, `trmv` and one-vector solve
   through the structured algorithm bricks.

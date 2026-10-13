@@ -49,6 +49,7 @@ prints the name of the device it ran on.
 | Program | Operations | Default sizes | Rate |
 | --- | --- | --- | --- |
 | `benchmark_gemm` | `gemm`, C = A * B, square, column-major | n = 128, 512, 1024, 2048 | GFLOP/s, 2 * n^3 flops |
+| `benchmark_gemm`, rows `gemm deep` and `gemm strided` | `gemm` in FLOAT32 with a small C and a long K: five shapes of C = A^T * B, where K is contiguous in memory, and six of C = A * B^T, where K is the leading axis; the size column is K | fixed | GFLOP/s, 2 * m * n * k flops |
 | `benchmark_level1` | `axpy`, `dot`, `nrm2`, `asum`, `iamax` | 2^16, 2^20, 2^24 elements | GB/s |
 | `benchmark_reductions` | `sum`, `max`, `var` over the whole tensor | 2^16, 2^20, 2^24 elements | GB/s |
 | `benchmark_elementwise` | `add`, in-place `exp`, in-place `relu` | 2^16, 2^20, 2^24 elements | GB/s |
