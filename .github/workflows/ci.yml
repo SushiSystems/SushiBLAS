@@ -57,6 +57,9 @@ jobs:
   functional:
     name: Functional tests
     runs-on: ubuntu-latest
+    env:
+      # Experiment: disable the OpenCL CPU vectorizer to test the vplan-vec crash hypothesis.
+      CL_CONFIG_CPU_VECTORIZER_MODE: "1"
     steps:
       # SushiBLAS resolves SushiRuntime through cmake/Runtime.cmake's three
       # modes, in order: an already-defined target, find_package(SushiRuntime),
