@@ -117,7 +117,7 @@ jobs:
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=icx -DCMAKE_CXX_COMPILER=icpx \
-            -DCMAKE_CXX_FLAGS=-fsycl \
+            -DCMAKE_CXX_FLAGS="-fsycl -fp-model=precise" \
             -DSR_BUILD_TESTS=OFF
           cmake --build build
           # The umbrella label regex `sb test` uses. "functional" is an
