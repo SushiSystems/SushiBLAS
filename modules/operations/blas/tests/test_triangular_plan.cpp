@@ -37,7 +37,7 @@
 #include <SushiBLAS/blas_kernels/sycl/level3/triangular_system.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
 
 namespace SushiBLAS

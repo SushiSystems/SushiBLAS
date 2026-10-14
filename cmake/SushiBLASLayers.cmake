@@ -22,7 +22,13 @@ set(SUSHIBLAS_LAYER_ORDER
 # Module name, then its tier. A module is added here before its folder is.
 set(SUSHIBLAS_MODULE_LAYERS
     core                foundation
-    support             foundation
+    arithmetic          foundation
+    launch              foundation
+    reduction           foundation
+    reference           foundation
+    substitution        foundation
+    orthonormal         foundation
+    sparse_assembly     foundation
     geometry            foundation
     graph_primitives    foundation
     tensor              data
@@ -50,8 +56,15 @@ set(SUSHIBLAS_MODULE_LAYERS
 # Consumer, then dependency: the edges allowed between two modules of one tier. An edge
 # inside a tier that is not listed here is refused.
 set(SUSHIBLAS_SAME_LAYER_EDGES
-    support             core
-    geometry            support
+    launch              core
+    reduction           arithmetic
+    reduction           launch
+    reference           core
+    reference           reduction
+    substitution        arithmetic
+    sparse_assembly     core
+    sparse_assembly     reference
+    geometry            arithmetic
     sparse_storage      tensor
     blas_kernels        blas_seam_kernels
     sparse_kernels      blas_seam_kernels

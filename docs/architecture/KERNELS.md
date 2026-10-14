@@ -4,7 +4,7 @@ A kernel is a function template on the element type that receives pointers, exte
 flags. The dense BLAS, sparse and spatial families have a kernel pair per operation:
 
 - **`modules/kernels/<family>_kernels/include/SushiBLAS/<family>_kernels/reference/`** is plain
-  C++ with no dependency beyond the support headers. It handles both `Core::Layout` values and
+  C++ with no dependency beyond the foundation headers. It handles both `Core::Layout` values and
   states the result the operation is defined to have.
 - **`modules/kernels/<family>_kernels/include/SushiBLAS/<family>_kernels/sycl/`** takes the
   `sycl::queue&` and a
@@ -20,14 +20,15 @@ epilogue headers, the access policies (`operand_access.hpp`, `symmetric_access.h
 `conjugation.hpp`), `packed_product_plan.hpp` and the two Givens headers.
 
 The elementwise, non-linear, logic, reduction and random families have no kernel pair. Their SYCL
-kernel is a launch primitive of the support layer around the operation's functor, and their
+kernel is a launch primitive of the launch module around the operation's functor, and their
 reference path is the serial loop of [section 3](EXECUTION_MODES.md).
 
-## The support layer
+## The foundation modules under the kernels
 
-`modules/foundation/support/` sits below the kernels and the engine and includes neither.
-[Its README](../../modules/foundation/support/README.md) lists each header with what it declares
-and holds the reasoning behind it. The headers this page names most are `device_policy.hpp`
+The foundation modules `arithmetic`, `launch`, `reduction`, `reference`, `substitution`,
+`orthonormal` and `sparse_assembly` sit below the kernels and the engine and include neither.
+Each module's README lists its headers with what they declare and holds the reasoning behind
+them; [modules/README.md](../../modules/README.md) links to them. The headers this page names most are `device_policy.hpp`
 (`Device::Profile` and the launch geometry), `launch_1d.hpp` and `serial_1d.hpp` (the per-element
 launch and its host loop), and `reduce_1d.hpp`, `reduce_axis.hpp` and `serial_reduce.hpp` (the
 fixed-order folds, their accumulators and their host folds).

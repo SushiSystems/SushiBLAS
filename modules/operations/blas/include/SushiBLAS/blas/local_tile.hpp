@@ -34,7 +34,7 @@
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 
 namespace SushiBLAS

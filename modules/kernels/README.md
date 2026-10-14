@@ -81,7 +81,7 @@ relative to. That saturates the sum, which is the answer BLAS gives.
 
 `asum` and `dot` form their sums in `Kernels::ReferenceSum`: in `double` for HALF, FLOAT32 and
 COMPLEX32, and in a compensated `double` sum for FLOAT64 and COMPLEX64. The result is rounded to
-the element type once, on the store. `modules/foundation/support/README.md`, under
+the element type once, on the store. `modules/foundation/reference/README.md`, under
 `reference_accumulator.hpp`, says why a reference sums wider than the kernel it judges. Of the other
 reference kernels that sum, `gemv`, `symv`, `trmv`, `gbmv`, the shared symmetric and triangular
 loops, `syrk`, `syr2k`, `trsm`, the sparse kernels, the orthonormalisation sweep and
@@ -152,7 +152,7 @@ reference allocates it on the host, indexed like B.
 The reference of the sweep behind `RandomOps::orthogonal`: modified Gram-Schmidt in place over a
 `VectorSet`, vector `i` projected out of every later vector in ascending order,
 `K_ORTHONORMAL_SWEEPS` times, then each vector scaled to norm `gain`. The layout, the sweep count
-and `tiny_norm_sq` come from `<SushiBLAS/support/orthonormal_sweep.hpp>`, which the SYCL kernel
+and `tiny_norm_sq` come from `<SushiBLAS/orthonormal/orthonormal_sweep.hpp>`, which the SYCL kernel
 reads too.
 
 ### `modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/csr_pattern.hpp`, `index_list.hpp`
@@ -341,7 +341,7 @@ are compiled into this library.
 
 The elementwise level 1 kernels (`axpy`, `copy`, `scal`, `swap`, `rot`) run one work-item per
 element. The reductions (`asum`, `nrm2`, `dot`, `dotc`, `iamax`) run through
-`Reduce::reduce_indexed` in `<SushiBLAS/support/reduce_1d.hpp>`, so they take the same single-pass or
+`Reduce::reduce_indexed` in `<SushiBLAS/reduction/reduce_1d.hpp>`, so they take the same single-pass or
 two-stage shape, and the same fixed combination order, as the whole-tensor reductions. `asum` and
 a real `dot` fold with `CompensatedSum`, a complex `dot` and `dotc` with `CompensatedComplexSum`,
 `nrm2` with `ScaledSumOfSquares` and `iamax` with `RunningArgMax`. A HALF input accumulates in
@@ -369,7 +369,7 @@ engages on a GPU and this project has no GPU device to measure it on.
 
 `nrm2` computes the scaling 2-norm through the library's own accumulator,
 `Reduce::ScaledSumOfSquares`, and holds no second copy of the algorithm.
-`modules/foundation/support/README.md`, under `ScaledSumOfSquares`, describes the accumulator and
+[the architecture page](../../docs/architecture/FIXED_ORDER_FOLD.md), under `ScaledSumOfSquares`, describes the accumulator and
 says why `sqrt(sum(x*x))`, which this kernel once computed, is wrong at both ends of the range.
 The reference kernel computes the same norm a different way on purpose; see
 `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/level1/level1.hpp` above.
@@ -381,7 +381,7 @@ returned a wrong answer for complex input.
 ### `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/gemv.hpp`
 
 `gemv` and `symv` have two shapes, and `trmv` has the same two. The per-item shape launches through
-`Launch::indexed`, so its grid is the one `<SushiBLAS/support/launch_1d.hpp>` plans for the device:
+`Launch::indexed`, so its grid is the one `<SushiBLAS/launch/launch_1d.hpp>` plans for the device:
 flat on a CPU, and on a GPU a grid-stride loop capped at what the machine can hold resident. Each
 work-item reduces one whole row of `op(A)`. That reduction is why neither kernel can use
 `Launch::map`: the output at index `o` is a function of `in_len` inputs, not of `in[o]`.
@@ -403,7 +403,7 @@ the row is long enough.
 
 ### `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/ger.hpp`
 
-`ger` stays on a `sycl::range<2>`, unlike `gemv` and `symv`. `<SushiBLAS/support/launch_1d.hpp>`
+`ger` stays on a `sycl::range<2>`, unlike `gemv` and `symv`. `<SushiBLAS/launch/launch_1d.hpp>`
 plans one-dimensional geometries, and the index of `ger` has two dimensions: `A` is addressed by
 `(i, j)` under a runtime layout, and the two axes have different strides. Flattening the index to
 `i * n + j` to pass it through `Launch::indexed` would cost a division and a modulo per work-item,
@@ -490,7 +490,7 @@ operand-addressing helpers of `gemm.hpp` and adds the triangular output mask. Th
 composition are SushiBLAS work, not a port.
 
 `syrk` does not reuse GEMM's tile geometry. It owns `Detail::SyrkTileConfig`, so retuning GEMM's
-register block cannot retune SYRK without anyone seeing it. `modules/foundation/support/README.md`,
+register block cannot retune SYRK without anyone seeing it. `modules/foundation/launch/README.md`,
 under `device_policy.hpp`, makes the same argument for keeping tile sizes out of the device
 profile. SYRK does not have GEMM's split between a local-memory and a no-local kernel: its tiled
 kernel always takes the local-memory shape, and throws `std::runtime_error` when the device
@@ -594,7 +594,7 @@ element, each summing its own terms in the order the reference kernel does. Neit
 a `sycl::atomic_ref`. `window_dot_weights_backward` reduces, for each tap of each channel, the
 `N * H_o * W_o` terms of that tap's gradient through `Reduce::reduce_segments`: the taps are the
 segments, `Detail` functors open a tap's terms and store its sum, and the fold has the fixed
-order of the segmented reduction in `<SushiBLAS/support/reduce_axis.hpp>`.
+order of the segmented reduction in `<SushiBLAS/reduction/reduce_axis.hpp>`.
 
 ### `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/orthonormalize.hpp`
 
@@ -616,7 +616,7 @@ G is 64, or the largest power of two the device accepts below that, so on one de
 is the same bits on every run.
 
 The sweep runs twice before the final scaling (`K_ORTHONORMAL_SWEEPS`, in
-`<SushiBLAS/support/orthonormal_sweep.hpp>`). One modified Gram-Schmidt
+`<SushiBLAS/orthonormal/orthonormal_sweep.hpp>`). One modified Gram-Schmidt
 sweep loses orthogonality in proportion to the matrix's condition number times the rounding
 unit; a second sweep over the already nearly orthogonal vectors brings the loss down to the
 rounding unit. That keeps a 64x64 FLOAT32 matrix inside the 1e-4 Gram tolerance of

@@ -36,7 +36,7 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/traits.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/packed_micro_kernel.hpp>
 #include "test_utils.hpp"

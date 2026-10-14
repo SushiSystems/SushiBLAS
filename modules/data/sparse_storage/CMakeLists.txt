@@ -11,5 +11,5 @@ sushiblas_add_module(
         sparse_builder.cpp
     DEPENDS
         core
-        support
+        sparse_assembly
         tensor)

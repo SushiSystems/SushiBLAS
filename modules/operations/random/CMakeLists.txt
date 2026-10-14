@@ -26,7 +26,8 @@ sushiblas_add_module(
         xavier_uniform.cpp
     DEPENDS
         core
-        support
+        launch
+        orthonormal
         tensor
         random_kernels
         engine)

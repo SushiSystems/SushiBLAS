@@ -3,7 +3,7 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Tests the support, kernel, Engine, view and recorder rules of the layering checker."""
+"""Tests the foundation, kernel, Engine, view and recorder rules of the layering checker."""
 
 from __future__ import annotations
 
@@ -24,13 +24,13 @@ from layering.check_layering import (  # noqa: E402
     rule_kernel_includes,
     rule_operation_engine_calls,
     rule_seam_engine_includes,
-    rule_support_independence,
+    rule_foundation_independence,
     rule_task_dependencies,
     rule_view_engine_calls,
 )
 
 K_KERNEL = "modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/reference/add.hpp"
-K_SUPPORT = "modules/foundation/support/include/SushiBLAS/support/launch_1d.hpp"
+K_FOUNDATION = "modules/foundation/launch/include/SushiBLAS/launch/launch_1d.hpp"
 K_ENGINE_INCLUDE = "#include <SushiBLAS/engine/task.hpp>\n"
 K_ENGINE_HEADER_INCLUDE = "#include <SushiBLAS/engine/engine.hpp>\n"
 
@@ -56,7 +56,7 @@ class RegistrationTest(unittest.TestCase):
                 "rule_declared_tiers",
                 "rule_upward_includes",
                 "rule_private_reach",
-                "rule_support_independence",
+                "rule_foundation_independence",
                 "rule_kernel_includes",
                 "rule_engine_header_includes",
                 "rule_seam_engine_includes",
@@ -68,25 +68,25 @@ class RegistrationTest(unittest.TestCase):
         )
 
 
-class SupportIndependenceTest(unittest.TestCase):
-    """Checks which includes a support header may make."""
+class FoundationIndependenceTest(unittest.TestCase):
+    """Checks which includes a foundation header may make."""
 
-    def test_accepts_core_support_and_sycl(self) -> None:
-        """Reports nothing for a support header that includes core, support and SYCL headers."""
+    def test_accepts_core_foundation_and_sycl(self) -> None:
+        """Reports nothing for a foundation header that includes core, foundation and SYCL headers."""
         files = {
-            K_SUPPORT: (
+            K_FOUNDATION: (
                 "#include <sycl/sycl.hpp>\n"
                 "#include <SushiBLAS/core/traits.hpp>\n"
-                "#include <SushiBLAS/support/device_policy.hpp>\n"
+                "#include <SushiBLAS/launch/device_policy.hpp>\n"
             ),
         }
         with tempfile.TemporaryDirectory() as folder:
-            self.assertEqual(list(rule_support_independence(_repository(folder, files))), [])
+            self.assertEqual(list(rule_foundation_independence(_repository(folder, files))), [])
 
     def test_reports_engine_kernel_and_tensor_includes(self) -> None:
         """Reports engine.hpp, engine/, modules/kernels/ and tensor.hpp includes, each on its line."""
         files = {
-            K_SUPPORT: (
+            K_FOUNDATION: (
                 "#include <SushiBLAS/engine/engine.hpp>\n"
                 '#include "SushiBLAS/engine/task.hpp"\n'
                 "#include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>\n"
@@ -94,13 +94,13 @@ class SupportIndependenceTest(unittest.TestCase):
             ),
         }
         with tempfile.TemporaryDirectory() as folder:
-            issues = list(rule_support_independence(_repository(folder, files)))
+            issues = list(rule_foundation_independence(_repository(folder, files)))
             self.assertEqual([issue.line for issue in issues], [1, 2, 3, 4])
 
     def test_reports_the_sparse_operand_headers(self) -> None:
         """Reports sparse_vector.hpp, sparse_matrix.hpp and sparse_builder.hpp, each on its line."""
         files = {
-            K_SUPPORT: (
+            K_FOUNDATION: (
                 "#include <SushiBLAS/sparse_storage/sparse_vector.hpp>\n"
                 "#include <SushiBLAS/sparse_storage/sparse_matrix.hpp>\n"
                 "#include <SushiBLAS/sparse_storage/sparse_builder.hpp>\n"
@@ -108,7 +108,7 @@ class SupportIndependenceTest(unittest.TestCase):
             ),
         }
         with tempfile.TemporaryDirectory() as folder:
-            issues = list(rule_support_independence(_repository(folder, files)))
+            issues = list(rule_foundation_independence(_repository(folder, files)))
             self.assertEqual([issue.line for issue in issues], [1, 2, 3])
 
 
@@ -355,7 +355,7 @@ class TaskDependenciesTest(unittest.TestCase):
     def test_accepts_a_second_stage_that_waits_on_the_first(self) -> None:
         """Reports nothing for a command group that depends on an earlier stage's event."""
         files = {
-            "modules/foundation/support/include/SushiBLAS/support/reduce_1d.hpp": (
+            "modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp": (
                 "return queue.submit([&](sycl::handler& h)\n"
                 "{\n"
                 "    h.depends_on(staged);\n"

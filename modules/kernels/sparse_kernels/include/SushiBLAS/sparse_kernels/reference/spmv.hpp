@@ -32,8 +32,8 @@
 #include <cstdint>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
-#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/reference/reference_accumulator.hpp>
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
 #include <SushiBLAS/sparse_kernels/reference/structure.hpp>
 

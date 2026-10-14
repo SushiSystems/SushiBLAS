@@ -6,6 +6,12 @@
 
 # The foundation tier: what every other module is written in.
 add_subdirectory(core)
-add_subdirectory(support)
+add_subdirectory(arithmetic)
+add_subdirectory(launch)
+add_subdirectory(reduction)
+add_subdirectory(reference)
+add_subdirectory(substitution)
+add_subdirectory(orthonormal)
+add_subdirectory(sparse_assembly)
 add_subdirectory(geometry)
 add_subdirectory(graph_primitives)

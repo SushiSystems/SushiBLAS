@@ -349,7 +349,7 @@ execution mode, never includes `engine/engine.hpp` and never calls
 **The reference kernel** is plain C++ with no dependency beyond the support
 headers. It handles both `Core::Layout` values, is templated on the element
 type, and forms its sums in `Kernels::ReferenceSum<T>`
-(`support/reference_accumulator.hpp`). It is written to be read: an
+(`reference/reference_accumulator.hpp`). It is written to be read: an
 optimisation in it is a second implementation that can be wrong.
 
 **The SYCL kernel** takes the `sycl::queue&` and a
@@ -357,7 +357,7 @@ optimisation in it is a second implementation that can be wrong.
 submission. Every command group calls `h.depends_on(deps)`, and a second
 launch depends on the event of the first. It launches through `Launch::` or
 `Reduce::` where one of their shapes fits, forms its sums in
-`Kernels::Accumulator<T>` (HALF in FLOAT32, `support/accumulator.hpp`), and
+`Kernels::Accumulator<T>` (HALF in FLOAT32, `arithmetic/accumulator.hpp`), and
 keeps the order of every floating-point sum a function of the device and the
 extents: no atomic add, no `sycl::reduction`. Scratch it needs is leased by the
 operation source at record time and passed in.
@@ -386,7 +386,7 @@ Source: `modules/operations/elementwise/source/add.cpp`
 
 - State the `Domain` the functor is well-formed for. The default is
   `Domain::Real`. A functor instantiated for complex uses the `safe_*` helpers
-  of `support/safe_math.hpp`, and one instantiated for the integers uses
+  of `arithmetic/safe_math.hpp`, and one instantiated for the integers uses
   `elementwise/wrapping_math.hpp`.
 - The functor reaches a device: it is trivially copyable, captures by value,
   holds no host pointer, allocates nothing and throws nothing.

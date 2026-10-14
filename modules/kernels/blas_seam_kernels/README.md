@@ -4,7 +4,7 @@
 translation unit: the GEMM kernels and epilogues behind `Dispatch::execute_gemm`, the packed
 product they block for CPU caches, and the access and arithmetic bricks the BLAS kernels of both
 back ends share. The private kernels are in the `modules/kernels/` tree. The accumulator
-trait they share is in [the support module](../../foundation/support/README.md).
+trait they share is in [the arithmetic module](../../foundation/arithmetic/README.md).
 
 | File | Declares |
 | --- | --- |
@@ -245,7 +245,7 @@ reading it back K_ITEM_ROWS + K_ITEM_COLS times per K-step is the whole reason a
 a CPU backend the "local memory" is the same cache the global pointer already reads through, so the
 staging copies the data twice and every group_barrier is a real rendezvous between OS threads buying
 nothing. portBLAS ships exactly this split; so does this file. The fact table both variants dispatch
-on lives in `<SushiBLAS/support/device_policy.hpp>` and knows nothing about GEMM: tile sizes are
+on lives in `<SushiBLAS/launch/device_policy.hpp>` and knows nothing about GEMM: tile sizes are
 chosen here, because only this file knows what its accumulator costs in registers.
 
 ### `Detail::load_operand`
@@ -537,4 +537,4 @@ Adds `depth` outer products of one slice of the A panel and one slice of the B p
 `K_ROWS x K_COLS` micro-tile, in ascending term order. The real form works on `sycl::vec` rows
 loaded from memory aligned to `K_PACKED_ALIGNMENT`. The complex form keeps real and imaginary
 parts in separate rows and adds each term by the four-product formula of
-`support/complex_arithmetic.hpp`.
+`arithmetic/complex_arithmetic.hpp`.

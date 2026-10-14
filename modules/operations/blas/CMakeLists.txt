@@ -43,7 +43,8 @@ sushiblas_add_module(
         level3/trsm.cpp
     DEPENDS
         core
-        support
+        arithmetic
+        launch
         tensor
         blas_seam_kernels
         blas_kernels

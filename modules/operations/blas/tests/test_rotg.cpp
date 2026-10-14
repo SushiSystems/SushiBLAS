@@ -42,8 +42,8 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/blas_seam_kernels/givens.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include "test_utils.hpp"
 
 namespace SushiBLAS

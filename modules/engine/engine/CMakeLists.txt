@@ -11,7 +11,7 @@ sushiblas_add_module(
         engine.cpp
     DEPENDS
         core
-        support
+        launch
         tensor)
 
 sushiblas_add_module_tests(

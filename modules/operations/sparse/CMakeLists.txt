@@ -20,7 +20,8 @@ sushiblas_add_module(
         sptrsv.cpp
     DEPENDS
         core
-        support
+        arithmetic
+        launch
         tensor
         sparse_storage
         blas_seam_kernels

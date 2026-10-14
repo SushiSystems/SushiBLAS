@@ -33,8 +33,8 @@
 #include <cstddef>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/reference/reference_accumulator.hpp>
 #include "test_utils.hpp"
 #include "blas_flags.hpp"
 #include "blas_truth.hpp"

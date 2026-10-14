@@ -10,5 +10,9 @@ sushiblas_add_module(
     INTERNAL
     DEPENDS
         core
-        support
+        arithmetic
+        launch
+        reduction
+        reference
+        substitution
         blas_seam_kernels)

@@ -9,7 +9,10 @@ sushiblas_add_module(
     LAYER kernels
     DEPENDS
         core
-        support)
+        arithmetic
+        launch
+        reduction
+        reference)
 
 sushiblas_add_module_tests(
     MODULE blas_seam_kernels

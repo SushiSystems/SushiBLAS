@@ -35,9 +35,9 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
-#include <SushiBLAS/support/launch_1d.hpp>
-#include <SushiBLAS/support/reduce_1d.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/launch/launch_1d.hpp>
+#include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiBLAS/blas_kernels/reference/level1/level1.hpp>
 
 namespace SushiBLAS

@@ -34,7 +34,7 @@
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/support/reduce_1d.hpp>
+#include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include "test_utils.hpp"
 #include "graph_probe.hpp"

@@ -24,7 +24,7 @@ name of the file and of the symbol it belongs to.
 Both propagate NaN, as NumPy does: one NaN element anywhere makes the result NaN, on every device
 and launch shape. They fold through `execute_folding_reduction` with
 `Reduce::NaNPropagatingMax` and `Reduce::NaNPropagatingMin` from
-`<SushiBLAS/support/reduce_1d.hpp>`. An empty tensor throws `std::invalid_argument` when the call
+`<SushiBLAS/reduction/reduce_1d.hpp>`. An empty tensor throws `std::invalid_argument` when the call
 is recorded, as it does for `mean`, `argmax`, `argmin`, `var`, `std` and `logsumexp`.
 
 ### `ReductionOps::argmax`, `argmin`
@@ -49,7 +49,7 @@ log-sum-exp needs: shifting a batch by its *global* maximum is exact in real ari
 and its row sum becomes exactly zero.
 
 Deterministic by construction, like every other folding reduction here; see
-`<SushiBLAS/support/reduce_axis.hpp>`.
+`<SushiBLAS/reduction/reduce_axis.hpp>`.
 
 A NaN in a segment makes that segment's result NaN: the fold is `Reduce::NaNPropagatingMax`.
 
@@ -72,7 +72,7 @@ strides[3]` and no single segment stride produces that from one index. Folding b
 one run of `H * W` elements is the easy half; the pair is the reason this exists.
 
 Neumaier-compensated and deterministic like every other folding reduction here: the division is the
-finalizer, so it costs the same launch as the sum would; see `<SushiBLAS/support/reduce_axis.hpp>`.
+finalizer, so it costs the same launch as the sum would; see `<SushiBLAS/reduction/reduce_axis.hpp>`.
 
 ### `ReductionOps::count_nonfinite`
 
@@ -116,7 +116,7 @@ decide whether to throw a training step away.
 **Deterministic**, like every folding reduction here, and for a stronger reason. The fold is
 `Reduce::ExactSum` over integers, which is exactly associative and exactly commutative, so no
 combination order can change the answer at all; the fixed-order shape of
-`<SushiBLAS/support/reduce_1d.hpp>` is inherited from the shared seam rather than being what makes
+`<SushiBLAS/reduction/reduce_1d.hpp>` is inherited from the shared seam rather than being what makes
 this op reproducible.
 
 - `t`: Input tensor; HALF, FLOAT32 or FLOAT64. The integer and complex dtypes throw by name rather
@@ -290,7 +290,7 @@ The seam every order-sensitive reduction in the library goes through: `sum`, `me
 `finalize`. It is `execute_reduction` with a `FoldingReductionDispatch`, whose SYCL path is
 `Reduce::reduce<Accum>` and whose host path is `Serial::reduce<Accum>`. That is
 the point: the part of a reduction that is hard to get right is the *combination order*, and putting
-it in five places is five chances to get it wrong. See `modules/foundation/support/README.md` for the
+it in five places is five chances to get it wrong. See `modules/foundation/reduction/README.md` for the
 shape and for why `sycl::reduction` and `sycl::reduce_over_group` are both unusable here.
 
 It sizes and requests the partials scratch itself, from the device the tensor's storage lives on, so
@@ -387,7 +387,7 @@ library goes through. `max_along`, `min_along` and `sum_along` each reach it thr
 `execute_folding_axis_reduction`, differing only in `Accum`; a per-axis mean is
 `Reduce::CompensatedSum` with `v / n` as its finalizer, which re-cuts nothing here. The task
 body is a `Detail::SpanReductionTask`: the SYCL path is the segmented launch of
-`<SushiBLAS/support/reduce_axis.hpp>`, and the host path folds each segment in index order.
+`<SushiBLAS/reduction/reduce_axis.hpp>`, and the host path folds each segment in index order.
 
 ```cpp
 // Row-wise maximum of a [rows, cols] tensor into a [rows] vector -
@@ -399,7 +399,7 @@ Dispatch::execute_folding_axis_reduction<Reduce::NaNPropagatingMax>(
 
 **It asks for no scratch**, unlike `execute_folding_reduction`, and that is a property of the shape
 rather than an omission: a segmented reduction's work-groups never contribute to a shared answer, so
-there are no partials to stage between two kernels. See `modules/foundation/support/README.md` for the
+there are no partials to stage between two kernels. See `modules/foundation/reduction/README.md` for the
 two launch shapes and for the determinism argument, which is the one it makes for `reduce_1d.hpp`.
 
 - `Accum`: The accumulation policy: `SushiBLAS::Reduce::NaNPropagatingMax` or

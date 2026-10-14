@@ -29,7 +29,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 
 namespace SushiBLAS
 {

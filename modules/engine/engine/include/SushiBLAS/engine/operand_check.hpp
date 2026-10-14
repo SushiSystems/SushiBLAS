@@ -34,7 +34,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiRuntime/core/span.hpp>
 
 namespace SushiBLAS

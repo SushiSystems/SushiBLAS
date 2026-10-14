@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/support/reduce_1d.hpp>
+#include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiBLAS/blas/dispatch.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp>

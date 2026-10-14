@@ -18,7 +18,7 @@ sushiblas_add_module(
         tanh.cpp
     DEPENDS
         core
-        support
+        arithmetic
         tensor
         engine
         functor_map)

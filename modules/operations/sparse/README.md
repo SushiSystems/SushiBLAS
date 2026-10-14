@@ -4,7 +4,7 @@
 `SparseOps` in `sparse.hpp` runs on. The containers `SparseMatrix` and `SparseVector` and
 the `SparseBuilder` are in [the sparse_storage module](../../data/sparse_storage/README.md); `Core::IndexBase` is in
 [the core module](../../foundation/core/README.md); the assembly the builder uses is in
-[the support module](../../foundation/support/README.md).
+[the sparse_assembly module](../../foundation/sparse_assembly/README.md).
 
 | File | Declares |
 | --- | --- |

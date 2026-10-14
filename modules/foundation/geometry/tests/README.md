@@ -11,6 +11,7 @@ holds the reasoning the tests share, and `tests/common/README.md` describes the 
 | `test_matrix4.cpp` | Tests Matrix4T's default, its column-major layout and its product against hand values |
 | `test_interpolation.cpp` | Tests lerp, nlerp and slerp against hand values, with the short-arc and parallel cases |
 | `test_transform.cpp` | Tests the functions that build a 4x4 transform or take one apart against hand values |
+| `test_spatial_geometry.cpp` | Tests output_extent, the window span and the default ConvGeometry without a device |
 
 Every suite is typed over `float` and `double` and runs on the host; no test submits to a device.
 
@@ -64,3 +65,25 @@ products with the original matrix are compared with the identity as well.
 inputs written in the test. The reflection and the zero-scale cases build their matrix by hand,
 because `compose_transform` followed by `decompose_transform` does not return a negative y or z
 scale and the tests state what comes back and not what went in.
+
+## test_spatial_geometry.cpp
+
+The file is device-free by construction: `spatial_geometry.hpp` includes `<cstdint>` and nothing else,
+so this file links no SYCL and needs no Engine. That is the property the header exists to have.
+SushiAI's host-lane shape inference shares this arithmetic and must not inherit the device
+stack to get it.
+
+`AsymmetricPaddingIsWhatHoldsYoloTinysLastPool`: YOLOv3-tiny's 2x2 stride-1 max-pool is padded
+on the bottom and right only, so 13x13 stays 13x13. This is the case CV-5 exists to make
+ordinary, and it is the reason `pad_bottom` is a host-side number and not a ninth attribute
+slot. The second assertion pads the other side, because symmetric and asymmetric padding of the
+same total are not interchangeable.
+
+`AWindowWiderThanThePaddedInputYieldsNoOutputRatherThanANegativeOne`: the formula's numerator
+goes negative here. Integer division of a negative numerator is implementation-flavoured and
+would produce a garbage extent that later multiplies into an allocation size, so the case is
+answered explicitly.
+
+`TheDefaultGeometryIsTheIdentityWindow`: a default-constructed geometry is 1x1, stride 1, no
+dilation and no padding, so it maps every extent to itself. Anything that reads a half-built
+geometry therefore gets a shape it can recognise as wrong, not a plausible one.

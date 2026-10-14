@@ -32,8 +32,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/support/reduce_axis.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/reduction/reduce_axis.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 #include "test_utils.hpp"
 
 using namespace SushiBLAS::Test;

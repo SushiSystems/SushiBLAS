@@ -9,7 +9,9 @@ sushiblas_add_module(
     LAYER engine
     DEPENDS
         core
-        support
+        launch
+        reduction
+        substitution
         tensor
         engine)
 

@@ -32,7 +32,7 @@
 #include <cstdint>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
-#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/reference/reference_accumulator.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
 #include <SushiBLAS/sparse_kernels/reference/structure.hpp>

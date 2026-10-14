@@ -32,9 +32,9 @@
 #include <cstdint>
 #include <algorithm>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
-#include <SushiBLAS/support/reduce_1d.hpp>
-#include <SushiBLAS/support/orthonormal_sweep.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
+#include <SushiBLAS/reduction/reduce_1d.hpp>
+#include <SushiBLAS/orthonormal/orthonormal_sweep.hpp>
 
 namespace SushiBLAS
 {

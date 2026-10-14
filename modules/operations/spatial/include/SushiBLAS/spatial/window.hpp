@@ -30,7 +30,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
-#include <SushiBLAS/support/spatial_geometry.hpp>
+#include <SushiBLAS/geometry/spatial_geometry.hpp>
 
 namespace SushiBLAS
 {

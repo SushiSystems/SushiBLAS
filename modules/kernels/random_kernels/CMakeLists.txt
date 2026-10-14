@@ -9,4 +9,7 @@ sushiblas_add_module(
     LAYER kernels
     INTERNAL
     DEPENDS
-        support)
+        launch
+        reduction
+        reference
+        orthonormal)

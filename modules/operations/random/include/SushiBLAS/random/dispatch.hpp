@@ -41,7 +41,7 @@
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/rng_stream.hpp>
-#include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>

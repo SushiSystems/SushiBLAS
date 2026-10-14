@@ -35,7 +35,7 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 #include "test_utils.hpp"
 
 namespace SushiBLAS

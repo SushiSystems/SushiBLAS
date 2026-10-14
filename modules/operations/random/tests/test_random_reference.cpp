@@ -41,7 +41,7 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/support/orthonormal_sweep.hpp>
+#include <SushiBLAS/orthonormal/orthonormal_sweep.hpp>
 #include "test_utils.hpp"
 
 namespace SushiBLAS
