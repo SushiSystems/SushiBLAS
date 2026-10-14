@@ -65,9 +65,22 @@ namespace SushiBLAS
                     /** @brief Returns the term of column k in a row. */
                     [[nodiscard]] Accumulator<T> operator()(int64_t row, int64_t k) const
                     {
+                        return k == row ? diagonal(row) : off_diagonal(row, k);
+                    }
+
+                    /** @brief Returns the term of the diagonal column of a row. */
+                    [[nodiscard]] Accumulator<T> diagonal(int64_t row) const
+                    {
                         using W = Accumulator<T>;
-                        const T aval = (k == row && unit_diag) ? T(1) : access.at(a, row, k);
-                        return multiply(W(aval), W(snapshot[k]));
+                        const T aval = unit_diag ? T(1) : access.at(a, row, row);
+                        return multiply(W(aval), W(snapshot[row]));
+                    }
+
+                    /** @brief Returns the term of column k of a row, k not on the diagonal. */
+                    [[nodiscard]] Accumulator<T> off_diagonal(int64_t row, int64_t k) const
+                    {
+                        using W = Accumulator<T>;
+                        return multiply(W(access.at(a, row, k)), W(snapshot[k]));
                     }
                 };
 
@@ -105,9 +118,17 @@ namespace SushiBLAS
                         const int64_t row = static_cast<int64_t>(index);
                         const RowWindow window = columns(row);
 
+                        const bool diagonal_first = window.first == row;
+                        const int64_t first = diagonal_first ? window.first + 1 : window.first;
+                        const int64_t last = diagonal_first ? window.last : window.last - 1;
+
                         Accumulator<T> sum(0);
-                        for (int64_t k = window.first; k < window.last; ++k)
-                            sum += term(row, k);
+                        if (diagonal_first)
+                            sum += term.diagonal(row);
+                        for (int64_t k = first; k < last; ++k)
+                            sum += term.off_diagonal(row, k);
+                        if (!diagonal_first)
+                            sum += term.diagonal(row);
                         store(row, sum);
                     }
                 };
