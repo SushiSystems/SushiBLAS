@@ -19,7 +19,6 @@
 /* "as is", without warranty of any kind.                                 */
 /**************************************************************************/
 
-
 /**
  * @file test_symmetric_row.cpp
  * @brief Tests that SymmetricRow visits a row of a band or packed symmetric matrix in order.
