@@ -30,10 +30,10 @@
 #include <vector>
 #include <cstddef>
 #include <cstdint>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/running_solution.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/substitution/running_solution.hpp>
 #include <SushiBLAS/blas_seam_kernels/row_cursor.hpp>
-#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/reference/reference_accumulator.hpp>
 
 namespace SushiBLAS
 {

@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/blas_seam_kernels/symmetric_row.hpp>
-#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/reference/reference_accumulator.hpp>
 
 namespace SushiBLAS
 {

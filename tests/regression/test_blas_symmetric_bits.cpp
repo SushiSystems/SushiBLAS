@@ -37,8 +37,8 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/reference/reference_accumulator.hpp>
 #include "../common/test_utils.hpp"
 
 namespace SushiBLAS

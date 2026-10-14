@@ -9,8 +9,14 @@ operation family in one line.
 | Tier | Module | Holds | Reasoning |
 | --- | --- | --- | --- |
 | foundation | `core` | Element types, type traits, the format stand-in, the logger, the version macros | [README](foundation/core/README.md) |
-| foundation | `support` | The accumulator traits, the device policy, the launch and reduction shapes, the serial host loops, the window geometry, the sparse assembly | [README](foundation/support/README.md) |
-| foundation | `geometry` | `Vector3T`, `QuaternionT`, `Matrix4T`, the blends and the transform builders, usable in a kernel and without SYCL | [README](foundation/geometry/README.md) |
+| foundation | `arithmetic` | The accumulator trait, the complex arithmetic, the real and complex safe math, the host and device scalar functions | [README](foundation/arithmetic/README.md) |
+| foundation | `launch` | The device policy and the per-element launch shapes | [README](foundation/launch/README.md) |
+| foundation | `reduction` | The fixed-order whole-tensor and segmented reductions and their accumulators | [README](foundation/reduction/README.md) |
+| foundation | `reference` | The reference accumulator, the serial host loops and folds behind `ForceReference` | [README](foundation/reference/README.md) |
+| foundation | `substitution` | `RunningSolution`, the unrounded solution of a triangular substitution | [README](foundation/substitution/README.md) |
+| foundation | `orthonormal` | The vector layout and constants of the orthonormalisation sweep | [README](foundation/orthonormal/README.md) |
+| foundation | `sparse_assembly` | The host assembly of CSR arrays from triplets and its input checks | [README](foundation/sparse_assembly/README.md) |
+| foundation | `geometry` | `Vector3T`, `QuaternionT`, `Matrix4T`, the blends, the transform builders and the window geometry, usable in a kernel and without SYCL | [README](foundation/geometry/README.md) |
 | foundation | `graph_primitives` | The fixed fold order and the four primitives that record on a SushiRuntime `Recorder`: reduce, segmented reduce, prefix scan, counting sort | [README](foundation/graph_primitives/README.md) |
 | data | `tensor` | `Storage`, `Tensor`, `TensorFactory` and `HostDataType` | [README](data/tensor/README.md) |
 | data | `sparse_storage` | `SparseMatrix`, `SparseVector` and `SparseBuilder` | [README](data/sparse_storage/README.md) |
@@ -142,7 +148,7 @@ takes COO triplets, adds the values of a repeated (row, column) pair and orders 
 ascending column. `matrix_from_dense` stores every element of a contiguous rank-2 tensor that is
 not equal to zero, NaN included; its precondition is that no recorded task that writes the tensor
 is waiting to run. `vector_from_entries` checks its positions with
-`Sparse::require_distinct_positions`. The assembly is in `support/sparse_assembly.hpp`; the
+`Sparse::require_distinct_positions`. The assembly is in `sparse_assembly/sparse_assembly.hpp`; the
 builder allocates through the factory and fills the tensors from the assembled arrays. Every
 refusal here is `std::runtime_error`.
 

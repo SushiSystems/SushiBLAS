@@ -37,7 +37,7 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/support/reduce_1d.hpp>
+#include <SushiBLAS/reduction/reduce_1d.hpp>
 #include "test_utils.hpp"
 #include "sparse_samples.hpp"
 

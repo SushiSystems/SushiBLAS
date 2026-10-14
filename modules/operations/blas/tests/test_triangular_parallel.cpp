@@ -48,9 +48,9 @@
 #include <SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/traits.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
-#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/reference/reference_accumulator.hpp>
 #include <SushiBLAS/blas_seam_kernels/band_access.hpp>
 #include <SushiBLAS/blas_seam_kernels/packed_access.hpp>
 #include "test_utils.hpp"

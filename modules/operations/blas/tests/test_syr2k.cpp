@@ -44,10 +44,10 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/blas/local_tile.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
-#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/reference/reference_accumulator.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include "test_utils.hpp"
 #include "blas_truth.hpp"

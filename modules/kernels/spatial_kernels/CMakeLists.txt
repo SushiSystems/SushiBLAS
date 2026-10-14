@@ -9,4 +9,8 @@ sushiblas_add_module(
     LAYER kernels
     INTERNAL
     DEPENDS
-        support)
+        arithmetic
+        launch
+        reduction
+        reference
+        geometry)

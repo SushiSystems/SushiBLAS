@@ -31,7 +31,7 @@
 #include <cstdint>
 #include <utility>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/support/reduce_1d.hpp>
+#include <SushiBLAS/reduction/reduce_1d.hpp>
 
 namespace SushiBLAS
 {

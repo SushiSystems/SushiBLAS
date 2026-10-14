@@ -32,8 +32,8 @@
 #include <type_traits>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 
 namespace SushiBLAS

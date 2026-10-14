@@ -42,7 +42,7 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include "test_utils.hpp"
 #include "blas_structured.hpp"
 

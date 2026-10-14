@@ -1,10 +1,10 @@
 # 12. The fixed-order fold (`reduce_1d.hpp`)
 
-`modules/foundation/support/include/SushiBLAS/support/reduce_1d.hpp` holds `Reduce::reduce`, the
+`modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp` holds `Reduce::reduce`, the
 whole-tensor fold every order-sensitive reduction goes through, and the accumulators it folds
 with. This page holds the reasoning behind the header and behind each symbol in it; the header
-states each rule in one line. [The support README](../../modules/foundation/support/README.md)
-covers the other support headers, and [section 7](KERNELS.md) says which operations fold.
+states each rule in one line. [The reduction README](../../modules/foundation/reduction/README.md)
+covers `reduce_axis.hpp`, and [section 7](KERNELS.md) says which operations fold.
 
 
 `launch_1d.hpp` does this job for the per-element families; this is its counterpart for the folding

@@ -36,7 +36,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/engine/task_recorder.hpp>
-#include <SushiBLAS/support/spatial_geometry.hpp>
+#include <SushiBLAS/geometry/spatial_geometry.hpp>
 #include "test_utils.hpp"
 #include "graph_probe.hpp"
 

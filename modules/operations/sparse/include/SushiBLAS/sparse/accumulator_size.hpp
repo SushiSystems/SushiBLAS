@@ -31,7 +31,7 @@
 #include <cstddef>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
 
 namespace SushiBLAS
 {

@@ -29,7 +29,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 
 namespace SushiBLAS

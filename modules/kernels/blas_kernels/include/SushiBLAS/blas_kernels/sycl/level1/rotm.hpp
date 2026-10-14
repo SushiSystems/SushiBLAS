@@ -31,8 +31,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/support/launch_1d.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/launch/launch_1d.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
 
 namespace SushiBLAS
 {

@@ -199,8 +199,14 @@ The BLAS flags are the enumerations `Core::Transpose`, `Core::Uplo`, `Core::Diag
 modules/                One tree per module: README.md, CMakeLists.txt, include/, source/, tests/
   foundation/
     core/               Element types, traits, the logger, errors, the version macros
-    support/            Launch shapes, reductions, accumulators, device policy, geometry
-    geometry/           Vector3T, QuaternionT, Matrix4T, interpolation and transforms
+    arithmetic/         The accumulator trait, complex arithmetic, safe math, Math
+    launch/             The device policy and the per-element launch shapes
+    reduction/          The fixed-order whole-tensor and segmented reductions
+    reference/          The reference accumulator and the serial host loops and folds
+    substitution/       RunningSolution, the unrounded solution of a substitution
+    orthonormal/        The layout and constants of the orthonormalisation sweep
+    sparse_assembly/    The host assembly of CSR arrays from triplets
+    geometry/           Vector3T, QuaternionT, Matrix4T, transforms, the window geometry
     graph_primitives/   Reduce, segmented reduce, prefix scan and counting sort on a task graph
   data/
     tensor/             Storage, Tensor, TensorFactory

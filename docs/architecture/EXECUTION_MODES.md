@@ -46,8 +46,8 @@ and returns an empty event. Otherwise it returns `sycl_fn(q, deps)`.
 | Family | The reference path | Shared with the SYCL path |
 | --- | --- | --- |
 | Dense BLAS, sparse, spatial | A reference kernel in the `reference/` folder of the family's kernel module, written separately from the SYCL kernel | The record-time checks |
-| Elementwise, non-linear, logic | `Serial::map` or `Serial::zip_inplace` (`support/serial_1d.hpp`): one loop in index order over the operation's functor | The functor, its narrowed scalars, its declared read pointers, the record-time checks |
-| Reductions | `Serial::reduce`, `reduce_indexed` or `reduce_axis` (`support/serial_reduce.hpp`): one fold in index order | The transform and finalize functors, and the accumulator class of every fold that is not a sum |
+| Elementwise, non-linear, logic | `Serial::map` or `Serial::zip_inplace` (`reference/serial_1d.hpp`): one loop in index order over the operation's functor | The functor, its narrowed scalars, its declared read pointers, the record-time checks |
+| Reductions | `Serial::reduce`, `reduce_indexed` or `reduce_axis` (`reference/serial_reduce.hpp`): one fold in index order | The transform and finalize functors, and the accumulator class of every fold that is not a sum |
 | Random | The same `draw_block` functor in a loop over the blocks, through `Dispatch::RandomFill` | Philox, the mapping from words to draws, the `{seed, offset}` reservation |
 
 For the last three rows the two paths differ in the loop and, where the functor calls a math

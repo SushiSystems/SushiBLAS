@@ -36,7 +36,7 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/sparse_kernels/sparse.hpp>
 #include "test_utils.hpp"
 #include "sparse_samples.hpp"

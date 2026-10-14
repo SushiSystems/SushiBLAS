@@ -27,7 +27,9 @@ sushiblas_add_module(
         var.cpp
     DEPENDS
         core
-        support
+        launch
+        reduction
+        reference
         tensor
         engine)
 

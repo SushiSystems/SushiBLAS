@@ -33,10 +33,10 @@
 #include <cstdint>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/traits.hpp>
-#include <SushiBLAS/support/launch_1d.hpp>
-#include <SushiBLAS/support/reduce_1d.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/launch/launch_1d.hpp>
+#include <SushiBLAS/reduction/reduce_1d.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/sparse_kernels/index_list.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level1/level1.hpp>

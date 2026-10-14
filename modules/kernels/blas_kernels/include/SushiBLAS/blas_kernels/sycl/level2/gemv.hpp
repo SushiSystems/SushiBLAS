@@ -33,9 +33,9 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
-#include <SushiBLAS/support/launch_1d.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/row_reduction.hpp>
 

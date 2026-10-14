@@ -42,7 +42,9 @@ sushiblas_add_module(
         tan.cpp
     DEPENDS
         core
-        support
+        arithmetic
+        launch
+        reference
         tensor
         engine
         functor_map)

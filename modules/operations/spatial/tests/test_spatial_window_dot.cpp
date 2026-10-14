@@ -37,9 +37,9 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/reduce_axis.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/reduction/reduce_axis.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 #include "test_utils.hpp"
 #include "blas_truth.hpp"
 

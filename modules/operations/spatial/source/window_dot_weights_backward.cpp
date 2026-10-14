@@ -32,8 +32,8 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/spatial/spatial.hpp>
 #include <SushiBLAS/spatial/window.hpp>
-#include <SushiBLAS/support/reduce_axis.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/reduction/reduce_axis.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/spatial_kernels/spatial.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 

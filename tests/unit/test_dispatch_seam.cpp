@@ -44,7 +44,7 @@
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/logic/dispatch.hpp>
-#include <SushiBLAS/support/safe_math.hpp>
+#include <SushiBLAS/arithmetic/safe_math.hpp>
 #include <SushiBLAS/elementwise/dispatch.hpp>
 #include <SushiBLAS/nonlinear/dispatch.hpp>
 #include <SushiBLAS/random/dispatch.hpp>

@@ -20,7 +20,9 @@ sushiblas_add_module(
         window_dot_weights_backward.cpp
     DEPENDS
         core
-        support
+        launch
+        reduction
+        geometry
         tensor
         spatial_kernels
         engine)

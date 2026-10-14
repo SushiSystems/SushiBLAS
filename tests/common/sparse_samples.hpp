@@ -39,7 +39,7 @@
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/core/sparse_types.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 
 namespace SushiBLAS
 {

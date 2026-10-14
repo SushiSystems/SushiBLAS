@@ -43,8 +43,8 @@
 #include <SushiBLAS/operands/vector_operand.hpp>
 #include <SushiBLAS/sparse/accumulator_size.hpp>
 #include <SushiBLAS/sparse/sparse_matrix_operand.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS

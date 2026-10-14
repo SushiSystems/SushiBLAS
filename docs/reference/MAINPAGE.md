@@ -33,7 +33,7 @@ which are the better place to start:
 | Choose the path a task runs | `SushiBLAS::ExecutionMode`: `engine/execution_mode.hpp` |
 | Fuse several operations into one kernel | `SushiBLAS::Dispatch`: `engine/dispatch.hpp` and the `dispatch.hpp` of the elementwise, non-linear, logic, reduction and random families; `bind_scalars` and `bind_reads` in `functor_map/` |
 | Attach an epilogue to a GEMM | `SushiBLAS::Dispatch::execute_gemm` and `gemm_epilogue`: `blas/dispatch.hpp` |
-| Write a fold with a fixed order | `SushiBLAS::Reduce`: `support/reduce_1d.hpp`, `support/reduce_axis.hpp` |
+| Write a fold with a fixed order | `SushiBLAS::Reduce`: `reduction/reduce_1d.hpp`, `reduction/reduce_axis.hpp` |
 | Tell a refusal from a wrong operand | `SushiBLAS::UnsupportedExecution`: `core/errors.hpp` |
 
 No pass fuses recorded tasks automatically. The `Dispatch` seams are where a caller hands the

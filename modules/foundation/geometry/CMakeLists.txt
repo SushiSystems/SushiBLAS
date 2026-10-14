@@ -8,7 +8,7 @@ sushiblas_add_module(
     NAME geometry
     LAYER foundation
     DEPENDS
-        support)
+        arithmetic)
 
 sushiblas_add_module_tests(
     MODULE geometry
@@ -16,5 +16,6 @@ sushiblas_add_module_tests(
         test_interpolation.cpp
         test_matrix4.cpp
         test_quaternion.cpp
+        test_spatial_geometry.cpp
         test_transform.cpp
         test_vector3.cpp)

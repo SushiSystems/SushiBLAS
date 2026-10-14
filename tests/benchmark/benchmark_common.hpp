@@ -37,7 +37,7 @@
 #include <vector>
 #include <algorithm>
 #include <SushiBLAS/SushiBLAS.h>
-#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 
 /// @brief Holds the helpers shared by the benchmark programs.
 namespace SushiBLAS::Bench

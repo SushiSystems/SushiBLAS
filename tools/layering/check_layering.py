@@ -3,7 +3,7 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Checks module tiers and the support, kernel, Engine, view and recorder layers of SushiBLAS.
+"""Checks module tiers and the foundation, kernel, Engine, view and recorder layers of SushiBLAS.
 
 Usage: python tools/layering/check_layering.py [repository root] [--report] [--rule NAME]
 """
@@ -32,7 +32,11 @@ K_CMAKE_SOURCE_REACH = re.compile(r"(?:^|[/\s\"'])([A-Za-z0-9_]+)/source\b")
 K_MODULES_FOLDER = "modules"
 K_KERNEL_TIER = "kernels"
 K_OPERATION_TIER = "operations"
-K_SUPPORT_FOLDER = "modules/foundation/support/include"
+K_INDEPENDENT_FOUNDATION_FOLDERS: tuple[str, ...] = tuple(
+    f"modules/foundation/{module}/include"
+    for module in ("arithmetic", "launch", "reduction", "reference", "substitution", "orthonormal",
+                   "sparse_assembly", "geometry")
+)
 K_ENGINE_HEADER = "modules/engine/engine/include/SushiBLAS/engine/engine.hpp"
 K_UMBRELLA_HEADER = "modules/library/sushiblas/include/SushiBLAS/SushiBLAS.h"
 K_RECORDER_HEADER = "modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp"
@@ -42,7 +46,7 @@ K_KERNEL_FORBIDDEN_INCLUDE = re.compile(
     r'^\s*#\s*include\s*[<"]'
     r'(SushiBLAS/(?:engine|operands|functor_map|tensor|sparse_storage)/[^>"]+)[>"]'
 )
-K_SUPPORT_FORBIDDEN_INCLUDE = re.compile(
+K_FOUNDATION_FORBIDDEN_INCLUDE = re.compile(
     r'^\s*#\s*include\s*[<"]'
     r'(SushiBLAS/(?:engine|operands|functor_map|tensor|sparse_storage|[a-z_]+_kernels)/[^>"]+)[>"]'
 )
@@ -274,9 +278,10 @@ def find_kernel_includes(root: Path) -> Iterator[Violation]:
     yield from _include_matches(_header_lines(root, K_KERNEL_TIER), K_KERNEL_FORBIDDEN_INCLUDE)
 
 
-def find_support_includes(root: Path) -> Iterator[Violation]:
-    """Yields each include of an engine-tier header, a kernel or a tensor header from support."""
-    yield from _include_matches(_source_lines(root / K_SUPPORT_FOLDER), K_SUPPORT_FORBIDDEN_INCLUDE)
+def find_foundation_includes(root: Path) -> Iterator[Violation]:
+    """Yields each engine-tier, kernel or tensor include made by a foundation module."""
+    for folder in K_INDEPENDENT_FOUNDATION_FOLDERS:
+        yield from _include_matches(_source_lines(root / folder), K_FOUNDATION_FORBIDDEN_INCLUDE)
 
 
 def find_engine_header_includes(root: Path) -> Iterator[Violation]:
@@ -423,7 +428,7 @@ def known_notes(repository: Repository, rules: Iterable[str]) -> Iterator[str]:
 
 
 K_SCREENED_FINDERS: dict[str, Callable[[Path], Iterator[Violation]]] = {
-    "rule_support_independence": find_support_includes,
+    "rule_foundation_independence": find_foundation_includes,
     "rule_kernel_includes": find_kernel_includes,
     "rule_engine_header_includes": find_engine_header_includes,
     "rule_seam_engine_includes": find_seam_engine_includes,
@@ -433,7 +438,7 @@ K_SCREENED_FINDERS: dict[str, Callable[[Path], Iterator[Violation]]] = {
     "rule_task_dependencies": find_task_dependencies,
 }
 
-rule_support_independence = _screened_rule("rule_support_independence", find_support_includes)
+rule_foundation_independence = _screened_rule("rule_foundation_independence", find_foundation_includes)
 rule_kernel_includes = _screened_rule("rule_kernel_includes", find_kernel_includes)
 rule_engine_header_includes = _screened_rule("rule_engine_header_includes", find_engine_header_includes)
 rule_seam_engine_includes = _screened_rule("rule_seam_engine_includes", find_seam_engine_includes)
@@ -443,13 +448,13 @@ rule_graph_insertions = _screened_rule("rule_graph_insertions", find_graph_inser
 rule_task_dependencies = _screened_rule("rule_task_dependencies", find_task_dependencies)
 
 K_CHECKER = Checker(
-    description="Checks module tiers and the support, kernel, Engine, view and recorder layers.",
+    description="Checks module tiers and the foundation, kernel, Engine, view and recorder layers.",
     collect=collect,
     rules={
         "rule_declared_tiers": rule_declared_tiers,
         "rule_upward_includes": rule_upward_includes,
         "rule_private_reach": rule_private_reach,
-        "rule_support_independence": rule_support_independence,
+        "rule_foundation_independence": rule_foundation_independence,
         "rule_kernel_includes": rule_kernel_includes,
         "rule_engine_header_includes": rule_engine_header_includes,
         "rule_seam_engine_includes": rule_seam_engine_includes,

@@ -27,7 +27,7 @@
 
 #pragma once
 
-#include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/blas_seam_kernels/modified_givens.hpp>
 
 namespace SushiBLAS

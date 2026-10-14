@@ -46,7 +46,7 @@ in this file, and the graph holds one task where separate ops would make three.
 ### The variadic in-place seam
 
 `execute_zip_inplace` advances three tensors together with one consumer-authored functor, in one
-task. It also proves that `<SushiBLAS/support/launch_1d.hpp>`, the header that holds the seam's
+task. It also proves that `<SushiBLAS/launch/launch_1d.hpp>`, the header that holds the seam's
 launch geometry, reaches an installed consumer. Nothing in-tree can show that.
 
 ### The GEMM epilogue numbers

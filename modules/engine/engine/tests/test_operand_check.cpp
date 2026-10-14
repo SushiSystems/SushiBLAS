@@ -34,7 +34,7 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/functor_map/scalar.hpp>
 #include <SushiBLAS/functor_map/scalar_binding.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
