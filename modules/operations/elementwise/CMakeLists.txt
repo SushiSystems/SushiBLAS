@@ -43,11 +43,12 @@ sushiblas_add_module(
     DEPENDS
         core
         arithmetic
-        launch
-        reference
         tensor
         engine
-        functor_map)
+        functor_map
+    PRIVATE_DEPENDS
+        launch
+        reference)
 
 sushiblas_add_test_program(
     MODULE elementwise

@@ -72,6 +72,7 @@ sb build --clean                  # wipe the build tree first
 sb test --suite unit              # fast, run this often
 sb test --suite integration
 sb test --suite regression
+sb test --suite device            # kernels against the reference on the host CPU device
 sb test --suite all               # every CTest test
 sb test --suite package           # the out-of-tree consumer
 sb test --filter 'Gemm.*'         # ctest -R over 'Suite.Case' test names
@@ -344,7 +345,8 @@ which is `RealAndComplex` for both: `Domain::All` for a copy, `Domain::Real`
 for a routine with no complex meaning. Inside the body, `dispatcher.run` takes the
 reference kernel and the SYCL kernel. An operation source never reads the
 execution mode, never includes `engine/engine.hpp` and never calls
-`SushiRuntime::Recorder::task`; `tools/layering/check_layering.py` reports the last two.
+`SushiRuntime::Recorder::task`; `tools/layering/check_engine_seams.py` and
+`tools/layering/check_tier_contents.py` report the last two.
 
 **The reference kernel** is plain C++ with no dependency beyond the support
 headers. It handles both `Core::Layout` values, is templated on the element

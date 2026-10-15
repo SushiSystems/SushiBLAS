@@ -11,7 +11,9 @@ per aspect. A header has the file or the folder, never both.
 | `<tier>/<module>/` | The tests and benchmarks of one module, and a README with the reasoning of its tests |
 | `<tier>/<module>/test_<name>.cpp` | The tests of the header `<name>.hpp` of that module |
 | `<tier>/<module>/test_<name>/` | The tests of one header, one file per aspect |
+| `<tier>/<module>/<name>.hpp` | A helper only the tests of that module share; the module's README lists it under Helpers |
 | `<tier>/<module>/benchmark_<name>.cpp` | A benchmark program; see [Benchmarks](#benchmarks) |
+| `applications/<path>/` | The tests of the application under `applications/<path>/`, one file per header it holds |
 | `package/` | A consumer of an installed SushiBLAS, configured on its own; see [its README](package/README.md) |
 
 A test that crosses modules belongs to the highest-tier module it uses, in the test file of the
@@ -20,15 +22,18 @@ header whose behaviour it checks. The test-only modules count as used: a test bu
 not count, because it is what a consumer includes. A test that checks several operation families
 together belongs to `library/umbrella/test_SushiBLAS/`, the module that depends on all of them.
 
-The helpers the tests share are internal test-only modules under `modules/`, listed in
-[`modules/README.md`](../modules/README.md).
+The helpers tests of several modules share are internal test-only modules under `modules/`,
+listed in [`modules/README.md`](../modules/README.md). A helper the tests of one module share
+sits in that module's folder, and a test includes it by its quoted relative path.
 
 ## One program per module, labels for kinds
 
 `sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake` builds every program. A module
 calls it in its own `CMakeLists.txt` with the files of its mirror and gets the program
 `sushiblas_<module>_tests`. Every program lands in `build/tests/`. A new test file is listed by
-hand in that call; nothing globs the folders.
+hand in that call; nothing globs the folders. An application's tests are built the same way by
+`sushiblas_add_application_test_program()`, called in the application's `CMakeLists.txt`, which
+compiles the application's sources into the program.
 
 Whether a test is a unit, integration, regression or device test is a label, never a folder. A
 test gets its label from the prefix of its GoogleTest suite name: `Unit_`, `Integration_`,
@@ -43,7 +48,7 @@ Tests run through `sb`, which sets the loader path the test program needs.
 | Command | Runs |
 | --- | --- |
 | `sb test` | The labels `unit`, `integration` and `regression` together; the same as `--suite functional` |
-| `sb test --suite unit` | The label `unit`; `integration` and `regression` work the same way |
+| `sb test --suite unit` | The label `unit`; `integration`, `regression` and `device` work the same way |
 | `sb test --suite all` | Every test CTest knows |
 | `sb test --suite package` | Installs the library, then configures, builds and runs `package/` against the install |
 | `sb test --filter <pattern>` | The tests whose name matches the pattern |

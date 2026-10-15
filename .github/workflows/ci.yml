@@ -197,6 +197,12 @@ jobs:
         run: python tools/documentation/check_changelog.py .
       - name: python tools/layering/check_layering.py .
         run: python tools/layering/check_layering.py .
+      - name: python tools/layering/check_tier_contents.py .
+        run: python tools/layering/check_tier_contents.py .
+      - name: python tools/layering/check_engine_seams.py .
+        run: python tools/layering/check_engine_seams.py .
+      - name: python tools/testing/check_test_mirror.py .
+        run: python tools/testing/check_test_mirror.py .
       - name: python tools/versioning/check_version.py .
         run: python tools/versioning/check_version.py .
       - name: python -m unittest discover -s tools/tests

@@ -21,13 +21,14 @@ sushiblas_add_module(
     DEPENDS
         core
         arithmetic
-        launch
         tensor
         sparse_storage
-        blas_seam_kernels
-        sparse_kernels
         engine
-        operands)
+        operands
+    PRIVATE_DEPENDS
+        blas_seam_kernels
+        launch
+        sparse_kernels)
 
 sushiblas_add_test_program(
     MODULE sparse

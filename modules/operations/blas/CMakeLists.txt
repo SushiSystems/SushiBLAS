@@ -43,13 +43,14 @@ sushiblas_add_module(
         level3/trsm.cpp
     DEPENDS
         core
-        arithmetic
         launch
         tensor
         blas_seam_kernels
-        blas_kernels
         engine
-        operands)
+        operands
+    PRIVATE_DEPENDS
+        arithmetic
+        blas_kernels)
 
 sushiblas_add_test_program(
     MODULE blas

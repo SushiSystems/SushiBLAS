@@ -27,10 +27,11 @@ sushiblas_add_module(
     DEPENDS
         core
         launch
-        orthonormal
         tensor
-        random_kernels
-        engine)
+        engine
+    PRIVATE_DEPENDS
+        orthonormal
+        random_kernels)
 
 sushiblas_add_test_program(
     MODULE random

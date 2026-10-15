@@ -6,6 +6,10 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-15 — cli: Added `sb test --suite device`, which runs the `Device_` tests that check a kernel against its reference on the host CPU device (`suite.py`).
+- 2026-10-15 — tools: Took the shared checkers and their settings from SushiSkills and moved the five SushiBLAS layer rules to `tools/layering/check_tier_contents.py`.
+- 2026-10-15 — build: Added `PRIVATE_DEPENDS` to `sushiblas_add_module()` for the modules only `source/` includes, and moved thirteen such edges of six operation modules there.
+- 2026-10-15 — tests: Gave every public header a test file and the adapter example a test program built by `sushiblas_add_application_test_program()`.
 - 2026-10-15 — umbrella: Breaking change: `<SushiBLAS/SushiBLAS.h>` is gone; include `<SushiBLAS/SushiBLAS.hpp>`, which the new `umbrella` module holds and which includes every public header.
 - 2026-10-15 — tests: Moved every test and benchmark into the mirror `tests/<tier>/<module>/`, one program per module from `sushiblas_add_test_program()`, with unit, integration, regression and device as labels.
 - 2026-10-15 — tests: Split `tests/common` into ten internal test-only modules; `SushiBLASTest` is `<SushiBLAS/engine_fixture/sushiblas_test.hpp>` and the tensor checks are in `tensor_expectations`.

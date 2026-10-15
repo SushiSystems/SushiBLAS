@@ -22,8 +22,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from common.checker import Checker, run  # noqa: E402
-from layering.check_layering import (  # noqa: E402
+from checking.checker import Checker, run  # noqa: E402
+from layering.check_tier_contents import (  # noqa: E402
     K_ENGINE_HEADER,
     K_LINE_COMMENT,
     K_MODULES_FOLDER,

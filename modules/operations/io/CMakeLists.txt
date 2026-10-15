@@ -12,6 +12,7 @@ sushiblas_add_module(
     DEPENDS
         core
         tensor
+    PRIVATE_DEPENDS
         engine)
 
 sushiblas_add_test_program(
