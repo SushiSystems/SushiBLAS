@@ -13,6 +13,7 @@ the benchmark section of `tests/README.md` describes them.
 | --- | --- |
 | `benchmark_sparse.cpp` | Times spmv, spsymv, spmm, sptrsv, axpyi and doti and prints GB/s per matrix order |
 | `test_accumulator_size.cpp` | Tests IndexBase, the two sparse operands, the kernel index views and accumulator_bytes |
+| `test_index_check.cpp` | Tests the checks on an index base, a compressed array and an index array |
 | `test_sparse/test_sparse_level1.cpp` | Tests the sparse-dense level 1 routines of SparseOps against values worked out by hand |
 | `test_sparse/test_sparse_recording.cpp` | Tests that a recorded sparse task computes its result, keeps its operands and is ordered behind the task that wrote them |
 | `test_sparse/test_sparse_spmm.cpp` | Tests SparseOps::spmm column by column against host products, on both layouts |
@@ -20,6 +21,8 @@ the benchmark section of `tests/README.md` describes them.
 | `test_sparse/test_sparse_spsymv.cpp` | Tests SparseOps::spsymv, sphemv and their SYCL kernel against mirrored host products |
 | `test_sparse/test_sparse_sptrsv.cpp` | Tests SparseOps::sptrsv against triangular systems whose solution is known |
 | `test_sparse/test_sparse_validation.cpp` | Tests the record-time operand checks of the sparse operations |
+| `test_sparse_matrix_operand.cpp` | Tests how a CSR matrix is described and the shapes of its arrays that are refused |
+| `test_sparse_vector_operand.cpp` | Tests how a compressed vector is described and the sizes that are refused |
 
 ## test_sparse/test_sparse_recording.cpp
 
