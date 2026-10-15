@@ -42,8 +42,9 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/orthonormal/orthonormal_sweep.hpp>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 namespace SushiBLAS
 {
     namespace Test

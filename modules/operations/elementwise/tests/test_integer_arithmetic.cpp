@@ -33,8 +33,11 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/elementwise/dispatch.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
-#include "test_utils.hpp"
-#include "graph_probe.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
+#include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include <SushiBLAS/graph_probe/graph_probe.hpp>
 
 namespace SushiBLAS
 {

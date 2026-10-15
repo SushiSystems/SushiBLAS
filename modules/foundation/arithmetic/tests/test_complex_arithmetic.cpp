@@ -34,8 +34,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/arithmetic/safe_math.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 namespace SushiBLAS
 {
     namespace Test

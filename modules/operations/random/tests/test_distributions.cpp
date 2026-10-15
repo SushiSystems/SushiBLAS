@@ -31,8 +31,7 @@
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 using namespace SushiBLAS::Test;
 
 class Unit_DistributionsTest : public SushiBLASTest {};

@@ -31,8 +31,7 @@
 #include <SushiBLAS/geometry/vector3.hpp>
 #include <SushiBLAS/geometry/quaternion.hpp>
 #include <SushiBLAS/geometry/interpolation.hpp>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 namespace SushiBLAS
 {
     namespace Test

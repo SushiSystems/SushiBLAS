@@ -36,8 +36,11 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
-#include "test_utils.hpp"
-#include "graph_probe.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/graph_probe/graph_probe.hpp>
 
 namespace SushiBLAS
 {

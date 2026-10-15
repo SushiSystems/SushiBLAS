@@ -37,8 +37,8 @@
 #include <SushiBLAS/blas/packed_operand.hpp>
 #include <SushiBLAS/blas/scalar_operand.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
-#include "../common/test_utils.hpp"
-
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 namespace SushiBLAS
 {
     namespace Test

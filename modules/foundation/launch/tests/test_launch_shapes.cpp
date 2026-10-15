@@ -37,7 +37,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
-#include "test_environment.hpp"
+#include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {

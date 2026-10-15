@@ -39,8 +39,7 @@
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/packed_micro_kernel.hpp>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 namespace SushiBLAS
 {
     namespace Test

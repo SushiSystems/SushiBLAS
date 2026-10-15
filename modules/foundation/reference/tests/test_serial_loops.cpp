@@ -40,7 +40,7 @@
 #include <SushiBLAS/reference/serial_1d.hpp>
 #include <SushiBLAS/reduction/reduce_axis.hpp>
 #include <SushiBLAS/reference/serial_reduce.hpp>
-#include "test_environment.hpp"
+#include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {

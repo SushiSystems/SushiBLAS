@@ -35,9 +35,12 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/reference/reference_accumulator.hpp>
-#include "test_utils.hpp"
-#include "blas_flags.hpp"
-#include "blas_truth.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/blas_test_oracle/blas_flags.hpp>
+#include <SushiBLAS/blas_test_oracle/blas_truth.hpp>
 
 namespace SushiBLAS
 {
@@ -102,7 +105,7 @@ namespace SushiBLAS
 
         /**
          * @brief Runs GEMV and SYMV in a chosen execution mode and measures them against a truth.
-         * @see tests/common/README.md
+         * @see modules/operations/blas/tests/README.md
          */
         template<typename T>
         class Unit_Level2SyclParityTest : public SushiBLASTest

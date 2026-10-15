@@ -10,9 +10,3 @@ sushiblas_add_module(
     DEPENDS
         arithmetic
         launch)
-
-sushiblas_add_module_tests(
-    MODULE reduction
-    SOURCES
-        test_reduce_plans.cpp
-        test_reduce_segments.cpp)

@@ -1,13 +1,15 @@
 # Unit tests
 
 The unit tests that need more than one module, each a GoogleTest translation unit built on the
-fixtures in `tests/common/`. The tests of one module are in that module's `tests/` folder,
+fixtures of the internal test modules (`engine_fixture`, `graph_probe` and the others
+listed in `modules/README.md`). The tests of one module are in that module's `tests/` folder,
 with a README of their own. The source comments state what a test checks. This document holds why a test
 is written the way it is: the defect it pins, the number it was measured against, the quirk of
 the machine it ran on. Shared reasoning comes first, then one section per file in path order.
 
 A test builds its operation views on the fixture's engine, as in `BLASOps(*engine)`, or on a
-`GraphProbe` when it asserts on the recorded graph; `tests/common/README.md` describes both. A
+`GraphProbe` when it asserts on the recorded graph; `modules/engine/engine_fixture/README.md`
+and `modules/engine/graph_probe/README.md` describe them. A
 refusal at record time is asserted as `std::invalid_argument`, and a mode or device refusal as
 `SushiBLAS::UnsupportedExecution`.
 
@@ -53,7 +55,7 @@ the library checks kernel agreement: `ExecutionMode` has no mode that runs both,
 
 A BLAS kernel that sums is not compared this way. The reference sums in `double` and the SYCL
 kernel in the element type, FLOAT32 for HALF, so the BLAS parity tests measure each against a
-`TruthSum` within a rounding bound; see `blas_truth.hpp` in `tests/common/README.md`. A kernel
+`TruthSum` within a rounding bound; see `blas_truth.hpp` in `modules/foundation/blas_test_oracle/README.md`. A kernel
 that only moves elements is still compared bit for bit.
 
 ### Comparing floats by bit pattern

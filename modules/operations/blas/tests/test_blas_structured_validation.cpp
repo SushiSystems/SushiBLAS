@@ -39,8 +39,9 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 namespace SushiBLAS
 {
     namespace Test

@@ -34,8 +34,8 @@
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include "../common/test_utils.hpp"
-
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 namespace SushiBLAS
 {
     namespace Test

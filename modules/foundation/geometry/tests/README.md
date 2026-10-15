@@ -2,7 +2,7 @@
 
 The unit tests of the `geometry` module, one file per header. The source comments state what a
 test checks; a section below holds why a test is written the way it is. `tests/unit/README.md`
-holds the reasoning the tests share, and `tests/common/README.md` describes the fixtures.
+holds the reasoning the tests share, and `modules/engine/engine_fixture/README.md` describes the fixture.
 
 | File | Tests |
 | --- | --- |

@@ -15,3 +15,12 @@ add_subdirectory(orthonormal)
 add_subdirectory(sparse_assembly)
 add_subdirectory(geometry)
 add_subdirectory(graph_primitives)
+
+# Test-only modules: a test program includes them, the library never does.
+if(SB_BUILD_TESTS)
+    add_subdirectory(blas_test_oracle)
+    add_subdirectory(serial_reductions)
+    add_subdirectory(test_runner)
+    add_subdirectory(sparse_fixtures)
+    add_subdirectory(typed_suite_naming)
+endif()

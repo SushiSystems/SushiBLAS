@@ -19,9 +19,13 @@ sushiblas_add_module_tests(
     SOURCES
         test_execution_mode.cpp
         test_operand_check.cpp
+        test_reduce_plans.cpp
         test_rng_stream.cpp
         test_run_failure.cpp
         test_scratch_shelf.cpp
         test_task_handle.cpp
         test_task_recorder.cpp
+        test_tensor_const_access.cpp
+        test_tensor_factory.cpp
+        test_tensor_view.cpp
         test_unsupported_execution.cpp)

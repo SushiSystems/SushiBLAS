@@ -42,8 +42,12 @@
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
 #include <SushiBLAS/sparse_kernels/index_list.hpp>
 #include <SushiBLAS/sparse_kernels/reference/structure.hpp>
-#include "../common/test_utils.hpp"
-#include "../common/sparse_samples.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
+#include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
 
 namespace SushiBLAS
 {

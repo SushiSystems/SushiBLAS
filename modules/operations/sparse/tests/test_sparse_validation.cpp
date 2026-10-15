@@ -36,9 +36,10 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiRuntime/core/sushi_ptr.hpp>
-#include "test_utils.hpp"
-#include "graph_probe.hpp"
-#include "sparse_samples.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/graph_probe/graph_probe.hpp>
+#include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
 
 namespace SushiBLAS
 {

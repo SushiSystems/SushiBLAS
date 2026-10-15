@@ -31,16 +31,26 @@ set(SUSHIBLAS_MODULE_LAYERS
     sparse_assembly     foundation
     geometry            foundation
     graph_primitives    foundation
+    blas_test_oracle    foundation
+    serial_reductions   foundation
+    test_runner         foundation
+    sparse_fixtures     foundation
+    typed_suite_naming  foundation
     tensor              data
     sparse_storage      data
+    tensor_expectations data
     blas_seam_kernels   kernels
     blas_kernels        kernels
     random_kernels      kernels
     sparse_kernels      kernels
     spatial_kernels     kernels
+    packed_product_harness kernels
     engine              engine
     operands            engine
     functor_map         engine
+    engine_fixture      engine
+    execution_mode_sweep engine
+    graph_probe         engine
     blas                operations
     elementwise         operations
     nonlinear           operations
@@ -70,7 +80,16 @@ set(SUSHIBLAS_SAME_LAYER_EDGES
     sparse_kernels      blas_seam_kernels
     sparse_kernels      blas_kernels
     operands            engine
-    functor_map         engine)
+    functor_map         engine
+    blas_test_oracle    core
+    packed_product_harness blas_seam_kernels
+    test_runner         core
+    sparse_fixtures     core
+    sparse_fixtures     arithmetic
+    tensor_expectations tensor
+    engine_fixture      engine
+    execution_mode_sweep engine
+    graph_probe         engine)
 
 # Gives the position of a tier in SUSHIBLAS_LAYER_ORDER, or -1.
 function(sushiblas_layer_index layer output_variable)

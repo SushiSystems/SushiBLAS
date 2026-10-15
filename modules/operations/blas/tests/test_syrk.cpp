@@ -29,8 +29,12 @@
 #include <complex>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include "test_utils.hpp"
-#include "blas_flags.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/blas_test_oracle/blas_flags.hpp>
 
 namespace SushiBLAS
 {

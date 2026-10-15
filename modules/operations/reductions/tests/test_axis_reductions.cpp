@@ -37,8 +37,13 @@
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/reductions/dispatch.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
-#include "test_utils.hpp"
-#include "graph_probe.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
+#include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/graph_probe/graph_probe.hpp>
 
 namespace SushiBLAS
 {

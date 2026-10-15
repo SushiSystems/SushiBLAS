@@ -38,8 +38,13 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/sparse_kernels/sparse.hpp>
-#include "test_utils.hpp"
-#include "sparse_samples.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
+#include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/execution_mode_sweep/execution_mode_sweep.hpp>
+#include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
 
 namespace SushiBLAS
 {

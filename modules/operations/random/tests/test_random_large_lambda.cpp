@@ -31,8 +31,8 @@
 #include <cstring>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 using namespace SushiBLAS::Test;
 using SushiBLAS::Core::DataType;
 

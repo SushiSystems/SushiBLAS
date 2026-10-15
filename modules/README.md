@@ -17,14 +17,24 @@ operation family in one line.
 | foundation | `orthonormal` | The vector layout and constants of the orthonormalisation sweep | [README](foundation/orthonormal/README.md) |
 | foundation | `sparse_assembly` | The host assembly of CSR arrays from triplets and its input checks | [README](foundation/sparse_assembly/README.md) |
 | foundation | `geometry` | `Vector3T`, `QuaternionT`, `Matrix4T`, the blends, the transform builders and the window geometry, usable in a kernel and without SYCL | [README](foundation/geometry/README.md) |
+| foundation | `blas_test_oracle` | Test-only: the double-precision BLAS truth, the flag mappings, the band and packed conversions | [README](foundation/blas_test_oracle/README.md) |
+| foundation | `serial_reductions` | Test-only: serial host reductions a test takes its expected values from | [README](foundation/serial_reductions/README.md) |
+| foundation | `test_runner` | Test-only: the environment that owns the test runtime, and the `main` of every test program | [README](foundation/test_runner/README.md) |
+| foundation | `sparse_fixtures` | Test-only: the sample sparse matrices and their host products | [README](foundation/sparse_fixtures/README.md) |
+| foundation | `typed_suite_naming` | Test-only: the name generator of a typed suite | [README](foundation/typed_suite_naming/README.md) |
 | foundation | `graph_primitives` | The fixed fold order and the four primitives that record on a SushiRuntime `Recorder`: reduce, segmented reduce, prefix scan, counting sort | [README](foundation/graph_primitives/README.md) |
 | data | `tensor` | `Storage`, `Tensor`, `TensorFactory` and `HostDataType` | [README](data/tensor/README.md) |
 | data | `sparse_storage` | `SparseMatrix`, `SparseVector` and `SparseBuilder` | [README](data/sparse_storage/README.md) |
+| data | `tensor_expectations` | Test-only: filling, reading back and comparing a dense tensor | [README](data/tensor_expectations/README.md) |
 | kernels | `blas_seam_kernels` | The GEMM kernels and epilogues a public seam instantiates, and the access bricks the BLAS kernels share | [README](kernels/blas_seam_kernels/README.md) |
 | kernels | `blas_kernels`, `random_kernels`, `sparse_kernels`, `spatial_kernels` | The internal kernels of each family | [README](kernels/README.md) |
+| kernels | `packed_product_harness` | Test-only: the problem, the data and the blockings of the packed GEMM tests | [README](kernels/packed_product_harness/README.md) |
 | engine | `engine` | `Engine`, the task recorder, the operand set and checks, the scratch pool, the dispatch seam | [README](engine/engine/README.md) |
 | engine | `operands` | The operand checks and views `blas` and `sparse` share | [README](engine/operands/README.md) |
 | engine | `functor_map` | The per-element seam: the map task and its bindings | [README](engine/functor_map/README.md) |
+| engine | `engine_fixture` | Test-only: `SushiBLASTest`, a fresh `Engine` per test | [README](engine/engine_fixture/README.md) |
+| engine | `execution_mode_sweep` | Test-only: the execution modes a routine's tests run it in | [README](engine/execution_mode_sweep/README.md) |
+| engine | `graph_probe` | Test-only: `GraphProbe`, a graph a test reads its recorded tasks from | [README](engine/graph_probe/README.md) |
 | operations | `blas` | BLAS levels 1 to 3 and the GEMM executor | [README](operations/blas/README.md) |
 | operations | `elementwise`, `nonlinear`, `random`, `reductions` | The four math families | [elementwise](operations/elementwise/README.md), [nonlinear](operations/nonlinear/README.md), [random](operations/random/README.md), [reductions](operations/reductions/README.md) |
 | operations | `logic` | Comparison and logical operations | [README](operations/logic/README.md) |

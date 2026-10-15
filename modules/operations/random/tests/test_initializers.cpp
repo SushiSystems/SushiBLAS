@@ -28,8 +28,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 using namespace SushiBLAS::Test;
 
 // We will cluster some similar initialization tests to satisfy requirements while being lean.

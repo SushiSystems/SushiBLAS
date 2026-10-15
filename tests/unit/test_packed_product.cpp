@@ -45,9 +45,16 @@
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
-#include "../common/test_utils.hpp"
-#include "../common/blas_truth.hpp"
-#include "../common/packed_product_harness.hpp"
+#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
+#include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/blas_test_oracle/blas_truth.hpp>
+#include <SushiBLAS/packed_product_harness/packed_product_harness.hpp>
 
 namespace SushiBLAS
 {

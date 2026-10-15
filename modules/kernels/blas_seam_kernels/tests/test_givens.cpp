@@ -33,8 +33,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/blas_seam_kernels/givens.hpp>
 #include <SushiBLAS/blas_seam_kernels/modified_givens.hpp>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 namespace SushiBLAS
 {
     namespace Test

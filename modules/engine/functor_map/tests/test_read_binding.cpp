@@ -39,8 +39,8 @@
 #include <SushiBLAS/functor_map/read_binding.hpp>
 #include <SushiBLAS/functor_map/scalar_binding.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 namespace SushiBLAS
 {
     namespace Test

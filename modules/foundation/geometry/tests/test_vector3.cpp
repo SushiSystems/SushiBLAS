@@ -29,8 +29,7 @@
 #include <limits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/geometry/vector3.hpp>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 namespace SushiBLAS
 {
     namespace Test
