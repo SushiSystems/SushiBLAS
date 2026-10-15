@@ -14,7 +14,7 @@ sushiblas_add_module(
         tensor
         engine)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE functor_map
-    SOURCES
+    TESTS
         test_read_binding.cpp)

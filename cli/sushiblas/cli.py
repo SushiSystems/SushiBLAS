@@ -86,7 +86,7 @@ def build(
         False, "--clean", help="Delete the build tree before configuring."),
     benchmarks: Optional[bool] = typer.Option(
         None, "--benchmarks/--no-benchmarks",
-        help="Build the benchmark programs under tests/benchmark/, or stop building them. "
+        help="Build the benchmark programs under tests/, or stop building them. "
              "Left out, the setting of the last build stays."),
     define: Optional[list[str]] = typer.Option(
         None, "--define", "-D", metavar="VAR=VALUE",
@@ -136,7 +136,7 @@ def test(
     """Run the test suite via CTest labels.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
-    the binary directly: sb run sushiblas_tests -- --gtest_filter=Gemm.*
+    the binary directly: sb run sushiblas_blas_tests -- --gtest_filter=Gemm.*
 
     --suite package is the exception: it installs the package and builds the
     out-of-tree consumer in tests/package/ against it, which is the only check
@@ -160,7 +160,7 @@ def test(
     rich_help_panel=K_PROJECT,
     epilog="sb run quickstart_demo\n"
            "sb run --sort  # Pick an executable from a list\n"
-           "sb run sushiblas_tests -- --gtest_filter='Unit_GEMMTest.*'  # Flags after -- go to it",
+           "sb run sushiblas_blas_tests -- --gtest_filter='Unit_GEMMTest.*'  # Flags after -- go to it",
     context_settings={"allow_extra_args": True},
 )
 def run(

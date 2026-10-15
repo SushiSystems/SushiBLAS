@@ -10,7 +10,7 @@ sushiblas_add_module(
     DEPENDS
         core)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE launch
-    SOURCES
-        test_launch_shapes.cpp)
+    TESTS
+        test_launch_1d.cpp)

@@ -14,15 +14,15 @@ sushiblas_add_module(
         reduction
         reference)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE blas_seam_kernels
-    SOURCES
+    TESTS
+        level3/test_packed_product_plan.cpp
+        sycl/level3/test_packed_micro_kernel.cpp
+        sycl/level3/test_packed_panel.cpp
         test_band_access.cpp
         test_givens.cpp
         test_operand_access.cpp
         test_packed_access.cpp
-        test_packed_micro_kernel.cpp
-        test_packed_panel.cpp
-        test_packed_product_plan.cpp
         test_symmetric_access.cpp
         test_symmetric_row.cpp)

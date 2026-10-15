@@ -81,7 +81,7 @@ TaskRecorder first_recorder(first_graph.recorder(), pool);
 ReductionOps(first_recorder).sum(input, first_result);
 ```
 
-Source: `tests/unit/test_scratch_buffer.cpp`
+Source: `tests/operations/reductions/test_reductions/test_scratch_buffer.cpp`
 
 The test builds two such recorders. `TestEnvironment::runtime()` returns the `SushiRuntime::Runtime&` of the test program. The
 recorder's third constructor argument is the `ExecutionMode`, `Auto` by default.

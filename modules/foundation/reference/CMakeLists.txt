@@ -11,8 +11,8 @@ sushiblas_add_module(
         core
         reduction)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE reference
-    SOURCES
+    TESTS
         test_reference_accumulator.cpp
-        test_serial_loops.cpp)
+        test_serial_reduce.cpp)

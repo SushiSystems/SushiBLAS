@@ -16,3 +16,8 @@ sushiblas_add_module(
         reference
         substitution
         blas_seam_kernels)
+
+sushiblas_add_test_program(
+    MODULE blas_kernels
+    TESTS
+        sycl/level3/test_triangular_plan.cpp)

@@ -8,15 +8,15 @@ sushiblas_add_module(
     NAME graph_primitives
     LAYER foundation)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE graph_primitives
-    SOURCES
+    TESTS
         test_combiners.cpp
         test_counting_sort.cpp
-        test_device_sized_primitives.cpp
         test_fixed_order_fold.cpp
-        test_fixed_order_levels.cpp
+        test_fixed_order_reduce.cpp
         test_prefix_scan.cpp
         test_radix_plan.cpp
-        test_reduce.cpp
+        test_reduce/test_device_sized_primitives.cpp
+        test_reduce/test_reduce.cpp
         test_segmented_reduce.cpp)

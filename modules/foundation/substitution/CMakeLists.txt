@@ -10,7 +10,7 @@ sushiblas_add_module(
     DEPENDS
         arithmetic)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE substitution
-    SOURCES
+    TESTS
         test_running_solution.cpp)

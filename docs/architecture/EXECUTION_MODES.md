@@ -31,7 +31,7 @@ engine->execute().value();
 SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tolerance_for(dtype, k), T);
 ```
 
-Source: `modules/operations/blas/tests/test_gemm.cpp`
+Source: `tests/operations/blas/test_blas/test_gemm.cpp`
 
 `engine` is the fixture's pointer. This is how the tests compare the two paths of an operation: the same call under each mode into
 two tensors, then a comparison of the tensors. The test runs the graph between the two calls; the

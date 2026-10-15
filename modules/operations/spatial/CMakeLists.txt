@@ -27,15 +27,16 @@ sushiblas_add_module(
         spatial_kernels
         engine)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE spatial
-    SOURCES
-        test_spatial_broadcast.cpp
-        test_spatial_channels.cpp
-        test_spatial_col2im.cpp
-        test_spatial_half.cpp
-        test_spatial_im2col.cpp
-        test_spatial_pool_avg.cpp
-        test_spatial_pool_max.cpp
-        test_spatial_upsample.cpp
-        test_spatial_window_dot.cpp)
+    TESTS
+        test_spatial/test_spatial_broadcast.cpp
+        test_spatial/test_spatial_channels.cpp
+        test_spatial/test_spatial_col2im.cpp
+        test_spatial/test_spatial_determinism.cpp
+        test_spatial/test_spatial_half.cpp
+        test_spatial/test_spatial_im2col.cpp
+        test_spatial/test_spatial_pool_avg.cpp
+        test_spatial/test_spatial_pool_max.cpp
+        test_spatial/test_spatial_upsample.cpp
+        test_spatial/test_spatial_window_dot.cpp)

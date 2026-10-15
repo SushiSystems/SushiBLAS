@@ -77,7 +77,7 @@ SushiBLAS::BLASOps(*this->engine).herk(A, C, uplo, Core::Transpose::ConjTrans,
 SushiBLAS::BLASOps(*engine).trsv(A, b, uplo, a.trans, Core::Diag::NonUnit);
 ```
 
-Source: `modules/operations/blas/tests/test_blas_complex.cpp`
+Source: `tests/operations/blas/test_blas/test_blas_complex.cpp`
 
 `herk` takes its two scalars as `double`, and `trsv` takes the three flags of a triangular
 routine.
@@ -178,7 +178,7 @@ SushiBLAS::SparseOps(*engine).spmv(A, tx, ty, trans, BLASScalar(alpha),
                                    BLASScalar(beta));
 ```
 
-Source: `modules/operations/sparse/tests/test_sparse_spmv.cpp`
+Source: `tests/operations/sparse/test_sparse/test_sparse_spmv.cpp`
 
 The first statement pair is the body of the fixture's `build`, which the later lines call.
 `stored_indices` gives the host indices in the index type and base of the case.
@@ -247,7 +247,7 @@ Tensor out = sentinel_tensor<T>(engine, c.output_dims());
 SushiBLAS::SpatialOps(engine).window_dot(in, weights, out, c.geometry);
 ```
 
-Source: `modules/operations/spatial/tests/test_spatial_window_dot.cpp`
+Source: `tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp`
 
 The eight assignments are every field of `ConvGeometry`. `c.geometry` is one built that way, and
 `sentinel_tensor` is a helper of the test that allocates the output.

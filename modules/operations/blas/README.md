@@ -103,7 +103,7 @@ Dispatch::execute_gemm(probe.recorder(), A, B, C,
                            BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
 ```
 
-Source: `modules/operations/blas/tests/test_gemm.cpp`
+Source: `tests/operations/blas/test_blas/test_gemm.cpp`
 
 It is one launch, and the task that writes `bias` is ordered before it.
 

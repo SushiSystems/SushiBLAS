@@ -29,12 +29,16 @@ sushiblas_add_module(
         engine
         operands)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE sparse
-    SOURCES
-        test_sparse_level1.cpp
-        test_sparse_spmm.cpp
-        test_sparse_spmv.cpp
-        test_sparse_spsymv.cpp
-        test_sparse_sptrsv.cpp
-        test_sparse_validation.cpp)
+    TESTS
+        test_accumulator_size.cpp
+        test_sparse/test_sparse_level1.cpp
+        test_sparse/test_sparse_recording.cpp
+        test_sparse/test_sparse_spmm.cpp
+        test_sparse/test_sparse_spmv.cpp
+        test_sparse/test_sparse_spsymv.cpp
+        test_sparse/test_sparse_sptrsv.cpp
+        test_sparse/test_sparse_validation.cpp
+    BENCHMARKS
+        benchmark_sparse.cpp)

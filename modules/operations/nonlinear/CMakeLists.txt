@@ -23,15 +23,15 @@ sushiblas_add_module(
         engine
         functor_map)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE nonlinear
-    SOURCES
-        test_complex_nonlinear.cpp
-        test_elu.cpp
-        test_gelu.cpp
-        test_leaky_relu.cpp
-        test_relu.cpp
-        test_sigmoid.cpp
-        test_silu.cpp
-        test_softplus.cpp
-        test_tanh.cpp)
+    TESTS
+        test_nonlinear/test_complex_nonlinear.cpp
+        test_nonlinear/test_elu.cpp
+        test_nonlinear/test_gelu.cpp
+        test_nonlinear/test_leaky_relu.cpp
+        test_nonlinear/test_relu.cpp
+        test_nonlinear/test_sigmoid.cpp
+        test_nonlinear/test_silu.cpp
+        test_nonlinear/test_softplus.cpp
+        test_nonlinear/test_tanh.cpp)

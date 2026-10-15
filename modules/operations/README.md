@@ -84,7 +84,7 @@ integer dtypes exist so that this check can be made.
 
 Before they existed, `iamax` wrote an `int64_t` into whatever tensor the caller passed. In every
 test and every consumer that was a FLOAT32 tensor, so eight bytes went into a four-byte element.
-`modules/operations/blas/tests/test_iamax.cpp` worked around it by allocating two floats, and left a
+`tests/operations/blas/test_blas/test_iamax.cpp` worked around it by allocating two floats, and left a
 comment reading "Wait, different sizes!". The overrun was survivable while a tensor owned its
 allocation. It stopped being survivable when SushiAI began packing tensors into arenas, because
 the four bytes past the result then belong to a different tensor. `Tensor::region()` reported a

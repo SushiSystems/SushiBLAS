@@ -96,7 +96,7 @@ in this repository. The licence column says where each licence was read.
 | --- | --- | --- | --- | --- |
 | SushiRuntime | `cmake/Runtime.cmake` | https://github.com/SushiSystems/SushiRuntime | sibling checkout or installed package, not pinned | PolyForm Noncommercial 1.0.0, from the sibling checkout's `LICENSE` |
 | SYCL headers and runtime, Intel oneAPI DPC++ | every `<sycl/...>` include; `intel-oneapi-compiler-dpcpp-cpp` from Intel's apt repository in `.github/actions/setup-oneapi/action.yml` | https://github.com/intel/llvm | not pinned | unverified |
-| GoogleTest | `tests/CMakeLists.txt`; `libgtest-dev` in `.github/actions/setup-oneapi/action.yml` | https://github.com/google/googletest | not pinned | BSD-3-Clause, Copyright 2008, Google Inc., from the workspace's vcpkg `share/gtest/copyright` |
+| GoogleTest | `cmake/SushiBLASTests.cmake`; `libgtest-dev` in `.github/actions/setup-oneapi/action.yml` | https://github.com/google/googletest | not pinned | BSD-3-Clause, Copyright 2008, Google Inc., from the workspace's vcpkg `share/gtest/copyright` |
 | hwloc | through SushiRuntime, from vcpkg on Windows (`cmake/Vcpkg.cmake`); `libhwloc-dev` in `.github/actions/setup-oneapi/action.yml` | https://github.com/open-mpi/hwloc | not pinned | a BSD licence, from the workspace's vcpkg `share/hwloc/copyright`; the audit names BSD-3-Clause |
 | sushicore | `cli/pyproject.toml` | PyPI | >=0.7.0 | Sushi Systems' own; the 0.5.0 installed on this machine declares Apache-2.0, and no 0.7.0 or later was read |
 | typer | `cli/pyproject.toml` | PyPI | >=0.12 | MIT, from the metadata of the installed 0.20.0 |

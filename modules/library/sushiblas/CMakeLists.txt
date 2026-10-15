@@ -24,11 +24,24 @@ sushiblas_add_module(
         spatial
         io)
 
-# The tests that run every operation family and so belong to no single family.
-sushiblas_add_module_tests(
+# The tests that cross several operation families and so belong to no single family.
+sushiblas_add_test_program(
     MODULE sushiblas
-    SOURCES
-        test_storage_offset.cpp)
+    TESTS
+        test_SushiBLAS/test_dependency_stress.cpp
+        test_SushiBLAS/test_dispatch_complex.cpp
+        test_SushiBLAS/test_dispatch_seam.cpp
+        test_SushiBLAS/test_empty_tensors.cpp
+        test_SushiBLAS/test_framework_sim.cpp
+        test_SushiBLAS/test_integer_dtypes.cpp
+        test_SushiBLAS/test_math_validation.cpp
+        test_SushiBLAS/test_operand_lifetime.cpp
+        test_SushiBLAS/test_regression.cpp
+        test_SushiBLAS/test_spatial_random_io_validation.cpp
+        test_SushiBLAS/test_storage_offset.cpp
+        test_SushiBLAS/test_task_dependencies.cpp
+    BENCHMARKS
+        benchmark_elementwise.cpp)
 
 # --- Define SushiBLAS Library ---
 # The archive has no source of its own: every object in it comes from a module.
