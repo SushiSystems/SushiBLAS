@@ -4,26 +4,6 @@
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
 
-# The umbrella header is this module's whole public surface. Its dependencies are the
-# modules it includes; the tier check of sushiblas_add_module() covers them.
-sushiblas_add_module(
-    NAME sushiblas
-    LAYER library
-    DEPENDS
-        core
-        tensor
-        sparse_storage
-        engine
-        blas
-        elementwise
-        nonlinear
-        reductions
-        random
-        logic
-        sparse
-        spatial
-        io)
-
 # --- Define SushiBLAS Library ---
 # The archive has no source of its own: every object in it comes from a module.
 add_library(sushiblas STATIC)

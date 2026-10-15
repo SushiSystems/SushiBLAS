@@ -35,9 +35,9 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
-#include <SushiBLAS/support/reduce_1d.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
-#include <SushiBLAS/support/running_solution.hpp>
+#include <SushiBLAS/reduction/reduce_1d.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
+#include <SushiBLAS/substitution/running_solution.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 
 namespace SushiBLAS

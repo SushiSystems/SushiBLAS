@@ -96,6 +96,9 @@ jobs:
         uses: ./sushiblas/.github/actions/setup-oneapi
 
       - name: Configure, build, and run functional suite
+        # The OpenCL CPU JIT vectorizer crashes on TrmvRow<std::complex<float>>; see KNOWN_ISSUES.md.
+        env:
+          CL_CONFIG_CPU_VECTORIZER_MODE: "1"
         shell: bash
         working-directory: sushiblas
         run: |
@@ -105,7 +108,7 @@ jobs:
           # explicitly so a future change to that default can never make this
           # lane start building and running the runtime's suite as a side
           # effect. SushiBLAS's own tests are unconditional (see
-          # tests/CMakeLists.txt) and need no flag.
+          # cmake/SushiBLASTests.cmake) and need no flag.
           #
           # With it off, `ctest --test-dir build` walks a tree in which only
           # SushiBLAS registered anything, which is the same set `sb test`
@@ -119,7 +122,7 @@ jobs:
           cmake --build build
           # The umbrella label regex `sb test` uses. "functional" is an
           # alternation over the three sub-labels rather than a label of its
-          # own — see tests/CMakeLists.txt for why.
+          # own — see cmake/SushiBLASTests.cmake for why.
           ctest --test-dir build -L "unit|integration|regression" --output-on-failure
 
   cli:
@@ -197,6 +200,12 @@ jobs:
         run: python tools/documentation/check_changelog.py .
       - name: python tools/layering/check_layering.py .
         run: python tools/layering/check_layering.py .
+      - name: python tools/layering/check_tier_contents.py .
+        run: python tools/layering/check_tier_contents.py .
+      - name: python tools/layering/check_engine_seams.py .
+        run: python tools/layering/check_engine_seams.py .
+      - name: python tools/testing/check_test_mirror.py .
+        run: python tools/testing/check_test_mirror.py .
       - name: python tools/versioning/check_version.py .
         run: python tools/versioning/check_version.py .
       - name: python -m unittest discover -s tools/tests

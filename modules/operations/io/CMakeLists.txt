@@ -12,9 +12,12 @@ sushiblas_add_module(
     DEPENDS
         core
         tensor
+    PRIVATE_DEPENDS
         engine)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE io
-    SOURCES
-        test_host_transfer.cpp)
+    TESTS
+        test_io/test_host_transfer.cpp
+        test_io/test_regression.cpp
+        test_io_status.cpp)

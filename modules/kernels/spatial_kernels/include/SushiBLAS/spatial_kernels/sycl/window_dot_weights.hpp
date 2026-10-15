@@ -31,10 +31,10 @@
 #include <cstdint>
 #include <cstddef>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/reduce_1d.hpp>
-#include <SushiBLAS/support/reduce_axis.hpp>
-#include <SushiBLAS/support/spatial_geometry.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/reduction/reduce_1d.hpp>
+#include <SushiBLAS/reduction/reduce_axis.hpp>
+#include <SushiBLAS/geometry/spatial_geometry.hpp>
 
 namespace SushiBLAS
 {

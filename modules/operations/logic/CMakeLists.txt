@@ -27,19 +27,20 @@ sushiblas_add_module(
         engine
         functor_map)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE logic
-    SOURCES
-        test_all.cpp
-        test_any.cpp
-        test_equal.cpp
-        test_greater.cpp
-        test_greater_equal.cpp
-        test_less.cpp
-        test_less_equal.cpp
-        test_logical_and.cpp
-        test_logical_not.cpp
-        test_logical_or.cpp
-        test_logical_xor.cpp
-        test_not_equal.cpp
-        test_where.cpp)
+    TESTS
+        test_dispatch.cpp
+        test_logic/test_all.cpp
+        test_logic/test_any.cpp
+        test_logic/test_equal.cpp
+        test_logic/test_greater.cpp
+        test_logic/test_greater_equal.cpp
+        test_logic/test_less.cpp
+        test_logic/test_less_equal.cpp
+        test_logic/test_logical_and.cpp
+        test_logic/test_logical_not.cpp
+        test_logic/test_logical_or.cpp
+        test_logic/test_logical_xor.cpp
+        test_logic/test_not_equal.cpp
+        test_logic/test_where.cpp)

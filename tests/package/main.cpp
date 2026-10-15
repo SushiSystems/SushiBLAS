@@ -32,7 +32,7 @@
 #include <vector>
 #include <cstdint>
 #include <type_traits>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/blas/dispatch.hpp>
 #include <SushiBLAS/elementwise/dispatch.hpp>
 

@@ -27,21 +27,26 @@ sushiblas_add_module(
         var.cpp
     DEPENDS
         core
-        support
+        launch
+        reduction
+        reference
         tensor
         engine)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE reductions
-    SOURCES
-        test_asum.cpp
-        test_axis_reductions.cpp
-        test_count_nonfinite.cpp
-        test_max.cpp
-        test_max_min_nan.cpp
-        test_mean_spatial.cpp
-        test_min.cpp
-        test_nrm2.cpp
-        test_reduction_determinism.cpp
-        test_reductions.cpp
-        test_sum_edge_cases.cpp)
+    TESTS
+        test_arg_reduction.cpp
+        test_centred_reduction.cpp
+        test_dispatch.cpp
+        test_reductions/test_axis_reductions.cpp
+        test_reductions/test_count_nonfinite.cpp
+        test_reductions/test_max_min_nan.cpp
+        test_reductions/test_mean_spatial.cpp
+        test_reductions/test_reduce_segments.cpp
+        test_reductions/test_reduction_determinism.cpp
+        test_reductions/test_reductions.cpp
+        test_reductions/test_scratch_buffer.cpp
+        test_reductions/test_sum_edge_cases.cpp
+    BENCHMARKS
+        benchmark_reductions.cpp)

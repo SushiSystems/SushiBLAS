@@ -3,479 +3,340 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Checks module tiers and the support, kernel, Engine, view and recorder layers of SushiBLAS.
+"""Checks that modules under modules/<tier>/<module>/ depend only down the tier order.
 
 Usage: python tools/layering/check_layering.py [repository root] [--report] [--rule NAME]
 """
 
 from __future__ import annotations
 
-import argparse
+import posixpath
 import re
 import sys
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
-from functools import cache
-from itertools import chain, groupby
-from pathlib import Path
+from functools import cached_property
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from common.checker import Checker, Issue, run  # noqa: E402
+from checking.checker import Checker, Issue, run  # noqa: E402
+from settings import (  # noqa: E402
+    K_DOMAIN_TIERS,
+    K_INTERNAL_MARK,
+    K_MODULE_FUNCTION,
+    K_PRIVATE_DEPENDS,
+    K_PUBLIC_DEPENDS,
+    K_SAME_TIER_EDGES,
+    K_TIER_ORDER,
+)
 
-K_TIER_ORDER: tuple[str, ...] = ("foundation", "data", "kernels", "engine", "operations", "library")
-K_SOURCE_SUFFIXES = frozenset({".h", ".hpp", ".cpp", ".glsl", ".comp", ".vert", ".frag"})
-K_ANGLE_INCLUDE = re.compile(r'^\s*#\s*include\s*<[^/>]+/([^/>]+)/[^>]+>')
-K_QUOTED_INCLUDE = re.compile(r'^\s*#\s*include\s*"([^"]+)"')
+K_SETTINGS = Path(__file__).resolve().parents[1] / "settings.py"
+K_MODULES = "modules"
+K_TESTS = "tests"
+K_PUBLIC_FOLDER = "include"
+K_UMBRELLA = "umbrella"
+K_SOURCE_SUFFIXES = frozenset({".h", ".hpp", ".inl", ".cpp", ".glsl", ".comp", ".vert", ".frag"})
+K_INCLUDE = re.compile(r'^\s*#\s*include\s*(?:<([^>]+)>|"([^"]+)")')
 K_CMAKE_SOURCE_REACH = re.compile(r"(?:^|[/\s\"'])([A-Za-z0-9_]+)/source\b")
-
-K_MODULES_FOLDER = "modules"
-K_KERNEL_TIER = "kernels"
-K_OPERATION_TIER = "operations"
-K_SUPPORT_FOLDER = "modules/foundation/support/include"
-K_ENGINE_HEADER = "modules/engine/engine/include/SushiBLAS/engine/engine.hpp"
-K_UMBRELLA_HEADER = "modules/library/sushiblas/include/SushiBLAS/SushiBLAS.h"
-K_RECORDER_HEADER = "modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp"
-K_GRAPH_PRIMITIVES_FOLDER = "modules/foundation/graph_primitives/"
-K_UNSCREENED_OPERATION_MODULES = frozenset({"io"})
-K_KERNEL_FORBIDDEN_INCLUDE = re.compile(
-    r'^\s*#\s*include\s*[<"]'
-    r'(SushiBLAS/(?:engine|operands|functor_map|tensor|sparse_storage)/[^>"]+)[>"]'
-)
-K_SUPPORT_FORBIDDEN_INCLUDE = re.compile(
-    r'^\s*#\s*include\s*[<"]'
-    r'(SushiBLAS/(?:engine|operands|functor_map|tensor|sparse_storage|[a-z_]+_kernels)/[^>"]+)[>"]'
-)
-K_ENGINE_COMPOSED_INCLUDE = re.compile(
-    r'^\s*#\s*include\s*[<"]'
-    r'(SushiBLAS/(?:engine|operands|functor_map|io|experimental|blas|elementwise|nonlinear'
-    r'|reductions|random|logic|sparse|spatial)/[^>"]+)[>"]'
-)
-K_ENGINE_BRICKS = frozenset({
-    "SushiBLAS/engine/rng_stream.hpp",
-    "SushiBLAS/engine/recorded_graph.hpp",
-    "SushiBLAS/engine/scratch_pool.hpp",
-    "SushiBLAS/engine/task_recorder.hpp",
-    "SushiBLAS/engine/execution_mode.hpp",
-})
-K_ENGINE_INCLUDE = re.compile(r'^\s*#\s*include\s*[<"](SushiBLAS/engine/engine\.hpp)[>"]')
-K_UMBRELLA_INCLUDE = re.compile(r"^\s*#\s*include\s*<SushiBLAS/([^>]+)>")
-K_ENGINE_MEMBER_CALL = re.compile(r"\bengine_?\s*(?:\.|->)\s*([A-Za-z_]\w*)\s*\(")
-K_OPERATION_ALLOWED_MEMBERS: frozenset[str] = frozenset()
-K_VIEW_ALLOWED_MEMBERS = frozenset({"recorder", "rng"})
-K_RECORDING_VERBS: tuple[str, ...] = (
-    "task",
-    "kernel",
-    "state_rule",
-    "host",
-    "untracked_kernel",
-    "dynamic_kernel",
-    "coupled_rule",
-    "raw_kernel",
-    "captured_kernel",
-    "untracked_raw_kernel",
-)
-K_GRAPH_INSERTION = re.compile(r"(?:\.|->)\s*(" + "|".join(K_RECORDING_VERBS) + r")\s*\(")
-K_COMMAND_GROUP = re.compile(r"\.\s*(submit)\s*\(")
-K_QUEUE_SHORTCUT = re.compile(
-    r"\b(?:q|q2|queue)\s*\.\s*(parallel_for|single_task|memcpy|memset|fill|copy)\s*\("
-)
-K_DEPENDS_ON_CALL = re.compile(r"\bdepends_on\s*\(")
-K_DEPENDENCY_ARGUMENT = re.compile(r"\bdeps\w*\b")
-K_LINE_COMMENT = re.compile(r"^\s*(?://|\*|/\*)")
+K_CMAKE_COMMENT = re.compile(r"#.*")
+K_CMAKE_KEYWORD = re.compile(r"[A-Z][A-Z_]*")
 
 
 @dataclass(frozen=True, slots=True)
-class KnownViolation:
-    """Holds one accepted layering violation: its rule, file, symbol and reason."""
+class Layout:
+    """Holds a repository's declared tiers, its domains and its build declaration names.
 
-    rule: str
-    file: str
-    symbol: str
-    reason: str
+    Domain tiers share one rank and never include each other.
+    """
+
+    tier_order: tuple[str, ...]
+    domain_tiers: tuple[str, ...] = ()
+    same_tier_edges: frozenset[tuple[str, str]] = frozenset()
+    module_function: str = ""
+    public_depends: str = "DEPENDS"
+    private_depends: str = "PRIVATE_DEPENDS"
+    internal_mark: str = "INTERNAL"
+
+    def rank(self, tier: str) -> int | None:
+        """Returns a tier's rank, lowest first and equal for every domain, or None when undeclared."""
+        if tier not in self.tier_order:
+            return None
+        if tier in self.domain_tiers:
+            return min(self.tier_order.index(domain) for domain in self.domain_tiers)
+        return self.tier_order.index(tier)
 
 
-K_KNOWN_VIOLATIONS: tuple[KnownViolation, ...] = ()
+K_LAYOUT = Layout(
+    K_TIER_ORDER, K_DOMAIN_TIERS, K_SAME_TIER_EDGES, K_MODULE_FUNCTION,
+    K_PUBLIC_DEPENDS, K_PRIVATE_DEPENDS, K_INTERNAL_MARK,
+)
 
 
 @dataclass(frozen=True, slots=True)
 class Module:
-    """Holds one module folder and its tier."""
+    """Holds one module folder and its tier; `<tier>/<name>` is its key."""
 
     tier: str
     name: str
     folder: Path
 
-
-@dataclass(frozen=True, slots=True)
-class ModuleTree:
-    """Holds every module of one repository and the declared tier order."""
-
-    root: Path
-    modules: dict[str, Module]
-    tier_order: tuple[str, ...]
-
-    def rank(self, tier: str) -> int | None:
-        """Returns a tier's position in the order, lowest first, or None when undeclared."""
-        return self.tier_order.index(tier) if tier in self.tier_order else None
+    @property
+    def key(self) -> str:
+        """Returns the module's key, unique in the repository."""
+        return f"{self.tier}/{self.name}"
 
 
 @dataclass(frozen=True, slots=True)
-class Repository:
-    """Holds one repository root, its module tree when it has one, and its accepted violations."""
-
-    root: Path
-    tree: ModuleTree | None
-    known: tuple[KnownViolation, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class Violation:
-    """Holds one layering violation found in a file, before the known table screens it."""
+class Include:
+    """Holds one include directive of a source file."""
 
     path: Path
     line: int
-    symbol: str
+    target: str
+    is_quoted: bool
 
 
-def _discover(root: Path) -> dict[str, Module]:
-    """Returns every module below root/modules, keyed by module name."""
-    modules: dict[str, Module] = {}
-    base = root / "modules"
-    for tier in sorted(entry for entry in base.iterdir() if entry.is_dir()):
-        for folder in sorted(entry for entry in tier.iterdir() if entry.is_dir()):
-            modules[folder.name] = Module(tier.name, folder.name, folder)
-    return modules
+def _includes(folder: Path) -> Iterator[Include]:
+    """Yields every include directive of every C-family source file below a folder."""
+    for path in sorted(folder.rglob("*")) if folder.is_dir() else ():
+        if not path.is_file() or path.suffix not in K_SOURCE_SUFFIXES:
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for number, line in enumerate(text.splitlines(), start=1):
+            if match := K_INCLUDE.match(line):
+                yield Include(path, number, match.group(1) or match.group(2), not match.group(1))
 
 
-def collect(paths: list[Path]) -> Iterable[Repository]:
-    """Returns each given repository folder with its module tree and the known table."""
-    return [
-        Repository(
-            path,
-            ModuleTree(path, _discover(path), K_TIER_ORDER) if (path / "modules").is_dir() else None,
-            K_KNOWN_VIOLATIONS,
-        )
-        for path in paths if path.is_dir()
-    ]
+class ModuleTree:
+    """Holds the modules of one repository, their includes and their build declarations."""
+
+    def __init__(self, root: Path, layout: Layout) -> None:
+        """Remembers the root and the layout; the tree is read when a rule first asks."""
+        self.root = root
+        self.layout = layout
+
+    @cached_property
+    def modules(self) -> dict[str, Module]:
+        """Returns every folder two levels below modules/, by key."""
+        base = self.root / K_MODULES
+        return {
+            module.key: module
+            for tier in sorted(entry for entry in base.iterdir() if entry.is_dir())
+            for module in (Module(tier.name, folder.name, folder)
+                           for folder in sorted(entry for entry in tier.iterdir() if entry.is_dir()))
+        }
+
+    @cached_property
+    def owners(self) -> dict[str, Module | None]:
+        """Returns the module of each path below an include/ folder, None when several share it."""
+        found: dict[str, Module | None] = {}
+        for module in self.modules.values():
+            public = module.folder / K_PUBLIC_FOLDER
+            for path in public.rglob("*") if public.is_dir() else ():
+                name = path.relative_to(public).as_posix()
+                found[name] = module if found.get(name, module) is module else None
+        return found
+
+    def resolve(self, target: str) -> Module | None:
+        """Returns the module whose public tree holds an include target, or None."""
+        path = PurePosixPath(posixpath.normpath(target))
+        for candidate in (path, *path.parents):
+            if owner := self.owners.get(candidate.as_posix()):
+                return owner
+        return None
+
+    def module_includes(self, module: Module, folder: Path) -> Iterator[tuple[Include, Module]]:
+        """Yields each include below a folder that names another module, with that module."""
+        for include in _includes(folder):
+            target = self.resolve(include.target)
+            if target is not None and target is not module:
+                yield include, target
+
+    def scopes(self) -> Iterator[tuple[Module, Path, bool]]:
+        """Yields each module with its own folder, then with its test folder; True marks the tests."""
+        for module in self.modules.values():
+            yield module, module.folder, False
+        for module in self.modules.values():
+            tests = self.root / K_TESTS / module.tier / module.name
+            if tests.is_dir():
+                yield module, tests, True
+
+    def call_tokens(self, module: Module) -> list[str]:
+        """Returns the arguments of the module's declaring call in its build file."""
+        build_file = module.folder / "CMakeLists.txt"
+        if not self.layout.module_function or not build_file.is_file():
+            return []
+        text = K_CMAKE_COMMENT.sub("", build_file.read_text(encoding="utf-8"))
+        call = re.search(rf"\b{re.escape(self.layout.module_function)}\s*\(([^)]*)\)", text)
+        return call.group(1).split() if call else []
+
+    def declared(self, module: Module) -> dict[str, frozenset[str]]:
+        """Returns the module names a build file lists, by public and private keyword."""
+        listed: dict[str, set[str]] = {self.layout.public_depends: set(), self.layout.private_depends: set()}
+        keyword = ""
+        for token in self.call_tokens(module):
+            if K_CMAKE_KEYWORD.fullmatch(token):
+                keyword = token
+            elif keyword in listed:
+                listed[keyword].add(token)
+        return {keyword: frozenset(names) for keyword, names in listed.items()}
+
+    def listed_edges(self, module: Module) -> frozenset[str]:
+        """Returns the modules a module may include from its own tier.
+
+        With a declaring function the build file is the one list; without one K_SAME_TIER_EDGES is.
+        """
+        if self.layout.module_function:
+            return frozenset().union(*self.declared(module).values())
+        return frozenset(included for includer, included in self.layout.same_tier_edges if includer == module.name)
+
+    def is_internal(self, module: Module) -> bool:
+        """Returns whether a module's build file marks it internal, so its headers are not installed."""
+        return self.layout.internal_mark in self.call_tokens(module)
+
+    def is_public(self, module: Module, include: Include) -> bool:
+        """Returns whether an include sits in a header the module installs."""
+        return (module.folder / K_PUBLIC_FOLDER) in include.path.parents
 
 
-def _source_lines(folder: Path) -> Iterator[tuple[Path, int, str]]:
-    """Yields every line of every C-family source file below a folder."""
-    if not folder.is_dir():
+def collect(paths: list[Path]) -> Iterable[ModuleTree]:
+    """Returns the module tree of each given repository that has one."""
+    return [ModuleTree(path, K_LAYOUT) for path in paths if (path / K_MODULES).is_dir()]
+
+
+def rule_declared_tiers(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each tier folder or domain missing from the declared order."""
+    if not tree.layout.tier_order:
+        yield Issue(K_SETTINGS, 1, "K_TIER_ORDER is empty; declare the repository's tiers")
         return
-    for path in sorted(folder.rglob("*")):
-        if path.is_file() and path.suffix in K_SOURCE_SUFFIXES:
-            yield from _file_lines(path)
-
-
-def _file_lines(path: Path) -> Iterator[tuple[Path, int, str]]:
-    """Yields every line of one file with its number."""
-    if not path.is_file():
-        return
-    text = path.read_text(encoding="utf-8", errors="replace")
-    for number, line in enumerate(text.splitlines(), start=1):
-        yield path, number, line
-
-
-def _module_rule(rule: Callable[[ModuleTree], Iterator[Issue]]) -> Callable[[Repository], Iterator[Issue]]:
-    """Returns a repository rule that runs a module-tree rule when the repository has modules/."""
-    def apply(repository: Repository) -> Iterator[Issue]:
-        if repository.tree is not None:
-            yield from rule(repository.tree)
-    apply.__doc__ = rule.__doc__
-    return apply
-
-
-def _declared_tiers(tree: ModuleTree) -> Iterator[Issue]:
-    """Yields an issue for each tier folder missing from the declared order."""
-    if not tree.tier_order:
-        yield Issue(Path(__file__), 1, "K_TIER_ORDER is empty; declare the repository's tiers")
-        return
+    for domain in tree.layout.domain_tiers:
+        if domain not in tree.layout.tier_order:
+            yield Issue(K_SETTINGS, 1, f"domain tier '{domain}' is not in K_TIER_ORDER")
     for tier in sorted({module.tier for module in tree.modules.values()}):
-        if tree.rank(tier) is None:
-            yield Issue(tree.root / "modules" / tier, 1, f"tier '{tier}' is not in K_TIER_ORDER")
+        if tree.layout.rank(tier) is None:
+            yield Issue(tree.root / K_MODULES / tier, 1, f"tier '{tier}' is not in K_TIER_ORDER")
 
 
-def _upward_includes(tree: ModuleTree) -> Iterator[Issue]:
-    """Yields an issue for each include of a module that sits in a higher tier."""
-    for module in tree.modules.values():
-        own = tree.rank(module.tier)
-        for path, number, line in _source_lines(module.folder):
-            match = K_ANGLE_INCLUDE.match(line)
-            target = tree.modules.get(match.group(1)) if match else None
-            if own is None or target is None:
+def rule_upward_includes(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each include, in a module or its tests, of a module in a higher tier.
+
+    A test may include an umbrella header: it is what a consumer includes.
+    """
+    for module, folder, is_test in tree.scopes():
+        own = tree.layout.rank(module.tier)
+        for include, target in tree.module_includes(module, folder):
+            if is_test and target.name == K_UMBRELLA:
                 continue
-            other = tree.rank(target.tier)
-            if other is not None and other > own:
-                yield Issue(path, number, f"{module.tier}/{module.name} includes up into {target.tier}/{target.name}")
+            other = tree.layout.rank(target.tier)
+            if own is not None and other is not None and other > own:
+                yield Issue(include.path, include.line, f"{module.key} includes up into {target.key}")
 
 
-def _private_reach(tree: ModuleTree) -> Iterator[Issue]:
-    """Yields an issue for each include or build line that reaches another module's source/."""
+def rule_cross_domain_includes(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each include, in a module or its tests, of a module in another domain."""
+    domains = tree.layout.domain_tiers
+    for module, folder, _is_test in tree.scopes():
+        if module.tier not in domains:
+            continue
+        for include, target in tree.module_includes(module, folder):
+            if target.tier in domains and target.tier != module.tier:
+                yield Issue(include.path, include.line, f"{module.key} of one domain includes {target.key}")
+
+
+def rule_same_tier_includes(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each include of a module of the same tier whose edge is not listed.
+
+    The edge is listed in the module's build file when a declaring function is named, else in K_SAME_TIER_EDGES.
+
+    An umbrella includes every module of its scope, so its includes need no listed edge.
+    """
     for module in tree.modules.values():
-        for path, number, line in _source_lines(module.folder):
-            match = K_QUOTED_INCLUDE.match(line)
-            if match and ("../" in match.group(1) or "source/" in match.group(1)):
-                yield Issue(path, number, "quoted include leaves the module or names a source/ folder")
+        if module.name == K_UMBRELLA:
+            continue
+        for include, target in tree.module_includes(module, module.folder):
+            if target.tier == module.tier and target.name not in tree.listed_edges(module):
+                source = "its CMakeLists.txt" if tree.layout.module_function else "K_SAME_TIER_EDGES"
+                yield Issue(include.path, include.line, f"{module.key} includes {target.name}, an edge {source} does not list")
+
+
+def rule_private_reach(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each include or build line that reaches another module's source/."""
+    names = {module.name for module in tree.modules.values()}
+    for module in tree.modules.values():
+        for include in _includes(module.folder):
+            if include.is_quoted and ("../" in include.target or "source/" in include.target):
+                yield Issue(include.path, include.line, "quoted include leaves the module or names a source/ folder")
         build_file = module.folder / "CMakeLists.txt"
         if not build_file.is_file():
             continue
         for number, line in enumerate(build_file.read_text(encoding="utf-8").splitlines(), start=1):
             for name in K_CMAKE_SOURCE_REACH.findall(line):
-                if name != module.name and name in tree.modules:
+                if name != module.name and name in names:
                     yield Issue(build_file, number, f"reaches into {name}/source")
 
 
-rule_declared_tiers = _module_rule(_declared_tiers)
-rule_upward_includes = _module_rule(_upward_includes)
-rule_private_reach = _module_rule(_private_reach)
-
-
-def _include_matches(lines: Iterable[tuple[Path, int, str]], pattern: re.Pattern[str]) -> Iterator[Violation]:
-    """Yields a violation for each line whose include matches a pattern."""
-    for path, number, line in lines:
-        match = pattern.match(line)
-        if match:
-            yield Violation(path, number, match.group(1))
-
-
-def _module_folders(root: Path, tier: str | None = None) -> Iterator[Path]:
-    """Yields each module folder below root/modules, of one tier or of every tier."""
-    base = root / K_MODULES_FOLDER
-    if not base.is_dir():
-        return
-    for tier_folder in sorted(base.iterdir()):
-        if tier_folder.is_dir() and tier in (None, tier_folder.name):
-            yield from sorted(folder for folder in tier_folder.iterdir() if folder.is_dir())
-
-
-def _header_lines(root: Path, tier: str | None = None) -> Iterator[tuple[Path, int, str]]:
-    """Yields the lines of every file under the include/ tree of each module."""
-    for module in _module_folders(root, tier):
-        yield from _source_lines(module / "include")
-
-
-def _operation_source_lines(root: Path) -> Iterator[tuple[Path, int, str]]:
-    """Yields the lines of the sources of each operation family, which IO is not."""
-    for module in _module_folders(root, K_OPERATION_TIER):
-        if module.name not in K_UNSCREENED_OPERATION_MODULES:
-            yield from _source_lines(module / "source")
-
-
-def _source_tree_lines(root: Path) -> Iterator[tuple[Path, int, str]]:
-    """Yields the lines of every file under the source/ tree of each module."""
-    for module in _module_folders(root):
-        yield from _source_lines(module / "source")
-
-
-def find_kernel_includes(root: Path) -> Iterator[Violation]:
-    """Yields each include of an engine-tier header or a tensor header from a kernel."""
-    yield from _include_matches(_header_lines(root, K_KERNEL_TIER), K_KERNEL_FORBIDDEN_INCLUDE)
-
-
-def find_support_includes(root: Path) -> Iterator[Violation]:
-    """Yields each include of an engine-tier header, a kernel or a tensor header from support."""
-    yield from _include_matches(_source_lines(root / K_SUPPORT_FOLDER), K_SUPPORT_FORBIDDEN_INCLUDE)
-
-
-def find_engine_header_includes(root: Path) -> Iterator[Violation]:
-    """Yields each include from engine.hpp of a view, a seam or an experimental header."""
-    for violation in _include_matches(_file_lines(root / K_ENGINE_HEADER), K_ENGINE_COMPOSED_INCLUDE):
-        if violation.symbol not in K_ENGINE_BRICKS:
-            yield violation
-
-
-def _view_headers(root: Path) -> frozenset[str]:
-    """Returns the operation views the umbrella header includes, as repository-relative paths."""
-    views: set[str] = set()
-    families = {module.name: module for module in _module_folders(root, K_OPERATION_TIER)}
-    for _, _, line in _file_lines(root / K_UMBRELLA_HEADER):
-        match = K_UMBRELLA_INCLUDE.match(line)
-        family = families.get(match.group(1).split("/")[0]) if match else None
-        if family is not None:
-            views.add(_relative(family / "include" / "SushiBLAS" / match.group(1), root))
-    return frozenset(views)
-
-
-def find_seam_engine_includes(root: Path) -> Iterator[Violation]:
-    """Yields each include of engine.hpp from an operation source or a header that is not a view."""
-    exempt = _view_headers(root) | {K_ENGINE_HEADER, K_UMBRELLA_HEADER}
-    headers = (
-        entry for entry in _header_lines(root)
-        if _relative(entry[0], root) not in exempt
-    )
-    yield from _include_matches(headers, K_ENGINE_INCLUDE)
-    yield from _include_matches(_operation_source_lines(root), K_ENGINE_INCLUDE)
-
-
-def _engine_calls(lines: Iterable[tuple[Path, int, str]], allowed: frozenset[str]) -> Iterator[Violation]:
-    """Yields each call on an engine or engine_ variable to a member outside the allowed set."""
-    for path, number, line in lines:
-        if K_LINE_COMMENT.match(line):
+def rule_declared_dependencies(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each include of a module that the includer's build file does not list."""
+    layout = tree.layout
+    for module in tree.modules.values():
+        if not tree.call_tokens(module):
             continue
-        for member in K_ENGINE_MEMBER_CALL.findall(line):
-            if member not in allowed:
-                yield Violation(path, number, member)
+        declared = tree.declared(module)
+        for include, target in tree.module_includes(module, module.folder):
+            keywords = ((layout.public_depends,) if tree.is_public(module, include)
+                        else (layout.public_depends, layout.private_depends))
+            if not any(target.name in declared[keyword] for keyword in keywords):
+                yield Issue(include.path, include.line, f"{module.name} includes {target.name}, which its "
+                                                        f"CMakeLists.txt does not list in {' or '.join(keywords)}")
 
 
-def find_operation_engine_calls(root: Path) -> Iterator[Violation]:
-    """Yields each call on an engine or engine_ variable from an operation source."""
-    yield from _engine_calls(_operation_source_lines(root), K_OPERATION_ALLOWED_MEMBERS)
-
-
-def find_view_engine_calls(root: Path) -> Iterator[Violation]:
-    """Yields each call on an engine variable from a public header, other than recorder() and rng()."""
-    headers = (
-        entry for entry in _header_lines(root)
-        if _relative(entry[0], root) != K_ENGINE_HEADER
-    )
-    yield from _engine_calls(headers, K_VIEW_ALLOWED_MEMBERS)
-
-
-def _may_record(file: str) -> bool:
-    """Returns whether a repository-relative file is TaskRecorder or a graph primitive."""
-    return file == K_RECORDER_HEADER or file.startswith(K_GRAPH_PRIMITIVES_FOLDER)
-
-
-def find_graph_insertions(root: Path) -> Iterator[Violation]:
-    """Yields each call of a recording member of SushiRuntime::Recorder outside TaskRecorder and the graph primitives."""
-    for path, number, line in chain(_header_lines(root), _source_tree_lines(root)):
-        if K_LINE_COMMENT.match(line) or _may_record(_relative(path, root)):
+def rule_unused_dependencies(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each module a build file lists beyond what the module's files include."""
+    layout = tree.layout
+    for module in tree.modules.values():
+        if not tree.call_tokens(module):
             continue
-        for call in K_GRAPH_INSERTION.findall(line):
-            yield Violation(path, number, call)
+        declared = tree.declared(module)
+        included: dict[bool, set[str]] = {True: set(), False: set()}
+        for include, target in tree.module_includes(module, module.folder):
+            included[tree.is_public(module, include)].add(target.name)
+        build_file = module.folder / "CMakeLists.txt"
+        for name in sorted(declared[layout.public_depends] - included[True]):
+            reason = (f"only source/ includes it; list it in {layout.private_depends}"
+                      if name in included[False] else "no file includes it")
+            yield Issue(build_file, 1, f"{module.name} lists {name} in {layout.public_depends} and {reason}")
+        for name in sorted(declared[layout.private_depends] - included[True] - included[False]):
+            yield Issue(build_file, 1, f"{module.name} lists {name} in {layout.private_depends} "
+                                       "and no file includes it")
 
 
-def _call_text(lines: list[str], index: int, column: int) -> str:
-    """Returns one call's text from the parenthesis at lines[index][column] to the one that closes it."""
-    depth = 0
-    text: list[str] = []
-    for line in lines[index:]:
-        for character in line[column:]:
-            text.append(character)
-            if character == "(":
-                depth += 1
-            elif character == ")":
-                depth -= 1
-                if depth == 0:
-                    return "".join(text)
-        text.append("\n")
-        column = 0
-    return "".join(text)
-
-
-def find_task_dependencies(root: Path) -> Iterator[Violation]:
-    """Yields each command group without depends_on and each queue shortcut that names no deps."""
-    wanted = ((K_COMMAND_GROUP, K_DEPENDS_ON_CALL), (K_QUEUE_SHORTCUT, K_DEPENDENCY_ARGUMENT))
-    bodies = chain(_header_lines(root), _operation_source_lines(root))
-    for path, entries in groupby(bodies, key=lambda entry: entry[0]):
-        lines = [line for _, _, line in entries]
-        for index, line in enumerate(lines):
-            if K_LINE_COMMENT.match(line):
-                continue
-            for call, evidence in wanted:
-                for match in call.finditer(line):
-                    if not evidence.search(_call_text(lines, index, match.end() - 1)):
-                        yield Violation(path, index + 1, match.group(1))
-
-
-@cache
-def _relative(path: Path, root: Path) -> str:
-    """Returns a path relative to the repository root, with forward slashes."""
-    return path.resolve().relative_to(root.resolve()).as_posix()
-
-
-def _known_for(repository: Repository, rule: str) -> dict[tuple[str, str], KnownViolation]:
-    """Returns the known entries of one rule, keyed by (file, symbol)."""
-    return {(entry.file, entry.symbol): entry for entry in repository.known if entry.rule == rule}
-
-
-def _screened_rule(rule: str, find: Callable[[Path], Iterator[Violation]]) -> Callable[[Repository], Iterator[Issue]]:
-    """Returns a rule that reports violations missing from the known table and stale entries."""
-    def apply(repository: Repository) -> Iterator[Issue]:
-        known = _known_for(repository, rule)
-        seen: set[tuple[str, str]] = set()
-        for violation in find(repository.root):
-            key = (_relative(violation.path, repository.root), violation.symbol)
-            seen.add(key)
-            if key not in known:
-                yield Issue(violation.path, violation.line, f"layering violation: {violation.symbol}")
-        for key in sorted(set(known) - seen):
-            yield Issue(Path(__file__), 1, f"stale K_KNOWN_VIOLATIONS entry: {key[0]} {key[1]}")
-    apply.__doc__ = find.__doc__
-    return apply
-
-
-def known_notes(repository: Repository, rules: Iterable[str]) -> Iterator[str]:
-    """Yields one note line for each known entry of the given rules that still occurs."""
-    for rule in rules:
-        find = K_SCREENED_FINDERS.get(rule)
-        if find is None:
+def rule_public_headers(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each include of an internal module in a header a public module installs."""
+    internal = {module.key for module in tree.modules.values() if tree.is_internal(module)}
+    for module in tree.modules.values():
+        if module.key in internal:
             continue
-        known = _known_for(repository, rule)
-        reported: set[tuple[str, str]] = set()
-        for violation in find(repository.root):
-            key = (_relative(violation.path, repository.root), violation.symbol)
-            if key in known and key not in reported:
-                reported.add(key)
-                yield f"note: {key[0]}:{violation.line}: {rule}: known: {key[1]} ({known[key].reason})"
+        for include, target in tree.module_includes(module, module.folder):
+            if tree.is_public(module, include) and target.key in internal:
+                yield Issue(include.path, include.line, f"{module.name} is installed and includes "
+                                                        f"{target.name}, an internal module whose headers are not")
 
-
-K_SCREENED_FINDERS: dict[str, Callable[[Path], Iterator[Violation]]] = {
-    "rule_support_independence": find_support_includes,
-    "rule_kernel_includes": find_kernel_includes,
-    "rule_engine_header_includes": find_engine_header_includes,
-    "rule_seam_engine_includes": find_seam_engine_includes,
-    "rule_operation_engine_calls": find_operation_engine_calls,
-    "rule_view_engine_calls": find_view_engine_calls,
-    "rule_graph_insertions": find_graph_insertions,
-    "rule_task_dependencies": find_task_dependencies,
-}
-
-rule_support_independence = _screened_rule("rule_support_independence", find_support_includes)
-rule_kernel_includes = _screened_rule("rule_kernel_includes", find_kernel_includes)
-rule_engine_header_includes = _screened_rule("rule_engine_header_includes", find_engine_header_includes)
-rule_seam_engine_includes = _screened_rule("rule_seam_engine_includes", find_seam_engine_includes)
-rule_operation_engine_calls = _screened_rule("rule_operation_engine_calls", find_operation_engine_calls)
-rule_view_engine_calls = _screened_rule("rule_view_engine_calls", find_view_engine_calls)
-rule_graph_insertions = _screened_rule("rule_graph_insertions", find_graph_insertions)
-rule_task_dependencies = _screened_rule("rule_task_dependencies", find_task_dependencies)
 
 K_CHECKER = Checker(
-    description="Checks module tiers and the support, kernel, Engine, view and recorder layers.",
+    description="Checks module dependencies against the declared tier order.",
     collect=collect,
     rules={
         "rule_declared_tiers": rule_declared_tiers,
         "rule_upward_includes": rule_upward_includes,
+        "rule_cross_domain_includes": rule_cross_domain_includes,
+        "rule_same_tier_includes": rule_same_tier_includes,
         "rule_private_reach": rule_private_reach,
-        "rule_support_independence": rule_support_independence,
-        "rule_kernel_includes": rule_kernel_includes,
-        "rule_engine_header_includes": rule_engine_header_includes,
-        "rule_seam_engine_includes": rule_seam_engine_includes,
-        "rule_operation_engine_calls": rule_operation_engine_calls,
-        "rule_view_engine_calls": rule_view_engine_calls,
-        "rule_graph_insertions": rule_graph_insertions,
-        "rule_task_dependencies": rule_task_dependencies,
+        "rule_declared_dependencies": rule_declared_dependencies,
+        "rule_unused_dependencies": rule_unused_dependencies,
+        "rule_public_headers": rule_public_headers,
     },
 )
 
-
-def _print_notes(argv: list[str]) -> None:
-    """Prints the known-violation notes for the paths and rule a command line names."""
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("paths", nargs="*", type=Path)
-    parser.add_argument("--report", action="store_true")
-    parser.add_argument("--rule")
-    arguments, _ = parser.parse_known_args(argv)
-    if arguments.report:
-        return
-    rules = [arguments.rule] if arguments.rule else list(K_SCREENED_FINDERS)
-    for repository in collect(arguments.paths or [Path.cwd()]):
-        for note in known_notes(repository, rules):
-            print(note)
-
-
 if __name__ == "__main__":
-    _print_notes(sys.argv[1:])
     sys.exit(run(K_CHECKER))

@@ -39,7 +39,7 @@
 #include <SushiBLAS/operands/argument_check.hpp>
 #include <SushiBLAS/operands/matrix_operand.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS

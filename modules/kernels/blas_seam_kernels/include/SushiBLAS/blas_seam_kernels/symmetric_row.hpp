@@ -19,7 +19,6 @@
 /* "as is", without warranty of any kind.                                 */
 /**************************************************************************/
 
-
 /**
  * @file symmetric_row.hpp
  * @brief Declares SymmetricRow, which walks one row of a symmetric matrix stored as a triangle.

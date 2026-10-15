@@ -84,7 +84,7 @@ integer dtypes exist so that this check can be made.
 
 Before they existed, `iamax` wrote an `int64_t` into whatever tensor the caller passed. In every
 test and every consumer that was a FLOAT32 tensor, so eight bytes went into a four-byte element.
-`modules/operations/blas/tests/test_iamax.cpp` worked around it by allocating two floats, and left a
+`tests/operations/blas/test_blas/test_iamax.cpp` worked around it by allocating two floats, and left a
 comment reading "Wait, different sizes!". The overrun was survivable while a tensor owned its
 allocation. It stopped being survivable when SushiAI began packing tensors into arenas, because
 the four bytes past the result then belong to a different tensor. `Tensor::region()` reported a
@@ -389,7 +389,7 @@ the suite tests the two separately.
 `ReductionOps::max` propagates NaN, as NumPy's `max` does: if any element is NaN, the result is
 NaN, whatever the element's position and whatever launch shape the device gets. It folds through
 `Dispatch::execute_folding_reduction` with `Reduce::NaNPropagatingMax` from
-`modules/foundation/support/include/SushiBLAS/support/reduce_1d.hpp`. A plain `<` comparison is false against a NaN, so
+`modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp`. A plain `<` comparison is false against a NaN, so
 under it a NaN would survive only when it arrives first. `NaNPropagatingMax` returns NaN from
 `combine` when either side is NaN and stops changing once `accumulate` has seen one, so every fold
 order gives NaN.
@@ -402,7 +402,7 @@ An empty tensor throws `std::invalid_argument` when the call is recorded.
 accumulator the whole-tensor `max` uses, so a NaN in a segment makes that segment's result NaN
 and a per-axis maximum agrees with a whole-tensor one. The axis family has one shape that serves
 every accumulator, because `sycl::reduction` has no segmented form. `min_along.cpp` is the same
-call with `Reduce::NaNPropagatingMin`. See `modules/foundation/support/README.md`, under
+call with `Reduce::NaNPropagatingMin`. See `docs/architecture/FIXED_ORDER_FOLD.md`, under
 `NaNPropagatingMax`.
 
 ### `modules/operations/reductions/source/mean.cpp`
@@ -427,7 +427,7 @@ the result NaN in every fold order, and an empty tensor throws `std::invalid_arg
 
 `ReductionOps::nrm2` computes the scaling 2-norm that BLAS's xNRM2 specifies. An earlier version
 computed `sqrt(sum(x*x))`. The call has no transform and no finalizer, because the squaring and
-the square root are safe only inside a running scale. `modules/foundation/support/README.md`, under
+the square root are safe only inside a running scale. `docs/architecture/FIXED_ORDER_FOLD.md`, under
 `ScaledSumOfSquares`, describes the algorithm and says why it belongs in the accumulator. The
 launch count did not change: one launch on the single-pass shape and two on the two-stage one.
 
@@ -441,7 +441,7 @@ correction recovers the bits an addition rounds off and does nothing for a multi
 ### `modules/operations/reductions/source/sum.cpp`
 
 `ReductionOps::sum` depends on the combination order, so it goes through the folding seam and not
-`sycl::reduction`. `modules/foundation/support/README.md`, under `reduce_1d.hpp`, says why the
+`sycl::reduction`. `docs/architecture/FIXED_ORDER_FOLD.md` says why the
 unspecified order is a correctness problem for `+` and not for `max`. `sum` has no transform and
 no finalizer. The other reductions on the folding seam are this call with a transform, a
 finalizer or a different accumulator added.

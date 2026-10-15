@@ -3,22 +3,40 @@
 The library is one tree per module, `modules/<tier>/<module>/`, and a header is included as
 `<SushiBLAS/<module>/<name>.hpp>`. A tier depends only on the tiers above it in the table;
 `cmake/SushiBLASLayers.cmake` holds the order and the few edges allowed inside a tier.
-`SushiBLAS.h`, in `library/sushiblas`, includes the core, tensor and engine headers and every
-operation family in one line.
+`SushiBLAS.hpp`, in `library/umbrella`, includes the header of every module that is not internal
+in one line.
 
 | Tier | Module | Holds | Reasoning |
 | --- | --- | --- | --- |
 | foundation | `core` | Element types, type traits, the format stand-in, the logger, the version macros | [README](foundation/core/README.md) |
-| foundation | `support` | The accumulator traits, the device policy, the launch and reduction shapes, the serial host loops, the window geometry, the sparse assembly | [README](foundation/support/README.md) |
-| foundation | `geometry` | `Vector3T`, `QuaternionT`, `Matrix4T`, the blends and the transform builders, usable in a kernel and without SYCL | [README](foundation/geometry/README.md) |
+| foundation | `arithmetic` | The accumulator trait, the complex arithmetic, the real and complex safe math, the host and device scalar functions | [README](foundation/arithmetic/README.md) |
+| foundation | `launch` | The device policy and the per-element launch shapes | [README](foundation/launch/README.md) |
+| foundation | `reduction` | The fixed-order whole-tensor and segmented reductions and their accumulators | [README](foundation/reduction/README.md) |
+| foundation | `reference` | The reference accumulator, the serial host loops and folds behind `ForceReference` | [README](foundation/reference/README.md) |
+| foundation | `substitution` | `RunningSolution`, the unrounded solution of a triangular substitution | [README](foundation/substitution/README.md) |
+| foundation | `orthonormal` | The vector layout and constants of the orthonormalisation sweep | [README](foundation/orthonormal/README.md) |
+| foundation | `sparse_assembly` | The host assembly of CSR arrays from triplets and its input checks | [README](foundation/sparse_assembly/README.md) |
+| foundation | `geometry` | `Vector3T`, `QuaternionT`, `Matrix4T`, the blends, the transform builders and the window geometry, usable in a kernel and without SYCL | [README](foundation/geometry/README.md) |
+| foundation | `blas_test_oracle` | Test-only: the double-precision BLAS truth, the flag mappings, the band and packed conversions | [README](foundation/blas_test_oracle/README.md) |
+| foundation | `serial_reductions` | Test-only: serial host reductions a test takes its expected values from | [README](foundation/serial_reductions/README.md) |
+| foundation | `test_runner` | Test-only: the environment that owns the test runtime, and the `main` of every test program | [README](foundation/test_runner/README.md) |
+| foundation | `sparse_fixtures` | Test-only: the sample sparse matrices and their host products | [README](foundation/sparse_fixtures/README.md) |
+| foundation | `typed_suite_naming` | Test-only: the name generator of a typed suite | [README](foundation/typed_suite_naming/README.md) |
+| foundation | `host_device` | Test-only: the queue on the host CPU device a kernel test runs on, its skipping fixture and shared arrays | [README](foundation/host_device/README.md) |
+| foundation | `small_integers` | Test-only: integer-valued operands on which a reference and a SYCL kernel both compute exactly | [README](foundation/small_integers/README.md) |
 | foundation | `graph_primitives` | The fixed fold order and the four primitives that record on a SushiRuntime `Recorder`: reduce, segmented reduce, prefix scan, counting sort | [README](foundation/graph_primitives/README.md) |
 | data | `tensor` | `Storage`, `Tensor`, `TensorFactory` and `HostDataType` | [README](data/tensor/README.md) |
 | data | `sparse_storage` | `SparseMatrix`, `SparseVector` and `SparseBuilder` | [README](data/sparse_storage/README.md) |
+| data | `tensor_expectations` | Test-only: filling, reading back and comparing a dense tensor | [README](data/tensor_expectations/README.md) |
 | kernels | `blas_seam_kernels` | The GEMM kernels and epilogues a public seam instantiates, and the access bricks the BLAS kernels share | [README](kernels/blas_seam_kernels/README.md) |
 | kernels | `blas_kernels`, `random_kernels`, `sparse_kernels`, `spatial_kernels` | The internal kernels of each family | [README](kernels/README.md) |
+| kernels | `packed_product_harness` | Test-only: the problem, the data and the blockings of the packed GEMM tests | [README](kernels/packed_product_harness/README.md) |
 | engine | `engine` | `Engine`, the task recorder, the operand set and checks, the scratch pool, the dispatch seam | [README](engine/engine/README.md) |
 | engine | `operands` | The operand checks and views `blas` and `sparse` share | [README](engine/operands/README.md) |
 | engine | `functor_map` | The per-element seam: the map task and its bindings | [README](engine/functor_map/README.md) |
+| engine | `engine_fixture` | Test-only: `SushiBLASTest`, a fresh `Engine` per test | [README](engine/engine_fixture/README.md) |
+| engine | `execution_mode_sweep` | Test-only: the execution modes a routine's tests run it in | [README](engine/execution_mode_sweep/README.md) |
+| engine | `graph_probe` | Test-only: `GraphProbe`, a graph a test reads its recorded tasks from | [README](engine/graph_probe/README.md) |
 | operations | `blas` | BLAS levels 1 to 3 and the GEMM executor | [README](operations/blas/README.md) |
 | operations | `elementwise`, `nonlinear`, `random`, `reductions` | The four math families | [elementwise](operations/elementwise/README.md), [nonlinear](operations/nonlinear/README.md), [random](operations/random/README.md), [reductions](operations/reductions/README.md) |
 | operations | `logic` | Comparison and logical operations | [README](operations/logic/README.md) |
@@ -26,7 +44,9 @@ operation family in one line.
 | operations | `spatial` | The window, pooling, channel and broadcast operations | [README](operations/spatial/README.md) |
 | operations | `io` | `IO` and `IOStatus` | [README](operations/io/README.md) |
 | operations | `experimental` | LAPACK and signal declarations that have no implementation | [README](operations/experimental/README.md) |
-| library | `sushiblas` | The umbrella header and the one library a consumer links | [README](library/sushiblas/README.md) |
+| operations | `benchmark_harness` | Benchmark-only: the size arguments, environment lines, fill, timing loop and table of the benchmark programs | [README](operations/benchmark_harness/README.md) |
+| library | `umbrella` | `SushiBLAS.hpp`, the project umbrella: every public header in one line | [README](library/umbrella/README.md) |
+| library | `sushiblas` | The one library a consumer links, composed from every module | [README](library/sushiblas/README.md) |
 
 The sections below are about the headers of `tensor`, `sparse_storage`, `engine` and `io` that
 a consumer meets first. Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
@@ -142,7 +162,7 @@ takes COO triplets, adds the values of a repeated (row, column) pair and orders 
 ascending column. `matrix_from_dense` stores every element of a contiguous rank-2 tensor that is
 not equal to zero, NaN included; its precondition is that no recorded task that writes the tensor
 is waiting to run. `vector_from_entries` checks its positions with
-`Sparse::require_distinct_positions`. The assembly is in `support/sparse_assembly.hpp`; the
+`Sparse::require_distinct_positions`. The assembly is in `sparse_assembly/sparse_assembly.hpp`; the
 builder allocates through the factory and fills the tensors from the assembled arrays. Every
 refusal here is `std::runtime_error`.
 

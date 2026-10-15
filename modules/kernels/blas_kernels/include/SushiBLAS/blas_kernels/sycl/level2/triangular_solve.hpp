@@ -32,10 +32,10 @@
 #include <cstdint>
 #include <algorithm>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/support/launch_1d.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/running_solution.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/launch/launch_1d.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/substitution/running_solution.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/row_cursor.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp>
 

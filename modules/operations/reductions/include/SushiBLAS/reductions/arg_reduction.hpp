@@ -31,8 +31,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/support/reduce_1d.hpp>
-#include <SushiBLAS/support/serial_reduce.hpp>
+#include <SushiBLAS/reduction/reduce_1d.hpp>
+#include <SushiBLAS/reference/serial_reduce.hpp>
 #include <SushiBLAS/reductions/dispatch.hpp>
 
 namespace SushiBLAS

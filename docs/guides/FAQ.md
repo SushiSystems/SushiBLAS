@@ -104,7 +104,7 @@ Yes. The kernels behind the view methods are compiled into the library, so a cal
 `SushiBLAS::Dispatch` seam does, because the seam inlines your functor into a kernel. The public
 headers include `<sycl/sycl.hpp>` and use `sycl::event` and `sycl::device` in their declarations
 in either case, so every translation unit that
-includes `<SushiBLAS/SushiBLAS.h>` needs a compiler that can parse those types. Linking
+includes `<SushiBLAS/SushiBLAS.hpp>` needs a compiler that can parse those types. Linking
 `SushiBLAS::sushiblas` carries `-fsycl` as a `PUBLIC` compile and link option for that reason.
 
 A parse error inside `<sycl/sycl.hpp>` or `<SushiBLAS/tensor/tensor.hpp>` means the file is being

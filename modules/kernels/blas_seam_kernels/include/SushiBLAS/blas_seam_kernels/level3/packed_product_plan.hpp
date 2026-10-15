@@ -32,9 +32,9 @@
 #include <cstdint>
 #include <algorithm>
 #include <SushiBLAS/core/traits.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/device_policy.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 
 namespace SushiBLAS
 {

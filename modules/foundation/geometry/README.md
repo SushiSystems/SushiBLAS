@@ -4,7 +4,7 @@ Small fixed-size geometric value types and the functions on them: a 3-component 
 rotation quaternion and a column-major 4x4 matrix. The module is header-only and lives in
 `SushiBLAS::Geometry`. Its headers are included as `<SushiBLAS/geometry/<name>.hpp>`.
 
-A geometry header includes the standard library, `<SushiBLAS/support/device_math.hpp>` and other
+A geometry header includes the standard library, `<SushiBLAS/arithmetic/device_math.hpp>` and other
 geometry headers, and nothing else. `device_math.hpp` includes SYCL only when the translation unit
 is already a SYCL one, so every header here compiles with a plain C++17 compiler that has neither
 SYCL nor SushiRuntime on its include path.
@@ -16,6 +16,7 @@ SYCL nor SushiRuntime on its include path.
 | `matrix4.hpp` | `Matrix4T<T>` and its product `mul` |
 | `interpolation.hpp` | `lerp` for scalars and vectors, `nlerp` and `slerp` for rotations |
 | `transform.hpp` | `translation`, `scaling`, `perspective`, `look_at`, `matrix4_from_quaternion`, `compose_transform`, `quaternion_from_matrix`, `affine_inverse`, `decompose_transform` |
+| `spatial_geometry.hpp` | `ConvGeometry`, `WindowSpan`, `ColumnSpan`, `TapSpan` and `output_extent` |
 
 The types and functions came from SushiEngine's `blas_placeholder.hpp`, which held them until this
 library owned them. The arithmetic is the same operations in the same order, so a consumer that
@@ -133,6 +134,72 @@ A negative determinant means the matrix holds a reflection, which no rotation ca
 scale takes the minus sign, so the rotation that is left is right-handed. A column of length zero
 is not divided; that axis of the rotation stays the identity axis. Shear is not recovered: a
 sheared matrix comes back as a translation, a rotation and a scale that do not compose to it.
+
+## `spatial_geometry.hpp`
+
+Separate from `window.hpp` and free of `Tensor` on purpose. The output-extent formula
+(`output_extent`) is the *only* statement of how an input extent, a padding pair, a dilation, a
+kernel and a stride combine, and it has two consumers on either side of a repository boundary: this
+library's kernels, and SushiAI's host-lane shape inference. That inference is device-free by design,
+it is exercised in a unit tier that links no SYCL, so the arithmetic has to be reachable without
+dragging the device stack behind it. Two copies of one formula that must agree is the alternative,
+and they would agree until the day they did not.
+
+Includes `<cstdint>` and nothing else. Keep it that way.
+
+### `ConvGeometry`
+
+Exactly eight numbers, and the count is load-bearing rather than tidy. SushiAI carries this into
+`Graph::Attributes`, whose capacity is bounded by `TaskDescription::K_MAX_PARAMETERS`:
+eight.
+
+**`pad_bottom` and `pad_right` are deliberately absent.** A kernel addresses its input as `h_in =
+h_o * stride_h - pad_top + r * dilation_h` and bounds-checks against `[0, H)`. The trailing pads
+never enter that expression; they affect only *how many output rows exist*, which is
+`output_extent`'s answer and which the host has already written into the output tensor's shape by
+the time any of this reaches a device. So asymmetric padding costs zero slots over symmetric
+padding, and every geometry is expressible: non-square kernels, anisotropic stride and dilation, and
+independent padding on all four sides.
+
+### `output_extent`
+
+`floor((in + pad_before + pad_after - dilation*(kernel - 1) - 1) / stride) + 1`, which is the same
+expression PyTorch, Darknet and cuDNN all use.
+
+A window wider than the padded input answers **0** rather than letting the numerator go negative.
+That is not defensiveness: the result is multiplied into an allocation size two layers up, and a
+negative numerator under integer division would produce a plausible-looking positive extent for some
+operand combinations.
+
+### `WindowSpan`
+
+Modelled on `SushiBLAS::Reduce::AxisSpan`, and for the same reason: it carries counts and strides
+only, so the layout, the axis order and any non-unit stride a view inherited are resolved once on
+the host and the device sees none of them. One kernel per operation, no layout branch in the inner
+loop, no second instantiation.
+
+The struct names no layout. Every caller in the convolutional stack builds it from an NHWC tensor
+(see the spec's CV-3), but adding NCHW later is filling in a different stride assignment in
+`Spatial::window_span_for`, not re-cutting this abstraction.
+
+All strides are element counts and all are non-negative, which `Tensor`'s stride-explicit
+constructor already guarantees.
+
+### `TapSpan`
+
+How the per-channel tap tensor of `window_dot`, `[kernel_h, kernel_w, channels]`, is addressed:
+three strides in elements. It is its own struct for the reason `ColumnSpan` is: a rank-3 operand
+beside rank-4 ones. `Spatial::tap_span_for` builds it from a tensor.
+
+### `ColumnSpan`
+
+Kept out of `WindowSpan` because the column matrix is rank-2 and everything else in this family is
+rank-4. Folding two unrelated addressing schemes into one struct would leave four fields meaningless
+for every operation but two.
+
+Entry `(row, element)` lives at `data[row * row_stride + element * element_stride]`, where `row`
+indexes a window in `(n, h_o, w_o)` order and `element` indexes a patch position in `(r, s, c)`
+order: channel innermost, so an NHWC gather copies contiguous runs of `channels` elements.
 
 ## Placement
 

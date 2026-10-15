@@ -28,7 +28,7 @@
 #pragma once
 
 #include <type_traits>
-#include <SushiBLAS/support/device_math.hpp>
+#include <SushiBLAS/arithmetic/device_math.hpp>
 
 namespace SushiBLAS
 {

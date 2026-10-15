@@ -29,7 +29,7 @@
 #include <iostream>
 #include <vector>
 
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 
 namespace sb = SushiBLAS;
 namespace sr = SushiRuntime;

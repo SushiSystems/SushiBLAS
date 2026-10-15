@@ -49,7 +49,7 @@ template<typename Call>
 }
 ```
 
-Source: `modules/engine/engine/tests/test_unsupported_execution.cpp`
+Source: `tests/engine/engine/test_engine/test_unsupported_execution.cpp`
 
 `Outcome` is an enumeration of the test. The first handler takes a refusal by mode or device, the second a wrong
 operand, flag or scalar.
@@ -106,7 +106,7 @@ Source: `applications/examples/run_failure_demo.cpp`
 
 The task that program records throws from its body, and the run returns `KernelFailed` with the
 body's sentence. The engine is usable afterwards: its graph is empty, and the next operation
-records and runs. `modules/engine/engine/tests/test_run_failure.cpp` tests all three.
+records and runs. `tests/engine/engine/test_engine/test_run_failure.cpp` tests all three.
 
 The code says which kind of failure it was. The mapping is SushiRuntime's, made in engine
 modules that are internal to it and not installed (`task_scheduler.cpp`, `chain_run.cpp` and its

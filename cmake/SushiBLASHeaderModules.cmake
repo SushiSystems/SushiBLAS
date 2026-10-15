@@ -22,7 +22,7 @@ function(sushiblas_declare_header_modules)
         add_library(SushiBLAS::Geometry INTERFACE IMPORTED GLOBAL)
         target_include_directories(SushiBLAS::Geometry INTERFACE
             "${root}/geometry/include"
-            "${root}/support/include")
+            "${root}/arithmetic/include")
     endif()
 
     if(NOT TARGET SushiBLAS::FixedOrderFold)

@@ -29,7 +29,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/blas_seam_kernels/row_cursor.hpp>
-#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/reference/reference_accumulator.hpp>
 
 namespace SushiBLAS
 {

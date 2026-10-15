@@ -28,7 +28,7 @@
 #pragma once
 
 #include <cstdint>
-#include <SushiBLAS/support/accumulator.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
 
 namespace SushiBLAS
 {

@@ -9,11 +9,19 @@ sushiblas_add_module(
     LAYER engine
     DEPENDS
         core
-        support
+        launch
+        reduction
+        substitution
         tensor
         engine)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE operands
-    SOURCES
-        test_blas_scalar.cpp)
+    TESTS
+        test_argument_check.cpp
+        test_blas_metadata.cpp
+        test_matrix_operand.cpp
+        test_scalar.cpp
+        test_scalar_result.cpp
+        test_scratch_lease.cpp
+        test_vector_operand.cpp)

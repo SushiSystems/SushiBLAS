@@ -1,8 +1,11 @@
 # Engine headers
 
 `modules/engine/engine/include/SushiBLAS/engine` declares the operation views and the machinery they record through.
-Each operation family is a module of its own under `modules/operations/`, with its README. The device policy, the launch and reduction shapes, the serial host loops and the window
-geometry are support headers; see [the support module](../../foundation/support/README.md).
+Each operation family is a module of its own under `modules/operations/`, with its README. The device policy and the launch shapes are in
+[the launch module](../../foundation/launch/README.md), the reduction shapes in
+[the reduction module](../../foundation/reduction/README.md), the serial host loops in
+[the reference module](../../foundation/reference/README.md) and the window geometry in
+[the geometry module](../../foundation/geometry/README.md).
 
 | File | Declares |
 | --- | --- |
@@ -82,7 +85,7 @@ names survive as the combinations they always were, so no existing call site cha
 
 Warning: `Real` is the default deliberately: a functor written for real scalars always compiles
 under it. Widen it only when the functor is well-formed for the family being added: see the `safe_*`
-helpers in `<SushiBLAS/support/safe_math.hpp>` for the complex case, and note that an integer
+helpers in `<SushiBLAS/arithmetic/safe_math.hpp>` for the complex case, and note that an integer
 functor must not use `sycl::` floating-point builtins.
 
 ### `domain_admits`

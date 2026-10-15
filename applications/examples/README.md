@@ -32,7 +32,7 @@ this shape.
 | `adapter/adapter_demo.cpp` | `main`. It includes `host_program.hpp` alone |
 
 The two adapter files, `sushiblas_adapter.cpp` and `status_mapping.hpp`, are the only ones that
-include `<SushiBLAS/SushiBLAS.h>`.
+include `<SushiBLAS/SushiBLAS.hpp>`.
 
 `multiply_add` computes `a * b + offset` and the sum of the result with `BLASOps::gemm`,
 `ElementwiseOps::add` and `ReductionOps::sum`, recorded on one engine and run by one
@@ -99,7 +99,7 @@ differ.
 
 The body's first parameter is the library's kernel-pair dispatcher, a type of its `Internal`
 namespace. The lambda takes it as `const auto&` and does not use it.
-`modules/engine/engine/tests/test_run_failure.cpp` pins the same behaviour.
+`tests/engine/engine/test_engine/test_run_failure.cpp` pins the same behaviour.
 
 ## `recording_demo.cpp`: record, then run
 

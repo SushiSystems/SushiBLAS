@@ -10,3 +10,9 @@ sushiblas_add_module(
     DEPENDS
         tensor
         engine)
+
+sushiblas_add_test_program(
+    MODULE experimental
+    TESTS
+        lapack/test_linalg.cpp
+        signal/test_transforms.cpp)

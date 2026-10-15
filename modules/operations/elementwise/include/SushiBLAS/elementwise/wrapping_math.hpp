@@ -28,7 +28,7 @@
 #pragma once
 
 #include <type_traits>
-#include <SushiBLAS/support/safe_math.hpp>
+#include <SushiBLAS/arithmetic/safe_math.hpp>
 
 namespace SushiBLAS
 {

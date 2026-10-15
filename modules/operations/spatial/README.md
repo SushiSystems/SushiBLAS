@@ -4,7 +4,7 @@
 that `SpatialOps` in `spatial.hpp` runs on: `require_valid_geometry`,
 `require_live_windows`, the two `window_span_for` forms, `pooling_span_for`, `column_span_for` and
 `tap_span_for`. Every check in it throws `std::invalid_argument`. The window geometry they use is in
-[the support module](../../foundation/support/README.md). The notes of `spatial.hpp` itself are
+[the geometry module](../../foundation/geometry/README.md). The notes of `spatial.hpp` itself are
 the last section of this page.
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
@@ -93,7 +93,7 @@ varies between runs, so `col2im` written as "each column entry atomically adds i
 silently break the library's bit-reproducibility guarantee. Each output element gathers its own
 contributions in a fixed order instead. This is the same argument
 `docs/architecture/KERNELS.md` gives for rejecting `sycl::reduction` in the folding reductions,
-and `tests/regression/test_spatial_determinism.cpp` is what keeps it true.
+and `tests/operations/spatial/test_spatial/test_spatial_determinism.cpp` is what keeps it true.
 
 ### `SpatialOps::im2col` with stated extents
 

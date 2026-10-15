@@ -55,7 +55,7 @@ library and stays private.
 The rule for a new kernel follows: it goes under `modules/kernels/` unless a dispatch seam inlines a
 caller's functor into it.
 
-`tools/layering/check_layering.py` holds the include direction: a kernel includes neither
+`tools/layering/check_tier_contents.py` holds the include direction: a kernel includes neither
 `Engine`, `engine/` nor the tensor header.
 
 ## 4. Members that stay public

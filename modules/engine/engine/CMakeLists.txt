@@ -11,17 +11,30 @@ sushiblas_add_module(
         engine.cpp
     DEPENDS
         core
-        support
+        launch
         tensor)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE engine
-    SOURCES
+    TESTS
+        test_dispatch.cpp
+        test_engine/test_reduce_plans.cpp
+        test_engine/test_run_failure.cpp
+        test_engine/test_runtime_shapes.cpp
+        test_engine/test_tensor_const_access.cpp
+        test_engine/test_tensor_factory.cpp
+        test_engine/test_tensor_view.cpp
+        test_engine/test_unsupported_execution.cpp
         test_execution_mode.cpp
+        test_kernel_pair_dispatcher.cpp
         test_operand_check.cpp
+        test_operand_set.cpp
+        test_recorded_graph.cpp
         test_rng_stream.cpp
-        test_run_failure.cpp
+        test_scratch.cpp
+        test_scratch_pool.cpp
         test_scratch_shelf.cpp
+        test_task.cpp
+        test_task_description.cpp
         test_task_handle.cpp
-        test_task_recorder.cpp
-        test_unsupported_execution.cpp)
+        test_task_recorder.cpp)

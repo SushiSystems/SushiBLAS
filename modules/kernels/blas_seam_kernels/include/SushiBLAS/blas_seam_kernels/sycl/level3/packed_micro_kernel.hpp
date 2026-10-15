@@ -33,7 +33,7 @@
 #include <utility>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/traits.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 
 namespace SushiBLAS
@@ -95,7 +95,7 @@ namespace SushiBLAS
 
                 /**
                  * @brief Adds one complex term to a row of sums by the four-product formula.
-                 * @see modules/foundation/support/README.md
+                 * @see modules/foundation/arithmetic/README.md
                  */
                 template<typename R, int Cols>
                 inline void add_complex_term(sycl::vec<R, Cols>& sum_re, sycl::vec<R, Cols>& sum_im,

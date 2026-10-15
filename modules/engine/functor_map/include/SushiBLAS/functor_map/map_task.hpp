@@ -36,8 +36,8 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
-#include <SushiBLAS/support/launch_1d.hpp>
-#include <SushiBLAS/support/serial_1d.hpp>
+#include <SushiBLAS/launch/launch_1d.hpp>
+#include <SushiBLAS/reference/serial_1d.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
 

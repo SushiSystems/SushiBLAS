@@ -61,12 +61,17 @@ endfunction()
 #       [INTERNAL]
 #       [SOURCES <file under source/>...]
 #       [DEPENDS <module>...]
+#       [PRIVATE_DEPENDS <module>...]
 #       [EXTERNAL <target>...])
 #
 # INTERNAL keeps the module's headers out of the install; the modules of the library can
 # include them and a consumer cannot. EXTERNAL names targets from outside this tree.
+# DEPENDS names the modules the public headers include, and every module that names this one
+# sees them too. PRIVATE_DEPENDS names the modules only source/ includes; they reach the
+# object library and no one else, so they need SOURCES.
 function(sushiblas_add_module)
-    cmake_parse_arguments(ARG "INTERNAL" "NAME;LAYER" "SOURCES;DEPENDS;EXTERNAL" ${ARGN})
+    cmake_parse_arguments(ARG "INTERNAL" "NAME;LAYER" "SOURCES;DEPENDS;PRIVATE_DEPENDS;EXTERNAL"
+        ${ARGN})
     if("${ARG_NAME}" STREQUAL "" OR "${ARG_LAYER}" STREQUAL "")
         message(FATAL_ERROR "sushiblas_add_module(): NAME and LAYER are required.")
     endif()
@@ -82,7 +87,19 @@ function(sushiblas_add_module)
             "SUSHIBLAS_MODULE_LAYERS says '${manifest_layer}' "
             "(cmake/SushiBLASLayers.cmake).")
     endif()
-    foreach(dependency IN LISTS ARG_DEPENDS)
+    if(ARG_PRIVATE_DEPENDS AND NOT ARG_SOURCES)
+        message(FATAL_ERROR
+            "sushiblas_add_module(${ARG_NAME}): PRIVATE_DEPENDS needs SOURCES; a module "
+            "without sources has nothing to compile against them.")
+    endif()
+    foreach(dependency IN LISTS ARG_PRIVATE_DEPENDS)
+        if(dependency IN_LIST ARG_DEPENDS)
+            message(FATAL_ERROR
+                "sushiblas_add_module(${ARG_NAME}): ${dependency} is in both DEPENDS and "
+                "PRIVATE_DEPENDS.")
+        endif()
+    endforeach()
+    foreach(dependency IN LISTS ARG_DEPENDS ARG_PRIVATE_DEPENDS)
         sushiblas_check_module_edge("${ARG_NAME}" "${dependency}")
     endforeach()
 
@@ -121,6 +138,9 @@ function(sushiblas_add_module)
         # PUBLIC options carry the deterministic floating-point contract, and every
         # translation unit of the library has to be compiled under it.
         target_link_libraries(${objects} PUBLIC ${target} SushiRuntime::SushiRuntime)
+        foreach(dependency IN LISTS ARG_PRIVATE_DEPENDS)
+            target_link_libraries(${objects} PRIVATE "sushiblas_${dependency}")
+        endforeach()
         target_include_directories(${objects} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/source")
         set_target_properties(${objects} PROPERTIES
             CXX_STANDARD 17

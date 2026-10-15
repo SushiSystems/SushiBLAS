@@ -11,5 +11,12 @@ sushiblas_add_module(
         sparse_builder.cpp
     DEPENDS
         core
-        support
+        sparse_assembly
         tensor)
+
+sushiblas_add_test_program(
+    MODULE sparse_storage
+    TESTS
+        test_sparse_builder.cpp
+        test_sparse_matrix.cpp
+        test_sparse_vector.cpp)
