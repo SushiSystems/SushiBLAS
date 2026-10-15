@@ -16,3 +16,8 @@ sushiblas_add_module(
         tensor
         engine
         io)
+
+sushiblas_add_test_program(
+    MODULE benchmark_harness
+    TESTS
+        test_benchmark_harness.cpp)
