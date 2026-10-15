@@ -42,12 +42,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Leases scratch through probes over tensors of the fixture's engine. */
-        class Unit_ScratchLease : public SushiBLASTest
+        class Medium_ScratchLease : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_ScratchLease, AnIntegerSolutionNeedsNoWorkspace)
+        TEST_F(Medium_ScratchLease, AnIntegerSolutionNeedsNoWorkspace)
         {
             EXPECT_EQ(Internal::running_solution_bytes(Core::DataType::Int32), std::size_t{0});
             EXPECT_EQ(Internal::running_solution_bytes(Core::DataType::Half),
@@ -56,7 +56,7 @@ namespace SushiBLAS
                           : std::size_t{0});
         }
 
-        TEST_F(Unit_ScratchLease, ALeaseIsDeclaredAsAWrite)
+        TEST_F(Medium_ScratchLease, ALeaseIsDeclaredAsAWrite)
         {
             GraphProbe probe;
             const Tensor anchor = engine->create_tensor({4});
@@ -69,7 +69,7 @@ namespace SushiBLAS
             EXPECT_EQ(operands.write_regions().size(), std::size_t{1});
         }
 
-        TEST_F(Unit_ScratchLease, ForceReferenceAndAnEmptyRequestLeaseNothing)
+        TEST_F(Medium_ScratchLease, ForceReferenceAndAnEmptyRequestLeaseNothing)
         {
             GraphProbe reference(ExecutionMode::ForceReference);
             GraphProbe automatic;

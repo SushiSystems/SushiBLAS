@@ -13,7 +13,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE reduction
-    SIZE medium
     TESTS
         test_reduce_1d.cpp
         test_reduce_axis.cpp)

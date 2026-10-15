@@ -50,7 +50,7 @@ namespace SushiBLAS
             }
         } // namespace
 
-        class Unit_SpatialUpsampleTest : public SushiBLASTest
+        class Medium_SpatialUpsampleTest : public SushiBLASTest
         {
             protected:
                 /** @brief A rank-4 NHWC float tensor holding @p values in memory order. */
@@ -76,7 +76,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_SpatialUpsampleTest, EachInputPixelBecomesAScaleByScaleBlock)
+        TEST_F(Medium_SpatialUpsampleTest, EachInputPixelBecomesAScaleByScaleBlock)
         {
             auto in = image(1, 2, 2, 1, {0, 1,
                                          2, 3});
@@ -95,7 +95,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], expected[i]) << "pixel " << i;
         }
 
-        TEST_F(Unit_SpatialUpsampleTest, AnisotropicScalesAreIndependent)
+        TEST_F(Medium_SpatialUpsampleTest, AnisotropicScalesAreIndependent)
         {
             // Each pixel becomes a 2-row by 3-column block, so the 2x2 input becomes 4x6.
             auto in = image(1, 2, 2, 1, {1, 2,
@@ -115,7 +115,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], expected[i]) << "pixel " << i;
         }
 
-        TEST_F(Unit_SpatialUpsampleTest, AUnitScaleIsACopy)
+        TEST_F(Medium_SpatialUpsampleTest, AUnitScaleIsACopy)
         {
             auto in = ramp(2, 3, 4, 2);
             auto out = engine->create_tensor({2, 3, 4, 2}, Core::DataType::Float32);
@@ -129,7 +129,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], expected[i]) << "element " << i;
         }
 
-        TEST_F(Unit_SpatialUpsampleTest, TheBackwardSumsTheBlockThatReadEachInput)
+        TEST_F(Medium_SpatialUpsampleTest, TheBackwardSumsTheBlockThatReadEachInput)
         {
             const int64_t N = 2, H = 3, W = 2, C = 2;
             const int64_t scale_h = 2, scale_w = 3;
@@ -173,7 +173,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SpatialUpsampleTest, AScaleOfZeroOrNegativeIsRefused)
+        TEST_F(Medium_SpatialUpsampleTest, AScaleOfZeroOrNegativeIsRefused)
         {
             auto in = image(1, 2, 2, 1, {1, 2,
                                          3, 4});
@@ -208,7 +208,7 @@ namespace SushiBLAS
             EXPECT_TRUE(negative_threw) << "a negative scale was accepted";
         }
 
-        TEST_F(Unit_SpatialUpsampleTest, TheSYCLKernelAgreesWithTheReferenceKernel)
+        TEST_F(Medium_SpatialUpsampleTest, TheSYCLKernelAgreesWithTheReferenceKernel)
         {
             // The two forced modes are compared here. See tests/operations/spatial/README.md.
             const int64_t N = 2, H = 5, W = 3, C = 3;

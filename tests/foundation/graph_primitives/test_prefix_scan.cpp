@@ -91,7 +91,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Tests exact agreement with the host scan at the tile and level edges. */
-        TEST(Unit_GraphPrimitivesPrefixScan, AgreesWithTheHostScanAtTileEdges)
+        TEST(Medium_GraphPrimitivesPrefixScan, AgreesWithTheHostScanAtTileEdges)
         {
             const std::vector<std::size_t> sizes = {0, 1, K_TILE - 1, K_TILE, K_TILE + 1,
                                                     K_TILE * K_TILE, K_TILE * K_TILE + 1,
@@ -128,7 +128,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that offsets[n] equals the total the scan publishes. */
-        TEST(Unit_GraphPrimitivesPrefixScan, OffsetsAtLiveCountEqualsTotal)
+        TEST(Medium_GraphPrimitivesPrefixScan, OffsetsAtLiveCountEqualsTotal)
         {
             constexpr std::size_t K_COUNT = K_TILE + 1;
 
@@ -149,7 +149,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a live count that changes between runs keeps one compile. */
-        TEST(Unit_GraphPrimitivesPrefixScan, LateBoundChangingCountKeepsOneCompile)
+        TEST(Medium_GraphPrimitivesPrefixScan, LateBoundChangingCountKeepsOneCompile)
         {
             constexpr std::size_t K_CAPACITY = 1000003;
 
@@ -186,7 +186,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that each run scans the counts the buffer holds when it runs. */
-        TEST(Unit_GraphPrimitivesPrefixScan, EachRunScansItsOwnCounts)
+        TEST(Medium_GraphPrimitivesPrefixScan, EachRunScansItsOwnCounts)
         {
             constexpr std::size_t K_CAPACITY = 300;
 
@@ -224,7 +224,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that every node of one call shares one node_index on every step. */
-        TEST(Unit_GraphPrimitivesPrefixScan, SharesOneNodeIndexAcrossStepsAndPasses)
+        TEST(Medium_GraphPrimitivesPrefixScan, SharesOneNodeIndexAcrossStepsAndPasses)
         {
             // Two levels record a resolver, one up pass, two down passes and the closing write.
             constexpr std::size_t K_EXPECTED_PASSES = 5;
@@ -262,7 +262,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that each node launches at the width its pass has in the level plan. */
-        TEST(Unit_GraphPrimitivesPrefixScan, NodeWidthsMatchTheLevelPlan)
+        TEST(Medium_GraphPrimitivesPrefixScan, NodeWidthsMatchTheLevelPlan)
         {
             // The nodes are the resolver, up 0, the top down pass, down 0 and the closing write.
             const std::vector<std::uint32_t> expected_widths = {1u, 3u, 1u, 3u, 1u};
@@ -291,7 +291,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a capacity of zero writes a zero total and a zero offsets[0]. */
-        TEST(Unit_GraphPrimitivesPrefixScan, ZeroCapacityWritesZeroTotal)
+        TEST(Medium_GraphPrimitivesPrefixScan, ZeroCapacityWritesZeroTotal)
         {
             auto runtime = Runtime::create().value();
             auto counts = runtime.buffer<std::uint32_t>(1).value();
@@ -309,7 +309,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a short buffer is refused with invalid_graph and records nothing. */
-        TEST(Unit_GraphPrimitivesPrefixScan, RejectsMisSizedArguments)
+        TEST(Medium_GraphPrimitivesPrefixScan, RejectsMisSizedArguments)
         {
             using Words = SushiRuntime::Buffer<std::uint32_t>;
 
@@ -344,7 +344,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a live count above its capacity fails the run. */
-        TEST(Unit_GraphPrimitivesPrefixScan, LateBoundAboveCapacityFailsTheRun)
+        TEST(Medium_GraphPrimitivesPrefixScan, LateBoundAboveCapacityFailsTheRun)
         {
             auto runtime = Runtime::create().value();
             auto counts = runtime.buffer<std::uint32_t>(100).value();
@@ -358,7 +358,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests prefix_scan() with a device count on both layers. */
-        TEST(Unit_GraphPrimitivesDeviceSized, PrefixScanChainMatchesScheduler)
+        TEST(Medium_GraphPrimitivesDeviceSized, PrefixScanChainMatchesScheduler)
         {
             using namespace DeviceSized;
 
@@ -384,7 +384,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a device count above capacity fails a chained run of a primitive. */
-        TEST(Unit_GraphPrimitivesDeviceSized, DeviceCountOverCapacityFailsAChainedRun)
+        TEST(Medium_GraphPrimitivesDeviceSized, DeviceCountOverCapacityFailsAChainedRun)
         {
             using namespace DeviceSized;
 

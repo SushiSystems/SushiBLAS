@@ -50,12 +50,12 @@ namespace SushiBLAS
         }
 
         /** @brief Builds NHWC tensors on the fixture's engine. */
-        class Unit_Window : public SushiBLASTest
+        class Medium_Window : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_Window, TheSpanOfADenseInputFollowsItsStrides)
+        TEST_F(Medium_Window, TheSpanOfADenseInputFollowsItsStrides)
         {
             const Tensor in = engine->create_tensor({2, 5, 6, 3});
             const Tensor out = engine->create_tensor({2, 3, 3, 3});
@@ -69,7 +69,7 @@ namespace SushiBLAS
             EXPECT_EQ(span.patch_elements(), int64_t{27});
         }
 
-        TEST_F(Unit_Window, AnInvalidGeometryOrAnOutputPastTheInputIsRefused)
+        TEST_F(Medium_Window, AnInvalidGeometryOrAnOutputPastTheInputIsRefused)
         {
             const Tensor in = engine->create_tensor({1, 5, 5, 1});
             Spatial::ConvGeometry zero_stride = strided_three();
@@ -81,7 +81,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_Window, APoolingWindowOfOnlyPaddingIsRefused)
+        TEST_F(Medium_Window, APoolingWindowOfOnlyPaddingIsRefused)
         {
             Spatial::ConvGeometry g;
             g.kernel_h = 1;
@@ -95,7 +95,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_Window, ColumnAndTapSpansMatchTheirMatrices)
+        TEST_F(Medium_Window, ColumnAndTapSpansMatchTheirMatrices)
         {
             const Tensor in = engine->create_tensor({2, 5, 6, 3});
             const Tensor out = engine->create_tensor({2, 3, 3, 3});

@@ -19,6 +19,5 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE test_runner
-    SIZE medium
     TESTS
         test_test_environment.cpp)

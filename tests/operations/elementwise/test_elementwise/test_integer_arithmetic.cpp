@@ -100,7 +100,7 @@ namespace SushiBLAS
          * @tparam Int int32_t or int64_t.
          */
         template<typename Int>
-        class Unit_IntegerArithmeticTest : public SushiBLASTest
+        class Medium_IntegerArithmeticTest : public SushiBLASTest
         {
             protected:
                 /// @brief The case table for Int.
@@ -125,12 +125,12 @@ namespace SushiBLAS
 
         /// @brief The integer element types under test.
         using IntegerTypes = ::testing::Types<int32_t, int64_t>;
-        TYPED_TEST_SUITE(Unit_IntegerArithmeticTest, IntegerTypes, DefaultTypeNames);
+        TYPED_TEST_SUITE(Medium_IntegerArithmeticTest, IntegerTypes, DefaultTypeNames);
 
         /**
          * @brief Tests that add wraps on overflow.
          */
-        TYPED_TEST(Unit_IntegerArithmeticTest, AddWrapsAroundOnOverflow)
+        TYPED_TEST(Medium_IntegerArithmeticTest, AddWrapsAroundOnOverflow)
         {
             const auto got = this->run_binary([](auto&& ew, const Tensor& a, const Tensor& b, Tensor& c)
                                               { ew.add(a, b, c); });
@@ -140,7 +140,7 @@ namespace SushiBLAS
         /**
          * @brief Tests sub on hand values.
          */
-        TYPED_TEST(Unit_IntegerArithmeticTest, SubtractsElementwise)
+        TYPED_TEST(Medium_IntegerArithmeticTest, SubtractsElementwise)
         {
             const auto got = this->run_binary([](auto&& ew, const Tensor& a, const Tensor& b, Tensor& c)
                                               { ew.sub(a, b, c); });
@@ -150,7 +150,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that mul wraps when MIN is multiplied by -1.
          */
-        TYPED_TEST(Unit_IntegerArithmeticTest, MulWrapsAroundOnOverflow)
+        TYPED_TEST(Medium_IntegerArithmeticTest, MulWrapsAroundOnOverflow)
         {
             const auto got = this->run_binary([](auto&& ew, const Tensor& a, const Tensor& b, Tensor& c)
                                               { ew.mul(a, b, c); });
@@ -160,7 +160,7 @@ namespace SushiBLAS
         /**
          * @brief Tests min on hand values.
          */
-        TYPED_TEST(Unit_IntegerArithmeticTest, MinPicksTheSmallerElement)
+        TYPED_TEST(Medium_IntegerArithmeticTest, MinPicksTheSmallerElement)
         {
             const auto got = this->run_binary([](auto&& ew, const Tensor& a, const Tensor& b, Tensor& c)
                                               { ew.min(a, b, c); });
@@ -170,7 +170,7 @@ namespace SushiBLAS
         /**
          * @brief Tests max on hand values.
          */
-        TYPED_TEST(Unit_IntegerArithmeticTest, MaxPicksTheLargerElement)
+        TYPED_TEST(Medium_IntegerArithmeticTest, MaxPicksTheLargerElement)
         {
             const auto got = this->run_binary([](auto&& ew, const Tensor& a, const Tensor& b, Tensor& c)
                                               { ew.max(a, b, c); });
@@ -180,7 +180,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that neg and abs map MIN to itself and other values as usual.
          */
-        TYPED_TEST(Unit_IntegerArithmeticTest, NegAndAbsMapTheMinimumToItself)
+        TYPED_TEST(Medium_IntegerArithmeticTest, NegAndAbsMapTheMinimumToItself)
         {
             using Int = TypeParam;
             constexpr Int k_min = TestFixture::Case::K_MIN;
@@ -199,7 +199,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that clamp truncates its double bounds toward zero on an integer tensor.
          */
-        TYPED_TEST(Unit_IntegerArithmeticTest, ClampTruncatesItsBoundsTowardZero)
+        TYPED_TEST(Medium_IntegerArithmeticTest, ClampTruncatesItsBoundsTowardZero)
         {
             using Int = TypeParam;
             auto t = this->template create_initialized_tensor<Int>({3}, {-10, 0, 10});
@@ -213,7 +213,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that clamp throws at record time when min_val exceeds max_val.
          */
-        TYPED_TEST(Unit_IntegerArithmeticTest, ClampRejectsAnInvertedRange)
+        TYPED_TEST(Medium_IntegerArithmeticTest, ClampRejectsAnInvertedRange)
         {
             GraphProbe probe;
 
@@ -229,7 +229,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that the safe_ew_add functor wraps MAX + 1 to MIN.
          */
-        TYPED_TEST(Unit_IntegerArithmeticTest, SafeAddFunctorWrapsAroundOnOverflow)
+        TYPED_TEST(Medium_IntegerArithmeticTest, SafeAddFunctorWrapsAroundOnOverflow)
         {
             using Int = TypeParam;
             using Case = typename TestFixture::Case;
@@ -249,12 +249,12 @@ namespace SushiBLAS
         }
 
         /// @brief Runs the double scalar parameter case.
-        class Unit_DoubleScalarTest : public SushiBLASTest {};
+        class Medium_DoubleScalarTest : public SushiBLASTest {};
 
         /**
          * @brief Tests that clamp keeps a 1e-9 offset on a FLOAT64 tensor that float would drop.
          */
-        TEST_F(Unit_DoubleScalarTest, ClampKeepsADoubleBoundOnAFloat64Tensor)
+        TEST_F(Medium_DoubleScalarTest, ClampKeepsADoubleBoundOnAFloat64Tensor)
         {
             auto t = create_initialized_tensor<double>({2}, {1.0, 1.5});
 

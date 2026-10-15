@@ -87,13 +87,13 @@ namespace SushiBLAS
             }
         }
 
-        class Unit_AxisReductionPlan : public ::testing::Test {};
+        class Medium_AxisReductionPlan : public ::testing::Test {};
 
         /**
          * @brief Tests that a span with enough segments takes one work-item per segment.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_AxisReductionPlan, EnoughSegmentsTakesOneItemPerSegment)
+        TEST_F(Medium_AxisReductionPlan, EnoughSegmentsTakesOneItemPerSegment)
         {
             const Device::Profile cpu = profile(true, 12, 8192, 8);
             const Device::Profile gpu = profile(false, 108, 1024, 32);
@@ -110,7 +110,7 @@ namespace SushiBLAS
          * @brief Tests that few long segments take one work-group each.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_AxisReductionPlan, FewLongSegmentsTakeAWorkGroupEach)
+        TEST_F(Medium_AxisReductionPlan, FewLongSegmentsTakeAWorkGroupEach)
         {
             const Device::Profile cpu = profile(true, 12, 8192, 8);
             const Device::Profile gpu = profile(false, 108, 1024, 32);
@@ -128,7 +128,7 @@ namespace SushiBLAS
          * @brief Tests that few segments shorter than a work-group take one item each.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_AxisReductionPlan, FewShortSegmentsStillTakeOneItemPerSegment)
+        TEST_F(Medium_AxisReductionPlan, FewShortSegmentsStillTakeOneItemPerSegment)
         {
             const Device::Profile cpu = profile(true, 12, 8192, 8);
             const std::size_t local = Reduce::group_width(cpu);
@@ -141,7 +141,7 @@ namespace SushiBLAS
          * @brief Tests that an empty span takes the item-per-segment shape.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_AxisReductionPlan, EmptySpansTakeTheCheapShape)
+        TEST_F(Medium_AxisReductionPlan, EmptySpansTakeTheCheapShape)
         {
             const Device::Profile cpu = profile(true, 12, 8192, 8);
 
@@ -150,12 +150,12 @@ namespace SushiBLAS
         }
 
         template<typename T>
-        class Unit_AxisReductionsTyped : public SushiBLASTest {};
+        class Medium_AxisReductionsTyped : public SushiBLASTest {};
 
         using AxisTypes = ::testing::Types<sycl::half, float, double>;
-        SB_TYPED_TEST_SUITE(Unit_AxisReductionsTyped, AxisTypes);
+        SB_TYPED_TEST_SUITE(Medium_AxisReductionsTyped, AxisTypes);
 
-        TYPED_TEST(Unit_AxisReductionsTyped, RowMaxFoldsAxisOne)
+        TYPED_TEST(Medium_AxisReductionsTyped, RowMaxFoldsAxisOne)
         {
             using T = TypeParam;
             auto x = this->engine->create_tensor({3, 4}, sushiblas_dtype<T>());
@@ -168,7 +168,7 @@ namespace SushiBLAS
             verify_tensor(out, K_ROW_MAX);
         }
 
-        TYPED_TEST(Unit_AxisReductionsTyped, ColumnMaxFoldsAxisZero)
+        TYPED_TEST(Medium_AxisReductionsTyped, ColumnMaxFoldsAxisZero)
         {
             using T = TypeParam;
             auto x = this->engine->create_tensor({3, 4}, sushiblas_dtype<T>());
@@ -181,7 +181,7 @@ namespace SushiBLAS
             verify_tensor(out, K_COL_MAX);
         }
 
-        TYPED_TEST(Unit_AxisReductionsTyped, RowSumFoldsAxisOne)
+        TYPED_TEST(Medium_AxisReductionsTyped, RowSumFoldsAxisOne)
         {
             using T = TypeParam;
             auto x = this->engine->create_tensor({3, 4}, sushiblas_dtype<T>());
@@ -194,7 +194,7 @@ namespace SushiBLAS
             verify_tensor(out, K_ROW_SUM);
         }
 
-        TYPED_TEST(Unit_AxisReductionsTyped, ColumnSumFoldsAxisZero)
+        TYPED_TEST(Medium_AxisReductionsTyped, ColumnSumFoldsAxisZero)
         {
             using T = TypeParam;
             auto x = this->engine->create_tensor({3, 4}, sushiblas_dtype<T>());
@@ -207,13 +207,13 @@ namespace SushiBLAS
             verify_tensor(out, K_COL_SUM);
         }
 
-        class Unit_AxisReductions : public SushiBLASTest {};
+        class Medium_AxisReductions : public SushiBLASTest {};
 
         /**
          * @brief Tests that a column-major matrix folds the same logical axes as a row-major one.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_AxisReductions, ColumnMajorOperandsFoldTheSameAxes)
+        TEST_F(Medium_AxisReductions, ColumnMajorOperandsFoldTheSameAxes)
         {
             reinit_engine(Core::Layout::ColumnMajor);
 
@@ -234,7 +234,7 @@ namespace SushiBLAS
          * @brief Tests that a view at a non-zero storage offset reduces its own elements.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_AxisReductions, AViewAtANonZeroOffsetReducesItsOwnElements)
+        TEST_F(Medium_AxisReductions, AViewAtANonZeroOffsetReducesItsOwnElements)
         {
             constexpr int64_t kElements = 12;
 
@@ -260,7 +260,7 @@ namespace SushiBLAS
          * @brief Tests that axis reductions over two views of one allocation are ordered.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_AxisReductions, AxisReductionsOrderAgainstViewsOfOneAllocation)
+        TEST_F(Medium_AxisReductions, AxisReductionsOrderAgainstViewsOfOneAllocation)
         {
             GraphProbe probe;
 
@@ -295,7 +295,7 @@ namespace SushiBLAS
                    "with a bare data() pointer instead of Tensor::region().";
         }
 
-        TEST_F(Unit_AxisReductions, MalformedOperandsAreRejectedAtRecordTime)
+        TEST_F(Medium_AxisReductions, MalformedOperandsAreRejectedAtRecordTime)
         {
             auto matrix = engine->create_tensor({3, 4});
             auto vector = engine->create_tensor({4});
@@ -345,7 +345,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that min_along folds the axes max_along folds and refuses what it refuses.
          */
-        TEST_F(Unit_AxisReductions, MinAlongMirrorsMaxAlong)
+        TEST_F(Medium_AxisReductions, MinAlongMirrorsMaxAlong)
         {
             auto matrix = engine->create_tensor({3, 4});
             auto rows = engine->create_tensor({3});
@@ -398,7 +398,7 @@ namespace SushiBLAS
          * @brief Tests that complex and integer dtypes are refused by name.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_AxisReductions, NonRealDtypesAreRefusedByName)
+        TEST_F(Medium_AxisReductions, NonRealDtypesAreRefusedByName)
         {
             for (Core::DataType dtype : {Core::DataType::Complex32, Core::DataType::Complex64,
                                          Core::DataType::Int32, Core::DataType::Int64})
@@ -433,7 +433,7 @@ namespace SushiBLAS
          * @brief Tests that the cooperative tree and the item-per-segment fold agree on one input.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_AxisReductions, TheCooperativeTreeAgreesWithTheItemPerSegmentFold)
+        TEST_F(Medium_AxisReductions, TheCooperativeTreeAgreesWithTheItemPerSegmentFold)
         {
             constexpr std::size_t kSegments = 5;
             constexpr std::size_t kExtent = 733;
@@ -494,7 +494,7 @@ namespace SushiBLAS
          * @brief Tests that both shapes find the same per-segment maximum, bit for bit.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_AxisReductions, BothShapesFindTheSamePerSegmentMaximum)
+        TEST_F(Medium_AxisReductions, BothShapesFindTheSamePerSegmentMaximum)
         {
             constexpr std::size_t kSegments = 5;
             constexpr std::size_t kExtent = 733;
@@ -552,7 +552,7 @@ namespace SushiBLAS
          * @brief Tests that each row sum is Neumaier-compensated.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_AxisReductions, RowSumsAreCompensated)
+        TEST_F(Medium_AxisReductions, RowSumsAreCompensated)
         {
             constexpr int64_t kRows = 16;
             constexpr int64_t kOnes = 4096;
@@ -584,7 +584,7 @@ namespace SushiBLAS
          * @brief Tests that both shapes return the same bytes on every run.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_AxisReductions, BothShapesAreBitwiseStable)
+        TEST_F(Medium_AxisReductions, BothShapesAreBitwiseStable)
         {
             constexpr std::size_t kSegments = 5;
             constexpr std::size_t kExtent = 733;
@@ -648,7 +648,7 @@ namespace SushiBLAS
          * @brief Tests that a row-wise log-sum-exp shift survives a gap that destroys a global one.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_AxisReductions, ARowWiseShiftSurvivesAGapThatDestroysAGlobalOne)
+        TEST_F(Medium_AxisReductions, ARowWiseShiftSurvivesAGapThatDestroysAGlobalOne)
         {
             constexpr int64_t kRows = 2;
             constexpr int64_t kCols = 3;

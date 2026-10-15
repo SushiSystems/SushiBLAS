@@ -82,7 +82,7 @@ namespace SushiBLAS
         /**
          * @brief Runs spatial operations on HALF tensors in a chosen execution mode.
          */
-        class Unit_SpatialHalf : public SushiBLASTest
+        class Medium_SpatialHalf : public SushiBLASTest
         {
             protected:
                 /** @brief Builds the engine and skips the case on a device without fp16. */
@@ -203,7 +203,7 @@ namespace SushiBLAS
         };
 
         /** @brief Tests that col2im adds 2048 + 1 + 1 to 2050, where a HALF sum stalls at 2048. */
-        TEST_F(Unit_SpatialHalf, Col2ImSumsItsTermsInFloat)
+        TEST_F(Medium_SpatialHalf, Col2ImSumsItsTermsInFloat)
         {
             Spatial::ConvGeometry g;
             g.kernel_w = 3;
@@ -230,7 +230,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that pool_max_backward adds the gradients of one pixel in FLOAT32. */
-        TEST_F(Unit_SpatialHalf, PoolMaxBackwardSumsItsTermsInFloat)
+        TEST_F(Medium_SpatialHalf, PoolMaxBackwardSumsItsTermsInFloat)
         {
             Spatial::ConvGeometry g;
             g.kernel_w = 3;
@@ -257,7 +257,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that upsample_nearest_backward adds a 2 by 2 block in FLOAT32. */
-        TEST_F(Unit_SpatialHalf, UpsampleBackwardSumsItsBlockInFloat)
+        TEST_F(Medium_SpatialHalf, UpsampleBackwardSumsItsBlockInFloat)
         {
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
@@ -276,7 +276,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that pool_avg divides the FLOAT32 sum 2050 by 4 and returns 512.5. */
-        TEST_F(Unit_SpatialHalf, PoolAvgDividesAFloatSum)
+        TEST_F(Medium_SpatialHalf, PoolAvgDividesAFloatSum)
         {
             Spatial::ConvGeometry g;
             g.kernel_h = 2;
@@ -299,7 +299,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that pool_avg_backward adds its shares in FLOAT32 and rounds once. */
-        TEST_F(Unit_SpatialHalf, PoolAvgBackwardAddsItsSharesInFloat)
+        TEST_F(Medium_SpatialHalf, PoolAvgBackwardAddsItsSharesInFloat)
         {
             Spatial::ConvGeometry g;
             g.kernel_w = 4;
@@ -322,7 +322,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that every spatial kernel writes the same HALF bits as its reference. */
-        TEST_F(Unit_SpatialHalf, EveryKernelAgreesWithItsReferenceInHalf)
+        TEST_F(Medium_SpatialHalf, EveryKernelAgreesWithItsReferenceInHalf)
         {
             const int64_t N = 2, H = 7, W = 5, C = 3;
             const int64_t scale = 2, extra_channels = 2, channel_offset = 1;
@@ -402,7 +402,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that pool_max of a HALF window of large negatives is its larger element. */
-        TEST_F(Unit_SpatialHalf, PoolMaxOfHalfStartsBelowEveryValue)
+        TEST_F(Medium_SpatialHalf, PoolMaxOfHalfStartsBelowEveryValue)
         {
             Spatial::ConvGeometry g;
             g.kernel_w = 2;

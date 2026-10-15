@@ -61,7 +61,7 @@ namespace SushiBLAS
         }
 
         /// @brief Runs the reductions whose launch geometry the test chooses.
-        class Unit_ReducePlans : public SushiBLASTest
+        class Medium_ReducePlans : public SushiBLASTest
         {
             protected:
                 /** @brief Returns the queue every case submits to. */
@@ -120,7 +120,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that every element is folded once under each injected geometry.
          */
-        TEST_F(Unit_ReducePlans, AnInjectedTwoStagePlanFoldsEveryElement)
+        TEST_F(Medium_ReducePlans, AnInjectedTwoStagePlanFoldsEveryElement)
         {
             std::vector<int64_t> values(K_ELEMENTS);
             int64_t expected = 0;
@@ -147,7 +147,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a two-stage geometry and the single pass elect the same index.
          */
-        TEST_F(Unit_ReducePlans, AnInjectedPlanElectsTheSameIndex)
+        TEST_F(Medium_ReducePlans, AnInjectedPlanElectsTheSameIndex)
         {
             constexpr std::size_t first_peak = 123;
             constexpr std::size_t second_peak = 777;
@@ -171,7 +171,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that the queue form and the plan form give the same bits under one plan.
          */
-        TEST_F(Unit_ReducePlans, TheQueueFormMatchesThePlanItComputes)
+        TEST_F(Medium_ReducePlans, TheQueueFormMatchesThePlanItComputes)
         {
             std::vector<float> values(K_TWO_STAGE_ELEMENTS);
             for (std::size_t i = 0; i < values.size(); ++i)

@@ -44,7 +44,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        class Unit_OperandCheckTest : public SushiBLASTest
+        class Medium_OperandCheckTest : public SushiBLASTest
         {
             protected:
                 /** @brief Returns a storage of `elements` FLOAT32 elements in shared memory. */
@@ -83,74 +83,74 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_OperandCheckTest, RequireStorageAcceptsTensorWithStorage)
+        TEST_F(Medium_OperandCheckTest, RequireStorageAcceptsTensorWithStorage)
         {
             auto t = make_tensor({4});
             EXPECT_NO_THROW(Dispatch::require_storage(t, "op", "x"));
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireStorageRejectsTensorWithoutStorage)
+        TEST_F(Medium_OperandCheckTest, RequireStorageRejectsTensorWithoutStorage)
         {
             Tensor t(SushiRuntime::sushi_ptr<Storage>(), {4});
             EXPECT_THROW(Dispatch::require_storage(t, "op", "x"), std::invalid_argument);
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireDtypeAcceptsMatchingDtype)
+        TEST_F(Medium_OperandCheckTest, RequireDtypeAcceptsMatchingDtype)
         {
             auto t = make_tensor({4});
             EXPECT_NO_THROW(Dispatch::require_dtype(t, Core::DataType::Float32, "op", "x"));
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireDtypeRejectsOtherDtype)
+        TEST_F(Medium_OperandCheckTest, RequireDtypeRejectsOtherDtype)
         {
             auto t = make_tensor({4});
             EXPECT_THROW(Dispatch::require_dtype(t, Core::DataType::Float64, "op", "x"),
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireSameShapeAcceptsEqualShapes)
+        TEST_F(Medium_OperandCheckTest, RequireSameShapeAcceptsEqualShapes)
         {
             auto a = make_tensor({2, 3});
             auto b = make_tensor({2, 3});
             EXPECT_NO_THROW(Dispatch::require_same_shape(a, b, "op", "a", "b"));
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireSameShapeRejectsSameCountOtherShape)
+        TEST_F(Medium_OperandCheckTest, RequireSameShapeRejectsSameCountOtherShape)
         {
             auto a = make_tensor({2, 3});
             auto b = make_tensor({3, 2});
             EXPECT_THROW(Dispatch::require_same_shape(a, b, "op", "a", "b"), std::invalid_argument);
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireSameLayoutAcceptsEqualLayouts)
+        TEST_F(Medium_OperandCheckTest, RequireSameLayoutAcceptsEqualLayouts)
         {
             auto a = make_tensor({2, 3}, Core::Layout::ColumnMajor);
             auto b = make_tensor({2, 3}, Core::Layout::ColumnMajor);
             EXPECT_NO_THROW(Dispatch::require_same_layout(a, b, "op", "a", "b"));
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireSameLayoutAcceptsRankOneOperands)
+        TEST_F(Medium_OperandCheckTest, RequireSameLayoutAcceptsRankOneOperands)
         {
             auto a = make_tensor({4});
             auto b = make_tensor({4}, Core::Layout::ColumnMajor);
             EXPECT_NO_THROW(Dispatch::require_same_layout(a, b, "op", "a", "b"));
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireSameLayoutRejectsOtherLayout)
+        TEST_F(Medium_OperandCheckTest, RequireSameLayoutRejectsOtherLayout)
         {
             auto a = make_tensor({2, 3});
             auto b = make_tensor({2, 3}, Core::Layout::ColumnMajor);
             EXPECT_THROW(Dispatch::require_same_layout(a, b, "op", "a", "b"), std::invalid_argument);
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireSameElementCountAcceptsReshapedOperand)
+        TEST_F(Medium_OperandCheckTest, RequireSameElementCountAcceptsReshapedOperand)
         {
             auto a = make_tensor({2, 3});
             auto b = make_tensor({6});
             EXPECT_NO_THROW(Dispatch::require_same_element_count(a, b, "op", "a", "b"));
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireSameElementCountRejectsOtherCount)
+        TEST_F(Medium_OperandCheckTest, RequireSameElementCountRejectsOtherCount)
         {
             auto a = make_tensor({2, 3});
             auto b = make_tensor({5});
@@ -158,25 +158,25 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireMinElementsAcceptsExactMinimum)
+        TEST_F(Medium_OperandCheckTest, RequireMinElementsAcceptsExactMinimum)
         {
             auto t = make_tensor({4});
             EXPECT_NO_THROW(Dispatch::require_min_elements(t, 4, "op", "x"));
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireMinElementsRejectsTooFew)
+        TEST_F(Medium_OperandCheckTest, RequireMinElementsRejectsTooFew)
         {
             auto t = make_tensor({4});
             EXPECT_THROW(Dispatch::require_min_elements(t, 5, "op", "x"), std::invalid_argument);
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireContiguousAcceptsRowMajorTensor)
+        TEST_F(Medium_OperandCheckTest, RequireContiguousAcceptsRowMajorTensor)
         {
             auto t = make_tensor({2, 3});
             EXPECT_NO_THROW(Dispatch::require_contiguous(t, "op", "x"));
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireContiguousAcceptsColumnMajorTensor)
+        TEST_F(Medium_OperandCheckTest, RequireContiguousAcceptsColumnMajorTensor)
         {
             auto t = make_tensor({2, 3}, Core::Layout::ColumnMajor);
             ASSERT_EQ(t.strides[0], 1);
@@ -184,20 +184,20 @@ namespace SushiBLAS
             EXPECT_NO_THROW(Dispatch::require_contiguous(t, "op", "x"));
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireContiguousAcceptsStorageOffsetView)
+        TEST_F(Medium_OperandCheckTest, RequireContiguousAcceptsStorageOffsetView)
         {
             Tensor t(make_storage(16), {2, 3}, Core::DataType::Float32, 8);
             EXPECT_NO_THROW(Dispatch::require_contiguous(t, "op", "x"));
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireContiguousRejectsTransposeView)
+        TEST_F(Medium_OperandCheckTest, RequireContiguousRejectsTransposeView)
         {
             // Strides {3, 1} swap to {1, 3} on shape {3, 2}; dense row-major needs {2, 1}.
             auto t = make_tensor({2, 3}).transpose(0, 1);
             EXPECT_THROW(Dispatch::require_contiguous(t, "op", "x"), std::invalid_argument);
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireContiguousRejectsStrideZeroView)
+        TEST_F(Medium_OperandCheckTest, RequireContiguousRejectsStrideZeroView)
         {
             const std::array<int64_t, Core::K_MAX_TENSOR_RANK> strides{0};
             const std::array<int64_t, 1> dims{4};
@@ -206,14 +206,14 @@ namespace SushiBLAS
             EXPECT_THROW(Dispatch::require_contiguous(t, "op", "x"), std::invalid_argument);
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireContiguousRejectsSlicedView)
+        TEST_F(Medium_OperandCheckTest, RequireContiguousRejectsSlicedView)
         {
             // Shape {4, 2} keeps strides {4, 1}; dense row-major needs {2, 1}.
             auto t = make_tensor({4, 4}).slice(1, 0, 2);
             EXPECT_THROW(Dispatch::require_contiguous(t, "op", "x"), std::invalid_argument);
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireRankNamesBothRanks)
+        TEST_F(Medium_OperandCheckTest, RequireRankNamesBothRanks)
         {
             auto t = make_tensor({2, 3});
             EXPECT_NO_THROW(Dispatch::require_rank(t, 2, "op", "x"));
@@ -222,7 +222,7 @@ namespace SushiBLAS
                       "op: operand 'x' has rank 2, expected 1");
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireScalarRejectsZeroAndTwoElements)
+        TEST_F(Medium_OperandCheckTest, RequireScalarRejectsZeroAndTwoElements)
         {
             Tensor none(SushiRuntime::sushi_ptr<Storage>(), {0});
             auto one = make_tensor({1});
@@ -232,7 +232,7 @@ namespace SushiBLAS
             EXPECT_THROW(Dispatch::require_scalar(two, "op", "x"), std::invalid_argument);
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireExtentNamesTheExtent)
+        TEST_F(Medium_OperandCheckTest, RequireExtentNamesTheExtent)
         {
             EXPECT_NO_THROW(Dispatch::require_extent(4, 4, "channels", "op", "x"));
             EXPECT_THROW(Dispatch::require_extent(3, 4, "channels", "op", "x"),
@@ -241,7 +241,7 @@ namespace SushiBLAS
                       "op: operand 'x' has 3 channels, expected 4");
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireOperandPassesItsFormatThrough)
+        TEST_F(Medium_OperandCheckTest, RequireOperandPassesItsFormatThrough)
         {
             EXPECT_NO_THROW(Dispatch::require_operand(true, "op", "x", "is {}", 7));
             EXPECT_THROW(Dispatch::require_operand(false, "op", "x", "is {}", 7),
@@ -250,7 +250,7 @@ namespace SushiBLAS
                       "op: operand 'x' is 7");
         }
 
-        TEST_F(Unit_OperandCheckTest, ADtypeErrorIsAnInvalidArgument)
+        TEST_F(Medium_OperandCheckTest, ADtypeErrorIsAnInvalidArgument)
         {
             const auto raise = []
             {
@@ -265,7 +265,7 @@ namespace SushiBLAS
             EXPECT_NE(message.find(Core::to_string(Core::DataType::Int32)), std::string::npos);
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireDeviceDtypeAcceptsWhatTheDeviceOffers)
+        TEST_F(Medium_OperandCheckTest, RequireDeviceDtypeAcceptsWhatTheDeviceOffers)
         {
             auto narrow = make_tensor({4});
             EXPECT_NO_THROW(Dispatch::require_device_dtype(narrow, "op", "x"));
@@ -282,7 +282,7 @@ namespace SushiBLAS
                              std::invalid_argument);
         }
 
-        TEST_F(Unit_OperandCheckTest, ANarrowedOpHoldsOnlyTheElementType)
+        TEST_F(Medium_OperandCheckTest, ANarrowedOpHoldsOnlyTheElementType)
         {
             const auto clamp = [](auto x, auto low, auto high)
             {
@@ -295,42 +295,42 @@ namespace SushiBLAS
             EXPECT_FLOAT_EQ(bound.narrow<float>()(3.0f), 1.0f);
         }
 
-        TEST_F(Unit_OperandCheckTest, APlainFunctorPassesThroughNarrowFor)
+        TEST_F(Medium_OperandCheckTest, APlainFunctorPassesThroughNarrowFor)
         {
             const auto f = [](float x) { return x; };
             EXPECT_EQ(&Dispatch::Detail::narrow_for(Dispatch::ElementTag<float>{}, f), &f);
         }
 
-        TEST_F(Unit_OperandCheckTest, TensorRejectsNegativeDimension)
+        TEST_F(Medium_OperandCheckTest, TensorRejectsNegativeDimension)
         {
             EXPECT_THROW(Tensor(SushiRuntime::sushi_ptr<Storage>(), {-1, 2}), std::runtime_error);
         }
 
-        TEST_F(Unit_OperandCheckTest, TensorRejectsOverflowingElementCount)
+        TEST_F(Medium_OperandCheckTest, TensorRejectsOverflowingElementCount)
         {
             const int64_t big = int64_t(1) << 32;
             EXPECT_THROW(Tensor(SushiRuntime::sushi_ptr<Storage>(), {big, big}), std::runtime_error);
         }
 
-        TEST_F(Unit_OperandCheckTest, TensorRejectsRankAboveLimit)
+        TEST_F(Medium_OperandCheckTest, TensorRejectsRankAboveLimit)
         {
             EXPECT_THROW(Tensor(SushiRuntime::sushi_ptr<Storage>(), {1, 1, 1, 1, 1, 1, 1}),
                          std::runtime_error);
         }
 
-        TEST_F(Unit_OperandCheckTest, TransposeRejectsNegativeDimensionIndex)
+        TEST_F(Medium_OperandCheckTest, TransposeRejectsNegativeDimensionIndex)
         {
             auto t = make_tensor({2, 3});
             EXPECT_THROW(t.transpose(-1, 0), std::runtime_error);
         }
 
-        TEST_F(Unit_OperandCheckTest, TransposeRejectsDimensionIndexAtRank)
+        TEST_F(Medium_OperandCheckTest, TransposeRejectsDimensionIndexAtRank)
         {
             auto t = make_tensor({2, 3});
             EXPECT_THROW(t.transpose(0, 2), std::runtime_error);
         }
 
-        TEST_F(Unit_OperandCheckTest, RequireDeviceDtypeAcceptsHalfWhereTheDeviceOffersIt)
+        TEST_F(Medium_OperandCheckTest, RequireDeviceDtypeAcceptsHalfWhereTheDeviceOffersIt)
         {
             Tensor detached(SushiRuntime::sushi_ptr<Storage>(), {4}, Core::DataType::Half);
             EXPECT_NO_THROW(Dispatch::require_device_dtype(detached, "op", "x"));
@@ -349,7 +349,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_OperandCheckTest, TheProfileReportsTheFp16AspectOfItsDevice)
+        TEST_F(Medium_OperandCheckTest, TheProfileReportsTheFp16AspectOfItsDevice)
         {
             const sycl::queue& q = TestEnvironment::queue();
             EXPECT_EQ(Device::profile_for(q).supports_fp16,

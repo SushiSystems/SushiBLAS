@@ -36,12 +36,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Builds result tensors on the fixture's engine. */
-        class Unit_ScalarResult : public SushiBLASTest
+        class Medium_ScalarResult : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_ScalarResult, AComplexDtypeHasTheRealDtypeOfItsParts)
+        TEST_F(Medium_ScalarResult, AComplexDtypeHasTheRealDtypeOfItsParts)
         {
             static_assert(Internal::real_result_dtype(Core::DataType::Complex32) ==
                               Core::DataType::Float32,
@@ -52,7 +52,7 @@ namespace SushiBLAS
             EXPECT_EQ(Internal::real_result_dtype(Core::DataType::Half), Core::DataType::Half);
         }
 
-        TEST_F(Unit_ScalarResult, AResultHoldsOneElementOfTheExpectedDtype)
+        TEST_F(Medium_ScalarResult, AResultHoldsOneElementOfTheExpectedDtype)
         {
             EXPECT_NO_THROW(Internal::require_scalar_result(engine->create_tensor({1}),
                                                             Core::DataType::Float32, "op"));

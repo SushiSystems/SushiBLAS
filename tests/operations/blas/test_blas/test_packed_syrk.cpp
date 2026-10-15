@@ -346,7 +346,7 @@ namespace SushiBLAS
 
         /** @brief Gives the packed SYRK tests an engine and the queue they submit to. */
         template<typename T>
-        class Unit_PackedSyrk : public SushiBLASTest
+        class Medium_PackedSyrk : public SushiBLASTest
         {
             protected:
                 /** @brief Skips the test when the device does not compute in T's precision. */
@@ -433,10 +433,10 @@ namespace SushiBLAS
 
         using PackedSyrkTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
                                                  std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_PackedSyrk, PackedSyrkTypes);
+        SB_TYPED_TEST_SUITE(Medium_PackedSyrk, PackedSyrkTypes);
 
         /** @brief Tests SYRK on both triangles, transposes and layouts for exact parity. */
-        TYPED_TEST(Unit_PackedSyrk, BothTrianglesEqualTheReferenceOnExactData)
+        TYPED_TEST(Medium_PackedSyrk, BothTrianglesEqualTheReferenceOnExactData)
         {
             for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
             {
@@ -458,7 +458,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests HERK for exact parity and for a diagonal with no imaginary part. */
-        TYPED_TEST(Unit_PackedSyrk, HerkConjugatesTheSecondFactor)
+        TYPED_TEST(Medium_PackedSyrk, HerkConjugatesTheSecondFactor)
         {
             if constexpr (!Core::is_complex_v<TypeParam>)
             {
@@ -500,7 +500,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests which macro-blocks each triangle's store asks the kernel to compute. */
-        TYPED_TEST(Unit_PackedSyrk, AStoreWantsOnlyBlocksThatTouchItsTriangle)
+        TYPED_TEST(Medium_PackedSyrk, AStoreWantsOnlyBlocksThatTouchItsTriangle)
         {
             using Store = Kernels::SYCL::Detail::SyrkStore<TypeParam, Kernels::Unconjugated,
                                                            TypeParam>;
@@ -538,7 +538,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests SYRK and HERK through the engine at the order the device profile packs. */
-        TYPED_TEST(Unit_PackedSyrk, TheKernelPacksWhenTheProfileSelectsIt)
+        TYPED_TEST(Medium_PackedSyrk, TheKernelPacksWhenTheProfileSelectsIt)
         {
             const Device::Profile& profile = Device::profile_for(this->queue());
             const int64_t s = packed_order<TypeParam>(profile);

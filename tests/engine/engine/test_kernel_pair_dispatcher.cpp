@@ -51,18 +51,18 @@ namespace SushiBLAS
             return ran;
         }
 
-        TEST(Unit_KernelPairDispatcher, ForceReferenceRunsTheReferenceBody)
+        TEST(Medium_KernelPairDispatcher, ForceReferenceRunsTheReferenceBody)
         {
             EXPECT_EQ(body_run_in(ExecutionMode::ForceReference), 1);
         }
 
-        TEST(Unit_KernelPairDispatcher, EveryOtherModeRunsTheSYCLBody)
+        TEST(Medium_KernelPairDispatcher, EveryOtherModeRunsTheSYCLBody)
         {
             EXPECT_EQ(body_run_in(ExecutionMode::Auto), 2);
             EXPECT_EQ(body_run_in(ExecutionMode::ForceSYCL), 2);
         }
 
-        TEST(Unit_KernelPairDispatcher, TheReferenceBodyRunsAfterItsDependencies)
+        TEST(Medium_KernelPairDispatcher, TheReferenceBodyRunsAfterItsDependencies)
         {
             sycl::queue& queue = TestEnvironment::queue();
             int* flag = sycl::malloc_shared<int>(1, queue);

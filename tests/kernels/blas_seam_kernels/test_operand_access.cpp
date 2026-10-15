@@ -53,7 +53,7 @@ namespace SushiBLAS
         /// @brief The same matrix in column-major order.
         constexpr std::array<float, 6> K_COLUMN_MAJOR_MATRIX = {1.0f, 4.0f, 2.0f, 5.0f, 3.0f, 6.0f};
 
-        TEST(Unit_OperandAccess, RowMajorUntransposedStepsARowByTheLeadingDimension)
+        TEST(Small_OperandAccess, RowMajorUntransposedStepsARowByTheLeadingDimension)
         {
             const Kernels::OperandAccess access = Kernels::operand_access(
                 Core::Layout::RowMajor, Core::Transpose::NoTrans, K_LEADING_DIMENSION);
@@ -62,7 +62,7 @@ namespace SushiBLAS
             EXPECT_EQ(access.col, 1);
         }
 
-        TEST(Unit_OperandAccess, RowMajorTransposedStepsAColumnByTheLeadingDimension)
+        TEST(Small_OperandAccess, RowMajorTransposedStepsAColumnByTheLeadingDimension)
         {
             const Kernels::OperandAccess access = Kernels::operand_access(
                 Core::Layout::RowMajor, Core::Transpose::Trans, K_LEADING_DIMENSION);
@@ -71,7 +71,7 @@ namespace SushiBLAS
             EXPECT_EQ(access.col, K_LEADING_DIMENSION);
         }
 
-        TEST(Unit_OperandAccess, ColumnMajorUntransposedStepsAColumnByTheLeadingDimension)
+        TEST(Small_OperandAccess, ColumnMajorUntransposedStepsAColumnByTheLeadingDimension)
         {
             const Kernels::OperandAccess access = Kernels::operand_access(
                 Core::Layout::ColumnMajor, Core::Transpose::NoTrans, K_LEADING_DIMENSION);
@@ -80,7 +80,7 @@ namespace SushiBLAS
             EXPECT_EQ(access.col, K_LEADING_DIMENSION);
         }
 
-        TEST(Unit_OperandAccess, ColumnMajorTransposedStepsARowByTheLeadingDimension)
+        TEST(Small_OperandAccess, ColumnMajorTransposedStepsARowByTheLeadingDimension)
         {
             const Kernels::OperandAccess access = Kernels::operand_access(
                 Core::Layout::ColumnMajor, Core::Transpose::Trans, K_LEADING_DIMENSION);
@@ -89,7 +89,7 @@ namespace SushiBLAS
             EXPECT_EQ(access.col, 1);
         }
 
-        TEST(Unit_OperandAccess, ConjugateTransposeHasTheStridesOfTransposeAndConjugates)
+        TEST(Small_OperandAccess, ConjugateTransposeHasTheStridesOfTransposeAndConjugates)
         {
             for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
             {
@@ -105,7 +105,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_OperandAccess, UntransposedAccessDoesNotConjugate)
+        TEST(Small_OperandAccess, UntransposedAccessDoesNotConjugate)
         {
             for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
             {
@@ -116,7 +116,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_OperandAccess, IndexCombinesBothStrides)
+        TEST(Small_OperandAccess, IndexCombinesBothStrides)
         {
             const Kernels::OperandAccess access{K_LEADING_DIMENSION, 1, false};
 
@@ -125,7 +125,7 @@ namespace SushiBLAS
             EXPECT_EQ(access.transposed().index(2, 3), 2 + 3 * K_LEADING_DIMENSION);
         }
 
-        TEST(Unit_OperandAccess, AtReadsTheSameElementFromBothLayouts)
+        TEST(Small_OperandAccess, AtReadsTheSameElementFromBothLayouts)
         {
             const Kernels::OperandAccess row_major = Kernels::operand_access(
                 Core::Layout::RowMajor, Core::Transpose::NoTrans, K_STORED_COLS);
@@ -144,7 +144,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_OperandAccess, AtReadsTheTransposeFromBothLayouts)
+        TEST(Small_OperandAccess, AtReadsTheTransposeFromBothLayouts)
         {
             const Kernels::OperandAccess row_major = Kernels::operand_access(
                 Core::Layout::RowMajor, Core::Transpose::Trans, K_STORED_COLS);
@@ -163,7 +163,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_OperandAccess, AtConjugatesAComplexElement)
+        TEST(Small_OperandAccess, AtConjugatesAComplexElement)
         {
             const std::array<std::complex<double>, 2> elements = {
                 std::complex<double>(1.0, 2.0), std::complex<double>(3.0, -4.0)};
@@ -175,7 +175,7 @@ namespace SushiBLAS
             EXPECT_EQ(conjugating.at(elements.data(), 0, 0), std::complex<double>(1.0, -2.0));
         }
 
-        TEST(Unit_OperandAccess, AtLeavesARealElementUnderAConjugatingAccess)
+        TEST(Small_OperandAccess, AtLeavesARealElementUnderAConjugatingAccess)
         {
             const std::array<double, 2> elements = {1.5, -2.5};
             const Kernels::OperandAccess conjugating{1, 1, true};
@@ -184,7 +184,7 @@ namespace SushiBLAS
             EXPECT_EQ(conjugating.at(elements.data(), 0, 1), -2.5);
         }
 
-        TEST(Unit_OperandAccess, TransposedSwapsTheStridesAndKeepsTheConjugation)
+        TEST(Small_OperandAccess, TransposedSwapsTheStridesAndKeepsTheConjugation)
         {
             const Kernels::OperandAccess access{K_LEADING_DIMENSION, 1, true};
             const Kernels::OperandAccess swapped = access.transposed();
@@ -196,7 +196,7 @@ namespace SushiBLAS
                              .transposed().conjugated);
         }
 
-        TEST(Unit_OperandAccess, ResolvesAtCompileTime)
+        TEST(Small_OperandAccess, ResolvesAtCompileTime)
         {
             constexpr Kernels::OperandAccess access = Kernels::operand_access(
                 Core::Layout::RowMajor, Core::Transpose::ConjTrans, K_LEADING_DIMENSION);

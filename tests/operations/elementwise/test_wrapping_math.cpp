@@ -40,7 +40,7 @@ namespace SushiBLAS
         /// @brief The smallest INT32.
         constexpr int32_t K_MIN32 = std::numeric_limits<int32_t>::min();
 
-        TEST(Unit_WrappingMath, IntegersWrapAroundTheirWidth)
+        TEST(Small_WrappingMath, IntegersWrapAroundTheirWidth)
         {
             EXPECT_EQ(Dispatch::wrapping_add(K_MAX32, int32_t{1}), K_MIN32);
             EXPECT_EQ(Dispatch::wrapping_sub(K_MIN32, int32_t{1}), K_MAX32);
@@ -50,7 +50,7 @@ namespace SushiBLAS
             EXPECT_EQ(Dispatch::wrapping_abs(int64_t{-5}), int64_t{5});
         }
 
-        TEST(Unit_WrappingMath, FloatingValuesFollowPlainArithmetic)
+        TEST(Small_WrappingMath, FloatingValuesFollowPlainArithmetic)
         {
             EXPECT_EQ(Dispatch::wrapping_add(1.5, 2.25), 3.75);
             EXPECT_EQ(Dispatch::wrapping_sub(1.0f, 4.0f), -3.0f);

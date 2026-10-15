@@ -35,7 +35,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_SparseKernels, TheStructureCheckAndAReferenceKernelAreReachable)
+        TEST(Small_SparseKernels, TheStructureCheckAndAReferenceKernelAreReachable)
         {
             const std::vector<int64_t> offsets{0, 1, 2};
             const std::vector<int64_t> columns{1, 0};

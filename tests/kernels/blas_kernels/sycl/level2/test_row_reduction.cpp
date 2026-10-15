@@ -52,7 +52,7 @@ namespace SushiBLAS
         /// @brief The group width the folds run at; a power of two, as the kernel requires.
         constexpr std::size_t K_WIDTH = 16;
 
-        TEST(Unit_RowReduction, ARowShorterThanTheStagedThresholdIsNotSplit)
+        TEST(Medium_RowReduction, ARowShorterThanTheStagedThresholdIsNotSplit)
         {
             Device::Profile cpu;
             cpu.is_cpu = true;
@@ -65,7 +65,7 @@ namespace SushiBLAS
                       Reduce::group_width(cpu));
         }
 
-        TEST(Unit_RowReduction, TheWindowsCoverAWholeRowOrOneTriangle)
+        TEST(Medium_RowReduction, TheWindowsCoverAWholeRowOrOneTriangle)
         {
             const Rows::RowWindow whole = Rows::WholeRow{K_COLUMNS}(3);
             const Rows::RowWindow upper = Rows::TriangleRow{10, true}(3);
@@ -80,12 +80,12 @@ namespace SushiBLAS
         }
 
         /** @brief Runs the group folds on the host CPU queue. */
-        class Device_RowReduction : public HostDeviceTest
+        class Medium_RowReductionOnDevice : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_RowReduction, AGroupFoldsEveryRowToItsSum)
+        TEST_F(Medium_RowReductionOnDevice, AGroupFoldsEveryRowToItsSum)
         {
             const std::vector<double> values = small_integers<double>(K_ROWS * K_COLUMNS, 1);
             const SharedArray<double> matrix(queue(), values);
@@ -110,7 +110,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Device_RowReduction, ATriangleWindowFoldsOnlyItsColumns)
+        TEST_F(Medium_RowReductionOnDevice, ATriangleWindowFoldsOnlyItsColumns)
         {
             const int64_t order = K_ROWS;
             SharedArray<double> sums(queue(), static_cast<std::size_t>(order));

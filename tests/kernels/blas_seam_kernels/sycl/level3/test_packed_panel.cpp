@@ -257,17 +257,17 @@ namespace SushiBLAS
          * @tparam T The stored element type; the panel holds reals of Accumulator<T>.
          */
         template<typename T>
-        class Unit_PackedPanel : public ::testing::Test
+        class Medium_PackedPanel : public ::testing::Test
         {
 
         };
 
         using PackedPanelTypes =
             ::testing::Types<sycl::half, float, std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_PackedPanel, PackedPanelTypes);
+        SB_TYPED_TEST_SUITE(Medium_PackedPanel, PackedPanelTypes);
 
         /** @brief Tests that lines are grouped into micro-panels and terms into slices. */
-        TYPED_TEST(Unit_PackedPanel, LinesAreGroupedAndTermsAreSlices)
+        TYPED_TEST(Medium_PackedPanel, LinesAreGroupedAndTermsAreSlices)
         {
             using T = TypeParam;
 
@@ -279,7 +279,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the storage order of the source does not change the panel. */
-        TYPED_TEST(Unit_PackedPanel, BothStorageOrdersGiveTheSamePanel)
+        TYPED_TEST(Medium_PackedPanel, BothStorageOrdersGiveTheSamePanel)
         {
             using T = TypeParam;
 
@@ -300,7 +300,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a panel of columns holds element (term, line) of the source. */
-        TYPED_TEST(Unit_PackedPanel, ColumnLinesReadTheSecondFactor)
+        TYPED_TEST(Medium_PackedPanel, ColumnLinesReadTheSecondFactor)
         {
             using T = TypeParam;
 
@@ -310,7 +310,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that an access brick whose only member is `at` is packed. */
-        TYPED_TEST(Unit_PackedPanel, ABrickWithOnlyAtIsPacked)
+        TYPED_TEST(Medium_PackedPanel, ABrickWithOnlyAtIsPacked)
         {
             using T = TypeParam;
 
@@ -330,7 +330,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a conjugated access negates the imaginary plane and no other. */
-        TYPED_TEST(Unit_PackedPanel, AConjugatedAccessNegatesTheImaginaryPlane)
+        TYPED_TEST(Medium_PackedPanel, AConjugatedAccessNegatesTheImaginaryPlane)
         {
             using T = TypeParam;
             using W = Kernels::Accumulator<T>;
@@ -353,7 +353,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a slice is Width real parts followed by Width imaginary parts. */
-        TYPED_TEST(Unit_PackedPanel, ComplexPartsAreStoredInPlanes)
+        TYPED_TEST(Medium_PackedPanel, ComplexPartsAreStoredInPlanes)
         {
             using T = TypeParam;
             using W = Kernels::Accumulator<T>;
@@ -374,7 +374,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the panel holds reals of Accumulator<T> and converts each exactly. */
-        TYPED_TEST(Unit_PackedPanel, HalfIsPackedAsFloat)
+        TYPED_TEST(Medium_PackedPanel, HalfIsPackedAsFloat)
         {
             using T = TypeParam;
             using R = Kernels::RealType<Kernels::Accumulator<T>>;
@@ -393,7 +393,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the real after the last micro-panel is left alone. */
-        TYPED_TEST(Unit_PackedPanel, NothingIsWrittenPastThePanel)
+        TYPED_TEST(Medium_PackedPanel, NothingIsWrittenPastThePanel)
         {
             using T = TypeParam;
             using R = Kernels::RealType<Kernels::Accumulator<T>>;
@@ -415,7 +415,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a panel of no lines, or of no terms, writes no real. */
-        TYPED_TEST(Unit_PackedPanel, ACountOrADepthOfZeroWritesNothing)
+        TYPED_TEST(Medium_PackedPanel, ACountOrADepthOfZeroWritesNothing)
         {
             using T = TypeParam;
             using R = Kernels::RealType<Kernels::Accumulator<T>>;

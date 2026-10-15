@@ -41,14 +41,14 @@ namespace SushiBLAS
         /// @brief Five values whose sum, extremes and positions are worked out by hand.
         const std::vector<double> K_VALUES{2.0, -3.0, 5.0, 1.0, 5.0};
 
-        TEST(Unit_SerialReductions, SumMeanAndProductOfFiveValues)
+        TEST(Small_SerialReductions, SumMeanAndProductOfFiveValues)
         {
             EXPECT_EQ(ReferenceKernels::sum(K_VALUES), 10.0);
             EXPECT_EQ(ReferenceKernels::mean(K_VALUES), 2.0);
             EXPECT_EQ(ReferenceKernels::prod(K_VALUES), -150.0);
         }
 
-        TEST(Unit_SerialReductions, ExtremesAndTheFirstPositionOfEach)
+        TEST(Small_SerialReductions, ExtremesAndTheFirstPositionOfEach)
         {
             EXPECT_EQ(ReferenceKernels::max(K_VALUES), 5.0);
             EXPECT_EQ(ReferenceKernels::min(K_VALUES), -3.0);
@@ -56,7 +56,7 @@ namespace SushiBLAS
             EXPECT_EQ(ReferenceKernels::argmin(K_VALUES), 1.0);
         }
 
-        TEST(Unit_SerialReductions, SpreadAndNorms)
+        TEST(Small_SerialReductions, SpreadAndNorms)
         {
             EXPECT_NEAR(ReferenceKernels::var(K_VALUES), 8.8, K_TOLERANCE);
             EXPECT_NEAR(ReferenceKernels::std_dev(K_VALUES), std::sqrt(8.8), K_TOLERANCE);
@@ -64,14 +64,14 @@ namespace SushiBLAS
             EXPECT_EQ(ReferenceKernels::nrm2(std::vector<double>{3.0, 4.0}), 5.0);
         }
 
-        TEST(Unit_SerialReductions, LogSumExpShiftsByTheMaximum)
+        TEST(Small_SerialReductions, LogSumExpShiftsByTheMaximum)
         {
             const std::vector<double> large{1000.0, 1000.0};
 
             EXPECT_NEAR(ReferenceKernels::logsumexp(large), 1000.0 + std::log(2.0), K_TOLERANCE);
         }
 
-        TEST(Unit_SerialReductions, AnEmptyInputGivesEachIdentity)
+        TEST(Small_SerialReductions, AnEmptyInputGivesEachIdentity)
         {
             const std::vector<double> empty;
 

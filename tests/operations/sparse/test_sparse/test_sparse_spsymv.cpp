@@ -191,7 +191,7 @@ namespace SushiBLAS
          *        execution mode.
          */
         template<typename TypeParam>
-        class Unit_SparseSpsymvTest : public SushiBLASTest
+        class Medium_SparseSpsymvTest : public SushiBLASTest
         {
             protected:
                 /** @brief The element type under test. */
@@ -272,9 +272,9 @@ namespace SushiBLAS
                 }
         };
 
-        SB_TYPED_TEST_SUITE(Unit_SparseSpsymvTest, SparseCases);
+        SB_TYPED_TEST_SUITE(Medium_SparseSpsymvTest, SparseCases);
 
-        TYPED_TEST(Unit_SparseSpsymvTest, EitherStoredTriangleGivesTheProductOfTheSample)
+        TYPED_TEST(Medium_SparseSpsymvTest, EitherStoredTriangleGivesTheProductOfTheSample)
         {
             const Wide x = counting(4, 1.0);
             const Wide zeros(4, std::complex<double>(0.0, 0.0));
@@ -305,7 +305,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpsymvTest, AMatrixStoredInFullGivesTheSameUnderEitherUplo)
+        TYPED_TEST(Medium_SparseSpsymvTest, AMatrixStoredInFullGivesTheSameUnderEitherUplo)
         {
             using T = typename TypeParam::Value;
 
@@ -325,7 +325,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpsymvTest, TheOtherTriangleIsNotRead)
+        TYPED_TEST(Medium_SparseSpsymvTest, TheOtherTriangleIsNotRead)
         {
             using T = typename TypeParam::Value;
 
@@ -348,7 +348,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpsymvTest, ABetaOfZeroDoesNotReadY)
+        TYPED_TEST(Medium_SparseSpsymvTest, ABetaOfZeroDoesNotReadY)
         {
             const double nan = std::numeric_limits<double>::quiet_NaN();
             const Wide x = counting(4, 1.0);
@@ -368,7 +368,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpsymvTest, SphemvConjugatesTheMirrorAndReadsARealDiagonal)
+        TYPED_TEST(Medium_SparseSpsymvTest, SphemvConjugatesTheMirrorAndReadsARealDiagonal)
         {
             using T = typename TypeParam::Value;
 
@@ -403,7 +403,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpsymvTest, OnARealTensorSphemvHoldsTheBitsOfSpsymv)
+        TYPED_TEST(Medium_SparseSpsymvTest, OnARealTensorSphemvHoldsTheBitsOfSpsymv)
         {
             using T = typename TypeParam::Value;
 
@@ -435,7 +435,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpsymvTest, IntegerDataIsExactInBothModesForEitherTriangle)
+        TYPED_TEST(Medium_SparseSpsymvTest, IntegerDataIsExactInBothModesForEitherTriangle)
         {
             using T = typename TypeParam::Value;
 
@@ -464,7 +464,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpsymvTest, AMatrixOfOrderZeroRecordsAndRuns)
+        TYPED_TEST(Medium_SparseSpsymvTest, AMatrixOfOrderZeroRecordsAndRuns)
         {
             using T = typename TypeParam::Value;
 
@@ -486,12 +486,12 @@ namespace SushiBLAS
         /**
          * @brief Runs the HALF product whose mirrored sum a HALF accumulator would round away.
          */
-        class Unit_SparseSpsymvHalf : public Unit_SparseSpsymvTest<SparseCase<sycl::half, int64_t>>
+        class Medium_SparseSpsymvHalf : public Medium_SparseSpsymvTest<SparseCase<sycl::half, int64_t>>
         {
 
         };
 
-        TEST_F(Unit_SparseSpsymvHalf, TheMirroredEntriesAreSummedInFloat32)
+        TEST_F(Medium_SparseSpsymvHalf, TheMirroredEntriesAreSummedInFloat32)
         {
             // Column 0 holds 2048, 1 and -2048 below the diagonal; their mirrors all land on y[0].
             HostTriplets<sycl::half> lower;
@@ -516,7 +516,7 @@ namespace SushiBLAS
         /**
          * @brief Calls the symmetric SYCL kernel with a block count the test chooses.
          */
-        class Unit_SparseSpsymvKernel : public SushiBLASTest
+        class Medium_SparseSpsymvKernel : public SushiBLASTest
         {
             protected:
                 /** @brief Returns A * x from the SYCL kernel run with blocks row blocks. */
@@ -545,7 +545,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_SparseSpsymvKernel, EveryBlockCountGivesTheExactIntegerResult)
+        TEST_F(Medium_SparseSpsymvKernel, EveryBlockCountGivesTheExactIntegerResult)
         {
             const HostTriplets<float> lower = lower_part(integer_valued_matrix<float>(
                 K_EXACT_ORDER, K_EXACT_ORDER, K_EXACT_PER_ROW, K_EXACT_SEED));

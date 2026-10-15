@@ -52,7 +52,7 @@ namespace SushiBLAS
             }
         } // namespace
 
-        TEST(Regression_LoggerDeathTest, AssertWritesItsMessageBeforeAborting)
+        TEST(Medium_LoggerDeathTest, AssertWritesItsMessageBeforeAborting)
         {
 #ifdef NDEBUG
             GTEST_SKIP() << "SB_ASSERT compiles to nothing under NDEBUG; run this in a debug build.";
@@ -76,7 +76,7 @@ namespace SushiBLAS
 #endif
         }
 
-        TEST(Regression_Logger, FlushReturnsAfterEveryQueuedLineIsWritten)
+        TEST(Medium_Logger, FlushReturnsAfterEveryQueuedLineIsWritten)
         {
             constexpr int K_LINES = 256;
 
@@ -92,7 +92,7 @@ namespace SushiBLAS
                 << "flush() returned while lines were still queued or being written.";
         }
 
-        TEST(Regression_Logger, ShutdownWritesEveryQueuedLineAndReturns)
+        TEST(Medium_Logger, ShutdownWritesEveryQueuedLineAndReturns)
         {
             constexpr int K_ROUNDS = 2000;
 

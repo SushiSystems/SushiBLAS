@@ -32,9 +32,9 @@
 using namespace SushiBLAS::Test;
 
 // We will cluster some similar initialization tests to satisfy requirements while being lean.
-class Unit_InitializersTest : public SushiBLASTest {};
+class Medium_InitializersTest : public SushiBLASTest {};
 
-TEST_F(Unit_InitializersTest, XavierUniform) 
+TEST_F(Medium_InitializersTest, XavierUniform) 
 {
     const int N = 10;
     auto t = engine->create_tensor({N, N});
@@ -49,7 +49,7 @@ TEST_F(Unit_InitializersTest, XavierUniform)
     }
 }
 
-TEST_F(Unit_InitializersTest, XavierNormal) 
+TEST_F(Medium_InitializersTest, XavierNormal) 
 {
     const int N = 10;
     auto t = engine->create_tensor({N, N});
@@ -62,7 +62,7 @@ TEST_F(Unit_InitializersTest, XavierNormal)
     }
 }
 
-TEST_F(Unit_InitializersTest, HeUniform) 
+TEST_F(Medium_InitializersTest, HeUniform) 
 {
     const int N = 10;
     auto t = engine->create_tensor({N, N});
@@ -77,7 +77,7 @@ TEST_F(Unit_InitializersTest, HeUniform)
     }
 }
 
-TEST_F(Unit_InitializersTest, HeNormal) 
+TEST_F(Medium_InitializersTest, HeNormal) 
 {
     const int N = 10;
     auto t = engine->create_tensor({N, N});

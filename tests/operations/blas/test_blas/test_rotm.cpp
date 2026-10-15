@@ -205,14 +205,14 @@ namespace SushiBLAS
 
         /** @brief Runs rotm over the real element types. */
         template<typename T>
-        class Unit_Rotm : public RotmCases<T>
+        class Medium_Rotm : public RotmCases<T>
         {
 
         };
 
         /** @brief Runs rotm after rotmg over the element types rotmg accepts. */
         template<typename T>
-        class Unit_RotmChained : public RotmCases<T>
+        class Medium_RotmChained : public RotmCases<T>
         {
 
         };
@@ -221,14 +221,14 @@ namespace SushiBLAS
         using RotmTypes = ::testing::Types<sycl::half, float, double>;
         /// @brief Names the element types both rotm and rotmg accept.
         using RotmChainedTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_Rotm, RotmTypes);
-        SB_TYPED_TEST_SUITE(Unit_RotmChained, RotmChainedTypes);
+        SB_TYPED_TEST_SUITE(Medium_Rotm, RotmTypes);
+        SB_TYPED_TEST_SUITE(Medium_RotmChained, RotmChainedTypes);
 
         /**
          * @brief Tests each flag against its hand-computed result; an implied slot holds
          *        K_UNREAD.
          */
-        TYPED_TEST(Unit_Rotm, EachFlagAppliesOnlyTheEntriesItDoesNotImply)
+        TYPED_TEST(Medium_Rotm, EachFlagAppliesOnlyTheEntriesItDoesNotImply)
         {
             using T = TypeParam;
 
@@ -259,7 +259,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that flag -2 writes nothing: an infinity stays and makes no NaN.
          */
-        TYPED_TEST(Unit_Rotm, TheIdentityFlagLeavesAnInfinityAlone)
+        TYPED_TEST(Medium_Rotm, TheIdentityFlagLeavesAnInfinityAlone)
         {
             using T = TypeParam;
             const double identity[K_PARAMETERS] = {-2.0, K_UNREAD, K_UNREAD, K_UNREAD, K_UNREAD};
@@ -294,7 +294,7 @@ namespace SushiBLAS
          * @brief Tests that a view of every second element is transformed and the elements
          *        between are left as they were.
          */
-        TYPED_TEST(Unit_Rotm, StridedVectorsLeaveTheSkippedElementsAlone)
+        TYPED_TEST(Medium_Rotm, StridedVectorsLeaveTheSkippedElementsAlone)
         {
             using T = TypeParam;
             const double x_values[] = {1.0, K_SKIPPED_IN_X, 2.0, K_SKIPPED_IN_X};
@@ -327,7 +327,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that vectors of no elements record and run.
          */
-        TYPED_TEST(Unit_Rotm, AnEmptyPairRecordsAndRuns)
+        TYPED_TEST(Medium_Rotm, AnEmptyPairRecordsAndRuns)
         {
             using T = TypeParam;
 
@@ -353,7 +353,7 @@ namespace SushiBLAS
          * @brief Tests that the two kernels give the same elements on K_LARGE_LENGTH pairs
          *        under a full H.
          */
-        TYPED_TEST(Unit_Rotm, BothModesAgreeElementForElement)
+        TYPED_TEST(Medium_Rotm, BothModesAgreeElementForElement)
         {
             using T = TypeParam;
             std::mt19937 generator(K_SEED);
@@ -404,7 +404,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that rotm reads the param an earlier rotmg of the same graph writes.
          */
-        TYPED_TEST(Unit_RotmChained, AParamWrittenByRotmgIsRead)
+        TYPED_TEST(Medium_RotmChained, AParamWrittenByRotmgIsRead)
         {
             using T = TypeParam;
             const double unwritten[K_PARAMETERS] = {K_UNREAD, K_UNREAD, K_UNREAD, K_UNREAD,

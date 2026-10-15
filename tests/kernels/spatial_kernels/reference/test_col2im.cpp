@@ -40,7 +40,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceCol2Im, IsTheAdjointOfIm2Col)
+        TEST(Small_ReferenceCol2Im, IsTheAdjointOfIm2Col)
         {
             // <im2col(x), y> equals <x, col2im(y)>; on small integers both sides are exact.
             const Spatial::WindowSpan span = nhwc_span(2, 6, 5, 2, uneven_geometry(), 1);
@@ -57,7 +57,7 @@ namespace SushiBLAS
                       std::inner_product(x.begin(), x.end(), folded.begin(), 0.0));
         }
 
-        TEST(Unit_ReferenceCol2Im, OnesFoldIntoTheOverlapCountOfEachPixel)
+        TEST(Small_ReferenceCol2Im, OnesFoldIntoTheOverlapCountOfEachPixel)
         {
             Spatial::ConvGeometry geometry;
             geometry.kernel_h = 2;

@@ -43,12 +43,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs syr2 on the host CPU queue. */
-        class Device_SYCLSyr2 : public HostDeviceTest
+        class Medium_SYCLSyr2 : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLSyr2, MatchesTheReferenceForBothTrianglesAndLayouts)
+        TEST_F(Medium_SYCLSyr2, MatchesTheReferenceForBothTrianglesAndLayouts)
         {
             const int64_t n = 41;
             const std::vector<double> x = small_integers<double>(n, 2);

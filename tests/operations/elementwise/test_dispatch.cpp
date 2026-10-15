@@ -521,7 +521,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Records operation calls under both forced modes and compares what they wrote. */
-        class Unit_FunctorReference : public SushiBLASTest
+        class Medium_FunctorReference : public SushiBLASTest
         {
             protected:
                 /** @brief Reports whether the test device computes in HALF. */
@@ -752,21 +752,21 @@ namespace SushiBLAS
         };
 
         /** @brief Tests that the operations built from exact arithmetic agree to the bit. */
-        TEST_F(Unit_FunctorReference, ExactOperationsAgreeToTheBit)
+        TEST_F(Medium_FunctorReference, ExactOperationsAgreeToTheBit)
         {
             expect_exact_operations_agree<float>();
             expect_exact_operations_agree<double>();
         }
 
         /** @brief Tests that integer operations agree to the bit, wrapping included. */
-        TEST_F(Unit_FunctorReference, IntegerOperationsAgreeToTheBit)
+        TEST_F(Medium_FunctorReference, IntegerOperationsAgreeToTheBit)
         {
             expect_integer_operations_agree<int32_t>();
             expect_integer_operations_agree<int64_t>();
         }
 
         /** @brief Tests that convert agrees to the bit for each ordered pair of real dtypes. */
-        TEST_F(Unit_FunctorReference, ConvertAgreesToTheBit)
+        TEST_F(Medium_FunctorReference, ConvertAgreesToTheBit)
         {
             expect_convert_agrees<float, double>();
             expect_convert_agrees<double, float>();
@@ -781,7 +781,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that HALF arithmetic agrees to the bit on normal and zero results. */
-        TEST_F(Unit_FunctorReference, HalfOperationsAgreeOutsideTheSubnormalRange)
+        TEST_F(Medium_FunctorReference, HalfOperationsAgreeOutsideTheSubnormalRange)
         {
             if (!device_has_fp16())
                 GTEST_SKIP() << "the device does not report the fp16 aspect";
@@ -798,14 +798,14 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the math-library operations agree within their own tolerance. */
-        TEST_F(Unit_FunctorReference, MathOperationsAgreeWithinTheirOwnTolerance)
+        TEST_F(Medium_FunctorReference, MathOperationsAgreeWithinTheirOwnTolerance)
         {
             expect_math_operations_agree<float>();
             expect_math_operations_agree<double>();
         }
 
         /** @brief Tests that a fused update over 100 000 elements agrees to the bit. */
-        TEST_F(Unit_FunctorReference, AFusedUpdateAgreesToTheBit)
+        TEST_F(Medium_FunctorReference, AFusedUpdateAgreesToTheBit)
         {
             const std::vector<float> y_values = signed_pattern<float>(K_FUSED_ELEMENTS);
             const std::vector<float> x_values = offset_pattern<float>(K_FUSED_ELEMENTS, 3.0);
@@ -835,7 +835,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that Auto takes the device-only operand that ForceReference refuses. */
-        TEST_F(Unit_FunctorReference, AutoRunsTheSYCLPath)
+        TEST_F(Medium_FunctorReference, AutoRunsTheSYCLPath)
         {
             std::optional<Tensor> a = device_only_vector(4);
             if (!a)
@@ -864,7 +864,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that add over empty tensors records no task under either forced mode. */
-        TEST_F(Unit_FunctorReference, AnEmptyTensorRecordsNothingInEitherMode)
+        TEST_F(Medium_FunctorReference, AnEmptyTensorRecordsNothingInEitherMode)
         {
             for (const ExecutionMode mode : K_FORCED_MODES)
             {

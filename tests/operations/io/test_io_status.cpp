@@ -37,7 +37,7 @@ namespace SushiBLAS
     {
         static_assert(static_cast<std::uint8_t>(IOStatus::Ok) == 0, "Ok is the zero value.");
 
-        TEST(Unit_IOStatus, EveryStatusHasItsOwnName)
+        TEST(Small_IOStatus, EveryStatusHasItsOwnName)
         {
             const IOStatus statuses[] = {
                 IOStatus::Ok,            IOStatus::FileUnreadable, IOStatus::FileUnwritable,

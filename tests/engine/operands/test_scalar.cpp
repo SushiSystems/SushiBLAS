@@ -53,7 +53,7 @@ namespace SushiBLAS
         /// @brief The smallest positive HALF value.
         constexpr double K_SMALLEST_HALF = 1.0 / 16777216.0;
 
-        TEST(Unit_BlasScalar, RealAndComplexDoubleConvertImplicitly)
+        TEST(Medium_BlasScalar, RealAndComplexDoubleConvertImplicitly)
         {
             static_assert(std::is_convertible_v<float, BLASScalar>, "float converts.");
             static_assert(std::is_convertible_v<int, BLASScalar>, "int converts.");
@@ -67,12 +67,12 @@ namespace SushiBLAS
             EXPECT_TRUE((std::is_convertible_v<std::complex<double>, BLASScalar>));
         }
 
-        TEST(Unit_BlasScalar, ComplexFloatDoesNotConvertImplicitly)
+        TEST(Medium_BlasScalar, ComplexFloatDoesNotConvertImplicitly)
         {
             EXPECT_FALSE((std::is_convertible_v<std::complex<float>, BLASScalar>));
         }
 
-        TEST(Unit_BlasScalar, ARealValueKeepsItsValueAndAZeroImaginaryPart)
+        TEST(Medium_BlasScalar, ARealValueKeepsItsValueAndAZeroImaginaryPart)
         {
             const BLASScalar from_float = 1.5f;
             const BLASScalar from_int = 3;
@@ -86,7 +86,7 @@ namespace SushiBLAS
             EXPECT_EQ(from_double.imag(), 0.0);
         }
 
-        TEST(Unit_BlasScalar, AComplexValueKeepsBothParts)
+        TEST(Medium_BlasScalar, AComplexValueKeepsBothParts)
         {
             const BLASScalar scalar = std::complex<double>(1.5, -2.25);
 
@@ -94,7 +94,7 @@ namespace SushiBLAS
             EXPECT_EQ(scalar.imag(), -2.25);
         }
 
-        TEST(Unit_BlasScalar, AsReturnsTheValueInEachRealType)
+        TEST(Medium_BlasScalar, AsReturnsTheValueInEachRealType)
         {
             const BLASScalar scalar = 1.5;
 
@@ -103,7 +103,7 @@ namespace SushiBLAS
             EXPECT_EQ(static_cast<float>(scalar.as<sycl::half>()), 1.5f);
         }
 
-        TEST(Unit_BlasScalar, AsRoundsADoubleOnceToFloat)
+        TEST(Medium_BlasScalar, AsRoundsADoubleOnceToFloat)
         {
             const BLASScalar scalar = K_INEXACT_IN_HALF;
 
@@ -111,7 +111,7 @@ namespace SushiBLAS
             EXPECT_EQ(scalar.as<double>(), K_INEXACT_IN_HALF);
         }
 
-        TEST(Unit_BlasScalar, AsReturnsBothPartsInEachComplexType)
+        TEST(Medium_BlasScalar, AsReturnsBothPartsInEachComplexType)
         {
             const BLASScalar scalar = std::complex<double>(1.5, -2.25);
 
@@ -119,7 +119,7 @@ namespace SushiBLAS
             EXPECT_EQ(scalar.as<std::complex<double>>(), std::complex<double>(1.5, -2.25));
         }
 
-        TEST(Unit_BlasScalar, AsGivesARealScalarAZeroImaginaryPartInAComplexType)
+        TEST(Medium_BlasScalar, AsGivesARealScalarAZeroImaginaryPartInAComplexType)
         {
             const BLASScalar scalar = 1.5;
 
@@ -127,7 +127,7 @@ namespace SushiBLAS
             EXPECT_EQ(scalar.as<std::complex<double>>(), std::complex<double>(1.5, 0.0));
         }
 
-        TEST(Unit_BlasScalar, AsHalfRoundsThroughFloat)
+        TEST(Medium_BlasScalar, AsHalfRoundsThroughFloat)
         {
             for (const double value : {K_INEXACT_IN_HALF, K_LARGEST_HALF, K_BELOW_HALF_RANGE})
             {
@@ -140,7 +140,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_BlasScalar, AsHalfKeepsTheLargestHalfExactly)
+        TEST(Medium_BlasScalar, AsHalfKeepsTheLargestHalfExactly)
         {
             const BLASScalar scalar = K_LARGEST_HALF;
 
@@ -148,7 +148,7 @@ namespace SushiBLAS
                       K_LARGEST_HALF);
         }
 
-        TEST(Unit_BlasScalar, AsHalfLandsOnANeighbourOfAnInexactValue)
+        TEST(Medium_BlasScalar, AsHalfLandsOnANeighbourOfAnInexactValue)
         {
             const BLASScalar scalar = K_INEXACT_IN_HALF;
             const double rounded = static_cast<double>(static_cast<float>(scalar.as<sycl::half>()));
@@ -156,7 +156,7 @@ namespace SushiBLAS
             EXPECT_LE(std::fabs(rounded - K_INEXACT_IN_HALF), K_HALF_SPACING_AT_INEXACT);
         }
 
-        TEST(Unit_BlasScalar, AsHalfTakesAValueBelowTheRangeToZeroOrTheSmallestHalf)
+        TEST(Medium_BlasScalar, AsHalfTakesAValueBelowTheRangeToZeroOrTheSmallestHalf)
         {
             const BLASScalar scalar = K_BELOW_HALF_RANGE;
             const double rounded = static_cast<double>(static_cast<float>(scalar.as<sycl::half>()));
@@ -165,7 +165,7 @@ namespace SushiBLAS
             EXPECT_LE(rounded, K_SMALLEST_HALF);
         }
 
-        TEST(Unit_BlasScalar, IsRealHoldsForAZeroImaginaryPart)
+        TEST(Medium_BlasScalar, IsRealHoldsForAZeroImaginaryPart)
         {
             EXPECT_TRUE(BLASScalar(2.0).is_real());
             EXPECT_TRUE(BLASScalar(std::complex<double>(2.0, 0.0)).is_real());
@@ -173,14 +173,14 @@ namespace SushiBLAS
             EXPECT_FALSE(BLASScalar(std::complex<double>(2.0, 1e-300)).is_real());
         }
 
-        TEST(Unit_BlasScalar, IsRealFailsForANanImaginaryPart)
+        TEST(Medium_BlasScalar, IsRealFailsForANanImaginaryPart)
         {
             const double nan = std::numeric_limits<double>::quiet_NaN();
 
             EXPECT_FALSE(BLASScalar(std::complex<double>(1.0, nan)).is_real());
         }
 
-        TEST(Unit_BlasScalar, IsZeroHoldsOnlyWhenBothPartsAreZero)
+        TEST(Medium_BlasScalar, IsZeroHoldsOnlyWhenBothPartsAreZero)
         {
             EXPECT_TRUE(BLASScalar(0.0).is_zero());
             EXPECT_TRUE(BLASScalar(-0.0).is_zero());
@@ -189,7 +189,7 @@ namespace SushiBLAS
             EXPECT_FALSE(BLASScalar(std::complex<double>(0.0, 1e-300)).is_zero());
         }
 
-        TEST(Unit_BlasScalar, IsZeroFailsForANanPart)
+        TEST(Medium_BlasScalar, IsZeroFailsForANanPart)
         {
             const double nan = std::numeric_limits<double>::quiet_NaN();
 

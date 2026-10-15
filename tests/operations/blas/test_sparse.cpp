@@ -42,12 +42,12 @@ namespace SushiBLAS
                       "SparseBLAS has no engine-free form.");
 
         /** @brief Builds the facade over the fixture's engine. */
-        class Unit_SparseBLAS : public SushiBLASTest
+        class Medium_SparseBLAS : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_SparseBLAS, IsBuiltOverAnEngine)
+        TEST_F(Medium_SparseBLAS, IsBuiltOverAnEngine)
         {
             const SparseBLAS sparse(*engine);
 

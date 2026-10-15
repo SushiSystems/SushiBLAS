@@ -62,7 +62,7 @@ namespace SushiBLAS
          * @brief Holds the operands of the ChannelBiasEpilogue tests run through execute_gemm.
          * @see tests/operations/blas/README.md
          */
-        class Unit_ChannelBiasEpilogueTest : public SushiBLASTest
+        class Medium_ChannelBiasEpilogueTest : public SushiBLASTest
         {
             protected:
                 /** @brief A = 3x2, chosen so A*B is square and not symmetric. */
@@ -86,7 +86,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_ChannelBiasEpilogueTest, AColumnChannelBiasMatchesAPlainRowVectorBroadcast)
+        TEST_F(Medium_ChannelBiasEpilogueTest, AColumnChannelBiasMatchesAPlainRowVectorBroadcast)
         {
             // (0, 1): the channel is the column. See tests/operations/blas/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());
@@ -110,7 +110,7 @@ namespace SushiBLAS
                                                       6, -1, 12}), 1e-5);
         }
 
-        TEST_F(Unit_ChannelBiasEpilogueTest, ARowChannelBiasBroadcastsDownTheOtherAxis)
+        TEST_F(Medium_ChannelBiasEpilogueTest, ARowChannelBiasBroadcastsDownTheOtherAxis)
         {
             // (1, 0): the channel is the row, as in NCHW. See tests/operations/blas/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());
@@ -134,7 +134,7 @@ namespace SushiBLAS
                                                       8, 10, 12}), 1e-5);
         }
 
-        TEST_F(Unit_ChannelBiasEpilogueTest, TheSameEpilogueAppliesOnTheReferencePath)
+        TEST_F(Medium_ChannelBiasEpilogueTest, TheSameEpilogueAppliesOnTheReferencePath)
         {
             // The reference kernel runs the epilogue too. See tests/operations/blas/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());
@@ -157,7 +157,7 @@ namespace SushiBLAS
                                                       8, 10, 12}), 1e-5);
         }
 
-        TEST_F(Unit_ChannelBiasEpilogueTest, AZeroBiasIsTheIdentityEpilogue)
+        TEST_F(Medium_ChannelBiasEpilogueTest, AZeroBiasIsTheIdentityEpilogue)
         {
             // Every element of A*B is strictly positive. See tests/operations/blas/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, {1, 2, 3, 4, 5, 6});
@@ -194,7 +194,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_ChannelBiasEpilogueTest, TheEpiloguesAccessSetReachesTheTask)
+        TEST_F(Medium_ChannelBiasEpilogueTest, TheEpiloguesAccessSetReachesTheTask)
         {
             GraphProbe probe;
 
@@ -225,7 +225,7 @@ namespace SushiBLAS
                    "the GEMM is free to run against a bias that has not arrived.";
         }
 
-        TEST_F(Unit_ChannelBiasEpilogueTest, TheGemmSeesTheProducedBiasValues)
+        TEST_F(Medium_ChannelBiasEpilogueTest, TheGemmSeesTheProducedBiasValues)
         {
             // The GEMM must see the produced bias values. See tests/operations/blas/README.md.
             auto A = create_initialized_tensor<float>({3, 2}, a_values());

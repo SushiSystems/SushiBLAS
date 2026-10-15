@@ -10,7 +10,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE graph_primitives
-    SIZE medium
     TESTS
         test_combiners.cpp
         test_counting_sort.cpp

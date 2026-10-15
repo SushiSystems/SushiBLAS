@@ -16,7 +16,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE blas_seam_kernels
-    SIZE medium
     TESTS
         level3/test_channel_bias_epilogue.cpp
         level3/test_gemm_epilogue.cpp

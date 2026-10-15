@@ -33,9 +33,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Unit_GEMVTest : public SushiBLASTest {};
+class Medium_GEMVTest : public SushiBLASTest {};
 
-TEST_F(Unit_GEMVTest, SimpleGEMV) 
+TEST_F(Medium_GEMVTest, SimpleGEMV) 
 {
     const int M = 2, N = 3;
     auto A = engine->create_tensor({M, N});
@@ -62,7 +62,7 @@ TEST_F(Unit_GEMVTest, SimpleGEMV)
 }
 
 /** @brief Tests a transposed product with three long rows of op(A), each read with stride lda. */
-TEST_F(Unit_GEMVTest, FewLongStridedRows)
+TEST_F(Medium_GEMVTest, FewLongStridedRows)
 {
     const int M = 20000, N = 3;
     auto A = engine->create_tensor({M, N});

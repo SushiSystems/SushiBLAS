@@ -39,19 +39,19 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Builds index arrays on the fixture's engine. */
-        class Unit_IndexCheck : public SushiBLASTest
+        class Medium_IndexCheck : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_IndexCheck, OnlyTheTwoEnumeratorsAreIndexBases)
+        TEST_F(Medium_IndexCheck, OnlyTheTwoEnumeratorsAreIndexBases)
         {
             EXPECT_NO_THROW(Dispatch::require_index_base(Core::IndexBase::One, "op", "A"));
             EXPECT_THROW(Dispatch::require_index_base(Core::IndexBase{}, "op", "A"),
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_IndexCheck, ACompressedArrayIsADenseVectorOfTheExpectedLength)
+        TEST_F(Medium_IndexCheck, ACompressedArrayIsADenseVectorOfTheExpectedLength)
         {
             const Tensor array = engine->create_tensor({4});
 
@@ -63,7 +63,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_IndexCheck, AnIndexArrayIsIntegralAndHoldsTheLargestIndex)
+        TEST_F(Medium_IndexCheck, AnIndexArrayIsIntegralAndHoldsTheLargestIndex)
         {
             const Tensor narrow = engine->create_tensor({3}, Core::DataType::Int32);
             const Tensor floating = engine->create_tensor({3});

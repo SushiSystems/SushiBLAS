@@ -10,26 +10,25 @@
 # its mirror under tests/<tier>/<module>/, and register them under their size. Every module
 # goes through the same function, so every program is linked, labelled and placed the same way.
 #
-# Every test carries exactly one size label, small, medium or large, and the timeout of that
-# size. The size is declared per program. A small program runs without the shared runtime
-# environment, so it starts no worker thread and opens no device. A test listed as quarantined
-# also carries the label `quarantined`, which takes it out of every gating stage. A benchmark
-# program carries the target label `benchmark` and is never registered with CTest: it measures,
-# it does not pass or fail.
+# A test's size is the prefix of its GoogleTest suite name: Small_, Medium_ or Large_. Each size
+# is registered by its own filter, with its label and its timeout. A suite with none of the three
+# prefixes stops the configure. A program whose suites are all Small_ runs without the shared
+# runtime environment, so it starts no worker thread and opens no device. A test listed as
+# quarantined keeps its size and also carries the label `quarantined`, which takes it out of
+# every gating stage. A benchmark program carries the target label `benchmark` and is never
+# registered with CTest: it measures, it does not pass or fail.
 
 # Every program lands in one folder, so the runtime DLL is copied to one place and
 # `sb run <program>` finds each of them there.
 set(SB_TEST_OUTPUT_DIR "${PROJECT_BINARY_DIR}/tests")
-# The main() of a medium or large program, which owns the shared runtime environment, and of a
-# small program, which owns none. Both belong to the test_runner module and are compiled into
+# The main() of a program with a Medium_ or Large_ suite, which owns the shared runtime
+# environment, and of a program whose suites are all Small_, which owns none. Both belong to the test_runner module and are compiled into
 # each program, never into the library.
 set(SB_TEST_MAIN_SOURCE "${PROJECT_SOURCE_DIR}/modules/foundation/test_runner/source/test_main.cpp")
 set(SB_SMALL_TEST_MAIN_SOURCE
     "${PROJECT_SOURCE_DIR}/modules/foundation/test_runner/source/small_test_main.cpp")
-# The timeout in seconds of each size.
-set(SB_TEST_TIMEOUT_small 60)
-set(SB_TEST_TIMEOUT_medium 300)
-set(SB_TEST_TIMEOUT_large 900)
+# Each size as prefix|label|timeout in seconds.
+set(SB_TEST_SIZES "Small_|small|60" "Medium_|medium|300" "Large_|large|900")
 
 # Links a program to the library and the INTERNAL modules' include roots, applies the build
 # policy, places it in SB_TEST_OUTPUT_DIR and copies the runtime DLL beside it on Windows.
@@ -52,60 +51,97 @@ function(sushiblas_configure_test_target target)
     endif()
 endfunction()
 
-# Builds one GoogleTest program from the main() of its size and the sources given, and registers
-# its tests under that size and its timeout. Each name in QUARANTINED, a GoogleTest
-# `Suite.Case` name, is registered with the label `quarantined` as well.
+# Sets <out_var> to the GoogleTest suite names the TEST, TEST_F, TEST_P, TYPED_TEST and
+# TYPED_TEST_P macros of the given sources declare.
+function(sushiblas_test_suites_of out_var)
+    set(suites "")
+    foreach(source IN LISTS ARGN)
+        file(READ "${source}" text)
+        string(REGEX MATCHALL "TEST(_F|_P)?[ \t]*[(][ \t\r\n]*[A-Za-z0-9_]+" uses "${text}")
+        foreach(use IN LISTS uses)
+            string(REGEX REPLACE "^[^(]*[(][ \t\r\n]*" "" suite "${use}")
+            list(APPEND suites "${suite}")
+        endforeach()
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${source}")
+    endforeach()
+    list(REMOVE_DUPLICATES suites)
+    set(${out_var} "${suites}" PARENT_SCOPE)
+endfunction()
+
+# Builds one GoogleTest program from the sources given and registers its tests by size. The
+# program gets the main() without the runtime when every suite is Small_. Each name in
+# QUARANTINED, a GoogleTest `Suite.Case` name, is registered with the label `quarantined` too.
 #
-#   sushiblas_add_sized_test_program(<target> SIZE <small|medium|large>
-#       [QUARANTINED <Suite.Case>...]
-#       SOURCES <file>...)
+#   sushiblas_add_sized_test_program(<target> [QUARANTINED <Suite.Case>...]
+#       SOURCES <file>... [TEST_SOURCES <file>...])
+#
+# TEST_SOURCES are scanned for suites; SOURCES are compiled with them and not scanned.
 function(sushiblas_add_sized_test_program target)
-    cmake_parse_arguments(ARG "" "SIZE" "QUARANTINED;SOURCES" ${ARGN})
-    if(NOT ARG_SIZE MATCHES "^(small|medium|large)$")
-        message(FATAL_ERROR
-            "${target}: SIZE is '${ARG_SIZE}', expected small, medium or large.")
-    endif()
-    if(ARG_SIZE STREQUAL "small")
+    cmake_parse_arguments(ARG "" "" "QUARANTINED;SOURCES;TEST_SOURCES" ${ARGN})
+    sushiblas_test_suites_of(suites ${ARG_TEST_SOURCES})
+    set(all_small TRUE)
+    foreach(suite IN LISTS suites)
+        if(NOT suite MATCHES "^(Small|Medium|Large)_")
+            message(FATAL_ERROR
+                "${target}: the suite ${suite} has no size; name it Small_, Medium_ or Large_.")
+        endif()
+        if(NOT suite MATCHES "^Small_")
+            set(all_small FALSE)
+        endif()
+    endforeach()
+    if(all_small)
         set(main_source "${SB_SMALL_TEST_MAIN_SOURCE}")
     else()
         set(main_source "${SB_TEST_MAIN_SOURCE}")
     endif()
-    add_executable(${target} "${main_source}" ${ARG_SOURCES})
+    add_executable(${target} "${main_source}" ${ARG_SOURCES} ${ARG_TEST_SOURCES})
     target_link_libraries(${target} PRIVATE GTest::gtest)
     sushiblas_configure_test_target(${target})
 
-    set(timeout ${SB_TEST_TIMEOUT_${ARG_SIZE}})
-    set(gating_filter "*")
-    if(ARG_QUARANTINED)
-        list(JOIN ARG_QUARANTINED ":" quarantined_filter)
-        set(gating_filter "*-${quarantined_filter}")
+    foreach(size IN LISTS SB_TEST_SIZES)
+        string(REPLACE "|" ";" parts "${size}")
+        list(GET parts 0 prefix)
+        list(GET parts 1 label)
+        list(GET parts 2 timeout)
+
+        # A GoogleTest filter after '-' excludes, so the quarantined tests register apart.
+        set(quarantined "")
+        foreach(name IN LISTS ARG_QUARANTINED)
+            if(name MATCHES "^${prefix}")
+                list(APPEND quarantined "${name}")
+            endif()
+        endforeach()
+        list(JOIN quarantined ":" quarantined_filter)
+
+        set(filter "${prefix}*")
+        if(quarantined_filter)
+            string(APPEND filter "-${quarantined_filter}")
+            gtest_discover_tests(${target}
+                DISCOVERY_MODE PRE_TEST
+                WORKING_DIRECTORY "${SB_TEST_OUTPUT_DIR}"
+                TEST_FILTER "${quarantined_filter}"
+                PROPERTIES LABELS "${label}\;quarantined" TIMEOUT ${timeout})
+        endif()
         gtest_discover_tests(${target}
             DISCOVERY_MODE PRE_TEST
             WORKING_DIRECTORY "${SB_TEST_OUTPUT_DIR}"
-            TEST_FILTER "${quarantined_filter}"
-            PROPERTIES LABELS "${ARG_SIZE};quarantined" TIMEOUT ${timeout})
-    endif()
-    gtest_discover_tests(${target}
-        DISCOVERY_MODE PRE_TEST
-        WORKING_DIRECTORY "${SB_TEST_OUTPUT_DIR}"
-        TEST_FILTER "${gating_filter}"
-        PROPERTIES LABELS "${ARG_SIZE}" TIMEOUT ${timeout})
+            TEST_FILTER "${filter}"
+            PROPERTIES LABELS "${label}" TIMEOUT ${timeout})
+    endforeach()
 endfunction()
 
 # Builds the test program and the benchmark programs of one module.
 #
 #   sushiblas_add_test_program(MODULE <module>
-#       [SIZE <small|medium|large>]
 #       [QUARANTINED <Suite.Case>...]
 #       [TESTS <file>...]
 #       [BENCHMARKS <file>...])
 #
 # Each file is given relative to tests/<tier>/<module>/, the module's mirror. TESTS become
-# the program `sushiblas_<module>_tests` when SB_BUILD_TESTS is on, sized by SIZE, which TESTS
-# requires; each of BENCHMARKS becomes
+# the program `sushiblas_<module>_tests` when SB_BUILD_TESTS is on; each of BENCHMARKS becomes
 # a program named after its file when SB_BUILD_BENCHMARKS is on.
 function(sushiblas_add_test_program)
-    cmake_parse_arguments(ARG "" "MODULE;SIZE" "QUARANTINED;TESTS;BENCHMARKS" ${ARGN})
+    cmake_parse_arguments(ARG "" "MODULE" "QUARANTINED;TESTS;BENCHMARKS" ${ARGN})
     if("${ARG_MODULE}" STREQUAL "" OR (NOT ARG_TESTS AND NOT ARG_BENCHMARKS))
         message(FATAL_ERROR "sushiblas_add_test_program(): MODULE and TESTS or BENCHMARKS are required.")
     endif()
@@ -118,9 +154,9 @@ function(sushiblas_add_test_program)
     if(SB_BUILD_TESTS AND ARG_TESTS)
         set(target "sushiblas_${ARG_MODULE}_tests")
         list(TRANSFORM ARG_TESTS PREPEND "${mirror}/" OUTPUT_VARIABLE test_sources)
-        sushiblas_add_sized_test_program(${target} SIZE "${ARG_SIZE}"
+        sushiblas_add_sized_test_program(${target}
             QUARANTINED ${ARG_QUARANTINED}
-            SOURCES ${test_sources})
+            TEST_SOURCES ${test_sources})
     endif()
 
     if(SB_BUILD_BENCHMARKS)
@@ -136,7 +172,6 @@ endfunction()
 # Builds the test program of one application from its mirror under tests/applications/.
 #
 #   sushiblas_add_application_test_program(NAME <name> DIRECTORY <application folder>
-#       SIZE <small|medium|large>
 #       [QUARANTINED <Suite.Case>...]
 #       SOURCES <application source>...
 #       TESTS <file>...)
@@ -145,7 +180,7 @@ endfunction()
 # tests/applications/<DIRECTORY>/. The program is `sushiblas_<name>_tests`, and it sees the
 # application's own headers as the application does.
 function(sushiblas_add_application_test_program)
-    cmake_parse_arguments(ARG "" "NAME;DIRECTORY;SIZE" "QUARANTINED;SOURCES;TESTS" ${ARGN})
+    cmake_parse_arguments(ARG "" "NAME;DIRECTORY" "QUARANTINED;SOURCES;TESTS" ${ARGN})
     if("${ARG_NAME}" STREQUAL "" OR "${ARG_DIRECTORY}" STREQUAL "" OR NOT ARG_TESTS)
         message(FATAL_ERROR "sushiblas_add_application_test_program(): NAME, DIRECTORY and TESTS are required.")
     endif()
@@ -157,8 +192,9 @@ function(sushiblas_add_application_test_program)
     list(TRANSFORM ARG_SOURCES PREPEND "${application}/" OUTPUT_VARIABLE application_sources)
     list(TRANSFORM ARG_TESTS PREPEND "${mirror}/" OUTPUT_VARIABLE test_sources)
     set(target "sushiblas_${ARG_NAME}_tests")
-    sushiblas_add_sized_test_program(${target} SIZE "${ARG_SIZE}"
+    sushiblas_add_sized_test_program(${target}
         QUARANTINED ${ARG_QUARANTINED}
-        SOURCES ${application_sources} ${test_sources})
+        SOURCES ${application_sources}
+        TEST_SOURCES ${test_sources})
     target_include_directories(${target} PRIVATE "${application}")
 endfunction()

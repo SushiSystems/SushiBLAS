@@ -37,13 +37,13 @@
 namespace sb = SushiBLAS;
 using namespace SushiBLAS::Test;
 
-class Integration_FrameworkSimTest : public SushiBLASTest {};
+class Medium_FrameworkSimTest : public SushiBLASTest {};
 
 /**
  * @brief Tests a chain of ten GEMMs, each followed by ReLU except the last, against a host-computed result.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Integration_FrameworkSimTest, DeepForwardPass) 
+TEST_F(Medium_FrameworkSimTest, DeepForwardPass) 
 {
     
     const int batch_size = 512;
@@ -120,7 +120,7 @@ TEST_F(Integration_FrameworkSimTest, DeepForwardPass)
  * @brief Tests 24 independent GEMM and ReLU pairs submitted to one graph against their exact results.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Integration_FrameworkSimTest, ParallelBatchedInference) 
+TEST_F(Medium_FrameworkSimTest, ParallelBatchedInference) 
 {
     
     const int num_models = 24; // More models than threads

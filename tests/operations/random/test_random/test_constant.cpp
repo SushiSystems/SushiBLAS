@@ -47,7 +47,7 @@ namespace
     constexpr int64_t K_ODD_SIZE = 1001;
 }
 
-class Unit_ConstantTest : public SushiBLASTest
+class Medium_ConstantTest : public SushiBLASTest
 {
     protected:
         /**
@@ -63,7 +63,7 @@ class Unit_ConstantTest : public SushiBLASTest
         }
 };
 
-TEST_F(Unit_ConstantTest, Float32)
+TEST_F(Medium_ConstantTest, Float32)
 {
     const int N = 10;
     auto t = engine->create_tensor({N});
@@ -72,42 +72,42 @@ TEST_F(Unit_ConstantTest, Float32)
     verify_tensor(t, std::vector<float>(N, 2.5f));
 }
 
-TEST_F(Unit_ConstantTest, HalfOddSize)
+TEST_F(Medium_ConstantTest, HalfOddSize)
 {
     expect_constant_fill(DataType::Half, K_ODD_SIZE, K_REAL_VALUE);
 }
 
-TEST_F(Unit_ConstantTest, Float32OddSize)
+TEST_F(Medium_ConstantTest, Float32OddSize)
 {
     expect_constant_fill(DataType::Float32, K_ODD_SIZE, K_REAL_VALUE);
 }
 
-TEST_F(Unit_ConstantTest, Float64OddSize)
+TEST_F(Medium_ConstantTest, Float64OddSize)
 {
     expect_constant_fill(DataType::Float64, K_ODD_SIZE, K_REAL_VALUE);
 }
 
-TEST_F(Unit_ConstantTest, Complex32OddSizeHasZeroImaginaryPart)
+TEST_F(Medium_ConstantTest, Complex32OddSizeHasZeroImaginaryPart)
 {
     expect_constant_fill(DataType::Complex32, K_ODD_SIZE, K_REAL_VALUE);
 }
 
-TEST_F(Unit_ConstantTest, Complex64OddSizeHasZeroImaginaryPart)
+TEST_F(Medium_ConstantTest, Complex64OddSizeHasZeroImaginaryPart)
 {
     expect_constant_fill(DataType::Complex64, K_ODD_SIZE, K_REAL_VALUE);
 }
 
-TEST_F(Unit_ConstantTest, Int32OddSize)
+TEST_F(Medium_ConstantTest, Int32OddSize)
 {
     expect_constant_fill(DataType::Int32, K_ODD_SIZE, K_INTEGER_VALUE);
 }
 
-TEST_F(Unit_ConstantTest, Int64OddSize)
+TEST_F(Medium_ConstantTest, Int64OddSize)
 {
     expect_constant_fill(DataType::Int64, K_ODD_SIZE, K_INTEGER_VALUE);
 }
 
-TEST_F(Unit_ConstantTest, SingleElement)
+TEST_F(Medium_ConstantTest, SingleElement)
 {
     expect_constant_fill(DataType::Float32, 1, K_REAL_VALUE);
 }

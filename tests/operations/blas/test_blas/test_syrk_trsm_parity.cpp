@@ -58,7 +58,7 @@ namespace SushiBLAS
          * @tparam T The element type; float or double.
          */
         template <typename T>
-        class Unit_SYRKTRSMParityTest : public SushiBLASTest
+        class Medium_SYRKTRSMParityTest : public SushiBLASTest
         {
             public:
                 /** @brief Compares SYRK of a random A on both paths with alpha 1.5 and beta 0.5. */
@@ -153,54 +153,54 @@ namespace SushiBLAS
         };
 
         using ParityTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_SYRKTRSMParityTest, ParityTypes);
+        SB_TYPED_TEST_SUITE(Medium_SYRKTRSMParityTest, ParityTypes);
 
-        TYPED_TEST(Unit_SYRKTRSMParityTest, SyrkLowerNoTranspose)
+        TYPED_TEST(Medium_SYRKTRSMParityTest, SyrkLowerNoTranspose)
         {
             this->check_syrk(false, false);
         }
 
-        TYPED_TEST(Unit_SYRKTRSMParityTest, SyrkUpperNoTranspose)
+        TYPED_TEST(Medium_SYRKTRSMParityTest, SyrkUpperNoTranspose)
         {
             this->check_syrk(true, false);
         }
 
-        TYPED_TEST(Unit_SYRKTRSMParityTest, SyrkLowerTransposed)
+        TYPED_TEST(Medium_SYRKTRSMParityTest, SyrkLowerTransposed)
         {
             this->check_syrk(false, true);
         }
 
-        TYPED_TEST(Unit_SYRKTRSMParityTest, SyrkUpperTransposed)
+        TYPED_TEST(Medium_SYRKTRSMParityTest, SyrkUpperTransposed)
         {
             this->check_syrk(true, true);
         }
 
-        TYPED_TEST(Unit_SYRKTRSMParityTest, TrsmLeftLowerNoTranspose)
+        TYPED_TEST(Medium_SYRKTRSMParityTest, TrsmLeftLowerNoTranspose)
         {
             this->check_trsm(true, false, false, false);
         }
 
-        TYPED_TEST(Unit_SYRKTRSMParityTest, TrsmLeftUpperTransposed)
+        TYPED_TEST(Medium_SYRKTRSMParityTest, TrsmLeftUpperTransposed)
         {
             this->check_trsm(true, true, true, false);
         }
 
-        TYPED_TEST(Unit_SYRKTRSMParityTest, TrsmLeftUpperUnitDiagonal)
+        TYPED_TEST(Medium_SYRKTRSMParityTest, TrsmLeftUpperUnitDiagonal)
         {
             this->check_trsm(true, true, false, true);
         }
 
-        TYPED_TEST(Unit_SYRKTRSMParityTest, TrsmRightUpperNoTranspose)
+        TYPED_TEST(Medium_SYRKTRSMParityTest, TrsmRightUpperNoTranspose)
         {
             this->check_trsm(false, true, false, false);
         }
 
-        TYPED_TEST(Unit_SYRKTRSMParityTest, TrsmRightLowerTransposed)
+        TYPED_TEST(Medium_SYRKTRSMParityTest, TrsmRightLowerTransposed)
         {
             this->check_trsm(false, false, true, false);
         }
 
-        TYPED_TEST(Unit_SYRKTRSMParityTest, TrsmRightLowerUnitDiagonal)
+        TYPED_TEST(Medium_SYRKTRSMParityTest, TrsmRightLowerUnitDiagonal)
         {
             this->check_trsm(false, false, false, true);
         }

@@ -36,7 +36,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_IntegerCsr, TheArraysFormAValidCSRMatrix)
+        TEST(Small_IntegerCsr, TheArraysFormAValidCSRMatrix)
         {
             const IntegerCsr m = integer_csr(20, 15, 3, false);
 
@@ -59,7 +59,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_IntegerCsr, AStoredDiagonalHoldsOnes)
+        TEST(Small_IntegerCsr, AStoredDiagonalHoldsOnes)
         {
             const IntegerCsr m = integer_csr(6, 6, 5, true);
             const std::vector<double> dense = m.dense();
@@ -68,7 +68,7 @@ namespace SushiBLAS
                 EXPECT_EQ(dense[static_cast<std::size_t>(i * 6 + i)], 1.0);
         }
 
-        TEST(Unit_IntegerCsr, TheDenseTwinHoldsEveryStoredValue)
+        TEST(Small_IntegerCsr, TheDenseTwinHoldsEveryStoredValue)
         {
             const IntegerCsr m = integer_csr(8, 9, 7, false);
             const std::vector<double> dense = m.dense();
@@ -85,7 +85,7 @@ namespace SushiBLAS
             EXPECT_EQ(total, stored);
         }
 
-        TEST(Unit_IntegerCsr, OneSeedGivesOneMatrix)
+        TEST(Small_IntegerCsr, OneSeedGivesOneMatrix)
         {
             EXPECT_EQ(integer_csr(10, 10, 9, false).columns, integer_csr(10, 10, 9, false).columns);
         }

@@ -33,7 +33,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ExecutionModeSweep, NamesBothForcedModesOnce)
+        TEST(Medium_ExecutionModeSweep, NamesBothForcedModesOnce)
         {
             EXPECT_EQ(K_BOTH_MODES[0], ExecutionMode::ForceReference);
             EXPECT_EQ(K_BOTH_MODES[1], ExecutionMode::ForceSYCL);

@@ -35,9 +35,9 @@
 
 using namespace SushiBLAS::Test;
 
-class Unit_TRMVTest : public SushiBLASTest {};
+class Medium_TRMVTest : public SushiBLASTest {};
 
-TEST_F(Unit_TRMVTest, SimpleTRMV) 
+TEST_F(Medium_TRMVTest, SimpleTRMV) 
 {
     const int N = 3;
     auto A = engine->create_tensor({N, N});
@@ -76,7 +76,7 @@ namespace
     const std::vector<float> K_X = {1, 2, 3};
 }
 
-class Unit_TRMVPoisonTest : public SushiBLASTest
+class Medium_TRMVPoisonTest : public SushiBLASTest
 {
     protected:
         /**
@@ -98,25 +98,25 @@ class Unit_TRMVPoisonTest : public SushiBLASTest
         }
 };
 
-TEST_F(Unit_TRMVPoisonTest, LowerNoTranspose)
+TEST_F(Medium_TRMVPoisonTest, LowerNoTranspose)
 {
     // L * [1 2 3] = [2, 1+6, 4+10+21].
     expect_trmv(K_LOWER, false, false, {2, 7, 35});
 }
 
-TEST_F(Unit_TRMVPoisonTest, LowerTranspose)
+TEST_F(Medium_TRMVPoisonTest, LowerTranspose)
 {
     // L^T * [1 2 3] = [2+2+12, 6+15, 21].
     expect_trmv(K_LOWER, false, true, {16, 21, 21});
 }
 
-TEST_F(Unit_TRMVPoisonTest, UpperNoTranspose)
+TEST_F(Medium_TRMVPoisonTest, UpperNoTranspose)
 {
     // U * [1 2 3] = [1+4+9, 8+15, 18].
     expect_trmv(K_UPPER, true, false, {14, 23, 18});
 }
 
-TEST_F(Unit_TRMVPoisonTest, UpperTranspose)
+TEST_F(Medium_TRMVPoisonTest, UpperTranspose)
 {
     // U^T * [1 2 3] = [1, 2+8, 3+10+18].
     expect_trmv(K_UPPER, true, true, {1, 10, 31});

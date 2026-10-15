@@ -85,15 +85,15 @@ namespace
  * @brief Typed fixture; T is the real component type of the complex element.
  */
 template<typename T>
-class Unit_ComplexNonlinearTest : public SushiBLASTest
+class Medium_ComplexNonlinearTest : public SushiBLASTest
 {
 
 };
 
 using ComplexComponentTypes = ::testing::Types<float, double>;
-SB_TYPED_TEST_SUITE(Unit_ComplexNonlinearTest, ComplexComponentTypes);
+SB_TYPED_TEST_SUITE(Medium_ComplexNonlinearTest, ComplexComponentTypes);
 
-TYPED_TEST(Unit_ComplexNonlinearTest, SigmoidMatchesHostReference)
+TYPED_TEST(Medium_ComplexNonlinearTest, SigmoidMatchesHostReference)
 {
     using C = std::complex<TypeParam>;
     auto t = this->template create_initialized_tensor<C>({5}, probe_inputs<TypeParam>());
@@ -106,7 +106,7 @@ TYPED_TEST(Unit_ComplexNonlinearTest, SigmoidMatchesHostReference)
     SB_ASSERT_TENSOR_NEAR(t, expected, tolerance_for<TypeParam>(), C);
 }
 
-TYPED_TEST(Unit_ComplexNonlinearTest, TanhMatchesHostReference)
+TYPED_TEST(Medium_ComplexNonlinearTest, TanhMatchesHostReference)
 {
     using C = std::complex<TypeParam>;
     auto t = this->template create_initialized_tensor<C>({5}, probe_inputs<TypeParam>());
@@ -119,7 +119,7 @@ TYPED_TEST(Unit_ComplexNonlinearTest, TanhMatchesHostReference)
     SB_ASSERT_TENSOR_NEAR(t, expected, tolerance_for<TypeParam>(), C);
 }
 
-TYPED_TEST(Unit_ComplexNonlinearTest, EluRefusesComplex)
+TYPED_TEST(Medium_ComplexNonlinearTest, EluRefusesComplex)
 {
     using C = std::complex<TypeParam>;
     auto t = this->template create_initialized_tensor<C>({5}, probe_inputs<TypeParam>());
@@ -128,7 +128,7 @@ TYPED_TEST(Unit_ComplexNonlinearTest, EluRefusesComplex)
 }
 
 /// @brief Runs the complex sqrt and log edge cases.
-class Unit_ComplexSqrtLogTest : public SushiBLASTest
+class Medium_ComplexSqrtLogTest : public SushiBLASTest
 {
 
 };
@@ -136,7 +136,7 @@ class Unit_ComplexSqrtLogTest : public SushiBLASTest
 /**
  * @brief Tests that sqrt of (x, +inf) is (+inf, +inf) for a positive and a negative x.
  */
-TEST_F(Unit_ComplexSqrtLogTest, SqrtOfInfiniteImaginaryPartIsInfinite)
+TEST_F(Medium_ComplexSqrtLogTest, SqrtOfInfiniteImaginaryPartIsInfinite)
 {
     using C = std::complex<double>;
     const double inf = std::numeric_limits<double>::infinity();
@@ -156,7 +156,7 @@ TEST_F(Unit_ComplexSqrtLogTest, SqrtOfInfiniteImaginaryPartIsInfinite)
 /**
  * @brief Tests that log of (1, 1e-4) keeps the real part 0.5 * log1p(1e-8) to full precision.
  */
-TEST_F(Unit_ComplexSqrtLogTest, LogNearTheUnitCircleKeepsItsRealPart)
+TEST_F(Medium_ComplexSqrtLogTest, LogNearTheUnitCircleKeepsItsRealPart)
 {
     using C = std::complex<double>;
     auto t = create_initialized_tensor<C>({1}, {C(1.0, 1e-4)});

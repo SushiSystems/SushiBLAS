@@ -52,7 +52,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Tests the level count of a capacity at the tile-size boundaries. */
-        TEST(Unit_GraphPrimitivesFixedOrderLevels, LevelCountsAtTileBoundaries)
+        TEST(Medium_GraphPrimitivesFixedOrderLevels, LevelCountsAtTileBoundaries)
         {
             EXPECT_EQ(plan_tiled_levels(0).size(), 0u);
             EXPECT_EQ(plan_tiled_levels(1).size(), 1u);
@@ -65,7 +65,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a live count folds as plan_reduction lays that count out. */
-        TEST(Unit_GraphPrimitivesFixedOrderLevels, LiveCountBelowCapacityMatchesThatCount)
+        TEST(Medium_GraphPrimitivesFixedOrderLevels, LiveCountBelowCapacityMatchesThatCount)
         {
             const auto capacity_levels = plan_tiled_levels(K_THREE_LEVEL_CAPACITY);
 
@@ -93,7 +93,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a live count of zero folds no level anywhere in the tree. */
-        TEST(Unit_GraphPrimitivesFixedOrderLevels, LiveCountZeroFoldsNothing)
+        TEST(Medium_GraphPrimitivesFixedOrderLevels, LiveCountZeroFoldsNothing)
         {
             const auto capacity_levels = plan_tiled_levels(K_THREE_LEVEL_CAPACITY);
             const auto live = live_tile_levels(capacity_levels, 0);
@@ -107,7 +107,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the flat words a kernel reads equal the per-level widths. */
-        TEST(Unit_GraphPrimitivesFixedOrderLevels, LiveLevelWordsMatchTheLiveLevels)
+        TEST(Medium_GraphPrimitivesFixedOrderLevels, LiveLevelWordsMatchTheLiveLevels)
         {
             const auto capacity_levels = plan_tiled_levels(K_THREE_LEVEL_CAPACITY);
             const std::size_t level_count = capacity_levels.size();

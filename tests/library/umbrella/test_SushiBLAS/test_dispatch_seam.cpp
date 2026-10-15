@@ -213,7 +213,7 @@ namespace
     }
 } // namespace
 
-class Unit_DispatchSeamTest : public SushiBLASTest
+class Medium_DispatchSeamTest : public SushiBLASTest
 {
     protected:
         /** @brief Expects clamp over T to equal the host clamp with narrowed bounds, bit for bit. */
@@ -374,7 +374,7 @@ class Unit_DispatchSeamTest : public SushiBLASTest
         }
 };
 
-TEST_F(Unit_DispatchSeamTest, FusesAConsumerFunctorIntoOneBinaryKernel)
+TEST_F(Medium_DispatchSeamTest, FusesAConsumerFunctorIntoOneBinaryKernel)
 {
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});
@@ -391,7 +391,7 @@ TEST_F(Unit_DispatchSeamTest, FusesAConsumerFunctorIntoOneBinaryKernel)
     verify_tensor(c, {1.5f, 4.5f, 9.5f, 16.5f});
 }
 
-TEST_F(Unit_DispatchSeamTest, FusesAConsumerFunctorIntoOneUnaryKernel)
+TEST_F(Medium_DispatchSeamTest, FusesAConsumerFunctorIntoOneUnaryKernel)
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {0.0f, 1.0f, 2.0f, 3.0f});
@@ -405,7 +405,7 @@ TEST_F(Unit_DispatchSeamTest, FusesAConsumerFunctorIntoOneUnaryKernel)
     verify_tensor(t, {0.693147f, 1.313262f, 2.126928f, 3.048587f}, 1e-4);
 }
 
-TEST_F(Unit_DispatchSeamTest, ConsumerFunctorCanOptIntoComplex)
+TEST_F(Medium_DispatchSeamTest, ConsumerFunctorCanOptIntoComplex)
 {
     using cf = std::complex<float>;
 
@@ -423,7 +423,7 @@ TEST_F(Unit_DispatchSeamTest, ConsumerFunctorCanOptIntoComplex)
     SB_ASSERT_TENSOR_NEAR(c, expected, 1e-4, cf);
 }
 
-TEST_F(Unit_DispatchSeamTest, ConsumerCanDriveTheLogicAndReductionSeamsToo)
+TEST_F(Medium_DispatchSeamTest, ConsumerCanDriveTheLogicAndReductionSeamsToo)
 {
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});
@@ -449,7 +449,7 @@ TEST_F(Unit_DispatchSeamTest, ConsumerCanDriveTheLogicAndReductionSeamsToo)
     verify_tensor(total, {3.0f});
 }
 
-TEST_F(Unit_DispatchSeamTest, RealOnlyDomainRejectsComplexAtRecordTime)
+TEST_F(Medium_DispatchSeamTest, RealOnlyDomainRejectsComplexAtRecordTime)
 {
     auto a = engine->create_tensor({2}, DataType::Complex32);
     auto b = engine->create_tensor({2}, DataType::Complex32);
@@ -463,7 +463,7 @@ TEST_F(Unit_DispatchSeamTest, RealOnlyDomainRejectsComplexAtRecordTime)
         std::invalid_argument);
 }
 
-TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
+TEST_F(Medium_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
 {
     // 1023 is a multiple of no work-group or vector width. See tests/library/umbrella/README.md.
     constexpr int64_t k_n = 1023;
@@ -552,7 +552,7 @@ TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
     verify_tensor(g, g0, 0.0);
 }
 
-TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
+TEST_F(Medium_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
 {
     // Two identical fused updates must agree exactly. See tests/library/umbrella/README.md.
     constexpr int64_t k_n = 517;
@@ -599,7 +599,7 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
     }
 }
 
-TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
+TEST_F(Medium_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
 {
     auto four = engine->create_tensor({4});
     auto eight = engine->create_tensor({8});
@@ -636,7 +636,7 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
         std::invalid_argument);
 }
 
-TEST_F(Unit_DispatchSeamTest, RNGMetadataSlotsAreInRangeAndRoundTrip)
+TEST_F(Medium_DispatchSeamTest, RNGMetadataSlotsAreInRangeAndRoundTrip)
 {
     // The seed and offset slots read back exactly. See tests/library/umbrella/README.md.
     constexpr uint64_t kSeed = 0xDEADBEEFCAFEF00Dull;
@@ -653,7 +653,7 @@ TEST_F(Unit_DispatchSeamTest, RNGMetadataSlotsAreInRangeAndRoundTrip)
     EXPECT_EQ(description.parameter<uint64_t>(sb::Dispatch::K_RNG_OFFSET_PARAM), kOffset);
 }
 
-TEST_F(Unit_DispatchSeamTest, DistributionParamsDoNotCollideWithTheRNGSlots)
+TEST_F(Medium_DispatchSeamTest, DistributionParamsDoNotCollideWithTheRNGSlots)
 {
     sb::TaskDescription description;
     const std::initializer_list<double> params = {1.0, 2.0, 3.0, 4.0};
@@ -671,7 +671,7 @@ TEST_F(Unit_DispatchSeamTest, DistributionParamsDoNotCollideWithTheRNGSlots)
     EXPECT_EQ(description.parameter<uint64_t>(sb::Dispatch::K_RNG_OFFSET_PARAM), 8u);
 }
 
-TEST_F(Unit_DispatchSeamTest, TooManyTaskParamsThrowsInsteadOfDroppingThem)
+TEST_F(Medium_DispatchSeamTest, TooManyTaskParamsThrowsInsteadOfDroppingThem)
 {
     auto t = engine->create_tensor({4});
 
@@ -689,7 +689,7 @@ TEST_F(Unit_DispatchSeamTest, TooManyTaskParamsThrowsInsteadOfDroppingThem)
  * @brief Tests that every operation with a scalar parameter matches its host formula per dtype.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Unit_DispatchSeamTest, ScalarOperationsMatchTheirHostFormula)
+TEST_F(Medium_DispatchSeamTest, ScalarOperationsMatchTheirHostFormula)
 {
     expect_clamp_matches_host<sycl::half>();
     expect_clamp_matches_host<float>();
@@ -706,7 +706,7 @@ TEST_F(Unit_DispatchSeamTest, ScalarOperationsMatchTheirHostFormula)
  * @brief Tests that a fused update takes a functor bound to a scalar parameter.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Unit_DispatchSeamTest, ABoundFunctorWorksInAFusedUpdate)
+TEST_F(Medium_DispatchSeamTest, ABoundFunctorWorksInAFusedUpdate)
 {
     auto y = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
     auto x = create_initialized_tensor<float>({4}, {2.0f, 4.0f, 6.0f, 8.0f});
@@ -725,7 +725,7 @@ TEST_F(Unit_DispatchSeamTest, ABoundFunctorWorksInAFusedUpdate)
  * @brief Tests that a typed task reports the family its caller declared.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
+TEST_F(Medium_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
 {
     auto t = engine->create_tensor({4}, DataType::Complex32);
 
@@ -757,7 +757,7 @@ TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
  *        pointer does not.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsOrderedBehindItsWriter)
+TEST_F(Medium_DispatchSeamTest, ADeclaredReadIsOrderedBehindItsWriter)
 {
     auto factor = engine->create_tensor({1});
     auto y = engine->create_tensor({4});
@@ -783,7 +783,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsOrderedBehindItsWriter)
  * @brief Tests that a task keeps the storage of a tensor its functor declared.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsKeptAllocated)
+TEST_F(Medium_DispatchSeamTest, ADeclaredReadIsKeptAllocated)
 {
 
     auto y = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
@@ -803,7 +803,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsKeptAllocated)
  * @brief Tests that a read declared in another type than the operation's reaches the functor typed.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Unit_DispatchSeamTest, ADeclaredReadOfAnotherTypeArrivesTyped)
+TEST_F(Medium_DispatchSeamTest, ADeclaredReadOfAnotherTypeArrivesTyped)
 {
     const GatedUpdate update = run_gated_update(sb::ExecutionMode::Auto);
 
@@ -819,7 +819,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadOfAnotherTypeArrivesTyped)
  * @brief Tests that each of the other six functor seams hands a declared read to its functor.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Unit_DispatchSeamTest, ADeclaredReadWorksOnEverySeam)
+TEST_F(Medium_DispatchSeamTest, ADeclaredReadWorksOnEverySeam)
 {
     const std::vector<float> a_values = {1.0f, 2.0f, 3.0f, 4.0f};
     const std::vector<float> b_values = {2.0f, 3.0f, 6.0f, 7.0f};
@@ -885,7 +885,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadWorksOnEverySeam)
  * @brief Tests that a seam refuses a declared read of a tensor the operation writes.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Unit_DispatchSeamTest, ADeclaredReadMayNotBeAnOutput)
+TEST_F(Medium_DispatchSeamTest, ADeclaredReadMayNotBeAnOutput)
 {
     GraphProbe probe;
     auto y = engine->create_tensor({4});
@@ -901,7 +901,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadMayNotBeAnOutput)
  *        records it.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Unit_DispatchSeamTest, ADeviceOnlyReadIsRefusedUnderForceReference)
+TEST_F(Medium_DispatchSeamTest, ADeviceOnlyReadIsRefusedUnderForceReference)
 {
     std::optional<sb::Tensor> factor = make_device_tensor({1});
     if (!factor)
@@ -923,7 +923,7 @@ TEST_F(Unit_DispatchSeamTest, ADeviceOnlyReadIsRefusedUnderForceReference)
  * @brief Tests that the host path hands a functor the same declared reads as the SYCL path.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Unit_DispatchSeamTest, ADeclaredReadReachesTheHostPath)
+TEST_F(Medium_DispatchSeamTest, ADeclaredReadReachesTheHostPath)
 {
     const GatedUpdate reference = run_gated_update(sb::ExecutionMode::ForceReference);
     const GatedUpdate device = run_gated_update(sb::ExecutionMode::ForceSYCL);

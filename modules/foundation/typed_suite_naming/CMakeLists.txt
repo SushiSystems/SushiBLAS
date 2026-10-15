@@ -14,6 +14,5 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE typed_suite_naming
-    SIZE small
     TESTS
         test_default_type_names.cpp)

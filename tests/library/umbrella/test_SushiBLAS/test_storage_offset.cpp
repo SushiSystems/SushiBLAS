@@ -39,7 +39,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        class Unit_StorageOffsetTest : public SushiBLASTest
+        class Medium_StorageOffsetTest : public SushiBLASTest
         {
             protected:
                 /** @brief Elements of poison placed before and after every view. */
@@ -110,7 +110,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_StorageOffsetTest, Level1AxpyHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, Level1AxpyHonoursOffset)
         {
             auto x = offset_view({4});
             auto y = offset_view({4});
@@ -125,7 +125,7 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(y, "axpy y"));
         }
 
-        TEST_F(Unit_StorageOffsetTest, Level1ScalHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, Level1ScalHonoursOffset)
         {
             auto x = offset_view({4});
             fill_tensor(x, {1, 2, 3, 4});
@@ -137,7 +137,7 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(x, "scal x"));
         }
 
-        TEST_F(Unit_StorageOffsetTest, Level1CopyHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, Level1CopyHonoursOffset)
         {
             auto x = offset_view({4});
             auto y = offset_view({4});
@@ -152,7 +152,7 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(y, "copy y"));
         }
 
-        TEST_F(Unit_StorageOffsetTest, Level2GemvHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, Level2GemvHonoursOffset)
         {
             // beta != 0, so y is read as well as written.
             auto A = offset_view({2, 3});
@@ -173,7 +173,7 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(y, "gemv y"));
         }
 
-        TEST_F(Unit_StorageOffsetTest, Level2GerHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, Level2GerHonoursOffset)
         {
             auto x = offset_view({2});
             auto y = offset_view({3});
@@ -192,7 +192,7 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(A, "ger A"));
         }
 
-        TEST_F(Unit_StorageOffsetTest, Level3GemmHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, Level3GemmHonoursOffset)
         {
             auto A = offset_view({2, 2});
             auto B = offset_view({2, 2});
@@ -210,7 +210,7 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(C, "gemm C"));
         }
 
-        TEST_F(Unit_StorageOffsetTest, ElementwiseHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, ElementwiseHonoursOffset)
         {
             auto A = offset_view({4});
             auto B = offset_view({4});
@@ -229,7 +229,7 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(C, "add/neg C"));
         }
 
-        TEST_F(Unit_StorageOffsetTest, NonlinearHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, NonlinearHonoursOffset)
         {
             auto t = offset_view({4});
             fill_tensor(t, {-2, -1, 1, 2});
@@ -241,7 +241,7 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(t, "relu t"));
         }
 
-        TEST_F(Unit_StorageOffsetTest, NonlinearBackwardHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, NonlinearBackwardHonoursOffset)
         {
             auto dy = offset_view({4});
             auto x = offset_view({4});
@@ -259,7 +259,7 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(dx, "relu_backward dx"));
         }
 
-        TEST_F(Unit_StorageOffsetTest, LogicHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, LogicHonoursOffset)
         {
             auto A = offset_view({4});
             auto B = offset_view({4});
@@ -277,7 +277,7 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(R, "greater R"));
         }
 
-        TEST_F(Unit_StorageOffsetTest, ReductionHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, ReductionHonoursOffset)
         {
             auto t = offset_view({4});
             auto r = offset_view({1});
@@ -292,7 +292,7 @@ namespace SushiBLAS
             EXPECT_TRUE(padding_intact(r, "sum result"));
         }
 
-        TEST_F(Unit_StorageOffsetTest, RandomHonoursOffset)
+        TEST_F(Medium_StorageOffsetTest, RandomHonoursOffset)
         {
             auto c = offset_view({8});
             auto u = offset_view({8});
@@ -316,7 +316,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_StorageOffsetTest, OffsetIsCountedInElementsNotBytes)
+        TEST_F(Medium_StorageOffsetTest, OffsetIsCountedInElementsNotBytes)
         {
             // storage_offset counts elements, not bytes. See tests/library/umbrella/README.md.
             auto f64 = offset_view({4}, Core::DataType::Float64);
@@ -336,7 +336,7 @@ namespace SushiBLAS
             EXPECT_EQ(region.length, 4u * sizeof(double));
         }
 
-        TEST_F(Unit_StorageOffsetTest, DisjointViewsOfOneAllocationDoNotAlias)
+        TEST_F(Medium_StorageOffsetTest, DisjointViewsOfOneAllocationDoNotAlias)
         {
             // Disjoint views of one arena must not alias. See tests/library/umbrella/README.md.
             auto storage = SushiRuntime::make_sushi<Storage>(
@@ -354,7 +354,7 @@ namespace SushiBLAS
             EXPECT_TRUE(first.region().overlaps(first.region()));
         }
 
-        TEST_F(Unit_StorageOffsetTest, TheAllocationBaseIsAlignedForEveryResidency)
+        TEST_F(Medium_StorageOffsetTest, TheAllocationBaseIsAlignedForEveryResidency)
         {
             const SushiRuntime::Residency residencies[] = {
                 SushiRuntime::Residency::Shared,
@@ -382,7 +382,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_StorageOffsetTest, TheAllocatedSizeIsAMultipleOfTheAlignment)
+        TEST_F(Medium_StorageOffsetTest, TheAllocatedSizeIsAMultipleOfTheAlignment)
         {
             auto one_byte = SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(), 1);
             auto past_one_block =
@@ -392,7 +392,7 @@ namespace SushiBLAS
             EXPECT_EQ(past_one_block->size_bytes(), 256u);
         }
 
-        TEST_F(Unit_StorageOffsetTest, AViewOffTheBaseReportsItsOwnAlignment)
+        TEST_F(Medium_StorageOffsetTest, AViewOffTheBaseReportsItsOwnAlignment)
         {
             const int64_t n = 64;
             auto storage = SushiRuntime::make_sushi<Storage>(
@@ -404,7 +404,7 @@ namespace SushiBLAS
             EXPECT_TRUE(whole.slice(0, 32, n).is_aligned());
         }
 
-        TEST_F(Unit_StorageOffsetTest, GetDeviceAnswersWithoutTheRegistry)
+        TEST_F(Medium_StorageOffsetTest, GetDeviceAnswersWithoutTheRegistry)
         {
             auto storage = SushiRuntime::make_sushi<Storage>(
                 TestEnvironment::runtime(), 4 * sizeof(float));

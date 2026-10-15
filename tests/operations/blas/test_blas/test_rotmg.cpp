@@ -162,7 +162,7 @@ namespace SushiBLAS
          * @brief Records rotmg on scalar tensors of element type T and reads them back.
          */
         template<typename T>
-        class Unit_Rotmg : public SushiBLASTest
+        class Medium_Rotmg : public SushiBLASTest
         {
             protected:
                 /** @brief Holds every operand of one call as read after the graph ran. */
@@ -276,12 +276,12 @@ namespace SushiBLAS
 
         /// @brief Names the element types rotmg accepts.
         using RotmgTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_Rotmg, RotmgTypes);
+        SB_TYPED_TEST_SUITE(Medium_Rotmg, RotmgTypes);
 
         /**
          * @brief Tests the four outcomes of xROTMG and which parameters each one writes.
          */
-        TYPED_TEST(Unit_Rotmg, EachOutcomeStoresOnlyWhatItsFlagDoesNotImply)
+        TYPED_TEST(Medium_Rotmg, EachOutcomeStoresOnlyWhatItsFlagDoesNotImply)
         {
             using T = TypeParam;
 
@@ -322,7 +322,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that scale factors above the window are divided back into it.
          */
-        TYPED_TEST(Unit_Rotmg, LargeFactorsAreRescaledDown)
+        TYPED_TEST(Medium_Rotmg, LargeFactorsAreRescaledDown)
         {
             using T = TypeParam;
             const T factor = std::ldexp(T(1), K_LARGE_EXPONENT);
@@ -334,7 +334,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that scale factors below the window are multiplied back into it.
          */
-        TYPED_TEST(Unit_Rotmg, SmallFactorsAreRescaledUp)
+        TYPED_TEST(Medium_Rotmg, SmallFactorsAreRescaledUp)
         {
             using T = TypeParam;
             const T factor = std::ldexp(T(1), K_SMALL_EXPONENT);
@@ -347,7 +347,7 @@ namespace SushiBLAS
          * @brief Tests that the two kernels give transformations within K_MODE_ULPS of each
          *        other on positive operands.
          */
-        TYPED_TEST(Unit_Rotmg, BothModesAgree)
+        TYPED_TEST(Medium_Rotmg, BothModesAgree)
         {
             using T = TypeParam;
 

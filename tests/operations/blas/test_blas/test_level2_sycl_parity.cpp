@@ -108,7 +108,7 @@ namespace SushiBLAS
          * @see tests/operations/blas/README.md
          */
         template<typename T>
-        class Unit_Level2SyclParityTest : public SushiBLASTest
+        class Medium_Level2SyclParityTest : public SushiBLASTest
         {
             protected:
                 /** @brief Returns the element a tensor of T holds at index of data, as a double. */
@@ -306,56 +306,56 @@ namespace SushiBLAS
 
         /// @brief Element types the parity tests run on.
         using ParityTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_Level2SyclParityTest, ParityTypes);
+        SB_TYPED_TEST_SUITE(Medium_Level2SyclParityTest, ParityTypes);
 
-        TYPED_TEST(Unit_Level2SyclParityTest, GemvIsWithinItsBoundOfTheTruthSmall)
+        TYPED_TEST(Medium_Level2SyclParityTest, GemvIsWithinItsBoundOfTheTruthSmall)
         {
             this->expect_gemv_within_bound(K_SMALL_N, K_SMALL_N);
         }
 
-        TYPED_TEST(Unit_Level2SyclParityTest, GemvIsWithinItsBoundOfTheTruthLarge)
+        TYPED_TEST(Medium_Level2SyclParityTest, GemvIsWithinItsBoundOfTheTruthLarge)
         {
             this->expect_gemv_within_bound(K_LARGE_N, K_LARGE_N);
         }
 
-        TYPED_TEST(Unit_Level2SyclParityTest, GemvIsWithinItsBoundOfTheTruthWide)
+        TYPED_TEST(Medium_Level2SyclParityTest, GemvIsWithinItsBoundOfTheTruthWide)
         {
             this->expect_gemv_within_bound(K_WIDE_ROWS, K_WIDE_COLS);
         }
 
-        TYPED_TEST(Unit_Level2SyclParityTest, SymvIsWithinItsBoundOfTheTruthSmall)
+        TYPED_TEST(Medium_Level2SyclParityTest, SymvIsWithinItsBoundOfTheTruthSmall)
         {
             this->expect_symv_within_bound(K_SMALL_N);
         }
 
-        TYPED_TEST(Unit_Level2SyclParityTest, SymvIsWithinItsBoundOfTheTruthLarge)
+        TYPED_TEST(Medium_Level2SyclParityTest, SymvIsWithinItsBoundOfTheTruthLarge)
         {
             this->expect_symv_within_bound(K_LARGE_N);
         }
 
-        TYPED_TEST(Unit_Level2SyclParityTest, GemvIsExactOnSmallIntegersLarge)
+        TYPED_TEST(Medium_Level2SyclParityTest, GemvIsExactOnSmallIntegersLarge)
         {
             this->expect_gemv_exact(K_LARGE_N, K_LARGE_N);
         }
 
-        TYPED_TEST(Unit_Level2SyclParityTest, GemvIsExactOnSmallIntegersWide)
+        TYPED_TEST(Medium_Level2SyclParityTest, GemvIsExactOnSmallIntegersWide)
         {
             this->expect_gemv_exact(K_WIDE_ROWS, K_WIDE_COLS);
         }
 
-        TYPED_TEST(Unit_Level2SyclParityTest, SymvIsExactOnSmallIntegersLarge)
+        TYPED_TEST(Medium_Level2SyclParityTest, SymvIsExactOnSmallIntegersLarge)
         {
             this->expect_symv_exact(K_LARGE_N);
         }
 
-        TYPED_TEST(Unit_Level2SyclParityTest, GemvRepeatsToTheBit)
+        TYPED_TEST(Medium_Level2SyclParityTest, GemvRepeatsToTheBit)
         {
             const auto first = this->run_gemv(ExecutionMode::ForceSYCL, K_WIDE_ROWS, K_WIDE_COLS);
             const auto second = this->run_gemv(ExecutionMode::ForceSYCL, K_WIDE_ROWS, K_WIDE_COLS);
             this->expect_same_bits(first, second);
         }
 
-        TYPED_TEST(Unit_Level2SyclParityTest, SymvRepeatsToTheBit)
+        TYPED_TEST(Medium_Level2SyclParityTest, SymvRepeatsToTheBit)
         {
             const auto first = this->run_symv(ExecutionMode::ForceSYCL, K_LARGE_N, true);
             const auto second = this->run_symv(ExecutionMode::ForceSYCL, K_LARGE_N, true);

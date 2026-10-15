@@ -104,7 +104,7 @@ each exactly representable, not one of them remotely bad, give a non-finite tota
 the screen reports an overflow that never happened, the scale is halved, and it is halved again on
 the next step, for ever, on a run that was fine. The op meant to rescue a mixed-precision run would
 be the thing that stalls it.
-`Unit_CountNonFiniteTest.AsumReportsOverflowOnAHalfTensorThisOpCallsClean` is that exact tensor put
+`Medium_CountNonFiniteTest.AsumReportsOverflowOnAHalfTensorThisOpCallsClean` is that exact tensor put
 through both ops, so this is a measurement rather than a worry. The supporting ones: even in fp32 a
 loss-scaled gradient is *deliberately* pushed up in magnitude, which is the one situation where a
 sum of magnitudes overflows without any element doing so, and `asum` therefore conflates "an element

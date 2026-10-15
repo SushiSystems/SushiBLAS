@@ -40,7 +40,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceSymv, ReadsOneTriangleAndMirrorsIt)
+        TEST(Small_ReferenceSymv, ReadsOneTriangleAndMirrorsIt)
         {
             const int64_t n = 5;
             // The triangle not named by uplo holds 99, which the kernel must never read.

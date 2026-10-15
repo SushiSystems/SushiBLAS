@@ -87,7 +87,7 @@ namespace SushiBLAS
          * @brief Runs a BLAS call on the reference kernel and computes the same result on the host.
          */
         template<typename T>
-        class Regression_BlasSymmetricBits : public SushiBLASTest
+        class Medium_BlasSymmetricBits : public SushiBLASTest
         {
             protected:
                 /** @brief The type a rank update is formed in. */
@@ -354,9 +354,9 @@ namespace SushiBLAS
         };
 
         using SymmetricBitsTypes = ::testing::Types<float, double, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Regression_BlasSymmetricBits, SymmetricBitsTypes);
+        SB_TYPED_TEST_SUITE(Medium_BlasSymmetricBits, SymmetricBitsTypes);
 
-        TYPED_TEST(Regression_BlasSymmetricBits, DotEqualsTheHostSum)
+        TYPED_TEST(Medium_BlasSymmetricBits, DotEqualsTheHostSum)
         {
             using T = TypeParam;
 
@@ -381,7 +381,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Regression_BlasSymmetricBits, GerEqualsTheHostUpdate)
+        TYPED_TEST(Medium_BlasSymmetricBits, GerEqualsTheHostUpdate)
         {
             using T = TypeParam;
             const T alpha = TestFixture::alpha();
@@ -408,7 +408,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Regression_BlasSymmetricBits, SymvEqualsTheHostSum)
+        TYPED_TEST(Medium_BlasSymmetricBits, SymvEqualsTheHostSum)
         {
             using T = TypeParam;
             const T alpha = TestFixture::alpha();
@@ -438,7 +438,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Regression_BlasSymmetricBits, SyrEqualsTheHostUpdate)
+        TYPED_TEST(Medium_BlasSymmetricBits, SyrEqualsTheHostUpdate)
         {
             using T = TypeParam;
             const T alpha = TestFixture::alpha();
@@ -463,7 +463,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Regression_BlasSymmetricBits, Syr2EqualsTheHostUpdate)
+        TYPED_TEST(Medium_BlasSymmetricBits, Syr2EqualsTheHostUpdate)
         {
             using T = TypeParam;
             const T alpha = TestFixture::alpha();
@@ -490,7 +490,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Regression_BlasSymmetricBits, SyrkEqualsTheHostSum)
+        TYPED_TEST(Medium_BlasSymmetricBits, SyrkEqualsTheHostSum)
         {
             using T = TypeParam;
             const T alpha = TestFixture::alpha();
@@ -527,7 +527,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Regression_BlasSymmetricBits, TrsmEqualsTheHostSubstitution)
+        TYPED_TEST(Medium_BlasSymmetricBits, TrsmEqualsTheHostSubstitution)
         {
             using T = TypeParam;
             const T alpha = TestFixture::alpha();

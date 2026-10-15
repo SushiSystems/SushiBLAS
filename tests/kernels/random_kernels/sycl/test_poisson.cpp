@@ -47,7 +47,7 @@ namespace SushiBLAS
         /// @brief Draws per lambda in the moment checks.
         constexpr uint64_t K_DRAWS = 4000;
 
-        TEST(Unit_Poisson, SmallLambdaKeepsOnlyKnuthsConstant)
+        TEST(Medium_Poisson, SmallLambdaKeepsOnlyKnuthsConstant)
         {
             const Poisson::PoissonParams small = Poisson::make_poisson_params(2.0);
 
@@ -55,7 +55,7 @@ namespace SushiBLAS
             EXPECT_EQ(small.b, 0.0);
         }
 
-        TEST(Unit_Poisson, LargeLambdaFillsTheHatOfPTRS)
+        TEST(Medium_Poisson, LargeLambdaFillsTheHatOfPTRS)
         {
             const Poisson::PoissonParams large = Poisson::make_poisson_params(100.0);
 
@@ -64,7 +64,7 @@ namespace SushiBLAS
             EXPECT_GT(large.v_r, 0.0);
         }
 
-        TEST(Unit_Poisson, BothMethodsDrawCountsWithTheRightMean)
+        TEST(Medium_Poisson, BothMethodsDrawCountsWithTheRightMean)
         {
             for (const double lambda : {0.5, 4.0, 30.0, 250.0})
             {
@@ -85,12 +85,12 @@ namespace SushiBLAS
         }
 
         /** @brief Draws on the host CPU queue. */
-        class Device_Poisson : public HostDeviceTest
+        class Medium_PoissonOnDevice : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_Poisson, AKernelDrawsTheCountsTheHostDraws)
+        TEST_F(Medium_PoissonOnDevice, AKernelDrawsTheCountsTheHostDraws)
         {
             constexpr std::size_t count = 256;
             for (const double lambda : {3.0, 60.0})

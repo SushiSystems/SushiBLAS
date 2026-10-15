@@ -58,7 +58,7 @@ namespace
     }
 }
 
-class Unit_RngStreamTest : public SushiBLASTest
+class Medium_RngStreamTest : public SushiBLASTest
 {
     protected:
         /// @brief Seeds the engine, fills a FLOAT32 tensor with normal samples and returns them.
@@ -72,7 +72,7 @@ class Unit_RngStreamTest : public SushiBLASTest
         }
 };
 
-TEST_F(Unit_RngStreamTest, ReseedRewindsTheOffset)
+TEST_F(Medium_RngStreamTest, ReseedRewindsTheOffset)
 {
     SushiBLAS::RNGStream stream;
     stream.reseed(K_SEED);
@@ -87,7 +87,7 @@ TEST_F(Unit_RngStreamTest, ReseedRewindsTheOffset)
     EXPECT_EQ(position.offset, 0u);
 }
 
-TEST_F(Unit_RngStreamTest, ReserveReturnsConsecutiveDisjointRanges)
+TEST_F(Medium_RngStreamTest, ReserveReturnsConsecutiveDisjointRanges)
 {
     SushiBLAS::RNGStream stream;
     stream.reseed(K_SEED);
@@ -98,7 +98,7 @@ TEST_F(Unit_RngStreamTest, ReserveReturnsConsecutiveDisjointRanges)
     EXPECT_EQ(stream.reserve(1).offset, 15u);
 }
 
-TEST_F(Unit_RngStreamTest, ConcurrentReservationsAreDistinct)
+TEST_F(Medium_RngStreamTest, ConcurrentReservationsAreDistinct)
 {
     SushiBLAS::RNGStream stream;
     stream.reseed(K_SEED);
@@ -115,7 +115,7 @@ TEST_F(Unit_RngStreamTest, ConcurrentReservationsAreDistinct)
     EXPECT_EQ(merged.size(), static_cast<size_t>(2 * K_RESERVATIONS_PER_THREAD));
 }
 
-TEST_F(Unit_RngStreamTest, ReseedRacingReservationsNeverPairsAForeignSeed)
+TEST_F(Medium_RngStreamTest, ReseedRacingReservationsNeverPairsAForeignSeed)
 {
     SushiBLAS::RNGStream stream;
     stream.reseed(K_SEED);
@@ -141,7 +141,7 @@ TEST_F(Unit_RngStreamTest, ReseedRacingReservationsNeverPairsAForeignSeed)
             << "Seed " << position.seed << " is neither of the two seeds used.";
 }
 
-TEST_F(Unit_RngStreamTest, EqualSeedsGiveBitEqualNormalFills)
+TEST_F(Medium_RngStreamTest, EqualSeedsGiveBitEqualNormalFills)
 {
     const std::vector<float> first = normal_fill(K_SEED);
     const std::vector<float> second = normal_fill(K_SEED);

@@ -35,7 +35,7 @@
 #include <SushiBLAS/test_runner/test_environment.hpp>
 using namespace SushiBLAS::Test;
 
-class Unit_ShuffleTest : public SushiBLASTest
+class Medium_ShuffleTest : public SushiBLASTest
 {
     protected:
         static constexpr int K_N = 64;
@@ -59,7 +59,7 @@ class Unit_ShuffleTest : public SushiBLASTest
         }
 };
 
-TEST_F(Unit_ShuffleTest, ResultIsAPermutationOfTheInput)
+TEST_F(Medium_ShuffleTest, ResultIsAPermutationOfTheInput)
 {
     auto out = shuffled_iota(1234);
 
@@ -80,7 +80,7 @@ TEST_F(Unit_ShuffleTest, ResultIsAPermutationOfTheInput)
     EXPECT_TRUE(moved) << "Shuffle left the tensor in its original order.";
 }
 
-TEST_F(Unit_ShuffleTest, SameSeedReproducesTheSamePermutation)
+TEST_F(Medium_ShuffleTest, SameSeedReproducesTheSamePermutation)
 {
     auto first = shuffled_iota(20260803);
 
@@ -91,7 +91,7 @@ TEST_F(Unit_ShuffleTest, SameSeedReproducesTheSamePermutation)
     EXPECT_EQ(first, second);
 }
 
-TEST_F(Unit_ShuffleTest, DifferentSeedsProduceDifferentPermutations)
+TEST_F(Medium_ShuffleTest, DifferentSeedsProduceDifferentPermutations)
 {
     auto first = shuffled_iota(1);
 
@@ -101,7 +101,7 @@ TEST_F(Unit_ShuffleTest, DifferentSeedsProduceDifferentPermutations)
     EXPECT_NE(first, second) << "The seed is not reaching the permutation.";
 }
 
-TEST_F(Unit_ShuffleTest, ConsecutiveShufflesOnOneEngineDiffer)
+TEST_F(Medium_ShuffleTest, ConsecutiveShufflesOnOneEngineDiffer)
 {
     // Each task draws a fresh counter offset, so two shuffles must not repeat a permutation.
     std::vector<float> src(K_N);
@@ -125,7 +125,7 @@ TEST_F(Unit_ShuffleTest, ConsecutiveShufflesOnOneEngineDiffer)
     EXPECT_NE(ha, hb);
 }
 
-TEST_F(Unit_ShuffleTest, PermutesHalfPrecisionToo)
+TEST_F(Medium_ShuffleTest, PermutesHalfPrecisionToo)
 {
     // shuffle moves elements without computing on them, so it accepts HALF.
     constexpr int kSmall = 16;

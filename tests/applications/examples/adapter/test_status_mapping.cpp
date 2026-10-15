@@ -82,7 +82,7 @@ namespace HostProgram
             return Detail::guarded(Thrower<Exception>{}).code;
         }
 
-        TEST(Unit_StatusMapping, EveryRuntimeErrorHasAHostStatus)
+        TEST(Medium_StatusMapping, EveryRuntimeErrorHasAHostStatus)
         {
             EXPECT_EQ(code_for(SushiRuntime::ErrorCode::InvalidGraph), StatusCode::InvalidRequest);
             EXPECT_EQ(code_for(SushiRuntime::ErrorCode::InvalidState), StatusCode::InvalidRequest);
@@ -96,7 +96,7 @@ namespace HostProgram
                       "lost");
         }
 
-        TEST(Unit_StatusMapping, TheGuardNamesTheExceptionItCaught)
+        TEST(Medium_StatusMapping, TheGuardNamesTheExceptionItCaught)
         {
             EXPECT_EQ(code_of_throw<SushiBLAS::UnsupportedExecution>(), StatusCode::Unsupported);
             EXPECT_EQ(code_of_throw<std::invalid_argument>(), StatusCode::InvalidRequest);

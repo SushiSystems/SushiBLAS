@@ -16,7 +16,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE sparse_storage
-    SIZE medium
     TESTS
         test_sparse_builder.cpp
         test_sparse_matrix.cpp

@@ -38,7 +38,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_VectorSnapshot, CopiesEveryIncxthElementOnTheHost)
+        TEST(Medium_VectorSnapshot, CopiesEveryIncxthElementOnTheHost)
         {
             const std::vector<float> x{1.0f, 9.0f, 2.0f, 9.0f, 3.0f};
             std::vector<float> snapshot(3, 0.0f);
@@ -51,12 +51,12 @@ namespace SushiBLAS
         }
 
         /** @brief Runs the snapshot on the host CPU queue. */
-        class Device_VectorSnapshot : public HostDeviceTest
+        class Medium_VectorSnapshotOnDevice : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_VectorSnapshot, AKernelCopiesTheStridedElements)
+        TEST_F(Medium_VectorSnapshotOnDevice, AKernelCopiesTheStridedElements)
         {
             std::vector<double> values(30);
             for (std::size_t i = 0; i < values.size(); ++i)

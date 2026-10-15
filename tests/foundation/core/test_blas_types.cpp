@@ -40,7 +40,7 @@ namespace SushiBLAS
         /// @brief A value above every enumerator of every flag.
         constexpr std::uint8_t K_ABOVE_EVERY_FLAG = 255;
 
-        TEST(Unit_BlasTypes, EveryEnumeratorCarriesItsCblasNumber)
+        TEST(Small_BlasTypes, EveryEnumeratorCarriesItsCblasNumber)
         {
             EXPECT_EQ(static_cast<int>(Core::Transpose::NoTrans), 111);
             EXPECT_EQ(static_cast<int>(Core::Transpose::Trans), 112);
@@ -53,7 +53,7 @@ namespace SushiBLAS
             EXPECT_EQ(static_cast<int>(Core::Side::Right), 142);
         }
 
-        TEST(Unit_BlasTypes, EveryFlagIsOneByte)
+        TEST(Small_BlasTypes, EveryFlagIsOneByte)
         {
             static_assert(sizeof(Core::Transpose) == 1, "Transpose is one byte.");
             static_assert(sizeof(Core::Uplo) == 1, "Uplo is one byte.");
@@ -66,7 +66,7 @@ namespace SushiBLAS
             EXPECT_EQ(sizeof(Core::Side), 1u);
         }
 
-        TEST(Unit_BlasTypes, IsValidAcceptsEveryEnumerator)
+        TEST(Small_BlasTypes, IsValidAcceptsEveryEnumerator)
         {
             EXPECT_TRUE(Core::is_valid(Core::Transpose::NoTrans));
             EXPECT_TRUE(Core::is_valid(Core::Transpose::Trans));
@@ -79,7 +79,7 @@ namespace SushiBLAS
             EXPECT_TRUE(Core::is_valid(Core::Side::Right));
         }
 
-        TEST(Unit_BlasTypes, IsValidRefusesAValueInitialisedFlag)
+        TEST(Small_BlasTypes, IsValidRefusesAValueInitialisedFlag)
         {
             EXPECT_FALSE(Core::is_valid(Core::Transpose{}));
             EXPECT_FALSE(Core::is_valid(Core::Uplo{}));
@@ -92,7 +92,7 @@ namespace SushiBLAS
             EXPECT_FALSE(Core::is_valid(static_cast<Core::Side>(K_BELOW_EVERY_FLAG)));
         }
 
-        TEST(Unit_BlasTypes, IsValidRefusesAValueAboveEveryEnumerator)
+        TEST(Small_BlasTypes, IsValidRefusesAValueAboveEveryEnumerator)
         {
             EXPECT_FALSE(Core::is_valid(static_cast<Core::Transpose>(K_ABOVE_EVERY_FLAG)));
             EXPECT_FALSE(Core::is_valid(static_cast<Core::Uplo>(K_ABOVE_EVERY_FLAG)));
@@ -100,7 +100,7 @@ namespace SushiBLAS
             EXPECT_FALSE(Core::is_valid(static_cast<Core::Side>(K_ABOVE_EVERY_FLAG)));
         }
 
-        TEST(Unit_BlasTypes, IsValidRefusesTheNumberOfAnotherFlag)
+        TEST(Small_BlasTypes, IsValidRefusesTheNumberOfAnotherFlag)
         {
             EXPECT_FALSE(Core::is_valid(static_cast<Core::Transpose>(121)));
             EXPECT_FALSE(Core::is_valid(static_cast<Core::Uplo>(111)));
@@ -108,21 +108,21 @@ namespace SushiBLAS
             EXPECT_FALSE(Core::is_valid(static_cast<Core::Side>(131)));
         }
 
-        TEST(Unit_BlasTypes, IsTransposedHoldsForBothTransposes)
+        TEST(Small_BlasTypes, IsTransposedHoldsForBothTransposes)
         {
             EXPECT_FALSE(Core::is_transposed(Core::Transpose::NoTrans));
             EXPECT_TRUE(Core::is_transposed(Core::Transpose::Trans));
             EXPECT_TRUE(Core::is_transposed(Core::Transpose::ConjTrans));
         }
 
-        TEST(Unit_BlasTypes, IsConjugatedHoldsForTheConjugateTransposeOnly)
+        TEST(Small_BlasTypes, IsConjugatedHoldsForTheConjugateTransposeOnly)
         {
             EXPECT_FALSE(Core::is_conjugated(Core::Transpose::NoTrans));
             EXPECT_FALSE(Core::is_conjugated(Core::Transpose::Trans));
             EXPECT_TRUE(Core::is_conjugated(Core::Transpose::ConjTrans));
         }
 
-        TEST(Unit_BlasTypes, ToStringNamesEveryEnumerator)
+        TEST(Small_BlasTypes, ToStringNamesEveryEnumerator)
         {
             EXPECT_EQ(std::string(Core::to_string(Core::Transpose::NoTrans)), "NO_TRANS");
             EXPECT_EQ(std::string(Core::to_string(Core::Transpose::Trans)), "TRANS");
@@ -135,7 +135,7 @@ namespace SushiBLAS
             EXPECT_EQ(std::string(Core::to_string(Core::Side::Right)), "RIGHT");
         }
 
-        TEST(Unit_BlasTypes, ToStringNamesAValueOutsideTheEnumerationUnknown)
+        TEST(Small_BlasTypes, ToStringNamesAValueOutsideTheEnumerationUnknown)
         {
             EXPECT_EQ(std::string(Core::to_string(Core::Transpose{})), "UNKNOWN");
             EXPECT_EQ(std::string(Core::to_string(Core::Uplo{})), "UNKNOWN");

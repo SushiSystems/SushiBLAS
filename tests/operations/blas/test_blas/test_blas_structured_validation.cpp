@@ -234,7 +234,7 @@ namespace SushiBLAS
         /**
          * @brief Builds operands every routine accepts, changes one and expects the refusal.
          */
-        class Unit_BlasStructuredValidation : public SushiBLASTest
+        class Medium_BlasStructuredValidation : public SushiBLASTest
         {
             protected:
                 /**
@@ -409,7 +409,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that every routine records and runs on the operands the refusals change.
          */
-        TEST_F(Unit_BlasStructuredValidation, EveryRoutineAcceptsTheOperandsARefusalStartsFrom)
+        TEST_F(Medium_BlasStructuredValidation, EveryRoutineAcceptsTheOperandsARefusalStartsFrom)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -441,7 +441,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a matrix with elements and no storage is refused.
          */
-        TEST_F(Unit_BlasStructuredValidation, AMatrixWithoutStorageIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, AMatrixWithoutStorageIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -458,7 +458,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that operands of an integer dtype are refused.
          */
-        TEST_F(Unit_BlasStructuredValidation, AnIntegerDtypeIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, AnIntegerDtypeIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -497,7 +497,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a vector of rank 2 that is not contiguous is refused.
          */
-        TEST_F(Unit_BlasStructuredValidation, ANonContiguousVectorOfRankTwoIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, ANonContiguousVectorOfRankTwoIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -518,7 +518,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a vector whose increment is zero is refused.
          */
-        TEST_F(Unit_BlasStructuredValidation, AVectorIncrementOfZeroIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, AVectorIncrementOfZeroIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -538,7 +538,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that each flag is refused when it holds no enumerator of its type.
          */
-        TEST_F(Unit_BlasStructuredValidation, AFlagThatIsNoEnumeratorIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, AFlagThatIsNoEnumeratorIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -557,7 +557,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a real tensor refuses a scalar with an imaginary part.
          */
-        TEST_F(Unit_BlasStructuredValidation, AnImaginaryScalarOnARealTensorIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, AnImaginaryScalarOnARealTensorIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -573,7 +573,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a vector whose dtype is not the matrix's is refused.
          */
-        TEST_F(Unit_BlasStructuredValidation, AVectorOfAnotherDtypeIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, AVectorOfAnotherDtypeIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -592,7 +592,7 @@ namespace SushiBLAS
          * @brief Tests that a vector whose length is not the matrix extent it runs along is
          *        refused; gbmv takes one extent from a vector, so only its other one can err.
          */
-        TEST_F(Unit_BlasStructuredValidation, AVectorOfTheWrongLengthIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, AVectorOfTheWrongLengthIsRefused)
         {
             for_each_engine([&](Core::Layout layout)
             {
@@ -629,7 +629,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a band width below zero is refused.
          */
-        TEST_F(Unit_BlasStructuredValidation, ANegativeBandWidthIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, ANegativeBandWidthIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -650,7 +650,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a band matrix of rank 1 or of rank 3 is refused.
          */
-        TEST_F(Unit_BlasStructuredValidation, ABandMatrixOfAnotherRankIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, ABandMatrixOfAnotherRankIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -674,7 +674,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a band matrix whose strides are not those of its shape is refused.
          */
-        TEST_F(Unit_BlasStructuredValidation, AStridedBandMatrixIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, AStridedBandMatrixIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -692,7 +692,7 @@ namespace SushiBLAS
          * @brief Tests that a band matrix with fewer elements per line than its widths need is
          *        refused.
          */
-        TEST_F(Unit_BlasStructuredValidation, ABandNarrowerThanItsWidthsIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, ABandNarrowerThanItsWidthsIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -708,7 +708,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a packed matrix whose rank is not 1 is refused.
          */
-        TEST_F(Unit_BlasStructuredValidation, APackedMatrixOfAnotherRankIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, APackedMatrixOfAnotherRankIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -720,7 +720,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a packed matrix viewed with an increment is refused.
          */
-        TEST_F(Unit_BlasStructuredValidation, AStridedPackedMatrixIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, AStridedPackedMatrixIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -733,7 +733,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a packed matrix whose element count is no n * (n + 1) / 2 is refused.
          */
-        TEST_F(Unit_BlasStructuredValidation, APackedCountThatIsNoTriangleIsRefused)
+        TEST_F(Medium_BlasStructuredValidation, APackedCountThatIsNoTriangleIsRefused)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -745,7 +745,7 @@ namespace SushiBLAS
         /**
          * @brief Tests the element counts and the dtypes rotg refuses.
          */
-        TEST_F(Unit_BlasStructuredValidation, RotgRefusesItsOperands)
+        TEST_F(Medium_BlasStructuredValidation, RotgRefusesItsOperands)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -803,7 +803,7 @@ namespace SushiBLAS
         /**
          * @brief Tests the dtypes, the lengths and the parameter tensors rotm refuses.
          */
-        TEST_F(Unit_BlasStructuredValidation, RotmRefusesItsOperands)
+        TEST_F(Medium_BlasStructuredValidation, RotmRefusesItsOperands)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -854,7 +854,7 @@ namespace SushiBLAS
         /**
          * @brief Tests the dtypes, the element counts and the parameter tensors rotmg refuses.
          */
-        TEST_F(Unit_BlasStructuredValidation, RotmgRefusesItsOperands)
+        TEST_F(Medium_BlasStructuredValidation, RotmgRefusesItsOperands)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -933,7 +933,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that hbmv on a FLOAT32 tensor gives the bits of sbmv.
          */
-        TEST_F(Unit_BlasStructuredValidation, HbmvOnARealTensorGivesTheBitsOfSbmv)
+        TEST_F(Medium_BlasStructuredValidation, HbmvOnARealTensorGivesTheBitsOfSbmv)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -958,7 +958,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that hpmv on a FLOAT32 tensor gives the bits of spmv.
          */
-        TEST_F(Unit_BlasStructuredValidation, HpmvOnARealTensorGivesTheBitsOfSpmv)
+        TEST_F(Medium_BlasStructuredValidation, HpmvOnARealTensorGivesTheBitsOfSpmv)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -983,7 +983,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that hpr and hpr2 on a FLOAT32 tensor give the bits of spr and spr2.
          */
-        TEST_F(Unit_BlasStructuredValidation, HprAndHpr2OnARealTensorGiveTheBitsOfSprAndSpr2)
+        TEST_F(Medium_BlasStructuredValidation, HprAndHpr2OnARealTensorGiveTheBitsOfSprAndSpr2)
         {
             for_each_engine([&](Core::Layout)
             {

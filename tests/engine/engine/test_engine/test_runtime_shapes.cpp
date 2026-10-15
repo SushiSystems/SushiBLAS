@@ -48,12 +48,12 @@ namespace SushiBLAS
         const std::vector<int64_t> K_RESHAPED{6, 4};
 
         /** @brief Supplies a row-major engine. */
-        class Unit_RuntimeShapes : public SushiBLASTest
+        class Medium_RuntimeShapes : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_RuntimeShapes, CreateTensorTakesAVectorShape)
+        TEST_F(Medium_RuntimeShapes, CreateTensorTakesAVectorShape)
         {
             const Tensor t = engine->create_tensor(K_DIMS);
 
@@ -67,7 +67,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_RuntimeShapes, CreateTensorTakesAVectorShapeAndDtype)
+        TEST_F(Medium_RuntimeShapes, CreateTensorTakesAVectorShapeAndDtype)
         {
             const Tensor t = engine->create_tensor(K_DIMS, Core::DataType::Float64);
 
@@ -75,14 +75,14 @@ namespace SushiBLAS
             EXPECT_EQ(t.num_elements, K_ELEMENTS);
         }
 
-        TEST_F(Unit_RuntimeShapes, CreateTensorRejectsANegativeDimension)
+        TEST_F(Medium_RuntimeShapes, CreateTensorRejectsANegativeDimension)
         {
             const std::vector<int64_t> negative{2, -3};
 
             EXPECT_THROW((void)engine->create_tensor(negative), std::runtime_error);
         }
 
-        TEST_F(Unit_RuntimeShapes, ReshapeTakesAVectorShape)
+        TEST_F(Medium_RuntimeShapes, ReshapeTakesAVectorShape)
         {
             const Tensor t = engine->create_tensor(K_DIMS);
             const Tensor r = t.reshape(K_RESHAPED);
@@ -93,7 +93,7 @@ namespace SushiBLAS
             EXPECT_EQ(r.num_elements, K_ELEMENTS);
         }
 
-        TEST_F(Unit_RuntimeShapes, ReshapeRejectsAnotherElementCount)
+        TEST_F(Medium_RuntimeShapes, ReshapeRejectsAnotherElementCount)
         {
             const Tensor t = engine->create_tensor(K_DIMS);
             const std::vector<int64_t> wrong{5, 5};

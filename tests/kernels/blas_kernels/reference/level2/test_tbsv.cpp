@@ -40,7 +40,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceTbsv, RecoversTheVectorAProductMade)
+        TEST(Small_ReferenceTbsv, RecoversTheVectorAProductMade)
         {
             const int64_t n = 6;
             const int64_t k = 2;

@@ -39,7 +39,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        class Unit_IntegerDTypeTest : public SushiBLASTest
+        class Medium_IntegerDTypeTest : public SushiBLASTest
         {
             protected:
                 /** @brief Reads a whole INT64 tensor back to the host. */
@@ -65,7 +65,7 @@ namespace SushiBLAS
          * @brief Tests the element widths and names of the integer dtypes.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Unit_IntegerDTypeTest, ElementWidthsAndNamesAreDeclared)
+        TEST_F(Medium_IntegerDTypeTest, ElementWidthsAndNamesAreDeclared)
         {
             EXPECT_EQ(4u, Core::bytes_per_element(Core::DataType::Int32));
             EXPECT_EQ(8u, Core::bytes_per_element(Core::DataType::Int64));
@@ -86,7 +86,7 @@ namespace SushiBLAS
          * @brief Tests that constant fills an integer tensor exactly.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Unit_IntegerDTypeTest, ConstantFillsAnIntegerTensorExactly)
+        TEST_F(Medium_IntegerDTypeTest, ConstantFillsAnIntegerTensorExactly)
         {
             auto a = engine->create_tensor({4}, Core::DataType::Int32);
             auto b = engine->create_tensor({4}, Core::DataType::Int64);
@@ -103,7 +103,7 @@ namespace SushiBLAS
          * @brief Tests that copy moves integer elements.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Unit_IntegerDTypeTest, CopyMovesIntegerElements)
+        TEST_F(Medium_IntegerDTypeTest, CopyMovesIntegerElements)
         {
             auto src = engine->create_tensor({3}, Core::DataType::Int64);
             auto dst = engine->create_tensor({3}, Core::DataType::Int64);
@@ -120,7 +120,7 @@ namespace SushiBLAS
          * @brief Tests that the comparisons work on integer tensors.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Unit_IntegerDTypeTest, ComparisonsWorkOnIntegerTensors)
+        TEST_F(Medium_IntegerDTypeTest, ComparisonsWorkOnIntegerTensors)
         {
             auto a = engine->create_tensor({4}, Core::DataType::Int32);
             auto b = engine->create_tensor({4}, Core::DataType::Int32);
@@ -143,7 +143,7 @@ namespace SushiBLAS
         }
 
         // The boolean family and `where`, which selects rather than compares.
-        TEST_F(Unit_IntegerDTypeTest, BooleanOpsAndWhereWorkOnIntegerTensors)
+        TEST_F(Medium_IntegerDTypeTest, BooleanOpsAndWhereWorkOnIntegerTensors)
         {
             auto a = engine->create_tensor({4}, Core::DataType::Int64);
             auto b = engine->create_tensor({4}, Core::DataType::Int64);
@@ -171,7 +171,7 @@ namespace SushiBLAS
         }
 
         // `all` and `any` reduce a truth vector, so they take integer operands too.
-        TEST_F(Unit_IntegerDTypeTest, AllAndAnyReduceIntegerTruthVectors)
+        TEST_F(Medium_IntegerDTypeTest, AllAndAnyReduceIntegerTruthVectors)
         {
             auto mixed = engine->create_tensor({4}, Core::DataType::Int32);
             auto ones = engine->create_tensor({4}, Core::DataType::Int32);
@@ -197,7 +197,7 @@ namespace SushiBLAS
          * @brief Tests that argmax over an integer tensor returns an INT64 index.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Unit_IntegerDTypeTest, ArgmaxSearchesAnIntegerTensor)
+        TEST_F(Medium_IntegerDTypeTest, ArgmaxSearchesAnIntegerTensor)
         {
             auto t = engine->create_tensor({5}, Core::DataType::Int32);
             auto r = engine->create_tensor({1}, Core::DataType::Int64);
@@ -217,7 +217,7 @@ namespace SushiBLAS
          * @brief Tests that argmax is exact for an index past 2^24.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Unit_IntegerDTypeTest, ArgmaxIsExactPastTheFloatMantissa)
+        TEST_F(Medium_IntegerDTypeTest, ArgmaxIsExactPastTheFloatMantissa)
         {
             constexpr int64_t kN = 16777218;
             constexpr int64_t kPeak = 16777217;
@@ -245,7 +245,7 @@ namespace SushiBLAS
          * @brief Tests that every unsupported op refuses an integer operand by name.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Unit_IntegerDTypeTest, UnsupportedOpsRejectIntegerOperandsByName)
+        TEST_F(Medium_IntegerDTypeTest, UnsupportedOpsRejectIntegerOperandsByName)
         {
             GraphProbe probe;
 
@@ -300,7 +300,7 @@ namespace SushiBLAS
          * @brief Tests that the ordering comparisons still refuse complex operands.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Unit_IntegerDTypeTest, OrderingComparisonsStillRejectComplex)
+        TEST_F(Medium_IntegerDTypeTest, OrderingComparisonsStillRejectComplex)
         {
             auto a = engine->create_tensor({4}, Core::DataType::Complex32);
             auto b = engine->create_tensor({4}, Core::DataType::Complex32);

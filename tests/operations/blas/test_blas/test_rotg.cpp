@@ -372,14 +372,14 @@ namespace SushiBLAS
 
         /** @brief Runs rotg over the five element types. */
         template<typename T>
-        class Unit_Rotg : public RotgCases<T>
+        class Medium_Rotg : public RotgCases<T>
         {
 
         };
 
         /** @brief Runs rotg over the real element types. */
         template<typename T>
-        class Unit_RotgReal : public RotgCases<T>
+        class Medium_RotgReal : public RotgCases<T>
         {
             protected:
                 /// @brief The type a rotation of T is computed in.
@@ -432,13 +432,13 @@ namespace SushiBLAS
 
         /** @brief Runs rotg over the complex element types. */
         template<typename T>
-        class Unit_RotgComplex : public RotgCases<T>
+        class Medium_RotgComplex : public RotgCases<T>
         {
 
         };
 
         /// @brief Names the suite of the cases that run on HALF alone.
-        using Unit_RotgHalf = RotgCases<sycl::half>;
+        using Medium_RotgHalf = RotgCases<sycl::half>;
 
         /// @brief Names the five element types rotg accepts.
         using RotgTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
@@ -447,15 +447,15 @@ namespace SushiBLAS
         using RotgRealTypes = ::testing::Types<sycl::half, float, double>;
         /// @brief Names the complex element types, whose rotation leaves b as it is.
         using RotgComplexTypes = ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_Rotg, RotgTypes);
-        SB_TYPED_TEST_SUITE(Unit_RotgReal, RotgRealTypes);
-        SB_TYPED_TEST_SUITE(Unit_RotgComplex, RotgComplexTypes);
+        SB_TYPED_TEST_SUITE(Medium_Rotg, RotgTypes);
+        SB_TYPED_TEST_SUITE(Medium_RotgReal, RotgRealTypes);
+        SB_TYPED_TEST_SUITE(Medium_RotgComplex, RotgComplexTypes);
 
         /**
          * @brief Tests the real rotation against the table of the design; a and b receive r
          *        and z.
          */
-        TYPED_TEST(Unit_RotgReal, RealPairsMatchTheTable)
+        TYPED_TEST(Medium_RotgReal, RealPairsMatchTheTable)
         {
             using T = TypeParam;
 
@@ -489,7 +489,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that rotg reads an operand an earlier task of the same graph writes.
          */
-        TYPED_TEST(Unit_RotgReal, AnInputWrittenByAnEarlierTaskIsRead)
+        TYPED_TEST(Medium_RotgReal, AnInputWrittenByAnEarlierTaskIsRead)
         {
             using T = TypeParam;
             const RealRotationRow row = {K_DOT_VALUE, K_DOT_PARTNER, 5.0, 3.0, 5.0, 4.0, 5.0,
@@ -532,7 +532,7 @@ namespace SushiBLAS
         /**
          * @brief Tests the complex rotation against the table of the design; b is only read.
          */
-        TYPED_TEST(Unit_RotgComplex, ComplexPairsMatchTheTable)
+        TYPED_TEST(Medium_RotgComplex, ComplexPairsMatchTheTable)
         {
             using T = TypeParam;
             using R = typename T::value_type;
@@ -573,7 +573,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that the two kernels give rotations within K_MODE_ULPS of each other.
          */
-        TYPED_TEST(Unit_Rotg, BothModesAgree)
+        TYPED_TEST(Medium_Rotg, BothModesAgree)
         {
             using T = TypeParam;
             const std::vector<std::pair<T, T>> pairs = draw_pairs<T>(K_RANDOM_PAIRS);
@@ -606,7 +606,7 @@ namespace SushiBLAS
          * @brief Tests that the reference kernel forms a HALF rotation in FLOAT32 and rounds
          *        each result once.
          */
-        TEST_F(Unit_RotgHalf, AHalfRotationIsComputedInFloat)
+        TEST_F(Medium_RotgHalf, AHalfRotationIsComputedInFloat)
         {
             std::vector<std::pair<sycl::half, sycl::half>> pairs =
                 draw_pairs<sycl::half>(K_RANDOM_HALF_PAIRS);

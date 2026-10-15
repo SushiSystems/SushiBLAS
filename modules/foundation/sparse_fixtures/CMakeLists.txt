@@ -17,7 +17,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE sparse_fixtures
-    SIZE small
     TESTS
         test_integer_csr.cpp
         test_sparse_samples.cpp)

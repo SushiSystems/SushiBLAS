@@ -63,7 +63,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Tests that the plan depends on the count alone and its levels chain. */
-        TEST(Unit_GraphPrimitivesFixedOrderLevels, PlanLayoutIsPureAndDisjoint)
+        TEST(Medium_GraphPrimitivesFixedOrderLevels, PlanLayoutIsPureAndDisjoint)
         {
             EXPECT_TRUE(plan_reduction(0).empty());
 
@@ -92,7 +92,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a tile folds left to right from its first element. */
-        TEST(Unit_GraphPrimitivesFixedOrderLevels, FoldTileCombinesLeftToRight)
+        TEST(Medium_GraphPrimitivesFixedOrderLevels, FoldTileCombinesLeftToRight)
         {
             const std::vector<std::uint64_t> digits = {7, 1, 2, 3, 4, 9};
 
@@ -102,7 +102,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that tile t covers K_TILE values and the last tile stops at the count. */
-        TEST(Unit_GraphPrimitivesFixedOrderLevels, IndexedTileStopsAtTheLiveCount)
+        TEST(Medium_GraphPrimitivesFixedOrderLevels, IndexedTileStopsAtTheLiveCount)
         {
             const std::size_t count = 2 * K_TILE + 3;
             std::vector<std::uint64_t> ones(count + K_TILE, 1);

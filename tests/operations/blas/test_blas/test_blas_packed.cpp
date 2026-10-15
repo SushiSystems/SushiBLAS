@@ -679,23 +679,23 @@ namespace SushiBLAS
 
         /** @brief Runs the packed routines over the five element types. */
         template<typename T>
-        class Unit_BlasPacked : public BLASPackedCases<T>
+        class Medium_BlasPacked : public BLASPackedCases<T>
         {
 
         };
 
         /** @brief Runs the conjugating packed cases over the complex element types. */
         template<typename T>
-        class Unit_BlasPackedComplex : public BLASPackedCases<T>
+        class Medium_BlasPackedComplex : public BLASPackedCases<T>
         {
 
         };
 
         /// @brief Names the suite of the HALF accumulation cases.
-        using Unit_BlasPackedHalf = BLASPackedCases<sycl::half>;
+        using Medium_BlasPackedHalf = BLASPackedCases<sycl::half>;
 
         /// @brief Names the suite of the FLOAT32 cases of order K_LARGE_ORDER.
-        using Unit_BlasPackedLarge = BLASPackedCases<float>;
+        using Medium_BlasPackedLarge = BLASPackedCases<float>;
 
         /// @brief Names the five element types the packed routines accept.
         using BLASPackedTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
@@ -703,13 +703,13 @@ namespace SushiBLAS
         /// @brief Names the complex element types, the only ones a conjugation changes.
         using BLASPackedComplexTypes =
             ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_BlasPacked, BLASPackedTypes);
-        SB_TYPED_TEST_SUITE(Unit_BlasPackedComplex, BLASPackedComplexTypes);
+        SB_TYPED_TEST_SUITE(Medium_BlasPacked, BLASPackedTypes);
+        SB_TYPED_TEST_SUITE(Medium_BlasPackedComplex, BLASPackedComplexTypes);
 
         /**
          * @brief Tests spmv on the literal packed arrays of [1 2 3; 2 4 5; 3 5 6].
          */
-        TYPED_TEST(Unit_BlasPacked, SpmvMatchesByHand)
+        TYPED_TEST(Medium_BlasPacked, SpmvMatchesByHand)
         {
             using T = TypeParam;
 
@@ -733,7 +733,7 @@ namespace SushiBLAS
         /**
          * @brief Tests tpmv on the literal packed arrays of U and of its transpose.
          */
-        TYPED_TEST(Unit_BlasPacked, TpmvMatchesByHand)
+        TYPED_TEST(Medium_BlasPacked, TpmvMatchesByHand)
         {
             using T = TypeParam;
 
@@ -757,7 +757,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that tpsv recovers [1, 2, 3] from each product of TpmvMatchesByHand.
          */
-        TYPED_TEST(Unit_BlasPacked, TpsvInvertsTpmv)
+        TYPED_TEST(Medium_BlasPacked, TpsvInvertsTpmv)
         {
             using T = TypeParam;
 
@@ -781,7 +781,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that spr writes 2 * x * x^T in the order the layout and triangle give.
          */
-        TYPED_TEST(Unit_BlasPacked, SprWritesTheStoredTriangle)
+        TYPED_TEST(Medium_BlasPacked, SprWritesTheStoredTriangle)
         {
             using T = TypeParam;
 
@@ -806,7 +806,7 @@ namespace SushiBLAS
         /**
          * @brief Tests spr2 on x = [1, 2], y = [3, 5]: the triangle of [6 11; 11 20].
          */
-        TYPED_TEST(Unit_BlasPacked, Spr2MatchesByHand)
+        TYPED_TEST(Medium_BlasPacked, Spr2MatchesByHand)
         {
             using T = TypeParam;
 
@@ -831,7 +831,7 @@ namespace SushiBLAS
          * @brief Tests that a packed triangle gives the elements of symv and hemv, and that
          *        each packed update leaves the stored triangle of its dense sibling.
          */
-        TYPED_TEST(Unit_BlasPacked, APackedTriangleEqualsTheDenseSibling)
+        TYPED_TEST(Medium_BlasPacked, APackedTriangleEqualsTheDenseSibling)
         {
             using T = TypeParam;
             const int64_t n = K_SIBLING_ORDER;
@@ -884,7 +884,7 @@ namespace SushiBLAS
          * @brief Tests that tpmv and tpsv give the elements of trmv and trsv, and the product
          *        and the solution formed in integers on the host.
          */
-        TYPED_TEST(Unit_BlasPacked, APackedTriangularMatrixEqualsTheDenseSibling)
+        TYPED_TEST(Medium_BlasPacked, APackedTriangularMatrixEqualsTheDenseSibling)
         {
             using T = TypeParam;
             const int64_t n = K_SIBLING_ORDER;
@@ -930,7 +930,7 @@ namespace SushiBLAS
          * @brief Tests that the eight routines record and run on a packed tensor of no
          *        elements, and give the hand values at orders 1 and 2.
          */
-        TYPED_TEST(Unit_BlasPacked, EdgeOrders)
+        TYPED_TEST(Medium_BlasPacked, EdgeOrders)
         {
             using T = TypeParam;
             using Inputs = typename TestFixture::PackedInputs;
@@ -972,7 +972,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that the two kernels agree within ModeTolerance on the eight routines.
          */
-        TYPED_TEST(Unit_BlasPacked, BothModesAgree)
+        TYPED_TEST(Medium_BlasPacked, BothModesAgree)
         {
             using T = TypeParam;
             using Inputs = typename TestFixture::PackedInputs;
@@ -1023,7 +1023,7 @@ namespace SushiBLAS
          * @brief Tests that hpmv conjugates the mirrored triangle and reads no imaginary
          *        diagonal.
          */
-        TYPED_TEST(Unit_BlasPackedComplex, HpmvConjugatesTheMirror)
+        TYPED_TEST(Medium_BlasPackedComplex, HpmvConjugatesTheMirror)
         {
             using T = TypeParam;
             const int64_t n = K_HAND_ORDER;
@@ -1056,7 +1056,7 @@ namespace SushiBLAS
          * @brief Tests that hpr adds 2 * x * x^H to the stored triangle and leaves a diagonal
          *        whose imaginary parts are exactly zero.
          */
-        TYPED_TEST(Unit_BlasPackedComplex, HprKeepsTheDiagonalReal)
+        TYPED_TEST(Medium_BlasPackedComplex, HprKeepsTheDiagonalReal)
         {
             using T = TypeParam;
 
@@ -1082,7 +1082,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that hpr2 multiplies y * x^H by the conjugate of a complex alpha.
          */
-        TYPED_TEST(Unit_BlasPackedComplex, Hpr2ConjugatesAlpha)
+        TYPED_TEST(Medium_BlasPackedComplex, Hpr2ConjugatesAlpha)
         {
             using T = TypeParam;
 
@@ -1109,7 +1109,7 @@ namespace SushiBLAS
          * @brief Tests that spmv and tpmv sum a HALF row in FLOAT32: 2048 + 1 + 1 - 2048 is 2
          *        there and 0 in HALF.
          */
-        TEST_F(Unit_BlasPackedHalf, HalfSumsInFloat)
+        TEST_F(Medium_BlasPackedHalf, HalfSumsInFloat)
         {
             using T = sycl::half;
             constexpr int64_t n = 4;
@@ -1138,7 +1138,7 @@ namespace SushiBLAS
          * @brief Tests that tpsv carries a HALF solution in FLOAT32: the middle element is
          *        2049 there, stored as 2048, and the last is 2050 - 2049.
          */
-        TEST_F(Unit_BlasPackedHalf, HalfSolveCarriesTheSolutionInFloat)
+        TEST_F(Medium_BlasPackedHalf, HalfSolveCarriesTheSolutionInFloat)
         {
             using T = sycl::half;
             const std::vector<double> lower = {1, 0, 0, -1, 1, 0, 0, 1, 1};
@@ -1160,7 +1160,7 @@ namespace SushiBLAS
          * @brief Tests spmv against symv at an order where a device that plans a work-group
          *        per row runs one.
          */
-        TEST_F(Unit_BlasPackedLarge, APackedTriangleEqualsTheDenseSiblingLarge)
+        TEST_F(Medium_BlasPackedLarge, APackedTriangleEqualsTheDenseSiblingLarge)
         {
             for_each_engine([&](Core::Layout)
             {
@@ -1172,7 +1172,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that spmv gives the same bits when the device runs it twice.
          */
-        TEST_F(Unit_BlasPackedLarge, RepeatsToTheBit)
+        TEST_F(Medium_BlasPackedLarge, RepeatsToTheBit)
         {
             for (const Core::Layout layout : K_LAYOUTS)
             {

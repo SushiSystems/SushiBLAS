@@ -38,9 +38,9 @@ using SushiBLAS::Core::DataType;
 
 using cf = std::complex<float>;
 
-class Unit_DispatchComplexTest : public SushiBLASTest {};
+class Medium_DispatchComplexTest : public SushiBLASTest {};
 
-TEST_F(Unit_DispatchComplexTest, BinaryArithmeticOnComplex32)
+TEST_F(Medium_DispatchComplexTest, BinaryArithmeticOnComplex32)
 {
     const std::vector<cf> av = {cf(1.0f, 2.0f), cf(3.0f, -1.0f)};
     const std::vector<cf> bv = {cf(2.0f, 1.0f), cf(-1.0f, 4.0f)};
@@ -71,7 +71,7 @@ TEST_F(Unit_DispatchComplexTest, BinaryArithmeticOnComplex32)
     SB_ASSERT_TENSOR_NEAR(c, div_expected, 1e-4, cf);
 }
 
-TEST_F(Unit_DispatchComplexTest, UnaryArithmeticOnComplex32)
+TEST_F(Medium_DispatchComplexTest, UnaryArithmeticOnComplex32)
 {
     auto neg = create_initialized_tensor<cf>({2}, {cf(1.0f, 2.0f), cf(-3.0f, 4.0f)});
     SushiBLAS::ElementwiseOps(*engine).neg(neg);
@@ -94,7 +94,7 @@ TEST_F(Unit_DispatchComplexTest, UnaryArithmeticOnComplex32)
     SB_ASSERT_TENSOR_NEAR(recip, recip_expected, 1e-4, cf);
 }
 
-TEST_F(Unit_DispatchComplexTest, TranscendentalsOnComplex32)
+TEST_F(Medium_DispatchComplexTest, TranscendentalsOnComplex32)
 {
     // |3+4i| = 5 and |-5+12i| = 13, returned in complex storage with a zero imaginary part.
     auto abs_t = create_initialized_tensor<cf>({2}, {cf(3.0f, 4.0f), cf(-5.0f, 12.0f)});
@@ -125,7 +125,7 @@ TEST_F(Unit_DispatchComplexTest, TranscendentalsOnComplex32)
     SB_ASSERT_TENSOR_NEAR(log_t, log_expected, 1e-4, cf);
 }
 
-TEST_F(Unit_DispatchComplexTest, EqualityAndConnectivesOnComplex32)
+TEST_F(Medium_DispatchComplexTest, EqualityAndConnectivesOnComplex32)
 {
     auto a = create_initialized_tensor<cf>({3}, {cf(1.0f, 2.0f), cf(0.0f, 0.0f), cf(1.0f, 0.0f)});
     auto b = create_initialized_tensor<cf>({3}, {cf(1.0f, 2.0f), cf(0.0f, 1.0f), cf(1.0f, 1.0f)});
@@ -149,7 +149,7 @@ TEST_F(Unit_DispatchComplexTest, EqualityAndConnectivesOnComplex32)
     SB_ASSERT_TENSOR_NEAR(r, not_expected, 1e-4, cf);
 }
 
-TEST_F(Unit_DispatchComplexTest, WhereSelectsOnComplex32)
+TEST_F(Medium_DispatchComplexTest, WhereSelectsOnComplex32)
 {
     auto cond = create_initialized_tensor<cf>({3}, {cf(1.0f, 0.0f), cf(0.0f, 0.0f), cf(0.0f, 2.0f)});
     auto a = create_initialized_tensor<cf>({3}, {cf(7.0f, 7.0f), cf(7.0f, 7.0f), cf(7.0f, 7.0f)});
@@ -165,7 +165,7 @@ TEST_F(Unit_DispatchComplexTest, WhereSelectsOnComplex32)
 
 // Operations with no complex meaning fail at record time. See tests/library/umbrella/README.md.
 
-TEST_F(Unit_DispatchComplexTest, OrderingComparisonsRejectComplex32)
+TEST_F(Medium_DispatchComplexTest, OrderingComparisonsRejectComplex32)
 {
     auto a = engine->create_tensor({2}, DataType::Complex32);
     auto b = engine->create_tensor({2}, DataType::Complex32);
@@ -178,7 +178,7 @@ TEST_F(Unit_DispatchComplexTest, OrderingComparisonsRejectComplex32)
     EXPECT_THROW(SushiBLAS::LogicOps(*engine).greater_equal(a, b, r), std::invalid_argument);
 }
 
-TEST_F(Unit_DispatchComplexTest, OrderDependentElementwiseOpsRejectComplex32)
+TEST_F(Medium_DispatchComplexTest, OrderDependentElementwiseOpsRejectComplex32)
 {
     auto a = engine->create_tensor({2}, DataType::Complex32);
     auto b = engine->create_tensor({2}, DataType::Complex32);
@@ -190,7 +190,7 @@ TEST_F(Unit_DispatchComplexTest, OrderDependentElementwiseOpsRejectComplex32)
     EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).remainder(a, b, c), std::invalid_argument);
 }
 
-TEST_F(Unit_DispatchComplexTest, RoundingAndClampRejectComplex32)
+TEST_F(Medium_DispatchComplexTest, RoundingAndClampRejectComplex32)
 {
     auto t = engine->create_tensor({2}, DataType::Complex32);
 
@@ -200,7 +200,7 @@ TEST_F(Unit_DispatchComplexTest, RoundingAndClampRejectComplex32)
     EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).clamp(t, -1.0f, 1.0f), std::invalid_argument);
 }
 
-TEST_F(Unit_DispatchComplexTest, RemainingRealOnlyOpsRejectComplex32)
+TEST_F(Medium_DispatchComplexTest, RemainingRealOnlyOpsRejectComplex32)
 {
     // Complex trigonometry and pow are not implemented. See tests/library/umbrella/README.md.
     auto t = engine->create_tensor({2}, DataType::Complex32);
@@ -211,7 +211,7 @@ TEST_F(Unit_DispatchComplexTest, RemainingRealOnlyOpsRejectComplex32)
     EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).pow(t, 2.0f), std::invalid_argument);
 }
 
-TEST_F(Unit_DispatchComplexTest, RealDtypesAreUnaffected)
+TEST_F(Medium_DispatchComplexTest, RealDtypesAreUnaffected)
 {
     // max and min are Domain::RealAndIntegral and must still work on a FLOAT32 tensor.
     auto a = engine->create_tensor({4});

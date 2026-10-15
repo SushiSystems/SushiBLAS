@@ -160,7 +160,7 @@ namespace SushiBLAS
         /**
          * @brief Tests at compile time that the four packed storages follow the CBLAS order.
          */
-        TEST(Unit_PackedAccess, TheMappingIsTheCblasOrder)
+        TEST(Medium_PackedAccess, TheMappingIsTheCblasOrder)
         {
             static_assert(packed_matches_cblas(Layout::ColumnMajor, Uplo::Upper),
                           "A column-major upper packed triangle is the CBLAS one.");
@@ -178,7 +178,7 @@ namespace SushiBLAS
          * @brief Tests that a walk of the triangle in CBLAS order meets the offsets 0, 1, 2
          *        and on, and ends at n * (n + 1) / 2.
          */
-        TEST(Unit_PackedAccess, AWalkInCblasOrderCountsWithoutAGap)
+        TEST(Medium_PackedAccess, AWalkInCblasOrderCountsWithoutAGap)
         {
             for (const PackedStorage& storage : K_STORAGES)
             {
@@ -218,7 +218,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that every element of the worked U and L is read from its slot.
          */
-        TEST(Unit_PackedAccess, TheWorkedTrianglesReadBack)
+        TEST(Medium_PackedAccess, TheWorkedTrianglesReadBack)
         {
             for (const PackedStorage& storage : K_STORAGES)
             {
@@ -251,7 +251,7 @@ namespace SushiBLAS
          * @brief Tests that TRANS and CONJ_TRANS address A(i, j) as (j, i) and report the
          *        other triangle.
          */
-        TEST(Unit_PackedAccess, ATransposedAccessAddressesTheMirror)
+        TEST(Medium_PackedAccess, ATransposedAccessAddressesTheMirror)
         {
             for (const PackedStorage& storage : K_STORAGES)
             {
@@ -298,7 +298,7 @@ namespace SushiBLAS
          * @brief Tests that a cursor walked along a row, forward and back, stands on the offset
          *        index gives for every stored column.
          */
-        TEST(Unit_PackedAccess, ARowCursorReachesTheOffsetOfEveryColumn)
+        TEST(Medium_PackedAccess, ARowCursorReachesTheOffsetOfEveryColumn)
         {
             for (const PackedStorage& storage : K_STORAGES)
             {
@@ -338,7 +338,7 @@ namespace SushiBLAS
          * @brief Tests that a row of an upper triangle runs from its diagonal to the order and
          *        a row of a lower one from zero through its diagonal.
          */
-        TEST(Unit_PackedAccess, TheColumnRangeFollowsTheTriangle)
+        TEST(Medium_PackedAccess, TheColumnRangeFollowsTheTriangle)
         {
             constexpr int64_t n = 5;
 
@@ -367,7 +367,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that at conjugates a complex element under CONJ_TRANS and no other read.
          */
-        TEST(Unit_PackedAccess, AtConjugatesOnlyUnderConjTrans)
+        TEST(Medium_PackedAccess, AtConjugatesOnlyUnderConjTrans)
         {
             for (const PackedStorage& storage : K_STORAGES)
             {
@@ -413,7 +413,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a triangle of order 0 has no row, so no element is ever asked for.
          */
-        TEST(Unit_PackedAccess, AnOrderOfZeroHoldsNoElement)
+        TEST(Medium_PackedAccess, AnOrderOfZeroHoldsNoElement)
         {
             for (const PackedStorage& storage : K_STORAGES)
             {

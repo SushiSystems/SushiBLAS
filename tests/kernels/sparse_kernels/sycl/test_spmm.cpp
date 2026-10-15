@@ -47,12 +47,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs spmm on the host CPU queue. */
-        class Device_SYCLSpmm : public HostDeviceTest
+        class Medium_SYCLSpmm : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLSpmm, MatchesTheReferenceForEveryLayoutAndForm)
+        TEST_F(Medium_SYCLSpmm, MatchesTheReferenceForEveryLayoutAndForm)
         {
             const int64_t rows = 97;
             const int64_t cols = 83;

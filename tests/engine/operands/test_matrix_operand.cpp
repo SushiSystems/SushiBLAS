@@ -37,12 +37,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Builds matrices on the fixture's engine. */
-        class Unit_MatrixOperand : public SushiBLASTest
+        class Medium_MatrixOperand : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_MatrixOperand, ARowMajorMatrixLeadsByItsColumns)
+        TEST_F(Medium_MatrixOperand, ARowMajorMatrixLeadsByItsColumns)
         {
             const Dispatch::MatrixOperand m =
                 Dispatch::describe_matrix_operand(engine->create_tensor({3, 5}), "op", "a");
@@ -54,7 +54,7 @@ namespace SushiBLAS
             EXPECT_EQ(m.matrix_elements, int64_t{15});
         }
 
-        TEST_F(Unit_MatrixOperand, AColumnMajorBatchLeadsByItsRowsAndCountsItsMatrices)
+        TEST_F(Medium_MatrixOperand, AColumnMajorBatchLeadsByItsRowsAndCountsItsMatrices)
         {
             reinit_engine(Core::Layout::ColumnMajor);
             const Dispatch::MatrixOperand m =
@@ -66,7 +66,7 @@ namespace SushiBLAS
             EXPECT_THROW((void)Dispatch::batch_stride(m, 4, "op", "a"), std::invalid_argument);
         }
 
-        TEST_F(Unit_MatrixOperand, AVectorOrAStridedViewIsNoMatrix)
+        TEST_F(Medium_MatrixOperand, AVectorOrAStridedViewIsNoMatrix)
         {
             const Tensor matrix = engine->create_tensor({4, 4});
 
@@ -78,7 +78,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_MatrixOperand, TwoOperandsMustShareLayoutAndExtents)
+        TEST_F(Medium_MatrixOperand, TwoOperandsMustShareLayoutAndExtents)
         {
             const Dispatch::MatrixOperand row =
                 Dispatch::describe_matrix_operand(engine->create_tensor({2, 2}), "op", "a");

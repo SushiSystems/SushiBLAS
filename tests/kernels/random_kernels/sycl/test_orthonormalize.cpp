@@ -42,12 +42,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs the sweep on the host CPU queue. */
-        class Device_SYCLOrthonormalize : public HostDeviceTest
+        class Medium_SYCLOrthonormalizeOnDevice : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLOrthonormalize, MatchesTheReferenceWithinItsSummationOrder)
+        TEST_F(Medium_SYCLOrthonormalizeOnDevice, MatchesTheReferenceWithinItsSummationOrder)
         {
             const Kernels::VectorSet set{6, 50, 1, 50};
             std::vector<double> p = small_integers<double>(300, 1);
@@ -63,7 +63,7 @@ namespace SushiBLAS
                 EXPECT_NEAR(device.get()[i], p[i], 1e-12) << "element " << i;
         }
 
-        TEST(Unit_SYCLOrthonormalize, TheGroupIsAPowerOfTwoTheDeviceAccepts)
+        TEST(Medium_SYCLOrthonormalize, TheGroupIsAPowerOfTwoTheDeviceAccepts)
         {
             sycl::queue* queue = host_queue();
             if (queue == nullptr)

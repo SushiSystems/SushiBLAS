@@ -79,7 +79,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Tests that an empty fold returns the identity and one element returns itself. */
-        TEST(Unit_GraphPrimitivesFixedOrderFold, EmptyAndSingleCounts)
+        TEST(Medium_GraphPrimitivesFixedOrderFold, EmptyAndSingleCounts)
         {
             const std::vector<std::uint64_t> none;
             EXPECT_EQ(fold_fixed_order(Mix{}, none.data(), 0, K_IDENTITY), K_IDENTITY);
@@ -91,7 +91,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a count within one tile folds left to right from its first element. */
-        TEST(Unit_GraphPrimitivesFixedOrderFold, OneTileFoldsLeftToRight)
+        TEST(Medium_GraphPrimitivesFixedOrderFold, OneTileFoldsLeftToRight)
         {
             const std::vector<std::uint64_t> values = values_of(K_TILE);
             std::uint64_t expected = values[0];
@@ -103,7 +103,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a second tile is folded on its own before it meets the first. */
-        TEST(Unit_GraphPrimitivesFixedOrderFold, ASecondTileIsFoldedOnItsOwn)
+        TEST(Medium_GraphPrimitivesFixedOrderFold, ASecondTileIsFoldedOnItsOwn)
         {
             const std::vector<std::uint64_t> values = values_of(K_TILE + 2);
             const std::uint64_t first_tile = fold_tile(Mix{}, values.data(), 0, K_TILE);
@@ -120,7 +120,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the levelled and the streamed fold agree at every level boundary. */
-        TEST(Unit_GraphPrimitivesFixedOrderFold, BothFormsAgreeAcrossLevelBoundaries)
+        TEST(Medium_GraphPrimitivesFixedOrderFold, BothFormsAgreeAcrossLevelBoundaries)
         {
             const std::size_t counts[] = {2,
                                           K_TILE - 1,
@@ -141,7 +141,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests a three-level count against the tree written out by hand. */
-        TEST(Unit_GraphPrimitivesFixedOrderFold, ThreeLevelsMatchTheTreeWrittenOut)
+        TEST(Medium_GraphPrimitivesFixedOrderFold, ThreeLevelsMatchTheTreeWrittenOut)
         {
             const std::size_t count = K_TILE * K_TILE + 3;
             const std::vector<std::uint64_t> values = values_of(count);

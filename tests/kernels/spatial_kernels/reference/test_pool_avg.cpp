@@ -39,7 +39,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferencePoolAvg, AveragesEachWindowOverItsFullArea)
+        TEST(Small_ReferencePoolAvg, AveragesEachWindowOverItsFullArea)
         {
             Spatial::ConvGeometry geometry;
             geometry.kernel_h = 2;
@@ -55,7 +55,7 @@ namespace SushiBLAS
             EXPECT_EQ(out, (std::vector<float>{3.5f, 5.5f}));
         }
 
-        TEST(Unit_ReferencePoolAvg, TheBackwardIsTheAdjoint)
+        TEST(Small_ReferencePoolAvg, TheBackwardIsTheAdjoint)
         {
             // A window area of 6 makes each average a sixth; the dot products agree to rounding.
             const Spatial::WindowSpan span = nhwc_span(2, 7, 6, 2, uneven_geometry(), 1);

@@ -40,7 +40,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceGbmv, MatchesADenseLoopOverTheBand)
+        TEST(Small_ReferenceGbmv, MatchesADenseLoopOverTheBand)
         {
             const int64_t m = 5;
             const int64_t n = 6;

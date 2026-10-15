@@ -49,7 +49,7 @@ namespace SushiBLAS
             }
         } // namespace
 
-        class Unit_SpatialBroadcastTest : public SushiBLASTest
+        class Medium_SpatialBroadcastTest : public SushiBLASTest
         {
             protected:
                 /** @brief A float tensor of the given shape holding @p values in memory order. */
@@ -105,7 +105,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_SpatialBroadcastTest, ChannelAffineAppliesThePerChannelPair)
+        TEST_F(Medium_SpatialBroadcastTest, ChannelAffineAppliesThePerChannelPair)
         {
             auto in = ramp({1, 2, 2, 3});
             auto gamma = filled({3}, {2.0f, 3.0f, 4.0f});
@@ -126,7 +126,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], expected[i]) << "element " << i;
         }
 
-        TEST_F(Unit_SpatialBroadcastTest, ChannelAffineWithUnitGammaAndZeroBetaIsACopy)
+        TEST_F(Medium_SpatialBroadcastTest, ChannelAffineWithUnitGammaAndZeroBetaIsACopy)
         {
             auto in = ramp({2, 3, 4, 5});
             auto gamma = uniform({5}, 1.0f);
@@ -143,7 +143,7 @@ namespace SushiBLAS
                     << "element " << i;
         }
 
-        TEST_F(Unit_SpatialBroadcastTest, BroadcastSpatialSpreadsAndScales)
+        TEST_F(Medium_SpatialBroadcastTest, BroadcastSpatialSpreadsAndScales)
         {
             const int64_t N = 2, H = 4, W = 5, C = 3;
 
@@ -165,7 +165,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SpatialBroadcastTest, BroadcastSpatialAtOneOverHwIsTheMeanBackward)
+        TEST_F(Medium_SpatialBroadcastTest, BroadcastSpatialAtOneOverHwIsTheMeanBackward)
         {
             const int64_t N = 2, H = 4, W = 5, C = 3;
             const double scale = 1.0 / static_cast<double>(H * W);
@@ -198,7 +198,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SpatialBroadcastTest, LayoutConvertRoundTripsToItself)
+        TEST_F(Medium_SpatialBroadcastTest, LayoutConvertRoundTripsToItself)
         {
             const int64_t N = 2, H = 3, W = 4, C = 5;
 
@@ -220,7 +220,7 @@ namespace SushiBLAS
                     << "element " << i;
         }
 
-        TEST_F(Unit_SpatialBroadcastTest, LayoutConvertMovesTheChannelIndex)
+        TEST_F(Medium_SpatialBroadcastTest, LayoutConvertMovesTheChannelIndex)
         {
             // A round trip cannot catch a no-op conversion, so the intermediate buffer is read.
             const int64_t N = 1, H = 2, W = 2, C = 2;
@@ -241,7 +241,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], expected[i]) << "NCHW element " << i;
         }
 
-        TEST_F(Unit_SpatialBroadcastTest, TheSYCLKernelsAgreeWithTheReferenceKernels)
+        TEST_F(Medium_SpatialBroadcastTest, TheSYCLKernelsAgreeWithTheReferenceKernels)
         {
             // The two forced modes are compared here. See tests/operations/spatial/README.md.
             const int64_t N = 2, H = 5, W = 3, C = 4;

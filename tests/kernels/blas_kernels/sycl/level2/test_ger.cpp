@@ -41,12 +41,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs ger on the host CPU queue. */
-        class Device_SYCLGer : public HostDeviceTest
+        class Medium_SYCLGer : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLGer, MatchesTheReferenceInEitherLayout)
+        TEST_F(Medium_SYCLGer, MatchesTheReferenceInEitherLayout)
         {
             const int64_t m = 33;
             const int64_t n = 47;

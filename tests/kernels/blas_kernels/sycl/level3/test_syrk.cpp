@@ -53,12 +53,12 @@ namespace SushiBLAS
         constexpr std::size_t K_SCRATCH_BYTES = std::size_t{8} << 20;
 
         /** @brief Runs syrk on the host CPU queue. */
-        class Device_SYCLSyrk : public HostDeviceTest
+        class Medium_SYCLSyrk : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLSyrk, BothPathsMatchTheReferenceForEveryFlag)
+        TEST_F(Medium_SYCLSyrk, BothPathsMatchTheReferenceForEveryFlag)
         {
             // Every operand is a small integer, so both kernels compute without rounding.
             const std::vector<double> a = small_integers<double>(K_ORDER * K_DEPTH, 1);

@@ -48,7 +48,7 @@ namespace SushiBLAS
             return factory.create(SushiRuntime::span<const int64_t>(dims, 1), dtype);
         }
 
-        TEST(Unit_TensorFill, ConvertsTheValuesToTheTensorsDtype)
+        TEST(Medium_TensorFill, ConvertsTheValuesToTheTensorsDtype)
         {
             const std::vector<float> values{1.5f, -2.0f, 0.25f, 7.0f};
             Tensor doubles = four_of(Core::DataType::Float64);
@@ -65,7 +65,7 @@ namespace SushiBLAS
             EXPECT_EQ(read_tensor<int32_t>(integers), (std::vector<int32_t>{1, -2, 0, 7}));
         }
 
-        TEST(Unit_TensorFill, FillRandomStaysInRangeAndRepeatsFromItsSeed)
+        TEST(Medium_TensorFill, FillRandomStaysInRangeAndRepeatsFromItsSeed)
         {
             Tensor first = four_of(Core::DataType::Float32);
             Tensor second = four_of(Core::DataType::Float32);

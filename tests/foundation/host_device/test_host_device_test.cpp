@@ -34,12 +34,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs the fixture under its own suite name. */
-        class Device_HostDeviceTest : public HostDeviceTest
+        class Medium_HostDeviceTest : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_HostDeviceTest, GivesTheHostQueueToTheTest)
+        TEST_F(Medium_HostDeviceTest, GivesTheHostQueueToTheTest)
         {
             EXPECT_EQ(&queue(), host_queue());
             EXPECT_TRUE(queue().get_device().is_cpu());

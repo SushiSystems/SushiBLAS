@@ -136,7 +136,7 @@ namespace SushiBLAS
             }
         } // namespace
 
-        TEST(Unit_SparseAssembly, TheSampleTripletsGiveTheSampleArraysUnderBothBases)
+        TEST(Medium_SparseAssembly, TheSampleTripletsGiveTheSampleArraysUnderBothBases)
         {
             for (const IndexBase base : K_BOTH_BASES)
             {
@@ -145,7 +145,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_SparseAssembly, AnEntryGivenInPartsIsAddedWhereverThePartsArrive)
+        TEST(Medium_SparseAssembly, AnEntryGivenInPartsIsAddedWhereverThePartsArrive)
         {
             const HostTriplets<float> parts = sample_in_parts();
 
@@ -157,18 +157,18 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_SparseAssembly, ARepeatedPairInFloat32IsSummedInDouble)
+        TEST(Medium_SparseAssembly, ARepeatedPairInFloat32IsSummedInDouble)
         {
             // Left to right in FLOAT32, 16777216 + 1 rounds back to 16777216 and the sum is 0.
             EXPECT_EQ(folded_triple<float>(16777216.0f, 1.0f, -16777216.0f), 1.0f);
         }
 
-        TEST(Unit_SparseAssembly, ARepeatedPairInFloat64IsSummedWithItsRoundingErrors)
+        TEST(Medium_SparseAssembly, ARepeatedPairInFloat64IsSummedWithItsRoundingErrors)
         {
             EXPECT_EQ(folded_triple<double>(1e16, 1.0, -1e16), 1.0);
         }
 
-        TEST(Unit_SparseAssembly, APairThatCancelsStaysAStoredZero)
+        TEST(Medium_SparseAssembly, APairThatCancelsStaysAStoredZero)
         {
             const HostCsr<int32_t, float> csr =
                 assemble_csr<int32_t, float>(2, 3, 0, {1, 1}, {2, 2}, {1.0f, -1.0f});
@@ -178,7 +178,7 @@ namespace SushiBLAS
             EXPECT_EQ(csr.values, (std::vector<float>{0.0f}));
         }
 
-        TEST(Unit_SparseAssembly, APairGivenOnceKeepsANaNAndItsBits)
+        TEST(Medium_SparseAssembly, APairGivenOnceKeepsANaNAndItsBits)
         {
             float nan = 0.0f;
             std::memcpy(&nan, &K_NAN_BITS, sizeof(nan));
@@ -194,7 +194,7 @@ namespace SushiBLAS
             EXPECT_EQ(csr.values[0], 2.0f);
         }
 
-        TEST(Unit_SparseAssembly, AMatrixWithoutTripletsHasEqualOffsets)
+        TEST(Medium_SparseAssembly, AMatrixWithoutTripletsHasEqualOffsets)
         {
             for (const IndexBase base : K_BOTH_BASES)
             {
@@ -208,7 +208,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_SparseAssembly, AMatrixWithoutRowsHasOneOffset)
+        TEST(Medium_SparseAssembly, AMatrixWithoutRowsHasOneOffset)
         {
             for (const IndexBase base : K_BOTH_BASES)
             {
@@ -220,7 +220,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_SparseAssembly, EveryRowAscendsStrictlyAndHoldsTheSumOfItsTriplets)
+        TEST(Medium_SparseAssembly, EveryRowAscendsStrictlyAndHoldsTheSumOfItsTriplets)
         {
             const HostTriplets<float> host = integer_valued_matrix<float>(
                 K_ORDERED_ROWS, K_ORDERED_COLS, K_ORDERED_PER_ROW, K_ORDERED_SEED);
@@ -265,7 +265,7 @@ namespace SushiBLAS
             EXPECT_EQ(stored, static_cast<std::size_t>(pairs));
         }
 
-        TEST(Unit_SparseAssembly, ANegativeExtentThrows)
+        TEST(Medium_SparseAssembly, ANegativeExtentThrows)
         {
             EXPECT_THROW(assemble_and_drop(-1, 5, 0, {}, {}, {}),
                          std::runtime_error);
@@ -273,7 +273,7 @@ namespace SushiBLAS
                          std::runtime_error);
         }
 
-        TEST(Unit_SparseAssembly, TripletArraysOfDifferentLengthsThrow)
+        TEST(Medium_SparseAssembly, TripletArraysOfDifferentLengthsThrow)
         {
             EXPECT_THROW(assemble_and_drop(4, 5, 0, {0, 1}, {0}, {1.0f, 2.0f}),
                          std::runtime_error);
@@ -281,7 +281,7 @@ namespace SushiBLAS
                          std::runtime_error);
         }
 
-        TEST(Unit_SparseAssembly, ATripletOutsideTheMatrixThrows)
+        TEST(Medium_SparseAssembly, ATripletOutsideTheMatrixThrows)
         {
             EXPECT_THROW(assemble_and_drop(4, 5, 0, {4}, {0}, {1.0f}),
                          std::runtime_error);
@@ -293,25 +293,25 @@ namespace SushiBLAS
                          std::runtime_error);
         }
 
-        TEST(Unit_SparseAssembly, AColumnCountPastTheIndexTypeThrows)
+        TEST(Medium_SparseAssembly, AColumnCountPastTheIndexTypeThrows)
         {
             EXPECT_THROW(assemble_and_drop(1, K_COLS_PAST_INT32, 0, {}, {}, {}),
                          std::runtime_error);
         }
 
-        TEST(Unit_SparseAssembly, DistinctPositionsInsideTheVectorAreAccepted)
+        TEST(Medium_SparseAssembly, DistinctPositionsInsideTheVectorAreAccepted)
         {
             EXPECT_NO_THROW(require_distinct_positions<int32_t>(8, 0, {6, 1, 4}));
             EXPECT_NO_THROW(require_distinct_positions<int64_t>(8, 1, {7, 2, 5}));
         }
 
-        TEST(Unit_SparseAssembly, ARepeatedPositionThrows)
+        TEST(Medium_SparseAssembly, ARepeatedPositionThrows)
         {
             EXPECT_THROW(require_distinct_positions<int32_t>(8, 0, {6, 1, 6}),
                          std::runtime_error);
         }
 
-        TEST(Unit_SparseAssembly, APositionOutsideTheVectorThrows)
+        TEST(Medium_SparseAssembly, APositionOutsideTheVectorThrows)
         {
             EXPECT_THROW(require_distinct_positions<int32_t>(8, 0, {6, 8, 4}),
                          std::runtime_error);

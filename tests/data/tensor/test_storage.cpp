@@ -43,14 +43,14 @@ namespace SushiBLAS
             return SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(), n_bytes);
         }
 
-        TEST(Unit_Storage, RoundsItsSizeUpToTheAlignment)
+        TEST(Medium_Storage, RoundsItsSizeUpToTheAlignment)
         {
             EXPECT_EQ(storage_of(1)->size_bytes(), K_STORAGE_ALIGNMENT);
             EXPECT_EQ(storage_of(K_STORAGE_ALIGNMENT)->size_bytes(), K_STORAGE_ALIGNMENT);
             EXPECT_EQ(storage_of(K_STORAGE_ALIGNMENT + 1)->size_bytes(), 2 * K_STORAGE_ALIGNMENT);
         }
 
-        TEST(Unit_Storage, ItsAllocationIsAligned)
+        TEST(Medium_Storage, ItsAllocationIsAligned)
         {
             const auto storage = storage_of(1000);
 
@@ -59,7 +59,7 @@ namespace SushiBLAS
                       std::uintptr_t{0});
         }
 
-        TEST(Unit_Storage, ReportsItsResidencyDeviceAndQueue)
+        TEST(Medium_Storage, ReportsItsResidencyDeviceAndQueue)
         {
             const auto storage = storage_of(64);
 
@@ -68,7 +68,7 @@ namespace SushiBLAS
             EXPECT_EQ(&storage->queue(), &TestEnvironment::queue(0));
         }
 
-        TEST(Unit_Storage, RefusesAnEmptyRequestAndADeviceItDoesNotHave)
+        TEST(Medium_Storage, RefusesAnEmptyRequestAndADeviceItDoesNotHave)
         {
             EXPECT_THROW((void)storage_of(0), std::runtime_error);
             EXPECT_THROW((void)SushiRuntime::make_sushi<Storage>(
@@ -77,7 +77,7 @@ namespace SushiBLAS
                          std::runtime_error);
         }
 
-        TEST(Unit_Storage, ReturnsItsAllocationWhenTheLastHandleGoes)
+        TEST(Medium_Storage, ReturnsItsAllocationWhenTheLastHandleGoes)
         {
             const std::size_t before = TestEnvironment::live_allocation_count();
             {

@@ -66,12 +66,12 @@ namespace SushiBLAS
         }
 
         /** @brief Records into probes over tensors of the fixture's engine. */
-        class Unit_GraphProbe : public SushiBLASTest
+        class Medium_GraphProbe : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_GraphProbe, AFreshProbeHasRecordedNothing)
+        TEST_F(Medium_GraphProbe, AFreshProbeHasRecordedNothing)
         {
             GraphProbe probe;
 
@@ -80,7 +80,7 @@ namespace SushiBLAS
             EXPECT_TRUE(probe.recorded_tasks()->empty());
         }
 
-        TEST_F(Unit_GraphProbe, ReportsAReadAfterAWriteAsADependency)
+        TEST_F(Medium_GraphProbe, ReportsAReadAfterAWriteAsADependency)
         {
             const Tensor shared = engine->create_tensor({8});
             GraphProbe probe(ExecutionMode::ForceReference);
@@ -96,7 +96,7 @@ namespace SushiBLAS
             EXPECT_EQ((*tasks)[1].reads.size(), std::size_t{1});
         }
 
-        TEST_F(Unit_GraphProbe, TakeAndExecuteEmptyTheProbe)
+        TEST_F(Medium_GraphProbe, TakeAndExecuteEmptyTheProbe)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
             record_nothing(probe, "first", OperandSet());

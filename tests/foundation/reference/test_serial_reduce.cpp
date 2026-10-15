@@ -115,7 +115,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Gives the serial-loop tests the queue the launched side submits to. */
-        class Unit_SerialLoops : public ::testing::Test
+        class Medium_SerialLoops : public ::testing::Test
         {
             protected:
                 /** @brief Returns the queue of the test environment. */
@@ -126,7 +126,7 @@ namespace SushiBLAS
         };
 
         /** @brief Tests that a host sum of HALF terms is added in double, where 2048 + 1 + 1 is 2050. */
-        TEST_F(Unit_SerialLoops, ASumOfHalfIsFormedInDouble)
+        TEST_F(Medium_SerialLoops, ASumOfHalfIsFormedInDouble)
         {
             static_assert(
                 std::is_same_v<Serial::Fold<Reduce::CompensatedSum, sycl::half>::Wide, double>,
@@ -149,7 +149,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a host fold keeps the NaN, signed-zero and tie rules of its accumulator. */
-        TEST_F(Unit_SerialLoops, AnOrderedFoldKeepsTheAccumulatorsRule)
+        TEST_F(Medium_SerialLoops, AnOrderedFoldKeepsTheAccumulatorsRule)
         {
             sycl::queue& q = queue();
             const auto identity = [](float x) { return x; };
@@ -189,7 +189,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a host fold over no element writes the identity of its accumulator. */
-        TEST_F(Unit_SerialLoops, AFoldOfNothingFinalizesTheIdentity)
+        TEST_F(Medium_SerialLoops, AFoldOfNothingFinalizesTheIdentity)
         {
             const float* nothing = nullptr;
             const auto identity = [](float x) { return x; };
@@ -208,7 +208,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the host axis fold of a 3 by 5 grid equals one host fold per row and per column. */
-        TEST_F(Unit_SerialLoops, AxisFoldMatchesOneFoldPerSegment)
+        TEST_F(Medium_SerialLoops, AxisFoldMatchesOneFoldPerSegment)
         {
             sycl::queue& q = queue();
             const std::size_t rows = K_GRID_ROWS;

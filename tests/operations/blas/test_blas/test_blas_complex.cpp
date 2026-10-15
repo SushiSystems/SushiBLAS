@@ -558,7 +558,7 @@ namespace SushiBLAS
          * @brief Runs the conjugating routines and CONJ_TRANS on a complex element type.
          */
         template<typename T>
-        class Unit_BlasComplex : public BLASConjugationCases<T>
+        class Medium_BlasComplex : public BLASConjugationCases<T>
         {
             protected:
                 /** @brief Returns real + imaginary * i in T. */
@@ -603,9 +603,9 @@ namespace SushiBLAS
         };
 
         using BLASComplexTypes = ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_BlasComplex, BLASComplexTypes);
+        SB_TYPED_TEST_SUITE(Medium_BlasComplex, BLASComplexTypes);
 
-        TYPED_TEST(Unit_BlasComplex, DotuSumsTheUnconjugatedProducts)
+        TYPED_TEST(Medium_BlasComplex, DotuSumsTheUnconjugatedProducts)
         {
             using T = TypeParam;
             const auto z = &TestFixture::z;
@@ -628,7 +628,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, DotcConjugatesTheFirstVector)
+        TYPED_TEST(Medium_BlasComplex, DotcConjugatesTheFirstVector)
         {
             using T = TypeParam;
             const auto z = &TestFixture::z;
@@ -651,7 +651,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, GeruAddsTheUnconjugatedOuterProduct)
+        TYPED_TEST(Medium_BlasComplex, GeruAddsTheUnconjugatedOuterProduct)
         {
             using T = TypeParam;
             const auto z = &TestFixture::z;
@@ -675,7 +675,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, GercConjugatesTheSecondVector)
+        TYPED_TEST(Medium_BlasComplex, GercConjugatesTheSecondVector)
         {
             using T = TypeParam;
             const auto z = &TestFixture::z;
@@ -699,7 +699,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, HemvReadsOneTriangleAndNoImaginaryDiagonal)
+        TYPED_TEST(Medium_BlasComplex, HemvReadsOneTriangleAndNoImaginaryDiagonal)
         {
             using T = TypeParam;
             const auto z = &TestFixture::z;
@@ -728,7 +728,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, HemvScalesAndAccumulates)
+        TYPED_TEST(Medium_BlasComplex, HemvScalesAndAccumulates)
         {
             using T = TypeParam;
             const auto z = &TestFixture::z;
@@ -759,7 +759,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, HerUpdatesOneTriangleAndLeavesARealDiagonal)
+        TYPED_TEST(Medium_BlasComplex, HerUpdatesOneTriangleAndLeavesARealDiagonal)
         {
             using T = TypeParam;
             const auto z = &TestFixture::z;
@@ -789,7 +789,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, Her2UpdatesOneTriangleAndLeavesARealDiagonal)
+        TYPED_TEST(Medium_BlasComplex, Her2UpdatesOneTriangleAndLeavesARealDiagonal)
         {
             using T = TypeParam;
             const auto z = &TestFixture::z;
@@ -821,7 +821,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, HerkUpdatesOneTriangleUntransposed)
+        TYPED_TEST(Medium_BlasComplex, HerkUpdatesOneTriangleUntransposed)
         {
             using T = TypeParam;
             const auto z = &TestFixture::z;
@@ -853,7 +853,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, HerkUpdatesOneTriangleConjugateTransposed)
+        TYPED_TEST(Medium_BlasComplex, HerkUpdatesOneTriangleConjugateTransposed)
         {
             using T = TypeParam;
             const auto z = &TestFixture::z;
@@ -886,7 +886,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, GemmConjTransEqualsTransOnAConjugatedCopy)
+        TYPED_TEST(Medium_BlasComplex, GemmConjTransEqualsTransOnAConjugatedCopy)
         {
             using Pair = std::array<Core::Transpose, 2>;
             const std::array<Pair, 5> pairs = {
@@ -912,7 +912,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, BatchedGemmConjTransEqualsTransOnAConjugatedCopy)
+        TYPED_TEST(Medium_BlasComplex, BatchedGemmConjTransEqualsTransOnAConjugatedCopy)
         {
             const Core::Transpose conj = Core::Transpose::ConjTrans;
 
@@ -929,7 +929,7 @@ namespace SushiBLAS
                 });
         }
 
-        TYPED_TEST(Unit_BlasComplex, GemvConjTransEqualsTransOnAConjugatedCopy)
+        TYPED_TEST(Medium_BlasComplex, GemvConjTransEqualsTransOnAConjugatedCopy)
         {
             const Core::Transpose conj = Core::Transpose::ConjTrans;
 
@@ -938,7 +938,7 @@ namespace SushiBLAS
                 [&] { return this->run_gemv(TestFixture::on_conjugated_copy(conj)); });
         }
 
-        TYPED_TEST(Unit_BlasComplex, TrmvConjTransEqualsTransOnAConjugatedCopy)
+        TYPED_TEST(Medium_BlasComplex, TrmvConjTransEqualsTransOnAConjugatedCopy)
         {
             const Core::Transpose conj = Core::Transpose::ConjTrans;
 
@@ -950,7 +950,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, TrsvConjTransEqualsTransOnAConjugatedCopy)
+        TYPED_TEST(Medium_BlasComplex, TrsvConjTransEqualsTransOnAConjugatedCopy)
         {
             const Core::Transpose conj = Core::Transpose::ConjTrans;
 
@@ -962,7 +962,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, TrsmConjTransEqualsTransOnAConjugatedCopy)
+        TYPED_TEST(Medium_BlasComplex, TrsmConjTransEqualsTransOnAConjugatedCopy)
         {
             const Core::Transpose conj = Core::Transpose::ConjTrans;
 
@@ -981,13 +981,13 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, DotuAndDotcMatchAcrossModes)
+        TYPED_TEST(Medium_BlasComplex, DotuAndDotcMatchAcrossModes)
         {
             this->expect_modes_agree([&] { return this->run_dot(&Level1::dotu); });
             this->expect_modes_agree([&] { return this->run_dot(&Level1::dotc); });
         }
 
-        TYPED_TEST(Unit_BlasComplex, GeruAndGercMatchAcrossModes)
+        TYPED_TEST(Medium_BlasComplex, GeruAndGercMatchAcrossModes)
         {
             const BLASScalar alpha = TestFixture::scalar(TestFixture::alpha());
 
@@ -995,25 +995,25 @@ namespace SushiBLAS
             this->expect_modes_agree([&] { return this->run_ger(&Level2::gerc, alpha); });
         }
 
-        TYPED_TEST(Unit_BlasComplex, HemvMatchesAcrossModes)
+        TYPED_TEST(Medium_BlasComplex, HemvMatchesAcrossModes)
         {
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 this->expect_modes_agree([&] { return this->run_hemv(&Level2::hemv, uplo); });
         }
 
-        TYPED_TEST(Unit_BlasComplex, HerMatchesAcrossModes)
+        TYPED_TEST(Medium_BlasComplex, HerMatchesAcrossModes)
         {
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 this->expect_modes_agree([&] { return this->run_her(&Level2::her, uplo); });
         }
 
-        TYPED_TEST(Unit_BlasComplex, Her2MatchesAcrossModes)
+        TYPED_TEST(Medium_BlasComplex, Her2MatchesAcrossModes)
         {
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 this->expect_modes_agree([&] { return this->run_her2(&Level2::her2, uplo); });
         }
 
-        TYPED_TEST(Unit_BlasComplex, HerkMatchesAcrossModes)
+        TYPED_TEST(Medium_BlasComplex, HerkMatchesAcrossModes)
         {
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
             {
@@ -1026,7 +1026,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_BlasComplex, GemmConjTransMatchesAcrossModes)
+        TYPED_TEST(Medium_BlasComplex, GemmConjTransMatchesAcrossModes)
         {
             const Core::Transpose conj = Core::Transpose::ConjTrans;
             const Core::Transpose none = Core::Transpose::NoTrans;
@@ -1051,14 +1051,14 @@ namespace SushiBLAS
                 });
         }
 
-        TYPED_TEST(Unit_BlasComplex, GemvConjTransMatchesAcrossModes)
+        TYPED_TEST(Medium_BlasComplex, GemvConjTransMatchesAcrossModes)
         {
             const Core::Transpose conj = Core::Transpose::ConjTrans;
 
             this->expect_modes_agree([&] { return this->run_gemv(TestFixture::as_given(conj)); });
         }
 
-        TYPED_TEST(Unit_BlasComplex, TrmvConjTransMatchesAcrossModes)
+        TYPED_TEST(Medium_BlasComplex, TrmvConjTransMatchesAcrossModes)
         {
             const Core::Transpose conj = Core::Transpose::ConjTrans;
 
@@ -1067,7 +1067,7 @@ namespace SushiBLAS
                     [&] { return this->run_trmv(uplo, TestFixture::as_given(conj)); });
         }
 
-        TYPED_TEST(Unit_BlasComplex, TrsvConjTransMatchesAcrossModes)
+        TYPED_TEST(Medium_BlasComplex, TrsvConjTransMatchesAcrossModes)
         {
             const Core::Transpose conj = Core::Transpose::ConjTrans;
 
@@ -1076,7 +1076,7 @@ namespace SushiBLAS
                     [&] { return this->run_trsv(uplo, TestFixture::as_given(conj)); });
         }
 
-        TYPED_TEST(Unit_BlasComplex, TrsmConjTransMatchesAcrossModes)
+        TYPED_TEST(Medium_BlasComplex, TrsmConjTransMatchesAcrossModes)
         {
             const Core::Transpose conj = Core::Transpose::ConjTrans;
 
@@ -1089,33 +1089,33 @@ namespace SushiBLAS
         /**
          * @brief Runs each conjugating routine and its unconjugated sibling on a FLOAT32 tensor.
          */
-        class Unit_BlasRealForwards : public BLASConjugationCases<float>
+        class Medium_BlasRealForwards : public BLASConjugationCases<float>
         {
 
         };
 
-        TEST_F(Unit_BlasRealForwards, HemvGivesTheBitsOfSymv)
+        TEST_F(Medium_BlasRealForwards, HemvGivesTheBitsOfSymv)
         {
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 expect_calls_give_the_same_bits([&] { return run_hemv(&Level2::hemv, uplo); },
                                                 [&] { return run_hemv(&Level2::symv, uplo); });
         }
 
-        TEST_F(Unit_BlasRealForwards, HerGivesTheBitsOfSyr)
+        TEST_F(Medium_BlasRealForwards, HerGivesTheBitsOfSyr)
         {
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 expect_calls_give_the_same_bits([&] { return run_her(&Level2::her, uplo); },
                                                 [&] { return run_her(&Level2::syr, uplo); });
         }
 
-        TEST_F(Unit_BlasRealForwards, Her2GivesTheBitsOfSyr2)
+        TEST_F(Medium_BlasRealForwards, Her2GivesTheBitsOfSyr2)
         {
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 expect_calls_give_the_same_bits([&] { return run_her2(&Level2::her2, uplo); },
                                                 [&] { return run_her2(&Level2::syr2, uplo); });
         }
 
-        TEST_F(Unit_BlasRealForwards, HerkGivesTheBitsOfSyrk)
+        TEST_F(Medium_BlasRealForwards, HerkGivesTheBitsOfSyrk)
         {
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
             {
@@ -1129,7 +1129,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_BlasRealForwards, HerkUnderConjTransGivesTheBitsOfSyrkUnderTrans)
+        TEST_F(Medium_BlasRealForwards, HerkUnderConjTransGivesTheBitsOfSyrkUnderTrans)
         {
             for (const Core::Uplo uplo : K_CASE_TRIANGLES)
                 expect_calls_give_the_same_bits(
@@ -1137,7 +1137,7 @@ namespace SushiBLAS
                     [&] { return run_herk(&Level3::syrk, uplo, Core::Transpose::Trans); });
         }
 
-        TEST_F(Unit_BlasRealForwards, DotuAndDotcGiveTheBitsOfDot)
+        TEST_F(Medium_BlasRealForwards, DotuAndDotcGiveTheBitsOfDot)
         {
             expect_calls_give_the_same_bits([&] { return run_dot(&Level1::dotu); },
                                             [&] { return run_dot(&Level1::dot); });
@@ -1145,7 +1145,7 @@ namespace SushiBLAS
                                             [&] { return run_dot(&Level1::dot); });
         }
 
-        TEST_F(Unit_BlasRealForwards, GeruAndGercGiveTheBitsOfGer)
+        TEST_F(Medium_BlasRealForwards, GeruAndGercGiveTheBitsOfGer)
         {
             expect_calls_give_the_same_bits(
                 [&] { return run_ger(&Level2::geru, BLASScalar(K_REAL_ALPHA)); },
@@ -1155,7 +1155,7 @@ namespace SushiBLAS
                 [&] { return run_ger(&Level2::ger, K_REAL_ALPHA); });
         }
 
-        TEST_F(Unit_BlasRealForwards, GemmUnderConjTransGivesTheBitsOfGemmUnderTrans)
+        TEST_F(Medium_BlasRealForwards, GemmUnderConjTransGivesTheBitsOfGemmUnderTrans)
         {
             const OperandForm conj = as_given(Core::Transpose::ConjTrans);
             const OperandForm trans = as_given(Core::Transpose::Trans);

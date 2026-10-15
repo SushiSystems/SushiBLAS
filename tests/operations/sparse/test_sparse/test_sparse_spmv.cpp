@@ -91,7 +91,7 @@ namespace SushiBLAS
          * @brief Builds CSR matrices from host triplets and runs spmv in a chosen execution mode.
          */
         template<typename TypeParam>
-        class Unit_SparseSpmvTest : public SushiBLASTest
+        class Medium_SparseSpmvTest : public SushiBLASTest
         {
             protected:
                 /** @brief The element type under test. */
@@ -234,9 +234,9 @@ namespace SushiBLAS
                 }
         };
 
-        SB_TYPED_TEST_SUITE(Unit_SparseSpmvTest, SparseCases);
+        SB_TYPED_TEST_SUITE(Medium_SparseSpmvTest, SparseCases);
 
-        TYPED_TEST(Unit_SparseSpmvTest, TheSampleProductMatchesTheHostInEveryModeAndBase)
+        TYPED_TEST(Medium_SparseSpmvTest, TheSampleProductMatchesTheHostInEveryModeAndBase)
         {
             using T = typename TypeParam::Value;
             using Wide = std::vector<std::complex<double>>;
@@ -265,7 +265,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpmvTest, TheTransposedSampleProductMatchesTheHost)
+        TYPED_TEST(Medium_SparseSpmvTest, TheTransposedSampleProductMatchesTheHost)
         {
             using T = typename TypeParam::Value;
             using Wide = std::vector<std::complex<double>>;
@@ -293,7 +293,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpmvTest, ConjTransConjugatesAComplexMatrixAndNothingElse)
+        TYPED_TEST(Medium_SparseSpmvTest, ConjTransConjugatesAComplexMatrixAndNothingElse)
         {
             using T = typename TypeParam::Value;
             using Wide = std::vector<std::complex<double>>;
@@ -330,7 +330,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpmvTest, IntegerDataIsExactInBothModesForEveryTranspose)
+        TYPED_TEST(Medium_SparseSpmvTest, IntegerDataIsExactInBothModesForEveryTranspose)
         {
             using T = typename TypeParam::Value;
             using Wide = std::vector<std::complex<double>>;
@@ -360,7 +360,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpmvTest, ABetaOfZeroDoesNotReadY)
+        TYPED_TEST(Medium_SparseSpmvTest, ABetaOfZeroDoesNotReadY)
         {
             using T = typename TypeParam::Value;
             using Wide = std::vector<std::complex<double>>;
@@ -388,7 +388,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpmvTest, AMatrixWithoutEntriesScalesYByBeta)
+        TYPED_TEST(Medium_SparseSpmvTest, AMatrixWithoutEntriesScalesYByBeta)
         {
             using T = typename TypeParam::Value;
             using Wide = std::vector<std::complex<double>>;
@@ -415,7 +415,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpmvTest, AMatrixWithoutRowsOrColumnsScalesItsOtherSide)
+        TYPED_TEST(Medium_SparseSpmvTest, AMatrixWithoutRowsOrColumnsScalesItsOtherSide)
         {
             using T = typename TypeParam::Value;
             using Wide = std::vector<std::complex<double>>;
@@ -455,7 +455,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpmvTest, StridedVectorsGiveTheSampleProduct)
+        TYPED_TEST(Medium_SparseSpmvTest, StridedVectorsGiveTheSampleProduct)
         {
             using T = typename TypeParam::Value;
             using Wide = std::vector<std::complex<double>>;
@@ -489,7 +489,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpmvTest, APairStoredTwiceCountsTwice)
+        TYPED_TEST(Medium_SparseSpmvTest, APairStoredTwiceCountsTwice)
         {
             using T = typename TypeParam::Value;
             using Wide = std::vector<std::complex<double>>;
@@ -528,12 +528,12 @@ namespace SushiBLAS
         /**
          * @brief Runs the HALF products whose sum a HALF accumulator would round away.
          */
-        class Unit_SparseSpmvHalf : public Unit_SparseSpmvTest<SparseCase<sycl::half, int64_t>>
+        class Medium_SparseSpmvHalf : public Medium_SparseSpmvTest<SparseCase<sycl::half, int64_t>>
         {
 
         };
 
-        TEST_F(Unit_SparseSpmvHalf, ARowAndAColumnAreSummedInFloat32)
+        TEST_F(Medium_SparseSpmvHalf, ARowAndAColumnAreSummedInFloat32)
         {
             const std::complex<double> one(1.0, 0.0);
             const std::complex<double> zero(0.0, 0.0);
@@ -569,7 +569,7 @@ namespace SushiBLAS
         /**
          * @brief Calls the transposed SYCL kernel with a block count the test chooses.
          */
-        class Unit_SparseSpmvKernel : public SushiBLASTest
+        class Medium_SparseSpmvKernel : public SushiBLASTest
         {
             protected:
                 /** @brief Returns A^T * x from the SYCL kernel run with blocks row blocks. */
@@ -598,7 +598,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_SparseSpmvKernel, EveryBlockCountGivesTheExactIntegerResult)
+        TEST_F(Medium_SparseSpmvKernel, EveryBlockCountGivesTheExactIntegerResult)
         {
             using Wide = std::vector<std::complex<double>>;
 
@@ -628,7 +628,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SparseSpmvKernel, TheRowBlocksCoverEveryEntryOnce)
+        TEST_F(Medium_SparseSpmvKernel, TheRowBlocksCoverEveryEntryOnce)
         {
             namespace Blocks = Kernels::SYCL::Detail;
 
@@ -672,7 +672,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SparseSpmvKernel, TheBlockCountFollowsTheProfileAndTheDensity)
+        TEST_F(Medium_SparseSpmvKernel, TheBlockCountFollowsTheProfileAndTheDensity)
         {
             using Kernels::SYCL::scatter_blocks;
 

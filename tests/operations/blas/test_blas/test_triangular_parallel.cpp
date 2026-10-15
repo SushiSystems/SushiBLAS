@@ -1132,7 +1132,7 @@ namespace SushiBLAS
 
         /** @brief Runs the triangular kernels on every element type but HALF. */
         template<typename T>
-        class Unit_TriangularParallel : public TriangularParallelFixture<T>
+        class Medium_TriangularParallel : public TriangularParallelFixture<T>
         {
 
         };
@@ -1140,23 +1140,23 @@ namespace SushiBLAS
         /// @brief Element types the triangular kernels are tested on.
         using TriangularTypes =
             ::testing::Types<float, double, std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_TriangularParallel, TriangularTypes);
+        SB_TYPED_TEST_SUITE(Medium_TriangularParallel, TriangularTypes);
 
         /** @brief Runs the cases measured against a double-precision truth, on the real types. */
         template<typename T>
-        class Unit_TriangularParallelReal : public TriangularParallelFixture<T>
+        class Medium_TriangularParallelReal : public TriangularParallelFixture<T>
         {
 
         };
 
         /// @brief Element types a double-precision truth exists for.
         using TriangularRealTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_TriangularParallelReal, TriangularRealTypes);
+        SB_TYPED_TEST_SUITE(Medium_TriangularParallelReal, TriangularRealTypes);
 
         /**
          * @brief Tests that a solve leaves the same bytes at every block width.
          */
-        TYPED_TEST(Unit_TriangularParallel, EveryBlockWidthGivesTheSameBits)
+        TYPED_TEST(Medium_TriangularParallel, EveryBlockWidthGivesTheSameBits)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1183,7 +1183,7 @@ namespace SushiBLAS
          * @brief Tests that a blocked solve of an integer system returns its solution with no
          *        error, as the reference kernel does.
          */
-        TYPED_TEST(Unit_TriangularParallel, ABlockedSolveIsExactOnIntegerSystems)
+        TYPED_TEST(Medium_TriangularParallel, ABlockedSolveIsExactOnIntegerSystems)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1217,7 +1217,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a batch solved in blocks equals each of its matrices solved alone.
          */
-        TYPED_TEST(Unit_TriangularParallel, ABatchIsSolvedMatrixByMatrix)
+        TYPED_TEST(Medium_TriangularParallel, ABatchIsSolvedMatrixByMatrix)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1275,7 +1275,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that every launch of a blocked solve stays behind the events it is given.
          */
-        TYPED_TEST(Unit_TriangularParallel, ABlockedSolveWaitsForItsDependencies)
+        TYPED_TEST(Medium_TriangularParallel, ABlockedSolveWaitsForItsDependencies)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1303,7 +1303,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a solve without steps, or without vectors, finishes and writes nothing.
          */
-        TYPED_TEST(Unit_TriangularParallel, AnEmptySystemReturnsAnEvent)
+        TYPED_TEST(Medium_TriangularParallel, AnEmptySystemReturnsAnEvent)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1326,7 +1326,7 @@ namespace SushiBLAS
          * @brief Tests that TRMV of small integers equals the host product in both modes and
          *        in both row shapes of the SYCL kernel.
          */
-        TYPED_TEST(Unit_TriangularParallel, TrmvIsExactOnSmallIntegers)
+        TYPED_TEST(Medium_TriangularParallel, TrmvIsExactOnSmallIntegers)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1369,7 +1369,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that two runs of one TRMV on the SYCL kernel leave the same bytes.
          */
-        TYPED_TEST(Unit_TriangularParallel, TrmvRepeatsToTheBit)
+        TYPED_TEST(Medium_TriangularParallel, TrmvRepeatsToTheBit)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1389,7 +1389,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that the snapshot of a TRMV returns to the pool and is lent again.
          */
-        TYPED_TEST(Unit_TriangularParallel, TrmvReturnsItsSnapshotToThePool)
+        TYPED_TEST(Medium_TriangularParallel, TrmvReturnsItsSnapshotToThePool)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1427,7 +1427,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that both launches of TRMV stay behind the events the kernel is given.
          */
-        TYPED_TEST(Unit_TriangularParallel, TrmvWaitsForItsDependencies)
+        TYPED_TEST(Medium_TriangularParallel, TrmvWaitsForItsDependencies)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1460,7 +1460,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a packed and a band solve leave the same bytes at every block width.
          */
-        TYPED_TEST(Unit_TriangularParallel, AVectorSolveGivesTheSameBitsAtEveryBlockWidth)
+        TYPED_TEST(Medium_TriangularParallel, AVectorSolveGivesTheSameBitsAtEveryBlockWidth)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1504,7 +1504,7 @@ namespace SushiBLAS
          * @brief Tests that a blocked packed and a blocked band solve return the solution of an
          *        integer system with no error and write nothing between the elements of x.
          */
-        TYPED_TEST(Unit_TriangularParallel, ABlockedVectorSolveIsExactOnIntegerSystems)
+        TYPED_TEST(Medium_TriangularParallel, ABlockedVectorSolveIsExactOnIntegerSystems)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1558,7 +1558,7 @@ namespace SushiBLAS
          * @brief Tests that every launch of a blocked packed solve stays behind the events it is
          *        given.
          */
-        TYPED_TEST(Unit_TriangularParallel, ABlockedVectorSolveWaitsForItsDependencies)
+        TYPED_TEST(Medium_TriangularParallel, ABlockedVectorSolveWaitsForItsDependencies)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1587,7 +1587,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a packed and a band solve of no rows finish.
          */
-        TYPED_TEST(Unit_TriangularParallel, AnEmptyVectorSolveReturnsAnEvent)
+        TYPED_TEST(Medium_TriangularParallel, AnEmptyVectorSolveReturnsAnEvent)
         {
             using T = TypeParam;
             const HostSolve<T> empty(TriangularFlags{}, 0, 1, {});
@@ -1600,7 +1600,7 @@ namespace SushiBLAS
          * @brief Tests that the public TPSV and TBSV solve a large integer system with no error
          *        on the path the device plans.
          */
-        TYPED_TEST(Unit_TriangularParallelReal, ThePlannedVectorPathIsExactAtALargeOrder)
+        TYPED_TEST(Medium_TriangularParallelReal, ThePlannedVectorPathIsExactAtALargeOrder)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1630,7 +1630,7 @@ namespace SushiBLAS
          * @brief Tests that the public TRSV and TRSM solve a large integer system with no error
          *        on the path the device plans.
          */
-        TYPED_TEST(Unit_TriangularParallelReal, ThePlannedPathIsExactAtALargeOrder)
+        TYPED_TEST(Medium_TriangularParallelReal, ThePlannedPathIsExactAtALargeOrder)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1662,7 +1662,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that both kernels leave every step of a solve within its residual bound.
          */
-        TYPED_TEST(Unit_TriangularParallelReal, TheResidualIsWithinItsBound)
+        TYPED_TEST(Medium_TriangularParallelReal, TheResidualIsWithinItsBound)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1690,7 +1690,7 @@ namespace SushiBLAS
          * @brief Tests that TRMV stays within its rounding bound of the truth in both modes and
          *        in the work-group shape of the SYCL kernel.
          */
-        TYPED_TEST(Unit_TriangularParallelReal, TrmvIsWithinItsBoundOfTheTruth)
+        TYPED_TEST(Medium_TriangularParallelReal, TrmvIsWithinItsBoundOfTheTruth)
         {
             using T = TypeParam;
             Draws draws(K_SEED);
@@ -1722,7 +1722,7 @@ namespace SushiBLAS
         /**
          * @brief Runs the triangular kernels on HALF operands, on a device that has fp16.
          */
-        class Unit_TriangularParallelHalf : public SushiBLASTest
+        class Medium_TriangularParallelHalf : public SushiBLASTest
         {
             protected:
                 /** @brief Builds the engine and skips the case on a device without fp16. */
@@ -1840,7 +1840,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a blocked HALF solve carries its solution in FLOAT32 at every width.
          */
-        TEST_F(Unit_TriangularParallelHalf, ABlockedHalfSolveCarriesTheSolutionInFloat)
+        TEST_F(Medium_TriangularParallelHalf, ABlockedHalfSolveCarriesTheSolutionInFloat)
         {
             const std::vector<sycl::half> a = unit_lower_values();
 
@@ -1865,7 +1865,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a blocked HALF TPSV carries its solution in FLOAT32 at every width.
          */
-        TEST_F(Unit_TriangularParallelHalf, ABlockedHalfVectorSolveCarriesTheSolutionInFloat)
+        TEST_F(Medium_TriangularParallelHalf, ABlockedHalfVectorSolveCarriesTheSolutionInFloat)
         {
             TriangularFlags flags;
             flags.diag = Core::Diag::Unit;
@@ -1896,7 +1896,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a HALF TRMV sums a row in FLOAT32, where a HALF sum loses the 1.
          */
-        TEST_F(Unit_TriangularParallelHalf, HalfTrmvSumsInFloat)
+        TEST_F(Medium_TriangularParallelHalf, HalfTrmvSumsInFloat)
         {
             const sycl::half nan(std::numeric_limits<float>::quiet_NaN());
             const sycl::half one(1.0f);

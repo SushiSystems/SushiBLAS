@@ -34,7 +34,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ChannelBiasEpilogue, AColumnChannelAddsTheBiasOfTheColumn)
+        TEST(Small_ChannelBiasEpilogue, AColumnChannelAddsTheBiasOfTheColumn)
         {
             const std::vector<float> bias{10.0f, 20.0f, 30.0f};
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
@@ -43,7 +43,7 @@ namespace SushiBLAS
             EXPECT_EQ(epilogue(1.0f, 0, 0), 11.0f);
         }
 
-        TEST(Unit_ChannelBiasEpilogue, ARowChannelAddsTheBiasOfTheRow)
+        TEST(Small_ChannelBiasEpilogue, ARowChannelAddsTheBiasOfTheRow)
         {
             const std::vector<double> bias{1.0, 2.0};
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 1, 0};
@@ -51,7 +51,7 @@ namespace SushiBLAS
             EXPECT_EQ(epilogue(5.0, 1, 7), 7.0);
         }
 
-        TEST(Unit_ChannelBiasEpilogue, BothStridesAddressATwoDimensionalBias)
+        TEST(Small_ChannelBiasEpilogue, BothStridesAddressATwoDimensionalBias)
         {
             const std::vector<double> bias{1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 3, 1};

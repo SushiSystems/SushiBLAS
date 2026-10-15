@@ -42,7 +42,7 @@ namespace SushiBLAS
                           !std::is_copy_assignable_v<LinalgOps>,
                       "LinalgOps copies but never rebinds.");
 
-        TEST(Unit_Linalg, TheDeclarationKeepsTheShapeOfARecorderView)
+        TEST(Medium_Linalg, TheDeclarationKeepsTheShapeOfARecorderView)
         {
             SUCCEED();
         }

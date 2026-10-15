@@ -61,7 +61,7 @@ namespace
 } // namespace
 
 /// @brief Fixture for the ForceReference host-pointer guard tests.
-class Unit_ReferenceModeGuardTest : public SushiBLASTest
+class Medium_ReferenceModeGuardTest : public SushiBLASTest
 {
     protected:
         /**
@@ -125,7 +125,7 @@ class Unit_ReferenceModeGuardTest : public SushiBLASTest
         }
 };
 
-TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceGemmRefusesADeviceOperand)
+TEST_F(Medium_ReferenceModeGuardTest, ForceReferenceGemmRefusesADeviceOperand)
 {
     std::optional<Tensor> a = make_device_a();
     if (!a)
@@ -146,7 +146,7 @@ TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceGemmRefusesADeviceOperand)
     }
 }
 
-TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceRefusesADeviceOperandDeclaredByAnEpilogue)
+TEST_F(Medium_ReferenceModeGuardTest, ForceReferenceRefusesADeviceOperandDeclaredByAnEpilogue)
 {
     std::optional<Tensor> bias = make_device_tensor({2});
     if (!bias)
@@ -164,7 +164,7 @@ TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceRefusesADeviceOperandDeclaredB
                  std::invalid_argument);
 }
 
-TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceGemmOnSharedOperandsMatchesSYCL)
+TEST_F(Medium_ReferenceModeGuardTest, ForceReferenceGemmOnSharedOperandsMatchesSYCL)
 {
     const Tensor a = make_shared_a();
     const Tensor b = make_shared_b();
@@ -181,7 +181,7 @@ TEST_F(Unit_ReferenceModeGuardTest, ForceReferenceGemmOnSharedOperandsMatchesSYC
     }
 }
 
-TEST_F(Unit_ReferenceModeGuardTest, ForceSYCLGemmRunsOnADeviceOperand)
+TEST_F(Medium_ReferenceModeGuardTest, ForceSYCLGemmRunsOnADeviceOperand)
 {
     std::optional<Tensor> a = make_device_a();
     if (!a)

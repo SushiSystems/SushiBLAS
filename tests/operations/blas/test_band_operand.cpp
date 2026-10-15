@@ -43,13 +43,13 @@ namespace SushiBLAS
             using Core::Uplo;
 
             /// @brief Names the suite of the band operand cases.
-            using Unit_BandOperand = StructuredOperandTest;
+            using Medium_BandOperand = StructuredOperandTest;
         } // namespace
 
         /**
          * @brief Tests that a column-major band tensor gives its columns as lines.
          */
-        TEST_F(Unit_BandOperand, AColumnMajorTensorStoresOneLinePerColumn)
+        TEST_F(Medium_BandOperand, AColumnMajorTensorStoresOneLinePerColumn)
         {
             const Tensor t = make_tensor({4, 5}, Layout::ColumnMajor);
             const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 1, 2, "op", "A");
@@ -64,7 +64,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a row-major band tensor gives its rows as lines.
          */
-        TEST_F(Unit_BandOperand, ARowMajorTensorStoresOneLinePerRow)
+        TEST_F(Medium_BandOperand, ARowMajorTensorStoresOneLinePerRow)
         {
             const Tensor t = make_tensor({4, 4}, Layout::RowMajor);
             const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 1, 2, "op", "A");
@@ -79,7 +79,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a line may hold more slots than the band needs.
          */
-        TEST_F(Unit_BandOperand, SpareSlotsPerLineAreAccepted)
+        TEST_F(Medium_BandOperand, SpareSlotsPerLineAreAccepted)
         {
             const Tensor t = make_tensor({6, 5}, Layout::ColumnMajor);
             const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 1, 2, "op", "A");
@@ -91,7 +91,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a band width may exceed what the matrix has diagonals for.
          */
-        TEST_F(Unit_BandOperand, AWidthBeyondTheMatrixIsAccepted)
+        TEST_F(Medium_BandOperand, AWidthBeyondTheMatrixIsAccepted)
         {
             const Tensor t = make_tensor({4, 2}, Layout::ColumnMajor);
             const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 3, 0, "op", "A");
@@ -105,7 +105,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a band tensor of no line is accepted and keeps its line length.
          */
-        TEST_F(Unit_BandOperand, AnEmptyTensorHasNoLine)
+        TEST_F(Medium_BandOperand, AnEmptyTensorHasNoLine)
         {
             const Tensor t = make_tensor_without_storage({3, 0}, Layout::ColumnMajor);
             const Dispatch::BandOperand band = Dispatch::describe_band_operand(t, 1, 1, "op", "A");
@@ -117,7 +117,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a triangle band puts its k off-diagonals on the side uplo names.
          */
-        TEST_F(Unit_BandOperand, ATriangleBandPutsItsWidthOnOneSide)
+        TEST_F(Medium_BandOperand, ATriangleBandPutsItsWidthOnOneSide)
         {
             const Tensor t = make_tensor({4, 5}, Layout::ColumnMajor);
 
@@ -137,7 +137,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a negative band width is refused under the name the call gave it.
          */
-        TEST_F(Unit_BandOperand, ANegativeWidthIsRefusedByName)
+        TEST_F(Medium_BandOperand, ANegativeWidthIsRefusedByName)
         {
             const Tensor t = make_tensor({4, 5}, Layout::ColumnMajor);
 
@@ -178,7 +178,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a band operand must be one dense matrix of rank 2.
          */
-        TEST_F(Unit_BandOperand, ATensorThatIsNoDenseMatrixIsRefused)
+        TEST_F(Medium_BandOperand, ATensorThatIsNoDenseMatrixIsRefused)
         {
             const Tensor vector = make_tensor({20}, Layout::ColumnMajor);
             EXPECT_THROW((void)Dispatch::describe_band_operand(vector, 0, 0, "op", "A"),
@@ -199,7 +199,7 @@ namespace SushiBLAS
          * @brief Tests that a band wider than a stored line is refused, without overflow for
          *        the largest widths.
          */
-        TEST_F(Unit_BandOperand, ABandWiderThanALineIsRefused)
+        TEST_F(Medium_BandOperand, ABandWiderThanALineIsRefused)
         {
             for (const Layout layout : K_LAYOUTS)
             {

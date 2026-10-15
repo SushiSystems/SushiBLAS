@@ -38,12 +38,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs rotmg on the host CPU queue. */
-        class Device_SYCLRotmg : public HostDeviceTest
+        class Medium_SYCLRotmg : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLRotmg, MatchesTheReferenceBitForBit)
+        TEST_F(Medium_SYCLRotmg, MatchesTheReferenceBitForBit)
         {
             const std::vector<std::vector<double>> inputs{
                 {2.0, 1.0, 1.5, 0.5}, {1.0, 3.0, 1.0, 4.0}, {2.0, 1.0, 1.5, 0.0},

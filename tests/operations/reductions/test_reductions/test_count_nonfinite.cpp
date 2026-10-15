@@ -67,7 +67,7 @@ namespace SushiBLAS
         }
 
         template<typename T>
-        class Unit_CountNonFiniteTyped : public SushiBLASTest
+        class Medium_CountNonFiniteTyped : public SushiBLASTest
         {
             protected:
                 /** @brief Positive infinity in the element type under test. */
@@ -103,13 +103,13 @@ namespace SushiBLAS
         };
 
         using CountTypes = ::testing::Types<sycl::half, float, double>;
-        SB_TYPED_TEST_SUITE(Unit_CountNonFiniteTyped, CountTypes);
+        SB_TYPED_TEST_SUITE(Medium_CountNonFiniteTyped, CountTypes);
 
         /**
          * @brief Tests that a clean tensor counts zero.
          * @see tests/operations/reductions/README.md
          */
-        TYPED_TEST(Unit_CountNonFiniteTyped, ACleanTensorCountsZero)
+        TYPED_TEST(Medium_CountNonFiniteTyped, ACleanTensorCountsZero)
         {
             EXPECT_EQ(0, this->count(this->clean(K_SMALL)));
             EXPECT_EQ(0, this->count(this->clean(K_LARGE)));
@@ -119,7 +119,7 @@ namespace SushiBLAS
          * @brief Tests that an infinity of either sign is counted.
          * @see tests/operations/reductions/README.md
          */
-        TYPED_TEST(Unit_CountNonFiniteTyped, AnInfinityIsCountedInEitherSign)
+        TYPED_TEST(Medium_CountNonFiniteTyped, AnInfinityIsCountedInEitherSign)
         {
             using T = TypeParam;
 
@@ -136,7 +136,7 @@ namespace SushiBLAS
          * @brief Tests that a NaN is counted.
          * @see tests/operations/reductions/README.md
          */
-        TYPED_TEST(Unit_CountNonFiniteTyped, ANaNIsCounted)
+        TYPED_TEST(Medium_CountNonFiniteTyped, ANaNIsCounted)
         {
             auto data = this->clean(K_SMALL);
             data[17] = this->nan();
@@ -147,7 +147,7 @@ namespace SushiBLAS
          * @brief Tests that one bad element is found at the first, a middle and the last index.
          * @see tests/operations/reductions/README.md
          */
-        TYPED_TEST(Unit_CountNonFiniteTyped, ASingleBadElementIsFoundAtAnyIndexIncludingTheLast)
+        TYPED_TEST(Medium_CountNonFiniteTyped, ASingleBadElementIsFoundAtAnyIndexIncludingTheLast)
         {
             const std::vector<size_t> where = {0,
                                                static_cast<size_t>(K_LARGE) / 2,
@@ -169,7 +169,7 @@ namespace SushiBLAS
          * @brief Tests that several bad elements of both kinds add up to their count.
          * @see tests/operations/reductions/README.md
          */
-        TYPED_TEST(Unit_CountNonFiniteTyped, EveryBadElementIsCounted)
+        TYPED_TEST(Medium_CountNonFiniteTyped, EveryBadElementIsCounted)
         {
             using T = TypeParam;
 
@@ -186,7 +186,7 @@ namespace SushiBLAS
          * @brief Tests that sizes on each side of the CPU's two-stage threshold count the same.
          * @see tests/operations/reductions/README.md
          */
-        TYPED_TEST(Unit_CountNonFiniteTyped, BothLaunchShapesGiveTheSameCount)
+        TYPED_TEST(Medium_CountNonFiniteTyped, BothLaunchShapesGiveTheSameCount)
         {
             // `small` is a macro for `char` in <rpcndr.h>. See the test README.
             auto below = this->clean(K_SMALL);
@@ -201,7 +201,7 @@ namespace SushiBLAS
             EXPECT_EQ(2, this->count(above)) << "the two-stage shape";
         }
 
-        class Unit_CountNonFiniteTest : public SushiBLASTest
+        class Medium_CountNonFiniteTest : public SushiBLASTest
         {
             protected:
                 /** @brief The INT64 scalar @p t holds. */
@@ -242,7 +242,7 @@ namespace SushiBLAS
          * @brief Tests that asum overflows on eight finite fp16 values this op counts as clean.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_CountNonFiniteTest, AsumReportsOverflowOnAHalfTensorThisOpCallsClean)
+        TEST_F(Medium_CountNonFiniteTest, AsumReportsOverflowOnAHalfTensorThisOpCallsClean)
         {
             const std::vector<sycl::half> values(8, static_cast<sycl::half>(20000.0f));
 
@@ -268,7 +268,7 @@ namespace SushiBLAS
          * @brief Tests that integer and complex inputs are refused by name.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_CountNonFiniteTest, NonRealInputDTypesAreRefusedByName)
+        TEST_F(Medium_CountNonFiniteTest, NonRealInputDTypesAreRefusedByName)
         {
             GraphProbe probe;
 
@@ -291,7 +291,7 @@ namespace SushiBLAS
                 << "A refused reduction must not leave a task on the graph.";
         }
 
-        TEST_F(Unit_CountNonFiniteTest, TheResultTensorMustBeAnInt64Scalar)
+        TEST_F(Medium_CountNonFiniteTest, TheResultTensorMustBeAnInt64Scalar)
         {
             auto t = engine->create_tensor({4}, Core::DataType::Float32);
 
@@ -310,7 +310,7 @@ namespace SushiBLAS
          * @brief Tests that the op is ordered behind the op that wrote its offset input view.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_CountNonFiniteTest, IsOrderedBehindTheOpThatWroteItsInput)
+        TEST_F(Medium_CountNonFiniteTest, IsOrderedBehindTheOpThatWroteItsInput)
         {
             GraphProbe probe;
 
@@ -344,7 +344,7 @@ namespace SushiBLAS
          * @brief Tests that a screen finds an overflow produced earlier in the same graph.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_CountNonFiniteTest, AnOverflowProducedInsideTheGraphIsFound)
+        TEST_F(Medium_CountNonFiniteTest, AnOverflowProducedInsideTheGraphIsFound)
         {
             auto big = create_initialized_tensor<float>({4}, {1e30f, 1.0f, 1.0f, 1.0f});
             auto squared = engine->create_tensor({4}, Core::DataType::Float32);

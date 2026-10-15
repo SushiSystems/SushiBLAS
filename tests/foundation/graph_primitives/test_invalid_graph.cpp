@@ -37,7 +37,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_GraphPrimitivesInvalidGraph, CarriesTheInvalidGraphCodeAndTheMessage)
+        TEST(Medium_GraphPrimitivesInvalidGraph, CarriesTheInvalidGraphCodeAndTheMessage)
         {
             const SushiRuntime::Result<void> refused =
                 GraphPrimitives::Detail::invalid_graph("count exceeds the capacity");
@@ -47,7 +47,7 @@ namespace SushiBLAS
             EXPECT_EQ(refused.error().message, std::string("count exceeds the capacity"));
         }
 
-        TEST(Unit_GraphPrimitivesInvalidGraph, AFreshRecorderHasNothingToReport)
+        TEST(Medium_GraphPrimitivesInvalidGraph, AFreshRecorderHasNothingToReport)
         {
             auto runtime = SushiRuntime::Runtime::create().value();
             auto graph = runtime.graph();

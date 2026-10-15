@@ -40,7 +40,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceTbmv, MatchesADenseProductForEveryFlag)
+        TEST(Small_ReferenceTbmv, MatchesADenseProductForEveryFlag)
         {
             const int64_t n = 6;
             const int64_t k = 2;

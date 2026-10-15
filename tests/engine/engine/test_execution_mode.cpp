@@ -36,7 +36,7 @@ using namespace SushiBLAS;
 using namespace SushiBLAS::Test;
 
 /// @brief Fixture for the execution-mode tests.
-class Unit_ExecutionModeTest : public SushiBLASTest
+class Medium_ExecutionModeTest : public SushiBLASTest
 {
 
 };
@@ -58,14 +58,14 @@ static Tensor run_axpy(Engine& engine, ExecutionMode mode)
     return y;
 }
 
-TEST_F(Unit_ExecutionModeTest, SetModeIsReadBack)
+TEST_F(Medium_ExecutionModeTest, SetModeIsReadBack)
 {
     engine->set_mode(ExecutionMode::ForceReference);
 
     EXPECT_EQ(ExecutionMode::ForceReference, engine->mode());
 }
 
-TEST_F(Unit_ExecutionModeTest, ForceReferenceAndForceSYCLAgreeOnAxpy)
+TEST_F(Medium_ExecutionModeTest, ForceReferenceAndForceSYCLAgreeOnAxpy)
 {
     // 2 * {1, 2, 3, 4} + {10, 20, 30, 40}.
     const std::vector<float> expected = {12.0f, 24.0f, 36.0f, 48.0f};

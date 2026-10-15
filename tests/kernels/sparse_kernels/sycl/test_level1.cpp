@@ -48,7 +48,7 @@ namespace SushiBLAS
         constexpr int64_t K_COUNT = K_EXTENT / 3;
 
         /** @brief Runs the level 1 kernels on the host CPU queue. */
-        class Device_SYCLSparseLevel1 : public HostDeviceTest
+        class Medium_SYCLSparseLevel1 : public HostDeviceTest
         {
             protected:
                 /** @brief Returns positions 0, 3, 6, ... in a shared array. */
@@ -61,7 +61,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Device_SYCLSparseLevel1, TheUpdatesMatchTheReference)
+        TEST_F(Medium_SYCLSparseLevel1, TheUpdatesMatchTheReference)
         {
             const SharedArray<int64_t> stored = positions();
             const Kernels::IndexList<int64_t> list{K_COUNT, K_EXTENT, 0, stored.get()};
@@ -84,7 +84,7 @@ namespace SushiBLAS
             EXPECT_EQ(device_y.values(), y);
         }
 
-        TEST_F(Device_SYCLSparseLevel1, GatherAndDotMatchTheReference)
+        TEST_F(Medium_SYCLSparseLevel1, GatherAndDotMatchTheReference)
         {
             const SharedArray<int64_t> stored = positions();
             const Kernels::IndexList<int64_t> list{K_COUNT, K_EXTENT, 0, stored.get()};

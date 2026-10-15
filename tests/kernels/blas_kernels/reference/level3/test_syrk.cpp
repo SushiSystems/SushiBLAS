@@ -70,7 +70,7 @@ namespace SushiBLAS
             return c;
         }
 
-        TEST(Unit_ReferenceSyrk, MatchesADenseUpdateForEveryLayoutTriangleAndTranspose)
+        TEST(Small_ReferenceSyrk, MatchesADenseUpdateForEveryLayoutTriangleAndTranspose)
         {
             const std::vector<double> g = small_integers<double>(K_ORDER * K_DEPTH, 1);
             const std::vector<double> c = small_integers<double>(K_ORDER * K_ORDER, 2);
@@ -109,7 +109,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_ReferenceSyrk, TheBatchedFormUpdatesEachMatrixOfTheBatch)
+        TEST(Small_ReferenceSyrk, TheBatchedFormUpdatesEachMatrixOfTheBatch)
         {
             const int64_t batch = 2;
             const std::vector<double> a = small_integers<double>(batch * K_ORDER * K_DEPTH, 3);

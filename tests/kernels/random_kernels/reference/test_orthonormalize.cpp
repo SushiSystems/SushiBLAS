@@ -52,7 +52,7 @@ namespace SushiBLAS
             return sum;
         }
 
-        TEST(Unit_ReferenceOrthonormalize, RowsBecomeOrthonormalAtTheGain)
+        TEST(Small_ReferenceOrthonormalize, RowsBecomeOrthonormalAtTheGain)
         {
             const Kernels::VectorSet set{4, 7, 1, 7};
             std::vector<double> p = small_integers<double>(28, 1);
@@ -66,7 +66,7 @@ namespace SushiBLAS
                         << i << ", " << j;
         }
 
-        TEST(Unit_ReferenceOrthonormalize, ColumnsOfAColumnMajorMatrixWorkThroughTheStrides)
+        TEST(Small_ReferenceOrthonormalize, ColumnsOfAColumnMajorMatrixWorkThroughTheStrides)
         {
             // Four column vectors of length six stored column by column in a 6 x 4 matrix.
             const Kernels::VectorSet set{4, 6, 1, 6};
@@ -81,7 +81,7 @@ namespace SushiBLAS
                     EXPECT_NEAR(dot_of(p, set, i, j), (i == j) ? 1.0 : 0.0, K_TOLERANCE);
         }
 
-        TEST(Unit_ReferenceOrthonormalize, AZeroVectorStaysZero)
+        TEST(Small_ReferenceOrthonormalize, AZeroVectorStaysZero)
         {
             const Kernels::VectorSet set{2, 3, 1, 3};
             std::vector<double> p{1.0, 0.0, 0.0, 0.0, 0.0, 0.0};

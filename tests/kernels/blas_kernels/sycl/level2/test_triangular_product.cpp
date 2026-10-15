@@ -44,12 +44,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs the triangular product on the host CPU queue. */
-        class Device_SYCLTriangularProduct : public HostDeviceTest
+        class Medium_SYCLTriangularProduct : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLTriangularProduct, MatchesTheReferenceForEveryFlag)
+        TEST_F(Medium_SYCLTriangularProduct, MatchesTheReferenceForEveryFlag)
         {
             const int64_t n = 33;
             const std::vector<double> packed = small_integers<double>(n * (n + 1) / 2, 1);

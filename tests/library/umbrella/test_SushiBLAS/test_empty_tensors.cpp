@@ -40,7 +40,7 @@ namespace SushiBLAS
     namespace Test
     {
         /// @brief Runs the empty-operand cases.
-        class Unit_EmptyTensorTest : public SushiBLASTest
+        class Medium_EmptyTensorTest : public SushiBLASTest
         {
             protected:
                 /** @brief Returns a FLOAT32 tensor of shape {0, 3} with no storage. */
@@ -62,7 +62,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that add over empty tensors records no task and does not throw.
          */
-        TEST_F(Unit_EmptyTensorTest, AddOfEmptyTensorsIsANoOp)
+        TEST_F(Medium_EmptyTensorTest, AddOfEmptyTensorsIsANoOp)
         {
             Tensor a = empty_tensor();
             Tensor b = empty_tensor();
@@ -75,7 +75,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that exp of an empty tensor records no task and does not throw.
          */
-        TEST_F(Unit_EmptyTensorTest, ExpOfAnEmptyTensorIsANoOp)
+        TEST_F(Medium_EmptyTensorTest, ExpOfAnEmptyTensorIsANoOp)
         {
             Tensor t = empty_tensor();
 
@@ -86,7 +86,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that relu of an empty tensor records no task and does not throw.
          */
-        TEST_F(Unit_EmptyTensorTest, ReLUOfAnEmptyTensorIsANoOp)
+        TEST_F(Medium_EmptyTensorTest, ReLUOfAnEmptyTensorIsANoOp)
         {
             Tensor t = empty_tensor();
 
@@ -97,7 +97,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that logical_and and equal over empty tensors record no task.
          */
-        TEST_F(Unit_EmptyTensorTest, LogicOfEmptyTensorsIsANoOp)
+        TEST_F(Medium_EmptyTensorTest, LogicOfEmptyTensorsIsANoOp)
         {
             Tensor a = empty_tensor();
             Tensor b = empty_tensor();
@@ -111,7 +111,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that all of a storage-less empty tensor writes the identity 1.
          */
-        TEST_F(Unit_EmptyTensorTest, AllOfAnEmptyTensorWritesOne)
+        TEST_F(Medium_EmptyTensorTest, AllOfAnEmptyTensorWritesOne)
         {
             Tensor t = empty_tensor();
             Tensor out = engine->create_tensor({1});
@@ -125,7 +125,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that any of a storage-less empty tensor writes the identity 0.
          */
-        TEST_F(Unit_EmptyTensorTest, AnyOfAnEmptyTensorWritesZero)
+        TEST_F(Medium_EmptyTensorTest, AnyOfAnEmptyTensorWritesZero)
         {
             Tensor t = empty_tensor();
             Tensor out = engine->create_tensor({1});
@@ -139,7 +139,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that convert between empty tensors records no task.
          */
-        TEST_F(Unit_EmptyTensorTest, ConvertOfEmptyTensorsIsANoOp)
+        TEST_F(Medium_EmptyTensorTest, ConvertOfEmptyTensorsIsANoOp)
         {
             Tensor src = empty_tensor();
             Tensor dst(SushiRuntime::sushi_ptr<Storage>(), {0, 3}, Core::DataType::Float64);
@@ -151,7 +151,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that empty operands of different shapes still throw.
          */
-        TEST_F(Unit_EmptyTensorTest, EmptyOperandsMustStillAgreeInShape)
+        TEST_F(Medium_EmptyTensorTest, EmptyOperandsMustStillAgreeInShape)
         {
             Tensor a = empty_tensor();
             Tensor b(SushiRuntime::sushi_ptr<Storage>(), {3, 0});
@@ -166,7 +166,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that the five reductions with an identity write it for an empty tensor.
          */
-        TEST_F(Unit_EmptyTensorTest, IdentityReductionsOfNothingWriteTheirIdentity)
+        TEST_F(Medium_EmptyTensorTest, IdentityReductionsOfNothingWriteTheirIdentity)
         {
             Tensor t = empty_tensor();
             SushiBLAS::ReductionOps reductions(*engine);
@@ -201,7 +201,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that every reduction without an identity refuses an empty tensor.
          */
-        TEST_F(Unit_EmptyTensorTest, OrderedReductionsOfNothingAreRefused)
+        TEST_F(Medium_EmptyTensorTest, OrderedReductionsOfNothingAreRefused)
         {
             Tensor t = empty_tensor();
             Tensor image(SushiRuntime::sushi_ptr<Storage>(), {0, 2, 2, 3});
@@ -229,7 +229,7 @@ namespace SushiBLAS
         /**
          * @brief Tests sum_along over an axis of length zero and into a result of length zero.
          */
-        TEST_F(Unit_EmptyTensorTest, SumAlongOfAnEmptyAxisWritesZeros)
+        TEST_F(Medium_EmptyTensorTest, SumAlongOfAnEmptyAxisWritesZeros)
         {
             // Folding axis 0 of a [0, 5] tensor leaves five sums of nothing.
             Tensor no_rows(SushiRuntime::sushi_ptr<Storage>(), {0, 5});

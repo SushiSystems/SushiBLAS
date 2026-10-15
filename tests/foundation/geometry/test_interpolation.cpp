@@ -70,7 +70,7 @@ namespace SushiBLAS
          * @brief Compares blends of element type T with hand-computed components.
          */
         template<typename T>
-        class Unit_GeometryInterpolation : public ::testing::Test
+        class Small_GeometryInterpolation : public ::testing::Test
         {
             protected:
                 /** @brief Returns the absolute tolerance of a comparison in element type T. */
@@ -106,9 +106,9 @@ namespace SushiBLAS
         };
 
         using GeometryInterpolationTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_GeometryInterpolation, GeometryInterpolationTypes);
+        SB_TYPED_TEST_SUITE(Small_GeometryInterpolation, GeometryInterpolationTypes);
 
-        TYPED_TEST(Unit_GeometryInterpolation, ScalarLerpIsLinearAndUnclamped)
+        TYPED_TEST(Small_GeometryInterpolation, ScalarLerpIsLinearAndUnclamped)
         {
             using T = TypeParam;
             const double tolerance = TestFixture::tolerance();
@@ -120,7 +120,7 @@ namespace SushiBLAS
             EXPECT_NEAR(static_cast<double>(Geometry::lerp(T(2), T(10), T(2))), 18.0, tolerance);
         }
 
-        TYPED_TEST(Unit_GeometryInterpolation, VectorLerpBlendsEachComponent)
+        TYPED_TEST(Small_GeometryInterpolation, VectorLerpBlendsEachComponent)
         {
             using T = TypeParam;
             const Geometry::Vector3T<T> a{T(0), T(2), T(4)};
@@ -133,7 +133,7 @@ namespace SushiBLAS
             EXPECT_NEAR(static_cast<double>(blend.z), 4.0, TestFixture::tolerance());
         }
 
-        TYPED_TEST(Unit_GeometryInterpolation, NlerpReturnsTheEndsAndTheHalfwayRotation)
+        TYPED_TEST(Small_GeometryInterpolation, NlerpReturnsTheEndsAndTheHalfwayRotation)
         {
             using T = TypeParam;
             const Geometry::QuaternionT<T> identity{};
@@ -150,7 +150,7 @@ namespace SushiBLAS
                 K_INTERPOLATION_SINE_SIXTEENTH_TURN, K_INTERPOLATION_COSINE_SIXTEENTH_TURN);
         }
 
-        TYPED_TEST(Unit_GeometryInterpolation, NlerpFlipsTheSecondRotationToTheShortArc)
+        TYPED_TEST(Small_GeometryInterpolation, NlerpFlipsTheSecondRotationToTheShortArc)
         {
             using T = TypeParam;
             const Geometry::QuaternionT<T> identity{};
@@ -163,7 +163,7 @@ namespace SushiBLAS
                                                 K_INTERPOLATION_COSINE_SIXTEENTH_TURN);
         }
 
-        TYPED_TEST(Unit_GeometryInterpolation, NlerpReturnsTheIdentityWhenTheBlendHasNoLength)
+        TYPED_TEST(Small_GeometryInterpolation, NlerpReturnsTheIdentityWhenTheBlendHasNoLength)
         {
             using T = TypeParam;
             const Geometry::QuaternionT<T> zero{T(0), T(0), T(0), T(0)};
@@ -176,7 +176,7 @@ namespace SushiBLAS
             EXPECT_EQ(blend.w, T(1));
         }
 
-        TYPED_TEST(Unit_GeometryInterpolation, SlerpTurnsAtAConstantRate)
+        TYPED_TEST(Small_GeometryInterpolation, SlerpTurnsAtAConstantRate)
         {
             using T = TypeParam;
             const Geometry::QuaternionT<T> identity{};
@@ -196,7 +196,7 @@ namespace SushiBLAS
                                                 K_INTERPOLATION_ROOT_HALF);
         }
 
-        TYPED_TEST(Unit_GeometryInterpolation, SlerpFlipsTheSecondRotationToTheShortArc)
+        TYPED_TEST(Small_GeometryInterpolation, SlerpFlipsTheSecondRotationToTheShortArc)
         {
             using T = TypeParam;
             const Geometry::QuaternionT<T> identity{};
@@ -209,7 +209,7 @@ namespace SushiBLAS
                 K_INTERPOLATION_SINE_TWENTY_FOURTH_TURN, K_INTERPOLATION_COSINE_TWENTY_FOURTH_TURN);
         }
 
-        TYPED_TEST(Unit_GeometryInterpolation, SlerpOfEqualRotationsIsFiniteAndReturnsThem)
+        TYPED_TEST(Small_GeometryInterpolation, SlerpOfEqualRotationsIsFiniteAndReturnsThem)
         {
             using T = TypeParam;
             // The angle between them is zero, where the sine quotient would be 0 / 0.
@@ -225,7 +225,7 @@ namespace SushiBLAS
             TestFixture::expect_quaternion_near(flipped, 0.5, 0.5, 0.5, 0.5);
         }
 
-        TYPED_TEST(Unit_GeometryInterpolation, SlerpOfNearlyParallelRotationsIsTheHalfwayRotation)
+        TYPED_TEST(Small_GeometryInterpolation, SlerpOfNearlyParallelRotationsIsTheHalfwayRotation)
         {
             using T = TypeParam;
             const Geometry::QuaternionT<T> identity{};

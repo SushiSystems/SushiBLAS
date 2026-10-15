@@ -33,9 +33,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Unit_SYMVTest : public SushiBLASTest {};
+class Medium_SYMVTest : public SushiBLASTest {};
 
-TEST_F(Unit_SYMVTest, SimpleSYMV) 
+TEST_F(Medium_SYMVTest, SimpleSYMV) 
 {
     const int N = 3;
     auto A = engine->create_tensor({N, N});
@@ -70,7 +70,7 @@ namespace
     const std::vector<float> K_X = {1, 2, 3};
 }
 
-TEST_F(Unit_SYMVTest, LowerIgnoresAPoisonedUpperTriangle)
+TEST_F(Medium_SYMVTest, LowerIgnoresAPoisonedUpperTriangle)
 {
     auto A = engine->create_tensor({3, 3});
     auto X = engine->create_tensor({3});
@@ -88,7 +88,7 @@ TEST_F(Unit_SYMVTest, LowerIgnoresAPoisonedUpperTriangle)
     verify_tensor(Y, {16, 22, 35});
 }
 
-TEST_F(Unit_SYMVTest, UpperIgnoresAPoisonedLowerTriangle)
+TEST_F(Medium_SYMVTest, UpperIgnoresAPoisonedLowerTriangle)
 {
     auto A = engine->create_tensor({3, 3});
     auto X = engine->create_tensor({3});

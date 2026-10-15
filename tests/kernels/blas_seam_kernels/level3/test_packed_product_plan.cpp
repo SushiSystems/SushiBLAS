@@ -246,7 +246,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that the register block of each accumulation type has the documented shape.
          */
-        TEST(Unit_PackedProductPlan, TheRegisterBlockFollowsTheAccumulationType)
+        TEST(Medium_PackedProductPlan, TheRegisterBlockFollowsTheAccumulationType)
         {
             using Float = Kernels::PackedRegisterBlock<float>;
             using Double = Kernels::PackedRegisterBlock<double>;
@@ -288,7 +288,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that the starting blocking is derived from the cache a device reports.
          */
-        TEST(Unit_PackedProductPlan, TheDefaultBlockingComesFromTheReportedCache)
+        TEST(Medium_PackedProductPlan, TheDefaultBlockingComesFromTheReportedCache)
         {
             const Device::CacheBlocking blocking =
                 Device::cache_blocking_for(K_DOCUMENTED_CACHE_BYTES);
@@ -307,7 +307,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that the plans of the design's table come out of plan_packed_blocks.
          */
-        TEST(Unit_PackedProductPlan, TheDocumentedPlansHold)
+        TEST(Medium_PackedProductPlan, TheDocumentedPlansHold)
         {
             expect_documented_plan<double>({2048, 256, 126, 256, 17, 8, 12, 1040384, 12484672});
             expect_documented_plan<double>({1024, 256, 126, 256, 9, 4, 12, 1040384, 12484672});
@@ -334,7 +334,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that the macro-blocks of a plan tile the matrix and its slot adds up.
          */
-        TEST(Unit_PackedProductPlan, EveryPlanCoversTheMatrixOnce)
+        TEST(Medium_PackedProductPlan, EveryPlanCoversTheMatrixOnce)
         {
             expect_every_plan_covers<float>();
             expect_every_plan_covers<std::complex<double>>();
@@ -343,7 +343,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a product without rows, columns or matrices plans no block.
          */
-        TEST(Unit_PackedProductPlan, AnEmptyProductPlansNothing)
+        TEST(Medium_PackedProductPlan, AnEmptyProductPlansNothing)
         {
             const Device::Profile profile = selecting_profile();
             const int64_t shapes[][3] = {{0, 64, 1}, {24, 0, 1}, {24, 64, 0}};
@@ -367,7 +367,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that budgets above the whole matrix leave it in one macro-block.
          */
-        TEST(Unit_PackedProductPlan, ABudgetAboveEveryMatrixGivesOneBlock)
+        TEST(Medium_PackedProductPlan, ABudgetAboveEveryMatrixGivesOneBlock)
         {
             const Kernels::PackedProductPlan plan =
                 Kernels::plan_packed_blocks<float>(widest_blocking(), 1, 37, 45, 23, 1);
@@ -382,7 +382,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that no worker count splits a macro-block below one register block.
          */
-        TEST(Unit_PackedProductPlan, TheSplitStopsAtTheRegisterBlock)
+        TEST(Medium_PackedProductPlan, TheSplitStopsAtTheRegisterBlock)
         {
             const Kernels::PackedProductPlan plan = Kernels::plan_packed_blocks<float>(
                 Device::CacheBlocking{}, 1000, 6, 16, 8, 1);
@@ -396,7 +396,7 @@ namespace SushiBLAS
         /**
          * @brief Tests each of the three conditions a profile sets on taking the packed kernel.
          */
-        TEST(Unit_PackedProductPlan, SelectionNeedsACPUASpanAndEnoughBytes)
+        TEST(Medium_PackedProductPlan, SelectionNeedsACPUASpanAndEnoughBytes)
         {
             using Block = Kernels::PackedRegisterBlock<float>;
             constexpr int64_t m = 4 * Block::K_ROWS;
@@ -426,7 +426,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that saturated budgets and counts still give a plan of positive sizes.
          */
-        TEST(Unit_PackedProductPlan, ASaturatedBudgetDoesNotOverflow)
+        TEST(Medium_PackedProductPlan, ASaturatedBudgetDoesNotOverflow)
         {
             Device::CacheBlocking blocking;
             blocking.inner_bytes = K_SATURATED;
@@ -456,7 +456,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a launch is ready only for a selected plan whose scratch holds it.
          */
-        TEST(Unit_PackedProductPlan, APlanIsReadyOnlyWithItsScratch)
+        TEST(Medium_PackedProductPlan, APlanIsReadyOnlyWithItsScratch)
         {
             const Device::Profile profile = selecting_profile();
             const Kernels::PackedProductPlan plan =

@@ -46,12 +46,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Records reductions on the fixture's engine. */
-        class Unit_ReductionDispatch : public SushiBLASTest
+        class Medium_ReductionDispatch : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_ReductionDispatch, AHalfPartialIsHeldWideAndTheRestAtTheirWidth)
+        TEST_F(Medium_ReductionDispatch, AHalfPartialIsHeldWideAndTheRestAtTheirWidth)
         {
             EXPECT_EQ(Dispatch::partial_bytes(Core::DataType::Half),
                       sizeof(Reduce::AccumulationOf<sycl::half>));
@@ -59,7 +59,7 @@ namespace SushiBLAS
             EXPECT_EQ(Dispatch::partial_bytes(Core::DataType::Int32), sizeof(int32_t));
         }
 
-        TEST_F(Unit_ReductionDispatch, AnEmptyTensorPlansNoPartialsAndTheReferenceLeasesNone)
+        TEST_F(Medium_ReductionDispatch, AnEmptyTensorPlansNoPartialsAndTheReferenceLeasesNone)
         {
             GraphProbe reference(ExecutionMode::ForceReference);
             GraphProbe automatic;
@@ -69,7 +69,7 @@ namespace SushiBLAS
             EXPECT_EQ(Dispatch::leased_partials(automatic.recorder(), 12), std::size_t{12});
         }
 
-        TEST_F(Unit_ReductionDispatch, AnIndexReductionGivesTheSameIndexInBothModes)
+        TEST_F(Medium_ReductionDispatch, AnIndexReductionGivesTheSameIndexInBothModes)
         {
             const Tensor t = create_initialized_tensor<float>({5}, {2, 7, -3, 7, -3});
 

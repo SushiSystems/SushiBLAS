@@ -61,7 +61,7 @@ namespace SushiBLAS
             }
         };
 
-        TEST(Unit_BLASTask, RecordsOneTaskForARealOrAComplexDtype)
+        TEST(Medium_BLASTask, RecordsOneTaskForARealOrAComplexDtype)
         {
             GraphProbe probe;
             TaskDescription description;
@@ -75,7 +75,7 @@ namespace SushiBLAS
             EXPECT_EQ(probe.recorded_count(), std::size_t{2});
         }
 
-        TEST(Unit_BLASTask, RefusesAnIntegerDtypeAndRecordsNothing)
+        TEST(Medium_BLASTask, RefusesAnIntegerDtypeAndRecordsNothing)
         {
             GraphProbe probe;
             TaskDescription description;

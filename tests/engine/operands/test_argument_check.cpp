@@ -39,19 +39,19 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Builds tensors for the dtype check on the fixture's engine. */
-        class Unit_ArgumentCheck : public SushiBLASTest
+        class Medium_ArgumentCheck : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_ArgumentCheck, AFlagMustBeAnEnumerator)
+        TEST_F(Medium_ArgumentCheck, AFlagMustBeAnEnumerator)
         {
             EXPECT_NO_THROW(Dispatch::require_flag(Core::Uplo::Lower, "op", "uplo"));
             EXPECT_THROW(Dispatch::require_flag(Core::Uplo{}, "op", "uplo"),
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_ArgumentCheck, ARealTensorTakesOnlyARealScalar)
+        TEST_F(Medium_ArgumentCheck, ARealTensorTakesOnlyARealScalar)
         {
             const BLASScalar real(2.0);
             const BLASScalar complex(std::complex<double>(1.0, 1.0));
@@ -65,7 +65,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_ArgumentCheck, ARealRoutineRefusesAComplexTensor)
+        TEST_F(Medium_ArgumentCheck, ARealRoutineRefusesAComplexTensor)
         {
             const Tensor real = engine->create_tensor({2});
             const Tensor complex = engine->create_tensor({2}, Core::DataType::Complex32);
@@ -75,7 +75,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_ArgumentCheck, ARefusedTransposeIsNamed)
+        TEST_F(Medium_ArgumentCheck, ARefusedTransposeIsNamed)
         {
             EXPECT_NO_THROW(Dispatch::require_transpose_not(Core::Transpose::Trans,
                                                             Core::Transpose::ConjTrans, "op",

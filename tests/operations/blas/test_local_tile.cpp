@@ -63,12 +63,12 @@ namespace SushiBLAS
         };
 
         /** @brief Builds the output matrices on the fixture's engine. */
-        class Unit_LocalTile : public SushiBLASTest
+        class Medium_LocalTile : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_LocalTile, TheDemandFollowsTheElementTypeAndIsZeroForIntegers)
+        TEST_F(Medium_LocalTile, TheDemandFollowsTheElementTypeAndIsZeroForIntegers)
         {
             EXPECT_EQ(Internal::local_tile_demand<SmallTile>(Core::DataType::Float64).local_bytes,
                       16 * sizeof(double));
@@ -79,7 +79,7 @@ namespace SushiBLAS
                       std::size_t{0});
         }
 
-        TEST_F(Unit_LocalTile, ATileTheDeviceCannotHostIsRefusedUnlessTheReferenceRuns)
+        TEST_F(Medium_LocalTile, ATileTheDeviceCannotHostIsRefusedUnlessTheReferenceRuns)
         {
             const Tensor c = engine->create_tensor({4, 4});
             GraphProbe automatic;

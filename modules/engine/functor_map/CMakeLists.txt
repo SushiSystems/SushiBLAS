@@ -16,7 +16,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE functor_map
-    SIZE medium
     TESTS
         test_map_task.cpp
         test_read_binding.cpp

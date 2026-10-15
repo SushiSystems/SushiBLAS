@@ -34,9 +34,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Unit_NRM2Test : public SushiBLASTest {};
+class Medium_NRM2Test : public SushiBLASTest {};
 
-TEST_F(Unit_NRM2Test, SimpleNRM2) 
+TEST_F(Medium_NRM2Test, SimpleNRM2) 
 {
     const int N = 3;
     auto X = engine->create_tensor({N});

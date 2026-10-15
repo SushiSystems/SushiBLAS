@@ -39,7 +39,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        class Unit_ReductionDeterminism : public SushiBLASTest
+        class Medium_ReductionDeterminism : public SushiBLASTest
         {
             protected:
                 /** @brief Below `K_CPU_TWO_STAGE_MIN_ELEMENTS`: the single sequential pass. */
@@ -159,7 +159,7 @@ namespace SushiBLAS
          * @brief Tests that the two sizes used here reach both reduction shapes.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_ReductionDeterminism, BothShapesAreReachedHere)
+        TEST_F(Medium_ReductionDeterminism, BothShapesAreReachedHere)
         {
             auto& q = TestEnvironment::queue();
             const Device::Profile& p = Device::profile_for(q);
@@ -174,7 +174,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_ReductionDeterminism, SumIsBitwiseStable)
+        TEST_F(Medium_ReductionDeterminism, SumIsBitwiseStable)
         {
             auto op = [](Engine& e, const Tensor& t, Tensor& r)
             {
@@ -184,7 +184,7 @@ namespace SushiBLAS
             expect_bitwise_stable(K_LARGE, op, additive_value);
         }
 
-        TEST_F(Unit_ReductionDeterminism, MeanIsBitwiseStable)
+        TEST_F(Medium_ReductionDeterminism, MeanIsBitwiseStable)
         {
             auto op = [](Engine& e, const Tensor& t, Tensor& r)
             {
@@ -194,7 +194,7 @@ namespace SushiBLAS
             expect_bitwise_stable(K_LARGE, op, additive_value);
         }
 
-        TEST_F(Unit_ReductionDeterminism, AsumIsBitwiseStable)
+        TEST_F(Medium_ReductionDeterminism, AsumIsBitwiseStable)
         {
             auto op = [](Engine& e, const Tensor& t, Tensor& r)
             {
@@ -204,7 +204,7 @@ namespace SushiBLAS
             expect_bitwise_stable(K_LARGE, op, additive_value);
         }
 
-        TEST_F(Unit_ReductionDeterminism, Nrm2IsBitwiseStable)
+        TEST_F(Medium_ReductionDeterminism, Nrm2IsBitwiseStable)
         {
             auto op = [](Engine& e, const Tensor& t, Tensor& r)
             {
@@ -214,7 +214,7 @@ namespace SushiBLAS
             expect_bitwise_stable(K_LARGE, op, additive_value);
         }
 
-        TEST_F(Unit_ReductionDeterminism, ProdIsBitwiseStable)
+        TEST_F(Medium_ReductionDeterminism, ProdIsBitwiseStable)
         {
             auto op = [](Engine& e, const Tensor& t, Tensor& r)
             {
@@ -227,7 +227,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that var, std and logsumexp repeat to the bit in the two-stage shape.
          */
-        TEST_F(Unit_ReductionDeterminism, TwoStageMomentsAreBitwiseStable)
+        TEST_F(Medium_ReductionDeterminism, TwoStageMomentsAreBitwiseStable)
         {
             ASSERT_TRUE(is_two_stage(K_MOMENTS))
                 << "kMoments must exercise the two-stage shape.";
@@ -254,7 +254,7 @@ namespace SushiBLAS
          * @brief Tests that a compensated sum recovers 4096 ones under a head of 1e8.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_ReductionDeterminism, CompensatedSumRecoversASmallTailUnderALargeHead)
+        TEST_F(Medium_ReductionDeterminism, CompensatedSumRecoversASmallTailUnderALargeHead)
         {
             constexpr int64_t kOnes = 4096;
             constexpr float kHead = 1e8f;
@@ -279,7 +279,7 @@ namespace SushiBLAS
          * @brief Tests that the compensated sum of repeated 0.1f beats naive float summation.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_ReductionDeterminism, CompensatedSumBeatsNaiveSummationOnRepeatedTenths)
+        TEST_F(Medium_ReductionDeterminism, CompensatedSumBeatsNaiveSummationOnRepeatedTenths)
         {
             for (int64_t n : {K_SMALL, K_LARGE})
             {
@@ -316,7 +316,7 @@ namespace SushiBLAS
          * @brief Tests that the two-stage tree, called directly, agrees with the sequential pass.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_ReductionDeterminism, TwoStageTreeAgreesWithTheSequentialPass)
+        TEST_F(Medium_ReductionDeterminism, TwoStageTreeAgreesWithTheSequentialPass)
         {
             constexpr std::size_t kN = 3000;   // not a multiple of any group width
 

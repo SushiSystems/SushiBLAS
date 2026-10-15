@@ -68,13 +68,13 @@ namespace
 } // namespace
 
 /// @brief Fixture for the tests of a run that fails.
-class Unit_RunFailureTest : public SushiBLASTest
+class Medium_RunFailureTest : public SushiBLASTest
 {
 
 };
 
 /** @brief Tests that a body that throws makes execute return KernelFailed with its message. */
-TEST_F(Unit_RunFailureTest, AThrowingBodyReturnsKernelFailedWithItsMessage)
+TEST_F(Medium_RunFailureTest, AThrowingBodyReturnsKernelFailedWithItsMessage)
 {
     auto y = engine->create_tensor({4});
     record_throwing_task(*engine, y);
@@ -90,7 +90,7 @@ TEST_F(Unit_RunFailureTest, AThrowingBodyReturnsKernelFailedWithItsMessage)
 }
 
 /** @brief Tests that a failed run leaves no task for the next execute to run. */
-TEST_F(Unit_RunFailureTest, AFailedRunLeavesNothingRecorded)
+TEST_F(Medium_RunFailureTest, AFailedRunLeavesNothingRecorded)
 {
     auto y = engine->create_tensor({4});
     fill_tensor(y, {10.0f, 20.0f, 30.0f, 40.0f});
@@ -103,7 +103,7 @@ TEST_F(Unit_RunFailureTest, AFailedRunLeavesNothingRecorded)
 }
 
 /** @brief Tests that the engine records and runs a valid operation after a failed run. */
-TEST_F(Unit_RunFailureTest, TheEngineRunsAgainAfterAFailedRun)
+TEST_F(Medium_RunFailureTest, TheEngineRunsAgainAfterAFailedRun)
 {
     auto x = engine->create_tensor({4});
     auto y = engine->create_tensor({4});

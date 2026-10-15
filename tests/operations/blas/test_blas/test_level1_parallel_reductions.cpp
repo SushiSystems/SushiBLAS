@@ -72,10 +72,10 @@ namespace SushiBLAS
         } // namespace
 
         /**
-         * @class Unit_Level1ParallelReductions
+         * @class Medium_Level1ParallelReductions
          * @brief Runs the SYCL Level 1 reductions against host-computed references.
          */
-        class Unit_Level1ParallelReductions : public SushiBLASTest
+        class Medium_Level1ParallelReductions : public SushiBLASTest
         {
             protected:
                 /** @brief Forces the SYCL kernels so the reference path cannot answer instead. */
@@ -137,7 +137,7 @@ namespace SushiBLAS
          * @brief Tests dot against a double-precision host sum at every length.
          * @see tests/operations/blas/README.md
          */
-        TEST_F(Unit_Level1ParallelReductions, DotMatchesTheHostSum)
+        TEST_F(Medium_Level1ParallelReductions, DotMatchesTheHostSum)
         {
             for (int64_t n : K_LENGTHS)
             {
@@ -163,7 +163,7 @@ namespace SushiBLAS
          * @brief Tests asum against a double-precision host sum at every length.
          * @see tests/operations/blas/README.md
          */
-        TEST_F(Unit_Level1ParallelReductions, AsumMatchesTheHostSum)
+        TEST_F(Medium_Level1ParallelReductions, AsumMatchesTheHostSum)
         {
             for (int64_t n : K_LENGTHS)
             {
@@ -187,7 +187,7 @@ namespace SushiBLAS
          * @brief Tests nrm2 against a double-precision host norm at every length.
          * @see tests/operations/blas/README.md
          */
-        TEST_F(Unit_Level1ParallelReductions, Nrm2MatchesTheHostNorm)
+        TEST_F(Medium_Level1ParallelReductions, Nrm2MatchesTheHostNorm)
         {
             for (int64_t n : K_LENGTHS)
             {
@@ -213,7 +213,7 @@ namespace SushiBLAS
          * @brief Tests iamax against a serial host scan at every length.
          * @see tests/operations/blas/README.md
          */
-        TEST_F(Unit_Level1ParallelReductions, IamaxMatchesTheSerialScan)
+        TEST_F(Medium_Level1ParallelReductions, IamaxMatchesTheSerialScan)
         {
             for (int64_t n : K_LENGTHS)
             {
@@ -236,7 +236,7 @@ namespace SushiBLAS
          * @brief Tests that two dot products of the same inputs return identical bits.
          * @see tests/operations/blas/README.md
          */
-        TEST_F(Unit_Level1ParallelReductions, DotRepeatsToTheBit)
+        TEST_F(Medium_Level1ParallelReductions, DotRepeatsToTheBit)
         {
             constexpr int64_t K_N = 100003;
 
@@ -267,7 +267,7 @@ namespace SushiBLAS
          * @brief Tests that iamax picks the lower index of a tie whose halves sit in different work-groups.
          * @see tests/operations/blas/README.md
          */
-        TEST_F(Unit_Level1ParallelReductions, IamaxTieAcrossWorkGroupsTakesTheLowerIndex)
+        TEST_F(Medium_Level1ParallelReductions, IamaxTieAcrossWorkGroupsTakesTheLowerIndex)
         {
             auto& q = TestEnvironment::queue();
             const Device::Profile& profile = Device::profile_for(q);
@@ -299,7 +299,7 @@ namespace SushiBLAS
          * @brief Tests that a HALF mean accumulates in FLOAT32, so a sum past 65504 does not overflow on the way.
          * @see tests/operations/blas/README.md
          */
-        TEST_F(Unit_Level1ParallelReductions, HalfMeanAccumulatesInFloat)
+        TEST_F(Medium_Level1ParallelReductions, HalfMeanAccumulatesInFloat)
         {
             // 60000 is a multiple of 32, the HALF spacing between 32768 and 65504, so it is exact.
             const float K_HALF_ELEMENT = 60000.0f;
@@ -319,7 +319,7 @@ namespace SushiBLAS
          * @brief Tests that a HALF sum of 60000 and 60000 rounds once, to infinity, since 120000 exceeds HALF.
          * @see tests/operations/blas/README.md
          */
-        TEST_F(Unit_Level1ParallelReductions, HalfSumRoundsOnceIntoTheHalfResult)
+        TEST_F(Medium_Level1ParallelReductions, HalfSumRoundsOnceIntoTheHalfResult)
         {
             const float K_HALF_ELEMENT = 60000.0f;
 

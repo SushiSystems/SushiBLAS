@@ -68,12 +68,12 @@ namespace SushiBLAS
         }
 
         /** @brief Runs the serial loops against the launched shapes on the host CPU queue. */
-        class Device_Serial1D : public HostDeviceTest
+        class Medium_Serial1DOnDevice : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_Serial1D, MapWritesTheBitsTheLaunchedMapWrites)
+        TEST_F(Medium_Serial1DOnDevice, MapWritesTheBitsTheLaunchedMapWrites)
         {
             sycl::queue& q = queue();
             const std::size_t n = K_ELEMENT_COUNT;
@@ -104,7 +104,7 @@ namespace SushiBLAS
             EXPECT_TRUE(same_bits(serial_out, launch_out, n));
         }
 
-        TEST_F(Device_Serial1D, ZipLeavesTheBitsTheLaunchedZipLeaves)
+        TEST_F(Medium_Serial1DOnDevice, ZipLeavesTheBitsTheLaunchedZipLeaves)
         {
             sycl::queue& q = queue();
             const std::size_t n = K_ELEMENT_COUNT;
@@ -131,7 +131,7 @@ namespace SushiBLAS
             EXPECT_TRUE(same_bits(serial_y.get(), launch_y.get(), n));
         }
 
-        TEST(Unit_Serial1D, IndexedVisitsEveryIndexInOrder)
+        TEST(Medium_Serial1D, IndexedVisitsEveryIndexInOrder)
         {
             std::vector<std::size_t> visited;
             visited.reserve(K_ELEMENT_COUNT);
@@ -142,7 +142,7 @@ namespace SushiBLAS
                 EXPECT_EQ(visited[i], i);
         }
 
-        TEST(Unit_Serial1D, AMapOfNothingWritesNothing)
+        TEST(Medium_Serial1D, AMapOfNothingWritesNothing)
         {
             float out = 7.0f;
             const float in = 1.0f;

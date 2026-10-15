@@ -58,7 +58,7 @@ namespace SushiBLAS
             return profile;
         }
 
-        TEST(Unit_DevicePolicy, CacheBlockingScalesWithTheCache)
+        TEST(Medium_DevicePolicy, CacheBlockingScalesWithTheCache)
         {
             const Device::CacheBlocking blocking = Device::cache_blocking_for(1024 * 1024);
 
@@ -68,7 +68,7 @@ namespace SushiBLAS
             EXPECT_EQ(blocking.inner_bytes, Device::CacheBlocking{}.inner_bytes);
         }
 
-        TEST(Unit_DevicePolicy, TheDefaultBlockingIsTheBlockingOfTheAssumedCache)
+        TEST(Medium_DevicePolicy, TheDefaultBlockingIsTheBlockingOfTheAssumedCache)
         {
             const Device::CacheBlocking assumed =
                 Device::cache_blocking_for(Device::K_ASSUMED_CACHE_BYTES);
@@ -79,14 +79,14 @@ namespace SushiBLAS
             EXPECT_EQ(assumed.min_operand_bytes, fallback.min_operand_bytes);
         }
 
-        TEST(Unit_DevicePolicy, AGPUGroupIsAWholeNumberOfSubGroupsUnderItsTarget)
+        TEST(Medium_DevicePolicy, AGPUGroupIsAWholeNumberOfSubGroupsUnderItsTarget)
         {
             EXPECT_EQ(Device::work_group_size(gpu_profile(10, 1024, 32)), std::size_t{256});
             EXPECT_EQ(Device::work_group_size(gpu_profile(10, 100, 32)), std::size_t{96});
             EXPECT_EQ(Device::work_group_size(gpu_profile(10, 16, 32)), std::size_t{1});
         }
 
-        TEST(Unit_DevicePolicy, ACPUGroupGivesEachUnitItsShareAboveTheFloor)
+        TEST(Medium_DevicePolicy, ACPUGroupGivesEachUnitItsShareAboveTheFloor)
         {
             const Device::Profile cpu = cpu_profile(4, 8192);
 
@@ -95,7 +95,7 @@ namespace SushiBLAS
             EXPECT_EQ(Device::flat_work_group_size(cpu, 1 << 20), std::size_t{8192});
         }
 
-        TEST(Unit_DevicePolicy, AGPUFlatGroupIgnoresTheElementCount)
+        TEST(Medium_DevicePolicy, AGPUFlatGroupIgnoresTheElementCount)
         {
             const Device::Profile gpu = gpu_profile(10, 1024, 32);
 
@@ -103,7 +103,7 @@ namespace SushiBLAS
             EXPECT_EQ(Device::flat_work_group_size(gpu, 1 << 24), Device::work_group_size(gpu));
         }
 
-        TEST(Unit_DevicePolicy, AGridCoversTheElementsInWholeGroups)
+        TEST(Medium_DevicePolicy, AGridCoversTheElementsInWholeGroups)
         {
             const Device::Grid1D grid = Device::plan_1d(cpu_profile(4, 8192), 4000);
 
@@ -114,7 +114,7 @@ namespace SushiBLAS
             EXPECT_EQ(grid.stride(), grid.global_size);
         }
 
-        TEST(Unit_DevicePolicy, AGPUGridStopsAtTheResidentGroups)
+        TEST(Medium_DevicePolicy, AGPUGridStopsAtTheResidentGroups)
         {
             const Device::Profile gpu = gpu_profile(2, 1024, 32);
             const Device::Grid1D grid = Device::plan_1d(gpu, std::size_t{1} << 24);
@@ -122,7 +122,7 @@ namespace SushiBLAS
             EXPECT_EQ(grid.groups(), 2 * Device::K_WAVES_PER_COMPUTE_UNIT);
         }
 
-        TEST(Unit_DevicePolicy, UnrollingDividesTheGroupsAGridNeeds)
+        TEST(Medium_DevicePolicy, UnrollingDividesTheGroupsAGridNeeds)
         {
             const Device::Profile cpu = cpu_profile(1, 64);
 
@@ -131,7 +131,7 @@ namespace SushiBLAS
             EXPECT_EQ(Device::plan_1d(cpu, 0).groups(), std::size_t{1});
         }
 
-        TEST(Unit_DevicePolicy, TheGridNdRangeMatchesItsSizes)
+        TEST(Medium_DevicePolicy, TheGridNdRangeMatchesItsSizes)
         {
             const Device::Grid1D grid{512, 64};
             const sycl::nd_range<1> range = grid.nd_range();
@@ -140,7 +140,7 @@ namespace SushiBLAS
             EXPECT_EQ(range.get_local_range()[0], std::size_t{64});
         }
 
-        TEST(Unit_DevicePolicy, VectorWidthFillsOneTransactionOnAGPUOnly)
+        TEST(Medium_DevicePolicy, VectorWidthFillsOneTransactionOnAGPUOnly)
         {
             const Device::Profile gpu = gpu_profile(10, 1024, 32);
 
@@ -151,7 +151,7 @@ namespace SushiBLAS
             EXPECT_EQ(Device::vector_width(cpu_profile(4, 64), 4), std::size_t{1});
         }
 
-        TEST(Unit_DevicePolicy, ALocalTileFitsWhenMemoryAndGroupBothSuffice)
+        TEST(Medium_DevicePolicy, ALocalTileFitsWhenMemoryAndGroupBothSuffice)
         {
             Device::Profile profile = gpu_profile(10, 256, 32);
             profile.local_mem_bytes = 48 * 1024;
@@ -161,7 +161,7 @@ namespace SushiBLAS
             EXPECT_FALSE(Device::hosts_local_tile(profile, {1024, 257}));
         }
 
-        TEST(Unit_DevicePolicy, ProfileForProbesADeviceOnceAndKeepsWhatItSaw)
+        TEST(Medium_DevicePolicy, ProfileForProbesADeviceOnceAndKeepsWhatItSaw)
         {
             const sycl::queue& queue = TestEnvironment::queue(0);
             const Device::Profile& first = Device::profile_for(queue);

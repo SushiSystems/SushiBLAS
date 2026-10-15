@@ -12,8 +12,8 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 - 2026-10-15 — cli: Breaking change: `sb test --suite` is gone; `--label` takes a size or `quarantined`, and `--package` runs the consumer (`test_label.py`).
 - 2026-10-15 — cli: Added `sb test --cli` for the CLI's pytest tests and `sb bench` for every benchmark program (`project.py`).
 - 2026-10-15 — cli: Added `sb build --sanitize`, which sets `SB_SANITIZE` for host code (`sanitizer.py`, `SushiBLASSanitizers.cmake`).
-- 2026-10-15 — tests: Labelled every test program `small` or `medium`, with that size's timeout, in place of unit, integration, regression and device (`SushiBLASTests.cmake`).
-- 2026-10-15 — tests: Ran small programs without the shared runtime (`small_test_main.cpp`).
+- 2026-10-15 — tests: Renamed every suite to `Small_` or `Medium_`; the prefix sets its label and timeout, and a suite without one stops the configure (`SushiBLASTests.cmake`).
+- 2026-10-15 — tests: Ran a program whose suites are all `Small_` without the shared runtime (`small_test_main.cpp`).
 - 2026-10-15 — cli: Added `sb test --suite device`, which runs the `Device_` tests that check a kernel against its reference on the host CPU device (`suite.py`).
 - 2026-10-15 — tools: Took the shared checkers and their settings from SushiSkills and moved the five SushiBLAS layer rules to `tools/layering/check_tier_contents.py`.
 - 2026-10-15 — build: Added `PRIVATE_DEPENDS` to `sushiblas_add_module()` for the modules only `source/` includes, and moved thirteen such edges of six operation modules there.

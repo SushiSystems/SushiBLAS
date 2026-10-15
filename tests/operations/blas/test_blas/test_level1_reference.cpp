@@ -40,7 +40,7 @@ namespace SushiBLAS
         /**
          * @brief Runs every Level 1 call of a test on the reference kernels.
          */
-        class Unit_Level1ReferenceTest : public SushiBLASTest
+        class Medium_Level1ReferenceTest : public SushiBLASTest
         {
             protected:
                 /** @brief Builds the engine and forces the reference path. */
@@ -51,7 +51,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_Level1ReferenceTest, AsumSumsAbsoluteValues)
+        TEST_F(Medium_Level1ReferenceTest, AsumSumsAbsoluteValues)
         {
             const std::vector<float> K_EXPECTED = {10.0f};
 
@@ -64,7 +64,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(result, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level1ReferenceTest, AxpyAddsScaledX)
+        TEST_F(Medium_Level1ReferenceTest, AxpyAddsScaledX)
         {
             const std::vector<float> K_EXPECTED = {12.0f, 24.0f, 36.0f};
 
@@ -77,7 +77,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level1ReferenceTest, CopyOverwritesEveryElement)
+        TEST_F(Medium_Level1ReferenceTest, CopyOverwritesEveryElement)
         {
             const std::vector<float> K_EXPECTED = {1.5f, -2.5f, 3.5f};
 
@@ -90,7 +90,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level1ReferenceTest, DotSumsElementwiseProducts)
+        TEST_F(Medium_Level1ReferenceTest, DotSumsElementwiseProducts)
         {
             const std::vector<float> K_EXPECTED = {12.0f};
 
@@ -104,7 +104,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(result, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level1ReferenceTest, IamaxReturnsTheFirstIndexOfATie)
+        TEST_F(Medium_Level1ReferenceTest, IamaxReturnsTheFirstIndexOfATie)
         {
             const std::vector<float> K_EXPECTED_INDEX = {1.0f};
 
@@ -117,7 +117,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(result, K_EXPECTED_INDEX, 0.0);
         }
 
-        TEST_F(Unit_Level1ReferenceTest, IamaxFindsANegativeMaximumAtTheEnd)
+        TEST_F(Medium_Level1ReferenceTest, IamaxFindsANegativeMaximumAtTheEnd)
         {
             const std::vector<float> K_EXPECTED_INDEX = {3.0f};
 
@@ -130,7 +130,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(result, K_EXPECTED_INDEX, 0.0);
         }
 
-        TEST_F(Unit_Level1ReferenceTest, Nrm2ReturnsTheEuclideanNorm)
+        TEST_F(Medium_Level1ReferenceTest, Nrm2ReturnsTheEuclideanNorm)
         {
             const std::vector<float> K_EXPECTED = {7.0f};
 
@@ -143,7 +143,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(result, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level1ReferenceTest, RotAppliesThePlaneRotation)
+        TEST_F(Medium_Level1ReferenceTest, RotAppliesThePlaneRotation)
         {
             const std::vector<float> K_EXPECTED_X = {3.0f, 4.4f};
             const std::vector<float> K_EXPECTED_Y = {1.0f, 0.8f};
@@ -158,7 +158,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(y, K_EXPECTED_Y, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level1ReferenceTest, ScalMultipliesEveryElement)
+        TEST_F(Medium_Level1ReferenceTest, ScalMultipliesEveryElement)
         {
             const std::vector<float> K_EXPECTED = {-1.0f, 2.0f, -3.0f};
 
@@ -170,7 +170,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level1ReferenceTest, SwapExchangesBothVectors)
+        TEST_F(Medium_Level1ReferenceTest, SwapExchangesBothVectors)
         {
             const std::vector<float> K_EXPECTED_X = {7.0f, 8.0f, 9.0f};
             const std::vector<float> K_EXPECTED_Y = {1.0f, 2.0f, 3.0f};

@@ -101,7 +101,7 @@ namespace SushiBLAS
          * @brief Builds a sparse vector and its dense partner and reads back what a call left.
          */
         template<typename TypeParam>
-        class Unit_SparseLevel1Test : public SushiBLASTest
+        class Medium_SparseLevel1Test : public SushiBLASTest
         {
             protected:
                 /** @brief The element type under test. */
@@ -201,9 +201,9 @@ namespace SushiBLAS
                 }
         };
 
-        SB_TYPED_TEST_SUITE(Unit_SparseLevel1Test, SparseCases);
+        SB_TYPED_TEST_SUITE(Medium_SparseLevel1Test, SparseCases);
 
-        TYPED_TEST(Unit_SparseLevel1Test, AxpyiAddsTheScaledEntriesAtTheirPositions)
+        TYPED_TEST(Medium_SparseLevel1Test, AxpyiAddsTheScaledEntriesAtTheirPositions)
         {
             using T = typename TypeParam::Value;
 
@@ -221,7 +221,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseLevel1Test, DotiIsDefinedForRealTensorsAndNamesItsSiblings)
+        TYPED_TEST(Medium_SparseLevel1Test, DotiIsDefinedForRealTensorsAndNamesItsSiblings)
         {
             using T = typename TypeParam::Value;
 
@@ -254,7 +254,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseLevel1Test, DotuiMultipliesAsStoredAndDotciConjugatesX)
+        TYPED_TEST(Medium_SparseLevel1Test, DotuiMultipliesAsStoredAndDotciConjugatesX)
         {
             using T = typename TypeParam::Value;
 
@@ -289,7 +289,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseLevel1Test, OnARealTensorTheThreeDotProductsHoldTheSameBits)
+        TYPED_TEST(Medium_SparseLevel1Test, OnARealTensorTheThreeDotProductsHoldTheSameBits)
         {
             using T = typename TypeParam::Value;
 
@@ -315,7 +315,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseLevel1Test, GthrCopiesTheElementsAtThePositionsAndLeavesY)
+        TYPED_TEST(Medium_SparseLevel1Test, GthrCopiesTheElementsAtThePositionsAndLeavesY)
         {
             using T = typename TypeParam::Value;
 
@@ -333,7 +333,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseLevel1Test, GthrzAlsoZeroesTheGatheredElements)
+        TYPED_TEST(Medium_SparseLevel1Test, GthrzAlsoZeroesTheGatheredElements)
         {
             using T = typename TypeParam::Value;
 
@@ -351,7 +351,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseLevel1Test, SctrWritesTheEntriesAtTheirPositions)
+        TYPED_TEST(Medium_SparseLevel1Test, SctrWritesTheEntriesAtTheirPositions)
         {
             using T = typename TypeParam::Value;
 
@@ -370,7 +370,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseLevel1Test, RotiRotatesTheEntriesAgainstTheirElements)
+        TYPED_TEST(Medium_SparseLevel1Test, RotiRotatesTheEntriesAgainstTheirElements)
         {
             using T = typename TypeParam::Value;
 
@@ -390,7 +390,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseLevel1Test, AStridedYIsAddressedByItsIncrement)
+        TYPED_TEST(Medium_SparseLevel1Test, AStridedYIsAddressedByItsIncrement)
         {
             using T = typename TypeParam::Value;
 
@@ -422,7 +422,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseLevel1Test, AVectorWithoutEntriesLeavesYAndGivesAZeroDotProduct)
+        TYPED_TEST(Medium_SparseLevel1Test, AVectorWithoutEntriesLeavesYAndGivesAZeroDotProduct)
         {
             using T = typename TypeParam::Value;
 
@@ -447,7 +447,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseLevel1Test, ALongDotProductOfIntegersIsExactInBothModes)
+        TYPED_TEST(Medium_SparseLevel1Test, ALongDotProductOfIntegersIsExactInBothModes)
         {
             using T = typename TypeParam::Value;
 
@@ -480,12 +480,12 @@ namespace SushiBLAS
         /**
          * @brief Runs the HALF update whose product a HALF accumulator would round away.
          */
-        class Unit_SparseLevel1Half : public Unit_SparseLevel1Test<SparseCase<sycl::half, int64_t>>
+        class Medium_SparseLevel1Half : public Medium_SparseLevel1Test<SparseCase<sycl::half, int64_t>>
         {
 
         };
 
-        TEST_F(Unit_SparseLevel1Half, AxpyiFormsItsProductInFloat32)
+        TEST_F(Medium_SparseLevel1Half, AxpyiFormsItsProductInFloat32)
         {
             // 3 * 683 - 1 is 2048; a product rounded to HALF is 2048 and leaves 2047.
             const Wide dense(static_cast<std::size_t>(K_SIZE), std::complex<double>(-1.0, 0.0));
@@ -505,7 +505,7 @@ namespace SushiBLAS
         /**
          * @brief Runs the level 1 routines on sparse vectors whose values are integers.
          */
-        class Unit_SparseLevel1Integers : public SushiBLASTest
+        class Medium_SparseLevel1Integers : public SushiBLASTest
         {
             protected:
                 /** @brief Holds the operands of one level 1 call on values of type V. */
@@ -572,13 +572,13 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_SparseLevel1Integers, GatherAndScatterMoveIntegerValues)
+        TEST_F(Medium_SparseLevel1Integers, GatherAndScatterMoveIntegerValues)
         {
             expect_moves<int32_t>();
             expect_moves<int64_t>();
         }
 
-        TEST_F(Unit_SparseLevel1Integers, TheArithmeticRoutinesRefuseIntegerValues)
+        TEST_F(Medium_SparseLevel1Integers, TheArithmeticRoutinesRefuseIntegerValues)
         {
             expect_arithmetic_refused<int32_t>();
             expect_arithmetic_refused<int64_t>();

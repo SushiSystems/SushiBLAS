@@ -34,7 +34,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_Conjugation, UnconjugatedLeavesEveryValue)
+        TEST(Small_Conjugation, UnconjugatedLeavesEveryValue)
         {
             const std::complex<double> z(1.0, -2.0);
 
@@ -43,7 +43,7 @@ namespace SushiBLAS
             EXPECT_EQ(Kernels::Unconjugated::apply(3.0f), 3.0f);
         }
 
-        TEST(Unit_Conjugation, ConjugatedFlipsTheImaginaryPartAndRealisesTheDiagonal)
+        TEST(Small_Conjugation, ConjugatedFlipsTheImaginaryPartAndRealisesTheDiagonal)
         {
             const std::complex<double> z(1.0, -2.0);
 
@@ -52,7 +52,7 @@ namespace SushiBLAS
             EXPECT_EQ(Kernels::Conjugated::apply(-4.0), -4.0);
         }
 
-        TEST(Unit_Conjugation, ARealTypeNeverConjugates)
+        TEST(Small_Conjugation, ARealTypeNeverConjugates)
         {
             static_assert(std::is_same<Kernels::ConjugationFor<float, Kernels::Conjugated>,
                                        Kernels::Unconjugated>::value,
@@ -65,7 +65,7 @@ namespace SushiBLAS
             SUCCEED();
         }
 
-        TEST(Unit_Conjugation, AHermitianUpdateTakesARealScalar)
+        TEST(Small_Conjugation, AHermitianUpdateTakesARealScalar)
         {
             static_assert(std::is_same<Kernels::RankUpdateScalar<std::complex<double>,
                                                                  Kernels::Conjugated>,

@@ -61,7 +61,7 @@ namespace SushiBLAS
             }
         };
 
-        TEST(Unit_BenchmarkHarness, SizesComeFromTheArgumentsOrTheDefaults)
+        TEST(Medium_BenchmarkHarness, SizesComeFromTheArgumentsOrTheDefaults)
         {
             char program[] = "bench";
             char first[] = "64";
@@ -76,7 +76,7 @@ namespace SushiBLAS
             EXPECT_THROW((void)Bench::parse_sizes(2, with_bad, {1}), std::invalid_argument);
         }
 
-        TEST(Unit_BenchmarkHarness, NamesCoverTheModesAndTheTwoDtypes)
+        TEST(Medium_BenchmarkHarness, NamesCoverTheModesAndTheTwoDtypes)
         {
             EXPECT_EQ(std::string(Bench::execution_mode_name(ExecutionMode::ForceSYCL)),
                       "ForceSYCL");
@@ -85,7 +85,7 @@ namespace SushiBLAS
             EXPECT_THROW((void)Bench::dtype_name(Core::DataType::Int32), std::invalid_argument);
         }
 
-        TEST(Unit_BenchmarkHarness, TimingRunsTheWarmUpAndTheTimedIterations)
+        TEST(Medium_BenchmarkHarness, TimingRunsTheWarmUpAndTheTimedIterations)
         {
             int calls = 0;
 
@@ -95,7 +95,7 @@ namespace SushiBLAS
             EXPECT_LE(timing.min_seconds, timing.median_seconds);
         }
 
-        TEST(Unit_BenchmarkHarness, TheGuardTurnsAThrowIntoAFailureCode)
+        TEST(Medium_BenchmarkHarness, TheGuardTurnsAThrowIntoAFailureCode)
         {
             char program[] = "bench";
             char* arguments[] = {program};

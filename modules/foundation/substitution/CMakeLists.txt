@@ -12,6 +12,5 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE substitution
-    SIZE medium
     TESTS
         test_running_solution.cpp)

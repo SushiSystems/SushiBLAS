@@ -43,12 +43,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs tpmv on the host CPU queue. */
-        class Device_SYCLTpmv : public HostDeviceTest
+        class Medium_SYCLTpmv : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLTpmv, MatchesTheReferenceForEveryFlag)
+        TEST_F(Medium_SYCLTpmv, MatchesTheReferenceForEveryFlag)
         {
             const int64_t n = 39;
             const std::vector<double> packed = small_integers<double>(n * (n + 1) / 2, 1);

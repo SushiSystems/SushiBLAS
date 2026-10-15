@@ -36,12 +36,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Builds vectors on the fixture's engine. */
-        class Unit_VectorOperand : public SushiBLASTest
+        class Medium_VectorOperand : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_VectorOperand, AContiguousTensorIsAUnitStrideVectorOfAllItsElements)
+        TEST_F(Medium_VectorOperand, AContiguousTensorIsAUnitStrideVectorOfAllItsElements)
         {
             const Dispatch::VectorOperand v =
                 Dispatch::describe_vector_operand(engine->create_tensor({2, 3}), "op", "x");
@@ -50,7 +50,7 @@ namespace SushiBLAS
             EXPECT_EQ(v.increment, int64_t{1});
         }
 
-        TEST_F(Unit_VectorOperand, AStridedViewAboveRankOneIsRefused)
+        TEST_F(Medium_VectorOperand, AStridedViewAboveRankOneIsRefused)
         {
             const Tensor column = engine->create_tensor({4, 3}).slice(1, 1, 2);
 
@@ -58,7 +58,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_VectorOperand, LengthAndIncrementChecksNameTheirOperand)
+        TEST_F(Medium_VectorOperand, LengthAndIncrementChecksNameTheirOperand)
         {
             const Dispatch::VectorOperand v{5, 2};
 

@@ -87,7 +87,7 @@ than one local-memory K-tile, so the staged tile is mostly zero padding.
 
 `BetaZeroNeverReadsC` is ragged on purpose, so the tail path is covered too.
 
-`Unit_GEMMKernelTest` does two things the typed differential suite cannot. The first is
+`Medium_GEMMKernelTest` does two things the typed differential suite cannot. The first is
 hand-computed expectations; see "Expectations are worked out by hand". The layout and transpose
 cases are checked against numbers worked out by hand. The second is variant coverage. GEMM
 picks between its local-tiled and no-local shapes from the device profile, so on any one
@@ -118,7 +118,7 @@ A*B       = [[1, 2, -3], [3, 4, -7]]
 relu      = [[2.5, 3,  0], [7.5, 8,  0]]
 ```
 
-`Unit_GEMMSeamTest` runs the epilogue through the public seam and not through the kernel. The
+`Medium_GEMMSeamTest` runs the epilogue through the public seam and not through the kernel. The
 kernel test calls `Kernels::SYCL::gemm` directly, which no consumer can do through the Engine
 API. The seam tests go through `Dispatch::execute_gemm`: recorded as a task on the graph, run
 by `Engine::execute()`, dispatched on the runtime dtype. That is the seam that is supported,
@@ -305,14 +305,14 @@ so X, which overwrites B, is `[2 3; 1 2]`.
 
 so X is `[1.00 1.25; 2.00 3.50]`, which is `[1.0, 2.0, 1.25, 3.5]` in column-major memory.
 
-## The `Unit_Level2SyclParityTest` fixture
+## The `Medium_Level2SyclParityTest` fixture
 
 `tests/operations/blas/test_blas/test_level2_sycl_parity.cpp` runs GEMV and SYMV in a chosen execution mode
 and measures each against a `TruthSum`, as `modules/foundation/blas_test_oracle/README.md` describes under `blas_truth.hpp`.
 
 ## test_dispatch/test_channel_bias_epilogue.cpp
 
-`Unit_ChannelBiasEpilogueTest` checks the stride pair on `Kernels::ChannelBiasEpilogue` both
+`Medium_ChannelBiasEpilogueTest` checks the stride pair on `Kernels::ChannelBiasEpilogue` both
 ways round. A `(row_stride, col_stride)` that is only ever exercised at `(0, 1)` is a parameter
 nobody proved: the column arm and a hard-coded `bias[col]` are indistinguishable from outside.
 Each direction is checked against a hand-computed expectation, and C is square (3x3) so that a

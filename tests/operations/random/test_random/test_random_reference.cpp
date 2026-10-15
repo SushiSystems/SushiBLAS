@@ -371,7 +371,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Runs one random operation under both forced modes from one seed. */
-        class Unit_RandomReference : public SushiBLASTest
+        class Medium_RandomReference : public SushiBLASTest
         {
             protected:
                 /** @brief Builds the engine and skips the case on a device without fp64. */
@@ -636,7 +636,7 @@ namespace SushiBLAS
         };
 
         /** @brief Tests that the draws that call no math builtin have equal bits on both paths. */
-        TEST_F(Unit_RandomReference, IntegerAndUniformDrawsAreTheSameStream)
+        TEST_F(Medium_RandomReference, IntegerAndUniformDrawsAreTheSameStream)
         {
             expect_exact_draws_agree<float>();
             expect_exact_draws_agree<double>();
@@ -656,7 +656,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that constant and shuffle leave equal bits in HALF on both paths. */
-        TEST_F(Unit_RandomReference, HalfValuesAreMovedToTheSameBits)
+        TEST_F(Medium_RandomReference, HalfValuesAreMovedToTheSameBits)
         {
             if (!device_has(sycl::aspect::fp16))
                 GTEST_SKIP() << "the device does not report the fp16 aspect";
@@ -666,7 +666,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that poisson(4), drawn by Knuth's product, has equal bits on both paths. */
-        TEST_F(Unit_RandomReference, SmallLambdaPoissonIsTheSameStream)
+        TEST_F(Medium_RandomReference, SmallLambdaPoissonIsTheSameStream)
         {
             expect_same_poisson<float>(K_SMALL_LAMBDA, K_SEED);
             expect_same_poisson<double>(K_SMALL_LAMBDA, K_SEED);
@@ -677,14 +677,14 @@ namespace SushiBLAS
          * @note A failure names an element whose acceptance test sits inside the difference between
          *       the device's log or lgamma and the host's. It does not show a wrong stream.
          */
-        TEST_F(Unit_RandomReference, LargeLambdaPoissonGivesTheSameCounts)
+        TEST_F(Medium_RandomReference, LargeLambdaPoissonGivesTheSameCounts)
         {
             expect_same_poisson<float>(K_LARGE_LAMBDA, K_LARGE_LAMBDA_SEED);
             expect_same_poisson<double>(K_LARGE_LAMBDA, K_LARGE_LAMBDA_SEED);
         }
 
         /** @brief Tests that the draws built on a math builtin agree within their bounds. */
-        TEST_F(Unit_RandomReference, NormalDrawsAgreeWithinTheirBound)
+        TEST_F(Medium_RandomReference, NormalDrawsAgreeWithinTheirBound)
         {
             expect_normal_draws_agree<float>();
             expect_normal_draws_agree<double>();
@@ -694,7 +694,7 @@ namespace SushiBLAS
          * @brief Tests that truncated_normal stays in [-2, 2] on both paths, which differ by at
          *        most 1e-3 in FLOAT32 and 1e-9 in FLOAT64.
          */
-        TEST_F(Unit_RandomReference, TruncatedNormalAgreesInsideItsBounds)
+        TEST_F(Medium_RandomReference, TruncatedNormalAgreesInsideItsBounds)
         {
             expect_truncated_normal_agrees<float>();
             expect_truncated_normal_agrees<double>();
@@ -704,7 +704,7 @@ namespace SushiBLAS
          * @brief Tests that each path of orthogonal is orthonormal, and that the two differ by at
          *        most 1e-3 in FLOAT32 and 1e-10 in FLOAT64.
          */
-        TEST_F(Unit_RandomReference, BothOrthogonalPathsAreOrthonormal)
+        TEST_F(Medium_RandomReference, BothOrthogonalPathsAreOrthonormal)
         {
             for (const OrthogonalCase& matrix : K_ORTHOGONAL_CASES)
             {
@@ -714,7 +714,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that orthogonal scales the one vector of a 1 by 4 matrix to the gain. */
-        TEST_F(Unit_RandomReference, ASingleVectorIsScaledToTheGain)
+        TEST_F(Medium_RandomReference, ASingleVectorIsScaledToTheGain)
         {
             const ModeDraws<float> draws =
                 fill_in_both_modes<float>(K_SEED, {1, 4}, [](RandomOps& random, Tensor& t)
@@ -729,7 +729,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a call refused for a device-only tensor reserves no offset. */
-        TEST_F(Unit_RandomReference, ARefusedCallReservesNoOffset)
+        TEST_F(Medium_RandomReference, ARefusedCallReservesNoOffset)
         {
             std::optional<Tensor> values = device_only_tensor({4});
             std::optional<Tensor> matrix = device_only_tensor({3, 3});
@@ -755,7 +755,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that two ForceReference runs of normal from one seed write equal bits. */
-        TEST_F(Unit_RandomReference, TheSameSeedGivesTheSameReferenceStreamTwice)
+        TEST_F(Medium_RandomReference, TheSameSeedGivesTheSameReferenceStreamTwice)
         {
             const Operation fill = [](RandomOps& random, Tensor& t)
             {

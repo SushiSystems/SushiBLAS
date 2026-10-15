@@ -45,7 +45,7 @@ namespace SushiBLAS
             return SushiRuntime::span<const int64_t>(dims.data(), dims.size());
         }
 
-        TEST(Unit_TensorFactory, KeepsItsRuntimeAndLayout)
+        TEST(Medium_TensorFactory, KeepsItsRuntimeAndLayout)
         {
             const TensorFactory row_major(TestEnvironment::runtime());
             const TensorFactory column_major(TestEnvironment::runtime(),
@@ -56,7 +56,7 @@ namespace SushiBLAS
             EXPECT_EQ(&row_major.runtime(), &TestEnvironment::runtime());
         }
 
-        TEST(Unit_TensorFactory, AllocationBytesIsTheElementCountTimesTheElementSize)
+        TEST(Medium_TensorFactory, AllocationBytesIsTheElementCountTimesTheElementSize)
         {
             const std::vector<int64_t> dims{3, 5};
 
@@ -69,7 +69,7 @@ namespace SushiBLAS
                          std::runtime_error);
         }
 
-        TEST(Unit_TensorFactory, CreatesATensorOfItsLayoutAndTheGivenType)
+        TEST(Medium_TensorFactory, CreatesATensorOfItsLayoutAndTheGivenType)
         {
             const TensorFactory factory(TestEnvironment::runtime(), Core::Layout::ColumnMajor);
             const std::vector<int64_t> dims{2, 3};
@@ -84,7 +84,7 @@ namespace SushiBLAS
             EXPECT_GE(tensor.storage->size_bytes(), std::size_t{48});
         }
 
-        TEST(Unit_TensorFactory, ATensorWithoutElementsHasNoStorage)
+        TEST(Medium_TensorFactory, ATensorWithoutElementsHasNoStorage)
         {
             const TensorFactory factory(TestEnvironment::runtime());
             const std::vector<int64_t> dims{0, 7};
@@ -95,7 +95,7 @@ namespace SushiBLAS
             EXPECT_EQ(tensor.shape[1], int64_t{7});
         }
 
-        TEST(Unit_TensorFactory, PlacesTheStorageOnTheGivenDeviceAndResidency)
+        TEST(Medium_TensorFactory, PlacesTheStorageOnTheGivenDeviceAndResidency)
         {
             const TensorFactory factory(TestEnvironment::runtime());
             const std::size_t last = TestEnvironment::device_count() - 1;

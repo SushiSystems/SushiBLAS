@@ -36,7 +36,7 @@
 using namespace SushiBLAS::Test;
 using SushiBLAS::Core::DataType;
 
-class Unit_OrthogonalTest : public SushiBLASTest
+class Medium_OrthogonalTest : public SushiBLASTest
 {
     protected:
         std::vector<float> read_matrix(const SushiBLAS::Tensor& t)
@@ -70,7 +70,7 @@ class Unit_OrthogonalTest : public SushiBLASTest
         }
 };
 
-TEST_F(Unit_OrthogonalTest, TallMatrixHasOrthonormalColumns)
+TEST_F(Medium_OrthogonalTest, TallMatrixHasOrthonormalColumns)
 {
     // 8 rows cannot all be orthogonal in 4 dimensions, so the four columns are: Q^T Q = I(4).
     auto t = engine->create_tensor({8, 4});
@@ -82,7 +82,7 @@ TEST_F(Unit_OrthogonalTest, TallMatrixHasOrthonormalColumns)
     expect_orthonormal(m, /*count=*/4, /*length=*/8, /*elem_stride=*/4, /*vec_stride=*/1, 1.0f);
 }
 
-TEST_F(Unit_OrthogonalTest, WideMatrixHasOrthonormalRows)
+TEST_F(Medium_OrthogonalTest, WideMatrixHasOrthonormalRows)
 {
     // 3x7, row-major: the short axis is the rows, so Q Q^T = I(3).
     auto t = engine->create_tensor({3, 7});
@@ -94,7 +94,7 @@ TEST_F(Unit_OrthogonalTest, WideMatrixHasOrthonormalRows)
     expect_orthonormal(m, /*count=*/3, /*length=*/7, /*elem_stride=*/1, /*vec_stride=*/7, 1.0f);
 }
 
-TEST_F(Unit_OrthogonalTest, SquareMatrixIsFullyOrthogonal)
+TEST_F(Medium_OrthogonalTest, SquareMatrixIsFullyOrthogonal)
 {
     auto t = engine->create_tensor({6, 6});
     SushiBLAS::RandomOps(*engine).set_seed(31337);
@@ -105,7 +105,7 @@ TEST_F(Unit_OrthogonalTest, SquareMatrixIsFullyOrthogonal)
     expect_orthonormal(m, 6, 6, /*elem_stride=*/6, /*vec_stride=*/1, 1.0f);
 }
 
-TEST_F(Unit_OrthogonalTest, SixtyFourSquareMatrixIsFullyOrthogonal)
+TEST_F(Medium_OrthogonalTest, SixtyFourSquareMatrixIsFullyOrthogonal)
 {
     // 64 is the sweep's widest work-group, so every reduction runs the full tree.
     constexpr int64_t kSide = 64;
@@ -118,7 +118,7 @@ TEST_F(Unit_OrthogonalTest, SixtyFourSquareMatrixIsFullyOrthogonal)
     expect_orthonormal(m, kSide, kSide, /*elem_stride=*/kSide, /*vec_stride=*/1, 1.0f);
 }
 
-TEST_F(Unit_OrthogonalTest, GainScalesTheGramDiagonalQuadratically)
+TEST_F(Medium_OrthogonalTest, GainScalesTheGramDiagonalQuadratically)
 {
     // Q is scaled by gain, so Q^T Q is gain^2 I, the convention of PyTorch's orthogonal_.
     constexpr float kGain = 2.5f;
@@ -131,7 +131,7 @@ TEST_F(Unit_OrthogonalTest, GainScalesTheGramDiagonalQuadratically)
     expect_orthonormal(m, 5, 5, 5, 1, kGain * kGain, 1e-3f);
 }
 
-TEST_F(Unit_OrthogonalTest, ResultIsNotJustAGaussianFill)
+TEST_F(Medium_OrthogonalTest, ResultIsNotJustAGaussianFill)
 {
     // A Gaussian 6x6 has column norms near sqrt(6). See tests/operations/random/README.md.
     auto t = engine->create_tensor({6, 6});
@@ -152,7 +152,7 @@ TEST_F(Unit_OrthogonalTest, ResultIsNotJustAGaussianFill)
     }
 }
 
-TEST_F(Unit_OrthogonalTest, RejectsInputsItCannotOrthonormalize)
+TEST_F(Medium_OrthogonalTest, RejectsInputsItCannotOrthonormalize)
 {
     // Each shape or dtype the Gram-Schmidt sweep cannot handle is reported at the call site.
     auto vec = engine->create_tensor({16});
@@ -168,7 +168,7 @@ TEST_F(Unit_OrthogonalTest, RejectsInputsItCannotOrthonormalize)
     EXPECT_THROW(SushiBLAS::RandomOps(*engine).orthogonal(complex_mat), std::invalid_argument);
 }
 
-TEST_F(Unit_OrthogonalTest, RejectsAMatrixWithoutStorage)
+TEST_F(Medium_OrthogonalTest, RejectsAMatrixWithoutStorage)
 {
     SushiBLAS::Tensor bare(SushiRuntime::sushi_ptr<SushiBLAS::Storage>(), {4, 4});
     EXPECT_THROW(SushiBLAS::RandomOps(*engine).orthogonal(bare), std::invalid_argument);

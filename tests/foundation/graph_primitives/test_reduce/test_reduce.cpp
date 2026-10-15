@@ -126,7 +126,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Tests that the sum equals the fixed-order host fold and not the naive sum. */
-        TEST(Unit_GraphPrimitivesReduce, SumMatchesTheFixedOrderReferenceExactly)
+        TEST(Medium_GraphPrimitivesReduce, SumMatchesTheFixedOrderReferenceExactly)
         {
             constexpr std::size_t K_COUNT = 100000;
 
@@ -156,7 +156,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that repeated runs and a run with the rebalancer on agree bit for bit. */
-        TEST(Unit_GraphPrimitivesReduce, ResultIsStableAcrossSchedules)
+        TEST(Medium_GraphPrimitivesReduce, ResultIsStableAcrossSchedules)
         {
             constexpr std::size_t K_COUNT = 70000;
             constexpr int K_ROUNDS = 32;
@@ -201,7 +201,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests counts at the tile boundaries, a single value and an empty reduction. */
-        TEST(Unit_GraphPrimitivesReduce, EdgeCounts)
+        TEST(Medium_GraphPrimitivesReduce, EdgeCounts)
         {
             const std::size_t counts[] = {1, 2, K_TILE - 1, K_TILE, K_TILE + 1,
                                           K_TILE * K_TILE, K_TILE * K_TILE + 1};
@@ -238,7 +238,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests the Minimum and Maximum reductions against a host scan. */
-        TEST(Unit_GraphPrimitivesReduce, MinimumAndMaximum)
+        TEST(Medium_GraphPrimitivesReduce, MinimumAndMaximum)
         {
             constexpr std::size_t K_COUNT = 5000;
 
@@ -270,7 +270,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a reader of the output is ordered after the whole level chain. */
-        TEST(Unit_GraphPrimitivesReduce, ConsumerSeesTheFinishedResult)
+        TEST(Medium_GraphPrimitivesReduce, ConsumerSeesTheFinishedResult)
         {
             constexpr std::size_t K_COUNT = 40000;
 
@@ -301,7 +301,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a mis-sized input or output is refused when the call records. */
-        TEST(Unit_GraphPrimitivesReduce, RejectsMisSizedArguments)
+        TEST(Medium_GraphPrimitivesReduce, RejectsMisSizedArguments)
         {
             auto runtime = Runtime::create().value();
             auto in = runtime.buffer<float>(16).value();
@@ -319,7 +319,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a late-bound reduce equals the fixed-count one at each live count. */
-        TEST(Unit_GraphPrimitivesReduce, LateBoundMatchesFixedCountExactly)
+        TEST(Medium_GraphPrimitivesReduce, LateBoundMatchesFixedCountExactly)
         {
             constexpr std::size_t K_CAPACITY = K_TILE * K_TILE + 1;
             const std::size_t counts[] = {1, K_TILE - 1, K_TILE, K_TILE + 1, K_CAPACITY};
@@ -350,7 +350,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a live count that changes between runs keeps one compile. */
-        TEST(Unit_GraphPrimitivesReduce, LateBoundChangingCountKeepsOneCompile)
+        TEST(Medium_GraphPrimitivesReduce, LateBoundChangingCountKeepsOneCompile)
         {
             constexpr std::size_t K_CAPACITY = 700000;
 
@@ -388,7 +388,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a live count above its capacity fails the run. */
-        TEST(Unit_GraphPrimitivesReduce, LateBoundAboveCapacityFailsTheRun)
+        TEST(Medium_GraphPrimitivesReduce, LateBoundAboveCapacityFailsTheRun)
         {
             auto runtime = Runtime::create().value();
             auto in = runtime.buffer<double>(100).value();
@@ -402,7 +402,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a late-bound reduce folds the count its predecessor wrote that run. */
-        TEST(Unit_GraphPrimitivesReduce, DeviceCountIsReadAfterItsProducer)
+        TEST(Medium_GraphPrimitivesReduce, DeviceCountIsReadAfterItsProducer)
         {
             constexpr std::size_t K_CAPACITY = 1000;
             using SushiRuntime::DeviceIndex;
@@ -443,7 +443,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that each level node launches at the out_count of its level. */
-        TEST(Unit_GraphPrimitivesReduce, LevelWidthsMatchTheLevelPlan)
+        TEST(Medium_GraphPrimitivesReduce, LevelWidthsMatchTheLevelPlan)
         {
             constexpr std::size_t K_COUNT = 2 * K_TILE + 88;
             const std::vector<std::uint32_t> expected_widths = {3u, 1u};
@@ -472,7 +472,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a fixed count of zero records one node of width one. */
-        TEST(Unit_GraphPrimitivesReduce, ZeroCountStampsWidthOne)
+        TEST(Medium_GraphPrimitivesReduce, ZeroCountStampsWidthOne)
         {
             auto runtime = Runtime::create().value();
             auto values = runtime.buffer<float>(1).value();

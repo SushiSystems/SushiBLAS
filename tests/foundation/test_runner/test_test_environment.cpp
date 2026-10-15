@@ -34,12 +34,12 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_TestEnvironment, HandsOutTheSameRuntimeEveryTime)
+        TEST(Medium_TestEnvironment, HandsOutTheSameRuntimeEveryTime)
         {
             EXPECT_EQ(&TestEnvironment::runtime(), &TestEnvironment::runtime());
         }
 
-        TEST(Unit_TestEnvironment, ReportsAtLeastOneDeviceAndItsQueue)
+        TEST(Medium_TestEnvironment, ReportsAtLeastOneDeviceAndItsQueue)
         {
             ASSERT_GE(TestEnvironment::device_count(), std::size_t{1});
 
@@ -47,7 +47,7 @@ namespace SushiBLAS
             EXPECT_EQ(&first, &TestEnvironment::queue(0));
         }
 
-        TEST(Unit_TestEnvironment, CountsALiveAllocationUntilItIsFreed)
+        TEST(Medium_TestEnvironment, CountsALiveAllocationUntilItIsFreed)
         {
             const std::size_t before = TestEnvironment::live_allocation_count();
             {

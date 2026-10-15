@@ -95,19 +95,19 @@ namespace SushiBLAS
          * @brief Names the suite of the modified Givens cases of component type R.
          */
         template<typename R>
-        class Unit_ModifiedGivens : public ::testing::Test
+        class Small_ModifiedGivens : public ::testing::Test
         {
 
         };
 
         /// @brief Names the real types the modified rotation suite runs over.
         using ModifiedGivensTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_ModifiedGivens, ModifiedGivensTypes);
+        SB_TYPED_TEST_SUITE(Small_ModifiedGivens, ModifiedGivensTypes);
 
         /**
          * @brief Tests at compile time the four hand values of the reference routine.
          */
-        TYPED_TEST(Unit_ModifiedGivens, TheHandValuesHoldAtCompileTime)
+        TYPED_TEST(Small_ModifiedGivens, TheHandValuesHoldAtCompileTime)
         {
             static_assert(modified_givens_matches_hand_values<TypeParam>(),
                           "modified_givens gives the values worked by hand.");
@@ -118,7 +118,7 @@ namespace SushiBLAS
         /**
          * @brief Tests the four outcomes of xROTMG and which parameters each one stores.
          */
-        TYPED_TEST(Unit_ModifiedGivens, EachOutcomeStoresOnlyWhatItsFlagDoesNotImply)
+        TYPED_TEST(Small_ModifiedGivens, EachOutcomeStoresOnlyWhatItsFlagDoesNotImply)
         {
             using R = TypeParam;
             constexpr double unwritten = K_UNWRITTEN;
@@ -158,7 +158,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that scale factors above the window are divided back into it.
          */
-        TYPED_TEST(Unit_ModifiedGivens, LargeFactorsAreRescaledDown)
+        TYPED_TEST(Small_ModifiedGivens, LargeFactorsAreRescaledDown)
         {
             using R = TypeParam;
             const R gamma = static_cast<R>(K_GAMMA);
@@ -182,7 +182,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that scale factors below the window are multiplied back into it.
          */
-        TYPED_TEST(Unit_ModifiedGivens, SmallFactorsAreRescaledUp)
+        TYPED_TEST(Small_ModifiedGivens, SmallFactorsAreRescaledUp)
         {
             using R = TypeParam;
             const R gamma = static_cast<R>(K_GAMMA);
@@ -206,7 +206,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a scale factor no pass brings into the window ends the rescaling.
          */
-        TYPED_TEST(Unit_ModifiedGivens, AnInfiniteFactorReturns)
+        TYPED_TEST(Small_ModifiedGivens, AnInfiniteFactorReturns)
         {
             using R = TypeParam;
 

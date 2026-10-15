@@ -45,7 +45,7 @@ namespace SushiBLAS
         /// @brief The seed of the draws below.
         constexpr uint64_t K_SEED = 20261015u;
 
-        TEST(Unit_Philox, MatchesTheKnownAnswersOfRandom123)
+        TEST(Medium_Philox, MatchesTheKnownAnswersOfRandom123)
         {
             using Block = std::array<uint32_t, 4>;
             const uint32_t ones = 0xFFFFFFFFu;
@@ -56,7 +56,7 @@ namespace SushiBLAS
                       (Block{0x408F276Du, 0x41C83B0Eu, 0xA20BC7C6u, 0x6D5451FDu}));
         }
 
-        TEST(Unit_Philox, UniformDrawsLieInTheirHalfOpenRange)
+        TEST(Medium_Philox, UniformDrawsLieInTheirHalfOpenRange)
         {
             EXPECT_EQ(Philox::uniform01_float(0u), 0.0f);
             EXPECT_LT(Philox::uniform01_float(0xFFFFFFFFu), 1.0f);
@@ -73,7 +73,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_Philox, ABlockGivesFourFloatsOrTwoDoubles)
+        TEST(Medium_Philox, ABlockGivesFourFloatsOrTwoDoubles)
         {
             static_assert(Philox::K_DRAWS_PER_BLOCK<float> == 4, "Four floats per block.");
             static_assert(Philox::K_DRAWS_PER_BLOCK<double> == 2, "Two doubles per block.");
@@ -82,14 +82,14 @@ namespace SushiBLAS
                       std::size_t{2});
         }
 
-        TEST(Unit_Philox, TheDrawIsAFunctionOfSeedOffsetAndBlock)
+        TEST(Medium_Philox, TheDrawIsAFunctionOfSeedOffsetAndBlock)
         {
             EXPECT_EQ(Philox::philox_block(K_SEED, 3, 7), Philox::philox_block(K_SEED, 3, 7));
             EXPECT_NE(Philox::philox_block(K_SEED, 3, 7), Philox::philox_block(K_SEED, 4, 7));
             EXPECT_NE(Philox::philox_block(K_SEED, 3, 7), Philox::philox_block(K_SEED, 3, 8));
         }
 
-        TEST(Unit_Philox, AnIndexStaysBelowItsBound)
+        TEST(Medium_Philox, AnIndexStaysBelowItsBound)
         {
             EXPECT_EQ(Philox::draw_index(K_SEED, 0, 5, 1), uint64_t{0});
             EXPECT_EQ(Philox::draw_index(K_SEED, 0, 5, 0), uint64_t{0});
@@ -97,7 +97,7 @@ namespace SushiBLAS
                 EXPECT_LT(Philox::draw_index(K_SEED, 0, index, 13), uint64_t{13});
         }
 
-        TEST(Unit_Philox, NormalDrawsAreFinite)
+        TEST(Medium_Philox, NormalDrawsAreFinite)
         {
             for (uint64_t block = 0; block < 100; ++block)
                 for (const double value : Philox::normal_block<double>(K_SEED, 0, block, 1.0, 2.0))
@@ -105,12 +105,12 @@ namespace SushiBLAS
         }
 
         /** @brief Draws on the host CPU queue. */
-        class Device_Philox : public HostDeviceTest
+        class Medium_PhiloxOnDevice : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_Philox, AKernelDrawsTheBitsTheHostDraws)
+        TEST_F(Medium_PhiloxOnDevice, AKernelDrawsTheBitsTheHostDraws)
         {
             constexpr std::size_t blocks = 64;
             SharedArray<float> device(queue(), 4 * blocks);

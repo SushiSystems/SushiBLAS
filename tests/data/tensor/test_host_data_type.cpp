@@ -36,7 +36,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_HostDataType, EachHostTypeHasItsDataType)
+        TEST(Medium_HostDataType, EachHostTypeHasItsDataType)
         {
             EXPECT_EQ(Detail::HostDataType<float>::K_VALUE, Core::DataType::Float32);
             EXPECT_EQ(Detail::HostDataType<double>::K_VALUE, Core::DataType::Float64);
@@ -49,7 +49,7 @@ namespace SushiBLAS
             EXPECT_EQ(Detail::HostDataType<int64_t>::K_VALUE, Core::DataType::Int64);
         }
 
-        TEST(Unit_HostDataType, TheDataTypeHasTheSizeOfItsHostType)
+        TEST(Medium_HostDataType, TheDataTypeHasTheSizeOfItsHostType)
         {
             EXPECT_EQ(Core::bytes_per_element(Detail::HostDataType<sycl::half>::K_VALUE),
                       sizeof(sycl::half));

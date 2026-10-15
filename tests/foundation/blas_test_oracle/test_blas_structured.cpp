@@ -42,7 +42,7 @@ namespace SushiBLAS
         /// @brief A 3 x 3 matrix given row by row, element (i, j) as 10 * (i + 1) + j + 1.
         const std::vector<int> K_SQUARE{11, 12, 13, 21, 22, 23, 31, 32, 33};
 
-        TEST(Unit_BlasStructured, ColumnMajorTransposesTheElementOrder)
+        TEST(Small_BlasStructured, ColumnMajorTransposesTheElementOrder)
         {
             const std::vector<int> dense{1, 2, 3, 4, 5, 6};
 
@@ -51,7 +51,7 @@ namespace SushiBLAS
                       (std::vector<int>{1, 4, 2, 5, 3, 6}));
         }
 
-        TEST(Unit_BlasStructured, ATridiagonalBandStoresOneDiagonalPerSlot)
+        TEST(Small_BlasStructured, ATridiagonalBandStoresOneDiagonalPerSlot)
         {
             const std::vector<int> row_band =
                 to_band(K_SQUARE, 3, 3, 1, 1, 3, Core::Layout::RowMajor, K_POISON);
@@ -62,7 +62,7 @@ namespace SushiBLAS
             EXPECT_EQ(column_band, (std::vector<int>{-1, 11, 21, 12, 22, 32, 23, 33, -1}));
         }
 
-        TEST(Unit_BlasStructured, ATriangleBandKeepsOneSideOfTheDiagonal)
+        TEST(Small_BlasStructured, ATriangleBandKeepsOneSideOfTheDiagonal)
         {
             const std::vector<int> upper = to_triangle_band(K_SQUARE, 3, Core::Uplo::Upper, 1, 2,
                                                             Core::Layout::ColumnMajor, K_POISON);
@@ -73,7 +73,7 @@ namespace SushiBLAS
             EXPECT_EQ(lower, (std::vector<int>{11, 21, 22, 32, 33, -1}));
         }
 
-        TEST(Unit_BlasStructured, PackedStorageWalksTheTriangleInLayoutOrder)
+        TEST(Small_BlasStructured, PackedStorageWalksTheTriangleInLayoutOrder)
         {
             EXPECT_EQ(to_packed(K_SQUARE, 3, Core::Uplo::Upper, Core::Layout::ColumnMajor),
                       (std::vector<int>{11, 12, 22, 13, 23, 33}));
@@ -85,7 +85,7 @@ namespace SushiBLAS
                       (std::vector<int>{11, 21, 22, 31, 32, 33}));
         }
 
-        TEST(Unit_BlasStructured, ASpareSlotPerLineStaysPoisoned)
+        TEST(Small_BlasStructured, ASpareSlotPerLineStaysPoisoned)
         {
             const std::vector<int> band =
                 to_band(K_SQUARE, 3, 3, 0, 0, 2, Core::Layout::RowMajor, K_POISON);

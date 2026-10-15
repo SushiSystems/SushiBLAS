@@ -46,7 +46,7 @@ namespace SushiBLAS
             }
         };
 
-        TEST(Unit_ScalarBinding, AppendsTheScalarsInTheElementType)
+        TEST(Medium_ScalarBinding, AppendsTheScalarsInTheElementType)
         {
             const auto bound = Dispatch::bind_scalars(ScaleShift{}, Dispatch::ElementScalar(2.5),
                                                       Dispatch::ElementScalar(1.0));
@@ -56,7 +56,7 @@ namespace SushiBLAS
             EXPECT_EQ(bound.narrow<int32_t>()(3), 7);
         }
 
-        TEST(Unit_ScalarBinding, NarrowForPicksTheBoundFormOrPassesAPlainFunctor)
+        TEST(Medium_ScalarBinding, NarrowForPicksTheBoundFormOrPassesAPlainFunctor)
         {
             const auto bound = Dispatch::bind_scalars(ScaleShift{}, Dispatch::ElementScalar(3.0),
                                                       Dispatch::ElementScalar(-1.0));

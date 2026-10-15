@@ -34,7 +34,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_OrthonormalSweep, AVectorSetStartsEmpty)
+        TEST(Small_OrthonormalSweep, AVectorSetStartsEmpty)
         {
             const Kernels::VectorSet set{};
 
@@ -44,14 +44,14 @@ namespace SushiBLAS
             EXPECT_EQ(set.vec_stride, int64_t{0});
         }
 
-        TEST(Unit_OrthonormalSweep, TheSweepRunsTwice)
+        TEST(Small_OrthonormalSweep, TheSweepRunsTwice)
         {
             static_assert(Kernels::K_ORTHONORMAL_SWEEPS == 2, "Two passes of Gram-Schmidt.");
 
             EXPECT_EQ(Kernels::K_ORTHONORMAL_SWEEPS, 2);
         }
 
-        TEST(Unit_OrthonormalSweep, TheTinyNormIsTheSquareOfOneEMinusTwelve)
+        TEST(Small_OrthonormalSweep, TheTinyNormIsTheSquareOfOneEMinusTwelve)
         {
             static_assert(std::is_same<decltype(Kernels::tiny_norm_sq<float>()), float>::value,
                           "The threshold has the element type.");

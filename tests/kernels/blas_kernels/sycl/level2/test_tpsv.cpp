@@ -46,12 +46,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs tpsv on the host CPU queue. */
-        class Device_SYCLTpsv : public HostDeviceTest
+        class Medium_SYCLTpsv : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLTpsv, MatchesTheReferenceForEveryFlag)
+        TEST_F(Medium_SYCLTpsv, MatchesTheReferenceForEveryFlag)
         {
             const int64_t n = 40;
             // A unit diagonal keeps every substitution exact in integers.

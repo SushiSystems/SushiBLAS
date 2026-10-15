@@ -38,7 +38,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_BlasKernels, TheReferenceKernelsOfEachLevelAreReachable)
+        TEST(Medium_BlasKernels, TheReferenceKernelsOfEachLevelAreReachable)
         {
             std::vector<double> y{1.0, 1.0};
             const std::vector<double> x{2.0, 3.0};
@@ -53,12 +53,12 @@ namespace SushiBLAS
         }
 
         /** @brief Runs a kernel reached through blas.hpp on the host CPU queue. */
-        class Device_BlasKernels : public HostDeviceTest
+        class Medium_BlasKernelsOnDevice : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_BlasKernels, ASYCLKernelIsReachable)
+        TEST_F(Medium_BlasKernelsOnDevice, ASYCLKernelIsReachable)
         {
             const SharedArray<float> x(queue(), std::vector<float>{1.0f, 2.0f});
             SharedArray<float> y(queue(), std::vector<float>{10.0f, 20.0f});

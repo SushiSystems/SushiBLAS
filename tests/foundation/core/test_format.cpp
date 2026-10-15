@@ -33,57 +33,57 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_Format, ReplacesPlaceholdersInOrder)
+        TEST(Small_Format, ReplacesPlaceholdersInOrder)
         {
             EXPECT_EQ(Core::format("{} + {} = {}", 1, 2, 3), "1 + 2 = 3");
             EXPECT_EQ(Core::format("name={}", std::string("gemm")), "name=gemm");
         }
 
-        TEST(Unit_Format, ATextWithoutPlaceholdersIsUnchanged)
+        TEST(Small_Format, ATextWithoutPlaceholdersIsUnchanged)
         {
             EXPECT_EQ(Core::format("no fields here"), "no fields here");
         }
 
-        TEST(Unit_Format, DoubledBracesPrintOneBrace)
+        TEST(Small_Format, DoubledBracesPrintOneBrace)
         {
             EXPECT_EQ(Core::format("{{}} {}", 7), "{} 7");
         }
 
-        TEST(Unit_Format, APlaceholderBeyondTheArgumentsPrintsNothing)
+        TEST(Small_Format, APlaceholderBeyondTheArgumentsPrintsNothing)
         {
             EXPECT_EQ(Core::format("{} and {}", 5), "5 and ");
         }
 
-        TEST(Unit_Format, AnUnclosedBraceIsCopiedAsText)
+        TEST(Small_Format, AnUnclosedBraceIsCopiedAsText)
         {
             EXPECT_EQ(Core::format("value {", 1), "value {");
         }
 
-        TEST(Unit_Format, WidthPadsOnTheSideTheAlignmentNames)
+        TEST(Small_Format, WidthPadsOnTheSideTheAlignmentNames)
         {
             EXPECT_EQ(Core::format("[{:<5}]", 42), "[42   ]");
             EXPECT_EQ(Core::format("[{:>5}]", 42), "[   42]");
             EXPECT_EQ(Core::format("[{:^6}]", 42), "[  42  ]");
         }
 
-        TEST(Unit_Format, AFillCharacterPrecedesTheAlignment)
+        TEST(Small_Format, AFillCharacterPrecedesTheAlignment)
         {
             EXPECT_EQ(Core::format("[{:*>5}]", 7), "[****7]");
             EXPECT_EQ(Core::format("[{:-^7}]", "ab"), "[--ab---]");
         }
 
-        TEST(Unit_Format, ZeroFillPadsANumberAfterItsSign)
+        TEST(Small_Format, ZeroFillPadsANumberAfterItsSign)
         {
             EXPECT_EQ(Core::format("{:05}", -42), "-0042");
         }
 
-        TEST(Unit_Format, PrecisionAndTypeSelectTheFloatNotation)
+        TEST(Small_Format, PrecisionAndTypeSelectTheFloatNotation)
         {
             EXPECT_EQ(Core::format("{:.2f}", 3.14159), "3.14");
             EXPECT_EQ(Core::format("{:.1e}", 1500.0), "1.5e+03");
         }
 
-        TEST(Unit_Format, IntegerTypesSelectTheBase)
+        TEST(Small_Format, IntegerTypesSelectTheBase)
         {
             EXPECT_EQ(Core::format("{:x}", 255), "ff");
             EXPECT_EQ(Core::format("{:X}", 255), "FF");
@@ -91,12 +91,12 @@ namespace SushiBLAS
             EXPECT_EQ(Core::format("{:d}", 12), "12");
         }
 
-        TEST(Unit_Format, ABoolPrintsAsAWord)
+        TEST(Small_Format, ABoolPrintsAsAWord)
         {
             EXPECT_EQ(Core::format("{} {}", true, false), "true false");
         }
 
-        TEST(Unit_Format, OneFieldDoesNotLeakItsSpecIntoTheNext)
+        TEST(Small_Format, OneFieldDoesNotLeakItsSpecIntoTheNext)
         {
             EXPECT_EQ(Core::format("{:x} {}", 255, 255), "ff 255");
             EXPECT_EQ(Core::format("{:.1f} {}", 2.26, 2.5), "2.3 2.5");

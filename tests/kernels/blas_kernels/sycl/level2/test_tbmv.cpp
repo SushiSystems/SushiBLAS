@@ -43,12 +43,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs tbmv on the host CPU queue. */
-        class Device_SYCLTbmv : public HostDeviceTest
+        class Medium_SYCLTbmv : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLTbmv, MatchesTheReferenceForEveryFlag)
+        TEST_F(Medium_SYCLTbmv, MatchesTheReferenceForEveryFlag)
         {
             const int64_t n = 44;
             const int64_t k = 3;

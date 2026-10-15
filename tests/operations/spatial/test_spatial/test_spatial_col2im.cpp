@@ -46,7 +46,7 @@ namespace SushiBLAS
             }
         } // namespace
 
-        class Unit_SpatialCol2ImTest : public SushiBLASTest
+        class Medium_SpatialCol2ImTest : public SushiBLASTest
         {
             protected:
                 /** @brief A rank-2 column matrix whose every entry is @p value. */
@@ -60,7 +60,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_SpatialCol2ImTest, EachPixelReceivesOncePerWindowThatReadIt)
+        TEST_F(Medium_SpatialCol2ImTest, EachPixelReceivesOncePerWindowThatReadIt)
         {
             // All-ones columns give a pixel's overlap count. See the test README.
             Spatial::ConvGeometry g;
@@ -100,7 +100,7 @@ namespace SushiBLAS
                     }
         }
 
-        TEST_F(Unit_SpatialCol2ImTest, StrideAndDilationSelectTheRightContributors)
+        TEST_F(Medium_SpatialCol2ImTest, StrideAndDilationSelectTheRightContributors)
         {
             // With stride 2 each pixel has exactly one window. See the test README.
             Spatial::ConvGeometry g;
@@ -125,7 +125,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], 1.0f) << "element " << i;
         }
 
-        TEST_F(Unit_SpatialCol2ImTest, PixelsNoWindowReadsAreWrittenZeroRatherThanLeftAlone)
+        TEST_F(Medium_SpatialCol2ImTest, PixelsNoWindowReadsAreWrittenZeroRatherThanLeftAlone)
         {
             // Pixels no window reads must come back zero. See tests/operations/spatial/README.md.
             Spatial::ConvGeometry g;
@@ -159,7 +159,7 @@ namespace SushiBLAS
                 }
         }
 
-        TEST_F(Unit_SpatialCol2ImTest, TheSYCLKernelAgreesWithTheReferenceKernel)
+        TEST_F(Medium_SpatialCol2ImTest, TheSYCLKernelAgreesWithTheReferenceKernel)
         {
             // The two forced modes are compared here. See tests/operations/spatial/README.md.
             Spatial::ConvGeometry g;

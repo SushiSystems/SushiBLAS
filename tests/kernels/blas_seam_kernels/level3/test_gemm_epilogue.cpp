@@ -34,7 +34,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_GemmEpilogue, TheIdentityReturnsItsValueAtEveryPosition)
+        TEST(Small_GemmEpilogue, TheIdentityReturnsItsValueAtEveryPosition)
         {
             const Kernels::GemmIdentityEpilogue identity;
 

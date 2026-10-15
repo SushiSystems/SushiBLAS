@@ -529,16 +529,16 @@ namespace SushiBLAS
 
         /** @brief Runs syr2k over the real and complex element types. */
         template<typename T>
-        class Unit_Syr2k : public RankTwoUpdateTest
+        class Medium_Syr2k : public RankTwoUpdateTest
         {
 
         };
 
         using Syr2kTypes = ::testing::Types<float, double, std::complex<float>,
                                             std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_Syr2k, Syr2kTypes);
+        SB_TYPED_TEST_SUITE(Medium_Syr2k, Syr2kTypes);
 
-        TYPED_TEST(Unit_Syr2k, MatchesAHandComputedUpdate)
+        TYPED_TEST(Medium_Syr2k, MatchesAHandComputedUpdate)
         {
             using T = TypeParam;
             using Conj = Kernels::Unconjugated;
@@ -578,13 +578,13 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_Syr2k, IsExactOnSmallIntegers)
+        TYPED_TEST(Medium_Syr2k, IsExactOnSmallIntegers)
         {
             this->template expect_exact_on_integers<TypeParam, Kernels::Unconjugated>(
                 {Core::Transpose::NoTrans, Core::Transpose::Trans}, K_INTEGER_ALPHA);
         }
 
-        TYPED_TEST(Unit_Syr2k, ABatchIsUpdatedMatrixByMatrix)
+        TYPED_TEST(Medium_Syr2k, ABatchIsUpdatedMatrixByMatrix)
         {
             using T = TypeParam;
             using Conj = Kernels::Unconjugated;
@@ -638,7 +638,7 @@ namespace SushiBLAS
 
         /** @brief Measures syr2k against a truth, over the real element types that have one. */
         template<typename T>
-        class Unit_Syr2kBound : public RankTwoUpdateTest
+        class Medium_Syr2kBound : public RankTwoUpdateTest
         {
             protected:
                 /** @brief Returns the unit roundoff of the type the kernel of mode sums T in. */
@@ -679,9 +679,9 @@ namespace SushiBLAS
         };
 
         using Syr2kBoundTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_Syr2kBound, Syr2kBoundTypes);
+        SB_TYPED_TEST_SUITE(Medium_Syr2kBound, Syr2kBoundTypes);
 
-        TYPED_TEST(Unit_Syr2kBound, IsWithinItsBoundOfTheTruth)
+        TYPED_TEST(Medium_Syr2kBound, IsWithinItsBoundOfTheTruth)
         {
             using T = TypeParam;
             std::mt19937 generator(K_SEED);
@@ -732,12 +732,12 @@ namespace SushiBLAS
         }
 
         /** @brief Runs the cases of syr2k that fix their element type. */
-        class Unit_Syr2kFixedType : public RankTwoUpdateTest
+        class Medium_Syr2kFixedType : public RankTwoUpdateTest
         {
 
         };
 
-        TEST_F(Unit_Syr2kFixedType, HalfSumsInFloat)
+        TEST_F(Medium_Syr2kFixedType, HalfSumsInFloat)
         {
             const sycl::queue& queue = TestEnvironment::queue();
             if (!queue.get_device().has(sycl::aspect::fp16))
@@ -766,7 +766,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_Syr2kFixedType, WaitsForItsDependencies)
+        TEST_F(Medium_Syr2kFixedType, WaitsForItsDependencies)
         {
             const Core::Layout layout = Core::Layout::RowMajor;
             const Tensor A = upload(matrix_of<float>(2, 3, layout, {1, 2, 3, 4, 5, 6}));
@@ -793,7 +793,7 @@ namespace SushiBLAS
             expect_equal(read_tensor<float>(C), std::vector<float>{-9.0f, -6.0f, 20.0f, 51.0f});
         }
 
-        TEST_F(Unit_Syr2kFixedType, TheTileFitsTheTestDevice)
+        TEST_F(Medium_Syr2kFixedType, TheTileFitsTheTestDevice)
         {
             static_assert(tile_is<sycl::half>(4, 32, 4096), "The HALF tile changed.");
             static_assert(tile_is<float>(4, 32, 8192), "The FLOAT32 tile changed.");
@@ -814,7 +814,7 @@ namespace SushiBLAS
 
         /** @brief Runs her2k over the complex element types. */
         template<typename T>
-        class Unit_Her2k : public RankTwoUpdateTest
+        class Medium_Her2k : public RankTwoUpdateTest
         {
             protected:
                 /// @brief The complex alpha of every case of this suite.
@@ -822,9 +822,9 @@ namespace SushiBLAS
         };
 
         using Her2kTypes = ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_Her2k, Her2kTypes);
+        SB_TYPED_TEST_SUITE(Medium_Her2k, Her2kTypes);
 
-        TYPED_TEST(Unit_Her2k, MatchesAHandComputedUpdate)
+        TYPED_TEST(Medium_Her2k, MatchesAHandComputedUpdate)
         {
             using T = TypeParam;
             const Wide alpha = this->K_ALPHA;
@@ -857,13 +857,13 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_Her2k, IsExactOnGaussianIntegers)
+        TYPED_TEST(Medium_Her2k, IsExactOnGaussianIntegers)
         {
             this->template expect_exact_on_integers<TypeParam, Kernels::Conjugated>(
                 {Core::Transpose::NoTrans, Core::Transpose::ConjTrans}, this->K_ALPHA);
         }
 
-        TYPED_TEST(Unit_Her2k, ConjTransEqualsNoTransOnTheConjugateTransposes)
+        TYPED_TEST(Medium_Her2k, ConjTransEqualsNoTransOnTheConjugateTransposes)
         {
             using T = TypeParam;
             using Conj = Kernels::Conjugated;
@@ -891,7 +891,7 @@ namespace SushiBLAS
         }
 
         /** @brief Runs the cases of syr2k and her2k that are not typed over the element type. */
-        class Unit_Syr2kHer2kEdges : public RankTwoUpdateTest
+        class Medium_Syr2kHer2kEdges : public RankTwoUpdateTest
         {
             protected:
                 /**
@@ -911,7 +911,7 @@ namespace SushiBLAS
                 GraphProbe probe;
         };
 
-        TEST_F(Unit_Syr2kHer2kEdges, Her2kOnARealTensorIsSyr2k)
+        TEST_F(Medium_Syr2kHer2kEdges, Her2kOnARealTensorIsSyr2k)
         {
             std::mt19937 generator(K_SEED);
             const auto a = random_matrix<float>(generator, K_ORDER, K_INNER);
@@ -931,7 +931,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_Syr2kHer2kEdges, ConjTransOnARealTensorIsTrans)
+        TEST_F(Medium_Syr2kHer2kEdges, ConjTransOnARealTensorIsTrans)
         {
             std::mt19937 generator(K_SEED);
             const auto a = random_matrix<float>(generator, K_INNER, K_ORDER);
@@ -951,7 +951,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_Syr2kHer2kEdges, EveryRefusalIsAnInvalidArgument)
+        TEST_F(Medium_Syr2kHer2kEdges, EveryRefusalIsAnInvalidArgument)
         {
             const Core::Uplo upper = Core::Uplo::Upper;
             const Core::Transpose no_trans = Core::Transpose::NoTrans;
@@ -1040,7 +1040,7 @@ namespace SushiBLAS
             });
         }
 
-        TEST_F(Unit_Syr2kHer2kEdges, AnEmptyUpdateRecordsAndRuns)
+        TEST_F(Medium_Syr2kHer2kEdges, AnEmptyUpdateRecordsAndRuns)
         {
             const HostMatrix<float> c =
                 integer_matrix<float>(K_SEED_C, 3, 3, Core::Layout::RowMajor);
@@ -1072,7 +1072,7 @@ namespace SushiBLAS
          * @brief Tests that the tile a record-time refusal measures is the tile of the dtype,
          *        and that an integer dtype demands nothing.
          */
-        TEST(Unit_Syr2kTile, TheRecordedDemandIsTheTileOfTheDtype)
+        TEST(Medium_Syr2kTile, TheRecordedDemandIsTheTileOfTheDtype)
         {
             using Kernels::SYCL::Syr2kTile;
 

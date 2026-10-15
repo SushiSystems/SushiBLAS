@@ -121,7 +121,7 @@ namespace SushiBLAS
             }
         } // namespace
 
-        TEST(Unit_SymmetricAccess, ReadsTheStoredTriangleOnly)
+        TEST(Small_SymmetricAccess, ReadsTheStoredTriangleOnly)
         {
             for (const Core::Layout layout : K_LAYOUTS)
             {
@@ -150,7 +150,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_SymmetricAccess, AHermitianMirrorIsConjugated)
+        TEST(Small_SymmetricAccess, AHermitianMirrorIsConjugated)
         {
             for (const Core::Layout layout : K_LAYOUTS)
             {
@@ -179,7 +179,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_SymmetricAccess, AHermitianDiagonalIsReadAsItsRealPart)
+        TEST(Small_SymmetricAccess, AHermitianDiagonalIsReadAsItsRealPart)
         {
             const auto diagonal_element = [](int64_t r, int64_t c)
             {
@@ -212,7 +212,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_SymmetricAccess, ARealElementIgnoresThePolicy)
+        TEST(Small_SymmetricAccess, ARealElementIgnoresThePolicy)
         {
             static_assert(
                 std::is_same_v<
@@ -228,7 +228,7 @@ namespace SushiBLAS
             SUCCEED();
         }
 
-        TEST(Unit_SymmetricAccess, IsAConstantExpression)
+        TEST(Small_SymmetricAccess, IsAConstantExpression)
         {
             constexpr auto access = Kernels::symmetric_access<Kernels::Unconjugated>(
                 Core::Layout::RowMajor, Core::Uplo::Upper, K_CONSTANT_ORDER);

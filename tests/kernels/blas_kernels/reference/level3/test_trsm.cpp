@@ -71,7 +71,7 @@ namespace SushiBLAS
             return out;
         }
 
-        TEST(Unit_ReferenceTrsm, RecoversXForEverySideTriangleAndTranspose)
+        TEST(Small_ReferenceTrsm, RecoversXForEverySideTriangleAndTranspose)
         {
             const std::vector<double> x = small_integers<double>(K_ROWS * K_COLUMNS, 1);
             for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
@@ -109,7 +109,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_ReferenceTrsm, AlphaScalesTheRightHandSide)
+        TEST(Small_ReferenceTrsm, AlphaScalesTheRightHandSide)
         {
             const std::vector<double> a{1.0, 0.0, 2.0, 1.0};
             std::vector<double> b{2.0, 6.0};
@@ -121,7 +121,7 @@ namespace SushiBLAS
             EXPECT_EQ(b, (std::vector<double>{1.0, 1.0}));
         }
 
-        TEST(Unit_ReferenceTrsm, TheBatchedFormSolvesEachSystemOfTheBatch)
+        TEST(Small_ReferenceTrsm, TheBatchedFormSolvesEachSystemOfTheBatch)
         {
             const int64_t batch = 2;
             const std::vector<double> a = unit_diagonal_matrix<double>(K_ROWS, 3);

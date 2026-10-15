@@ -48,7 +48,7 @@ namespace SushiBLAS
             }
         } // namespace
 
-        class Unit_SpatialPoolMaxTest : public SushiBLASTest
+        class Medium_SpatialPoolMaxTest : public SushiBLASTest
         {
             protected:
                 /** @brief A rank-4 NHWC float tensor holding @p values in memory order. */
@@ -91,7 +91,7 @@ namespace SushiBLAS
          * @brief Tests that a padded tap never wins a window when every element is negative.
          * @see tests/operations/spatial/README.md
          */
-        TEST_F(Unit_SpatialPoolMaxTest, PaddingNeverWinsAWindow)
+        TEST_F(Medium_SpatialPoolMaxTest, PaddingNeverWinsAWindow)
         {
             // Window (0,0) has one tap inside the image. See tests/operations/spatial/README.md.
             auto in = image(1, 2, 2, 1, {-4, -3,
@@ -117,7 +117,7 @@ namespace SushiBLAS
             EXPECT_FLOAT_EQ(got[3], -1.0f) << "saw the whole image";
         }
 
-        TEST_F(Unit_SpatialPoolMaxTest, ThePoolTakesTheWindowMaximum)
+        TEST_F(Medium_SpatialPoolMaxTest, ThePoolTakesTheWindowMaximum)
         {
             auto in = four_by_four();
             auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
@@ -133,7 +133,7 @@ namespace SushiBLAS
             EXPECT_FLOAT_EQ(got[3], 9.0f);   // max{6,2,3,9}
         }
 
-        TEST_F(Unit_SpatialPoolMaxTest, TheIndexNamesTheElementTheMaximumCameFrom)
+        TEST_F(Medium_SpatialPoolMaxTest, TheIndexNamesTheElementTheMaximumCameFrom)
         {
             // The index is the logical flat NHWC position. See tests/operations/spatial/README.md.
             auto in = four_by_four();
@@ -150,7 +150,7 @@ namespace SushiBLAS
             EXPECT_EQ(got[3], 15);   // value 9 sits at (h=3, w=3)
         }
 
-        TEST_F(Unit_SpatialPoolMaxTest, ATieGoesToTheFirstElementInScanOrder)
+        TEST_F(Medium_SpatialPoolMaxTest, ATieGoesToTheFirstElementInScanOrder)
         {
             // A tie goes to the first tap in scan order. See tests/operations/spatial/README.md.
             auto in = image(1, 2, 2, 1, {5, 5,
@@ -165,7 +165,7 @@ namespace SushiBLAS
             EXPECT_EQ(indices.data_as<int64_t>()[0], 0) << "the window's first tap, in (r, s) order";
         }
 
-        TEST_F(Unit_SpatialPoolMaxTest, TheBackwardRoutesEachGradientToItsArgmaxAndNowhereElse)
+        TEST_F(Medium_SpatialPoolMaxTest, TheBackwardRoutesEachGradientToItsArgmaxAndNowhereElse)
         {
             auto in = four_by_four();
             auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
@@ -194,7 +194,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], expected[i]) << "pixel " << i;
         }
 
-        TEST_F(Unit_SpatialPoolMaxTest, OverlappingWindowsAccumulateAtASharedArgmax)
+        TEST_F(Medium_SpatialPoolMaxTest, OverlappingWindowsAccumulateAtASharedArgmax)
         {
             // All four windows select the one dominant pixel. See the test README.
             auto in = image(1, 3, 3, 1, {0, 0, 0,
@@ -227,7 +227,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], i == 4 ? 10.0f : 0.0f) << "pixel " << i;
         }
 
-        TEST_F(Unit_SpatialPoolMaxTest, TheSYCLKernelAgreesWithTheReferenceKernel)
+        TEST_F(Medium_SpatialPoolMaxTest, TheSYCLKernelAgreesWithTheReferenceKernel)
         {
             // The two forced modes are compared here. See tests/operations/spatial/README.md.
             const int64_t N = 2, H = 7, W = 5, C = 3;

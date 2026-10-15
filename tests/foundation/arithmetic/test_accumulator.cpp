@@ -36,7 +36,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_Accumulator, HalfAccumulatesInFloat)
+        TEST(Medium_Accumulator, HalfAccumulatesInFloat)
         {
             static_assert(std::is_same<Kernels::Accumulator<sycl::half>, float>::value,
                           "HALF accumulates in FLOAT32.");
@@ -44,7 +44,7 @@ namespace SushiBLAS
             EXPECT_TRUE((std::is_same<Kernels::AccumulatorOf<sycl::half>::type, float>::value));
         }
 
-        TEST(Unit_Accumulator, EveryOtherTypeAccumulatesInItself)
+        TEST(Medium_Accumulator, EveryOtherTypeAccumulatesInItself)
         {
             static_assert(std::is_same<Kernels::Accumulator<float>, float>::value, "float.");
             static_assert(std::is_same<Kernels::Accumulator<double>, double>::value, "double.");
@@ -57,7 +57,7 @@ namespace SushiBLAS
             EXPECT_TRUE((std::is_same<Kernels::Accumulator<double>, double>::value));
         }
 
-        TEST(Unit_Accumulator, AFloatSumOfHalfTermsKeepsWhatAHalfSumLoses)
+        TEST(Medium_Accumulator, AFloatSumOfHalfTermsKeepsWhatAHalfSumLoses)
         {
             // 2048 is where HALF's step grows to 2, so adding 1 to it in HALF is lost.
             const sycl::half big(2048.0f);

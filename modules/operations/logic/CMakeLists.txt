@@ -29,7 +29,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE logic
-    SIZE medium
     TESTS
         test_dispatch.cpp
         test_logic/test_all.cpp

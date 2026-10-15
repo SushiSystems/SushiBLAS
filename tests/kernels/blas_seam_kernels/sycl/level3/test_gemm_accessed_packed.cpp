@@ -44,12 +44,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs the accessed gemm on the host CPU queue. */
-        class Device_SYCLGemmAccessedPacked : public HostDeviceTest
+        class Medium_SYCLGemmAccessedPacked : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLGemmAccessedPacked, BothPathsMatchTheReference)
+        TEST_F(Medium_SYCLGemmAccessedPacked, BothPathsMatchTheReference)
         {
             // Every operand is a small integer, so both kernels compute without rounding.
             const int64_t m = 61;

@@ -459,7 +459,7 @@ namespace SushiBLAS
 
         /** @brief Gives the packed SYMM tests an engine and the queue, per element type. */
         template<typename T>
-        class Unit_PackedSymm : public SushiBLASTest
+        class Medium_PackedSymm : public SushiBLASTest
         {
             protected:
                 /** @brief Skips the test when the device does not compute in T's precision. */
@@ -487,16 +487,16 @@ namespace SushiBLAS
 
         using PackedSymmTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
                                                  std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_PackedSymm, PackedSymmTypes);
+        SB_TYPED_TEST_SUITE(Medium_PackedSymm, PackedSymmTypes);
 
         /** @brief Tests a symmetric brick as either factor against the reference, bit for bit. */
-        TYPED_TEST(Unit_PackedSymm, BothSidesEqualTheReferenceOnExactData)
+        TYPED_TEST(Medium_PackedSymm, BothSidesEqualTheReferenceOnExactData)
         {
             expect_packed_equals_reference<TypeParam, Kernels::Unconjugated>(this->queue(), 0.0);
         }
 
         /** @brief Tests a Hermitian brick whose stored diagonal carries an imaginary part. */
-        TYPED_TEST(Unit_PackedSymm, HemmReadsTheMirrorConjugatedAndTheDiagonalReal)
+        TYPED_TEST(Medium_PackedSymm, HemmReadsTheMirrorConjugatedAndTheDiagonalReal)
         {
             if constexpr (Core::is_complex_v<TypeParam>)
             {
@@ -510,7 +510,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that symm and hemm lease scratch on SYCL alone and keep parity. */
-        TYPED_TEST(Unit_PackedSymm, TheSeamLeasesScratchForASymmetricProduct)
+        TYPED_TEST(Medium_PackedSymm, TheSeamLeasesScratchForASymmetricProduct)
         {
             using T = TypeParam;
             const Device::Profile& profile = Device::profile_for(this->queue());

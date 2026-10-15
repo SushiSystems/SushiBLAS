@@ -32,7 +32,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE sparse
-    SIZE medium
     TESTS
         test_accumulator_size.cpp
         test_index_check.cpp

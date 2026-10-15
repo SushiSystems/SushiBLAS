@@ -44,7 +44,7 @@ namespace SushiBLAS
         using namespace SushiRuntime::Literals;
 
         /** @brief Counts the context's live USM allocations around record and execute calls. */
-        class Regression_OperandLifetime : public SushiBLASTest
+        class Medium_OperandLifetime : public SushiBLASTest
         {
             protected:
                 /** @brief Returns how many USM allocations of the test context are alive. */
@@ -55,7 +55,7 @@ namespace SushiBLAS
         };
 
         /** @brief Tests that an input destroyed after the record call lives until the task ran. */
-        TEST_F(Regression_OperandLifetime, ATaskKeepsItsInputAllocatedUntilItHasRun)
+        TEST_F(Medium_OperandLifetime, ATaskKeepsItsInputAllocatedUntilItHasRun)
         {
             auto out = engine->create_tensor({4}, Core::DataType::Float32);
             std::size_t live_with_input = 0;
@@ -77,7 +77,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a GEMM epilogue's declared read outlives the tensor it came from. */
-        TEST_F(Regression_OperandLifetime, AnEpilogueOperandIsKept)
+        TEST_F(Medium_OperandLifetime, AnEpilogueOperandIsKept)
         {
             auto A = create_initialized_tensor<float>({3, 2}, {1, 0, 0, 1, 1, 1});
             auto B = create_initialized_tensor<float>({2, 3}, {1, 2, 3, 4, 5, 6});
@@ -109,7 +109,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a reduction's scratch returns to the pool and is lent again. */
-        TEST_F(Regression_OperandLifetime, AScratchReturnsToThePoolWithItsTask)
+        TEST_F(Medium_OperandLifetime, AScratchReturnsToThePoolWithItsTask)
         {
             constexpr int64_t K_ELEMENTS =
                 static_cast<int64_t>(Reduce::K_CPU_TWO_STAGE_MIN_ELEMENTS) + 1;

@@ -35,7 +35,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_UnsupportedExecution, IsAFinalInvalidArgument)
+        TEST(Medium_UnsupportedExecution, IsAFinalInvalidArgument)
         {
             static_assert(std::is_base_of<std::invalid_argument, UnsupportedExecution>::value,
                           "UnsupportedExecution derives from std::invalid_argument.");
@@ -45,14 +45,14 @@ namespace SushiBLAS
             EXPECT_THROW(throw UnsupportedExecution("refused"), std::invalid_argument);
         }
 
-        TEST(Unit_UnsupportedExecution, KeepsTheMessageItWasGiven)
+        TEST(Medium_UnsupportedExecution, KeepsTheMessageItWasGiven)
         {
             const UnsupportedExecution error("ForceReference cannot reach device USM");
 
             EXPECT_EQ(std::string(error.what()), "ForceReference cannot reach device USM");
         }
 
-        TEST(Unit_UnsupportedExecution, DoesNotCatchAPlainInvalidArgument)
+        TEST(Medium_UnsupportedExecution, DoesNotCatchAPlainInvalidArgument)
         {
             bool caught_as_unsupported = false;
             bool caught_as_invalid = false;

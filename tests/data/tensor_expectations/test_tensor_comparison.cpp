@@ -53,7 +53,7 @@ namespace SushiBLAS
             return tensor;
         }
 
-        TEST(Unit_TensorComparison, AcceptsValuesWithinTheTolerance)
+        TEST(Medium_TensorComparison, AcceptsValuesWithinTheTolerance)
         {
             const Tensor tensor = float_tensor({1.0f, 2.0f, 3.0f});
 
@@ -61,7 +61,7 @@ namespace SushiBLAS
             SB_ASSERT_TENSOR_NEAR(tensor, float_tensor({1.0f, 2.0f, 3.0f}), 0.0, float);
         }
 
-        TEST(Unit_TensorComparison, ReportsAValueOutsideTheTolerance)
+        TEST(Medium_TensorComparison, ReportsAValueOutsideTheTolerance)
         {
             const Tensor tensor = float_tensor({1.0f, 2.0f});
 
@@ -69,7 +69,7 @@ namespace SushiBLAS
                                     "Mismatch (value) at index 1");
         }
 
-        TEST(Unit_TensorComparison, ANaNMatchesOnlyANaN)
+        TEST(Medium_TensorComparison, ANaNMatchesOnlyANaN)
         {
             const float nan = std::numeric_limits<float>::quiet_NaN();
             const Tensor tensor = float_tensor({nan, 1.0f});
@@ -80,7 +80,7 @@ namespace SushiBLAS
                                     "Expected NaN");
         }
 
-        TEST(Unit_TensorComparison, AnInfinityMatchesOnlyItself)
+        TEST(Medium_TensorComparison, AnInfinityMatchesOnlyItself)
         {
             const float infinity = std::numeric_limits<float>::infinity();
 

@@ -36,7 +36,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceBroadcast, ChannelAffineScalesAndShiftsEachChannel)
+        TEST(Small_ReferenceBroadcast, ChannelAffineScalesAndShiftsEachChannel)
         {
             const Spatial::WindowSpan span = nhwc_span(1, 1, 2, 2, Spatial::ConvGeometry{}, 0);
             const std::vector<float> in{1.0f, 2.0f, 3.0f, 4.0f};
@@ -50,7 +50,7 @@ namespace SushiBLAS
             EXPECT_EQ(out, (std::vector<float>{11.0f, 199.0f, 31.0f, 399.0f}));
         }
 
-        TEST(Unit_ReferenceBroadcast, BroadcastSpatialFillsEveryPixelWithItsChannelValue)
+        TEST(Small_ReferenceBroadcast, BroadcastSpatialFillsEveryPixelWithItsChannelValue)
         {
             const Spatial::WindowSpan span = nhwc_span(1, 2, 1, 2, Spatial::ConvGeometry{}, 0);
             const std::vector<float> in{3.0f, 5.0f};
@@ -61,7 +61,7 @@ namespace SushiBLAS
             EXPECT_EQ(out, (std::vector<float>{6.0f, 10.0f, 6.0f, 10.0f}));
         }
 
-        TEST(Unit_ReferenceBroadcast, LayoutConvertMovesNHWCToNCHW)
+        TEST(Small_ReferenceBroadcast, LayoutConvertMovesNHWCToNCHW)
         {
             Spatial::WindowSpan span = nhwc_span(1, 1, 2, 3, Spatial::ConvGeometry{}, 0);
             // The output is NCHW: one plane of 1 x 2 pixels per channel.

@@ -39,7 +39,7 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Tests reduce() with a device count on both layers as the count changes. */
-        TEST(Unit_GraphPrimitivesDeviceSized, ReduceChainMatchesSchedulerAsTheCountChanges)
+        TEST(Medium_GraphPrimitivesDeviceSized, ReduceChainMatchesSchedulerAsTheCountChanges)
         {
             using namespace DeviceSized;
 

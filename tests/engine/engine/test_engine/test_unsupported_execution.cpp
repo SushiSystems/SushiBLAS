@@ -79,7 +79,7 @@ namespace SushiBLAS
             }
         } // namespace
 
-        TEST(Unit_UnsupportedExecution, IsAFinalInvalidArgumentBuiltFromAMessage)
+        TEST(Medium_UnsupportedExecution, IsAFinalInvalidArgumentBuiltFromAMessage)
         {
             static_assert(std::is_base_of<std::invalid_argument, UnsupportedExecution>::value,
                           "UnsupportedExecution derives from std::invalid_argument.");
@@ -98,7 +98,7 @@ namespace SushiBLAS
             EXPECT_STREQ(from_literal.what(), "device");
         }
 
-        TEST(Unit_UnsupportedExecution, IsCaughtAsItselfAndAsInvalidArgument)
+        TEST(Medium_UnsupportedExecution, IsCaughtAsItselfAndAsInvalidArgument)
         {
             const auto raise = [] { throw UnsupportedExecution("refused"); };
 
@@ -107,14 +107,14 @@ namespace SushiBLAS
             EXPECT_EQ(outcome_of(raise), Outcome::UnsupportedExecution);
         }
 
-        TEST(Unit_UnsupportedExecution, APlainInvalidArgumentIsNotCaughtAsIt)
+        TEST(Medium_UnsupportedExecution, APlainInvalidArgumentIsNotCaughtAsIt)
         {
             const auto raise = [] { throw std::invalid_argument("wrong operand"); };
 
             EXPECT_EQ(outcome_of(raise), Outcome::InvalidArgument);
         }
 
-        TEST(Unit_UnsupportedExecution, TheExecutionHelperThrowsItNamingTheOperation)
+        TEST(Medium_UnsupportedExecution, TheExecutionHelperThrowsItNamingTheOperation)
         {
             const auto raise = []
             {
@@ -132,7 +132,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_UnsupportedExecution, TheOperandAndDtypeHelpersDoNotThrowIt)
+        TEST(Medium_UnsupportedExecution, TheOperandAndDtypeHelpersDoNotThrowIt)
         {
             const auto wrong_operand = []
             {
@@ -149,7 +149,7 @@ namespace SushiBLAS
         }
 
         /** @brief Records calls on an engine and reports how each one ended. */
-        class Unit_UnsupportedExecutionSites : public SushiBLASTest
+        class Medium_UnsupportedExecutionSites : public SushiBLASTest
         {
             protected:
                 /**
@@ -175,7 +175,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_UnsupportedExecutionSites, ForceReferenceRefusesADeviceOnlyOperand)
+        TEST_F(Medium_UnsupportedExecutionSites, ForceReferenceRefusesADeviceOnlyOperand)
         {
             std::optional<Tensor> a = make_device_tensor({2, 3});
             if (!a)
@@ -190,7 +190,7 @@ namespace SushiBLAS
             EXPECT_EQ(outcome, Outcome::UnsupportedExecution);
         }
 
-        TEST_F(Unit_UnsupportedExecutionSites, AWrongDtypeUnderForceReferenceIsNotARefusal)
+        TEST_F(Medium_UnsupportedExecutionSites, AWrongDtypeUnderForceReferenceIsNotARefusal)
         {
             const Tensor a = engine->create_tensor({2, 3});
             const Tensor b = engine->create_tensor({3, 2}, Core::DataType::Int32);
@@ -203,7 +203,7 @@ namespace SushiBLAS
             EXPECT_EQ(outcome, Outcome::InvalidArgument);
         }
 
-        TEST_F(Unit_UnsupportedExecutionSites, AWrongRankIsNotARefusal)
+        TEST_F(Medium_UnsupportedExecutionSites, AWrongRankIsNotARefusal)
         {
             const Tensor a = engine->create_tensor({6});
             const Tensor b = engine->create_tensor({3, 2});
@@ -215,7 +215,7 @@ namespace SushiBLAS
             EXPECT_EQ(outcome, Outcome::InvalidArgument);
         }
 
-        TEST_F(Unit_UnsupportedExecutionSites, ADtypeTheDeviceLacksIsARefusal)
+        TEST_F(Medium_UnsupportedExecutionSites, ADtypeTheDeviceLacksIsARefusal)
         {
             const Tensor wide = engine->create_tensor({4}, Core::DataType::Float64);
             const Tensor half = engine->create_tensor({4}, Core::DataType::Half);
@@ -226,7 +226,7 @@ namespace SushiBLAS
                       outcome_on(Device::profile_for(half.device()).supports_fp16));
         }
 
-        TEST_F(Unit_UnsupportedExecutionSites, PoissonWithoutFp64IsARefusal)
+        TEST_F(Medium_UnsupportedExecutionSites, PoissonWithoutFp64IsARefusal)
         {
             Tensor t = engine->create_tensor({4});
 
