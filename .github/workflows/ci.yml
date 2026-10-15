@@ -96,6 +96,9 @@ jobs:
         uses: ./sushiblas/.github/actions/setup-oneapi
 
       - name: Configure, build, and run functional suite
+        # The OpenCL CPU JIT vectorizer crashes on TrmvRow<std::complex<float>>; see KNOWN_ISSUES.md.
+        env:
+          CL_CONFIG_CPU_VECTORIZER_MODE: "1"
         shell: bash
         working-directory: sushiblas
         run: |
