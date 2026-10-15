@@ -14,3 +14,8 @@ sushiblas_add_module(
         arithmetic
     EXTERNAL
         GTest::gtest)
+
+sushiblas_add_test_program(
+    MODULE sparse_fixtures
+    TESTS
+        test_sparse_samples.cpp)
