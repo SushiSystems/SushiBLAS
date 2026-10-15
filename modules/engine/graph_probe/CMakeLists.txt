@@ -12,3 +12,8 @@ sushiblas_add_module(
     DEPENDS
         engine
         test_runner)
+
+sushiblas_add_test_program(
+    MODULE graph_probe
+    TESTS
+        test_graph_probe.cpp)
