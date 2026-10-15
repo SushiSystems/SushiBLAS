@@ -16,6 +16,7 @@ class Suite(str, enum.Enum):
     UNIT = "unit"
     REGRESSION = "regression"
     INTEGRATION = "integration"
+    DEVICE = "device"
     FUNCTIONAL = "functional"
     ALL = "all"
     PACKAGE = "package"
@@ -26,5 +27,6 @@ K_SUITE_LABEL_REGEX = {
     Suite.UNIT: "^unit$",
     Suite.REGRESSION: "^regression$",
     Suite.INTEGRATION: "^integration$",
+    Suite.DEVICE: "^device$",
     Suite.FUNCTIONAL: "^(unit|integration|regression)$",
 }

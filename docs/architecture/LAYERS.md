@@ -22,7 +22,7 @@
    │  plain C++ on the     │  take the queue and the dependency     │  modules/kernels/blas_seam_kernels/
    │  host                 │  events, return a sycl::event          │
    ├───────────────────────┴────────────────────────────────────────┤
-   │  Support                launch and fold shapes, serial loops,  │  modules/foundation/support/
+   │  Foundation             launch and fold shapes, serial loops,  │  modules/foundation/<module>/
    │                         accumulators, the device policy        │
    ├────────────────────────────────────────────────────────────────┤
    │  Tensor / Storage       shape, stride and dtype over a         │  tensor/tensor.hpp, tensor/storage.hpp,
@@ -34,7 +34,7 @@
 ```
 
 A layer depends on the layers below it and on none above. Four rules state what each layer may
-know, and `tools/layering/check_layering.py` checks them from the include lines and the call
+know, and `tools/layering/check_tier_contents.py` checks them from the include lines and the call
 sites:
 
 - **`Engine` knows no operation.** `engine/engine.hpp` includes the five bricks it composes
@@ -51,7 +51,7 @@ sites:
   caller hands them and know no tensor.
 - **A kernel knows neither `Engine` nor `Tensor`.** A header under `modules/kernels/` includes
   no `engine/` header, no `tensor/tensor.hpp` and no sparse operand header. It receives pointers,
-  extents and strides. A support header obeys the same rule and also includes no kernel.
+  extents and strides. A foundation header obeys the same rule and also includes no kernel.
 
 `cmake/SushiBLASLayers.cmake` holds the tier order of the modules, and each module's README says
 what it owns: [modules/README.md](../../modules/README.md) links to them.

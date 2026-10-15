@@ -72,6 +72,7 @@ sb build --clean                  # wipe the build tree first
 sb test --suite unit              # fast, run this often
 sb test --suite integration
 sb test --suite regression
+sb test --suite device            # kernels against the reference on the host CPU device
 sb test --suite all               # every CTest test
 sb test --suite package           # the out-of-tree consumer
 sb test --filter 'Gemm.*'         # ctest -R over 'Suite.Case' test names
@@ -91,8 +92,8 @@ Expectations for a mergeable change:
    complex types where applicable); see [section 5](#5-adding-a-new-operation).
    A `ForceSYCL` against `ForceReference` comparison is how a new SYCL kernel
    is checked against its reference implementation.
-3. **A fixed bug gets a regression test** in
-   `tests/regression/`, named for what it guards against (see
+3. **A fixed bug gets a regression test** in the test file of the header the
+   defect lives in, its suite prefixed `Regression_` and named for what it guards against (see
    `Regression_Sentinel.SyrkAcceptsHalfDtype` for the shape).
 
 ---
@@ -172,8 +173,8 @@ statement, on its own line, and here takes none.
    SushiBLAS, this module. The groups are ordered by hand; no tool sorts
    them.
 3. A header of SushiBLAS or SushiRuntime is included with angle brackets by
-   its module path. A header with no module path, one beside an example or
-   under `tests/common/`, is included in quotes.
+   its module path. A header with no module path, such as one beside an
+   example, is included in quotes.
 4. A header includes what it uses and forward-declares what it names only by
    pointer or reference.
 
@@ -259,7 +260,7 @@ carries depends on its family.
 | Reference kernel | `modules/kernels/<family>_kernels/include/SushiBLAS/<family>_kernels/reference/<op>.hpp` |
 | SYCL kernel | `modules/kernels/<family>_kernels/include/SushiBLAS/<family>_kernels/sycl/<op>.hpp` |
 | Both kernels' include line | The family's kernel header: `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/blas.hpp`, `modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sparse.hpp`, `modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/spatial.hpp` |
-| Test | `modules/operations/<family>/tests/test_<op>.cpp`, listed in the module's `CMakeLists.txt` |
+| Test | `tests/operations/<family>/test_<family>/test_<op>.cpp`, listed in the module's `sushiblas_add_test_program()` call |
 
 The operation source has four steps. This is `modules/operations/blas/source/level1/axpy.cpp`:
 
@@ -344,12 +345,13 @@ which is `RealAndComplex` for both: `Domain::All` for a copy, `Domain::Real`
 for a routine with no complex meaning. Inside the body, `dispatcher.run` takes the
 reference kernel and the SYCL kernel. An operation source never reads the
 execution mode, never includes `engine/engine.hpp` and never calls
-`SushiRuntime::Recorder::task`; `tools/layering/check_layering.py` reports the last two.
+`SushiRuntime::Recorder::task`; `tools/layering/check_engine_seams.py` and
+`tools/layering/check_tier_contents.py` report the last two.
 
 **The reference kernel** is plain C++ with no dependency beyond the support
 headers. It handles both `Core::Layout` values, is templated on the element
 type, and forms its sums in `Kernels::ReferenceSum<T>`
-(`support/reference_accumulator.hpp`). It is written to be read: an
+(`reference/reference_accumulator.hpp`). It is written to be read: an
 optimisation in it is a second implementation that can be wrong.
 
 **The SYCL kernel** takes the `sycl::queue&` and a
@@ -357,7 +359,7 @@ optimisation in it is a second implementation that can be wrong.
 submission. Every command group calls `h.depends_on(deps)`, and a second
 launch depends on the event of the first. It launches through `Launch::` or
 `Reduce::` where one of their shapes fits, forms its sums in
-`Kernels::Accumulator<T>` (HALF in FLOAT32, `support/accumulator.hpp`), and
+`Kernels::Accumulator<T>` (HALF in FLOAT32, `arithmetic/accumulator.hpp`), and
 keeps the order of every floating-point sum a function of the device and the
 extents: no atomic add, no `sycl::reduction`. Scratch it needs is leased by the
 operation source at record time and passed in.
@@ -386,7 +388,7 @@ Source: `modules/operations/elementwise/source/add.cpp`
 
 - State the `Domain` the functor is well-formed for. The default is
   `Domain::Real`. A functor instantiated for complex uses the `safe_*` helpers
-  of `support/safe_math.hpp`, and one instantiated for the integers uses
+  of `arithmetic/safe_math.hpp`, and one instantiated for the integers uses
   `elementwise/wrapping_math.hpp`.
 - The functor reaches a device: it is trivially copyable, captures by value,
   holds no host pointer, allocates nothing and throws nothing.
@@ -419,12 +421,12 @@ Source: `modules/operations/elementwise/source/add.cpp`
   refusal.
 - **Ordering on the dependency count.** A test that the task is ordered
   against another asserts on the task's `dependency_count`, read from
-  `GraphProbe::recorded_tasks()` (`tests/common/graph_probe.hpp`), not on an
+  `GraphProbe::recorded_tasks()` (`modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp`), not on an
   output value.
 - **More than one shape**: square, rectangular, a vector, an empty operand,
   and for BLAS both layouts and each flag value.
 
-[`tests/unit/README.md`](../tests/unit/README.md) holds
+[`tests/README.md`](../tests/README.md) holds
 the reasoning behind these rules.
 
 ---

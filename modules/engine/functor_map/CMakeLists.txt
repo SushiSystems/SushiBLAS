@@ -9,11 +9,15 @@ sushiblas_add_module(
     LAYER engine
     DEPENDS
         core
-        support
+        launch
+        reference
         tensor
         engine)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE functor_map
-    SOURCES
-        test_read_binding.cpp)
+    TESTS
+        test_map_task.cpp
+        test_read_binding.cpp
+        test_scalar.cpp
+        test_scalar_binding.cpp)

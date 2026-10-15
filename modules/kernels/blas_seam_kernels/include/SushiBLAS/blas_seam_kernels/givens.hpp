@@ -32,7 +32,7 @@
 
 #include <limits>
 #include <complex>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 
 namespace SushiBLAS
 {

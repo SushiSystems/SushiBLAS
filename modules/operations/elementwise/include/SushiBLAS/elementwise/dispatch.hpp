@@ -41,7 +41,7 @@
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
-#include <SushiBLAS/support/safe_math.hpp>
+#include <SushiBLAS/arithmetic/safe_math.hpp>
 #include <SushiBLAS/functor_map/map_task.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
 #include <SushiBLAS/elementwise/wrapping_math.hpp>

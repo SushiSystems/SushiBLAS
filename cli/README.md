@@ -119,9 +119,9 @@ The options SushiBLAS itself defines:
 | Option | Default | What it does |
 |--------|---------|--------------|
 | `SB_LOG_LEVEL` | `auto` | Compiled-in log level: `auto`, `OFF`, `ERR`, `WARN`, `INFO`, `DEBUG`. `auto` means WARN for a release build and DEBUG for a debug build. |
-| `SB_BUILD_TESTS` | `ON` at the top level, `OFF` under a consumer | Build and register the test suite under `tests/`. |
+| `SB_BUILD_TESTS` | `ON` at the top level, `OFF` under a consumer | Build and register the test program of each module from its mirror under `tests/`. |
 | `SB_BUILD_EXAMPLES` | `ON` at the top level, `OFF` under a consumer | Build the example programs under `applications/examples/`. |
-| `SB_BUILD_BENCHMARKS` | `OFF` | Build the benchmark programs under `tests/benchmark/`; `sb build --benchmarks` sets it. |
+| `SB_BUILD_BENCHMARKS` | `OFF` | Build the benchmark programs of the modules under `tests/`; `sb build --benchmarks` sets it. |
 | `SB_NATIVE_ARCH` | `OFF` | Build for the host CPU's own instruction set. |
 | `SB_SYCL_TARGETS` | *(empty)* | AOT device targets; empty means the targets SushiRuntime resolved. |
 | `SB_SYCL_DEVICE_FLAGS` | *(empty)* | Extra flags for the device compilation pass. |
@@ -149,6 +149,7 @@ sb test                          # functional (unit+integration+regression) — 
 sb test --suite unit
 sb test --suite integration
 sb test --suite regression
+sb test --suite device           # kernels against the reference on the host CPU device
 sb test --suite all              # every CTest test
 sb test --suite package          # the out-of-tree consumer (see below)
 ```
@@ -161,7 +162,7 @@ sb test --repeat 5            # re-run each test up to 5x, stop on first failure
 ```
 
 `--filter` (`-f`) matches `Suite.Case` test names (the `Unit_`/`Integration_`/
-`Regression_`-prefixed GTest suite names CTest discovers). `--repeat` (`-r`)
+`Regression_`/`Device_`-prefixed GTest suite names CTest discovers). `--repeat` (`-r`)
 is handy for hunting flaky tests (`ctest --repeat until-fail`).
 
 For GoogleTest-level options CTest doesn't expose (per-case `--gtest_filter`,
@@ -212,7 +213,7 @@ flags to the test binary:
 
 ```bash
 sb run sushiblas_blas_tests -- --gtest_filter='Unit_GEMMTest.*'
-sb run sushiblas_tests -- --gtest_shuffle --gtest_break_on_failure
+sb run sushiblas_umbrella_tests -- --gtest_shuffle --gtest_break_on_failure
 ```
 
 An option `sb run` does not know, written before `--`, is a usage error with

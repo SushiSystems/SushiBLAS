@@ -29,8 +29,8 @@
 
 #include <cmath>
 #include <cstdint>
-#include <SushiBLAS/support/orthonormal_sweep.hpp>
-#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/orthonormal/orthonormal_sweep.hpp>
+#include <SushiBLAS/reference/reference_accumulator.hpp>
 
 namespace SushiBLAS
 {

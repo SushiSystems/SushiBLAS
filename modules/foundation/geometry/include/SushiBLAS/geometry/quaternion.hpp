@@ -29,7 +29,7 @@
 
 #include <cmath>
 #include <type_traits>
-#include <SushiBLAS/support/device_math.hpp>
+#include <SushiBLAS/arithmetic/device_math.hpp>
 #include <SushiBLAS/geometry/vector3.hpp>
 
 namespace SushiBLAS

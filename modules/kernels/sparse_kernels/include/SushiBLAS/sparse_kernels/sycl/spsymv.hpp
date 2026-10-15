@@ -34,8 +34,8 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
-#include <SushiBLAS/support/accumulator.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/arithmetic/accumulator.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
 #include <SushiBLAS/sparse_kernels/sycl/row_blocks.hpp>

@@ -35,7 +35,7 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/operands/blas_metadata.hpp>
 #include <SushiBLAS/operands/vector_operand.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS

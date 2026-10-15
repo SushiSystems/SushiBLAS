@@ -31,8 +31,8 @@
 #include <cstdint>
 #include <cstddef>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/support/launch_1d.hpp>
-#include <SushiBLAS/support/spatial_geometry.hpp>
+#include <SushiBLAS/launch/launch_1d.hpp>
+#include <SushiBLAS/geometry/spatial_geometry.hpp>
 
 namespace SushiBLAS
 {

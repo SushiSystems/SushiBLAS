@@ -99,7 +99,7 @@ endif()
 # --- Testing switch ---
 # Declared before the modules: a module registers its own test program, so the switch,
 # GoogleTest and enable_testing() have to exist by the time the first module is read.
-option(SB_BUILD_TESTS "Build and register the test programs of the modules and of tests/" ${SB_IS_TOP_LEVEL})
+option(SB_BUILD_TESTS "Build and register the test program of each module from its mirror under tests/" ${SB_IS_TOP_LEVEL})
 if(SB_BUILD_TESTS)
     if(CMAKE_VERSION VERSION_LESS 3.22)
         message(FATAL_ERROR "SB_BUILD_TESTS needs CMake 3.22 for gtest_discover_tests(TEST_FILTER).")
@@ -108,7 +108,10 @@ if(SB_BUILD_TESTS)
     find_package(GTest CONFIG REQUIRED)
     include(GoogleTest)
 endif()
-include(SushiBLASTests)  # sushiblas_add_test_program(), sushiblas_add_module_tests()
+# Declared before the modules for the same reason: a module adds its benchmark programs, and
+# the operations tier adds benchmark_harness, only when the switch is on.
+option(SB_BUILD_BENCHMARKS "Build the benchmark programs of the modules under tests/" OFF)
+include(SushiBLASTests)  # sushiblas_add_test_program(), sushiblas_add_application_test_program()
 
 # --- Modules ---
 # Every tier in order; the last one composes the `sushiblas` library from the object
@@ -120,10 +123,6 @@ if(SB_BUILD_EXAMPLES)
     add_subdirectory(applications/examples)
 endif()
 
-option(SB_BUILD_BENCHMARKS "Build the benchmark programs under tests/benchmark/" OFF)
-if(SB_BUILD_BENCHMARKS)
-    add_subdirectory(tests/benchmark)
-endif()
 
 # --- Package files (SB-6) ---
 # Written after add_subdirectory(modules) so the sushiblas/SushiRuntime::SushiRuntime
@@ -150,8 +149,3 @@ install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/SushiBLASConfigVersion.cmake"
     DESTINATION "${SB_INSTALL_CMAKEDIR}"
 )
-
-# --- Cross-module tests ---
-if(SB_BUILD_TESTS)
-    add_subdirectory(tests)
-endif()

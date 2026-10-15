@@ -29,7 +29,7 @@
 
 #include <type_traits>
 #include <SushiBLAS/core/traits.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 
 namespace SushiBLAS
 {

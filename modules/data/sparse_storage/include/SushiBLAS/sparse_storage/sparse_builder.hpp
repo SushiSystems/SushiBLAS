@@ -38,7 +38,7 @@
 #include <SushiBLAS/tensor/host_data_type.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/sparse_types.hpp>
-#include <SushiBLAS/support/sparse_assembly.hpp>
+#include <SushiBLAS/sparse_assembly/sparse_assembly.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 
 namespace SushiBLAS

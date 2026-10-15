@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from layering.check_layering import K_TIER_ORDER  # noqa: E402
+from settings import K_TIER_ORDER  # noqa: E402
 
 K_REPOSITORY = Path(__file__).resolve().parents[2]
 K_LAYERS_FILE = K_REPOSITORY / "cmake" / "SushiBLASLayers.cmake"
@@ -32,7 +32,7 @@ class TierTableTest(unittest.TestCase):
     """Checks the two statements of the tier order against each other and against the folders."""
 
     def test_the_checker_and_the_build_state_one_order(self) -> None:
-        """The order of check_layering.py is the order of SushiBLASLayers.cmake."""
+        """The order of tools/settings.py is the order of SushiBLASLayers.cmake."""
         self.assertEqual(list(K_TIER_ORDER), _cmake_list("SUSHIBLAS_LAYER_ORDER"))
 
     def test_every_module_folder_is_in_the_table_under_its_tier(self) -> None:

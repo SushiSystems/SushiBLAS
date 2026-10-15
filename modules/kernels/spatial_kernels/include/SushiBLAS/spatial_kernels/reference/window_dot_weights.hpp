@@ -28,8 +28,8 @@
 #pragma once
 
 #include <cstdint>
-#include <SushiBLAS/support/spatial_geometry.hpp>
-#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/geometry/spatial_geometry.hpp>
+#include <SushiBLAS/reference/reference_accumulator.hpp>
 
 namespace SushiBLAS
 {

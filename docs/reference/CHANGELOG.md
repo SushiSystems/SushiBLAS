@@ -6,6 +6,14 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-15 — cli: Added `sb test --suite device`, which runs the `Device_` tests that check a kernel against its reference on the host CPU device (`suite.py`).
+- 2026-10-15 — tools: Took the shared checkers and their settings from SushiSkills and moved the five SushiBLAS layer rules to `tools/layering/check_tier_contents.py`.
+- 2026-10-15 — build: Added `PRIVATE_DEPENDS` to `sushiblas_add_module()` for the modules only `source/` includes, and moved thirteen such edges of six operation modules there.
+- 2026-10-15 — tests: Gave every public header a test file and the adapter example a test program built by `sushiblas_add_application_test_program()`.
+- 2026-10-15 — umbrella: Breaking change: `<SushiBLAS/SushiBLAS.h>` is gone; include `<SushiBLAS/SushiBLAS.hpp>`, which the new `umbrella` module holds and which includes every public header.
+- 2026-10-15 — tests: Moved every test and benchmark into the mirror `tests/<tier>/<module>/`, one program per module from `sushiblas_add_test_program()`, with unit, integration, regression and device as labels.
+- 2026-10-15 — tests: Split `tests/common` into ten internal test-only modules; `SushiBLASTest` is `<SushiBLAS/engine_fixture/sushiblas_test.hpp>` and the tensor checks are in `tensor_expectations`.
+- 2026-10-14 — layout: Breaking change: split the `support` module into seven foundation modules and moved `spatial_geometry.hpp` to `geometry`; a moved header is included as `<SushiBLAS/<module>/<name>.hpp>`.
 - 2026-10-13 — blas: Added a GEMM kernel that divides K over the work-items of a group, chosen on a GPU for a small result under a long K (`gemm.hpp`, `plan_depth_split`, `gemm_depth_split`).
 - 2026-10-13 — blas: Gave each row of a GEMV with few strided rows a work-group on a GPU (`gemv.hpp`).
 - 2026-10-13 — benchmarks: Added eleven products with a small result and a long K, in two memory layouts, to `benchmark_gemm` (`benchmark_gemm.cpp`).

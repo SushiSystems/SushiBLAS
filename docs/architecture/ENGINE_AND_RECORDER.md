@@ -35,7 +35,7 @@ recording the runtime refuses throws `std::runtime_error` with the runtime's mes
 is a copyable callable `(const KernelPairDispatcher&, sycl::queue&, const
 std::vector<sycl::event>&) -> sycl::event` that must order its work behind the events it is
 given. On the SYCL side that means every command group calls `h.depends_on(deps)`;
-`check_layering.py` reports a command group without it.
+`check_engine_seams.py` reports a command group without it.
 
 One mutex in the recorder serialises record calls, so several threads may record on one engine
 at once; the tasks reach the graph in the order the threads took the lock. `execute()` and
@@ -81,7 +81,7 @@ TaskRecorder first_recorder(first_graph.recorder(), pool);
 ReductionOps(first_recorder).sum(input, first_result);
 ```
 
-Source: `tests/unit/test_scratch_buffer.cpp`
+Source: `tests/operations/reductions/test_reductions/test_scratch_buffer.cpp`
 
 The test builds two such recorders. `TestEnvironment::runtime()` returns the `SushiRuntime::Runtime&` of the test program. The
 recorder's third constructor argument is the `ExecutionMode`, `Auto` by default.

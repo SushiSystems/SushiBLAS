@@ -27,7 +27,7 @@ passes `Domain::RealAndComplex` only when its functor is written against the com
 Warning: This is a low-level generic seam. `op_func` is inlined into a SYCL device kernel: it must
 be device-copyable, capture by value only, hold no host pointers, allocate nothing and throw
 nothing. A functor instantiated for the complex dtypes is written against
-`<SushiBLAS/support/safe_math.hpp>` rather than the raw `sycl::` math builtins, or it fails to
+`<SushiBLAS/arithmetic/safe_math.hpp>` rather than the raw `sycl::` math builtins, or it fails to
 compile for them.
 
 ### `execute_nonlinear_backward`

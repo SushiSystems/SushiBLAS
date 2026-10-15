@@ -20,20 +20,29 @@ sushiblas_add_module(
         sptrsv.cpp
     DEPENDS
         core
-        support
+        arithmetic
         tensor
         sparse_storage
-        blas_seam_kernels
-        sparse_kernels
         engine
-        operands)
+        operands
+    PRIVATE_DEPENDS
+        blas_seam_kernels
+        launch
+        sparse_kernels)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE sparse
-    SOURCES
-        test_sparse_level1.cpp
-        test_sparse_spmm.cpp
-        test_sparse_spmv.cpp
-        test_sparse_spsymv.cpp
-        test_sparse_sptrsv.cpp
-        test_sparse_validation.cpp)
+    TESTS
+        test_accumulator_size.cpp
+        test_index_check.cpp
+        test_sparse/test_sparse_level1.cpp
+        test_sparse/test_sparse_recording.cpp
+        test_sparse/test_sparse_spmm.cpp
+        test_sparse/test_sparse_spmv.cpp
+        test_sparse/test_sparse_spsymv.cpp
+        test_sparse/test_sparse_sptrsv.cpp
+        test_sparse/test_sparse_validation.cpp
+        test_sparse_matrix_operand.cpp
+        test_sparse_vector_operand.cpp
+    BENCHMARKS
+        benchmark_sparse.cpp)

@@ -42,7 +42,7 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | Packed product | The CPU path of GEMM, SYRK and SYMM: it blocks over the three dimensions, copies the A and B panels into contiguous scratch and runs a fixed register-block micro-kernel |
 | CSR | Compressed sparse row: row offsets, column indices and values, the three tensors a `SparseMatrix` holds |
 | Windowed product | `window_dot`: for each output position, the sum over a window of input times weight, one group per channel over NHWC; a depthwise convolution |
-| Device profile | `Device::Profile`, the facts about a device that a kernel dispatches on, probed once per device (`support/device_policy.hpp`) |
+| Device profile | `Device::Profile`, the facts about a device that a kernel dispatches on, probed once per device (`launch/device_policy.hpp`) |
 | Register block | The square of accumulators one GEMM work-item keeps in registers; 8x8 for 4-byte and narrower element types, 4x4 for wider ones |
 | Tile | The block of an operand a GEMM work-group stages in local memory |
 | AOT target | A device target compiled ahead of time through `SB_SYCL_TARGETS`, as opposed to SPIR-V compiled by the runtime |

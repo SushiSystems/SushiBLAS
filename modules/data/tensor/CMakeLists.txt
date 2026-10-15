@@ -10,10 +10,10 @@ sushiblas_add_module(
     DEPENDS
         core)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE tensor
-    SOURCES
-        test_storage_offset.cpp
-        test_tensor_const_access.cpp
-        test_tensor_factory.cpp
-        test_tensor_view.cpp)
+    TESTS
+        test_host_data_type.cpp
+        test_storage.cpp
+        test_tensor.cpp
+        test_tensor_factory.cpp)

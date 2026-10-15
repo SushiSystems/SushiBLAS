@@ -33,8 +33,8 @@
 #include <utility>
 #include <type_traits>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
-#include <SushiBLAS/support/complex_arithmetic.hpp>
-#include <SushiBLAS/support/reference_accumulator.hpp>
+#include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/reference/reference_accumulator.hpp>
 
 namespace SushiBLAS
 {

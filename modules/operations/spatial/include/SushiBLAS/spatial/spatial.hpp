@@ -32,7 +32,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
-#include <SushiBLAS/support/spatial_geometry.hpp>
+#include <SushiBLAS/geometry/spatial_geometry.hpp>
 
 namespace SushiBLAS
 {
