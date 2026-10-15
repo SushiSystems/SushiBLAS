@@ -25,6 +25,7 @@
  * @author Mustafa Garip
  */
 
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
@@ -70,8 +71,12 @@ namespace SushiBLAS
             GemmProblem<float> problem(queue(), Core::Layout::RowMajor, Core::Transpose::NoTrans,
                                        Core::Transpose::NoTrans, 64, 48, 33, 1);
             problem.poison_output();
+            const std::vector<float> got = problem.unpacked(1.0f, 0.0f);
+            const std::vector<float> want = problem.expected(1.0f, 0.0f);
 
-            EXPECT_EQ(problem.unpacked(1.0f, 0.0f), problem.expected(1.0f, 0.0f));
+            // The padding keeps its NaN poison, and NaN never compares equal, so compare bits.
+            ASSERT_EQ(got.size(), want.size());
+            EXPECT_EQ(count_bit_mismatches(got.data(), want.data(), got.size()), std::size_t{0});
         }
     } // namespace Test
 } // namespace SushiBLAS
