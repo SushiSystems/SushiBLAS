@@ -11,3 +11,10 @@ sushiblas_add_module(
     INTERNAL
     DEPENDS
         core)
+
+sushiblas_add_test_program(
+    MODULE blas_test_oracle
+    TESTS
+        test_blas_flags.cpp
+        test_blas_structured.cpp
+        test_blas_truth.cpp)
