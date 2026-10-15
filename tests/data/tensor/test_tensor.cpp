@@ -42,13 +42,13 @@ namespace SushiBLAS
     namespace Test
     {
         /// @brief Returns a storage of n_bytes on the shared runtime's first device.
-        SushiRuntime::sushi_ptr<Storage> bytes(std::size_t n_bytes)
+        static SushiRuntime::sushi_ptr<Storage> bytes(std::size_t n_bytes)
         {
             return SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(), n_bytes);
         }
 
         /// @brief Returns the strides of dims in layout, rank entries long.
-        std::vector<int64_t> strides_of(std::vector<int64_t> dims, Core::Layout layout)
+        static std::vector<int64_t> strides_of(std::vector<int64_t> dims, Core::Layout layout)
         {
             const auto all = Tensor::layout_strides(
                 SushiRuntime::span<const int64_t>(dims.data(), dims.size()), layout);

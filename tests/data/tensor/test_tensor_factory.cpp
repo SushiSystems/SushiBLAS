@@ -40,7 +40,7 @@ namespace SushiBLAS
     namespace Test
     {
         /// @brief Returns dims as the span the factory takes.
-        SushiRuntime::span<const int64_t> span_of(const std::vector<int64_t>& dims)
+        static SushiRuntime::span<const int64_t> span_of(const std::vector<int64_t>& dims)
         {
             return SushiRuntime::span<const int64_t>(dims.data(), dims.size());
         }
