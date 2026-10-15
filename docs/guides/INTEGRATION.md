@@ -69,7 +69,7 @@ SushiBLAS's source tree. It also runs the flag assertion of
 [section 3](#3-what-you-inherit-and-what-you-must-supply).
 
 When SushiBLAS built SushiRuntime as a subdirectory, `cmake --install` on SushiBLAS's build tree
-installs SushiRuntime into the same prefix, and one prefix is enough. `sb test --suite package`
+installs SushiRuntime into the same prefix, and one prefix is enough. `sb test --package`
 installs that way.
 
 ### From a sibling checkout

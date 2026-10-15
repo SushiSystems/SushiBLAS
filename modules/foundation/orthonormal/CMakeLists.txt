@@ -10,5 +10,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE orthonormal
+    SIZE small
     TESTS
         test_orthonormal_sweep.cpp)

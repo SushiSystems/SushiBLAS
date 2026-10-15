@@ -54,6 +54,7 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE blas
+    SIZE medium
     TESTS
         test_band_operand.cpp
         test_blas/test_asum.cpp

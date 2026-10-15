@@ -9,7 +9,6 @@ memory_allocation # an enumerator of sycl::errc
 sushiblas_[a-z_]+_tests # a test program cmake/SushiBLASTests.cmake names from its module
 pkg_check_modules # a CMake command
 doxygen_exe # a configuration key of sushicore, the shared layer of the CLI
-KeyError # a Python built-in exception
 HostKernel # a class of the intel-llvm SYCL runtime, named in a link error
 CaseName # a parameter name of GoogleTest's TYPED_TEST_SUITE macro
 count_include_pad|channels_last # PyTorch names, cited for comparison

@@ -17,8 +17,10 @@ from typer.testing import CliRunner
 import sushiblas
 from sushiblas.cli import app
 
+pytestmark = pytest.mark.small
+
 K_GROUPS = {
-    "Project": ["build", "test", "run", "clean"],
+    "Project": ["build", "test", "bench", "run", "clean"],
     "Diagnostics": ["config", "env", "setup", "doctor", "link", "unlink"],
     "Documentation": ["docs"],
 }

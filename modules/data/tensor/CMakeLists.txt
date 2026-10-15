@@ -12,6 +12,7 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE tensor
+    SIZE medium
     TESTS
         test_host_data_type.cpp
         test_storage.cpp

@@ -14,6 +14,7 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE blas_test_oracle
+    SIZE medium
     TESTS
         test_blas_flags.cpp
         test_blas_structured.cpp

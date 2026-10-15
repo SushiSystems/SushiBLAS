@@ -2,7 +2,7 @@
 
 This folder is a separate CMake project. It finds an installed SushiBLAS through
 `find_package`, builds `main.cpp` against it and runs the result. It has no access to the
-sushiblas source tree. `sb test --suite package` installs the package and drives it; see
+sushiblas source tree. `sb test --package` installs the package and drives it; see
 `cli/README.md`.
 
 ## main.cpp

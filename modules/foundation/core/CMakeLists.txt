@@ -10,6 +10,7 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE core
+    SIZE medium
     TESTS
         test_blas_types.cpp
         test_common.cpp

@@ -122,6 +122,7 @@ The options SushiBLAS itself defines:
 | `SB_BUILD_TESTS` | `ON` at the top level, `OFF` under a consumer | Build and register the test program of each module from its mirror under `tests/`. |
 | `SB_BUILD_EXAMPLES` | `ON` at the top level, `OFF` under a consumer | Build the example programs under `applications/examples/`. |
 | `SB_BUILD_BENCHMARKS` | `OFF` | Build the benchmark programs of the modules under `tests/`; `sb build --benchmarks` sets it. |
+| `SB_SANITIZE` | *(empty)* | Sanitizers for host code, as `-fsanitize=` takes them; `sb build --sanitize` sets it. |
 | `SB_NATIVE_ARCH` | `OFF` | Build for the host CPU's own instruction set. |
 | `SB_SYCL_TARGETS` | *(empty)* | AOT device targets; empty means the targets SushiRuntime resolved. |
 | `SB_SYCL_DEVICE_FLAGS` | *(empty)* | Extra flags for the device compilation pass. |
@@ -133,6 +134,12 @@ without editing `modules/foundation/core/include/SushiBLAS/core/logger.hpp`. Put
 it lives in an `inline constexpr` variable in a header every consumer compiles,
 so the library and everything linking it must agree on it.
 
+`--sanitize` instruments host code: `address-undefined` sets
+`SB_SANITIZE=address,undefined`, `thread` sets `SB_SANITIZE=thread` and `none`
+clears it. Left out, the last setting stays. The SYCL device compile is not
+instrumented. SushiRuntime turns ThreadSanitizer on for its own debug and
+RelWithDebInfo builds, so build `address-undefined` as a release build.
+
 If the SushiRuntime sibling can't be found, `sb build` fails fast with a
 clear message rather than letting CMake's own `add_subdirectory` error
 surface. See `sb config` for what the CLI resolved as the runtime location,
@@ -141,18 +148,21 @@ in the environment) to point it elsewhere.
 
 ## `sb test`
 
-Runs the test suite through CTest. Tests are grouped by label, and you pick a
-group with `--suite` (`-s`):
+Runs the tests of the sizes you name through CTest. Every test carries one size
+label, `small`, `medium` or `large`; [the tests README](../tests/README.md#sizes-are-labels)
+says what each allows. `--label` (`-l`) picks the sizes and repeats:
 
 ```bash
-sb test                          # functional (unit+integration+regression) — the default
-sb test --suite unit
-sb test --suite integration
-sb test --suite regression
-sb test --suite device           # kernels against the reference on the host CPU device
-sb test --suite all              # every CTest test
-sb test --suite package          # the out-of-tree consumer (see below)
+sb test                          # small and medium, the default
+sb test --label small
+sb test --label small --label large
+sb test --label quarantined      # the quarantined tests only
+sb test --cli                    # the pytest tests of this CLI
+sb test --package                # the out-of-tree consumer (see below)
 ```
+
+A quarantined test runs only when `quarantined` is named; otherwise `sb test`
+passes `-LE ^quarantined$` to ctest.
 
 Useful options:
 
@@ -161,17 +171,22 @@ sb test --filter 'Gemm.*'     # ctest -R regex over 'Suite.Case' test names
 sb test --repeat 5            # re-run each test up to 5x, stop on first failure
 ```
 
-`--filter` (`-f`) matches `Suite.Case` test names (the `Unit_`/`Integration_`/
-`Regression_`/`Device_`-prefixed GTest suite names CTest discovers). `--repeat` (`-r`)
-is handy for hunting flaky tests (`ctest --repeat until-fail`).
+`--filter` (`-f`) matches `Suite.Case` test names. `--repeat` (`-r`) is handy
+for hunting flaky tests (`ctest --repeat until-fail`).
 
 For GoogleTest-level options CTest doesn't expose (per-case `--gtest_filter`,
 shuffling, break-on-failure), run the binary directly with `sb run` and pass
 flags after `--`.
 
-### `--suite package`
+### `--cli`
 
-The one suite that isn't a CTest label. It installs the package to
+Runs `python -m pytest -m <expression>` in `cli/`, with the expression of the
+labels given: `sb test --cli --label small` runs `(small) and not quarantined`.
+`--filter` and `--repeat` are ctest knobs, so they are rejected with exit 2.
+
+### `--package`
+
+Runs no CTest test. It installs the package to
 `build/package/prefix`, configures `tests/package/` into
 `build/package/consumer` against it, builds it, stages the shared libraries
 beside it and runs it: it consumes SushiBLAS the way SushiAI does, through
@@ -182,18 +197,17 @@ tree but isn't installed, a development flag (`-Werror`, `-march=`, a sanitizer)
 leaking through the exported interface onto a consumer's build, and a construct
 that compiles at the library's C++17 but not at the consumer's C++20.
 
-Two consequences worth knowing:
-
-- **It is not included in `--suite all`.** A full install plus a second
-  configure and build costs minutes and is usually not what you want mid-loop.
-  `--suite all` prints a line saying it was skipped, so the gap is announced
-  rather than silent.
-- **`--filter` and `--repeat` are rejected with exit 2.** Both are CTest knobs
-  and this suite runs no CTest; accepting them and quietly ignoring them would
-  be worse than refusing.
+`--label`, `--filter`, `--repeat` and `--cli` are rejected with exit 2: this
+run has no CTest selection to apply them to.
 
 Run it before publishing anything that adds a public header or touches
 `modules/library/sushiblas/CMakeLists.txt`'s install rules.
+
+## `sb bench`
+
+Runs every benchmark program under `build/tests/`, in name order, after
+`sb build --benchmarks`. A benchmark measures and does not pass or fail; the
+command exits with the first non-zero code a program returned.
 
 ## `sb run`
 

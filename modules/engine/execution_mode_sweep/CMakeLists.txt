@@ -14,5 +14,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE execution_mode_sweep
+    SIZE medium
     TESTS
         test_execution_mode_sweep.cpp)

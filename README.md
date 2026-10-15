@@ -119,22 +119,14 @@ sb docs           # build the Doxygen API reference into build/docs/api-site/htm
 ## Running the tests
 
 ```bash
-sb test                          # functional suite (the default)
-sb test --suite unit             # unit only
-sb test --suite integration      # integration only
-sb test --suite regression       # regression only
-sb test --suite all              # every CTest test
-sb test --suite package          # the out-of-tree consumer of the installed package
+sb test                          # the small and medium tests (the default)
+sb test --label small            # one size; small, medium or large, repeatable
+sb test --package                # the out-of-tree consumer of the installed package
 sb test --filter 'Gemm.*'        # ctest -R over 'Suite.Case' test names
 sb test --repeat 5               # re-run until first failure
 
 # or run one test program directly; a module's is sushiblas_<module>_tests
 sb run sushiblas_blas_tests -- --gtest_filter='Unit_GEMMTest.*'
-
-# or through ctest, by label
-ctest --test-dir build -L unit
-ctest --test-dir build -L integration
-ctest --test-dir build -L regression
 ```
 
 ## How it works

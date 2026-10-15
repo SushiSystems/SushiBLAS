@@ -40,6 +40,7 @@ sushiblas_add_module(
 # The tests that cross several operation families and so belong to no single family.
 sushiblas_add_test_program(
     MODULE umbrella
+    SIZE medium
     TESTS
         test_SushiBLAS/test_dependency_stress.cpp
         test_SushiBLAS/test_dispatch_complex.cpp

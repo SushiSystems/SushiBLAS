@@ -14,6 +14,7 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE host_device
+    SIZE medium
     TESTS
         test_host_device_test.cpp
         test_host_queue.cpp

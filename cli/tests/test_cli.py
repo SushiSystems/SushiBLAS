@@ -22,8 +22,10 @@ from typer.testing import CliRunner
 import sushiblas.console
 from sushiblas import cli
 
+pytestmark = pytest.mark.medium
+
 K_VISIBLE_COMMANDS = [
-    "build", "clean", "config", "docs", "docs bundle", "doctor", "env", "link", "run", "setup",
+    "bench", "build", "clean", "config", "docs", "docs bundle", "doctor", "env", "link", "run", "setup",
     "test", "unlink",
 ]
 K_ENVIRONMENT = ("SUSHI_CLI_THEME", "SUSHI_CLI_ICONS", "SUSHI_CLI_COLOR", "SUSHISTACK_HOME")

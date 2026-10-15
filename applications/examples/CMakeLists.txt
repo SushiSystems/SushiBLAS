@@ -20,6 +20,7 @@ target_link_libraries(adapter_demo PRIVATE sushiblas)
 sushiblas_apply_build_policy(adapter_demo)
 sushiblas_add_application_test_program(
     NAME adapter
+    SIZE medium
     DIRECTORY examples/adapter
     SOURCES sushiblas_adapter.cpp
     TESTS

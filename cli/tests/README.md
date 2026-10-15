@@ -1,6 +1,8 @@
 # CLI tests
 
-The pytest suite of the `sushiblas` package. Run it with `python -m pytest -q` from `cli/`.
+The pytest suite of the `sushiblas` package. Run it with `sb test --cli`. Every test file carries
+one size marker, `small` or `medium`, and `conftest.py` fails collection when a test has none or
+more than one, and gives each the timeout of its size.
 
 ## conftest.py
 
@@ -25,10 +27,8 @@ outside a checkout failed for as long as the copies existed. The lifecycle now l
 `sushicore.cli_console.LazyConsole`. These tests pin that this CLI is wired to it, which is the
 part a shared implementation cannot check on its own.
 
-## test_suites.py
+## test_test_label.py
 
-`sb test` maps every suite to a `ctest -L` regex through `K_SUITE_LABEL_REGEX`, with two
-deliberate exceptions: `all`, which selects no label, and `package`, which runs no ctest. Both
-are absent from the mapping, so both depend on `test()` branching before it indexes the mapping.
-A missing branch is a `KeyError` at the moment the user runs the command. These tests exist to
-prevent that.
+`sb test` keeps quarantined tests out of every selection that does not name them. These tests pin
+the regexes and the marker expression each selection produces, so a stage that gates never picks
+up a quarantined test by accident.

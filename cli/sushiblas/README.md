@@ -88,24 +88,25 @@ index. It still prints progress lines through the console it receives, because s
 `services/diag.py` keeps `K_DIAGNOSTICS` at module level: `register_diagnostic_commands` takes
 the object when the commands are declared.
 
-## services/suite.py
+## services/test_label.py
 
-### Suite
+### TestLabel
 
-`unit`, `regression`, `integration` and `device` are CTest labels, assigned in
-`cmake/SushiBLASTests.cmake` from the prefix of the GTest suite name. `functional` is the umbrella
-over the first three; `device` runs a kernel against its reference on the host CPU device and is
-left out of it.
+`small`, `medium` and `large` are the sizes `cmake/SushiBLASTests.cmake` gives every test as its
+one CTest label; `quarantined` is the label a quarantined test carries beside its size.
 
-`package` is not a CTest label and not part of `all`. It is an out-of-tree consumer of the
-installed package, which has to be installed and configured on its own before it can run.
+### select_labels
 
-### K_SUITE_LABEL_REGEX
+Turns the labels given to `sb test` into a `LabelSelection`: the `ctest -L` regex of the sizes,
+the `ctest -LE` regex that keeps quarantined tests out unless `quarantined` was named, and the
+same choice as a `pytest -m` expression for `--cli`. No label selects `small` and `medium`, the
+sizes pre-merge CI runs. `quarantined` alone selects the quarantined tests of every size.
 
-Each suite maps to a label-selection regex for `ctest -L`. `functional` is an alternation over
-its sub-labels and not a label of its own, because a baked-in umbrella label does not survive
-`gtest_discover_tests` on current CMake; `cmake/SushiBLASTests.cmake` has the details. `all` selects
-everything and passes no `-L`. `package` is absent on purpose, since it runs no CTest.
+## services/sanitizer.py
+
+`Sanitizer` names the sets `sb build --sanitize` takes, and `sanitize_flags` turns one into the
+`-DSB_SANITIZE=` flag `cmake/SushiBLASSanitizers.cmake` reads. Left out, no flag is passed and the
+cached value stays, as with `--benchmarks`.
 
 ## services/project.py
 
@@ -131,11 +132,21 @@ when a running program holds one of its files, and `clean` and `build` raise
 
 ### test
 
-`--filter` and `--repeat` are ctest knobs, and the package suite runs no ctest. The command
-refuses them with exit code 2, which is better than accepting a flag and doing nothing with it.
+It builds the ctest command itself rather than through `CMakeDriver`, because it needs
+`-LE` to keep quarantined tests out and sushicore's driver passes only `-L`.
 
-`all` means every CTest test, which is not every test this repository has. The command prints a
-line that says so, so the name does not quietly under-deliver.
+### test_cli and test_package
+
+`test_cli` runs the CLI's own pytest tests with the selection's marker expression; `--filter` and
+`--repeat` are ctest knobs and `sb test --cli` refuses them with exit code 2. `test_package` runs
+no ctest, and `sb test --package` refuses every selection option with exit code 2, which is
+better than accepting a flag and doing nothing with it.
+
+### bench
+
+Runs every program whose name starts with `benchmark_` under `build/tests/`, in name order, and
+raises `ExecutableNotFoundError` when none is built, so a nightly run without `--benchmarks` fails
+instead of passing over nothing.
 
 ### _test_package
 

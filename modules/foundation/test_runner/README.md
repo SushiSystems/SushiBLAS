@@ -1,6 +1,6 @@
 # test_runner
 
-The GoogleTest environment that owns the one `SushiRuntime::Runtime` of a test program, and the `main` every test program runs. The module is internal and test-only: its headers are not installed, and it is added
+The GoogleTest environment that owns the one `SushiRuntime::Runtime` of a test program, and the `main` of each test program size. The module is internal and test-only: its headers are not installed, and it is added
 only when `SB_BUILD_TESTS` is on.
 
 It depends on `core`, SushiRuntime and GoogleTest. Its headers are included as `<SushiBLAS/test_runner/test_environment.hpp>`.
@@ -9,9 +9,12 @@ It depends on `core`, SushiRuntime and GoogleTest. Its headers are included as `
 | --- | --- |
 | `test_environment.hpp` | `TestEnvironment`, the runtime the tests share |
 
-`source/test_main.cpp` holds `main`: synchronous logging, the environment, then `RUN_ALL_TESTS`.
-It is not a source of the module. `sushiblas_add_test_program()` in
-`cmake/SushiBLASTests.cmake` compiles it into each test program, so it never reaches the library.
+`source/test_main.cpp` holds the `main` of a medium or large program: synchronous logging, the
+environment, then `RUN_ALL_TESTS`. `source/small_test_main.cpp` holds the `main` of a small
+program: synchronous logging and `RUN_ALL_TESTS`, with no environment, so the program opens no
+device and starts no worker thread. Neither is a source of the module.
+`sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake` compiles the one of the program's
+size into it, so neither reaches the library.
 
 ## test_environment.hpp
 

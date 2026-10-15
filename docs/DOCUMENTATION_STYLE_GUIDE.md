@@ -7,7 +7,7 @@ named follow the `documentation` skill. Neither is restated here.
 ## What this repository adds
 
 - A symbol, path, CMake option or command is written in a code span and spelled as the code
-  spells it: `Core::DataType`, `SB_SYCL_TARGETS`, `sb test --suite package`.
+  spells it: `Core::DataType`, `SB_SYCL_TARGETS`, `sb test --package`.
 - A path is written from the repository root, such as `modules/engine/engine/include/SushiBLAS/engine/task.hpp`. A
   header named alone, such as `engine/task.hpp`, is its include path after `SushiBLAS/`.
 - A code block in the manual is taken from a file the build compiles

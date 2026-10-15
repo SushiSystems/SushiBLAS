@@ -24,10 +24,11 @@ from .aliases import K_ALIASES
 from .config import PROFILE, find_project_root, load_config
 from .services.build_type import BuildType
 from .services.diag import K_DIAGNOSTICS as K_DIAGNOSTICS_SERVICE
-from .services.errors import ProjectError
+from .services.errors import CLIOptionError, PackageOptionError, ProjectError
 from .services.project import ProjectService
 from .services.project_factory import create_project_service
-from .services.suite import Suite
+from .services.sanitizer import Sanitizer
+from .services.test_label import TestLabel
 
 K_PROJECT = "Project"
 K_DOCUMENTATION = "Documentation"
@@ -75,6 +76,7 @@ def _exit_with(step: Callable[[], int]) -> NoReturn:
            "sb build --type debug  # Build with debug settings\n"
            "sb build --clean  # Start from an empty build tree\n"
            "sb build --benchmarks  # Also build the benchmark programs\n"
+           "sb build --sanitize address-undefined  # Instrument host code with ASan and UBSan\n"
            "sb build -D SB_LOG_LEVEL=INFO  # Pass a CMake cache variable through",
 )
 def build(
@@ -87,6 +89,10 @@ def build(
     benchmarks: Optional[bool] = typer.Option(
         None, "--benchmarks/--no-benchmarks",
         help="Build the benchmark programs under tests/, or stop building them. "
+             "Left out, the setting of the last build stays."),
+    sanitize: Optional[Sanitizer] = typer.Option(
+        None, "--sanitize", case_sensitive=False,
+        help="Sanitizers for host code: none | address-undefined | thread. "
              "Left out, the setting of the last build stays."),
     define: Optional[list[str]] = typer.Option(
         None, "--define", "-D", metavar="VAR=VALUE",
@@ -105,7 +111,7 @@ def build(
 
     def step() -> int:
         """Builds and announces success."""
-        rc = _service().build(type, clean, define, benchmarks)
+        rc = _service().build(type, clean, define, benchmarks, sanitize)
         console.success("Build completed successfully!")
         return rc
 
@@ -115,44 +121,76 @@ def build(
 @app.command(
     "test",
     rich_help_panel=K_PROJECT,
-    epilog="sb test\n"
-           "sb test --suite unit\n"
+    epilog="sb test  # The small and medium tests\n"
+           "sb test --label small\n"
+           "sb test --label large  # Needs a real GPU\n"
+           "sb test --label quarantined\n"
            "sb test --filter 'Gemm.*'  # Match Suite.Case test names\n"
-           "sb test --repeat 5  # Re-run each test until one fails",
+           "sb test --repeat 5  # Re-run each test until one fails\n"
+           "sb test --cli  # The pytest tests of this CLI\n"
+           "sb test --package  # The out-of-tree consumer of the installed package",
 )
 def test(
-    suite: Suite = typer.Option(
-        Suite.FUNCTIONAL, "--suite", "-s", case_sensitive=False,
-        help="Which CTest label group to run ('all' runs every CTest test; "
-             "'package' instead builds tests/package/ against an install "
-             "prefix and is not included in 'all')."),
+    label: Optional[list[TestLabel]] = typer.Option(
+        None, "--label", "-l", case_sensitive=False,
+        help="Run the tests of this label: small | medium | large | quarantined. Repeatable. "
+             "Left out, the small and medium tests run. A quarantined test runs only when "
+             "quarantined is named."),
     filter: Optional[str] = typer.Option(
         None, "--filter", "-f", help="ctest -R regex over 'Suite.Case' test names."),
     repeat: int = typer.Option(
         0, "--repeat", "-r", min=0,
         help="Re-run each test up to N times, stopping on the first failure "
              "(ctest --repeat until-fail). Handy for hunting flaky tests."),
+    cli: bool = typer.Option(
+        False, "--cli", help="Run the pytest tests of this CLI instead of the CTest tests."),
+    package: bool = typer.Option(
+        False, "--package",
+        help="Install the package and build tests/package/ against the install prefix "
+             "instead of running the CTest tests."),
 ) -> None:
-    """Run the test suite via CTest labels.
+    """Run the tests of the labels given.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
     the binary directly: sb run sushiblas_blas_tests -- --gtest_filter=Gemm.*
 
-    --suite package is the exception: it installs the package and builds the
-    out-of-tree consumer in tests/package/ against it, which is the only check
-    of what find_package(SushiBLAS) hands a third party. It runs no CTest, so
-    --filter and --repeat do not apply to it.
+    --package is the only check of what find_package(SushiBLAS) hands a third
+    party. It runs no CTest, so --label, --filter, --repeat and --cli do not
+    apply to it. --cli runs pytest, so --filter and --repeat do not apply to it.
     """
     console.header("Project Test")
 
     def step() -> int:
-        """Runs the suite; a package run that returns has passed."""
-        rc = _service().test(suite, filter, repeat)
-        if suite is Suite.PACKAGE:
+        """Runs the tests; a package run that returns has passed."""
+        if package:
+            if label or filter or repeat or cli:
+                raise PackageOptionError()
+            rc = _service().test_package()
             console.success("Package consumer built and ran against the install prefix.")
-        return rc
+            return rc
+        if cli:
+            if filter or repeat:
+                raise CLIOptionError()
+            return _service().test_cli(label)
+        return _service().test(label, filter, repeat)
 
     _exit_with(step)
+
+
+@app.command(
+    "bench",
+    rich_help_panel=K_PROJECT,
+    epilog="sb build --benchmarks\n"
+           "sb bench  # Every benchmark program, in name order",
+)
+def bench() -> None:
+    """Run every built benchmark program.
+
+    A benchmark measures and does not pass or fail, so it is not a test. Build
+    the programs with sb build --benchmarks first.
+    """
+    console.header("Project Bench")
+    _exit_with(lambda: _service().bench())
 
 
 @app.command(

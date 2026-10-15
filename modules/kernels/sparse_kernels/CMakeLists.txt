@@ -20,6 +20,7 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE sparse_kernels
+    SIZE medium
     TESTS
         reference/test_level1.cpp
         reference/test_spmm.cpp

@@ -48,8 +48,8 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | AOT target | A device target compiled ahead of time through `SB_SYCL_TARGETS`, as opposed to SPIR-V compiled by the runtime |
 | Adapter | The one module of a consumer that includes SushiBLAS headers and hands the rest of the program its own types; see the stability section of the root `README.md` |
 | Quarantine | The headers under `modules/operations/experimental/include/SushiBLAS/experimental/`: declared, outside the umbrella header, and not defined |
-| Functional suite | The CTest tests labelled unit, integration or regression; the default of `sb test` |
-| Package suite | `sb test --suite package`: installs the package and builds and runs `tests/package/` against it |
+| Size | The one CTest label of a test, `small`, `medium` or `large`, which sets its timeout and the CI stages that run it; `sb test` runs `small` and `medium` |
+| Package test | `sb test --package`: installs the package and builds and runs `tests/package/` against it |
 | Sibling checkout | A SushiRuntime checkout in the folder beside this repository, `../sushiruntime` |
 | Workspace | A SushiStack folder that holds several module checkouts and one `dependencies/` tree |
 | `hub` | SushiStack's CLI; it provisions the toolchains and libraries of a workspace |

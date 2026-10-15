@@ -176,8 +176,9 @@ records them and holds the steps that have not run.
 
 ## Continuous integration
 
-- Remove `|| true` from the pyflakes step and correct the stale comments (L4, L5).
-- Add a Windows functional job, and build through `sb` where the job calls cmake and ctest (L3).
+- Run every job of `ci.yml` and `nightly.yml` once and fix what the first runs show.
+- Bring the Linux job of the small and medium tests under the 45-minute pre-merge budget.
+- Give each test program whose tests need no device a `small` program of its own.
 - Run the release workflow once before the tag depends on it.
 
 ## Release
@@ -192,10 +193,10 @@ In the order the tag needs them.
   section 3).
 - Install without `modules/operations/experimental/include/SushiBLAS/experimental/` and make the package consumer test fail if
   the installed tree holds that folder or a document among its headers (`PLAN`, section 3),
-  then run `sb test --suite package`.
+  then run `sb test --package`.
 - Migrate SushiAI onto the views, the enums and `BLASScalar`. The sushiai session does it, once,
   after this tree has built.
-- Get CI green on the commit to be tagged, with the `functional` job on the tagged runtime.
+- Get CI green on the commit to be tagged, with the build jobs on the tagged runtime.
   Whether that is a release condition is the owner's decision.
 - Cut the changelog: rename `## Unreleased` to the release heading, which `check_version.py`
   holds to `project()`.
