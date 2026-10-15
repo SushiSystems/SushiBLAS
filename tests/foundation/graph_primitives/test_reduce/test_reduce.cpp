@@ -23,7 +23,7 @@
  * @file test_reduce.cpp
  * @brief Tests reduce(): its fixed combination order, its late-bound count and its node widths.
  * @author Mustafa Garip
- * @see modules/foundation/graph_primitives/tests/README.md
+ * @see tests/foundation/graph_primitives/README.md
  */
 
 #include <cstddef>

@@ -11,7 +11,9 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_combiners.cpp` | Tests what each combiner returns, its identity and that a kernel can capture it |
 | `test_counting_sort.cpp` | Tests counting_sort(): stability, digit boundaries, late-bound replay and node widths |
 | `test_fixed_order_fold.cpp` | Tests the two host folds against the fixed tile order, without a device |
-| `test_fixed_order_reduce.cpp` | Tests the level plan, the tile fold and the live level widths, without a device |
+| `test_fixed_order_reduce.cpp` | Tests the level plan and the tile folds of the fixed-order reduction, without a device |
+| `test_fixed_order_scan.cpp` | Tests the tiled level plan and the live level widths of the fixed-order scan |
+| `test_invalid_graph.cpp` | Tests the InvalidGraph error a primitive returns and the outcome of a recording |
 | `test_prefix_scan.cpp` | Tests prefix_scan() against a host scan, across live counts, replays and node widths |
 | `test_radix_plan.cpp` | Tests the digit count, the digit of a key and the per-digit plan, without a device |
 | `test_reduce/test_device_sized_primitives.cpp` | Tests that each primitive gives one result on the chain and on the scheduler |
