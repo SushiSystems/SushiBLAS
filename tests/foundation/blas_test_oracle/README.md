@@ -11,3 +11,4 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_blas_flags.cpp` | Tests that each flag helper maps true and false onto the two BLAS enumerators |
 | `test_blas_structured.cpp` | Tests the layout, band, triangle-band and packed conversions against hand-built storage |
 | `test_blas_truth.cpp` | Tests that TruthSum recovers the rounding a double sum loses, and the rounding bound |
+| `test_dense_oracle.cpp` | Tests the dense oracle loops against hand-computed matrices and vectors |

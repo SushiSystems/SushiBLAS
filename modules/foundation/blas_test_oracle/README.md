@@ -10,6 +10,7 @@ It depends on `core`. Its headers are included as `<SushiBLAS/blas_test_oracle/<
 | `blas_truth.hpp` | The double-precision truth a BLAS parity test measures both kernels against |
 | `blas_flags.hpp` | The mappings from a test's bool parameters to the BLAS flag enumerations |
 | `blas_structured.hpp` | The conversions from a dense test matrix to CBLAS band and packed storage |
+| `dense_oracle.hpp` | The plain dense loops a kernel test takes its expected values from: products, triangles, bands and rank updates |
 
 ## blas_flags.hpp
 
