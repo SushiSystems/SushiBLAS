@@ -27,6 +27,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -139,8 +140,10 @@ namespace SushiBLAS
             double expected = 0.0;
             Ref::nrm2<double>(K_LENGTH, x.data(), 1, &expected);
 
-            // A staged scaled sum may differ from a serial one in its last bits.
-            EXPECT_NEAR(norm.get()[0], expected, expected * 1e-14);
+            // A staged sum of K_LENGTH squares may differ from a serial one by K_LENGTH ulps.
+            const double bound =
+                expected * static_cast<double>(K_LENGTH) * std::numeric_limits<double>::epsilon();
+            EXPECT_NEAR(norm.get()[0], expected, bound);
         }
 
         TEST_F(Device_SYCLLevel1, AnEmptyVectorSumsToZero)
