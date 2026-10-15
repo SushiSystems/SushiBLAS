@@ -17,3 +17,8 @@ sushiblas_add_module(
         tensor_expectations
     EXTERNAL
         GTest::gtest)
+
+sushiblas_add_test_program(
+    MODULE engine_fixture
+    TESTS
+        test_sushiblas_test.cpp)
