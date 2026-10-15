@@ -18,4 +18,5 @@ sushiblas_add_test_program(
     MODULE io
     TESTS
         test_io/test_host_transfer.cpp
-        test_io/test_regression.cpp)
+        test_io/test_regression.cpp
+        test_io_status.cpp)
