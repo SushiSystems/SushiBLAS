@@ -34,7 +34,7 @@
 ```
 
 A layer depends on the layers below it and on none above. Four rules state what each layer may
-know, and `tools/layering/check_layering.py` checks them from the include lines and the call
+know, and `tools/layering/check_tier_contents.py` checks them from the include lines and the call
 sites:
 
 - **`Engine` knows no operation.** `engine/engine.hpp` includes the five bricks it composes

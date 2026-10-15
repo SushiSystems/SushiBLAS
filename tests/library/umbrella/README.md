@@ -1,8 +1,9 @@
 # Tests of umbrella
 
 The tests of the `umbrella` module, built into `sushiblas_umbrella_tests` by
-`sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake`. They belong to this module because each crosses several operation families, and this module
-is the one that depends on all of them. The source comments state
+`sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake`.
+They belong to this module because each crosses several operation families, and this
+module is the one that depends on all of them. The source comments state
 what a test checks; a section below holds why a test is written the way it is.
 [`tests/README.md`](../../README.md) holds the reasoning the tests share, and
 `modules/engine/engine_fixture/README.md` describes the fixture.
@@ -159,7 +160,7 @@ the host formula.
 
 A task body receives the events of the tasks it depends on and must order its own device work
 behind them. No test checks that at run time: the runtime's plan view holds no body, so a test
-cannot hand one a dependency that has not finished. `tools/layering/check_layering.py` checks the
+cannot hand one a dependency that has not finished. `tools/layering/check_engine_seams.py` checks the
 rule in the source, under `rule_task_dependencies`.
 
 ## test_SushiBLAS/test_operand_lifetime.cpp

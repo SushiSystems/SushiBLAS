@@ -149,6 +149,7 @@ sb test                          # functional (unit+integration+regression) — 
 sb test --suite unit
 sb test --suite integration
 sb test --suite regression
+sb test --suite device           # kernels against the reference on the host CPU device
 sb test --suite all              # every CTest test
 sb test --suite package          # the out-of-tree consumer (see below)
 ```
@@ -161,7 +162,7 @@ sb test --repeat 5            # re-run each test up to 5x, stop on first failure
 ```
 
 `--filter` (`-f`) matches `Suite.Case` test names (the `Unit_`/`Integration_`/
-`Regression_`-prefixed GTest suite names CTest discovers). `--repeat` (`-r`)
+`Regression_`/`Device_`-prefixed GTest suite names CTest discovers). `--repeat` (`-r`)
 is handy for hunting flaky tests (`ctest --repeat until-fail`).
 
 For GoogleTest-level options CTest doesn't expose (per-case `--gtest_filter`,

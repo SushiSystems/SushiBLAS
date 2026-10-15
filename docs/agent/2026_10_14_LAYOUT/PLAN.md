@@ -57,7 +57,7 @@ dependency of each helper, which is read from its includes at that point.
 
 - Every wave: the repository checkers under `tools/` run and pass; the layering checker
   reports no upward edge.
-- Build: the owner's `sr` build at the end, as he asked. No build is run before that.
+- Build: the owner's `sb` build at the end, as he asked. No build is run before that.
 - CI: the branch is pushed and a pull request opened when wave 3 is done.
 
 ## Status
@@ -69,7 +69,10 @@ dependency of each helper, which is read from its includes at that point.
   through `sushiblas_add_test_program()`, and the benchmark helpers are the internal module
   `benchmark_harness`. The shared `check_test_mirror.py`, run from a scratch copy, reports no
   orphan test, no stray folder and no private include.
-- Wave 4: blocked on two owner decisions. The shared `check_layering.py` exempts an umbrella
-  only in a module named `umbrella`, so the 158 test includes of `<SushiBLAS/SushiBLAS.h>`
-  from below the library tier are findings until `SushiBLAS.h` moves to such a module. The
-  shared `check_test_mirror.py` reports 185 public headers with no test file.
+- Wave 4: done. The umbrella is `<SushiBLAS/SushiBLAS.hpp>` in the library module `umbrella`
+  (`adb3ea0`). Every public header has its test file, the adapter example has a test program,
+  and the device-sized graph primitive cases sit with their primitives. `sushiblas_add_module()`
+  takes `PRIVATE_DEPENDS`, and six operation modules list thirteen edges there. `tools/` holds
+  the shared checkers of SushiSkills `523f1cf` and `settings.py`; the five SushiBLAS layer rules
+  are `layering/check_tier_contents.py`. Every checker, `check_test_mirror.py` included, exits 0.
+  No build has run: the owner's `sb` build verifies the waves.

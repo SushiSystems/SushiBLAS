@@ -20,12 +20,13 @@ sushiblas_add_module(
         window_dot_weights_backward.cpp
     DEPENDS
         core
-        launch
-        reduction
         geometry
         tensor
-        spatial_kernels
-        engine)
+        engine
+    PRIVATE_DEPENDS
+        launch
+        reduction
+        spatial_kernels)
 
 sushiblas_add_test_program(
     MODULE spatial

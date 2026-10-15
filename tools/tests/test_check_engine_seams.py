@@ -20,7 +20,7 @@ from layering.check_engine_seams import (  # noqa: E402
     rule_task_dependencies,
     rule_view_engine_calls,
 )
-from layering.check_layering import KnownViolation, Repository  # noqa: E402
+from layering.check_tier_contents import KnownViolation, Repository  # noqa: E402
 
 K_ENGINE_HEADER_INCLUDE = "#include <SushiBLAS/engine/engine.hpp>\n"
 K_TEST_ONLY_TIER = "if(SB_BUILD_TESTS)\n    add_subdirectory(engine_fixture)\nendif()\n"
@@ -35,7 +35,7 @@ def _repository(folder: str, files: dict[str, str], known: tuple[KnownViolation,
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
-    return Repository(root, None, known)
+    return Repository(root, known)
 
 
 class RegistrationTest(unittest.TestCase):
