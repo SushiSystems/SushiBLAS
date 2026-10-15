@@ -8,6 +8,7 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `test_dispatch.cpp` | Tests the logic predicates and a unary and a binary logic task in both execution modes |
 | `test_logic/test_all.cpp` | Tests LogicOps::all against fixed expected values |
 | `test_logic/test_any.cpp` | Tests LogicOps::any against fixed expected values |
 | `test_logic/test_equal.cpp` | Tests LogicOps::equal against fixed expected values |
