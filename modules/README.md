@@ -22,6 +22,7 @@ in one line.
 | foundation | `test_runner` | Test-only: the environment that owns the test runtime, and the `main` of every test program | [README](foundation/test_runner/README.md) |
 | foundation | `sparse_fixtures` | Test-only: the sample sparse matrices and their host products | [README](foundation/sparse_fixtures/README.md) |
 | foundation | `typed_suite_naming` | Test-only: the name generator of a typed suite | [README](foundation/typed_suite_naming/README.md) |
+| foundation | `host_device` | Test-only: the queue on the host CPU device a kernel test runs on, its skipping fixture and shared arrays | [README](foundation/host_device/README.md) |
 | foundation | `graph_primitives` | The fixed fold order and the four primitives that record on a SushiRuntime `Recorder`: reduce, segmented reduce, prefix scan, counting sort | [README](foundation/graph_primitives/README.md) |
 | data | `tensor` | `Storage`, `Tensor`, `TensorFactory` and `HostDataType` | [README](data/tensor/README.md) |
 | data | `sparse_storage` | `SparseMatrix`, `SparseVector` and `SparseBuilder` | [README](data/sparse_storage/README.md) |
