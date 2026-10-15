@@ -8,6 +8,7 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `test_dispatch.cpp` | Tests a forward task in place and a backward task with a bound scalar in both modes |
 | `test_nonlinear/test_complex_nonlinear.cpp` | Tests complex sigmoid, tanh, sqrt and log against hand values, and elu's refusal |
 | `test_nonlinear/test_elu.cpp` | Tests NonLinearOps::elu and elu_backward against fixed expected values |
 | `test_nonlinear/test_gelu.cpp` | Tests NonLinearOps::gelu and gelu_backward against fixed expected values |

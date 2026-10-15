@@ -26,6 +26,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE nonlinear
     TESTS
+        test_dispatch.cpp
         test_nonlinear/test_complex_nonlinear.cpp
         test_nonlinear/test_elu.cpp
         test_nonlinear/test_gelu.cpp
