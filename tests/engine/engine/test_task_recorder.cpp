@@ -34,7 +34,7 @@
 #include <stdexcept>
 #include <functional>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>

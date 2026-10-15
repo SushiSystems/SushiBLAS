@@ -33,7 +33,7 @@
 #include <algorithm>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiBLAS/reduction/reduce_axis.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>

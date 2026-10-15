@@ -39,7 +39,7 @@
 #include <initializer_list>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>

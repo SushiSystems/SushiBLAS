@@ -34,7 +34,7 @@
 #include <optional>
 #include <unordered_set>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>

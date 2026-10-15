@@ -4,45 +4,6 @@
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
 
-# The umbrella header is this module's whole public surface. Its dependencies are the
-# modules it includes; the tier check of sushiblas_add_module() covers them.
-sushiblas_add_module(
-    NAME sushiblas
-    LAYER library
-    DEPENDS
-        core
-        tensor
-        sparse_storage
-        engine
-        blas
-        elementwise
-        nonlinear
-        reductions
-        random
-        logic
-        sparse
-        spatial
-        io)
-
-# The tests that cross several operation families and so belong to no single family.
-sushiblas_add_test_program(
-    MODULE sushiblas
-    TESTS
-        test_SushiBLAS/test_dependency_stress.cpp
-        test_SushiBLAS/test_dispatch_complex.cpp
-        test_SushiBLAS/test_dispatch_seam.cpp
-        test_SushiBLAS/test_empty_tensors.cpp
-        test_SushiBLAS/test_framework_sim.cpp
-        test_SushiBLAS/test_integer_dtypes.cpp
-        test_SushiBLAS/test_math_validation.cpp
-        test_SushiBLAS/test_operand_lifetime.cpp
-        test_SushiBLAS/test_regression.cpp
-        test_SushiBLAS/test_spatial_random_io_validation.cpp
-        test_SushiBLAS/test_storage_offset.cpp
-        test_SushiBLAS/test_task_dependencies.cpp
-    BENCHMARKS
-        benchmark_elementwise.cpp)
-
 # --- Define SushiBLAS Library ---
 # The archive has no source of its own: every object in it comes from a module.
 add_library(sushiblas STATIC)

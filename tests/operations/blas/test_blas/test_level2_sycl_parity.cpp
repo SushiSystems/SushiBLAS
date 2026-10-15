@@ -32,7 +32,7 @@
 #include <vector>
 #include <cstddef>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/reference/reference_accumulator.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>

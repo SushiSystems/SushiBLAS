@@ -32,7 +32,7 @@
 #include <vector>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/blas_kernels/blas.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 
 #include <SushiBLAS/benchmark_harness/benchmark_harness.hpp>
 

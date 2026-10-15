@@ -16,9 +16,9 @@ per aspect. A header has the file or the folder, never both.
 
 A test that crosses modules belongs to the highest-tier module it uses, in the test file of the
 header whose behaviour it checks. The test-only modules count as used: a test built on
-`SushiBLASTest` belongs to the `engine` tier or above. The umbrella `<SushiBLAS/SushiBLAS.h>` does
+`SushiBLASTest` belongs to the `engine` tier or above. The umbrella `<SushiBLAS/SushiBLAS.hpp>` does
 not count, because it is what a consumer includes. A test that checks several operation families
-together belongs to `library/sushiblas/test_SushiBLAS/`, the module that depends on all of them.
+together belongs to `library/umbrella/test_SushiBLAS/`, the module that depends on all of them.
 
 The helpers the tests share are internal test-only modules under `modules/`, listed in
 [`modules/README.md`](../modules/README.md).
@@ -139,7 +139,7 @@ builds it when `SB_BUILD_BENCHMARKS` is on.
 | `operations/blas/benchmark_triangular.cpp` | The triangular and symmetric BLAS routines, and the TRSM kernel at chosen block widths |
 | `operations/sparse/benchmark_sparse.cpp` | `spmv`, `spsymv`, `spmm`, `sptrsv`, `axpyi`, `doti` |
 | `operations/reductions/benchmark_reductions.cpp` | `sum`, `max`, `var` over the whole tensor |
-| `library/sushiblas/benchmark_elementwise.cpp` | `add`, in-place `exp`, in-place `relu`; it crosses `elementwise` and `nonlinear` |
+| `library/umbrella/benchmark_elementwise.cpp` | `add`, in-place `exp`, in-place `relu`; it crosses `elementwise` and `nonlinear` |
 
 ### Build and run
 

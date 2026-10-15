@@ -31,7 +31,7 @@ device code in your translation unit. The GEMM kernels are installed under
 You still need a SYCL-capable compiler, because the public headers include `<sycl/sycl.hpp>`
 and use `sycl::queue`, `sycl::event` and `sycl::device` in their own declarations:
 `Tensor::device()` and the task bodies in `engine/task_recorder.hpp` are two places. A
-translation unit that includes `<SushiBLAS/SushiBLAS.h>` needs a compiler that parses those
+translation unit that includes `<SushiBLAS/SushiBLAS.hpp>` needs a compiler that parses those
 types, even though it submits no kernel of its own. `sushiblas_apply_sycl()` in
 `cmake/SyclTarget.cmake` therefore puts `-fsycl` on `SushiBLAS::sushiblas` as a `PUBLIC` compile
 and link option.
@@ -167,7 +167,7 @@ Source: `applications/examples/adapter/host_program.hpp`
 a backend whose size it does not know.
 
 **What the adapter includes.** The two adapter files, `sushiblas_adapter.cpp` and
-`status_mapping.hpp`, include `<SushiBLAS/SushiBLAS.h>`, and no other file of the program
+`status_mapping.hpp`, include `<SushiBLAS/SushiBLAS.hpp>`, and no other file of the program
 does. The first holds the operations and defines the backend as the runtime and an engine
 built on it:
 

@@ -30,7 +30,7 @@
 #include <cstring>
 #include <algorithm>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
@@ -46,7 +46,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that SYRK accepts a HALF operand.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Regression_Sentinel, SyrkAcceptsHalfDtype)
         {
@@ -66,7 +66,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that a column-major GEMM indexes A and B by column stride in both modes.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Regression_Sentinel, GemmColumnMajorOperandsUseColumnStrides)
         {
@@ -94,7 +94,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that re-seeding an engine that has drawn reproduces the stream bit for bit.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Regression_Sentinel, SetSeedRewindsTheRNGStream)
         {
@@ -126,7 +126,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that fp64 AXPY and SCAL apply their scalar at fp64 precision.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Regression_Sentinel, Fp64Level1ScalarsAreNotNarrowedToFloat)
         {
@@ -164,7 +164,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that a batched GEMM reads a distinct slice per batch element in both layouts.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Regression_Sentinel, BatchedGemmAdvancesEveryBatchSlice)
         {
@@ -215,7 +215,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that GER and GEMV with a non-zero beta declare their accumulator as read.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Regression_Sentinel, AccumulatingOpsDeclareTheirAccumulatorRead)
         {
@@ -269,7 +269,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that a reduction is ordered behind the op that wrote its view of a shared allocation.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Regression_Sentinel, ReductionsOrderAgainstViewsOfOneAllocation)
         {
@@ -331,7 +331,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that both nrm2 entry points stay finite for elements whose squares overflow fp32.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Regression_Sentinel, Nrm2DoesNotOverflowNearTheFloatMaximum)
         {
@@ -364,7 +364,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that both nrm2 entry points return a non-zero norm for denormal input.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Regression_Sentinel, Nrm2DoesNotUnderflowOnDenormalInput)
         {
@@ -401,7 +401,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that Level 1 nrm2 takes the modulus of a complex element.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Regression_Sentinel, Nrm2UsesTheModulusOfAComplexElement)
         {

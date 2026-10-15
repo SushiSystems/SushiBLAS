@@ -32,7 +32,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/functor_map/scalar.hpp>

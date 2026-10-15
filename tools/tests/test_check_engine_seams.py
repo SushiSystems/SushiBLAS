@@ -50,14 +50,11 @@ class RegistrationTest(unittest.TestCase):
 
 
 class SeamEngineIncludesTest(unittest.TestCase):
-    """Checks that only the views the umbrella lists include engine.hpp."""
+    """Checks that only the view of an operation family, `<family>/<family>.hpp`, includes engine.hpp."""
 
-    K_UMBRELLA = "#include <SushiBLAS/engine/engine.hpp>\n#include <SushiBLAS/blas/blas.hpp>\n"
-
-    def test_accepts_a_view_the_umbrella_lists(self) -> None:
+    def test_accepts_the_view_of_a_family(self) -> None:
         """Reports nothing for a view header that includes engine.hpp."""
         files = {
-            "modules/library/sushiblas/include/SushiBLAS/SushiBLAS.h": self.K_UMBRELLA,
             "modules/operations/blas/include/SushiBLAS/blas/blas.hpp": K_ENGINE_HEADER_INCLUDE,
         }
         with tempfile.TemporaryDirectory() as folder:
@@ -66,7 +63,6 @@ class SeamEngineIncludesTest(unittest.TestCase):
     def test_reports_a_seam_and_an_operation_source(self) -> None:
         """Reports a dispatch seam and an operation source that include engine.hpp."""
         files = {
-            "modules/library/sushiblas/include/SushiBLAS/SushiBLAS.h": self.K_UMBRELLA,
             "modules/operations/blas/include/SushiBLAS/blas/dispatch.hpp": K_ENGINE_HEADER_INCLUDE,
             "modules/operations/blas/source/level1/dot.cpp": K_ENGINE_HEADER_INCLUDE,
         }

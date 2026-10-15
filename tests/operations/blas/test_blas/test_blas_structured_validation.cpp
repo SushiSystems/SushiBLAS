@@ -36,7 +36,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>

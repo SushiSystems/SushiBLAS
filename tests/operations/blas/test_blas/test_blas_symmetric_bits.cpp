@@ -34,7 +34,7 @@
 #include <random>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>

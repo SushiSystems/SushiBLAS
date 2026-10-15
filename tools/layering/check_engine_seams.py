@@ -30,7 +30,6 @@ from layering.check_layering import (  # noqa: E402
     K_OPERATION_TIER,
     Violation,
     _engine_calls,
-    _file_lines,
     _header_lines,
     _include_matches,
     _module_folders,
@@ -40,9 +39,8 @@ from layering.check_layering import (  # noqa: E402
     collect,
 )
 
-K_UMBRELLA_HEADER = "modules/library/sushiblas/include/SushiBLAS/SushiBLAS.h"
+K_UMBRELLA_HEADER = "modules/library/umbrella/include/SushiBLAS/SushiBLAS.hpp"
 K_ENGINE_INCLUDE = re.compile(r'^\s*#\s*include\s*[<"](SushiBLAS/engine/engine\.hpp)[>"]')
-K_UMBRELLA_INCLUDE = re.compile(r"^\s*#\s*include\s*<SushiBLAS/([^>]+)>")
 K_VIEW_ALLOWED_MEMBERS = frozenset({"recorder", "rng"})
 K_COMMAND_GROUP = re.compile(r"\.\s*(submit)\s*\(")
 K_QUEUE_SHORTCUT = re.compile(
@@ -87,14 +85,12 @@ def _library_lines(root: Path, lines: Iterable[tuple[Path, int, str]]) -> Iterat
 
 
 def _view_headers(root: Path) -> frozenset[str]:
-    """Returns the operation views the umbrella header includes, as repository-relative paths."""
+    """Returns the view of each operation family, `<family>/<family>.hpp`, as repository-relative paths."""
     views: set[str] = set()
-    families = {module.name: module for module in _module_folders(root, K_OPERATION_TIER)}
-    for _, _, line in _file_lines(root / K_UMBRELLA_HEADER):
-        match = K_UMBRELLA_INCLUDE.match(line)
-        family = families.get(match.group(1).split("/")[0]) if match else None
-        if family is not None:
-            views.add(_relative(family / "include" / "SushiBLAS" / match.group(1), root))
+    for family in _module_folders(root, K_OPERATION_TIER):
+        view = family / "include" / "SushiBLAS" / family.name / f"{family.name}.hpp"
+        if view.is_file():
+            views.add(_relative(view, root))
     return frozenset(views)
 
 

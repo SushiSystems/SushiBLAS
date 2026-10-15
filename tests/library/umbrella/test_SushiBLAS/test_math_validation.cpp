@@ -37,7 +37,7 @@
 #include <initializer_list>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
@@ -284,7 +284,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that ForceReference records every family and refuses a device-only operand.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Unit_MathValidationTest, ADeviceOnlyOperandIsRefusedInEveryFamily)
         {
@@ -311,7 +311,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that an operand error and an empty call read the same under every mode.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Unit_MathValidationTest, OperandErrorsDoNotDependOnTheMode)
         {
@@ -343,7 +343,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that a dtype mismatch names the operand and both dtypes.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Unit_MathValidationTest, AMismatchedDtypeNamesTheOperand)
         {

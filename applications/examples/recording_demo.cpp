@@ -30,7 +30,7 @@
 #include <iostream>
 #include <vector>
 
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 
 int main()
 {

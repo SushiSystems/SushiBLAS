@@ -32,7 +32,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 namespace SushiBLAS
 {

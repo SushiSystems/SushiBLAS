@@ -36,7 +36,7 @@
 #include <type_traits>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/reduction/reduce_axis.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>

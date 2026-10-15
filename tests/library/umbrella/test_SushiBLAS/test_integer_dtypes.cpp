@@ -29,7 +29,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
@@ -63,7 +63,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests the element widths and names of the integer dtypes.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Unit_IntegerDTypeTest, ElementWidthsAndNamesAreDeclared)
         {
@@ -84,7 +84,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that constant fills an integer tensor exactly.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Unit_IntegerDTypeTest, ConstantFillsAnIntegerTensorExactly)
         {
@@ -101,7 +101,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that copy moves integer elements.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Unit_IntegerDTypeTest, CopyMovesIntegerElements)
         {
@@ -118,7 +118,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that the comparisons work on integer tensors.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Unit_IntegerDTypeTest, ComparisonsWorkOnIntegerTensors)
         {
@@ -195,7 +195,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that argmax over an integer tensor returns an INT64 index.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Unit_IntegerDTypeTest, ArgmaxSearchesAnIntegerTensor)
         {
@@ -215,7 +215,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that argmax is exact for an index past 2^24.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Unit_IntegerDTypeTest, ArgmaxIsExactPastTheFloatMantissa)
         {
@@ -243,7 +243,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that every unsupported op refuses an integer operand by name.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Unit_IntegerDTypeTest, UnsupportedOpsRejectIntegerOperandsByName)
         {
@@ -298,7 +298,7 @@ namespace SushiBLAS
 
         /**
          * @brief Tests that the ordering comparisons still refuse complex operands.
-         * @see tests/library/sushiblas/README.md
+         * @see tests/library/umbrella/README.md
          */
         TEST_F(Unit_IntegerDTypeTest, OrderingComparisonsStillRejectComplex)
         {

@@ -37,7 +37,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level3/syrk.hpp>
 #include <SushiBLAS/blas_kernels/reference/level3/syrk.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/core/blas_types.hpp>

@@ -27,7 +27,7 @@
 
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 using namespace SushiBLAS::Test;
 

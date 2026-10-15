@@ -29,7 +29,7 @@
 #include <vector>
 #include <complex>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/blas/dispatch.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp>
 #include <SushiBLAS/blas_seam_kernels/reference/level3/gemm.hpp>

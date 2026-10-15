@@ -32,7 +32,7 @@ this shape.
 | `adapter/adapter_demo.cpp` | `main`. It includes `host_program.hpp` alone |
 
 The two adapter files, `sushiblas_adapter.cpp` and `status_mapping.hpp`, are the only ones that
-include `<SushiBLAS/SushiBLAS.h>`.
+include `<SushiBLAS/SushiBLAS.hpp>`.
 
 `multiply_add` computes `a * b + offset` and the sum of the result with `BLASOps::gemm`,
 `ElementwiseOps::add` and `ReductionOps::sum`, recorded on one engine and run by one

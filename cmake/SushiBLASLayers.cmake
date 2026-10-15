@@ -62,6 +62,7 @@ set(SUSHIBLAS_MODULE_LAYERS
     io                  operations
     experimental        operations
     benchmark_harness   operations
+    umbrella            library
     sushiblas           library)
 
 # Consumer, then dependency: the edges allowed between two modules of one tier. An edge

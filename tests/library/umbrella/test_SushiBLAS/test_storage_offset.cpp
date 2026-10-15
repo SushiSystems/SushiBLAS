@@ -29,7 +29,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
@@ -318,7 +318,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_StorageOffsetTest, OffsetIsCountedInElementsNotBytes)
         {
-            // storage_offset counts elements, not bytes. See tests/library/sushiblas/README.md.
+            // storage_offset counts elements, not bytes. See tests/library/umbrella/README.md.
             auto f64 = offset_view({4}, Core::DataType::Float64);
 
             const auto* base = static_cast<const char*>(f64.storage->allocation_base());
@@ -338,7 +338,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_StorageOffsetTest, DisjointViewsOfOneAllocationDoNotAlias)
         {
-            // Disjoint views of one arena must not alias. See tests/library/sushiblas/README.md.
+            // Disjoint views of one arena must not alias. See tests/library/umbrella/README.md.
             auto storage = SushiRuntime::make_sushi<Storage>(
                 TestEnvironment::runtime(),
                 32 * sizeof(float),

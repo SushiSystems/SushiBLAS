@@ -34,7 +34,7 @@
 #include <stdexcept>
 #include <string>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_packed.hpp>

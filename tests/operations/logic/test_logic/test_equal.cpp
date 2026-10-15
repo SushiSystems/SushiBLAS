@@ -27,7 +27,7 @@
 
 #include <gtest/gtest.h>
 #include <vector>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>

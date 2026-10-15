@@ -32,7 +32,7 @@
 #include <new>
 #include <stdexcept>
 
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 
 namespace HostProgram
 {

@@ -45,7 +45,7 @@
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>

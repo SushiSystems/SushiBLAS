@@ -35,7 +35,7 @@
 #include <type_traits>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/sparse_kernels/sparse.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
