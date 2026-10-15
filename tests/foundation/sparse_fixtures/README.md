@@ -8,4 +8,5 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `test_integer_csr.cpp` | Tests that integer_csr builds a valid CSR matrix of small integers and its dense twin |
 | `test_sparse_samples.cpp` | Tests the sample sparse matrices, the index storage and the host product they give |
