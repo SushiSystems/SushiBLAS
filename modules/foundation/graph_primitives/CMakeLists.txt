@@ -15,6 +15,8 @@ sushiblas_add_test_program(
         test_counting_sort.cpp
         test_fixed_order_fold.cpp
         test_fixed_order_reduce.cpp
+        test_fixed_order_scan.cpp
+        test_invalid_graph.cpp
         test_prefix_scan.cpp
         test_radix_plan.cpp
         test_reduce/test_device_sized_primitives.cpp

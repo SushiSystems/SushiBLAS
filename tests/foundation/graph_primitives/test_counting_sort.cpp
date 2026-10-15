@@ -23,7 +23,7 @@
  * @file test_counting_sort.cpp
  * @brief Tests counting_sort(): stability, digit boundaries, late-bound replay and node widths.
  * @author Mustafa Garip
- * @see modules/foundation/graph_primitives/tests/README.md
+ * @see tests/foundation/graph_primitives/README.md
  */
 
 #include <algorithm>

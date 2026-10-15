@@ -23,7 +23,7 @@
  * @file test_radix_plan.cpp
  * @brief Tests the digit count, the digit of a key and the per-digit plan, without a device.
  * @author Mustafa Garip
- * @see modules/foundation/graph_primitives/tests/README.md
+ * @see tests/foundation/graph_primitives/README.md
  */
 
 #include <cstddef>

@@ -23,7 +23,7 @@
  * @file test_fixed_order_fold.cpp
  * @brief Tests the two host folds against the fixed tile order, without a device.
  * @author Mustafa Garip
- * @see modules/foundation/graph_primitives/tests/README.md
+ * @see tests/foundation/graph_primitives/README.md
  */
 
 #include <cstddef>

@@ -23,7 +23,7 @@
  * @file test_device_sized_primitives.cpp
  * @brief Tests that each primitive gives one result on the chain and on the scheduler.
  * @author Mustafa Garip
- * @see modules/foundation/graph_primitives/tests/README.md
+ * @see tests/foundation/graph_primitives/README.md
  */
 
 #include <array>

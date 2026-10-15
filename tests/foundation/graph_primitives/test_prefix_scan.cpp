@@ -23,7 +23,7 @@
  * @file test_prefix_scan.cpp
  * @brief Tests prefix_scan() against a host scan, across live counts, replays and node widths.
  * @author Mustafa Garip
- * @see modules/foundation/graph_primitives/tests/README.md
+ * @see tests/foundation/graph_primitives/README.md
  */
 
 #include <cstddef>

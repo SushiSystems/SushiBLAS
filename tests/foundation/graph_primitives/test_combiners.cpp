@@ -23,7 +23,7 @@
  * @file test_combiners.cpp
  * @brief Tests what each combiner returns, its identity and that a kernel can capture it.
  * @author Mustafa Garip
- * @see modules/foundation/graph_primitives/tests/README.md
+ * @see tests/foundation/graph_primitives/README.md
  */
 
 #include <cstdint>
