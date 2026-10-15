@@ -21,7 +21,7 @@
 
 /**
  * @file test_reduce_1d.cpp
- * @brief Tests the whole-tensor accumulators, the reduction plan and a reduction on the host device.
+ * @brief Tests the accumulators, the reduction plan and a reduction on the host device.
  * @author Mustafa Garip
  */
 
@@ -49,7 +49,7 @@ namespace SushiBLAS
         constexpr std::size_t K_PARTIALS = 64;
 
         /// @brief Returns a CPU profile with the given unit count and group limit.
-        Device::Profile cpu_with(std::size_t units, std::size_t max_group)
+        static Device::Profile cpu_with(std::size_t units, std::size_t max_group)
         {
             Device::Profile profile;
             profile.is_cpu = true;
