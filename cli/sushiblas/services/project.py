@@ -188,16 +188,15 @@ class ProjectService:
         env = self._build_env.load(cfg, build_dir)
         selection = select_labels(labels)
 
-        cmd = [self._driver.ctest(cfg), "--test-dir", str(build_dir), "--output-on-failure",
-               "-L", selection.ctest_include()]
-        if exclude := selection.ctest_exclude():
-            cmd += ["-LE", exclude]
-        if filter:
-            cmd += ["-R", filter]
-        if repeat > 0:
-            cmd += ["--repeat", f"until-fail:{repeat}"]
-            self._console.info(f"Repeating each test up to {repeat}x (stop on first failure).")
-        return self._runner.run_drained(cmd, build_dir, env)
+        return self._driver.ctest_run(
+            cfg,
+            build_dir,
+            env,
+            label_regex=selection.ctest_include(),
+            exclude_label_regex=selection.ctest_exclude(),
+            filter=filter,
+            repeat=repeat,
+        )
 
     def test_cli(self, labels: Sequence[TestLabel] | None = None) -> int:
         """Runs the pytest tests of this CLI that *labels* select and returns pytest's code."""

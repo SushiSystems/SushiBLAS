@@ -130,11 +130,6 @@ Removal is checked after the fact. `shutil.rmtree` with `ignore_errors` leaves a
 when a running program holds one of its files, and `clean` and `build` raise
 `TreeNotRemovedError` instead of reporting success.
 
-### test
-
-It builds the ctest command itself rather than through `CMakeDriver`, because it needs
-`-LE` to keep quarantined tests out and sushicore's driver passes only `-L`.
-
 ### test_cli and test_package
 
 `test_cli` runs the CLI's own pytest tests with the selection's marker expression; `--filter` and
