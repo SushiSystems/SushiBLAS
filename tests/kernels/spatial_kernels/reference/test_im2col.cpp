@@ -37,7 +37,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceIm2Col, AOneTapWindowCopiesTheInput)
+        TEST(Small_ReferenceIm2Col, AOneTapWindowCopiesTheInput)
         {
             const Spatial::WindowSpan span = nhwc_span(1, 2, 3, 2, Spatial::ConvGeometry{}, 0);
             const std::vector<float> in{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
@@ -49,7 +49,7 @@ namespace SushiBLAS
             EXPECT_EQ(columns, in);
         }
 
-        TEST(Unit_ReferenceIm2Col, APaddedWindowReadsZerosOutsideTheImage)
+        TEST(Small_ReferenceIm2Col, APaddedWindowReadsZerosOutsideTheImage)
         {
             Spatial::ConvGeometry geometry;
             geometry.kernel_h = 2;

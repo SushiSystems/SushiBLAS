@@ -33,9 +33,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Unit_SCALTest : public SushiBLASTest {};
+class Medium_SCALTest : public SushiBLASTest {};
 
-TEST_F(Unit_SCALTest, SimpleSCAL) 
+TEST_F(Medium_SCALTest, SimpleSCAL) 
 {
     const int N = 3;
     auto X = engine->create_tensor({N});

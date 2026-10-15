@@ -26,11 +26,10 @@ The helpers tests of several modules share are internal test-only modules under 
 listed in [`modules/README.md`](../modules/README.md). A helper the tests of one module share
 sits in that module's folder, and a test includes it by its quoted relative path.
 
-## One program per module, sized
+## One program per module
 
 `sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake` builds every program. A module
-calls it in its own `CMakeLists.txt` with the files of its mirror and a `SIZE`, and gets the
-program `sushiblas_<module>_tests`. Every program lands in `build/tests/`. A new test file is
+calls it in its own `CMakeLists.txt` with the files of its mirror and gets the `sushiblas_<module>_tests`. Every program lands in `build/tests/`. A new test file is
 listed by hand in that call; nothing globs the folders. An application's tests are built the same
 way by `sushiblas_add_application_test_program()`, called in the application's `CMakeLists.txt`,
 which compiles the application's sources into the program.
@@ -46,16 +45,17 @@ by size, and CTest stops a test that outlives the timeout of its size.
 | `medium` | Threads, localhost, files in a temporary folder, the OpenCL or another CPU SYCL device | 300 s |
 | `large` | A real GPU, or a run longer than `medium` allows | 900 s |
 
-The size is declared per program. A `small` program is linked with
-`modules/foundation/test_runner/source/small_test_main.cpp`, which creates no runtime, so the
-program opens no device and starts no worker thread. Every other program creates the shared
-runtime, and so opens the CPU SYCL device and starts the runtime's workers: it is `medium` at
-least. Seven programs are `small` (`orthonormal`, `serial_reductions`, `small_integers`,
-`sparse_assembly`, `sparse_fixtures`, `typed_suite_naming`, `experimental`); the rest are
-`medium`. No program is `large`.
+A test's size is the prefix of its GoogleTest suite name: `Small_`, `Medium_` or `Large_`, as in
+`TEST(Small_ComplexArithmetic, ...)`. No build file lists sizes. Each program registers the three
+prefixes as three filters, each with its label and timeout, and a suite with none of them stops
+the configure with its name.
 
-The `Unit_`, `Integration_`, `Regression_` and `Device_` prefixes of a GoogleTest suite name say
-what the suite covers. They select nothing: every suite of a program is registered.
+A program whose suites are all `Small_` is linked with
+`modules/foundation/test_runner/source/small_test_main.cpp`, which creates no runtime, so it
+opens no device and starts no worker thread. A program with a `Medium_` or `Large_` suite creates
+the shared runtime. A suite whose tests reach the runtime, a queue, a tensor or a file is
+`Medium_`; the host reference kernels, the arithmetic and the type checks are `Small_`. No suite
+is `Large_`.
 
 A test that fails intermittently and cannot be fixed the day it is seen is named in the
 `QUARANTINED` list of its program's call, as `Suite.Case`. It keeps its size and gains the label
@@ -135,7 +135,7 @@ blind spot.
 The ordering tests assert on a recorded task's in-degree, which `GraphProbe` reports as
 `RecordedTask::dependency_count`, never on an output value. With no dependency
 edge the two tasks may still come out in the right order by luck, so a correct number proves
-nothing about ordering. `Regression_Sentinel.ReductionsOrderAgainstViewsOfOneAllocation`
+nothing about ordering. `Medium_Sentinel.ReductionsOrderAgainstViewsOfOneAllocation`
 explains this at length.
 
 ### Views at a non-zero offset

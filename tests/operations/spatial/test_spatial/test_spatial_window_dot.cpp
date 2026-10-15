@@ -464,7 +464,7 @@ namespace SushiBLAS
          *        lacks it.
          */
         template<typename T>
-        class Unit_SpatialWindowDotTyped : public SushiBLASTest
+        class Medium_SpatialWindowDotTyped : public SushiBLASTest
         {
             protected:
                 /** @brief Builds the engine and skips the case on a device without T's aspect. */
@@ -478,17 +478,17 @@ namespace SushiBLAS
         };
 
         using WindowDotTypes = ::testing::Types<sycl::half, float, double>;
-        SB_TYPED_TEST_SUITE(Unit_SpatialWindowDotTyped, WindowDotTypes);
+        SB_TYPED_TEST_SUITE(Medium_SpatialWindowDotTyped, WindowDotTypes);
 
         /**
          * @brief Runs the window-sum cases that fix one element type.
          */
-        class Unit_SpatialWindowDot : public SushiBLASTest
+        class Medium_SpatialWindowDot : public SushiBLASTest
         {
         };
 
         /** @brief Tests that a strided, dilated, padded 1 by 2 window gives hand-worked values. */
-        TYPED_TEST(Unit_SpatialWindowDotTyped, TheOneRowWindowGivesItsHandWorkedValues)
+        TYPED_TEST(Medium_SpatialWindowDotTyped, TheOneRowWindowGivesItsHandWorkedValues)
         {
             using T = TypeParam;
             Engine& engine = *this->engine;
@@ -513,7 +513,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the forward equals a host loop written from its formula, G1 to G5. */
-        TYPED_TEST(Unit_SpatialWindowDotTyped, ForwardMatchesTheFormula)
+        TYPED_TEST(Medium_SpatialWindowDotTyped, ForwardMatchesTheFormula)
         {
             using T = TypeParam;
             Engine& engine = *this->engine;
@@ -538,7 +538,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the gathered input gradient equals a host scatter, for G1 to G5. */
-        TYPED_TEST(Unit_SpatialWindowDotTyped, InputGradientMatchesAHostScatter)
+        TYPED_TEST(Medium_SpatialWindowDotTyped, InputGradientMatchesAHostScatter)
         {
             using T = TypeParam;
             Engine& engine = *this->engine;
@@ -563,7 +563,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the weight gradient equals a host loop of its formula, G1 to G5. */
-        TYPED_TEST(Unit_SpatialWindowDotTyped, WeightGradientMatchesTheFormula)
+        TYPED_TEST(Medium_SpatialWindowDotTyped, WeightGradientMatchesTheFormula)
         {
             using T = TypeParam;
             Engine& engine = *this->engine;
@@ -591,7 +591,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the three kernels give one inner product, as adjoints must. */
-        TEST_F(Unit_SpatialWindowDot, TheThreeKernelsAreAdjoint)
+        TEST_F(Medium_SpatialWindowDot, TheThreeKernelsAreAdjoint)
         {
             if (!device_computes<double>())
                 GTEST_SKIP() << "the device does not report the fp64 aspect";
@@ -625,7 +625,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the two gathers write equal bits in both modes on non-integer data. */
-        TYPED_TEST(Unit_SpatialWindowDotTyped, ReferenceAndSYCLAgreeToTheBitOnTheGathers)
+        TYPED_TEST(Medium_SpatialWindowDotTyped, ReferenceAndSYCLAgreeToTheBitOnTheGathers)
         {
             using T = TypeParam;
             Engine& engine = *this->engine;
@@ -655,7 +655,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a weight gradient of 4096 non-integer terms is within its bound. */
-        TYPED_TEST(Unit_SpatialWindowDotTyped, WeightGradientIsWithinItsBound)
+        TYPED_TEST(Medium_SpatialWindowDotTyped, WeightGradientIsWithinItsBound)
         {
             using T = TypeParam;
             Engine& engine = *this->engine;
@@ -695,7 +695,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that an integer weight gradient is exact with 2 segments and with 144. */
-        TEST_F(Unit_SpatialWindowDot, WeightGradientIsExactInBothLaunchShapes)
+        TEST_F(Medium_SpatialWindowDot, WeightGradientIsExactInBothLaunchShapes)
         {
             const WindowCase cases[] = {
                 {"two_segments", geometry_of(1, 2, 1, 1, 1, 1, 0, 1), 4, 8, 8, 1, 8,
@@ -734,7 +734,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a window lying wholly in the padding is accepted and adds nothing. */
-        TEST_F(Unit_SpatialWindowDot, AWindowOfOnlyPaddingGivesZero)
+        TEST_F(Medium_SpatialWindowDot, AWindowOfOnlyPaddingGivesZero)
         {
             // Output column j reads input column j - 2, so columns 0 and 1 read only padding.
             const WindowCase c{"padding", geometry_of(1, 1, 1, 1, 1, 1, 0, 2), 1, 1, 3, 1, 1, 4};
@@ -755,7 +755,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that an offset, row-strided input view gives the dense copy's result. */
-        TEST_F(Unit_SpatialWindowDot, AStridedInputIsReadThroughItsStrides)
+        TEST_F(Medium_SpatialWindowDot, AStridedInputIsReadThroughItsStrides)
         {
             const WindowCase c = table_cases()[1];
             const std::vector<int64_t> larger_dims = {c.batch + 1, c.in_h, c.in_w + 2, c.channels};
@@ -794,7 +794,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a batch of zero images writes a weight gradient of zeros. */
-        TEST_F(Unit_SpatialWindowDot, AZeroBatchWritesAZeroWeightGradient)
+        TEST_F(Medium_SpatialWindowDot, AZeroBatchWritesAZeroWeightGradient)
         {
             const WindowCase c{"zero_batch", geometry_of(3, 3, 1, 1, 1, 1, 1, 1), 0, 4, 4, 2, 4, 4};
 
@@ -812,7 +812,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that each malformed call throws naming the operation and the operand. */
-        TEST_F(Unit_SpatialWindowDot, MalformedOperandsNameTheOperand)
+        TEST_F(Medium_SpatialWindowDot, MalformedOperandsNameTheOperand)
         {
             static constexpr const char* NAME = "spatial.window_dot";
             const int64_t N = 1, H = 4, W = 4, C = 2;
@@ -845,7 +845,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that ForceReference refuses a device-only input and Auto records it. */
-        TEST_F(Unit_SpatialWindowDot, ADeviceOnlyOperandIsRefusedUnderForceReference)
+        TEST_F(Medium_SpatialWindowDot, ADeviceOnlyOperandIsRefusedUnderForceReference)
         {
             const WindowCase c = table_cases()[0];
             const Spatial::ConvGeometry g = c.geometry;

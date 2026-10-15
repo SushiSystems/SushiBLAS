@@ -126,7 +126,7 @@ sb test --filter 'Gemm.*'        # ctest -R over 'Suite.Case' test names
 sb test --repeat 5               # re-run until first failure
 
 # or run one test program directly; a module's is sushiblas_<module>_tests
-sb run sushiblas_blas_tests -- --gtest_filter='Unit_GEMMTest.*'
+sb run sushiblas_blas_tests -- --gtest_filter='Medium_GEMMTest.*'
 ```
 
 ## How it works

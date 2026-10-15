@@ -362,7 +362,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Runs the segmented fold on the test queue and on the fixture's engine. */
-        class Unit_ReduceSegments : public SushiBLASTest
+        class Medium_ReduceSegments : public SushiBLASTest
         {
             protected:
                 /** @brief Returns the queue every case submits to. */
@@ -373,7 +373,7 @@ namespace SushiBLAS
         };
 
         /** @brief Tests that both launch shapes fold every term of every segment once, for extents around the lane count and for none. */
-        TEST_F(Unit_ReduceSegments, BothShapesFoldEverySegmentOnce)
+        TEST_F(Medium_ReduceSegments, BothShapesFoldEverySegmentOnce)
         {
             sycl::queue& q = queue();
             SharedVector<std::int64_t> sums = shared_vector<std::int64_t>(q, K_RAMP_SEGMENTS);
@@ -403,7 +403,7 @@ namespace SushiBLAS
          * @brief Tests that the work-group shape folds lane `k % 4` in ascending k and joins the lanes as `(0 + 2) + (1 + 3)`.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_ReduceSegments, TheCooperativeShapeFoldsInLaneOrder)
+        TEST_F(Medium_ReduceSegments, TheCooperativeShapeFoldsInLaneOrder)
         {
             using Sum = Reduce::CompensatedSum<float>;
 
@@ -438,7 +438,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that reduce_axis writes the bits of a host fold in lane order for FLOAT32 and FLOAT64, in both shapes, with one segment axis and with two. */
-        TEST_F(Unit_ReduceSegments, ReduceAxisKeepsItsFloatBits)
+        TEST_F(Medium_ReduceSegments, ReduceAxisKeepsItsFloatBits)
         {
             sycl::queue& q = queue();
 
@@ -463,7 +463,7 @@ namespace SushiBLAS
          * @brief Tests that a HALF segment holding `60000, 60000, -60000` in one lane reduces to 60000 in both shapes.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_ReduceSegments, AHalfAxisSumIsFoldedInFloat)
+        TEST_F(Medium_ReduceSegments, AHalfAxisSumIsFoldedInFloat)
         {
             sycl::queue& q = queue();
             if (!q.get_device().has(sycl::aspect::fp16))
@@ -503,7 +503,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that mean_spatial of an 8 by 8 HALF map of 2000 is 2000 in each channel under ForceSYCL, though each channel sums to 128 000. */
-        TEST_F(Unit_ReduceSegments, AHalfMeanSpatialDoesNotOverflow)
+        TEST_F(Medium_ReduceSegments, AHalfMeanSpatialDoesNotOverflow)
         {
             if (!queue().get_device().has(sycl::aspect::fp16))
                 GTEST_SKIP() << "the device does not report the fp16 aspect";
@@ -531,7 +531,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that both launch shapes call the store once for each segment index, with that segment's value, and for no other index. */
-        TEST_F(Unit_ReduceSegments, AStoreSeesItsOwnSegmentOnly)
+        TEST_F(Medium_ReduceSegments, AStoreSeesItsOwnSegmentOnly)
         {
             sycl::queue& q = queue();
             SharedVector<StoreRecord> records = shared_vector<StoreRecord>(q, K_RAMP_SEGMENTS + 1);

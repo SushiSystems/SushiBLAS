@@ -40,7 +40,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceSptrsv, RecoversTheVectorAProductMade)
+        TEST(Small_ReferenceSptrsv, RecoversTheVectorAProductMade)
         {
             const int64_t n = 9;
             // A stored unit diagonal keeps every substitution exact in integers.

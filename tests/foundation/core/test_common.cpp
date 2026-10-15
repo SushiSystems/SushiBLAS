@@ -37,7 +37,7 @@ namespace SushiBLAS
         /// @brief A value outside every DataType enumerator.
         constexpr int K_UNKNOWN_DTYPE = 200;
 
-        TEST(Unit_DataType, EveryEnumeratorKeepsItsFileFormatNumber)
+        TEST(Small_DataType, EveryEnumeratorKeepsItsFileFormatNumber)
         {
             static_assert(static_cast<int>(Core::DataType::Half) == 0, "HALF is 0.");
             static_assert(static_cast<int>(Core::DataType::Float32) == 1, "FLOAT32 is 1.");
@@ -56,14 +56,14 @@ namespace SushiBLAS
             EXPECT_EQ(static_cast<int>(Core::DataType::Int64), 6);
         }
 
-        TEST(Unit_DataType, IsOneByte)
+        TEST(Small_DataType, IsOneByte)
         {
             static_assert(sizeof(Core::DataType) == 1, "DataType is one byte.");
 
             EXPECT_EQ(sizeof(Core::DataType), 1u);
         }
 
-        TEST(Unit_DataType, ToStringNamesEveryEnumerator)
+        TEST(Small_DataType, ToStringNamesEveryEnumerator)
         {
             EXPECT_EQ(std::string(Core::to_string(Core::DataType::Half)), "HALF");
             EXPECT_EQ(std::string(Core::to_string(Core::DataType::Float32)), "FLOAT32");
@@ -74,14 +74,14 @@ namespace SushiBLAS
             EXPECT_EQ(std::string(Core::to_string(Core::DataType::Int64)), "INT64");
         }
 
-        TEST(Unit_DataType, ToStringNamesAValueOutsideTheEnumerationUnknown)
+        TEST(Small_DataType, ToStringNamesAValueOutsideTheEnumerationUnknown)
         {
             const auto unknown = static_cast<Core::DataType>(K_UNKNOWN_DTYPE);
 
             EXPECT_EQ(std::string(Core::to_string(unknown)), "UNKNOWN");
         }
 
-        TEST(Unit_DataType, BytesPerElementIsTheStorageSizeOfEachType)
+        TEST(Small_DataType, BytesPerElementIsTheStorageSizeOfEachType)
         {
             EXPECT_EQ(Core::bytes_per_element(Core::DataType::Half), 2u);
             EXPECT_EQ(Core::bytes_per_element(Core::DataType::Float32), 4u);
@@ -92,7 +92,7 @@ namespace SushiBLAS
             EXPECT_EQ(Core::bytes_per_element(Core::DataType::Int64), 8u);
         }
 
-        TEST(Unit_DataType, EveryTypeIsExactlyOneOfRealComplexAndInteger)
+        TEST(Small_DataType, EveryTypeIsExactlyOneOfRealComplexAndInteger)
         {
             const Core::DataType all[] = {
                 Core::DataType::Half,      Core::DataType::Float32,   Core::DataType::Float64,
@@ -109,7 +109,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_DataType, ThePredicatesSortEachTypeIntoItsKind)
+        TEST(Small_DataType, ThePredicatesSortEachTypeIntoItsKind)
         {
             EXPECT_TRUE(Core::is_real_dtype(Core::DataType::Half));
             EXPECT_TRUE(Core::is_real_dtype(Core::DataType::Float32));
@@ -120,7 +120,7 @@ namespace SushiBLAS
             EXPECT_TRUE(Core::is_integer_dtype(Core::DataType::Int64));
         }
 
-        TEST(Unit_Layout, KeepsItsNumbersAndIsOneByte)
+        TEST(Small_Layout, KeepsItsNumbersAndIsOneByte)
         {
             static_assert(sizeof(Core::Layout) == 1, "Layout is one byte.");
 
@@ -128,7 +128,7 @@ namespace SushiBLAS
             EXPECT_EQ(static_cast<int>(Core::Layout::ColumnMajor), 1);
         }
 
-        TEST(Unit_Layout, TheLargestRankIsSix)
+        TEST(Small_Layout, TheLargestRankIsSix)
         {
             EXPECT_EQ(Core::K_MAX_TENSOR_RANK, std::size_t{6});
         }

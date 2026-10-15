@@ -39,7 +39,7 @@ namespace SushiBLAS
         /// @brief A 3 x 3 matrix given row by row.
         const std::vector<double> K_SQUARE{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0};
 
-        TEST(Unit_DenseOracle, MatvecMultipliesTheMatrixOrItsTranspose)
+        TEST(Small_DenseOracle, MatvecMultipliesTheMatrixOrItsTranspose)
         {
             EXPECT_EQ(dense_matvec(K_WIDE, 2, 3, false, 2.0, {1.0, 0.0, -1.0}, 1.0, {10.0, 20.0}),
                       (std::vector<double>{6.0, 16.0}));
@@ -47,7 +47,7 @@ namespace SushiBLAS
                       (std::vector<double>{5.0, 7.0, 9.0}));
         }
 
-        TEST(Unit_DenseOracle, SymmetricFromMirrorsTheChosenTriangle)
+        TEST(Small_DenseOracle, SymmetricFromMirrorsTheChosenTriangle)
         {
             EXPECT_EQ(symmetric_from(K_SQUARE, 3, true),
                       (std::vector<double>{1.0, 2.0, 3.0, 2.0, 5.0, 6.0, 3.0, 6.0, 9.0}));
@@ -55,7 +55,7 @@ namespace SushiBLAS
                       (std::vector<double>{1.0, 4.0, 7.0, 4.0, 5.0, 8.0, 7.0, 8.0, 9.0}));
         }
 
-        TEST(Unit_DenseOracle, TriangleOfZeroesTheOtherSideAndCanSetAUnitDiagonal)
+        TEST(Small_DenseOracle, TriangleOfZeroesTheOtherSideAndCanSetAUnitDiagonal)
         {
             EXPECT_EQ(triangle_of(K_SQUARE, 3, false, true),
                       (std::vector<double>{1.0, 0.0, 0.0, 4.0, 1.0, 0.0, 7.0, 8.0, 1.0}));
@@ -63,13 +63,13 @@ namespace SushiBLAS
                       (std::vector<double>{1.0, 2.0, 3.0, 0.0, 5.0, 6.0, 0.0, 0.0, 9.0}));
         }
 
-        TEST(Unit_DenseOracle, BandOfKeepsTheDiagonalsInsideTheBand)
+        TEST(Small_DenseOracle, BandOfKeepsTheDiagonalsInsideTheBand)
         {
             EXPECT_EQ(band_of(K_SQUARE, 3, 3, 1, 0),
                       (std::vector<double>{1.0, 0.0, 0.0, 4.0, 5.0, 0.0, 0.0, 8.0, 9.0}));
         }
 
-        TEST(Unit_DenseOracle, TriangleUpdateAddsTheRankOneOrRankTwoTerm)
+        TEST(Small_DenseOracle, TriangleUpdateAddsTheRankOneOrRankTwoTerm)
         {
             const std::vector<double> zero(4, 0.0);
 

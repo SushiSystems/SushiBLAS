@@ -46,9 +46,9 @@ namespace
     }
 }
 
-class Unit_IAMAXTest : public SushiBLASTest {};
+class Medium_IAMAXTest : public SushiBLASTest {};
 
-TEST_F(Unit_IAMAXTest, SimpleIAMAX)
+TEST_F(Medium_IAMAXTest, SimpleIAMAX)
 {
     auto X = engine->create_tensor({4});
     auto R = engine->create_tensor({1}, SushiBLAS::Core::DataType::Int64);
@@ -62,7 +62,7 @@ TEST_F(Unit_IAMAXTest, SimpleIAMAX)
     EXPECT_EQ(1, index_of(R));
 }
 
-TEST_F(Unit_IAMAXTest, TiesGoToTheLowestIndex)
+TEST_F(Medium_IAMAXTest, TiesGoToTheLowestIndex)
 {
     auto X = engine->create_tensor({5});
     auto R = engine->create_tensor({1}, SushiBLAS::Core::DataType::Int64);
@@ -80,7 +80,7 @@ TEST_F(Unit_IAMAXTest, TiesGoToTheLowestIndex)
  * @brief Tests that iamax rejects a result tensor too narrow to hold the index.
  * @see tests/operations/blas/README.md
  */
-TEST_F(Unit_IAMAXTest, RejectsAResultTensorTooNarrowToHoldTheIndex)
+TEST_F(Medium_IAMAXTest, RejectsAResultTensorTooNarrowToHoldTheIndex)
 {
     auto X = engine->create_tensor({4});
     fill_tensor(X, {1.0f, -5.0f, 3.0f, 2.0f});

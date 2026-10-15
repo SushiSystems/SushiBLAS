@@ -44,12 +44,12 @@ namespace SushiBLAS
         constexpr int64_t K_LENGTH = 1000;
 
         /** @brief Runs rotm on the host CPU queue. */
-        class Device_SYCLRotm : public HostDeviceTest
+        class Medium_SYCLRotm : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLRotm, MatchesTheReferenceUnderEveryFlag)
+        TEST_F(Medium_SYCLRotm, MatchesTheReferenceUnderEveryFlag)
         {
             for (const float flag : {-2.0f, -1.0f, 0.0f, 1.0f})
             {

@@ -39,7 +39,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_Export, NamesThePlatformVisibilityAttribute)
+        TEST(Small_Export, NamesThePlatformVisibilityAttribute)
         {
             const std::string expansion = SB_TEST_EXPANDED_TEXT(SUSHIBLAS_API);
 

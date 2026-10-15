@@ -41,7 +41,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceTriangularSolve, UndoesADenseProductThroughAPackedAccess)
+        TEST(Small_ReferenceTriangularSolve, UndoesADenseProductThroughAPackedAccess)
         {
             const int64_t n = 5;
             // A unit diagonal makes every substitution exact in integers.

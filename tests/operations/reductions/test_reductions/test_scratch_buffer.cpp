@@ -71,7 +71,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Gives each test the fixture's engine and the test environment's runtime. */
-        class Unit_ScratchBuffer : public SushiBLASTest
+        class Medium_ScratchBuffer : public SushiBLASTest
         {
             protected:
                 /** @brief Returns a FLOAT32 tensor of K_REDUCTION_ELEMENTS ones. */
@@ -90,7 +90,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_ScratchBuffer, ZeroBytesLeaseNothing)
+        TEST_F(Medium_ScratchBuffer, ZeroBytesLeaseNothing)
         {
             ScratchPool pool(TestEnvironment::runtime());
             const std::size_t live_baseline = TestEnvironment::live_allocation_count();
@@ -109,7 +109,7 @@ namespace SushiBLAS
             EXPECT_EQ(pool.idle_block_count(), idle_baseline);
         }
 
-        TEST_F(Unit_ScratchBuffer, ALeaseHoldsABlockOfItsClass)
+        TEST_F(Medium_ScratchBuffer, ALeaseHoldsABlockOfItsClass)
         {
             ScratchPool pool(TestEnvironment::runtime());
             const std::array<std::size_t, 3> requests = {1, 129, 4096};
@@ -128,7 +128,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_ScratchBuffer, ACopyKeepsTheBlockOut)
+        TEST_F(Medium_ScratchBuffer, ACopyKeepsTheBlockOut)
         {
             ScratchPool pool(TestEnvironment::runtime());
 
@@ -143,7 +143,7 @@ namespace SushiBLAS
             EXPECT_EQ(pool.idle_block_count(), std::size_t{0});
         }
 
-        TEST_F(Unit_ScratchBuffer, TheLastCopyReturnsTheBlock)
+        TEST_F(Medium_ScratchBuffer, TheLastCopyReturnsTheBlock)
         {
             ScratchPool pool(TestEnvironment::runtime());
             const std::size_t idle_baseline = pool.idle_block_count();
@@ -166,7 +166,7 @@ namespace SushiBLAS
             EXPECT_EQ(pool.idle_block_count(), idle_baseline);
         }
 
-        TEST_F(Unit_ScratchBuffer, ALeaseOutlivesItsPool)
+        TEST_F(Medium_ScratchBuffer, ALeaseOutlivesItsPool)
         {
             const std::size_t live_baseline = TestEnvironment::live_allocation_count();
 
@@ -187,7 +187,7 @@ namespace SushiBLAS
             EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
         }
 
-        TEST_F(Unit_ScratchBuffer, LiveLeasesNeverShareABlock)
+        TEST_F(Medium_ScratchBuffer, LiveLeasesNeverShareABlock)
         {
             ScratchPool pool(TestEnvironment::runtime());
 
@@ -206,7 +206,7 @@ namespace SushiBLAS
             EXPECT_EQ(addresses.count(nullptr), std::size_t{0});
         }
 
-        TEST_F(Unit_ScratchBuffer, LeasesAreSafeAcrossThreads)
+        TEST_F(Medium_ScratchBuffer, LeasesAreSafeAcrossThreads)
         {
             ScratchPool pool(TestEnvironment::runtime());
             const std::size_t baseline =
@@ -239,7 +239,7 @@ namespace SushiBLAS
             EXPECT_EQ(TestEnvironment::live_allocation_count() - pool.idle_block_count(), baseline);
         }
 
-        TEST_F(Unit_ScratchBuffer, ARecordedReductionReusesItsScratch)
+        TEST_F(Medium_ScratchBuffer, ARecordedReductionReusesItsScratch)
         {
             const Tensor input = make_reduction_input();
             Tensor result = engine->create_tensor({1});
@@ -263,7 +263,7 @@ namespace SushiBLAS
             EXPECT_EQ(live_after_second, live_after_first);
         }
 
-        TEST_F(Unit_ScratchBuffer, TwoRecordersLeaseFromOnePool)
+        TEST_F(Medium_ScratchBuffer, TwoRecordersLeaseFromOnePool)
         {
             const Tensor input = make_reduction_input();
             Tensor first_result = engine->create_tensor({1});

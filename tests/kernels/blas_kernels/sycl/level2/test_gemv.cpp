@@ -49,12 +49,12 @@ namespace SushiBLAS
         constexpr int64_t K_COLUMNS = 53;
 
         /** @brief Runs gemv on the host CPU queue. */
-        class Device_SYCLGemv : public HostDeviceTest
+        class Medium_SYCLGemv : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLGemv, MatchesTheReferenceInEveryLayoutAndTranspose)
+        TEST_F(Medium_SYCLGemv, MatchesTheReferenceInEveryLayoutAndTranspose)
         {
             // Every operand is a small integer, so both kernels compute without rounding.
             const std::vector<double> a = small_integers<double>(K_ROWS * K_COLUMNS, 1);
@@ -83,7 +83,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Device_SYCLGemv, FloatMatchesTheReferenceToo)
+        TEST_F(Medium_SYCLGemv, FloatMatchesTheReferenceToo)
         {
             const std::vector<float> a = small_integers<float>(K_ROWS * K_COLUMNS, 4);
             const std::vector<float> x = small_integers<float>(K_COLUMNS, 5);

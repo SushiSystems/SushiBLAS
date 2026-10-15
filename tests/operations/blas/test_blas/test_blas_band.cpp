@@ -727,36 +727,36 @@ namespace SushiBLAS
 
         /** @brief Runs the band routines over the five element types. */
         template<typename T>
-        class Unit_BlasBand : public BLASBandCases<T>
+        class Medium_BlasBand : public BLASBandCases<T>
         {
 
         };
 
         /** @brief Runs the conjugating band cases over the complex element types. */
         template<typename T>
-        class Unit_BlasBandComplex : public BLASBandCases<T>
+        class Medium_BlasBandComplex : public BLASBandCases<T>
         {
 
         };
 
         /// @brief Names the suite of the HALF accumulation cases.
-        using Unit_BlasBandHalf = BLASBandCases<sycl::half>;
+        using Medium_BlasBandHalf = BLASBandCases<sycl::half>;
 
         /// @brief Names the suite of the FLOAT32 cases of order K_LARGE_ORDER.
-        using Unit_BlasBandLarge = BLASBandCases<float>;
+        using Medium_BlasBandLarge = BLASBandCases<float>;
 
         /// @brief Names the five element types the band routines accept.
         using BLASBandTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
                                                std::complex<double>>;
         /// @brief Names the complex element types, the only ones a conjugation changes.
         using BLASBandComplexTypes = ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_BlasBand, BLASBandTypes);
-        SB_TYPED_TEST_SUITE(Unit_BlasBandComplex, BLASBandComplexTypes);
+        SB_TYPED_TEST_SUITE(Medium_BlasBand, BLASBandTypes);
+        SB_TYPED_TEST_SUITE(Medium_BlasBandComplex, BLASBandComplexTypes);
 
         /**
          * @brief Tests gbmv on the literal band arrays of the worked matrix.
          */
-        TYPED_TEST(Unit_BlasBand, GbmvMatchesTheWorkedMatrix)
+        TYPED_TEST(Medium_BlasBand, GbmvMatchesTheWorkedMatrix)
         {
             using T = TypeParam;
 
@@ -773,7 +773,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that gbmv scales the product by alpha and the prior y by beta.
          */
-        TYPED_TEST(Unit_BlasBand, GbmvScalesAndAccumulates)
+        TYPED_TEST(Medium_BlasBand, GbmvScalesAndAccumulates)
         {
             using T = TypeParam;
 
@@ -790,7 +790,7 @@ namespace SushiBLAS
         /**
          * @brief Tests gbmv on the transpose of the worked matrix.
          */
-        TYPED_TEST(Unit_BlasBand, GbmvTransposed)
+        TYPED_TEST(Medium_BlasBand, GbmvTransposed)
         {
             using T = TypeParam;
 
@@ -807,7 +807,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that gbmv reads no slot past the band of a line.
          */
-        TYPED_TEST(Unit_BlasBand, GbmvIgnoresSpareSlots)
+        TYPED_TEST(Medium_BlasBand, GbmvIgnoresSpareSlots)
         {
             using T = TypeParam;
             constexpr int64_t wide_ld = K_WORKED_LD + 2;
@@ -828,7 +828,7 @@ namespace SushiBLAS
         /**
          * @brief Tests gbmv on shapes at the edge of what it accepts against a host loop.
          */
-        TYPED_TEST(Unit_BlasBand, GbmvEdgeShapes)
+        TYPED_TEST(Medium_BlasBand, GbmvEdgeShapes)
         {
             using T = TypeParam;
 
@@ -876,7 +876,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that gbmv on a matrix of no columns only scales y by beta.
          */
-        TYPED_TEST(Unit_BlasBand, GbmvOfNoColumnsScalesY)
+        TYPED_TEST(Medium_BlasBand, GbmvOfNoColumnsScalesY)
         {
             using T = TypeParam;
 
@@ -901,7 +901,7 @@ namespace SushiBLAS
          * @brief Tests sbmv on the literal band arrays of a tridiagonal matrix, where a
          *        mistaken layout or triangle reads another matrix.
          */
-        TYPED_TEST(Unit_BlasBand, SbmvMatchesTheTridiagonal)
+        TYPED_TEST(Medium_BlasBand, SbmvMatchesTheTridiagonal)
         {
             using T = TypeParam;
             const int64_t n = K_TRIDIAGONAL_ORDER;
@@ -931,7 +931,7 @@ namespace SushiBLAS
         /**
          * @brief Tests tbmv on both hand triangles, transposed and with a unit diagonal.
          */
-        TYPED_TEST(Unit_BlasBand, TbmvMatchesByHand)
+        TYPED_TEST(Medium_BlasBand, TbmvMatchesByHand)
         {
             using T = TypeParam;
 
@@ -956,7 +956,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that tbsv recovers [1, 2, 3] from each product of TbmvMatchesByHand.
          */
-        TYPED_TEST(Unit_BlasBand, TbsvInvertsTbmv)
+        TYPED_TEST(Medium_BlasBand, TbsvInvertsTbmv)
         {
             using T = TypeParam;
 
@@ -982,7 +982,7 @@ namespace SushiBLAS
          * @brief Tests that tbsv solves in a view of every second element and leaves the
          *        elements between as they were.
          */
-        TYPED_TEST(Unit_BlasBand, TbsvTakesAStridedVector)
+        TYPED_TEST(Medium_BlasBand, TbsvTakesAStridedVector)
         {
             using T = TypeParam;
 
@@ -1005,7 +1005,7 @@ namespace SushiBLAS
          * @brief Tests that a band wide enough to hold the whole matrix gives the elements of
          *        gemv, symv and hemv.
          */
-        TYPED_TEST(Unit_BlasBand, AFullBandEqualsTheDenseSibling)
+        TYPED_TEST(Medium_BlasBand, AFullBandEqualsTheDenseSibling)
         {
             using T = TypeParam;
 
@@ -1078,7 +1078,7 @@ namespace SushiBLAS
          * @brief Tests that tbmv and tbsv on a full triangle band give the elements of trmv and
          *        trsv, and the product and the solution formed in integers on the host.
          */
-        TYPED_TEST(Unit_BlasBand, AFullTriangleBandEqualsTheDenseSibling)
+        TYPED_TEST(Medium_BlasBand, AFullTriangleBandEqualsTheDenseSibling)
         {
             using T = TypeParam;
             const int64_t n = K_SIBLING_ORDER;
@@ -1123,7 +1123,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that the two kernels agree within ModeTolerance at four band widths.
          */
-        TYPED_TEST(Unit_BlasBand, BothModesAgree)
+        TYPED_TEST(Medium_BlasBand, BothModesAgree)
         {
             using T = TypeParam;
 
@@ -1147,7 +1147,7 @@ namespace SushiBLAS
         /**
          * @brief Tests gbmv under each transpose on a complex band matrix.
          */
-        TYPED_TEST(Unit_BlasBandComplex, GbmvConjTransposed)
+        TYPED_TEST(Medium_BlasBandComplex, GbmvConjTransposed)
         {
             using T = TypeParam;
             const std::vector<Wide> dense = {Wide(1, 2), Wide(3, -1), Wide(0, 0), Wide(4, 1)};
@@ -1180,7 +1180,7 @@ namespace SushiBLAS
          * @brief Tests that hbmv conjugates the mirrored triangle and reads no imaginary
          *        diagonal, and that sbmv on the same storage mirrors without conjugating.
          */
-        TYPED_TEST(Unit_BlasBandComplex, HbmvConjugatesTheMirror)
+        TYPED_TEST(Medium_BlasBandComplex, HbmvConjugatesTheMirror)
         {
             using T = TypeParam;
             const int64_t n = K_HAND_ORDER;
@@ -1227,7 +1227,7 @@ namespace SushiBLAS
          * @brief Tests that gbmv, sbmv and tbmv sum a HALF row in FLOAT32: 2048 + 1 + 1 - 2048
          *        is 2 there and 0 in HALF.
          */
-        TEST_F(Unit_BlasBandHalf, HalfSumsInFloat)
+        TEST_F(Medium_BlasBandHalf, HalfSumsInFloat)
         {
             using T = sycl::half;
             constexpr int64_t n = 4;
@@ -1264,7 +1264,7 @@ namespace SushiBLAS
          * @brief Tests that tbsv carries a HALF solution in FLOAT32: the middle element is
          *        2049 there, stored as 2048, and the last is 2050 - 2049.
          */
-        TEST_F(Unit_BlasBandHalf, HalfSolveCarriesTheSolutionInFloat)
+        TEST_F(Medium_BlasBandHalf, HalfSolveCarriesTheSolutionInFloat)
         {
             using T = sycl::half;
             const std::vector<double> lower = {1, 0, 0, -1, 1, 0, 0, 1, 1};
@@ -1286,7 +1286,7 @@ namespace SushiBLAS
          * @brief Tests gbmv and sbmv against gemv and symv at an order where a device that
          *        plans a work-group per row runs one.
          */
-        TEST_F(Unit_BlasBandLarge, AFullBandEqualsTheDenseSiblingLarge)
+        TEST_F(Medium_BlasBandLarge, AFullBandEqualsTheDenseSiblingLarge)
         {
             for (const ExecutionMode mode : K_MODES)
             {
@@ -1306,7 +1306,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that gbmv and sbmv give the same bits when the device runs them twice.
          */
-        TEST_F(Unit_BlasBandLarge, RepeatsToTheBit)
+        TEST_F(Medium_BlasBandLarge, RepeatsToTheBit)
         {
             const auto same_bits = [](const std::vector<float>& first,
                                       const std::vector<float>& second)

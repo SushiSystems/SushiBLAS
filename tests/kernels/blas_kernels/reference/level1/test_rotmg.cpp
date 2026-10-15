@@ -38,7 +38,7 @@ namespace SushiBLAS
         /// @brief Absolute tolerance of a component the transformation must zero.
         constexpr double K_TOLERANCE = 1e-12;
 
-        TEST(Unit_ReferenceRotmg, TheTransformationZeroesTheSecondComponent)
+        TEST(Small_ReferenceRotmg, TheTransformationZeroesTheSecondComponent)
         {
             for (const double y1 : {0.5, 3.0, -2.0})
             {
@@ -58,7 +58,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_ReferenceRotmg, AZeroSecondComponentNeedsNoTransformation)
+        TEST(Small_ReferenceRotmg, AZeroSecondComponentNeedsNoTransformation)
         {
             double d1 = 2.0;
             double d2 = 1.0;

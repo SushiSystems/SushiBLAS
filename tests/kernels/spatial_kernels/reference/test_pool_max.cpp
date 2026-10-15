@@ -36,7 +36,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferencePoolMax, KeepsTheLargestTapAndItsFlatPosition)
+        TEST(Small_ReferencePoolMax, KeepsTheLargestTapAndItsFlatPosition)
         {
             Spatial::ConvGeometry geometry;
             geometry.kernel_h = 2;
@@ -54,7 +54,7 @@ namespace SushiBLAS
             EXPECT_EQ(indices, (std::vector<int64_t>{1, 7}));
         }
 
-        TEST(Unit_ReferencePoolMax, TheBackwardSendsEachGradientToItsArgmax)
+        TEST(Small_ReferencePoolMax, TheBackwardSendsEachGradientToItsArgmax)
         {
             Spatial::ConvGeometry geometry;
             geometry.kernel_h = 2;

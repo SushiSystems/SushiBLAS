@@ -40,7 +40,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceSpsymv, ReadsOneTriangleAndSkipsTheOther)
+        TEST(Small_ReferenceSpsymv, ReadsOneTriangleAndSkipsTheOther)
         {
             const int64_t n = 8;
             const IntegerCsr a = integer_csr(n, n, 4, true);

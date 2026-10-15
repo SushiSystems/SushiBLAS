@@ -36,7 +36,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_SmallIntegers, EveryValueIsAnIntegerFromMinusThreeToThree)
+        TEST(Small_SmallIntegers, EveryValueIsAnIntegerFromMinusThreeToThree)
         {
             const std::vector<double> values = small_integers<double>(1000, 7);
 
@@ -49,13 +49,13 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_SmallIntegers, OneSeedGivesOneSequenceAndAnotherSeedAnother)
+        TEST(Small_SmallIntegers, OneSeedGivesOneSequenceAndAnotherSeedAnother)
         {
             EXPECT_EQ(small_integers<float>(64, 1), small_integers<float>(64, 1));
             EXPECT_NE(small_integers<float>(64, 1), small_integers<float>(64, 2));
         }
 
-        TEST(Unit_SmallIntegers, TheUnitDiagonalMatrixHasOnesOnItsDiagonal)
+        TEST(Small_SmallIntegers, TheUnitDiagonalMatrixHasOnesOnItsDiagonal)
         {
             const std::vector<int32_t> matrix = unit_diagonal_matrix<int32_t>(5, 3);
 

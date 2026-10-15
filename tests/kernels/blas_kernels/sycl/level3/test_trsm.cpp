@@ -75,12 +75,12 @@ namespace SushiBLAS
         }
 
         /** @brief Runs trsm on the host CPU queue. */
-        class Device_SYCLTrsm : public HostDeviceTest
+        class Medium_SYCLTrsm : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLTrsm, MatchesTheReferenceForEveryFlagAndBlockWidth)
+        TEST_F(Medium_SYCLTrsm, MatchesTheReferenceForEveryFlagAndBlockWidth)
         {
             SharedArray<Kernels::Accumulator<double>> work(queue(),
                                                            static_cast<std::size_t>(K_ROWS *

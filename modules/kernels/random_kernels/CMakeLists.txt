@@ -16,7 +16,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE random_kernels
-    SIZE medium
     TESTS
         reference/test_orthonormalize.cpp
         sycl/test_orthonormalize.cpp

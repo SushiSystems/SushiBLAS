@@ -13,7 +13,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE reference
-    SIZE medium
     TESTS
         test_reference_accumulator.cpp
         test_serial_1d.cpp

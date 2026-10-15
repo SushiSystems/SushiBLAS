@@ -40,7 +40,7 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Builds one factory over the test environment's runtime for each test. */
-        class Unit_TensorFactoryTest : public SushiBLASTest
+        class Medium_TensorFactoryTest : public SushiBLASTest
         {
             protected:
                 /** @brief Returns a view of dims, which must outlive the call it is passed to. */
@@ -55,7 +55,7 @@ namespace SushiBLAS
         };
 
         /** @brief Tests that a shape with a zero dimension keeps its rank and allocates nothing. */
-        TEST_F(Unit_TensorFactoryTest, AZeroDimensionGivesATensorWithoutStorage)
+        TEST_F(Medium_TensorFactoryTest, AZeroDimensionGivesATensorWithoutStorage)
         {
             const std::vector<int64_t> dims = {0, 3};
             const std::size_t live_before = TestEnvironment::live_allocation_count();
@@ -71,7 +71,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the storage reports the device index the factory was asked for. */
-        TEST_F(Unit_TensorFactoryTest, TheDeviceIndexReachesTheStorage)
+        TEST_F(Medium_TensorFactoryTest, TheDeviceIndexReachesTheStorage)
         {
             const std::vector<int64_t> dims = {4};
 
@@ -87,7 +87,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a device index past the last queue throws, for an empty shape too. */
-        TEST_F(Unit_TensorFactoryTest, ADeviceIndexOutOfRangeThrows)
+        TEST_F(Medium_TensorFactoryTest, ADeviceIndexOutOfRangeThrows)
         {
             const std::vector<int64_t> dims = {4};
             const std::vector<int64_t> empty_dims = {0, 3};
@@ -102,7 +102,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a brace list, a vector and a span give equal shapes and strides. */
-        TEST_F(Unit_TensorFactoryTest, BraceListVectorAndSpanAgree)
+        TEST_F(Medium_TensorFactoryTest, BraceListVectorAndSpanAgree)
         {
             const std::vector<int64_t> dims = {2, 3, 4};
 
@@ -120,7 +120,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a column-major engine creates column-major tensors. */
-        TEST_F(Unit_TensorFactoryTest, EngineCreateTensorUsesTheEngineLayout)
+        TEST_F(Medium_TensorFactoryTest, EngineCreateTensorUsesTheEngineLayout)
         {
             reinit_engine(Core::Layout::ColumnMajor);
 
@@ -133,7 +133,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that twelve requested bytes are stored as whole alignment units. */
-        TEST_F(Unit_TensorFactoryTest, StorageSizeIsRoundedUpToTheAlignment)
+        TEST_F(Medium_TensorFactoryTest, StorageSizeIsRoundedUpToTheAlignment)
         {
             const Tensor tensor = engine->create_tensor({3}, Core::DataType::Float32);
 

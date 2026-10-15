@@ -33,9 +33,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Unit_AllTest : public SushiBLASTest {};
+class Medium_AllTest : public SushiBLASTest {};
 
-TEST_F(Unit_AllTest, FloatForward) 
+TEST_F(Medium_AllTest, FloatForward) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 0.0f, 3.0f, 0.0f});

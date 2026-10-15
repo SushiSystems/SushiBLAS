@@ -47,12 +47,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs the packed gemm on the host CPU queue. */
-        class Device_SYCLGemmPacked : public HostDeviceTest
+        class Medium_SYCLGemmPacked : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLGemmPacked, EveryBlockingMatchesTheReference)
+        TEST_F(Medium_SYCLGemmPacked, EveryBlockingMatchesTheReference)
         {
             // The patterned operands are small integers, so every blocking computes exactly.
             const Device::CacheBlocking blockings[] = {smallest_blocking(),
@@ -79,7 +79,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Device_SYCLGemmPacked, TheEntryPointWithScratchMatchesTheReference)
+        TEST_F(Medium_SYCLGemmPacked, TheEntryPointWithScratchMatchesTheReference)
         {
             const int64_t m = 70;
             const int64_t n = 66;

@@ -60,7 +60,7 @@ namespace
     constexpr uint64_t K_OTHER_SEED = 7;
 }
 
-class Unit_NormalTest : public SushiBLASTest
+class Medium_NormalTest : public SushiBLASTest
 {
     protected:
         /**
@@ -106,24 +106,24 @@ class Unit_NormalTest : public SushiBLASTest
         }
 };
 
-TEST_F(Unit_NormalTest, Float32MomentsMatchTheRequestedDistribution)
+TEST_F(Medium_NormalTest, Float32MomentsMatchTheRequestedDistribution)
 {
     expect_normal_statistics(draw<float>(K_SEED));
 }
 
-TEST_F(Unit_NormalTest, Float64MomentsMatchTheRequestedDistribution)
+TEST_F(Medium_NormalTest, Float64MomentsMatchTheRequestedDistribution)
 {
     expect_normal_statistics(draw<double>(K_SEED));
 }
 
-TEST_F(Unit_NormalTest, EqualSeedsDrawEqualSamples)
+TEST_F(Medium_NormalTest, EqualSeedsDrawEqualSamples)
 {
     const std::vector<double> first = draw<float>(K_SEED);
     const std::vector<double> second = draw<float>(K_SEED);
     EXPECT_EQ(first, second);
 }
 
-TEST_F(Unit_NormalTest, DifferentSeedsDrawDifferentSamples)
+TEST_F(Medium_NormalTest, DifferentSeedsDrawDifferentSamples)
 {
     EXPECT_NE(draw<float>(K_SEED), draw<float>(K_OTHER_SEED));
 }

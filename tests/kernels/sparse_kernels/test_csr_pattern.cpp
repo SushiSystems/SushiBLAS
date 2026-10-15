@@ -34,7 +34,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_CsrPattern, AZeroBasedPatternReadsItsArraysAsStored)
+        TEST(Small_CsrPattern, AZeroBasedPatternReadsItsArraysAsStored)
         {
             const std::vector<int32_t> offsets{0, 2, 2, 3};
             const std::vector<int32_t> columns{1, 3, 0};
@@ -47,7 +47,7 @@ namespace SushiBLAS
             EXPECT_EQ(pattern.row_begin(3), int64_t{3});
         }
 
-        TEST(Unit_CsrPattern, AOneBasedPatternSubtractsItsBase)
+        TEST(Small_CsrPattern, AOneBasedPatternSubtractsItsBase)
         {
             const std::vector<int64_t> offsets{1, 3, 3, 4};
             const std::vector<int64_t> columns{2, 4, 1};

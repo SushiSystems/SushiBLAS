@@ -44,12 +44,12 @@ namespace SushiBLAS
         constexpr std::size_t K_COUNT = 5003;
 
         /** @brief Runs the dispatcher on the host CPU queue. */
-        class Device_ArgReduction : public HostDeviceTest
+        class Medium_ArgReduction : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_ArgReduction, TheReferenceFindsTheFirstLargestAndSmallest)
+        TEST_F(Medium_ArgReduction, TheReferenceFindsTheFirstLargestAndSmallest)
         {
             const std::vector<float> values{2.0f, 7.0f, -3.0f, 7.0f, -3.0f};
             int64_t index = -1;
@@ -63,7 +63,7 @@ namespace SushiBLAS
             EXPECT_EQ(index, int64_t{2});
         }
 
-        TEST_F(Device_ArgReduction, TheSYCLPathPicksTheIndexTheReferencePicks)
+        TEST_F(Medium_ArgReduction, TheSYCLPathPicksTheIndexTheReferencePicks)
         {
             const SharedArray<double> in(queue(), small_integers<double>(K_COUNT, 5));
             SharedArray<int64_t> out(queue(), 1);

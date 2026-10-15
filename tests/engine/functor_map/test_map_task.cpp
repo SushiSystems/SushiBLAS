@@ -71,12 +71,12 @@ namespace SushiBLAS
         };
 
         /** @brief Runs the tasks on the host CPU queue. */
-        class Device_MapTask : public HostDeviceTest
+        class Medium_MapTask : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_MapTask, BothPathsOfAMapTaskWriteTheSameElements)
+        TEST_F(Medium_MapTask, BothPathsOfAMapTaskWriteTheSameElements)
         {
             const SharedArray<float> a(queue(), small_integers<float>(K_COUNT, 1));
             const SharedArray<float> b(queue(), small_integers<float>(K_COUNT, 2));
@@ -96,7 +96,7 @@ namespace SushiBLAS
             EXPECT_EQ(by_reference.get()[0], a.get()[0] * b.get()[0] - a.get()[0]);
         }
 
-        TEST_F(Device_MapTask, BothPathsOfAZipTaskLeaveTheSameElements)
+        TEST_F(Medium_MapTask, BothPathsOfAZipTaskLeaveTheSameElements)
         {
             const std::vector<double> first = small_integers<double>(K_COUNT, 3);
             const std::vector<double> second = small_integers<double>(K_COUNT, 4);

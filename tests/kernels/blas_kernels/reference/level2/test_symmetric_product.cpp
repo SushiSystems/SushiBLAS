@@ -43,7 +43,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceSymmetricProduct, APackedAccessReadsTheWholeSymmetricMatrix)
+        TEST(Small_ReferenceSymmetricProduct, APackedAccessReadsTheWholeSymmetricMatrix)
         {
             const int64_t n = 5;
             const std::vector<double> a = small_integers<double>(n * n, 1);
@@ -66,7 +66,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_ReferenceSymmetricProduct, ABandAccessReadsOnlyTheBand)
+        TEST(Small_ReferenceSymmetricProduct, ABandAccessReadsOnlyTheBand)
         {
             const int64_t n = 6;
             const int64_t k = 1;

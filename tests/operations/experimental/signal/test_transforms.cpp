@@ -42,7 +42,7 @@ namespace SushiBLAS
                           !std::is_copy_assignable_v<TransformsOps>,
                       "TransformsOps copies but never rebinds.");
 
-        TEST(Unit_Transforms, TheDeclarationKeepsTheShapeOfARecorderView)
+        TEST(Medium_Transforms, TheDeclarationKeepsTheShapeOfARecorderView)
         {
             SUCCEED();
         }

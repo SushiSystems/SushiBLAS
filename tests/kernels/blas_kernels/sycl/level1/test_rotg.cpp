@@ -38,12 +38,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs rotg on the host CPU queue. */
-        class Device_SYCLRotg : public HostDeviceTest
+        class Medium_SYCLRotg : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLRotg, MatchesTheReferenceBitForBit)
+        TEST_F(Medium_SYCLRotg, MatchesTheReferenceBitForBit)
         {
             const std::vector<std::vector<double>> pairs{
                 {3.0, 4.0}, {-4.0, 3.0}, {0.0, 2.0}, {5.0, 0.0}, {1e-200, 3e-200}};

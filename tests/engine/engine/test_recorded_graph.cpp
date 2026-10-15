@@ -62,7 +62,7 @@ namespace SushiBLAS
                                  });
         }
 
-        TEST(Unit_RecordedGraph, StartsEmptyAndRunsNothing)
+        TEST(Medium_RecordedGraph, StartsEmptyAndRunsNothing)
         {
             RecordedGraph graph(TestEnvironment::runtime());
 
@@ -71,7 +71,7 @@ namespace SushiBLAS
             EXPECT_TRUE(graph.run().has_value());
         }
 
-        TEST(Unit_RecordedGraph, RunsWhatWasRecordedAndIsEmptyAfterwards)
+        TEST(Medium_RecordedGraph, RunsWhatWasRecordedAndIsEmptyAfterwards)
         {
             RecordedGraph graph(TestEnvironment::runtime());
             ScratchPool pool(TestEnvironment::runtime());
@@ -94,7 +94,7 @@ namespace SushiBLAS
             sycl::free(counters, TestEnvironment::queue());
         }
 
-        TEST(Unit_RecordedGraph, DiscardDropsTheRecordedTasksAndCountsThem)
+        TEST(Medium_RecordedGraph, DiscardDropsTheRecordedTasksAndCountsThem)
         {
             RecordedGraph graph(TestEnvironment::runtime());
             ScratchPool pool(TestEnvironment::runtime());

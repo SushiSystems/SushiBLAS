@@ -276,17 +276,17 @@ namespace SushiBLAS
          * @tparam W float, double or the std::complex of either.
          */
         template<typename W>
-        class Unit_PackedMicroKernel : public ::testing::Test
+        class Medium_PackedMicroKernel : public ::testing::Test
         {
 
         };
 
         using PackedMicroKernelTypes =
             ::testing::Types<float, double, std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_PackedMicroKernel, PackedMicroKernelTypes);
+        SB_TYPED_TEST_SUITE(Medium_PackedMicroKernel, PackedMicroKernelTypes);
 
         /** @brief Tests that every sum gains the outer products of the slices, exactly. */
-        TYPED_TEST(Unit_PackedMicroKernel, TheTileGainsTheOuterProducts)
+        TYPED_TEST(Medium_PackedMicroKernel, TheTileGainsTheOuterProducts)
         {
             using W = TypeParam;
             using R = Kernels::RealType<W>;
@@ -319,7 +319,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that term l is added before term l + 1, in each part of a sum. */
-        TYPED_TEST(Unit_PackedMicroKernel, TheTermsAreAddedInAscendingOrder)
+        TYPED_TEST(Medium_PackedMicroKernel, TheTermsAreAddedInAscendingOrder)
         {
             using W = TypeParam;
             using R = Kernels::RealType<W>;
@@ -354,7 +354,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that each term is the product Kernels::multiply gives, to the bit. */
-        TYPED_TEST(Unit_PackedMicroKernel, ComplexTermsFollowTheFourProductFormula)
+        TYPED_TEST(Medium_PackedMicroKernel, ComplexTermsFollowTheFourProductFormula)
         {
             using W = TypeParam;
 
@@ -368,7 +368,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a depth of zero leaves every bit of the tile. */
-        TYPED_TEST(Unit_PackedMicroKernel, ADepthOfZeroLeavesTheTile)
+        TYPED_TEST(Medium_PackedMicroKernel, ADepthOfZeroLeavesTheTile)
         {
             using W = TypeParam;
 
@@ -381,7 +381,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the real after the tile is left alone. */
-        TYPED_TEST(Unit_PackedMicroKernel, NothingIsWrittenPastTheTile)
+        TYPED_TEST(Medium_PackedMicroKernel, NothingIsWrittenPastTheTile)
         {
             using W = TypeParam;
             using R = Kernels::RealType<W>;

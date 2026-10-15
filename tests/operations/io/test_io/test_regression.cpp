@@ -43,7 +43,7 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Supplies an engine and temporary files that are removed after each test. */
-        class Regression_IO : public SushiBLASTest
+        class Medium_IO : public SushiBLASTest
         {
             protected:
                 /** @brief Removes every file the test asked for, then tears the engine down. */
@@ -91,7 +91,7 @@ namespace SushiBLAS
                 std::vector<std::string> paths_;
         };
 
-        TEST_F(Regression_IO, LoadRejectsATruncatedPayloadAndKeepsTheTensor)
+        TEST_F(Medium_IO, LoadRejectsATruncatedPayloadAndKeepsTheTensor)
         {
             const std::string path = temp_path("truncated_payload.sushi");
             auto source = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
@@ -104,7 +104,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(target, before, 0.0);
         }
 
-        TEST_F(Regression_IO, LoadRejectsAnotherDtype)
+        TEST_F(Medium_IO, LoadRejectsAnotherDtype)
         {
             const std::string path = temp_path("dtype.sushi");
             auto source = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
@@ -115,7 +115,7 @@ namespace SushiBLAS
                       SushiBLAS::IOStatus::DtypeMismatch);
         }
 
-        TEST_F(Regression_IO, LoadRejectsAnotherLayout)
+        TEST_F(Medium_IO, LoadRejectsAnotherLayout)
         {
             const std::string path = temp_path("layout.sushi");
             {
@@ -129,7 +129,7 @@ namespace SushiBLAS
                       SushiBLAS::IOStatus::LayoutMismatch);
         }
 
-        TEST_F(Regression_IO, LoadRejectsAnotherFormatVersion)
+        TEST_F(Medium_IO, LoadRejectsAnotherFormatVersion)
         {
             // The version is the 32-bit field after the six magic bytes and two bytes of padding.
             constexpr size_t K_VERSION_OFFSET = 8;
@@ -149,7 +149,7 @@ namespace SushiBLAS
                       SushiBLAS::IOStatus::MalformedFile);
         }
 
-        TEST_F(Regression_IO, LoadBinRejectsAShortFileAndKeepsTheTensor)
+        TEST_F(Medium_IO, LoadBinRejectsAShortFileAndKeepsTheTensor)
         {
             const std::string path = temp_path("short.bin");
             auto source = create_initialized_tensor<float>({2}, {1.0f, 2.0f});
@@ -162,7 +162,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(target, before, 0.0);
         }
 
-        TEST_F(Regression_IO, LoadNpyRejectsATruncatedPayload)
+        TEST_F(Medium_IO, LoadNpyRejectsATruncatedPayload)
         {
             const std::string path = temp_path("truncated_payload.npy");
             auto source = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
@@ -174,7 +174,7 @@ namespace SushiBLAS
                       SushiBLAS::IOStatus::Truncated);
         }
 
-        TEST_F(Regression_IO, BinRoundTripsDeviceAllocatedStorage)
+        TEST_F(Medium_IO, BinRoundTripsDeviceAllocatedStorage)
         {
             if (!TestEnvironment::queue().get_device().is_gpu())
                 GTEST_SKIP() << "Device USM is host-readable on this device; "
@@ -195,7 +195,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(target, values, 0.0);
         }
 
-        TEST_F(Regression_IO, AShortFileLeavesTheTensorUntouched)
+        TEST_F(Medium_IO, AShortFileLeavesTheTensorUntouched)
         {
             const std::string bin_path = temp_path("one_byte_short.bin");
             const std::string sushi_path = temp_path("one_byte_short.sushi");
@@ -232,7 +232,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Regression_IO, APayloadLargerThanOneChunkRoundTrips)
+        TEST_F(Medium_IO, APayloadLargerThanOneChunkRoundTrips)
         {
             // 3 x 2^20 FLOAT32 elements are 12 MiB, three of the 4 MiB chunks IO stages.
             constexpr int64_t K_ELEMENTS = int64_t{3} << 20;
@@ -263,7 +263,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Regression_IO, ALongerFileStillLoadsItsPrefix)
+        TEST_F(Medium_IO, ALongerFileStillLoadsItsPrefix)
         {
             const std::string path = temp_path("longer.bin");
             auto source = create_initialized_tensor<float>({6},

@@ -57,7 +57,7 @@ namespace SushiBLAS
         constexpr size_t K_NPY_V1_HEADER_OFFSET = 10;
 
         /** @brief Supplies an engine and temporary files that are removed after each test. */
-        class Unit_HostTransfer : public SushiBLASTest
+        class Medium_HostTransfer : public SushiBLASTest
         {
             protected:
                 /** @brief Removes every file the test asked for, then tears the engine down. */
@@ -166,7 +166,7 @@ namespace SushiBLAS
                 std::vector<std::string> paths_;
         };
 
-        TEST_F(Unit_HostTransfer, ToVectorReadsBackWhatFromVectorWrote)
+        TEST_F(Medium_HostTransfer, ToVectorReadsBackWhatFromVectorWrote)
         {
             auto t = engine->create_tensor({2, 3});
             SushiBLAS::IO(*engine).from_vector(t, K_VALUES);
@@ -174,7 +174,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
-        TEST_F(Unit_HostTransfer, ReadReturnsWhatWriteStored)
+        TEST_F(Medium_HostTransfer, ReadReturnsWhatWriteStored)
         {
             auto t = engine->create_tensor({2, 3});
             SushiBLAS::IO(*engine).write(t, K_VALUES.data(), K_VALUES.size() * sizeof(float));
@@ -184,7 +184,7 @@ namespace SushiBLAS
             EXPECT_EQ(out, K_VALUES);
         }
 
-        TEST_F(Unit_HostTransfer, SizeMismatchThrows)
+        TEST_F(Medium_HostTransfer, SizeMismatchThrows)
         {
             auto t = engine->create_tensor({2, 3});
             const std::vector<float> short_values{1.0f, 2.0f};
@@ -199,7 +199,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_HostTransfer, ElementTypeMismatchThrows)
+        TEST_F(Medium_HostTransfer, ElementTypeMismatchThrows)
         {
             auto t = engine->create_tensor({2, 3});
 
@@ -208,7 +208,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_HostTransfer, ReadRunsThePendingWriteFirst)
+        TEST_F(Medium_HostTransfer, ReadRunsThePendingWriteFirst)
         {
             auto source = engine->create_tensor({2, 3});
             auto t = engine->create_tensor({2, 3});
@@ -220,7 +220,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
-        TEST_F(Unit_HostTransfer, LoadNpyRunsThePendingWriteBeforeLoading)
+        TEST_F(Medium_HostTransfer, LoadNpyRunsThePendingWriteBeforeLoading)
         {
             const std::string path = save_values_npy("ordering.npy");
 
@@ -234,7 +234,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
-        TEST_F(Unit_HostTransfer, LoadBinRunsThePendingWriteBeforeLoading)
+        TEST_F(Medium_HostTransfer, LoadBinRunsThePendingWriteBeforeLoading)
         {
             const std::string path = temp_path("ordering.bin");
             {
@@ -253,7 +253,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
-        TEST_F(Unit_HostTransfer, NpyRoundTripKeepsTheValues)
+        TEST_F(Medium_HostTransfer, NpyRoundTripKeepsTheValues)
         {
             const std::string path = save_values_npy("round_trip.npy");
 
@@ -263,7 +263,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
-        TEST_F(Unit_HostTransfer, NpyVersionTwoHeaderLoads)
+        TEST_F(Medium_HostTransfer, NpyVersionTwoHeaderLoads)
         {
             const std::string path = save_values_npy("version_two.npy");
             const std::vector<char> v1 = read_bytes(path);
@@ -288,7 +288,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
-        TEST_F(Unit_HostTransfer, NpyWithAnotherDtypeIsADtypeMismatch)
+        TEST_F(Medium_HostTransfer, NpyWithAnotherDtypeIsADtypeMismatch)
         {
             const std::string path = save_values_npy("dtype.npy");
             std::vector<char> bytes = read_bytes(path);
@@ -299,7 +299,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IOStatus::DtypeMismatch);
         }
 
-        TEST_F(Unit_HostTransfer, NpyWithAnotherShapeIsAShapeMismatch)
+        TEST_F(Medium_HostTransfer, NpyWithAnotherShapeIsAShapeMismatch)
         {
             const std::string path = save_values_npy("shape.npy");
             std::vector<char> bytes = read_bytes(path);
@@ -310,7 +310,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IOStatus::ShapeMismatch);
         }
 
-        TEST_F(Unit_HostTransfer, NpyWithVersionFourIsMalformed)
+        TEST_F(Medium_HostTransfer, NpyWithVersionFourIsMalformed)
         {
             const std::string path = save_values_npy("version_four.npy");
             std::vector<char> bytes = read_bytes(path);
@@ -324,7 +324,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IOStatus::MalformedFile);
         }
 
-        TEST_F(Unit_HostTransfer, NpyWithoutAShapeIsMalformed)
+        TEST_F(Medium_HostTransfer, NpyWithoutAShapeIsMalformed)
         {
             const std::string path = save_values_npy("no_shape.npy");
             std::vector<char> bytes = read_bytes(path);
@@ -335,7 +335,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IOStatus::MalformedFile);
         }
 
-        TEST_F(Unit_HostTransfer, NpyWithNumpyPaddingLoads)
+        TEST_F(Medium_HostTransfer, NpyWithNumpyPaddingLoads)
         {
             const std::string path = temp_path("numpy_padding.npy");
             write_npy_v1(path, "{'descr': '<f4', 'fortran_order': False, 'shape': (2, 3), }");
@@ -346,7 +346,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<float>(t), K_VALUES);
         }
 
-        TEST_F(Unit_HostTransfer, NpyWithoutCommasIsMalformed)
+        TEST_F(Medium_HostTransfer, NpyWithoutCommasIsMalformed)
         {
             const std::string path = temp_path("no_commas.npy");
             write_npy_v1(path, "{'descr': '<f4' 'fortran_order': False 'shape': (2, 3) }");
@@ -355,7 +355,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IOStatus::MalformedFile);
         }
 
-        TEST_F(Unit_HostTransfer, NpyWithADuplicateKeyIsMalformed)
+        TEST_F(Medium_HostTransfer, NpyWithADuplicateKeyIsMalformed)
         {
             const std::string path = temp_path("duplicate_key.npy");
             write_npy_v1(path, "{'descr': '<f4', 'descr': '<f4', 'fortran_order': False, "
@@ -365,7 +365,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).load_npy(t, path), SushiBLAS::IOStatus::MalformedFile);
         }
 
-        TEST_F(Unit_HostTransfer, LoadNpyRejectsAColumnMajorRankThreeTensor)
+        TEST_F(Medium_HostTransfer, LoadNpyRejectsAColumnMajorRankThreeTensor)
         {
             reinit_engine(Core::Layout::ColumnMajor);
             auto t = engine->create_tensor({2, 2, 2});
@@ -374,7 +374,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_HostTransfer, ToStringOfADeviceTensorMatchesItsSharedTwin)
+        TEST_F(Medium_HostTransfer, ToStringOfADeviceTensorMatchesItsSharedTwin)
         {
             // With the default three edge items, the second shape of each rank is elided.
             const std::vector<std::vector<int64_t>> shapes{
@@ -401,7 +401,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_HostTransfer, ToStringReadsAStridedViewThroughItsStrides)
+        TEST_F(Medium_HostTransfer, ToStringReadsAStridedViewThroughItsStrides)
         {
             const std::vector<float> values{0.0f, 1.0f, 2.0f, 3.0f, 4.0f,  5.0f,
                                             6.0f, 7.0f, 8.0f, 9.0f, 10.0f, 11.0f};
@@ -417,7 +417,7 @@ namespace SushiBLAS
             EXPECT_EQ(SushiBLAS::IO(*engine).to_string(sliced), dense_twin_text(sliced, values));
         }
 
-        TEST_F(Unit_HostTransfer, ToStringOfAnElidedTensorIsUnchanged)
+        TEST_F(Medium_HostTransfer, ToStringOfAnElidedTensorIsUnchanged)
         {
             std::vector<float> values(100);
             for (size_t i = 0; i < values.size(); ++i)
@@ -433,7 +433,7 @@ namespace SushiBLAS
                       "Tensor(shape=[100], dtype=f32):\n[... ]");
         }
 
-        TEST_F(Unit_HostTransfer, ToStringOfAnEmptyTensorPrintsAnEmptyList)
+        TEST_F(Medium_HostTransfer, ToStringOfAnEmptyTensorPrintsAnEmptyList)
         {
             auto t = engine->create_tensor({0});
             ASSERT_FALSE(t.storage) << "A zero-element tensor is expected to have no storage.";

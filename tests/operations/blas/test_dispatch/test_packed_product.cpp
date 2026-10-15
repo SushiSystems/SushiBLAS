@@ -270,7 +270,7 @@ namespace SushiBLAS
 
         /** @brief Gives the packed product tests the queue they submit to, per element type. */
         template<typename T>
-        class Unit_PackedProduct : public ::testing::Test
+        class Medium_PackedProduct : public ::testing::Test
         {
             protected:
                 /** @brief Skips the test when the device does not compute in T's precision. */
@@ -303,10 +303,10 @@ namespace SushiBLAS
 
         using PackedProductTypes = ::testing::Types<sycl::half, float, double, std::complex<float>,
                                                     std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_PackedProduct, PackedProductTypes);
+        SB_TYPED_TEST_SUITE(Medium_PackedProduct, PackedProductTypes);
 
         /** @brief Tests that every blocking gives the reference result on a ragged shape. */
-        TYPED_TEST(Unit_PackedProduct, EveryBlockingEqualsTheReferenceOnExactData)
+        TYPED_TEST(Medium_PackedProduct, EveryBlockingEqualsTheReferenceOnExactData)
         {
             GemmProblem<TypeParam> problem(this->queue(), Core::Layout::RowMajor,
                                            Core::Transpose::NoTrans, Core::Transpose::NoTrans,
@@ -315,7 +315,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests every pair of Transpose values in both layouts against the reference. */
-        TYPED_TEST(Unit_PackedProduct, EveryTransposeAndLayoutEqualsTheReference)
+        TYPED_TEST(Medium_PackedProduct, EveryTransposeAndLayoutEqualsTheReference)
         {
             for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
             {
@@ -339,7 +339,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests shapes at, one past and far from the register block for exact parity. */
-        TYPED_TEST(Unit_PackedProduct, EdgeShapesEqualTheReference)
+        TYPED_TEST(Medium_PackedProduct, EdgeShapesEqualTheReference)
         {
             using Block = Kernels::PackedRegisterBlock<Kernels::Accumulator<TypeParam>>;
             const int64_t rows = Block::K_ROWS;
@@ -367,7 +367,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a batch of three equals the reference, gaps included, per layout. */
-        TYPED_TEST(Unit_PackedProduct, ABatchKeepsItsMatricesApart)
+        TYPED_TEST(Medium_PackedProduct, ABatchKeepsItsMatricesApart)
         {
             for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
             {
@@ -379,7 +379,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a product of no terms stores beta * C, and zero under a zero beta. */
-        TYPED_TEST(Unit_PackedProduct, ZeroTermsScaleTheOutput)
+        TYPED_TEST(Medium_PackedProduct, ZeroTermsScaleTheOutput)
         {
             const int64_t m = 19;
             const int64_t n = 21;
@@ -408,7 +408,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a zero beta stores no NaN from a C that holds nothing else. */
-        TYPED_TEST(Unit_PackedProduct, ZeroBetaNeverReadsTheOutput)
+        TYPED_TEST(Medium_PackedProduct, ZeroBetaNeverReadsTheOutput)
         {
             const int64_t m = 37;
             const int64_t n = 45;
@@ -440,7 +440,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the epilogue runs once per element with that element's coordinates. */
-        TYPED_TEST(Unit_PackedProduct, AnEpilogueSeesEveryElementOnceAtItsCoordinates)
+        TYPED_TEST(Medium_PackedProduct, AnEpilogueSeesEveryElementOnceAtItsCoordinates)
         {
             const TypeParam alpha = exact_alpha<TypeParam>();
             const TypeParam beta = exact_beta<TypeParam>();
@@ -462,7 +462,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that an output of no rows or no columns plans no block and keeps C. */
-        TYPED_TEST(Unit_PackedProduct, AnEmptyOutputLaunchesNothing)
+        TYPED_TEST(Medium_PackedProduct, AnEmptyOutputLaunchesNothing)
         {
             const std::array<std::array<int64_t, 2>, 2> shapes = {{{0, 21}, {19, 0}}};
 
@@ -498,7 +498,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that no blocking changes a bit of a product whose sums round. */
-        TYPED_TEST(Unit_PackedProduct, BlockingsAgreeToTheBitOnInexactData)
+        TYPED_TEST(Medium_PackedProduct, BlockingsAgreeToTheBitOnInexactData)
         {
             const int64_t k = 64;
             const TypeParam alpha = exact_alpha<TypeParam>();
@@ -529,7 +529,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that one blocking run twice on the same operands gives the same bits. */
-        TYPED_TEST(Unit_PackedProduct, ARunRepeatsToTheBit)
+        TYPED_TEST(Medium_PackedProduct, ARunRepeatsToTheBit)
         {
             const TypeParam alpha = exact_alpha<TypeParam>();
             const TypeParam beta = exact_beta<TypeParam>();
@@ -548,7 +548,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the packed kernel keeps the bits of the kernel without scratch. */
-        TYPED_TEST(Unit_PackedProduct, ThePackedAndTheUnpackedKernelAgreeToTheBit)
+        TYPED_TEST(Medium_PackedProduct, ThePackedAndTheUnpackedKernelAgreeToTheBit)
         {
             if (!Device::profile_for(this->queue()).is_cpu)
                 GTEST_SKIP() << "the device is not a CPU, where the two kernels sum in one order";
@@ -569,7 +569,7 @@ namespace SushiBLAS
         }
 
         /** @brief Runs square GEMMs through the engine at the order the device profile packs. */
-        class Unit_PackedGemm : public SushiBLASTest
+        class Medium_PackedGemm : public SushiBLASTest
         {
             protected:
                 /** @brief Returns the queue of the test environment. */
@@ -636,7 +636,7 @@ namespace SushiBLAS
         };
 
         /** @brief Tests that recording a packed GEMM leases one scratch block, on SYCL alone. */
-        TEST_F(Unit_PackedGemm, TheSeamLeasesScratchWhenTheProfileSelectsThePackedKernel)
+        TEST_F(Medium_PackedGemm, TheSeamLeasesScratchWhenTheProfileSelectsThePackedKernel)
         {
             const std::string obstacle = seam_obstacle<float>(queue());
             if (!obstacle.empty())
@@ -664,7 +664,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a product below the thresholds records without leasing scratch. */
-        TEST_F(Unit_PackedGemm, ASmallProductKeepsTheUnpackedKernel)
+        TEST_F(Medium_PackedGemm, ASmallProductKeepsTheUnpackedKernel)
         {
             const Tensor A = random_square<float>(K_SMALL_ORDER);
             const Tensor B = random_square<float>(K_SMALL_ORDER);
@@ -679,7 +679,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests HALF and COMPLEX64 through the packed seam against the reference path. */
-        TEST_F(Unit_PackedGemm, HalfAndComplexTakeThePackedSeam)
+        TEST_F(Medium_PackedGemm, HalfAndComplexTakeThePackedSeam)
         {
             std::string skipped;
             expect_seam_parity<sycl::half>(skipped);
@@ -690,7 +690,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that an epilogue bundle with a declared read runs on the packed seam. */
-        TEST_F(Unit_PackedGemm, AnEpilogueBundleRidesThePackedSeam)
+        TEST_F(Medium_PackedGemm, AnEpilogueBundleRidesThePackedSeam)
         {
             const std::string obstacle = seam_obstacle<float>(queue());
             if (!obstacle.empty())

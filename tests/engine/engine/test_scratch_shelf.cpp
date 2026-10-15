@@ -40,7 +40,7 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Builds one empty shelf over the test environment's runtime for each test. */
-        class Unit_ScratchShelf : public ::testing::Test
+        class Medium_ScratchShelf : public ::testing::Test
         {
             protected:
                 /// @brief The shelf under test; empty when a test starts.
@@ -48,7 +48,7 @@ namespace SushiBLAS
                     SushiRuntime::make_sushi<Detail::ScratchShelf>(TestEnvironment::runtime());
         };
 
-        TEST_F(Unit_ScratchShelf, ARequestIsRoundedUpToItsClass)
+        TEST_F(Medium_ScratchShelf, ARequestIsRoundedUpToItsClass)
         {
             const std::array<std::size_t, 4> requests = {1, 128, 129, 4096};
             const std::array<std::size_t, 4> expected = {128, 128, 256, 4096};
@@ -63,7 +63,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_ScratchShelf, AReturnedBlockIsLentAgain)
+        TEST_F(Medium_ScratchShelf, AReturnedBlockIsLentAgain)
         {
             Detail::ScratchBlock* first = shelf_->take(128, 0);
             const void* first_base = first->storage->allocation_base();
@@ -76,7 +76,7 @@ namespace SushiBLAS
             shelf_->give_back(second);
         }
 
-        TEST_F(Unit_ScratchShelf, ARequestAboveTheLargestClassIsNotPooled)
+        TEST_F(Medium_ScratchShelf, ARequestAboveTheLargestClassIsNotPooled)
         {
             const std::size_t live_baseline = TestEnvironment::live_allocation_count();
             const std::size_t idle_baseline = shelf_->idle_block_count();
@@ -89,7 +89,7 @@ namespace SushiBLAS
             EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
         }
 
-        TEST_F(Unit_ScratchShelf, AFullClassFreesWhatItCannotKeep)
+        TEST_F(Medium_ScratchShelf, AFullClassFreesWhatItCannotKeep)
         {
             const std::size_t live_baseline = TestEnvironment::live_allocation_count();
             const std::size_t taken = Detail::K_SCRATCH_IDLE_BLOCKS_PER_CLASS + 1;
@@ -105,7 +105,7 @@ namespace SushiBLAS
             EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline + 64);
         }
 
-        TEST_F(Unit_ScratchShelf, TrimFreesEveryIdleBlock)
+        TEST_F(Medium_ScratchShelf, TrimFreesEveryIdleBlock)
         {
             const std::size_t live_baseline = TestEnvironment::live_allocation_count();
 
@@ -121,7 +121,7 @@ namespace SushiBLAS
             EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
         }
 
-        TEST_F(Unit_ScratchShelf, AnUnknownDeviceIsRefused)
+        TEST_F(Medium_ScratchShelf, AnUnknownDeviceIsRefused)
         {
             const std::size_t live_baseline = TestEnvironment::live_allocation_count();
 

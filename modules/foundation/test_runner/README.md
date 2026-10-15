@@ -9,12 +9,12 @@ It depends on `core`, SushiRuntime and GoogleTest. Its headers are included as `
 | --- | --- |
 | `test_environment.hpp` | `TestEnvironment`, the runtime the tests share |
 
-`source/test_main.cpp` holds the `main` of a medium or large program: synchronous logging, the
-environment, then `RUN_ALL_TESTS`. `source/small_test_main.cpp` holds the `main` of a small
-program: synchronous logging and `RUN_ALL_TESTS`, with no environment, so the program opens no
-device and starts no worker thread. Neither is a source of the module.
-`sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake` compiles the one of the program's
-size into it, so neither reaches the library.
+`source/test_main.cpp` holds the `main` of a program with a `Medium_` or `Large_` suite:
+synchronous logging, the environment, then `RUN_ALL_TESTS`. `source/small_test_main.cpp` holds
+the `main` of a program whose suites are all `Small_`: synchronous logging and `RUN_ALL_TESTS`,
+with no environment, so the program opens no device and starts no worker thread. Neither is a
+source of the module. `sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake` compiles the
+one that fits the program's suites into it, so neither reaches the library.
 
 ## test_environment.hpp
 

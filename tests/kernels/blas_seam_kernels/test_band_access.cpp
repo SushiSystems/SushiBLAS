@@ -277,7 +277,7 @@ namespace SushiBLAS
         /**
          * @brief Tests at compile time that both band storages follow the CBLAS formulas.
          */
-        TEST(Unit_BandAccess, TheMappingIsTheCblasFormula)
+        TEST(Small_BandAccess, TheMappingIsTheCblasFormula)
         {
             static_assert(band_matches_cblas(Layout::ColumnMajor),
                           "The column-major band mapping is the CBLAS one.");
@@ -299,7 +299,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that every stored element of the worked matrix is read from its slot.
          */
-        TEST(Unit_BandAccess, TheWorkedMatrixReadsBack)
+        TEST(Small_BandAccess, TheWorkedMatrixReadsBack)
         {
             for (const Layout layout : K_LAYOUTS)
             {
@@ -335,7 +335,7 @@ namespace SushiBLAS
          * @brief Tests that TRANS and CONJ_TRANS address A(i, j) as (j, i) and exchange the
          *        band widths.
          */
-        TEST(Unit_BandAccess, ATransposedAccessAddressesTheMirror)
+        TEST(Small_BandAccess, ATransposedAccessAddressesTheMirror)
         {
             for (const Layout layout : K_LAYOUTS)
             {
@@ -380,7 +380,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that at conjugates a complex element under CONJ_TRANS and no other read.
          */
-        TEST(Unit_BandAccess, AtConjugatesOnlyUnderConjTrans)
+        TEST(Small_BandAccess, AtConjugatesOnlyUnderConjTrans)
         {
             for (const Layout layout : K_LAYOUTS)
             {
@@ -424,7 +424,7 @@ namespace SushiBLAS
          * @brief Tests first_column and end_column against a scan, rows without an element
          *        included.
          */
-        TEST(Unit_BandAccess, TheColumnRangeEqualsAScan)
+        TEST(Small_BandAccess, TheColumnRangeEqualsAScan)
         {
             const ScannedBand bands[] = {
                 {7, 3, 0, 0}, {7, 3, 1, 0}, {7, 3, 0, 2}, {7, 3, 9, 9},
@@ -454,7 +454,7 @@ namespace SushiBLAS
          * @brief Tests that a cursor walked along a row, forward and back, stands on the offset
          *        index gives for every stored column.
          */
-        TEST(Unit_BandAccess, ARowCursorReachesTheOffsetOfEveryColumn)
+        TEST(Small_BandAccess, ARowCursorReachesTheOffsetOfEveryColumn)
         {
             constexpr int64_t rows = 7;
             constexpr int64_t cols = 6;
@@ -499,7 +499,7 @@ namespace SushiBLAS
          * @brief Tests on which slot of a stored line each triangle band storage puts the
          *        diagonal.
          */
-        TEST(Unit_BandAccess, ATriangleBandPutsTheDiagonalOnItsLine)
+        TEST(Small_BandAccess, ATriangleBandPutsTheDiagonalOnItsLine)
         {
             constexpr int64_t n = 6;
             constexpr int64_t k = 2;
@@ -525,7 +525,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that no index reaches the slots a line holds past its band.
          */
-        TEST(Unit_BandAccess, SpareSlotsAreNeverAddressed)
+        TEST(Small_BandAccess, SpareSlotsAreNeverAddressed)
         {
             constexpr int64_t band_slots = K_WORKED_LOWER + K_WORKED_UPPER + 1;
             constexpr int64_t ld = band_slots + 2;
@@ -557,7 +557,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a band of no off-diagonal and one slot per line is the diagonal.
          */
-        TEST(Unit_BandAccess, ADiagonalMatrixIsStoredAsItsDiagonal)
+        TEST(Small_BandAccess, ADiagonalMatrixIsStoredAsItsDiagonal)
         {
             constexpr int64_t n = 5;
 

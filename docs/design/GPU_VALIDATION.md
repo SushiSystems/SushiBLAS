@@ -24,8 +24,8 @@ two as
 | Date | 2026-10-07, at 14:15 and repeated at 14:53 | 2026-10-09 | 2026-10-12 |
 | Tree | commit `dd5cdfc`, before the first commit of the v0.1.0 work | the v0.1.0 tree of that day, after the interface break | branch `feature/api_refinement`, built by `sb build` on Windows with the pinned intel-llvm |
 | Result | 790 of 792 tests passed | 2 047 of 2 047 tests passed | 2 207 tests ran, none failed |
-| Skipped | `Regression_LoggerDeathTest.AssertWritesItsMessageBeforeAborting`, a death test that needs a debug build | CTest lists some tests as skipped; their count and their reason were not recorded | not recorded |
-| Failed | `Unit_Level2SyclParityTest.SymvMatchesReferenceLarge<float>` | none | none |
+| Skipped | `Medium_LoggerDeathTest.AssertWritesItsMessageBeforeAborting`, a death test that needs a debug build | CTest lists some tests as skipped; their count and their reason were not recorded | not recorded |
+| Failed | `Medium_Level2SyclParityTest.SymvMatchesReferenceLarge<float>` | none | none |
 
 The failure of the first run was a finding about the reference kernel. For n = 4096 and the
 lower triangle, at element 1148:
@@ -130,7 +130,7 @@ work-group shape only if each segment is at least one full group-width long.
 The floor is an argument: a group whose segment is shorter than the group holds idle lanes that
 pay `log2(local)` pairs of barriers. The crossover is not measured on a GPU. Both shapes were
 measured for correctness and for bit-stability on the OpenCL CPU device, where
-`Unit_AxisReductions` exercises both by driving each kernel directly.
+`Medium_AxisReductions` exercises both by driving each kernel directly.
 
 If a row-wise reduction underperforms on real hardware, this threshold is the first thing to
 change. It cannot make an answer wrong: the shape is a pure function of the device profile and
@@ -236,7 +236,7 @@ Three things were done so that they keep passing there:
   never had a `sycl::reduction` to give up, since it has no segmented form, and they do not use
   `reduce_over_group` for the in-group step. Their item-per-segment shape combines nothing
   across work-items; their work-group shape uses the same hand-written halving tree with fixed
-  offsets. `Unit_AxisReductions.BothShapesAreBitwiseStable` compares repeated runs as bytes at
+  offsets. `Medium_AxisReductions.BothShapesAreBitwiseStable` compares repeated runs as bytes at
   both shapes.
 
 The second item rests on an argument from the SYCL specification, which gives no deterministic

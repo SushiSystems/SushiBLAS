@@ -37,25 +37,25 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs the fixture under its own suite name. */
-        class Unit_SushiBLASTest : public SushiBLASTest
+        class Medium_SushiBLASTest : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_SushiBLASTest, GivesARowMajorEngine)
+        TEST_F(Medium_SushiBLASTest, GivesARowMajorEngine)
         {
             ASSERT_TRUE(engine);
             EXPECT_EQ(engine->layout(), Core::Layout::RowMajor);
         }
 
-        TEST_F(Unit_SushiBLASTest, ReinitRebuildsTheEngineInAnotherLayout)
+        TEST_F(Medium_SushiBLASTest, ReinitRebuildsTheEngineInAnotherLayout)
         {
             reinit_engine(Core::Layout::ColumnMajor);
 
             EXPECT_EQ(engine->layout(), Core::Layout::ColumnMajor);
         }
 
-        TEST_F(Unit_SushiBLASTest, AnInitialisedTensorHoldsTheHostValues)
+        TEST_F(Medium_SushiBLASTest, AnInitialisedTensorHoldsTheHostValues)
         {
             const std::vector<int32_t> values{4, -5, 6};
             const Tensor tensor = create_initialized_tensor<int32_t>({3}, values);

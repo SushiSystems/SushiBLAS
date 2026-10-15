@@ -17,7 +17,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE io
-    SIZE medium
     TESTS
         test_io/test_host_transfer.cpp
         test_io/test_regression.cpp

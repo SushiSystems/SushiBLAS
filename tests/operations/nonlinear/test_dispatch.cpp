@@ -63,12 +63,12 @@ namespace SushiBLAS
         };
 
         /** @brief Records nonlinear tasks on the fixture's engine. */
-        class Unit_NonlinearDispatch : public SushiBLASTest
+        class Medium_NonlinearDispatch : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_NonlinearDispatch, ForwardRewritesTheTensorInPlace)
+        TEST_F(Medium_NonlinearDispatch, ForwardRewritesTheTensorInPlace)
         {
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
@@ -85,7 +85,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_NonlinearDispatch, BackwardGatesTheGradientByTheInput)
+        TEST_F(Medium_NonlinearDispatch, BackwardGatesTheGradientByTheInput)
         {
             const Tensor dy = create_initialized_tensor<double>({3}, {4, 5, 6});
             const Tensor x = create_initialized_tensor<double>({3}, {-1, 2, 0});

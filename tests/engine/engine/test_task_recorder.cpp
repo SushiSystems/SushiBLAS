@@ -56,7 +56,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Builds the tensors and records the call chain the TaskRecorder tests share. */
-        class Unit_TaskRecorderTest : public SushiBLASTest
+        class Medium_TaskRecorderTest : public SushiBLASTest
         {
             protected:
                 /** @brief Holds the tensors one replay of the three chained view calls writes. */
@@ -99,7 +99,7 @@ namespace SushiBLAS
         };
 
         /** @brief Tests that a record call adds its node to the recorder's graph only. */
-        TEST_F(Unit_TaskRecorderTest, RecordsOnTheGraphItWasGiven)
+        TEST_F(Medium_TaskRecorderTest, RecordsOnTheGraphItWasGiven)
         {
             GraphProbe first;
             GraphProbe second;
@@ -114,7 +114,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that two threads recording on one recorder each get their own tasks. */
-        TEST_F(Unit_TaskRecorderTest, TwoThreadsRecordOnOneRecorder)
+        TEST_F(Medium_TaskRecorderTest, TwoThreadsRecordOnOneRecorder)
         {
             GraphProbe probe;
             const Tensor first_x = vector_of_four();
@@ -147,7 +147,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a recorder returns the pool it was built on. */
-        TEST_F(Unit_TaskRecorderTest, ARecorderHandsOutThePoolItWasGiven)
+        TEST_F(Medium_TaskRecorderTest, ARecorderHandsOutThePoolItWasGiven)
         {
             GraphProbe probe;
 
@@ -156,7 +156,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that every family records and runs one task under ForceReference. */
-        TEST_F(Unit_TaskRecorderTest, EveryFamilyRecordsUnderForceReference)
+        TEST_F(Medium_TaskRecorderTest, EveryFamilyRecordsUnderForceReference)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
             TaskRecorder& recorder = probe.recorder();
@@ -215,7 +215,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that one chain of view calls gives two graphs equal edges and results. */
-        TEST_F(Unit_TaskRecorderTest, TheSameCallsReplayIntoASecondGraph)
+        TEST_F(Medium_TaskRecorderTest, TheSameCallsReplayIntoASecondGraph)
         {
             GraphProbe first;
             GraphProbe second;
@@ -253,7 +253,7 @@ namespace SushiBLAS
          * @brief Tests that a discarded task never runs and that the engine records and runs
          *        again afterwards.
          */
-        TEST_F(Unit_TaskRecorderTest, ADiscardedTaskDoesNotRunAndTheEngineGoesOn)
+        TEST_F(Medium_TaskRecorderTest, ADiscardedTaskDoesNotRunAndTheEngineGoesOn)
         {
             auto x = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
             auto y = create_initialized_tensor<float>({4}, {10.0f, 20.0f, 30.0f, 40.0f});
@@ -269,7 +269,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that discarding an engine with nothing recorded does nothing. */
-        TEST_F(Unit_TaskRecorderTest, DiscardingAnEmptyEngineIsHarmless)
+        TEST_F(Medium_TaskRecorderTest, DiscardingAnEmptyEngineIsHarmless)
         {
             auto y = create_initialized_tensor<float>({2}, {5.0f, 6.0f});
 

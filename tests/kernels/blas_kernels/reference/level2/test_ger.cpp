@@ -39,7 +39,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceGer, AddsTheOuterProductInEitherLayout)
+        TEST(Small_ReferenceGer, AddsTheOuterProductInEitherLayout)
         {
             const int64_t m = 3;
             const int64_t n = 4;
@@ -64,7 +64,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_ReferenceGer, TheConjugatedFormConjugatesY)
+        TEST(Small_ReferenceGer, TheConjugatedFormConjugatesY)
         {
             const std::vector<std::complex<double>> x{{1.0, 1.0}};
             const std::vector<std::complex<double>> y{{0.0, 2.0}};

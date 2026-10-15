@@ -45,7 +45,7 @@ namespace SushiBLAS
          * @brief Compares matrices of element type T with hand-computed elements.
          */
         template<typename T>
-        class Unit_GeometryMatrix4 : public ::testing::Test
+        class Small_GeometryMatrix4 : public ::testing::Test
         {
             protected:
                 /** @brief Returns the absolute tolerance of a comparison in element type T. */
@@ -71,9 +71,9 @@ namespace SushiBLAS
         };
 
         using GeometryMatrix4Types = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_GeometryMatrix4, GeometryMatrix4Types);
+        SB_TYPED_TEST_SUITE(Small_GeometryMatrix4, GeometryMatrix4Types);
 
-        TYPED_TEST(Unit_GeometryMatrix4, DefaultIsTheIdentity)
+        TYPED_TEST(Small_GeometryMatrix4, DefaultIsTheIdentity)
         {
             const Geometry::Matrix4T<TypeParam> matrix{};
 
@@ -83,13 +83,13 @@ namespace SushiBLAS
                         << "row " << row << ", column " << column;
         }
 
-        TYPED_TEST(Unit_GeometryMatrix4, HoldsSixteenElementsAndNothingElse)
+        TYPED_TEST(Small_GeometryMatrix4, HoldsSixteenElementsAndNothingElse)
         {
             EXPECT_EQ(sizeof(Geometry::Matrix4T<TypeParam>),
                       K_MATRIX4_ELEMENT_COUNT * sizeof(TypeParam));
         }
 
-        TYPED_TEST(Unit_GeometryMatrix4, MulReadsRowsOfTheLeftAndColumnsOfTheRight)
+        TYPED_TEST(Small_GeometryMatrix4, MulReadsRowsOfTheLeftAndColumnsOfTheRight)
         {
             using T = TypeParam;
             // Element (0, 1) is stored at m[4] and element (1, 0) at m[1].
@@ -108,7 +108,7 @@ namespace SushiBLAS
                 {1.0, 1.0, 0.0, 0.0, 1.0, 2.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0});
         }
 
-        TYPED_TEST(Unit_GeometryMatrix4, MulAppliesTheRightOperandFirst)
+        TYPED_TEST(Small_GeometryMatrix4, MulAppliesTheRightOperandFirst)
         {
             using T = TypeParam;
             // Scales by (2, 3, 4), then translates by (5, 6, 7).

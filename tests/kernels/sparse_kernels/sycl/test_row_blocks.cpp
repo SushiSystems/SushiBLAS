@@ -44,7 +44,7 @@ namespace SushiBLAS
     {
         namespace Blocks = Kernels::SYCL;
 
-        TEST(Unit_RowBlocks, TheBlockCountIsCappedByUnitsEntriesAndTheMaximum)
+        TEST(Medium_RowBlocks, TheBlockCountIsCappedByUnitsEntriesAndTheMaximum)
         {
             Device::Profile cpu;
             cpu.is_cpu = true;
@@ -56,7 +56,7 @@ namespace SushiBLAS
             EXPECT_LE(Blocks::scatter_blocks(cpu, 10, 1000000), Blocks::K_MAX_SCATTER_BLOCKS);
         }
 
-        TEST(Unit_RowBlocks, TheBlocksCoverTheRowsInOrder)
+        TEST(Medium_RowBlocks, TheBlocksCoverTheRowsInOrder)
         {
             const IntegerCsr a = integer_csr(50, 40, 3, false);
             const Kernels::CsrPattern<int64_t> pattern{50, 40, a.nnz(), 0, a.offsets.data(),
@@ -71,12 +71,12 @@ namespace SushiBLAS
         }
 
         /** @brief Folds partials on the host CPU queue. */
-        class Device_RowBlocks : public HostDeviceTest
+        class Medium_RowBlocksOnDevice : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_RowBlocks, TheFoldAddsEverySliceThenScales)
+        TEST_F(Medium_RowBlocksOnDevice, TheFoldAddsEverySliceThenScales)
         {
             const int64_t outputs = 4;
             const int64_t blocks = 3;

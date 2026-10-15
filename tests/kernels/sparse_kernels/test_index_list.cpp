@@ -34,7 +34,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_IndexList, ReadsEachPositionLessTheBase)
+        TEST(Small_IndexList, ReadsEachPositionLessTheBase)
         {
             const std::vector<int32_t> zero_based{4, 0, 7};
             const std::vector<int64_t> one_based{5, 1, 8};

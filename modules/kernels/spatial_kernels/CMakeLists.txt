@@ -17,7 +17,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE spatial_kernels
-    SIZE medium
     TESTS
         reference/test_broadcast.cpp
         reference/test_channels.cpp

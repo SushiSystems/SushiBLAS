@@ -93,7 +93,7 @@ Expectations for a mergeable change:
    is checked against its reference implementation.
 3. **A fixed bug gets a regression test** in the test file of the header the
    defect lives in, its suite prefixed `Regression_` and named for what it guards against (see
-   `Regression_Sentinel.SyrkAcceptsHalfDtype` for the shape).
+   `Medium_Sentinel.SyrkAcceptsHalfDtype` for the shape).
 
 ---
 

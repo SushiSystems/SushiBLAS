@@ -132,7 +132,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Tests stability against std::stable_sort on seeded duplicate keys. */
-        TEST(Unit_GraphPrimitivesCountingSort, StableAgainstHostReferenceOnDuplicateKeys)
+        TEST(Medium_GraphPrimitivesCountingSort, StableAgainstHostReferenceOnDuplicateKeys)
         {
             constexpr std::size_t K_COUNT = 4000;
             constexpr std::size_t K_KEY_RANGE = 32;
@@ -174,7 +174,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests stability across digits when every key shares the same low byte. */
-        TEST(Unit_GraphPrimitivesCountingSort, StableAcrossDigitsWhenTheLowDigitTies)
+        TEST(Medium_GraphPrimitivesCountingSort, StableAcrossDigitsWhenTheLowDigitTies)
         {
             constexpr std::size_t K_COUNT = 4000;
             constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 16;
@@ -211,7 +211,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests 10^6 seeded elements over a 2^20 key range against the host reference. */
-        TEST(Unit_GraphPrimitivesCountingSort, LargeRandomCaseAgainstHostReference)
+        TEST(Medium_GraphPrimitivesCountingSort, LargeRandomCaseAgainstHostReference)
         {
             constexpr std::size_t K_COUNT = 1000000;
             constexpr std::size_t K_KEY_RANGE = std::size_t{1} << 20;
@@ -242,7 +242,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that equal keys keep the input order, since every element ties. */
-        TEST(Unit_GraphPrimitivesCountingSort, AllKeysEqualKeepsInputOrder)
+        TEST(Medium_GraphPrimitivesCountingSort, AllKeysEqualKeepsInputOrder)
         {
             constexpr std::size_t K_COUNT = 777;
             constexpr std::size_t K_KEY_RANGE = 4;
@@ -268,7 +268,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests one element, the smallest input that runs every pass. */
-        TEST(Unit_GraphPrimitivesCountingSort, OneElement)
+        TEST(Medium_GraphPrimitivesCountingSort, OneElement)
         {
             auto runtime = Runtime::create().value();
             auto keys = runtime.buffer<std::uint32_t>(1).value();
@@ -289,7 +289,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that zero elements zero every bucket and write nothing past the window. */
-        TEST(Unit_GraphPrimitivesCountingSort, ZeroElementsWritesZeroEverywhere)
+        TEST(Medium_GraphPrimitivesCountingSort, ZeroElementsWritesZeroEverywhere)
         {
             constexpr std::size_t K_KEY_RANGE = 16;
 
@@ -320,7 +320,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests the largest key of a 2^20 range, which sets bit 19. */
-        TEST(Unit_GraphPrimitivesCountingSort, MaximumKeyOfA20BitRange)
+        TEST(Medium_GraphPrimitivesCountingSort, MaximumKeyOfA20BitRange)
         {
             constexpr std::size_t K_KEY_RANGE = std::size_t{1} << 20;
             const auto largest = static_cast<std::uint32_t>(K_KEY_RANGE - 1);
@@ -348,7 +348,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that each extra digit the key capacity needs records four more nodes. */
-        TEST(Unit_GraphPrimitivesCountingSort, DigitCountFollowsKeyRangeCapacity)
+        TEST(Medium_GraphPrimitivesCountingSort, DigitCountFollowsKeyRangeCapacity)
         {
             const auto nodes_for = [](std::size_t key_capacity) -> std::size_t
             {
@@ -379,7 +379,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a count and a key range that change between runs keep one compile. */
-        TEST(Unit_GraphPrimitivesCountingSort, LateBoundChangingCountAndKeyRangeKeepsOneCompile)
+        TEST(Medium_GraphPrimitivesCountingSort, LateBoundChangingCountAndKeyRangeKeepsOneCompile)
         {
             constexpr std::size_t K_COUNT_CAPACITY = 2000;
             constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 16;
@@ -431,7 +431,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that live key ranges of one, two and three digits all end in indices. */
-        TEST(Unit_GraphPrimitivesCountingSort, LiveKeyRangeBelowCapacityLandsInIndices)
+        TEST(Medium_GraphPrimitivesCountingSort, LiveKeyRangeBelowCapacityLandsInIndices)
         {
             constexpr std::size_t K_COUNT = 3000;
             constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 24;
@@ -473,7 +473,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the digits above the live key range do not run. */
-        TEST(Unit_GraphPrimitivesCountingSort, DigitsAboveTheLiveKeyRangeDoNotRun)
+        TEST(Medium_GraphPrimitivesCountingSort, DigitsAboveTheLiveKeyRangeDoNotRun)
         {
             constexpr std::size_t K_COUNT = 4;
             constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 16;
@@ -503,7 +503,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a DynamicGraph region records the sort and the scan as a Graph. */
-        TEST(Unit_GraphPrimitivesCountingSort, RegionsRecordScanAndCountingSort)
+        TEST(Medium_GraphPrimitivesCountingSort, RegionsRecordScanAndCountingSort)
         {
             constexpr std::size_t K_COUNT_CAPACITY = 700;
             constexpr std::size_t K_KEY_CAPACITY = 1000;
@@ -559,7 +559,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that each run sorts the keys as they stand when it runs. */
-        TEST(Unit_GraphPrimitivesCountingSort, EachRunSortsItsOwnKeys)
+        TEST(Medium_GraphPrimitivesCountingSort, EachRunSortsItsOwnKeys)
         {
             constexpr std::size_t K_COUNT = 500;
             constexpr std::size_t K_KEY_RANGE = 20;
@@ -597,7 +597,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that every node of one call shares one node_index on every step. */
-        TEST(Unit_GraphPrimitivesCountingSort, SharesOneNodeIndexAcrossStepsAndPasses)
+        TEST(Medium_GraphPrimitivesCountingSort, SharesOneNodeIndexAcrossStepsAndPasses)
         {
             // One digit records the resolver, four digit passes, the offsets and the counts.
             constexpr std::size_t K_COUNT_CAPACITY = 300;
@@ -639,7 +639,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that each node launches at the width its pass has in the plan. */
-        TEST(Unit_GraphPrimitivesCountingSort, NodeWidthsMatchThePlan)
+        TEST(Medium_GraphPrimitivesCountingSort, NodeWidthsMatchThePlan)
         {
             // Resolver, histogram, column scan, bin base, placement, offsets, counts.
             constexpr std::size_t K_COUNT_CAPACITY = 300;
@@ -675,7 +675,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that broken size rules are refused with invalid_graph. */
-        TEST(Unit_GraphPrimitivesCountingSort, RejectsMisSizedArguments)
+        TEST(Medium_GraphPrimitivesCountingSort, RejectsMisSizedArguments)
         {
             using Words = SushiRuntime::Buffer<std::uint32_t>;
 
@@ -718,7 +718,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a live element count above its capacity fails the run. */
-        TEST(Unit_GraphPrimitivesCountingSort, LateBoundCountAboveCapacityFailsTheRun)
+        TEST(Medium_GraphPrimitivesCountingSort, LateBoundCountAboveCapacityFailsTheRun)
         {
             auto runtime = Runtime::create().value();
             auto keys = runtime.buffer<std::uint32_t>(100).value();
@@ -734,7 +734,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a live key range above its capacity fails the run. */
-        TEST(Unit_GraphPrimitivesCountingSort, LateBoundKeyRangeAboveCapacityFailsTheRun)
+        TEST(Medium_GraphPrimitivesCountingSort, LateBoundKeyRangeAboveCapacityFailsTheRun)
         {
             auto runtime = Runtime::create().value();
             auto keys = runtime.buffer<std::uint32_t>(100).value();
@@ -749,7 +749,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests counting_sort() with a device count and a host key range on both layers. */
-        TEST(Unit_GraphPrimitivesDeviceSized, CountingSortChainMatchesScheduler)
+        TEST(Medium_GraphPrimitivesDeviceSized, CountingSortChainMatchesScheduler)
         {
             using namespace DeviceSized;
 

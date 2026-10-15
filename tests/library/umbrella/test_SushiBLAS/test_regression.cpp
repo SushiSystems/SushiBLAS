@@ -42,13 +42,13 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        class Regression_Sentinel : public SushiBLASTest {};
+        class Medium_Sentinel : public SushiBLASTest {};
 
         /**
          * @brief Tests that SYRK accepts a HALF operand.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Regression_Sentinel, SyrkAcceptsHalfDtype)
+        TEST_F(Medium_Sentinel, SyrkAcceptsHalfDtype)
         {
             auto A = engine->create_tensor({4, 3}, Core::DataType::Half);
             auto C = engine->create_tensor({4, 4}, Core::DataType::Half);
@@ -68,7 +68,7 @@ namespace SushiBLAS
          * @brief Tests that a column-major GEMM indexes A and B by column stride in both modes.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Regression_Sentinel, GemmColumnMajorOperandsUseColumnStrides)
+        TEST_F(Medium_Sentinel, GemmColumnMajorOperandsUseColumnStrides)
         {
             reinit_engine(Core::Layout::ColumnMajor);
 
@@ -96,7 +96,7 @@ namespace SushiBLAS
          * @brief Tests that re-seeding an engine that has drawn reproduces the stream bit for bit.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Regression_Sentinel, SetSeedRewindsTheRNGStream)
+        TEST_F(Medium_Sentinel, SetSeedRewindsTheRNGStream)
         {
             constexpr size_t kN = 64;
 
@@ -128,7 +128,7 @@ namespace SushiBLAS
          * @brief Tests that fp64 AXPY and SCAL apply their scalar at fp64 precision.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Regression_Sentinel, Fp64Level1ScalarsAreNotNarrowedToFloat)
+        TEST_F(Medium_Sentinel, Fp64Level1ScalarsAreNotNarrowedToFloat)
         {
             constexpr double kAlpha = 1.0 + 0x1p-30;
             ASSERT_EQ(1.0, static_cast<double>(static_cast<float>(kAlpha)))
@@ -166,7 +166,7 @@ namespace SushiBLAS
          * @brief Tests that a batched GEMM reads a distinct slice per batch element in both layouts.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Regression_Sentinel, BatchedGemmAdvancesEveryBatchSlice)
+        TEST_F(Medium_Sentinel, BatchedGemmAdvancesEveryBatchSlice)
         {
             struct Case
             {
@@ -217,7 +217,7 @@ namespace SushiBLAS
          * @brief Tests that GER and GEMV with a non-zero beta declare their accumulator as read.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Regression_Sentinel, AccumulatingOpsDeclareTheirAccumulatorRead)
+        TEST_F(Medium_Sentinel, AccumulatingOpsDeclareTheirAccumulatorRead)
         {
             auto contains = [](const std::vector<SushiRuntime::BufferRegion>& set,
                                const SushiRuntime::BufferRegion& r)
@@ -271,7 +271,7 @@ namespace SushiBLAS
          * @brief Tests that a reduction is ordered behind the op that wrote its view of a shared allocation.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Regression_Sentinel, ReductionsOrderAgainstViewsOfOneAllocation)
+        TEST_F(Medium_Sentinel, ReductionsOrderAgainstViewsOfOneAllocation)
         {
             GraphProbe probe;
 
@@ -333,7 +333,7 @@ namespace SushiBLAS
          * @brief Tests that both nrm2 entry points stay finite for elements whose squares overflow fp32.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Regression_Sentinel, Nrm2DoesNotOverflowNearTheFloatMaximum)
+        TEST_F(Medium_Sentinel, Nrm2DoesNotOverflowNearTheFloatMaximum)
         {
             // The norm is 2e38, inside fp32's range; 1.2e38 squared is 1.44e76, outside it.
             const std::vector<float> data = {1.2e38f, 1.6e38f};
@@ -366,7 +366,7 @@ namespace SushiBLAS
          * @brief Tests that both nrm2 entry points return a non-zero norm for denormal input.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Regression_Sentinel, Nrm2DoesNotUnderflowOnDenormalInput)
+        TEST_F(Medium_Sentinel, Nrm2DoesNotUnderflowOnDenormalInput)
         {
             // Both elements are denormal and their norm, 5e-40, is representable.
             const std::vector<float> data = {3.0e-40f, 4.0e-40f};
@@ -403,7 +403,7 @@ namespace SushiBLAS
          * @brief Tests that Level 1 nrm2 takes the modulus of a complex element.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Regression_Sentinel, Nrm2UsesTheModulusOfAComplexElement)
+        TEST_F(Medium_Sentinel, Nrm2UsesTheModulusOfAComplexElement)
         {
             const std::vector<std::complex<float>> data = {{3.0f, 4.0f}};
 

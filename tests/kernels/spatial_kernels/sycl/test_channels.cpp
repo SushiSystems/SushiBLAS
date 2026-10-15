@@ -43,12 +43,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs the kernel on the host CPU queue. */
-        class Device_SYCLChannels : public HostDeviceTest
+        class Medium_SYCLChannels : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLChannels, MatchesTheReference)
+        TEST_F(Medium_SYCLChannels, MatchesTheReference)
         {
             // Every value is a small integer, so both kernels compute without rounding.
             const Spatial::WindowSpan span = nhwc_span(2, 5, 4, 6, Spatial::ConvGeometry{}, 0);

@@ -39,7 +39,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_TensorReadback, CopiesTheElementsOut)
+        TEST(Medium_TensorReadback, CopiesTheElementsOut)
         {
             const TensorFactory factory(TestEnvironment::runtime());
             const int64_t dims[1] = {3};
@@ -53,7 +53,7 @@ namespace SushiBLAS
             EXPECT_EQ(read_tensor<int64_t>(tensor), values);
         }
 
-        TEST(Unit_TensorReadback, RefusesATypeThatIsNotTheDtype)
+        TEST(Medium_TensorReadback, RefusesATypeThatIsNotTheDtype)
         {
             const TensorFactory factory(TestEnvironment::runtime());
             const int64_t dims[1] = {3};

@@ -48,7 +48,7 @@ namespace SushiBLAS
             return Kernels::IndexList<int64_t>{3, 5, 0, K_POSITIONS.data()};
         }
 
-        TEST(Unit_ReferenceSparseLevel1, AxpyiAddsIntoTheNamedPositions)
+        TEST(Small_ReferenceSparseLevel1, AxpyiAddsIntoTheNamedPositions)
         {
             const std::vector<double> x{1.0, 2.0, 3.0};
             std::vector<double> y{10.0, 10.0, 10.0, 10.0, 10.0};
@@ -58,7 +58,7 @@ namespace SushiBLAS
             EXPECT_EQ(y, (std::vector<double>{14.0, 10.0, 10.0, 12.0, 16.0}));
         }
 
-        TEST(Unit_ReferenceSparseLevel1, DotiSumsTheProductsAndConjugatesWhenAsked)
+        TEST(Small_ReferenceSparseLevel1, DotiSumsTheProductsAndConjugatesWhenAsked)
         {
             const std::vector<std::complex<double>> x{{1.0, 1.0}, {0.0, 2.0}, {1.0, 0.0}};
             const std::vector<std::complex<double>> y(5, std::complex<double>(1.0, 0.0));
@@ -73,7 +73,7 @@ namespace SushiBLAS
             EXPECT_EQ(conjugated, std::complex<double>(2.0, -3.0));
         }
 
-        TEST(Unit_ReferenceSparseLevel1, GatherScatterAndGatherWithZero)
+        TEST(Small_ReferenceSparseLevel1, GatherScatterAndGatherWithZero)
         {
             std::vector<double> y{0.0, 1.0, 2.0, 3.0, 4.0};
             std::vector<double> x(3, 0.0);
@@ -89,7 +89,7 @@ namespace SushiBLAS
             EXPECT_EQ(y, (std::vector<double>{0.0, 1.0, 2.0, 3.0, 4.0}));
         }
 
-        TEST(Unit_ReferenceSparseLevel1, RotiRotatesTheStoredPairs)
+        TEST(Small_ReferenceSparseLevel1, RotiRotatesTheStoredPairs)
         {
             std::vector<double> x{1.0, 2.0, 3.0};
             std::vector<double> y{10.0, 20.0, 30.0, 40.0, 50.0};

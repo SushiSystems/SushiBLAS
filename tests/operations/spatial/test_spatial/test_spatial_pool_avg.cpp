@@ -48,7 +48,7 @@ namespace SushiBLAS
             }
         } // namespace
 
-        class Unit_SpatialPoolAvgTest : public SushiBLASTest
+        class Medium_SpatialPoolAvgTest : public SushiBLASTest
         {
             protected:
                 /** @brief A rank-4 NHWC float tensor holding @p values in memory order. */
@@ -78,7 +78,7 @@ namespace SushiBLAS
          * @brief Tests that the average divides by the whole window area, padded taps included.
          * @see tests/operations/spatial/README.md
          */
-        TEST_F(Unit_SpatialPoolAvgTest, TheAverageIsOverTheWholeWindowIncludingPaddedTaps)
+        TEST_F(Medium_SpatialPoolAvgTest, TheAverageIsOverTheWholeWindowIncludingPaddedTaps)
         {
             auto in = image(1, 2, 2, 1, {4, 8,
                                          12, 16});
@@ -102,7 +102,7 @@ namespace SushiBLAS
             EXPECT_FLOAT_EQ(got[3], 10.0f) << "(4 + 8 + 12 + 16) / 4";
         }
 
-        TEST_F(Unit_SpatialPoolAvgTest, AnUnpaddedPoolIsThePlainMean)
+        TEST_F(Medium_SpatialPoolAvgTest, AnUnpaddedPoolIsThePlainMean)
         {
             auto in = image(1, 4, 4, 1, {1, 3, 2, 0,
                                          4, 2, 1, 5,
@@ -126,7 +126,7 @@ namespace SushiBLAS
             EXPECT_FLOAT_EQ(got[3], 5.0f);   // (6+2+3+9)/4
         }
 
-        TEST_F(Unit_SpatialPoolAvgTest, TheBackwardSpreadsEachGradientOverItsWholeWindow)
+        TEST_F(Medium_SpatialPoolAvgTest, TheBackwardSpreadsEachGradientOverItsWholeWindow)
         {
             Spatial::ConvGeometry g;
             g.kernel_h = 2;
@@ -152,7 +152,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], expected[i]) << "pixel " << i;
         }
 
-        TEST_F(Unit_SpatialPoolAvgTest, OverlappingWindowsSumTheirShares)
+        TEST_F(Medium_SpatialPoolAvgTest, OverlappingWindowsSumTheirShares)
         {
             // The centre pixel is covered by all four windows. See the test README.
             Spatial::ConvGeometry g;
@@ -174,7 +174,7 @@ namespace SushiBLAS
             EXPECT_FLOAT_EQ(got[8], 1.0f);                     // (2,2): window 3 only
         }
 
-        TEST_F(Unit_SpatialPoolAvgTest, TheBackwardOfAConstantForwardIsUniform)
+        TEST_F(Medium_SpatialPoolAvgTest, TheBackwardOfAConstantForwardIsUniform)
         {
             // Every pixel is covered by exactly R*S windows. See the test README.
             Spatial::ConvGeometry g;
@@ -194,7 +194,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], 1.0f) << "pixel " << i;
         }
 
-        TEST_F(Unit_SpatialPoolAvgTest, TheSYCLKernelAgreesWithTheReferenceKernel)
+        TEST_F(Medium_SpatialPoolAvgTest, TheSYCLKernelAgreesWithTheReferenceKernel)
         {
             // The two forced modes are compared here. See tests/operations/spatial/README.md.
             const int64_t N = 2, H = 7, W = 5, C = 3;

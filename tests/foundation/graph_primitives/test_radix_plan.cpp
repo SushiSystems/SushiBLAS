@@ -47,7 +47,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Tests the digit count at the 8-bit boundaries of the key range. */
-        TEST(Unit_GraphPrimitivesRadixPlan, DigitCountAtByteBoundaries)
+        TEST(Medium_GraphPrimitivesRadixPlan, DigitCountAtByteBoundaries)
         {
             EXPECT_EQ(radix_digit_count(0), 1u);
             EXPECT_EQ(radix_digit_count(1), 1u);
@@ -60,7 +60,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that each digit of a key is the byte at its shift. */
-        TEST(Unit_GraphPrimitivesRadixPlan, DigitIsTheByteAtItsShift)
+        TEST(Medium_GraphPrimitivesRadixPlan, DigitIsTheByteAtItsShift)
         {
             constexpr std::uint32_t K_KEY = 0xA1B2C3D4u;
 
@@ -71,7 +71,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a three-digit plan runs only the digits the live key range needs. */
-        TEST(Unit_GraphPrimitivesRadixPlan, PlanSkipsDigitsAboveTheLiveKeyRange)
+        TEST(Medium_GraphPrimitivesRadixPlan, PlanSkipsDigitsAboveTheLiveKeyRange)
         {
             constexpr std::size_t K_DIGITS = 3;
             constexpr std::size_t K_LIVE_COUNT = 1000;

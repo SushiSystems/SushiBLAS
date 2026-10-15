@@ -48,12 +48,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs spsymv on the host CPU queue. */
-        class Device_SYCLSpsymv : public HostDeviceTest
+        class Medium_SYCLSpsymv : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLSpsymv, MatchesTheReferenceForEitherTriangle)
+        TEST_F(Medium_SYCLSpsymv, MatchesTheReferenceForEitherTriangle)
         {
             const int64_t n = 283;
             const IntegerCsr a = integer_csr(n, n, 4, true);

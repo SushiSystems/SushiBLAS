@@ -40,7 +40,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceWindowDotWeights, PairsWithTheWindowProduct)
+        TEST(Small_ReferenceWindowDotWeights, PairsWithTheWindowProduct)
         {
             // <window_dot(x, w), dy> equals <w, dweights(dy, x)>, exact on small integers.
             const Spatial::WindowSpan span = nhwc_span(2, 7, 6, 3, uneven_geometry(), 1);
@@ -59,7 +59,7 @@ namespace SushiBLAS
                       std::inner_product(w.begin(), w.end(), dw.begin(), 0.0));
         }
 
-        TEST(Unit_ReferenceWindowDotWeights, AOneTapWindowGivesTheChannelDotProduct)
+        TEST(Small_ReferenceWindowDotWeights, AOneTapWindowGivesTheChannelDotProduct)
         {
             const Spatial::WindowSpan span = nhwc_span(1, 1, 2, 1, Spatial::ConvGeometry{}, 0);
             const std::vector<float> x{2.0f, 3.0f};

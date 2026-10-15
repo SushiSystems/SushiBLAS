@@ -41,7 +41,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_PackedProductHarness, PatternedElementsAreSmallIntegers)
+        TEST(Medium_PackedProductHarness, PatternedElementsAreSmallIntegers)
         {
             for (int64_t row = 0; row < 10; ++row)
             {
@@ -56,7 +56,7 @@ namespace SushiBLAS
             EXPECT_NE(patterned_element<float>(1, 2, 0), patterned_element<float>(1, 2, 1));
         }
 
-        TEST(Unit_PackedProductHarness, PoisonIsNaNAndCountsAsAMismatch)
+        TEST(Medium_PackedProductHarness, PoisonIsNaNAndCountsAsAMismatch)
         {
             const std::vector<float> want{1.0f, 2.0f};
             const std::vector<float> got{1.0f, poison_element<float>()};
@@ -66,7 +66,7 @@ namespace SushiBLAS
             EXPECT_EQ(count_bit_mismatches(want.data(), want.data(), 2), std::size_t{0});
         }
 
-        TEST(Unit_PackedProductHarness, TheBlockingsSpanTheExtremes)
+        TEST(Medium_PackedProductHarness, TheBlockingsSpanTheExtremes)
         {
             EXPECT_EQ(smallest_blocking().inner_bytes, std::size_t{1});
             EXPECT_EQ(widest_blocking().outer_bytes, std::numeric_limits<std::size_t>::max());
@@ -74,12 +74,12 @@ namespace SushiBLAS
         }
 
         /** @brief Builds problems on the host CPU queue. */
-        class Device_PackedProductHarness : public HostDeviceTest
+        class Medium_PackedProductHarnessOnDevice : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_PackedProductHarness, TheProblemsKernelsAgreeWithItsExpectation)
+        TEST_F(Medium_PackedProductHarnessOnDevice, TheProblemsKernelsAgreeWithItsExpectation)
         {
             GemmProblem<float> problem(queue(), Core::Layout::ColumnMajor,
                                        Core::Transpose::Trans, Core::Transpose::NoTrans, 13, 11,

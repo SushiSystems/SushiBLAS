@@ -94,7 +94,7 @@ namespace SushiBLAS
          *        chosen execution mode.
          */
         template<typename TypeParam>
-        class Unit_SparseSpmmTest : public SushiBLASTest
+        class Medium_SparseSpmmTest : public SushiBLASTest
         {
             protected:
                 /** @brief The element type under test. */
@@ -238,9 +238,9 @@ namespace SushiBLAS
                 }
         };
 
-        SB_TYPED_TEST_SUITE(Unit_SparseSpmmTest, SparseCases);
+        SB_TYPED_TEST_SUITE(Medium_SparseSpmmTest, SparseCases);
 
-        TYPED_TEST(Unit_SparseSpmmTest, EveryColumnOfTheSampleProductMatchesTheHost)
+        TYPED_TEST(Medium_SparseSpmmTest, EveryColumnOfTheSampleProductMatchesTheHost)
         {
             using T = typename TypeParam::Value;
 
@@ -266,7 +266,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpmmTest, ConjTransConjugatesAComplexMatrixAndNothingElse)
+        TYPED_TEST(Medium_SparseSpmmTest, ConjTransConjugatesAComplexMatrixAndNothingElse)
         {
             using T = typename TypeParam::Value;
 
@@ -300,7 +300,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpmmTest, ABetaOfZeroDoesNotReadC)
+        TYPED_TEST(Medium_SparseSpmmTest, ABetaOfZeroDoesNotReadC)
         {
             using T = typename TypeParam::Value;
 
@@ -327,7 +327,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpmmTest, IntegerDataIsExactInBothModesForEveryTranspose)
+        TYPED_TEST(Medium_SparseSpmmTest, IntegerDataIsExactInBothModesForEveryTranspose)
         {
             using T = typename TypeParam::Value;
 
@@ -358,7 +358,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSpmmTest, DenseOperandsWithoutColumnsRecordAndRun)
+        TYPED_TEST(Medium_SparseSpmmTest, DenseOperandsWithoutColumnsRecordAndRun)
         {
             using T = typename TypeParam::Value;
 
@@ -382,12 +382,12 @@ namespace SushiBLAS
         /**
          * @brief Runs the HALF product whose column sum a HALF workspace would round away.
          */
-        class Unit_SparseSpmmHalf : public Unit_SparseSpmmTest<SparseCase<sycl::half, int64_t>>
+        class Medium_SparseSpmmHalf : public Medium_SparseSpmmTest<SparseCase<sycl::half, int64_t>>
         {
 
         };
 
-        TEST_F(Unit_SparseSpmmHalf, ATransposedColumnIsSummedInFloat32)
+        TEST_F(Medium_SparseSpmmHalf, ATransposedColumnIsSummedInFloat32)
         {
             // 2048 + 1 rounds back to 2048 in HALF, so a HALF sum of the three entries is 0.
             HostTriplets<sycl::half> column;

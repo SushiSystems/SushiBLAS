@@ -178,7 +178,7 @@ records them and holds the steps that have not run.
 
 - Run every job of `ci.yml` and `nightly.yml` once and fix what the first runs show.
 - Bring the Linux job of the small and medium tests under the 45-minute pre-merge budget.
-- Give each test program whose tests need no device a `small` program of its own.
+- Read each `Medium_` suite and rename to `Small_` the ones whose tests reach no runtime, queue, tensor or file.
 - Run the release workflow once before the tag depends on it.
 
 ## Release

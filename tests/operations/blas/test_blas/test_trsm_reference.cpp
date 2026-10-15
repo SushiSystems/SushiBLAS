@@ -46,7 +46,7 @@ namespace SushiBLAS
         /**
          * @brief Solves 3x3 triangular systems on the reference kernel.
          */
-        class Unit_TRSMReferenceTest : public SushiBLASTest
+        class Medium_TRSMReferenceTest : public SushiBLASTest
         {
             protected:
                 /** @brief Builds the engine and forces the reference path. */
@@ -109,79 +109,79 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_TRSMReferenceTest, LeftUpperNoTranspose)
+        TEST_F(Medium_TRSMReferenceTest, LeftUpperNoTranspose)
         {
             const std::vector<float> K_B = {9.0f, -1.0f, 14.0f, -5.0f, 12.0f, -6.0f};
             solve_and_check(upper_matrix(), K_B, true, true, false, false, 1.0, left_solution());
         }
 
-        TEST_F(Unit_TRSMReferenceTest, LeftUpperNoTransposeScaledByAlpha)
+        TEST_F(Medium_TRSMReferenceTest, LeftUpperNoTransposeScaledByAlpha)
         {
             const std::vector<float> K_B = {4.5f, -0.5f, 7.0f, -2.5f, 6.0f, -3.0f};
             solve_and_check(upper_matrix(), K_B, true, true, false, false, 2.0, left_solution());
         }
 
-        TEST_F(Unit_TRSMReferenceTest, LeftUpperTransposed)
+        TEST_F(Medium_TRSMReferenceTest, LeftUpperTransposed)
         {
             const std::vector<float> K_B = {1.0f, 2.0f, 6.0f, 4.0f, 20.0f, 0.0f};
             solve_and_check(upper_matrix(), K_B, true, true, true, false, 1.0, left_solution());
         }
 
-        TEST_F(Unit_TRSMReferenceTest, LeftUpperUnitDiagonal)
+        TEST_F(Medium_TRSMReferenceTest, LeftUpperUnitDiagonal)
         {
             const std::vector<float> K_B = {9.0f, -1.0f, 11.0f, -5.0f, 2.0f, -1.0f};
             solve_and_check(upper_matrix(), K_B, true, true, false, true, 1.0, left_solution());
         }
 
-        TEST_F(Unit_TRSMReferenceTest, LeftLowerNoTranspose)
+        TEST_F(Medium_TRSMReferenceTest, LeftLowerNoTranspose)
         {
             const std::vector<float> K_B = {1.0f, 2.0f, 6.0f, 4.0f, 20.0f, 0.0f};
             solve_and_check(lower_matrix(), K_B, true, false, false, false, 1.0, left_solution());
         }
 
-        TEST_F(Unit_TRSMReferenceTest, LeftLowerTransposed)
+        TEST_F(Medium_TRSMReferenceTest, LeftLowerTransposed)
         {
             const std::vector<float> K_B = {9.0f, -1.0f, 14.0f, -5.0f, 12.0f, -6.0f};
             solve_and_check(lower_matrix(), K_B, true, false, true, false, 1.0, left_solution());
         }
 
-        TEST_F(Unit_TRSMReferenceTest, LeftLowerTransposedUnitDiagonal)
+        TEST_F(Medium_TRSMReferenceTest, LeftLowerTransposedUnitDiagonal)
         {
             const std::vector<float> K_B = {9.0f, -1.0f, 11.0f, -5.0f, 2.0f, -1.0f};
             solve_and_check(lower_matrix(), K_B, true, false, true, true, 1.0, left_solution());
         }
 
-        TEST_F(Unit_TRSMReferenceTest, RightUpperNoTranspose)
+        TEST_F(Medium_TRSMReferenceTest, RightUpperNoTranspose)
         {
             const std::vector<float> K_B = {1.0f, 6.0f, 20.0f, 2.0f, 4.0f, 0.0f};
             solve_and_check(upper_matrix(), K_B, false, true, false, false, 1.0, right_solution());
         }
 
-        TEST_F(Unit_TRSMReferenceTest, RightUpperTransposed)
+        TEST_F(Medium_TRSMReferenceTest, RightUpperTransposed)
         {
             const std::vector<float> K_B = {9.0f, 14.0f, 12.0f, -1.0f, -5.0f, -6.0f};
             solve_and_check(upper_matrix(), K_B, false, true, true, false, 1.0, right_solution());
         }
 
-        TEST_F(Unit_TRSMReferenceTest, RightUpperUnitDiagonal)
+        TEST_F(Medium_TRSMReferenceTest, RightUpperUnitDiagonal)
         {
             const std::vector<float> K_B = {1.0f, 3.0f, 10.0f, 2.0f, 4.0f, 5.0f};
             solve_and_check(upper_matrix(), K_B, false, true, false, true, 1.0, right_solution());
         }
 
-        TEST_F(Unit_TRSMReferenceTest, RightLowerNoTranspose)
+        TEST_F(Medium_TRSMReferenceTest, RightLowerNoTranspose)
         {
             const std::vector<float> K_B = {9.0f, 14.0f, 12.0f, -1.0f, -5.0f, -6.0f};
             solve_and_check(lower_matrix(), K_B, false, false, false, false, 1.0, right_solution());
         }
 
-        TEST_F(Unit_TRSMReferenceTest, RightLowerTransposed)
+        TEST_F(Medium_TRSMReferenceTest, RightLowerTransposed)
         {
             const std::vector<float> K_B = {1.0f, 6.0f, 20.0f, 2.0f, 4.0f, 0.0f};
             solve_and_check(lower_matrix(), K_B, false, false, true, false, 1.0, right_solution());
         }
 
-        TEST_F(Unit_TRSMReferenceTest, RightLowerTransposedUnitDiagonal)
+        TEST_F(Medium_TRSMReferenceTest, RightLowerTransposedUnitDiagonal)
         {
             const std::vector<float> K_B = {1.0f, 3.0f, 10.0f, 2.0f, 4.0f, 5.0f};
             solve_and_check(lower_matrix(), K_B, false, false, true, true, 1.0, right_solution());

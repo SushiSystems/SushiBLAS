@@ -39,7 +39,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceWindowDot, WeighsEachTapOfOneChannel)
+        TEST(Small_ReferenceWindowDot, WeighsEachTapOfOneChannel)
         {
             Spatial::ConvGeometry geometry;
             geometry.kernel_h = 1;
@@ -55,7 +55,7 @@ namespace SushiBLAS
             EXPECT_EQ(out, (std::vector<float>{210.0f, 320.0f}));
         }
 
-        TEST(Unit_ReferenceWindowDot, TheBackwardIsTheAdjoint)
+        TEST(Small_ReferenceWindowDot, TheBackwardIsTheAdjoint)
         {
             const Spatial::WindowSpan span = nhwc_span(2, 7, 6, 3, uneven_geometry(), 1);
             const Spatial::TapSpan taps{span.geometry.kernel_w * 3, 3, 1};

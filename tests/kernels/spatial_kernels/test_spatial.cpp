@@ -37,7 +37,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_SpatialKernels, AReferenceKernelIsReachable)
+        TEST(Medium_SpatialKernels, AReferenceKernelIsReachable)
         {
             const Spatial::WindowSpan span = nhwc_span(1, 1, 2, 1, Spatial::ConvGeometry{}, 0);
             const std::vector<float> in{4.0f, 6.0f};
@@ -49,12 +49,12 @@ namespace SushiBLAS
         }
 
         /** @brief Runs a kernel reached through spatial.hpp on the host CPU queue. */
-        class Device_SpatialKernels : public HostDeviceTest
+        class Medium_SpatialKernelsOnDevice : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SpatialKernels, ASYCLKernelIsReachable)
+        TEST_F(Medium_SpatialKernelsOnDevice, ASYCLKernelIsReachable)
         {
             const Spatial::WindowSpan span = nhwc_span(1, 1, 2, 1, Spatial::ConvGeometry{}, 0);
             const SharedArray<float> in(queue(), std::vector<float>{4.0f, 6.0f});

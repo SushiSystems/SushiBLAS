@@ -58,7 +58,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Gives each test the fixture's engine and the text of a refused read. */
-        class Unit_ReadBinding : public SushiBLASTest
+        class Medium_ReadBinding : public SushiBLASTest
         {
             protected:
                 /** @brief Returns the text of the std::invalid_argument a check throws, or "". */
@@ -85,7 +85,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_ReadBinding, PointersFollowTheElementsInBoundOrder)
+        TEST_F(Medium_ReadBinding, PointersFollowTheElementsInBoundOrder)
         {
             const Tensor a = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
             const Tensor b = engine->create_tensor({K_ELEMENTS}, Core::DataType::Int64);
@@ -112,7 +112,7 @@ namespace SushiBLAS
             EXPECT_EQ(seen_second, b.data_as<std::int64_t>());
         }
 
-        TEST_F(Unit_ReadBinding, AnElementReadTakesTheOperationsType)
+        TEST_F(Medium_ReadBinding, AnElementReadTakesTheOperationsType)
         {
             const Tensor a = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
 
@@ -132,7 +132,7 @@ namespace SushiBLAS
             EXPECT_EQ(as_double, a.data());
         }
 
-        TEST_F(Unit_ReadBinding, BoundScalarsComeAfterThePointers)
+        TEST_F(Medium_ReadBinding, BoundScalarsComeAfterThePointers)
         {
             const Tensor a = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
 
@@ -159,7 +159,7 @@ namespace SushiBLAS
             EXPECT_NEAR(seen_scalar, 2.0f, K_EXACT);
         }
 
-        TEST_F(Unit_ReadBinding, TheKernelFunctorHoldsNoStorage)
+        TEST_F(Medium_ReadBinding, TheKernelFunctorHoldsNoStorage)
         {
             const auto fn = [](float element, const float*) { return element; };
             using Fn = std::decay_t<decltype(fn)>;
@@ -187,7 +187,7 @@ namespace SushiBLAS
             EXPECT_EQ(TestEnvironment::live_allocation_count(), live_baseline);
         }
 
-        TEST_F(Unit_ReadBinding, AReadIsCheckedAsAnOperand)
+        TEST_F(Medium_ReadBinding, AReadIsCheckedAsAnOperand)
         {
             const auto fn = [](float element, const float*) { return element; };
             const auto fn_of_two = [](float element, const float*, const float*)
@@ -239,7 +239,7 @@ namespace SushiBLAS
             }), 1));
         }
 
-        TEST_F(Unit_ReadBinding, AReadMayNotOverlapAWrittenRegion)
+        TEST_F(Medium_ReadBinding, AReadMayNotOverlapAWrittenRegion)
         {
             const auto fn = [](float element, const float*) { return element; };
             const Tensor a = engine->create_tensor({K_ELEMENTS}, Core::DataType::Float32);
@@ -262,7 +262,7 @@ namespace SushiBLAS
             EXPECT_TRUE(reading.write_regions().empty());
         }
 
-        TEST_F(Unit_ReadBinding, APlainFunctorPassesThroughUntouched)
+        TEST_F(Medium_ReadBinding, APlainFunctorPassesThroughUntouched)
         {
             const auto fn = [](float element) { return element; };
             OperandSet operands;

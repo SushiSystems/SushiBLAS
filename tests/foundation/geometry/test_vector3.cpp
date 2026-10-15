@@ -41,7 +41,7 @@ namespace SushiBLAS
          * @brief Compares vectors of element type T with hand-computed components.
          */
         template<typename T>
-        class Unit_GeometryVector3 : public ::testing::Test
+        class Small_GeometryVector3 : public ::testing::Test
         {
             protected:
                 /** @brief Returns the absolute tolerance of a comparison in element type T. */
@@ -62,9 +62,9 @@ namespace SushiBLAS
         };
 
         using GeometryVector3Types = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_GeometryVector3, GeometryVector3Types);
+        SB_TYPED_TEST_SUITE(Small_GeometryVector3, GeometryVector3Types);
 
-        TYPED_TEST(Unit_GeometryVector3, DefaultIsTheZeroVector)
+        TYPED_TEST(Small_GeometryVector3, DefaultIsTheZeroVector)
         {
             const Geometry::Vector3T<TypeParam> vector{};
 
@@ -73,7 +73,7 @@ namespace SushiBLAS
             EXPECT_EQ(vector.z, TypeParam(0));
         }
 
-        TYPED_TEST(Unit_GeometryVector3, ComponentsLieInOrderWithoutPadding)
+        TYPED_TEST(Small_GeometryVector3, ComponentsLieInOrderWithoutPadding)
         {
             using Vector = Geometry::Vector3T<TypeParam>;
 
@@ -82,7 +82,7 @@ namespace SushiBLAS
             EXPECT_EQ(offsetof(Vector, z), 2 * sizeof(TypeParam));
         }
 
-        TYPED_TEST(Unit_GeometryVector3, SumDifferenceAndScaleAreComponentwise)
+        TYPED_TEST(Small_GeometryVector3, SumDifferenceAndScaleAreComponentwise)
         {
             using T = TypeParam;
             const Geometry::Vector3T<T> a{T(1), T(2), T(3)};
@@ -93,7 +93,7 @@ namespace SushiBLAS
             TestFixture::expect_vector_near(a * T(2), 2.0, 4.0, 6.0);
         }
 
-        TYPED_TEST(Unit_GeometryVector3, DotSumsTheComponentProducts)
+        TYPED_TEST(Small_GeometryVector3, DotSumsTheComponentProducts)
         {
             using T = TypeParam;
             const Geometry::Vector3T<T> a{T(1), T(2), T(3)};
@@ -103,7 +103,7 @@ namespace SushiBLAS
             EXPECT_NEAR(static_cast<double>(Geometry::dot(a, b)), 12.0, TestFixture::tolerance());
         }
 
-        TYPED_TEST(Unit_GeometryVector3, CrossIsRightHanded)
+        TYPED_TEST(Small_GeometryVector3, CrossIsRightHanded)
         {
             using T = TypeParam;
             const Geometry::Vector3T<T> x_axis{T(1), T(0), T(0)};
@@ -117,7 +117,7 @@ namespace SushiBLAS
             TestFixture::expect_vector_near(Geometry::cross(a, b), 27.0, 6.0, -13.0);
         }
 
-        TYPED_TEST(Unit_GeometryVector3, LengthIsTheEuclideanNorm)
+        TYPED_TEST(Small_GeometryVector3, LengthIsTheEuclideanNorm)
         {
             using T = TypeParam;
 
@@ -130,7 +130,7 @@ namespace SushiBLAS
                         7.0, TestFixture::tolerance());
         }
 
-        TYPED_TEST(Unit_GeometryVector3, NormalizeScalesToUnitLength)
+        TYPED_TEST(Small_GeometryVector3, NormalizeScalesToUnitLength)
         {
             using T = TypeParam;
 
@@ -140,7 +140,7 @@ namespace SushiBLAS
                 Geometry::normalize(Geometry::Vector3T<T>{T(0), T(-5), T(0)}), 0.0, -1.0, 0.0);
         }
 
-        TYPED_TEST(Unit_GeometryVector3, NormalizeReturnsAZeroLengthVectorUnchanged)
+        TYPED_TEST(Small_GeometryVector3, NormalizeReturnsAZeroLengthVectorUnchanged)
         {
             using T = TypeParam;
             const Geometry::Vector3T<T> zero{};

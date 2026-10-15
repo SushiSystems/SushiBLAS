@@ -41,7 +41,7 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Records one task on a probe, runs it and compares what it computed. */
-        class Regression_TaskDependencies : public SushiBLASTest
+        class Medium_TaskDependencies : public SushiBLASTest
         {
             protected:
                 /** @brief Returns a FLOAT32 vector holding values. */
@@ -80,7 +80,7 @@ namespace SushiBLAS
         };
 
         /** @brief Tests that one operation of each recording seam runs as a recorded task. */
-        TEST_F(Regression_TaskDependencies, ARecordedTaskComputesItsResult)
+        TEST_F(Medium_TaskDependencies, ARecordedTaskComputesItsResult)
         {
             const std::vector<float> ramp = {1.0f, 2.0f, 3.0f, 4.0f};
             const std::vector<float> tens = {10.0f, 20.0f, 30.0f, 40.0f};

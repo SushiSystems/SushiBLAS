@@ -40,7 +40,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceSyr2, UpdatesTheNamedTriangleOnly)
+        TEST(Small_ReferenceSyr2, UpdatesTheNamedTriangleOnly)
         {
             const int64_t n = 5;
             const std::vector<double> a = small_integers<double>(n * n, 1);

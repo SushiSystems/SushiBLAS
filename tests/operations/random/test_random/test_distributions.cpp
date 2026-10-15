@@ -34,9 +34,9 @@
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 using namespace SushiBLAS::Test;
 
-class Unit_DistributionsTest : public SushiBLASTest {};
+class Medium_DistributionsTest : public SushiBLASTest {};
 
-TEST_F(Unit_DistributionsTest, LogNormal) 
+TEST_F(Medium_DistributionsTest, LogNormal) 
 {
     const int N = 100;
     auto t = engine->create_tensor({N});
@@ -50,7 +50,7 @@ TEST_F(Unit_DistributionsTest, LogNormal)
     }
 }
 
-TEST_F(Unit_DistributionsTest, Exponential) 
+TEST_F(Medium_DistributionsTest, Exponential) 
 {
     const int N = 100;
     auto t = engine->create_tensor({N});
@@ -64,7 +64,7 @@ TEST_F(Unit_DistributionsTest, Exponential)
     }
 }
 
-TEST_F(Unit_DistributionsTest, Poisson) 
+TEST_F(Medium_DistributionsTest, Poisson) 
 {
     const int N = 100;
     auto t = engine->create_tensor({N});
@@ -79,7 +79,7 @@ TEST_F(Unit_DistributionsTest, Poisson)
     }
 }
 
-TEST_F(Unit_DistributionsTest, Bernoulli) 
+TEST_F(Medium_DistributionsTest, Bernoulli) 
 {
     const int N = 100;
     auto t = engine->create_tensor({N});
@@ -93,7 +93,7 @@ TEST_F(Unit_DistributionsTest, Bernoulli)
     }
 }
 
-TEST_F(Unit_DistributionsTest, DiscreteUniform) 
+TEST_F(Medium_DistributionsTest, DiscreteUniform) 
 {
     const int N = 100;
     auto t = engine->create_tensor({N});
@@ -109,7 +109,7 @@ TEST_F(Unit_DistributionsTest, DiscreteUniform)
     }
 }
 
-TEST_F(Unit_DistributionsTest, TruncatedNormalStaysInsideItsBounds)
+TEST_F(Medium_DistributionsTest, TruncatedNormalStaysInsideItsBounds)
 {
     const int N = 4096;
     auto t = engine->create_tensor({N});
@@ -125,7 +125,7 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalStaysInsideItsBounds)
     }
 }
 
-TEST_F(Unit_DistributionsTest, TruncatedNormalFollowsTheTruncatedLawInTheUpperTail)
+TEST_F(Medium_DistributionsTest, TruncatedNormalFollowsTheTruncatedLawInTheUpperTail)
 {
     const int N = 65536;
     auto t = engine->create_tensor({N});
@@ -145,7 +145,7 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalFollowsTheTruncatedLawInTheUpperTa
     EXPECT_NEAR(sum / N, 1.510048, 0.02);
 }
 
-TEST_F(Unit_DistributionsTest, TruncatedNormalRejectsBoundsItCannotHonour)
+TEST_F(Medium_DistributionsTest, TruncatedNormalRejectsBoundsItCannotHonour)
 {
     auto t = engine->create_tensor({8});
     EXPECT_THROW(
@@ -167,7 +167,7 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalRejectsBoundsItCannotHonour)
         std::invalid_argument);
 }
 
-TEST_F(Unit_DistributionsTest, TruncatedNormalDrawsAFarLowerBoundAsTheHalfOpenLaw)
+TEST_F(Medium_DistributionsTest, TruncatedNormalDrawsAFarLowerBoundAsTheHalfOpenLaw)
 {
     const int N = 65536;
     auto t = engine->create_tensor({N});
@@ -188,7 +188,7 @@ TEST_F(Unit_DistributionsTest, TruncatedNormalDrawsAFarLowerBoundAsTheHalfOpenLa
     EXPECT_NEAR(sum / N, -0.055248, 4.0 * standard_error);
 }
 
-TEST_F(Unit_DistributionsTest, EveryDistributionRejectsAnInvalidParameterAtRecordTime)
+TEST_F(Medium_DistributionsTest, EveryDistributionRejectsAnInvalidParameterAtRecordTime)
 {
     auto t = engine->create_tensor({4, 4});
     SushiBLAS::RandomOps rng(*engine);
@@ -223,7 +223,7 @@ TEST_F(Unit_DistributionsTest, EveryDistributionRejectsAnInvalidParameterAtRecor
     EXPECT_NO_THROW(rng.log_normal(t, 1.0, 0.0));
 }
 
-TEST_F(Unit_DistributionsTest, EveryDistributionRejectsAnUnsupportedDtypeAtRecordTime)
+TEST_F(Medium_DistributionsTest, EveryDistributionRejectsAnUnsupportedDtypeAtRecordTime)
 {
     using SushiBLAS::Core::DataType;
     SushiBLAS::RandomOps rng(*engine);

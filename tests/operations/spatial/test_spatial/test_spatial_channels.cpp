@@ -51,7 +51,7 @@ namespace SushiBLAS
             }
         } // namespace
 
-        class Unit_SpatialChannelsTest : public SushiBLASTest
+        class Medium_SpatialChannelsTest : public SushiBLASTest
         {
             protected:
                 /** @brief A rank-4 NHWC float tensor holding @p values in memory order. */
@@ -87,7 +87,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_SpatialChannelsTest, ConcatPlacesEachSourceAtItsOffset)
+        TEST_F(Medium_SpatialChannelsTest, ConcatPlacesEachSourceAtItsOffset)
         {
             // Two pixels expose an ignored column stride. See tests/operations/spatial/README.md.
             auto a = image(1, 1, 2, 2, {10, 11,
@@ -118,7 +118,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], expected[i]) << "element " << i << " after both concats";
         }
 
-        TEST_F(Unit_SpatialChannelsTest, SliceIsConcatsInverse)
+        TEST_F(Medium_SpatialChannelsTest, SliceIsConcatsInverse)
         {
             auto a = patterned(2, 3, 4, 2, 0);
             auto b = patterned(2, 3, 4, 5, 7);
@@ -146,7 +146,7 @@ namespace SushiBLAS
                     << "second source, element " << i;
         }
 
-        TEST_F(Unit_SpatialChannelsTest, TheyAreEachOthersBackward)
+        TEST_F(Medium_SpatialChannelsTest, TheyAreEachOthersBackward)
         {
             // Concat's gradient is a slice at the same offset. See the test README.
             auto a = patterned(1, 2, 2, 3, 3);
@@ -167,7 +167,7 @@ namespace SushiBLAS
                     << "element " << i;
         }
 
-        TEST_F(Unit_SpatialChannelsTest, ARangeThatRunsPastTheChannelCountIsRefused)
+        TEST_F(Medium_SpatialChannelsTest, ARangeThatRunsPastTheChannelCountIsRefused)
         {
             auto three = filled(1, 2, 2, 3, 1.0f);
             auto five = filled(1, 2, 2, 5, 0.0f);
@@ -200,7 +200,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SpatialChannelsTest, AStridedSourceIsAddressedThroughItsStrides)
+        TEST_F(Medium_SpatialChannelsTest, AStridedSourceIsAddressedThroughItsStrides)
         {
             // The view sees only the parent's even channels. See the test README.
             auto parent = image(1, 2, 2, 4, {0, 1, 2, 3,      4, 5, 6, 7,
@@ -228,7 +228,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], expected[i]) << "element " << i;
         }
 
-        TEST_F(Unit_SpatialChannelsTest, TheSYCLKernelAgreesWithTheReferenceKernel)
+        TEST_F(Medium_SpatialChannelsTest, TheSYCLKernelAgreesWithTheReferenceKernel)
         {
             // The two forced modes are compared here. See tests/operations/spatial/README.md.
             const int64_t N = 2, H = 3, W = 4, C = 3, WIDE = 7, OFFSET = 2;
@@ -271,7 +271,7 @@ namespace SushiBLAS
                     << "slice element " << i;
         }
 
-        TEST_F(Unit_SpatialChannelsTest, MalformedSpatialOperandsNameTheOperand)
+        TEST_F(Medium_SpatialChannelsTest, MalformedSpatialOperandsNameTheOperand)
         {
             /** @brief Runs a record call and expects std::invalid_argument naming op and operand. */
             const auto expect_named = [](const auto& record, const char* op, const char* operand)

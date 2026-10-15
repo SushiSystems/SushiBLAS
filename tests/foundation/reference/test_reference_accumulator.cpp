@@ -48,7 +48,7 @@ namespace SushiBLAS
         /// @brief A term the plain sum of K_LARGE_TERM, this and -K_LARGE_TERM loses.
         constexpr double K_SMALL_TERM = 1.0;
 
-        TEST(Unit_ReferenceAccumulator, RealTypesAccumulateInDouble)
+        TEST(Medium_ReferenceAccumulator, RealTypesAccumulateInDouble)
         {
             static_assert(std::is_same_v<Kernels::ReferenceAccumulator<sycl::half>, double>,
                           "HALF is summed in double.");
@@ -59,7 +59,7 @@ namespace SushiBLAS
             SUCCEED();
         }
 
-        TEST(Unit_ReferenceAccumulator, ComplexTypesAccumulateInComplexDouble)
+        TEST(Medium_ReferenceAccumulator, ComplexTypesAccumulateInComplexDouble)
         {
             static_assert(std::is_same_v<Kernels::ReferenceAccumulator<std::complex<float>>,
                                          std::complex<double>>,
@@ -70,7 +70,7 @@ namespace SushiBLAS
             SUCCEED();
         }
 
-        TEST(Unit_ReferenceAccumulator, OnlyTheDoubleTypesAreCompensated)
+        TEST(Medium_ReferenceAccumulator, OnlyTheDoubleTypesAreCompensated)
         {
             EXPECT_FALSE(Kernels::ReferenceSum<sycl::half>::K_IS_COMPENSATED);
             EXPECT_FALSE(Kernels::ReferenceSum<float>::K_IS_COMPENSATED);
@@ -79,7 +79,7 @@ namespace SushiBLAS
             EXPECT_TRUE(Kernels::ReferenceSum<std::complex<double>>::K_IS_COMPENSATED);
         }
 
-        TEST(Unit_ReferenceAccumulator, AnEmptySumIsZero)
+        TEST(Medium_ReferenceAccumulator, AnEmptySumIsZero)
         {
             EXPECT_EQ(Kernels::ReferenceSum<float>().value(), 0.0);
             EXPECT_EQ(Kernels::ReferenceSum<double>().value(), 0.0);
@@ -89,7 +89,7 @@ namespace SushiBLAS
                       std::complex<double>(0.0, 0.0));
         }
 
-        TEST(Unit_ReferenceAccumulator, AFloatSumHoldsAnIntegerFloatCannot)
+        TEST(Medium_ReferenceAccumulator, AFloatSumHoldsAnIntegerFloatCannot)
         {
             Kernels::ReferenceSum<float> sum;
             float plain = 0.0f;
@@ -104,7 +104,7 @@ namespace SushiBLAS
                       static_cast<double>(K_FIRST_INTEGER_FLOAT_CANNOT_HOLD));
         }
 
-        TEST(Unit_ReferenceAccumulator, ADoubleSumKeepsWhatAnAdditionRoundsOff)
+        TEST(Medium_ReferenceAccumulator, ADoubleSumKeepsWhatAnAdditionRoundsOff)
         {
             Kernels::ReferenceSum<double> sum;
             sum.add(K_LARGE_TERM);
@@ -119,7 +119,7 @@ namespace SushiBLAS
             EXPECT_EQ(plain, 0.0);
         }
 
-        TEST(Unit_ReferenceAccumulator, AFloatSumOfDoublesIsNotCompensated)
+        TEST(Medium_ReferenceAccumulator, AFloatSumOfDoublesIsNotCompensated)
         {
             Kernels::ReferenceSum<float> sum;
             sum.add(K_LARGE_TERM);
@@ -129,7 +129,7 @@ namespace SushiBLAS
             EXPECT_EQ(sum.value(), 0.0);
         }
 
-        TEST(Unit_ReferenceAccumulator, AnInfiniteTermGivesThatInfinityInBothForms)
+        TEST(Medium_ReferenceAccumulator, AnInfiniteTermGivesThatInfinityInBothForms)
         {
             const double infinity = std::numeric_limits<double>::infinity();
 
@@ -150,7 +150,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_ReferenceAccumulator, ANanTermGivesNanInBothForms)
+        TEST(Medium_ReferenceAccumulator, ANanTermGivesNanInBothForms)
         {
             const double nan = std::numeric_limits<double>::quiet_NaN();
 
@@ -168,7 +168,7 @@ namespace SushiBLAS
             EXPECT_TRUE(std::isnan(compensated.value()));
         }
 
-        TEST(Unit_ReferenceAccumulator, OpposedInfinitiesGiveNanInBothForms)
+        TEST(Medium_ReferenceAccumulator, OpposedInfinitiesGiveNanInBothForms)
         {
             const double infinity = std::numeric_limits<double>::infinity();
 
@@ -184,7 +184,7 @@ namespace SushiBLAS
             EXPECT_TRUE(std::isnan(compensated.value()));
         }
 
-        TEST(Unit_ReferenceAccumulator, AComplexSumCompensatesEachPartOnItsOwn)
+        TEST(Medium_ReferenceAccumulator, AComplexSumCompensatesEachPartOnItsOwn)
         {
             Kernels::ReferenceSum<std::complex<double>> sum;
             sum.add(std::complex<double>(K_LARGE_TERM, K_SMALL_TERM));
@@ -194,7 +194,7 @@ namespace SushiBLAS
             EXPECT_EQ(sum.value(), std::complex<double>(K_SMALL_TERM, K_SMALL_TERM));
         }
 
-        TEST(Unit_ReferenceAccumulator, AComplexFloatSumAddsEachPartInDouble)
+        TEST(Medium_ReferenceAccumulator, AComplexFloatSumAddsEachPartInDouble)
         {
             Kernels::ReferenceSum<std::complex<float>> sum;
             sum.add(std::complex<double>(K_LARGE_TERM, 0.25));
@@ -204,7 +204,7 @@ namespace SushiBLAS
             EXPECT_EQ(sum.value(), std::complex<double>(0.0, 0.875));
         }
 
-        TEST(Unit_ReferenceAccumulator, AnInfinitePartOfAComplexSumLeavesTheOtherPartFinite)
+        TEST(Medium_ReferenceAccumulator, AnInfinitePartOfAComplexSumLeavesTheOtherPartFinite)
         {
             const double infinity = std::numeric_limits<double>::infinity();
 

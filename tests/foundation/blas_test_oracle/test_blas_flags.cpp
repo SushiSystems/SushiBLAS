@@ -33,7 +33,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_BlasFlags, EachHelperMapsBothTruthValues)
+        TEST(Small_BlasFlags, EachHelperMapsBothTruthValues)
         {
             EXPECT_EQ(transpose_of(true), Core::Transpose::Trans);
             EXPECT_EQ(transpose_of(false), Core::Transpose::NoTrans);
@@ -45,7 +45,7 @@ namespace SushiBLAS
             EXPECT_EQ(side_of(false), Core::Side::Right);
         }
 
-        TEST(Unit_BlasFlags, TheHelpersAreConstantExpressions)
+        TEST(Small_BlasFlags, TheHelpersAreConstantExpressions)
         {
             static_assert(transpose_of(true) == Core::Transpose::Trans, "Usable in a constant.");
             static_assert(side_of(false) == Core::Side::Right, "Usable in a constant.");

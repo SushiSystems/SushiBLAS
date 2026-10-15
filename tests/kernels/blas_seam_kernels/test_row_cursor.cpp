@@ -33,7 +33,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_RowCursor, AFlatCursorStepsByAConstantStride)
+        TEST(Small_RowCursor, AFlatCursorStepsByAConstantStride)
         {
             Kernels::RowCursor cursor{5, 3, 0};
 
@@ -44,7 +44,7 @@ namespace SushiBLAS
             EXPECT_EQ(cursor.step, int64_t{3});
         }
 
-        TEST(Unit_RowCursor, ASlopeGrowsTheStepAtEachColumn)
+        TEST(Small_RowCursor, ASlopeGrowsTheStepAtEachColumn)
         {
             Kernels::RowCursor cursor{0, 1, 1};
 
@@ -56,7 +56,7 @@ namespace SushiBLAS
             EXPECT_EQ(cursor.step, int64_t{4});
         }
 
-        TEST(Unit_RowCursor, RetreatUndoesAdvance)
+        TEST(Small_RowCursor, RetreatUndoesAdvance)
         {
             Kernels::RowCursor cursor{2, 4, -1};
 

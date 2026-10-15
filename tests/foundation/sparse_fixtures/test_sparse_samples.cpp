@@ -38,7 +38,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_SparseSamples, TheSampleMatrixHoldsSevenEntriesInsideItsShape)
+        TEST(Small_SparseSamples, TheSampleMatrixHoldsSevenEntriesInsideItsShape)
         {
             const HostTriplets<double> m = sample_matrix<double>();
 
@@ -54,7 +54,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_SparseSamples, AComplexSampleCarriesImaginaryParts)
+        TEST(Small_SparseSamples, AComplexSampleCarriesImaginaryParts)
         {
             const HostTriplets<std::complex<float>> m = sample_matrix<std::complex<float>>();
 
@@ -63,7 +63,7 @@ namespace SushiBLAS
             EXPECT_EQ(sample_values<std::complex<double>>()[0], std::complex<double>(1.0, 2.0));
         }
 
-        TEST(Unit_SparseSamples, TheSampleCSRArraysAgree)
+        TEST(Small_SparseSamples, TheSampleCSRArraysAgree)
         {
             const std::vector<int64_t> offsets = sample_row_offsets();
 
@@ -71,7 +71,7 @@ namespace SushiBLAS
             EXPECT_EQ(sample_values<double>().size(), sample_columns().size());
         }
 
-        TEST(Unit_SparseSamples, StoredIndicesAddTheFirstIndexOfTheBase)
+        TEST(Small_SparseSamples, StoredIndicesAddTheFirstIndexOfTheBase)
         {
             const std::vector<int64_t> zero_based{0, 2, 5};
 
@@ -81,7 +81,7 @@ namespace SushiBLAS
                       (std::vector<int64_t>{1, 3, 6}));
         }
 
-        TEST(Unit_SparseSamples, CountingAndWideningRoundTripExactValues)
+        TEST(Small_SparseSamples, CountingAndWideningRoundTripExactValues)
         {
             const std::vector<std::complex<double>> values = counting(3, 2.0);
 
@@ -91,7 +91,7 @@ namespace SushiBLAS
                       std::complex<double>(1.5, -2.0));
         }
 
-        TEST(Unit_SparseSamples, AnIntegerMatrixHasItsRowsAndIsRepeatableForASeed)
+        TEST(Small_SparseSamples, AnIntegerMatrixHasItsRowsAndIsRepeatableForASeed)
         {
             const HostTriplets<float> first = integer_valued_matrix<float>(6, 9, 3, 42);
             const HostTriplets<float> second = integer_valued_matrix<float>(6, 9, 3, 42);
@@ -106,7 +106,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_SparseSamples, TheHostProductAppliesEachTransposeAndTheScalars)
+        TEST(Small_SparseSamples, TheHostProductAppliesEachTransposeAndTheScalars)
         {
             HostTriplets<std::complex<double>> a;
             a.rows = 2;
@@ -126,7 +126,7 @@ namespace SushiBLAS
                       (std::vector<std::complex<double>>{{6.0, 0.0}, {1.0, -1.0}}));
         }
 
-        TEST(Unit_SparseSamples, BothBasesAreListed)
+        TEST(Small_SparseSamples, BothBasesAreListed)
         {
             EXPECT_EQ(K_BOTH_BASES[0], Core::IndexBase::Zero);
             EXPECT_EQ(K_BOTH_BASES[1], Core::IndexBase::One);

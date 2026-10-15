@@ -50,7 +50,7 @@ namespace SushiBLAS
         constexpr std::size_t K_SCRATCH_BYTES = 4096;
 
         /** @brief Runs the Level 1 kernels on the host CPU queue. */
-        class Device_SYCLLevel1 : public HostDeviceTest
+        class Medium_SYCLLevel1 : public HostDeviceTest
         {
             protected:
                 /** @brief Returns the operand of the given seed. */
@@ -60,7 +60,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Device_SYCLLevel1, TheElementwiseKernelsMatchTheReference)
+        TEST_F(Medium_SYCLLevel1, TheElementwiseKernelsMatchTheReference)
         {
             // Every value is a small integer, so both kernels compute without rounding.
             const std::vector<float> x = operand(1);
@@ -82,7 +82,7 @@ namespace SushiBLAS
             EXPECT_EQ(device_y.values(), y);
         }
 
-        TEST_F(Device_SYCLLevel1, CopyAndSwapMoveEveryOtherElement)
+        TEST_F(Medium_SYCLLevel1, CopyAndSwapMoveEveryOtherElement)
         {
             const std::vector<float> x = operand(3);
             SharedArray<float> device_x(queue(), x);
@@ -99,7 +99,7 @@ namespace SushiBLAS
             EXPECT_EQ(device_y.values(), expected);
         }
 
-        TEST_F(Device_SYCLLevel1, TheReductionsMatchTheReferenceExactly)
+        TEST_F(Medium_SYCLLevel1, TheReductionsMatchTheReferenceExactly)
         {
             const std::vector<double> x = small_integers<double>(K_LENGTH, 4);
             const std::vector<double> y = small_integers<double>(K_LENGTH, 5);
@@ -128,7 +128,7 @@ namespace SushiBLAS
             EXPECT_EQ(index.get()[0], first_largest);
         }
 
-        TEST_F(Device_SYCLLevel1, Nrm2StaysWithinTheBoundOfAScaledSum)
+        TEST_F(Medium_SYCLLevel1, Nrm2StaysWithinTheBoundOfAScaledSum)
         {
             const std::vector<double> x = small_integers<double>(K_LENGTH, 6);
             const SharedArray<double> device_x(queue(), x);
@@ -146,7 +146,7 @@ namespace SushiBLAS
             EXPECT_NEAR(norm.get()[0], expected, bound);
         }
 
-        TEST_F(Device_SYCLLevel1, AnEmptyVectorSumsToZero)
+        TEST_F(Medium_SYCLLevel1, AnEmptyVectorSumsToZero)
         {
             SharedArray<float> result(queue(), std::vector<float>{7.0f});
             const SharedArray<float> x(queue(), 1);

@@ -21,7 +21,7 @@
 
 /**
  * @file small_test_main.cpp
- * @brief Runs every GoogleTest suite of a small program with synchronous logging and no runtime.
+ * @brief Runs every GoogleTest suite of an all-Small_ program with synchronous logging and no runtime.
  * @author Mustafa Garip
  */
 
@@ -31,7 +31,7 @@
 
 int main(int argc, char **argv)
 {
-    // Synchronous logging starts no logger thread, so a small program stays on one thread.
+    // Synchronous logging starts no logger thread, so the program stays on one thread.
     SushiRuntime::set_log_synchronous(true);
     SB_LOGGER_SET_SYNC_MODE(true);
 

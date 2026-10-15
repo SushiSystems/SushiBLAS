@@ -35,7 +35,7 @@ namespace HostProgram
 {
     namespace Test
     {
-        TEST(Unit_HostProgram, EveryStatusCodeHasItsOwnName)
+        TEST(Small_HostProgram, EveryStatusCodeHasItsOwnName)
         {
             const StatusCode codes[] = {StatusCode::Ok, StatusCode::InvalidRequest,
                                         StatusCode::Unsupported, StatusCode::OutOfMemory,
@@ -50,7 +50,7 @@ namespace HostProgram
             EXPECT_TRUE(Status{}.message.empty());
         }
 
-        TEST(Integration_HostProgram, MultiplyAddGivesTheShiftedProductAndItsSum)
+        TEST(Medium_HostProgram, MultiplyAddGivesTheShiftedProductAndItsSum)
         {
             BackendHandle backend;
             ASSERT_EQ(create_backend(backend).code, StatusCode::Ok);
@@ -67,7 +67,7 @@ namespace HostProgram
             EXPECT_EQ(sum, 14.0f);
         }
 
-        TEST(Integration_HostProgram, MismatchedShapesAreAnInvalidRequest)
+        TEST(Medium_HostProgram, MismatchedShapesAreAnInvalidRequest)
         {
             BackendHandle backend;
             ASSERT_EQ(create_backend(backend).code, StatusCode::Ok);

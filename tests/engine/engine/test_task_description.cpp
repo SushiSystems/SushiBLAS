@@ -34,7 +34,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_TaskDescription, StartsUnnamedWithEverySlotZero)
+        TEST(Medium_TaskDescription, StartsUnnamedWithEverySlotZero)
         {
             const TaskDescription description;
 
@@ -43,7 +43,7 @@ namespace SushiBLAS
                 EXPECT_EQ(description.parameter<std::uint64_t>(slot), std::uint64_t{0});
         }
 
-        TEST(Unit_TaskDescription, ASlotGivesBackTheValueOfItsType)
+        TEST(Medium_TaskDescription, ASlotGivesBackTheValueOfItsType)
         {
             TaskDescription description;
             description.set_parameter(0, -12);

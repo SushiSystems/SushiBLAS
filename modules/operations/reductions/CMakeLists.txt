@@ -35,7 +35,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE reductions
-    SIZE medium
     TESTS
         test_arg_reduction.cpp
         test_centred_reduction.cpp

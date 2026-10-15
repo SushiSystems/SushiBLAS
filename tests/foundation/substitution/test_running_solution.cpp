@@ -50,7 +50,7 @@ namespace SushiBLAS
         /// @brief Marks a workspace element no case may write.
         constexpr float K_UNTOUCHED = -7.0f;
 
-        TEST(Unit_RunningSolution, OnlyHalfNeedsAWorkspace)
+        TEST(Medium_RunningSolution, OnlyHalfNeedsAWorkspace)
         {
             static_assert(Kernels::RunningSolution<sycl::half>::K_NEEDS_WORKSPACE,
                           "HALF is carried in FLOAT32.");
@@ -70,7 +70,7 @@ namespace SushiBLAS
             EXPECT_FALSE(Kernels::RunningSolution<std::complex<double>>::K_NEEDS_WORKSPACE);
         }
 
-        TEST(Unit_RunningSolution, HalfIsCarriedInFloat)
+        TEST(Medium_RunningSolution, HalfIsCarriedInFloat)
         {
             static_assert(std::is_same_v<Kernels::RunningSolution<sycl::half>::Wide, float>,
                           "HALF is carried in FLOAT32.");
@@ -79,7 +79,7 @@ namespace SushiBLAS
             SUCCEED();
         }
 
-        TEST(Unit_RunningSolution, FloatSetWritesTheBoundArray)
+        TEST(Medium_RunningSolution, FloatSetWritesTheBoundArray)
         {
             std::array<float, K_SOLUTION_LENGTH> rounded = {1.0f, 2.0f, 3.0f, 4.0f};
             const Kernels::RunningSolution<float> solution(rounded.data(), nullptr, 0);
@@ -91,7 +91,7 @@ namespace SushiBLAS
             EXPECT_EQ(rounded[2], 3.0f);
         }
 
-        TEST(Unit_RunningSolution, FloatGetReadsTheBoundArray)
+        TEST(Medium_RunningSolution, FloatGetReadsTheBoundArray)
         {
             std::array<float, K_SOLUTION_LENGTH> rounded = {1.0f, 2.0f, 3.0f, 4.0f};
             const Kernels::RunningSolution<float> solution(rounded.data(), nullptr, 0);
@@ -103,7 +103,7 @@ namespace SushiBLAS
             EXPECT_EQ(solution.get(2), 9.0f);
         }
 
-        TEST(Unit_RunningSolution, FloatIgnoresTheWorkspaceItIsGiven)
+        TEST(Medium_RunningSolution, FloatIgnoresTheWorkspaceItIsGiven)
         {
             std::array<float, K_SOLUTION_LENGTH> rounded = {1.0f, 2.0f, 3.0f, 4.0f};
             std::array<float, K_SOLUTION_LENGTH> workspace;
@@ -117,7 +117,7 @@ namespace SushiBLAS
             EXPECT_EQ(workspace[0], K_UNTOUCHED);
         }
 
-        TEST(Unit_RunningSolution, ComplexSetThenGetGoesThroughTheBoundArray)
+        TEST(Medium_RunningSolution, ComplexSetThenGetGoesThroughTheBoundArray)
         {
             std::array<std::complex<double>, K_SOLUTION_LENGTH> rounded = {};
             const Kernels::RunningSolution<std::complex<double>> solution(rounded.data(), nullptr,
@@ -129,7 +129,7 @@ namespace SushiBLAS
             EXPECT_EQ(solution.get(3), std::complex<double>(1.5, -2.5));
         }
 
-        TEST(Unit_RunningSolution, HalfGetReturnsTheUnroundedFloat)
+        TEST(Medium_RunningSolution, HalfGetReturnsTheUnroundedFloat)
         {
             std::array<sycl::half, K_SOLUTION_LENGTH> rounded = {};
             std::array<float, K_SOLUTION_LENGTH + K_WORKSPACE_OFFSET> workspace;
@@ -143,7 +143,7 @@ namespace SushiBLAS
             EXPECT_NE(static_cast<float>(rounded[1]), K_INEXACT_IN_HALF);
         }
 
-        TEST(Unit_RunningSolution, HalfSetStoresTheRoundingInTheBoundArray)
+        TEST(Medium_RunningSolution, HalfSetStoresTheRoundingInTheBoundArray)
         {
             std::array<sycl::half, K_SOLUTION_LENGTH> rounded = {};
             std::array<float, K_SOLUTION_LENGTH + K_WORKSPACE_OFFSET> workspace;
@@ -158,7 +158,7 @@ namespace SushiBLAS
             EXPECT_EQ(static_cast<float>(rounded[0]), 0.0f);
         }
 
-        TEST(Unit_RunningSolution, HalfKeepsTheWideCopyAtTheWorkspaceOffset)
+        TEST(Medium_RunningSolution, HalfKeepsTheWideCopyAtTheWorkspaceOffset)
         {
             std::array<sycl::half, K_SOLUTION_LENGTH> rounded = {};
             std::array<float, K_SOLUTION_LENGTH + K_WORKSPACE_OFFSET> workspace;

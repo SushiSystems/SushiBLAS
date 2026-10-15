@@ -68,7 +68,7 @@ namespace
     constexpr float K_UNWRITTEN = 99.0f;
 }
 
-class Unit_MaxMinNaNTest : public SushiBLASTest
+class Medium_MaxMinNaNTest : public SushiBLASTest
 {
     protected:
         /**
@@ -90,22 +90,22 @@ class Unit_MaxMinNaNTest : public SushiBLASTest
         }
 };
 
-TEST_F(Unit_MaxMinNaNTest, NegativeInfinityAloneGivesNegativeInfinity)
+TEST_F(Medium_MaxMinNaNTest, NegativeInfinityAloneGivesNegativeInfinity)
 {
     expect_max_min({-K_INF}, -K_INF, -K_INF);
 }
 
-TEST_F(Unit_MaxMinNaNTest, TwoNegativeInfinitiesGiveNegativeInfinity)
+TEST_F(Medium_MaxMinNaNTest, TwoNegativeInfinitiesGiveNegativeInfinity)
 {
     expect_max_min({-K_INF, -K_INF}, -K_INF, -K_INF);
 }
 
-TEST_F(Unit_MaxMinNaNTest, PositiveInfinityAloneGivesPositiveInfinity)
+TEST_F(Medium_MaxMinNaNTest, PositiveInfinityAloneGivesPositiveInfinity)
 {
     expect_max_min({K_INF}, K_INF, K_INF);
 }
 
-TEST_F(Unit_MaxMinNaNTest, SignedZerosGivePositiveMaxAndNegativeMinInEitherOrder)
+TEST_F(Medium_MaxMinNaNTest, SignedZerosGivePositiveMaxAndNegativeMinInEitherOrder)
 {
     const std::vector<std::vector<float>> orders = {{-0.0f, 0.0f}, {0.0f, -0.0f}};
 
@@ -129,7 +129,7 @@ TEST_F(Unit_MaxMinNaNTest, SignedZerosGivePositiveMaxAndNegativeMinInEitherOrder
     }
 }
 
-TEST_F(Unit_MaxMinNaNTest, MaxAlongARowOfNegativeInfinitiesGivesNegativeInfinity)
+TEST_F(Medium_MaxMinNaNTest, MaxAlongARowOfNegativeInfinitiesGivesNegativeInfinity)
 {
     auto x = engine->create_tensor({1, 2});
     fill_tensor(x, {-K_INF, -K_INF});
@@ -141,34 +141,34 @@ TEST_F(Unit_MaxMinNaNTest, MaxAlongARowOfNegativeInfinitiesGivesNegativeInfinity
     verify_tensor(out, {-K_INF}, K_TOLERANCE);
 }
 
-TEST_F(Unit_MaxMinNaNTest, NaNFirstGivesNaN)
+TEST_F(Medium_MaxMinNaNTest, NaNFirstGivesNaN)
 {
     expect_max_min({K_NAN, 1.0f, 3.0f}, K_NAN, K_NAN);
 }
 
-TEST_F(Unit_MaxMinNaNTest, NaNInTheMiddleGivesNaN)
+TEST_F(Medium_MaxMinNaNTest, NaNInTheMiddleGivesNaN)
 {
     expect_max_min({1.0f, K_NAN, 3.0f}, K_NAN, K_NAN);
 }
 
-TEST_F(Unit_MaxMinNaNTest, NaNLastGivesNaN)
+TEST_F(Medium_MaxMinNaNTest, NaNLastGivesNaN)
 {
     expect_max_min({1.0f, 3.0f, K_NAN}, K_NAN, K_NAN);
 }
 
-TEST_F(Unit_MaxMinNaNTest, WithoutNaNGivesTheExtremes)
+TEST_F(Medium_MaxMinNaNTest, WithoutNaNGivesTheExtremes)
 {
     expect_max_min({1.0f, -2.0f, 3.0f}, 3.0f, -2.0f);
 }
 
-TEST_F(Unit_MaxMinNaNTest, NaNNearTheEndOfALargeInputGivesNaN)
+TEST_F(Medium_MaxMinNaNTest, NaNNearTheEndOfALargeInputGivesNaN)
 {
     std::vector<float> values(K_LARGE_SIZE, 1.0f);
     values[K_LARGE_SIZE - K_NAN_OFFSET_FROM_END] = K_NAN;
     expect_max_min(values, K_NAN, K_NAN);
 }
 
-TEST_F(Unit_MaxMinNaNTest, LargeInputWithoutNaNGivesTheExtremes)
+TEST_F(Medium_MaxMinNaNTest, LargeInputWithoutNaNGivesTheExtremes)
 {
     // Ones everywhere, 7 at the front and -4 at the back: max 7, min -4.
     std::vector<float> values(K_LARGE_SIZE, 1.0f);
@@ -180,7 +180,7 @@ TEST_F(Unit_MaxMinNaNTest, LargeInputWithoutNaNGivesTheExtremes)
 /**
  * @brief Tests that a NaN makes its own row's extrema NaN in both launch shapes of the axis fold.
  */
-TEST_F(Unit_MaxMinNaNTest, AxisExtremaPropagateNaN)
+TEST_F(Medium_MaxMinNaNTest, AxisExtremaPropagateNaN)
 {
     namespace Reduce = SushiBLAS::Reduce;
 

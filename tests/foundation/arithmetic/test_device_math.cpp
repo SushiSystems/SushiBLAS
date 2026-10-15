@@ -37,7 +37,7 @@ namespace SushiBLAS
         /// @brief Absolute tolerance of a double result against its hand value.
         constexpr double K_TOLERANCE = 1e-12;
 
-        TEST(Unit_DeviceMath, TheHostFunctionsGiveTheStandardResults)
+        TEST(Medium_DeviceMath, TheHostFunctionsGiveTheStandardResults)
         {
             EXPECT_EQ(Math::abs(-2.5), 2.5);
             EXPECT_EQ(Math::floor(-1.5), -2.0);
@@ -54,14 +54,14 @@ namespace SushiBLAS
             EXPECT_NEAR(Math::atan2(1.0, -1.0), 2.356194490192345, K_TOLERANCE);
         }
 
-        TEST(Unit_DeviceMath, IsFiniteSeparatesFiniteFromInfinityAndNaN)
+        TEST(Medium_DeviceMath, IsFiniteSeparatesFiniteFromInfinityAndNaN)
         {
             EXPECT_TRUE(Math::isfinite(1.0f));
             EXPECT_FALSE(Math::isfinite(std::numeric_limits<float>::infinity()));
             EXPECT_FALSE(Math::isfinite(std::numeric_limits<double>::quiet_NaN()));
         }
 
-        TEST(Unit_DeviceMath, AbsKeepsTheTypeOfItsArgument)
+        TEST(Medium_DeviceMath, AbsKeepsTheTypeOfItsArgument)
         {
             EXPECT_EQ(Math::abs(-3.0f), 3.0f);
             EXPECT_EQ(Math::abs(-0.0), 0.0);

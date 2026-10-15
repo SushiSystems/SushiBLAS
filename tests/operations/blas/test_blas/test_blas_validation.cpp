@@ -60,12 +60,12 @@ namespace SushiBLAS
         } // namespace
 
         /// @brief Fixture for the BLAS record-time validation tests.
-        class Unit_BlasValidationTest : public SushiBLASTest
+        class Medium_BlasValidationTest : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_BlasValidationTest, GemmRejectsInnerDimensionMismatch)
+        TEST_F(Medium_BlasValidationTest, GemmRejectsInnerDimensionMismatch)
         {
             auto A = engine->create_tensor({2, 3});
             auto B = engine->create_tensor({4, 2});
@@ -74,7 +74,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, GemmRejectsMixedLayouts)
+        TEST_F(Medium_BlasValidationTest, GemmRejectsMixedLayouts)
         {
             auto A = engine->create_tensor({2, 2});
             auto row_major_B = engine->create_tensor({2, 2});
@@ -85,7 +85,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, GemmRejectsBatchCountMismatch)
+        TEST_F(Medium_BlasValidationTest, GemmRejectsBatchCountMismatch)
         {
             auto A = engine->create_tensor({3, 2, 2});
             auto B = engine->create_tensor({2, 2, 2});
@@ -94,7 +94,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, GemmRejectsTransposedView)
+        TEST_F(Medium_BlasValidationTest, GemmRejectsTransposedView)
         {
             auto parent = engine->create_tensor({2, 3});
             const Tensor A = parent.transpose(0, 1);
@@ -104,7 +104,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, GemmBroadcastsRankTwoBOverBatchedA)
+        TEST_F(Medium_BlasValidationTest, GemmBroadcastsRankTwoBOverBatchedA)
         {
             auto A = create_initialized_tensor<float>({2, 2, 2}, K_BATCHED_A);
             auto B = create_initialized_tensor<float>({2, 2}, K_SHARED_B);
@@ -116,7 +116,7 @@ namespace SushiBLAS
             verify_tensor(C, K_BROADCAST_C, K_TOLERANCE);
         }
 
-        TEST_F(Unit_BlasValidationTest, SyrkRejectsNonSquareC)
+        TEST_F(Medium_BlasValidationTest, SyrkRejectsNonSquareC)
         {
             auto A = engine->create_tensor({3, 2});
             auto C = engine->create_tensor({3, 2});
@@ -125,7 +125,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, TrsmRejectsNonSquareA)
+        TEST_F(Medium_BlasValidationTest, TrsmRejectsNonSquareA)
         {
             auto A = engine->create_tensor({2, 3});
             auto B = engine->create_tensor({2, 2});
@@ -135,7 +135,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, DotRejectsResultOfWrongDtype)
+        TEST_F(Medium_BlasValidationTest, DotRejectsResultOfWrongDtype)
         {
             auto x = engine->create_tensor({4});
             auto y = engine->create_tensor({4});
@@ -144,7 +144,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::BLASOps(*engine).dot(x, y, result), std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, ScalarResultsRejectMoreThanOneElement)
+        TEST_F(Medium_BlasValidationTest, ScalarResultsRejectMoreThanOneElement)
         {
             auto x = engine->create_tensor({4});
             auto y = engine->create_tensor({4});
@@ -157,7 +157,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::BLASOps(*engine).iamax(x, wide_index), std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, GemmRejectsBatchAxesThatDifferWithEqualProduct)
+        TEST_F(Medium_BlasValidationTest, GemmRejectsBatchAxesThatDifferWithEqualProduct)
         {
             auto A = engine->create_tensor({2, 3, 2, 2});
             auto B = engine->create_tensor({2, 2});
@@ -166,7 +166,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, SyrkAndTrsmRejectBatchAxesThatDiffer)
+        TEST_F(Medium_BlasValidationTest, SyrkAndTrsmRejectBatchAxesThatDiffer)
         {
             auto A = engine->create_tensor({2, 3, 2, 2});
             auto C = engine->create_tensor({6, 2, 2});
@@ -178,7 +178,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, GemmBroadcastsOperandHoldingOneMatrix)
+        TEST_F(Medium_BlasValidationTest, GemmBroadcastsOperandHoldingOneMatrix)
         {
             auto A = create_initialized_tensor<float>({2, 2, 2}, K_BATCHED_A);
             auto B = create_initialized_tensor<float>({1, 2, 2}, K_SHARED_B);
@@ -190,7 +190,7 @@ namespace SushiBLAS
             verify_tensor(C, K_BROADCAST_C, K_TOLERANCE);
         }
 
-        TEST_F(Unit_BlasValidationTest, Level2RejectsMatrixAboveRankTwo)
+        TEST_F(Medium_BlasValidationTest, Level2RejectsMatrixAboveRankTwo)
         {
             auto A = engine->create_tensor({1, 3, 3});
             auto x = engine->create_tensor({3});
@@ -210,14 +210,14 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, TensorCreationRejectsNegativeDimension)
+        TEST_F(Medium_BlasValidationTest, TensorCreationRejectsNegativeDimension)
         {
             EXPECT_THROW((void)engine->create_tensor({-1, 4}), std::runtime_error);
             EXPECT_THROW((void)engine->create_tensor({4, -1}, Core::DataType::Float64),
                          std::runtime_error);
         }
 
-        TEST_F(Unit_BlasValidationTest, TensorCreationRejectsOverflowingSize)
+        TEST_F(Medium_BlasValidationTest, TensorCreationRejectsOverflowingSize)
         {
             constexpr int64_t K_HUGE = int64_t{1} << 40;
 
@@ -226,7 +226,7 @@ namespace SushiBLAS
                          std::runtime_error);
         }
 
-        TEST_F(Unit_BlasValidationTest, ScalRejectsVectorOfStrideZero)
+        TEST_F(Medium_BlasValidationTest, ScalRejectsVectorOfStrideZero)
         {
             auto parent = engine->create_tensor({4});
             const std::vector<int64_t> dims = {4};
@@ -237,7 +237,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::BLASOps(*engine).scal(2.0, x), std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, Level1RejectsOperandsOfDifferentDtypes)
+        TEST_F(Medium_BlasValidationTest, Level1RejectsOperandsOfDifferentDtypes)
         {
             auto x = engine->create_tensor({4});
             auto y = engine->create_tensor({4}, Core::DataType::Float64);
@@ -250,7 +250,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::BLASOps(*engine).dot(x, y, result), std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, Level1RejectsOperandsOfDifferentLengths)
+        TEST_F(Medium_BlasValidationTest, Level1RejectsOperandsOfDifferentLengths)
         {
             auto x = engine->create_tensor({4});
             auto y = engine->create_tensor({5});
@@ -263,7 +263,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::BLASOps(*engine).dot(x, y, result), std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, ScalRejectsNonContiguousVectorOfRankTwo)
+        TEST_F(Medium_BlasValidationTest, ScalRejectsNonContiguousVectorOfRankTwo)
         {
             auto parent = engine->create_tensor({2, 3});
             Tensor x = parent.transpose(0, 1);
@@ -272,7 +272,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::BLASOps(*engine).scal(2.0, x), std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, Level2RejectsMatrixBelowRankTwo)
+        TEST_F(Medium_BlasValidationTest, Level2RejectsMatrixBelowRankTwo)
         {
             auto A = engine->create_tensor({9});
             auto x = engine->create_tensor({3});
@@ -292,7 +292,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, SquareLevel2RoutinesRejectNonSquareA)
+        TEST_F(Medium_BlasValidationTest, SquareLevel2RoutinesRejectNonSquareA)
         {
             auto A = engine->create_tensor({2, 3});
             auto x = engine->create_tensor({3});
@@ -310,7 +310,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, Level2RejectsVectorOfWrongLength)
+        TEST_F(Medium_BlasValidationTest, Level2RejectsVectorOfWrongLength)
         {
             auto A = engine->create_tensor({3, 3});
             auto x = engine->create_tensor({2});
@@ -330,7 +330,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, TrsvRejectsStridedB)
+        TEST_F(Medium_BlasValidationTest, TrsvRejectsStridedB)
         {
             auto A = engine->create_tensor({3, 3});
             auto parent = engine->create_tensor({6});
@@ -343,7 +343,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, FlagsRejectValueThatIsNoEnumerator)
+        TEST_F(Medium_BlasValidationTest, FlagsRejectValueThatIsNoEnumerator)
         {
             auto A = engine->create_tensor({3, 3});
             auto B = engine->create_tensor({3, 3});
@@ -363,7 +363,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, RealTensorsRejectScalarWithImaginaryPart)
+        TEST_F(Medium_BlasValidationTest, RealTensorsRejectScalarWithImaginaryPart)
         {
             auto A = engine->create_tensor({3, 3});
             auto B = engine->create_tensor({3, 3});
@@ -393,7 +393,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, DotAndGerRejectComplexTensors)
+        TEST_F(Medium_BlasValidationTest, DotAndGerRejectComplexTensors)
         {
             auto A = engine->create_tensor({3, 3}, Core::DataType::Complex32);
             auto x = engine->create_tensor({3}, Core::DataType::Complex32);
@@ -404,7 +404,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::BLASOps(*engine).ger(x, y, A), std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, SyrkAndHerkRejectTheOtherTransposeOnComplexTensors)
+        TEST_F(Medium_BlasValidationTest, SyrkAndHerkRejectTheOtherTransposeOnComplexTensors)
         {
             auto A = engine->create_tensor({3, 2}, Core::DataType::Complex32);
             auto C = engine->create_tensor({2, 2}, Core::DataType::Complex32);
@@ -417,7 +417,7 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Unit_BlasValidationTest, ExecuteGemmUnderTheRealDomainRejectsComplexTensors)
+        TEST_F(Medium_BlasValidationTest, ExecuteGemmUnderTheRealDomainRejectsComplexTensors)
         {
             auto A = engine->create_tensor({2, 2}, Core::DataType::Complex32);
             auto B = engine->create_tensor({2, 2}, Core::DataType::Complex32);

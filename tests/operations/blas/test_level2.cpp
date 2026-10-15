@@ -43,12 +43,12 @@ namespace SushiBLAS
                       "Only the facade builds the Level 2 facet.");
 
         /** @brief Runs Level 2 calls through the facade on the fixture's engine. */
-        class Unit_Level2 : public SushiBLASTest
+        class Medium_Level2 : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_Level2, GemvAndItsTransposeGiveExactValues)
+        TEST_F(Medium_Level2, GemvAndItsTransposeGiveExactValues)
         {
             const Tensor a = create_initialized_tensor<double>({2, 3}, {1, 2, 3, 4, 5, 6});
             const Tensor x = create_initialized_tensor<double>({3}, {1, -1, 2});
@@ -66,7 +66,7 @@ namespace SushiBLAS
             EXPECT_EQ(read_tensor<double>(w), (std::vector<double>{5, 7, 9}));
         }
 
-        TEST_F(Unit_Level2, GerAddsTheOuterProduct)
+        TEST_F(Medium_Level2, GerAddsTheOuterProduct)
         {
             const Tensor x = create_initialized_tensor<double>({2}, {1, 2});
             const Tensor y = create_initialized_tensor<double>({2}, {3, -1});

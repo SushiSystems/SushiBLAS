@@ -226,7 +226,7 @@ The target name is matched exactly first, then by substring. Anything after
 flags to the test binary:
 
 ```bash
-sb run sushiblas_blas_tests -- --gtest_filter='Unit_GEMMTest.*'
+sb run sushiblas_blas_tests -- --gtest_filter='Medium_GEMMTest.*'
 sb run sushiblas_umbrella_tests -- --gtest_shuffle --gtest_break_on_failure
 ```
 

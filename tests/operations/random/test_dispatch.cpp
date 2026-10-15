@@ -61,18 +61,18 @@ namespace SushiBLAS
         };
 
         /** @brief Builds tensors for the dtype check on the fixture's engine. */
-        class Unit_RandomDispatch : public SushiBLASTest
+        class Medium_RandomDispatch : public SushiBLASTest
         {
 
         };
 
         /** @brief Runs the fill on the host CPU queue. */
-        class Device_RandomFill : public HostDeviceTest
+        class Medium_RandomFill : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Unit_RandomDispatch, DrawingRefusesHalfAndEveryDomainRefusesItsOutsiders)
+        TEST_F(Medium_RandomDispatch, DrawingRefusesHalfAndEveryDomainRefusesItsOutsiders)
         {
             EXPECT_FALSE(Dispatch::random_admits(Domain::Real, Sampling::DrawsValues,
                                                  Core::DataType::Half));
@@ -85,7 +85,7 @@ namespace SushiBLAS
                 Sampling::DrawsValues, "draw"));
         }
 
-        TEST_F(Unit_RandomDispatch, TheSeedAndTheOffsetTakeTheLastTwoSlots)
+        TEST_F(Medium_RandomDispatch, TheSeedAndTheOffsetTakeTheLastTwoSlots)
         {
             TaskDescription description;
 
@@ -95,7 +95,7 @@ namespace SushiBLAS
             EXPECT_EQ(description.parameter<uint64_t>(Dispatch::K_RNG_OFFSET_PARAM), uint64_t{7});
         }
 
-        TEST_F(Device_RandomFill, BothPathsPlaceEveryBlockAtItsPositions)
+        TEST_F(Medium_RandomFill, BothPathsPlaceEveryBlockAtItsPositions)
         {
             SharedArray<float> by_reference(queue(), K_COUNT);
             SharedArray<float> by_sycl(queue(), K_COUNT);

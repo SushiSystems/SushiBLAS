@@ -33,7 +33,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_Version, TheStringSpellsTheThreeNumbers)
+        TEST(Small_Version, TheStringSpellsTheThreeNumbers)
         {
             const std::string expected = std::to_string(SUSHIBLAS_VERSION_MAJOR) + "." +
                                          std::to_string(SUSHIBLAS_VERSION_MINOR) + "." +
@@ -42,7 +42,7 @@ namespace SushiBLAS
             EXPECT_EQ(std::string(SUSHIBLAS_VERSION_STRING), expected);
         }
 
-        TEST(Unit_Version, TheEncodingGivesEachPartTwoDecimalDigits)
+        TEST(Small_Version, TheEncodingGivesEachPartTwoDecimalDigits)
         {
             static_assert(SUSHIBLAS_VERSION_ENCODE(1, 2, 3) == 10203, "1.2.3 encodes as 10203.");
             static_assert(SUSHIBLAS_VERSION_ENCODE(0, 10, 0) == 1000, "0.10.0 encodes as 1000.");
@@ -50,14 +50,14 @@ namespace SushiBLAS
             EXPECT_EQ(SUSHIBLAS_VERSION_ENCODE(2, 0, 99), 20099);
         }
 
-        TEST(Unit_Version, TheVersionIsTheEncodingOfItsParts)
+        TEST(Small_Version, TheVersionIsTheEncodingOfItsParts)
         {
             EXPECT_EQ(SUSHIBLAS_VERSION, SUSHIBLAS_VERSION_ENCODE(SUSHIBLAS_VERSION_MAJOR,
                                                                   SUSHIBLAS_VERSION_MINOR,
                                                                   SUSHIBLAS_VERSION_PATCH));
         }
 
-        TEST(Unit_Version, LaterReleasesEncodeLarger)
+        TEST(Small_Version, LaterReleasesEncodeLarger)
         {
             EXPECT_LT(SUSHIBLAS_VERSION_ENCODE(0, 1, 9), SUSHIBLAS_VERSION_ENCODE(0, 2, 0));
             EXPECT_LT(SUSHIBLAS_VERSION_ENCODE(0, 99, 99), SUSHIBLAS_VERSION_ENCODE(1, 0, 0));

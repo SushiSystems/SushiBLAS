@@ -82,7 +82,7 @@ namespace SushiBLAS
             return c;
         }
 
-        TEST(Unit_ReferenceGemm, MatchesADenseLoopInEveryLayoutAndTranspose)
+        TEST(Small_ReferenceGemm, MatchesADenseLoopInEveryLayoutAndTranspose)
         {
             const std::vector<double> a = small_integers<double>(K_M * K_K, 1);
             const std::vector<double> b = small_integers<double>(K_K * K_N, 2);
@@ -118,7 +118,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_ReferenceGemm, AnEpilogueSeesEachElementAfterAlphaAndBeta)
+        TEST(Small_ReferenceGemm, AnEpilogueSeesEachElementAfterAlphaAndBeta)
         {
             const std::vector<double> a = small_integers<double>(K_M * K_K, 4);
             const std::vector<double> b = small_integers<double>(K_K * K_N, 5);
@@ -139,7 +139,7 @@ namespace SushiBLAS
             EXPECT_EQ(got, expected);
         }
 
-        TEST(Unit_ReferenceGemm, TheBatchedAndTheAccessedFormsAgreeWithTheSingleCall)
+        TEST(Small_ReferenceGemm, TheBatchedAndTheAccessedFormsAgreeWithTheSingleCall)
         {
             const int64_t batch = 2;
             const std::vector<double> a = small_integers<double>(batch * K_M * K_K, 7);

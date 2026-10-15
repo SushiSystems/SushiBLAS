@@ -125,7 +125,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Gives the launch-shape tests the queue they submit to. */
-        class Unit_LaunchShapes : public ::testing::Test
+        class Medium_LaunchShapes : public ::testing::Test
         {
             protected:
                 /** @brief Returns the queue of the test environment. */
@@ -136,7 +136,7 @@ namespace SushiBLAS
         };
 
         /** @brief Tests that a wide pass and its scalar tail together write every element of a map. */
-        TEST_F(Unit_LaunchShapes, TheWidePassAndItsTailCoverEveryElement)
+        TEST_F(Medium_LaunchShapes, TheWidePassAndItsTailCoverEveryElement)
         {
             sycl::queue& q = queue();
 
@@ -172,7 +172,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a grid-stride map without a wide pass updates every element exactly once. */
-        TEST_F(Unit_LaunchShapes, TheGridStrideLoopVisitsEveryElementOnce)
+        TEST_F(Medium_LaunchShapes, TheGridStrideLoopVisitsEveryElementOnce)
         {
             sycl::queue& q = queue();
             const std::size_t n = K_LARGE_COUNT;
@@ -202,7 +202,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a fused in-place update gives the host result when it takes the wide pass. */
-        TEST_F(Unit_LaunchShapes, AFusedUpdateTakesTheWidePass)
+        TEST_F(Medium_LaunchShapes, AFusedUpdateTakesTheWidePass)
         {
             sycl::queue& q = queue();
 
@@ -241,7 +241,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that indexed calls its operation for every index of a grid-stride shape. */
-        TEST_F(Unit_LaunchShapes, IndexedCoversEveryIndexInAGridStrideShape)
+        TEST_F(Medium_LaunchShapes, IndexedCoversEveryIndexInAGridStrideShape)
         {
             sycl::queue& q = queue();
 
@@ -270,7 +270,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a type of vector width one writes every element of a shape that asks for a wide pass. */
-        TEST_F(Unit_LaunchShapes, AWidthOneTypeIgnoresAWidePass)
+        TEST_F(Medium_LaunchShapes, AWidthOneTypeIgnoresAWidePass)
         {
             using Element = std::complex<float>;
             sycl::queue& q = queue();
@@ -304,7 +304,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the queue form of map writes the same bits as the shape form given the planned shape. */
-        TEST_F(Unit_LaunchShapes, TheQueueFormMatchesTheShapeItPlans)
+        TEST_F(Medium_LaunchShapes, TheQueueFormMatchesTheShapeItPlans)
         {
             sycl::queue& q = queue();
 
@@ -342,7 +342,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a local tile fits a device only when its bytes and its work-group both fit. */
-        TEST_F(Unit_LaunchShapes, ALocalTileFitsOnlyWhereBothLimitsHold)
+        TEST_F(Medium_LaunchShapes, ALocalTileFitsOnlyWhereBothLimitsHold)
         {
             Device::Profile profile;
             profile.local_mem_bytes = 4096;

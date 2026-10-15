@@ -173,7 +173,7 @@ namespace SushiBLAS
          * @brief Builds sparse operands and dense tensors of one element and one index type.
          */
         template<typename TypeParam>
-        class Unit_SparseBuilder : public SparseStorageTest
+        class Medium_SparseBuilder : public SparseStorageTest
         {
             protected:
                 /** @brief The element type under test. */
@@ -248,9 +248,9 @@ namespace SushiBLAS
                 }
         };
 
-        SB_TYPED_TEST_SUITE(Unit_SparseBuilder, SparseCases);
+        SB_TYPED_TEST_SUITE(Medium_SparseBuilder, SparseCases);
 
-        TYPED_TEST(Unit_SparseBuilder, TheSampleTripletsGiveTheSampleMatrixUnderBothBases)
+        TYPED_TEST(Medium_SparseBuilder, TheSampleTripletsGiveTheSampleMatrixUnderBothBases)
         {
             using T = typename TypeParam::Value;
             using Index = typename TypeParam::IndexType;
@@ -259,7 +259,7 @@ namespace SushiBLAS
                 expect_sample<T, Index>(this->build(sample_matrix<T>(), base), base);
         }
 
-        TYPED_TEST(Unit_SparseBuilder, TheThreeTensorsHaveRankOneAndTheDtypesOfTheirHostTypes)
+        TYPED_TEST(Medium_SparseBuilder, TheThreeTensorsHaveRankOneAndTheDtypesOfTheirHostTypes)
         {
             using T = typename TypeParam::Value;
             using Index = typename TypeParam::IndexType;
@@ -277,7 +277,7 @@ namespace SushiBLAS
             EXPECT_EQ(A.values.dtype, sushiblas_dtype<T>());
         }
 
-        TYPED_TEST(Unit_SparseBuilder, EntriesGivenTwiceAsHalvesGiveTheSameSevenEntries)
+        TYPED_TEST(Medium_SparseBuilder, EntriesGivenTwiceAsHalvesGiveTheSameSevenEntries)
         {
             using T = typename TypeParam::Value;
             using Index = typename TypeParam::IndexType;
@@ -300,7 +300,7 @@ namespace SushiBLAS
                 expect_sample<T, Index>(this->build(halves, base), base);
         }
 
-        TYPED_TEST(Unit_SparseBuilder, AMatrixWithoutEntriesHasNoValueStorage)
+        TYPED_TEST(Medium_SparseBuilder, AMatrixWithoutEntriesHasNoValueStorage)
         {
             using T = typename TypeParam::Value;
             using Index = typename TypeParam::IndexType;
@@ -322,7 +322,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseBuilder, ADenseTensorCompressesToTheSampleInEitherLayout)
+        TYPED_TEST(Medium_SparseBuilder, ADenseTensorCompressesToTheSampleInEitherLayout)
         {
             using T = typename TypeParam::Value;
 
@@ -340,7 +340,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseBuilder, ADenseTensorDropsANegativeZeroAndKeepsANaN)
+        TYPED_TEST(Medium_SparseBuilder, ADenseTensorDropsANegativeZeroAndKeepsANaN)
         {
             using T = typename TypeParam::Value;
 
@@ -364,7 +364,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseBuilder, ADenseTensorWithoutElementsGivesAMatrixWithoutEntries)
+        TYPED_TEST(Medium_SparseBuilder, ADenseTensorWithoutElementsGivesAMatrixWithoutEntries)
         {
             const SparseMatrix no_rows = this->compress(this->dense_without_elements(0, 5),
                                                         DataType::Int64, IndexBase::One);
@@ -381,7 +381,7 @@ namespace SushiBLAS
             EXPECT_EQ(read_tensor<int64_t>(no_columns.row_offsets), std::vector<int64_t>(6, 1));
         }
 
-        TYPED_TEST(Unit_SparseBuilder, ASparseVectorHoldsItsPositionsAndValues)
+        TYPED_TEST(Medium_SparseBuilder, ASparseVectorHoldsItsPositionsAndValues)
         {
             using T = typename TypeParam::Value;
             using Index = typename TypeParam::IndexType;
@@ -408,7 +408,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseBuilder, VectorArraysOfDifferentLengthsThrow)
+        TYPED_TEST(Medium_SparseBuilder, VectorArraysOfDifferentLengthsThrow)
         {
             const Wide values = {{10.0, 0.0}, {20.0, 0.0}, {30.0, 0.0}};
 
@@ -416,7 +416,7 @@ namespace SushiBLAS
                          std::runtime_error);
         }
 
-        TYPED_TEST(Unit_SparseBuilder, ARepeatedVectorPositionThrows)
+        TYPED_TEST(Medium_SparseBuilder, ARepeatedVectorPositionThrows)
         {
             const Wide values = {{10.0, 0.0}, {20.0, 0.0}, {30.0, 0.0}};
 
@@ -427,7 +427,7 @@ namespace SushiBLAS
         /**
          * @brief Holds the builder cases that do not depend on the element or the index type.
          */
-        class Unit_SparseBuilderRules : public SparseStorageTest
+        class Medium_SparseBuilderRules : public SparseStorageTest
         {
             protected:
                 /** @brief Returns the FLOAT32 sample with INT32 indices from a builder. */
@@ -441,7 +441,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_SparseBuilderRules, ADenseTensorLargerThanOneTransferKeepsEveryEntry)
+        TEST_F(Medium_SparseBuilderRules, ADenseTensorLargerThanOneTransferKeepsEveryEntry)
         {
             std::vector<float> host(static_cast<std::size_t>(K_LARGE_ROWS * K_LARGE_COLS), 0.0f);
             std::vector<int32_t> offsets = {0};
@@ -473,7 +473,7 @@ namespace SushiBLAS
                       static_cast<std::ptrdiff_t>(values.size()));
         }
 
-        TEST_F(Unit_SparseBuilderRules, ADenseTensorOfRankOneThrows)
+        TEST_F(Medium_SparseBuilderRules, ADenseTensorOfRankOneThrows)
         {
             const SparseBuilder builder(tensor_factory());
             const int64_t dims[1] = {5};
@@ -483,7 +483,7 @@ namespace SushiBLAS
             EXPECT_THROW((void)builder.matrix_from_dense(dense), std::runtime_error);
         }
 
-        TEST_F(Unit_SparseBuilderRules, ADenseTensorOfIntegersThrows)
+        TEST_F(Medium_SparseBuilderRules, ADenseTensorOfIntegersThrows)
         {
             const SparseBuilder builder(tensor_factory());
             const Tensor dense = create_initialized_tensor<int32_t>({2, 2}, {1, 0, 0, 2});
@@ -491,7 +491,7 @@ namespace SushiBLAS
             EXPECT_THROW((void)builder.matrix_from_dense(dense), std::runtime_error);
         }
 
-        TEST_F(Unit_SparseBuilderRules, AFloatingPointIndexDtypeThrows)
+        TEST_F(Medium_SparseBuilderRules, AFloatingPointIndexDtypeThrows)
         {
             const SparseBuilder builder(tensor_factory());
             const Tensor dense = create_initialized_tensor<float>({2, 2}, {1.0f, 0.0f, 0.0f, 2.0f});
@@ -500,7 +500,7 @@ namespace SushiBLAS
                          std::runtime_error);
         }
 
-        TEST_F(Unit_SparseBuilderRules, AStridedDenseViewThrows)
+        TEST_F(Medium_SparseBuilderRules, AStridedDenseViewThrows)
         {
             const SparseBuilder builder(tensor_factory());
             const Tensor parent =
@@ -516,7 +516,7 @@ namespace SushiBLAS
             EXPECT_THROW((void)builder.matrix_from_dense(view), std::runtime_error);
         }
 
-        TEST_F(Unit_SparseBuilderRules, AnIndexBaseOutsideTheEnumerationThrows)
+        TEST_F(Medium_SparseBuilderRules, AnIndexBaseOutsideTheEnumerationThrows)
         {
             const SparseBuilder builder(tensor_factory());
             const IndexBase outside = static_cast<IndexBase>(0);
@@ -532,7 +532,7 @@ namespace SushiBLAS
                          std::runtime_error);
         }
 
-        TEST_F(Unit_SparseBuilderRules, TheDeviceIndexReachesTheStorageOfEveryTensor)
+        TEST_F(Medium_SparseBuilderRules, TheDeviceIndexReachesTheStorageOfEveryTensor)
         {
             const std::size_t last = TestEnvironment::device_count() - 1;
             const SparseBuilder builder(tensor_factory(),
@@ -549,7 +549,7 @@ namespace SushiBLAS
             EXPECT_EQ(x.values.storage->device_index(), last);
         }
 
-        TEST_F(Unit_SparseBuilderRules, ADeviceIndexPastTheLastThrows)
+        TEST_F(Medium_SparseBuilderRules, ADeviceIndexPastTheLastThrows)
         {
             const std::size_t past = TestEnvironment::device_count();
             const SparseBuilder builder(tensor_factory(),

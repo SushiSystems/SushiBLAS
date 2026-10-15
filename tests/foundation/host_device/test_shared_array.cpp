@@ -38,12 +38,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs the SharedArray tests on the host CPU queue. */
-        class Device_SharedArray : public HostDeviceTest
+        class Medium_SharedArray : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SharedArray, StartsValueInitialisedAndAligned)
+        TEST_F(Medium_SharedArray, StartsValueInitialisedAndAligned)
         {
             const SharedArray<float> array(queue(), 5);
 
@@ -53,7 +53,7 @@ namespace SushiBLAS
             EXPECT_EQ(array.values(), std::vector<float>(5, 0.0f));
         }
 
-        TEST_F(Device_SharedArray, HoldsTheValuesItWasGiven)
+        TEST_F(Medium_SharedArray, HoldsTheValuesItWasGiven)
         {
             const std::vector<int> values{3, 1, 4, 1, 5};
             const SharedArray<int> array(queue(), values);
@@ -61,7 +61,7 @@ namespace SushiBLAS
             EXPECT_EQ(array.values(), values);
         }
 
-        TEST_F(Device_SharedArray, AKernelWritesWhatTheHostReads)
+        TEST_F(Medium_SharedArray, AKernelWritesWhatTheHostReads)
         {
             SharedArray<int> array(queue(), 8);
             int* data = array.get();
@@ -74,7 +74,7 @@ namespace SushiBLAS
             EXPECT_EQ(array.values(), (std::vector<int>{0, 2, 4, 6, 8, 10, 12, 14}));
         }
 
-        TEST_F(Device_SharedArray, AnEmptyArrayHasNoElements)
+        TEST_F(Medium_SharedArray, AnEmptyArrayHasNoElements)
         {
             const SharedArray<double> array(queue(), 0);
 

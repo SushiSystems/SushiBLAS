@@ -56,7 +56,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Tests the value each combiner returns for two operands in both orders. */
-        TEST(Unit_GraphPrimitivesCombiners, EachCombinesTwoValues)
+        TEST(Medium_GraphPrimitivesCombiners, EachCombinesTwoValues)
         {
             EXPECT_EQ(Sum<std::int32_t>{}(3, 4), 7);
             EXPECT_EQ(Product<std::int32_t>{}(3, 4), 12);
@@ -67,7 +67,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that combining a value with the identity returns the value. */
-        TEST(Unit_GraphPrimitivesCombiners, IdentityLeavesAValueUnchanged)
+        TEST(Medium_GraphPrimitivesCombiners, IdentityLeavesAValueUnchanged)
         {
             constexpr std::int32_t K_VALUE = -17;
 
@@ -81,7 +81,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests the identity of each combiner on a floating-point element type. */
-        TEST(Unit_GraphPrimitivesCombiners, FloatingPointIdentities)
+        TEST(Medium_GraphPrimitivesCombiners, FloatingPointIdentities)
         {
             // An identity is a constant of the type, so the comparisons below are exact.
             EXPECT_EQ(Sum<double>::identity(), 0.0);

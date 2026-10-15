@@ -52,7 +52,7 @@ namespace SushiBLAS
                         K_ABSOLUTE + K_RELATIVE * std::abs(want.imag()));
         }
 
-        TEST(Unit_SafeMath, TheRealFunctionsAgreeWithTheStandardLibrary)
+        TEST(Small_SafeMath, TheRealFunctionsAgreeWithTheStandardLibrary)
         {
             EXPECT_NEAR(Dispatch::safe_exp(1.25), std::exp(1.25), K_RELATIVE * 4.0);
             EXPECT_NEAR(Dispatch::safe_tanh(0.75), std::tanh(0.75), K_RELATIVE);
@@ -62,7 +62,7 @@ namespace SushiBLAS
             EXPECT_EQ(Dispatch::safe_abs(-4.0), 4.0);
         }
 
-        TEST(Unit_SafeMath, TheComplexFunctionsAgreeWithTheStandardLibrary)
+        TEST(Small_SafeMath, TheComplexFunctionsAgreeWithTheStandardLibrary)
         {
             const std::complex<double> z(0.75, -1.25);
 
@@ -73,7 +73,7 @@ namespace SushiBLAS
             expect_close(Dispatch::safe_abs(z), std::complex<double>(std::abs(z), 0.0));
         }
 
-        TEST(Unit_SafeMath, ComplexSqrtTakesThePrincipalRootOnTheNegativeRealSide)
+        TEST(Small_SafeMath, ComplexSqrtTakesThePrincipalRootOnTheNegativeRealSide)
         {
             const std::complex<double> z(-4.0, 3.0);
 
@@ -82,7 +82,7 @@ namespace SushiBLAS
                          std::sqrt(std::complex<double>(-4.0, -3.0)));
         }
 
-        TEST(Unit_SafeMath, ComplexSqrtOfZeroAndOfAnInfiniteImaginaryPart)
+        TEST(Small_SafeMath, ComplexSqrtOfZeroAndOfAnInfiniteImaginaryPart)
         {
             const double infinity = std::numeric_limits<double>::infinity();
 
@@ -94,7 +94,7 @@ namespace SushiBLAS
             EXPECT_EQ(root.imag(), infinity);
         }
 
-        TEST(Unit_SafeMath, ComplexTanhSaturatesForALargeRealPart)
+        TEST(Small_SafeMath, ComplexTanhSaturatesForALargeRealPart)
         {
             const std::complex<double> got = Dispatch::safe_tanh(std::complex<double>(40.0, 0.5));
 
@@ -102,7 +102,7 @@ namespace SushiBLAS
             EXPECT_NEAR(got.imag(), 0.0, 1e-30);
         }
 
-        TEST(Unit_SafeMath, ComplexLogNearTheUnitCircleKeepsItsSmallModulus)
+        TEST(Small_SafeMath, ComplexLogNearTheUnitCircleKeepsItsSmallModulus)
         {
             // log1p keeps the 1e-10 that log(hypot) rounds to a few ulps of 1.
             const double re = 1.0 + 1e-10;
@@ -112,7 +112,7 @@ namespace SushiBLAS
                         K_RELATIVE * want);
         }
 
-        TEST(Unit_SafeMath, ARealImaginaryPartIsKeptExact)
+        TEST(Small_SafeMath, ARealImaginaryPartIsKeptExact)
         {
             const std::complex<double> got = Dispatch::safe_exp(std::complex<double>(1.0, 0.0));
 
@@ -120,7 +120,7 @@ namespace SushiBLAS
             EXPECT_NEAR(got.real(), std::exp(1.0), K_RELATIVE * 3.0);
         }
 
-        TEST(Unit_SafeMath, TheSignTestsReadTheRealPart)
+        TEST(Small_SafeMath, TheSignTestsReadTheRealPart)
         {
             EXPECT_TRUE(Dispatch::greater_than_zero(2.0));
             EXPECT_FALSE(Dispatch::greater_than_zero(0.0));
@@ -129,7 +129,7 @@ namespace SushiBLAS
             EXPECT_TRUE(Dispatch::less_than_zero(std::complex<double>(-1.0, 9.0)));
         }
 
-        TEST(Unit_SafeMath, RealPartAndMakeComplexDropAndRestoreTheImaginaryPart)
+        TEST(Small_SafeMath, RealPartAndMakeComplexDropAndRestoreTheImaginaryPart)
         {
             EXPECT_EQ(Dispatch::real_part(std::complex<float>(2.0f, 3.0f)),
                       std::complex<float>(2.0f, 0.0f));
@@ -139,7 +139,7 @@ namespace SushiBLAS
             EXPECT_EQ(Dispatch::make_complex_safe(1.5, 0.0), 1.5);
         }
 
-        TEST(Unit_SafeMath, ConjMulAndDivFollowComplexArithmetic)
+        TEST(Small_SafeMath, ConjMulAndDivFollowComplexArithmetic)
         {
             const std::complex<double> a(1.0, 2.0);
             const std::complex<double> b(3.0, -1.0);

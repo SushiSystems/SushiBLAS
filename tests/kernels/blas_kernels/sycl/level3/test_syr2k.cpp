@@ -52,12 +52,12 @@ namespace SushiBLAS
         constexpr int64_t K_BATCH = 2;
 
         /** @brief Runs syr2k on the host CPU queue. */
-        class Device_SYCLSyr2k : public HostDeviceTest
+        class Medium_SYCLSyr2k : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLSyr2k, MatchesTheReferenceForEveryFlag)
+        TEST_F(Medium_SYCLSyr2k, MatchesTheReferenceForEveryFlag)
         {
             const int64_t panel = K_ORDER * K_DEPTH;
             const std::vector<double> a = small_integers<double>(K_BATCH * panel, 1);

@@ -37,7 +37,7 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Builds one engine per test for the record calls whose handles are compared. */
-        class Unit_TaskHandleTest : public SushiBLASTest
+        class Medium_TaskHandleTest : public SushiBLASTest
         {
             protected:
                 /** @brief Returns a FLOAT32 vector of four elements allocated by engine. */
@@ -48,7 +48,7 @@ namespace SushiBLAS
         };
 
         /** @brief Tests that a default handle names no task and equals another default. */
-        TEST_F(Unit_TaskHandleTest, DefaultHandleNamesNoTask)
+        TEST_F(Medium_TaskHandleTest, DefaultHandleNamesNoTask)
         {
             EXPECT_FALSE(TaskHandle().is_valid());
             EXPECT_TRUE(TaskHandle() == TaskHandle());
@@ -56,7 +56,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a call which records a task returns a valid handle. */
-        TEST_F(Unit_TaskHandleTest, ARecordCallReturnsAValidHandle)
+        TEST_F(Medium_TaskHandleTest, ARecordCallReturnsAValidHandle)
         {
             auto a = vector_of_four(*engine);
             auto b = vector_of_four(*engine);
@@ -66,7 +66,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that two record calls on one recorder return unequal handles. */
-        TEST_F(Unit_TaskHandleTest, TwoRecordCallsReturnDifferentHandles)
+        TEST_F(Medium_TaskHandleTest, TwoRecordCallsReturnDifferentHandles)
         {
             auto a = vector_of_four(*engine);
             auto b = vector_of_four(*engine);
@@ -80,7 +80,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a copy of a handle equals the handle it was copied from. */
-        TEST_F(Unit_TaskHandleTest, ACopyComparesEqual)
+        TEST_F(Medium_TaskHandleTest, ACopyComparesEqual)
         {
             auto a = vector_of_four(*engine);
             auto b = vector_of_four(*engine);
@@ -95,7 +95,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a call over empty tensors records no node and returns no task. */
-        TEST_F(Unit_TaskHandleTest, ANoOpRecordReturnsTheHandleOfNoTask)
+        TEST_F(Medium_TaskHandleTest, ANoOpRecordReturnsTheHandleOfNoTask)
         {
             GraphProbe probe;
 
@@ -111,7 +111,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the first handles of two engines compare unequal. */
-        TEST_F(Unit_TaskHandleTest, HandlesOfTwoRecordersDiffer)
+        TEST_F(Medium_TaskHandleTest, HandlesOfTwoRecordersDiffer)
         {
             Engine other(TestEnvironment::runtime(), Core::Layout::RowMajor);
 

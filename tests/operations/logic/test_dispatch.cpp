@@ -63,12 +63,12 @@ namespace SushiBLAS
         };
 
         /** @brief Records logic tasks on the fixture's engine. */
-        class Unit_LogicDispatch : public SushiBLASTest
+        class Medium_LogicDispatch : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_LogicDispatch, ThePredicatesCompareRealAndComplexValues)
+        TEST_F(Medium_LogicDispatch, ThePredicatesCompareRealAndComplexValues)
         {
             EXPECT_TRUE(Dispatch::logic_not_zero(std::complex<float>(0.0f, 1.0f)));
             EXPECT_FALSE(Dispatch::logic_not_zero(0.0));
@@ -80,7 +80,7 @@ namespace SushiBLAS
             EXPECT_TRUE(Dispatch::logic_greater(3, 2));
         }
 
-        TEST_F(Unit_LogicDispatch, UnaryAndBinaryTasksWriteOneOrZeroInBothModes)
+        TEST_F(Medium_LogicDispatch, UnaryAndBinaryTasksWriteOneOrZeroInBothModes)
         {
             const Tensor a = create_initialized_tensor<float>({4}, {0, 2, -1, 2});
             const Tensor b = create_initialized_tensor<float>({4}, {0, 1, -1, 3});

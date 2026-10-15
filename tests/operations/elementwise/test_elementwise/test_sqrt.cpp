@@ -36,9 +36,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Unit_SqrtTest : public SushiBLASTest {};
+class Medium_SqrtTest : public SushiBLASTest {};
 
-TEST_F(Unit_SqrtTest, FloatForward) 
+TEST_F(Medium_SqrtTest, FloatForward) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, 3.0f, 4.0f});
@@ -76,7 +76,7 @@ namespace
     constexpr double K_FLOAT64_TOLERANCE = 1e-12;
 }
 
-TEST_F(Unit_SqrtTest, ZeroInSingleElement)
+TEST_F(Medium_SqrtTest, ZeroInSingleElement)
 {
     auto t = engine->create_tensor({1});
     fill_tensor(t, {0.0f});
@@ -88,7 +88,7 @@ TEST_F(Unit_SqrtTest, ZeroInSingleElement)
     verify_tensor(t, std::vector<double>{0.0}, K_FLOAT32_TOLERANCE);
 }
 
-TEST_F(Unit_SqrtTest, NegativeInputIsNaN)
+TEST_F(Medium_SqrtTest, NegativeInputIsNaN)
 {
     auto t = engine->create_tensor({1});
     fill_tensor(t, {-4.0f});
@@ -100,7 +100,7 @@ TEST_F(Unit_SqrtTest, NegativeInputIsNaN)
     verify_tensor(t, {K_NAN});
 }
 
-TEST_F(Unit_SqrtTest, PositiveInfinity)
+TEST_F(Medium_SqrtTest, PositiveInfinity)
 {
     auto t = engine->create_tensor({1});
     fill_tensor(t, {K_INF});
@@ -111,7 +111,7 @@ TEST_F(Unit_SqrtTest, PositiveInfinity)
     verify_tensor(t, {K_INF});
 }
 
-TEST_F(Unit_SqrtTest, ThousandElements)
+TEST_F(Medium_SqrtTest, ThousandElements)
 {
     auto t = engine->create_tensor({static_cast<int64_t>(K_LARGE_SIZE)});
     fill_tensor(t, std::vector<float>(K_LARGE_SIZE, K_LARGE_INPUT));
@@ -122,7 +122,7 @@ TEST_F(Unit_SqrtTest, ThousandElements)
     verify_tensor(t, std::vector<double>(K_LARGE_SIZE, K_LARGE_EXPECTED), K_FLOAT32_TOLERANCE);
 }
 
-TEST_F(Unit_SqrtTest, Float64)
+TEST_F(Medium_SqrtTest, Float64)
 {
     auto t = engine->create_tensor({4}, SushiBLAS::Core::DataType::Float64);
     fill_tensor(t, {0.25f, 1.0f, 2.0f, 9.0f});

@@ -123,7 +123,7 @@ namespace SushiBLAS
             }
         }
 
-        class Unit_MathValidationTest : public SushiBLASTest
+        class Medium_MathValidationTest : public SushiBLASTest
         {
             protected:
                 /** @brief Runs the recorded graph, then returns the first FLOAT32 of t. */
@@ -215,7 +215,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_MathValidationTest, AddRejectsMismatchedShapes)
+        TEST_F(Medium_MathValidationTest, AddRejectsMismatchedShapes)
         {
             auto a = engine->create_tensor({2, 3}, Core::DataType::Float32);
             auto b = engine->create_tensor({3, 2}, Core::DataType::Float32);
@@ -223,7 +223,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).add(a, b, c), std::invalid_argument);
         }
 
-        TEST_F(Unit_MathValidationTest, AddRejectsTransposedView)
+        TEST_F(Medium_MathValidationTest, AddRejectsTransposedView)
         {
             auto a = engine->create_tensor({2, 3}, Core::DataType::Float32).transpose(0, 1);
             auto b = engine->create_tensor({3, 2}, Core::DataType::Float32);
@@ -231,7 +231,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).add(a, b, c), std::invalid_argument);
         }
 
-        TEST_F(Unit_MathValidationTest, AddRejectsTensorWithoutStorage)
+        TEST_F(Medium_MathValidationTest, AddRejectsTensorWithoutStorage)
         {
             Tensor a(SushiRuntime::sushi_ptr<Storage>(), {4});
             auto b = engine->create_tensor({4}, Core::DataType::Float32);
@@ -239,34 +239,34 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).add(a, b, c), std::invalid_argument);
         }
 
-        TEST_F(Unit_MathValidationTest, UnaryInPlaceRejectsTensorWithoutStorage)
+        TEST_F(Medium_MathValidationTest, UnaryInPlaceRejectsTensorWithoutStorage)
         {
             Tensor t(SushiRuntime::sushi_ptr<Storage>(), {4});
             EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).exp(t), std::invalid_argument);
         }
 
-        TEST_F(Unit_MathValidationTest, SumRejectsTensorWithoutStorage)
+        TEST_F(Medium_MathValidationTest, SumRejectsTensorWithoutStorage)
         {
             Tensor t(SushiRuntime::sushi_ptr<Storage>(), {4});
             auto result = engine->create_tensor({1}, Core::DataType::Float32);
             EXPECT_THROW(SushiBLAS::ReductionOps(*engine).sum(t, result), std::invalid_argument);
         }
 
-        TEST_F(Unit_MathValidationTest, VarRejectsEmptyTensor)
+        TEST_F(Medium_MathValidationTest, VarRejectsEmptyTensor)
         {
             Tensor t(SushiRuntime::sushi_ptr<Storage>(), {0});
             auto result = engine->create_tensor({1}, Core::DataType::Float32);
             EXPECT_THROW(SushiBLAS::ReductionOps(*engine).var(t, result), std::invalid_argument);
         }
 
-        TEST_F(Unit_MathValidationTest, SoftplusOfLargeInputIsFinite)
+        TEST_F(Medium_MathValidationTest, SoftplusOfLargeInputIsFinite)
         {
             auto t = create_initialized_tensor<float>({1}, {K_SOFTPLUS_LARGE_INPUT});
             SushiBLAS::NonLinearOps(*engine).softplus(t);
             EXPECT_NEAR(run_and_read(t), K_SOFTPLUS_LARGE_EXPECTED, K_SOFTPLUS_TOLERANCE);
         }
 
-        TEST_F(Unit_MathValidationTest, SoftplusOfLargeNegativeInputIsTinyAndNonNegative)
+        TEST_F(Medium_MathValidationTest, SoftplusOfLargeNegativeInputIsTinyAndNonNegative)
         {
             auto t = create_initialized_tensor<float>({1}, {K_SOFTPLUS_SMALL_INPUT});
             SushiBLAS::NonLinearOps(*engine).softplus(t);
@@ -276,7 +276,7 @@ namespace SushiBLAS
             EXPECT_LE(value, K_SOFTPLUS_SMALL_BOUND);
         }
 
-        TEST_F(Unit_MathValidationTest, ReLURejectsComplexTensor)
+        TEST_F(Medium_MathValidationTest, ReLURejectsComplexTensor)
         {
             auto t = engine->create_tensor({2}, Core::DataType::Complex32);
             EXPECT_THROW(SushiBLAS::NonLinearOps(*engine).relu(t), std::invalid_argument);
@@ -286,7 +286,7 @@ namespace SushiBLAS
          * @brief Tests that ForceReference records every family and refuses a device-only operand.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Unit_MathValidationTest, ADeviceOnlyOperandIsRefusedInEveryFamily)
+        TEST_F(Medium_MathValidationTest, ADeviceOnlyOperandIsRefusedInEveryFamily)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
 
@@ -313,7 +313,7 @@ namespace SushiBLAS
          * @brief Tests that an operand error and an empty call read the same under every mode.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Unit_MathValidationTest, OperandErrorsDoNotDependOnTheMode)
+        TEST_F(Medium_MathValidationTest, OperandErrorsDoNotDependOnTheMode)
         {
             auto a = engine->create_tensor({2, 3});
             auto b = engine->create_tensor({3, 2});
@@ -345,7 +345,7 @@ namespace SushiBLAS
          * @brief Tests that a dtype mismatch names the operand and both dtypes.
          * @see tests/library/umbrella/README.md
          */
-        TEST_F(Unit_MathValidationTest, AMismatchedDtypeNamesTheOperand)
+        TEST_F(Medium_MathValidationTest, AMismatchedDtypeNamesTheOperand)
         {
             auto a = engine->create_tensor({4}, Core::DataType::Float32);
             auto b = engine->create_tensor({4}, Core::DataType::Float64);
@@ -358,7 +358,7 @@ namespace SushiBLAS
             EXPECT_TRUE(holds(text, "FLOAT32")) << text;
         }
 
-        TEST_F(Unit_MathValidationTest, SumWithPositiveInfinityIsPositiveInfinity)
+        TEST_F(Medium_MathValidationTest, SumWithPositiveInfinityIsPositiveInfinity)
         {
             const float inf = std::numeric_limits<float>::infinity();
             const float value = sum_of({inf, 1.0f, 2.0f});
@@ -366,7 +366,7 @@ namespace SushiBLAS
             EXPECT_GT(value, 0.0f);
         }
 
-        TEST_F(Unit_MathValidationTest, SumOfOppositeInfinitiesIsNaN)
+        TEST_F(Medium_MathValidationTest, SumOfOppositeInfinitiesIsNaN)
         {
             const float inf = std::numeric_limits<float>::infinity();
             EXPECT_TRUE(std::isnan(sum_of({inf, -inf})));

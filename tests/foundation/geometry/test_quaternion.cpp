@@ -48,7 +48,7 @@ namespace SushiBLAS
          * @brief Compares quaternions and vectors of element type T with hand-computed components.
          */
         template<typename T>
-        class Unit_GeometryQuaternion : public ::testing::Test
+        class Small_GeometryQuaternion : public ::testing::Test
         {
             protected:
                 /** @brief Returns the absolute tolerance of a comparison in element type T. */
@@ -79,9 +79,9 @@ namespace SushiBLAS
         };
 
         using GeometryQuaternionTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_GeometryQuaternion, GeometryQuaternionTypes);
+        SB_TYPED_TEST_SUITE(Small_GeometryQuaternion, GeometryQuaternionTypes);
 
-        TYPED_TEST(Unit_GeometryQuaternion, DefaultIsTheIdentityRotation)
+        TYPED_TEST(Small_GeometryQuaternion, DefaultIsTheIdentityRotation)
         {
             const Geometry::QuaternionT<TypeParam> quaternion{};
 
@@ -91,7 +91,7 @@ namespace SushiBLAS
             EXPECT_EQ(quaternion.w, TypeParam(1));
         }
 
-        TYPED_TEST(Unit_GeometryQuaternion, ComponentsLieInOrderWithoutPadding)
+        TYPED_TEST(Small_GeometryQuaternion, ComponentsLieInOrderWithoutPadding)
         {
             using Quaternion = Geometry::QuaternionT<TypeParam>;
 
@@ -101,7 +101,7 @@ namespace SushiBLAS
             EXPECT_EQ(offsetof(Quaternion, w), 3 * sizeof(TypeParam));
         }
 
-        TYPED_TEST(Unit_GeometryQuaternion, AxisAngleHoldsTheHalfAngleSineAndCosine)
+        TYPED_TEST(Small_GeometryQuaternion, AxisAngleHoldsTheHalfAngleSineAndCosine)
         {
             using T = TypeParam;
             const Geometry::Vector3T<T> y_axis{T(0), T(1), T(0)};
@@ -119,7 +119,7 @@ namespace SushiBLAS
                                                 0.0, 0.0, 1.0);
         }
 
-        TYPED_TEST(Unit_GeometryQuaternion, MulIsTheHamiltonProduct)
+        TYPED_TEST(Small_GeometryQuaternion, MulIsTheHamiltonProduct)
         {
             using T = TypeParam;
             const Geometry::QuaternionT<T> i{T(1), T(0), T(0), T(0)};
@@ -134,7 +134,7 @@ namespace SushiBLAS
             TestFixture::expect_quaternion_near(Geometry::mul(a, b), 24.0, 48.0, 48.0, -6.0);
         }
 
-        TYPED_TEST(Unit_GeometryQuaternion, ConjugateNegatesTheVectorPart)
+        TYPED_TEST(Small_GeometryQuaternion, ConjugateNegatesTheVectorPart)
         {
             using T = TypeParam;
             const Geometry::QuaternionT<T> q{T(1), T(-2), T(3), T(4)};
@@ -142,7 +142,7 @@ namespace SushiBLAS
             TestFixture::expect_quaternion_near(Geometry::conjugate(q), -1.0, 2.0, -3.0, 4.0);
         }
 
-        TYPED_TEST(Unit_GeometryQuaternion, RotateTurnsAVectorAboutTheAxis)
+        TYPED_TEST(Small_GeometryQuaternion, RotateTurnsAVectorAboutTheAxis)
         {
             using T = TypeParam;
             const Geometry::Vector3T<T> x_axis{T(1), T(0), T(0)};
@@ -162,7 +162,7 @@ namespace SushiBLAS
             TestFixture::expect_vector_near(Geometry::rotate(third_turn, v), 3.0, 1.0, 2.0);
         }
 
-        TYPED_TEST(Unit_GeometryQuaternion, NormalizeScalesToUnitLength)
+        TYPED_TEST(Small_GeometryQuaternion, NormalizeScalesToUnitLength)
         {
             using T = TypeParam;
 
@@ -175,7 +175,7 @@ namespace SushiBLAS
                 0.4, 0.8);
         }
 
-        TYPED_TEST(Unit_GeometryQuaternion, NormalizeReturnsTheIdentityForAZeroLength)
+        TYPED_TEST(Small_GeometryQuaternion, NormalizeReturnsTheIdentityForAZeroLength)
         {
             using T = TypeParam;
             const Geometry::QuaternionT<T> zero{T(0), T(0), T(0), T(0)};
@@ -193,7 +193,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_GeometryQuaternion, DotSumsTheFourComponentProducts)
+        TYPED_TEST(Small_GeometryQuaternion, DotSumsTheFourComponentProducts)
         {
             using T = TypeParam;
             const Geometry::QuaternionT<T> a{T(1), T(2), T(3), T(4)};

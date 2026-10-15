@@ -46,7 +46,7 @@ namespace SushiBLAS
         /// @brief The inner dimension of the update.
         constexpr int64_t K_DEPTH = 3;
 
-        TEST(Unit_ReferenceSyr2k, MatchesADenseUpdateOnEachTriangle)
+        TEST(Small_ReferenceSyr2k, MatchesADenseUpdateOnEachTriangle)
         {
             // A and B are n x k, row-major and not transposed.
             const std::vector<double> a = small_integers<double>(K_ORDER * K_DEPTH, 1);
@@ -81,7 +81,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_ReferenceSyr2k, TheBatchedFormUpdatesEachMatrixOfTheBatch)
+        TEST(Small_ReferenceSyr2k, TheBatchedFormUpdatesEachMatrixOfTheBatch)
         {
             const int64_t batch = 3;
             const int64_t panel = K_ORDER * K_DEPTH;

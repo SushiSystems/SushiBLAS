@@ -48,7 +48,7 @@ namespace SushiBLAS
                       "data_or_null() on a const Tensor returns const void*");
 
         /** @brief Fixture for the Tensor data accessor tests. */
-        class Unit_TensorConstAccessTest : public SushiBLASTest
+        class Medium_TensorConstAccessTest : public SushiBLASTest
         {
 
         };
@@ -64,13 +64,13 @@ namespace SushiBLAS
             EXPECT_EQ(view.data_or_null(), static_cast<const void*>(t.data_or_null()));
         }
 
-        TEST_F(Unit_TensorConstAccessTest, ConstAndMutableAccessorsShareAnAddress)
+        TEST_F(Medium_TensorConstAccessTest, ConstAndMutableAccessorsShareAnAddress)
         {
             Tensor t = engine->create_tensor({4, 8}, Core::DataType::Float32);
             expect_same_addresses(t);
         }
 
-        TEST_F(Unit_TensorConstAccessTest, ConstAndMutableAccessorsShareAnAddressOnAnOffsetView)
+        TEST_F(Medium_TensorConstAccessTest, ConstAndMutableAccessorsShareAnAddressOnAnOffsetView)
         {
             Tensor t = engine->create_tensor({4, 8}, Core::DataType::Float32);
             Tensor view = t.slice(0, 1, 3);
@@ -82,7 +82,7 @@ namespace SushiBLAS
                       static_cast<const char*>(static_cast<const Tensor&>(t).data()) + view.storage_offset * 4);
         }
 
-        TEST_F(Unit_TensorConstAccessTest, DataOrNullIsNullWithoutStorage)
+        TEST_F(Medium_TensorConstAccessTest, DataOrNullIsNullWithoutStorage)
         {
             Tensor t;
             const Tensor& view = t;

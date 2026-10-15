@@ -36,7 +36,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_Scratch, AnEmptyBufferHoldsNothing)
+        TEST(Medium_Scratch, AnEmptyBufferHoldsNothing)
         {
             const ScratchBuffer empty;
 
@@ -46,7 +46,7 @@ namespace SushiBLAS
             EXPECT_FALSE(empty.storage());
         }
 
-        TEST(Unit_Scratch, ALeaseNamesItsBytesAndItsRegion)
+        TEST(Medium_Scratch, ALeaseNamesItsBytesAndItsRegion)
         {
             ScratchPool pool(TestEnvironment::runtime());
             const ScratchBuffer buffer(pool, 1000, 0);
@@ -58,7 +58,7 @@ namespace SushiBLAS
             EXPECT_GE(buffer.storage()->size_bytes(), std::size_t{1000});
         }
 
-        TEST(Unit_Scratch, TheBlockReturnsToTheShelfWhenTheLastCopyGoes)
+        TEST(Medium_Scratch, TheBlockReturnsToTheShelfWhenTheLastCopyGoes)
         {
             ScratchPool pool(TestEnvironment::runtime());
             const std::size_t idle_before = pool.idle_block_count();

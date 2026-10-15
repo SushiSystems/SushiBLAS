@@ -69,7 +69,7 @@ namespace SushiBLAS
             constexpr double K_TINY_AS_HALF = 1.1920928955078125e-7;
         }
 
-        class Unit_ConvertTest : public SushiBLASTest
+        class Medium_ConvertTest : public SushiBLASTest
         {
             protected:
                 /**
@@ -154,7 +154,7 @@ namespace SushiBLAS
          * @brief Tests that fp32 to fp16 lands on the correctly rounded neighbour, not the input.
          * @see tests/operations/elementwise/README.md
          */
-        TEST_F(Unit_ConvertTest, Fp32ToFp16RoundsToTheNearestRepresentableValue)
+        TEST_F(Medium_ConvertTest, Fp32ToFp16RoundsToTheNearestRepresentableValue)
         {
             auto src = engine->create_tensor({1}, Core::DataType::Float32);
             auto dst = engine->create_tensor({1}, Core::DataType::Half);
@@ -175,7 +175,7 @@ namespace SushiBLAS
          * @brief Tests that fp32 to fp16 breaks ties to even.
          * @see tests/operations/elementwise/README.md
          */
-        TEST_F(Unit_ConvertTest, Fp32ToFp16BreaksTiesToEven)
+        TEST_F(Medium_ConvertTest, Fp32ToFp16BreaksTiesToEven)
         {
             auto src = engine->create_tensor({2}, Core::DataType::Float32);
             auto dst = engine->create_tensor({2}, Core::DataType::Half);
@@ -194,7 +194,7 @@ namespace SushiBLAS
          * @brief Tests that an fp32 value past the fp16 range becomes an infinity.
          * @see tests/operations/elementwise/README.md
          */
-        TEST_F(Unit_ConvertTest, Fp32PastTheHalfRangeBecomesInfinity)
+        TEST_F(Medium_ConvertTest, Fp32PastTheHalfRangeBecomesInfinity)
         {
             auto src = engine->create_tensor({4}, Core::DataType::Float32);
             auto dst = engine->create_tensor({4}, Core::DataType::Half);
@@ -214,7 +214,7 @@ namespace SushiBLAS
          * @brief Tests that 1e-8 flushes to zero in fp16 while 1e-7 lands on a subnormal.
          * @see tests/operations/elementwise/README.md
          */
-        TEST_F(Unit_ConvertTest, Fp32BelowTheHalfRangeUnderflowsToZeroButSubnormalsSurvive)
+        TEST_F(Medium_ConvertTest, Fp32BelowTheHalfRangeUnderflowsToZeroButSubnormalsSurvive)
         {
             auto src = engine->create_tensor({2}, Core::DataType::Float32);
             auto dst = engine->create_tensor({2}, Core::DataType::Half);
@@ -234,7 +234,7 @@ namespace SushiBLAS
          * @brief Tests that infinities and NaN pass through the conversion in both directions.
          * @see tests/operations/elementwise/README.md
          */
-        TEST_F(Unit_ConvertTest, NonFiniteValuesSurviveTheConversion)
+        TEST_F(Medium_ConvertTest, NonFiniteValuesSurviveTheConversion)
         {
             auto src = engine->create_tensor({3}, Core::DataType::Float32);
             auto down = engine->create_tensor({3}, Core::DataType::Half);
@@ -260,7 +260,7 @@ namespace SushiBLAS
          * @brief Tests that narrowing then widening returns the fp16 value, not the original.
          * @see tests/operations/elementwise/README.md
          */
-        TEST_F(Unit_ConvertTest, ARoundTripThroughHalfKeepsOnlyWhatHalfCouldHold)
+        TEST_F(Medium_ConvertTest, ARoundTripThroughHalfKeepsOnlyWhatHalfCouldHold)
         {
             auto src = engine->create_tensor({1}, Core::DataType::Float32);
             auto narrow = engine->create_tensor({1}, Core::DataType::Half);
@@ -281,7 +281,7 @@ namespace SushiBLAS
          * @brief Tests all nine dtype pairs on values every dtype represents exactly.
          * @see tests/operations/elementwise/README.md
          */
-        TEST_F(Unit_ConvertTest, EveryRealDTypePairConvertsExactlyRepresentableValues)
+        TEST_F(Medium_ConvertTest, EveryRealDTypePairConvertsExactlyRepresentableValues)
         {
             const std::vector<double> values = {0.0, 1.0, -2.0, 3.5, -4.25, 1024.0};
 
@@ -311,7 +311,7 @@ namespace SushiBLAS
          * @brief Tests that converting a dtype to itself copies.
          * @see tests/operations/elementwise/README.md
          */
-        TEST_F(Unit_ConvertTest, ConvertingADTypeToItselfIsAPlainCopy)
+        TEST_F(Medium_ConvertTest, ConvertingADTypeToItselfIsAPlainCopy)
         {
             auto src = engine->create_tensor({3}, Core::DataType::Float32);
             auto dst = engine->create_tensor({3}, Core::DataType::Float32);
@@ -328,7 +328,7 @@ namespace SushiBLAS
         }
 
         // A multi-dimensional operand is converted whole, not just its first row.
-        TEST_F(Unit_ConvertTest, ARankTwoOperandIsConvertedInFull)
+        TEST_F(Medium_ConvertTest, ARankTwoOperandIsConvertedInFull)
         {
             auto src = engine->create_tensor({3, 4}, Core::DataType::Float64);
             auto dst = engine->create_tensor({3, 4}, Core::DataType::Half);
@@ -345,7 +345,7 @@ namespace SushiBLAS
                 EXPECT_EQ(values[i], got[i]) << "at index " << i;
         }
 
-        TEST_F(Unit_ConvertTest, ADTypePairOutsideTheRealDomainThrowsNamingBoth)
+        TEST_F(Medium_ConvertTest, ADTypePairOutsideTheRealDomainThrowsNamingBoth)
         {
             GraphProbe probe;
 
@@ -376,7 +376,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that converting between row- and column-major rank-2 tensors throws.
          */
-        TEST_F(Unit_ConvertTest, DisagreeingLayoutsThrow)
+        TEST_F(Medium_ConvertTest, DisagreeingLayoutsThrow)
         {
             GraphProbe probe;
 
@@ -400,7 +400,7 @@ namespace SushiBLAS
             EXPECT_EQ(0u, probe.take_recorded_count());
         }
 
-        TEST_F(Unit_ConvertTest, DisagreeingShapesThrowNamingWhatDisagreed)
+        TEST_F(Medium_ConvertTest, DisagreeingShapesThrowNamingWhatDisagreed)
         {
             auto src = engine->create_tensor({3, 4}, Core::DataType::Float32);
             auto wrong_dim = engine->create_tensor({3, 5}, Core::DataType::Half);
@@ -419,7 +419,7 @@ namespace SushiBLAS
          * @brief Tests that an inner-axis slice, which is not contiguous, is refused by name.
          * @see tests/operations/elementwise/README.md
          */
-        TEST_F(Unit_ConvertTest, ANonContiguousOperandIsRefused)
+        TEST_F(Medium_ConvertTest, ANonContiguousOperandIsRefused)
         {
             auto parent = engine->create_tensor({4, 4}, Core::DataType::Float32);
             auto inner = parent.slice(1, 1, 3);
@@ -435,7 +435,7 @@ namespace SushiBLAS
          * @brief Tests that overlapping operands are refused.
          * @see tests/operations/elementwise/README.md
          */
-        TEST_F(Unit_ConvertTest, OverlappingOperandsAreRefused)
+        TEST_F(Medium_ConvertTest, OverlappingOperandsAreRefused)
         {
             constexpr int64_t kN = 8;
             auto storage = SushiRuntime::make_sushi<Storage>(
@@ -456,7 +456,7 @@ namespace SushiBLAS
          * @brief Tests that a convert is ordered behind the op that wrote its offset source view.
          * @see tests/operations/elementwise/README.md
          */
-        TEST_F(Unit_ConvertTest, AConvertIsOrderedBehindTheOpThatWroteItsSource)
+        TEST_F(Medium_ConvertTest, AConvertIsOrderedBehindTheOpThatWroteItsSource)
         {
             GraphProbe probe;
 
@@ -484,7 +484,7 @@ namespace SushiBLAS
                    "nothing else touches and emitted no edge at all.";
         }
 
-        TEST_F(Unit_ConvertTest, AReaderOfTheConvertedTensorIsOrderedBehindTheConvert)
+        TEST_F(Medium_ConvertTest, AReaderOfTheConvertedTensorIsOrderedBehindTheConvert)
         {
             GraphProbe probe;
 
@@ -516,7 +516,7 @@ namespace SushiBLAS
          * @brief Tests that converts over disjoint views of one arena get no edge between them.
          * @see tests/operations/elementwise/README.md
          */
-        TEST_F(Unit_ConvertTest, ConvertsOverDisjointViewsOfOneArenaDoNotSerialise)
+        TEST_F(Medium_ConvertTest, ConvertsOverDisjointViewsOfOneArenaDoNotSerialise)
         {
             GraphProbe probe;
 
@@ -554,7 +554,7 @@ namespace SushiBLAS
          * @brief Tests that a view at a non-zero offset converts its own elements and no others.
          * @see tests/operations/elementwise/README.md
          */
-        TEST_F(Unit_ConvertTest, AViewAtANonZeroOffsetConvertsItsOwnElements)
+        TEST_F(Medium_ConvertTest, AViewAtANonZeroOffsetConvertsItsOwnElements)
         {
             constexpr int64_t kN = 4;
 

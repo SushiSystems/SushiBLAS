@@ -45,12 +45,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs the symmetric product on the host CPU queue. */
-        class Device_SYCLSymmetricProduct : public HostDeviceTest
+        class Medium_SYCLSymmetricProduct : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLSymmetricProduct, MatchesTheReferenceForBothTriangles)
+        TEST_F(Medium_SYCLSymmetricProduct, MatchesTheReferenceForBothTriangles)
         {
             const int64_t n = 35;
             const std::vector<double> packed = small_integers<double>(n * (n + 1) / 2, 1);

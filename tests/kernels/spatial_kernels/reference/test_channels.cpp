@@ -36,7 +36,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceChannels, CopiesTheRangeIntoItsOffsetAtEveryPixel)
+        TEST(Small_ReferenceChannels, CopiesTheRangeIntoItsOffsetAtEveryPixel)
         {
             // Input and output both hold three channels per pixel, two pixels.
             const Spatial::WindowSpan span = nhwc_span(1, 1, 2, 3, Spatial::ConvGeometry{}, 0);

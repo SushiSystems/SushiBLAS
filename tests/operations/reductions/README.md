@@ -37,9 +37,9 @@ that file's helpers are built around a scalar result and this seam's answer is a
 property and the means are the same: `std::memcmp`, not a tolerance.
 
 The file holds three fixtures: the planner
-(`Unit_AxisReductionPlan`, a pure function that needs no device), the public operations over
-every dtype a reduction serves (`Unit_AxisReductionsTyped`), and layout, shape, rejection and
-the two kernels (`Unit_AxisReductions`).
+(`Medium_AxisReductionPlan`, a pure function that needs no device), the public operations over
+every dtype a reduction serves (`Medium_AxisReductionsTyped`), and layout, shape, rejection and
+the two kernels (`Medium_AxisReductions`).
 
 `K_ROW_MAJOR` holds small whole numbers on purpose. They are exact in HALF as well as in the
 wider types, so one expectation serves every dtype and a mismatch is a real disagreement, not a
@@ -79,7 +79,7 @@ this checks that the offset was not dropped on the way through the seam.
 
 `AxisReductionsOrderAgainstViewsOfOneAllocation` is the bare-pointer hazard described under
 "Views at a non-zero offset", on this seam.
-`Regression_Sentinel.ReductionsOrderAgainstViewsOfOneAllocation` pins it for the whole-tensor
+`Medium_Sentinel.ReductionsOrderAgainstViewsOfOneAllocation` pins it for the whole-tensor
 seam.
 
 `NonRealDtypesAreRefusedByName`: a fold needs an ordering and an identity, which `std::complex`

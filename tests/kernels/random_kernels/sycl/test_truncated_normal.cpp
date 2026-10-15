@@ -43,14 +43,14 @@ namespace SushiBLAS
         /// @brief The seed of the draws below.
         constexpr uint64_t K_SEED = 777u;
 
-        TEST(Unit_TruncatedNormal, TheDistributionFunctionHasItsKnownValues)
+        TEST(Medium_TruncatedNormal, TheDistributionFunctionHasItsKnownValues)
         {
             EXPECT_DOUBLE_EQ(Truncated::standard_normal_cdf(0.0), 0.5);
             EXPECT_NEAR(Truncated::standard_normal_cdf(1.0), 0.8413447460685429, 1e-15);
             EXPECT_NEAR(Truncated::standard_normal_cdf(-2.0), 0.02275013194817921, 1e-16);
         }
 
-        TEST(Unit_TruncatedNormal, EveryDrawLiesInsideItsBounds)
+        TEST(Medium_TruncatedNormal, EveryDrawLiesInsideItsBounds)
         {
             for (uint64_t block = 0; block < 200; ++block)
             {
@@ -64,7 +64,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_TruncatedNormal, ANarrowWindowDrawsNearItsCentre)
+        TEST(Medium_TruncatedNormal, ANarrowWindowDrawsNearItsCentre)
         {
             for (const float value :
                  Truncated::draw_truncated_standard_normal<float>(K_SEED, 1, 0, -0.01f, 0.01f))
@@ -72,12 +72,12 @@ namespace SushiBLAS
         }
 
         /** @brief Draws on the host CPU queue. */
-        class Device_TruncatedNormal : public HostDeviceTest
+        class Medium_TruncatedNormalOnDevice : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_TruncatedNormal, AKernelDrawsWithinTheBoundsTheHostUses)
+        TEST_F(Medium_TruncatedNormalOnDevice, AKernelDrawsWithinTheBoundsTheHostUses)
         {
             constexpr std::size_t blocks = 64;
             SharedArray<double> device(queue(), 2 * blocks);

@@ -72,7 +72,7 @@ namespace
     constexpr double K_LAMBDA_KNUTH = 3.0;
 }
 
-class Unit_RandomLargeLambdaTest : public SushiBLASTest
+class Medium_RandomLargeLambdaTest : public SushiBLASTest
 {
     protected:
         /** @brief Returns K_DRAWS FLOAT64 Poisson draws of mean lambda from seed. */
@@ -121,28 +121,28 @@ class Unit_RandomLargeLambdaTest : public SushiBLASTest
         }
 };
 
-TEST_F(Unit_RandomLargeLambdaTest, PoissonMomentsMatchLambdaFifty)
+TEST_F(Medium_RandomLargeLambdaTest, PoissonMomentsMatchLambdaFifty)
 {
     expect_poisson_moments(K_LAMBDA_SMALL, K_MEAN_SE_SMALL, K_VARIANCE_SE_SMALL);
 }
 
-TEST_F(Unit_RandomLargeLambdaTest, PoissonMomentsMatchLambdaFiveThousand)
+TEST_F(Medium_RandomLargeLambdaTest, PoissonMomentsMatchLambdaFiveThousand)
 {
     expect_poisson_moments(K_LAMBDA_MEDIUM, K_MEAN_SE_MEDIUM, K_VARIANCE_SE_MEDIUM);
 }
 
-TEST_F(Unit_RandomLargeLambdaTest, PoissonMomentsMatchLambdaOneMillion)
+TEST_F(Medium_RandomLargeLambdaTest, PoissonMomentsMatchLambdaOneMillion)
 {
     expect_poisson_moments(K_LAMBDA_LARGE, K_MEAN_SE_LARGE, K_VARIANCE_SE_LARGE);
 }
 
-TEST_F(Unit_RandomLargeLambdaTest, PoissonReplaysBitForBitInBothMethods)
+TEST_F(Medium_RandomLargeLambdaTest, PoissonReplaysBitForBitInBothMethods)
 {
     expect_replayed(K_LAMBDA_KNUTH);
     expect_replayed(K_LAMBDA_MEDIUM);
 }
 
-TEST_F(Unit_RandomLargeLambdaTest, PoissonAcceptsTheCap)
+TEST_F(Medium_RandomLargeLambdaTest, PoissonAcceptsTheCap)
 {
     auto t = engine->create_tensor({4}, DataType::Float64);
     EXPECT_NO_THROW(SushiBLAS::RandomOps(*engine).poisson(t, SushiBLAS::K_MAX_POISSON_LAMBDA));

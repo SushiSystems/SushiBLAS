@@ -35,16 +35,16 @@
 namespace sb = SushiBLAS;
 using namespace SushiBLAS::Test;
 
-class Integration_DependencyStressTest : public SushiBLASTest {};
+class Medium_DependencyStressTest : public SushiBLASTest {};
 
 /**
  * @brief Tests that 5000 readers of one written tensor all see the written value.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Integration_DependencyStressTest, ManyReadersOneWriter) 
+TEST_F(Medium_DependencyStressTest, ManyReadersOneWriter) 
 {
     
-    SB_LOG_INFO("Starting Integration_DependencyStressTest.ManyReadersOneWriter");
+    SB_LOG_INFO("Starting Medium_DependencyStressTest.ManyReadersOneWriter");
     
     const int num_readers = 5000;
     const int N = 32;
@@ -94,10 +94,10 @@ TEST_F(Integration_DependencyStressTest, ManyReadersOneWriter)
  * @brief Tests that 3000 independent GEMMs on distinct tensors each produce their own result.
  * @see tests/library/umbrella/README.md
  */
-TEST_F(Integration_DependencyStressTest, ShardCollisionStress) 
+TEST_F(Medium_DependencyStressTest, ShardCollisionStress) 
 {
     
-    SB_LOG_INFO("Starting Integration_DependencyStressTest.ShardCollisionStress");
+    SB_LOG_INFO("Starting Medium_DependencyStressTest.ShardCollisionStress");
     
     const int num_ops = 3000;
     const int N = 8;

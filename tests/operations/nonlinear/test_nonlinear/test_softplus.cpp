@@ -33,9 +33,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Unit_SoftplusTest : public SushiBLASTest {};
+class Medium_SoftplusTest : public SushiBLASTest {};
 
-TEST_F(Unit_SoftplusTest, Forward) 
+TEST_F(Medium_SoftplusTest, Forward) 
 {
     auto t = engine->create_tensor({4});
     fill_tensor(t, {-1.0f, 0.0f, 1.0f, 2.0f});
@@ -46,7 +46,7 @@ TEST_F(Unit_SoftplusTest, Forward)
     verify_tensor(t, {0.313262f, 0.693147f, 1.313262f, 2.126928f});
 }
 
-TEST_F(Unit_SoftplusTest, Backward) 
+TEST_F(Medium_SoftplusTest, Backward) 
 {
     auto dy = engine->create_tensor({4});
     auto x = engine->create_tensor({4});

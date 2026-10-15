@@ -351,16 +351,16 @@ namespace SushiBLAS
 
         /** @brief Runs symm over the real and complex element types. */
         template<typename T>
-        class Unit_Symm : public SushiBLASTest
+        class Medium_Symm : public SushiBLASTest
         {
 
         };
 
         using SymmTypes = ::testing::Types<float, double, std::complex<float>,
                                            std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_Symm, SymmTypes);
+        SB_TYPED_TEST_SUITE(Medium_Symm, SymmTypes);
 
-        TYPED_TEST(Unit_Symm, LeftSideMatchesAHandComputedProduct)
+        TYPED_TEST(Medium_Symm, LeftSideMatchesAHandComputedProduct)
         {
             using T = TypeParam;
             const double unread = std::numeric_limits<double>::quiet_NaN();
@@ -387,7 +387,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_Symm, RightSideMatchesAHandComputedProduct)
+        TYPED_TEST(Medium_Symm, RightSideMatchesAHandComputedProduct)
         {
             using T = TypeParam;
             const double unread = std::numeric_limits<double>::quiet_NaN();
@@ -411,12 +411,12 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_Symm, EqualsGemmOnTheFullMatrixToTheBit)
+        TYPED_TEST(Medium_Symm, EqualsGemmOnTheFullMatrixToTheBit)
         {
             expect_product_equals_gemm<TypeParam>(*this->engine, Routine::Symm);
         }
 
-        TYPED_TEST(Unit_Symm, ABatchIsMultipliedMatrixByMatrix)
+        TYPED_TEST(Medium_Symm, ABatchIsMultipliedMatrixByMatrix)
         {
             using T = TypeParam;
             const int64_t matrix = K_BATCH_ROWS * K_BATCH_COLS;
@@ -472,7 +472,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_Symm, AZeroBetaDoesNotReadC)
+        TYPED_TEST(Medium_Symm, AZeroBetaDoesNotReadC)
         {
             using T = TypeParam;
             std::mt19937 generator(K_SEED);
@@ -504,7 +504,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_Symm, AnEmptyProductRecordsAndRuns)
+        TYPED_TEST(Medium_Symm, AnEmptyProductRecordsAndRuns)
         {
             const Core::DataType dtype = sushiblas_dtype<TypeParam>();
             const int64_t shapes[][2] = {{0, 3}, {3, 0}};
@@ -536,20 +536,20 @@ namespace SushiBLAS
 
         /** @brief Runs hemm over the complex element types. */
         template<typename T>
-        class Unit_Hemm : public SushiBLASTest
+        class Medium_Hemm : public SushiBLASTest
         {
 
         };
 
         using HemmTypes = ::testing::Types<std::complex<float>, std::complex<double>>;
-        SB_TYPED_TEST_SUITE(Unit_Hemm, HemmTypes);
+        SB_TYPED_TEST_SUITE(Medium_Hemm, HemmTypes);
 
-        TYPED_TEST(Unit_Hemm, EqualsGemmOnTheFullHermitianMatrixToTheBit)
+        TYPED_TEST(Medium_Hemm, EqualsGemmOnTheFullHermitianMatrixToTheBit)
         {
             expect_product_equals_gemm<TypeParam>(*this->engine, Routine::Hemm);
         }
 
-        TYPED_TEST(Unit_Hemm, MatchesAHandComputedProduct)
+        TYPED_TEST(Medium_Hemm, MatchesAHandComputedProduct)
         {
             using T = TypeParam;
             const std::vector<T> a = {T(2, 9), T(1, 1),
@@ -574,7 +574,7 @@ namespace SushiBLAS
         }
 
         /** @brief Runs the cases of symm and hemm that are not typed over the element type. */
-        class Unit_SymmHemmEdges : public SushiBLASTest
+        class Medium_SymmHemmEdges : public SushiBLASTest
         {
             protected:
                 /**
@@ -618,7 +618,7 @@ namespace SushiBLAS
                 GraphProbe probe;
         };
 
-        TEST_F(Unit_SymmHemmEdges, HemmOnARealTensorIsSymm)
+        TEST_F(Medium_SymmHemmEdges, HemmOnARealTensorIsSymm)
         {
             std::mt19937 generator(K_SEED);
             const std::vector<float> a = random_elements<float>(generator, K_ROWS * K_ROWS);
@@ -644,7 +644,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SymmHemmEdges, HalfSumsInFloat)
+        TEST_F(Medium_SymmHemmEdges, HalfSumsInFloat)
         {
             const sycl::queue& queue = TestEnvironment::queue();
             if (!queue.get_device().has(sycl::aspect::fp16))
@@ -678,7 +678,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SymmHemmEdges, EveryRefusalIsAnInvalidArgument)
+        TEST_F(Medium_SymmHemmEdges, EveryRefusalIsAnInvalidArgument)
         {
             const Tensor A = engine->create_tensor({3, 3});
             const Tensor B = engine->create_tensor({3, 2});
@@ -756,7 +756,7 @@ namespace SushiBLAS
             });
         }
 
-        TEST_F(Unit_SymmHemmEdges, ForceReferenceRefusesADeviceOnlyOperand)
+        TEST_F(Medium_SymmHemmEdges, ForceReferenceRefusesADeviceOnlyOperand)
         {
             std::optional<Tensor> A = make_device_tensor({3, 3});
             if (!A)

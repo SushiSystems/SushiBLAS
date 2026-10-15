@@ -19,7 +19,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE blas_kernels
-    SIZE medium
     TESTS
         reference/level1/test_level1.cpp
         reference/level1/test_rotg.cpp

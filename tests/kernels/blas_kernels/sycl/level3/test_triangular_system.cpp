@@ -104,7 +104,7 @@ namespace SushiBLAS
          * @brief Tests that every side and flag of TRSM decodes to the substitution of its row
          *        in DESIGN_BLAS_L3, section 7.4.
          */
-        TEST(Unit_TriangularSystem, EverySideAndFlagDecodesToItsLoop)
+        TEST(Medium_TriangularSystem, EverySideAndFlagDecodesToItsLoop)
         {
             std::array<std::complex<float>, K_LDA * K_LDA> a;
             for (std::size_t i = 0; i < a.size(); ++i)
@@ -159,7 +159,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that CONJ_TRANS conjugates the factors read from A and no element of B.
          */
-        TEST(Unit_TriangularSystem, ConjTransConjugatesTheCoefficientAndNotTheUnknown)
+        TEST(Medium_TriangularSystem, ConjTransConjugatesTheCoefficientAndNotTheUnknown)
         {
             for (const Core::Layout layout : K_LAYOUTS)
             {

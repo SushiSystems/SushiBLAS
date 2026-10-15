@@ -35,7 +35,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ScratchPool, StartsWithoutIdleBlocks)
+        TEST(Medium_ScratchPool, StartsWithoutIdleBlocks)
         {
             const ScratchPool pool(TestEnvironment::runtime());
 
@@ -43,7 +43,7 @@ namespace SushiBLAS
             EXPECT_TRUE(pool.shelf());
         }
 
-        TEST(Unit_ScratchPool, AReturnedBlockIsReusedForTheSameSize)
+        TEST(Medium_ScratchPool, AReturnedBlockIsReusedForTheSameSize)
         {
             ScratchPool pool(TestEnvironment::runtime());
             void* first_address = nullptr;
@@ -59,7 +59,7 @@ namespace SushiBLAS
             EXPECT_EQ(pool.idle_block_count(), std::size_t{0});
         }
 
-        TEST(Unit_ScratchPool, TrimReleasesTheIdleBlocks)
+        TEST(Medium_ScratchPool, TrimReleasesTheIdleBlocks)
         {
             ScratchPool pool(TestEnvironment::runtime());
             const std::size_t live_before = TestEnvironment::live_allocation_count();

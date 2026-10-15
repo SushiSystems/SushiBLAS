@@ -51,13 +51,13 @@ namespace SushiBLAS
             constexpr int64_t K_LARGE_ORDER = 3000000000;
 
             /// @brief Names the suite of the packed operand cases.
-            using Unit_PackedOperand = StructuredOperandTest;
+            using Medium_PackedOperand = StructuredOperandTest;
         } // namespace
 
         /**
          * @brief Tests the largest packed order of small counts and of counts beyond 2^53.
          */
-        TEST_F(Unit_PackedOperand, TheLargestOrderIsExact)
+        TEST_F(Medium_PackedOperand, TheLargestOrderIsExact)
         {
             const PackedCount counts[] = {{0, 0}, {1, 1}, {2, 1}, {3, 2},
                                           {5, 2}, {6, 3}, {7, 3}, {10, 4}};
@@ -80,7 +80,7 @@ namespace SushiBLAS
          * @brief Tests that a rank-1 tensor of n * (n + 1) / 2 elements has order n and keeps
          *        its layout.
          */
-        TEST_F(Unit_PackedOperand, ATriangleCountGivesItsOrder)
+        TEST_F(Medium_PackedOperand, ATriangleCountGivesItsOrder)
         {
             const PackedCount counts[] = {{1, 1}, {3, 2}, {6, 3}, {10, 4}};
 
@@ -109,7 +109,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that an element count between two triangle counts is refused.
          */
-        TEST_F(Unit_PackedOperand, ACountThatIsNoTriangleIsRefused)
+        TEST_F(Medium_PackedOperand, ACountThatIsNoTriangleIsRefused)
         {
             for (const int64_t elements : {int64_t{2}, int64_t{4}, int64_t{5}, int64_t{7}})
             {
@@ -124,7 +124,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a packed operand must be a dense rank-1 tensor.
          */
-        TEST_F(Unit_PackedOperand, ATensorThatIsNoDenseVectorIsRefused)
+        TEST_F(Medium_PackedOperand, ATensorThatIsNoDenseVectorIsRefused)
         {
             // Both tensors hold a triangle count, so only the rank or the stride refuses them.
             const Tensor matrix = make_tensor({2, 3});

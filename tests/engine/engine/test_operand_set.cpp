@@ -39,12 +39,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Builds operand sets over tensors of the fixture's engine. */
-        class Unit_OperandSet : public SushiBLASTest
+        class Medium_OperandSet : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_OperandSet, ReadsWritesAndUpdatesDeclareTheirRegions)
+        TEST_F(Medium_OperandSet, ReadsWritesAndUpdatesDeclareTheirRegions)
         {
             const Tensor a = engine->create_tensor({4});
             const Tensor b = engine->create_tensor({4});
@@ -59,7 +59,7 @@ namespace SushiBLAS
             EXPECT_FALSE(operands.has_device_only_operand());
         }
 
-        TEST_F(Unit_OperandSet, ATensorWithoutStorageDeclaresNothing)
+        TEST_F(Medium_OperandSet, ATensorWithoutStorageDeclaresNothing)
         {
             const Tensor empty = engine->create_tensor({0});
             OperandSet operands;
@@ -71,7 +71,7 @@ namespace SushiBLAS
             EXPECT_EQ(operands.retained().size(), std::size_t{0});
         }
 
-        TEST_F(Unit_OperandSet, AStorageIsRetainedOnceAndKeptAliveByTheSet)
+        TEST_F(Medium_OperandSet, AStorageIsRetainedOnceAndKeptAliveByTheSet)
         {
             const std::size_t before = TestEnvironment::live_allocation_count();
             OperandSet operands;
@@ -84,7 +84,7 @@ namespace SushiBLAS
             EXPECT_EQ(TestEnvironment::live_allocation_count(), before + 1);
         }
 
-        TEST_F(Unit_OperandSet, MoreStoragesThanTheInlineCapacityAreAllRetained)
+        TEST_F(Medium_OperandSet, MoreStoragesThanTheInlineCapacityAreAllRetained)
         {
             OperandSet operands;
             const std::size_t count = Internal::StorageKeepAlive::K_INLINE_CAPACITY + 3;
@@ -94,7 +94,7 @@ namespace SushiBLAS
             EXPECT_EQ(operands.retained().size(), count);
         }
 
-        TEST_F(Unit_OperandSet, ADeviceTensorIsReportedAndSurvivesAMerge)
+        TEST_F(Medium_OperandSet, ADeviceTensorIsReportedAndSurvivesAMerge)
         {
             const Tensor device = engine->create_tensor({4}, Core::DataType::Float32,
                                                         SushiRuntime::Residency::Device);

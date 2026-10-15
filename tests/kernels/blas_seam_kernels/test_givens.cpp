@@ -193,7 +193,7 @@ namespace SushiBLAS
          * @brief Draws complex values of component type R from a fixed seed.
          */
         template<typename R>
-        class Unit_Givens : public ::testing::Test
+        class Small_Givens : public ::testing::Test
         {
             protected:
                 /** @brief Returns the next complex value, each part in the draw range. */
@@ -214,13 +214,13 @@ namespace SushiBLAS
 
         /// @brief Names the real types the rotation suite runs over.
         using GivensTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_Givens, GivensTypes);
+        SB_TYPED_TEST_SUITE(Small_Givens, GivensTypes);
 
         /**
          * @brief Tests at compile time that the scaling bounds are the powers of two xROTG
          *        names.
          */
-        TYPED_TEST(Unit_Givens, TheSafeScalingBoundsArePowersOfTwo)
+        TYPED_TEST(Small_Givens, TheSafeScalingBoundsArePowersOfTwo)
         {
             using R = TypeParam;
             using Scaling = Kernels::Detail::SafeScaling<R>;
@@ -238,7 +238,7 @@ namespace SushiBLAS
         /**
          * @brief Tests the real rotation against the table of the design, r for equality.
          */
-        TYPED_TEST(Unit_Givens, RealPairsMatchTheTable)
+        TYPED_TEST(Small_Givens, RealPairsMatchTheTable)
         {
             using R = TypeParam;
 
@@ -287,7 +287,7 @@ namespace SushiBLAS
         /**
          * @brief Tests the complex rotation against the table of the design.
          */
-        TYPED_TEST(Unit_Givens, ComplexPairsMatchTheTable)
+        TYPED_TEST(Small_Givens, ComplexPairsMatchTheTable)
         {
             using R = TypeParam;
             using Complex = std::complex<double>;
@@ -319,7 +319,7 @@ namespace SushiBLAS
         /**
          * @brief Tests the three rotation identities on random complex pairs.
          */
-        TYPED_TEST(Unit_Givens, RandomComplexPairsKeepTheIdentities)
+        TYPED_TEST(Small_Givens, RandomComplexPairsKeepTheIdentities)
         {
             for (int pair = 0; pair < K_RANDOM_PAIRS; ++pair)
             {
@@ -332,7 +332,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that real operands whose squares leave the type give a finite rotation.
          */
-        TYPED_TEST(Unit_Givens, RealPairsOutsideTheSquareRangeStayFinite)
+        TYPED_TEST(Small_Givens, RealPairsOutsideTheSquareRangeStayFinite)
         {
             using R = TypeParam;
 
@@ -344,7 +344,7 @@ namespace SushiBLAS
          * @brief Tests that complex operands whose squares leave the type, or that differ by
          *        30 orders of magnitude, give a finite rotation.
          */
-        TYPED_TEST(Unit_Givens, ComplexPairsOutsideTheSquareRangeStayFinite)
+        TYPED_TEST(Small_Givens, ComplexPairsOutsideTheSquareRangeStayFinite)
         {
             using R = TypeParam;
 

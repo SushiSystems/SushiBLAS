@@ -131,7 +131,7 @@ namespace SushiBLAS
          *        execution mode.
          */
         template<typename TypeParam>
-        class Unit_SparseSptrsvTest : public SushiBLASTest
+        class Medium_SparseSptrsvTest : public SushiBLASTest
         {
             protected:
                 /** @brief The element type under test. */
@@ -230,9 +230,9 @@ namespace SushiBLAS
                 }
         };
 
-        SB_TYPED_TEST_SUITE(Unit_SparseSptrsvTest, SparseCases);
+        SB_TYPED_TEST_SUITE(Medium_SparseSptrsvTest, SparseCases);
 
-        TYPED_TEST(Unit_SparseSptrsvTest, BothTrianglesSolveBothSystemsOfTheSample)
+        TYPED_TEST(Medium_SparseSptrsvTest, BothTrianglesSolveBothSystemsOfTheSample)
         {
             using T = typename TypeParam::Value;
 
@@ -263,7 +263,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSptrsvTest, AUnitDiagonalIsNotRead)
+        TYPED_TEST(Medium_SparseSptrsvTest, AUnitDiagonalIsNotRead)
         {
             using T = typename TypeParam::Value;
 
@@ -290,7 +290,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSptrsvTest, TheOtherTriangleIsNotRead)
+        TYPED_TEST(Medium_SparseSptrsvTest, TheOtherTriangleIsNotRead)
         {
             using T = typename TypeParam::Value;
 
@@ -313,7 +313,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSptrsvTest, TheOrderOfTheTripletsDoesNotChangeTheBits)
+        TYPED_TEST(Medium_SparseSptrsvTest, TheOrderOfTheTripletsDoesNotChangeTheBits)
         {
             using T = typename TypeParam::Value;
 
@@ -343,7 +343,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSptrsvTest, ADiagonalStoredAsTwoEntriesIsTheirSum)
+        TYPED_TEST(Medium_SparseSptrsvTest, ADiagonalStoredAsTwoEntriesIsTheirSum)
         {
             // Row 0 stores its diagonal as 1.5 and 0.5; row 1 stores 1 and the diagonal 3.
             const std::vector<int64_t> offsets = {0, 2, 4};
@@ -369,7 +369,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSptrsvTest, ConjTransSolvesAgainstTheConjugateTranspose)
+        TYPED_TEST(Medium_SparseSptrsvTest, ConjTransSolvesAgainstTheConjugateTranspose)
         {
             using T = typename TypeParam::Value;
 
@@ -405,7 +405,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSptrsvTest, SystemsOfOrderOneAndZeroSolve)
+        TYPED_TEST(Medium_SparseSptrsvTest, SystemsOfOrderOneAndZeroSolve)
         {
             using T = typename TypeParam::Value;
 
@@ -433,7 +433,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_SparseSptrsvTest, ALongBidiagonalSystemOfIntegersIsSolvedExactly)
+        TYPED_TEST(Medium_SparseSptrsvTest, ALongBidiagonalSystemOfIntegersIsSolvedExactly)
         {
             using T = typename TypeParam::Value;
 
@@ -466,12 +466,12 @@ namespace SushiBLAS
         /**
          * @brief Runs the HALF system whose second step a HALF solution would get wrong.
          */
-        class Unit_SparseSptrsvHalf : public Unit_SparseSptrsvTest<SparseCase<sycl::half, int64_t>>
+        class Medium_SparseSptrsvHalf : public Medium_SparseSptrsvTest<SparseCase<sycl::half, int64_t>>
         {
 
         };
 
-        TEST_F(Unit_SparseSptrsvHalf, TheSolutionIsCarriedInFloat32)
+        TEST_F(Medium_SparseSptrsvHalf, TheSolutionIsCarriedInFloat32)
         {
             // Rows (3) and (3, 1) with b = (1, 1): x[1] = 1 - 3 * x[0], and x[0] is a third.
             HostTriplets<sycl::half> lower;

@@ -42,12 +42,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs the unpacked gemm on the host CPU queue. */
-        class Device_SYCLGemm : public HostDeviceTest
+        class Medium_SYCLGemm : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLGemm, MatchesTheReferenceInEveryLayoutTransposeAndBatch)
+        TEST_F(Medium_SYCLGemm, MatchesTheReferenceInEveryLayoutTransposeAndBatch)
         {
             // The patterned operands are small integers, so both kernels compute exactly.
             for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
@@ -66,7 +66,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Device_SYCLGemm, FloatAndAZeroBetaMatchTheReference)
+        TEST_F(Medium_SYCLGemm, FloatAndAZeroBetaMatchTheReference)
         {
             GemmProblem<float> problem(queue(), Core::Layout::RowMajor, Core::Transpose::NoTrans,
                                        Core::Transpose::NoTrans, 64, 48, 33, 1);

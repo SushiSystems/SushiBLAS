@@ -38,7 +38,7 @@ namespace SushiBLAS
     {
         namespace Ref = Kernels::Reference;
 
-        TEST(Unit_ReferenceLevel1, AxpyCopyScalAndSwapFollowTheirStrides)
+        TEST(Small_ReferenceLevel1, AxpyCopyScalAndSwapFollowTheirStrides)
         {
             const std::vector<double> x{1.0, 9.0, 2.0, 9.0, 3.0};
             std::vector<double> y{10.0, 20.0, 30.0};
@@ -58,7 +58,7 @@ namespace SushiBLAS
             EXPECT_EQ(copied, (std::vector<double>{-12.0, -24.0, -36.0}));
         }
 
-        TEST(Unit_ReferenceLevel1, RotTurnsEachPairByCosineAndSine)
+        TEST(Small_ReferenceLevel1, RotTurnsEachPairByCosineAndSine)
         {
             std::vector<double> x{1.0, 2.0};
             std::vector<double> y{3.0, 4.0};
@@ -69,7 +69,7 @@ namespace SushiBLAS
             EXPECT_EQ(y, (std::vector<double>{-1.0, -2.0}));
         }
 
-        TEST(Unit_ReferenceLevel1, AsumAddsMagnitudesAndBothPartsOfAComplex)
+        TEST(Small_ReferenceLevel1, AsumAddsMagnitudesAndBothPartsOfAComplex)
         {
             const std::vector<float> real{1.0f, -2.0f, 3.0f};
             const std::vector<std::complex<float>> complex{{1.0f, -2.0f}, {-3.0f, 4.0f}};
@@ -83,7 +83,7 @@ namespace SushiBLAS
             EXPECT_EQ(complex_sum, 10.0f);
         }
 
-        TEST(Unit_ReferenceLevel1, Nrm2IsTheEuclideanNormWithoutOverflow)
+        TEST(Small_ReferenceLevel1, Nrm2IsTheEuclideanNormWithoutOverflow)
         {
             const std::vector<double> small{3.0, 4.0};
             const std::vector<float> large{3.0e30f, 4.0e30f};
@@ -97,7 +97,7 @@ namespace SushiBLAS
             EXPECT_FLOAT_EQ(large_norm, 5.0e30f);
         }
 
-        TEST(Unit_ReferenceLevel1, DotSumsTheProductsAndConjugatesWhenAsked)
+        TEST(Small_ReferenceLevel1, DotSumsTheProductsAndConjugatesWhenAsked)
         {
             const std::vector<std::complex<double>> x{{1.0, 1.0}, {2.0, 0.0}};
             const std::vector<std::complex<double>> y{{3.0, 0.0}, {0.0, 1.0}};
@@ -112,7 +112,7 @@ namespace SushiBLAS
             EXPECT_EQ(conjugated, std::complex<double>(3.0, -1.0));
         }
 
-        TEST(Unit_ReferenceLevel1, IamaxReturnsTheFirstLargestMagnitude)
+        TEST(Small_ReferenceLevel1, IamaxReturnsTheFirstLargestMagnitude)
         {
             const std::vector<double> x{1.0, -7.0, 7.0, 2.0};
             const std::vector<std::complex<float>> z{{1.0f, 1.0f}, {0.0f, -3.0f}, {2.0f, 0.5f}};
@@ -126,7 +126,7 @@ namespace SushiBLAS
             EXPECT_EQ(complex_index, int64_t{1});
         }
 
-        TEST(Unit_ReferenceLevel1, AbsOneAddsTheMagnitudesOfBothParts)
+        TEST(Small_ReferenceLevel1, AbsOneAddsTheMagnitudesOfBothParts)
         {
             EXPECT_EQ(Ref::abs1(std::complex<double>(-1.5, 2.0)), 3.5);
             EXPECT_EQ(Ref::abs1(-4.0f), 4.0f);

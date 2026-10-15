@@ -100,7 +100,7 @@ namespace SushiBLAS
          * @brief Tests that a CPU blocks a solve only above its break-even order and below a
          *        full set of streams.
          */
-        TEST(Unit_TriangularPlan, ACPUBlocksOnlyWhereItPays)
+        TEST(Medium_TriangularPlan, ACPUBlocksOnlyWhereItPays)
         {
             const Device::Profile profile = cpu_profile(K_CPU_COMPUTE_UNITS);
 
@@ -121,7 +121,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a device of one compute unit solves every order in one block.
          */
-        TEST(Unit_TriangularPlan, OneComputeUnitNeverBlocks)
+        TEST(Medium_TriangularPlan, OneComputeUnitNeverBlocks)
         {
             expect_planned_blocks(cpu_profile(1), {{1, 1, 1},
                                                    {1000, 1, 1000},
@@ -131,7 +131,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a GPU blocks at its own width, between its two thresholds.
          */
-        TEST(Unit_TriangularPlan, AGPUBlocksAtItsOwnWidth)
+        TEST(Medium_TriangularPlan, AGPUBlocksAtItsOwnWidth)
         {
             const Device::Profile profile = gpu_profile();
 
@@ -147,7 +147,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a one-vector solve blocks only when one block updates enough rows.
          */
-        TEST(Unit_TriangularPlan, AVectorSolveBlocksByItsReach)
+        TEST(Medium_TriangularPlan, AVectorSolveBlocksByItsReach)
         {
             using Kernels::SYCL::K_GPU_SOLVE_BLOCK;
             using Kernels::SYCL::plan_vector_solve;
@@ -165,7 +165,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that the resident work-items are the threads of a CPU and the grid of a GPU.
          */
-        TEST(Unit_TriangularPlan, ResidentWorkItemsFollowTheProfile)
+        TEST(Medium_TriangularPlan, ResidentWorkItemsFollowTheProfile)
         {
             EXPECT_EQ(K_CPU_COMPUTE_UNITS,
                       Kernels::SYCL::resident_work_items(cpu_profile(K_CPU_COMPUTE_UNITS)));
@@ -176,7 +176,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a block is at least one step and at most the whole system.
          */
-        TEST(Unit_TriangularPlan, ABlockIsClampedToTheSystem)
+        TEST(Medium_TriangularPlan, ABlockIsClampedToTheSystem)
         {
             using Kernels::SYCL::TriangularSolvePlan;
 

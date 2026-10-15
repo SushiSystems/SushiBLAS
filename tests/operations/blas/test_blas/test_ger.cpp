@@ -33,9 +33,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS::Test;
 
-class Unit_GERTest : public SushiBLASTest {};
+class Medium_GERTest : public SushiBLASTest {};
 
-TEST_F(Unit_GERTest, SimpleGER) 
+TEST_F(Medium_GERTest, SimpleGER) 
 {
     const int M = 2, N = 3;
     auto X = engine->create_tensor({M});

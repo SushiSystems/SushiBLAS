@@ -46,7 +46,7 @@ namespace SushiBLAS
             return factory.create(SushiRuntime::span<const int64_t>(dims, 1), dtype);
         }
 
-        TEST(Unit_SparseVector, ADefaultVectorIsEmptyAndZeroBased)
+        TEST(Medium_SparseVector, ADefaultVectorIsEmptyAndZeroBased)
         {
             const SparseVector vector;
 
@@ -55,7 +55,7 @@ namespace SushiBLAS
             EXPECT_EQ(vector.nnz(), int64_t{0});
         }
 
-        TEST(Unit_SparseVector, ReadsItsCountAndDtypesFromItsTensors)
+        TEST(Medium_SparseVector, ReadsItsCountAndDtypesFromItsTensors)
         {
             SparseVector vector;
             vector.size = 10;

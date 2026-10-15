@@ -37,7 +37,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        class Unit_TensorViewTest : public SushiBLASTest
+        class Medium_TensorViewTest : public SushiBLASTest
         {
             protected:
                 /**
@@ -124,7 +124,7 @@ namespace SushiBLAS
          * @brief Tests slices along each axis of a rank-2 row-major tensor.
          * @see tests/engine/engine/README.md
          */
-        TEST_F(Unit_TensorViewTest, SliceAlongEachAxisAddressesItsElementsRowMajor)
+        TEST_F(Medium_TensorViewTest, SliceAlongEachAxisAddressesItsElementsRowMajor)
         {
             constexpr int64_t kRows = 4, kCols = 4;
             auto parent = engine->create_tensor({kRows, kCols});
@@ -148,7 +148,7 @@ namespace SushiBLAS
          * @brief Tests slices along each axis of a rank-2 column-major tensor.
          * @see tests/engine/engine/README.md
          */
-        TEST_F(Unit_TensorViewTest, SliceAlongEachAxisAddressesItsElementsColumnMajor)
+        TEST_F(Medium_TensorViewTest, SliceAlongEachAxisAddressesItsElementsColumnMajor)
         {
             constexpr int64_t kRows = 4, kCols = 4;
             reinit_engine(Core::Layout::ColumnMajor);
@@ -171,7 +171,7 @@ namespace SushiBLAS
          * @brief Tests slices along each axis of a rank-3 tensor, which has a middle axis.
          * @see tests/engine/engine/README.md
          */
-        TEST_F(Unit_TensorViewTest, SliceAlongEachAxisAddressesItsElementsRankThree)
+        TEST_F(Medium_TensorViewTest, SliceAlongEachAxisAddressesItsElementsRankThree)
         {
             constexpr int64_t kB = 3, kM = 4, kN = 5;
             auto parent = engine->create_tensor({kB, kM, kN});
@@ -191,7 +191,7 @@ namespace SushiBLAS
          * @brief Tests that an inner-axis slice reports non-contiguous and reshape refuses it.
          * @see tests/engine/engine/README.md
          */
-        TEST_F(Unit_TensorViewTest, InnerAxisSliceReportsItselfNonContiguous)
+        TEST_F(Medium_TensorViewTest, InnerAxisSliceReportsItselfNonContiguous)
         {
             auto parent = engine->create_tensor({4, 4});
 
@@ -212,7 +212,7 @@ namespace SushiBLAS
          * @brief Tests that a whole-axis slice equals its parent.
          * @see tests/engine/engine/README.md
          */
-        TEST_F(Unit_TensorViewTest, FullWidthSliceIsTheIdentity)
+        TEST_F(Medium_TensorViewTest, FullWidthSliceIsTheIdentity)
         {
             auto parent = engine->create_tensor({4, 5});
 
@@ -230,7 +230,7 @@ namespace SushiBLAS
          * @brief Tests that region() covers every byte a strided view reaches.
          * @see tests/engine/engine/README.md
          */
-        TEST_F(Unit_TensorViewTest, RegionCoversEveryByteAStridedViewReaches)
+        TEST_F(Medium_TensorViewTest, RegionCoversEveryByteAStridedViewReaches)
         {
             auto parent = engine->create_tensor({4, 4});
             const Tensor inner = parent.slice(1, 1, 3);
@@ -251,7 +251,7 @@ namespace SushiBLAS
          * @brief Tests that a contiguous tensor's element span equals its element count.
          * @see tests/engine/engine/README.md
          */
-        TEST_F(Unit_TensorViewTest, ContiguousTensorSpansExactlyItsElements)
+        TEST_F(Medium_TensorViewTest, ContiguousTensorSpansExactlyItsElements)
         {
             auto parent = engine->create_tensor({4, 5});
             EXPECT_EQ(parent.num_elements, parent.element_span());
@@ -262,7 +262,7 @@ namespace SushiBLAS
          * @brief Tests that a transposed matrix spans its whole matrix.
          * @see tests/engine/engine/README.md
          */
-        TEST_F(Unit_TensorViewTest, TransposeSpansItsWholeMatrix)
+        TEST_F(Medium_TensorViewTest, TransposeSpansItsWholeMatrix)
         {
             auto parent = engine->create_tensor({3, 5});
             const Tensor t = parent.transpose(0, 1);
@@ -276,7 +276,7 @@ namespace SushiBLAS
          * @brief Tests that the stride-explicit constructor rejects incoherent metadata.
          * @see tests/engine/engine/README.md
          */
-        TEST_F(Unit_TensorViewTest, StrideExplicitConstructorRejectsIncoherentMetadata)
+        TEST_F(Medium_TensorViewTest, StrideExplicitConstructorRejectsIncoherentMetadata)
         {
             auto parent = engine->create_tensor({4, 4});
 

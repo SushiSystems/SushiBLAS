@@ -17,7 +17,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE operands
-    SIZE medium
     TESTS
         test_argument_check.cpp
         test_blas_metadata.cpp

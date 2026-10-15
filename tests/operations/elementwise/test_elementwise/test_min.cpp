@@ -36,9 +36,9 @@
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 using namespace SushiBLAS::Test;
 
-class Unit_MinTest : public SushiBLASTest {};
+class Medium_MinTest : public SushiBLASTest {};
 
-TEST_F(Unit_MinTest, FloatForward) 
+TEST_F(Medium_MinTest, FloatForward) 
 {
     auto a = engine->create_tensor({4});
     auto b = engine->create_tensor({4});
@@ -55,7 +55,7 @@ TEST_F(Unit_MinTest, FloatForward)
 /**
  * @brief Tests that min returns NaN when either operand is NaN.
  */
-TEST_F(Unit_MinTest, NaNInEitherOperandPropagates)
+TEST_F(Medium_MinTest, NaNInEitherOperandPropagates)
 {
     const float nan = std::numeric_limits<float>::quiet_NaN();
     auto a = create_initialized_tensor<float>({3}, {nan, 1.0f, 2.0f});

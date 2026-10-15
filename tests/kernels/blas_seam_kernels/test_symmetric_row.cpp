@@ -117,7 +117,7 @@ namespace SushiBLAS
          * @brief Tests that a row of a packed symmetric or Hermitian matrix is visited from its
          *        first column to its last, each element equal to its indexed read.
          */
-        TEST(Unit_SymmetricRow, APackedRowIsVisitedInColumnOrder)
+        TEST(Small_SymmetricRow, APackedRowIsVisitedInColumnOrder)
         {
             for (const Layout layout : {Layout::RowMajor, Layout::ColumnMajor})
             {
@@ -142,7 +142,7 @@ namespace SushiBLAS
          * @brief Tests that a row of a band-stored symmetric or Hermitian matrix is visited
          *        from its first column inside the band to its last.
          */
-        TEST(Unit_SymmetricRow, ABandRowIsVisitedInColumnOrder)
+        TEST(Small_SymmetricRow, ABandRowIsVisitedInColumnOrder)
         {
             for (const Layout layout : {Layout::RowMajor, Layout::ColumnMajor})
             {

@@ -42,7 +42,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceSpmm, EachColumnOfCIsAProductOfTheMatrixWithAColumnOfB)
+        TEST(Small_ReferenceSpmm, EachColumnOfCIsAProductOfTheMatrixWithAColumnOfB)
         {
             const int64_t rows = 7;
             const int64_t cols = 6;

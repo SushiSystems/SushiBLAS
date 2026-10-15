@@ -42,26 +42,26 @@ namespace SushiBLAS
             return {x[0], x[1], y[0], y[1]};
         }
 
-        TEST(Unit_ReferenceRotm, FlagMinusOneAppliesTheFullMatrix)
+        TEST(Small_ReferenceRotm, FlagMinusOneAppliesTheFullMatrix)
         {
             // H = [h11 h12; h21 h22] = [2 3; 5 7], stored as {flag, h11, h21, h12, h22}.
             EXPECT_EQ(rotated({-1.0, 2.0, 5.0, 3.0, 7.0}),
                       (std::vector<double>{11.0, 16.0, 26.0, 38.0}));
         }
 
-        TEST(Unit_ReferenceRotm, FlagZeroKeepsUnitDiagonals)
+        TEST(Small_ReferenceRotm, FlagZeroKeepsUnitDiagonals)
         {
             EXPECT_EQ(rotated({0.0, 99.0, 5.0, 3.0, 99.0}),
                       (std::vector<double>{10.0, 14.0, 8.0, 14.0}));
         }
 
-        TEST(Unit_ReferenceRotm, FlagOneKeepsTheUnitAndMinusOneOffDiagonals)
+        TEST(Small_ReferenceRotm, FlagOneKeepsTheUnitAndMinusOneOffDiagonals)
         {
             EXPECT_EQ(rotated({1.0, 2.0, 99.0, 99.0, 7.0}),
                       (std::vector<double>{5.0, 8.0, 20.0, 26.0}));
         }
 
-        TEST(Unit_ReferenceRotm, FlagMinusTwoLeavesBothVectors)
+        TEST(Small_ReferenceRotm, FlagMinusTwoLeavesBothVectors)
         {
             EXPECT_EQ(rotated({-2.0, 9.0, 9.0, 9.0, 9.0}),
                       (std::vector<double>{1.0, 2.0, 3.0, 4.0}));

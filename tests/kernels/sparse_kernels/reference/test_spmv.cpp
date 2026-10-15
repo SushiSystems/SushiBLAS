@@ -40,7 +40,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceSpmv, MatchesADenseProductPlainAndTransposed)
+        TEST(Small_ReferenceSpmv, MatchesADenseProductPlainAndTransposed)
         {
             const IntegerCsr a = integer_csr(9, 7, 1, false);
             const Kernels::CsrPattern<int64_t> pattern{a.rows, a.cols, a.nnz(), 0,

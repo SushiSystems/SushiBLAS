@@ -30,7 +30,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE spatial
-    SIZE medium
     TESTS
         test_spatial/test_spatial_broadcast.cpp
         test_spatial/test_spatial_channels.cpp

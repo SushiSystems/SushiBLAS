@@ -61,7 +61,7 @@ namespace SushiBLAS
             }
         };
 
-        TEST(Unit_Task, RecordsOneTaskThatRunsTheArmOfItsDtype)
+        TEST(Medium_Task, RecordsOneTaskThatRunsTheArmOfItsDtype)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
             TaskDescription description;
@@ -77,7 +77,7 @@ namespace SushiBLAS
             EXPECT_EQ(bytes, static_cast<int>(sizeof(double)));
         }
 
-        TEST(Unit_Task, RefusesADtypeItsDomainDoesNotAdmit)
+        TEST(Medium_Task, RefusesADtypeItsDomainDoesNotAdmit)
         {
             GraphProbe probe;
             TaskDescription description;

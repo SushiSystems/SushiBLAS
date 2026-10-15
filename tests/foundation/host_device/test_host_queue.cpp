@@ -33,7 +33,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Device_HostQueue, ReturnsTheSameInOrderQueueOnACPUDevice)
+        TEST(Medium_HostQueueOnDevice, ReturnsTheSameInOrderQueueOnACPUDevice)
         {
             sycl::queue* first = host_queue();
             if (first == nullptr)
@@ -44,7 +44,7 @@ namespace SushiBLAS
             EXPECT_TRUE(first->is_in_order());
         }
 
-        TEST(Unit_HostQueue, IsNullExactlyWhenSYCLReportsNoCPUDevice)
+        TEST(Medium_HostQueue, IsNullExactlyWhenSYCLReportsNoCPUDevice)
         {
             const bool has_cpu = !sycl::device::get_devices(sycl::info::device_type::cpu).empty();
 

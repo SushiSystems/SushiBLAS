@@ -59,7 +59,7 @@ using namespace SushiBLAS::Test;
 using namespace SushiBLAS;
 
 template <typename T>
-class Unit_ReductionOpsTyped : public SushiBLASTest 
+class Medium_ReductionOpsTyped : public SushiBLASTest 
 {
 protected:
     std::vector<T> generate_random_data(size_t size) 
@@ -82,9 +82,9 @@ protected:
 };
 
 using TestTypes = ::testing::Types<float>;
-SB_TYPED_TEST_SUITE(Unit_ReductionOpsTyped, TestTypes);
+SB_TYPED_TEST_SUITE(Medium_ReductionOpsTyped, TestTypes);
 
-TYPED_TEST(Unit_ReductionOpsTyped, Sum) 
+TYPED_TEST(Medium_ReductionOpsTyped, Sum) 
 {
     using T = TypeParam;
     auto data = this->generate_random_data(100);
@@ -99,7 +99,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, Sum)
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
 
-TYPED_TEST(Unit_ReductionOpsTyped, Mean) 
+TYPED_TEST(Medium_ReductionOpsTyped, Mean) 
 {
     using T = TypeParam;
     auto data = this->generate_random_data(100);
@@ -114,7 +114,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, Mean)
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
 
-TYPED_TEST(Unit_ReductionOpsTyped, Max) 
+TYPED_TEST(Medium_ReductionOpsTyped, Max) 
 {
     using T = TypeParam;
     auto data = this->generate_random_data(100);
@@ -130,7 +130,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, Max)
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
 
-TYPED_TEST(Unit_ReductionOpsTyped, Min) 
+TYPED_TEST(Medium_ReductionOpsTyped, Min) 
 {
     using T = TypeParam;
     auto data = this->generate_random_data(100);
@@ -146,7 +146,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, Min)
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
 
-TYPED_TEST(Unit_ReductionOpsTyped, ArgMax) 
+TYPED_TEST(Medium_ReductionOpsTyped, ArgMax) 
 {
     using T = TypeParam;
     auto data = this->generate_random_data(100);
@@ -164,7 +164,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, ArgMax)
     EXPECT_TENSOR_NEAR(res, {static_cast<float>(expected)}, 0.0);
 }
 
-TYPED_TEST(Unit_ReductionOpsTyped, ArgMin) 
+TYPED_TEST(Medium_ReductionOpsTyped, ArgMin) 
 {
     using T = TypeParam;
     auto data = this->generate_random_data(100);
@@ -182,7 +182,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, ArgMin)
     EXPECT_TENSOR_NEAR(res, {static_cast<float>(expected)}, 0.0);
 }
 
-TYPED_TEST(Unit_ReductionOpsTyped, Var) 
+TYPED_TEST(Medium_ReductionOpsTyped, Var) 
 {
     using T = TypeParam;
     auto data = this->generate_random_data(5);
@@ -197,7 +197,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, Var)
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
 
-TYPED_TEST(Unit_ReductionOpsTyped, Std) 
+TYPED_TEST(Medium_ReductionOpsTyped, Std) 
 {
     using T = TypeParam;
     auto data = this->generate_random_data(5);
@@ -212,7 +212,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, Std)
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
 
-TYPED_TEST(Unit_ReductionOpsTyped, Prod) 
+TYPED_TEST(Medium_ReductionOpsTyped, Prod) 
 {
     using T = TypeParam;
     std::vector<T> data = {static_cast<T>(1), static_cast<T>(2), static_cast<T>(3), static_cast<T>(4), static_cast<T>(5)};
@@ -227,7 +227,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, Prod)
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
 
-TYPED_TEST(Unit_ReductionOpsTyped, LogSumExp) 
+TYPED_TEST(Medium_ReductionOpsTyped, LogSumExp) 
 {
     using T = TypeParam;
     std::vector<T> data = {static_cast<T>(1), static_cast<T>(2), static_cast<T>(3)};
@@ -242,7 +242,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, LogSumExp)
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
 
-TYPED_TEST(Unit_ReductionOpsTyped, Asum) 
+TYPED_TEST(Medium_ReductionOpsTyped, Asum) 
 {
     using T = TypeParam;
     auto data = this->generate_random_data(5);
@@ -257,7 +257,7 @@ TYPED_TEST(Unit_ReductionOpsTyped, Asum)
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
 
-TYPED_TEST(Unit_ReductionOpsTyped, Nrm2) 
+TYPED_TEST(Medium_ReductionOpsTyped, Nrm2) 
 {
     using T = TypeParam;
     auto data = this->generate_random_data(4);
@@ -763,7 +763,7 @@ namespace
 }
 
 /// @brief Runs the reduction cases that take their own element types.
-class Unit_ReductionOps : public SushiBLASTest
+class Medium_ReductionOps : public SushiBLASTest
 {
     protected:
         /** @brief Expects record to throw a std::invalid_argument that names ForceReference. */
@@ -867,7 +867,7 @@ class Unit_ReductionOps : public SushiBLASTest
 /**
  * @brief Tests that the real-only reductions refuse integer and complex tensors by dtype name.
  */
-TEST_F(Unit_ReductionOps, NonRealDtypesAreRefusedByName)
+TEST_F(Medium_ReductionOps, NonRealDtypesAreRefusedByName)
 {
     SushiBLAS::ReductionOps reductions(*engine);
 
@@ -897,7 +897,7 @@ TEST_F(Unit_ReductionOps, NonRealDtypesAreRefusedByName)
 /**
  * @brief Tests that a device-only operand is refused under ForceReference on every reduction seam.
  */
-TEST_F(Unit_ReductionOps, ADeviceOnlyOperandIsRefusedOnEverySeam)
+TEST_F(Medium_ReductionOps, ADeviceOnlyOperandIsRefusedOnEverySeam)
 {
     std::optional<Tensor> t = device_only_tensor({4});
     std::optional<Tensor> matrix = device_only_tensor({2, 4});
@@ -937,7 +937,7 @@ TEST_F(Unit_ReductionOps, ADeviceOnlyOperandIsRefusedOnEverySeam)
 /**
  * @brief Tests that a malformed operand is refused with the same message under both forced modes.
  */
-TEST_F(Unit_ReductionOps, MalformedOperandsAreRefusedAlikeInBothModes)
+TEST_F(Medium_ReductionOps, MalformedOperandsAreRefusedAlikeInBothModes)
 {
     auto vector = engine->create_tensor({4});
     auto wide = engine->create_tensor({3});
@@ -956,7 +956,7 @@ TEST_F(Unit_ReductionOps, MalformedOperandsAreRefusedAlikeInBothModes)
 /**
  * @brief Tests that an empty operand writes the identity or is refused, alike under both forced modes.
  */
-TEST_F(Unit_ReductionOps, EmptyOperandsBehaveAlikeInBothModes)
+TEST_F(Medium_ReductionOps, EmptyOperandsBehaveAlikeInBothModes)
 {
     const Tensor empty(SushiRuntime::sushi_ptr<Storage>(), {0, 3});
     auto scalar = engine->create_tensor({1});
@@ -979,7 +979,7 @@ TEST_F(Unit_ReductionOps, EmptyOperandsBehaveAlikeInBothModes)
 /**
  * @brief Tests that a reduction recorded under ForceReference leases no scratch and allocates none.
  */
-TEST_F(Unit_ReductionOps, AReferenceReductionLeasesNoScratch)
+TEST_F(Medium_ReductionOps, AReferenceReductionLeasesNoScratch)
 {
     auto t = create_initialized_tensor<float>({static_cast<int64_t>(K_TWO_STAGE_SIZE)},
                                               parity_values<float>(K_TWO_STAGE_SIZE));
@@ -1015,7 +1015,7 @@ TEST_F(Unit_ReductionOps, AReferenceReductionLeasesNoScratch)
 /**
  * @brief Tests that the host mean of FLOAT32 terms divides its FLOAT64 sum before it narrows.
  */
-TEST_F(Unit_ReductionOps, AHostMeanDividesBeforeItNarrows)
+TEST_F(Medium_ReductionOps, AHostMeanDividesBeforeItNarrows)
 {
     // The sum is 25165831, which FLOAT32 rounds to 25165832; a third of each rounds differently.
     const std::vector<float> values = {16777216.0f, 8388608.0f, 7.0f};
@@ -1045,7 +1045,7 @@ TEST_F(Unit_ReductionOps, AHostMeanDividesBeforeItNarrows)
 /**
  * @brief Tests that argmax and argmin of integers elect the same index on both paths.
  */
-TEST_F(Unit_ReductionOps, IndexReductionsOfIntegersAgreeToTheBit)
+TEST_F(Medium_ReductionOps, IndexReductionsOfIntegersAgreeToTheBit)
 {
     for (std::size_t size : {K_SINGLE_PASS_SIZE, K_TWO_STAGE_SIZE})
     {
@@ -1076,7 +1076,7 @@ TEST_F(Unit_ReductionOps, IndexReductionsOfIntegersAgreeToTheBit)
 /**
  * @brief Tests logsumexp on an infinite maximum, on a NaN and on two large equal elements.
  */
-TEST_F(Unit_ReductionOps, LogSumExpHandlesInfiniteAndNaNInputs)
+TEST_F(Medium_ReductionOps, LogSumExpHandlesInfiniteAndNaNInputs)
 {
     expect_logsumexp({0.0f, K_INF}, K_INF);
     expect_logsumexp({-K_INF, -K_INF}, -K_INF);
@@ -1089,7 +1089,7 @@ TEST_F(Unit_ReductionOps, LogSumExpHandlesInfiniteAndNaNInputs)
 /**
  * @brief Tests the tie and NaN rules of argmax and argmin in both launch shapes.
  */
-TEST_F(Unit_ReductionOps, ArgMaxAndArgMinFollowTheScanRule)
+TEST_F(Medium_ReductionOps, ArgMaxAndArgMinFollowTheScanRule)
 {
     for (std::size_t size : {K_SINGLE_PASS_SIZE, K_TWO_STAGE_SIZE})
     {
@@ -1120,19 +1120,19 @@ TEST_F(Unit_ReductionOps, ArgMaxAndArgMinFollowTheScanRule)
 
 /// @brief Runs the var and std cases once per real element type.
 template<typename T>
-class Unit_ReductionMomentsTyped : public SushiBLASTest
+class Medium_ReductionMomentsTyped : public SushiBLASTest
 {
 
 };
 
 /// @brief Names the element types the moment cases run over.
 using MomentTypes = ::testing::Types<sycl::half, float, double>;
-SB_TYPED_TEST_SUITE(Unit_ReductionMomentsTyped, MomentTypes);
+SB_TYPED_TEST_SUITE(Medium_ReductionMomentsTyped, MomentTypes);
 
 /**
  * @brief Tests that var and std stay within four ulp of a two-pass host computation.
  */
-TYPED_TEST(Unit_ReductionMomentsTyped, VarianceMatchesATwoPassHostReference)
+TYPED_TEST(Medium_ReductionMomentsTyped, VarianceMatchesATwoPassHostReference)
 {
     using T = TypeParam;
 
@@ -1171,7 +1171,7 @@ TYPED_TEST(Unit_ReductionMomentsTyped, VarianceMatchesATwoPassHostReference)
 
 /// @brief Runs each parity case once per real element type, on both paths of a reduction.
 template<typename T>
-class Unit_ReductionReferenceTyped : public SushiBLASTest
+class Medium_ReductionReferenceTyped : public SushiBLASTest
 {
     protected:
         /** @brief Builds the engine and skips a HALF case on a device without fp16. */
@@ -1187,12 +1187,12 @@ class Unit_ReductionReferenceTyped : public SushiBLASTest
 
 /// @brief Names the element types the parity cases run over.
 using ParityTypes = ::testing::Types<sycl::half, float, double>;
-SB_TYPED_TEST_SUITE(Unit_ReductionReferenceTyped, ParityTypes);
+SB_TYPED_TEST_SUITE(Medium_ReductionReferenceTyped, ParityTypes);
 
 /**
  * @brief Tests that the SYCL result of each sum is within the rounding bound of its host result.
  */
-TYPED_TEST(Unit_ReductionReferenceTyped, SumsAgreeWithTheirReferencePathWithinTheBound)
+TYPED_TEST(Medium_ReductionReferenceTyped, SumsAgreeWithTheirReferencePathWithinTheBound)
 {
     using T = TypeParam;
     Engine& engine = *this->engine;
@@ -1216,7 +1216,7 @@ TYPED_TEST(Unit_ReductionReferenceTyped, SumsAgreeWithTheirReferencePathWithinTh
 /**
  * @brief Tests that sums of small integers, which no path rounds, come out with equal bits.
  */
-TYPED_TEST(Unit_ReductionReferenceTyped, SumsOfSmallIntegersAgreeToTheBit)
+TYPED_TEST(Medium_ReductionReferenceTyped, SumsOfSmallIntegersAgreeToTheBit)
 {
     using T = TypeParam;
     Engine& engine = *this->engine;
@@ -1243,7 +1243,7 @@ TYPED_TEST(Unit_ReductionReferenceTyped, SumsOfSmallIntegersAgreeToTheBit)
 /**
  * @brief Tests that the reductions whose result does not depend on the fold order agree to the bit.
  */
-TYPED_TEST(Unit_ReductionReferenceTyped, OrderFreeReductionsAgreeToTheBit)
+TYPED_TEST(Medium_ReductionReferenceTyped, OrderFreeReductionsAgreeToTheBit)
 {
     using T = TypeParam;
     Engine& engine = *this->engine;
@@ -1293,7 +1293,7 @@ TYPED_TEST(Unit_ReductionReferenceTyped, OrderFreeReductionsAgreeToTheBit)
 /**
  * @brief Tests that var and std of the two paths differ by no more than both allowances together.
  */
-TYPED_TEST(Unit_ReductionReferenceTyped, MomentsAgreeWithTheirReferencePath)
+TYPED_TEST(Medium_ReductionReferenceTyped, MomentsAgreeWithTheirReferencePath)
 {
     using T = TypeParam;
     Engine& engine = *this->engine;
@@ -1331,7 +1331,7 @@ TYPED_TEST(Unit_ReductionReferenceTyped, MomentsAgreeWithTheirReferencePath)
 /**
  * @brief Tests that prod and nrm2 of the two paths stay within their rounding allowances.
  */
-TYPED_TEST(Unit_ReductionReferenceTyped, ProductAndNormAgreeWithinTheirBounds)
+TYPED_TEST(Medium_ReductionReferenceTyped, ProductAndNormAgreeWithinTheirBounds)
 {
     using T = TypeParam;
     Engine& engine = *this->engine;
@@ -1369,7 +1369,7 @@ TYPED_TEST(Unit_ReductionReferenceTyped, ProductAndNormAgreeWithinTheirBounds)
 /**
  * @brief Tests that logsumexp of the two paths agrees, on finite terms and on its special values.
  */
-TYPED_TEST(Unit_ReductionReferenceTyped, LogSumExpAgreesWithItsReferencePath)
+TYPED_TEST(Medium_ReductionReferenceTyped, LogSumExpAgreesWithItsReferencePath)
 {
     using T = TypeParam;
     Engine& engine = *this->engine;

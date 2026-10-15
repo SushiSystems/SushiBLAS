@@ -48,12 +48,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs the triangular solve on the host CPU queue. */
-        class Device_SYCLTriangularSolve : public HostDeviceTest
+        class Medium_SYCLTriangularSolve : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLTriangularSolve, RecoversTheSolutionTheReferenceRecovers)
+        TEST_F(Medium_SYCLTriangularSolve, RecoversTheSolutionTheReferenceRecovers)
         {
             const int64_t n = 70;
             // A unit diagonal keeps every substitution exact in integers.

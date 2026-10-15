@@ -67,7 +67,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Supplies an engine and removes the files a test wrote. */
-        class Unit_SpatialRandomIOValidationTest : public SushiBLASTest
+        class Medium_SpatialRandomIOValidationTest : public SushiBLASTest
         {
             protected:
                 /** @brief Removes every file the test asked for, then tears the engine down. */
@@ -102,7 +102,7 @@ namespace SushiBLAS
                 std::vector<std::string> paths_;
         };
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, GeometryWithZeroStrideIsRefused)
+        TEST_F(Medium_SpatialRandomIOValidationTest, GeometryWithZeroStrideIsRefused)
         {
             auto in = image(1, 2, 2, 1, {1.0f, 2.0f, 3.0f, 4.0f});
             auto out = engine->create_tensor({1, 1, 1, 1}, Core::DataType::Float32);
@@ -117,7 +117,7 @@ namespace SushiBLAS
                 std::invalid_argument);
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, PoolingWindowMadeOnlyOfPaddingIsRefused)
+        TEST_F(Medium_SpatialRandomIOValidationTest, PoolingWindowMadeOnlyOfPaddingIsRefused)
         {
             // Window 0 covers rows -2 and -1 of a 2-row input: both taps are padding.
             auto in = image(1, 2, 2, 1, {1.0f, 2.0f, 3.0f, 4.0f});
@@ -134,7 +134,7 @@ namespace SushiBLAS
                 std::invalid_argument);
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, PoolMaxRefusesAStridedIndexTensor)
+        TEST_F(Medium_SpatialRandomIOValidationTest, PoolMaxRefusesAStridedIndexTensor)
         {
             auto in = image(1, 2, 2, 1, {1.0f, 2.0f, 3.0f, 4.0f});
             auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
@@ -146,7 +146,7 @@ namespace SushiBLAS
                 std::invalid_argument);
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, PoolMaxPropagatesANaNTap)
+        TEST_F(Medium_SpatialRandomIOValidationTest, PoolMaxPropagatesANaNTap)
         {
             constexpr int64_t K_NAN_INDEX = 1;
 
@@ -165,7 +165,7 @@ namespace SushiBLAS
             EXPECT_EQ(indices.data_as<int64_t>()[0], K_NAN_INDEX);
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, UniformNeverReturnsItsUpperBound)
+        TEST_F(Medium_SpatialRandomIOValidationTest, UniformNeverReturnsItsUpperBound)
         {
             auto t = engine->create_tensor({K_UNIFORM_DRAWS}, Core::DataType::Float32);
 
@@ -181,7 +181,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, PoissonRefusesALambdaAboveTheCap)
+        TEST_F(Medium_SpatialRandomIOValidationTest, PoissonRefusesALambdaAboveTheCap)
         {
             auto t = engine->create_tensor({4}, Core::DataType::Float32);
 
@@ -190,7 +190,7 @@ namespace SushiBLAS
                 std::invalid_argument);
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, PoissonRefusesANegativeLambda)
+        TEST_F(Medium_SpatialRandomIOValidationTest, PoissonRefusesANegativeLambda)
         {
             auto t = engine->create_tensor({4}, Core::DataType::Float32);
 
@@ -199,7 +199,7 @@ namespace SushiBLAS
                 std::invalid_argument);
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, PoolMaxBackwardRefusesATransposedOutputGradient)
+        TEST_F(Medium_SpatialRandomIOValidationTest, PoolMaxBackwardRefusesATransposedOutputGradient)
         {
             auto dense = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
             const Tensor dy = dense.transpose(1, 2);
@@ -212,7 +212,7 @@ namespace SushiBLAS
                 std::invalid_argument);
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, PoolMaxOfAnAllNegativeInfinityWindowIsNegativeInfinity)
+        TEST_F(Medium_SpatialRandomIOValidationTest, PoolMaxOfAnAllNegativeInfinityWindowIsNegativeInfinity)
         {
             constexpr int64_t K_FIRST_TAP_INDEX = 0;
 
@@ -231,7 +231,7 @@ namespace SushiBLAS
             EXPECT_EQ(indices.data_as<int64_t>()[0], K_FIRST_TAP_INDEX);
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, BernoulliWithZeroProbabilityFillsZeros)
+        TEST_F(Medium_SpatialRandomIOValidationTest, BernoulliWithZeroProbabilityFillsZeros)
         {
             auto t = engine->create_tensor({K_BERNOULLI_DRAWS}, Core::DataType::Float32);
 
@@ -244,7 +244,7 @@ namespace SushiBLAS
                 ASSERT_EQ(p[i], 0.0f) << "at index " << i;
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, BernoulliWithUnitProbabilityFillsOnes)
+        TEST_F(Medium_SpatialRandomIOValidationTest, BernoulliWithUnitProbabilityFillsOnes)
         {
             auto t = engine->create_tensor({K_BERNOULLI_DRAWS}, Core::DataType::Float32);
 
@@ -257,14 +257,14 @@ namespace SushiBLAS
                 ASSERT_EQ(p[i], 1.0f) << "at index " << i;
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, UniformRefusesBoundsOutOfOrder)
+        TEST_F(Medium_SpatialRandomIOValidationTest, UniformRefusesBoundsOutOfOrder)
         {
             auto t = engine->create_tensor({4}, Core::DataType::Float32);
 
             EXPECT_THROW(SushiBLAS::RandomOps(*engine).uniform(t, 1.0, 0.0), std::invalid_argument);
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, UniformRefusesANonFiniteBound)
+        TEST_F(Medium_SpatialRandomIOValidationTest, UniformRefusesANonFiniteBound)
         {
             auto t = engine->create_tensor({4}, Core::DataType::Float64);
             const double inf = std::numeric_limits<double>::infinity();
@@ -274,7 +274,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::RandomOps(*engine).uniform(t, nan, 1.0), std::invalid_argument);
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, UniformRefusesAWidthThatOverflowsTheDtype)
+        TEST_F(Medium_SpatialRandomIOValidationTest, UniformRefusesAWidthThatOverflowsTheDtype)
         {
             auto single = engine->create_tensor({4}, Core::DataType::Float32);
             auto wide = engine->create_tensor({4}, Core::DataType::Float64);
@@ -289,7 +289,7 @@ namespace SushiBLAS
                 std::invalid_argument);
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, UniformWithEqualBoundsFillsThatBound)
+        TEST_F(Medium_SpatialRandomIOValidationTest, UniformWithEqualBoundsFillsThatBound)
         {
             auto t = engine->create_tensor({8}, Core::DataType::Float32);
 
@@ -301,7 +301,7 @@ namespace SushiBLAS
                 ASSERT_EQ(p[i], static_cast<float>(K_DEGENERATE_BOUND)) << "at index " << i;
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, DiscreteUniformIntoFloat32RefusesBoundsPastTwoToTheTwentyFour)
+        TEST_F(Medium_SpatialRandomIOValidationTest, DiscreteUniformIntoFloat32RefusesBoundsPastTwoToTheTwentyFour)
         {
             auto t = engine->create_tensor({4}, Core::DataType::Float32);
 
@@ -316,7 +316,7 @@ namespace SushiBLAS
                 std::invalid_argument);
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, IntegerValuedFillsRefuseAComplexTensor)
+        TEST_F(Medium_SpatialRandomIOValidationTest, IntegerValuedFillsRefuseAComplexTensor)
         {
             auto z = engine->create_tensor({4}, Core::DataType::Complex32);
 
@@ -327,7 +327,7 @@ namespace SushiBLAS
             EXPECT_THROW(SushiBLAS::RandomOps(*engine).bernoulli(z, 0.5), std::invalid_argument);
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, ToStringReadsATransposedViewThroughItsStrides)
+        TEST_F(Medium_SpatialRandomIOValidationTest, ToStringReadsATransposedViewThroughItsStrides)
         {
             // Row-major 2x3 holds 0..5; its transpose (i, j) reads memory i + 3j.
             auto source = create_initialized_tensor<float>({2, 3},
@@ -341,7 +341,7 @@ namespace SushiBLAS
             EXPECT_NE(text.find("[2.0, 5.0]"), std::string::npos) << text;
         }
 
-        TEST_F(Unit_SpatialRandomIOValidationTest, SaveThenLoadReturnsTheOriginalValues)
+        TEST_F(Medium_SpatialRandomIOValidationTest, SaveThenLoadReturnsTheOriginalValues)
         {
             const std::vector<float> values{1.5f, -2.25f, 3.0f, 4.75f};
             const std::string path = temp_path("round_trip.sushi");

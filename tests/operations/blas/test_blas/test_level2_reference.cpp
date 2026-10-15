@@ -43,7 +43,7 @@ namespace SushiBLAS
         /**
          * @brief Runs every Level 2 call of a test on the reference kernels.
          */
-        class Unit_Level2ReferenceTest : public SushiBLASTest
+        class Medium_Level2ReferenceTest : public SushiBLASTest
         {
             protected:
                 /** @brief Builds the engine and forces the reference path. */
@@ -70,7 +70,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_Level2ReferenceTest, GemvScalesAndAccumulates)
+        TEST_F(Medium_Level2ReferenceTest, GemvScalesAndAccumulates)
         {
             const std::vector<float> K_EXPECTED = {1.0f, 6.0f};
 
@@ -84,7 +84,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, GemvTransposed)
+        TEST_F(Medium_Level2ReferenceTest, GemvTransposed)
         {
             const std::vector<float> K_EXPECTED = {-2.0f, -1.0f, 0.0f};
 
@@ -98,7 +98,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, GerAddsTheScaledOuterProduct)
+        TEST_F(Medium_Level2ReferenceTest, GerAddsTheScaledOuterProduct)
         {
             const std::vector<float> K_EXPECTED = {7.0f, -1.0f, 2.0f,
                                                    13.0f, -3.0f, 3.0f};
@@ -113,7 +113,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(A, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, SymvReadsOnlyTheUpperTriangle)
+        TEST_F(Medium_Level2ReferenceTest, SymvReadsOnlyTheUpperTriangle)
         {
             const std::vector<float> K_EXPECTED = {5.0f, 8.0f, 10.0f};
 
@@ -129,7 +129,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, SymvReadsOnlyTheLowerTriangleAndAccumulates)
+        TEST_F(Medium_Level2ReferenceTest, SymvReadsOnlyTheLowerTriangleAndAccumulates)
         {
             const std::vector<float> K_EXPECTED = {11.0f, 17.0f, 21.0f};
 
@@ -145,7 +145,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(y, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, SyrWritesOnlyTheUpperTriangle)
+        TEST_F(Medium_Level2ReferenceTest, SyrWritesOnlyTheUpperTriangle)
         {
             const std::vector<float> K_EXPECTED = {1.0f, 2.0f, 3.0f,
                                                    K_POISON, 4.0f, 6.0f,
@@ -162,7 +162,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(A, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, SyrWritesOnlyTheLowerTriangle)
+        TEST_F(Medium_Level2ReferenceTest, SyrWritesOnlyTheLowerTriangle)
         {
             const std::vector<float> K_EXPECTED = {3.0f, K_POISON, K_POISON,
                                                    5.0f, 9.0f, K_POISON,
@@ -179,7 +179,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(A, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, Syr2WritesOnlyTheUpperTriangle)
+        TEST_F(Medium_Level2ReferenceTest, Syr2WritesOnlyTheUpperTriangle)
         {
             const std::vector<float> K_EXPECTED = {0.0f, 1.0f, 1.0f,
                                                    K_POISON, 0.0f, 2.0f,
@@ -197,7 +197,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(A, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, Syr2WritesOnlyTheLowerTriangle)
+        TEST_F(Medium_Level2ReferenceTest, Syr2WritesOnlyTheLowerTriangle)
         {
             const std::vector<float> K_EXPECTED = {0.0f, K_POISON, K_POISON,
                                                    0.5f, 0.0f, K_POISON,
@@ -215,7 +215,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(A, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, TrmvUpperNoTranspose)
+        TEST_F(Medium_Level2ReferenceTest, TrmvUpperNoTranspose)
         {
             const std::vector<float> K_EXPECTED = {9.0f, 14.0f, 12.0f};
 
@@ -230,7 +230,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, TrmvUpperTransposed)
+        TEST_F(Medium_Level2ReferenceTest, TrmvUpperTransposed)
         {
             const std::vector<float> K_EXPECTED = {1.0f, 6.0f, 20.0f};
 
@@ -245,7 +245,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, TrmvUpperUnitDiagonal)
+        TEST_F(Medium_Level2ReferenceTest, TrmvUpperUnitDiagonal)
         {
             const std::vector<float> K_EXPECTED = {9.0f, 11.0f, 2.0f};
 
@@ -260,7 +260,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, TrmvLowerNoTranspose)
+        TEST_F(Medium_Level2ReferenceTest, TrmvLowerNoTranspose)
         {
             const std::vector<float> K_EXPECTED = {1.0f, 6.0f, 20.0f};
 
@@ -275,7 +275,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, TrmvLowerTransposed)
+        TEST_F(Medium_Level2ReferenceTest, TrmvLowerTransposed)
         {
             const std::vector<float> K_EXPECTED = {9.0f, 14.0f, 12.0f};
 
@@ -290,7 +290,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, TrmvLowerTransposedUnitDiagonal)
+        TEST_F(Medium_Level2ReferenceTest, TrmvLowerTransposedUnitDiagonal)
         {
             const std::vector<float> K_EXPECTED = {9.0f, 11.0f, 2.0f};
 
@@ -305,7 +305,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(x, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, TrsvUpperNoTranspose)
+        TEST_F(Medium_Level2ReferenceTest, TrsvUpperNoTranspose)
         {
             const std::vector<float> K_EXPECTED = {1.0f, 1.0f, 2.0f};
 
@@ -320,7 +320,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, TrsvUpperTransposed)
+        TEST_F(Medium_Level2ReferenceTest, TrsvUpperTransposed)
         {
             const std::vector<float> K_EXPECTED = {1.0f, 1.0f, 2.0f};
 
@@ -335,7 +335,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, TrsvUpperUnitDiagonal)
+        TEST_F(Medium_Level2ReferenceTest, TrsvUpperUnitDiagonal)
         {
             const std::vector<float> K_EXPECTED = {1.0f, 1.0f, 2.0f};
 
@@ -350,7 +350,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, TrsvLowerNoTranspose)
+        TEST_F(Medium_Level2ReferenceTest, TrsvLowerNoTranspose)
         {
             const std::vector<float> K_EXPECTED = {1.0f, 1.0f, 2.0f};
 
@@ -365,7 +365,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, TrsvLowerTransposed)
+        TEST_F(Medium_Level2ReferenceTest, TrsvLowerTransposed)
         {
             const std::vector<float> K_EXPECTED = {1.0f, 1.0f, 2.0f};
 
@@ -380,7 +380,7 @@ namespace SushiBLAS
             EXPECT_TENSOR_NEAR(b, K_EXPECTED, K_TOLERANCE);
         }
 
-        TEST_F(Unit_Level2ReferenceTest, TrsvLowerTransposedUnitDiagonal)
+        TEST_F(Medium_Level2ReferenceTest, TrsvLowerTransposedUnitDiagonal)
         {
             const std::vector<float> K_EXPECTED = {1.0f, 1.0f, 2.0f};
 

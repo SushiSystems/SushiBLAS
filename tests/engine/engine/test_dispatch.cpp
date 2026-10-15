@@ -54,7 +54,7 @@ namespace SushiBLAS
             }
         };
 
-        TEST(Unit_Dispatch, TheDomainsAreBitsAndTheirUnions)
+        TEST(Medium_Dispatch, TheDomainsAreBitsAndTheirUnions)
         {
             EXPECT_TRUE(Dispatch::domain_admits(Domain::RealAndComplex, Domain::Complex));
             EXPECT_FALSE(Dispatch::domain_admits(Domain::RealAndComplex, Domain::Integral));
@@ -62,7 +62,7 @@ namespace SushiBLAS
             EXPECT_FALSE(Dispatch::domain_admits(Domain::Real, Domain::Complex));
         }
 
-        TEST(Unit_Dispatch, EveryDtypeBelongsToItsDomain)
+        TEST(Medium_Dispatch, EveryDtypeBelongsToItsDomain)
         {
             EXPECT_EQ(Dispatch::domain_of(Core::DataType::Half), Domain::Real);
             EXPECT_EQ(Dispatch::domain_of(Core::DataType::Float64), Domain::Real);
@@ -70,7 +70,7 @@ namespace SushiBLAS
             EXPECT_EQ(Dispatch::domain_of(Core::DataType::Int64), Domain::Integral);
         }
 
-        TEST(Unit_Dispatch, RequireDomainRefusesADtypeOutsideIt)
+        TEST(Medium_Dispatch, RequireDomainRefusesADtypeOutsideIt)
         {
             EXPECT_NO_THROW(Dispatch::require_domain<Domain::Real>(Core::DataType::Float32, "f",
                                                                    "op"));
@@ -78,7 +78,7 @@ namespace SushiBLAS
                                                                     "op"));
         }
 
-        TEST(Unit_Dispatch, WithElementTypeCallsTheArmForTheDtypesType)
+        TEST(Medium_Dispatch, WithElementTypeCallsTheArmForTheDtypesType)
         {
             int bytes = 0;
 
@@ -91,7 +91,7 @@ namespace SushiBLAS
             EXPECT_EQ(bytes, static_cast<int>(sizeof(sycl::half)));
         }
 
-        TEST(Unit_Dispatch, WithElementTypeThrowsForADtypeTheDomainDoesNotServe)
+        TEST(Medium_Dispatch, WithElementTypeThrowsForADtypeTheDomainDoesNotServe)
         {
             int bytes = 0;
 
@@ -100,7 +100,7 @@ namespace SushiBLAS
             EXPECT_EQ(bytes, 0);
         }
 
-        TEST(Unit_Dispatch, SetTaskParamsFillsTheSlotsInOrderAndRefusesTooMany)
+        TEST(Medium_Dispatch, SetTaskParamsFillsTheSlotsInOrderAndRefusesTooMany)
         {
             TaskDescription description;
 

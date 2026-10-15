@@ -39,7 +39,7 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Builds compressed vectors on the fixture's engine. */
-        class Unit_SparseVectorOperand : public SushiBLASTest
+        class Medium_SparseVectorOperand : public SushiBLASTest
         {
             protected:
                 /** @brief Returns a zero-based vector of a size storing a count of entries. */
@@ -53,7 +53,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_SparseVectorOperand, DescribesItsSizeEntriesAndFirstIndex)
+        TEST_F(Medium_SparseVectorOperand, DescribesItsSizeEntriesAndFirstIndex)
         {
             const Dispatch::SparseVectorOperand v =
                 Dispatch::describe_sparse_vector(compressed(10, 3), "op", "x");
@@ -63,7 +63,7 @@ namespace SushiBLAS
             EXPECT_EQ(v.first_index, int64_t{0});
         }
 
-        TEST_F(Unit_SparseVectorOperand, RefusesANegativeSizeAndMoreEntriesThanPositions)
+        TEST_F(Medium_SparseVectorOperand, RefusesANegativeSizeAndMoreEntriesThanPositions)
         {
             EXPECT_THROW((void)Dispatch::describe_sparse_vector(compressed(-1, 0), "op", "x"),
                          std::invalid_argument);

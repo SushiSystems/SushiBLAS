@@ -39,7 +39,7 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Builds CSR matrices on the fixture's engine. */
-        class Unit_SparseMatrixOperand : public SushiBLASTest
+        class Medium_SparseMatrixOperand : public SushiBLASTest
         {
             protected:
                 /** @brief Returns a 3 x 4 one-based matrix of five entries with INT32 indices. */
@@ -56,7 +56,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_SparseMatrixOperand, DescribesItsExtentsEntriesAndFirstIndex)
+        TEST_F(Medium_SparseMatrixOperand, DescribesItsExtentsEntriesAndFirstIndex)
         {
             const Dispatch::SparseMatrixOperand m =
                 Dispatch::describe_sparse_matrix(three_by_four(), "op", "A");
@@ -67,7 +67,7 @@ namespace SushiBLAS
             EXPECT_EQ(m.first_index, int64_t{1});
         }
 
-        TEST_F(Unit_SparseMatrixOperand, RefusesAWrongOffsetCountAndMixedIndexDtypes)
+        TEST_F(Medium_SparseMatrixOperand, RefusesAWrongOffsetCountAndMixedIndexDtypes)
         {
             SparseMatrix short_offsets = three_by_four();
             short_offsets.row_offsets = engine->create_tensor({3}, Core::DataType::Int32);

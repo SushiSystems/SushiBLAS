@@ -50,12 +50,12 @@ namespace SushiBLAS
         constexpr std::size_t K_COUNT = 4096;
 
         /** @brief Runs the dispatcher on the host CPU queue. */
-        class Device_CentredReduction : public HostDeviceTest
+        class Medium_CentredReduction : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_CentredReduction, TheReferenceVarianceOfOneToFiveIsTwo)
+        TEST_F(Medium_CentredReduction, TheReferenceVarianceOfOneToFiveIsTwo)
         {
             const std::vector<double> values{1, 2, 3, 4, 5};
             double variance = 0;
@@ -65,7 +65,7 @@ namespace SushiBLAS
             EXPECT_EQ(variance, 2.0);
         }
 
-        TEST_F(Device_CentredReduction, TheTermsCentreOnTheValueTheyAreGiven)
+        TEST_F(Medium_CentredReduction, TheTermsCentreOnTheValueTheyAreGiven)
         {
             const double centre = 3.0;
 
@@ -75,7 +75,7 @@ namespace SushiBLAS
             EXPECT_EQ(Dispatch::ExpBelowCentre<double>{&centre}(3.0), 1.0);
         }
 
-        TEST_F(Device_CentredReduction, TheSYCLVarianceEqualsTheReference)
+        TEST_F(Medium_CentredReduction, TheSYCLVarianceEqualsTheReference)
         {
             const SharedArray<double> in(queue(), small_integers<double>(K_COUNT, 9));
             SharedArray<double> out(queue(), 1);

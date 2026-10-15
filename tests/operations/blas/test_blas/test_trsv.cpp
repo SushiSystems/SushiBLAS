@@ -35,9 +35,9 @@
 
 using namespace SushiBLAS::Test;
 
-class Unit_TRSVTest : public SushiBLASTest {};
+class Medium_TRSVTest : public SushiBLASTest {};
 
-TEST_F(Unit_TRSVTest, SimpleTRSV) 
+TEST_F(Medium_TRSVTest, SimpleTRSV) 
 {
     const int N = 3;
     auto A = engine->create_tensor({N, N});
@@ -76,7 +76,7 @@ namespace
     const std::vector<float> K_SOLUTION = {1, 2, 3};
 }
 
-class Unit_TRSVPoisonTest : public SushiBLASTest
+class Medium_TRSVPoisonTest : public SushiBLASTest
 {
     protected:
         /**
@@ -98,25 +98,25 @@ class Unit_TRSVPoisonTest : public SushiBLASTest
         }
 };
 
-TEST_F(Unit_TRSVPoisonTest, LowerNoTranspose)
+TEST_F(Medium_TRSVPoisonTest, LowerNoTranspose)
 {
     // L * [1 2 3] = [2, 7, 35].
     expect_trsv(K_LOWER, false, false, {2, 7, 35});
 }
 
-TEST_F(Unit_TRSVPoisonTest, LowerTranspose)
+TEST_F(Medium_TRSVPoisonTest, LowerTranspose)
 {
     // L^T * [1 2 3] = [16, 21, 21].
     expect_trsv(K_LOWER, false, true, {16, 21, 21});
 }
 
-TEST_F(Unit_TRSVPoisonTest, UpperNoTranspose)
+TEST_F(Medium_TRSVPoisonTest, UpperNoTranspose)
 {
     // U * [1 2 3] = [14, 23, 18].
     expect_trsv(K_UPPER, true, false, {14, 23, 18});
 }
 
-TEST_F(Unit_TRSVPoisonTest, UpperTranspose)
+TEST_F(Medium_TRSVPoisonTest, UpperTranspose)
 {
     // U^T * [1 2 3] = [1, 10, 31].
     expect_trsv(K_UPPER, true, true, {1, 10, 31});

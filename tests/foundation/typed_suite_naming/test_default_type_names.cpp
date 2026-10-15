@@ -34,7 +34,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_DefaultTypeNames, NamesATypeByItsIndex)
+        TEST(Small_DefaultTypeNames, NamesATypeByItsIndex)
         {
             EXPECT_EQ(DefaultTypeNames::GetName<float>(0), "0");
             EXPECT_EQ(DefaultTypeNames::GetName<double>(12), "12");
@@ -42,21 +42,21 @@ namespace SushiBLAS
 
         /** @brief Runs one test per element type through SB_TYPED_TEST_SUITE. */
         template<typename T>
-        class Unit_TypedSuiteNaming : public ::testing::Test
+        class Small_TypedSuiteNaming : public ::testing::Test
         {
 
         };
 
         /// @brief The types the typed suite below runs over.
         using NamedTypes = ::testing::Types<int32_t, double>;
-        SB_TYPED_TEST_SUITE(Unit_TypedSuiteNaming, NamedTypes);
+        SB_TYPED_TEST_SUITE(Small_TypedSuiteNaming, NamedTypes);
 
-        TYPED_TEST(Unit_TypedSuiteNaming, EachTypeGetsItsOwnSuite)
+        TYPED_TEST(Small_TypedSuiteNaming, EachTypeGetsItsOwnSuite)
         {
             const std::string suite =
                 ::testing::UnitTest::GetInstance()->current_test_info()->test_suite_name();
 
-            EXPECT_TRUE(suite == "Unit_TypedSuiteNaming/0" || suite == "Unit_TypedSuiteNaming/1")
+            EXPECT_TRUE(suite == "Small_TypedSuiteNaming/0" || suite == "Small_TypedSuiteNaming/1")
                 << suite;
         }
     } // namespace Test

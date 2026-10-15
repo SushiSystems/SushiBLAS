@@ -75,7 +75,6 @@ in [the backlog](../design/REMAINING_WORK.md).
 | The build jobs check out SushiRuntime beside this repository and pins no tag of it, so it builds only while the runtime's default branch carries the interface this tree is written against (`Runtime::buffer` with an alignment, `Recorder::task`, `Graph::plan()`) | `.github/workflows/ci.yml`, `cmake/Runtime.cmake` |
 | The Windows, sanitizer, ThreadSanitizer and SushiAI jobs, the `sb` calls on a runner and `nightly.yml` have never run | `.github/workflows/ci.yml`, `.github/workflows/nightly.yml` |
 | The Linux build of the small and medium tests took 48 minutes without a compiler cache, above the pre-merge budget of 45; its timeout is 90 minutes until the ccache numbers are known | `.github/workflows/ci.yml` |
-| Size is declared per test program, so a program whose tests mostly need no device is `medium` as a whole, and `small` covers seven programs | `cmake/SushiBLASTests.cmake` |
 | The release workflow has never run | `.github/workflows/release.yml` |
 
 ## Release state

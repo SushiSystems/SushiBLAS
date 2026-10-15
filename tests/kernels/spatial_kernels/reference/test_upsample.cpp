@@ -53,7 +53,7 @@ namespace SushiBLAS
             return span;
         }
 
-        TEST(Unit_ReferenceUpsample, RepeatsEachPixelOverItsBlock)
+        TEST(Small_ReferenceUpsample, RepeatsEachPixelOverItsBlock)
         {
             const Spatial::WindowSpan span = upsample_span(1, 1, 2, 1, 2, 2);
             const std::vector<float> in{1.0f, 2.0f};
@@ -64,7 +64,7 @@ namespace SushiBLAS
             EXPECT_EQ(out, (std::vector<float>{1, 1, 2, 2, 1, 1, 2, 2}));
         }
 
-        TEST(Unit_ReferenceUpsample, TheBackwardIsTheAdjoint)
+        TEST(Small_ReferenceUpsample, TheBackwardIsTheAdjoint)
         {
             const Spatial::WindowSpan span = upsample_span(2, 3, 4, 2, 3, 2);
             const std::vector<double> x = small_integers<double>(span.input_elements(), 1);

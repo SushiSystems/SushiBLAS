@@ -34,7 +34,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_Traits, IsComplexHoldsForEveryStdComplex)
+        TEST(Small_Traits, IsComplexHoldsForEveryStdComplex)
         {
             static_assert(Core::is_complex_v<std::complex<float>>, "complex<float> is complex.");
             static_assert(Core::is_complex_v<std::complex<double>>, "complex<double> is complex.");
@@ -44,7 +44,7 @@ namespace SushiBLAS
             EXPECT_TRUE(Core::is_complex_v<std::complex<double>>);
         }
 
-        TEST(Unit_Traits, IsComplexIsFalseForRealAndIntegerTypes)
+        TEST(Small_Traits, IsComplexIsFalseForRealAndIntegerTypes)
         {
             static_assert(!Core::is_complex_v<float>, "float is real.");
             static_assert(!Core::is_complex_v<double>, "double is real.");
@@ -55,7 +55,7 @@ namespace SushiBLAS
             EXPECT_FALSE(Core::is_complex_v<int64_t>);
         }
 
-        TEST(Unit_Traits, IsComplexReadsThePlainTypeOnly)
+        TEST(Small_Traits, IsComplexReadsThePlainTypeOnly)
         {
             static_assert(!Core::is_complex_v<const std::complex<float>>,
                           "A qualified complex is not matched.");

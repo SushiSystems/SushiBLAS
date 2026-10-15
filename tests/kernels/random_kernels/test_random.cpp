@@ -36,7 +36,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_RandomKernels, TheDrawsAndTheReferenceSweepAreReachable)
+        TEST(Medium_RandomKernels, TheDrawsAndTheReferenceSweepAreReachable)
         {
             using Block = std::array<uint32_t, 4>;
             std::vector<double> p{3.0, 4.0};

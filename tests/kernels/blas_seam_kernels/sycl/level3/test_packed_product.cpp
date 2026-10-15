@@ -68,12 +68,12 @@ namespace SushiBLAS
         };
 
         /** @brief Runs the packed product on the host CPU queue. */
-        class Device_SYCLPackedProduct : public HostDeviceTest
+        class Medium_SYCLPackedProduct : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLPackedProduct, StoresEverySumOfCOnce)
+        TEST_F(Medium_SYCLPackedProduct, StoresEverySumOfCOnce)
         {
             const int64_t m = 29;
             const int64_t n = 31;

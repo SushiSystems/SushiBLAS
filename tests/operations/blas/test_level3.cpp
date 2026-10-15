@@ -43,12 +43,12 @@ namespace SushiBLAS
                       "Only the facade builds the Level 3 facet.");
 
         /** @brief Runs Level 3 calls through the facade on the fixture's engine. */
-        class Unit_Level3 : public SushiBLASTest
+        class Medium_Level3 : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_Level3, GemmWithScalarsGivesExactValues)
+        TEST_F(Medium_Level3, GemmWithScalarsGivesExactValues)
         {
             const Tensor a = create_initialized_tensor<float>({2, 2}, {1, 2, 3, 4});
             const Tensor b = create_initialized_tensor<float>({2, 2}, {0, 1, 1, 0});

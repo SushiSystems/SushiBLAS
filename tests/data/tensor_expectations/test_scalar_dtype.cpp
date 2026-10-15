@@ -36,7 +36,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ScalarDtype, NamesEveryElementType)
+        TEST(Medium_ScalarDtype, NamesEveryElementType)
         {
             EXPECT_EQ(sushiblas_dtype<sycl::half>(), Core::DataType::Half);
             EXPECT_EQ(sushiblas_dtype<float>(), Core::DataType::Float32);

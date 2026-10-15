@@ -47,7 +47,7 @@ namespace SushiBLAS
         /// @brief Columns of the matrix.
         constexpr int64_t K_COLUMNS = 5;
 
-        TEST(Unit_ReferenceGemv, MatchesADenseLoopInEveryLayoutAndTranspose)
+        TEST(Small_ReferenceGemv, MatchesADenseLoopInEveryLayoutAndTranspose)
         {
             const std::vector<double> a = small_integers<double>(K_ROWS * K_COLUMNS, 1);
             for (const Core::Layout layout : {Core::Layout::RowMajor, Core::Layout::ColumnMajor})
@@ -72,7 +72,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST(Unit_ReferenceGemv, AZeroBetaIgnoresANaNInY)
+        TEST(Small_ReferenceGemv, AZeroBetaIgnoresANaNInY)
         {
             const std::vector<double> a{1.0, 2.0, 3.0, 4.0};
             const std::vector<double> x{1.0, 1.0};
@@ -84,7 +84,7 @@ namespace SushiBLAS
             EXPECT_EQ(y, (std::vector<double>{3.0, 7.0}));
         }
 
-        TEST(Unit_ReferenceGemv, StridesSkipTheElementsBetween)
+        TEST(Small_ReferenceGemv, StridesSkipTheElementsBetween)
         {
             const std::vector<double> a{1.0, 2.0, 3.0, 4.0};
             const std::vector<double> x{1.0, -9.0, 2.0};

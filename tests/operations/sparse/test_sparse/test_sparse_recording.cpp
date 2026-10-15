@@ -52,7 +52,7 @@ namespace SushiBLAS
         /**
          * @brief Records sparse calls on FLOAT32 operands with INT32 indices and reads the graph.
          */
-        class Regression_SparseRecording : public SushiBLASTest
+        class Medium_SparseRecording : public SushiBLASTest
         {
             protected:
                 /** @brief Returns the CSR matrix of FLOAT32 host triplets, zero-based. */
@@ -127,7 +127,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Regression_SparseRecording, ARecordedTaskComputesItsResult)
+        TEST_F(Medium_SparseRecording, ARecordedTaskComputesItsResult)
         {
             const std::vector<float> four = {1.0f, 2.0f, 3.0f, 4.0f};
             const std::vector<float> five = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
@@ -204,7 +204,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Regression_SparseRecording, AMatrixDestroyedBeforeExecuteIsKept)
+        TEST_F(Medium_SparseRecording, AMatrixDestroyedBeforeExecuteIsKept)
         {
             const Tensor x = vector_of({1.0f, 2.0f, 3.0f, 4.0f, 5.0f});
             Tensor y = vector_of({0.0f, 0.0f, 0.0f, 0.0f});
@@ -224,7 +224,7 @@ namespace SushiBLAS
             verify_tensor(y, std::vector<float>{9, 0, 43, 41}, K_TOLERANCE);
         }
 
-        TEST_F(Regression_SparseRecording, AProductIsOrderedBehindTheTaskThatWroteItsValues)
+        TEST_F(Medium_SparseRecording, AProductIsOrderedBehindTheTaskThatWroteItsValues)
         {
             const Tensor ones = vector_of(std::vector<float>(7, 1.0f));
             const Tensor x = vector_of({1.0f, 2.0f, 3.0f, 4.0f, 5.0f});
@@ -261,7 +261,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Regression_SparseRecording, TheSameCallsReplayIntoASecondGraph)
+        TEST_F(Medium_SparseRecording, TheSameCallsReplayIntoASecondGraph)
         {
             const SparseMatrix A = sample();
             const Tensor x = vector_of({1.0f, 2.0f, 3.0f, 4.0f});

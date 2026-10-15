@@ -46,12 +46,12 @@ namespace SushiBLAS
         constexpr int64_t K_EXTENT = 512;
 
         /** @brief Builds output matrices on the fixture's engine. */
-        class Unit_PackedProductScratch : public SushiBLASTest
+        class Medium_PackedProductScratch : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Unit_PackedProductScratch, TheBytesAreThoseOfThePlanOrNone)
+        TEST_F(Medium_PackedProductScratch, TheBytesAreThoseOfThePlanOrNone)
         {
             const Device::Profile& profile =
                 Device::profile_for(engine->create_tensor({1}).device());
@@ -66,7 +66,7 @@ namespace SushiBLAS
                       std::size_t{0});
         }
 
-        TEST_F(Unit_PackedProductScratch, TheLeaseHoldsThePlannedBytesAndIsDeclared)
+        TEST_F(Medium_PackedProductScratch, TheLeaseHoldsThePlannedBytesAndIsDeclared)
         {
             const Tensor c = engine->create_tensor({K_EXTENT, K_EXTENT});
             const std::size_t bytes = Internal::packed_product_scratch_bytes(
@@ -82,7 +82,7 @@ namespace SushiBLAS
             EXPECT_EQ(operands.write_regions().size(), declared);
         }
 
-        TEST_F(Unit_PackedProductScratch, TheReferencePathLeasesNothing)
+        TEST_F(Medium_PackedProductScratch, TheReferencePathLeasesNothing)
         {
             const Tensor c = engine->create_tensor({K_EXTENT, K_EXTENT});
             GraphProbe probe(ExecutionMode::ForceReference);

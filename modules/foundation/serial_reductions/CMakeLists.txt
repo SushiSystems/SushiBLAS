@@ -12,6 +12,5 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE serial_reductions
-    SIZE small
     TESTS
         test_serial_reductions.cpp)

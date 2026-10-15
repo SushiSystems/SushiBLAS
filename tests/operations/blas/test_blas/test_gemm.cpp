@@ -50,7 +50,7 @@ namespace SushiBLAS
         using namespace SushiRuntime::Literals;
 
         template <typename T>
-        class Unit_GEMMTest : public SushiBLASTest
+        class Medium_GEMMTest : public SushiBLASTest
         {
             public:
                 /**
@@ -59,7 +59,7 @@ namespace SushiBLAS
                 * The reference kernel is this operation's specification, so every shape
                 * below is judged against it rather than against a stored expectation.
                 * What that cannot catch is a defect the two implementations share - see
-                * Unit_GEMMKernelTest for the absolute, hand-computed pins that can.
+                * Medium_GEMMKernelTest for the absolute, hand-computed pins that can.
                 */
                 void test_accuracy(int64_t m, int64_t n, int64_t k,
                                    Core::Layout layout = Core::Layout::RowMajor,
@@ -182,24 +182,24 @@ namespace SushiBLAS
             };
 
             using DataTypes = ::testing::Types<float, double, sycl::half, std::complex<float>, std::complex<double>>;
-            SB_TYPED_TEST_SUITE(Unit_GEMMTest, DataTypes);
+            SB_TYPED_TEST_SUITE(Medium_GEMMTest, DataTypes);
 
-            TYPED_TEST(Unit_GEMMTest, SmallMatrix)
+            TYPED_TEST(Medium_GEMMTest, SmallMatrix)
             {
                 this->test_accuracy(4, 4, 4);
             }
 
-            TYPED_TEST(Unit_GEMMTest, SmallMatrixColMajor)
+            TYPED_TEST(Medium_GEMMTest, SmallMatrixColMajor)
             {
                 this->test_accuracy(4, 4, 4, Core::Layout::ColumnMajor);
             }
 
-            TYPED_TEST(Unit_GEMMTest, Rectangular)
+            TYPED_TEST(Medium_GEMMTest, Rectangular)
             {
                 this->test_accuracy(8, 16, 4);
             }
 
-            TYPED_TEST(Unit_GEMMTest, RectangularColMajor)
+            TYPED_TEST(Medium_GEMMTest, RectangularColMajor)
             {
                 this->test_accuracy(8, 16, 4, Core::Layout::ColumnMajor);
             }
@@ -208,12 +208,12 @@ namespace SushiBLAS
              * @brief Tests prime extents, which leave the row, column and K tails ragged at once.
              * @see tests/operations/blas/README.md
              */
-            TYPED_TEST(Unit_GEMMTest, RaggedOnEveryAxis)
+            TYPED_TEST(Medium_GEMMTest, RaggedOnEveryAxis)
             {
                 this->test_accuracy(37, 23, 13);
             }
 
-            TYPED_TEST(Unit_GEMMTest, RaggedOnEveryAxisColMajor)
+            TYPED_TEST(Medium_GEMMTest, RaggedOnEveryAxisColMajor)
             {
                 this->test_accuracy(37, 23, 13, Core::Layout::ColumnMajor);
             }
@@ -222,7 +222,7 @@ namespace SushiBLAS
              * @brief Tests a K shorter than one local-memory K-tile under a multi-group output.
              * @see tests/operations/blas/README.md
              */
-            TYPED_TEST(Unit_GEMMTest, KShorterThanOneTile)
+            TYPED_TEST(Medium_GEMMTest, KShorterThanOneTile)
             {
                 this->test_accuracy(40, 40, 3);
             }
@@ -231,19 +231,19 @@ namespace SushiBLAS
              * @brief Tests a small result under a K long enough for the depth-split kernel on a GPU.
              * @see tests/operations/blas/README.md
              */
-            TYPED_TEST(Unit_GEMMTest, DeepProduct)
+            TYPED_TEST(Medium_GEMMTest, DeepProduct)
             {
                 this->test_accuracy(5, 7, 4133, Core::Layout::RowMajor, false, false,
                                     1.0 / 4096.0, 0.0);
             }
 
-            TYPED_TEST(Unit_GEMMTest, DeepProductTransposeB)
+            TYPED_TEST(Medium_GEMMTest, DeepProductTransposeB)
             {
                 this->test_accuracy(5, 7, 4133, Core::Layout::RowMajor, false, true,
                                     1.0 / 4096.0, 0.5);
             }
 
-            TYPED_TEST(Unit_GEMMTest, DeepProductTransposeBothColMajor)
+            TYPED_TEST(Medium_GEMMTest, DeepProductTransposeBothColMajor)
             {
                 this->test_accuracy(9, 4, 4133, Core::Layout::ColumnMajor, true, true,
                                     1.0 / 4096.0, 0.5);
@@ -253,69 +253,69 @@ namespace SushiBLAS
              * @brief Tests a result wide enough for sixteen column lanes, ragged on both axes.
              * @see tests/operations/blas/README.md
              */
-            TYPED_TEST(Unit_GEMMTest, DeepProductColumnLanes)
+            TYPED_TEST(Medium_GEMMTest, DeepProductColumnLanes)
             {
                 this->test_accuracy(130, 131, 4133, Core::Layout::RowMajor, false, false,
                                     1.0 / 4096.0, 0.5);
             }
 
-            TYPED_TEST(Unit_GEMMTest, DeepProductColumnLanesTransposeA)
+            TYPED_TEST(Medium_GEMMTest, DeepProductColumnLanesTransposeA)
             {
                 this->test_accuracy(41, 70, 4133, Core::Layout::RowMajor, true, false,
                                     1.0 / 4096.0, 0.0);
             }
 
-            TYPED_TEST(Unit_GEMMTest, DeepProductBatched)
+            TYPED_TEST(Medium_GEMMTest, DeepProductBatched)
             {
                 this->test_batched(3, 5, 6, 4100, 1.0 / 4096.0, 0.5);
             }
 
-            TYPED_TEST(Unit_GEMMTest, SingleElement)
+            TYPED_TEST(Medium_GEMMTest, SingleElement)
             {
                 this->test_accuracy(1, 1, 1);
             }
 
-            TYPED_TEST(Unit_GEMMTest, TallSkinny)
+            TYPED_TEST(Medium_GEMMTest, TallSkinny)
             {
                 this->test_accuracy(65, 2, 33);
             }
 
-            TYPED_TEST(Unit_GEMMTest, ShortWide)
+            TYPED_TEST(Medium_GEMMTest, ShortWide)
             {
                 this->test_accuracy(2, 65, 33);
             }
 
-            TYPED_TEST(Unit_GEMMTest, NoTransposeScaled)
+            TYPED_TEST(Medium_GEMMTest, NoTransposeScaled)
             {
                 this->test_accuracy(17, 19, 11, Core::Layout::RowMajor, false, false, 1.5, 0.5);
             }
 
-            TYPED_TEST(Unit_GEMMTest, TransposeA)
+            TYPED_TEST(Medium_GEMMTest, TransposeA)
             {
                 this->test_accuracy(17, 19, 11, Core::Layout::RowMajor, true, false, 1.5, 0.5);
             }
 
-            TYPED_TEST(Unit_GEMMTest, TransposeB)
+            TYPED_TEST(Medium_GEMMTest, TransposeB)
             {
                 this->test_accuracy(17, 19, 11, Core::Layout::RowMajor, false, true, 1.5, 0.5);
             }
 
-            TYPED_TEST(Unit_GEMMTest, TransposeBoth)
+            TYPED_TEST(Medium_GEMMTest, TransposeBoth)
             {
                 this->test_accuracy(17, 19, 11, Core::Layout::RowMajor, true, true, 1.5, 0.5);
             }
 
-            TYPED_TEST(Unit_GEMMTest, TransposeBothColMajor)
+            TYPED_TEST(Medium_GEMMTest, TransposeBothColMajor)
             {
                 this->test_accuracy(17, 19, 11, Core::Layout::ColumnMajor, true, true, 1.5, 0.5);
             }
 
-            TYPED_TEST(Unit_GEMMTest, TransposeAColMajor)
+            TYPED_TEST(Medium_GEMMTest, TransposeAColMajor)
             {
                 this->test_accuracy(17, 19, 11, Core::Layout::ColumnMajor, true, false, 1.5, 0.5);
             }
 
-            TYPED_TEST(Unit_GEMMTest, TransposeBColMajor)
+            TYPED_TEST(Medium_GEMMTest, TransposeBColMajor)
             {
                 this->test_accuracy(17, 19, 11, Core::Layout::ColumnMajor, false, true, 1.5, 0.5);
             }
@@ -324,17 +324,17 @@ namespace SushiBLAS
              * @brief Tests that beta == 0 never reads C, which starts full of NaN.
              * @see tests/operations/blas/README.md
              */
-            TYPED_TEST(Unit_GEMMTest, BetaZeroNeverReadsC)
+            TYPED_TEST(Medium_GEMMTest, BetaZeroNeverReadsC)
             {
                 this->test_accuracy(37, 23, 13, Core::Layout::RowMajor, false, false, 1.0, 0.0);
             }
 
-            TYPED_TEST(Unit_GEMMTest, Batched)
+            TYPED_TEST(Medium_GEMMTest, Batched)
             {
                 this->test_batched(4, 13, 7, 5, 1.5, 0.5);
             }
 
-            TYPED_TEST(Unit_GEMMTest, BatchedRagged)
+            TYPED_TEST(Medium_GEMMTest, BatchedRagged)
             {
                 this->test_batched(3, 33, 17, 23);
             }
@@ -343,7 +343,7 @@ namespace SushiBLAS
              * @brief Holds the hand-computed pins and the direct calls to both kernel variants.
              * @see tests/operations/blas/README.md
              */
-            class Unit_GEMMKernelTest : public SushiBLASTest
+            class Medium_GEMMKernelTest : public SushiBLASTest
             {
                 protected:
                     /** @brief Row-major strides for an operand of leading dimension @p ld. */
@@ -363,7 +363,7 @@ namespace SushiBLAS
                     }
             };
 
-            TEST_F(Unit_GEMMKernelTest, RowMajorMatchesHandComputedResult)
+            TEST_F(Medium_GEMMKernelTest, RowMajorMatchesHandComputedResult)
             {
                 // A (2x3) = [[1,2,3],[4,5,6]], B (3x2) = [[1,0],[0,1],[1,1]].
                 auto A = create_initialized_tensor<float>({2, 3}, {1, 2, 3, 4, 5, 6});
@@ -378,7 +378,7 @@ namespace SushiBLAS
                 EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 5, 10, 11}), 1e-5);
             }
 
-            TEST_F(Unit_GEMMKernelTest, ColumnMajorMatchesHandComputedResult)
+            TEST_F(Medium_GEMMKernelTest, ColumnMajorMatchesHandComputedResult)
             {
                 reinit_engine(Core::Layout::ColumnMajor);
 
@@ -395,7 +395,7 @@ namespace SushiBLAS
                 EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 10, 5, 11}), 1e-5);
             }
 
-            TEST_F(Unit_GEMMKernelTest, ColumnMajorReferenceMatchesHandComputedResult)
+            TEST_F(Medium_GEMMKernelTest, ColumnMajorReferenceMatchesHandComputedResult)
             {
                 // The oracle is pinned to the same numbers. See tests/operations/blas/README.md.
                 reinit_engine(Core::Layout::ColumnMajor);
@@ -411,7 +411,7 @@ namespace SushiBLAS
                 EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 10, 5, 11}), 1e-5);
             }
 
-            TEST_F(Unit_GEMMKernelTest, TransposedAMatchesHandComputedResult)
+            TEST_F(Medium_GEMMKernelTest, TransposedAMatchesHandComputedResult)
             {
                 // A is stored 3x2 as the transpose of op(A). See tests/operations/blas/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, {1, 4, 2, 5, 3, 6});
@@ -455,7 +455,7 @@ namespace SushiBLAS
                 }
             };
 
-            TEST_F(Unit_GEMMKernelTest, EpilogueFusesBiasAndReLUIntoTheStore)
+            TEST_F(Medium_GEMMKernelTest, EpilogueFusesBiasAndReLUIntoTheStore)
             {
                 // 2*(A*B), plus both biases, clamped at 0. See tests/operations/blas/README.md.
                 auto A = create_initialized_tensor<float>({2, 2}, {1, 2, 3, 4});
@@ -483,7 +483,7 @@ namespace SushiBLAS
              * @brief Holds the operands and the hand-computed result of the fused seam tests.
              * @see tests/operations/blas/README.md
              */
-            class Unit_GEMMSeamTest : public SushiBLASTest
+            class Medium_GEMMSeamTest : public SushiBLASTest
             {
                 protected:
                     /** @brief A = 3x2, chosen so A*B is square and not symmetric. */
@@ -504,7 +504,7 @@ namespace SushiBLAS
                     }
             };
 
-            TEST_F(Unit_GEMMSeamTest, ExecuteGemmFusesBiasBroadcastAndReLUOnTheSYCLPath)
+            TEST_F(Medium_GEMMSeamTest, ExecuteGemmFusesBiasBroadcastAndReLUOnTheSYCLPath)
             {
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
                 auto B = create_initialized_tensor<float>({2, 3}, b_values());
@@ -526,7 +526,7 @@ namespace SushiBLAS
                 EXPECT_TENSOR_NEAR(C, expected(), 1e-5);
             }
 
-            TEST_F(Unit_GEMMSeamTest, ExecuteGemmAppliesTheSameEpilogueOnTheReferencePath)
+            TEST_F(Medium_GEMMSeamTest, ExecuteGemmAppliesTheSameEpilogueOnTheReferencePath)
             {
                 // The reference kernel applies the epilogue. See tests/operations/blas/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
@@ -549,7 +549,7 @@ namespace SushiBLAS
                 EXPECT_TENSOR_NEAR(C, expected(), 1e-5);
             }
 
-            TEST_F(Unit_GEMMSeamTest, ExecuteGemmWithTheIdentityEpilogueIsPlainGemm)
+            TEST_F(Medium_GEMMSeamTest, ExecuteGemmWithTheIdentityEpilogueIsPlainGemm)
             {
                 // Level3::gemm is the seam with the identity. See tests/operations/blas/README.md.
                 auto A = engine->create_tensor({13, 7}, Core::DataType::Float32);
@@ -633,7 +633,7 @@ namespace SushiBLAS
                 }
             };
 
-            TEST_F(Unit_GEMMSeamTest, ADeclaredEpilogueReadIsOrderedBehindItsProducer)
+            TEST_F(Medium_GEMMSeamTest, ADeclaredEpilogueReadIsOrderedBehindItsProducer)
             {
                 GraphProbe probe;
 
@@ -662,7 +662,7 @@ namespace SushiBLAS
                        "Dispatch::gemm_epilogue never reached the task's read set.";
             }
 
-            TEST_F(Unit_GEMMSeamTest, AnUndeclaredEpilogueOperandGetsNoEdgeAtAll)
+            TEST_F(Medium_GEMMSeamTest, AnUndeclaredEpilogueOperandGetsNoEdgeAtAll)
             {
                 GraphProbe probe;
 
@@ -691,7 +691,7 @@ namespace SushiBLAS
                        "cannot do correctly and must not appear to do.";
             }
 
-            TEST_F(Unit_GEMMSeamTest, DeclaredOperandsOrderAcrossTwoViewsOfOneAllocation)
+            TEST_F(Medium_GEMMSeamTest, DeclaredOperandsOrderAcrossTwoViewsOfOneAllocation)
             {
                 GraphProbe probe;
 
@@ -731,7 +731,7 @@ namespace SushiBLAS
                        "on a base nothing else in this graph shares.";
             }
 
-            TEST_F(Unit_GEMMSeamTest, ADeclaredEpilogueWriteOrdersItsReaderBehindTheGemm)
+            TEST_F(Medium_GEMMSeamTest, ADeclaredEpilogueWriteOrdersItsReaderBehindTheGemm)
             {
                 GraphProbe probe;
 
@@ -764,7 +764,7 @@ namespace SushiBLAS
                        "reached the task's write set, and the spill buys nothing.";
             }
 
-            TEST_F(Unit_GEMMSeamTest, AnUndeclaredEpilogueWriteGetsNoEdgeAtAll)
+            TEST_F(Medium_GEMMSeamTest, AnUndeclaredEpilogueWriteGetsNoEdgeAtAll)
             {
                 GraphProbe probe;
 
@@ -792,7 +792,7 @@ namespace SushiBLAS
                     << "Nothing can see an undeclared write, so the reader must be a root.";
             }
 
-            TEST_F(Unit_GEMMSeamTest, DeclaringOperandsChangesNoArithmetic)
+            TEST_F(Medium_GEMMSeamTest, DeclaringOperandsChangesNoArithmetic)
             {
                 // Both spellings must agree to the bit. See tests/operations/blas/README.md.
                 auto A = create_initialized_tensor<float>({3, 2}, a_values());
@@ -822,7 +822,7 @@ namespace SushiBLAS
                 SB_ASSERT_TENSOR_NEAR(declared, bare, 0.0, float);
             }
 
-            TEST_F(Unit_GEMMSeamTest, DeclaringAnOperandWithNoStorageIsRefused)
+            TEST_F(Medium_GEMMSeamTest, DeclaringAnOperandWithNoStorageIsRefused)
             {
                 // A base-less region orders against nothing. See tests/operations/blas/README.md.
                 Tensor nothing;
@@ -833,7 +833,7 @@ namespace SushiBLAS
                              std::invalid_argument);
             }
 
-            TEST_F(Unit_GEMMKernelTest, NoLocalVariantMatchesReferenceOnRaggedShape)
+            TEST_F(Medium_GEMMKernelTest, NoLocalVariantMatchesReferenceOnRaggedShape)
             {
                 constexpr int64_t m = 37, n = 45, k = 23;
                 constexpr float alpha = 1.5f;
@@ -863,7 +863,7 @@ namespace SushiBLAS
                 EXPECT_TENSOR_NEAR(C, expected, 1e-4);
             }
 
-            TEST_F(Unit_GEMMKernelTest, LocalTiledVariantMatchesReferenceOnRaggedShape)
+            TEST_F(Medium_GEMMKernelTest, LocalTiledVariantMatchesReferenceOnRaggedShape)
             {
                 // Only an OpenCL CPU runs this variant here. See tests/operations/blas/README.md.
                 constexpr int64_t m = 37, n = 45, k = 23;
@@ -902,7 +902,7 @@ namespace SushiBLAS
                 EXPECT_TENSOR_NEAR(C, expected, 1e-4);
             }
 
-            TEST_F(Unit_GEMMKernelTest, LocalTiledVariantHandlesColumnMajorAndTransposes)
+            TEST_F(Medium_GEMMKernelTest, LocalTiledVariantHandlesColumnMajorAndTransposes)
             {
                 // The profile never selects this path here. See tests/operations/blas/README.md.
                 constexpr int64_t m = 19, n = 21, k = 17;
@@ -947,7 +947,7 @@ namespace SushiBLAS
                 EXPECT_TENSOR_NEAR(C, expected, 1e-4);
             }
 
-            TEST_F(Unit_GEMMKernelTest, StrideTableMatchesTheStandardIdentity)
+            TEST_F(Medium_GEMMKernelTest, StrideTableMatchesTheStandardIdentity)
             {
                 // A transpose equals a flipped layout. See tests/operations/blas/README.md.
                 constexpr int64_t ld = 7;

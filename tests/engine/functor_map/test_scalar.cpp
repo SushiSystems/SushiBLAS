@@ -36,7 +36,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ElementScalar, HoldsTheValueInEachFloatingType)
+        TEST(Medium_ElementScalar, HoldsTheValueInEachFloatingType)
         {
             const Dispatch::ElementScalar scalar(1.5);
 
@@ -46,13 +46,13 @@ namespace SushiBLAS
             EXPECT_EQ(static_cast<float>(scalar.as<sycl::half>()), 1.5f);
         }
 
-        TEST(Unit_ElementScalar, IntegersTruncateTowardZero)
+        TEST(Medium_ElementScalar, IntegersTruncateTowardZero)
         {
             EXPECT_EQ(Dispatch::ElementScalar(2.9).as<int32_t>(), 2);
             EXPECT_EQ(Dispatch::ElementScalar(-2.9).as<int64_t>(), int64_t{-2});
         }
 
-        TEST(Unit_ElementScalar, IntegersSaturateAndANaNBecomesZero)
+        TEST(Medium_ElementScalar, IntegersSaturateAndANaNBecomesZero)
         {
             EXPECT_EQ(Dispatch::ElementScalar(1e20).as<int32_t>(),
                       std::numeric_limits<int32_t>::max());

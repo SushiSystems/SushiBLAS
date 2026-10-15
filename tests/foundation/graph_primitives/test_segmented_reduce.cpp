@@ -85,7 +85,7 @@ namespace SushiBLAS
         } // namespace
 
         /** @brief Tests a segmented reduce over ragged segments, an empty one included. */
-        TEST(Unit_GraphPrimitivesSegmentedReduce, FoldsRaggedSegmentsLeftToRight)
+        TEST(Medium_GraphPrimitivesSegmentedReduce, FoldsRaggedSegmentsLeftToRight)
         {
             const std::vector<std::uint32_t>& offsets = K_RAGGED_OFFSETS;
             const std::size_t segments = offsets.size() - 1;
@@ -120,7 +120,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that a live segment count below capacity leaves the rest unwritten. */
-        TEST(Unit_GraphPrimitivesSegmentedReduce, LateBoundCountFoldsOnlyTheLiveSegments)
+        TEST(Medium_GraphPrimitivesSegmentedReduce, LateBoundCountFoldsOnlyTheLiveSegments)
         {
             const std::vector<std::uint32_t>& offsets = K_RAGGED_OFFSETS;
             const std::size_t segments = offsets.size() - 1;
@@ -168,7 +168,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that short offsets or a short output are refused when the call records. */
-        TEST(Unit_GraphPrimitivesSegmentedReduce, RejectsMisSizedArguments)
+        TEST(Medium_GraphPrimitivesSegmentedReduce, RejectsMisSizedArguments)
         {
             auto runtime = Runtime::create().value();
             auto values = runtime.buffer<float>(16).value();
@@ -209,7 +209,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the fixed-count node launches at segment_count, not a buffer size. */
-        TEST(Unit_GraphPrimitivesSegmentedReduce, FixedCountWidthIsTheSegmentCount)
+        TEST(Medium_GraphPrimitivesSegmentedReduce, FixedCountWidthIsTheSegmentCount)
         {
             constexpr std::size_t K_SEGMENTS = 64;
 
@@ -239,7 +239,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests that the late-bound form records a resolver and a node of capacity. */
-        TEST(Unit_GraphPrimitivesSegmentedReduce, LateBoundWidthsAreOneAndTheCapacity)
+        TEST(Medium_GraphPrimitivesSegmentedReduce, LateBoundWidthsAreOneAndTheCapacity)
         {
             constexpr std::size_t K_SEGMENTS = 128;
             const std::vector<std::uint32_t> expected_widths = {
@@ -275,7 +275,7 @@ namespace SushiBLAS
         }
 
         /** @brief Tests segmented_reduce() with a device count on both layers. */
-        TEST(Unit_GraphPrimitivesDeviceSized, SegmentedReduceChainMatchesScheduler)
+        TEST(Medium_GraphPrimitivesDeviceSized, SegmentedReduceChainMatchesScheduler)
         {
             using namespace DeviceSized;
 

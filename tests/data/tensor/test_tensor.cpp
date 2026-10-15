@@ -55,13 +55,13 @@ namespace SushiBLAS
             return std::vector<int64_t>(all.begin(), all.begin() + dims.size());
         }
 
-        TEST(Unit_Tensor, RowMajorStridesRunFromTheLastAxis)
+        TEST(Medium_Tensor, RowMajorStridesRunFromTheLastAxis)
         {
             EXPECT_EQ(strides_of({2, 3, 4}, Core::Layout::RowMajor),
                       (std::vector<int64_t>{12, 4, 1}));
         }
 
-        TEST(Unit_Tensor, ColumnMajorTransposesTheMatrixAxesOnly)
+        TEST(Medium_Tensor, ColumnMajorTransposesTheMatrixAxesOnly)
         {
             EXPECT_EQ(strides_of({3, 4}, Core::Layout::ColumnMajor), (std::vector<int64_t>{1, 3}));
             EXPECT_EQ(strides_of({2, 3, 4}, Core::Layout::ColumnMajor),
@@ -69,14 +69,14 @@ namespace SushiBLAS
             EXPECT_EQ(strides_of({5}, Core::Layout::ColumnMajor), (std::vector<int64_t>{1}));
         }
 
-        TEST(Unit_Tensor, StridesRefuseANegativeDimensionAndTooManyAxes)
+        TEST(Medium_Tensor, StridesRefuseANegativeDimensionAndTooManyAxes)
         {
             EXPECT_THROW((void)strides_of({2, -1}, Core::Layout::RowMajor), std::runtime_error);
             EXPECT_THROW((void)strides_of({1, 1, 1, 1, 1, 1, 1}, Core::Layout::RowMajor),
                          std::runtime_error);
         }
 
-        TEST(Unit_Tensor, CountsItsElementsAndChecksItsCapacity)
+        TEST(Medium_Tensor, CountsItsElementsAndChecksItsCapacity)
         {
             const Tensor fits(bytes(24), {2, 3}, Core::DataType::Float32);
 
@@ -88,7 +88,7 @@ namespace SushiBLAS
                          std::runtime_error);
         }
 
-        TEST(Unit_Tensor, ATransposeSwapsShapeAndStridesAndIsNotContiguous)
+        TEST(Medium_Tensor, ATransposeSwapsShapeAndStridesAndIsNotContiguous)
         {
             const Tensor matrix(bytes(24), {2, 3});
             const Tensor transposed = matrix.transpose(0, 1);
@@ -101,7 +101,7 @@ namespace SushiBLAS
             EXPECT_THROW((void)matrix.transpose(0, 2), std::runtime_error);
         }
 
-        TEST(Unit_Tensor, ASliceMovesTheOffsetAndKeepsTheStrides)
+        TEST(Medium_Tensor, ASliceMovesTheOffsetAndKeepsTheStrides)
         {
             const Tensor matrix(bytes(48), {3, 4});
             const Tensor rows = matrix.slice(0, 1, 3);
@@ -116,7 +116,7 @@ namespace SushiBLAS
             EXPECT_EQ(rows.data_as<float>(), matrix.data_as<float>() + 4);
         }
 
-        TEST(Unit_Tensor, AReshapeKeepsTheElementsOfAContiguousTensor)
+        TEST(Medium_Tensor, AReshapeKeepsTheElementsOfAContiguousTensor)
         {
             const Tensor matrix(bytes(48), {3, 4});
             const Tensor flat = matrix.reshape({12});
@@ -129,7 +129,7 @@ namespace SushiBLAS
             EXPECT_THROW((void)matrix.reshape({5}), std::runtime_error);
         }
 
-        TEST(Unit_Tensor, TheElementSpanOfAViewReachesItsLastElement)
+        TEST(Medium_Tensor, TheElementSpanOfAViewReachesItsLastElement)
         {
             const Tensor matrix(bytes(48), {3, 4});
             const Tensor column = matrix.slice(1, 1, 2);
@@ -139,7 +139,7 @@ namespace SushiBLAS
             EXPECT_EQ(column.element_span(), int64_t{9});
         }
 
-        TEST(Unit_Tensor, ATensorWithoutStorageHasNoData)
+        TEST(Medium_Tensor, ATensorWithoutStorageHasNoData)
         {
             const Tensor empty;
 

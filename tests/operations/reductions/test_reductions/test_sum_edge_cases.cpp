@@ -60,7 +60,7 @@ namespace
     };
 }
 
-class Unit_SumEdgeCasesTest : public SushiBLASTest
+class Medium_SumEdgeCasesTest : public SushiBLASTest
 {
     protected:
         /**
@@ -106,12 +106,12 @@ class Unit_SumEdgeCasesTest : public SushiBLASTest
         }
 };
 
-TEST_F(Unit_SumEdgeCasesTest, SingleElement)
+TEST_F(Medium_SumEdgeCasesTest, SingleElement)
 {
     expect_reductions({-4.25f}, {-4.25f, -4.25f, -4.25f, -4.25f});
 }
 
-TEST_F(Unit_SumEdgeCasesTest, OnePastAPowerOfTwo)
+TEST_F(Medium_SumEdgeCasesTest, OnePastAPowerOfTwo)
 {
     // 65535 ones, -1 first and 3 last: sum 65535 - 1 + 3 = 65537, mean 65537 / 65537 = 1.
     std::vector<float> values(K_LARGE_SIZE, 1.0f);
@@ -120,33 +120,33 @@ TEST_F(Unit_SumEdgeCasesTest, OnePastAPowerOfTwo)
     expect_reductions(values, {65537.0f, 1.0f, 3.0f, -1.0f});
 }
 
-TEST_F(Unit_SumEdgeCasesTest, AllEqual)
+TEST_F(Medium_SumEdgeCasesTest, AllEqual)
 {
     // Seven elements of 2.5: sum 17.5.
     expect_reductions(std::vector<float>(7, 2.5f), {17.5f, 2.5f, 2.5f, 2.5f});
 }
 
-TEST_F(Unit_SumEdgeCasesTest, NegativeZeros)
+TEST_F(Medium_SumEdgeCasesTest, NegativeZeros)
 {
     expect_reductions({-0.0f, -0.0f, -0.0f}, {0.0f, 0.0f, 0.0f, 0.0f});
 }
 
-TEST_F(Unit_SumEdgeCasesTest, NaNPropagatesThroughSumAndMean)
+TEST_F(Medium_SumEdgeCasesTest, NaNPropagatesThroughSumAndMean)
 {
     expect_sum_and_mean({1.0f, K_NAN, 2.0f}, K_NAN, K_NAN);
 }
 
-TEST_F(Unit_SumEdgeCasesTest, NaNPropagatesThroughEveryReduction)
+TEST_F(Medium_SumEdgeCasesTest, NaNPropagatesThroughEveryReduction)
 {
     expect_reductions({1.0f, K_NAN, 2.0f}, {K_NAN, K_NAN, K_NAN, K_NAN});
 }
 
-TEST_F(Unit_SumEdgeCasesTest, PositiveInfinity)
+TEST_F(Medium_SumEdgeCasesTest, PositiveInfinity)
 {
     expect_reductions({1.0f, K_INF, -2.0f}, {K_INF, K_INF, K_INF, -2.0f});
 }
 
-TEST_F(Unit_SumEdgeCasesTest, NegativeInfinity)
+TEST_F(Medium_SumEdgeCasesTest, NegativeInfinity)
 {
     expect_reductions({1.0f, -K_INF, -2.0f}, {-K_INF, -K_INF, 1.0f, -K_INF});
 }

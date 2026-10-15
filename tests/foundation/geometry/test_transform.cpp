@@ -61,7 +61,7 @@ namespace SushiBLAS
          * @brief Compares transforms of element type T with hand-computed elements.
          */
         template<typename T>
-        class Unit_GeometryTransform : public ::testing::Test
+        class Small_GeometryTransform : public ::testing::Test
         {
             protected:
                 /** @brief Returns the absolute tolerance of a comparison in element type T. */
@@ -112,9 +112,9 @@ namespace SushiBLAS
         };
 
         using GeometryTransformTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_GeometryTransform, GeometryTransformTypes);
+        SB_TYPED_TEST_SUITE(Small_GeometryTransform, GeometryTransformTypes);
 
-        TYPED_TEST(Unit_GeometryTransform, TranslationWritesTheFourthColumn)
+        TYPED_TEST(Small_GeometryTransform, TranslationWritesTheFourthColumn)
         {
             using T = TypeParam;
 
@@ -123,7 +123,7 @@ namespace SushiBLAS
                 {1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 2.0, 3.0, 1.0});
         }
 
-        TYPED_TEST(Unit_GeometryTransform, ScalingWritesTheDiagonal)
+        TYPED_TEST(Small_GeometryTransform, ScalingWritesTheDiagonal)
         {
             using T = TypeParam;
 
@@ -132,7 +132,7 @@ namespace SushiBLAS
                 {2.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 0.0, 0.0, 1.0});
         }
 
-        TYPED_TEST(Unit_GeometryTransform, PerspectiveIsReverseZAndIgnoresTheFarPlane)
+        TYPED_TEST(Small_GeometryTransform, PerspectiveIsReverseZAndIgnoresTheFarPlane)
         {
             using T = TypeParam;
             // A quarter-turn field of view has a focal length of 1; the aspect of 2 halves x.
@@ -145,7 +145,7 @@ namespace SushiBLAS
                 Geometry::perspective(T(K_TRANSFORM_QUARTER_TURN), T(2), T(0.5), T(1)), expected);
         }
 
-        TYPED_TEST(Unit_GeometryTransform, LookAtPlacesTheTargetOnTheNegativeZAxis)
+        TYPED_TEST(Small_GeometryTransform, LookAtPlacesTheTargetOnTheNegativeZAxis)
         {
             using T = TypeParam;
             const Geometry::Vector3T<T> origin{};
@@ -161,7 +161,7 @@ namespace SushiBLAS
                 {0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, -3.0, 1.0});
         }
 
-        TYPED_TEST(Unit_GeometryTransform, Matrix4FromQuaternionHoldsTheRotatedAxesAsColumns)
+        TYPED_TEST(Small_GeometryTransform, Matrix4FromQuaternionHoldsTheRotatedAxesAsColumns)
         {
             using T = TypeParam;
             const Geometry::QuaternionT<T> third_turn{T(0.5), T(0.5), T(0.5), T(0.5)};
@@ -181,7 +181,7 @@ namespace SushiBLAS
                 {0.0, 1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0});
         }
 
-        TYPED_TEST(Unit_GeometryTransform, ComposeTransformScalesThenRotatesThenTranslates)
+        TYPED_TEST(Small_GeometryTransform, ComposeTransformScalesThenRotatesThenTranslates)
         {
             using T = TypeParam;
             const Geometry::Vector3T<T> position{T(1), T(2), T(3)};
@@ -194,7 +194,7 @@ namespace SushiBLAS
                 {0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 3.0, 0.0, 4.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 1.0});
         }
 
-        TYPED_TEST(Unit_GeometryTransform, QuaternionFromMatrixTakesTheTraceBranchForAQuarterTurn)
+        TYPED_TEST(Small_GeometryTransform, QuaternionFromMatrixTakesTheTraceBranchForAQuarterTurn)
         {
             const double root_half = K_TRANSFORM_ROOT_HALF;
 
@@ -219,7 +219,7 @@ namespace SushiBLAS
                 0.0, 0.0, 1.0);
         }
 
-        TYPED_TEST(Unit_GeometryTransform, QuaternionFromMatrixTakesTheXBranchWhenXIsLargest)
+        TYPED_TEST(Small_GeometryTransform, QuaternionFromMatrixTakesTheXBranchWhenXIsLargest)
         {
             // A half turn about (0.8, 0, 0.6): 2 n n^T - I, trace -1, element (0, 0) largest.
             TestFixture::expect_quaternion_near(
@@ -229,7 +229,7 @@ namespace SushiBLAS
                 0.8, 0.0, 0.6, 0.0);
         }
 
-        TYPED_TEST(Unit_GeometryTransform, QuaternionFromMatrixTakesTheYBranchWhenYIsLargest)
+        TYPED_TEST(Small_GeometryTransform, QuaternionFromMatrixTakesTheYBranchWhenYIsLargest)
         {
             // A half turn about (0.6, 0.8, 0): 2 n n^T - I, trace -1, element (1, 1) largest.
             TestFixture::expect_quaternion_near(
@@ -239,7 +239,7 @@ namespace SushiBLAS
                 0.6, 0.8, 0.0, 0.0);
         }
 
-        TYPED_TEST(Unit_GeometryTransform, QuaternionFromMatrixTakesTheZBranchOtherwise)
+        TYPED_TEST(Small_GeometryTransform, QuaternionFromMatrixTakesTheZBranchOtherwise)
         {
             // A half turn about (0.6, 0, 0.8): 2 n n^T - I, trace -1, element (2, 2) largest.
             TestFixture::expect_quaternion_near(
@@ -255,7 +255,7 @@ namespace SushiBLAS
                 0.5, 0.5, 0.5, 0.5);
         }
 
-        TYPED_TEST(Unit_GeometryTransform, AffineInverseInvertsAShearedMatrix)
+        TYPED_TEST(Small_GeometryTransform, AffineInverseInvertsAShearedMatrix)
         {
             // Rows of the 3x3 part: (2, 1, 0), (0, 3, 1), (1, 0, 4); translation (1, -2, 3).
             const Geometry::Matrix4T<TypeParam> matrix = TestFixture::matrix_of(
@@ -271,7 +271,7 @@ namespace SushiBLAS
             TestFixture::expect_matrix_near(Geometry::mul(inverse, matrix), K_TRANSFORM_IDENTITY);
         }
 
-        TYPED_TEST(Unit_GeometryTransform, AffineInverseReturnsTheIdentityForASingularMatrix)
+        TYPED_TEST(Small_GeometryTransform, AffineInverseReturnsTheIdentityForASingularMatrix)
         {
             // The y scale is zero, so the determinant is zero; the translation is (1, 2, 3).
             const Geometry::Matrix4T<TypeParam> inverse = Geometry::affine_inverse(
@@ -284,7 +284,7 @@ namespace SushiBLAS
                     << "element " << index;
         }
 
-        TYPED_TEST(Unit_GeometryTransform, DecomposeTransformRecoversWhatComposeTransformTook)
+        TYPED_TEST(Small_GeometryTransform, DecomposeTransformRecoversWhatComposeTransformTook)
         {
             using T = TypeParam;
             const Geometry::Vector3T<T> scale{T(2), T(3), T(4)};
@@ -316,7 +316,7 @@ namespace SushiBLAS
             TestFixture::expect_vector_near(out_scale, 2.0, 3.0, 4.0);
         }
 
-        TYPED_TEST(Unit_GeometryTransform, DecomposeTransformPutsAReflectionOnTheXScale)
+        TYPED_TEST(Small_GeometryTransform, DecomposeTransformPutsAReflectionOnTheXScale)
         {
             using T = TypeParam;
             Geometry::Vector3T<T> out_position{};
@@ -335,7 +335,7 @@ namespace SushiBLAS
             TestFixture::expect_vector_near(out_scale, -2.0, 3.0, 4.0);
         }
 
-        TYPED_TEST(Unit_GeometryTransform, DecomposeTransformKeepsTheIdentityAxisOfAZeroScale)
+        TYPED_TEST(Small_GeometryTransform, DecomposeTransformKeepsTheIdentityAxisOfAZeroScale)
         {
             using T = TypeParam;
             Geometry::Vector3T<T> out_position{};

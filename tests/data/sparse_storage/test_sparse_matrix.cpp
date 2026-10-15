@@ -46,7 +46,7 @@ namespace SushiBLAS
             return factory.create(SushiRuntime::span<const int64_t>(dims, 1), dtype);
         }
 
-        TEST(Unit_SparseMatrix, ADefaultMatrixIsEmptyAndZeroBased)
+        TEST(Medium_SparseMatrix, ADefaultMatrixIsEmptyAndZeroBased)
         {
             const SparseMatrix matrix;
 
@@ -56,7 +56,7 @@ namespace SushiBLAS
             EXPECT_EQ(matrix.nnz(), int64_t{0});
         }
 
-        TEST(Unit_SparseMatrix, ReadsItsCountAndDtypesFromItsTensors)
+        TEST(Medium_SparseMatrix, ReadsItsCountAndDtypesFromItsTensors)
         {
             SparseMatrix matrix;
             matrix.rows = 3;

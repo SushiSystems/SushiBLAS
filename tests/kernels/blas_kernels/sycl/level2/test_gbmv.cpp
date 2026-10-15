@@ -43,12 +43,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs gbmv on the host CPU queue. */
-        class Device_SYCLGbmv : public HostDeviceTest
+        class Medium_SYCLGbmv : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLGbmv, MatchesTheReferenceInEveryLayoutAndTranspose)
+        TEST_F(Medium_SYCLGbmv, MatchesTheReferenceInEveryLayoutAndTranspose)
         {
             // Every operand is a small integer, so both kernels compute without rounding.
             const int64_t m = 41;

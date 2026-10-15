@@ -45,7 +45,7 @@ namespace SushiBLAS
         /// @brief The column count of the matrix the axis reductions fold.
         constexpr std::size_t K_COLUMNS = 300;
 
-        TEST(Unit_ReduceAxis, TotalSegmentsMultipliesBothSegmentCounts)
+        TEST(Medium_ReduceAxis, TotalSegmentsMultipliesBothSegmentCounts)
         {
             Reduce::AxisSpan span;
             span.segments = 3;
@@ -56,7 +56,7 @@ namespace SushiBLAS
             EXPECT_EQ(span.total_segments(), std::size_t{0});
         }
 
-        TEST(Unit_ReduceAxis, ManySegmentsOrAShortAxisFoldOneSegmentPerItem)
+        TEST(Medium_ReduceAxis, ManySegmentsOrAShortAxisFoldOneSegmentPerItem)
         {
             Device::Profile cpu;
             cpu.is_cpu = true;
@@ -71,7 +71,7 @@ namespace SushiBLAS
         }
 
         /** @brief Runs reduce_axis on the host CPU queue. */
-        class Device_ReduceAxis : public HostDeviceTest
+        class Medium_ReduceAxisOnDevice : public HostDeviceTest
         {
             protected:
                 /** @brief Returns the row sums of the test matrix under the given plan. */
@@ -107,17 +107,17 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Device_ReduceAxis, OneItemPerSegmentGivesTheExactRowSums)
+        TEST_F(Medium_ReduceAxisOnDevice, OneItemPerSegmentGivesTheExactRowSums)
         {
             EXPECT_EQ(row_sums(Reduce::AxisPlan{1}), expected_row_sums());
         }
 
-        TEST_F(Device_ReduceAxis, ACooperativeGroupGivesTheExactRowSums)
+        TEST_F(Medium_ReduceAxisOnDevice, ACooperativeGroupGivesTheExactRowSums)
         {
             EXPECT_EQ(row_sums(Reduce::AxisPlan{16}), expected_row_sums());
         }
 
-        TEST_F(Device_ReduceAxis, AStridedAxisFoldsTheColumns)
+        TEST_F(Medium_ReduceAxisOnDevice, AStridedAxisFoldsTheColumns)
         {
             const SharedArray<double> in(queue(), std::vector<double>{1, 2, 3, 4, 5, 6});
             SharedArray<double> out(queue(), 3);

@@ -34,9 +34,9 @@
 using namespace SushiBLAS::Test;
 
 
-class Unit_TRSMTest : public SushiBLASTest {};
+class Medium_TRSMTest : public SushiBLASTest {};
 
-TEST_F(Unit_TRSMTest, SimpleTRSM) 
+TEST_F(Medium_TRSMTest, SimpleTRSM) 
 {
     const int M = 2;
     const int N = 2;
@@ -63,7 +63,7 @@ TEST_F(Unit_TRSMTest, SimpleTRSM)
     verify_tensor(B, {2, 3, 1, 2});
 }
 
-TEST_F(Unit_TRSMTest, SimpleTRSMColumnMajor) 
+TEST_F(Medium_TRSMTest, SimpleTRSMColumnMajor) 
 {
     reinit_engine(SushiBLAS::Core::Layout::ColumnMajor);
     

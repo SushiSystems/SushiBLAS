@@ -32,7 +32,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_ReferenceRotg, TheThreeFourFiveTriangleRotatesToFive)
+        TEST(Small_ReferenceRotg, TheThreeFourFiveTriangleRotatesToFive)
         {
             double a = 3.0;
             double b = 4.0;
@@ -47,7 +47,7 @@ namespace SushiBLAS
             EXPECT_DOUBLE_EQ(b, 1.0 / 0.6);
         }
 
-        TEST(Unit_ReferenceRotg, ALargerFirstComponentStoresTheSine)
+        TEST(Small_ReferenceRotg, ALargerFirstComponentStoresTheSine)
         {
             float a = -4.0f;
             float b = 3.0f;
@@ -62,7 +62,7 @@ namespace SushiBLAS
             EXPECT_FLOAT_EQ(b, -0.6f);
         }
 
-        TEST(Unit_ReferenceRotg, AZeroComponentGivesTheIdentityOrTheSwap)
+        TEST(Small_ReferenceRotg, AZeroComponentGivesTheIdentityOrTheSwap)
         {
             double a = 2.0;
             double b = 0.0;

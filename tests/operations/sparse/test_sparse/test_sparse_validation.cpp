@@ -57,7 +57,7 @@ namespace SushiBLAS
         /**
          * @brief Builds FLOAT32 sparse operands with INT32 indices and records on a probe.
          */
-        class Unit_SparseValidation : public SushiBLASTest
+        class Medium_SparseValidation : public SushiBLASTest
         {
             protected:
                 /** @brief Returns the entries 10, 20, 30 at the positions 6, 1, 4 of eight. */
@@ -145,7 +145,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_SparseValidation, ASparseVectorOutsideItsRulesIsRefused)
+        TEST_F(Medium_SparseValidation, ASparseVectorOutsideItsRulesIsRefused)
         {
             {
                 SparseVector x = sample_vector();
@@ -195,7 +195,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SparseValidation, ASparseMatrixOutsideItsRulesIsRefused)
+        TEST_F(Medium_SparseValidation, ASparseMatrixOutsideItsRulesIsRefused)
         {
             {
                 SparseMatrix A = sample();
@@ -221,7 +221,7 @@ namespace SushiBLAS
             expect_matrix_refused("a default-constructed matrix", SparseMatrix());
         }
 
-        TEST_F(Unit_SparseValidation, SpmvRefusesOperandsScalarsAndFlagsOutsideItsRules)
+        TEST_F(Medium_SparseValidation, SpmvRefusesOperandsScalarsAndFlagsOutsideItsRules)
         {
             const SparseMatrix A = sample();
             const Tensor four = dense(4);
@@ -247,7 +247,7 @@ namespace SushiBLAS
             });
         }
 
-        TEST_F(Unit_SparseValidation, SpsymvAndSphemvRefuseOperandsAndFlagsOutsideTheirRules)
+        TEST_F(Medium_SparseValidation, SpsymvAndSphemvRefuseOperandsAndFlagsOutsideTheirRules)
         {
             const SparseMatrix wide = sample();
             const SparseMatrix A = square();
@@ -271,7 +271,7 @@ namespace SushiBLAS
                            [&](SparseOps& ops) { ops.sphemv(A, five, y, lower); });
         }
 
-        TEST_F(Unit_SparseValidation, SpmmRefusesDenseOperandsOutsideItsRules)
+        TEST_F(Medium_SparseValidation, SpmmRefusesDenseOperandsOutsideItsRules)
         {
             const SparseMatrix A = sample();
             const Tensor B = engine->create_tensor({5, 3});
@@ -292,7 +292,7 @@ namespace SushiBLAS
                            [&](SparseOps& ops) { ops.spmm(A, B, narrow_C); });
         }
 
-        TEST_F(Unit_SparseValidation, SptrsvRefusesOperandsAndFlagsOutsideItsRules)
+        TEST_F(Medium_SparseValidation, SptrsvRefusesOperandsAndFlagsOutsideItsRules)
         {
             const SparseMatrix wide = sample();
             const SparseMatrix A = square();
@@ -316,7 +316,7 @@ namespace SushiBLAS
             });
         }
 
-        TEST_F(Unit_SparseValidation, ForceReferenceRefusesAMatrixWithDeviceOnlyValues)
+        TEST_F(Medium_SparseValidation, ForceReferenceRefusesAMatrixWithDeviceOnlyValues)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
             SparseOps ops(probe.recorder());

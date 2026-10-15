@@ -73,7 +73,7 @@ namespace SushiBLAS
          * @brief Runs HALF BLAS calls in a chosen execution mode, on all-ones operands and on a
          *        unit-lower system.
          */
-        class Unit_BlasHalfAccumulationTest : public SushiBLASTest
+        class Medium_BlasHalfAccumulationTest : public SushiBLASTest
         {
             protected:
                 /** @brief Returns a HALF tensor of dims with every element one. */
@@ -366,7 +366,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_BlasHalfAccumulationTest, GemmSumsEveryTermOfALongReduction)
+        TEST_F(Medium_BlasHalfAccumulationTest, GemmSumsEveryTermOfALongReduction)
         {
             const auto expected = run_gemm(ExecutionMode::ForceReference);
             const auto actual = run_gemm(ExecutionMode::ForceSYCL);
@@ -375,7 +375,7 @@ namespace SushiBLAS
             expect_match(actual, expected);
         }
 
-        TEST_F(Unit_BlasHalfAccumulationTest, SyrkSumsEveryTermOfALongReduction)
+        TEST_F(Medium_BlasHalfAccumulationTest, SyrkSumsEveryTermOfALongReduction)
         {
             const auto expected = run_syrk(ExecutionMode::ForceReference);
             const auto actual = run_syrk(ExecutionMode::ForceSYCL);
@@ -384,7 +384,7 @@ namespace SushiBLAS
             expect_match(actual, expected);
         }
 
-        TEST_F(Unit_BlasHalfAccumulationTest, GemvSumsEveryTermOfALongReduction)
+        TEST_F(Medium_BlasHalfAccumulationTest, GemvSumsEveryTermOfALongReduction)
         {
             const auto expected = run_gemv(ExecutionMode::ForceReference);
             const auto actual = run_gemv(ExecutionMode::ForceSYCL);
@@ -393,7 +393,7 @@ namespace SushiBLAS
             expect_match(actual, expected);
         }
 
-        TEST_F(Unit_BlasHalfAccumulationTest, DotSumsEveryTermOfALongReduction)
+        TEST_F(Medium_BlasHalfAccumulationTest, DotSumsEveryTermOfALongReduction)
         {
             auto dot = [this](Tensor& x, Tensor& result)
             {
@@ -405,7 +405,7 @@ namespace SushiBLAS
                         K_HALF_ROUNDING_AT_SUM);
         }
 
-        TEST_F(Unit_BlasHalfAccumulationTest, AsumSumsEveryTermOfALongReduction)
+        TEST_F(Medium_BlasHalfAccumulationTest, AsumSumsEveryTermOfALongReduction)
         {
             auto asum = [this](Tensor& x, Tensor& result)
             {
@@ -417,7 +417,7 @@ namespace SushiBLAS
                         K_HALF_ROUNDING_AT_SUM);
         }
 
-        TEST_F(Unit_BlasHalfAccumulationTest, Nrm2SumsEverySquareOfALongReduction)
+        TEST_F(Medium_BlasHalfAccumulationTest, Nrm2SumsEverySquareOfALongReduction)
         {
             auto nrm2 = [this](Tensor& x, Tensor& result)
             {
@@ -429,7 +429,7 @@ namespace SushiBLAS
                         K_HALF_ROUNDING_AT_NORM);
         }
 
-        TEST_F(Unit_BlasHalfAccumulationTest, HalfTrsmCarriesTheSolutionInFloat)
+        TEST_F(Medium_BlasHalfAccumulationTest, HalfTrsmCarriesTheSolutionInFloat)
         {
             for (const Core::Side side : {Core::Side::Left, Core::Side::Right})
             {
@@ -443,7 +443,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_BlasHalfAccumulationTest, HalfTrsvCarriesTheSolutionInFloat)
+        TEST_F(Medium_BlasHalfAccumulationTest, HalfTrsvCarriesTheSolutionInFloat)
         {
             expect_carried_in_float(Core::Side::Left, K_SYSTEM_ORDER, 1, [this](ExecutionMode mode)
             {

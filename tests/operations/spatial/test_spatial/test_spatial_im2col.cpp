@@ -52,7 +52,7 @@ namespace SushiBLAS
             }
         } // namespace
 
-        class Unit_SpatialIm2ColTest : public SushiBLASTest
+        class Medium_SpatialIm2ColTest : public SushiBLASTest
         {
             protected:
                 /** @brief An NHWC tensor holding 0, 1, 2, ... in memory order. */
@@ -66,7 +66,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Unit_SpatialIm2ColTest, AUnitWindowIsTheIdentityGather)
+        TEST_F(Medium_SpatialIm2ColTest, AUnitWindowIsTheIdentityGather)
         {
             // A 1x1 window's columns are the input reshaped. See the test README.
             auto in = ramp(2, 3, 4, 5);
@@ -81,7 +81,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(out[i], static_cast<float>(i)) << "element " << i;
         }
 
-        TEST_F(Unit_SpatialIm2ColTest, EachRowIsOneWindowWithChannelInnermost)
+        TEST_F(Medium_SpatialIm2ColTest, EachRowIsOneWindowWithChannelInnermost)
         {
             // 2x2 stride 1 gives 4 windows of 8 entries each. See the test README.
             auto in = ramp(1, 3, 3, 2);
@@ -110,7 +110,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SpatialIm2ColTest, OutOfBoundsTapsReadZeroRatherThanNeighbouringMemory)
+        TEST_F(Medium_SpatialIm2ColTest, OutOfBoundsTapsReadZeroRatherThanNeighbouringMemory)
         {
             // Padding is a parameter, not a padded copy. See tests/operations/spatial/README.md.
             auto in = ramp(1, 2, 2, 1);
@@ -133,7 +133,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(out[i], row0[i]) << "entry " << i;
         }
 
-        TEST_F(Unit_SpatialIm2ColTest, DilationSpacesTheTapsWithoutMovingTheWindows)
+        TEST_F(Medium_SpatialIm2ColTest, DilationSpacesTheTapsWithoutMovingTheWindows)
         {
             auto in = ramp(1, 5, 5, 1);
             auto cols = engine->create_tensor({1, 9}, Core::DataType::Float32);
@@ -155,7 +155,7 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(out[i], expected[i]) << "entry " << i;
         }
 
-        TEST_F(Unit_SpatialIm2ColTest, AsymmetricPaddingNeedsTheExplicitExtentOverload)
+        TEST_F(Medium_SpatialIm2ColTest, AsymmetricPaddingNeedsTheExplicitExtentOverload)
         {
             // The two-operand overload has no pad_right. See tests/operations/spatial/README.md.
             auto in = ramp(1, 3, 3, 1);
@@ -185,7 +185,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SpatialIm2ColTest, TheSYCLKernelAgreesWithTheReferenceKernel)
+        TEST_F(Medium_SpatialIm2ColTest, TheSYCLKernelAgreesWithTheReferenceKernel)
         {
             // The two forced modes are compared here. See tests/operations/spatial/README.md.
             auto in = ramp(2, 7, 5, 3);
@@ -222,7 +222,7 @@ namespace SushiBLAS
                     << "entry " << i << ": reference " << expected[i] << ", device " << got[i];
         }
 
-        TEST_F(Unit_SpatialIm2ColTest, AColumnMatrixOfTheWrongShapeIsRefusedByName)
+        TEST_F(Medium_SpatialIm2ColTest, AColumnMatrixOfTheWrongShapeIsRefusedByName)
         {
             auto in = ramp(1, 4, 4, 2);
             auto cols = engine->create_tensor({9, 7}, Core::DataType::Float32);   // 7 != 2*2*2
@@ -245,7 +245,7 @@ namespace SushiBLAS
             }
         }
 
-        TEST_F(Unit_SpatialIm2ColTest, ARankThatIsNotFourIsRefusedAtRecordTime)
+        TEST_F(Medium_SpatialIm2ColTest, ARankThatIsNotFourIsRefusedAtRecordTime)
         {
             auto in = engine->create_tensor({4, 4, 2}, Core::DataType::Float32);
             auto cols = engine->create_tensor({16, 8}, Core::DataType::Float32);

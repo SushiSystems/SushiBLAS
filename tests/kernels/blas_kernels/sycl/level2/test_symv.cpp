@@ -43,12 +43,12 @@ namespace SushiBLAS
     namespace Test
     {
         /** @brief Runs symv on the host CPU queue. */
-        class Device_SYCLSymv : public HostDeviceTest
+        class Medium_SYCLSymv : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_SYCLSymv, MatchesTheReferenceForBothTrianglesAndLayouts)
+        TEST_F(Medium_SYCLSymv, MatchesTheReferenceForBothTrianglesAndLayouts)
         {
             const int64_t n = 45;
             const std::vector<double> a = small_integers<double>(n * n, 1);

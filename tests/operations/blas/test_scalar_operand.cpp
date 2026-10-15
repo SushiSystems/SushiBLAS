@@ -42,13 +42,13 @@ namespace SushiBLAS
             using Core::DataType;
 
             /// @brief Names the suite of the scalar operand cases.
-            using Unit_ScalarOperand = StructuredOperandTest;
+            using Medium_ScalarOperand = StructuredOperandTest;
         } // namespace
 
         /**
          * @brief Tests that one stored element is a scalar whatever the rank of its tensor.
          */
-        TEST_F(Unit_ScalarOperand, OneElementOfAnyRankIsAccepted)
+        TEST_F(Medium_ScalarOperand, OneElementOfAnyRankIsAccepted)
         {
             const Tensor rank0 = make_tensor(std::initializer_list<int64_t>{});
             ASSERT_EQ(0, rank0.rank);
@@ -68,7 +68,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a tensor of another element count is no scalar.
          */
-        TEST_F(Unit_ScalarOperand, AnotherElementCountIsRefused)
+        TEST_F(Medium_ScalarOperand, AnotherElementCountIsRefused)
         {
             const Tensor two = make_tensor({2});
             EXPECT_THROW(Dispatch::require_scalar_operand(two, DataType::Float32, "op", "alpha"),
@@ -82,7 +82,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a scalar operand must own storage.
          */
-        TEST_F(Unit_ScalarOperand, AMissingStorageIsRefused)
+        TEST_F(Medium_ScalarOperand, AMissingStorageIsRefused)
         {
             const Tensor t = make_tensor_without_storage({1});
             EXPECT_THROW(Dispatch::require_scalar_operand(t, DataType::Float32, "op", "alpha"),
@@ -92,7 +92,7 @@ namespace SushiBLAS
         /**
          * @brief Tests that a scalar operand must hold the dtype the call expects.
          */
-        TEST_F(Unit_ScalarOperand, AnotherDtypeIsRefused)
+        TEST_F(Medium_ScalarOperand, AnotherDtypeIsRefused)
         {
             const Tensor t = make_tensor({1});
             EXPECT_THROW(Dispatch::require_scalar_operand(t, DataType::Float64, "op", "alpha"),

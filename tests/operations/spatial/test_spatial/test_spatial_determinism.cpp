@@ -92,7 +92,7 @@ namespace SushiBLAS
             }
         } // namespace
 
-        class Regression_SpatialDeterminismTest : public SushiBLASTest
+        class Medium_SpatialDeterminismTest : public SushiBLASTest
         {
             protected:
                 /** @brief Copies a float tensor's bit patterns into @p out. */
@@ -104,7 +104,7 @@ namespace SushiBLAS
                 }
         };
 
-        TEST_F(Regression_SpatialDeterminismTest, Col2ImIsBitReproducible)
+        TEST_F(Medium_SpatialDeterminismTest, Col2ImIsBitReproducible)
         {
             // 3x3, stride 1, padded by one: every interior pixel gathers nine terms.
             const int64_t N = 2, H = 6, W = 7, C = 3;
@@ -134,7 +134,7 @@ namespace SushiBLAS
                 N * H * W * C);
         }
 
-        TEST_F(Regression_SpatialDeterminismTest, MaxPoolBackwardIsBitReproducible)
+        TEST_F(Medium_SpatialDeterminismTest, MaxPoolBackwardIsBitReproducible)
         {
             // 2x2, stride 1: a pixel selected by several windows accumulates all their gradients.
             const int64_t N = 2, H = 6, W = 7, C = 3;
@@ -175,7 +175,7 @@ namespace SushiBLAS
                 N * H * W * C);
         }
 
-        TEST_F(Regression_SpatialDeterminismTest, AvgPoolBackwardIsBitReproducible)
+        TEST_F(Medium_SpatialDeterminismTest, AvgPoolBackwardIsBitReproducible)
         {
             // 3x3 stride 1: every interior pixel gathers nine shares.
             const int64_t N = 2, H = 6, W = 7, C = 3;
@@ -202,7 +202,7 @@ namespace SushiBLAS
                 N * H * W * C);
         }
 
-        TEST_F(Regression_SpatialDeterminismTest, WindowDotBackwardIsBitReproducible)
+        TEST_F(Medium_SpatialDeterminismTest, WindowDotBackwardIsBitReproducible)
         {
             // 3x3, stride 1, padded by one, unit taps: every interior pixel gathers nine terms.
             const int64_t N = 2, H = 6, W = 7, C = 3;
@@ -234,7 +234,7 @@ namespace SushiBLAS
                 N * H * W * C);
         }
 
-        TEST_F(Regression_SpatialDeterminismTest, WindowDotWeightsBackwardIsBitReproducible)
+        TEST_F(Medium_SpatialDeterminismTest, WindowDotWeightsBackwardIsBitReproducible)
         {
             // 3x3, stride 1, padded by one, unit input: every tap folds up to 84 gradients.
             const int64_t N = 2, H = 6, W = 7, C = 3;
@@ -266,7 +266,7 @@ namespace SushiBLAS
                 3 * 3 * C);
         }
 
-        TEST_F(Regression_SpatialDeterminismTest, UpsampleBackwardIsBitReproducible)
+        TEST_F(Medium_SpatialDeterminismTest, UpsampleBackwardIsBitReproducible)
         {
             // Scale 3 in both axes, so every input pixel gathers nine terms.
             const int64_t N = 2, H = 5, W = 4, C = 3;
@@ -288,7 +288,7 @@ namespace SushiBLAS
                 N * H * W * C);
         }
 
-        TEST_F(Regression_SpatialDeterminismTest, MeanSpatialIsBitReproducible)
+        TEST_F(Medium_SpatialDeterminismTest, MeanSpatialIsBitReproducible)
         {
             // Few segments over a long extent, so the reduction folds through the halving tree.
             const int64_t N = 2, H = 256, W = 256, C = 2;

@@ -58,7 +58,7 @@ namespace SushiBLAS
             return profile;
         }
 
-        TEST(Unit_Reduce1D, FloorPow2RoundsDownToAPowerOfTwo)
+        TEST(Medium_Reduce1D, FloorPow2RoundsDownToAPowerOfTwo)
         {
             static_assert(Reduce::floor_pow2(1) == 1, "1 is 2^0.");
             static_assert(Reduce::floor_pow2(100) == 64, "100 rounds to 64.");
@@ -67,7 +67,7 @@ namespace SushiBLAS
             EXPECT_EQ(Reduce::floor_pow2(0), std::size_t{1});
         }
 
-        TEST(Unit_Reduce1D, ACPUFoldsSmallInputsInOneTask)
+        TEST(Medium_Reduce1D, ACPUFoldsSmallInputsInOneTask)
         {
             const Device::Profile cpu = cpu_with(8, 8192);
 
@@ -77,7 +77,7 @@ namespace SushiBLAS
             EXPECT_TRUE(Reduce::plan(cpu, 100, K_PARTIALS).sequential());
         }
 
-        TEST(Unit_Reduce1D, APlanStaysWithinTheScratchAndTheGroupCap)
+        TEST(Medium_Reduce1D, APlanStaysWithinTheScratchAndTheGroupCap)
         {
             const Device::Profile cpu = cpu_with(64, 64);
             const std::size_t n = std::size_t{1} << 22;
@@ -88,7 +88,7 @@ namespace SushiBLAS
             EXPECT_EQ(Reduce::plan(cpu, n, 10).local, Reduce::group_width(cpu));
         }
 
-        TEST(Unit_Reduce1D, CompensatedSumKeepsTheSmallTermsOfALargeSum)
+        TEST(Medium_Reduce1D, CompensatedSumKeepsTheSmallTermsOfALargeSum)
         {
             Reduce::CompensatedSum<float> sum;
             sum.accumulate(1.0e8f);
@@ -99,7 +99,7 @@ namespace SushiBLAS
             EXPECT_EQ(sum.value(), 1000.0f);
         }
 
-        TEST(Unit_Reduce1D, CompensatedSumOfAnInfinityIsThatInfinity)
+        TEST(Medium_Reduce1D, CompensatedSumOfAnInfinityIsThatInfinity)
         {
             Reduce::CompensatedSum<double> sum;
             sum.accumulate(1.0);
@@ -108,7 +108,7 @@ namespace SushiBLAS
             EXPECT_EQ(sum.value(), std::numeric_limits<double>::infinity());
         }
 
-        TEST(Unit_Reduce1D, ScaledSumOfSquaresNeitherOverflowsNorUnderflows)
+        TEST(Medium_Reduce1D, ScaledSumOfSquaresNeitherOverflowsNorUnderflows)
         {
             Reduce::ScaledSumOfSquares<float> big;
             big.accumulate(3.0e30f);
@@ -121,7 +121,7 @@ namespace SushiBLAS
             EXPECT_NEAR(small.value(), 5.0e-30f, 5.0e-30f * 1e-6f);
         }
 
-        TEST(Unit_Reduce1D, ProductExactSumAndComplexSumFoldTheirTerms)
+        TEST(Medium_Reduce1D, ProductExactSumAndComplexSumFoldTheirTerms)
         {
             Reduce::RunningProduct<double> product;
             Reduce::ExactSum<int64_t> exact;
@@ -138,7 +138,7 @@ namespace SushiBLAS
             EXPECT_EQ(complex_sum.value(), std::complex<double>(15.0, -15.0));
         }
 
-        TEST(Unit_Reduce1D, MaxAndMinPropagateNaNAndPreferPositiveZero)
+        TEST(Medium_Reduce1D, MaxAndMinPropagateNaNAndPreferPositiveZero)
         {
             const double nan = std::numeric_limits<double>::quiet_NaN();
 
@@ -152,7 +152,7 @@ namespace SushiBLAS
                       std::numeric_limits<int32_t>::max());
         }
 
-        TEST(Unit_Reduce1D, ArgMaxKeepsTheFirstIndexOfATie)
+        TEST(Medium_Reduce1D, ArgMaxKeepsTheFirstIndexOfATie)
         {
             using Pair = Reduce::IndexedValue<float>;
             Reduce::RunningArgMax<Pair> best;
@@ -164,7 +164,7 @@ namespace SushiBLAS
             EXPECT_EQ(best.value().value, 7.0f);
         }
 
-        TEST(Unit_Reduce1D, ArgMinTakesTheSmallestValue)
+        TEST(Medium_Reduce1D, ArgMinTakesTheSmallestValue)
         {
             using Pair = Reduce::IndexedValue<double>;
             Reduce::RunningArgMin<Pair> best;
@@ -176,12 +176,12 @@ namespace SushiBLAS
         }
 
         /** @brief Runs the reductions on the host CPU queue. */
-        class Device_Reduce1D : public HostDeviceTest
+        class Medium_Reduce1DOnDevice : public HostDeviceTest
         {
 
         };
 
-        TEST_F(Device_Reduce1D, TheStagedAndTheSequentialSumGiveTheExactSum)
+        TEST_F(Medium_Reduce1DOnDevice, TheStagedAndTheSequentialSumGiveTheExactSum)
         {
             std::vector<float> values(K_COUNT);
             std::size_t exact_sum = 0;
@@ -210,7 +210,7 @@ namespace SushiBLAS
             EXPECT_EQ(sequential.get()[0], exact);
         }
 
-        TEST_F(Device_Reduce1D, FinalizeReceivesTheElementCount)
+        TEST_F(Medium_Reduce1DOnDevice, FinalizeReceivesTheElementCount)
         {
             const SharedArray<double> in(queue(), std::vector<double>{2.0, 4.0, 6.0, 8.0});
             SharedArray<double> mean(queue(), 1);

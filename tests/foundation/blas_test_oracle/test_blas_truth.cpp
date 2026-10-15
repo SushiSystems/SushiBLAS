@@ -35,7 +35,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Unit_BlasTruth, AnEmptySumIsZero)
+        TEST(Medium_BlasTruth, AnEmptySumIsZero)
         {
             const TruthValue value = TruthSum{}.value();
 
@@ -43,7 +43,7 @@ namespace SushiBLAS
             EXPECT_EQ(value.magnitude, 0.0);
         }
 
-        TEST(Unit_BlasTruth, KeepsATermAPlainDoubleSumRoundsAway)
+        TEST(Medium_BlasTruth, KeepsATermAPlainDoubleSumRoundsAway)
         {
             TruthSum truth;
             truth.add_product(1.0e16, 1.0);
@@ -59,7 +59,7 @@ namespace SushiBLAS
             EXPECT_DOUBLE_EQ(truth.value().magnitude, 2.0e16);
         }
 
-        TEST(Unit_BlasTruth, KeepsTheRoundingErrorOfAProduct)
+        TEST(Medium_BlasTruth, KeepsTheRoundingErrorOfAProduct)
         {
             // (1 + 2^-30)^2 = 1 + 2^-29 + 2^-60; the last term is below a double's step at 1.
             const double a = 1.0 + 0x1p-30;
@@ -71,14 +71,14 @@ namespace SushiBLAS
             EXPECT_EQ(truth.value().value, 0x1p-60);
         }
 
-        TEST(Unit_BlasTruth, UnitRoundoffIsHalfTheEpsilon)
+        TEST(Medium_BlasTruth, UnitRoundoffIsHalfTheEpsilon)
         {
             EXPECT_EQ(unit_roundoff<double>(), 0x1p-53);
             EXPECT_EQ(unit_roundoff<float>(), 0x1p-24);
             EXPECT_EQ(unit_roundoff<sycl::half>(), 0x1p-11);
         }
 
-        TEST(Unit_BlasTruth, TheRoundingBoundGrowsWithTheRoundings)
+        TEST(Medium_BlasTruth, TheRoundingBoundGrowsWithTheRoundings)
         {
             const double unit = unit_roundoff<float>();
 

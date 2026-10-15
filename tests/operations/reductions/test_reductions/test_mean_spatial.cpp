@@ -50,14 +50,14 @@ namespace SushiBLAS
             }
         }
 
-        class Unit_MeanSpatialTest : public SushiBLASTest {};
-        class Regression_AxisSpanTest : public SushiBLASTest {};
+        class Medium_MeanSpatialTest : public SushiBLASTest {};
+        class Medium_AxisSpanTest : public SushiBLASTest {};
 
         /**
          * @brief Tests that mean_spatial folds the two middle axes into one result per (n, c).
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_MeanSpatialTest, FoldsTheTwoMiddleAxesOfAnNhwcTensor)
+        TEST_F(Medium_MeanSpatialTest, FoldsTheTwoMiddleAxesOfAnNhwcTensor)
         {
             constexpr int64_t N = 2, H = 3, W = 4, C = 5;
             const std::size_t total = static_cast<std::size_t>(N * H * W * C);
@@ -103,7 +103,7 @@ namespace SushiBLAS
          * @brief Tests that a tensor with N = 1 and C = 1 still reduces correctly.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_MeanSpatialTest, ASingleSegmentPairIsStillCorrect)
+        TEST_F(Medium_MeanSpatialTest, ASingleSegmentPairIsStillCorrect)
         {
             auto x = engine->create_tensor({1, 2, 2, 1});
             auto out = engine->create_tensor({1, 1});
@@ -121,7 +121,7 @@ namespace SushiBLAS
          * @brief Tests one fold of 262144 elements, which takes the cooperative shape.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Unit_MeanSpatialTest, ALongExtentReachesTheCooperativeShape)
+        TEST_F(Medium_MeanSpatialTest, ALongExtentReachesTheCooperativeShape)
         {
             constexpr int64_t H = 512, W = 512;
             const std::size_t total = static_cast<std::size_t>(H * W);
@@ -151,7 +151,7 @@ namespace SushiBLAS
          * @brief Tests that a span with no second segment axis reduces as it always did.
          * @see tests/operations/reductions/README.md
          */
-        TEST_F(Regression_AxisSpanTest, ASpanWithNoSecondAxisReducesExactlyAsItAlwaysDid)
+        TEST_F(Medium_AxisSpanTest, ASpanWithNoSecondAxisReducesExactlyAsItAlwaysDid)
         {
             constexpr int64_t R = 6, K = 7;
             const std::size_t total = static_cast<std::size_t>(R * K);

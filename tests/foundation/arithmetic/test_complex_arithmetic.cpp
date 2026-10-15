@@ -64,7 +64,7 @@ namespace SushiBLAS
          * @brief Draws real and complex values of component type R from a fixed seed.
          */
         template<typename R>
-        class Unit_ComplexArithmetic : public ::testing::Test
+        class Small_ComplexArithmetic : public ::testing::Test
         {
             protected:
                 /** @brief Returns the next real value, in [-K_DRAW_RANGE, K_DRAW_RANGE]. */
@@ -96,9 +96,9 @@ namespace SushiBLAS
         };
 
         using ComplexArithmeticTypes = ::testing::Types<float, double>;
-        SB_TYPED_TEST_SUITE(Unit_ComplexArithmetic, ComplexArithmeticTypes);
+        SB_TYPED_TEST_SUITE(Small_ComplexArithmetic, ComplexArithmeticTypes);
 
-        TYPED_TEST(Unit_ComplexArithmetic, RealOfNamesTheComponentType)
+        TYPED_TEST(Small_ComplexArithmetic, RealOfNamesTheComponentType)
         {
             using R = TypeParam;
 
@@ -108,7 +108,7 @@ namespace SushiBLAS
             SUCCEED();
         }
 
-        TYPED_TEST(Unit_ComplexArithmetic, RealMultiplyAndDivideAreTheBareOperators)
+        TYPED_TEST(Small_ComplexArithmetic, RealMultiplyAndDivideAreTheBareOperators)
         {
             for (int i = 0; i < K_PAIR_COUNT; ++i)
             {
@@ -120,7 +120,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_ComplexArithmetic, RealConjugationLeavesTheValue)
+        TYPED_TEST(Small_ComplexArithmetic, RealConjugationLeavesTheValue)
         {
             const TypeParam value = static_cast<TypeParam>(-2.5);
 
@@ -130,7 +130,7 @@ namespace SushiBLAS
             EXPECT_EQ(Kernels::real_part(value), value);
         }
 
-        TYPED_TEST(Unit_ComplexArithmetic, ComplexConjugateNegatesTheImaginaryPart)
+        TYPED_TEST(Small_ComplexArithmetic, ComplexConjugateNegatesTheImaginaryPart)
         {
             using R = TypeParam;
             const std::complex<R> value(R(1.5), R(-2.25));
@@ -138,7 +138,7 @@ namespace SushiBLAS
             EXPECT_EQ(Kernels::conjugate(value), std::complex<R>(R(1.5), R(2.25)));
         }
 
-        TYPED_TEST(Unit_ComplexArithmetic, ConjugateIfConjugatesOnlyWhenEnabled)
+        TYPED_TEST(Small_ComplexArithmetic, ConjugateIfConjugatesOnlyWhenEnabled)
         {
             using R = TypeParam;
             const std::complex<R> value(R(1.5), R(-2.25));
@@ -147,7 +147,7 @@ namespace SushiBLAS
             EXPECT_EQ(Kernels::conjugate_if(false, value), value);
         }
 
-        TYPED_TEST(Unit_ComplexArithmetic, RealPartZeroesTheImaginaryPart)
+        TYPED_TEST(Small_ComplexArithmetic, RealPartZeroesTheImaginaryPart)
         {
             using R = TypeParam;
             const std::complex<R> value(R(1.5), R(-2.25));
@@ -155,7 +155,7 @@ namespace SushiBLAS
             EXPECT_EQ(Kernels::real_part(value), std::complex<R>(R(1.5), R(0)));
         }
 
-        TYPED_TEST(Unit_ComplexArithmetic, ComplexMultiplyIsTheFourProductFormulaToTheBit)
+        TYPED_TEST(Small_ComplexArithmetic, ComplexMultiplyIsTheFourProductFormulaToTheBit)
         {
             using R = TypeParam;
 
@@ -170,7 +170,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_ComplexArithmetic, RealTimesComplexScalesEachPart)
+        TYPED_TEST(Small_ComplexArithmetic, RealTimesComplexScalesEachPart)
         {
             using R = TypeParam;
 
@@ -185,7 +185,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_ComplexArithmetic, ComplexDivideAgreesWithStdDivision)
+        TYPED_TEST(Small_ComplexArithmetic, ComplexDivideAgreesWithStdDivision)
         {
             using R = TypeParam;
             const double epsilon = static_cast<double>(std::numeric_limits<R>::epsilon());
@@ -209,7 +209,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_ComplexArithmetic, ComplexDivideIsExactForARealDivisor)
+        TYPED_TEST(Small_ComplexArithmetic, ComplexDivideIsExactForARealDivisor)
         {
             using R = TypeParam;
 
@@ -228,7 +228,7 @@ namespace SushiBLAS
             }
         }
 
-        TYPED_TEST(Unit_ComplexArithmetic, ComplexDivideStaysFiniteForALargeDivisor)
+        TYPED_TEST(Small_ComplexArithmetic, ComplexDivideStaysFiniteForALargeDivisor)
         {
             using R = TypeParam;
             const R large = TestFixture::large_divisor();
@@ -246,7 +246,7 @@ namespace SushiBLAS
             EXPECT_NEAR(static_cast<double>(quotient.imag()), 0.0, bound);
         }
 
-        TYPED_TEST(Unit_ComplexArithmetic, ComplexDivideByZeroGivesNanParts)
+        TYPED_TEST(Small_ComplexArithmetic, ComplexDivideByZeroGivesNanParts)
         {
             using R = TypeParam;
 
@@ -257,7 +257,7 @@ namespace SushiBLAS
             EXPECT_TRUE(std::isnan(quotient.imag()));
         }
 
-        TYPED_TEST(Unit_ComplexArithmetic, SafeWrappersReturnWhatTheBricksReturn)
+        TYPED_TEST(Small_ComplexArithmetic, SafeWrappersReturnWhatTheBricksReturn)
         {
             using R = TypeParam;
 
