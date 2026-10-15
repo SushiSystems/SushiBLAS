@@ -50,7 +50,7 @@ namespace SushiBLAS
             /// @brief Holds the value an empty fold must return untouched.
             constexpr std::uint64_t K_IDENTITY = 0xFEEDu;
 
-            /** @brief Mixes the element into the accumulator, so a fold shows its order and grouping. */
+            /** @brief Mixes the element into the accumulator so a fold shows order and grouping. */
             struct Mix
             {
                 /** @brief Returns a value that changes when the operands swap or regroup. */
