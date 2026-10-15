@@ -31,7 +31,7 @@
 #include <cstdint>
 #include <utility>
 
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 
 namespace HostProgram
 {

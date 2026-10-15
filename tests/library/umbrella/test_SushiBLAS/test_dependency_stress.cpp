@@ -28,7 +28,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <chrono>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
@@ -39,7 +39,7 @@ class Integration_DependencyStressTest : public SushiBLASTest {};
 
 /**
  * @brief Tests that 5000 readers of one written tensor all see the written value.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Integration_DependencyStressTest, ManyReadersOneWriter) 
 {
@@ -92,7 +92,7 @@ TEST_F(Integration_DependencyStressTest, ManyReadersOneWriter)
 
 /**
  * @brief Tests that 3000 independent GEMMs on distinct tensors each produce their own result.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Integration_DependencyStressTest, ShardCollisionStress) 
 {

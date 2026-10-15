@@ -41,7 +41,7 @@
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level3/syr2k.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/blas/local_tile.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>

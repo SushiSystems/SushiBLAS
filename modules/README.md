@@ -3,8 +3,8 @@
 The library is one tree per module, `modules/<tier>/<module>/`, and a header is included as
 `<SushiBLAS/<module>/<name>.hpp>`. A tier depends only on the tiers above it in the table;
 `cmake/SushiBLASLayers.cmake` holds the order and the few edges allowed inside a tier.
-`SushiBLAS.h`, in `library/sushiblas`, includes the core, tensor and engine headers and every
-operation family in one line.
+`SushiBLAS.hpp`, in `library/umbrella`, includes the header of every module that is not internal
+in one line.
 
 | Tier | Module | Holds | Reasoning |
 | --- | --- | --- | --- |
@@ -43,7 +43,8 @@ operation family in one line.
 | operations | `io` | `IO` and `IOStatus` | [README](operations/io/README.md) |
 | operations | `experimental` | LAPACK and signal declarations that have no implementation | [README](operations/experimental/README.md) |
 | operations | `benchmark_harness` | Benchmark-only: the size arguments, environment lines, fill, timing loop and table of the benchmark programs | [README](operations/benchmark_harness/README.md) |
-| library | `sushiblas` | The umbrella header and the one library a consumer links | [README](library/sushiblas/README.md) |
+| library | `umbrella` | `SushiBLAS.hpp`, the project umbrella: every public header in one line | [README](library/umbrella/README.md) |
+| library | `sushiblas` | The one library a consumer links, composed from every module | [README](library/sushiblas/README.md) |
 
 The sections below are about the headers of `tensor`, `sparse_storage`, `engine` and `io` that
 a consumer meets first. Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the

@@ -32,7 +32,7 @@
 #include <stdexcept>
 #include <initializer_list>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/blas/band_operand.hpp>
 #include <SushiBLAS/blas/packed_operand.hpp>
 #include <SushiBLAS/blas/scalar_operand.hpp>

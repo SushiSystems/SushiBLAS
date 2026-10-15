@@ -28,7 +28,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <chrono>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
@@ -41,7 +41,7 @@ class Integration_FrameworkSimTest : public SushiBLASTest {};
 
 /**
  * @brief Tests a chain of ten GEMMs, each followed by ReLU except the last, against a host-computed result.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Integration_FrameworkSimTest, DeepForwardPass) 
 {
@@ -118,7 +118,7 @@ TEST_F(Integration_FrameworkSimTest, DeepForwardPass)
 
 /**
  * @brief Tests 24 independent GEMM and ReLU pairs submitted to one graph against their exact results.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Integration_FrameworkSimTest, ParallelBatchedInference) 
 {

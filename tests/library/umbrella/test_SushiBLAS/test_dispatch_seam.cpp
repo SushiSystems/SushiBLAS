@@ -40,7 +40,7 @@
 #include <initializer_list>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/task.hpp>
 #include <SushiBLAS/logic/dispatch.hpp>
@@ -70,7 +70,7 @@ namespace
 {
     /**
      * @brief Returns the bit pattern of a float.
-     * @see tests/library/sushiblas/README.md
+     * @see tests/library/umbrella/README.md
      */
     uint32_t float_bits(float value) noexcept
     {
@@ -455,7 +455,7 @@ TEST_F(Unit_DispatchSeamTest, RealOnlyDomainRejectsComplexAtRecordTime)
     auto b = engine->create_tensor({2}, DataType::Complex32);
     auto c = engine->create_tensor({2}, DataType::Complex32);
 
-    // The default domain is REAL. See tests/library/sushiblas/README.md.
+    // The default domain is REAL. See tests/library/umbrella/README.md.
     EXPECT_THROW(
         sb::Dispatch::execute_binary(
             engine->recorder(), a, b, c, "test.real_only", "test.real_only"_op,
@@ -465,7 +465,7 @@ TEST_F(Unit_DispatchSeamTest, RealOnlyDomainRejectsComplexAtRecordTime)
 
 TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
 {
-    // 1023 is a multiple of no work-group or vector width. See tests/library/sushiblas/README.md.
+    // 1023 is a multiple of no work-group or vector width. See tests/library/umbrella/README.md.
     constexpr int64_t k_n = 1023;
 
     const float b1 = 0.9f;
@@ -497,7 +497,7 @@ TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
     auto th_fused = seeded(th0), m_fused = seeded(m0), v_fused = seeded(v0), ema_fused = seeded(th0);
     auto th_steps = seeded(th0), m_steps = seeded(m0), v_steps = seeded(v0), ema_steps = seeded(th0);
 
-    // g is an operand although the functor only reads it. See tests/library/sushiblas/README.md.
+    // g is an operand although the functor only reads it. See tests/library/umbrella/README.md.
     sb::Dispatch::execute_zip_inplace(engine->recorder(),
         std::array{&th_fused, &g, &m_fused, &v_fused, &ema_fused},
         "test.adamw_fused", "test.adamw_fused"_op,
@@ -512,7 +512,7 @@ TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
             ema = T(ema_decay) * ema + T(1.0f - ema_decay) * theta;
         });
 
-    // The same arithmetic as fifteen library tasks. See tests/library/sushiblas/README.md.
+    // The same arithmetic as fifteen library tasks. See tests/library/umbrella/README.md.
     auto scratch_a = engine->create_tensor({k_n});
     auto scratch_b = engine->create_tensor({k_n});
     auto eps_vec = engine->create_tensor({k_n});
@@ -548,13 +548,13 @@ TEST_F(Unit_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
     SB_ASSERT_TENSOR_NEAR(th_fused, th_steps, 1e-6, float);
     SB_ASSERT_TENSOR_NEAR(ema_fused, ema_steps, 1e-6, float);
 
-    // A read-only operand comes back bit for bit. See tests/library/sushiblas/README.md.
+    // A read-only operand comes back bit for bit. See tests/library/umbrella/README.md.
     verify_tensor(g, g0, 0.0);
 }
 
 TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
 {
-    // Two identical fused updates must agree exactly. See tests/library/sushiblas/README.md.
+    // Two identical fused updates must agree exactly. See tests/library/umbrella/README.md.
     constexpr int64_t k_n = 517;
     std::vector<float> seed(static_cast<size_t>(k_n));
     for (int64_t i = 0; i < k_n; ++i)
@@ -638,7 +638,7 @@ TEST_F(Unit_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
 
 TEST_F(Unit_DispatchSeamTest, RNGMetadataSlotsAreInRangeAndRoundTrip)
 {
-    // The seed and offset slots read back exactly. See tests/library/sushiblas/README.md.
+    // The seed and offset slots read back exactly. See tests/library/umbrella/README.md.
     constexpr uint64_t kSeed = 0xDEADBEEFCAFEF00Dull;
     constexpr uint64_t kOffset = 42;
 
@@ -687,7 +687,7 @@ TEST_F(Unit_DispatchSeamTest, TooManyTaskParamsThrowsInsteadOfDroppingThem)
 
 /**
  * @brief Tests that every operation with a scalar parameter matches its host formula per dtype.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Unit_DispatchSeamTest, ScalarOperationsMatchTheirHostFormula)
 {
@@ -704,7 +704,7 @@ TEST_F(Unit_DispatchSeamTest, ScalarOperationsMatchTheirHostFormula)
 
 /**
  * @brief Tests that a fused update takes a functor bound to a scalar parameter.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Unit_DispatchSeamTest, ABoundFunctorWorksInAFusedUpdate)
 {
@@ -723,7 +723,7 @@ TEST_F(Unit_DispatchSeamTest, ABoundFunctorWorksInAFusedUpdate)
 
 /**
  * @brief Tests that a typed task reports the family its caller declared.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
 {
@@ -755,7 +755,7 @@ TEST_F(Unit_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
 /**
  * @brief Tests that a declared read orders its task behind the tensor's writer, and a captured
  *        pointer does not.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsOrderedBehindItsWriter)
 {
@@ -781,7 +781,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsOrderedBehindItsWriter)
 
 /**
  * @brief Tests that a task keeps the storage of a tensor its functor declared.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsKeptAllocated)
 {
@@ -801,7 +801,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadIsKeptAllocated)
 
 /**
  * @brief Tests that a read declared in another type than the operation's reaches the functor typed.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Unit_DispatchSeamTest, ADeclaredReadOfAnotherTypeArrivesTyped)
 {
@@ -817,7 +817,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadOfAnotherTypeArrivesTyped)
 
 /**
  * @brief Tests that each of the other six functor seams hands a declared read to its functor.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Unit_DispatchSeamTest, ADeclaredReadWorksOnEverySeam)
 {
@@ -883,7 +883,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadWorksOnEverySeam)
 
 /**
  * @brief Tests that a seam refuses a declared read of a tensor the operation writes.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Unit_DispatchSeamTest, ADeclaredReadMayNotBeAnOutput)
 {
@@ -899,7 +899,7 @@ TEST_F(Unit_DispatchSeamTest, ADeclaredReadMayNotBeAnOutput)
 /**
  * @brief Tests that ForceReference refuses a declared read in device-only USM and ForceSYCL
  *        records it.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Unit_DispatchSeamTest, ADeviceOnlyReadIsRefusedUnderForceReference)
 {
@@ -921,7 +921,7 @@ TEST_F(Unit_DispatchSeamTest, ADeviceOnlyReadIsRefusedUnderForceReference)
 
 /**
  * @brief Tests that the host path hands a functor the same declared reads as the SYCL path.
- * @see tests/library/sushiblas/README.md
+ * @see tests/library/umbrella/README.md
  */
 TEST_F(Unit_DispatchSeamTest, ADeclaredReadReachesTheHostPath)
 {

@@ -29,7 +29,7 @@
 #include <vector>
 #include <stdexcept>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
@@ -59,7 +59,7 @@ TEST_F(Unit_DispatchComplexTest, BinaryArithmeticOnComplex32)
     auto sub_expected = create_initialized_tensor<cf>({2}, {cf(-1.0f, 1.0f), cf(4.0f, -5.0f)});
     SB_ASSERT_TENSOR_NEAR(c, sub_expected, 1e-4, cf);
 
-    // (1+2i)(2+i) = 5i and (3-i)(-1+4i) = 1+13i. See tests/library/sushiblas/README.md.
+    // (1+2i)(2+i) = 5i and (3-i)(-1+4i) = 1+13i. See tests/library/umbrella/README.md.
     SushiBLAS::ElementwiseOps(*engine).mul(a, b, c);
     engine->execute().value();
     auto mul_expected = create_initialized_tensor<cf>({2}, {cf(0.0f, 5.0f), cf(1.0f, 13.0f)});
@@ -163,7 +163,7 @@ TEST_F(Unit_DispatchComplexTest, WhereSelectsOnComplex32)
     SB_ASSERT_TENSOR_NEAR(out, expected, 1e-4, cf);
 }
 
-// Operations with no complex meaning fail at record time. See tests/library/sushiblas/README.md.
+// Operations with no complex meaning fail at record time. See tests/library/umbrella/README.md.
 
 TEST_F(Unit_DispatchComplexTest, OrderingComparisonsRejectComplex32)
 {
@@ -171,7 +171,7 @@ TEST_F(Unit_DispatchComplexTest, OrderingComparisonsRejectComplex32)
     auto b = engine->create_tensor({2}, DataType::Complex32);
     auto r = engine->create_tensor({2}, DataType::Complex32);
 
-    // C is not an ordered field. See tests/library/sushiblas/README.md.
+    // C is not an ordered field. See tests/library/umbrella/README.md.
     EXPECT_THROW(SushiBLAS::LogicOps(*engine).less(a, b, r), std::invalid_argument);
     EXPECT_THROW(SushiBLAS::LogicOps(*engine).less_equal(a, b, r), std::invalid_argument);
     EXPECT_THROW(SushiBLAS::LogicOps(*engine).greater(a, b, r), std::invalid_argument);
@@ -202,7 +202,7 @@ TEST_F(Unit_DispatchComplexTest, RoundingAndClampRejectComplex32)
 
 TEST_F(Unit_DispatchComplexTest, RemainingRealOnlyOpsRejectComplex32)
 {
-    // Complex trigonometry and pow are not implemented. See tests/library/sushiblas/README.md.
+    // Complex trigonometry and pow are not implemented. See tests/library/umbrella/README.md.
     auto t = engine->create_tensor({2}, DataType::Complex32);
 
     EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).sin(t), std::invalid_argument);

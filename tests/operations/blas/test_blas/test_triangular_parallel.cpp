@@ -46,7 +46,7 @@
 #include <SushiBLAS/blas_kernels/sycl/level2/tpsv.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level3/trsm.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>

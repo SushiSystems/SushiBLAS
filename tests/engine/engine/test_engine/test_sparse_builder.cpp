@@ -34,7 +34,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/sparse_storage/sparse_matrix.hpp>
 #include <SushiBLAS/sparse_storage/sparse_vector.hpp>
 #include <SushiBLAS/sparse_storage/sparse_builder.hpp>

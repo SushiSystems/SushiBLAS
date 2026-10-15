@@ -19,7 +19,7 @@ SushiBLAS is below 1.0.0, and its public interface is not stable.
 
 - A MINOR release (0.2, 0.3) may change or remove any public name, signature, header path or binary layout. A PATCH release does not.
 - Pin an exact tag. Do not follow a branch. No tag exists yet; the version in `CMakeLists.txt` is 0.1.0.
-- Reach SushiBLAS through one adapter of your own: a single module that includes `<SushiBLAS/SushiBLAS.h>` and exposes only what your code needs, in your own types. When a release breaks the interface, that module is the only place you edit.
+- Reach SushiBLAS through one adapter of your own: a single module that includes `<SushiBLAS/SushiBLAS.hpp>` and exposes only what your code needs, in your own types. When a release breaks the interface, that module is the only place you edit.
 - SushiBLAS's public headers include `<SushiRuntime/sushiruntime.hpp>` and name `SushiRuntime::Runtime`, `Result` and `Residency`, so a SushiRuntime release that changes those changes this interface too. The build names no SushiRuntime version: `cmake/Runtime.cmake` takes the package or the checkout it finds.
 
 `applications/examples/adapter/` is such an adapter in a program this repository builds: its two adapter files, `sushiblas_adapter.cpp` and `status_mapping.hpp`, are the only ones that include the library, and they turn every exception SushiBLAS throws and every `SushiRuntime::Error` a run returns into the program's own `Status`. [The integration guide](docs/guides/INTEGRATION.md#5-write-one-adapter) walks through it. SushiAI's seam (`sushiai/modules/core/core/source/seam.cpp`) does the same for the failure channels of a larger consumer.
@@ -142,7 +142,7 @@ ctest --test-dir build -L regression
 ```cpp
 #include <vector>
 #include <cstdint>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 
 namespace sb = SushiBLAS;
 namespace sr = SushiRuntime;
@@ -226,7 +226,8 @@ modules/                One tree per module: README.md, CMakeLists.txt, include/
     io/                 Host transfer, save, load and print (native, .npy, raw binary)
     experimental/       Quarantined FFT and LAPACK declarations
   library/
-    sushiblas/          SushiBLAS.h and the one library a consumer links
+    umbrella/           SushiBLAS.hpp, every public header in one line
+    sushiblas/          The one library a consumer links
 applications/examples/  Eight example programs, the adapter example among them
 tests/                  Every test, mirroring modules/; see tests/README.md
   <tier>/<module>/      test_<header>.cpp per public header, and benchmark_*.cpp

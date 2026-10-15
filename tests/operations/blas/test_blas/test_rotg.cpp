@@ -39,7 +39,7 @@
 #include <type_traits>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/blas_seam_kernels/givens.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>

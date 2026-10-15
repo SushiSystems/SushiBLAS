@@ -25,7 +25,7 @@ The helpers use the library's own trait, `SushiBLAS::Core::is_complex_v` from
 
 Every helper here reads or writes `num_elements` consecutive elements from `tensor.data()`. They
 handle dense, contiguous tensors only. A strided view or a view at an offset needs its own
-comparison, as `tests/library/sushiblas/test_SushiBLAS/test_storage_offset.cpp` does.
+comparison, as `tests/library/umbrella/test_SushiBLAS/test_storage_offset.cpp` does.
 
 ## tensor_fill.hpp
 

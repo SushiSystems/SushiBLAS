@@ -32,7 +32,7 @@
 #include <type_traits>
 #include <initializer_list>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>

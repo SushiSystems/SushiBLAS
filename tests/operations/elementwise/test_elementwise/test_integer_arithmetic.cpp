@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/elementwise/dispatch.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>

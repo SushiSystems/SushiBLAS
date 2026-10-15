@@ -30,7 +30,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 
 namespace
 {

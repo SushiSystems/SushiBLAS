@@ -1,6 +1,6 @@
-# Tests of sushiblas
+# Tests of umbrella
 
-The tests of the `sushiblas` module, built into `sushiblas_sushiblas_tests` by
+The tests of the `umbrella` module, built into `sushiblas_umbrella_tests` by
 `sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake`. They belong to this module because each crosses several operation families, and this module
 is the one that depends on all of them. The source comments state
 what a test checks; a section below holds why a test is written the way it is.

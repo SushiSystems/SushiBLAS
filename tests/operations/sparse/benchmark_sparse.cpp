@@ -28,7 +28,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 
 #include <SushiBLAS/benchmark_harness/benchmark_harness.hpp>
 

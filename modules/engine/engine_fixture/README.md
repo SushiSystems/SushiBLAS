@@ -18,4 +18,4 @@ suite. `reinit_engine` rebuilds the engine in another layout. `create_initialize
 creates a tensor of `T`'s dtype and copies a host vector into it.
 
 The fixture includes no operation family. A test includes the headers of the families it
-records, or `<SushiBLAS/SushiBLAS.h>`.
+records, or `<SushiBLAS/SushiBLAS.hpp>`.

@@ -31,7 +31,7 @@
 #include <limits>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/reduction/reduce_axis.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
