@@ -36,7 +36,8 @@ namespace SushiBLAS
     namespace Test
     {
         /// @brief Returns a GPU profile with the given unit count, group limit and sub-group width.
-        Device::Profile gpu_profile(std::size_t units, std::size_t max_group, std::size_t width)
+        static Device::Profile gpu_profile(std::size_t units, std::size_t max_group,
+                                           std::size_t width)
         {
             Device::Profile profile;
             profile.is_cpu = false;
@@ -47,7 +48,7 @@ namespace SushiBLAS
         }
 
         /// @brief Returns a CPU profile with the given unit count and group limit.
-        Device::Profile cpu_profile(std::size_t units, std::size_t max_group)
+        static Device::Profile cpu_profile(std::size_t units, std::size_t max_group)
         {
             Device::Profile profile;
             profile.is_cpu = true;
