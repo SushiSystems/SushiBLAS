@@ -47,13 +47,13 @@ namespace SushiBLAS
         constexpr std::size_t K_VALUE_PERIOD = 1024;
 
         /// @brief Returns the i-th generated input value, an integer below K_VALUE_PERIOD.
-        [[nodiscard]] float value_at(std::size_t i) noexcept
+        [[nodiscard]] static float value_at(std::size_t i) noexcept
         {
             return static_cast<float>(i % K_VALUE_PERIOD);
         }
 
         /// @brief Returns the generated values from i = offset to offset + n.
-        [[nodiscard]] std::vector<float> values_from(std::size_t offset, std::size_t n)
+        [[nodiscard]] static std::vector<float> values_from(std::size_t offset, std::size_t n)
         {
             std::vector<float> values(n);
             for (std::size_t i = 0; i < n; ++i)
@@ -62,7 +62,7 @@ namespace SushiBLAS
         }
 
         /// @brief Returns whether the first n elements of a and b hold the same bits.
-        [[nodiscard]] bool same_bits(const float* a, const float* b, std::size_t n) noexcept
+        [[nodiscard]] static bool same_bits(const float* a, const float* b, std::size_t n) noexcept
         {
             return std::memcmp(a, b, n * sizeof(float)) == 0;
         }
