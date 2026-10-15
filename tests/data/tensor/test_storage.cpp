@@ -38,7 +38,7 @@ namespace SushiBLAS
     namespace Test
     {
         /// @brief Returns a storage of n_bytes on the shared runtime's first device.
-        SushiRuntime::sushi_ptr<Storage> storage_of(std::size_t n_bytes)
+        static SushiRuntime::sushi_ptr<Storage> storage_of(std::size_t n_bytes)
         {
             return SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(), n_bytes);
         }
