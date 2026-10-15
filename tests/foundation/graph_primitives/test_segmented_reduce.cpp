@@ -42,6 +42,7 @@
 
 #include <SushiBLAS/graph_primitives/combiners.hpp>
 #include <SushiBLAS/graph_primitives/segmented_reduce.hpp>
+#include "device_sized_harness.hpp"
 
 namespace SushiBLAS
 {
@@ -273,5 +274,44 @@ namespace SushiBLAS
                 EXPECT_EQ(out[s], 1u) << "segment " << s;
         }
 
+        /** @brief Tests segmented_reduce() with a device count on both layers. */
+        TEST(Unit_GraphPrimitivesDeviceSized, SegmentedReduceChainMatchesScheduler)
+        {
+            using namespace DeviceSized;
+
+            constexpr std::size_t K_SEGMENTS = 500;
+            expect_chain_matches_scheduler([](Runtime& runtime)
+            {
+                Harness harness(runtime, K_SEGMENTS);
+                auto offsets = runtime.buffer<std::uint32_t>(K_SEGMENTS + 1).value();
+                std::uint32_t at = 0;
+                for (std::size_t s = 0; s <= K_SEGMENTS; ++s)
+                {
+                    offsets[s] = at;
+                    at += static_cast<std::uint32_t>(s % 5);
+                }
+                auto values = runtime.buffer<std::uint32_t>(at).value();
+                for (std::size_t i = 0; i < at; ++i)
+                    values[i] = static_cast<std::uint32_t>(i) * 2654435761u;
+                auto out = runtime.buffer<std::uint32_t>(K_SEGMENTS).value();
+                for (std::size_t s = 0; s < K_SEGMENTS; ++s)
+                    out[s] = 0;
+
+                auto graph = runtime.graph();
+                harness.add_producer(graph);
+                GraphPrimitives::segmented_reduce(graph.recorder(), values, offsets, out,
+                                                  harness.device_count(K_SEGMENTS),
+                                                  Sum<std::uint32_t>{}).value();
+                // A segment past the live count keeps an earlier fold, so later steps differ.
+                std::uint32_t* o = out.data();
+                graph.add(K_SEGMENTS, Reads(out), Writes(out),
+                          [o](std::size_t s)
+                          {
+                              o[s] = o[s] * 3u + static_cast<std::uint32_t>(s);
+                          });
+                harness.add_digest(graph, out, K_SEGMENTS);
+                return harness.record(graph);
+            });
+        }
     } // namespace Test
 } // namespace SushiBLAS

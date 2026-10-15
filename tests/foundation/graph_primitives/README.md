@@ -16,7 +16,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_invalid_graph.cpp` | Tests the InvalidGraph error a primitive returns and the outcome of a recording |
 | `test_prefix_scan.cpp` | Tests prefix_scan() against a host scan, across live counts, replays and node widths |
 | `test_radix_plan.cpp` | Tests the digit count, the digit of a key and the per-digit plan, without a device |
-| `test_reduce/test_device_sized_primitives.cpp` | Tests that each primitive gives one result on the chain and on the scheduler |
+| `test_reduce/test_device_sized_reduce.cpp` | Tests that reduce() with a device count gives one result on the chain and the scheduler |
 | `test_reduce/test_reduce.cpp` | Tests reduce(): its fixed combination order, its late-bound count and its node widths |
 | `test_segmented_reduce.cpp` | Tests segmented_reduce(): its per-segment fold, its late-bound count and its widths |
 
@@ -25,8 +25,8 @@ what a test checks; a section below holds why a test is written the way it is.
 A primitive records through a `SushiRuntime::Recorder`, which a `Graph` or a `Region`
 hands out. Each test builds its own `SushiRuntime::Runtime` with `Runtime::create()` and takes
 buffers and graphs from it, so a refusal one test provokes cannot reach another.
-`test_reduce/test_device_sized_primitives.cpp` needs two runtimes with different settings in one test, which
-the shared test runtime could not give.
+The device-sized cases, which `device_sized_harness.hpp` runs, need two runtimes with different
+settings in one test, which the shared test runtime could not give.
 
 Four files (`test_combiners.cpp`, `test_fixed_order_fold.cpp`, `test_fixed_order_reduce.cpp`,
 `test_radix_plan.cpp`) include
@@ -116,3 +116,11 @@ The cases that pinned a mechanism of the runtime itself stayed there, on a test-
 the resolution of a bare `LateCount`, a `sized_from_device` launch, and the refusal of a device
 count slot that is not host-resident, which `LateCount::from_device` stops the process on
 before a primitive is called.
+
+## Helpers
+
+The headers below are shared by tests of this module only, so they sit in this folder.
+
+| Header | What it does |
+| --- | --- |
+| `device_sized_harness.hpp` | Runs a primitive with a device count on the chain and on the scheduler and compares the two. |

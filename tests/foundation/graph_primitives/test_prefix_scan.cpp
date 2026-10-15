@@ -41,6 +41,7 @@
 
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/prefix_scan.hpp>
+#include "device_sized_harness.hpp"
 
 namespace SushiBLAS
 {
@@ -356,5 +357,65 @@ namespace SushiBLAS
             EXPECT_FALSE(graph.run().has_value());
         }
 
+        /** @brief Tests prefix_scan() with a device count on both layers. */
+        TEST(Unit_GraphPrimitivesDeviceSized, PrefixScanChainMatchesScheduler)
+        {
+            using namespace DeviceSized;
+
+            constexpr std::size_t K_CAPACITY = 70000;
+            expect_chain_matches_scheduler([](Runtime& runtime)
+            {
+                Harness harness(runtime, K_CAPACITY);
+                auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY).value();
+                auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1).value();
+                auto total = runtime.buffer<std::uint32_t>(1).value();
+                for (std::size_t i = 0; i < K_CAPACITY; ++i)
+                    counts[i] = static_cast<std::uint32_t>((i * 31u) % 9u);
+                for (std::size_t i = 0; i <= K_CAPACITY; ++i)
+                    offsets[i] = 0;
+
+                auto graph = runtime.graph();
+                harness.add_producer(graph);
+                GraphPrimitives::prefix_scan(graph.recorder(), counts, offsets, total,
+                                             harness.device_count(K_CAPACITY)).value();
+                harness.add_live_digest(graph, offsets, 1);
+                return harness.record(graph);
+            });
+        }
+
+        /** @brief Tests that a device count above capacity fails a chained run of a primitive. */
+        TEST(Unit_GraphPrimitivesDeviceSized, DeviceCountOverCapacityFailsAChainedRun)
+        {
+            using namespace DeviceSized;
+
+            constexpr std::size_t K_CAPACITY = 100;
+
+            auto runtime = Runtime::create().value();
+            auto counter = runtime.buffer<std::uint32_t>(
+                1, SushiRuntime::DeviceIndex{0}, SushiRuntime::Residency::Host).value();
+            auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            std::uint32_t* c = counter.data();
+
+            auto graph = runtime.graph();
+            graph.add(std::size_t{1}, Reads{}, Writes(counter),
+                      [c](std::size_t)
+                      {
+                          c[0] = static_cast<std::uint32_t>(K_CAPACITY) + 1u;
+                      });
+            GraphPrimitives::prefix_scan(graph.recorder(), counts, offsets, total,
+                                         LateCount::from_device(K_CAPACITY, counter)).value();
+            EXPECT_FALSE(graph.run(4).has_value());
+
+            // A later graph with a count inside the capacity runs clean on the same runtime.
+            auto valid = runtime.graph();
+            valid.add(std::size_t{1}, Reads{}, Writes(counter), [c](std::size_t) { c[0] = 3u; });
+            GraphPrimitives::prefix_scan(valid.recorder(), counts, offsets, total,
+                                         LateCount::from_device(K_CAPACITY, counter)).value();
+            const auto report = valid.run(2).value();
+            EXPECT_TRUE(report.is_successful);
+            EXPECT_EQ(report.layer, ExecutionLayer::Chain);
+        }
     } // namespace Test
 } // namespace SushiBLAS

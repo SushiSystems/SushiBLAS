@@ -19,6 +19,6 @@ sushiblas_add_test_program(
         test_invalid_graph.cpp
         test_prefix_scan.cpp
         test_radix_plan.cpp
-        test_reduce/test_device_sized_primitives.cpp
+        test_reduce/test_device_sized_reduce.cpp
         test_reduce/test_reduce.cpp
         test_segmented_reduce.cpp)

@@ -27,8 +27,10 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <numeric>
 #include <random>
 #include <utility>
@@ -47,6 +49,7 @@
 #include <SushiBLAS/graph_primitives/counting_sort.hpp>
 #include <SushiBLAS/graph_primitives/prefix_scan.hpp>
 #include <SushiBLAS/graph_primitives/radix_plan.hpp>
+#include "device_sized_harness.hpp"
 
 namespace SushiBLAS
 {
@@ -745,5 +748,58 @@ namespace SushiBLAS
             EXPECT_FALSE(graph.run().has_value());
         }
 
+        /** @brief Tests counting_sort() with a device count and a host key range on both layers. */
+        TEST(Unit_GraphPrimitivesDeviceSized, CountingSortChainMatchesScheduler)
+        {
+            using namespace DeviceSized;
+
+            constexpr std::size_t K_COUNT_CAPACITY = 1000;
+            constexpr std::size_t K_KEY_CAPACITY = std::size_t{1} << 17;
+            constexpr std::size_t K_BUCKETS = 32;
+            constexpr std::size_t K_PACKED = K_COUNT_CAPACITY + K_BUCKETS + 2;
+            expect_chain_matches_scheduler([](Runtime& runtime)
+            {
+                Harness harness(runtime, K_COUNT_CAPACITY);
+                auto keys = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
+                auto indices = runtime.buffer<std::uint32_t>(K_COUNT_CAPACITY).value();
+                auto offsets = runtime.buffer<std::uint32_t>(K_KEY_CAPACITY + 1).value();
+                auto total = runtime.buffer<std::uint32_t>(1).value();
+                auto packed = runtime.buffer<std::uint32_t>(K_PACKED).value();
+                for (std::size_t i = 0; i < K_COUNT_CAPACITY; ++i)
+                {
+                    keys[i] = static_cast<std::uint32_t>((i * 7u + i / 13u) % K_BUCKETS);
+                    indices[i] = 0;
+                }
+
+                // The live key range changes every step, so one, two and three digits all run.
+                const std::array<std::size_t, 4> ranges{K_BUCKETS, 300, 70000, K_KEY_CAPACITY};
+                auto tick = std::make_shared<std::size_t>(0);
+                const LateCount key_range = LateCount::from_host(
+                    K_KEY_CAPACITY, [ranges, tick] { return ranges[(*tick)++ % ranges.size()]; });
+
+                auto graph = runtime.graph();
+                harness.add_producer(graph);
+                GraphPrimitives::counting_sort(graph.recorder(), keys, indices, offsets, total,
+                                               harness.device_count(K_COUNT_CAPACITY), key_range)
+                    .value();
+
+                const std::uint32_t* ip = indices.data();
+                const std::uint32_t* op = offsets.data();
+                const std::uint32_t* tp = total.data();
+                std::uint32_t* pp = packed.data();
+                graph.add(K_PACKED, Reads(indices, offsets, total), Writes(packed),
+                          [ip, op, tp, pp](std::size_t i)
+                          {
+                              if (i < K_COUNT_CAPACITY)
+                                  pp[i] = ip[i];
+                              else if (i < K_COUNT_CAPACITY + K_BUCKETS + 1)
+                                  pp[i] = op[i - K_COUNT_CAPACITY];
+                              else
+                                  pp[i] = tp[0];
+                          });
+                harness.add_digest(graph, packed, K_PACKED);
+                return harness.record(graph);
+            });
+        }
     } // namespace Test
 } // namespace SushiBLAS
