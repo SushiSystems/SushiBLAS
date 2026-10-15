@@ -18,4 +18,10 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE operands
     TESTS
-        test_scalar.cpp)
+        test_argument_check.cpp
+        test_blas_metadata.cpp
+        test_matrix_operand.cpp
+        test_scalar.cpp
+        test_scalar_result.cpp
+        test_scratch_lease.cpp
+        test_vector_operand.cpp)
