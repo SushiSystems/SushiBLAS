@@ -11,7 +11,6 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_engine/test_reduce_plans.cpp` | Tests the plan-taking forms of Reduce::reduce and Reduce::reduce_indexed |
 | `test_engine/test_run_failure.cpp` | Tests what Engine::execute returns and leaves behind when a task body throws |
 | `test_engine/test_runtime_shapes.cpp` | Tests create_tensor and reshape with dimensions held in a std::vector |
-| `test_engine/test_sparse_builder.cpp` | Tests the sparse vectors and CSR matrices SparseBuilder makes from host data |
 | `test_engine/test_tensor_const_access.cpp` | Tests that Tensor's const and non-const data accessors return matching pointers |
 | `test_engine/test_tensor_factory.cpp` | Tests TensorFactory and Engine::create_tensor: shapes, layout, device index and size |
 | `test_engine/test_tensor_view.cpp` | Tests that a tensor view's offset and strides lead to the elements it occupies |

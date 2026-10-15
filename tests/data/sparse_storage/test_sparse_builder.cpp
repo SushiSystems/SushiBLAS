@@ -26,6 +26,9 @@
  */
 
 #include <array>
+#include <optional>
+#include <utility>
+#include <initializer_list>
 #include <cmath>
 #include <vector>
 #include <complex>
@@ -34,7 +37,10 @@
 #include <algorithm>
 #include <stdexcept>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
+#include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiBLAS/tensor/tensor_factory.hpp>
 #include <SushiBLAS/sparse_storage/sparse_matrix.hpp>
 #include <SushiBLAS/sparse_storage/sparse_vector.hpp>
 #include <SushiBLAS/sparse_storage/sparse_builder.hpp>
@@ -42,7 +48,6 @@
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
 #include <SushiBLAS/sparse_kernels/index_list.hpp>
 #include <SushiBLAS/sparse_kernels/reference/structure.hpp>
-#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
@@ -137,10 +142,48 @@ namespace SushiBLAS
         } // namespace
 
         /**
+         * @brief Gives a test a tensor factory on the shared runtime, in a layout it can change.
+         */
+        class SparseStorageTest : public ::testing::Test
+        {
+            protected:
+                /** @brief Makes the factory create tensors in layout. */
+                void use_layout(Layout layout)
+                {
+                    factory_.emplace(TestEnvironment::runtime(), layout);
+                }
+
+                /** @brief Returns the factory the builders of the test use. */
+                [[nodiscard]] TensorFactory& tensor_factory() noexcept
+                {
+                    return *factory_;
+                }
+
+                /** @brief Returns a tensor of T's dtype that holds a copy of data. */
+                template<typename T>
+                [[nodiscard]] Tensor create_initialized_tensor(std::initializer_list<int64_t> dims,
+                                                               const std::vector<T>& data)
+                {
+                    const std::vector<int64_t> shape(dims);
+                    Tensor tensor = factory_->create(
+                        SushiRuntime::span<const int64_t>(shape.data(), shape.size()),
+                        sushiblas_dtype<T>());
+                    TestEnvironment::queue()
+                        .memcpy(tensor.data(), data.data(), data.size() * sizeof(T))
+                        .wait();
+                    return tensor;
+                }
+
+            private:
+                /// @brief The factory, row-major until use_layout changes it.
+                std::optional<TensorFactory> factory_{std::in_place, TestEnvironment::runtime()};
+        };
+
+        /**
          * @brief Builds sparse operands and dense tensors of one element and one index type.
          */
         template<typename TypeParam>
-        class Unit_SparseBuilder : public SushiBLASTest
+        class Unit_SparseBuilder : public SparseStorageTest
         {
             protected:
                 /** @brief The element type under test. */
@@ -152,7 +195,7 @@ namespace SushiBLAS
                 /** @brief Returns the CSR matrix of host triplets, stored with base. */
                 [[nodiscard]] SparseMatrix build(const HostTriplets<T>& host, IndexBase base)
                 {
-                    const SparseBuilder builder(engine->tensor_factory());
+                    const SparseBuilder builder(tensor_factory());
                     return builder.matrix_from_triplets(
                         host.rows, host.cols, stored_indices<Index>(host.row_indices, base),
                         stored_indices<Index>(host.column_indices, base), host.values, base);
@@ -162,7 +205,7 @@ namespace SushiBLAS
                 [[nodiscard]] SparseVector build_vector(const std::vector<int64_t>& positions,
                                                         const Wide& values, IndexBase base)
                 {
-                    const SparseBuilder builder(engine->tensor_factory());
+                    const SparseBuilder builder(tensor_factory());
                     return builder.vector_from_entries(K_VECTOR_SIZE,
                                                        stored_indices<Index>(positions, base),
                                                        narrowed_values(values), base);
@@ -172,17 +215,17 @@ namespace SushiBLAS
                 [[nodiscard]] SparseMatrix compress(const Tensor& dense, DataType index_dtype,
                                                     IndexBase base)
                 {
-                    const SparseBuilder builder(engine->tensor_factory());
+                    const SparseBuilder builder(tensor_factory());
                     return builder.matrix_from_dense(dense, index_dtype, base);
                 }
 
                 /**
-                 * @brief Returns a dense tensor of the engine's layout holding a matrix.
+                 * @brief Returns a dense tensor of the factory's layout holding a matrix.
                  * @param by_rows rows * cols elements, row by row; neither extent is 0.
                  */
                 [[nodiscard]] Tensor dense_tensor(int64_t rows, int64_t cols, const Wide& by_rows)
                 {
-                    const bool row_major = engine->layout() == Layout::RowMajor;
+                    const bool row_major = tensor_factory().layout() == Layout::RowMajor;
                     std::vector<T> elements(by_rows.size());
                     for (int64_t i = 0; i < rows; ++i)
                     {
@@ -200,7 +243,9 @@ namespace SushiBLAS
                 /** @brief Returns a dense tensor of T that holds no element. */
                 [[nodiscard]] Tensor dense_without_elements(int64_t rows, int64_t cols)
                 {
-                    return engine->create_tensor({rows, cols}, sushiblas_dtype<T>());
+                    const int64_t dims[2] = {rows, cols};
+                    return tensor_factory().create(SushiRuntime::span<const int64_t>(dims, 2),
+                                                   sushiblas_dtype<T>());
                 }
 
                 /** @brief Returns host expectations narrowed to T. */
@@ -294,7 +339,7 @@ namespace SushiBLAS
             for (const Layout layout : K_BOTH_LAYOUTS)
             {
                 SCOPED_TRACE(layout == Layout::RowMajor ? "row-major" : "column-major");
-                this->reinit_engine(layout);
+                this->use_layout(layout);
                 const Tensor dense = this->dense_tensor(4, 5, sample_by_rows<T>());
 
                 for (const IndexBase base : K_BOTH_BASES)
@@ -315,7 +360,7 @@ namespace SushiBLAS
 
             for (const Layout layout : K_BOTH_LAYOUTS)
             {
-                this->reinit_engine(layout);
+                this->use_layout(layout);
                 const SparseMatrix A = this->compress(this->dense_tensor(2, 2, by_rows),
                                                       DataType::Int64, IndexBase::Zero);
 
@@ -396,7 +441,7 @@ namespace SushiBLAS
         /**
          * @brief Holds the builder cases that do not depend on the element or the index type.
          */
-        class Unit_SparseBuilderRules : public SushiBLASTest
+        class Unit_SparseBuilderRules : public SparseStorageTest
         {
             protected:
                 /** @brief Returns the FLOAT32 sample with INT32 indices from a builder. */
@@ -430,7 +475,7 @@ namespace SushiBLAS
 
             const Tensor dense =
                 create_initialized_tensor<float>({K_LARGE_ROWS, K_LARGE_COLS}, host);
-            const SparseBuilder builder(engine->tensor_factory());
+            const SparseBuilder builder(tensor_factory());
             const SparseMatrix A = builder.matrix_from_dense(dense, DataType::Int32);
 
             ASSERT_EQ(A.nnz(), static_cast<int64_t>(columns.size()));
@@ -444,15 +489,17 @@ namespace SushiBLAS
 
         TEST_F(Unit_SparseBuilderRules, ADenseTensorOfRankOneThrows)
         {
-            const SparseBuilder builder(engine->tensor_factory());
-            const Tensor dense = engine->create_tensor({5});
+            const SparseBuilder builder(tensor_factory());
+            const int64_t dims[1] = {5};
+            const Tensor dense =
+                tensor_factory().create(SushiRuntime::span<const int64_t>(dims, 1));
 
             EXPECT_THROW((void)builder.matrix_from_dense(dense), std::runtime_error);
         }
 
         TEST_F(Unit_SparseBuilderRules, ADenseTensorOfIntegersThrows)
         {
-            const SparseBuilder builder(engine->tensor_factory());
+            const SparseBuilder builder(tensor_factory());
             const Tensor dense = create_initialized_tensor<int32_t>({2, 2}, {1, 0, 0, 2});
 
             EXPECT_THROW((void)builder.matrix_from_dense(dense), std::runtime_error);
@@ -460,7 +507,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SparseBuilderRules, AFloatingPointIndexDtypeThrows)
         {
-            const SparseBuilder builder(engine->tensor_factory());
+            const SparseBuilder builder(tensor_factory());
             const Tensor dense = create_initialized_tensor<float>({2, 2}, {1.0f, 0.0f, 0.0f, 2.0f});
 
             EXPECT_THROW((void)builder.matrix_from_dense(dense, DataType::Float32),
@@ -469,7 +516,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SparseBuilderRules, AStridedDenseViewThrows)
         {
-            const SparseBuilder builder(engine->tensor_factory());
+            const SparseBuilder builder(tensor_factory());
             const Tensor parent =
                 create_initialized_tensor<float>({4, 4}, std::vector<float>(16, 1.0f));
 
@@ -485,7 +532,7 @@ namespace SushiBLAS
 
         TEST_F(Unit_SparseBuilderRules, AnIndexBaseOutsideTheEnumerationThrows)
         {
-            const SparseBuilder builder(engine->tensor_factory());
+            const SparseBuilder builder(tensor_factory());
             const IndexBase outside = static_cast<IndexBase>(0);
             const Tensor dense = create_initialized_tensor<float>({2, 2}, {1.0f, 0.0f, 0.0f, 2.0f});
             const std::vector<int32_t> positions = {6, 1, 4};
@@ -502,7 +549,7 @@ namespace SushiBLAS
         TEST_F(Unit_SparseBuilderRules, TheDeviceIndexReachesTheStorageOfEveryTensor)
         {
             const std::size_t last = TestEnvironment::device_count() - 1;
-            const SparseBuilder builder(engine->tensor_factory(),
+            const SparseBuilder builder(tensor_factory(),
                                         SushiRuntime::Residency::Shared, last);
 
             const SparseMatrix A = sample_from(builder, IndexBase::Zero);
@@ -519,7 +566,7 @@ namespace SushiBLAS
         TEST_F(Unit_SparseBuilderRules, ADeviceIndexPastTheLastThrows)
         {
             const std::size_t past = TestEnvironment::device_count();
-            const SparseBuilder builder(engine->tensor_factory(),
+            const SparseBuilder builder(tensor_factory(),
                                         SushiRuntime::Residency::Shared, past);
 
             EXPECT_THROW((void)sample_from(builder, IndexBase::Zero), std::runtime_error);
