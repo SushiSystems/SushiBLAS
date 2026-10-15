@@ -17,6 +17,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE engine
     TESTS
+        test_dispatch.cpp
         test_engine/test_reduce_plans.cpp
         test_engine/test_run_failure.cpp
         test_engine/test_runtime_shapes.cpp
@@ -25,8 +26,15 @@ sushiblas_add_test_program(
         test_engine/test_tensor_view.cpp
         test_engine/test_unsupported_execution.cpp
         test_execution_mode.cpp
+        test_kernel_pair_dispatcher.cpp
         test_operand_check.cpp
+        test_operand_set.cpp
+        test_recorded_graph.cpp
         test_rng_stream.cpp
+        test_scratch.cpp
+        test_scratch_pool.cpp
         test_scratch_shelf.cpp
+        test_task.cpp
+        test_task_description.cpp
         test_task_handle.cpp
         test_task_recorder.cpp)

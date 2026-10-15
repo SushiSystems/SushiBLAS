@@ -8,6 +8,7 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `test_dispatch.cpp` | Tests the element domains, the dtype switch and the task parameters of the dispatch seam |
 | `test_engine/test_reduce_plans.cpp` | Tests the plan-taking forms of Reduce::reduce and Reduce::reduce_indexed |
 | `test_engine/test_run_failure.cpp` | Tests what Engine::execute returns and leaves behind when a task body throws |
 | `test_engine/test_runtime_shapes.cpp` | Tests create_tensor and reshape with dimensions held in a std::vector |
@@ -16,9 +17,16 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_engine/test_tensor_view.cpp` | Tests that a tensor view's offset and strides lead to the elements it occupies |
 | `test_engine/test_unsupported_execution.cpp` | Tests which record-time refusals throw UnsupportedExecution and which do not |
 | `test_execution_mode.cpp` | Tests how the engine's execution mode selects and refuses kernels |
+| `test_kernel_pair_dispatcher.cpp` | Tests that the dispatcher picks the reference body under ForceReference only |
 | `test_operand_check.cpp` | Tests the operand checks, the scalar binding and the Tensor constructor and transpose guards |
+| `test_operand_set.cpp` | Tests the regions an OperandSet declares, the storages it keeps alive and its merge |
+| `test_recorded_graph.cpp` | Tests that a RecordedGraph counts, runs and discards what its recorder recorded |
 | `test_rng_stream.cpp` | Tests RNGStream's reseed, offset reservation, thread safety and seed determinism |
+| `test_scratch.cpp` | Tests the lease a ScratchBuffer holds: its bytes, its region, its copies and its return |
+| `test_scratch_pool.cpp` | Tests that a ScratchPool keeps returned blocks idle, reuses them and trims them |
 | `test_scratch_shelf.cpp` | Tests the shelf of idle device scratch blocks and its size classes |
+| `test_task.cpp` | Tests that a typed task records for an admitted dtype, runs its arm and refuses the rest |
+| `test_task_description.cpp` | Tests the defaults of a TaskDescription and the round trip of its parameter slots |
 | `test_task_handle.cpp` | Tests TaskHandle: validity, equality and the handle of a call that records nothing |
 | `test_task_recorder.cpp` | Tests TaskRecorder: the graph and pool it is bound to, and what each mode records |
 
