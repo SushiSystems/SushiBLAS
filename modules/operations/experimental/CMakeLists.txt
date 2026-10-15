@@ -13,6 +13,7 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE experimental
+    SIZE small
     TESTS
         lapack/test_linalg.cpp
         signal/test_transforms.cpp)

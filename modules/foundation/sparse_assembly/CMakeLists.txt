@@ -13,5 +13,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE sparse_assembly
+    SIZE small
     TESTS
         test_sparse_assembly.cpp)

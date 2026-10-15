@@ -12,6 +12,7 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE geometry
+    SIZE medium
     TESTS
         test_interpolation.cpp
         test_matrix4.cpp

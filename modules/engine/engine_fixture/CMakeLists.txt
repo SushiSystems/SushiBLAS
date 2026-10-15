@@ -20,5 +20,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE engine_fixture
+    SIZE medium
     TESTS
         test_sushiblas_test.cpp)

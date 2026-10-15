@@ -39,7 +39,7 @@ checkout alone, with a SushiRuntime checkout beside it, install the CLI and run
 hub install-cli sushiblas  # puts `sb` / `sushiblas` on PATH
 sb setup                  # toolchain and libraries for this checkout
 sb build                  # Release (default)
-sb test                   # functional suite
+sb test                   # the small and medium tests
 ```
 
 See [`cli/README.md`](../cli/README.md) for the full command reference and how
@@ -69,12 +69,10 @@ sb build                          # Release
 sb build --type debug             # Debug
 sb build --clean                  # wipe the build tree first
 
-sb test --suite unit              # fast, run this often
-sb test --suite integration
-sb test --suite regression
-sb test --suite device            # kernels against the reference on the host CPU device
-sb test --suite all               # every CTest test
-sb test --suite package           # the out-of-tree consumer
+sb test --label small             # no device, fast, run this often
+sb test                           # small and medium, what pre-merge CI runs
+sb test --label large             # a real GPU, before a release
+sb test --package                 # the out-of-tree consumer
 sb test --filter 'Gemm.*'         # ctest -R over 'Suite.Case' test names
 ```
 
@@ -84,9 +82,10 @@ working in this repository always uses `sb` (see `CLAUDE.md` at the root).
 
 Expectations for a mergeable change:
 
-1. **Every CTest test passes** (`sb test --suite all`). A change that adds a
+1. **Every small and medium test passes** (`sb test`). A change that adds a
    public header or touches the install rules in `modules/library/sushiblas/CMakeLists.txt` also
-   passes `sb test --suite package`, which `all` does not include.
+   passes `sb test --package`. A new test program declares its size;
+   [the tests README](../tests/README.md#sizes-are-labels) gives the sizes.
 2. **A new operation ships with a typed test.** Every test suite runs across
    every dtype the op claims to support (`float`, `double`, `half`, and the
    complex types where applicable); see [section 5](#5-adding-a-new-operation).

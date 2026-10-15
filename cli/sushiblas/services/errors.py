@@ -61,14 +61,21 @@ class TreeNotRemovedError(ProjectError):
         super().__init__(f"{tree} could not be removed; a file in it may be in use.")
 
 
-class SuiteOptionError(ProjectError):
-    """Reports a ctest option given to a suite that runs no ctest."""
+class PackageOptionError(ProjectError):
+    """Reports a test selection option given with --package, which runs no ctest."""
 
     def __init__(self) -> None:
         super().__init__(
-            "--filter and --repeat do not apply to the package suite.",
+            "--label, --filter, --repeat and --cli do not apply to --package.",
             K_EXIT_USAGE,
         )
+
+
+class CLIOptionError(ProjectError):
+    """Reports a ctest option given with --cli, which runs pytest."""
+
+    def __init__(self) -> None:
+        super().__init__("--filter and --repeat do not apply to --cli.", K_EXIT_USAGE)
 
 
 class ExecutableNotFoundError(ProjectError):

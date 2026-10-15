@@ -16,6 +16,8 @@ from typer.testing import CliRunner
 from sushiblas import cli
 from sushiblas.aliases import K_ALIASES
 
+pytestmark = pytest.mark.small
+
 K_OLD_SPELLINGS = {"sb doxygen": "sb docs"}
 K_DOCS_EXIT_CODE = 7
 

@@ -19,5 +19,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE benchmark_harness
+    SIZE medium
     TESTS
         test_benchmark_harness.cpp)

@@ -26,20 +26,41 @@ The helpers tests of several modules share are internal test-only modules under 
 listed in [`modules/README.md`](../modules/README.md). A helper the tests of one module share
 sits in that module's folder, and a test includes it by its quoted relative path.
 
-## One program per module, labels for kinds
+## One program per module, sized
 
 `sushiblas_add_test_program()` in `cmake/SushiBLASTests.cmake` builds every program. A module
-calls it in its own `CMakeLists.txt` with the files of its mirror and gets the program
-`sushiblas_<module>_tests`. Every program lands in `build/tests/`. A new test file is listed by
-hand in that call; nothing globs the folders. An application's tests are built the same way by
-`sushiblas_add_application_test_program()`, called in the application's `CMakeLists.txt`, which
-compiles the application's sources into the program.
+calls it in its own `CMakeLists.txt` with the files of its mirror and a `SIZE`, and gets the
+program `sushiblas_<module>_tests`. Every program lands in `build/tests/`. A new test file is
+listed by hand in that call; nothing globs the folders. An application's tests are built the same
+way by `sushiblas_add_application_test_program()`, called in the application's `CMakeLists.txt`,
+which compiles the application's sources into the program.
 
-Whether a test is a unit, integration, regression or device test is a label, never a folder. A
-test gets its label from the prefix of its GoogleTest suite name: `Unit_`, `Integration_`,
-`Regression_` or `Device_`. `gtest_discover_tests` runs once per prefix on each program and gives
-the tests it finds the CTest label `unit`, `integration`, `regression` or `device`. A suite whose
-name has none of the four prefixes is found by no discovery call, so CTest never runs it.
+## Sizes are labels
+
+What a test needs to run is its size, and the size is its one CTest label. CI chooses its stages
+by size, and CTest stops a test that outlives the timeout of its size.
+
+| Size | The test may use | Timeout |
+| --- | --- | --- |
+| `small` | One process and one thread; no network, no sleep, no device, no file outside the build tree | 60 s |
+| `medium` | Threads, localhost, files in a temporary folder, the OpenCL or another CPU SYCL device | 300 s |
+| `large` | A real GPU, or a run longer than `medium` allows | 900 s |
+
+The size is declared per program. A `small` program is linked with
+`modules/foundation/test_runner/source/small_test_main.cpp`, which creates no runtime, so the
+program opens no device and starts no worker thread. Every other program creates the shared
+runtime, and so opens the CPU SYCL device and starts the runtime's workers: it is `medium` at
+least. Seven programs are `small` (`orthonormal`, `serial_reductions`, `small_integers`,
+`sparse_assembly`, `sparse_fixtures`, `typed_suite_naming`, `experimental`); the rest are
+`medium`. No program is `large`.
+
+The `Unit_`, `Integration_`, `Regression_` and `Device_` prefixes of a GoogleTest suite name say
+what the suite covers. They select nothing: every suite of a program is registered.
+
+A test that fails intermittently and cannot be fixed the day it is seen is named in the
+`QUARANTINED` list of its program's call, as `Suite.Case`. It keeps its size and gains the label
+`quarantined`, which takes it out of every stage that gates; `docs/reference/KNOWN_ISSUES.md`
+names it, its owner and the date it is fixed by. No test is quarantined.
 
 ## Running
 
@@ -47,12 +68,14 @@ Tests run through `sb`, which sets the loader path the test program needs.
 
 | Command | Runs |
 | --- | --- |
-| `sb test` | The labels `unit`, `integration` and `regression` together; the same as `--suite functional` |
-| `sb test --suite unit` | The label `unit`; `integration`, `regression` and `device` work the same way |
-| `sb test --suite all` | Every test CTest knows |
-| `sb test --suite package` | Installs the library, then configures, builds and runs `package/` against the install |
+| `sb test` | The `small` and `medium` tests, without the quarantined ones |
+| `sb test --label small` | The `small` tests; `medium` and `large` work the same way, and the flag repeats |
+| `sb test --label quarantined` | The quarantined tests only |
+| `sb test --package` | Installs the library, then configures, builds and runs `package/` against the install |
+| `sb test --cli` | The pytest tests of the `sb` CLI, by the same labels |
 | `sb test --filter <pattern>` | The tests whose name matches the pattern |
 | `sb run sushiblas_<module>_tests` | One module's program; flags after `--` go to GoogleTest |
+| `sb bench` | Every benchmark program, after `sb build --benchmarks` |
 | `sb run benchmark_<name>` | One benchmark program, after `sb build --benchmarks` |
 
 [`cli/README.md`](../cli/README.md) describes each flag, and

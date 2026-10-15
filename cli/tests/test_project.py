@@ -24,11 +24,13 @@ from sushiblas.services.errors import (
     ExecutableNotFoundError,
     InvalidDefineError,
     StepFailedError,
-    SuiteOptionError,
     TreeNotRemovedError,
 )
 from sushiblas.services.project import CleanResult, ProjectService
-from sushiblas.services.suite import Suite
+from sushiblas.services.sanitizer import Sanitizer
+from sushiblas.services.test_label import TestLabel
+
+pytestmark = pytest.mark.medium
 
 K_CONFIGURE_FAILED = 9
 K_CHILD_EXIT = 7
@@ -71,6 +73,10 @@ class _Driver:
         """Records the command line and fails, so the build stops before it compiles."""
         self.configured.append(list(args))
         return K_CONFIGURE_FAILED
+
+    def ctest(self, cfg) -> str:
+        """Returns the executable name the ctest line starts with."""
+        return "ctest"
 
     def doxygen(self, cfg, doxyfile: Path, cwd: Path, env=None) -> int:
         """Records the Doxyfile and the working directory and succeeds."""
@@ -228,6 +234,66 @@ def test_build_lets_a_caller_define_outrank_the_benchmarks_switch(parts, checkou
 
 
 @pytest.mark.parametrize(
+    ("sanitizer", "expected"),
+    [
+        (Sanitizer.ADDRESS_UNDEFINED, ["-DSB_SANITIZE=address,undefined"]),
+        (Sanitizer.THREAD, ["-DSB_SANITIZE=thread"]),
+        (Sanitizer.NONE, ["-DSB_SANITIZE="]),
+        (None, []),
+    ],
+)
+def test_build_passes_the_sanitizer_set_as_a_cache_variable(parts, checkout, sanitizer, expected):
+    """--sanitize becomes one SB_SANITIZE flag; none clears it and leaving it out keeps it."""
+    console, driver, service = parts
+    with pytest.raises(StepFailedError):
+        service.build(BuildType.RELEASE, sanitizer=sanitizer)
+    flags = [arg for arg in driver.configured[0] if arg.startswith("-DSB_SANITIZE")]
+    assert flags == expected
+
+
+def _ctest_commands(monkeypatch) -> list[list[str]]:
+    """Makes every drained child exit zero and returns the list of commands run."""
+    commands: list[list[str]] = []
+
+    def fake_run_drained(self, cmd, cwd, env=None):
+        """Records *cmd* and succeeds."""
+        commands.append(list(cmd))
+        return 0
+
+    monkeypatch.setattr(Runner, "run_drained", fake_run_drained)
+    return commands
+
+
+def test_test_runs_small_and_medium_and_leaves_quarantined_out_by_default(
+    parts, checkout, monkeypatch
+):
+    """With no label, ctest selects the small and medium labels and excludes quarantined."""
+    console, driver, service = parts
+    commands = _ctest_commands(monkeypatch)
+    assert service.test() == 0
+    command = commands[0]
+    assert command[command.index("-L") + 1] == "^(small|medium)$"
+    assert command[command.index("-LE") + 1] == "^quarantined$"
+
+
+def test_test_passes_no_exclusion_when_quarantined_is_named(parts, checkout, monkeypatch):
+    """`--label quarantined` selects the quarantined tests and passes no -LE."""
+    console, driver, service = parts
+    commands = _ctest_commands(monkeypatch)
+    service.test([TestLabel.QUARANTINED])
+    assert "-LE" not in commands[0]
+    assert commands[0][commands[0].index("-L") + 1] == "^quarantined$"
+
+
+def test_test_cli_runs_pytest_with_the_marker_expression(parts, checkout, monkeypatch):
+    """--cli runs pytest from cli/ with the expression of the labels given."""
+    console, driver, service = parts
+    commands = _child_exits_with(monkeypatch, 0)
+    assert service.test_cli([TestLabel.SMALL]) == 0
+    assert commands[0][1:] == ["-m", "pytest", "-q", "-m", "(small) and not quarantined"]
+
+
+@pytest.mark.parametrize(
     ("args", "expected"),
     [
         (["build", "--benchmarks"], True),
@@ -240,7 +306,7 @@ def test_build_command_forwards_the_benchmarks_option(monkeypatch, args, expecte
     received = []
 
     class _Service:
-        def build(self, build_type, clean, define, benchmarks):
+        def build(self, build_type, clean, define, benchmarks, sanitize):
             received.append(benchmarks)
             return 0
 
@@ -327,12 +393,22 @@ def test_run_command_rejects_a_mistyped_option(monkeypatch, args):
     assert result.exit_code == K_EXIT_USAGE
 
 
-def test_package_suite_refuses_ctest_options(parts):
-    """--filter with the package suite raises with exit 2."""
-    console, driver, service = parts
-    with pytest.raises(SuiteOptionError) as raised:
-        service.test(Suite.PACKAGE, filter="Gemm.*")
-    assert raised.value.exit_code == K_EXIT_USAGE
+@pytest.mark.parametrize("args", [
+    ["test", "--package", "--filter", "Gemm.*"],
+    ["test", "--package", "--label", "small"],
+    ["test", "--package", "--cli"],
+    ["test", "--cli", "--repeat", "2"],
+])
+def test_test_command_refuses_options_that_do_not_apply(monkeypatch, args):
+    """--package takes no selection option and --cli no ctest option; both exit 2."""
+
+    def no_service():
+        """Fails the test if the command reaches the service."""
+        raise AssertionError("the service was reached")
+
+    monkeypatch.setattr(cli, "_service", no_service)
+    result = CliRunner().invoke(cli.app, args)
+    assert result.exit_code == K_EXIT_USAGE
 
 
 def test_docs_creates_the_site_folder_under_the_build_tree(parts, checkout):
@@ -356,3 +432,22 @@ def test_an_interrupted_child_ends_in_exit_code_130(tmp_path, monkeypatch):
     monkeypatch.setattr(sushicore.proc.subprocess, "run", interrupt)
     assert runner.run(["some-tool"], tmp_path, {}) == K_INTERRUPTED
     assert console.texts("warn") == ["Interrupted."]
+
+
+def test_bench_raises_when_no_benchmark_program_is_built(parts, checkout):
+    """bench with no benchmark program says how to build one."""
+    console, driver, service = parts
+    with pytest.raises(ExecutableNotFoundError):
+        service.bench()
+
+
+def test_bench_runs_every_benchmark_program_in_name_order(parts, checkout, monkeypatch):
+    """bench runs each benchmark_* program under build/tests and skips the test programs."""
+    console, driver, service = parts
+    programs = checkout / "build" / "tests"
+    programs.mkdir()
+    for name in ("benchmark_sparse", "benchmark_gemm", "sushiblas_blas_tests"):
+        (programs / name).write_text("")
+    commands = _child_exits_with(monkeypatch, 0)
+    assert service.bench() == 0
+    assert [Path(command[0]).name for command in commands] == ["benchmark_gemm", "benchmark_sparse"]

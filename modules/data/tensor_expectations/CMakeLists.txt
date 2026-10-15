@@ -18,6 +18,7 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE tensor_expectations
+    SIZE medium
     TESTS
         test_scalar_dtype.cpp
         test_tensor_comparison.cpp

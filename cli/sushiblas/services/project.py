@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import shutil
+import sys
 import typing
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -29,14 +30,19 @@ from .errors import (
     InvalidDefineError,
     RuntimeMissingError,
     StepFailedError,
-    SuiteOptionError,
     TreeNotRemovedError,
 )
-from .suite import K_SUITE_LABEL_REGEX, Suite
+from .sanitizer import Sanitizer, sanitize_flags
+from .test_label import TestLabel, select_labels
 
 K_PACKAGE_CONSUMER = "sushiblas_package_consumer"
 K_BENCHMARKS_VARIABLE = "SB_BUILD_BENCHMARKS"
 K_DOXYFILE = Path(".config") / "doxygen" / "Doxyfile"
+K_CLI_DIR = "cli"
+#: Where cmake/SushiBLASTests.cmake places every test and benchmark program, under the build tree.
+K_PROGRAM_DIR = "tests"
+#: The prefix every benchmark program's name starts with.
+K_BENCHMARK_PREFIX = "benchmark_"
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,10 +115,12 @@ class ProjectService:
         clean: bool = False,
         defines: Sequence[str] | None = None,
         benchmarks: bool | None = None,
+        sanitizer: Sanitizer | None = None,
     ) -> int:
         """Configures and builds the project, replacing a tree it cannot reuse.
 
-        *benchmarks* switches the benchmark programs on or off; None keeps the cached value.
+        *benchmarks* switches the benchmark programs on or off and *sanitizer* sets the
+        sanitizers of host code; None keeps the cached value of either.
 
         Raises:
             InvalidDefineError: An entry of *defines* is not VAR=VALUE; nothing was touched.
@@ -120,7 +128,8 @@ class ProjectService:
             TreeNotRemovedError: A tree that had to go is still there.
             StepFailedError: Configure or compile failed.
         """
-        define_flags = benchmarks_flags(benchmarks) + validate_defines(defines)
+        define_flags = (benchmarks_flags(benchmarks) + sanitize_flags(sanitizer)
+                        + validate_defines(defines))
         root = self._find_root()
         cfg = self._load_config()
         cmake_build_type = K_CMAKE_BUILD_TYPE[build_type]
@@ -163,40 +172,74 @@ class ProjectService:
             raise StepFailedError("Build failed.", rc)
         return rc
 
-    def test(self, suite: Suite = Suite.FUNCTIONAL, filter: str | None = None,
+    def test(self, labels: Sequence[TestLabel] | None = None, filter: str | None = None,
              repeat: int = 0) -> int:
-        """Runs the CTest label group of *suite*, or the package consumer, and returns ctest's code.
+        """Runs the CTest tests *labels* select and returns ctest's code.
+
+        None or empty *labels* selects the small and medium tests. A quarantined test runs only
+        when *labels* names `quarantined`.
 
         Raises:
             BuildTreeMissingError: There is no build tree.
-            SuiteOptionError: *filter* or *repeat* was given with the package suite.
-            StepFailedError: A step of the package suite failed.
         """
         root = self._find_root()
         cfg = self._load_config()
         build_dir = _existing_build_dir(root)
-
-        if suite is Suite.PACKAGE:
-            if filter or repeat:
-                raise SuiteOptionError()
-            env = self._build_env.load(cfg, build_dir)
-            return self._test_package(cfg, root, build_dir, env)
-
         env = self._build_env.load(cfg, build_dir)
-        if suite is Suite.ALL:
-            self._console.info(
-                "'all' covers every CTest test. The package suite is not among them "
-                "(it builds a separate project): run `sb test --suite package`.",
-            )
+        selection = select_labels(labels)
 
-        return self._driver.ctest_run(
-            cfg,
-            build_dir,
-            env,
-            label_regex=None if suite is Suite.ALL else K_SUITE_LABEL_REGEX[suite],
-            filter=filter,
-            repeat=repeat,
-        )
+        cmd = [self._driver.ctest(cfg), "--test-dir", str(build_dir), "--output-on-failure",
+               "-L", selection.ctest_include()]
+        if exclude := selection.ctest_exclude():
+            cmd += ["-LE", exclude]
+        if filter:
+            cmd += ["-R", filter]
+        if repeat > 0:
+            cmd += ["--repeat", f"until-fail:{repeat}"]
+            self._console.info(f"Repeating each test up to {repeat}x (stop on first failure).")
+        return self._runner.run_drained(cmd, build_dir, env)
+
+    def test_cli(self, labels: Sequence[TestLabel] | None = None) -> int:
+        """Runs the pytest tests of this CLI that *labels* select and returns pytest's code."""
+        root = self._find_root()
+        selection = select_labels(labels)
+        cmd = [sys.executable, "-m", "pytest", "-q", "-m", selection.pytest_expression()]
+        return self._runner.run(cmd, root / K_CLI_DIR, None)
+
+    def test_package(self) -> int:
+        """Installs the package, builds tests/package/ against it and runs it.
+
+        Raises:
+            BuildTreeMissingError: There is no build tree.
+            StepFailedError: Install, configure, compile or the consumer run failed.
+            ExecutableNotFoundError: The consumer built but its executable is absent.
+        """
+        root = self._find_root()
+        cfg = self._load_config()
+        build_dir = _existing_build_dir(root)
+        env = self._build_env.load(cfg, build_dir)
+        return self._test_package(cfg, root, build_dir, env)
+
+    def bench(self) -> int:
+        """Runs every built benchmark program in name order and returns the first non-zero code.
+
+        Raises:
+            BuildTreeMissingError: There is no build tree.
+            ExecutableNotFoundError: No benchmark program is built.
+        """
+        root = self._find_root()
+        cfg = self._load_config()
+        build_dir = _existing_build_dir(root)
+        env = self._build_env.load(cfg, build_dir)
+        programs = _benchmark_programs(build_dir / K_PROGRAM_DIR)
+        if not programs:
+            raise ExecutableNotFoundError("A benchmark program (build with --benchmarks)")
+        code = 0
+        for program in programs:
+            self._console.info(f"Executing: {program.name}")
+            rc = self._runner.run([str(program)], root, env)
+            code = code or rc
+        return code
 
     def run(self, target: str | None = None, sort: bool = False,
             app_args: Sequence[str] = ()) -> int:
@@ -372,6 +415,17 @@ def _existing_build_dir(root: Path) -> Path:
     if not build_dir.is_dir():
         raise BuildTreeMissingError()
     return build_dir
+
+
+def _benchmark_programs(program_dir: Path) -> list[Path]:
+    """Returns the benchmark programs under *program_dir*, sorted by name."""
+    if not program_dir.is_dir():
+        return []
+    return sorted(
+        path for path in program_dir.iterdir()
+        if path.is_file() and path.name.startswith(K_BENCHMARK_PREFIX)
+        and path.suffix in ("", ".exe")
+    )
 
 
 def _check_runtime(cfg: Config, root: Path) -> None:

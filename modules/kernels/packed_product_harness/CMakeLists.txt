@@ -17,5 +17,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE packed_product_harness
+    SIZE medium
     TESTS
         test_packed_product_harness.cpp)

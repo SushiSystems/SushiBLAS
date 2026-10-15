@@ -69,8 +69,8 @@ sb test
 
 `hub install-cli sushiblas` puts two equivalent commands on the PATH, `sb` and `sushiblas`.
 `sb build` makes a release build by default; `--type debug` and `--type relwithdebinfo` select
-the others, and `--clean` wipes the build tree first. `sb test` runs the functional suite by
-default, and `--suite` selects `unit`, `integration`, `regression`, `all` or `package`.
+the others, and `--clean` wipes the build tree first. `sb test` runs the small and medium tests by
+default, `--label` selects a size, and `--package` builds the out-of-tree consumer.
 
 Inside a SushiStack workspace, or with a SushiRuntime checkout beside this one, no local
 configuration is needed. The [README](../../README.md#building) also shows a build with CMake

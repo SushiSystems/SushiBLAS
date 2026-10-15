@@ -35,6 +35,7 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE random
+    SIZE medium
     TESTS
         test_dispatch.cpp
         test_random/test_constant.cpp

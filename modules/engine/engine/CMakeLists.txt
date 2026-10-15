@@ -16,6 +16,7 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE engine
+    SIZE medium
     TESTS
         test_dispatch.cpp
         test_engine/test_reduce_plans.cpp

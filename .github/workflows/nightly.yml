@@ -1,0 +1,76 @@
+name: Nightly
+
+# Everything post-merge runs, then the benchmark programs and the quarantined tests. The
+# quarantined run reports and never gates. release.yml calls this file before it packages.
+on:
+  schedule:
+    - cron: '0 3 * * *'   # 03:00 UTC
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  # The OpenCL CPU JIT vectorizer crashes on one kernel; see docs/reference/KNOWN_ISSUES.md.
+  CL_CONFIG_CPU_VECTORIZER_MODE: "1"
+  SB_CXX: icpx
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    with:
+      post_merge: true
+    secrets: inherit
+
+  benchmarks:
+    name: Benchmarks
+    timeout-minutes: 120
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: sushiblas
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: sushiblas
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiRuntime
+          path: sushiruntime
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      - uses: ./sushiblas/.github/actions/setup-oneapi
+      - uses: ./sushiblas/.github/actions/setup-sb
+      - name: sb build --benchmarks -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb build --benchmarks -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
+      - name: sb bench
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb bench
+
+  quarantined:
+    name: Quarantined tests (reported, never gating)
+    timeout-minutes: 90
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: sushiblas
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: sushiblas
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiRuntime
+          path: sushiruntime
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      - uses: ./sushiblas/.github/actions/setup-oneapi
+      - uses: ./sushiblas/.github/actions/setup-sb
+      - name: sb build -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb build -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
+      - name: sb test --label quarantined
+        id: quarantined
+        continue-on-error: true
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sb test --label quarantined
+      - name: Report the quarantined result
+        run: echo "::notice::sb test --label quarantined finished with ${{ steps.quarantined.outcome }}"

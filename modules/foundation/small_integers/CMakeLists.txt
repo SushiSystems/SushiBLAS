@@ -12,5 +12,6 @@ sushiblas_add_module(
 
 sushiblas_add_test_program(
     MODULE small_integers
+    SIZE small
     TESTS
         test_small_integers.cpp)
