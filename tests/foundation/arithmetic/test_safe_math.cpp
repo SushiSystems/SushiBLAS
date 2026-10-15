@@ -44,7 +44,7 @@ namespace SushiBLAS
         /**
          * @brief Expects two complex values to agree in both parts within the file's tolerances.
          */
-        void expect_close(const std::complex<double>& got, const std::complex<double>& want)
+        static void expect_close(const std::complex<double>& got, const std::complex<double>& want)
         {
             EXPECT_NEAR(got.real(), want.real(),
                         K_ABSOLUTE + K_RELATIVE * std::abs(want.real()));
