@@ -14,3 +14,8 @@ sushiblas_add_module(
         arithmetic
         launch
         blas_seam_kernels)
+
+sushiblas_add_test_program(
+    MODULE packed_product_harness
+    TESTS
+        test_packed_product_harness.cpp)
