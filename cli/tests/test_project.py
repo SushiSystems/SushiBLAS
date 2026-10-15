@@ -60,6 +60,7 @@ class _Driver:
     def __init__(self) -> None:
         self.configured: list[list[str]] = []
         self.documented: list[tuple[Path, Path]] = []
+        self.tested: list[dict] = []
 
     def cmake(self, cfg) -> str:
         """Returns the executable name the configure line starts with."""
@@ -74,9 +75,10 @@ class _Driver:
         self.configured.append(list(args))
         return K_CONFIGURE_FAILED
 
-    def ctest(self, cfg) -> str:
-        """Returns the executable name the ctest line starts with."""
-        return "ctest"
+    def ctest_run(self, cfg, build_dir: Path, env, **selection) -> int:
+        """Records the selection ctest was asked for and succeeds."""
+        self.tested.append(selection)
+        return 0
 
     def doxygen(self, cfg, doxyfile: Path, cwd: Path, env=None) -> int:
         """Records the Doxyfile and the working directory and succeeds."""
@@ -251,38 +253,20 @@ def test_build_passes_the_sanitizer_set_as_a_cache_variable(parts, checkout, san
     assert flags == expected
 
 
-def _ctest_commands(monkeypatch) -> list[list[str]]:
-    """Makes every drained child exit zero and returns the list of commands run."""
-    commands: list[list[str]] = []
-
-    def fake_run_drained(self, cmd, cwd, env=None):
-        """Records *cmd* and succeeds."""
-        commands.append(list(cmd))
-        return 0
-
-    monkeypatch.setattr(Runner, "run_drained", fake_run_drained)
-    return commands
-
-
-def test_test_runs_small_and_medium_and_leaves_quarantined_out_by_default(
-    parts, checkout, monkeypatch
-):
+def test_test_runs_small_and_medium_and_leaves_quarantined_out_by_default(parts, checkout):
     """With no label, ctest selects the small and medium labels and excludes quarantined."""
     console, driver, service = parts
-    commands = _ctest_commands(monkeypatch)
     assert service.test() == 0
-    command = commands[0]
-    assert command[command.index("-L") + 1] == "^(small|medium)$"
-    assert command[command.index("-LE") + 1] == "^quarantined$"
+    assert driver.tested[0]["label_regex"] == "^(small|medium)$"
+    assert driver.tested[0]["exclude_label_regex"] == "^quarantined$"
 
 
-def test_test_passes_no_exclusion_when_quarantined_is_named(parts, checkout, monkeypatch):
-    """`--label quarantined` selects the quarantined tests and passes no -LE."""
+def test_test_passes_no_exclusion_when_quarantined_is_named(parts, checkout):
+    """`--label quarantined` selects the quarantined tests and excludes nothing."""
     console, driver, service = parts
-    commands = _ctest_commands(monkeypatch)
     service.test([TestLabel.QUARANTINED])
-    assert "-LE" not in commands[0]
-    assert commands[0][commands[0].index("-L") + 1] == "^quarantined$"
+    assert driver.tested[0]["label_regex"] == "^quarantined$"
+    assert driver.tested[0]["exclude_label_regex"] is None
 
 
 def test_test_cli_runs_pytest_with_the_marker_expression(parts, checkout, monkeypatch):
