@@ -7,3 +7,8 @@
 sushiblas_add_module(
     NAME orthonormal
     LAYER foundation)
+
+sushiblas_add_test_program(
+    MODULE orthonormal
+    TESTS
+        test_orthonormal_sweep.cpp)
