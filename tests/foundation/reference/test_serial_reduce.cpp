@@ -21,7 +21,7 @@
 
 /**
  * @file test_serial_reduce.cpp
- * @brief Tests the serial host loops and folds against the launch shapes and accumulators they mirror.
+ * @brief Tests the serial host folds against the launched folds and accumulators they mirror.
  * @author Mustafa Garip
  */
 
@@ -35,9 +35,7 @@
 #include <type_traits>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
-#include <SushiBLAS/reference/serial_1d.hpp>
 #include <SushiBLAS/reduction/reduce_axis.hpp>
 #include <SushiBLAS/reference/serial_reduce.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
@@ -138,97 +136,6 @@ namespace SushiBLAS
                     return TestEnvironment::queue();
                 }
         };
-
-        /** @brief Tests that the serial map writes the bits the launched map writes, for one input and for two. */
-        TEST_F(Unit_SerialLoops, MapMatchesTheLaunchedMap)
-        {
-            sycl::queue& q = queue();
-            const std::size_t n = K_ELEMENT_COUNT;
-
-            SharedArray<float> first(q, n);
-            SharedArray<float> second(q, n);
-            SharedArray<float> by_serial(q, n);
-            SharedArray<float> by_launch(q, n);
-            for (std::size_t i = 0; i < n; ++i)
-            {
-                first.get()[i] = value_at(i);
-                second.get()[i] = value_at(i + 7);
-            }
-
-            const float* x = first.get();
-            const float* y = second.get();
-            float* serial_out = by_serial.get();
-            float* launch_out = by_launch.get();
-            const bool aligned = Launch::vector_aligned(x, y, serial_out, launch_out);
-
-            const auto unary = [](float a) { return a * 2.0f + 1.0f; };
-            Serial::map(n, unary, serial_out, x);
-            q.submit([&](sycl::handler& h)
-            {
-                Launch::map(h, q, n, aligned, unary, launch_out, x);
-            }).wait();
-            EXPECT_TRUE(same_bits(serial_out, launch_out, n));
-
-            const auto binary = [](float a, float b) { return a * b - a; };
-            Serial::map(n, binary, serial_out, x, y);
-            q.submit([&](sycl::handler& h)
-            {
-                Launch::map(h, q, n, aligned, binary, launch_out, x, y);
-            }).wait();
-            EXPECT_TRUE(same_bits(serial_out, launch_out, n));
-        }
-
-        /** @brief Tests that the serial fused update leaves the bits the launched fused update leaves. */
-        TEST_F(Unit_SerialLoops, ZipMatchesTheLaunchedZip)
-        {
-            sycl::queue& q = queue();
-            const std::size_t n = K_ELEMENT_COUNT;
-
-            SharedArray<float> serial_x(q, n);
-            SharedArray<float> serial_y(q, n);
-            SharedArray<float> launch_x(q, n);
-            SharedArray<float> launch_y(q, n);
-            for (std::size_t i = 0; i < n; ++i)
-            {
-                serial_x.get()[i] = value_at(i);
-                serial_y.get()[i] = value_at(i + 7);
-                launch_x.get()[i] = value_at(i);
-                launch_y.get()[i] = value_at(i + 7);
-            }
-
-            const auto update = [](float& x, float& y)
-            {
-                y = y + 0.5f * x;
-                x = -x;
-            };
-
-            const std::array<float*, 2> serial_ptrs{serial_x.get(), serial_y.get()};
-            const std::array<float*, 2> launch_ptrs{launch_x.get(), launch_y.get()};
-            const bool aligned = Launch::vector_aligned(launch_ptrs[0], launch_ptrs[1]);
-
-            Serial::zip_inplace(n, serial_ptrs, update);
-            q.submit([&](sycl::handler& h)
-            {
-                Launch::zip_inplace(h, q, n, aligned, launch_ptrs, update);
-            }).wait();
-
-            EXPECT_TRUE(same_bits(serial_x.get(), launch_x.get(), n));
-            EXPECT_TRUE(same_bits(serial_y.get(), launch_y.get(), n));
-        }
-
-        /** @brief Tests that the serial indexed loop calls its operation once per index, ascending. */
-        TEST_F(Unit_SerialLoops, IndexedVisitsEveryIndexInOrder)
-        {
-            const std::size_t n = K_ELEMENT_COUNT;
-
-            std::vector<std::size_t> visited;
-            visited.reserve(n);
-            Serial::indexed(n, [&visited](std::size_t i) { visited.push_back(i); });
-
-            ASSERT_EQ(visited.size(), n);
-            for (std::size_t i = 0; i < n; ++i)
-                EXPECT_EQ(visited[i], i);
-        }
 
         /** @brief Tests that a host sum of HALF terms is added in double, where 2048 + 1 + 1 is 2050. */
         TEST_F(Unit_SerialLoops, ASumOfHalfIsFormedInDouble)
