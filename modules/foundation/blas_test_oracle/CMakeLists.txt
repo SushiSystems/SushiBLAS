@@ -17,4 +17,5 @@ sushiblas_add_test_program(
     TESTS
         test_blas_flags.cpp
         test_blas_structured.cpp
-        test_blas_truth.cpp)
+        test_blas_truth.cpp
+        test_dense_oracle.cpp)
