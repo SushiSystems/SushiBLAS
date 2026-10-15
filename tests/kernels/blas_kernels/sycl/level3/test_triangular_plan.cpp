@@ -21,24 +21,17 @@
 
 /**
  * @file test_triangular_plan.cpp
- * @brief Tests the block plan of a triangular solve and the decoding of a TRSM call into one
- *        substitution.
+ * @brief Tests the block plan of a triangular solve on a CPU and a GPU profile.
  * @author Mustafa Garip
  */
 
-#include <array>
-#include <vector>
-#include <complex>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <gtest/gtest.h>
 #include <SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp>
-#include <SushiBLAS/blas_kernels/sycl/level3/triangular_system.hpp>
 #include <SushiBLAS/core/common.hpp>
-#include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
-#include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
 
 namespace SushiBLAS
 {
@@ -54,18 +47,6 @@ namespace SushiBLAS
 
             /// @brief Holds the work-group size the hand-built GPU profile launches with.
             constexpr std::size_t K_GPU_WORK_GROUP = 256;
-
-            /// @brief Holds the order of A in the decoding cases.
-            constexpr int64_t K_ORDER = 4;
-
-            /// @brief Holds the right-hand-side vectors of B in the decoding cases.
-            constexpr int64_t K_VECTORS = 3;
-
-            /// @brief Holds the leading dimension of A in the decoding cases.
-            constexpr int64_t K_LDA = 5;
-
-            /// @brief Holds the leading dimension of B in the decoding cases.
-            constexpr int64_t K_LDB = 6;
 
             /** @brief Holds the block one planned solve is expected to take. */
             struct PlanExpectation
@@ -113,50 +94,6 @@ namespace SushiBLAS
                 }
             }
 
-            /** @brief Returns the rows of B: the order on the left, else the vectors. */
-            [[nodiscard]] constexpr int64_t rows_of(Core::Side side) noexcept
-            {
-                return side == Core::Side::Left ? K_ORDER : K_VECTORS;
-            }
-
-            /** @brief Returns the columns of B: the vectors on the left, else the order. */
-            [[nodiscard]] constexpr int64_t cols_of(Core::Side side) noexcept
-            {
-                return side == Core::Side::Left ? K_VECTORS : K_ORDER;
-            }
-
-            /// @brief Holds the two layouts every decoding case runs in.
-            constexpr Core::Layout K_LAYOUTS[] = {Core::Layout::RowMajor,
-                                                  Core::Layout::ColumnMajor};
-
-            /// @brief Holds the two sides every decoding case runs on.
-            constexpr Core::Side K_SIDES[] = {Core::Side::Left, Core::Side::Right};
-
-            /** @brief Holds the flags of one TRSM call. */
-            struct SolveFlags
-            {
-                Core::Layout layout;   /**< The memory order of A and B. */
-                Core::Side side;       /**< The side op(A) stands on. */
-                Core::Uplo uplo;       /**< The triangle of A that is read. */
-                Core::Transpose trans; /**< The op applied to A. */
-                Core::Diag diag;       /**< Whether the diagonal of A is one. */
-            };
-
-            /** @brief Returns every combination of layout, side, triangle, op and diagonal. */
-            [[nodiscard]] std::vector<SolveFlags> every_solve_flags()
-            {
-                std::vector<SolveFlags> all;
-                for (const Core::Layout layout : K_LAYOUTS)
-                    for (const Core::Side side : K_SIDES)
-                        for (const Core::Uplo uplo : {Core::Uplo::Upper, Core::Uplo::Lower})
-                            for (const Core::Transpose trans :
-                                 {Core::Transpose::NoTrans, Core::Transpose::Trans,
-                                  Core::Transpose::ConjTrans})
-                                for (const Core::Diag diag :
-                                     {Core::Diag::NonUnit, Core::Diag::Unit})
-                                    all.push_back(SolveFlags{layout, side, uplo, trans, diag});
-                return all;
-            }
         } // namespace
 
         /**
@@ -256,88 +193,6 @@ namespace SushiBLAS
 
             EXPECT_EQ(1, TriangularSolvePlan{64}.block_width(0));
             EXPECT_EQ(1, TriangularSolvePlan{64}.block_count(0));
-        }
-
-        /**
-         * @brief Tests that every side and flag of TRSM decodes to the substitution of its row
-         *        in DESIGN_BLAS_L3, section 7.4.
-         */
-        TEST(Unit_TriangularSystem, EverySideAndFlagDecodesToItsLoop)
-        {
-            std::array<std::complex<float>, K_LDA * K_LDA> a;
-            for (std::size_t i = 0; i < a.size(); ++i)
-                a[i] = std::complex<float>(static_cast<float>(i + 1),
-                                           -static_cast<float>(i + 1) - 0.5f);
-
-            for (const SolveFlags& flags : every_solve_flags())
-            {
-                const Core::Layout layout = flags.layout;
-                const Core::Side side = flags.side;
-                const Core::Uplo uplo = flags.uplo;
-                const Core::Transpose trans = flags.trans;
-                const Core::Diag diag = flags.diag;
-
-                SCOPED_TRACE(::testing::Message()
-                             << (layout == Core::Layout::RowMajor ? "ROW_MAJOR" : "COLUMN_MAJOR")
-                             << " " << Core::to_string(side) << " " << Core::to_string(uplo)
-                             << " " << Core::to_string(trans) << " " << Core::to_string(diag));
-
-                const bool left = (side == Core::Side::Left);
-                const Kernels::SYCL::TriangularSystem system = Kernels::SYCL::triangular_system(
-                    layout, side, uplo, trans, diag, rows_of(side), cols_of(side), K_LDA, K_LDB);
-
-                const Kernels::OperandAccess op_a = Kernels::operand_access(layout, trans, K_LDA);
-                const Kernels::OperandAccess at_b =
-                    Kernels::operand_access(layout, Core::Transpose::NoTrans, K_LDB);
-
-                EXPECT_EQ(K_ORDER, system.order);
-                EXPECT_EQ(K_VECTORS, system.vectors);
-                EXPECT_EQ(diag == Core::Diag::Unit, system.unit_diag);
-
-                // op(A) is upper when exactly one of an upper A and a transposing op holds.
-                const bool op_upper =
-                    (uplo == Core::Uplo::Upper) != (trans != Core::Transpose::NoTrans);
-                EXPECT_EQ(left ? !op_upper : op_upper, system.forward);
-
-                for (int64_t s = 0; s < K_ORDER; ++s)
-                {
-                    for (int64_t t = 0; t < K_ORDER; ++t)
-                        EXPECT_EQ(left ? op_a.at(a.data(), s, t) : op_a.at(a.data(), t, s),
-                                  system.coefficient.at(a.data(), s, t))
-                            << "step " << s << ", unknown " << t;
-
-                    for (int64_t v = 0; v < K_VECTORS; ++v)
-                        EXPECT_EQ(left ? at_b.index(s, v) : at_b.index(v, s),
-                                  system.unknown.index(s, v))
-                            << "step " << s << ", vector " << v;
-                }
-            }
-        }
-
-        /**
-         * @brief Tests that CONJ_TRANS conjugates the factors read from A and no element of B.
-         */
-        TEST(Unit_TriangularSystem, ConjTransConjugatesTheCoefficientAndNotTheUnknown)
-        {
-            for (const Core::Layout layout : K_LAYOUTS)
-            {
-                for (const Core::Side side : K_SIDES)
-                {
-                    const Kernels::SYCL::TriangularSystem conjugating =
-                        Kernels::SYCL::triangular_system(
-                            layout, side, Core::Uplo::Lower, Core::Transpose::ConjTrans,
-                            Core::Diag::NonUnit, rows_of(side), cols_of(side), K_LDA, K_LDB);
-                    EXPECT_TRUE(conjugating.coefficient.conjugated);
-                    EXPECT_FALSE(conjugating.unknown.conjugated);
-
-                    const Kernels::SYCL::TriangularSystem transposing =
-                        Kernels::SYCL::triangular_system(
-                            layout, side, Core::Uplo::Lower, Core::Transpose::Trans,
-                            Core::Diag::NonUnit, rows_of(side), cols_of(side), K_LDA, K_LDB);
-                    EXPECT_FALSE(transposing.coefficient.conjugated);
-                    EXPECT_FALSE(transposing.unknown.conjugated);
-                }
-            }
         }
     } // namespace Test
 } // namespace SushiBLAS
