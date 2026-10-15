@@ -33,7 +33,7 @@
 #include <SushiBLAS/engine/scratch_shelf.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
-#include "test_environment.hpp"
+#include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
 {

@@ -3,7 +3,7 @@
 The unit tests of the `blas` module, built into `sushiblas_blas_tests` by the
 module's `CMakeLists.txt`. The source comments state what a test checks; a section below
 holds why a test is written the way it is. `tests/unit/README.md` holds the reasoning the
-tests share, and `tests/common/README.md` describes the fixtures.
+tests share, and `modules/engine/engine_fixture/README.md` describes the fixture.
 
 | File | Tests |
 | --- | --- |
@@ -280,3 +280,8 @@ so X, which overwrites B, is `[2 3; 1 2]`.
 ```
 
 so X is `[1.00 1.25; 2.00 3.50]`, which is `[1.0, 2.0, 1.25, 3.5]` in column-major memory.
+
+## The `Unit_Level2SyclParityTest` fixture
+
+`modules/operations/blas/tests/test_level2_sycl_parity.cpp` runs GEMV and SYMV in a chosen execution mode
+and measures each against a `TruthSum`, as `modules/foundation/blas_test_oracle/README.md` describes under `blas_truth.hpp`.

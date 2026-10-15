@@ -9,11 +9,3 @@ sushiblas_add_module(
     LAYER data
     DEPENDS
         core)
-
-sushiblas_add_module_tests(
-    MODULE tensor
-    SOURCES
-        test_storage_offset.cpp
-        test_tensor_const_access.cpp
-        test_tensor_factory.cpp
-        test_tensor_view.cpp)

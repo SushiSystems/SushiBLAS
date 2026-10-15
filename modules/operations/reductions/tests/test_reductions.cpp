@@ -44,10 +44,16 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/reductions/dispatch.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
-#include "test_utils.hpp"
-#include "blas_truth.hpp"
-#include "graph_probe.hpp"
-#include "reference_reductions.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
+#include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/blas_test_oracle/blas_truth.hpp>
+#include <SushiBLAS/graph_probe/graph_probe.hpp>
+#include <SushiBLAS/serial_reductions/serial_reductions.hpp>
 
 using namespace SushiBLAS::Test;
 using namespace SushiBLAS;

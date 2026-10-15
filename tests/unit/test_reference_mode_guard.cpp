@@ -35,8 +35,9 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/blas/dispatch.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/channel_bias_epilogue.hpp>
-#include "../common/test_utils.hpp"
-
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 using namespace SushiBLAS;
 using namespace SushiBLAS::Test;
 using namespace SushiRuntime::Literals;

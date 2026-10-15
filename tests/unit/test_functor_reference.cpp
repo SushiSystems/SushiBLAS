@@ -45,8 +45,13 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/elementwise/dispatch.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
-#include "../common/test_utils.hpp"
-#include "../common/graph_probe.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
+#include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/graph_probe/graph_probe.hpp>
 
 namespace SushiBLAS
 {

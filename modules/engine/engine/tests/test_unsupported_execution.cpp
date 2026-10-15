@@ -36,8 +36,8 @@
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 namespace SushiBLAS
 {
     namespace Test

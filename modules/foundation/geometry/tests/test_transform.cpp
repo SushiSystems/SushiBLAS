@@ -33,8 +33,7 @@
 #include <SushiBLAS/geometry/quaternion.hpp>
 #include <SushiBLAS/geometry/matrix4.hpp>
 #include <SushiBLAS/geometry/transform.hpp>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
 namespace SushiBLAS
 {
     namespace Test

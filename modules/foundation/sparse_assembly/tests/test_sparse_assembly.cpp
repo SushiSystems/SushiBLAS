@@ -35,7 +35,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/sparse_types.hpp>
 #include <SushiBLAS/sparse_assembly/sparse_assembly.hpp>
-#include "sparse_samples.hpp"
+#include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
 
 namespace SushiBLAS
 {

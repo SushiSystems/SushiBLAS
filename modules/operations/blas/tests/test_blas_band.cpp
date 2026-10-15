@@ -43,8 +43,13 @@
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
-#include "test_utils.hpp"
-#include "blas_structured.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
+#include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/blas_test_oracle/blas_structured.hpp>
 
 namespace SushiBLAS
 {

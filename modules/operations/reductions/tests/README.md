@@ -3,7 +3,7 @@
 The unit tests of the `reductions` module, built into `sushiblas_reductions_tests` by the
 module's `CMakeLists.txt`. The source comments state what a test checks; a section below
 holds why a test is written the way it is. `tests/unit/README.md` holds the reasoning the
-tests share, and `tests/common/README.md` describes the fixtures.
+tests share, and `modules/engine/engine_fixture/README.md` describes the fixture.
 
 | File | Tests |
 | --- | --- |
@@ -15,6 +15,7 @@ tests share, and `tests/common/README.md` describes the fixtures.
 | `test_mean_spatial.cpp` | Tests ReductionOps::mean_spatial and the single-axis reductions that share its span |
 | `test_min.cpp` | Tests ElementwiseOps::min against fixed expected values |
 | `test_nrm2.cpp` | Tests BLASOps::nrm2 against fixed expected values |
+| `test_reduce_segments.cpp` | Tests Reduce::reduce_segments in both launch shapes and the axis fold that runs on it |
 | `test_reduction_determinism.cpp` | Tests that the folding reductions repeat to the bit and sum accurately |
 | `test_reductions.cpp` | Tests each reduction's results and refusals, and that its host and SYCL paths agree |
 | `test_sum_edge_cases.cpp` | Tests ReductionOps::sum, mean, max and min on edge-case inputs |

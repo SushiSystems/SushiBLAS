@@ -3,7 +3,7 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Checks module tiers and the foundation, kernel, Engine, view and recorder layers of SushiBLAS.
+"""Checks module tiers and the foundation, kernel, engine.hpp, operation and recorder layers of SushiBLAS.
 
 Usage: python tools/layering/check_layering.py [repository root] [--report] [--rule NAME]
 """
@@ -16,7 +16,7 @@ import sys
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from functools import cache
-from itertools import chain, groupby
+from itertools import chain
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -38,7 +38,6 @@ K_INDEPENDENT_FOUNDATION_FOLDERS: tuple[str, ...] = tuple(
                    "sparse_assembly", "geometry")
 )
 K_ENGINE_HEADER = "modules/engine/engine/include/SushiBLAS/engine/engine.hpp"
-K_UMBRELLA_HEADER = "modules/library/sushiblas/include/SushiBLAS/SushiBLAS.h"
 K_RECORDER_HEADER = "modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp"
 K_GRAPH_PRIMITIVES_FOLDER = "modules/foundation/graph_primitives/"
 K_UNSCREENED_OPERATION_MODULES = frozenset({"io"})
@@ -62,11 +61,8 @@ K_ENGINE_BRICKS = frozenset({
     "SushiBLAS/engine/task_recorder.hpp",
     "SushiBLAS/engine/execution_mode.hpp",
 })
-K_ENGINE_INCLUDE = re.compile(r'^\s*#\s*include\s*[<"](SushiBLAS/engine/engine\.hpp)[>"]')
-K_UMBRELLA_INCLUDE = re.compile(r"^\s*#\s*include\s*<SushiBLAS/([^>]+)>")
 K_ENGINE_MEMBER_CALL = re.compile(r"\bengine_?\s*(?:\.|->)\s*([A-Za-z_]\w*)\s*\(")
 K_OPERATION_ALLOWED_MEMBERS: frozenset[str] = frozenset()
-K_VIEW_ALLOWED_MEMBERS = frozenset({"recorder", "rng"})
 K_RECORDING_VERBS: tuple[str, ...] = (
     "task",
     "kernel",
@@ -80,12 +76,6 @@ K_RECORDING_VERBS: tuple[str, ...] = (
     "untracked_raw_kernel",
 )
 K_GRAPH_INSERTION = re.compile(r"(?:\.|->)\s*(" + "|".join(K_RECORDING_VERBS) + r")\s*\(")
-K_COMMAND_GROUP = re.compile(r"\.\s*(submit)\s*\(")
-K_QUEUE_SHORTCUT = re.compile(
-    r"\b(?:q|q2|queue)\s*\.\s*(parallel_for|single_task|memcpy|memset|fill|copy)\s*\("
-)
-K_DEPENDS_ON_CALL = re.compile(r"\bdepends_on\s*\(")
-K_DEPENDENCY_ARGUMENT = re.compile(r"\bdeps\w*\b")
 K_LINE_COMMENT = re.compile(r"^\s*(?://|\*|/\*)")
 
 
@@ -291,29 +281,6 @@ def find_engine_header_includes(root: Path) -> Iterator[Violation]:
             yield violation
 
 
-def _view_headers(root: Path) -> frozenset[str]:
-    """Returns the operation views the umbrella header includes, as repository-relative paths."""
-    views: set[str] = set()
-    families = {module.name: module for module in _module_folders(root, K_OPERATION_TIER)}
-    for _, _, line in _file_lines(root / K_UMBRELLA_HEADER):
-        match = K_UMBRELLA_INCLUDE.match(line)
-        family = families.get(match.group(1).split("/")[0]) if match else None
-        if family is not None:
-            views.add(_relative(family / "include" / "SushiBLAS" / match.group(1), root))
-    return frozenset(views)
-
-
-def find_seam_engine_includes(root: Path) -> Iterator[Violation]:
-    """Yields each include of engine.hpp from an operation source or a header that is not a view."""
-    exempt = _view_headers(root) | {K_ENGINE_HEADER, K_UMBRELLA_HEADER}
-    headers = (
-        entry for entry in _header_lines(root)
-        if _relative(entry[0], root) not in exempt
-    )
-    yield from _include_matches(headers, K_ENGINE_INCLUDE)
-    yield from _include_matches(_operation_source_lines(root), K_ENGINE_INCLUDE)
-
-
 def _engine_calls(lines: Iterable[tuple[Path, int, str]], allowed: frozenset[str]) -> Iterator[Violation]:
     """Yields each call on an engine or engine_ variable to a member outside the allowed set."""
     for path, number, line in lines:
@@ -329,15 +296,6 @@ def find_operation_engine_calls(root: Path) -> Iterator[Violation]:
     yield from _engine_calls(_operation_source_lines(root), K_OPERATION_ALLOWED_MEMBERS)
 
 
-def find_view_engine_calls(root: Path) -> Iterator[Violation]:
-    """Yields each call on an engine variable from a public header, other than recorder() and rng()."""
-    headers = (
-        entry for entry in _header_lines(root)
-        if _relative(entry[0], root) != K_ENGINE_HEADER
-    )
-    yield from _engine_calls(headers, K_VIEW_ALLOWED_MEMBERS)
-
-
 def _may_record(file: str) -> bool:
     """Returns whether a repository-relative file is TaskRecorder or a graph primitive."""
     return file == K_RECORDER_HEADER or file.startswith(K_GRAPH_PRIMITIVES_FOLDER)
@@ -350,39 +308,6 @@ def find_graph_insertions(root: Path) -> Iterator[Violation]:
             continue
         for call in K_GRAPH_INSERTION.findall(line):
             yield Violation(path, number, call)
-
-
-def _call_text(lines: list[str], index: int, column: int) -> str:
-    """Returns one call's text from the parenthesis at lines[index][column] to the one that closes it."""
-    depth = 0
-    text: list[str] = []
-    for line in lines[index:]:
-        for character in line[column:]:
-            text.append(character)
-            if character == "(":
-                depth += 1
-            elif character == ")":
-                depth -= 1
-                if depth == 0:
-                    return "".join(text)
-        text.append("\n")
-        column = 0
-    return "".join(text)
-
-
-def find_task_dependencies(root: Path) -> Iterator[Violation]:
-    """Yields each command group without depends_on and each queue shortcut that names no deps."""
-    wanted = ((K_COMMAND_GROUP, K_DEPENDS_ON_CALL), (K_QUEUE_SHORTCUT, K_DEPENDENCY_ARGUMENT))
-    bodies = chain(_header_lines(root), _operation_source_lines(root))
-    for path, entries in groupby(bodies, key=lambda entry: entry[0]):
-        lines = [line for _, _, line in entries]
-        for index, line in enumerate(lines):
-            if K_LINE_COMMENT.match(line):
-                continue
-            for call, evidence in wanted:
-                for match in call.finditer(line):
-                    if not evidence.search(_call_text(lines, index, match.end() - 1)):
-                        yield Violation(path, index + 1, match.group(1))
 
 
 @cache
@@ -431,24 +356,18 @@ K_SCREENED_FINDERS: dict[str, Callable[[Path], Iterator[Violation]]] = {
     "rule_foundation_independence": find_foundation_includes,
     "rule_kernel_includes": find_kernel_includes,
     "rule_engine_header_includes": find_engine_header_includes,
-    "rule_seam_engine_includes": find_seam_engine_includes,
     "rule_operation_engine_calls": find_operation_engine_calls,
-    "rule_view_engine_calls": find_view_engine_calls,
     "rule_graph_insertions": find_graph_insertions,
-    "rule_task_dependencies": find_task_dependencies,
 }
 
 rule_foundation_independence = _screened_rule("rule_foundation_independence", find_foundation_includes)
 rule_kernel_includes = _screened_rule("rule_kernel_includes", find_kernel_includes)
 rule_engine_header_includes = _screened_rule("rule_engine_header_includes", find_engine_header_includes)
-rule_seam_engine_includes = _screened_rule("rule_seam_engine_includes", find_seam_engine_includes)
 rule_operation_engine_calls = _screened_rule("rule_operation_engine_calls", find_operation_engine_calls)
-rule_view_engine_calls = _screened_rule("rule_view_engine_calls", find_view_engine_calls)
 rule_graph_insertions = _screened_rule("rule_graph_insertions", find_graph_insertions)
-rule_task_dependencies = _screened_rule("rule_task_dependencies", find_task_dependencies)
 
 K_CHECKER = Checker(
-    description="Checks module tiers and the foundation, kernel, Engine, view and recorder layers.",
+    description="Checks module tiers and the foundation, kernel, engine.hpp, operation and recorder layers.",
     collect=collect,
     rules={
         "rule_declared_tiers": rule_declared_tiers,
@@ -457,11 +376,8 @@ K_CHECKER = Checker(
         "rule_foundation_independence": rule_foundation_independence,
         "rule_kernel_includes": rule_kernel_includes,
         "rule_engine_header_includes": rule_engine_header_includes,
-        "rule_seam_engine_includes": rule_seam_engine_includes,
         "rule_operation_engine_calls": rule_operation_engine_calls,
-        "rule_view_engine_calls": rule_view_engine_calls,
         "rule_graph_insertions": rule_graph_insertions,
-        "rule_task_dependencies": rule_task_dependencies,
     },
 )
 

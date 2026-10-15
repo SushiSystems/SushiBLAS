@@ -172,8 +172,8 @@ statement, on its own line, and here takes none.
    SushiBLAS, this module. The groups are ordered by hand; no tool sorts
    them.
 3. A header of SushiBLAS or SushiRuntime is included with angle brackets by
-   its module path. A header with no module path, one beside an example or
-   under `tests/common/`, is included in quotes.
+   its module path. A header with no module path, such as one beside an
+   example, is included in quotes.
 4. A header includes what it uses and forward-declares what it names only by
    pointer or reference.
 
@@ -419,7 +419,7 @@ Source: `modules/operations/elementwise/source/add.cpp`
   refusal.
 - **Ordering on the dependency count.** A test that the task is ordered
   against another asserts on the task's `dependency_count`, read from
-  `GraphProbe::recorded_tasks()` (`tests/common/graph_probe.hpp`), not on an
+  `GraphProbe::recorded_tasks()` (`modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp`), not on an
   output value.
 - **More than one shape**: square, rectangular, a vector, an empty operand,
   and for BLAS both layouts and each flag value.

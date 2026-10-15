@@ -40,8 +40,13 @@
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/reduction/reduce_axis.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
-#include "test_utils.hpp"
-#include "blas_truth.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
+#include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
+#include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/blas_test_oracle/blas_truth.hpp>
 
 namespace SushiBLAS
 {

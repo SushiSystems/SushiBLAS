@@ -8,3 +8,10 @@
 add_subdirectory(engine)
 add_subdirectory(operands)
 add_subdirectory(functor_map)
+
+# Test-only modules: a test program includes them, the library never does.
+if(SB_BUILD_TESTS)
+    add_subdirectory(engine_fixture)
+    add_subdirectory(execution_mode_sweep)
+    add_subdirectory(graph_probe)
+endif()

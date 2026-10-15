@@ -31,8 +31,10 @@
 #include <SushiBLAS/random_kernels/random.hpp>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
-#include "../common/test_utils.hpp"
-#include "../common/graph_probe.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
+#include <SushiBLAS/graph_probe/graph_probe.hpp>
 
 namespace SushiBLAS
 {

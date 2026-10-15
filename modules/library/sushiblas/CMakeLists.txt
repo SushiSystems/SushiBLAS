@@ -24,6 +24,12 @@ sushiblas_add_module(
         spatial
         io)
 
+# The tests that run every operation family and so belong to no single family.
+sushiblas_add_module_tests(
+    MODULE sushiblas
+    SOURCES
+        test_storage_offset.cpp)
+
 # --- Define SushiBLAS Library ---
 # The archive has no source of its own: every object in it comes from a module.
 add_library(sushiblas STATIC)

@@ -44,6 +44,7 @@ sushiblas_add_module_tests(
         test_mean_spatial.cpp
         test_min.cpp
         test_nrm2.cpp
+        test_reduce_segments.cpp
         test_reduction_determinism.cpp
         test_reductions.cpp
         test_sum_edge_cases.cpp)

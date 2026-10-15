@@ -37,8 +37,10 @@
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
-#include "test_utils.hpp"
-#include "graph_probe.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
+#include <SushiBLAS/graph_probe/graph_probe.hpp>
 
 namespace SushiBLAS
 {

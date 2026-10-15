@@ -29,8 +29,9 @@
 #include <stdexcept>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include "test_utils.hpp"
-
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
 using namespace SushiBLAS;
 using namespace SushiBLAS::Test;
 

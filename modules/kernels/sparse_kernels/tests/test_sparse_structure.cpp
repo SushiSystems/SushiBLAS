@@ -32,7 +32,7 @@
 #include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
 #include <SushiBLAS/sparse_kernels/index_list.hpp>
 #include <SushiBLAS/sparse_kernels/reference/structure.hpp>
-#include "sparse_samples.hpp"
+#include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
 
 namespace SushiBLAS
 {

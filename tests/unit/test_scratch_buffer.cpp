@@ -41,8 +41,10 @@
 #include <SushiBLAS/reductions/reductions.hpp>
 #include <SushiBLAS/reductions/dispatch.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
-#include "../common/test_utils.hpp"
-
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
 namespace SushiBLAS
 {
     namespace Test

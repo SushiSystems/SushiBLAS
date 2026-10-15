@@ -129,7 +129,7 @@ A_i = (i+1) * I(2)     B_i = {{1,2},{3,4}} + i     C_i = A_i * B_i
 `ger`, and `gemv` with beta != 0, declared their accumulator write-only while reading it. The
 order still came out right because the tracker inserts a write-after-write edge anyway, so the
 defect was latent and no behavioural test could see it. The test reads the recorded graph
-instead: it records through a `GraphProbe` (`tests/common/graph_probe.hpp`), whose
+instead: it records through a `GraphProbe` (`modules/engine/graph_probe/include/SushiBLAS/graph_probe/graph_probe.hpp`), whose
 `recorded_tasks()` returns what the operation declared.
 
 `gemv` with beta == 0 overwrites y completely and must stay a pure write. A read it does not

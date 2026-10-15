@@ -32,9 +32,12 @@
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
-#include "../common/test_utils.hpp"
-#include "../common/graph_probe.hpp"
-#include "../common/sparse_samples.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/graph_probe/graph_probe.hpp>
+#include <SushiBLAS/sparse_fixtures/sparse_samples.hpp>
 
 namespace SushiBLAS
 {

@@ -18,7 +18,9 @@
 # Every test program lands in one folder, so the runtime DLL is copied to one place and
 # `sb run <program>` finds each of them where it found the single program before.
 set(SB_TEST_OUTPUT_DIR "${PROJECT_BINARY_DIR}/tests")
-set(SB_TEST_COMMON_DIR "${PROJECT_SOURCE_DIR}/tests/common")
+# The main() every test program shares. It belongs to the test_runner module and is
+# compiled into each program, never into the library.
+set(SB_TEST_MAIN_SOURCE "${PROJECT_SOURCE_DIR}/modules/foundation/test_runner/source/test_main.cpp")
 
 # Builds one test program from SOURCES, given relative to the calling folder.
 #
@@ -33,9 +35,8 @@ function(sushiblas_add_test_program)
         message(FATAL_ERROR "sushiblas_add_test_program(): NAME and SOURCES are required.")
     endif()
     add_executable(${ARG_NAME}
-        "${SB_TEST_COMMON_DIR}/test_main.cpp"
+        "${SB_TEST_MAIN_SOURCE}"
         ${ARG_SOURCES})
-    target_include_directories(${ARG_NAME} PRIVATE "${SB_TEST_COMMON_DIR}")
     target_link_libraries(${ARG_NAME} PRIVATE
         sushiblas
         sushiblas_internal_headers

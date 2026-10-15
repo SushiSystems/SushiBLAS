@@ -32,8 +32,11 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.h>
 #include <SushiRuntime/core/sushi_ptr.hpp>
-#include "../common/test_utils.hpp"
-#include "../common/graph_probe.hpp"
+#include <SushiBLAS/engine_fixture/sushiblas_test.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_comparison.hpp>
+#include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
+#include <SushiBLAS/test_runner/test_environment.hpp>
+#include <SushiBLAS/graph_probe/graph_probe.hpp>
 
 namespace SushiBLAS
 {
