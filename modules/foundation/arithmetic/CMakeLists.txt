@@ -11,4 +11,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE arithmetic
     TESTS
-        test_complex_arithmetic.cpp)
+        test_accumulator.cpp
+        test_complex_arithmetic.cpp
+        test_device_math.cpp
+        test_safe_math.cpp)
