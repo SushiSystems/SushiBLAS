@@ -37,6 +37,7 @@ set(SUSHIBLAS_MODULE_LAYERS
     sparse_fixtures     foundation
     typed_suite_naming  foundation
     host_device         foundation
+    small_integers      foundation
     tensor              data
     sparse_storage      data
     tensor_expectations data

@@ -23,6 +23,7 @@ in one line.
 | foundation | `sparse_fixtures` | Test-only: the sample sparse matrices and their host products | [README](foundation/sparse_fixtures/README.md) |
 | foundation | `typed_suite_naming` | Test-only: the name generator of a typed suite | [README](foundation/typed_suite_naming/README.md) |
 | foundation | `host_device` | Test-only: the queue on the host CPU device a kernel test runs on, its skipping fixture and shared arrays | [README](foundation/host_device/README.md) |
+| foundation | `small_integers` | Test-only: integer-valued operands on which a reference and a SYCL kernel both compute exactly | [README](foundation/small_integers/README.md) |
 | foundation | `graph_primitives` | The fixed fold order and the four primitives that record on a SushiRuntime `Recorder`: reduce, segmented reduce, prefix scan, counting sort | [README](foundation/graph_primitives/README.md) |
 | data | `tensor` | `Storage`, `Tensor`, `TensorFactory` and `HostDataType` | [README](data/tensor/README.md) |
 | data | `sparse_storage` | `SparseMatrix`, `SparseVector` and `SparseBuilder` | [README](data/sparse_storage/README.md) |
