@@ -9,3 +9,8 @@ sushiblas_add_module(
     NAME serial_reductions
     LAYER foundation
     INTERNAL)
+
+sushiblas_add_test_program(
+    MODULE serial_reductions
+    TESTS
+        test_serial_reductions.cpp)
