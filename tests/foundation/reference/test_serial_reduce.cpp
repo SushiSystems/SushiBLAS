@@ -49,12 +49,6 @@ namespace SushiBLAS
             /** @brief Holds the alignment, in bytes, of every array a test launches over. */
             inline constexpr std::size_t K_TEST_ALIGNMENT = 128;
 
-            /** @brief Holds the element count of the per-element comparisons. */
-            inline constexpr std::size_t K_ELEMENT_COUNT = 1000;
-
-            /** @brief Holds the modulus that keeps every generated value an integer a float holds exactly. */
-            inline constexpr std::size_t K_VALUE_PERIOD = 1024;
-
             /** @brief Holds the row count of the grid the axis fold is tested on. */
             inline constexpr std::size_t K_GRID_ROWS = 3;
 
@@ -102,12 +96,6 @@ namespace SushiBLAS
                     /** @brief The first element. */
                     T* data_;
             };
-
-            /** @brief Returns the i-th generated input value, an integer below K_VALUE_PERIOD. */
-            [[nodiscard]] float value_at(std::size_t i) noexcept
-            {
-                return static_cast<float>(i % K_VALUE_PERIOD);
-            }
 
             /** @brief Returns whether the first n elements of a and b hold the same bits. */
             [[nodiscard]] bool same_bits(const float* a, const float* b, std::size_t n) noexcept

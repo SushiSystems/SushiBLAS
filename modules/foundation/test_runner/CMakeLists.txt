@@ -5,10 +5,7 @@
 # Commercial use requires a licence from Sushi Systems.
 
 # Test-only: the GoogleTest environment that owns the runtime, and the main() of every
-# test program. source/test_main.cpp is not a module source: sushiblas_add_test_program(
-    MODULE test_runner
-    TESTS
-        test_test_environment.cpp)
+# test program. source/test_main.cpp is not a module source: sushiblas_add_test_program()
 # compiles it into each test program (cmake/SushiBLASTests.cmake), so it never reaches
 # the library.
 sushiblas_add_module(
@@ -19,3 +16,8 @@ sushiblas_add_module(
         core
     EXTERNAL
         GTest::gtest)
+
+sushiblas_add_test_program(
+    MODULE test_runner
+    TESTS
+        test_test_environment.cpp)
