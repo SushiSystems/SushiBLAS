@@ -42,7 +42,7 @@ namespace SushiBLAS
     namespace Test
     {
         /// @brief Returns a FLOAT32 tensor holding values.
-        Tensor float_tensor(const std::vector<float>& values)
+        static Tensor float_tensor(const std::vector<float>& values)
         {
             const TensorFactory factory(TestEnvironment::runtime());
             const int64_t dims[1] = {static_cast<int64_t>(values.size())};

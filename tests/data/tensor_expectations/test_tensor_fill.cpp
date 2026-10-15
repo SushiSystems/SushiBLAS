@@ -41,7 +41,7 @@ namespace SushiBLAS
     namespace Test
     {
         /// @brief Returns a rank-one tensor of four elements of dtype.
-        Tensor four_of(Core::DataType dtype)
+        static Tensor four_of(Core::DataType dtype)
         {
             const TensorFactory factory(TestEnvironment::runtime());
             const int64_t dims[1] = {4};
