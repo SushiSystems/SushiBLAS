@@ -8,6 +8,7 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `test_dispatch.cpp` | Tests the dtypes a random task admits, its seed slots and the fill on both paths |
 | `test_random/test_constant.cpp` | Tests that RandomOps::constant fills a tensor of every supported dtype with one value |
 | `test_random/test_distributions.cpp` | Tests the log-normal, exponential, Poisson, Bernoulli, discrete and truncated draws |
 | `test_random/test_initializers.cpp` | Tests the Xavier and He initializers of RandomOps |
