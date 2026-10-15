@@ -76,7 +76,7 @@ in [the backlog](../design/REMAINING_WORK.md).
 | The Windows, sanitizer, ThreadSanitizer and SushiAI jobs, the `sb` calls on a runner and `nightly.yml` have never run | `.github/workflows/ci.yml`, `.github/workflows/nightly.yml` |
 | The Linux build of the small and medium tests took 48 minutes without a compiler cache, above the pre-merge budget of 45; its timeout is 90 minutes until the ccache numbers are known | `.github/workflows/ci.yml` |
 | Size is declared per test program, so a program whose tests mostly need no device is `medium` as a whole, and `small` covers seven programs | `cmake/SushiBLASTests.cmake` |
-| `sb test` builds its own ctest command, because sushicore's `CMakeDriver` has no way to pass `-LE` to ctest | `cli/sushiblas/services/project.py` |
+| `sb test` builds its own ctest command, because the sushicore release it pins has no way to pass `-LE` to ctest; it switches to the driver once a sushicore release carries the exclusion | `cli/sushiblas/services/project.py` |
 | The release workflow has never run | `.github/workflows/release.yml` |
 
 ## Release state
