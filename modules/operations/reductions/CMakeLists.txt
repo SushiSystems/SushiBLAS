@@ -36,6 +36,9 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE reductions
     TESTS
+        test_arg_reduction.cpp
+        test_centred_reduction.cpp
+        test_dispatch.cpp
         test_reductions/test_axis_reductions.cpp
         test_reductions/test_count_nonfinite.cpp
         test_reductions/test_max_min_nan.cpp
