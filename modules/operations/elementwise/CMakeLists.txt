@@ -85,4 +85,5 @@ sushiblas_add_test_program(
         test_elementwise/test_sqrt.cpp
         test_elementwise/test_square.cpp
         test_elementwise/test_sub.cpp
-        test_elementwise/test_tan.cpp)
+        test_elementwise/test_tan.cpp
+        test_wrapping_math.cpp)
