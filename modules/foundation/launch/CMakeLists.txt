@@ -13,4 +13,5 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE launch
     TESTS
+        test_device_policy.cpp
         test_launch_1d.cpp)
