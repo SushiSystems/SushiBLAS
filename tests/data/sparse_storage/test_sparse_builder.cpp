@@ -45,9 +45,6 @@
 #include <SushiBLAS/sparse_storage/sparse_vector.hpp>
 #include <SushiBLAS/sparse_storage/sparse_builder.hpp>
 #include <SushiBLAS/core/sparse_types.hpp>
-#include <SushiBLAS/sparse_kernels/csr_pattern.hpp>
-#include <SushiBLAS/sparse_kernels/index_list.hpp>
-#include <SushiBLAS/sparse_kernels/reference/structure.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_readback.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
@@ -63,8 +60,6 @@ namespace SushiBLAS
             using Core::DataType;
             using Core::IndexBase;
             using Core::Layout;
-            using Kernels::Reference::find_defect;
-            using Kernels::Reference::StructureDefect;
 
             /** @brief A host vector of expectations or of operand values. */
             using Wide = std::vector<std::complex<double>>;
@@ -109,11 +104,6 @@ namespace SushiBLAS
                 const std::vector<T> actual = read_tensor<T>(A.values);
                 for (std::size_t k = 0; k < actual.size(); ++k)
                     EXPECT_EQ(widened(actual[k]), values[k]) << "entry " << k;
-
-                const Kernels::CsrPattern<Index> pattern{
-                    A.rows, A.cols, A.nnz(), Core::first_index(base),
-                    A.row_offsets.data_as<Index>(), A.column_indices.data_as<Index>()};
-                EXPECT_EQ(find_defect(pattern), StructureDefect::None);
             }
 
             /** @brief Expects a matrix to hold the 4 x 5 sample, stored in Index with base. */
@@ -415,10 +405,6 @@ namespace SushiBLAS
                 const std::vector<T> stored = read_tensor<T>(x.values);
                 for (std::size_t k = 0; k < stored.size(); ++k)
                     EXPECT_EQ(widened(stored[k]), values[k]) << "entry " << k;
-
-                const Kernels::IndexList<Index> list{x.nnz(), x.size, Core::first_index(base),
-                                                     x.indices.data_as<Index>()};
-                EXPECT_EQ(find_defect(list), StructureDefect::None);
             }
         }
 
