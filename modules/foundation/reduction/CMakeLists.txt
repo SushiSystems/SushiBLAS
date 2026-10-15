@@ -10,3 +10,9 @@ sushiblas_add_module(
     DEPENDS
         arithmetic
         launch)
+
+sushiblas_add_test_program(
+    MODULE reduction
+    TESTS
+        test_reduce_1d.cpp
+        test_reduce_axis.cpp)
