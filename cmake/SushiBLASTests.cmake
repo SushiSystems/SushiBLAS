@@ -46,6 +46,24 @@ function(sushiblas_configure_test_target target)
     endif()
 endfunction()
 
+# Builds one GoogleTest program from the shared main() and the sources given, and registers
+# its tests under the label each suite prefix names.
+function(sushiblas_add_labelled_test_program target)
+    add_executable(${target} "${SB_TEST_MAIN_SOURCE}" ${ARGN})
+    target_link_libraries(${target} PRIVATE GTest::gtest)
+    sushiblas_configure_test_target(${target})
+    foreach(label IN LISTS SB_TEST_LABELS)
+        string(SUBSTRING "${label}" 0 1 initial)
+        string(SUBSTRING "${label}" 1 -1 remainder)
+        string(TOUPPER "${initial}" initial)
+        gtest_discover_tests(${target}
+            DISCOVERY_MODE PRE_TEST
+            WORKING_DIRECTORY "${SB_TEST_OUTPUT_DIR}"
+            TEST_FILTER "${initial}${remainder}_*"
+            PROPERTIES LABELS "${label}")
+    endforeach()
+endfunction()
+
 # Builds the test program and the benchmark programs of one module.
 #
 #   sushiblas_add_test_program(MODULE <module>
@@ -69,19 +87,7 @@ function(sushiblas_add_test_program)
     if(SB_BUILD_TESTS AND ARG_TESTS)
         set(target "sushiblas_${ARG_MODULE}_tests")
         list(TRANSFORM ARG_TESTS PREPEND "${mirror}/" OUTPUT_VARIABLE test_sources)
-        add_executable(${target} "${SB_TEST_MAIN_SOURCE}" ${test_sources})
-        target_link_libraries(${target} PRIVATE GTest::gtest)
-        sushiblas_configure_test_target(${target})
-        foreach(label IN LISTS SB_TEST_LABELS)
-            string(SUBSTRING "${label}" 0 1 initial)
-            string(SUBSTRING "${label}" 1 -1 remainder)
-            string(TOUPPER "${initial}" initial)
-            gtest_discover_tests(${target}
-                DISCOVERY_MODE PRE_TEST
-                WORKING_DIRECTORY "${SB_TEST_OUTPUT_DIR}"
-                TEST_FILTER "${initial}${remainder}_*"
-                PROPERTIES LABELS "${label}")
-        endforeach()
+        sushiblas_add_labelled_test_program(${target} ${test_sources})
     endif()
 
     if(SB_BUILD_BENCHMARKS)
@@ -92,4 +98,30 @@ function(sushiblas_add_test_program)
             set_property(TARGET ${benchmark} PROPERTY LABELS benchmark)
         endforeach()
     endif()
+endfunction()
+
+# Builds the test program of one application from its mirror under tests/applications/.
+#
+#   sushiblas_add_application_test_program(NAME <name> DIRECTORY <application folder>
+#       SOURCES <application source>...
+#       TESTS <file>...)
+#
+# DIRECTORY is relative to applications/; SOURCES are relative to it and TESTS to its mirror
+# tests/applications/<DIRECTORY>/. The program is `sushiblas_<name>_tests`, and it sees the
+# application's own headers as the application does.
+function(sushiblas_add_application_test_program)
+    cmake_parse_arguments(ARG "" "NAME;DIRECTORY" "SOURCES;TESTS" ${ARGN})
+    if("${ARG_NAME}" STREQUAL "" OR "${ARG_DIRECTORY}" STREQUAL "" OR NOT ARG_TESTS)
+        message(FATAL_ERROR "sushiblas_add_application_test_program(): NAME, DIRECTORY and TESTS are required.")
+    endif()
+    if(NOT SB_BUILD_TESTS)
+        return()
+    endif()
+    set(application "${PROJECT_SOURCE_DIR}/applications/${ARG_DIRECTORY}")
+    set(mirror "${PROJECT_SOURCE_DIR}/tests/applications/${ARG_DIRECTORY}")
+    list(TRANSFORM ARG_SOURCES PREPEND "${application}/" OUTPUT_VARIABLE application_sources)
+    list(TRANSFORM ARG_TESTS PREPEND "${mirror}/" OUTPUT_VARIABLE test_sources)
+    set(target "sushiblas_${ARG_NAME}_tests")
+    sushiblas_add_labelled_test_program(${target} ${application_sources} ${test_sources})
+    target_include_directories(${target} PRIVATE "${application}")
 endfunction()

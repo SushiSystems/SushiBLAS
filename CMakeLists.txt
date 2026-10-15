@@ -111,7 +111,7 @@ endif()
 # Declared before the modules for the same reason: a module adds its benchmark programs, and
 # the operations tier adds benchmark_harness, only when the switch is on.
 option(SB_BUILD_BENCHMARKS "Build the benchmark programs of the modules under tests/" OFF)
-include(SushiBLASTests)  # sushiblas_add_test_program()
+include(SushiBLASTests)  # sushiblas_add_test_program(), sushiblas_add_application_test_program()
 
 # --- Modules ---
 # Every tier in order; the last one composes the `sushiblas` library from the object

@@ -18,6 +18,13 @@ add_executable(adapter_demo
 )
 target_link_libraries(adapter_demo PRIVATE sushiblas)
 sushiblas_apply_build_policy(adapter_demo)
+sushiblas_add_application_test_program(
+    NAME adapter
+    DIRECTORY examples/adapter
+    SOURCES sushiblas_adapter.cpp
+    TESTS
+        test_host_program.cpp
+        test_status_mapping.cpp)
 
 add_executable(errors_demo errors_demo.cpp)
 target_link_libraries(errors_demo PRIVATE sushiblas)
