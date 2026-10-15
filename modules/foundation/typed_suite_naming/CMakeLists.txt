@@ -11,3 +11,8 @@ sushiblas_add_module(
     INTERNAL
     EXTERNAL
         GTest::gtest)
+
+sushiblas_add_test_program(
+    MODULE typed_suite_naming
+    TESTS
+        test_default_type_names.cpp)
