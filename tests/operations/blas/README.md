@@ -16,7 +16,7 @@ the benchmark section of `tests/README.md` describes them.
 | `benchmark_gemm_blocking.cpp` | Times one square GEMM kernel call under a cache blocking given on the command line |
 | `benchmark_level1.cpp` | Times axpy, dot, nrm2, asum and iamax and prints GB/s per vector length |
 | `benchmark_triangular.cpp` | Times the triangular and symmetric BLAS routines and prints GFLOP/s per size |
-| `test_band_operand.cpp` | Tests the record-time checks on a band, a packed and a scalar operand |
+| `test_band_operand.cpp` | Tests the record-time checks on a band operand and on a triangle band operand |
 | `test_blas/test_asum.cpp` | Tests BLASOps::asum against fixed expected values |
 | `test_blas/test_axpy.cpp` | Tests BLASOps::axpy against fixed expected values |
 | `test_blas/test_blas_band.cpp` | Tests the band routines against hand-computed results, their dense siblings and each other's kernels |
@@ -57,9 +57,18 @@ the benchmark section of `tests/README.md` describes them.
 | `test_blas/test_trsm.cpp` | Tests BLASOps::trsm in row-major and column-major layouts |
 | `test_blas/test_trsm_reference.cpp` | Tests the TRSM reference kernel against hand-computed solutions |
 | `test_blas/test_trsv.cpp` | Tests BLASOps::trsv on a 3x3 lower-triangular system |
+| `test_blas_task.cpp` | Tests that a BLAS task records for a real or complex dtype and refuses an integer one |
 | `test_dispatch/test_channel_bias_epilogue.cpp` | Tests ChannelBiasEpilogue's stride pair through Dispatch::execute_gemm |
 | `test_dispatch/test_packed_product.cpp` | Tests the packed product kernel against the reference GEMM under injected blockings |
 | `test_dispatch/test_reference_mode_guard.cpp` | Tests that ForceReference refuses device-only USM and runs on host-reachable USM |
+| `test_level1.cpp` | Tests that the Level 1 facet of BLASOps records copy, scal and swap with exact results |
+| `test_level2.cpp` | Tests that the Level 2 facet of BLASOps records gemv and ger with exact results |
+| `test_level3.cpp` | Tests that the Level 3 facet of BLASOps records gemm with exact results |
+| `test_local_tile.cpp` | Tests the local tile demand per dtype and the record-time check that a device hosts it |
+| `test_packed_operand.cpp` | Tests the packed triangle order and the record-time checks on a packed operand |
+| `test_packed_product_scratch.cpp` | Tests that the packed product leases the scratch its plan names, and none without a plan |
+| `test_scalar_operand.cpp` | Tests the record-time checks on a one-element scalar operand |
+| `test_sparse.cpp` | Tests that SparseBLAS is built from an engine and only from one |
 
 ## test_blas/test_gemm.cpp
 

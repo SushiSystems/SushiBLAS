@@ -95,9 +95,18 @@ sushiblas_add_test_program(
         test_blas/test_trsm.cpp
         test_blas/test_trsm_reference.cpp
         test_blas/test_trsv.cpp
+        test_blas_task.cpp
         test_dispatch/test_channel_bias_epilogue.cpp
         test_dispatch/test_packed_product.cpp
         test_dispatch/test_reference_mode_guard.cpp
+        test_level1.cpp
+        test_level2.cpp
+        test_level3.cpp
+        test_local_tile.cpp
+        test_packed_operand.cpp
+        test_packed_product_scratch.cpp
+        test_scalar_operand.cpp
+        test_sparse.cpp
     BENCHMARKS
         benchmark_band_packed.cpp
         benchmark_gemm.cpp

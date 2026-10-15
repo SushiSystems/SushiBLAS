@@ -105,7 +105,7 @@ namespace SushiBLAS
 
         /**
          * @brief Runs GEMV and SYMV in a chosen execution mode and measures them against a truth.
-         * @see modules/operations/blas/tests/README.md
+         * @see tests/operations/blas/README.md
          */
         template<typename T>
         class Unit_Level2SyclParityTest : public SushiBLASTest
