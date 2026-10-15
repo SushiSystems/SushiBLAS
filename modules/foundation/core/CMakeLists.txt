@@ -8,7 +8,8 @@ sushiblas_add_module(
     NAME core
     LAYER foundation)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE core
-    SOURCES
-        test_blas_types.cpp)
+    TESTS
+        test_blas_types.cpp
+        test_logger.cpp)

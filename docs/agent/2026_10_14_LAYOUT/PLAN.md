@@ -63,4 +63,13 @@ dependency of each helper, which is read from its includes at that point.
 ## Status
 
 - Wave 0 (this plan): written.
-- Waves 1 to 4: not started.
+- Wave 1 (`9e42d03`): done.
+- Wave 2 (`fb62a8a`): done.
+- Wave 3: done. Every test sits in `tests/<tier>/<module>/`, each module builds one program
+  through `sushiblas_add_test_program()`, and the benchmark helpers are the internal module
+  `benchmark_harness`. The shared `check_test_mirror.py`, run from a scratch copy, reports no
+  orphan test, no stray folder and no private include.
+- Wave 4: blocked on two owner decisions. The shared `check_layering.py` exempts an umbrella
+  only in a module named `umbrella`, so the 158 test includes of `<SushiBLAS/SushiBLAS.h>`
+  from below the library tier are findings until `SushiBLAS.h` moves to such a module. The
+  shared `check_test_mirror.py` reports 185 public headers with no test file.

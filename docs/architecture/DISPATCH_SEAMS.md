@@ -97,7 +97,7 @@ Dispatch::bind_reads(Dispatch::bind_scalars(fn, Dispatch::ElementScalar(2.0)),
                      Dispatch::read_as_element(a))
 ```
 
-Source: `modules/engine/functor_map/tests/test_read_binding.cpp`
+Source: `tests/engine/functor_map/test_read_binding.cpp`
 
 There `fn` takes `(float element, const float* pointer, float scalar)`.
 
@@ -131,7 +131,7 @@ Dispatch::execute_gemm(probe.recorder(), A, B, C,
                            BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
 ```
 
-Source: `modules/operations/blas/tests/test_gemm.cpp`
+Source: `tests/operations/blas/test_blas/test_gemm.cpp`
 
 `probe.recorder()` is a `TaskRecorder&`. The product and the bias broadcast are one task. `tests/package/main.cpp` has
 an epilogue that also clamps at zero, handed over as a bare functor.

@@ -11,7 +11,7 @@ sushiblas_add_module(
         core
         reference)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE sparse_assembly
-    SOURCES
+    TESTS
         test_sparse_assembly.cpp)

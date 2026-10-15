@@ -18,7 +18,7 @@ sushiblas_add_module(
         blas_seam_kernels
         blas_kernels)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE sparse_kernels
-    SOURCES
-        test_sparse_structure.cpp)
+    TESTS
+        reference/test_structure.cpp)

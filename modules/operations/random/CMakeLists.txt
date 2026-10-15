@@ -32,15 +32,15 @@ sushiblas_add_module(
         random_kernels
         engine)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE random
-    SOURCES
-        test_constant.cpp
-        test_distributions.cpp
-        test_initializers.cpp
-        test_normal.cpp
-        test_orthogonal.cpp
-        test_random_large_lambda.cpp
-        test_random_reference.cpp
-        test_shuffle.cpp
-        test_uniform.cpp)
+    TESTS
+        test_random/test_constant.cpp
+        test_random/test_distributions.cpp
+        test_random/test_initializers.cpp
+        test_random/test_normal.cpp
+        test_random/test_orthogonal.cpp
+        test_random/test_random_large_lambda.cpp
+        test_random/test_random_reference.cpp
+        test_random/test_shuffle.cpp
+        test_random/test_uniform.cpp)

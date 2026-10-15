@@ -15,7 +15,7 @@ sushiblas_add_module(
         tensor
         engine)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE operands
-    SOURCES
-        test_blas_scalar.cpp)
+    TESTS
+        test_scalar.cpp)

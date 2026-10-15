@@ -49,7 +49,7 @@ The fix is in the tree the second run tested. Every running sum of a reference B
 double sum for `FLOAT64` and `COMPLEX64` (`modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp`).
 The parity test compares each kernel with a double-precision truth under a bound derived from
 the term count (`modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_truth.hpp`,
-`modules/operations/blas/tests/test_level2_sycl_parity.cpp`).
+`tests/operations/blas/test_blas/test_level2_sycl_parity.cpp`).
 
 What the runs do not show:
 

@@ -93,7 +93,7 @@ varies between runs, so `col2im` written as "each column entry atomically adds i
 silently break the library's bit-reproducibility guarantee. Each output element gathers its own
 contributions in a fixed order instead. This is the same argument
 `docs/architecture/KERNELS.md` gives for rejecting `sycl::reduction` in the folding reductions,
-and `tests/regression/test_spatial_determinism.cpp` is what keeps it true.
+and `tests/operations/spatial/test_spatial/test_spatial_determinism.cpp` is what keeps it true.
 
 ### `SpatialOps::im2col` with stated extents
 

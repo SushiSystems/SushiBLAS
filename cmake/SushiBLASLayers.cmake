@@ -61,6 +61,7 @@ set(SUSHIBLAS_MODULE_LAYERS
     spatial             operations
     io                  operations
     experimental        operations
+    benchmark_harness   operations
     sushiblas           library)
 
 # Consumer, then dependency: the edges allowed between two modules of one tier. An edge
@@ -89,7 +90,8 @@ set(SUSHIBLAS_SAME_LAYER_EDGES
     tensor_expectations tensor
     engine_fixture      engine
     execution_mode_sweep engine
-    graph_probe         engine)
+    graph_probe         engine
+    benchmark_harness   io)
 
 # Gives the position of a tier in SUSHIBLAS_LAYER_ORDER, or -1.
 function(sushiblas_layer_index layer output_variable)

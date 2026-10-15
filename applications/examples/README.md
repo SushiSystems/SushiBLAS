@@ -99,7 +99,7 @@ differ.
 
 The body's first parameter is the library's kernel-pair dispatcher, a type of its `Internal`
 namespace. The lambda takes it as `const auto&` and does not use it.
-`modules/engine/engine/tests/test_run_failure.cpp` pins the same behaviour.
+`tests/engine/engine/test_engine/test_run_failure.cpp` pins the same behaviour.
 
 ## `recording_demo.cpp`: record, then run
 

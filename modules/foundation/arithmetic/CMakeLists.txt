@@ -8,7 +8,7 @@ sushiblas_add_module(
     NAME arithmetic
     LAYER foundation)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE arithmetic
-    SOURCES
+    TESTS
         test_complex_arithmetic.cpp)

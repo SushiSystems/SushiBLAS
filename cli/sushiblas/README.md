@@ -92,7 +92,7 @@ the object when the commands are declared.
 
 ### Suite
 
-`unit`, `regression` and `integration` are CTest labels, assigned in `tests/CMakeLists.txt` from
+`unit`, `regression` and `integration` are CTest labels, assigned in `cmake/SushiBLASTests.cmake` from
 the prefix of the GTest suite name. `functional` is the umbrella over the three.
 
 `package` is not a CTest label and not part of `all`. It is an out-of-tree consumer of the
@@ -102,7 +102,7 @@ installed package, which has to be installed and configured on its own before it
 
 Each suite maps to a label-selection regex for `ctest -L`. `functional` is an alternation over
 its sub-labels and not a label of its own, because a baked-in umbrella label does not survive
-`gtest_discover_tests` on current CMake; `tests/CMakeLists.txt` has the details. `all` selects
+`gtest_discover_tests` on current CMake; `cmake/SushiBLASTests.cmake` has the details. `all` selects
 everything and passes no `-L`. `package` is absent on purpose, since it runs no CTest.
 
 ## services/project.py

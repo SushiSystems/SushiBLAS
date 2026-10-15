@@ -228,12 +228,9 @@ modules/                One tree per module: README.md, CMakeLists.txt, include/
   library/
     sushiblas/          SushiBLAS.h and the one library a consumer links
 applications/examples/  Eight example programs, the adapter example among them
-tests/                  The tests that cross module boundaries
-  common/               Shared GoogleTest entry point and helpers
-  unit/, integration/, regression/
-                        The tests of sushiblas_tests, one folder per label; a module's
-                        own tests are in its tests/ folder
-  benchmark/            benchmark_*.cpp, built with sb build --benchmarks
+tests/                  Every test, mirroring modules/; see tests/README.md
+  <tier>/<module>/      test_<header>.cpp per public header, and benchmark_*.cpp
+                        built with sb build --benchmarks
   package/              Out-of-tree find_package(SushiBLAS) consumer
 cli/                    The `sb` / `sushiblas` CLI package; see cli/README.md
 cmake/                  CMake modules

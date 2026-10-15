@@ -5,7 +5,8 @@
 # Commercial use requires a licence from Sushi Systems.
 """Checks SushiBLAS's Engine seams: who includes engine.hpp, what a view calls, how a task orders.
 
-The test-only modules (INTERNAL, added only under SB_BUILD_TESTS) are exempt from these rules.
+The test-only and benchmark-only modules (INTERNAL, added only under SB_BUILD_TESTS or
+SB_BUILD_BENCHMARKS) are exempt from these rules.
 
 Usage: python tools/layering/check_engine_seams.py [repository root] [--report] [--rule NAME]
 """
@@ -49,7 +50,7 @@ K_QUEUE_SHORTCUT = re.compile(
 )
 K_DEPENDS_ON_CALL = re.compile(r"\bdepends_on\s*\(")
 K_DEPENDENCY_ARGUMENT = re.compile(r"\bdeps\w*\b")
-K_TESTS_SWITCH = re.compile(r"^\s*if\s*\(\s*SB_BUILD_TESTS\s*\)", re.M)
+K_TESTS_SWITCH = re.compile(r"^\s*if\s*\(\s*SB_BUILD_(?:TESTS|BENCHMARKS)\s*\)", re.M)
 K_ENDIF = re.compile(r"^\s*endif\s*\(", re.M)
 K_SUBDIRECTORY = re.compile(r"add_subdirectory\(\s*([A-Za-z0-9_]+)\s*\)")
 K_INTERNAL_FLAG = re.compile(r"^\s*INTERNAL\b", re.M)
@@ -57,7 +58,7 @@ K_INTERNAL_FLAG = re.compile(r"^\s*INTERNAL\b", re.M)
 
 @cache
 def _test_only_prefixes(root: Path) -> tuple[str, ...]:
-    """Returns the folder of each INTERNAL module a tier adds only under SB_BUILD_TESTS."""
+    """Returns the folder of each INTERNAL module a tier adds only under a test or benchmark switch."""
     prefixes: list[str] = []
     base = root / K_MODULES_FOLDER
     if not base.is_dir():

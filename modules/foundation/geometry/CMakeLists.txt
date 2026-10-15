@@ -10,9 +10,9 @@ sushiblas_add_module(
     DEPENDS
         arithmetic)
 
-sushiblas_add_module_tests(
+sushiblas_add_test_program(
     MODULE geometry
-    SOURCES
+    TESTS
         test_interpolation.cpp
         test_matrix4.cpp
         test_quaternion.cpp

@@ -42,6 +42,7 @@ operation family in one line.
 | operations | `spatial` | The window, pooling, channel and broadcast operations | [README](operations/spatial/README.md) |
 | operations | `io` | `IO` and `IOStatus` | [README](operations/io/README.md) |
 | operations | `experimental` | LAPACK and signal declarations that have no implementation | [README](operations/experimental/README.md) |
+| operations | `benchmark_harness` | Benchmark-only: the size arguments, environment lines, fill, timing loop and table of the benchmark programs | [README](operations/benchmark_harness/README.md) |
 | library | `sushiblas` | The umbrella header and the one library a consumer links | [README](library/sushiblas/README.md) |
 
 The sections below are about the headers of `tensor`, `sparse_storage`, `engine` and `io` that

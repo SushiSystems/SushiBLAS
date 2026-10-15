@@ -242,7 +242,7 @@ The reference `im2col` is the specification of `im2col` and the answer
 reference kernel with an optimisation in it is a second implementation that can be wrong.
 
 `ExecutionMode` has no mode that runs both kernels. The comparison is in
-`modules/operations/spatial/tests/test_spatial_im2col.cpp`, which runs the two forced modes into two buffers
+`tests/operations/spatial/test_spatial/test_spatial_im2col.cpp`, which runs the two forced modes into two buffers
 and checks them bit for bit.
 
 An out-of-bounds tap writes zero. Padding never exists as a padded copy of the input, which saves
@@ -620,7 +620,7 @@ The sweep runs twice before the final scaling (`K_ORTHONORMAL_SWEEPS`, in
 sweep loses orthogonality in proportion to the matrix's condition number times the rounding
 unit; a second sweep over the already nearly orthogonal vectors brings the loss down to the
 rounding unit. That keeps a 64x64 FLOAT32 matrix inside the 1e-4 Gram tolerance of
-`modules/operations/random/tests/test_orthogonal.cpp`. The cost is 2 * (count - 1) project kernels and one
+`tests/operations/random/test_random/test_orthogonal.cpp`. The cost is 2 * (count - 1) project kernels and one
 scaling kernel per call.
 
 `tiny_norm_sq` is (1e-12)^2. A vector whose squared norm is at or below it is treated as zero: it

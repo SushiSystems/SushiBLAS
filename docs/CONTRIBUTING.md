@@ -91,8 +91,8 @@ Expectations for a mergeable change:
    complex types where applicable); see [section 5](#5-adding-a-new-operation).
    A `ForceSYCL` against `ForceReference` comparison is how a new SYCL kernel
    is checked against its reference implementation.
-3. **A fixed bug gets a regression test** in
-   `tests/regression/`, named for what it guards against (see
+3. **A fixed bug gets a regression test** in the test file of the header the
+   defect lives in, its suite prefixed `Regression_` and named for what it guards against (see
    `Regression_Sentinel.SyrkAcceptsHalfDtype` for the shape).
 
 ---
@@ -259,7 +259,7 @@ carries depends on its family.
 | Reference kernel | `modules/kernels/<family>_kernels/include/SushiBLAS/<family>_kernels/reference/<op>.hpp` |
 | SYCL kernel | `modules/kernels/<family>_kernels/include/SushiBLAS/<family>_kernels/sycl/<op>.hpp` |
 | Both kernels' include line | The family's kernel header: `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/blas.hpp`, `modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sparse.hpp`, `modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/spatial.hpp` |
-| Test | `modules/operations/<family>/tests/test_<op>.cpp`, listed in the module's `CMakeLists.txt` |
+| Test | `tests/operations/<family>/test_<family>/test_<op>.cpp`, listed in the module's `sushiblas_add_test_program()` call |
 
 The operation source has four steps. This is `modules/operations/blas/source/level1/axpy.cpp`:
 
@@ -424,7 +424,7 @@ Source: `modules/operations/elementwise/source/add.cpp`
 - **More than one shape**: square, rectangular, a vector, an empty operand,
   and for BLAS both layouts and each flag value.
 
-[`tests/unit/README.md`](../tests/unit/README.md) holds
+[`tests/README.md`](../tests/README.md) holds
 the reasoning behind these rules.
 
 ---
