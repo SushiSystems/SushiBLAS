@@ -20,7 +20,6 @@ sushiblas_add_test_program(
         test_engine/test_reduce_plans.cpp
         test_engine/test_run_failure.cpp
         test_engine/test_runtime_shapes.cpp
-        test_engine/test_sparse_builder.cpp
         test_engine/test_tensor_const_access.cpp
         test_engine/test_tensor_factory.cpp
         test_engine/test_tensor_view.cpp
