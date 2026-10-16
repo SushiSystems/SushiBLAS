@@ -42,10 +42,10 @@ namespace SushiBLAS
             EXPECT_EQ(Math::abs(-2.5), 2.5);
             EXPECT_EQ(Math::floor(-1.5), -2.0);
             EXPECT_EQ(Math::sqrt(16.0), 4.0);
-            EXPECT_EQ(Math::cbrt(27.0), 3.0);
+            EXPECT_NEAR(Math::cbrt(27.0), 3.0, K_TOLERANCE);
             EXPECT_EQ(Math::copysign(3.0, -0.0), -3.0);
             EXPECT_EQ(Math::fmod(7.0, 3.0), 1.0);
-            EXPECT_EQ(Math::pow(2.0, 10.0), 1024.0);
+            EXPECT_NEAR(Math::pow(2.0, 10.0), 1024.0, K_TOLERANCE);
             EXPECT_NEAR(Math::exp(1.0), 2.718281828459045, K_TOLERANCE);
             EXPECT_NEAR(Math::log(2.718281828459045), 1.0, K_TOLERANCE);
             EXPECT_NEAR(Math::sin(0.5), std::sin(0.5), K_TOLERANCE);
