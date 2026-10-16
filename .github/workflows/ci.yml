@@ -33,6 +33,11 @@ env:
   CCACHE_MAXSIZE: 2G
   CMAKE_C_COMPILER_LAUNCHER: ccache
   CMAKE_CXX_COMPILER_LAUNCHER: ccache
+  # sb setup downloads the Windows toolchain afresh on every run, so a cache keyed on the
+  # compiler's mtime would never hit; its content is the same from run to run.
+  CCACHE_COMPILERCHECK: content
+  # sb test runs CTest serially unless told otherwise; the runners have four cores.
+  CTEST_PARALLEL_LEVEL: "4"
   # The OpenCL CPU JIT vectorizer crashes on one kernel; see docs/reference/KNOWN_ISSUES.md.
   CL_CONFIG_CPU_VECTORIZER_MODE: "1"
 
