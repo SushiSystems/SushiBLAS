@@ -142,6 +142,10 @@ def test(
         0, "--repeat", "-r", min=0,
         help="Re-run each test up to N times, stopping on the first failure "
              "(ctest --repeat until-fail). Handy for hunting flaky tests."),
+    jobs: Optional[int] = typer.Option(
+        None, "--jobs", "-j", min=1,
+        help="Tests run at once. When omitted ctest decides, and "
+             "CTEST_PARALLEL_LEVEL is honoured."),
     cli: bool = typer.Option(
         False, "--cli", help="Run the pytest tests of this CLI instead of the CTest tests."),
     package: bool = typer.Option(
@@ -155,24 +159,25 @@ def test(
     the binary directly: sb run sushiblas_blas_tests -- --gtest_filter=Gemm.*
 
     --package is the only check of what find_package(SushiBLAS) hands a third
-    party. It runs no CTest, so --label, --filter, --repeat and --cli do not
-    apply to it. --cli runs pytest, so --filter and --repeat do not apply to it.
+    party. It runs no CTest, so --label, --filter, --repeat, --jobs and --cli do
+    not apply to it. --cli runs pytest, so --filter, --repeat and --jobs do not
+    apply to it.
     """
     console.header("Project Test")
 
     def step() -> int:
         """Runs the tests; a package run that returns has passed."""
         if package:
-            if label or filter or repeat or cli:
+            if label or filter or repeat or jobs or cli:
                 raise PackageOptionError()
             rc = _service().test_package()
             console.success("Package consumer built and ran against the install prefix.")
             return rc
         if cli:
-            if filter or repeat:
+            if filter or repeat or jobs:
                 raise CLIOptionError()
             return _service().test_cli(label)
-        return _service().test(label, filter, repeat)
+        return _service().test(label, filter, repeat, jobs)
 
     _exit_with(step)
 

@@ -173,7 +173,7 @@ class ProjectService:
         return rc
 
     def test(self, labels: Sequence[TestLabel] | None = None, filter: str | None = None,
-             repeat: int = 0) -> int:
+             repeat: int = 0, jobs: int | None = None) -> int:
         """Runs the CTest tests *labels* select and returns ctest's code.
 
         None or empty *labels* selects the small and medium tests. A quarantined test runs only
@@ -196,6 +196,7 @@ class ProjectService:
             exclude_label_regex=selection.ctest_exclude(),
             filter=filter,
             repeat=repeat,
+            jobs=jobs,
         )
 
     def test_cli(self, labels: Sequence[TestLabel] | None = None) -> int:

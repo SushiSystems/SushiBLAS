@@ -132,8 +132,8 @@ when a running program holds one of its files, and `clean` and `build` raise
 
 ### test_cli and test_package
 
-`test_cli` runs the CLI's own pytest tests with the selection's marker expression; `--filter` and
-`--repeat` are ctest knobs and `sb test --cli` refuses them with exit code 2. `test_package` runs
+`test_cli` runs the CLI's own pytest tests with the selection's marker expression; `--filter`,
+`--repeat` and `--jobs` are ctest knobs and `sb test --cli` refuses them with exit code 2. `test_package` runs
 no ctest, and `sb test --package` refuses every selection option with exit code 2, which is
 better than accepting a flag and doing nothing with it.
 

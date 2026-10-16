@@ -269,6 +269,14 @@ def test_test_passes_no_exclusion_when_quarantined_is_named(parts, checkout):
     assert driver.tested[0]["exclude_label_regex"] is None
 
 
+def test_test_hands_the_jobs_to_ctest(parts, checkout):
+    """The number of tests run at once reaches ctest as given, and is absent when not given."""
+    console, driver, service = parts
+    service.test(jobs=3)
+    service.test()
+    assert [run["jobs"] for run in driver.tested] == [3, None]
+
+
 def test_test_cli_runs_pytest_with_the_marker_expression(parts, checkout, monkeypatch):
     """--cli runs pytest from cli/ with the expression of the labels given."""
     console, driver, service = parts
@@ -382,6 +390,8 @@ def test_run_command_rejects_a_mistyped_option(monkeypatch, args):
     ["test", "--package", "--label", "small"],
     ["test", "--package", "--cli"],
     ["test", "--cli", "--repeat", "2"],
+    ["test", "--cli", "--jobs", "2"],
+    ["test", "--package", "--jobs", "2"],
 ])
 def test_test_command_refuses_options_that_do_not_apply(monkeypatch, args):
     """--package takes no selection option and --cli no ctest option; both exit 2."""

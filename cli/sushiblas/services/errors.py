@@ -66,7 +66,7 @@ class PackageOptionError(ProjectError):
 
     def __init__(self) -> None:
         super().__init__(
-            "--label, --filter, --repeat and --cli do not apply to --package.",
+            "--label, --filter, --repeat, --jobs and --cli do not apply to --package.",
             K_EXIT_USAGE,
         )
 
@@ -75,7 +75,7 @@ class CLIOptionError(ProjectError):
     """Reports a ctest option given with --cli, which runs pytest."""
 
     def __init__(self) -> None:
-        super().__init__("--filter and --repeat do not apply to --cli.", K_EXIT_USAGE)
+        super().__init__("--filter, --repeat and --jobs do not apply to --cli.", K_EXIT_USAGE)
 
 
 class ExecutableNotFoundError(ProjectError):
