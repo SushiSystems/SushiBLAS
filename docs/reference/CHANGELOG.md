@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-16 — cli: Added `sb test --jobs`, which caps how many tests ctest runs at once (`cli.py`, `project.py`).
 - 2026-10-15 — cli: Pinned sushicore 0.9.0 and ran `sb test` through its ctest driver, which excludes the quarantined tests (`pyproject.toml`, `project.py`).
 - 2026-10-15 — ci: Ran pre-merge jobs behind one `gate` job, with Windows, ASan and UBSan; push to main adds ThreadSanitizer and a SushiAI build (`ci.yml`).
 - 2026-10-15 — ci: Added `nightly.yml`, which runs the benchmarks and the quarantined tests; every job calls `sb`.

@@ -169,10 +169,13 @@ Useful options:
 ```bash
 sb test --filter 'Gemm.*'     # ctest -R regex over 'Suite.Case' test names
 sb test --repeat 5            # re-run each test up to 5x, stop on first failure
+sb test --jobs 3              # run at most 3 tests at once
 ```
 
 `--filter` (`-f`) matches `Suite.Case` test names. `--repeat` (`-r`) is handy
-for hunting flaky tests (`ctest --repeat until-fail`).
+for hunting flaky tests (`ctest --repeat until-fail`). `--jobs` (`-j`) is passed
+to ctest as `--parallel`; left out, ctest decides and `CTEST_PARALLEL_LEVEL`
+holds.
 
 For GoogleTest-level options CTest doesn't expose (per-case `--gtest_filter`,
 shuffling, break-on-failure), run the binary directly with `sb run` and pass
@@ -182,7 +185,8 @@ flags after `--`.
 
 Runs `python -m pytest -m <expression>` in `cli/`, with the expression of the
 labels given: `sb test --cli --label small` runs `(small) and not quarantined`.
-`--filter` and `--repeat` are ctest knobs, so they are rejected with exit 2.
+`--filter`, `--repeat` and `--jobs` are ctest knobs, so they are rejected with
+exit 2.
 
 ### `--package`
 
@@ -197,7 +201,7 @@ tree but isn't installed, a development flag (`-Werror`, `-march=`, a sanitizer)
 leaking through the exported interface onto a consumer's build, and a construct
 that compiles at the library's C++17 but not at the consumer's C++20.
 
-`--label`, `--filter`, `--repeat` and `--cli` are rejected with exit 2: this
+`--label`, `--filter`, `--repeat`, `--jobs` and `--cli` are rejected with exit 2: this
 run has no CTest selection to apply them to.
 
 Run it before publishing anything that adds a public header or touches
