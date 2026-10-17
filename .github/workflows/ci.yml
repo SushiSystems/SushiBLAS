@@ -95,6 +95,18 @@ jobs:
           repository: SushiSystems/SushiRuntime
           path: sushiruntime
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      # SushiLog at the version cli/sushistack.deps.toml pins, as the sibling ../sushilog sb finds.
+      - name: python -c "...pinned SushiLog version..."
+        id: sushilog
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushi']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiLog
+          ref: ${{ steps.sushilog.outputs.version }}
+          path: sushilog
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: ./sushiblas/.github/actions/setup-oneapi
       - uses: ./sushiblas/.github/actions/setup-sb
       # Restored and saved apart, so a run that fails or times out still keeps what it compiled.
@@ -132,6 +144,18 @@ jobs:
         with:
           repository: SushiSystems/SushiRuntime
           path: sushiruntime
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      # SushiLog at the version cli/sushistack.deps.toml pins, as the sibling ../sushilog sb finds.
+      - name: python -c "...pinned SushiLog version..."
+        id: sushilog
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushi']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiLog
+          ref: ${{ steps.sushilog.outputs.version }}
+          path: sushilog
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: ./sushiblas/.github/actions/setup-sb
       - name: choco install ccache
@@ -176,6 +200,18 @@ jobs:
         with:
           repository: SushiSystems/SushiRuntime
           path: sushiruntime
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      # SushiLog at the version cli/sushistack.deps.toml pins, as the sibling ../sushilog sb finds.
+      - name: python -c "...pinned SushiLog version..."
+        id: sushilog
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushi']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiLog
+          ref: ${{ steps.sushilog.outputs.version }}
+          path: sushilog
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: ./sushiblas/.github/actions/setup-oneapi
       - uses: ./sushiblas/.github/actions/setup-sb
@@ -233,6 +269,18 @@ jobs:
           repository: SushiSystems/SushiRuntime
           path: sushiruntime
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      # SushiLog at the version cli/sushistack.deps.toml pins, as the sibling ../sushilog sb finds.
+      - name: python -c "...pinned SushiLog version..."
+        id: sushilog
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushi']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiLog
+          ref: ${{ steps.sushilog.outputs.version }}
+          path: sushilog
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: ./sushiblas/.github/actions/setup-oneapi
       - uses: ./sushiblas/.github/actions/setup-sb
       # Restored and saved apart, so a run that fails or times out still keeps what it compiled.
@@ -275,6 +323,18 @@ jobs:
         with:
           repository: SushiSystems/SushiRuntime
           path: sushiruntime
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      # SushiLog at the version cli/sushistack.deps.toml pins, as the sibling ../sushilog sb finds.
+      - name: python -c "...pinned SushiLog version..."
+        id: sushilog
+        shell: bash
+        working-directory: .
+        run: echo "version=$($(command -v python3 || command -v python) -c "import tomllib; print(tomllib.load(open('sushiblas/cli/sushistack.deps.toml', 'rb'))['sushi']['sushilog']['version'])")" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiLog
+          ref: ${{ steps.sushilog.outputs.version }}
+          path: sushilog
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
