@@ -87,4 +87,4 @@ namespace SushiBLAS
  * @param condition The condition to check.
  * @param ... The message's format string followed by its arguments.
  */
-#define SB_THROW_IF(condition, ...)                                                                  do                                                                                               {                                                                                                    if (condition)                                                                                       throw std::runtime_error(SushiRuntime::Detail::sr_format(__VA_ARGS__));                  } while (0)
+#define SB_THROW_IF(condition, ...)                                                                  do                                                                                               {                                                                                                    if (condition)                                                                                       throw std::runtime_error(SushiRuntime::format_text(__VA_ARGS__));                  } while (0)

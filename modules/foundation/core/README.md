@@ -128,7 +128,7 @@ written before the process ends. Under `NDEBUG` the macro compiles to nothing.
 
 ### `SB_THROW_IF`
 
-Formats the message with SushiRuntime's `sr_format` (`<SushiRuntime/core/text_format.hpp>`) and
+Formats the message with SushiRuntime's `format_text` (`<SushiRuntime/core/text_format.hpp>`) and
 throws `std::runtime_error` with it. It logs nothing: a failure is logged once, by the code that
 handles it.
 

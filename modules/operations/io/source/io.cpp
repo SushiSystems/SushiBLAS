@@ -64,7 +64,7 @@ namespace SushiBLAS
         [[noreturn]] void fail_io(IOStatus status, [[maybe_unused]] std::string_view format,
                                   [[maybe_unused]] const Args&... args)
         {
-            SB_LOG_ERROR(K_IO_LOG_CATEGORY, "io: {}", SushiRuntime::Detail::sr_format(format, args...));
+            SB_LOG_ERROR(K_IO_LOG_CATEGORY, "io: {}", SushiRuntime::format_text(format, args...));
             throw IOFailure{status};
         }
 

@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-17 — core: Formatted messages with SushiRuntime's public `format_text` in place of its internal `sr_format` (`logger.hpp`, `operand_check.hpp`, `io.cpp`).
 - 2026-10-17 — core: Breaking change: `SB_THROW_IF` throws and logs nothing; the code that handles the failure logs it (`logger.hpp`).
 - 2026-10-17 — core: Breaking change: `SB_ASSERT` takes the caller's log category first, and `K_CORE_LOG_CATEGORY` is gone (`logger.hpp`).
 - 2026-10-17 — core: Breaking change: removed `core/format.hpp` and `Core::format`; SushiBLAS formats with SushiRuntime's `sr_format` (`text_format.hpp`).
