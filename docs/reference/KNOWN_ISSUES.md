@@ -23,7 +23,6 @@ in [the backlog](../design/REMAINING_WORK.md).
 | The rotation bricks were transcribed from the reference BLAS (`drotg.f90`, `zrotg.f90`, `drotmg.f`) through a summarising fetch, without the source at hand. Whether `drotmg.f` writes the implied entries of H only for flags 0 and 1, as the brick does, is not settled | `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp`, `modified_givens.hpp` |
 | `Core::IndexBase` carries 221 and 222, written from memory of the Sparse BLAS header | `modules/foundation/core/include/SushiBLAS/core/sparse_types.hpp` |
 | The parity allowances of the random reference tests are estimates, and `LargeLambdaPoissonGivesTheSameCounts` asserts equality for one seed, which a device whose `log` or `lgamma` differs from the host's can break | `tests/operations/random/test_random/test_random_reference.cpp` |
-| `ThePackedAndTheUnpackedKernelAgreeToTheBit` fails if the OpenCL CPU runtime contracts or reorders one GEMM kernel and not the other; whether it does was never observed | `tests/operations/blas/test_dispatch/test_packed_product.cpp` |
 | The open and unverified items each design lists | `docs/agent/2026_10_07_V010/SPEC.md`: `DESIGN_RECORDER` section 15, `DESIGN_SUPPORT_MEMORY` 18, `DESIGN_BLAS` 12, `DESIGN_BLAS_L3` 13, `DESIGN_BLAS_BAND_PACKED` 14, `DESIGN_GEMM_CPU` 10.3 and 13, `DESIGN_SPARSE` 18, `DESIGN_YOLO26` 13; and `REPORT.md`, section 7 |
 
 ## Behaviour

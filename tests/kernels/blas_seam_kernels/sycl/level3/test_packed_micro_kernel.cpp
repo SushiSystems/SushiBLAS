@@ -37,6 +37,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/arithmetic/multiply_add.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 #include <SushiBLAS/blas_seam_kernels/sycl/level3/packed_micro_kernel.hpp>
 #include <SushiBLAS/typed_suite_naming/default_type_names.hpp>
@@ -55,7 +56,7 @@ namespace SushiBLAS
             /// @brief Holds the seed of the slices compared against the bare product.
             constexpr std::uint32_t K_BARE_PRODUCT_SEED = 20261007u;
 
-            /// @brief Holds the seed of the slices compared against Kernels::multiply.
+            /// @brief Holds the seed of the slices compared against Kernels::Detail::multiply_add.
             constexpr std::uint32_t K_MULTIPLY_SEED = 20261008u;
 
             /// @brief Holds the seed of the tile a depth of zero must leave.
@@ -160,11 +161,9 @@ namespace SushiBLAS
 
                     /**
                      * @brief Returns the sums the tile holds after depth terms are added in
-                     *        ascending order.
-                     * @tparam Product Callable as `W(W, W)`.
+                     *        ascending order, each by Kernels::Detail::multiply_add.
                      */
-                    template<typename Product>
-                    [[nodiscard]] Sums expected_sums(int64_t depth, Product product) const
+                    [[nodiscard]] Sums expected_sums(int64_t depth) const
                     {
                         Sums expected = sums();
                         for (int64_t i = 0; i < Block::K_ROWS; ++i)
@@ -173,7 +172,7 @@ namespace SushiBLAS
                                 {
                                     W& total = expected[static_cast<std::size_t>(
                                         i * Block::K_COLS + j)];
-                                    total = total + product(a(l, i), b(l, j));
+                                    total = Kernels::Detail::multiply_add(a(l, i), b(l, j), total);
                                 }
                         return expected;
                     }
@@ -307,8 +306,7 @@ namespace SushiBLAS
                     problem.set_sum(i, j, value_of<W>(static_cast<R>(10 * i + j + 1),
                                                       static_cast<R>(-(i + j + 1))));
 
-            const auto expected = problem.expected_sums(
-                K_SHORT_DEPTH, [](W a, W b) { return Kernels::multiply(a, b); });
+            const auto expected = problem.expected_sums(K_SHORT_DEPTH);
             problem.run(K_SHORT_DEPTH);
 
             for (int64_t i = 0; i < Block::K_ROWS; ++i)
@@ -345,23 +343,21 @@ namespace SushiBLAS
             {
                 MicroProblem<W> problem;
                 problem.fill_uniform(K_BARE_PRODUCT_SEED, K_MAX_DEPTH);
-                const auto expected =
-                    problem.expected_sums(K_MAX_DEPTH, [](W a, W b) { return a * b; });
+                const auto expected = problem.expected_sums(K_MAX_DEPTH);
                 problem.run(K_MAX_DEPTH);
 
                 EXPECT_EQ(count_bit_mismatches(problem.sums(), expected), std::size_t{0});
             }
         }
 
-        /** @brief Tests that each term is the product Kernels::multiply gives, to the bit. */
-        TYPED_TEST(Medium_PackedMicroKernel, ComplexTermsFollowTheFourProductFormula)
+        /** @brief Tests that each term is added by Kernels::Detail::multiply_add, to the bit. */
+        TYPED_TEST(Medium_PackedMicroKernel, EachTermIsAddedByTheFusedMultiplyAdd)
         {
             using W = TypeParam;
 
             MicroProblem<W> problem;
             problem.fill_uniform(K_MULTIPLY_SEED, K_MAX_DEPTH);
-            const auto expected = problem.expected_sums(
-                K_MAX_DEPTH, [](W a, W b) { return Kernels::multiply(a, b); });
+            const auto expected = problem.expected_sums(K_MAX_DEPTH);
             problem.run(K_MAX_DEPTH);
 
             EXPECT_EQ(count_bit_mismatches(problem.sums(), expected), std::size_t{0});

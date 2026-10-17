@@ -42,6 +42,7 @@
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/arithmetic/multiply_add.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
 
@@ -357,7 +358,8 @@ namespace SushiBLAS
 
                                     for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
                                         for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
-                                            acc[ii][jj] += multiply(W(reg_a[ii]), W(reg_b[jj]));
+                                            acc[ii][jj] =
+                                                Kernels::Detail::multiply_add(W(reg_a[ii]), W(reg_b[jj]), acc[ii][jj]);
                                 }
 
                                 sycl::group_barrier(item.get_group());
@@ -470,7 +472,8 @@ namespace SushiBLAS
 
                                 for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
                                     for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
-                                        acc[ii][jj] += multiply(W(reg_a[ii]), W(reg_b[jj]));
+                                        acc[ii][jj] =
+                                            Kernels::Detail::multiply_add(W(reg_a[ii]), W(reg_b[jj]), acc[ii][jj]);
                             }
 
                             for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
@@ -661,7 +664,8 @@ namespace SushiBLAS
 
                                 for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
                                     for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
-                                        acc[ii][jj] += multiply(W(reg_a[ii]), W(reg_b[jj]));
+                                        acc[ii][jj] =
+                                            Kernels::Detail::multiply_add(W(reg_a[ii]), W(reg_b[jj]), acc[ii][jj]);
                             }
 
                             // Element e of a work-item's block keeps its partial at tile[e * width + lane].

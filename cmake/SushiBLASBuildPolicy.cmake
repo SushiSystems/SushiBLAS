@@ -46,6 +46,7 @@
 include(SushiBLASCompilerWarnings)  # -> sushiblas_warnings
 include(SushiBLASOptimization)      # -> sushiblas_perf
 include(SushiBLASSanitizers)        # -> sushiblas_sanitizers
+include(SushiBLASFloatingPoint)     # -> sushiblas_floating_point
 
 # Applies the project's in-tree compile policy to one target.
 #
@@ -76,6 +77,7 @@ function(sushiblas_apply_build_policy target)
         "$<TARGET_PROPERTY:sushiblas_warnings,INTERFACE_COMPILE_OPTIONS>"
         "$<TARGET_PROPERTY:sushiblas_perf,INTERFACE_COMPILE_OPTIONS>"
         "$<TARGET_PROPERTY:sushiblas_sanitizers,INTERFACE_COMPILE_OPTIONS>"
+        "$<TARGET_PROPERTY:sushiblas_floating_point,INTERFACE_COMPILE_OPTIONS>"
     )
     target_compile_definitions(${target} PRIVATE
         "$<TARGET_PROPERTY:sushiblas_warnings,INTERFACE_COMPILE_DEFINITIONS>"
