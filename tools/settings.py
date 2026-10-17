@@ -17,5 +17,13 @@ K_MODULE_FUNCTION = "sushiblas_add_module"
 K_PUBLIC_DEPENDS = "DEPENDS"
 K_PRIVATE_DEPENDS = "PRIVATE_DEPENDS"
 K_INTERNAL_MARK = "INTERNAL"
+K_PRIVATE_DEPENDS_ALSO: tuple[str, ...] = ()
 K_CLOSED = False
 K_MACRO_PREFIXES: tuple[str, ...] = ()
+K_LOG_PREFIX = "SB"
+# The benchmark harness prints its result table and IO::print prints a tensor: both are output.
+K_CONSOLE_PATHS: tuple[str, ...] = (
+    "modules/operations/benchmark_harness",
+    "modules/operations/io/source/print.cpp",
+    "cli/sushiblas",
+)
