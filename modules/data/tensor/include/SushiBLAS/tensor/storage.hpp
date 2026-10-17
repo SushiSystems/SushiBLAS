@@ -32,6 +32,7 @@
 #include <utility>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/tensor/tensor_log_category.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/ref_counted.hpp>
 
@@ -84,7 +85,7 @@ namespace SushiBLAS
                 SB_THROW_IF(!allocated, "Allocation failed for {} bytes: {}", size_bytes,
                             allocated.error().message);
 
-                SB_ASSERT(reinterpret_cast<std::uintptr_t>(allocated->data()) %
+                SB_ASSERT(K_TENSOR_LOG_CATEGORY, reinterpret_cast<std::uintptr_t>(allocated->data()) %
                                   K_STORAGE_ALIGNMENT == 0,
                           "The runtime returned an allocation that is not aligned to "
                           "K_STORAGE_ALIGNMENT");

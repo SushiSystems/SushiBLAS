@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_seam_kernels/blas_seam_kernels_log_category.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
@@ -255,9 +256,9 @@ namespace SushiBLAS
                 {
                     using R = RealType<Accumulator<T>>;
 
-                    SB_ASSERT(plan.blocks > 0 && plan.workers > 0,
+                    SB_ASSERT(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, plan.blocks > 0 && plan.workers > 0,
                               "packed_product launched with a plan that holds no macro-block");
-                    SB_ASSERT(scratch != nullptr, "packed_product launched without scratch");
+                    SB_ASSERT(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, scratch != nullptr, "packed_product launched without scratch");
 
                     // scratch_bytes holds one alignment unit more than the slots, for this step.
                     const std::uintptr_t address = reinterpret_cast<std::uintptr_t>(scratch);

@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/operands/operands_log_category.hpp>
 #include <SushiBLAS/operands/scalar.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
@@ -91,7 +92,7 @@ namespace SushiBLAS
                 template<typename Value>
                 void push(Value value) noexcept
                 {
-                    SB_ASSERT(next_ < static_cast<int>(TaskDescription::K_MAX_PARAMETERS),
+                    SB_ASSERT(K_OPERANDS_LOG_CATEGORY, next_ < static_cast<int>(TaskDescription::K_MAX_PARAMETERS),
                               "A BLAS task declared more slots than TaskDescription holds");
                     description_.set_parameter(next_, value);
                     ++next_;

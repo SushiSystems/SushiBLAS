@@ -6,6 +6,10 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-17 — core: Breaking change: `SB_THROW_IF` throws and logs nothing; the code that handles the failure logs it (`logger.hpp`).
+- 2026-10-17 — core: Breaking change: `SB_ASSERT` takes the caller's log category first, and `K_CORE_LOG_CATEGORY` is gone (`logger.hpp`).
+- 2026-10-17 — core: Breaking change: removed `core/format.hpp` and `Core::format`; SushiBLAS formats with SushiRuntime's `sr_format` (`text_format.hpp`).
+- 2026-10-17 — operands: Added `K_OPERANDS_LOG_CATEGORY` for the module's assertions (`operands_log_category.hpp`).
 - 2026-10-17 — build: Pinned SushiLog v0.1.2, which SushiBLAS links directly and finds through `SUSHILOG_DIR` from the CLI (`sushistack.deps.toml`, `SushiBLASSushiLog.cmake`).
 - 2026-10-17 — cli: Moved to sushicore 0.9.1 and passed each pinned Sushi library to the configure (`pyproject.toml`, `project.py`).
 - 2026-10-16 — core: Breaking change: `SB_LOG_*` take a category first and write through SushiLog, and `SB_LOGGER_SET_SYNC_MODE`, `AsyncLogger` and `SyncLogger` are gone (`logger.hpp`).

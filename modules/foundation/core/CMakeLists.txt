@@ -8,18 +8,17 @@ sushiblas_add_module(
     NAME core
     LAYER foundation
     EXTERNAL
-        SushiLog::SushiLog)
+        SushiLog::SushiLog
+        SushiRuntime::core)
 
 sushiblas_add_test_program(
     MODULE core
     TESTS
         test_sushiblas_log_project.cpp
-        test_core_log_category.cpp
         test_blas_types.cpp
         test_common.cpp
         test_errors.cpp
         test_export.cpp
-        test_format.cpp
         test_logger.cpp
         test_sparse_types.cpp
         test_traits.cpp

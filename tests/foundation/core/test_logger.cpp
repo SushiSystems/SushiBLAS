@@ -21,7 +21,7 @@
 
 /**
  * @file test_logger.cpp
- * @brief Tests that the SB_LOG macros, SB_ASSERT and SB_THROW_IF write through SushiLog.
+ * @brief Tests the SB_LOG macros, SB_ASSERT and SB_THROW_IF over SushiLog.
  * @author Mustafa Garip
  */
 
@@ -32,6 +32,8 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiLog/log/log_calls.hpp>
+#include <SushiLog/log/log_category.hpp>
+#include <SushiBLAS/core/sushiblas_log_project.hpp>
 
 namespace SushiBLAS
 {
@@ -39,6 +41,10 @@ namespace SushiBLAS
     {
         namespace
         {
+            /** @brief Names the records these tests write, as a module of SushiBLAS would. */
+            constexpr SushiLog::LogCategory K_PROBE_LOG_CATEGORY =
+                SushiLog::make_log_category(K_SUSHIBLAS_LOG_PROJECT, "probe");
+
             /** @brief Holds the fields of one record a test's sink received. */
             struct CapturedRecord
             {
@@ -83,12 +89,12 @@ namespace SushiBLAS
         {
             CapturingSink sink;
 
-            SB_LOG_WARN(K_CORE_LOG_CATEGORY, "probe {} of {}", 1, 2);
+            SB_LOG_WARN(K_PROBE_LOG_CATEGORY, "probe {} of {}", 1, 2);
 
             ASSERT_EQ(sink.records.size(), 1u);
             EXPECT_EQ(sink.records[0].level, SushiLog::LogLevel::Warn);
             EXPECT_EQ(sink.records[0].project, "sushiblas");
-            EXPECT_EQ(sink.records[0].module, "core");
+            EXPECT_EQ(sink.records[0].module, "probe");
             EXPECT_EQ(sink.records[0].message, "probe 1 of 2");
         }
 
@@ -97,29 +103,36 @@ namespace SushiBLAS
             CapturingSink sink;
             SushiLog::set_log_level(K_SUSHIBLAS_LOG_PROJECT, SushiLog::LogLevel::Error);
 
-            SB_LOG_WARN(K_CORE_LOG_CATEGORY, "below the level");
+            SB_LOG_WARN(K_PROBE_LOG_CATEGORY, "below the level");
 
             EXPECT_TRUE(sink.records.empty());
         }
 
-        TEST(Medium_Logger, ThrowIfLogsAnErrorAndThrowsTheSameMessage)
+        TEST(Medium_Logger, ThrowIfThrowsTheFormattedMessageAndLogsNothing)
         {
             CapturingSink sink;
 
-            EXPECT_THROW(SB_THROW_IF(true, "operand {} is empty", 3), std::runtime_error);
+            try
+            {
+                SB_THROW_IF(true, "operand {} is empty", 3);
+                FAIL() << "SB_THROW_IF did not throw.";
+            }
+            catch (const std::runtime_error& error)
+            {
+                EXPECT_STREQ(error.what(), "operand 3 is empty");
+            }
 
-            ASSERT_EQ(sink.records.size(), 1u);
-            EXPECT_EQ(sink.records[0].level, SushiLog::LogLevel::Error);
-            EXPECT_EQ(sink.records[0].message, "throwing std::runtime_error: operand 3 is empty");
+            EXPECT_TRUE(sink.records.empty());
         }
 
-        TEST(Medium_LoggerDeathTest, AssertWritesAFatalRecordBeforeAborting)
+        TEST(Medium_LoggerDeathTest, AssertWritesAFatalRecordInItsCategoryBeforeAborting)
         {
 #ifdef NDEBUG
             GTEST_SKIP() << "SB_ASSERT compiles to nothing under NDEBUG; run this in a debug build.";
 #else
-            EXPECT_DEATH(SB_ASSERT(false, "regression sentinel for the lost assertion message"),
-                         "regression sentinel for the lost assertion message");
+            EXPECT_DEATH(SB_ASSERT(K_PROBE_LOG_CATEGORY, false,
+                                   "regression sentinel for the lost assertion message"),
+                         "sushiblas.probe.*regression sentinel for the lost assertion message");
 #endif
         }
     } // namespace Test

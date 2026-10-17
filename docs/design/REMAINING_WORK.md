@@ -120,7 +120,7 @@ records them and holds the steps that have not run.
 - Route `Shared` storage through the queue for a print and a save, or fix the fault in
   SushiRuntime; today the host pointer is read.
 - Print a rank-0 tensor as its value and stop `to_vector` zero-filling before it reads.
-- Add tests for `Core::format`, the logger and the four CLI services (C18).
+- Add tests for the four CLI services (C18).
 
 ## Code shape
 

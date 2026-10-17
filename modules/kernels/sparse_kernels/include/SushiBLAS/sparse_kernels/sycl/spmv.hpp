@@ -91,7 +91,7 @@ namespace SushiBLAS
                     });
                 }
 
-                SB_ASSERT(pattern.cols == 0 || (partials != nullptr && blocks > 0),
+                SB_ASSERT(K_SPARSE_KERNELS_LOG_CATEGORY, pattern.cols == 0 || (partials != nullptr && blocks > 0),
                           "A transposed spmv needs the partial sums its caller sized");
 
                 const bool conjugated = Core::is_conjugated(trans);
