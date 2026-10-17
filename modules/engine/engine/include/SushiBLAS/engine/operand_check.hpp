@@ -37,7 +37,7 @@
 #include <SushiBLAS/engine/engine_log_category.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiRuntime/core/text_format.hpp>
+#include <SushiLog/text/text_format.hpp>
 
 namespace SushiBLAS
 {
@@ -54,8 +54,8 @@ namespace SushiBLAS
             [[noreturn]] inline void throw_operand_error(const char* op, const char* operand,
                                                          const char* fmt, const Args&... args)
             {
-                const std::string rule = SushiRuntime::format_text(fmt, args...);
-                const std::string msg = SushiRuntime::format_text("{}: operand '{}' {}", op, operand, rule);
+                const std::string rule = SushiLog::format_text(fmt, args...);
+                const std::string msg = SushiLog::format_text("{}: operand '{}' {}", op, operand, rule);
                 SB_LOG_ERROR(K_ENGINE_LOG_CATEGORY, "Invalid operand: {}", msg);
                 throw std::invalid_argument(msg);
             }
@@ -69,8 +69,8 @@ namespace SushiBLAS
             [[noreturn]] inline void throw_execution_error(const char* op, const char* fmt,
                                                            const Args&... args)
             {
-                const std::string refusal = SushiRuntime::format_text(fmt, args...);
-                const std::string msg = SushiRuntime::format_text("{}: {}", op, refusal);
+                const std::string refusal = SushiLog::format_text(fmt, args...);
+                const std::string msg = SushiLog::format_text("{}: {}", op, refusal);
                 SB_LOG_ERROR(K_ENGINE_LOG_CATEGORY, "Unsupported execution: {}", msg);
                 throw UnsupportedExecution(msg);
             }
@@ -83,7 +83,7 @@ namespace SushiBLAS
             [[noreturn]] inline void throw_dtype_error(const char* family, const char* name,
                                                        Core::DataType dtype)
             {
-                const std::string msg = SushiRuntime::format_text(
+                const std::string msg = SushiLog::format_text(
                     "{} '{}' does not support dtype {}. Complex operands need an ordering or a "
                     "real-only builtin they do not provide; integer operands are accepted only "
                     "where an integer element means something (copy, fill, the comparison and "
