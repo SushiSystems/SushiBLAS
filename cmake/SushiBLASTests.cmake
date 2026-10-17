@@ -45,9 +45,10 @@ function(sushiblas_configure_test_target target)
     if(WIN32)
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+                "$<TARGET_FILE:SushiRuntime::shared_library>"
+                "$<TARGET_FILE:SushiLog::SushiLog>"
                 $<TARGET_FILE_DIR:${target}>
-            COMMENT "Copying runtime DLL to test directory...")
+            COMMENT "Copying sushiruntime.dll and sushilog.dll to the test directory")
     endif()
 endfunction()
 

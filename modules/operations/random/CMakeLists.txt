@@ -36,6 +36,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE random
     TESTS
+        test_random_log_category.cpp
         test_dispatch.cpp
         test_random/test_constant.cpp
         test_random/test_distributions.cpp

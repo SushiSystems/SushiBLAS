@@ -36,6 +36,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_seam_kernels/blas_seam_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
@@ -752,7 +753,7 @@ namespace SushiBLAS
                     profile, m, n, k, batch_size, Detail::has_contiguous_rows(b_access));
                 if (split.width != 0)
                 {
-                    SB_LOG_INFO("SYCL GEMM [depth_split]: batch={} {}x{}x{} item_block={}x{} "
+                    SB_LOG_DEBUG(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, "SYCL GEMM [depth_split]: batch={} {}x{}x{} item_block={}x{} "
                                 "width={} column_lanes={}",
                                 batch_size, m, n, k,
                                 Detail::GemmDepthSplitTile<T>::K_ITEM_ROWS,
@@ -770,7 +771,7 @@ namespace SushiBLAS
                 // Every variant is instantiated here, whichever branch runs; see modules/kernels/blas_seam_kernels/README.md.
                 if (profile.has_dedicated_local_memory && tile_hosted)
                 {
-                    SB_LOG_INFO("SYCL GEMM [local_tiled]: batch={} {}x{}x{} block={}x{} tile_k={} local={}B",
+                    SB_LOG_DEBUG(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, "SYCL GEMM [local_tiled]: batch={} {}x{}x{} block={}x{} tile_k={} local={}B",
                                 batch_size, m, n, k,
                                 LocalConfiguration::K_BLOCK_M, LocalConfiguration::K_BLOCK_N,
                                 LocalConfiguration::K_TILE_K, local_bytes);
@@ -784,12 +785,12 @@ namespace SushiBLAS
                 }
 
                 if (profile.has_dedicated_local_memory)
-                    SB_LOG_WARN("SYCL GEMM: local tile wants {} B and {} work-items, device offers "
+                    SB_LOG_WARN(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, "SYCL GEMM: local tile wants {} B and {} work-items, device offers "
                                 "{} B and {}; falling back to the no-local variant.",
                                 local_bytes, local_items,
                                 profile.local_mem_bytes, profile.max_work_group_size);
 
-                SB_LOG_INFO("SYCL GEMM [no_local]: batch={} {}x{}x{} item_block={}x{}",
+                SB_LOG_DEBUG(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, "SYCL GEMM [no_local]: batch={} {}x{}x{} item_block={}x{}",
                             batch_size, m, n, k,
                             Detail::GemmNoLocalTile<T>::K_ITEM_ROWS,
                             Detail::GemmNoLocalTile<T>::K_ITEM_COLS);

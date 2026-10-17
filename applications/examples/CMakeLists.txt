@@ -63,62 +63,70 @@ set_target_properties(
 # --- Post-Build: Copy the runtime DLL to the output directory ---
 # hwloc is a private implementation detail of SushiRuntime's own build (linked
 # PRIVATE via PkgConfig::HWLOC, BUILD_INTERFACE-only) and never reaches
-# consumers, so only the runtime's own DLL needs copying here — matching
+# consumers, so only the runtime's DLL and SushiLog's need copying here — matching
 # sushiruntime's own examples/tests precedent exactly.
 if(WIN32)
     add_custom_command(TARGET io_demo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+            "$<TARGET_FILE:SushiRuntime::shared_library>"
+            "$<TARGET_FILE:SushiLog::SushiLog>"
             $<TARGET_FILE_DIR:io_demo>
-        COMMENT "Copying runtime DLL to example directory..."
+        COMMENT "Copying sushiruntime.dll and sushilog.dll to the example directory"
     )
 
     add_custom_command(TARGET quickstart_demo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+            "$<TARGET_FILE:SushiRuntime::shared_library>"
+            "$<TARGET_FILE:SushiLog::SushiLog>"
             $<TARGET_FILE_DIR:quickstart_demo>
-        COMMENT "Copying runtime DLL to example directory..."
+        COMMENT "Copying sushiruntime.dll and sushilog.dll to the example directory"
     )
 
     add_custom_command(TARGET adapter_demo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+            "$<TARGET_FILE:SushiRuntime::shared_library>"
+            "$<TARGET_FILE:SushiLog::SushiLog>"
             $<TARGET_FILE_DIR:adapter_demo>
-        COMMENT "Copying runtime DLL to example directory..."
+        COMMENT "Copying sushiruntime.dll and sushilog.dll to the example directory"
     )
 
     add_custom_command(TARGET errors_demo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+            "$<TARGET_FILE:SushiRuntime::shared_library>"
+            "$<TARGET_FILE:SushiLog::SushiLog>"
             $<TARGET_FILE_DIR:errors_demo>
-        COMMENT "Copying runtime DLL to example directory..."
+        COMMENT "Copying sushiruntime.dll and sushilog.dll to the example directory"
     )
 
     add_custom_command(TARGET run_failure_demo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+            "$<TARGET_FILE:SushiRuntime::shared_library>"
+            "$<TARGET_FILE:SushiLog::SushiLog>"
             $<TARGET_FILE_DIR:run_failure_demo>
-        COMMENT "Copying runtime DLL to example directory..."
+        COMMENT "Copying sushiruntime.dll and sushilog.dll to the example directory"
     )
 
     add_custom_command(TARGET recording_demo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+            "$<TARGET_FILE:SushiRuntime::shared_library>"
+            "$<TARGET_FILE:SushiLog::SushiLog>"
             $<TARGET_FILE_DIR:recording_demo>
-        COMMENT "Copying runtime DLL to example directory..."
+        COMMENT "Copying sushiruntime.dll and sushilog.dll to the example directory"
     )
 
     add_custom_command(TARGET operation_families_demo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+            "$<TARGET_FILE:SushiRuntime::shared_library>"
+            "$<TARGET_FILE:SushiLog::SushiLog>"
             $<TARGET_FILE_DIR:operation_families_demo>
-        COMMENT "Copying runtime DLL to example directory..."
+        COMMENT "Copying sushiruntime.dll and sushilog.dll to the example directory"
     )
 
     add_custom_command(TARGET graph_primitives_demo POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+            "$<TARGET_FILE:SushiRuntime::shared_library>"
+            "$<TARGET_FILE:SushiLog::SushiLog>"
             $<TARGET_FILE_DIR:graph_primitives_demo>
-        COMMENT "Copying runtime DLL to example directory..."
+        COMMENT "Copying sushiruntime.dll and sushilog.dll to the example directory"
     )
 endif()

@@ -25,7 +25,6 @@
  * @author Mustafa Garip
  */
 
-#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/random/random.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 #include <SushiBLAS/random_kernels/random.hpp>

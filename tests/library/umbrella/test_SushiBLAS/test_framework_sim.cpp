@@ -52,7 +52,6 @@ TEST_F(Medium_FrameworkSimTest, DeepForwardPass)
     
     auto X = engine->create_tensor({batch_size, features});
     fill_tensor(X, std::vector<float>(batch_size * features, 1.0f));
-    SB_LOG_INFO("Sim: X tensor created with shape {}x{}", batch_size, features);
     
     // Even columns of W hold +K_WEIGHT and odd columns -K_WEIGHT, so ReLU zeroes the odd ones.
     const float K_WEIGHT = 0.01f;
@@ -79,11 +78,9 @@ TEST_F(Medium_FrameworkSimTest, DeepForwardPass)
     auto start_time = std::chrono::high_resolution_clock::now();
     
     // Build the DAG 
-    SB_LOG_INFO("Sim: Building DAG for {} layers", num_layers);
     for (int i = 0; i < num_layers; ++i) 
     {
         // H_{i+1} = H_{i} * W_i
-        SB_LOG_DEBUG("Sim: Submitting GEMM for Layer {}", i);
         SushiBLAS::BLASOps(*engine).gemm(activations[i], weights[i], activations[i+1]);
         
         // Add activation after GEMM
@@ -94,9 +91,7 @@ TEST_F(Medium_FrameworkSimTest, DeepForwardPass)
     }
     
     // Execute all deep operations asynchronously
-    SB_LOG_INFO("Sim: Executing Deep Forward Pass Task DAG and waiting...");
     engine->execute().value();
-    SB_LOG_INFO("Sim: Deep Forward Pass execution complete");
     
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> duration = end_time - start_time;
@@ -160,9 +155,7 @@ TEST_F(Medium_FrameworkSimTest, ParallelBatchedInference)
     }
     
     // The scheduler should dispatch these horizontally to all worker threads
-    SB_LOG_INFO("Sim: Executing Parallel Inference DAG across workers...");
     engine->execute().value();
-    SB_LOG_INFO("Sim: Parallel Inference execution complete");
     
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> duration = end_time - start_time;

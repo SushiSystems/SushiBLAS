@@ -37,6 +37,7 @@
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/tensor/tensor_log_category.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
@@ -363,7 +364,7 @@ namespace SushiBLAS
             std::swap(t.shape[dim0], t.shape[dim1]);
             std::swap(t.strides[dim0], t.strides[dim1]);
 
-            SB_LOG_DEBUG("Tensor Transposed: dim {} <-> dim {}", dim0, dim1);
+            SB_LOG_TRACE(K_TENSOR_LOG_CATEGORY, "Tensor Transposed: dim {} <-> dim {}", dim0, dim1);
 
             return t;
         }
@@ -415,7 +416,7 @@ namespace SushiBLAS
             std::array<int64_t, SushiBLAS::Core::K_MAX_TENSOR_RANK> new_shape_arr = shape;
             new_shape_arr[dim] = end - start;
 
-            SB_LOG_DEBUG("Tensor Sliced: dim = {}, range = [{}, {}), new_offset = {}", 
+            SB_LOG_TRACE(K_TENSOR_LOG_CATEGORY, "Tensor Sliced: dim = {}, range = [{}, {}), new_offset = {}", 
                         dim, start, end, new_offset);
 
             return Tensor(this->storage, SushiRuntime::span<const int64_t>(new_shape_arr.data(), static_cast<size_t>(rank)),
@@ -455,7 +456,7 @@ namespace SushiBLAS
 
             SB_THROW_IF(!is_contiguous(), "Tensor must be contiguous for this operation");
 
-            SB_LOG_DEBUG("Tensor Reshaped: elements={}", new_len);
+            SB_LOG_TRACE(K_TENSOR_LOG_CATEGORY, "Tensor Reshaped: elements={}", new_len);
 
             return Tensor(this->storage, new_dims, this->dtype, this->storage_offset, this->layout);
         }

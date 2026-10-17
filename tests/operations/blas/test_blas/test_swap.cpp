@@ -44,11 +44,9 @@ TEST_F(Medium_SWAPTest, SimpleSWAP)
     fill_tensor(X, {1, 2, 3});
     fill_tensor(Y, {4, 5, 6});
 
-    SB_LOG_INFO("Submitting SWAP.");
     SushiBLAS::BLASOps(*engine).swap(X, Y);
     
     engine->execute().value();
-    SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: X = {4, 5, 6}, Y = {1, 2, 3}
     verify_tensor(X, {4, 5, 6});

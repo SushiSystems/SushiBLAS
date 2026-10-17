@@ -32,6 +32,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/random/random_log_category.hpp>
 #include <SushiBLAS/random/random.hpp>
 #include <SushiBLAS/random/dispatch.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
@@ -57,7 +58,7 @@ namespace SushiBLAS
                 [out, value, size](const KernelPairDispatcher& pair, sycl::queue& q,
                                    const std::vector<sycl::event>& deps) -> sycl::event
                 {
-                    SB_LOG_INFO("RandomOps: constant ({} elements)", size);
+                    SB_LOG_TRACE(K_RANDOM_LOG_CATEGORY, "RandomOps: constant ({} elements)", size);
 
                     const std::size_t count = static_cast<std::size_t>(size);
                     return pair.run(q, deps,

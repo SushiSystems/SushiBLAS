@@ -35,6 +35,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/functor_map/functor_map_log_category.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/reference/serial_1d.hpp>
@@ -150,7 +151,7 @@ namespace SushiBLAS
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        SB_LOG_INFO("{} '{}': {} elements", family_, name_, n_);
+                        SB_LOG_TRACE(K_FUNCTOR_MAP_LOG_CATEGORY, "{} '{}': {} elements", family_, name_, n_);
 
                         return pair.run(q, deps,
                             [this]
@@ -294,7 +295,7 @@ namespace SushiBLAS
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        SB_LOG_INFO("{} '{}': {} elements over {} operands", family_, name_, n_, N);
+                        SB_LOG_TRACE(K_FUNCTOR_MAP_LOG_CATEGORY, "{} '{}': {} elements over {} operands", family_, name_, n_, N);
 
                         return pair.run(q, deps,
                             [this]

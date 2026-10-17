@@ -102,7 +102,7 @@ during a build, a test run or `sb run` ends the command with exit code 130.
 repeatable:
 
 ```bash
-sb build -D SB_LOG_LEVEL=INFO           # raise the compiled-in log level
+sb build -D SB_ENABLE_LOGGING=OFF       # compile out every log call below ERROR
 sb build -D SB_SYCL_TARGETS="spir64;nvptx64-nvidia-cuda"   # quote values with ';'
 ```
 
@@ -118,7 +118,7 @@ The options SushiBLAS itself defines:
 
 | Option | Default | What it does |
 |--------|---------|--------------|
-| `SB_LOG_LEVEL` | `auto` | Compiled-in log level: `auto`, `OFF`, `ERR`, `WARN`, `INFO`, `DEBUG`. `auto` means WARN for a release build and DEBUG for a debug build. |
+| `SB_ENABLE_LOGGING` | `ON` | Compile log calls below ERROR: TRACE and up in a debug build, DEBUG and up under `NDEBUG`. |
 | `SB_BUILD_TESTS` | `ON` at the top level, `OFF` under a consumer | Build and register the test program of each module from its mirror under `tests/`. |
 | `SB_BUILD_EXAMPLES` | `ON` at the top level, `OFF` under a consumer | Build the example programs under `applications/examples/`. |
 | `SB_BUILD_BENCHMARKS` | `OFF` | Build the benchmark programs of the modules under `tests/`; `sb build --benchmarks` sets it. |
@@ -127,12 +127,9 @@ The options SushiBLAS itself defines:
 | `SB_SYCL_TARGETS` | *(empty)* | AOT device targets; empty means the targets SushiRuntime resolved. |
 | `SB_SYCL_DEVICE_FLAGS` | *(empty)* | Extra flags for the device compilation pass. |
 
-`SB_LOG_LEVEL` is the one to reach for when debugging: a release build logs at
-WARN, so `-D SB_LOG_LEVEL=INFO` turns the per-kernel-launch trace back on
-without editing `modules/foundation/core/include/SushiBLAS/core/logger.hpp`. Put it back with
-`-D SB_LOG_LEVEL=auto`. The level is a **public** compile definition:
-it lives in an `inline constexpr` variable in a header every consumer compiles,
-so the library and everything linking it must agree on it.
+The level a record must reach is set at run time, not here: the `SB_LOG_LEVEL` environment
+variable, as `SB_LOG_LEVEL=warn,blas_kernels=debug`, shows every kernel launch and its chosen
+shape. `modules/foundation/core/README.md` describes the logger.
 
 `--sanitize` instruments host code: `address-undefined` sets
 `SB_SANITIZE=address,undefined`, `thread` sets `SB_SANITIZE=thread` and `none`

@@ -21,13 +21,17 @@
 
 /**
  * @file test_logger.cpp
- * @brief Pins that the logger writes every line before an assertion aborts or a shutdown returns.
+ * @brief Tests that the SB_LOG macros, SB_ASSERT and SB_THROW_IF write through SushiLog.
  * @author Mustafa Garip
  */
 
+#include <stdexcept>
 #include <string>
+#include <vector>
+
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiLog/log/log_calls.hpp>
 
 namespace SushiBLAS
 {
@@ -35,77 +39,88 @@ namespace SushiBLAS
     {
         namespace
         {
-            /** @brief Holds the line each test queues, short enough to count by its newline. */
-            constexpr const char* K_LINE = "regression-logger-line\n";
-
-            /** @brief Returns how many complete copies of K_LINE the captured text holds. */
-            int count_lines(const std::string& captured)
+            /** @brief Holds the fields of one record a test's sink received. */
+            struct CapturedRecord
             {
-                const std::string line(K_LINE);
-                int count = 0;
+                SushiLog::LogLevel level;
+                std::string project;
+                std::string module;
+                std::string message;
+            };
 
-                for (size_t at = captured.find(line); at != std::string::npos;
-                     at = captured.find(line, at + line.size()))
-                    ++count;
+            /**
+             * @brief Sends every record to a vector while it lives, on the calling thread, and
+             *        restores stderr and the project's level when it ends.
+             */
+            class CapturingSink
+            {
+                public:
+                    CapturingSink()
+                    {
+                        SushiLog::set_log_synchronous(true);
+                        SushiLog::set_log_level(K_SUSHIBLAS_LOG_PROJECT, SushiLog::LogLevel::Trace);
+                        SushiLog::set_log_sink([this](const SushiLog::LogRecord& record)
+                        {
+                            records.push_back({record.level, std::string(record.project),
+                                               std::string(record.module), std::string(record.message)});
+                        });
+                    }
 
-                return count;
-            }
+                    ~CapturingSink()
+                    {
+                        SushiLog::set_log_sink({});
+                        SushiLog::set_log_level(K_SUSHIBLAS_LOG_PROJECT, SushiLog::LogLevel::Warn);
+                    }
+
+                    CapturingSink(const CapturingSink&) = delete;
+                    CapturingSink& operator=(const CapturingSink&) = delete;
+
+                    std::vector<CapturedRecord> records;
+            };
         } // namespace
 
-        TEST(Medium_LoggerDeathTest, AssertWritesItsMessageBeforeAborting)
+        TEST(Medium_Logger, ARecordCarriesTheSushiBLASProjectAndItsModule)
+        {
+            CapturingSink sink;
+
+            SB_LOG_WARN(K_CORE_LOG_CATEGORY, "probe {} of {}", 1, 2);
+
+            ASSERT_EQ(sink.records.size(), 1u);
+            EXPECT_EQ(sink.records[0].level, SushiLog::LogLevel::Warn);
+            EXPECT_EQ(sink.records[0].project, "sushiblas");
+            EXPECT_EQ(sink.records[0].module, "core");
+            EXPECT_EQ(sink.records[0].message, "probe 1 of 2");
+        }
+
+        TEST(Medium_Logger, ARecordBelowTheProjectLevelIsDropped)
+        {
+            CapturingSink sink;
+            SushiLog::set_log_level(K_SUSHIBLAS_LOG_PROJECT, SushiLog::LogLevel::Error);
+
+            SB_LOG_WARN(K_CORE_LOG_CATEGORY, "below the level");
+
+            EXPECT_TRUE(sink.records.empty());
+        }
+
+        TEST(Medium_Logger, ThrowIfLogsAnErrorAndThrowsTheSameMessage)
+        {
+            CapturingSink sink;
+
+            EXPECT_THROW(SB_THROW_IF(true, "operand {} is empty", 3), std::runtime_error);
+
+            ASSERT_EQ(sink.records.size(), 1u);
+            EXPECT_EQ(sink.records[0].level, SushiLog::LogLevel::Error);
+            EXPECT_EQ(sink.records[0].message, "throwing std::runtime_error: operand 3 is empty");
+        }
+
+        TEST(Medium_LoggerDeathTest, AssertWritesAFatalRecordBeforeAborting)
         {
 #ifdef NDEBUG
             GTEST_SKIP() << "SB_ASSERT compiles to nothing under NDEBUG; run this in a debug build.";
 #else
-            if (Core::K_ACTIVE_LOG_LEVEL < Core::LogLevel::Err)
-                GTEST_SKIP() << "The error level is compiled out, so SB_ASSERT has no line to write.";
-
-            constexpr int K_BACKLOG_LINES = 5000;
-
-            EXPECT_DEATH(
-                {
-                    SB_LOGGER_SET_SYNC_MODE(false);
-
-                    // The backlog keeps the worker busy, so only a flush can write the assertion.
-                    for (int i = 0; i < K_BACKLOG_LINES; ++i)
-                        Core::Detail::dispatch_log(Core::LogLevel::Err, std::string(K_LINE));
-
-                    SB_ASSERT(false, "regression sentinel for the lost assertion message");
-                },
-                "Assertion failed: regression sentinel for the lost assertion message");
+            EXPECT_DEATH(SB_ASSERT(false, "regression sentinel for the lost assertion message"),
+                         "regression sentinel for the lost assertion message");
 #endif
-        }
-
-        TEST(Medium_Logger, FlushReturnsAfterEveryQueuedLineIsWritten)
-        {
-            constexpr int K_LINES = 256;
-
-            Core::Detail::AsyncLogger logger;
-
-            ::testing::internal::CaptureStderr();
-            for (int i = 0; i < K_LINES; ++i)
-                logger.enqueue(Core::LogLevel::Err, std::string(K_LINE));
-            logger.flush();
-            const std::string captured = ::testing::internal::GetCapturedStderr();
-
-            EXPECT_EQ(count_lines(captured), K_LINES)
-                << "flush() returned while lines were still queued or being written.";
-        }
-
-        TEST(Medium_Logger, ShutdownWritesEveryQueuedLineAndReturns)
-        {
-            constexpr int K_ROUNDS = 2000;
-
-            ::testing::internal::CaptureStderr();
-            for (int round = 0; round < K_ROUNDS; ++round)
-            {
-                Core::Detail::AsyncLogger logger;
-                logger.enqueue(Core::LogLevel::Err, std::string(K_LINE));
-            }
-            const std::string captured = ::testing::internal::GetCapturedStderr();
-
-            EXPECT_EQ(count_lines(captured), K_ROUNDS)
-                << "A logger destroyed right after a line was queued must still write that line.";
         }
     } // namespace Test
 } // namespace SushiBLAS

@@ -9,6 +9,7 @@ sushiblas_add_module(
     LAYER operations
     SOURCES
         io.cpp
+        print.cpp
     DEPENDS
         core
         tensor
@@ -18,6 +19,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE io
     TESTS
+        test_io_log_category.cpp
         test_io/test_host_transfer.cpp
         test_io/test_regression.cpp
         test_io_status.cpp)

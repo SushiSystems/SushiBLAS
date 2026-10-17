@@ -20,4 +20,5 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE test_runner
     TESTS
-        test_test_environment.cpp)
+        test_test_environment.cpp
+        test_test_runner_log_category.cpp)

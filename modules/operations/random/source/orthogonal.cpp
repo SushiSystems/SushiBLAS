@@ -30,6 +30,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/random/random_log_category.hpp>
 #include <SushiBLAS/random/random.hpp>
 #include <SushiBLAS/random/dispatch.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
@@ -84,7 +85,7 @@ namespace SushiBLAS
             (const KernelPairDispatcher& pair, sycl::queue& q,
              const std::vector<sycl::event>& deps) -> sycl::event
             {
-                SB_LOG_INFO("RandomOps: {} ({} vectors of length {}, gain: {:.4f})", name, set.count, set.length, gain);
+                SB_LOG_TRACE(K_RANDOM_LOG_CATEGORY, "RandomOps: {} ({} vectors of length {}, gain: {})", name, set.count, set.length, gain);
 
                 sycl::event done;
                 Dispatch::with_element_type<Dispatch::Domain::Real>(dtype, "RNG operation", name, [&](auto tag)

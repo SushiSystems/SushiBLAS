@@ -33,6 +33,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/sparse_kernels/sparse_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
@@ -65,7 +66,7 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
 
-                SB_LOG_INFO("SYCL SPMM: {}x{}, {} entries, {} columns", pattern.rows, pattern.cols,
+                SB_LOG_DEBUG(K_SPARSE_KERNELS_LOG_CATEGORY, "SYCL SPMM: {}x{}, {} entries, {} columns", pattern.rows, pattern.cols,
                             pattern.nnz, nrhs);
 
                 const OperandAccess at_b = operand_access(layout, Core::Transpose::NoTrans, ldb);

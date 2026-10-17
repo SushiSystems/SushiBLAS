@@ -32,7 +32,6 @@
 #include <cstdint>
 #include <vector>
 #include <sycl/sycl.hpp>
-#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>

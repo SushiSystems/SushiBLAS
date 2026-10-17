@@ -36,6 +36,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
@@ -159,7 +160,7 @@ namespace SushiBLAS
                 const int64_t row_groups = Detail::group_count(n, block_m);
                 const int64_t col_groups = Detail::group_count(n, block_n);
 
-                SB_LOG_INFO("SYCL SYR2K [tiled]: batch={} {}x{} k={}", batch_size, n, n, k);
+                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SYR2K [tiled]: batch={} {}x{} k={}", batch_size, n, n, k);
 
                 const sycl::range<3> global(static_cast<std::size_t>(batch_size),
                                             static_cast<std::size_t>(row_groups * wg_rows),

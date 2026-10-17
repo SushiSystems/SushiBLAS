@@ -32,6 +32,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/blas_seam_kernels/band_access.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/triangular_product.hpp>
@@ -57,7 +58,7 @@ namespace SushiBLAS
                                            int64_t incx, T* work,
                                            const std::vector<sycl::event>& deps)
             {
-                SB_LOG_INFO("SYCL TBMV: {}x{}, k={}", n, n, k);
+                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL TBMV: {}x{}, k={}", n, n, k);
 
                 const BandAccess access = triangle_band_access(layout, uplo, trans, k, lda);
                 const bool unit_diag = (diag == Core::Diag::Unit);

@@ -34,6 +34,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/engine/engine_log_category.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
 #include <SushiRuntime/core/span.hpp>
 
@@ -54,7 +55,7 @@ namespace SushiBLAS
             {
                 const std::string rule = Core::Detail::format(fmt, args...);
                 const std::string msg = Core::Detail::format("{}: operand '{}' {}", op, operand, rule);
-                SB_LOG_ERROR("Invalid operand: {}", msg);
+                SB_LOG_ERROR(K_ENGINE_LOG_CATEGORY, "Invalid operand: {}", msg);
                 throw std::invalid_argument(msg);
             }
 
@@ -69,7 +70,7 @@ namespace SushiBLAS
             {
                 const std::string refusal = Core::Detail::format(fmt, args...);
                 const std::string msg = Core::Detail::format("{}: {}", op, refusal);
-                SB_LOG_ERROR("Unsupported execution: {}", msg);
+                SB_LOG_ERROR(K_ENGINE_LOG_CATEGORY, "Unsupported execution: {}", msg);
                 throw UnsupportedExecution(msg);
             }
 
@@ -87,7 +88,7 @@ namespace SushiBLAS
                     "where an integer element means something (copy, fill, the comparison and "
                     "logic family, and the index reductions).",
                     family, name, Core::to_string(dtype));
-                SB_LOG_ERROR("Invalid operand: {}", msg);
+                SB_LOG_ERROR(K_ENGINE_LOG_CATEGORY, "Invalid operand: {}", msg);
                 throw std::invalid_argument(msg);
             }
         } // namespace Detail

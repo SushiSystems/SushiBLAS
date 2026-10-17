@@ -49,13 +49,11 @@ TEST_F(Medium_TRSVTest, SimpleTRSV)
     // b: (results from multiplying A by x = [1, 1, 1] which is [1, 3, 8])
     fill_tensor(b, {1, 3, 8});
 
-    SB_LOG_INFO("Submitting TRSV.");
     SushiBLAS::BLASOps(*engine).trsv(A, b, SushiBLAS::Core::Uplo::Lower,
                                      SushiBLAS::Core::Transpose::NoTrans,
                                      SushiBLAS::Core::Diag::NonUnit);
     
     engine->execute().value();
-    SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: b solved to x = [1, 1, 1]
     verify_tensor(b, {1, 1, 1});

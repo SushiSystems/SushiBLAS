@@ -29,7 +29,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <algorithm>
-#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/random/random.hpp>
 #include <SushiRuntime/core/operation_id.hpp>

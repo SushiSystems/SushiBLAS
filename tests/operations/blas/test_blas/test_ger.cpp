@@ -48,11 +48,9 @@ TEST_F(Medium_GERTest, SimpleGER)
     // Initial A is zeros
     fill_tensor(A, {0, 0, 0, 0, 0, 0});
 
-    SB_LOG_INFO("Submitting GER.");
     SushiBLAS::BLASOps(*engine).ger(X, Y, A);
     
     engine->execute().value();
-    SB_LOG_INFO("Execution finished. Checking results.");
 
     // A = x * y^T = [1; 2] * [1 2 3] = [1 2 3; 2 4 6].
     verify_tensor(A, {1, 2, 3, 2, 4, 6});

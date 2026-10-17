@@ -33,6 +33,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_seam_kernels/blas_seam_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
@@ -126,7 +127,7 @@ namespace SushiBLAS
                     int64_t batch_size, void* scratch,
                     const std::vector<sycl::event>& deps, Epilogue epilogue)
                 {
-                    SB_LOG_INFO("SYCL GEMM [packed]: batch={} {}x{}x{} block={}x{}x{} blocks={} "
+                    SB_LOG_DEBUG(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, "SYCL GEMM [packed]: batch={} {}x{}x{} block={}x{}x{} blocks={} "
                                 "workers={} scratch={}B",
                                 batch_size, m, n, k, plan.block_rows, plan.block_cols,
                                 plan.block_depth, plan.blocks, plan.workers, plan.scratch_bytes);

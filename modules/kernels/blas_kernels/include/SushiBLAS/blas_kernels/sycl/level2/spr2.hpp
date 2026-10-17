@@ -33,6 +33,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
@@ -60,7 +61,7 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
 
-                SB_LOG_INFO("SYCL SPR2: {}x{}", n, n);
+                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SPR2: {}x{}", n, n);
 
                 const PackedAccess access =
                     packed_access(layout, uplo, Core::Transpose::NoTrans, n);

@@ -34,6 +34,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
@@ -69,7 +70,7 @@ namespace SushiBLAS
                 const int64_t in_len = transposed ? m : n;
                 const int64_t longest_row = std::min(in_len, access.lower + access.upper + 1);
 
-                SB_LOG_INFO("SYCL GBMV: {}x{}, kl={}, ku={}", m, n, kl, ku);
+                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL GBMV: {}x{}, kl={}, ku={}", m, n, kl, ku);
 
                 // As in GEMV, the work-group shape serves only rows the storage keeps contiguous.
                 const std::size_t width = (access.col == 1 && out_len > 0)

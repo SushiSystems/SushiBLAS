@@ -36,6 +36,7 @@
 #include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/reductions/reductions_log_category.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
@@ -214,7 +215,7 @@ namespace SushiBLAS
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        SB_LOG_INFO("Reduction {}: {} elements", name_, size_);
+                        SB_LOG_TRACE(K_REDUCTIONS_LOG_CATEGORY, "Reduction {}: {} elements", name_, size_);
 
                         return pair.run(q, deps,
                             [this] { dispatch_.reference(in_, out_, size_); },
@@ -444,7 +445,7 @@ namespace SushiBLAS
                                            sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        SB_LOG_INFO("Axis reduction {}: {} segments of {} elements",
+                        SB_LOG_TRACE(K_REDUCTIONS_LOG_CATEGORY, "Axis reduction {}: {} segments of {} elements",
                                     name_, span_.total_segments(), span_.extent);
 
                         return pair.run(q, deps,

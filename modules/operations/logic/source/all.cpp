@@ -29,6 +29,7 @@
 #include <vector>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/logic/logic_log_category.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
@@ -47,7 +48,7 @@ namespace SushiBLAS
         template<typename T>
         sycl::event all_dispatch(sycl::queue& queue, const T* pT, T* pR, int64_t size, const std::vector<sycl::event>& deps)
         {
-            SB_LOG_INFO("Logic ALL: {} elements", size);
+            SB_LOG_TRACE(K_LOGIC_LOG_CATEGORY, "Logic ALL: {} elements", size);
             if (size == 0)
             {
                 return queue.submit([&](sycl::handler& h)
