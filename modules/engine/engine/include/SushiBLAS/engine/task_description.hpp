@@ -32,6 +32,7 @@
 #include <cstring>
 #include <type_traits>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/engine/engine_log_category.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
@@ -64,7 +65,7 @@ namespace SushiBLAS
         {
             static_assert(std::is_trivially_copyable_v<T>, "A parameter is copied byte by byte.");
             static_assert(sizeof(T) <= sizeof(std::uint64_t), "A parameter fits in one slot.");
-            SB_ASSERT(index >= 0 && index < static_cast<int>(K_MAX_PARAMETERS),
+            SB_ASSERT(K_ENGINE_LOG_CATEGORY, index >= 0 && index < static_cast<int>(K_MAX_PARAMETERS),
                       "A task parameter was written outside the slots of TaskDescription");
             if (index >= 0 && index < static_cast<int>(K_MAX_PARAMETERS))
                 std::memcpy(&parameters[index], &value, sizeof(T));
@@ -80,7 +81,7 @@ namespace SushiBLAS
         {
             static_assert(std::is_trivially_copyable_v<T>, "A parameter is copied byte by byte.");
             static_assert(sizeof(T) <= sizeof(std::uint64_t), "A parameter fits in one slot.");
-            SB_ASSERT(index >= 0 && index < static_cast<int>(K_MAX_PARAMETERS),
+            SB_ASSERT(K_ENGINE_LOG_CATEGORY, index >= 0 && index < static_cast<int>(K_MAX_PARAMETERS),
                       "A task parameter was read outside the slots of TaskDescription");
             T value{};
             if (index >= 0 && index < static_cast<int>(K_MAX_PARAMETERS))

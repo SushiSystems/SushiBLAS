@@ -30,14 +30,11 @@
 
 #include <cstdlib>
 #include <stdexcept>
-#include <string>
 
 #include <SushiLog/log/log_front.hpp>
 #include <SushiLog/log/log_level.hpp>
+#include <SushiRuntime/core/text_format.hpp>
 
-#include <SushiBLAS/core/core_log_category.hpp>
-#include <SushiBLAS/core/format.hpp>
-#include <SushiBLAS/core/sushiblas_log_project.hpp>
 
 #ifndef SB_ENABLE_LOGGING
     #define SB_ENABLE_LOGGING 1
@@ -75,19 +72,19 @@ namespace SushiBLAS
 #define SB_LOG_FATAL(category, ...) SB_LOG_AT(SushiLog::LogLevel::Fatal, category, __VA_ARGS__)
 
 /**
- * @brief Aborts with a FATAL record naming @p msg when @p condition is false; nothing under
- *        NDEBUG.
+ * @brief Aborts with a FATAL record in @p category naming @p msg when @p condition is false;
+ *        nothing under NDEBUG.
  */
 #ifdef NDEBUG
-    #define SB_ASSERT(condition, msg) ((void)0)
+    #define SB_ASSERT(category, condition, msg) ((void)0)
 #else
-    #define SB_ASSERT(condition, msg)                                                                    do                                                                                               {                                                                                                    if (!(condition))                                                                                {                                                                                                    SB_LOG_FATAL(SushiBLAS::K_CORE_LOG_CATEGORY, "assertion '{}' failed: {}; aborting",                              #condition, msg);                                                                   std::abort();                                                                                }                                                                                            } while (0)
+    #define SB_ASSERT(category, condition, msg)                                                          do                                                                                               {                                                                                                    if (!(condition))                                                                                {                                                                                                    SB_LOG_FATAL(category, "assertion '{}' failed: {}; aborting", #condition, msg);                  std::abort();                                                                                }                                                                                            } while (0)
 #endif
 
 /**
- * @brief Logs an ERROR record and throws std::runtime_error with the formatted message when
- *        @p condition holds.
+ * @brief Throws std::runtime_error with the formatted message when @p condition holds; the code
+ *        that catches it logs it where it handles it.
  * @param condition The condition to check.
  * @param ... The message's format string followed by its arguments.
  */
-#define SB_THROW_IF(condition, ...)                                                                  do                                                                                               {                                                                                                    if (condition)                                                                                   {                                                                                                    std::string sb_message_ = SushiBLAS::Core::Detail::format(__VA_ARGS__);                          SB_LOG_ERROR(SushiBLAS::K_CORE_LOG_CATEGORY, "throwing std::runtime_error: {}",                               sb_message_);                                                                       throw std::runtime_error(sb_message_);                                                       }                                                                                            } while (0)
+#define SB_THROW_IF(condition, ...)                                                                  do                                                                                               {                                                                                                    if (condition)                                                                                       throw std::runtime_error(SushiRuntime::Detail::sr_format(__VA_ARGS__));                  } while (0)

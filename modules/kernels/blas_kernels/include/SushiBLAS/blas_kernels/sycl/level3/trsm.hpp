@@ -272,7 +272,7 @@ namespace SushiBLAS
                 const std::size_t streams = static_cast<std::size_t>(batch_size * system.vectors);
 
                 // The workspace is indexed like B, and holds m * n elements per matrix.
-                SB_ASSERT(!RunningSolution<T>::K_NEEDS_WORKSPACE || m <= 0 || n <= 0 ||
+                SB_ASSERT(K_BLAS_KERNELS_LOG_CATEGORY, !RunningSolution<T>::K_NEEDS_WORKSPACE || m <= 0 || n <= 0 ||
                               system.unknown.index(system.order - 1, system.vectors - 1) < m * n,
                           "SYCL TRSM workspace cannot follow a padded B");
 

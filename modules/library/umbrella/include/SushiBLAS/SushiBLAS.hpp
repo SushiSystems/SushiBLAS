@@ -35,7 +35,6 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiBLAS/core/export.hpp>
-#include <SushiBLAS/core/format.hpp>
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/core/sparse_types.hpp>
 #include <SushiBLAS/core/traits.hpp>

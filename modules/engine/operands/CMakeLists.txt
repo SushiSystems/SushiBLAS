@@ -18,6 +18,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE operands
     TESTS
+        test_operands_log_category.cpp
         test_argument_check.cpp
         test_blas_metadata.cpp
         test_matrix_operand.cpp

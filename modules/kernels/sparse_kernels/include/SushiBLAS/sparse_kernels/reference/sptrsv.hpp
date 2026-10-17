@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/sparse_kernels/sparse_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/substitution/running_solution.hpp>
@@ -59,7 +60,7 @@ namespace SushiBLAS
                 using W = Accumulator<T>;
                 using RW = ReferenceAccumulator<T>;
 
-                SB_ASSERT(find_defect(pattern) == StructureDefect::None,
+                SB_ASSERT(K_SPARSE_KERNELS_LOG_CATEGORY, find_defect(pattern) == StructureDefect::None,
                           "sptrsv was given a CSR structure that breaks its contract");
 
                 const int64_t n = pattern.rows;

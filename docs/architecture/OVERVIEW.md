@@ -22,8 +22,8 @@ Two commitments shape every operation.
 The library is built at C++17, the standard SushiRuntime is built to. The spans in its headers
 are `SushiRuntime::span` (`<SushiRuntime/core/span.hpp>`), one class template at every standard,
 which at C++20 also converts from and to `std::span`. `tests/package/` is a consumer set to
-C++20. The pieces C++20 would supply are stand-ins: `core/format.hpp` for `std::format` and the value tag `Dispatch::ElementTag`
-where a templated lambda would go.
+C++20. The pieces C++20 would supply are stand-ins: SushiRuntime's `sr_format` for `std::format`, and
+the value tag `Dispatch::ElementTag` where a templated lambda would go.
 
 A SushiBLAS program starts from SushiRuntime: it creates a `SushiRuntime::Runtime` and builds an
 `Engine` on it. SushiBLAS reaches the runtime through `<SushiRuntime/sushiruntime.hpp>` and the

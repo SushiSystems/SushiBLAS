@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* core_log_category.hpp                                                  */
+/* operands_log_category.hpp                                              */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -20,10 +20,10 @@
 /**************************************************************************/
 
 /**
- * @file core_log_category.hpp
- * @brief Declares K_CORE_LOG_CATEGORY, the category the core module logs under.
+ * @file operands_log_category.hpp
+ * @brief Declares K_OPERANDS_LOG_CATEGORY, the category the operands module logs under.
  * @author Mustafa Garip
- * @see modules/foundation/core/README.md
+ * @see modules/engine/operands/README.md
  */
 
 #pragma once
@@ -34,7 +34,7 @@
 
 namespace SushiBLAS
 {
-    /** @brief Names the records the core module logs: failed assertions and thrown errors. */
-    inline constexpr SushiLog::LogCategory K_CORE_LOG_CATEGORY =
-        SushiLog::make_log_category(K_SUSHIBLAS_LOG_PROJECT, "core");
+    /** @brief Names the records the engine module logs: failed assertions on operand metadata. */
+    inline constexpr SushiLog::LogCategory K_OPERANDS_LOG_CATEGORY =
+        SushiLog::make_log_category(K_SUSHIBLAS_LOG_PROJECT, "operands");
 } // namespace SushiBLAS

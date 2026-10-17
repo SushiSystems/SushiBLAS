@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_core_log_category.cpp                                             */
+/* test_operands_log_category.cpp                                         */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -20,22 +20,22 @@
 /**************************************************************************/
 
 /**
- * @file test_core_log_category.cpp
- * @brief Tests that K_CORE_LOG_CATEGORY names the core module of SushiBLAS.
+ * @file test_operands_log_category.cpp
+ * @brief Tests that K_OPERANDS_LOG_CATEGORY names the operands module of SushiBLAS.
  * @author Mustafa Garip
  */
 
 #include <gtest/gtest.h>
-#include <SushiBLAS/core/core_log_category.hpp>
+#include <SushiBLAS/operands/operands_log_category.hpp>
 
 namespace SushiBLAS
 {
     namespace Test
     {
-        TEST(Small_CoreLogCategory, TheCategoryIsNamedAfterTheModule)
+        TEST(Small_OperandsLogCategory, TheCategoryIsNamedAfterTheModule)
         {
-            static_assert(K_CORE_LOG_CATEGORY.module() == "core", "the folder name of the module");
-            static_assert(K_CORE_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
+            static_assert(K_OPERANDS_LOG_CATEGORY.module() == "operands", "the folder name of the module");
+            static_assert(K_OPERANDS_LOG_CATEGORY.project().name() == "sushiblas", "the project of SushiBLAS");
             SUCCEED();
         }
     } // namespace Test

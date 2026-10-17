@@ -65,7 +65,7 @@ namespace SushiBLAS
                 using W = Accumulator<T>;
 
                 SB_LOG_DEBUG(K_SPARSE_KERNELS_LOG_CATEGORY, "SYCL SPSYMV: order {}, {} entries", pattern.rows, pattern.nnz);
-                SB_ASSERT(pattern.rows == 0 || (partials != nullptr && blocks > 0),
+                SB_ASSERT(K_SPARSE_KERNELS_LOG_CATEGORY, pattern.rows == 0 || (partials != nullptr && blocks > 0),
                           "A symmetric spmv needs the partial sums its caller sized");
 
                 const int64_t n = pattern.rows;

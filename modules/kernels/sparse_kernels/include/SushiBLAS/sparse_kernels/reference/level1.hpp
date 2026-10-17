@@ -30,6 +30,7 @@
 #include <complex>
 #include <cstdint>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/sparse_kernels/sparse_kernels_log_category.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/reference/reference_accumulator.hpp>
@@ -52,7 +53,7 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
 
-                SB_ASSERT(find_defect(positions) == StructureDefect::None,
+                SB_ASSERT(K_SPARSE_KERNELS_LOG_CATEGORY, find_defect(positions) == StructureDefect::None,
                           "axpyi was given positions outside its vector or stored twice");
 
                 for (int64_t k = 0; k < positions.count; ++k)
@@ -73,7 +74,7 @@ namespace SushiBLAS
             {
                 using RW = ReferenceAccumulator<T>;
 
-                SB_ASSERT(find_defect(positions) == StructureDefect::None,
+                SB_ASSERT(K_SPARSE_KERNELS_LOG_CATEGORY, find_defect(positions) == StructureDefect::None,
                           "doti was given positions outside its vector or stored twice");
 
                 ReferenceSum<T> sum;
@@ -90,7 +91,7 @@ namespace SushiBLAS
             template<typename T, typename Index>
             void gthr(const T* y, int64_t incy, const IndexList<Index>& positions, T* x)
             {
-                SB_ASSERT(find_defect(positions) == StructureDefect::None,
+                SB_ASSERT(K_SPARSE_KERNELS_LOG_CATEGORY, find_defect(positions) == StructureDefect::None,
                           "gthr was given positions outside its vector or stored twice");
 
                 for (int64_t k = 0; k < positions.count; ++k)
@@ -104,7 +105,7 @@ namespace SushiBLAS
             template<typename T, typename Index>
             void gthrz(T* y, int64_t incy, const IndexList<Index>& positions, T* x)
             {
-                SB_ASSERT(find_defect(positions) == StructureDefect::None,
+                SB_ASSERT(K_SPARSE_KERNELS_LOG_CATEGORY, find_defect(positions) == StructureDefect::None,
                           "gthrz was given positions outside its vector or stored twice");
 
                 for (int64_t k = 0; k < positions.count; ++k)
@@ -122,7 +123,7 @@ namespace SushiBLAS
             template<typename T, typename Index>
             void sctr(const T* x, const IndexList<Index>& positions, T* y, int64_t incy)
             {
-                SB_ASSERT(find_defect(positions) == StructureDefect::None,
+                SB_ASSERT(K_SPARSE_KERNELS_LOG_CATEGORY, find_defect(positions) == StructureDefect::None,
                           "sctr was given positions outside its vector or stored twice");
 
                 for (int64_t k = 0; k < positions.count; ++k)
@@ -141,7 +142,7 @@ namespace SushiBLAS
                 using W = Accumulator<T>;
                 using WR = Accumulator<RealType<T>>;
 
-                SB_ASSERT(find_defect(positions) == StructureDefect::None,
+                SB_ASSERT(K_SPARSE_KERNELS_LOG_CATEGORY, find_defect(positions) == StructureDefect::None,
                           "roti was given positions outside its vector or stored twice");
 
                 for (int64_t k = 0; k < positions.count; ++k)

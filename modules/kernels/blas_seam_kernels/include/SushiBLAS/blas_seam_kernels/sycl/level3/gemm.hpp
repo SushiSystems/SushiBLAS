@@ -260,7 +260,7 @@ namespace SushiBLAS
                     using W = Accumulator<T>;
                     using Configuration = GemmLocalTile<T>;
 
-                    SB_ASSERT(Device::hosts_local_tile(
+                    SB_ASSERT(K_BLAS_SEAM_KERNELS_LOG_CATEGORY, Device::hosts_local_tile(
                                   Device::profile_for(queue),
                                   {Configuration::local_mem_bytes(),
                                    static_cast<std::size_t>(Configuration::K_WG_ITEMS)}),
