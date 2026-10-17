@@ -33,7 +33,7 @@
 
 #include <SushiLog/log/log_front.hpp>
 #include <SushiLog/log/log_level.hpp>
-#include <SushiRuntime/core/text_format.hpp>
+#include <SushiLog/text/text_format.hpp>
 
 
 #ifndef SB_ENABLE_LOGGING
@@ -87,4 +87,4 @@ namespace SushiBLAS
  * @param condition The condition to check.
  * @param ... The message's format string followed by its arguments.
  */
-#define SB_THROW_IF(condition, ...)                                                                  do                                                                                               {                                                                                                    if (condition)                                                                                       throw std::runtime_error(SushiRuntime::format_text(__VA_ARGS__));                  } while (0)
+#define SB_THROW_IF(condition, ...)                                                                  do                                                                                               {                                                                                                    if (condition)                                                                                       throw std::runtime_error(SushiLog::format_text(__VA_ARGS__));                  } while (0)

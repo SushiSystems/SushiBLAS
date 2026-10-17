@@ -9,7 +9,7 @@ sushiblas_add_module(
     LAYER foundation
     EXTERNAL
         SushiLog::SushiLog
-        SushiRuntime::core)
+        SushiLog::text)
 
 sushiblas_add_test_program(
     MODULE core
