@@ -33,7 +33,6 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
-#include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>

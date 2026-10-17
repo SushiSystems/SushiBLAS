@@ -34,6 +34,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
@@ -275,7 +276,7 @@ namespace SushiBLAS
                               system.unknown.index(system.order - 1, system.vectors - 1) < m * n,
                           "SYCL TRSM workspace cannot follow a padded B");
 
-                SB_LOG_INFO("SYCL TRSM: batch={} m={} n={} block={} blocks={}", batch_size, m, n,
+                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL TRSM: batch={} m={} n={} block={} blocks={}", batch_size, m, n,
                             width, blocks);
 
                 Detail::TriangularBlock<T> block{system, a, str_a, b, str_b, work, alpha,

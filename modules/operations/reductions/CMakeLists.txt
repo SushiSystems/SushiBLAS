@@ -36,6 +36,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE reductions
     TESTS
+        test_reductions_log_category.cpp
         test_arg_reduction.cpp
         test_centred_reduction.cpp
         test_dispatch.cpp

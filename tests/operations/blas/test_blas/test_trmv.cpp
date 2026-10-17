@@ -49,13 +49,11 @@ TEST_F(Medium_TRMVTest, SimpleTRMV)
     // X:
     fill_tensor(X, {1, 1, 1});
 
-    SB_LOG_INFO("Submitting TRMV.");
     SushiBLAS::BLASOps(*engine).trmv(A, X, SushiBLAS::Core::Uplo::Lower,
                                      SushiBLAS::Core::Transpose::NoTrans,
                                      SushiBLAS::Core::Diag::NonUnit);
     
     engine->execute().value();
-    SB_LOG_INFO("Execution finished. Checking results.");
 
     // X = A * X = [1, 2+4, 3+5+6] = [1, 6, 14].
     verify_tensor(X, {1, 6, 14});

@@ -44,11 +44,9 @@ TEST_F(Medium_SYRTest, SimpleSYR)
     fill_tensor(X, {1, 2, 3});
     fill_tensor(A, std::vector<float>(N * N, 0.0f));
 
-    SB_LOG_INFO("Submitting SYR.");
     SushiBLAS::BLASOps(*engine).syr(X, A, SushiBLAS::Core::Uplo::Lower);
     
     engine->execute().value();
-    SB_LOG_INFO("Execution finished. Checking results.");
 
     // Only the lower triangle of x*x^T is written. See tests/operations/blas/README.md.
     

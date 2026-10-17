@@ -13,6 +13,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE tensor
     TESTS
+        test_tensor_log_category.cpp
         test_host_data_type.cpp
         test_storage.cpp
         test_tensor.cpp

@@ -20,6 +20,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE blas_kernels
     TESTS
+        test_blas_kernels_log_category.cpp
         reference/level1/test_level1.cpp
         reference/level1/test_rotg.cpp
         reference/level1/test_rotm.cpp

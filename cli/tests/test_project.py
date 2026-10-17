@@ -114,6 +114,10 @@ class _Config:
         """Returns the sibling checkout the test wrote."""
         return root.parent / "sushiruntime"
 
+    def sushi_definitions(self, root: Path) -> list[str]:
+        """Returns the one pinned Sushi library, as the sibling checkout beside the runtime."""
+        return [f"-DSUSHILOG_DIR={root.parent / 'sushilog'}"]
+
     def resolved_compiler(self, root: Path) -> str:
         """Returns a compiler name; nothing runs it."""
         return "clang++"
@@ -192,7 +196,7 @@ def test_build_rejects_a_bad_define_before_touching_the_tree(parts, checkout):
     marker = checkout / "build" / "CMakeCache.txt"
     marker.write_text("")
     with pytest.raises(InvalidDefineError) as raised:
-        service.build(BuildType.DEBUG, clean=True, defines=["SB_LOG_LEVEL=INFO", "NOVALUE"])
+        service.build(BuildType.DEBUG, clean=True, defines=["SB_ENABLE_LOGGING=OFF", "NOVALUE"])
     assert raised.value.exit_code == K_EXIT_USAGE
     assert marker.is_file()
     assert driver.configured == []
@@ -203,8 +207,16 @@ def test_build_appends_defines_after_every_default(parts, checkout):
     """Caller -D flags end the configure line, so no default outranks them."""
     console, driver, service = parts
     with pytest.raises(StepFailedError):
-        service.build(BuildType.RELEASE, defines=["SB_LOG_LEVEL=INFO", "SB_NATIVE_ARCH="])
-    assert driver.configured[0][-2:] == ["-DSB_LOG_LEVEL=INFO", "-DSB_NATIVE_ARCH="]
+        service.build(BuildType.RELEASE, defines=["SB_ENABLE_LOGGING=OFF", "SB_NATIVE_ARCH="])
+    assert driver.configured[0][-2:] == ["-DSB_ENABLE_LOGGING=OFF", "-DSB_NATIVE_ARCH="]
+
+
+def test_build_hands_each_pinned_sushi_library_to_cmake(parts, checkout):
+    """A pinned Sushi library reaches the configure as <NAME>_DIR, so CMake never downloads it."""
+    console, driver, service = parts
+    with pytest.raises(StepFailedError):
+        service.build(BuildType.RELEASE)
+    assert f"-DSUSHILOG_DIR={checkout.parent / 'sushilog'}" in driver.configured[0]
 
 
 @pytest.mark.parametrize(

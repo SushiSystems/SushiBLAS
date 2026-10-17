@@ -42,11 +42,9 @@ TEST_F(Medium_SCALTest, SimpleSCAL)
 
     fill_tensor(X, {1, 2, 3});
 
-    SB_LOG_INFO("Submitting SCAL.");
     SushiBLAS::BLASOps(*engine).scal(3.0f, X);
     
     engine->execute().value();
-    SB_LOG_INFO("Execution finished. Checking results.");
 
     // Expected: 3 * X = {3, 6, 9}
     verify_tensor(X, {3, 6, 9});

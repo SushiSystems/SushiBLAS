@@ -33,6 +33,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
@@ -138,7 +139,7 @@ namespace SushiBLAS
                 const Detail::TrmvStore<T> store{x, incx};
                 const std::size_t rows = static_cast<std::size_t>(n);
 
-                SB_LOG_INFO("SYCL TRMV: {}x{} group_width={}", n, n, group_width);
+                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL TRMV: {}x{} group_width={}", n, n, group_width);
 
                 const sycl::event copied = queue.submit([&](sycl::handler& h)
                 {

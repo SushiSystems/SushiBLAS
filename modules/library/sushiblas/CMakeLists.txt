@@ -40,10 +40,9 @@ target_include_directories(sushiblas PUBLIC
 # Warnings, architecture targeting and sanitizers, PRIVATE to this tree (SB-6).
 sushiblas_apply_build_policy(sushiblas)
 
-# The compiled-in log level, PUBLIC (see cmake/SushiBLASLogging.cmake) so examples,
-# tests, and out-of-tree consumers all see the same K_ACTIVE_LOG_LEVEL this archive was
-# compiled with.
-sushiblas_apply_log_level(sushiblas)
+# SB_ENABLE_LOGGING, PUBLIC (see cmake/SushiBLASLogging.cmake) so examples, tests and
+# out-of-tree consumers compile the same log calls this archive was compiled with.
+sushiblas_apply_logging(sushiblas)
 
 # --- Link Libraries ---
 # Link against dependencies. PUBLIC so consumers (like the app) inherit them.

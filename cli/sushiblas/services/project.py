@@ -320,6 +320,8 @@ class ProjectService:
             f"-DCMAKE_BUILD_TYPE={build_type}",
             f"-DSUSHIRUNTIME_DIR={cfg.runtime_dir(root)}",
         ]
+        # Each pinned Sushi library reaches CMake as <NAME>_DIR; CMake never downloads.
+        args += cfg.sushi_definitions(root)
         args += _toolchain_args(cfg, root)
         if cfg.is_windows and (prefix := vcpkg_prefix(cfg, root)):
             args.append(f"-DCMAKE_PREFIX_PATH={prefix}")

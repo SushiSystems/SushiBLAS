@@ -33,6 +33,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/elementwise/elementwise_log_category.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/reference/serial_1d.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
@@ -91,7 +92,7 @@ namespace SushiBLAS
                 [count, convert](const KernelPairDispatcher& pair, sycl::queue& q,
                                  const std::vector<sycl::event>& deps) -> sycl::event
                 {
-                    SB_LOG_INFO("Elementwise convert: {} elements", count);
+                    SB_LOG_TRACE(K_ELEMENTWISE_LOG_CATEGORY, "Elementwise convert: {} elements", count);
 
                     return pair.run(q, deps,
                         [count, convert] { Serial::indexed(count, convert); },

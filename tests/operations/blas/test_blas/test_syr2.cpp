@@ -46,11 +46,9 @@ TEST_F(Medium_SYR2Test, SimpleSYR2)
     fill_tensor(Y, {1, 0, 0}); // Simplified for easy checking
     fill_tensor(A, std::vector<float>(N * N, 0.0f));
 
-    SB_LOG_INFO("Submitting SYR2.");
     SushiBLAS::BLASOps(*engine).syr2(X, Y, A, SushiBLAS::Core::Uplo::Lower);
     
     engine->execute().value();
-    SB_LOG_INFO("Execution finished. Checking results.");
 
     // Only the lower triangle of x*y^T + y*x^T is written. See tests/operations/blas/README.md.
     

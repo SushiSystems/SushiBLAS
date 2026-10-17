@@ -21,6 +21,7 @@ include(Toolchain)  # pick the default SYCL compiler (clang++) before the probe
 project(SushiBLAS VERSION 0.1.0 LANGUAGES CXX C)
 
 # --- Post-project: runtime dependency (D3 layered resolution, SB-0), SYCL policy
+include(SushiBLASSushiLog)  # SushiLog::SushiLog, before the runtime links it
 include(Runtime)     # add_subdirectory(sushiruntime) -> SushiRuntime::SushiRuntime,
                       # add_sycl_to_target(), SR_SYCL_TOOLCHAIN
 include(SyclTarget)  # sushiblas_apply_sycl() helper
@@ -38,10 +39,9 @@ include(SyclTarget)  # sushiblas_apply_sycl() helper
 # sushiblas already inherits transitively.
 include(SushiBLASBuildPolicy)
 
-# The compiled-in log level (SB_LOG_LEVEL) -> sushiblas_apply_log_level(<target>).
-# Separate from BuildPolicy because it is the one compile definition that must be
-# PUBLIC: the level lives in an inline constexpr variable in a public header, so a
-# consumer that disagreed with the library about it would be an ODR violation.
+# SB_ENABLE_LOGGING -> sushiblas_apply_logging(<target>). Separate from BuildPolicy because
+# it is the one compile definition that must be PUBLIC, so a consumer compiles the same log
+# calls the library does.
 include(SushiBLASLogging)
 include(SushiBLASModule)  # sushiblas_add_module() and the tier table
 

@@ -32,6 +32,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
@@ -59,7 +60,7 @@ namespace SushiBLAS
                                            int64_t incx, Accumulator<T>* work,
                                            const std::vector<sycl::event>& deps)
             {
-                SB_LOG_INFO("SYCL TBSV: {}x{}, k={} block={}", n, n, k, plan.block_width(n));
+                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL TBSV: {}x{}, k={} block={}", n, n, k, plan.block_width(n));
 
                 const BandAccess access = triangle_band_access(layout, uplo, trans, k, lda);
                 const bool op_upper = Core::is_transposed(trans) != (uplo == Core::Uplo::Upper);

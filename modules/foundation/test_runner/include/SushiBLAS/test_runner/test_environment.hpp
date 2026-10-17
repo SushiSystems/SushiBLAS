@@ -31,6 +31,7 @@
 #include <optional>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/test_runner/test_runner_log_category.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 
 namespace SushiBLAS
@@ -47,16 +48,16 @@ namespace SushiBLAS
                 /** @brief Creates the runtime, or stops the process if it cannot be created. */
                 void SetUp() override
                 {
-                    SB_LOG_INFO("--- Initializing SushiBLAS Test Environment ---");
+                    SB_LOG_INFO(K_TEST_RUNNER_LOG_CATEGORY, "--- Initializing SushiBLAS Test Environment ---");
                     runtime_.emplace(SushiRuntime::Runtime::create().value());
 
-                    SB_LOG_INFO("Test environment ready.");
+                    SB_LOG_INFO(K_TEST_RUNNER_LOG_CATEGORY, "Test environment ready.");
                 }
 
                 /** @brief Destroys the runtime. */
                 void TearDown() override
                 {
-                    SB_LOG_INFO("--- Tearing down SushiBLAS Test Environment ---");
+                    SB_LOG_INFO(K_TEST_RUNNER_LOG_CATEGORY, "--- Tearing down SushiBLAS Test Environment ---");
                     runtime_.reset();
                 }
 

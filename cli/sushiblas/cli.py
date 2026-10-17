@@ -77,7 +77,7 @@ def _exit_with(step: Callable[[], int]) -> NoReturn:
            "sb build --clean  # Start from an empty build tree\n"
            "sb build --benchmarks  # Also build the benchmark programs\n"
            "sb build --sanitize address-undefined  # Instrument host code with ASan and UBSan\n"
-           "sb build -D SB_LOG_LEVEL=INFO  # Pass a CMake cache variable through",
+           "sb build -D SB_ENABLE_LOGGING=OFF  # Pass a CMake cache variable through",
 )
 def build(
     type: BuildType = typer.Option(

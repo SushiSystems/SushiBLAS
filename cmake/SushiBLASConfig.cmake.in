@@ -18,6 +18,11 @@
 
 include(CMakeFindDependencyMacro)
 
+# The public log headers include SushiLog, and the library links it.
+if(NOT TARGET SushiLog::SushiLog)
+    find_dependency(SushiLog CONFIG)
+endif()
+
 # SushiBLAS is a thin head over the runtime: its own kernels depend on
 # SushiRuntime::SushiRuntime being resolvable the same way SushiRuntime's own
 # package config resolves its SYCL dependency. If a superproject already

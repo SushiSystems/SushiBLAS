@@ -44,7 +44,6 @@ class Medium_DependencyStressTest : public SushiBLASTest {};
 TEST_F(Medium_DependencyStressTest, ManyReadersOneWriter) 
 {
     
-    SB_LOG_INFO("Starting Medium_DependencyStressTest.ManyReadersOneWriter");
     
     const int num_readers = 5000;
     const int N = 32;
@@ -60,7 +59,6 @@ TEST_F(Medium_DependencyStressTest, ManyReadersOneWriter)
         reader_outputs.push_back(t);
     }
     
-    SB_LOG_INFO("Enqueueing a single writer and {} readers...", num_readers);
     
     // Create an independent tensor just for the GEMM to multiply with writer_tensor
     auto dummy_weights = engine->create_tensor({N, N});
@@ -75,19 +73,16 @@ TEST_F(Medium_DependencyStressTest, ManyReadersOneWriter)
         SushiBLAS::BLASOps(*engine).gemm(writer_tensor, dummy_weights, reader_outputs[i]);
     }
     
-    SB_LOG_INFO("Executing DAG with massive reader fan-out...");
     auto start = std::chrono::high_resolution_clock::now();
     engine->execute().value();
     auto end = std::chrono::high_resolution_clock::now();
     
     std::chrono::duration<double, std::milli> duration = end - start;
-    SB_LOG_INFO("ManyReadersOneWriter took: {} ms", duration.count());
     
     // writer = 32 * 2 * 2 = 128 everywhere; every reader = 32 * 128 * 2 = 8192.
     const std::vector<float> K_EXPECTED_READER(N * N, 8192.0f);
     for (int i = 0; i < num_readers; ++i)
         verify_tensor(reader_outputs[i], K_EXPECTED_READER, 0.0);
-    SB_LOG_INFO("ManyReadersOneWriter finished test body.");
 }
 
 /**
@@ -97,7 +92,6 @@ TEST_F(Medium_DependencyStressTest, ManyReadersOneWriter)
 TEST_F(Medium_DependencyStressTest, ShardCollisionStress) 
 {
     
-    SB_LOG_INFO("Starting Medium_DependencyStressTest.ShardCollisionStress");
     
     const int num_ops = 3000;
     const int N = 8;
@@ -114,22 +108,18 @@ TEST_F(Medium_DependencyStressTest, ShardCollisionStress)
         fill_tensor(Bs[i], std::vector<float>(N * N, K_B_VALUE));
     }
     
-    SB_LOG_INFO("Enqueueing {} completely independent GEMM operations...", num_ops);
     for (int i = 0; i < num_ops; ++i) 
     {
         SushiBLAS::BLASOps(*engine).gemm(As[i], Bs[i], Cs[i]);
     }
     
-    SB_LOG_INFO("Executing DAG. Watch for false dependency serialization...");
     auto start = std::chrono::high_resolution_clock::now();
     engine->execute().value();
     auto end = std::chrono::high_resolution_clock::now();
     
     std::chrono::duration<double, std::milli> duration = end - start;
-    SB_LOG_INFO("ShardCollisionStress took: {} ms", duration.count());
     
     // Every element of C_i is N * a_i * K_B_VALUE = 4 * a_i, exact in float.
     for (int i = 0; i < num_ops; ++i)
         verify_tensor(Cs[i], std::vector<float>(N * N, N * a_value_of(i) * K_B_VALUE), 0.0);
-    SB_LOG_INFO("ShardCollisionStress finished test body.");
 }

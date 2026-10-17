@@ -37,6 +37,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
@@ -219,7 +220,7 @@ namespace SushiBLAS
                     OperandAccess second = a_access.transposed();
                     second.conjugated = (a_access.conjugated != std::is_same_v<Conj, Conjugated>);
 
-                    SB_LOG_INFO("SYCL SYRK [packed]: batch={} {}x{} k={} block={}x{}x{} workers={}",
+                    SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SYRK [packed]: batch={} {}x{} k={} block={}x{}x{} workers={}",
                                 batch_size, n, n, k, packed.block_rows, packed.block_cols,
                                 packed.block_depth, packed.workers);
 
@@ -239,7 +240,7 @@ namespace SushiBLAS
                 const int64_t n_tiles_m = (n + block_m - 1) / block_m;
                 const int64_t n_tiles_n = (n + block_n - 1) / block_n;
 
-                SB_LOG_INFO("SYCL SYRK [tiled]: batch={} {}x{} k={}", batch_size, n, n, k);
+                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SYRK [tiled]: batch={} {}x{} k={}", batch_size, n, n, k);
 
                 sycl::range<3> global(static_cast<size_t>(batch_size),
                                        static_cast<size_t>(n_tiles_m * wg_rows),

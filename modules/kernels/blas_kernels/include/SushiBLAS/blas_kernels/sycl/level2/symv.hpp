@@ -33,6 +33,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
@@ -57,7 +58,7 @@ namespace SushiBLAS
                              const std::vector<sycl::event>& deps)
             {
                 using W = Accumulator<T>;
-                SB_LOG_INFO("SYCL SYMV: {}x{}", n, n);
+                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SYMV: {}x{}", n, n);
 
                 auto A_at = [=](int64_t r, int64_t c) -> T
                 {

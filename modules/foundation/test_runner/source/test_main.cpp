@@ -26,15 +26,17 @@
  */
 
 #include <gtest/gtest.h>
+#include <SushiLog/log/log_calls.hpp>
 #include <SushiBLAS/core/logger.hpp>
-#include <SushiRuntime/api/runtime/logging.hpp>
+#include <SushiBLAS/test_runner/test_runner_log_category.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
+
+using SushiBLAS::K_TEST_RUNNER_LOG_CATEGORY;
 
 int main(int argc, char **argv) 
 {
     // Force logs to stream synchronously during testing to avoid overlap with GTest output.
-    SushiRuntime::set_log_synchronous(true);
-    SB_LOGGER_SET_SYNC_MODE(true);
+    SushiLog::set_log_synchronous(true);
     
     ::testing::InitGoogleTest(&argc, argv);
     
@@ -42,6 +44,6 @@ int main(int argc, char **argv)
     ::testing::AddGlobalTestEnvironment(new SushiBLAS::Test::TestEnvironment());
     
     int res = RUN_ALL_TESTS();
-    SB_LOG_INFO("All tests finished with result: {}", res);
+    SB_LOG_INFO(K_TEST_RUNNER_LOG_CATEGORY, "All tests finished with result: {}", res);
     return res;
 }

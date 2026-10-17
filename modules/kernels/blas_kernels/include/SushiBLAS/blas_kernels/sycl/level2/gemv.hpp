@@ -33,6 +33,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/launch/launch_1d.hpp>
@@ -63,7 +64,7 @@ namespace SushiBLAS
                 const int64_t out_len = transposed ? n : m;
                 const int64_t in_len = transposed ? m : n;
 
-                SB_LOG_INFO("SYCL GEMV: {}x{}", m, n);
+                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL GEMV: {}x{}", m, n);
 
                 const Device::Profile& profile = Device::profile_for(queue);
                 const bool row_contiguous = (layout == Core::Layout::RowMajor) != transposed;

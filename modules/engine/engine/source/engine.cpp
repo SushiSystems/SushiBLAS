@@ -30,6 +30,7 @@
 #include <cstddef>
 
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/engine/engine_log_category.hpp>
 
 namespace SushiBLAS
 {
@@ -37,7 +38,7 @@ namespace SushiBLAS
         : runtime_(runtime), scratch_pool_(runtime), graph_(runtime),
           recorder_(graph_.recorder(), scratch_pool_), tensor_factory_(runtime, layout)
     {
-        SB_LOG_INFO("SushiBLAS Engine initialized with {} layout.",
+        SB_LOG_INFO(K_ENGINE_LOG_CATEGORY, "SushiBLAS Engine initialized with {} layout.",
                     layout == Core::Layout::RowMajor ? "Row-Major" : "Column-Major");
     }
 
@@ -49,6 +50,6 @@ namespace SushiBLAS
     void Engine::discard_recorded()
     {
         const std::size_t dropped = recorder_.run_exclusive([this] { return graph_.discard(); });
-        SB_LOG_INFO("SushiBLAS Engine discarded {} recorded task(s).", dropped);
+        SB_LOG_INFO(K_ENGINE_LOG_CATEGORY, "SushiBLAS Engine discarded {} recorded task(s).", dropped);
     }
 } // namespace SushiBLAS

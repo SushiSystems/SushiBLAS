@@ -6,6 +6,13 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-17 — build: Pinned SushiLog v0.1.2, which SushiBLAS links directly and finds through `SUSHILOG_DIR` from the CLI (`sushistack.deps.toml`, `SushiBLASSushiLog.cmake`).
+- 2026-10-17 — cli: Moved to sushicore 0.9.1 and passed each pinned Sushi library to the configure (`pyproject.toml`, `project.py`).
+- 2026-10-16 — core: Breaking change: `SB_LOG_*` take a category first and write through SushiLog, and `SB_LOGGER_SET_SYNC_MODE`, `AsyncLogger` and `SyncLogger` are gone (`logger.hpp`).
+- 2026-10-16 — build: Breaking change: the `SB_LOG_LEVEL` CMake option is gone; `SB_ENABLE_LOGGING` compiles calls below ERROR and the `SB_LOG_LEVEL` variable sets levels at run time (`SushiBLASLogging.cmake`).
+- 2026-10-16 — logging: Gave each of twelve logging modules its own category and moved kernel launch records to DEBUG and per-call operation records to TRACE (`<module>_log_category.hpp`).
+- 2026-10-16 — io: Moved `IO::print`, the one IO call that writes to stdout, to its own source file (`print.cpp`).
+- 2026-10-16 — tools: Took the logging and test-size checkers from SushiSkills and set the log prefix and console paths (`check_logging.py`, `settings.py`).
 - 2026-10-16 — cli: Added `sb test --jobs`, which caps how many tests ctest runs at once (`cli.py`, `project.py`).
 - 2026-10-15 — cli: Pinned sushicore 0.9.0 and ran `sb test` through its ctest driver, which excludes the quarantined tests (`pyproject.toml`, `project.py`).
 - 2026-10-15 — ci: Ran pre-merge jobs behind one `gate` job, with Windows, ASan and UBSan; push to main adds ThreadSanitizer and a SushiAI build (`ci.yml`).

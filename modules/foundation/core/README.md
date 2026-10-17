@@ -1,8 +1,8 @@
 # core
 
 The foundation module every other module is written in: element types, traits, the format
-stand-in, the logger, the error type and the version macros. It depends on no other module and
-on nothing outside the standard library. Its headers are included as `<SushiBLAS/core/<name>.hpp>`.
+stand-in, the logger, the error type and the version macros. It depends on no other module; its
+logger is a front on SushiLog's. Its headers are included as `<SushiBLAS/core/<name>.hpp>`.
 
 | File | Declares |
 | --- | --- |
@@ -13,7 +13,9 @@ on nothing outside the standard library. Its headers are included as `<SushiBLAS
 | `traits.hpp` | The compile-time type traits the library shares |
 | `export.hpp` | `SUSHIBLAS_API`, the symbol visibility macro of each platform |
 | `format.hpp` | The C++17 stand-in for `std::format` that log and error messages use |
-| `logger.hpp` | The log levels, the two loggers and the `SB_LOG_*` and `SB_THROW_IF` macros |
+| `logger.hpp` | The `SB_LOG_*` macros on SushiLog, `SB_ASSERT` and `SB_THROW_IF` |
+| `sushiblas_log_project.hpp` | `K_SUSHIBLAS_LOG_PROJECT`, the project of every SushiBLAS log category |
+| `core_log_category.hpp` | `K_CORE_LOG_CATEGORY`, the category `SB_ASSERT` and `SB_THROW_IF` log under |
 | `version.hpp` | The `SUSHIBLAS_VERSION_*` macros; `CMakeLists.txt` refuses a value that differs from `project()` |
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
@@ -225,75 +227,38 @@ Returns: The substituted string.
 
 ## `logger.hpp`
 
-### `SB_FUNCTION_SIGNATURE`
+SushiBLAS keeps no logger of its own. The `SB_LOG_*` macros are a front on SushiLog, the one
+logger of the process, built on `SL_LOG_FRONT_AT`: SushiBLAS's records go through the queue,
+thread and sink SushiRuntime's records use, and SushiBLAS's levels are its own. SushiBLAS links
+SushiLog directly, at the version `cli/sushistack.deps.toml` pins. The rules are the SushiSkills `logging`
+standard.
 
-The C++17 stand-in for `std::source_location::current().function_name()`, which is where this used
-to come from. The pretty form rather than plain `__func__` on purpose: at the dispatch seam every
-frame is a lambda inside a function template, and the bare name is `operator()` for all of them: the
-signature is what tells one apart from another, and it is what the level-choice rationale on
-`SB_ACTIVE_LOG_LEVEL` is costing out.
+| Part | SushiBLAS |
+| --- | --- |
+| Project | `K_SUSHIBLAS_LOG_PROJECT`, in `sushiblas_log_project.hpp`; `SB_LOG_LEVEL` sets its levels |
+| Category | One `K_<MODULE>_LOG_CATEGORY` per module that logs, in `<module>_log_category.hpp`; core's is `K_CORE_LOG_CATEGORY` |
+| Call | `SB_LOG_TRACE` to `SB_LOG_FATAL`, each taking the category, a format string and its arguments |
+| Ceiling | `K_LOG_LEVEL_CEILING`: ERROR when `SB_ENABLE_LOGGING` is 0, DEBUG under `NDEBUG`, TRACE otherwise |
 
-### `SB_ACTIVE_LOG_LEVEL`
+`SB_LOG_LEVEL=warn,blas_kernels=debug` shows every kernel launch and its chosen shape while
+leaving the other modules at WARN. The test programs call `SushiLog::set_log_synchronous(true)` so records arrive in order;
+SushiBLAS re-exports no SushiLog name.
 
-Set it from the build rather than by editing this header: the `SB_LOG_LEVEL` CMake cache variable
-(`cmake/SushiBLASLogging.cmake`) forwards its value here, so `sb build -D SB_LOG_LEVEL=INFO` raises
-the level for a debugging session and `sb build -D SB_LOG_LEVEL=auto` puts it back. Valid values are
-the level names `OFF`, `ERR`, `WARN`, `INFO` and `DEBUG`; CMake rejects any other at configure time
-and defines `SB_ACTIVE_LOG_LEVEL` as the `LogLevel` enumerator of the level, `Off` to `Debug`. A
-build that defines the macro itself names the enumerator.
+The `SB_ENABLE_LOGGING` CMake option (`cmake/SushiBLASLogging.cmake`) defaults to ON;
+`sb build -D SB_ENABLE_LOGGING=OFF` compiles out every call below ERROR. The definition is
+PUBLIC, so a consumer compiles the same calls the library does.
 
-The default is WARN for a release build and DEBUG for a debug build. INFO in a release build
-is expensive and not merely noisy: every `SB_LOG_INFO` that survives the `if
-constexpr` formats a `SushiBLAS::Core::Detail::SourceLocation`, file, line, and the fully templated
-function signature, several hundred characters at the dispatch seam, and pushes the string through a
-mutex-guarded queue. The kernel launch path logs at INFO once per launch, so a training loop paid
-that on every operation of every step.
+### `SB_ASSERT`
 
-### `timestamp`
+In a build without `NDEBUG`, a false condition writes a FATAL record naming the condition and
+the message, then aborts. SushiLog delivers a FATAL record on the calling thread after
+draining its queue, so the line is written before the process ends. Under `NDEBUG` the macro
+compiles to nothing.
 
-At `char buf[16];`: snprintf rather than the library's own formatter: this is the one format string
-in the codebase that runs on every single log line, and its shape never varies, so there is nothing
-to gain from re-parsing it each time.
+### `SB_THROW_IF`
 
-### `SourceLocation`
-
-The C++17 stand-in for `std::source_location`, which is C++20. Deliberately shaped like it, same
-three accessors, same names, so that the day this stack can assume C++20 again the type is deleted
-and `std::source_location` dropped in with no other edit. It is filled by `SB_CURRENT_LOCATION`,
-which is what `std::source_location::current()` was doing underneath anyway: `__FILE__`, the
-function signature, and `__LINE__`.
-
-### `log_base`
-
-At `std::ostringstream os;`: the message goes through the format helper; the line around it does
-not. Its shape is fixed, so streaming it directly saves parsing a second format string on every line
-that survives the level test.
-
-### `log_if`
-
-A function template rather than an `if constexpr` spelled out in the macro, for two reasons.
-
-First, arguments stay used. A macro that expanded to `if constexpr (level ok) log_base(...,
-args...)` would not keep them: inside a template, a discarded statement is never instantiated, so
-lowering the compiled-in level turns every variable a log line is the sole reader of into an
-unused one, `-Wunused-lambda-capture` under `-Werror`, and the call sites would need `(void)x;`. Passing the arguments to a function keeps them odr-used whatever the level, so the
-level is a pure logging decision and never a compile error somewhere else.
-
-Second, it is an expression, not a statement, so `if (c) SB_LOG_INFO(...); else ...` binds the
-`else` where the reader expects it instead of to the macro's own hidden `if`.
-
-Everything above the active level still costs nothing at run time: the discarded branch leaves an
-empty function body that inlines away.
-
-- `fmt`: The format string; see `<SushiBLAS/core/format.hpp>` for the grammar.
-
-### The `SB_LOG_*` macros
-
-The format string is folded into __VA_ARGS__, the macros take (...) rather than (fmt, ...), for two
-reasons, both C++17 rules that C++20 relaxed. It avoids __VA_OPT__, which is C++20; and it keeps the
-variadic list non-empty for a call with no arguments at all (`SB_LOG_INFO("done")`), which under
-`(fmt, ...)` would pass zero arguments for `...` and trip -Wpedantic. `log_if`'s `std::string_view
-fmt` parameter binds the first argument, so every existing call site is unchanged.
+Formats the message with `Core::Detail::format`, writes it as an ERROR record under
+`K_CORE_LOG_CATEGORY`, then throws `std::runtime_error` with the same text.
 
 ## `traits.hpp`
 

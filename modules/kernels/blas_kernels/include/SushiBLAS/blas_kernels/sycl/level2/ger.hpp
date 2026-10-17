@@ -32,6 +32,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
@@ -54,7 +55,7 @@ namespace SushiBLAS
                             T* a, int64_t lda, const std::vector<sycl::event>& deps)
             {
                 using W = Accumulator<T>;
-                SB_LOG_INFO("SYCL GER: {}x{}", m, n);
+                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL GER: {}x{}", m, n);
 
                 return queue.submit([&](sycl::handler& h)
                 {

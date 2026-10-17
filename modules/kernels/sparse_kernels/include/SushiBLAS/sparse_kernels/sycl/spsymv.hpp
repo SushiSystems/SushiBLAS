@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/sparse_kernels/sparse_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
@@ -63,7 +64,7 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
 
-                SB_LOG_INFO("SYCL SPSYMV: order {}, {} entries", pattern.rows, pattern.nnz);
+                SB_LOG_DEBUG(K_SPARSE_KERNELS_LOG_CATEGORY, "SYCL SPSYMV: order {}, {} entries", pattern.rows, pattern.nnz);
                 SB_ASSERT(pattern.rows == 0 || (partials != nullptr && blocks > 0),
                           "A symmetric spmv needs the partial sums its caller sized");
 

@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/sparse_kernels/sparse_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/substitution/running_solution.hpp>
@@ -60,7 +61,7 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
 
-                SB_LOG_INFO("SYCL SPTRSV: order {}, {} entries", pattern.rows, pattern.nnz);
+                SB_LOG_DEBUG(K_SPARSE_KERNELS_LOG_CATEGORY, "SYCL SPTRSV: order {}, {} entries", pattern.rows, pattern.nnz);
 
                 const int64_t n = pattern.rows;
                 const bool lower = (uplo == Core::Uplo::Lower);

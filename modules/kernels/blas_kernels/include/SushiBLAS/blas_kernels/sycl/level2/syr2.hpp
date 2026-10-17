@@ -33,6 +33,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
@@ -74,7 +75,7 @@ namespace SushiBLAS
             {
                 using W = Accumulator<T>;
                 const bool upper = (uplo == Core::Uplo::Upper);
-                SB_LOG_INFO("SYCL SYR2: {}x{}", n, n);
+                SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SYR2: {}x{}", n, n);
 
                 return queue.submit([&](sycl::handler& h)
                 {

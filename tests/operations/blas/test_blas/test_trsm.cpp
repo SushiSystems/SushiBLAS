@@ -50,14 +50,12 @@ TEST_F(Medium_TRSMTest, SimpleTRSM)
     // B is [4 6; 4 7].
     fill_tensor(B, {4, 6, 4, 7});
 
-    SB_LOG_INFO("Submitting standard TRSM.");
     SushiBLAS::BLASOps(*engine).trsm(A, B, SushiBLAS::Core::Side::Left,
                                      SushiBLAS::Core::Uplo::Lower,
                                      SushiBLAS::Core::Transpose::NoTrans,
                                      SushiBLAS::Core::Diag::NonUnit, 1.0f);
     
     engine->execute().value();
-    SB_LOG_INFO("Execution finished. Checking results.");
 
     // A * X = B solves to X = [2 3; 1 2], which overwrites B. See tests/operations/blas/README.md.
     verify_tensor(B, {2, 3, 1, 2});
@@ -77,14 +75,12 @@ TEST_F(Medium_TRSMTest, SimpleTRSMColumnMajor)
     // B is [4 6; 4 7], stored column-major as [4 4 6 7].
     fill_tensor(B, {4, 4, 6, 7});
 
-    SB_LOG_INFO("Submitting Column-Major TRSM.");
     SushiBLAS::BLASOps(*engine).trsm(A, B, SushiBLAS::Core::Side::Left,
                                      SushiBLAS::Core::Uplo::Upper,
                                      SushiBLAS::Core::Transpose::NoTrans,
                                      SushiBLAS::Core::Diag::NonUnit, 1.0f);
     
     engine->execute().value();
-    SB_LOG_INFO("Execution finished. Checking results.");
 
     // X is [1 1.25; 2 3.5], stored column-major. See tests/operations/blas/README.md.
     verify_tensor(B, {1.0f, 2.0f, 1.25f, 3.5f});

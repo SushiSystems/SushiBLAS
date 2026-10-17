@@ -113,7 +113,7 @@ function(sushiblas_add_module)
     if(ARG_EXTERNAL)
         target_link_libraries(${target} INTERFACE ${ARG_EXTERNAL})
     endif()
-    sushiblas_apply_log_level(${target} INTERFACE)
+    sushiblas_apply_logging(${target} INTERFACE)
 
     if(ARG_INTERNAL)
         set_property(GLOBAL APPEND PROPERTY SUSHIBLAS_INTERNAL_INCLUDE_ROOTS "${include_root}")

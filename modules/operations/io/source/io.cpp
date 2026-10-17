@@ -26,6 +26,8 @@
  * @author Mustafa Garip
  */
 
+#include <SushiBLAS/core/logger.hpp>
+#include <SushiBLAS/io/io_log_category.hpp>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -38,7 +40,6 @@
 #include <stdexcept>
 #include <iomanip>
 #include <sstream>
-#include <iostream>
 #include <string_view>
 #include <SushiBLAS/io/io.hpp>
 #include <SushiBLAS/engine/engine.hpp>
@@ -62,7 +63,7 @@ namespace SushiBLAS
         [[noreturn]] void fail_io(IOStatus status, [[maybe_unused]] std::string_view format,
                                   [[maybe_unused]] const Args&... args)
         {
-            SB_LOG_ERROR("io: {}", Core::Detail::format(format, args...));
+            SB_LOG_ERROR(K_IO_LOG_CATEGORY, "io: {}", Core::Detail::format(format, args...));
             throw IOFailure{status};
         }
 
@@ -87,7 +88,7 @@ namespace SushiBLAS
             if (ran)
                 return IOStatus::Ok;
 
-            SB_LOG_ERROR("io: the recorded tasks failed before the file operation: {}",
+            SB_LOG_ERROR(K_IO_LOG_CATEGORY, "io: the recorded tasks failed before the file operation: {}",
                          ran.error().message);
             return IOStatus::RunFailed;
         }
@@ -836,7 +837,7 @@ namespace SushiBLAS
         });
 
         if (status == IOStatus::Ok)
-            SB_LOG_INFO("Saved native SushiBLAS file: {}", path);
+            SB_LOG_INFO(K_IO_LOG_CATEGORY, "Saved native SushiBLAS file: {}", path);
         return status;
     }
 
@@ -979,7 +980,7 @@ namespace SushiBLAS
         });
 
         if (status == IOStatus::Ok)
-            SB_LOG_INFO("Exported NumPy file: {}", path);
+            SB_LOG_INFO(K_IO_LOG_CATEGORY, "Exported NumPy file: {}", path);
         return status;
     }
 
@@ -1017,7 +1018,7 @@ namespace SushiBLAS
         });
 
         if (status == IOStatus::Ok)
-            SB_LOG_INFO("Loaded NumPy file: {}", path);
+            SB_LOG_INFO(K_IO_LOG_CATEGORY, "Loaded NumPy file: {}", path);
         return status;
     }
 
@@ -1085,10 +1086,5 @@ namespace SushiBLAS
         write_dimension(ss, reader, layout, 0, 0);
 
         return ss.str();
-    }
-
-    void IO::print(const Tensor& t, int precision, int edge_items)
-    {
-        std::cout << to_string(t, precision, edge_items);
     }
 } // namespace SushiBLAS

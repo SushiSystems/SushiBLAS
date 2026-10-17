@@ -22,4 +22,10 @@
 #   check_cmd      Optional command; exit 0 means "already installed".
 
 [module]
-depends_on = ["sushiruntime"]
+depends_on = ["sushiruntime", "sushilog"]
+
+# SushiLog, the one logger of the process. SushiBLAS's log front includes its headers and links
+# it directly; the CLI resolves this pin and hands it to CMake as SUSHILOG_DIR.
+[sushi.sushilog]
+version = "v0.1.2"
+commit  = "01da0e7464040a02025f44e50cfca64579215a22"

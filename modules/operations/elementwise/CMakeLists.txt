@@ -53,6 +53,7 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE elementwise
     TESTS
+        test_elementwise_log_category.cpp
         test_dispatch.cpp
         test_elementwise/test_abs.cpp
         test_elementwise/test_acos.cpp

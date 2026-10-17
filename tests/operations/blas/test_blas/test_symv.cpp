@@ -51,11 +51,9 @@ TEST_F(Medium_SYMVTest, SimpleSYMV)
     // Y:
     fill_tensor(Y, {0, 0, 0});
 
-    SB_LOG_INFO("Submitting SYMV.");
     SushiBLAS::BLASOps(*engine).symv(A, X, Y, SushiBLAS::Core::Uplo::Lower);
     
     engine->execute().value();
-    SB_LOG_INFO("Execution finished. Checking results.");
 
     // Y = A * X = [1+2+3, 2+4+5, 3+5+6] = [6, 11, 14].
     verify_tensor(Y, {6, 11, 14});
