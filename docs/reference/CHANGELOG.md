@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-17 — build: Pinned SushiLog v0.2.2, which configures on Windows CI (`sushistack.deps.toml`).
 - 2026-10-17 — blas_seam_kernels: Fixed packed and scalar GEMM differing in the last bits of `complex<float>`; both fuse each step and the tree builds precise, so GEMM's last bits change (`multiply_add.hpp`, `SushiBLASFloatingPoint.cmake`).
 - 2026-10-17 — core: Formatted messages with SushiLog's `format_text` and linked `SushiLog::text`, after SushiLog v0.2.1 took the formatter from SushiRuntime (`logger.hpp`, `sushistack.deps.toml`).
 - 2026-10-17 — core: Formatted messages with SushiRuntime's public `format_text` in place of its internal `sr_format` (`logger.hpp`, `operand_check.hpp`, `io.cpp`).
