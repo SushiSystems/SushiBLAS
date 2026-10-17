@@ -34,6 +34,7 @@
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/traits.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/arithmetic/multiply_add.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp>
 
 namespace SushiBLAS
@@ -88,24 +89,10 @@ namespace SushiBLAS
                     {
                         const Row b_slice = load_lanes<R, Cols>(b + l * Cols);
                         const R* a_slice = a + l * Rows;
-                        ((sum[I] = sum[I] + Row(a_slice[I]) * b_slice), ...);
+                        ((sum[I] = Kernels::Detail::multiply_add(Row(a_slice[I]), b_slice,
+                                                                 sum[I])), ...);
                     }
                     (store_lanes<R, Cols>(tile + I * Cols, sum[I]), ...);
-                }
-
-                /**
-                 * @brief Adds one complex term to a row of sums by the four-product formula.
-                 * @see modules/foundation/arithmetic/README.md
-                 */
-                template<typename R, int Cols>
-                inline void add_complex_term(sycl::vec<R, Cols>& sum_re, sycl::vec<R, Cols>& sum_im,
-                                             R a_re, R a_im, const sycl::vec<R, Cols>& b_re,
-                                             const sycl::vec<R, Cols>& b_im) noexcept
-                {
-                    using Row = sycl::vec<R, Cols>;
-
-                    sum_re = sum_re + (Row(a_re) * b_re - Row(a_im) * b_im);
-                    sum_im = sum_im + (Row(a_re) * b_im + Row(a_im) * b_re);
                 }
 
                 /**
@@ -129,8 +116,8 @@ namespace SushiBLAS
                         const Row b_re = load_lanes<R, Cols>(b + l * 2 * Cols);
                         const Row b_im = load_lanes<R, Cols>(b + l * 2 * Cols + Cols);
                         const R* a_slice = a + l * 2 * Rows;
-                        (add_complex_term<R, Cols>(sum_re[I], sum_im[I], a_slice[I],
-                                                   a_slice[Rows + I], b_re, b_im), ...);
+                        (Kernels::Detail::multiply_add_parts(sum_re[I], sum_im[I], Row(a_slice[I]),
+                                            Row(a_slice[Rows + I]), b_re, b_im), ...);
                     }
                     (store_lanes<R, Cols>(tile + I * Cols, sum_re[I]), ...);
                     (store_lanes<R, Cols>(tile + plane + I * Cols, sum_im[I]), ...);

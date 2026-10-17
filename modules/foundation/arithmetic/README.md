@@ -7,6 +7,7 @@ It depends on no other module: its headers include SYCL and the standard library
 | File | Declares |
 | --- | --- |
 | `complex_arithmetic.hpp` | The conjugation, product and quotient a SYCL device can run on any element type |
+| `multiply_add.hpp` | `Detail::multiply_add`, the step every GEMM kernel accumulates with |
 | `safe_math.hpp` | `safe_exp`, `safe_tanh`, `safe_log`, `safe_sqrt`, `safe_erf` and `safe_abs`, each with a real and a complex overload |
 | `device_math.hpp` | `Math`, the scalar functions a kernel may call: `std::` on the host, `sycl::` on the device |
 | `accumulator.hpp` | `AccumulatorOf`, the type a BLAS kernel accumulates an element type in |
@@ -21,6 +22,21 @@ the four-product formula, the quotient by Smith's algorithm, which returns NaN c
 zero divisor. Each has a real overload that is the plain operator, so a kernel template calls one
 name for every element type. `RealType<T>` names the real component type, and the conjugation
 helpers return a real value unchanged.
+
+## `multiply_add.hpp`
+
+`Detail::multiply_add(a, b, c)` returns `a * b + c` rounded once, through `sycl::fma`, for a
+real scalar or a `sycl::vec` of reals; an integer type multiplies and adds. A complex step adds
+the product part by part, each part in two fused steps in one fixed order: the real part takes
+`a_re * b_re`, then `-a_im * b_im`; the imaginary part takes `a_re * b_im`, then
+`a_im * b_re`. `multiply_add_parts` does this on parts held apart, as the packed micro-kernel
+holds them, and the complex overload does it on `std::complex`.
+
+The scalar GEMM kernels in `gemm.hpp` and the packed micro-kernel both accumulate through it, so
+on one device the two sum a product in the same roundings and agree to the bit. The tree is
+compiled with the precise floating-point model (`cmake/SushiBLASFloatingPoint.cmake`), so the
+compiler neither fuses nor reorders the steps itself. A consumer that compiles these headers
+under a fast model keeps the fused steps but may reorder the loop's sums.
 
 ## `safe_math.hpp`
 
