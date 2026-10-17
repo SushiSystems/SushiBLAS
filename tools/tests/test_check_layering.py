@@ -118,6 +118,19 @@ class RuleCrossDomainIncludesTest(LayeringTest):
         self.assertEqual(list(rule_upward_includes(tree)), [])
 
 
+class DomainNameResolutionTest(LayeringTest):
+    """Covers a bare build name that a domain module shares with a lower one."""
+
+    def test_a_bare_name_means_the_module_outside_the_domains(self) -> None:
+        _write(self.root, "modules/core/umbrella/include/Project/core.hpp")
+        _write(self.root, "modules/vision/umbrella/include/Project/vision.hpp")
+        _write(self.root, "modules/vision/blocks/CMakeLists.txt", "project_add_module(NAME blocks DEPENDS umbrella)")
+        _write(self.root, "modules/vision/blocks/include/Project/vision/blocks/conv.hpp", "#include <Project/core.hpp>")
+        layout = Layout(("core", "vision"), domain_tiers=("vision",), module_function="project_add_module")
+        tree = ModuleTree(self.root, layout)
+        self.assertEqual(list(rule_declared_dependencies(tree)) + list(rule_unused_dependencies(tree)), [])
+
+
 class RuleSameTierIncludesTest(LayeringTest):
     """Covers the listed edges between modules of one tier."""
 
@@ -155,12 +168,32 @@ class BuildDeclarationTest(LayeringTest):
         self.assertEqual(_messages(rule_unused_dependencies(ModuleTree(self.root, K_BUILD))),
                          ["log lists clock in PRIVATE_DEPENDS and no file includes it"])
 
+    def test_a_further_private_keyword_declares_a_source_include(self) -> None:
+        layout = Layout(("foundation",), module_function="project_add_module",
+                        private_depends_also=("COMPILE_ONLY_DEPENDS",))
+        _write(self.root, "modules/foundation/log/include/Project/log/log.hpp")
+        _write(self.root, "modules/foundation/log/CMakeLists.txt",
+               "project_add_module(NAME log COMPILE_ONLY_DEPENDS core clock)")
+        tree = ModuleTree(self.root, layout)
+        self.assertEqual(_messages(rule_declared_dependencies(tree)), [])
+        self.assertEqual(_messages(rule_unused_dependencies(tree)),
+                         ["log lists clock in PRIVATE_DEPENDS and no file includes it"])
+
     def test_reads_same_tier_edges_from_the_build_file(self) -> None:
         _write(self.root, "modules/foundation/log/CMakeLists.txt", "project_add_module(NAME log)")
         self.assertEqual(_messages(rule_same_tier_includes(ModuleTree(self.root, K_BUILD))),
                          ["foundation/log includes core, an edge its CMakeLists.txt does not list"] * 2)
         _write(self.root, "modules/foundation/log/CMakeLists.txt", "project_add_module(NAME log DEPENDS core)")
         self.assertEqual(list(rule_same_tier_includes(ModuleTree(self.root, K_BUILD))), [])
+
+    def test_resolves_a_tier_qualified_name_and_keeps_same_named_modules_apart(self) -> None:
+        _write(self.root, "modules/domain/core/include/Project/domain/core/core.hpp")
+        _write(self.root, "modules/foundation/log/CMakeLists.txt", "project_add_module(NAME log DEPENDS foundation/core)")
+        layout = Layout(("foundation", "domain"), module_function="project_add_module")
+        self.assertEqual(list(rule_declared_dependencies(ModuleTree(self.root, layout))), [])
+        self.assertEqual(list(rule_unused_dependencies(ModuleTree(self.root, layout))), [])
+        _write(self.root, "modules/foundation/log/CMakeLists.txt", "project_add_module(NAME log DEPENDS domain/core)")
+        self.assertEqual(len(list(rule_declared_dependencies(ModuleTree(self.root, layout)))), 2)
 
     def test_reports_an_installed_header_that_includes_an_internal_module(self) -> None:
         _write(self.root, "modules/foundation/log/CMakeLists.txt", "project_add_module(NAME log DEPENDS core)")

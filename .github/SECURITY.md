@@ -11,7 +11,7 @@ disclosure before a fix is available puts every user at risk.
 Instead, report it privately through one of:
 
 - **Email (preferred):** **mustafagarip@sushisystems.io**
-- **Discord:** reach the maintainer privately on the community server —
+- **Discord:** reach the maintainer privately on the community server:
   invite: `https://discord.gg/y5639YuaPh`
 
 If you prefer, you may also use GitHub's **private vulnerability reporting**
@@ -43,7 +43,7 @@ disclosure. We are happy to coordinate timing with you.
 ## Scope and threat model
 
 A few properties are intentional design decisions rather than
-vulnerabilities — please keep them in mind:
+vulnerabilities; please keep them in mind:
 
 - **SushiBLAS executes the operations you ask it to.** It is a compute
   library, not a sandbox: calling `BLASOps(engine).gemm(...)` runs a genuine
@@ -59,11 +59,11 @@ vulnerabilities — please keep them in mind:
 
 In scope, and especially valued:
 
-- Memory-safety bugs in any kernel (`modules/kernels/reference/`, `modules/kernels/sycl/`) —
+- Memory-safety bugs in any kernel under `modules/kernels/`:
   out-of-bounds access, use-after-free through `Storage`'s reference
   counting, an integer overflow in a shape/stride/offset computation.
 - Parsing flaws in the tensor file loaders (`IO::load`, `load_npy`,
-  `load_bin`) — a malformed `.sushi`, `.npy`, or raw binary file that causes
+  `load_bin`): a malformed `.sushi`, `.npy`, or raw binary file that causes
   a buffer overrun, an out-of-bounds read, or a crash rather than a clean
   error.
 - Any bypass of `Tensor`'s own bounds/shape validation that reaches an
