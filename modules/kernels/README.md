@@ -655,11 +655,12 @@ and `r sin(theta)`. A block gives four FLOAT32 normals or two FLOAT64 normals.
 The file spells 2 pi out as a literal, because MSVC defines `M_PI` only under
 `_USE_MATH_DEFINES`.
 
-`draw_index` returns a uniformly distributed integer in [0, bound), drawn from the same
+`draw_index` returns an integer in [0, bound), reduced modulo bound from a 64-bit draw,, drawn from the same
 (key, counter) scheme as the float generators. It uses integer arithmetic only. Fisher-Yates needs
 an index, and routing the index through a float would make the result of a shuffle depend on the
-device's fp64 support. The bias of the modulo is bounded by bound / 2^64, below one part in 10^13
-for any tensor that fits in memory, so a rejection loop would change nothing measurable.
+device's fp64 support. The modulo is not exactly uniform: its bias is bounded by bound / 2^64,
+below one part in 10^13 for any tensor that fits in memory, so a rejection loop would change
+nothing measurable.
 
 ### `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/poisson.hpp`
 

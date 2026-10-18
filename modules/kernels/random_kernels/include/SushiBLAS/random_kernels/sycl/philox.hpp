@@ -179,7 +179,7 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Draws one uniform integer in [0, bound) without floating point.
+                 * @brief Draws one integer in [0, bound) as a 64-bit draw modulo bound.
                  * @see kernels/README.md
                  */
                 inline uint64_t draw_index(uint64_t seed, uint64_t offset, uint64_t index, uint64_t bound)
