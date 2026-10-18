@@ -22,7 +22,7 @@ the tests in the plan confirm or refute them.
   467-471, 661-663; `syrk.hpp:289,296`; `syr2k.hpp:220-232`).
 - No GPU kernel uses sub-groups, vector loads or matrix extensions. The only `sycl::vec` is in
   the CPU micro-kernel (`packed_micro_kernel.hpp:53-109`).
-- Of seven benchmark programs only `benchmark_band_packed` has run (`KNOWN_ISSUES.md:15`).
+- Of eight benchmark programs only `benchmark_band_packed` has run (`KNOWN_ISSUES.md:15`).
   Level 2, SYRK and SYR2K, spatial and random have no benchmark.
 
 ## blas_seam_kernels
@@ -100,7 +100,7 @@ The reference GEMM, the access bricks and the Givens rotations show no defect.
 - [M] Every SYCL kernel decodes its flat index with 6 to 8 int64 divisions or modulos per
   element, and the backward kernels add one per tap.
 - [M] `layout_convert` (`broadcast.hpp:200-210`) writes strided for NHWC to NCHW.
-- [D] The 12 SYCL entry points lack `[[nodiscard]]` and the `// namespace` closers.
+- [D] The SYCL entry points lack `[[nodiscard]]` and the `// namespace` closers.
 - [D] On empty input they return `sycl::event()`, which is not ordered behind `deps`.
 - [D] 24 functions repeat the stride unpack and the index decode.
 
@@ -115,10 +115,11 @@ Reference and SYCL agree in formula for every spatial kernel.
 
 ## random_kernels
 
-- [D] HALF normals produce infinities. `uniform01_block<sycl::half>` rounds a float in [0, 1)
-  to half (`philox.hpp:136`), and every u ≥ 1 − 2⁻¹² rounds to 1.0. `normal_block` then takes
-  `log(0)` (`:173`): about one infinity per 4 096 pairs, in `normal`, `he_normal`,
-  `xavier_normal` and `log_normal`.
+- [D] HALF normals from the kernel produce infinities. `uniform01_block<sycl::half>` rounds a
+  float in [0, 1) to half (`philox.hpp:136`), and every u ≥ 1 − 2⁻¹² rounds to 1.0.
+  `normal_block` then takes `log(0)` (`:173`): about one infinity per 4 096 pairs. The
+  operations refuse HALF draws (`random/dispatch.hpp:101`), so only a direct kernel call
+  reaches it.
 - [D] `draw_index` returns `raw % bound` (`philox.hpp:192`), biased below bound/2⁶⁴, while its
   brief says uniform.
 - [M] `orthonormalize` submits 2·(count−1)+1 kernels, and each work-group recomputes ‖vᵢ‖².

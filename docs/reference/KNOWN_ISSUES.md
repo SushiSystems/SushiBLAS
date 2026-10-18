@@ -11,7 +11,7 @@ in [the backlog](../design/REMAINING_WORK.md).
 
 | Issue | Where |
 | --- | --- |
-| The tree was configured, built and linked whole by `sb build`, test programs included, and `sb test` ran on 2026-10-12: 2 207 tests, none failed. That is one Windows machine, one card (an NVIDIA RTX 3080 Ti) and one toolchain (the pinned intel-llvm). The tree has not run on Linux, on an AMD or Intel GPU, on the OpenCL CPU device or on a second machine | the whole tree |
+| The tree was configured, built and linked whole by `sb build`, test programs included, and `sb test` ran on 2026-10-12: 2 207 tests, none failed. That is one Windows machine, one card (an NVIDIA RTX 3080 Ti) and one toolchain (the pinned intel-llvm). The Linux CI job runs the small and medium tests on the OpenCL CPU device; the tree has not run on an AMD or Intel GPU | the whole tree |
 | Of the benchmark programs only `benchmark_band_packed` has run, on that card; no other design figure about speed is a measurement | `tests/<tier>/<module>/benchmark_*.cpp` |
 | The record-time refusal of a device that cannot host the `syrk` or `syr2k` tile was never seen to throw: the one device the tree ran on hosts both tiles | `modules/operations/blas/include/SushiBLAS/blas/local_tile.hpp`, `require_local_tile` |
 | With `SB_BUILD_TESTS` and `SB_BUILD_EXAMPLES` off, as under a consumer, the tree was never configured, and `tests/package/` was not built against an installed tree in the run of 2026-10-12 | `CMakeLists.txt`, `tests/package/` |
@@ -38,7 +38,7 @@ in [the backlog](../design/REMAINING_WORK.md).
 | `IO` takes an `Engine&`, so it is the one class outside the recorder shape, and every call that reads or writes a tensor runs the whole recorded graph first | `modules/operations/io/include/SushiBLAS/io/io.hpp`, `modules/operations/io/source/io.cpp` |
 | `spmv` names two routines: the packed symmetric product on `BLASOps` and the CSR product on `SparseOps`, with kernels of that name in the same two namespaces | `modules/operations/blas/include/SushiBLAS/blas/level2.hpp`, `modules/operations/sparse/include/SushiBLAS/sparse/sparse.hpp` |
 | "Packed" names two things: BLAS packed storage and the packed panels of the CPU GEMM | `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/packed_access.hpp`, `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_product.hpp` |
-| `blas/sparse.hpp` is included by nothing and is installed; it declares a `SparseBLAS` class that holds an `Engine&` | `modules/operations/blas/include/SushiBLAS/blas/sparse.hpp` |
+| `blas/sparse.hpp` is included only by the umbrella header and `test_sparse.cpp`, and is installed; it declares a `SparseBLAS` class that holds an `Engine&` | `modules/operations/blas/include/SushiBLAS/blas/sparse.hpp` |
 | A lease above 4 KiB is outside the scratch pool's size classes, so a recorded `trmv`, a packed GEMM (megabytes of panels) and a transposed or one-triangle sparse product each allocate and free device memory at every record | `modules/engine/engine/include/SushiBLAS/engine/scratch_shelf.hpp` |
 | A tensor that is recorded and then dropped stays allocated until its graph node dies, and a caller that keeps a compiled plan keeps every operand and scratch block of that plan | `modules/engine/engine/include/SushiBLAS/engine/operand_set.hpp` |
 | A recorder's identity comes from a `static` counter in an inline function, so two binaries that each link the static library can hand out one identity | `modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp` |
@@ -72,7 +72,7 @@ in [the backlog](../design/REMAINING_WORK.md).
 | Issue | Where |
 | --- | --- |
 | The build jobs check out SushiRuntime beside this repository and pins no tag of it, so it builds only while the runtime's default branch carries the interface this tree is written against (`Runtime::buffer` with an alignment, `Recorder::task`, `Graph::plan()`) | `.github/workflows/ci.yml`, `cmake/Runtime.cmake` |
-| The Windows, sanitizer, ThreadSanitizer and SushiAI jobs, the `sb` calls on a runner and `nightly.yml` have never run | `.github/workflows/ci.yml`, `.github/workflows/nightly.yml` |
+| The Windows job fails because no SYCL device passes its hardware filter, and the nightly Benchmarks and Quarantined jobs fail at configure (`cmake/SushiBLASSushiLog.cmake:23`); the Linux, sanitizer, ThreadSanitizer and SushiAI jobs pass | `.github/workflows/ci.yml`, `.github/workflows/nightly.yml` |
 | The Linux build of the small and medium tests took 48 minutes without a compiler cache, above the pre-merge budget of 45; its timeout is 90 minutes until the ccache numbers are known | `.github/workflows/ci.yml` |
 | The release workflow has never run | `.github/workflows/release.yml` |
 

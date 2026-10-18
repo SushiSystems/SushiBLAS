@@ -8,16 +8,15 @@ such as `DESIGN_BLAS_L3`, `PLAN` or `PLAN_EXT` is a heading of `SPEC.md` or `PLA
 
 ## Full run of the v0.1.0 tree
 
-The whole suite ran on the module tree on 2026-10-09, on the CUDA build with an RTX 3080 Ti:
-2 049 tests, 2 014 passed, none failed, 35 skipped.
+The latest full run is of 2026-10-12, on the CUDA build with an RTX 3080 Ti: 2 207 tests, none
+failed ([GPU_VALIDATION.md](GPU_VALIDATION.md)). The Linux CI job runs the small and medium
+tests on the OpenCL CPU device and passes (run 39107302670).
 
-- Run `sb build --benchmarks` and `sb test` on the OpenCL CPU device, where this tree has never
-  run, and fix what it finds.
-- Run the seven benchmark programs that have not run; only `benchmark_band_packed` has.
+- Build the benchmarks on CI: the nightly Benchmarks job fails at configure, in
+  `cmake/SushiBLASSushiLog.cmake:23` (run 39108847298).
+- Run the seven benchmark programs other than `benchmark_band_packed`, the only one that has run
+  (on the RTX 3080 Ti; its `tpsv` figures are under "Kernels and reductions").
 - Read why CTest lists tests as skipped on the CUDA build and record each reason.
-- If the link fails on a `HostKernel` symbol, turn the generic lambda arms of `all.cpp`,
-  `any.cpp`, `shuffle.cpp` and `orthogonal.cpp` into named classes shaped like
-  `Detail::RandomArm`.
 - Raise any parity allowance of `test_random_reference.cpp` that proves too tight, with the
   measured value beside it.
 - Compare `givens.hpp` and `modified_givens.hpp` with `drotg.f90`, `zrotg.f90` and `drotmg.f`
@@ -32,7 +31,6 @@ The whole suite ran on the module tree on 2026-10-09, on the CUDA build with an 
   section 10.3.
 - Run `benchmark_triangular` and settle the two solve block widths and whether a small TRMV needs a
   serial arm (`DESIGN_BLAS_L3`, sections 8 and 13).
-- Run `benchmark_band_packed` and `benchmark_sparse`; neither has produced a number.
 - Decide from those runs whether `ScratchShelf` gets size classes above 4 KiB. A recorded
   `trmv`, a packed GEMM and a scattering sparse product each lease more than the pool holds.
 - Run the benchmarks on a device other than the CPU; the numbers of 2026-10-07 are from one
@@ -40,7 +38,7 @@ The whole suite ran on the module tree on 2026-10-09, on the CUDA build with an 
 
 ## GPU validation
 
-Two functional runs exist, both on one RTX 3080 Ti. [GPU_VALIDATION.md](GPU_VALIDATION.md)
+Three functional runs exist, all on one RTX 3080 Ti. [GPU_VALIDATION.md](GPU_VALIDATION.md)
 records them and holds the steps that have not run.
 
 - Confirm `Device::Profile` reports `has_dedicated_local_memory = true` on the card.
@@ -63,7 +61,8 @@ records them and holds the steps that have not run.
   into shared helpers.
 - Add `trmm`; `TrmvTerm` and `TriangleRow` are the bricks it starts from.
 - Add a `rot` that takes c and s as tensors, so `rotg` chains into it inside one graph.
-- Coalesce the right-side reads of TRSM.
+- Coalesce the reads of the diagonal-block solve of TRSM (`trsm.hpp:126-163`), which maps one
+  work-item per vector; the trailing update already reads B with its contiguous index innermost.
 - Close the gap between the SYCL `tpsv` and the dense `trsv`: one 128-row block costs 0.30 ms
   against 0.19 ms up to order 1024 and 0.42 ms against 0.20 ms from order 2048 (FLOAT32,
   RTX 3080 Ti); the cost per block does not grow with the order beyond that step.
@@ -81,8 +80,6 @@ records them and holds the steps that have not run.
 - Add an implicit `BLASScalar` from `std::complex<float>`, and `rotmg` for `HALF`.
 - Move the complex operators of the elementwise and nonlinear kernels onto `safe_mul` and
   `safe_div`.
-- Confirm whether `BLASOps::nrm2` uses the scaled form that `ReductionOps::nrm2` uses
-  (`Reduce::ScaledSumOfSquares`); the plain two-norm overflows above about 1e19 in `FLOAT32`.
 - Bring the batch feed into the compiled plan; it costs one extra dispatch round per step and
   needs an operand-address late binding that SushiRuntime does not offer.
 - Add batch support for tensors above rank 1 to the level 1 and level 2 BLAS operations.
@@ -105,10 +102,12 @@ is reverted if the median does not move beyond the spread.
 
 Correctness:
 
-- Draw HALF normals from a float uniform with a log argument in (0, 1] and cast once at the end;
-  a `test_philox.cpp` case draws 2²⁰ HALF normals and finds every one finite.
-- Clamp the SYRK tile counts with `Detail::group_count`; a `test_syrk.cpp` case runs n = 0 and
-  batch 0 and finds C untouched.
+- Draw HALF normals in `normal_block` from a float uniform with a log argument in (0, 1] and cast
+  once at the end. The operations refuse HALF draws, so only a direct kernel call reaches it; a
+  `test_philox.cpp` case draws 2²⁰ HALF normals and finds every one finite.
+- Clamp the SYRK tile counts with `Detail::group_count`, as SYR2K does, and return before the
+  launch on a batch of 0 in GEMM, SYRK and SYR2K; a `test_syrk.cpp` case runs n = 0 and batch 0
+  and finds C untouched.
 - Run a 4x4x4 GEMM with batch 65 536 and a GER with m = 70 000 on the CUDA card; if either fails,
   fold the batch into a grid-stride loop and swap the GER dimensions.
 - Order the event of an empty spatial input behind its `deps`.
@@ -143,7 +142,7 @@ Optimisation, each gated on its benchmark:
   the extents fit.
 - Give `layout_convert` a local-memory tiled transpose.
 - Widen the transposed `spmv` and `spsymv` scatter past 256 work-items on a GPU.
-- Cache `Device::profile_for` so a launch does not take a mutex and scan.
+- Look up the cached profile of `Device::profile_for` without a mutex and a linear scan.
 
 Refactor:
 
@@ -153,7 +152,7 @@ Refactor:
 - Give spatial_kernels one image-index brick for the flat decode and the inverse-window walk.
 - Move `partial_capacity` and `K_LEVEL1_PARTIAL_BYTES` into reduction and drop `blas_kernels`
   from the `DEPENDS` of sparse_kernels.
-- Accumulate every dot-product kernel through `multiply_add`, tasks 1 to 5 of
+- Accumulate every dot-product kernel through `multiply_add`, as GEMM already does, tasks 1 to 5 of
   `docs/agent/2026_10_19_KERNEL_AUDIT/PLAN.md`.
 - Add `[[nodiscard]]` and the namespace closers in spatial, Doxygen on the five Level 1
   routines, `deps` last in `orthonormalize`, `is_upper()` in `tbsv` and the include grouping of
@@ -189,10 +188,10 @@ Refactor:
 ## Code shape
 
 - Rename the function-local `constexpr` values that are not spelled `K_UPPER_SNAKE`, or rule
-  that a local keeps `snake_case`; the naming sweep left 136 of them
+  that a local keeps `snake_case`; about 124 remain by a regex count
   (`tools/naming/sushiblas_0_1_0.tsv` lists what it renamed).
 - Reword the comments and the failure messages that still spell an enumerator or a constant
-  by its old bare name (`FORCE_REFERENCE`, `kLarge`); the sweep changed qualified names only.
+  by its old bare name; `kLarge` remains in two tests.
 - Delete `blas/sparse.hpp` or move it under `experimental/`. Owner approval.
 - Move the recorder's identity counter into a source file.
 - Ask SushiRuntime for a public "run after" edge, `Recorder::task` overloads that take a span of
@@ -200,12 +199,10 @@ Refactor:
   (`DESIGN_RECORDER`, section 15).
 - Route every runtime dtype switch through one table; `constant.cpp` and
   `reductions/dispatch.hpp` come first (C1).
-- Add categories, TRACE and FATAL to the logger and send log output to stderr (C3, C6).
+- Confirm that SushiLog's sink sends log output to stderr (C6).
 - Give reduction kernels one home (C9).
 - Split the Level 1 kernel headers into one file per routine (C12).
 - Remove `core/export.hpp` and the `<numbers>` include (C13). Owner approval.
-- Shorten the two comment blocks `check_source_comments.py` still reports, then drop
-  `--rule rule_license_block` from the check list of `AGENTS.md` (C14).
 - Split `test_regression.cpp` per defect and state every test tolerance (C17).
 - Add column-major and other-dtype cases to the reference tests of BLAS levels 1 and 2 and TRSM,
   and raise the remaining single-case smoke tests to the edge cases the five edited ones carry.
@@ -214,7 +211,7 @@ Refactor:
   after 0.2.0: an operand that breaks a rule (`std::invalid_argument` today) stops the process
   through an `SB_VERIFY` with a handler a host can replace, and a refusal of the mode or the device
   (`UnsupportedExecution`) is kept by the recorder and returned by the next `execute()`. It
-  touches the three helpers of `operand_check.hpp`, `SB_THROW_IF`, 310 `EXPECT_THROW` lines in 36
+  touches the three helpers of `operand_check.hpp`, `SB_THROW_IF`, 339 `EXPECT_THROW` lines in 50
   test files, two examples and the catch ladder of SushiAI's `seam.cpp`.
 - Group the includes of every source file as the contributing guide states, together with
   SushiRuntime, whose files carry the same ungrouped order, so the two trees stay shaped alike.
@@ -225,22 +222,17 @@ Refactor:
 - Rename `--sort` to `--pick` with a hidden alias, in step with the sibling CLIs (C4).
 - Settle the panel names, short options and defaults across the CLIs (C5, C6).
 - Document colour, theme and exit codes once in sushicore and link it from `cli/README.md` (C14).
-- Remove the unused `find_executables` and `select_interactive` re-exports (C17). Owner approval.
-- State the default run target once (C18) and choose one Python floor for the CLIs (C22).
+- State the default run target once (C18); the four CLIs already share Python 3.10 (C22).
 
 ## Documentation
 
 - Decide what to do about the code of conduct: four pages of the Contributor Covenant were read
   on 2026-10-09 and none states a licence for its text (`NOTICE.md`, "Adapted text"). Owner.
 
-## Layout, needing the owner
-
-- SushiRuntime, SushiDSP and SushiAI still name their source folder `src/` and are one
-  module each; this repository moved to `modules/` on 2026-10-09 (L8).
-
 ## Continuous integration
 
-- Run every job of `ci.yml` and `nightly.yml` once and fix what the first runs show.
+- Fix the failing jobs: Windows (no SYCL device passes the hardware filter, run 39107302670) and
+  the nightly Benchmarks and Quarantined jobs (configure fails).
 - Bring the Linux job of the small and medium tests under the 45-minute pre-merge budget.
 - Read each `Medium_` suite and rename to `Small_` the ones whose tests reach no runtime, queue, tensor or file.
 - Run the release workflow once before the tag depends on it.
@@ -250,12 +242,12 @@ Refactor:
 In the order the tag needs them.
 
 - Tag SushiRuntime v0.4.0 with the aligned shared and device allocation and
-  `Graph::add_emitter` in it; both were uncommitted in the runtime's working tree on 2026-10-07.
+  `Graph::add_emitter` in it; both are committed (`c9225d19`, `11df93e6`) and no tag holds them.
   Who cuts it, and when, is the owner's decision.
 - Pin the runtime: `find_dependency(SushiRuntime 0.4)` in `cmake/SushiBLASConfig.cmake.in`, the
   same version in `cmake/Runtime.cmake`, and a version check of a sibling checkout (`PLAN`,
   section 3).
-- Install without `modules/operations/experimental/include/SushiBLAS/experimental/` and make the package consumer test fail if
+- Mark the `experimental` module `INTERNAL` so its headers stay out of the install, and make the package consumer test fail if
   the installed tree holds that folder or a document among its headers (`PLAN`, section 3),
   then run `sb test --package`.
 - Migrate SushiAI onto the views, the enums and `BLASScalar`. The sushiai session does it, once,
