@@ -7,7 +7,7 @@ CMake and CTest that reads your machine-specific toolchain paths from a
 config file so you don't have to retype long compiler flags.
 
 This guide explains every command in plain English. If you just want to get
-the project compiling for the first time, the top-level [README.md](../README.md)
+the project compiling for the first time, [the build page](../docs/getting_started/BUILDING.md)
 walks through setup.
 
 ## Installing the CLI
@@ -337,4 +337,4 @@ then `SUSHISTACK_HOME`, then the nearest ancestor directory that is a workspace.
 
 The CLI is a convenience, not a requirement: it only runs CMake and CTest
 for you. If you'd rather drive CMake yourself, see **Building with CMake
-directly** in the top-level [README.md](../README.md#building-with-cmake-directly).
+directly** on [the build page](../docs/getting_started/BUILDING.md#building-with-cmake-directly).

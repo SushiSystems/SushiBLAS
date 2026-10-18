@@ -1,7 +1,7 @@
 # Integrating SushiBLAS
 
 How to consume SushiBLAS from another project, and the one fact that decides what you need to
-set up. SushiBLAS is below 1.0.0: read [the stability notice](../../README.md#stability) before
+set up. SushiBLAS is below 1.0.0: read [the stability notice](#stability) before
 you depend on it, and [section 5](#5-write-one-adapter) for how to keep a break in one place.
 
 ## 1. Where the kernels are compiled
@@ -83,6 +83,17 @@ SushiBLAS uses for its SushiRuntime dependency applies one level up in the same 
 The package is written with `SameMinorVersion` compatibility while the project is below 1.0:
 `find_package(SushiBLAS 0.1 REQUIRED)` accepts 0.1.x and rejects 0.2.0. At the v1.0.0 freeze
 this becomes `SameMajorVersion`.
+
+### Stability
+
+SushiBLAS is below 1.0.0, and its public interface is not stable.
+
+- A MINOR release (0.2, 0.3) may change or remove any public name, signature, header path or binary layout. A PATCH release does not.
+- Pin an exact tag. Do not follow a branch. No tag exists yet; the version in `CMakeLists.txt` is 0.1.0.
+- Reach SushiBLAS through one adapter of your own: a single module that includes `<SushiBLAS/SushiBLAS.hpp>` and exposes only what your code needs, in your own types. When a release breaks the interface, that module is the only place you edit.
+- SushiBLAS's public headers include `<SushiRuntime/sushiruntime.hpp>` and name `SushiRuntime::Runtime`, `Result` and `Residency`, so a SushiRuntime release that changes those changes this interface too. The build names no SushiRuntime version: `cmake/Runtime.cmake` takes the package or the checkout it finds.
+
+`applications/examples/adapter/` is such an adapter in a program this repository builds: its two adapter files, `sushiblas_adapter.cpp` and `status_mapping.hpp`, are the only ones that include the library, and they turn every exception SushiBLAS throws and every `SushiRuntime::Error` a run returns into the program's own `Status`. [Section 5](#5-write-one-adapter) walks through it. SushiAI's seam (`sushiai/modules/core/core/source/seam.cpp`) does the same for the failure channels of a larger consumer.
 
 ## 3. What you inherit, and what you must supply
 

@@ -12,7 +12,7 @@ the three values of `ExecutionMode` and the reference path every operation has
 beside its SYCL kernel.
 
 The public interface is below 1.0.0 and may break in a MINOR release; the
-[root README](../README.md#stability) states the rule a consumer follows. A
+[integration guide](guides/INTEGRATION.md#stability) states the rule a consumer follows. A
 change that breaks a public name says so in its changelog entry.
 
 ---
@@ -77,7 +77,7 @@ sb test --filter 'Gemm.*'         # ctest -R over 'Suite.Case' test names
 ```
 
 A change is built and tested through `sb`. CMake can also be driven directly,
-as the [root README](../README.md#building-with-cmake-directly) shows; an agent
+as [the build page](getting_started/BUILDING.md#building-with-cmake-directly) shows; an agent
 working in this repository always uses `sb` (see `CLAUDE.md` at the root).
 
 Expectations for a mergeable change:

@@ -8,7 +8,7 @@ in one line.
 
 | Tier | Module | Holds | Reasoning |
 | --- | --- | --- | --- |
-| foundation | `core` | Element types, type traits, the format stand-in, the logger, the version macros | [README](foundation/core/README.md) |
+| foundation | `core` | Element types, type traits, the logger, the version macros | [README](foundation/core/README.md) |
 | foundation | `arithmetic` | The accumulator trait, the complex arithmetic, the real and complex safe math, the host and device scalar functions | [README](foundation/arithmetic/README.md) |
 | foundation | `launch` | The device policy and the per-element launch shapes | [README](foundation/launch/README.md) |
 | foundation | `reduction` | The fixed-order whole-tensor and segmented reductions and their accumulators | [README](foundation/reduction/README.md) |

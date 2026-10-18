@@ -16,19 +16,19 @@ records a task and runs nothing; `engine.execute()` runs the graph and returns a
 `SushiRuntime::Result<void>`. `Engine` is built on a `SushiRuntime::Runtime` and has no accessor
 per operation family. A family is a view class built from the engine: `BLASOps`,
 `SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`,
-`SpatialOps` and `IO`. The [root README](../../README.md#how-it-works) has a complete example, and
+`SpatialOps` and `IO`. [The first program](../getting_started/FIRST_PROGRAM.md) has a complete example, and
 [the architecture](../architecture/README.md) describes each layer.
 
 ## Is the interface stable?
 
 No. SushiBLAS is below 1.0.0, and a MINOR release may change or remove any public name, signature
 or header path. Pin an exact tag and keep your includes of SushiBLAS in one adapter module of your
-own. The [README's stability section](../../README.md#stability) states the rule, and
+own. [The integration guide's stability section](INTEGRATION.md#stability) states the rule, and
 [section 5 of the integration guide](INTEGRATION.md#5-write-one-adapter) shows an adapter.
 
 ## What do I need to build SushiBLAS?
 
-The [README's requirements](../../README.md#requirements) list five things:
+[The build page's requirements](../getting_started/BUILDING.md#requirements) list five things:
 
 - A SYCL 2020 compiler: the intel-llvm `clang++ -fsycl` that `sb setup` or SushiStack provisions.
 - CMake 3.20 or newer, and 3.22 for the test suite.
@@ -54,7 +54,7 @@ On Windows, run `irm https://sushisystems.io/install.ps1 | iex` in PowerShell. I
 
 To use an existing checkout of the repository, link it into a workspace with `hub link`.
 `hub doctor` and `hub status` show what is installed. See the
-[README's quick start](../../README.md#quick-start).
+[build page's install section](../getting_started/BUILDING.md#installing).
 
 ## How do I build SushiBLAS and run its tests?
 
@@ -73,7 +73,7 @@ the others, and `--clean` wipes the build tree first. `sb test` runs the small a
 default, `--label` selects a size, and `--package` builds the out-of-tree consumer.
 
 Inside a SushiStack workspace, or with a SushiRuntime checkout beside this one, no local
-configuration is needed. The [README](../../README.md#building) also shows a build with CMake
+configuration is needed. [The build page](../getting_started/BUILDING.md#building) also shows a build with CMake
 directly, and [the CLI's README](../../cli/README.md) describes every command.
 
 ## How do I use SushiBLAS from another CMake project?
@@ -128,7 +128,7 @@ triple. intel-llvm documents support for `sm_75` and newer.
 
 The functional suite has run on one card, an RTX 3080 Ti: on 2026-10-12, on Windows with the
 pinned intel-llvm toolchain, 2 207 tests ran and none failed. See
-[Targeting an NVIDIA GPU](../../README.md#targeting-an-nvidia-gpu) in the README.
+[Targeting an NVIDIA GPU](../getting_started/BUILDING.md#targeting-an-nvidia-gpu) on the build page.
 
 ## How does SushiBLAS relate to SushiRuntime and SushiStack?
 
