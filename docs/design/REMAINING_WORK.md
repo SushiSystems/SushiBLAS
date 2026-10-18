@@ -97,6 +97,70 @@ records them and holds the steps that have not run.
 - Decide the backend of the quarantined FFT and LAPACK declarations
   (`modules/operations/experimental/include/SushiBLAS/experimental/`), then implement them.
 
+## Kernel audit
+
+From the audit of 2026-10-19 (`docs/agent/2026_10_19_KERNEL_AUDIT/REPORT.md`). Each
+optimisation lands only with five runs before and five after, release build, same machine, and
+is reverted if the median does not move beyond the spread.
+
+Correctness:
+
+- Draw HALF normals from a float uniform with a log argument in (0, 1] and cast once at the end;
+  a `test_philox.cpp` case draws 2²⁰ HALF normals and finds every one finite.
+- Clamp the SYRK tile counts with `Detail::group_count`; a `test_syrk.cpp` case runs n = 0 and
+  batch 0 and finds C untouched.
+- Run a 4x4x4 GEMM with batch 65 536 and a GER with m = 70 000 on the CUDA card; if either fails,
+  fold the batch into a grid-stride loop and swap the GER dimensions.
+- Order the event of an empty spatial input behind its `deps`.
+- Replace the `reinterpret_cast` vector access of `packed_micro_kernel.hpp` and `launch_1d.hpp`
+  with `sycl::vec::load` and `store`.
+- Rename the shadowed `k` of `gemv.hpp`.
+
+Measurement:
+
+- Give `benchmark_gemm` a RowMajor sweep beside the ColumnMajor one.
+- Add `benchmark_level2` (gemv in both layouts, ger, symv, syr, trmv), `benchmark_syrk` (syrk and
+  syr2k, orders 256 to 4096), `benchmark_spatial` and `benchmark_random`.
+
+Optimisation, each gated on its benchmark:
+
+- Pick the staging order of the GPU GEMM from each operand's contiguous axis.
+- Give full GEMM tiles a load path without bounds checks and with 32-bit in-tile offsets.
+- Load staged GEMM tiles with 128-bit accesses when the contiguous axis is aligned.
+- Double-buffer the GEMM K loop to one barrier per step.
+- Tune `K_TILE_K` and the work-group shape of `GemmLocalTile`.
+- Give HALF GEMM a `joint_matrix` path, tasks 6 to 10 of
+  `docs/agent/2026_10_19_KERNEL_AUDIT/PLAN.md`, after the four GEMM tasks above.
+- Route the TRSM trailing update through `gemm_accessed`.
+- Pack each B panel of the CPU GEMM once per depth block and share it across row blocks.
+- Size the CPU register block per ISA, measured on an AVX-512 host.
+- Run unit-stride Level 1 through `Launch::map` and `zip_inplace`.
+- Map the fast dimension of GER, SYR, SYR2, SPR and SPR2 to the contiguous axis and launch only
+  the stored triangle.
+- Finish `row_reduction` with a fixed-order sub-group shuffle.
+- Compute ‖vᵢ‖² once per step of `orthonormalize`.
+- Replace the int64 index decode of the spatial kernels with a 3-D launch or a 32-bit path when
+  the extents fit.
+- Give `layout_convert` a local-memory tiled transpose.
+- Widen the transposed `spmv` and `spsymv` scatter past 256 work-items on a GPU.
+- Cache `Device::profile_for` so a launch does not take a mutex and scan.
+
+Refactor:
+
+- Run `gemm_local_tiled`, `syrk` and `syr2k` on one tiled-product brick with a Store parameter;
+  the three tests stay bit-identical.
+- Read A through `OperandAccess` in ger, syr and syr2, SYCL and reference.
+- Give spatial_kernels one image-index brick for the flat decode and the inverse-window walk.
+- Move `partial_capacity` and `K_LEVEL1_PARTIAL_BYTES` into reduction and drop `blas_kernels`
+  from the `DEPENDS` of sparse_kernels.
+- Accumulate every dot-product kernel through `multiply_add`, tasks 1 to 5 of
+  `docs/agent/2026_10_19_KERNEL_AUDIT/PLAN.md`.
+- Add `[[nodiscard]]` and the namespace closers in spatial, Doxygen on the five Level 1
+  routines, `deps` last in `orthonormalize`, `is_upper()` in `tbsv` and the include grouping of
+  `gemm.hpp`; teach `check_source_comments.py` to report a function with no block.
+- Wrap the 211 kernel lines over 100 columns.
+- Warn once per device, not per call, when GEMM falls back to `no_local`.
+
 ## Sparse
 
 - Parallelise `sptrsv` by level scheduling: an analysis routine, a type for its result and a
