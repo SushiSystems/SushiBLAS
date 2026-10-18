@@ -1,10 +1,17 @@
 # SushiBLAS manual
 
-The front door is the [root README](../README.md): what the library is, how to build it and how
-to run its tests. This index reaches every other document.
+The front door is the [root README](../README.md): what the library is, its smallest use and its
+build commands. This index reaches every other document.
 
 SushiBLAS is below 1.0.0 and a MINOR release may break its public interface; read
-[the stability section](../README.md#stability) before you depend on it.
+[the stability section](guides/INTEGRATION.md#stability) before you depend on it.
+
+## Getting started
+
+| Document | Holds |
+| --- | --- |
+| [Building](getting_started/BUILDING.md) | The requirements, the install, the CLI and CMake builds, an NVIDIA target and the test commands |
+| [A first program](getting_started/FIRST_PROGRAM.md) | A GEMM recorded and read back, line by line, and what every program can count on |
 
 ## Architecture
 

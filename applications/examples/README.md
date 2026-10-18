@@ -21,7 +21,7 @@ The numbers are the same on every machine, with or without a GPU.
 ## `adapter/`: one file between a program and the library
 
 Four files built into `adapter_demo`. Read this one first if you are about to depend on
-SushiBLAS, because [the stability section](../../README.md#stability) asks every consumer for
+SushiBLAS, because [the stability section](../../docs/guides/INTEGRATION.md#stability) asks every consumer for
 this shape.
 
 | File | Holds |
