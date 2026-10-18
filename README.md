@@ -42,14 +42,12 @@ CLI and an NVIDIA GPU target.
 
 ## Status
 
-- No release is tagged; the version in `CMakeLists.txt` is 0.1.0, and a MINOR release may break
-  the public interface. [The integration guide](docs/guides/INTEGRATION.md#stability) says how
-  to depend on it.
-- Dense BLAS levels 1 to 3, sparse BLAS over CSR, elementwise, non-linear, logic, reduction,
-  random and spatial operations each have a reference path and a SYCL kernel.
-- The tests run on CPU devices in CI. On a GPU the suite has run on one card, an RTX 3080 Ti, and
-  no speed figure is measured. [The known issues](docs/reference/KNOWN_ISSUES.md) list the rest.
-- What is left is in [the backlog](docs/design/REMAINING_WORK.md).
+SushiBLAS has no tagged release; it is at 0.1.0, below 1.0.0, so a MINOR release may break its
+public interface. Dense BLAS levels 1 to 3, sparse BLAS over CSR and the elementwise, non-linear,
+logic, reduction, random and spatial operations work, each with a reference path and a SYCL
+kernel. GPU coverage and performance are not yet measured, and
+[`KNOWN_ISSUES.md`](docs/reference/KNOWN_ISSUES.md) lists the limits. What is left is in
+[`REMAINING_WORK.md`](docs/design/REMAINING_WORK.md).
 
 ## Documentation
 
