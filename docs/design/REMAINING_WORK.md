@@ -1,6 +1,6 @@
 # Remaining work
 
-Next id: RW-105
+Next id: RW-108
 
 ## Decisions waiting for the owner
 
@@ -50,6 +50,16 @@ Next id: RW-105
   ruled that a local keeps `snake_case`
 
 `tools/naming/sushiblas_0_1_0.tsv` lists what the rename of 0.1.0 changed.
+
+### RW-107 Decide whether GEMM tiles are chosen per device
+- State: decision
+- Done when: the owner has ruled whether the plan of the parametric GEMM tiles starts
+- Source: `docs/agent/2026_10_19_PARAMETRIC_GEMM_TILES/SPEC.md`
+
+The tiled GEMM runs one tile shape on every device, measured only on the RTX 3080 Ti. The spec
+chooses a shape per device from a few compiled ones, by a measured table, an analytic model and
+hard limits; `PLAN.md` beside it holds eight tasks. The owner decided its section 7 and holds
+the start.
 
 ## Verification
 
@@ -382,6 +392,29 @@ sparse kernels' `DEPENDS`; every dot product through `multiply_add`, tasks 1 to 
 `tbsv` and the include grouping of `gemm.hpp`; the 211 kernel lines over 100 columns; one
 `no_local` warning per device.
 
+### RW-105 Measure the row-reduction shuffle with and without it
+- State: unmeasured
+- Done when: `benchmark_band_packed` on `cuda:0` has run five rounds on a tree with the
+  sub-group shuffle of `row_reduction.hpp` and five on one without it, and the slower is gone
+- Source: `docs/agent/2026_10_19_KERNEL_AUDIT/PLAN.md`
+
+Task B21. One run without the shuffle had `symv` and `trmv` 3 to 25 % slower than one with it,
+but `ger`, which the shuffle does not touch, moved 7 to 23 % in the same run, so the run decides
+nothing.
+
+### RW-106 Find why 13 bit-equality tests fail on the Ryzen 5 7600X CPU device
+- State: open
+- Done when: the cause is named and the 13 tests pass on `opencl:cpu` of that machine, or carry
+  the `quarantined` label with an entry in `KNOWN_ISSUES.md`
+- Source: `docs/agent/2026_10_19_KERNEL_AUDIT/REPORT.md`
+
+`Medium_BlasBand.AFullBandEqualsTheDenseSibling` and `Medium_BlasPacked.APackedTriangleEqualsTheDenseSibling`
+in the real and complex dtypes, and three `Medium_TriangularParallel` tests in the complex
+dtypes, differ by one ulp. They pass on CI's AMD EPYC 7763 at commit `067eb86` and on `cuda:0`,
+and still fail here with the level 1 launch shapes, the `profile_for` fast path and the
+row-reduction shuffle all taken out. A build of commit `f3e6382` on this machine would show
+whether they failed before the kernel audit.
+
 ## Sparse
 
 ### RW-55 Parallelise `sptrsv` by level scheduling
@@ -533,6 +566,11 @@ The runtime carries the same order and groups its own in step (`sushiruntime RW-
 - State: open
 - Done when: the Windows job finds a SYCL device past its filter, and the nightly Benchmarks and
   Quarantined jobs configure (`cmake/SushiBLASSushiLog.cmake:23`) and build the benchmarks
+
+On run 39269551240 (commit `067eb86`), 350 of the Windows job's 376 small tests fail in under a
+second with no output; only suites that reach no device pass. The job has been red since the
+SushiLog commits of 2026-10-17; the last green run is of commit `c6d64df`, 2026-10-15. Linux
+and a local Windows build pass the same tests.
 
 ### RW-86 Bring the Linux job of the small and medium tests under 45 minutes
 - State: open
