@@ -93,6 +93,15 @@ cases are checked against numbers worked out by hand. The second is variant cove
 picks between its local-tiled and no-local shapes from the device profile, so on any one
 machine the public API only ever reaches one of them. These tests call both directly.
 
+`LocalTiledVariantMatchesReferenceOnWholeAndEdgeTiles` reaches every staging path of
+`gemm_local_tiled`. Each extent spans at least one whole 64-wide block and an edge, and K = 40 or
+48 gives two or three whole K-tiles with an edge after the first. The five cases cover A walked
+rows first (ColumnMajor NoTrans, RowMajor Trans) and columns first, and B walked depth first
+(ColumnMajor NoTrans) and columns first. The first case is a batch of two, so the second product
+starts at a batch offset; the second case has lda = 130, which no 128-bit load divides, so its
+whole tiles take the element path. FLOAT64 and HALF run the same cases where the device holds
+their aspect, for their two and eight lanes per load.
+
 `ColumnMajorMatchesHandComputedResult` stores the row-major problem column-major: A (2x3) is
 `[1,4,2,5,3,6]` with lda = 2, and B (3x2) is `[1,0,1,0,1,1]` with ldb = 3. This is the case
 that was wrong. The old kernels read a column-major A as if it were row-major with a

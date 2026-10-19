@@ -25,9 +25,12 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <limits>
+#include <string>
 #include <vector>
 #include <complex>
+#include <type_traits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/blas/dispatch.hpp>
@@ -945,6 +948,123 @@ namespace SushiBLAS
                     1, {}, Kernels::GemmIdentityEpilogue{}).wait();
 
                 EXPECT_TENSOR_NEAR(C, expected, 1e-4);
+            }
+
+            /** @brief Holds one batched product the local-tiled kernel is checked at. */
+            struct LocalTiledCase
+            {
+                Core::Layout layout;     /**< Storage order of every operand. */
+                Core::Transpose trans_a; /**< How A is read. */
+                Core::Transpose trans_b; /**< How B is read. */
+                int64_t m;               /**< Rows of C. */
+                int64_t n;               /**< Columns of C. */
+                int64_t k;               /**< Depth of the product. */
+                int64_t batch;           /**< Products in the batch, stored back to back. */
+            };
+
+            /** @brief Returns whether a device hosts the local-tiled work-group of T. */
+            template<typename T>
+            [[nodiscard]] bool hosts_local_tiled(const Device::Profile& profile)
+            {
+                using Configuration = Kernels::SYCL::Detail::GemmLocalTile<T>;
+                return Device::hosts_local_tile(
+                    profile, {Configuration::local_mem_bytes(),
+                              static_cast<std::size_t>(Configuration::K_WG_ITEMS)});
+            }
+
+            /** @brief Copies every element of a tensor of T to the host. */
+            template<typename T>
+            [[nodiscard]] std::vector<T> download_as(const Tensor& t)
+            {
+                std::vector<T> host(static_cast<std::size_t>(t.num_elements));
+                auto& q = TestEnvironment::queue();
+                q.memcpy(host.data(), t.data(), host.size() * sizeof(T)).wait();
+                return host;
+            }
+
+            /**
+             * @brief Runs gemm_local_tiled on one case and compares it with the reference GEMM.
+             * @param tolerance Absolute error allowed per element, times one plus its magnitude.
+             */
+            template<typename T>
+            void expect_local_tiled_matches_reference(Engine& engine, const LocalTiledCase& c,
+                                                      double tolerance)
+            {
+                // A is stored k x m when it is read transposed and m x k otherwise; B likewise.
+                const bool row_major = c.layout == Core::Layout::RowMajor;
+                const int64_t a_rows = Core::is_transposed(c.trans_a) ? c.k : c.m;
+                const int64_t a_cols = Core::is_transposed(c.trans_a) ? c.m : c.k;
+                const int64_t b_rows = Core::is_transposed(c.trans_b) ? c.n : c.k;
+                const int64_t b_cols = Core::is_transposed(c.trans_b) ? c.k : c.n;
+                const int64_t lda = row_major ? a_cols : a_rows;
+                const int64_t ldb = row_major ? b_cols : b_rows;
+                const int64_t ldc = row_major ? c.n : c.m;
+                const int64_t str_a = a_rows * a_cols;
+                const int64_t str_b = b_rows * b_cols;
+                const int64_t str_c = c.m * c.n;
+
+                const Core::DataType dtype = sushiblas_dtype<T>();
+                Tensor A = engine.create_tensor({c.batch * str_a}, dtype);
+                Tensor B = engine.create_tensor({c.batch * str_b}, dtype);
+                Tensor C = engine.create_tensor({c.batch * str_c}, dtype);
+                fill_random<T>(A);
+                fill_random<T>(B);
+
+                const std::vector<T> host_a = download_as<T>(A);
+                const std::vector<T> host_b = download_as<T>(B);
+                std::vector<T> expected(static_cast<std::size_t>(c.batch * str_c), T(0));
+                for (int64_t i = 0; i < c.batch; ++i)
+                    Kernels::Reference::gemm<T>(c.layout, c.trans_a, c.trans_b, c.m, c.n, c.k,
+                                                T(1), host_a.data() + i * str_a, lda,
+                                                host_b.data() + i * str_b, ldb,
+                                                T(0), expected.data() + i * str_c, ldc);
+
+                Kernels::SYCL::Detail::gemm_local_tiled<T>(
+                    TestEnvironment::queue(), c.m, c.n, c.k,
+                    T(1), static_cast<const T*>(A.data()),
+                    Kernels::operand_access(c.layout, c.trans_a, lda), str_a,
+                    static_cast<const T*>(B.data()),
+                    Kernels::operand_access(c.layout, c.trans_b, ldb), str_b,
+                    T(0), static_cast<T*>(C.data()),
+                    Kernels::operand_access(c.layout, Core::Transpose::NoTrans, ldc), str_c,
+                    c.batch, {}, Kernels::GemmIdentityEpilogue{}).wait();
+
+                // HALF converts to double through float; float and double convert directly.
+                using Wide = std::conditional_t<std::is_same_v<T, sycl::half>, float, T>;
+                const std::vector<T> actual = download_as<T>(C);
+                for (std::size_t i = 0; i < actual.size(); ++i)
+                {
+                    const double want = static_cast<double>(static_cast<Wide>(expected[i]));
+                    const double got = static_cast<double>(static_cast<Wide>(actual[i]));
+                    ASSERT_NEAR(got, want, tolerance * (1.0 + std::abs(want))) << "element " << i;
+                }
+            }
+
+            TEST_F(Medium_GEMMKernelTest, LocalTiledVariantMatchesReferenceOnWholeAndEdgeTiles)
+            {
+                // Each case mixes whole and edge tiles; see tests/operations/blas/README.md.
+                const Device::Profile& profile = Device::profile_for(TestEnvironment::queue());
+                if (!hosts_local_tiled<float>(profile))
+                    GTEST_SKIP() << "device cannot host the local-tiled work-group";
+
+                using Core::Layout;
+                using Core::Transpose;
+                const std::vector<LocalTiledCase> cases = {
+                    {Layout::ColumnMajor, Transpose::NoTrans, Transpose::NoTrans, 128, 136, 40, 2},
+                    {Layout::ColumnMajor, Transpose::NoTrans, Transpose::NoTrans, 130, 72, 40, 1},
+                    {Layout::RowMajor, Transpose::NoTrans, Transpose::NoTrans, 72, 128, 40, 1},
+                    {Layout::RowMajor, Transpose::Trans, Transpose::NoTrans, 128, 72, 40, 1},
+                    {Layout::ColumnMajor, Transpose::Trans, Transpose::Trans, 72, 68, 48, 1}};
+
+                for (std::size_t i = 0; i < cases.size(); ++i)
+                {
+                    SCOPED_TRACE("case " + std::to_string(i));
+                    expect_local_tiled_matches_reference<float>(*engine, cases[i], 1e-5);
+                    if (profile.supports_fp64 && hosts_local_tiled<double>(profile))
+                        expect_local_tiled_matches_reference<double>(*engine, cases[i], 1e-12);
+                    if (profile.supports_fp16 && hosts_local_tiled<sycl::half>(profile))
+                        expect_local_tiled_matches_reference<sycl::half>(*engine, cases[i], 2e-2);
+                }
             }
 
             TEST_F(Medium_GEMMKernelTest, StrideTableMatchesTheStandardIdentity)

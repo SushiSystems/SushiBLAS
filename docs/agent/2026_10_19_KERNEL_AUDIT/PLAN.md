@@ -102,8 +102,11 @@ ColumnMajor only.
 | B11 | Load full tiles without bounds checks, with 32-bit offsets | `benchmark_gemm`, `cuda:0` | committed |
 | B12 | Stage through 128-bit loads | `benchmark_gemm`, `cuda:0` | committed |
 | B13 | Double-buffer the K loop | `benchmark_gemm`, `cuda:0` | committed |
-| B14 | Tune `K_TILE_K` and the `GemmLocalTile` shape | `benchmark_gemm`, `cuda:0` | open |
+| B14 | Tune `K_TILE_K` and the `GemmLocalTile` shape | `benchmark_gemm`, `cuda:0` | deferred to RW-92 |
 | B15 | Tasks 6 to 10 above: the HALF `joint_matrix` path | `benchmark_gemm` HALF, `cuda:0` | open |
+
+B14 is deferred: tuning chooses values by measurement, and both values are compile-time
+constants, so each candidate is a build of its own. It runs in RW-92 or not at all.
 
 B10 covers `gemm_local_tiled` alone, read on 2026-10-19. `gemm_no_local` runs on neither device:
 the RTX 3080 Ti has dedicated local memory and takes the tiled kernel, and the CPU takes the packed
