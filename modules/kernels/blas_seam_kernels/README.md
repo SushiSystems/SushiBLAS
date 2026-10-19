@@ -11,7 +11,7 @@ trait they share is in [the arithmetic module](../../foundation/arithmetic/READM
 | `operand_access.hpp` | `OperandAccess`, how a kernel reads element (row, col) of op(X) |
 | `symmetric_access.hpp` | `SymmetricAccess`, which reads a symmetric or Hermitian matrix from one triangle |
 | `band_access.hpp` | `BandAccess`, how a kernel reads element (row, col) of a band-stored op(X) |
-| `packed_access.hpp` | `PackedAccess`, how a kernel reads element (row, col) of a packed op(X) |
+| `packed_access.hpp` | `PackedAccess`, how a kernel reads element (row, col) of a packed op(X), and `position`, which finds the element at an offset |
 | `row_cursor.hpp` | `RowCursor`, the offset of an element that moves along one row of a band-stored or packed op(X) |
 | `symmetric_row.hpp` | `SymmetricRow`, which walks one row of a band-stored or packed symmetric matrix |
 | `conjugation.hpp` | `Unconjugated` and `Conjugated`, the policies that turn a symmetric kernel into its Hermitian sibling |
@@ -83,6 +83,15 @@ stored at all, and `first_column(r)` and `end_column(r, columns)`, which bound t
 a row, so a kernel walks only what the storage holds. `band_access` takes the two band widths of
 X, not of op(X); `triangle_band_access` and `packed_access` take the `Uplo` of X, not of op(X).
 The Level 2 band and packed kernels of both back ends are written against these two bricks.
+
+`PackedAccess::position(t)` is the inverse of `index`: it returns the row and column whose element
+is stored at offset t. The offsets run line by line along the axis the lines are stored on, so a
+launch over `order * (order + 1) / 2` work-items that calls `position` touches neighbouring
+elements from neighbouring work-items and never one outside the triangle. A growing line p starts
+at `p * (p + 1) / 2`; `triangular_root` finds p from a float root and two loops that make it
+exact. A shrinking storage is a growing one counted from its far end. The SYCL rank updates walk a
+dense triangle the same way, through the `packed_access` of the dense matrix's layout and `Uplo`,
+whose lines are its contiguous axis.
 
 ## `row_cursor.hpp`
 

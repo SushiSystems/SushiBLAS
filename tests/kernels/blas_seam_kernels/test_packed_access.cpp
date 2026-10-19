@@ -443,5 +443,48 @@ namespace SushiBLAS
                 }
             }
         }
+
+        /**
+         * @brief Tests that position inverts index over every stored element of every storage.
+         */
+        TEST(Small_PackedAccess, PositionInvertsIndexOverEveryStoredElement)
+        {
+            for (const PackedStorage& storage : K_STORAGES)
+            {
+                for (const int64_t order : {1, 2, 3, 7, 64})
+                {
+                    SCOPED_TRACE(::testing::Message()
+                                 << layout_name(storage.layout) << ", "
+                                 << Core::to_string(storage.uplo) << ", order " << order);
+
+                    const Kernels::PackedAccess access = Kernels::packed_access(
+                        storage.layout, storage.uplo, Transpose::NoTrans, order);
+                    const int64_t stored = order * (order + 1) / 2;
+                    for (int64_t t = 0; t < stored; ++t)
+                    {
+                        const Kernels::MatrixPosition at = access.position(t);
+                        ASSERT_TRUE(access.holds(at.row, at.col)) << "offset " << t;
+                        ASSERT_EQ(t, access.index(at.row, at.col)) << "offset " << t;
+                    }
+                }
+            }
+        }
+
+        /**
+         * @brief Tests that triangular_root finds the line of the first and last offset of a
+         *        line, up to lines of 2^31 elements.
+         */
+        TEST(Small_PackedAccess, TriangularRootFindsTheLineOfAnOffset)
+        {
+            for (const int64_t p : {int64_t{1}, int64_t{2}, int64_t{1000}, int64_t{1} << 20,
+                                    (int64_t{1} << 31) - 1})
+            {
+                const int64_t first = p * (p + 1) / 2;
+                EXPECT_EQ(p, Kernels::triangular_root(first)) << "line " << p;
+                EXPECT_EQ(p - 1, Kernels::triangular_root(first - 1)) << "line " << p;
+                EXPECT_EQ(p, Kernels::triangular_root(first + p)) << "line " << p;
+            }
+            EXPECT_EQ(0, Kernels::triangular_root(0));
+        }
     } // namespace Test
 } // namespace SushiBLAS
