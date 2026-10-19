@@ -90,8 +90,8 @@ ColumnMajor only.
 | B4 | Time copy, scal, swap and rot in `benchmark_level1` | The program prints one row per routine and length on both devices | done |
 | B5 | Time `benchmark_band_packed` in both layouts, with gemv Trans, ger, syr2 and spr2 added | The program prints one section per layout, with the four new rows, on both devices | done |
 | B6 | Time `benchmark_triangular` in both layouts | The program prints one section per layout, its syrk and syr2k rows among them, on both devices | done |
-| B7 | Write `benchmark_spatial` over the spatial kernels | The program prints one row per operation on both devices | open |
-| B8 | Write `benchmark_random` over the draws and `orthonormalize` | The program prints one row per routine on both devices | open |
+| B7 | Write `benchmark_spatial` over the spatial kernels | The program prints one row per operation on both devices | done |
+| B8 | Write `benchmark_random` over the draws and `orthonormalize` | The program prints one row per routine on both devices | done |
 | B9 | Record the baseline: five runs of every benchmark on both devices | `REPORT.md` holds the median and spread of every row | open |
 
 ### GEMM on the GPU (RW-53)

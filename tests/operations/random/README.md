@@ -18,6 +18,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_random/test_random_reference.cpp` | Tests that each random operation draws one stream under both forced modes |
 | `test_random/test_shuffle.cpp` | Tests that RandomOps::shuffle permutes its input and repeats for one seed and offset |
 | `test_random/test_uniform.cpp` | Tests RandomOps::uniform's bounds, sample moments, spread and seed determinism |
+| `benchmark_random.cpp` | Times the random draws, shuffle and orthogonal and prints Melem/s per length |
 
 ## test_random/test_orthogonal.cpp
 

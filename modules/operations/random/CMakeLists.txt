@@ -46,4 +46,6 @@ sushiblas_add_test_program(
         test_random/test_random_large_lambda.cpp
         test_random/test_random_reference.cpp
         test_random/test_shuffle.cpp
-        test_random/test_uniform.cpp)
+        test_random/test_uniform.cpp
+    BENCHMARKS
+        benchmark_random.cpp)
