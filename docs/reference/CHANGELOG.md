@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-19 — blas_seam_kernels: Staged each operand of the tiled GEMM along its contiguous axis and padded the B tile to 66 columns; unmeasured (`gemm.hpp`).
 - 2026-10-19 — benchmarks: Added `benchmark_random`, which times the random draws, shuffle and orthogonal in Melem/s (`benchmark_random.cpp`).
 - 2026-10-19 — benchmarks: Added `benchmark_spatial`, which times every spatial operation on a batch of NHWC images in GB/s (`benchmark_spatial.cpp`).
 - 2026-10-19 — benchmarks: Timed every row of `benchmark_triangular` in RowMajor after ColumnMajor, the direct TRSM kernel rows among them (`benchmark_triangular.cpp`).

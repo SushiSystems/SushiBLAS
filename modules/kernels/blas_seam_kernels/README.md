@@ -347,9 +347,10 @@ K_TILE_A_LD = 17 (this code): stride 17 floats and gcd(17, 32) == 1, so the 4 la
 2, 19}: all distinct, conflict-free. It holds on AMD's 64-lane sub-groups too, where the 8 distinct
 local_row give {0,17,2,19,4,21,6,23}.
 
-The B read needs no padding: the strided ownership puts neighbouring local_col on neighbouring
-floats, so a sub-group's 8 distinct local_col cover 8 consecutive banks. Contiguous ownership would
-have spaced them K_ITEM_COLS == 8 apart: banks {0, 8, 16, 24} twice, a 2-way conflict.
+The B read is conflict-free at any leading dimension: the strided ownership puts neighbouring
+local_col on neighbouring floats of one tile row, so a sub-group's 8 distinct local_col cover 8
+consecutive banks. Contiguous ownership would have spaced them K_ITEM_COLS == 8 apart: banks {0, 8,
+16, 24} twice, a 2-way conflict. `K_TILE_B_LD` pads the B tile for the store instead (below).
 
 Register-block ownership is therefore a strided lattice, not a contiguous block: work-item
 (local_row, local_col) owns tile rows local_row + ii*K_WG_ROWS and tile columns local_col +
@@ -357,7 +358,18 @@ jj*K_WG_COLS. Neighbouring work-items touch neighbouring elements, which is what
 conflict-free and the C store coalesced.
 
 The staging loops in `gemm_local_tiled` are cooperative: the whole group fills `K_BLOCK_M x K_TILE_K` of
-A and `K_TILE_K x K_BLOCK_N` of B, each work-item taking a grid-strided share.
+A and `K_TILE_K x K_BLOCK_N` of B, each work-item taking a grid-strided share. Each loop walks its
+operand along the axis whose elements are adjacent in memory, so neighbouring work-items read
+neighbouring addresses. `has_contiguous_columns` decides it: A walks its rows first when a column
+of op(A) is contiguous, as for a ColumnMajor NoTrans A, and its depth first otherwise; B walks its
+depth first when a column of op(B) is contiguous, and its columns first otherwise. An operand read
+through another brick, such as `SymmetricAccess`, keeps the depth-first A and column-first B order.
+
+A depth-first B store writes 16 neighbouring work-items down one tile column. With an unpadded
+leading dimension of `K_BLOCK_N` == 64 floats, all 16 land on one bank. `K_TILE_B_LD` is
+`K_BLOCK_N + 2` == 66, so in float the 32 lanes of a sub-group take banks `(2 kk + cc) mod 32`:
+the first 16 lanes the even banks from `cc`, the next 16 the odd ones from `cc + 1`, with no
+conflict. A column-first store writes neighbouring floats of one row, which no padding changes.
 
 The `kk` loop in `gemm_local_tiled` sums the full `K_TILE_K` width rather than clamping to the true
 remainder on the last tile. The out-of-range elements the staging loops wrote are zero, so the sum

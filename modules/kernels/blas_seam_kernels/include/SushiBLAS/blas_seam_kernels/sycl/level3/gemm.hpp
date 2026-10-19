@@ -70,6 +70,34 @@ namespace SushiBLAS
                     return s.at(p, row, col);
                 }
 
+                /// @brief Returns whether neighbouring columns of op(X) are neighbouring elements.
+                [[nodiscard]] inline constexpr bool has_contiguous_rows(
+                    const OperandAccess& access) noexcept
+                {
+                    return access.col == 1;
+                }
+
+                /// @brief Returns false: a row read through another brick is not known contiguous.
+                template<typename Access>
+                [[nodiscard]] inline constexpr bool has_contiguous_rows(const Access&) noexcept
+                {
+                    return false;
+                }
+
+                /// @brief Returns whether neighbouring rows of op(X) are neighbouring elements.
+                [[nodiscard]] inline constexpr bool has_contiguous_columns(
+                    const OperandAccess& access) noexcept
+                {
+                    return access.row == 1;
+                }
+
+                /// @brief Returns false: a column read through another brick is not known contiguous.
+                template<typename Access>
+                [[nodiscard]] inline constexpr bool has_contiguous_columns(const Access&) noexcept
+                {
+                    return false;
+                }
+
                 /**
                  * @brief Holds the accumulator byte budget per work-item of the LOCAL_TILED variant.
                  * @see modules/kernels/blas_seam_kernels/README.md
@@ -141,6 +169,9 @@ namespace SushiBLAS
                     */
                     static constexpr int K_TILE_A_LD = K_TILE_K + 1;
 
+                    /** @brief Leading dimension of the B tile, padded off a bank multiple. */
+                    static constexpr int K_TILE_B_LD = K_BLOCK_N + 2;
+
                     /**
                      * @brief Returns the local memory one work-group needs, in bytes.
                      * @see modules/kernels/blas_seam_kernels/README.md
@@ -148,7 +179,7 @@ namespace SushiBLAS
                     [[nodiscard]] static constexpr std::size_t local_mem_bytes() noexcept
                     {
                         return (static_cast<std::size_t>(K_BLOCK_M) * K_TILE_A_LD +
-                                static_cast<std::size_t>(K_TILE_K) * K_BLOCK_N) * sizeof(T);
+                                static_cast<std::size_t>(K_TILE_K) * K_TILE_B_LD) * sizeof(T);
                     }
                 };
 
@@ -278,6 +309,10 @@ namespace SushiBLAS
                         1, static_cast<std::size_t>(Configuration::K_WG_ROWS),
                         static_cast<std::size_t>(Configuration::K_WG_COLS));
 
+                    // Each operand is staged along the axis its elements are adjacent on.
+                    const bool a_columns_contiguous = has_contiguous_columns(a_access);
+                    const bool b_columns_contiguous = has_contiguous_columns(b_access);
+
                     return queue.submit([&](sycl::handler& h)
                     {
                         h.depends_on(deps);
@@ -288,7 +323,7 @@ namespace SushiBLAS
                             h);
                         sycl::local_accessor<T, 1> tile_b(
                             sycl::range<1>(static_cast<std::size_t>(Configuration::K_TILE_K) *
-                                           Configuration::K_BLOCK_N),
+                                           Configuration::K_TILE_B_LD),
                             h);
 
                         h.parallel_for(sycl::nd_range<3>(global, local), [=](sycl::nd_item<3> item)
@@ -323,8 +358,12 @@ namespace SushiBLAS
                                      idx < Configuration::K_BLOCK_M * Configuration::K_TILE_K;
                                      idx += Configuration::K_WG_ITEMS)
                                 {
-                                    const int r = idx / Configuration::K_TILE_K;
-                                    const int kk = idx % Configuration::K_TILE_K;
+                                    const int r = a_columns_contiguous
+                                                      ? idx % Configuration::K_BLOCK_M
+                                                      : idx / Configuration::K_TILE_K;
+                                    const int kk = a_columns_contiguous
+                                                       ? idx / Configuration::K_BLOCK_M
+                                                       : idx % Configuration::K_TILE_K;
                                     tile_a[r * Configuration::K_TILE_A_LD + kk] =
                                         load_operand(A, row0 + r, k0 + kk, m, k, a_access);
                                 }
@@ -332,9 +371,13 @@ namespace SushiBLAS
                                      idx < Configuration::K_TILE_K * Configuration::K_BLOCK_N;
                                      idx += Configuration::K_WG_ITEMS)
                                 {
-                                    const int kk = idx / Configuration::K_BLOCK_N;
-                                    const int cc = idx % Configuration::K_BLOCK_N;
-                                    tile_b[idx] =
+                                    const int kk = b_columns_contiguous
+                                                       ? idx % Configuration::K_TILE_K
+                                                       : idx / Configuration::K_BLOCK_N;
+                                    const int cc = b_columns_contiguous
+                                                       ? idx / Configuration::K_TILE_K
+                                                       : idx % Configuration::K_BLOCK_N;
+                                    tile_b[kk * Configuration::K_TILE_B_LD + cc] =
                                         load_operand(B, k0 + kk, col0 + cc, k, n, b_access);
                                 }
 
@@ -353,7 +396,7 @@ namespace SushiBLAS
                                                    Configuration::K_TILE_A_LD + kk];
                                     for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                         reg_b[jj] =
-                                            tile_b[kk * Configuration::K_BLOCK_N +
+                                            tile_b[kk * Configuration::K_TILE_B_LD +
                                                    (local_col + jj * Configuration::K_WG_COLS)];
 
                                     for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
@@ -521,19 +564,6 @@ namespace SushiBLAS
                         return width / column_lanes;
                     }
                 };
-
-                /** @brief Returns whether neighbouring columns of op(B) are neighbouring elements. */
-                [[nodiscard]] inline constexpr bool has_contiguous_rows(const OperandAccess& access) noexcept
-                {
-                    return access.col == 1;
-                }
-
-                /** @brief Returns false: a row of an operand read through another brick is not known contiguous. */
-                template<typename Access>
-                [[nodiscard]] inline constexpr bool has_contiguous_rows(const Access&) noexcept
-                {
-                    return false;
-                }
 
                 /**
                  * @brief Plans DEPTH_SPLIT for one product; the width is 0 when the product keeps
