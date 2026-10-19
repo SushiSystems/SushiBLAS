@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-19 — benchmarks: Added `benchmark_spatial`, which times every spatial operation on a batch of NHWC images in GB/s (`benchmark_spatial.cpp`).
 - 2026-10-19 — benchmarks: Timed every row of `benchmark_triangular` in RowMajor after ColumnMajor, the direct TRSM kernel rows among them (`benchmark_triangular.cpp`).
 - 2026-10-19 — benchmarks: Timed `benchmark_band_packed` in RowMajor after ColumnMajor and added transposed gemv, ger, syr2 and spr2 (`benchmark_band_packed.cpp`).
 - 2026-10-19 — benchmarks: Timed copy, scal, swap and rot beside the other level 1 routines (`benchmark_level1.cpp`).

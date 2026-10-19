@@ -41,4 +41,6 @@ sushiblas_add_test_program(
         test_spatial/test_spatial_pool_max.cpp
         test_spatial/test_spatial_upsample.cpp
         test_spatial/test_spatial_window_dot.cpp
-        test_window.cpp)
+        test_window.cpp
+    BENCHMARKS
+        benchmark_spatial.cpp)

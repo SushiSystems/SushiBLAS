@@ -150,9 +150,9 @@ emits no edge at all. That cost SushiAI's first arena-packed training run.
 
 ## Benchmarks
 
-Eight programs that time SushiBLAS operations, one per `benchmark_*.cpp` file. Six go through the
+Nine programs that time SushiBLAS operations, one per `benchmark_*.cpp` file. Seven go through the
 public API: an `Engine`, `create_tensor`, `IO::from_vector` and the operation views (`BLASOps`,
-`SparseOps`, `ReductionOps`, `ElementwiseOps`, `NonLinearOps`). `benchmark_gemm_blocking` calls the
+`SparseOps`, `ReductionOps`, `ElementwiseOps`, `NonLinearOps`, `SpatialOps`). `benchmark_gemm_blocking` calls the
 GEMM kernel directly, and `benchmark_triangular` calls the TRSM kernel directly for some of its
 rows. They use no test framework, carry the target label `benchmark` and never pass or fail on a
 number. Each sits beside the tests of the module it times, and `sushiblas_add_test_program()`
@@ -167,6 +167,7 @@ builds it when `SB_BUILD_BENCHMARKS` is on.
 | `operations/blas/benchmark_triangular.cpp` | The triangular and symmetric BLAS routines, and the TRSM kernel at chosen block widths, in both layouts |
 | `operations/sparse/benchmark_sparse.cpp` | `spmv`, `spsymv`, `spmm`, `sptrsv`, `axpyi`, `doti` |
 | `operations/reductions/benchmark_reductions.cpp` | `sum`, `max`, `var` over the whole tensor |
+| `operations/spatial/benchmark_spatial.cpp` | Every `SpatialOps` operation on a batch of NHWC images |
 | `library/umbrella/benchmark_elementwise.cpp` | `add`, in-place `exp`, in-place `relu`; it crosses `elementwise` and `nonlinear` |
 
 ### Build and run
@@ -180,6 +181,7 @@ sb run benchmark_elementwise
 sb run benchmark_band_packed
 sb run benchmark_triangular
 sb run benchmark_sparse
+sb run benchmark_spatial
 sb run benchmark_gemm_blocking -- f32 2048
 ```
 
@@ -187,7 +189,7 @@ The benchmark targets are off by default. `--benchmarks` adds them to the build 
 in the build tree until `--no-benchmarks` or `--clean` removes it.
 
 Arguments for the program follow `--`: `sb run <program> -- <sizes>`, for example
-`sb run benchmark_triangular -- 512 2048`. Seven programs take an optional list of sizes and fall
+`sb run benchmark_triangular -- 512 2048`. Eight programs take an optional list of sizes and fall
 back to their defaults when none are given. A size that is not a positive integer stops the
 program with exit code 1. `benchmark_gemm_blocking` takes its own arguments, described below.
 
@@ -207,6 +209,7 @@ prints the name of the device it ran on.
 | `benchmark_band_packed` | `gemv` (plain, transposed), `gbmv`, `symv`, `sbmv`, `spmv`, `trmv`, `tbmv`, `tpmv`, `trsv`, `tbsv`, `tpsv`, `ger`, `syr`, `syr2`, `spr`, `spr2`; every order once per layout, ColumnMajor then RowMajor | n = 1024, 4096, 8192 | Melem/s |
 | `benchmark_triangular` | `gemm`, `symm`, `syrk`, `syr2k`; `trmv` and `trsv` under `ForceSYCL` and `ForceReference`; `trsm` with 8 and with n right-hand sides; the TRSM kernel at block widths 32 to 1024 and at one block; every size once per layout, ColumnMajor then RowMajor | n = 256, 1024, 4096 | GFLOP/s |
 | `benchmark_sparse` | `spmv` (plain, transposed, conjugate-transposed), `spsymv`, `spmm` (plain, transposed), `sptrsv` (plain, transposed), `axpyi`, `doti`; 16 entries per row | n = 2^14, 2^17, 2^20 | GB/s |
+| `benchmark_spatial` | `im2col`, `col2im` and the three `window_dot` kernels on a 3x3 window padded by one; `pool_max`, `pool_avg` and their backwards on 2x2 windows of stride 2; `upsample_nearest` by 2 and its backward; `concat_channels`, `slice_channels`, `channel_affine`, `broadcast_spatial`; `layout_convert` to NCHW and back; 8 images of 64 channels | H = W = 32, 64, 128 | GB/s, each input read once and each output written once |
 
 Every operation runs in FLOAT32 and then FLOAT64; the square rows of `benchmark_gemm` also run in
 HALF, and skip a dtype whose aspect the device lacks.

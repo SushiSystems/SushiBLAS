@@ -19,6 +19,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_spatial/test_spatial_upsample.cpp` | Tests SpatialOps::upsample_nearest and upsample_nearest_backward |
 | `test_spatial/test_spatial_window_dot.cpp` | Tests the per-channel weighted window sum and its two gradients in both forced modes |
 | `test_window.cpp` | Tests the window, pooling, column and tap spans of a geometry and their refusals |
+| `benchmark_spatial.cpp` | Times the spatial operations on NHWC images and prints GB/s per image side |
 
 ## test_spatial/test_spatial_broadcast.cpp
 
