@@ -22,6 +22,7 @@ trait they share is in [the arithmetic module](../../foundation/arithmetic/READM
 | `level3/packed_product_plan.hpp` | `PackedRegisterBlock`, `PackedProductPlan` and the functions that plan a packed product |
 | `reference/level3/gemm.hpp` | The reference kernel of GEMM and its form over access bricks |
 | `sycl/level3/gemm.hpp` | The SYCL GEMM kernels and the tile geometry they launch with |
+| `sycl/level3/gemm_joint_matrix.hpp` | The HALF GEMM kernel that multiplies on the matrix units through `joint_matrix` |
 | `sycl/level3/gemm_packed.hpp` | The form of the SYCL GEMM that packs its operands where the profile selects it |
 | `sycl/level3/gemm_accessed_packed.hpp` | The same form of `gemm_accessed`, over access bricks |
 | `sycl/level3/packed_product.hpp` | `PackedProductKernel` and `packed_product`, the blocked product |
@@ -499,7 +500,7 @@ tile fits it. Cooperative A/B staging, bank-padded, barrier-synchronised.
 no barrier, a smaller register block and the work-group size the profile
 asks for.
 
-The choice is logged at `SB_LOG_INFO` so it is observable rather than inferred, and a device that
+The choice is logged at `SB_LOG_DEBUG` so it is observable rather than inferred, and a device that
 declares scratchpad memory but cannot fit the tile or host the work-group falls back with a warning
 instead of failing the launch.
 
@@ -534,6 +535,45 @@ At `if (profile.has_dedicated_local_memory && tile_hosted)`: all three variants 
 from this one function, so each is instantiated and each reaches the device image whichever branch a
 given machine takes at runtime: there is no dead-stripping hazard to guard against, and no
 configuration in which one of them stops compiling unnoticed.
+
+## `sycl/level3/gemm_joint_matrix.hpp`
+
+`gemm_joint_matrix` computes a HALF GEMM on the tensor cores of a CUDA device through
+the oneAPI matrix extension, accumulating in FLOAT32 and rounding to HALF once, at the store. The
+local-tiled kernel stays the fallback on every device and is the truth its test compares against
+bit for bit.
+
+### `Detail::GemmJointMatrixTile`
+
+One matrix-unit product is 16 x 16 x 16. A sub-group of 32 work-items, one CUDA warp, owns a
+32 x 32 block of C as 2 x 2 fragments, so each A fragment and each B fragment it loads feeds two
+products. A work-group holds 2 x 2 sub-groups and owns a 64 x 64 block.
+
+### `Detail::joint_matrix_fits`
+
+A fragment load reads a 16 x 16 block of op(X) from global memory with one stride, so the kernel
+asks every extent to be a multiple of 16, and each operand to have a contiguous axis, a leading
+dimension that is a multiple of 8 HALF elements, a base address aligned to 32 bytes and a batch
+stride that is a multiple of 16 elements. With those, every fragment origin is 32-byte aligned.
+A product that fails any of them runs on the local-tiled kernel.
+
+### `Detail::gemm_joint_matrix_as`
+
+The layouts of A and B are template arguments, because a `joint_matrix` names its layout in its
+type; `gemm_joint_matrix` picks one of the four instantiations from the access strides. Each
+sub-group loads its two A and two B fragments per K-step straight from global memory and
+accumulates four FLOAT32 fragments. At the end it stores each fragment, one at a time, into a
+32-byte aligned `JointMatrixStoreTile` taken with `group_local_memory_for_overwrite`, whose
+alignment follows its type, and its 32 work-items scale, round and write the 256 elements through
+`c_access`, so C may have either layout. `alpha`, `beta` and the epilogue apply there, and
+`beta == 0` never reads C.
+
+The body is compiled for NVPTX alone, under `#if !defined(__SYCL_DEVICE_ONLY__) ||
+defined(__NVPTX__)`. The SPIR-V image of the same translation unit carries an empty body, so an
+OpenCL or Level Zero runtime never meets a cooperative matrix instruction when it builds the
+module, and `Profile::supports_half_matrix` is false on every backend but CUDA, so the empty body
+is never launched. Its speed on the RTX 3080 Ti is unmeasured until RW-92 runs; the plan reverts
+the routing if it does not beat the local-tiled kernel.
 
 ## `sycl/level3/gemm_packed.hpp`, `gemm_accessed_packed.hpp`
 

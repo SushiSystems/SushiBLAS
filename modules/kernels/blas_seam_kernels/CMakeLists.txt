@@ -24,6 +24,7 @@ sushiblas_add_test_program(
         reference/level3/test_gemm.cpp
         sycl/level3/test_gemm.cpp
         sycl/level3/test_gemm_accessed_packed.cpp
+        sycl/level3/test_gemm_joint_matrix.cpp
         sycl/level3/test_gemm_packed.cpp
         sycl/level3/test_packed_micro_kernel.cpp
         sycl/level3/test_packed_panel.cpp

@@ -14,6 +14,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `reference/level3/test_gemm.cpp` | Tests the reference gemm against a dense loop, with transposes, batches and an epilogue |
 | `sycl/level3/test_gemm.cpp` | Tests the unpacked SYCL gemm against the reference gemm on the host device |
 | `sycl/level3/test_gemm_accessed_packed.cpp` | Tests the accessed SYCL gemm, with and without scratch, against the reference gemm |
+| `sycl/level3/test_gemm_joint_matrix.cpp` | Tests the joint_matrix HALF gemm bit for bit against the local-tiled kernel, and its fit check |
 | `sycl/level3/test_gemm_packed.cpp` | Tests the packed SYCL gemm under three blockings against the reference gemm |
 | `sycl/level3/test_packed_micro_kernel.cpp` | Tests the micro-kernel of a packed product on one register block per accumulation type |
 | `sycl/level3/test_packed_panel.cpp` | Tests pack_panel, which copies a block of op(X) into unit-stride micro-panels |
