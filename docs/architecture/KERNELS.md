@@ -110,8 +110,9 @@ that does not match). `operands/blas_metadata.hpp` writes the scalars and flags 
 
 **Kernel shapes.** These are the shapes as written; none is a claim about speed.
 
-- *Level 1.* The maps (`axpy`, `scal`, `copy`, `swap`, `rot`, `rotm`) launch through
-  `Launch::indexed`. `asum`, `nrm2`, `dot`, `dotu`, `dotc` and `iamax` fold through
+- *Level 1.* The maps (`axpy`, `scal`, `copy`, `swap`, `rot`) launch through `Launch::map` or
+  `Launch::zip_inplace` when every increment is one and through `Launch::indexed` otherwise;
+  `rotm` always launches through `Launch::indexed`. `asum`, `nrm2`, `dot`, `dotu`, `dotc` and `iamax` fold through
   `Reduce::reduce_indexed` with a leased scratch for the partials. `rotg` and `rotmg` are scalar
   routines.
 - *GEMV, SYMV, HEMV, TRMV, GBMV and the band and packed symmetric products.*

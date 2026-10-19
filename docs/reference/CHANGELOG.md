@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-19 — blas_kernels: Launched axpy, copy, scal, swap and rot on unit increments through `Launch::map` and `Launch::zip_inplace`, which take the 128-bit path; unmeasured (`level1.hpp`).
 - 2026-10-19 — blas_seam_kernels: Routed HALF GEMM to `gemm_joint_matrix` where the profile and the operands allow it; unmeasured (`gemm.hpp`).
 - 2026-10-19 — blas_seam_kernels: Added `gemm_joint_matrix`, a HALF GEMM on the CUDA matrix units that accumulates in FLOAT32, with its tests (`gemm_joint_matrix.hpp`).
 - 2026-10-19 — launch: Added `supports_half_matrix` to `Device::Profile`, true for a CUDA device that lists a 16 x 16 x 16 HALF joint_matrix product (`device_policy.hpp`).

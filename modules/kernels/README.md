@@ -339,8 +339,8 @@ are compiled into this library.
 
 ### `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level1/level1.hpp`
 
-The elementwise level 1 kernels (`axpy`, `copy`, `scal`, `swap`, `rot`) run one work-item per
-element. The reductions (`asum`, `nrm2`, `dot`, `dotc`, `iamax`) run through
+The elementwise level 1 kernels (`axpy`, `copy`, `scal`, `swap`, `rot`) compute each element
+independently. The reductions (`asum`, `nrm2`, `dot`, `dotc`, `iamax`) run through
 `Reduce::reduce_indexed` in `<SushiBLAS/reduction/reduce_1d.hpp>`, so they take the same single-pass or
 two-stage shape, and the same fixed combination order, as the whole-tensor reductions. `asum` and
 a real `dot` fold with `CompensatedSum`, a complex `dot` and `dotc` with `CompensatedComplexSum`,
@@ -359,13 +359,13 @@ complex `nrm2`) times `K_LEVEL1_PARTIAL_BYTES`, the largest partial any of the f
 its own partial size, and `partial_capacity` refuses at compile time a partial larger than the
 constant.
 
-The parallel kernels launch through `Launch::indexed`, not a bare `sycl::range<1>`, so they get
-the same device-dependent geometry as every elementwise operation: flat on a CPU, grid-stride on a
-GPU. `Launch::map` would also give them the 128-bit wide path, but it addresses its operands as
-`in[i]`. A level 1 kernel reads `x[i * incx]`, and the increments are part of the BLAS signature,
-so its access pattern is not the contiguous one `map` assumes. Specialising each kernel on
-`incx == incy == 1` would reach the wide path. Nobody has written that, because the wide path only
-engages on a GPU and this project has no GPU device to measure it on.
+The elementwise kernels take two shapes. With every increment one, `axpy`, `copy` and `scal`
+launch through `Launch::map` and `swap` and `rot` through `Launch::zip_inplace`, which take the
+128-bit wide path when every operand is aligned to it; any other increment launches through
+`Launch::indexed` and reads `x[i * incx]`. Both shapes get the device-dependent geometry of every
+elementwise operation, flat on a CPU and grid-stride on a GPU, and both compute each element with
+the same expression, so the shape changes no result. The gain of the wide path on the RTX 3080 Ti
+is unmeasured until RW-92 runs.
 
 `nrm2` computes the scaling 2-norm through the library's own accumulator,
 `Reduce::ScaledSumOfSquares`, and holds no second copy of the algorithm.

@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <array>
 #include <complex>
 #include <cstddef>
 #include <cstdint>
@@ -45,13 +46,28 @@ namespace SushiBLAS
     {
         namespace SYCL
         {
+            /**
+             * @brief Computes y = alpha * x + y.
+             * @see kernels/README.md
+             */
             template<typename T>
-            [[nodiscard]] sycl::event axpy(sycl::queue& queue, int64_t n, T alpha, const T* x, int64_t incx, T* y, int64_t incy, const std::vector<sycl::event>& deps)
+            [[nodiscard]] sycl::event axpy(sycl::queue& queue, int64_t n, T alpha, const T* x,
+                                           int64_t incx, T* y, int64_t incy,
+                                           const std::vector<sycl::event>& deps)
             {
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    Launch::indexed(h, queue, static_cast<size_t>(n), [=](size_t k)
+                    const std::size_t count = static_cast<std::size_t>(n);
+                    if (incx == 1 && incy == 1)
+                    {
+                        const T* read_y = y;
+                        Launch::map(h, queue, count, Launch::vector_aligned(x, read_y),
+                                    [=](T xi, T yi) { return yi + multiply(alpha, xi); },
+                                    y, x, read_y);
+                        return;
+                    }
+                    Launch::indexed(h, queue, count, [=](size_t k)
                     {
                         const int64_t i = static_cast<int64_t>(k);
                         y[i * incy] += multiply(alpha, x[i * incx]);
@@ -59,13 +75,26 @@ namespace SushiBLAS
                 });
             }
 
+            /**
+             * @brief Copies x into y.
+             * @see kernels/README.md
+             */
             template<typename T>
-            [[nodiscard]] sycl::event copy(sycl::queue& queue, int64_t n, const T* x, int64_t incx, T* y, int64_t incy, const std::vector<sycl::event>& deps)
+            [[nodiscard]] sycl::event copy(sycl::queue& queue, int64_t n, const T* x, int64_t incx,
+                                           T* y, int64_t incy,
+                                           const std::vector<sycl::event>& deps)
             {
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    Launch::indexed(h, queue, static_cast<size_t>(n), [=](size_t k)
+                    const std::size_t count = static_cast<std::size_t>(n);
+                    if (incx == 1 && incy == 1)
+                    {
+                        Launch::map(h, queue, count, Launch::vector_aligned(x, y),
+                                    [](T xi) { return xi; }, y, x);
+                        return;
+                    }
+                    Launch::indexed(h, queue, count, [=](size_t k)
                     {
                         const int64_t i = static_cast<int64_t>(k);
                         y[i * incy] = x[i * incx];
@@ -73,13 +102,26 @@ namespace SushiBLAS
                 });
             }
 
+            /**
+             * @brief Computes x = alpha * x.
+             * @see kernels/README.md
+             */
             template<typename T>
-            [[nodiscard]] sycl::event scal(sycl::queue& queue, int64_t n, T alpha, T* x, int64_t incx, const std::vector<sycl::event>& deps)
+            [[nodiscard]] sycl::event scal(sycl::queue& queue, int64_t n, T alpha, T* x,
+                                           int64_t incx, const std::vector<sycl::event>& deps)
             {
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    Launch::indexed(h, queue, static_cast<size_t>(n), [=](size_t k)
+                    const std::size_t count = static_cast<std::size_t>(n);
+                    if (incx == 1)
+                    {
+                        const T* read_x = x;
+                        Launch::map(h, queue, count, Launch::vector_aligned(read_x),
+                                    [=](T xi) { return multiply(xi, alpha); }, x, read_x);
+                        return;
+                    }
+                    Launch::indexed(h, queue, count, [=](size_t k)
                     {
                         const int64_t i = static_cast<int64_t>(k);
                         x[i * incx] = multiply(x[i * incx], alpha);
@@ -87,13 +129,31 @@ namespace SushiBLAS
                 });
             }
 
+            /**
+             * @brief Exchanges x and y element by element.
+             * @see kernels/README.md
+             */
             template<typename T>
-            [[nodiscard]] sycl::event swap(sycl::queue& queue, int64_t n, T* x, int64_t incx, T* y, int64_t incy, const std::vector<sycl::event>& deps)
+            [[nodiscard]] sycl::event swap(sycl::queue& queue, int64_t n, T* x, int64_t incx,
+                                           T* y, int64_t incy,
+                                           const std::vector<sycl::event>& deps)
             {
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    Launch::indexed(h, queue, static_cast<size_t>(n), [=](size_t k)
+                    const std::size_t count = static_cast<std::size_t>(n);
+                    if (incx == 1 && incy == 1)
+                    {
+                        Launch::zip_inplace(h, queue, count, Launch::vector_aligned(x, y),
+                                            std::array<T*, 2>{x, y}, [](T& xi, T& yi)
+                                            {
+                                                const T tmp = xi;
+                                                xi = yi;
+                                                yi = tmp;
+                                            });
+                        return;
+                    }
+                    Launch::indexed(h, queue, count, [=](size_t k)
                     {
                         const int64_t i = static_cast<int64_t>(k);
                         T tmp = x[i * incx];
@@ -103,15 +163,33 @@ namespace SushiBLAS
                 });
             }
 
+            /**
+             * @brief Applies the plane rotation (c, s) to the pairs (x, y).
+             * @see kernels/README.md
+             */
             template<typename T>
-            [[nodiscard]] sycl::event rot(sycl::queue& queue, int64_t n, T* x, int64_t incx, T* y, int64_t incy,
-                             typename Reference::RealOf<T>::type c, typename Reference::RealOf<T>::type s,
-                             const std::vector<sycl::event>& deps)
+            [[nodiscard]] sycl::event rot(sycl::queue& queue, int64_t n, T* x, int64_t incx, T* y,
+                                          int64_t incy, typename Reference::RealOf<T>::type c,
+                                          typename Reference::RealOf<T>::type s,
+                                          const std::vector<sycl::event>& deps)
             {
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    Launch::indexed(h, queue, static_cast<size_t>(n), [=](size_t k)
+                    const std::size_t count = static_cast<std::size_t>(n);
+                    if (incx == 1 && incy == 1)
+                    {
+                        Launch::zip_inplace(h, queue, count, Launch::vector_aligned(x, y),
+                                            std::array<T*, 2>{x, y}, [=](T& xi, T& yi)
+                                            {
+                                                const T x0 = xi;
+                                                const T y0 = yi;
+                                                xi = multiply(c, x0) + multiply(s, y0);
+                                                yi = multiply(c, y0) - multiply(s, x0);
+                                            });
+                        return;
+                    }
+                    Launch::indexed(h, queue, count, [=](size_t k)
                     {
                         const int64_t i = static_cast<int64_t>(k);
                         T xi = x[i * incx];
