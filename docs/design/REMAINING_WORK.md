@@ -1,6 +1,6 @@
 # Remaining work
 
-Next id: RW-104
+Next id: RW-105
 
 ## Decisions waiting for the owner
 
@@ -431,6 +431,14 @@ sparse kernels' `DEPENDS`; every dot product through `multiply_add`, tasks 1 to 
 - Done when: each service under `cli/sushiblas/services/` has tests (C18)
 
 ## Code shape
+
+### RW-104 Carry out SushiBLAS's share of layered execution
+- State: open
+- Done when: tasks B1 to B13 of `docs/design/LAYERED_EXECUTION.md` are closed
+- Source: `docs/design/LAYERED_EXECUTION.md`
+
+B3 closes KI-7; B13 closes KI-26 with RW-89. The programme's entry is `sushiai RW-130`; B5 waits on
+its A0, B10 on `sushiruntime RW-65`.
 
 ### RW-66 Reword the old bare names in comments and messages
 - State: open

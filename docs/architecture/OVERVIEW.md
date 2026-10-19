@@ -28,3 +28,10 @@ the value tag `Dispatch::ElementTag` where a templated lambda would go.
 A SushiBLAS program starts from SushiRuntime: it creates a `SushiRuntime::Runtime` and builds an
 `Engine` on it. SushiBLAS reaches the runtime through `<SushiRuntime/sushiruntime.hpp>` and the
 headers of its public modules, and names nothing in `SushiRuntime::Internal`.
+
+In the stack SushiBLAS computes and SushiRuntime orchestrates: the runtime holds the graphs and the
+memory and decides where each node runs, and computes nothing of its own. A caller that owns a
+graph, such as SushiAI's compiled step, builds a `TaskRecorder` over that graph's recorder and the
+operation families over the `TaskRecorder`, and SushiBLAS records into it. Removing the engine's
+own graph, so that every caller does this, is
+[`LAYERED_EXECUTION.md`](../design/LAYERED_EXECUTION.md).
