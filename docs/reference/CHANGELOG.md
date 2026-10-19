@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-19 — blas_kernels: Finished the fixed-order tree of the row reductions in sub-group shuffles that pair the lanes the tree pairs; unmeasured (`row_reduction.hpp`).
 - 2026-10-19 — blas_kernels: Walked the stored triangle of SYR, SYR2, SPR and SPR2 one work-item per element and put the contiguous axis of A last in the range of GER; unmeasured (`level2/`).
 - 2026-10-19 — blas_seam_kernels: Added `PackedAccess::position`, the inverse of `index`, and `triangular_root` (`packed_access.hpp`).
 - 2026-10-19 — blas_kernels: Launched axpy, copy, scal, swap and rot on unit increments through `Launch::map` and `Launch::zip_inplace`, which take the 128-bit path; unmeasured (`level1.hpp`).

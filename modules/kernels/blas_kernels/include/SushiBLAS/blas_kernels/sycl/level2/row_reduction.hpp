@@ -128,16 +128,41 @@ namespace SushiBLAS
 
                         sycl::group_barrier(it.get_group());
 
+                        // Sub-group 0 takes the last levels when a power-of-two sub-group fits.
+                        const sycl::sub_group sg = it.get_sub_group();
+                        const std::size_t lanes = sg.get_max_local_range()[0];
+                        const bool shuffles =
+                            lanes > 1 && (lanes & (lanes - 1)) == 0 && width >= lanes;
+                        const std::size_t floor = shuffles ? lanes : std::size_t{1};
+
                         // width is a power of two, so the halving tree pairs every lane in a fixed order.
-                        for (std::size_t off = width / 2; off > 0; off >>= 1)
+                        for (std::size_t off = width / 2; off >= floor; off >>= 1)
                         {
                             if (lid < off)
                                 tile[lid] = tile[lid] + tile[lid + off];
                             sycl::group_barrier(it.get_group());
                         }
 
-                        if (lid == 0)
-                            store(row, tile[0]);
+                        if (!shuffles)
+                        {
+                            if (lid == 0)
+                                store(row, tile[0]);
+                            return;
+                        }
+
+                        // The shuffles pair lane l with lane l + off, the pairs the tree takes.
+                        if (sg.get_group_linear_id() != 0)
+                            return;
+                        const std::size_t l = sg.get_local_linear_id();
+                        T value = tile[l];
+                        for (std::size_t off = lanes / 2; off > 0; off >>= 1)
+                        {
+                            const T other = sycl::shift_group_left(sg, value, off);
+                            if (l < off)
+                                value = value + other;
+                        }
+                        if (l == 0)
+                            store(row, value);
                     });
                 }
 

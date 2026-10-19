@@ -110,6 +110,46 @@ namespace SushiBLAS
             }
         }
 
+        TEST_F(Medium_RowReductionOnDevice, AGroupFoldGivesTheBitsOfItsHalvingTree)
+        {
+            // Large and small terms of both signs make every order of the sum give other bits.
+            std::vector<float> values(static_cast<std::size_t>(K_ROWS * K_COLUMNS));
+            for (std::size_t i = 0; i < values.size(); ++i)
+            {
+                const float magnitude = (i % 7 == 0) ? 1.0e7f : 0.1f * static_cast<float>(i % 13);
+                values[i] = (i % 2 == 0) ? magnitude : -magnitude;
+            }
+            const SharedArray<float> matrix(queue(), values);
+            const float* m = matrix.get();
+
+            for (const std::size_t width : {std::size_t{16}, std::size_t{64}})
+            {
+                SCOPED_TRACE(width);
+                SharedArray<float> sums(queue(), static_cast<std::size_t>(K_ROWS));
+                float* out = sums.get();
+                queue().submit([&](sycl::handler& h)
+                {
+                    Rows::reduce_rows_by_group<float>(
+                        h, K_ROWS, K_COLUMNS, width,
+                        [=](int64_t row, int64_t k) { return m[row * K_COLUMNS + k]; },
+                        [=](int64_t row, float sum) { out[row] = sum; });
+                }).wait();
+
+                for (int64_t row = 0; row < K_ROWS; ++row)
+                {
+                    // Lane l sums columns l, l + width, ...; the tree then halves the lanes.
+                    std::vector<float> lanes(width, 0.0f);
+                    for (int64_t k = 0; k < K_COLUMNS; ++k)
+                        lanes[static_cast<std::size_t>(k) % width] +=
+                            values[static_cast<std::size_t>(row * K_COLUMNS + k)];
+                    for (std::size_t off = width / 2; off > 0; off >>= 1)
+                        for (std::size_t l = 0; l < off; ++l)
+                            lanes[l] = lanes[l] + lanes[l + off];
+                    EXPECT_EQ(sums.get()[row], lanes[0]) << "row " << row;
+                }
+            }
+        }
+
         TEST_F(Medium_RowReductionOnDevice, ATriangleWindowFoldsOnlyItsColumns)
         {
             const int64_t order = K_ROWS;

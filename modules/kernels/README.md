@@ -389,6 +389,10 @@ work-item reduces one whole row of `op(A)`. That reduction is why neither kernel
 The work-group shape, in `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/row_reduction.hpp`, gives each output element
 one work-group. Its work-items read the row at consecutive addresses, keep strided partial sums,
 and fold them in a halving tree of fixed order, so the same device repeats a result to the bit.
+The tree runs through local memory, one barrier a level, until it is as wide as one sub-group;
+when the sub-group width is a power of two no larger than the group, sub-group 0 takes the last
+levels through `sycl::shift_group_left`, lane l adding lane l + off as the tree would, so the
+shuffles give the bits the tree gives with log2 of the sub-group width fewer barriers.
 `row_reduction_width` picks the shape: it takes the work-group shape when
 `Reduce::planned_partials` would split a one-dimensional reduction of the row's length into two
 stages on that device. On a CPU that means a row of at least `Reduce::K_CPU_TWO_STAGE_MIN_ELEMENTS`
