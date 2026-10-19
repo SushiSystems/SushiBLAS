@@ -160,7 +160,7 @@ builds it when `SB_BUILD_BENCHMARKS` is on.
 
 | File | Holds |
 | --- | --- |
-| `operations/blas/benchmark_gemm.cpp` | Square GEMM through `BLASOps` |
+| `operations/blas/benchmark_gemm.cpp` | GEMM through `BLASOps`, in both layouts |
 | `operations/blas/benchmark_gemm_blocking.cpp` | One square GEMM kernel call under a cache blocking given on the command line |
 | `operations/blas/benchmark_level1.cpp` | `axpy`, `dot`, `nrm2`, `asum`, `iamax` |
 | `operations/blas/benchmark_band_packed.cpp` | The band and packed Level 2 routines beside their dense siblings |
@@ -199,8 +199,8 @@ prints the name of the device it ran on.
 
 | Program | Operations | Default sizes | Rate |
 | --- | --- | --- | --- |
-| `benchmark_gemm` | `gemm`, C = A * B, square, column-major | n = 128, 512, 1024, 2048 | GFLOP/s, 2 * n^3 flops |
-| `benchmark_gemm`, rows `gemm deep` and `gemm strided` | `gemm` in FLOAT32 with a small C and a long K: five shapes of C = A^T * B, where K is contiguous in memory, and six of C = A * B^T, where K is the leading axis; the size column is K | fixed | GFLOP/s, 2 * m * n * k flops |
+| `benchmark_gemm` | `gemm`, C = A * B, square, every section once per layout: ColumnMajor, then RowMajor | n = 128, 512, 1024, 2048 | GFLOP/s, 2 * n^3 flops |
+| `benchmark_gemm`, rows `gemm deep` and `gemm strided` | `gemm` in FLOAT32 with a small C and a long K: five shapes of C = A^T * B, where K is contiguous in memory under ColumnMajor, and six of C = A * B^T, where K is the leading axis under ColumnMajor; the size column is K | fixed | GFLOP/s, 2 * m * n * k flops |
 | `benchmark_level1` | `axpy`, `dot`, `nrm2`, `asum`, `iamax` | 2^16, 2^20, 2^24 elements | GB/s |
 | `benchmark_reductions` | `sum`, `max`, `var` over the whole tensor | 2^16, 2^20, 2^24 elements | GB/s |
 | `benchmark_elementwise` | `add`, in-place `exp`, in-place `relu` | 2^16, 2^20, 2^24 elements | GB/s |
@@ -237,8 +237,8 @@ a few iterations; the timing then covers infinite inputs.
 ### How a number is produced
 
 Each program prints the device name, the build configuration (`release` when `NDEBUG` is defined,
-`debug` otherwise), the compute units, cache bytes and cache blocking of the device profile, and the
-engine's execution mode. It fills the inputs once, runs 2 warm-up iterations, then times 10
+`debug` otherwise), the compute units, cache bytes and cache blocking of the device profile, the
+engine's execution mode and its layout. It fills the inputs once, runs 2 warm-up iterations, then times 10
 iterations with `std::chrono::steady_clock`. One iteration of a program that goes through the public
 API records the operation on the task graph and calls `Engine::execute`, so graph compilation and
 dispatch are inside the measured time. The table gives the median and minimum time per iteration in

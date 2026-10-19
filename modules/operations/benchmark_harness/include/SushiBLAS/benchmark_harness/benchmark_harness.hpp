@@ -107,7 +107,20 @@ namespace SushiBLAS::Bench
         return "UNKNOWN";
     }
 
-    /// @brief Prints the device a probe tensor lives on, the build configuration and the engine mode.
+    /// @brief Returns the name of a storage layout.
+    [[nodiscard]] inline const char* layout_name(Core::Layout layout) noexcept
+    {
+        switch (layout)
+        {
+            case Core::Layout::RowMajor:
+                return "RowMajor";
+            case Core::Layout::ColumnMajor:
+                return "ColumnMajor";
+        }
+        return "UNKNOWN";
+    }
+
+    /// @brief Prints the device a probe tensor lives on, the build, the engine mode and layout.
     inline void print_environment(Engine& engine)
     {
         const Tensor probe = engine.create_tensor({1});
@@ -121,6 +134,7 @@ namespace SushiBLAS::Bench
                     profile.blocking.inner_bytes, profile.blocking.outer_bytes,
                     profile.blocking.stream_bytes, profile.blocking.min_operand_bytes);
         std::printf("engine mode:   %s\n", execution_mode_name(engine.mode()));
+        std::printf("layout:        %s\n", layout_name(engine.layout()));
         std::printf("iterations:    %d warm-up, %d timed\n\n", K_WARMUP_ITERATIONS,
                     K_TIMED_ITERATIONS);
     }

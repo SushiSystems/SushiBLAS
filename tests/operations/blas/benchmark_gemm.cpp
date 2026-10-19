@@ -21,11 +21,12 @@
 
 /**
  * @file benchmark_gemm.cpp
- * @brief Times square GEMM in FLOAT32 and FLOAT64 and prints GFLOP/s per size.
+ * @brief Times GEMM in both layouts, FLOAT32 and FLOAT64, and prints GFLOP/s per size.
  * @author Mustafa Garip
  */
 
 #include <cstdint>
+#include <cstdio>
 #include <vector>
 #include <SushiBLAS/SushiBLAS.hpp>
 
@@ -35,12 +36,16 @@ namespace
 {
     namespace Bench = SushiBLAS::Bench;
     using SushiBLAS::Core::DataType;
+    using SushiBLAS::Core::Layout;
 
     /// @brief Square matrix orders timed when no size is given.
     const std::vector<int64_t> K_DEFAULT_SIZES = {128, 512, 1024, 2048};
 
     /// @brief Data types timed for every size.
     const std::vector<DataType> K_DTYPES = {DataType::Float32, DataType::Float64};
+
+    /// @brief Layouts every section is timed in, each on an engine of its own.
+    const std::vector<Layout> K_LAYOUTS = {Layout::ColumnMajor, Layout::RowMajor};
 
     /// @brief Value written into every element of A.
     constexpr double K_A_VALUE = 1.0;
@@ -89,7 +94,7 @@ namespace
         Bench::fill_tensor(engine, a, K_A_VALUE);
         Bench::fill_tensor(engine, b, K_B_VALUE);
 
-        // The engine is column-major, so A^T and B hold K along consecutive addresses.
+        // Under ColumnMajor, A^T and B hold K along consecutive addresses.
         const Bench::Timing timing = Bench::measure(engine, [&]()
         {
             SushiBLAS::BLASOps(engine).gemm(a, b, c, SushiBLAS::Core::Transpose::Trans,
@@ -116,7 +121,7 @@ namespace
         Bench::fill_tensor(engine, a, K_A_VALUE);
         Bench::fill_tensor(engine, b, K_B_VALUE);
 
-        // The engine is column-major, so A and B^T hold one K-step along consecutive addresses.
+        // Under ColumnMajor, A and B^T hold one K-step along consecutive addresses.
         const Bench::Timing timing = Bench::measure(engine, [&]()
         {
             SushiBLAS::BLASOps(engine).gemm(a, b, c, SushiBLAS::Core::Transpose::NoTrans,
@@ -128,13 +133,11 @@ namespace
                         Bench::K_FLOPS_PER_GIGAFLOP);
     }
 
-    /// @brief Times every data type at every requested size.
-    void run(int argc, char** argv)
+    /// @brief Times every section in one layout, under the environment lines that name it.
+    void benchmark_layout(SushiRuntime::Runtime& runtime, Layout layout,
+                          const std::vector<int64_t>& sizes)
     {
-        const std::vector<int64_t> sizes = Bench::parse_sizes(argc, argv, K_DEFAULT_SIZES);
-
-        SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
-        SushiBLAS::Engine engine(runtime, SushiBLAS::Core::Layout::ColumnMajor);
+        SushiBLAS::Engine engine(runtime, layout);
         Bench::print_environment(engine);
 
         const Bench::ResultTable table("GFLOP/s");
@@ -149,6 +152,17 @@ namespace
 
         for (const DeepShape& shape : K_STRIDED_SHAPES)
             benchmark_strided_gemm(engine, table, shape);
+        std::printf("\n");
+    }
+
+    /// @brief Times every data type at every requested size, in each layout.
+    void run(int argc, char** argv)
+    {
+        const std::vector<int64_t> sizes = Bench::parse_sizes(argc, argv, K_DEFAULT_SIZES);
+
+        SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+        for (const Layout layout : K_LAYOUTS)
+            benchmark_layout(runtime, layout, sizes);
     }
 } // namespace
 

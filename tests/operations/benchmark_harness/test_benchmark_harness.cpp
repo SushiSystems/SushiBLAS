@@ -76,10 +76,12 @@ namespace SushiBLAS
             EXPECT_THROW((void)Bench::parse_sizes(2, with_bad, {1}), std::invalid_argument);
         }
 
-        TEST(Medium_BenchmarkHarness, NamesCoverTheModesAndTheTwoDtypes)
+        TEST(Medium_BenchmarkHarness, NamesCoverTheModesTheLayoutsAndTheDtypes)
         {
             EXPECT_EQ(std::string(Bench::execution_mode_name(ExecutionMode::ForceSYCL)),
                       "ForceSYCL");
+            EXPECT_EQ(std::string(Bench::layout_name(Core::Layout::RowMajor)), "RowMajor");
+            EXPECT_EQ(std::string(Bench::layout_name(Core::Layout::ColumnMajor)), "ColumnMajor");
             EXPECT_EQ(std::string(Bench::dtype_name(Core::DataType::Float64)), "FLOAT64");
             EXPECT_EQ(Bench::dtype_bytes(Core::DataType::Float32), sizeof(float));
             EXPECT_THROW((void)Bench::dtype_name(Core::DataType::Int32), std::invalid_argument);

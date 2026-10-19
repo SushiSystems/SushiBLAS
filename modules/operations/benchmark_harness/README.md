@@ -16,6 +16,6 @@ It depends on `core`, `launch`, `tensor`, `engine` and `io`. Its header is inclu
 
 `print_environment` prints the device name, the build configuration (`release` when `NDEBUG` is
 defined, `debug` otherwise), the compute units, cache bytes and cache blocking of the device
-profile, and the engine's execution mode. `time_iterations` runs 2 warm-up iterations, then
+profile, the engine's execution mode and its layout. `time_iterations` runs 2 warm-up iterations, then
 times 10 with `std::chrono::steady_clock` and returns the median and the minimum. The benchmark
 section of `tests/README.md` describes the programs that use it.
