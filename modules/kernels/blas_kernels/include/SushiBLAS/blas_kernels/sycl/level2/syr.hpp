@@ -37,9 +37,7 @@
 #include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
-#include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
-#include <SushiBLAS/blas_seam_kernels/packed_access.hpp>
 
 namespace SushiBLAS
 {
@@ -48,8 +46,7 @@ namespace SushiBLAS
         namespace SYCL
         {
             /**
-             * @brief Computes SYR or HER, A += alpha * x * Conj(x)^T, one work-item per element of
-             *        the triangle uplo names.
+             * @brief Computes SYR or HER, A += alpha * x * Conj(x)^T, in the triangle uplo names.
              * @tparam Conj Unconjugated (syr) or Conjugated (her, which stores a real diagonal).
              * @tparam Scalar The type of alpha: T for syr, the real component type of T for her.
              * @see kernels/README.md
@@ -66,18 +63,21 @@ namespace SushiBLAS
                 using WS = Accumulator<Scalar>;
                 SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SYR: {}x{}", n, n);
 
-                // The walk of the triangle runs its lines along the contiguous axis of A.
-                const PackedAccess walk = packed_access(layout, uplo, Core::Transpose::NoTrans, n);
-                const std::size_t stored = static_cast<std::size_t>(n * (n + 1) / 2);
+                const bool upper = (uplo == Core::Uplo::Upper);
 
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    Launch::indexed(h, queue, stored, [=](std::size_t t)
+                    // The fastest index walks the axis the elements of A are adjacent on.
+                    const bool by_columns = (layout == Core::Layout::ColumnMajor);
+                    const sycl::range<2> elements(static_cast<std::size_t>(n),
+                                                  static_cast<std::size_t>(n));
+                    h.parallel_for(elements, [=](sycl::id<2> idx)
                     {
-                        const MatrixPosition at = walk.position(static_cast<int64_t>(t));
-                        const int64_t i = at.row;
-                        const int64_t j = at.col;
+                        const int64_t i = static_cast<int64_t>(by_columns ? idx[1] : idx[0]);
+                        const int64_t j = static_cast<int64_t>(by_columns ? idx[0] : idx[1]);
+                        if (upper ? (j < i) : (j > i))
+                            return;
                         T& ref = (layout == Core::Layout::RowMajor) ? a[i * lda + j]
                                                                      : a[i + j * lda];
                         const W updated = W(ref) + multiply(multiply(WS(alpha), W(x[i * incx])),

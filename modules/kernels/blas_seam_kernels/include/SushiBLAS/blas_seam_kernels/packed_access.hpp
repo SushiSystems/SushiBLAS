@@ -27,7 +27,6 @@
 
 #pragma once
 
-#include <cmath>
 #include <cstdint>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
@@ -38,29 +37,6 @@ namespace SushiBLAS
 {
     namespace Kernels
     {
-        /** @brief Holds one row and one column of a matrix. */
-        struct MatrixPosition
-        {
-            int64_t row = 0; /**< The row. */
-            int64_t col = 0; /**< The column. */
-        };
-
-        /**
-         * @brief Returns the largest p with p * (p + 1) / 2 <= r.
-         * @pre r >= 0.
-         */
-        [[nodiscard]] inline int64_t triangular_root(int64_t r) noexcept
-        {
-            // The float root only seeds p; the two loops below make it exact.
-            int64_t p = static_cast<int64_t>(
-                (std::sqrt(8.0f * static_cast<float>(r) + 1.0f) - 1.0f) * 0.5f);
-            while (p > 0 && p * (p + 1) / 2 > r)
-                --p;
-            while ((p + 1) * (p + 2) / 2 <= r)
-                ++p;
-            return p;
-        }
-
         /**
          * @brief Holds the order, the packing direction and the conjugation of a packed op(X).
          * @see modules/kernels/blas_seam_kernels/README.md
@@ -76,23 +52,6 @@ namespace SushiBLAS
             [[nodiscard]] constexpr bool is_upper() const noexcept
             {
                 return growing != by_rows;
-            }
-
-            /**
-             * @brief Returns the row and column of op(X) whose element is stored at offset t.
-             * @pre 0 <= t < order * (order + 1) / 2.
-             * @see modules/kernels/blas_seam_kernels/README.md
-             */
-            [[nodiscard]] MatrixPosition position(int64_t t) const noexcept
-            {
-                // A shrinking line is a growing one counted from the far end of the storage.
-                const int64_t total = order * (order + 1) / 2;
-                const int64_t counted = growing ? t : total - 1 - t;
-                const int64_t root = triangular_root(counted);
-                const int64_t offset = counted - root * (root + 1) / 2;
-                const int64_t line = growing ? root : order - 1 - root;
-                const int64_t along = growing ? offset : order - 1 - offset;
-                return by_rows ? MatrixPosition{line, along} : MatrixPosition{along, line};
             }
 
             /** @brief Returns whether element (r, c) of op(X) lies inside the stored triangle. */

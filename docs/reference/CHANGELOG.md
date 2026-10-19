@@ -9,8 +9,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 - 2026-10-19 — spatial_kernels: Copied `layout_convert` through 32 x 32 local tiles when it moves the adjacent axis between pixels and channels, with a test on ragged tiles; unmeasured (`broadcast.hpp`).
 - 2026-10-19 — launch: Answered a repeated `Device::profile_for` on one thread from a per-thread pointer, without the mutex and the scan; unmeasured (`device_policy.hpp`).
 - 2026-10-19 — blas_kernels: Finished the fixed-order tree of the row reductions in sub-group shuffles that pair the lanes the tree pairs; unmeasured (`row_reduction.hpp`).
-- 2026-10-19 — blas_kernels: Walked the stored triangle of SYR, SYR2, SPR and SPR2 one work-item per element and put the contiguous axis of A last in the range of GER; unmeasured (`level2/`).
-- 2026-10-19 — blas_seam_kernels: Added `PackedAccess::position`, the inverse of `index`, and `triangular_root` (`packed_access.hpp`).
+- 2026-10-19 — blas_kernels: Put the contiguous axis of A last in the ranges of GER, SYR, SYR2, SPR and SPR2, so neighbouring work-items write neighbouring elements (`level2/`).
 - 2026-10-19 — blas_kernels: Launched axpy, copy, scal, swap and rot on unit increments through `Launch::map` and `Launch::zip_inplace`, which take the 128-bit path; unmeasured (`level1.hpp`).
 - 2026-10-19 — blas_seam_kernels: Routed HALF GEMM to `gemm_joint_matrix` where the profile and the operands allow it; unmeasured (`gemm.hpp`).
 - 2026-10-19 — blas_seam_kernels: Added `gemm_joint_matrix`, a HALF GEMM on the CUDA matrix units that accumulates in FLOAT32, with its tests (`gemm_joint_matrix.hpp`).

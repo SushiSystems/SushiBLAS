@@ -38,7 +38,6 @@
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
-#include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/blas_seam_kernels/packed_access.hpp>
 
@@ -50,7 +49,7 @@ namespace SushiBLAS
         {
             /**
              * @brief Computes SPR, A += alpha * x * x^T, on the uplo triangle of A packed in ap,
-             *        one work-item per stored element.
+             *        one work-item per element of the square.
              * @tparam Conj Unconjugated for SPR, Conjugated for HPR, which adds alpha * x * x^H.
              * @tparam Scalar T for SPR, the real component type of T for HPR.
              * @see kernels/README.md
@@ -74,17 +73,18 @@ namespace SushiBLAS
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    // Work-item t updates the element stored at offset t.
-                    Launch::indexed(
-                        h, queue, static_cast<std::size_t>(n * (n + 1) / 2),
-                        [=](std::size_t t)
+                    // The fastest index walks the axis a stored line runs along.
+                    const bool by_rows = access.by_rows;
+                    h.parallel_for(
+                        sycl::range<2>(static_cast<std::size_t>(n), static_cast<std::size_t>(n)),
+                        [=](sycl::id<2> idx)
                         {
-                            const int64_t offset = static_cast<int64_t>(t);
-                            const MatrixPosition at = access.position(offset);
-                            const int64_t i = at.row;
-                            const int64_t j = at.col;
+                            const int64_t i = static_cast<int64_t>(by_rows ? idx[0] : idx[1]);
+                            const int64_t j = static_cast<int64_t>(by_rows ? idx[1] : idx[0]);
+                            if (!access.holds(i, j))
+                                return;
 
-                            T& ref = ap[offset];
+                            T& ref = ap[access.index(i, j)];
                             const W updated =
                                 W(ref) + multiply(multiply(WS(alpha), W(x[i * incx])),
                                                   Conj::apply(W(x[j * incx])));

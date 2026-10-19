@@ -125,7 +125,7 @@ are not tasks yet; the baseline and B10 decide whether they become ones.
 | B17 | Pack each B panel of the CPU GEMM once per depth block | `benchmark_gemm`, `opencl:cpu` | owner decision |
 | B18 | Choose the CPU register block per ISA, AVX-512 on the 7600X | `benchmark_gemm_blocking`, `opencl:cpu` | deferred to RW-92 |
 | B19 | Run unit-stride level 1 through `Launch::map` and `zip_inplace` | `benchmark_level1`, both devices | committed |
-| B20 | Run GER, SYR, SYR2, SPR and SPR2 along the contiguous axis, on the stored triangle only | `benchmark_band_packed`, both devices | committed |
+| B20 | Run GER, SYR, SYR2, SPR and SPR2 along the contiguous axis, on the stored triangle only | `benchmark_band_packed`, both devices | contiguous axis committed; the triangle-only walk reverted, RowMajor slower |
 | B21 | End `row_reduction` in a fixed-order sub-group shuffle | `benchmark_band_packed` gemv, both devices | committed |
 | B22 | Compute ‖vᵢ‖² once per step of `orthonormalize` | `benchmark_random`, both devices | owner decision |
 | B23 | Decode the spatial flat index in 3-D or 32-bit | `benchmark_spatial`, both devices | after RW-54 |

@@ -419,19 +419,21 @@ write neighbouring elements: `(m, n)` for a row-major `A`, `(n, m)` for a column
 
 ### `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/syr.hpp`
 
-`syr` launches one work-item per element of the stored triangle, `n * (n + 1) / 2` of them,
-through `Launch::indexed`. Work-item t updates the element `PackedAccess::position(t)` names, on
-the `packed_access` of A's own layout and `Uplo`, whose lines run along the contiguous axis of A,
-so neighbouring work-items write neighbouring elements and none falls outside the triangle.
-`spr`, `spr2`, `hpr` and `hpr2` walk their packed triangle the same way, and work-item t writes
-offset t of the storage.
+`syr` launches on a `sycl::range<2>` over the whole square for the reason given under
+`modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/ger.hpp` above, with the
+axis the elements of A are adjacent on last, so neighbouring work-items write neighbouring
+elements. A work-item outside the triangle `uplo` names returns at once. Launching only the
+`n * (n + 1) / 2` stored elements needs the row and column of a flat offset, a square root and
+64-bit products per work-item; on the RTX 3080 Ti that launch took 0.61 ms for a FLOAT32 `syr`
+of order 8192 against 0.40 ms for the square, median of five runs. `spr`, `spr2`, `hpr` and
+`hpr2` launch the same square, with the axis a stored line runs along last.
 
 ### `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/symv.hpp`, `syr2.hpp`
 
 `symv` serves SYMV and HEMV and `syr2` serves SYR2 and HER2: each takes the conjugation policy
 as a template parameter, as the reference kernels do. `symv` reads one triangle of A and has the
 two row shapes described under `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/gemv.hpp` above. `syr2` writes only the
-triangle `uplo` names, one work-item per stored element, walked as `syr` walks it.
+triangle `uplo` names and launches the square as `syr` does.
 
 ### `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/trmv.hpp`
 

@@ -36,7 +36,6 @@
 #include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
-#include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
 #include <SushiBLAS/blas_seam_kernels/packed_access.hpp>
 #include <SushiBLAS/blas_kernels/sycl/level2/syr2.hpp>
@@ -49,7 +48,7 @@ namespace SushiBLAS
         {
             /**
              * @brief Computes SPR2, A += alpha * (x * y^T + y * x^T), on the uplo triangle of A
-             *        packed in ap, one work-item per stored element.
+             *        packed in ap, one work-item per element of the square.
              * @tparam Conj Unconjugated for SPR2, Conjugated for HPR2, which adds
              *         alpha * x * y^H + conj(alpha) * y * x^H.
              * @see kernels/README.md
@@ -70,17 +69,18 @@ namespace SushiBLAS
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    // Work-item t updates the element stored at offset t.
-                    Launch::indexed(
-                        h, queue, static_cast<std::size_t>(n * (n + 1) / 2),
-                        [=](std::size_t t)
+                    // The fastest index walks the axis a stored line runs along.
+                    const bool by_rows = access.by_rows;
+                    h.parallel_for(
+                        sycl::range<2>(static_cast<std::size_t>(n), static_cast<std::size_t>(n)),
+                        [=](sycl::id<2> idx)
                         {
-                            const int64_t offset = static_cast<int64_t>(t);
-                            const MatrixPosition at = access.position(offset);
-                            const int64_t i = at.row;
-                            const int64_t j = at.col;
+                            const int64_t i = static_cast<int64_t>(by_rows ? idx[0] : idx[1]);
+                            const int64_t j = static_cast<int64_t>(by_rows ? idx[1] : idx[0]);
+                            if (!access.holds(i, j))
+                                return;
 
-                            T& ref = ap[offset];
+                            T& ref = ap[access.index(i, j)];
                             const W term = Detail::rank2_term(Conj{}, W(alpha),
                                                               W(x[i * incx]), W(y[j * incy]),
                                                               W(y[i * incy]), W(x[j * incx]));
