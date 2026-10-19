@@ -11,7 +11,7 @@ the benchmark section of `tests/README.md` describes them.
 
 | File | Tests |
 | --- | --- |
-| `benchmark_band_packed.cpp` | Times the band and packed Level 2 routines beside their dense siblings |
+| `benchmark_band_packed.cpp` | Times the band and packed Level 2 routines beside their dense siblings, in both layouts |
 | `benchmark_gemm.cpp` | Times GEMM in both layouts, FLOAT32 and FLOAT64, and prints GFLOP/s per size |
 | `benchmark_gemm_blocking.cpp` | Times one square GEMM kernel call under a cache blocking given on the command line |
 | `benchmark_level1.cpp` | Times nine level 1 routines, axpy to iamax, and prints GB/s per vector length |

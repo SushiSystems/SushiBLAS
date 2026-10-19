@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-19 — benchmarks: Timed `benchmark_band_packed` in RowMajor after ColumnMajor and added transposed gemv, ger, syr2 and spr2 (`benchmark_band_packed.cpp`).
 - 2026-10-19 — benchmarks: Timed copy, scal, swap and rot beside the other level 1 routines (`benchmark_level1.cpp`).
 - 2026-10-19 — benchmarks: Timed the square products of `benchmark_gemm` in HALF and skipped a dtype whose aspect the device lacks (`benchmark_gemm.cpp`, `benchmark_harness.hpp`).
 - 2026-10-19 — benchmarks: Timed every section of `benchmark_gemm` in RowMajor after ColumnMajor and printed the layout among the environment lines (`benchmark_gemm.cpp`, `benchmark_harness.hpp`).
