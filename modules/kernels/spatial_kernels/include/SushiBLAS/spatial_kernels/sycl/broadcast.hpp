@@ -159,6 +159,122 @@ namespace SushiBLAS
                 });
             }
 
+            namespace Detail
+            {
+                /** @brief Holds the side of one square tile of the transposing copy. */
+                inline constexpr int K_TRANSPOSE_TILE = 32;
+
+                /** @brief Holds the rows of work-items of one transposing work-group. */
+                inline constexpr int K_TRANSPOSE_ROWS = 8;
+
+                /**
+                 * @brief Holds one image as a matrix whose fast axis is adjacent in the input and
+                 *        whose slow axis is adjacent in the output.
+                 */
+                struct TransposePlan
+                {
+                    int64_t fast = 0;       /**< Extent of the axis adjacent in the input. */
+                    int64_t slow = 0;       /**< Extent of the axis adjacent in the output. */
+                    int64_t in_slow = 0;    /**< Input step along the slow axis. */
+                    int64_t out_fast = 0;   /**< Output step along the fast axis. */
+                    int64_t in_batch = 0;   /**< Input step from one image to the next. */
+                    int64_t out_batch = 0;  /**< Output step from one image to the next. */
+                };
+
+                /**
+                 * @brief Returns whether a conversion moves the adjacent axis between pixels and
+                 *        channels over linear image planes, and fills plan when it does.
+                 * @see kernels/README.md
+                 */
+                [[nodiscard]] inline bool transposes(const Spatial::WindowSpan& span,
+                                                     TransposePlan& plan) noexcept
+                {
+                    const bool planes = span.in_row_stride == span.in_w * span.in_col_stride &&
+                                        span.out_row_stride == span.in_w * span.out_col_stride;
+                    const int64_t pixels = span.in_h * span.in_w;
+                    plan.in_batch = span.in_batch_stride;
+                    plan.out_batch = span.out_batch_stride;
+                    if (planes && span.in_channel_stride == 1 && span.out_col_stride == 1)
+                    {
+                        plan.fast = span.channels;
+                        plan.slow = pixels;
+                        plan.in_slow = span.in_col_stride;
+                        plan.out_fast = span.out_channel_stride;
+                        return true;
+                    }
+                    if (planes && span.in_col_stride == 1 && span.out_channel_stride == 1)
+                    {
+                        plan.fast = pixels;
+                        plan.slow = span.channels;
+                        plan.in_slow = span.in_channel_stride;
+                        plan.out_fast = span.out_col_stride;
+                        return true;
+                    }
+                    return false;
+                }
+
+                /**
+                 * @brief Copies every image through square local tiles, reading along the input's
+                 *        adjacent axis and writing along the output's.
+                 * @see kernels/README.md
+                 */
+                template<typename T>
+                sycl::event transpose_images(sycl::queue& q, const TransposePlan& plan,
+                                             int64_t batch, const T* in, T* out,
+                                             const std::vector<sycl::event>& deps)
+                {
+                    constexpr int K_TILE = K_TRANSPOSE_TILE;
+                    constexpr int K_ROWS = K_TRANSPOSE_ROWS;
+                    const TransposePlan p = plan;
+                    const std::size_t slow_tiles =
+                        static_cast<std::size_t>((p.slow + K_TILE - 1) / K_TILE);
+                    const std::size_t fast_tiles =
+                        static_cast<std::size_t>((p.fast + K_TILE - 1) / K_TILE);
+                    const sycl::range<3> global(static_cast<std::size_t>(batch),
+                                                slow_tiles * K_ROWS, fast_tiles * K_TILE);
+                    const sycl::range<3> local(1, K_ROWS, K_TILE);
+
+                    return q.submit([&](sycl::handler& handler)
+                    {
+                        handler.depends_on(deps);
+
+                        // One padding column keeps a column of the tile off a single bank.
+                        const std::size_t tile_elements =
+                            static_cast<std::size_t>(K_TILE * (K_TILE + 1));
+                        sycl::local_accessor<T, 1> tile(sycl::range<1>(tile_elements), handler);
+
+                        handler.parallel_for(sycl::nd_range<3>(global, local),
+                                             [=](sycl::nd_item<3> it)
+                        {
+                            const int64_t n = static_cast<int64_t>(it.get_group(0));
+                            const int64_t slow0 = static_cast<int64_t>(it.get_group(1)) * K_TILE;
+                            const int64_t fast0 = static_cast<int64_t>(it.get_group(2)) * K_TILE;
+                            const int ty = static_cast<int>(it.get_local_id(1));
+                            const int tx = static_cast<int>(it.get_local_id(2));
+                            const T* image_in = in + n * p.in_batch;
+                            T* image_out = out + n * p.out_batch;
+
+                            for (int r = ty; r < K_TILE; r += K_ROWS)
+                            {
+                                const int64_t s = slow0 + r;
+                                const int64_t f = fast0 + tx;
+                                if (s < p.slow && f < p.fast)
+                                    tile[r * (K_TILE + 1) + tx] = image_in[s * p.in_slow + f];
+                            }
+                            sycl::group_barrier(it.get_group());
+
+                            for (int r = ty; r < K_TILE; r += K_ROWS)
+                            {
+                                const int64_t s = slow0 + tx;
+                                const int64_t f = fast0 + r;
+                                if (s < p.slow && f < p.fast)
+                                    image_out[s + f * p.out_fast] = tile[tx * (K_TILE + 1) + r];
+                            }
+                        });
+                    });
+                }
+            } // namespace Detail
+
             /**
              * @brief Copies a rank-4 tensor element by logical `(n, c, h, w)` position.
              * @see kernels/README.md
@@ -170,6 +286,10 @@ namespace SushiBLAS
                 const int64_t total = span.input_elements();
                 if (total <= 0)
                     return sycl::event();
+
+                Detail::TransposePlan plan;
+                if (Detail::transposes(span, plan))
+                    return Detail::transpose_images(q, plan, span.batch, in, out, deps);
 
                 const int64_t channels = span.channels;
                 const int64_t in_h = span.in_h;

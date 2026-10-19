@@ -241,6 +241,36 @@ namespace SushiBLAS
                 EXPECT_FLOAT_EQ(got[i], expected[i]) << "NCHW element " << i;
         }
 
+        TEST_F(Medium_SpatialBroadcastTest, LayoutConvertMovesRaggedTilesBothWays)
+        {
+            // No extent is a multiple of the 32-wide tile, so every tile edge is ragged.
+            const int64_t N = 2, H = 5, W = 7, C = 37;
+
+            auto source = ramp({N, H, W, C});
+            auto nchw_storage = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
+            auto nchw = nchw_view(nchw_storage, N, H, W, C);
+            auto back = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
+
+            SushiBLAS::SpatialOps(*engine).layout_convert(source, nchw);
+            SushiBLAS::SpatialOps(*engine).layout_convert(nchw, back);
+            engine->execute().value();
+
+            const float* converted = nchw_storage.data_as<float>();
+            const float* returned = back.data_as<float>();
+            for (int64_t n = 0; n < N; ++n)
+                for (int64_t h = 0; h < H; ++h)
+                    for (int64_t w = 0; w < W; ++w)
+                        for (int64_t c = 0; c < C; ++c)
+                        {
+                            const int64_t nhwc = ((n * H + h) * W + w) * C + c;
+                            const int64_t nchw_index = ((n * C + c) * H + h) * W + w;
+                            ASSERT_EQ(converted[nchw_index], static_cast<float>(nhwc))
+                                << "NCHW element " << nchw_index;
+                            ASSERT_EQ(returned[nhwc], static_cast<float>(nhwc))
+                                << "NHWC element " << nhwc;
+                        }
+        }
+
         TEST_F(Medium_SpatialBroadcastTest, TheSYCLKernelsAgreeWithTheReferenceKernels)
         {
             // The two forced modes are compared here. See tests/operations/spatial/README.md.

@@ -129,7 +129,7 @@ are not tasks yet; the baseline and B10 decide whether they become ones.
 | B21 | End `row_reduction` in a fixed-order sub-group shuffle | `benchmark_band_packed` gemv, both devices | committed |
 | B22 | Compute ‖vᵢ‖² once per step of `orthonormalize` | `benchmark_random`, both devices | open |
 | B23 | Decode the spatial flat index in 3-D or 32-bit | `benchmark_spatial`, both devices | open |
-| B24 | Transpose through local-memory tiles in `layout_convert` | `benchmark_spatial`, both devices | open |
+| B24 | Transpose through local-memory tiles in `layout_convert` | `benchmark_spatial`, both devices | committed |
 | B25 | Scatter the transposed `spmv` and `spsymv` over more than 256 work-items | `benchmark_sparse`, both devices | open |
 | B26 | Read `Device::profile_for` without a mutex and a scan | `benchmark_level1` small sizes, both devices | committed |
 | B27 | Close RW-52 and RW-53: changelog, backlog, module READMEs, this status | The checkers of `AGENTS.md` pass | open |

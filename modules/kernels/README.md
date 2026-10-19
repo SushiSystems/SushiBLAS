@@ -714,9 +714,18 @@ constraint; these operations have no overlap to combine at all.
 
 `channel_affine` runs one work-item per output element and addresses `gamma` and `beta` through
 their own strides. `broadcast_spatial` runs one work-item per output element, each reading the
-single `(n, c)` entry its position selects. `layout_convert` runs one work-item per element and
-indexes each side through its own four strides; it has no direction flag. The reasons for all
-three are under `modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/broadcast.hpp` above.
+single `(n, c)` entry its position selects. `layout_convert` indexes each side through its own four
+strides and has no direction flag. The reasons for all three are under
+`modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/reference/broadcast.hpp` above.
+
+`layout_convert` has two shapes. When both sides store each image plane linearly and the axis
+adjacent in the input, the channels or the pixels, is the one not adjacent in the output,
+`Detail::transposes` fills a `Detail::TransposePlan` and `Detail::transpose_images` copies each
+image as a matrix through 32 x 32 local tiles padded to 33 columns: a group of 8 x 32 work-items
+reads a tile along the input's adjacent axis and writes it along the output's, so both sides are
+coalesced and a column of the tile spreads over the banks. NHWC to NCHW and back both take it.
+Any other pair of strides runs one work-item per element. The gain of the tiles is unmeasured
+until RW-92 runs.
 
 ### `modules/kernels/spatial_kernels/include/SushiBLAS/spatial_kernels/sycl/channels.hpp`
 
