@@ -164,7 +164,7 @@ builds it when `SB_BUILD_BENCHMARKS` is on.
 | `operations/blas/benchmark_gemm_blocking.cpp` | One square GEMM kernel call under a cache blocking given on the command line |
 | `operations/blas/benchmark_level1.cpp` | `axpy`, `copy`, `scal`, `swap`, `rot`, `dot`, `nrm2`, `asum`, `iamax` |
 | `operations/blas/benchmark_band_packed.cpp` | The band and packed Level 2 routines beside their dense siblings, in both layouts |
-| `operations/blas/benchmark_triangular.cpp` | The triangular and symmetric BLAS routines, and the TRSM kernel at chosen block widths |
+| `operations/blas/benchmark_triangular.cpp` | The triangular and symmetric BLAS routines, and the TRSM kernel at chosen block widths, in both layouts |
 | `operations/sparse/benchmark_sparse.cpp` | `spmv`, `spsymv`, `spmm`, `sptrsv`, `axpyi`, `doti` |
 | `operations/reductions/benchmark_reductions.cpp` | `sum`, `max`, `var` over the whole tensor |
 | `library/umbrella/benchmark_elementwise.cpp` | `add`, in-place `exp`, in-place `relu`; it crosses `elementwise` and `nonlinear` |
@@ -205,7 +205,7 @@ prints the name of the device it ran on.
 | `benchmark_reductions` | `sum`, `max`, `var` over the whole tensor | 2^16, 2^20, 2^24 elements | GB/s |
 | `benchmark_elementwise` | `add`, in-place `exp`, in-place `relu` | 2^16, 2^20, 2^24 elements | GB/s |
 | `benchmark_band_packed` | `gemv` (plain, transposed), `gbmv`, `symv`, `sbmv`, `spmv`, `trmv`, `tbmv`, `tpmv`, `trsv`, `tbsv`, `tpsv`, `ger`, `syr`, `syr2`, `spr`, `spr2`; every order once per layout, ColumnMajor then RowMajor | n = 1024, 4096, 8192 | Melem/s |
-| `benchmark_triangular` | `gemm`, `symm`, `syrk`, `syr2k`; `trmv` and `trsv` under `ForceSYCL` and `ForceReference`; `trsm` with 8 and with n right-hand sides; the TRSM kernel at block widths 32 to 1024 and at one block | n = 256, 1024, 4096 | GFLOP/s |
+| `benchmark_triangular` | `gemm`, `symm`, `syrk`, `syr2k`; `trmv` and `trsv` under `ForceSYCL` and `ForceReference`; `trsm` with 8 and with n right-hand sides; the TRSM kernel at block widths 32 to 1024 and at one block; every size once per layout, ColumnMajor then RowMajor | n = 256, 1024, 4096 | GFLOP/s |
 | `benchmark_sparse` | `spmv` (plain, transposed, conjugate-transposed), `spsymv`, `spmm` (plain, transposed), `sptrsv` (plain, transposed), `axpyi`, `doti`; 16 entries per row | n = 2^14, 2^17, 2^20 | GB/s |
 
 Every operation runs in FLOAT32 and then FLOAT64; the square rows of `benchmark_gemm` also run in

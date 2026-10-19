@@ -21,12 +21,13 @@
 
 /**
  * @file benchmark_triangular.cpp
- * @brief Times the triangular and symmetric BLAS routines and prints GFLOP/s per size.
+ * @brief Times the triangular and symmetric BLAS routines in both layouts, in GFLOP/s per size.
  * @author Mustafa Garip
  */
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -57,8 +58,8 @@ namespace
     /// @brief Diagonal block widths the direct TRSV rows time below the matrix order.
     const std::vector<int64_t> K_BLOCK_WIDTHS = {32, 64, 128, 256, 512, 1024};
 
-    /// @brief Memory layout of every tensor of this program.
-    constexpr Layout K_LAYOUT = Layout::ColumnMajor;
+    /// @brief Layouts every size is timed in, each on an engine of its own.
+    const std::vector<Layout> K_LAYOUTS = {Layout::ColumnMajor, Layout::RowMajor};
 
     /// @brief Right-hand-side columns of the narrow TRSM rows.
     constexpr int64_t K_NARROW_COLUMNS = 8;
@@ -76,7 +77,7 @@ namespace
     class ModeScope final
     {
         public:
-            /// @brief Records the engine's mode and sets the given one; the engine must outlive this.
+            /// @brief Records the engine's mode and sets the given one; the engine outlives this.
             ModeScope(SushiBLAS::Engine& engine, ExecutionMode mode)
                 : engine_(engine), restored_(engine.mode())
             {
@@ -114,13 +115,13 @@ namespace
     {
         const std::size_t order = static_cast<std::size_t>(n);
         const T below = static_cast<T>(1.0 / static_cast<double>(n));
+        const bool by_columns = engine.layout() == Layout::ColumnMajor;
         std::vector<T> values(order * order, T(0));
         for (std::size_t col = 0; col < order; ++col)
         {
-            // K_LAYOUT is column-major: element (row, col) is at col * order + row.
             values[col * order + col] = T(1);
             for (std::size_t row = col + 1; row < order; ++row)
-                values[col * order + row] = below;
+                values[by_columns ? col * order + row : row * order + col] = below;
         }
         SushiBLAS::IO(engine).from_vector(tensor, values);
     }
@@ -253,13 +254,14 @@ namespace
         const T* const pa = a.data_as<T>();
         T* const pb = b.data_as<T>();
         const Kernels::SYCL::TriangularSolvePlan plan{block};
+        const int64_t ldb = engine.layout() == Layout::ColumnMajor ? n : columns;
 
         // FLOAT32 and FLOAT64 accumulate in their own type, so the kernel reads no workspace.
         const Bench::Timing timing = Bench::time_iterations([&]()
         {
-            Kernels::SYCL::trsm<T>(queue, plan, K_LAYOUT, Side::Left, Uplo::Lower,
+            Kernels::SYCL::trsm<T>(queue, plan, engine.layout(), Side::Left, Uplo::Lower,
                                    Transpose::NoTrans, Diag::NonUnit, n, columns, T(1), pa, n,
-                                   0, pb, n, 0, 1, nullptr, {}).wait();
+                                   0, pb, ldb, 0, 1, nullptr, {}).wait();
         });
         table.print_row(label.c_str(), a.dtype, n, timing,
                         as_factor(n) * as_factor(n) * as_factor(columns),
@@ -321,13 +323,11 @@ namespace
         benchmark_solve_kernels(queue, engine, table, n, a);
     }
 
-    /// @brief Times every data type at every requested size.
-    void run(int argc, char** argv)
+    /// @brief Times every data type at every requested size in one layout.
+    void benchmark_layout(SushiRuntime::Runtime& runtime, Layout layout,
+                          const std::vector<int64_t>& sizes)
     {
-        const std::vector<int64_t> sizes = Bench::parse_sizes(argc, argv, K_DEFAULT_SIZES);
-
-        SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
-        SushiBLAS::Engine engine(runtime, K_LAYOUT);
+        SushiBLAS::Engine engine(runtime, layout);
         Bench::print_environment(engine);
 
         sycl::queue& queue = runtime.advanced().queue(SushiRuntime::DeviceIndex{0});
@@ -337,6 +337,17 @@ namespace
             for (const int64_t n : sizes)
                 benchmark_size(queue, engine, table, dtype, n);
         }
+        std::printf("\n");
+    }
+
+    /// @brief Times every requested size in each layout.
+    void run(int argc, char** argv)
+    {
+        const std::vector<int64_t> sizes = Bench::parse_sizes(argc, argv, K_DEFAULT_SIZES);
+
+        SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+        for (const Layout layout : K_LAYOUTS)
+            benchmark_layout(runtime, layout, sizes);
     }
 } // namespace
 
