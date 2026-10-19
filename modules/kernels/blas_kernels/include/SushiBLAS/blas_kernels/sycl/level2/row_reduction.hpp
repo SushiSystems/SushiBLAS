@@ -30,6 +30,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <utility>
+#include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/reduction/reduce_1d.hpp>
 
@@ -131,8 +132,8 @@ namespace SushiBLAS
                         // Sub-group 0 takes the last levels when a power-of-two sub-group fits.
                         const sycl::sub_group sg = it.get_sub_group();
                         const std::size_t lanes = sg.get_max_local_range()[0];
-                        const bool shuffles =
-                            lanes > 1 && (lanes & (lanes - 1)) == 0 && width >= lanes;
+                        const bool shuffles = std::is_arithmetic<T>::value && lanes > 1 &&
+                                              (lanes & (lanes - 1)) == 0 && width >= lanes;
                         const std::size_t floor = shuffles ? lanes : std::size_t{1};
 
                         // width is a power of two, so the halving tree pairs every lane in a fixed order.
@@ -151,18 +152,21 @@ namespace SushiBLAS
                         }
 
                         // The shuffles pair lane l with lane l + off, the pairs the tree takes.
-                        if (sg.get_group_linear_id() != 0)
-                            return;
-                        const std::size_t l = sg.get_local_linear_id();
-                        T value = tile[l];
-                        for (std::size_t off = lanes / 2; off > 0; off >>= 1)
+                        if constexpr (std::is_arithmetic<T>::value)
                         {
-                            const T other = sycl::shift_group_left(sg, value, off);
-                            if (l < off)
-                                value = value + other;
+                            if (sg.get_group_linear_id() != 0)
+                                return;
+                            const std::size_t l = sg.get_local_linear_id();
+                            T value = tile[l];
+                            for (std::size_t off = lanes / 2; off > 0; off >>= 1)
+                            {
+                                const T other = sycl::shift_group_left(sg, value, off);
+                                if (l < off)
+                                    value = value + other;
+                            }
+                            if (l == 0)
+                                store(row, value);
                         }
-                        if (l == 0)
-                            store(row, value);
                     });
                 }
 

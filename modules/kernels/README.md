@@ -390,7 +390,7 @@ The work-group shape, in `modules/kernels/blas_kernels/include/SushiBLAS/blas_ke
 one work-group. Its work-items read the row at consecutive addresses, keep strided partial sums,
 and fold them in a halving tree of fixed order, so the same device repeats a result to the bit.
 The tree runs through local memory, one barrier a level, until it is as wide as one sub-group;
-when the sub-group width is a power of two no larger than the group, sub-group 0 takes the last
+for a real partial whose sub-group width is a power of two no larger than the group, sub-group 0 takes the last
 levels through `sycl::shift_group_left`, lane l adding lane l + off as the tree would, so the
 shuffles give the bits the tree gives with log2 of the sub-group width fewer barriers.
 `row_reduction_width` picks the shape: it takes the work-group shape when
