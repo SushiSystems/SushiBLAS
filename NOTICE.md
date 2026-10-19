@@ -143,8 +143,8 @@ these kernels is SushiBLAS's own responsibility from here on.
     at run time; every other block is read element by element.
   - The whole-tile fast path is a run-time branch, uniform across a
     work-group, in place of a template bool.
-  - Two local buffers of each tile and one barrier per K-iteration, flipped
-    by a run-time index.
+  - No double buffering: one local buffer of each tile and two barriers per
+    K-iteration, which measured faster on the RTX 3080 Ti at order 2048.
   - Native `sycl::nd_range<3>` (batch, row-tile, col-tile) instead of
     portBLAS's manual 1-D flattened index decomposition.
   - `sycl::group_barrier()` instead of the older `nd_item::barrier()` member

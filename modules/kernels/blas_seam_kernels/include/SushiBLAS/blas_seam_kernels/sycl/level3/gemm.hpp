@@ -243,15 +243,14 @@ namespace SushiBLAS
 
                 /**
                  * @brief Stages the Rows x Cols block of op(X) at (row0, col0) into a local tile.
-                 * @param offset The tile's first element in the local buffer.
                  * @param linear The work-item's linear id in a group of Items work-items.
                  * @param rows The extent of op(X) down its rows, as cols is across its columns.
                  * @see modules/kernels/blas_seam_kernels/README.md
                  */
                 template<int Rows, int Cols, int Ld, int Items, typename T, typename Access,
                          typename Tile>
-                inline void stage_block(const Tile& tile, int offset, int linear, const T* p,
-                                        int64_t row0, int64_t col0, int64_t rows, int64_t cols,
+                inline void stage_block(const Tile& tile, int linear, const T* p, int64_t row0,
+                                        int64_t col0, int64_t rows, int64_t cols,
                                         const Access& s, const StagePlan& plan) noexcept
                 {
                     // Whether the block is whole is the same for every work-item of the group.
@@ -276,9 +275,8 @@ namespace SushiBLAS
                                                                       : (v % col_steps) * K_LANES;
                                 const auto lanes = load_lanes(p + s.index(row0 + r, col0 + c));
                                 for (int l = 0; l < K_LANES; ++l)
-                                    tile[offset + (plan.columns_contiguous ? (r + l) * Ld + c
-                                                                           : r * Ld + c + l)] =
-                                        lanes[l];
+                                    tile[plan.columns_contiguous ? (r + l) * Ld + c
+                                                                 : r * Ld + c + l] = lanes[l];
                             }
                             return;
                         }
@@ -288,7 +286,7 @@ namespace SushiBLAS
                     {
                         const int r = plan.columns_contiguous ? idx % Rows : idx / Cols;
                         const int c = plan.columns_contiguous ? idx / Rows : idx % Cols;
-                        tile[offset + r * Ld + c] =
+                        tile[r * Ld + c] =
                             full ? load_interior(p, row0, col0, r, c, s, plan.narrow)
                                  : load_operand(p, row0 + r, col0 + c, rows, cols, s);
                     }
@@ -374,19 +372,9 @@ namespace SushiBLAS
                      */
                     [[nodiscard]] static constexpr std::size_t local_mem_bytes() noexcept
                     {
-                        return static_cast<std::size_t>(K_BUFFERS) *
-                               (static_cast<std::size_t>(K_TILE_A_ELEMENTS) +
-                                static_cast<std::size_t>(K_TILE_B_ELEMENTS)) * sizeof(T);
+                        return (static_cast<std::size_t>(K_BLOCK_M) * K_TILE_A_LD +
+                                static_cast<std::size_t>(K_TILE_K) * K_TILE_B_LD) * sizeof(T);
                     }
-
-                    /** @brief Elements of one staged A tile, padding included. */
-                    static constexpr int K_TILE_A_ELEMENTS = K_BLOCK_M * K_TILE_A_LD;
-
-                    /** @brief Elements of one staged B tile, padding included. */
-                    static constexpr int K_TILE_B_ELEMENTS = K_TILE_K * K_TILE_B_LD;
-
-                    /** @brief Tiles of each operand: one is read while the next is staged. */
-                    static constexpr int K_BUFFERS = 2;
                 };
 
                 /**
@@ -528,12 +516,12 @@ namespace SushiBLAS
                         h.depends_on(deps);
 
                         sycl::local_accessor<T, 1> tile_a(
-                            sycl::range<1>(static_cast<std::size_t>(Configuration::K_BUFFERS) *
-                                           Configuration::K_TILE_A_ELEMENTS),
+                            sycl::range<1>(static_cast<std::size_t>(Configuration::K_BLOCK_M) *
+                                           Configuration::K_TILE_A_LD),
                             h);
                         sycl::local_accessor<T, 1> tile_b(
-                            sycl::range<1>(static_cast<std::size_t>(Configuration::K_BUFFERS) *
-                                           Configuration::K_TILE_B_ELEMENTS),
+                            sycl::range<1>(static_cast<std::size_t>(Configuration::K_TILE_K) *
+                                           Configuration::K_TILE_B_LD),
                             h);
 
                         h.parallel_for(sycl::nd_range<3>(global, local), [=](sycl::nd_item<3> item)
@@ -560,32 +548,20 @@ namespace SushiBLAS
                                 for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                     acc[ii][jj] = W(0);
 
-                            // The whole group stages block_m x tile_k of A and tile_k x block_n of B; see modules/kernels/blas_seam_kernels/README.md.
-                            const auto stage = [&](int buffer, int64_t depth)
+                            // One local buffer and two barriers per K-step; see modules/kernels/blas_seam_kernels/README.md.
+                            for (int64_t k0 = 0; k0 < k; k0 += Configuration::K_TILE_K)
                             {
+                                // The whole group stages block_m x tile_k of A and tile_k x block_n of B; see modules/kernels/blas_seam_kernels/README.md.
                                 stage_block<Configuration::K_BLOCK_M, Configuration::K_TILE_K,
                                             Configuration::K_TILE_A_LD,
                                             Configuration::K_WG_ITEMS>(
-                                    tile_a, buffer * Configuration::K_TILE_A_ELEMENTS,
-                                    local_linear, A, row0, depth, m, k, a_access, a_plan);
+                                    tile_a, local_linear, A, row0, k0, m, k, a_access, a_plan);
                                 stage_block<Configuration::K_TILE_K, Configuration::K_BLOCK_N,
                                             Configuration::K_TILE_B_LD,
                                             Configuration::K_WG_ITEMS>(
-                                    tile_b, buffer * Configuration::K_TILE_B_ELEMENTS,
-                                    local_linear, B, depth, col0, k, n, b_access, b_plan);
-                            };
+                                    tile_b, local_linear, B, k0, col0, k, n, b_access, b_plan);
 
-                            // Two buffers and one barrier per K-step; see modules/kernels/blas_seam_kernels/README.md.
-                            stage(0, 0);
-                            sycl::group_barrier(item.get_group());
-                            int current = 0;
-                            for (int64_t k0 = 0; k0 < k; k0 += Configuration::K_TILE_K)
-                            {
-                                if (k0 + Configuration::K_TILE_K < k)
-                                    stage(1 - current, k0 + Configuration::K_TILE_K);
-
-                                const int a_base = current * Configuration::K_TILE_A_ELEMENTS;
-                                const int b_base = current * Configuration::K_TILE_B_ELEMENTS;
+                                sycl::group_barrier(item.get_group());
 
                                 // Staged out-of-range elements are zero, so the full tile_k width sums exactly; see modules/kernels/blas_seam_kernels/README.md.
                                 for (int kk = 0; kk < Configuration::K_TILE_K; ++kk)
@@ -596,12 +572,11 @@ namespace SushiBLAS
 
                                     for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
                                         reg_a[ii] =
-                                            tile_a[a_base +
-                                                   (local_row + ii * Configuration::K_WG_ROWS) *
+                                            tile_a[(local_row + ii * Configuration::K_WG_ROWS) *
                                                    Configuration::K_TILE_A_LD + kk];
                                     for (int jj = 0; jj < Configuration::K_ITEM_COLS; ++jj)
                                         reg_b[jj] =
-                                            tile_b[b_base + kk * Configuration::K_TILE_B_LD +
+                                            tile_b[kk * Configuration::K_TILE_B_LD +
                                                    (local_col + jj * Configuration::K_WG_COLS)];
 
                                     for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)
@@ -610,9 +585,7 @@ namespace SushiBLAS
                                                 Kernels::Detail::multiply_add(W(reg_a[ii]), W(reg_b[jj]), acc[ii][jj]);
                                 }
 
-                                // The next tile is staged, and no work-item reads this one again.
                                 sycl::group_barrier(item.get_group());
-                                current = 1 - current;
                             }
 
                             for (int ii = 0; ii < Configuration::K_ITEM_ROWS; ++ii)

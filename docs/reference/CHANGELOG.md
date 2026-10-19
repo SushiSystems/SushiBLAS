@@ -15,7 +15,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 - 2026-10-19 — blas_seam_kernels: Added `gemm_joint_matrix`, a HALF GEMM on the CUDA matrix units that accumulates in FLOAT32, with its tests (`gemm_joint_matrix.hpp`).
 - 2026-10-19 — launch: Added `supports_half_matrix` to `Device::Profile`, true for a CUDA device that lists a 16 x 16 x 16 HALF joint_matrix product (`device_policy.hpp`).
 - 2026-10-19 — blas: Added a test that runs the tiled GEMM over whole and edge tiles in both layouts, every staging order and three dtypes (`test_gemm.cpp`).
-- 2026-10-19 — blas_seam_kernels: Gave the tiled GEMM two buffers per tile and one barrier per K-step, and restated its differences from portBLAS; unmeasured (`gemm.hpp`, `NOTICE.md`).
+- 2026-10-19 — blas_seam_kernels: Restated the differences of the tiled GEMM from portBLAS, among them one local buffer per tile, measured faster than two at order 2048 (`gemm.hpp`, `NOTICE.md`).
 - 2026-10-19 — blas_seam_kernels: Staged whole aligned tiles of the tiled GEMM through 128-bit `sycl::vec` loads and folded both staging loops into `stage_block`; unmeasured (`gemm.hpp`).
 - 2026-10-19 — blas_seam_kernels: Staged the whole tiles of the tiled GEMM without bounds checks and with 32-bit offsets inside a tile; unmeasured (`gemm.hpp`).
 - 2026-10-19 — blas_seam_kernels: Staged each operand of the tiled GEMM along its contiguous axis and padded the B tile to 66 columns; unmeasured (`gemm.hpp`).

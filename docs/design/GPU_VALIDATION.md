@@ -181,11 +181,15 @@ combinations.
 It is a correctness result. It says nothing about speed on real scratchpad hardware, and speed
 there is the reason the variant exists.
 
-### 3.4 Double buffering is unmeasured
+### 3.4 The tiled GEMM is slower at order 2048
 
-The tiled GEMM stages each tile into two local buffers and passes one barrier per K-step, with
-16-byte loads of whole aligned blocks. The tests check the results; the speed on the RTX 3080 Ti
-is unmeasured until RW-92 runs.
+The tiled GEMM stages each tile into one local buffer, with 16-byte loads of whole aligned blocks.
+On the RTX 3080 Ti it is 18 to 42 % faster than the scalar kernel it replaced up to order 1024 in
+FLOAT32, and 14 % slower in ColumnMajor and 24 % slower in RowMajor at 2048. The measurements are
+in `docs/agent/2026_10_19_KERNEL_AUDIT/REPORT.md`. Turning the 16-byte loads off made every
+order slower, and two local buffers made 2048 slower still, so neither is the cause. The two
+candidates left are the contiguous-axis staging order and the whole-tile path; a register and
+occupancy read of the compiled kernel, under RW-92, decides between them.
 
 ## 4. Code paths the development CPU never took
 
