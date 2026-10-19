@@ -253,6 +253,17 @@ chosen here, because only this file knows what its accumulator costs in register
 The zero is what lets both kernels accumulate over a full padded tile instead of clamping the loop
 to a ragged remainder: a zero contributes nothing to the running sum, so the arithmetic stays exact.
 
+### `Detail::load_interior`
+
+`gemm_local_tiled` stages a tile that lies wholly inside its operand through `load_interior`, with
+no bounds check, and keeps `load_operand` for the edge tiles. Whether a tile is whole is the same
+for every work-item of a group, so the branch never splits a sub-group. For `OperandAccess` the
+64-bit origin of the tile does not change inside the staging loop, which leaves the compiler free
+to compute it once; the offset inside the tile is 32-bit when `block_fits_int32` finds the
+farthest one at or below `INT32_MAX`, which the host decides once per operand. Whether the compiler
+does hoist the origin has not been read from the generated code. Any other brick reads through
+`at()`.
+
 ### `Detail::K_LOCAL_ACC_BYTES`
 
 256 B is what portBLAS's default `Tile<8,8,8,8>` spends on a float accumulator, and it is the number

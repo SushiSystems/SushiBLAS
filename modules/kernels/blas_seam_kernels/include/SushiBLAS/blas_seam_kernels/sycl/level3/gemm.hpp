@@ -70,6 +70,52 @@ namespace SushiBLAS
                     return s.at(p, row, col);
                 }
 
+                /**
+                 * @brief Returns element (row0 + r, col0 + c) of an inside block through at().
+                 * @pre The whole block lies inside the matrix.
+                 */
+                template<typename T, typename Access>
+                [[nodiscard]] inline T load_interior(const T* p, int64_t row0, int64_t col0, int r,
+                                                     int c, const Access& s, bool) noexcept
+                {
+                    return s.at(p, row0 + r, col0 + c);
+                }
+
+                /**
+                 * @brief Returns element (row0 + r, col0 + c) of a block inside the matrix.
+                 * @param narrow Every offset inside the block fits in 32 bits, which then carry it.
+                 * @pre The whole block lies inside the matrix.
+                 */
+                template<typename T>
+                [[nodiscard]] inline T load_interior(const T* p, int64_t row0, int64_t col0, int r,
+                                                     int c, const OperandAccess& s,
+                                                     bool narrow) noexcept
+                {
+                    const T* origin = p + s.index(row0, col0);
+                    if (!narrow)
+                        return conjugate_if(s.conjugated, origin[s.index(r, c)]);
+                    const int32_t offset = static_cast<int32_t>(r) * static_cast<int32_t>(s.row) +
+                                           static_cast<int32_t>(c) * static_cast<int32_t>(s.col);
+                    return conjugate_if(s.conjugated, origin[offset]);
+                }
+
+                /// @brief Returns whether every offset inside a rows x cols block fits in 32 bits.
+                [[nodiscard]] inline constexpr bool block_fits_int32(const OperandAccess& s,
+                                                                     int rows, int cols) noexcept
+                {
+                    const int64_t last = static_cast<int64_t>(rows - 1) * s.row +
+                                         static_cast<int64_t>(cols - 1) * s.col;
+                    return s.row > 0 && s.col > 0 && last <= INT32_MAX;
+                }
+
+                /// @brief Returns false: a brick other than OperandAccess has no offsets to narrow.
+                template<typename Access>
+                [[nodiscard]] inline constexpr bool block_fits_int32(const Access&, int,
+                                                                     int) noexcept
+                {
+                    return false;
+                }
+
                 /// @brief Returns whether neighbouring columns of op(X) are neighbouring elements.
                 [[nodiscard]] inline constexpr bool has_contiguous_rows(
                     const OperandAccess& access) noexcept
@@ -312,6 +358,10 @@ namespace SushiBLAS
                     // Each operand is staged along the axis its elements are adjacent on.
                     const bool a_columns_contiguous = has_contiguous_columns(a_access);
                     const bool b_columns_contiguous = has_contiguous_columns(b_access);
+                    const bool a_narrow = block_fits_int32(a_access, Configuration::K_BLOCK_M,
+                                                           Configuration::K_TILE_K);
+                    const bool b_narrow = block_fits_int32(b_access, Configuration::K_TILE_K,
+                                                           Configuration::K_BLOCK_N);
 
                     return queue.submit([&](sycl::handler& h)
                     {
@@ -353,6 +403,11 @@ namespace SushiBLAS
                             // One local buffer and two barriers per K-step; see modules/kernels/blas_seam_kernels/README.md.
                             for (int64_t k0 = 0; k0 < k; k0 += Configuration::K_TILE_K)
                             {
+                                // Both flags are the same for every work-item of the group.
+                                const bool a_full = row0 + Configuration::K_BLOCK_M <= m &&
+                                                    k0 + Configuration::K_TILE_K <= k;
+                                const bool b_full = col0 + Configuration::K_BLOCK_N <= n &&
+                                                    k0 + Configuration::K_TILE_K <= k;
                                 // The whole group stages block_m x tile_k of A and tile_k x block_n of B; see modules/kernels/blas_seam_kernels/README.md.
                                 for (int idx = local_linear;
                                      idx < Configuration::K_BLOCK_M * Configuration::K_TILE_K;
@@ -365,7 +420,10 @@ namespace SushiBLAS
                                                        ? idx / Configuration::K_BLOCK_M
                                                        : idx % Configuration::K_TILE_K;
                                     tile_a[r * Configuration::K_TILE_A_LD + kk] =
-                                        load_operand(A, row0 + r, k0 + kk, m, k, a_access);
+                                        a_full ? load_interior(A, row0, k0, r, kk, a_access,
+                                                               a_narrow)
+                                               : load_operand(A, row0 + r, k0 + kk, m, k,
+                                                              a_access);
                                 }
                                 for (int idx = local_linear;
                                      idx < Configuration::K_TILE_K * Configuration::K_BLOCK_N;
@@ -378,7 +436,10 @@ namespace SushiBLAS
                                                        ? idx / Configuration::K_TILE_K
                                                        : idx % Configuration::K_BLOCK_N;
                                     tile_b[kk * Configuration::K_TILE_B_LD + cc] =
-                                        load_operand(B, k0 + kk, col0 + cc, k, n, b_access);
+                                        b_full ? load_interior(B, k0, col0, kk, cc, b_access,
+                                                               b_narrow)
+                                               : load_operand(B, k0 + kk, col0 + cc, k, n,
+                                                              b_access);
                                 }
 
                                 sycl::group_barrier(item.get_group());
