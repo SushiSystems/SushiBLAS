@@ -44,7 +44,8 @@ namespace SushiBLAS
         namespace SYCL
         {
             /**
-             * @brief Computes GER, A += alpha * x * Conj(y)^T, one work-item per element of A.
+             * @brief Computes GER, A += alpha * x * Conj(y)^T, one work-item per element of A,
+             *        neighbouring work-items on neighbouring elements.
              * @tparam Conj Unconjugated for ger and geru, Conjugated for gerc.
              * @see kernels/README.md
              */
@@ -60,10 +61,16 @@ namespace SushiBLAS
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    const sycl::range<2> elements(static_cast<size_t>(m), static_cast<size_t>(n));
+                    // The fastest index walks the axis the elements of A are adjacent on.
+                    const bool by_columns = (layout == Core::Layout::ColumnMajor);
+                    const std::size_t rows = static_cast<std::size_t>(m);
+                    const std::size_t cols = static_cast<std::size_t>(n);
+                    const sycl::range<2> elements = by_columns ? sycl::range<2>(cols, rows)
+                                                               : sycl::range<2>(rows, cols);
                     h.parallel_for(elements, [=](sycl::id<2> idx)
                     {
-                        int64_t i = idx[0], j = idx[1];
+                        const int64_t i = static_cast<int64_t>(by_columns ? idx[1] : idx[0]);
+                        const int64_t j = static_cast<int64_t>(by_columns ? idx[0] : idx[1]);
                         T& ref = (layout == Core::Layout::RowMajor) ? a[i * lda + j]
                                                                      : a[i + j * lda];
                         ref = T(W(ref) + multiply(multiply(W(alpha), W(x[i * incx])),

@@ -36,7 +36,9 @@
 #include <SushiBLAS/blas_kernels/blas_kernels_log_category.hpp>
 #include <SushiBLAS/arithmetic/accumulator.hpp>
 #include <SushiBLAS/arithmetic/complex_arithmetic.hpp>
+#include <SushiBLAS/launch/launch_1d.hpp>
 #include <SushiBLAS/blas_seam_kernels/conjugation.hpp>
+#include <SushiBLAS/blas_seam_kernels/packed_access.hpp>
 
 namespace SushiBLAS
 {
@@ -63,7 +65,8 @@ namespace SushiBLAS
             } // namespace Detail
 
             /**
-             * @brief Computes SYR2 or HER2, A(i, j) += rank2_term, in the triangle uplo names.
+             * @brief Computes SYR2 or HER2, A(i, j) += rank2_term, one work-item per element of the
+             *        triangle uplo names.
              * @tparam Conj Unconjugated (syr2) or Conjugated (her2, which stores a real diagonal).
              * @see kernels/README.md
              */
@@ -74,19 +77,20 @@ namespace SushiBLAS
                              const std::vector<sycl::event>& deps)
             {
                 using W = Accumulator<T>;
-                const bool upper = (uplo == Core::Uplo::Upper);
                 SB_LOG_DEBUG(K_BLAS_KERNELS_LOG_CATEGORY, "SYCL SYR2: {}x{}", n, n);
+
+                // The walk of the triangle runs its lines along the contiguous axis of A.
+                const PackedAccess walk = packed_access(layout, uplo, Core::Transpose::NoTrans, n);
+                const std::size_t stored = static_cast<std::size_t>(n * (n + 1) / 2);
 
                 return queue.submit([&](sycl::handler& h)
                 {
                     h.depends_on(deps);
-                    const sycl::range<2> elements(static_cast<size_t>(n), static_cast<size_t>(n));
-                    h.parallel_for(elements, [=](sycl::id<2> idx)
+                    Launch::indexed(h, queue, stored, [=](std::size_t t)
                     {
-                        int64_t i = idx[0], j = idx[1];
-                        bool in_triangle = upper ? (j >= i) : (j <= i);
-                        if (!in_triangle)
-                            return;
+                        const MatrixPosition at = walk.position(static_cast<int64_t>(t));
+                        const int64_t i = at.row;
+                        const int64_t j = at.col;
                         T& ref = (layout == Core::Layout::RowMajor) ? a[i * lda + j]
                                                                      : a[i + j * lda];
                         const W term = Detail::rank2_term(Conj{}, W(alpha),
