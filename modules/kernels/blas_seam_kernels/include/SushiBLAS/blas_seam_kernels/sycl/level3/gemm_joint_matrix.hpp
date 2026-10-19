@@ -275,6 +275,8 @@ namespace SushiBLAS
                                 }
 #else
                             (void)item;
+                            (void)a_stride;
+                            (void)b_stride;
 #endif
                         });
                     });
