@@ -33,6 +33,7 @@
 #include <vector>
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/core/logger.hpp>
@@ -108,12 +109,158 @@ namespace SushiBLAS
                     return s.row > 0 && s.col > 0 && last <= INT32_MAX;
                 }
 
+                /// @brief Holds the lanes of one 128-bit load of T; 1 marks a type read by element.
+                template<typename T>
+                struct StagedLanes
+                {
+                    /** @brief Elements one load reads. */
+                    static constexpr int K_VALUE = 1;
+                };
+
+                /// @brief Holds the four float lanes of one 128-bit load.
+                template<>
+                struct StagedLanes<float>
+                {
+                    /** @brief Elements one load reads. */
+                    static constexpr int K_VALUE = 4;
+                };
+
+                /// @brief Holds the two double lanes of one 128-bit load.
+                template<>
+                struct StagedLanes<double>
+                {
+                    /** @brief Elements one load reads. */
+                    static constexpr int K_VALUE = 2;
+                };
+
+                /// @brief Holds the eight HALF lanes of one 128-bit load.
+                template<>
+                struct StagedLanes<sycl::half>
+                {
+                    /** @brief Elements one load reads. */
+                    static constexpr int K_VALUE = 8;
+                };
+
+                /**
+                 * @brief Returns whether whole tiles of an operand can be staged by 128-bit loads.
+                 * @param stride_batch Elements between the operands of two batch entries.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                template<typename T>
+                [[nodiscard]] inline bool stages_by_vector(const T* p, const OperandAccess& s,
+                                                           int64_t stride_batch) noexcept
+                {
+                    constexpr int64_t K_LANES = StagedLanes<T>::K_VALUE;
+                    constexpr std::uintptr_t K_LOAD_BYTES = 16;
+                    if (K_LANES == 1 || s.conjugated)
+                        return false;
+
+                    // The leading dimension is the stride of the axis that is not contiguous.
+                    const int64_t lead = s.row == 1 ? s.col : (s.col == 1 ? s.row : 0);
+                    return lead > 0 && lead % K_LANES == 0 && stride_batch % K_LANES == 0 &&
+                           reinterpret_cast<std::uintptr_t>(p) % K_LOAD_BYTES == 0;
+                }
+
+                /// @brief Returns false: a brick other than OperandAccess is staged by element.
+                template<typename T, typename Access>
+                [[nodiscard]] inline bool stages_by_vector(const T*, const Access&,
+                                                           int64_t) noexcept
+                {
+                    return false;
+                }
+
+                /**
+                 * @brief Returns the StagedLanes<T> elements that start at p, in one load.
+                 * @pre p is 16-byte aligned and points into global memory.
+                 */
+                template<typename T>
+                [[nodiscard]] inline sycl::vec<T, StagedLanes<T>::K_VALUE> load_lanes(
+                    const T* p) noexcept
+                {
+                    using sycl::access::address_space;
+                    sycl::vec<T, StagedLanes<T>::K_VALUE> lanes;
+                    lanes.load(0, sycl::address_space_cast<address_space::global_space,
+                                                           sycl::access::decorated::no>(p));
+                    return lanes;
+                }
+
                 /// @brief Returns false: a brick other than OperandAccess has no offsets to narrow.
                 template<typename Access>
                 [[nodiscard]] inline constexpr bool block_fits_int32(const Access&, int,
                                                                      int) noexcept
                 {
                     return false;
+                }
+
+                /**
+                 * @brief Holds how stage_block reads one operand, decided on the host.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                struct StagePlan
+                {
+                    bool columns_contiguous = false; /**< Neighbouring rows are adjacent. */
+                    bool narrow = false;             /**< Offsets inside a block fit 32 bits. */
+                    bool vector = false;             /**< Whole blocks take 128-bit loads. */
+                };
+
+                /// @brief Returns the StagePlan of an operand staged in Rows x Cols blocks.
+                template<int Rows, int Cols, typename T, typename Access>
+                [[nodiscard]] inline StagePlan stage_plan(const T* p, const Access& s,
+                                                          int64_t stride_batch) noexcept
+                {
+                    return StagePlan{has_contiguous_columns(s), block_fits_int32(s, Rows, Cols),
+                                     stages_by_vector(p, s, stride_batch)};
+                }
+
+                /**
+                 * @brief Stages the Rows x Cols block of op(X) at (row0, col0) into a local tile.
+                 * @param linear The work-item's linear id in a group of Items work-items.
+                 * @param rows The extent of op(X) down its rows, as cols is across its columns.
+                 * @see modules/kernels/blas_seam_kernels/README.md
+                 */
+                template<int Rows, int Cols, int Ld, int Items, typename T, typename Access,
+                         typename Tile>
+                inline void stage_block(const Tile& tile, int linear, const T* p, int64_t row0,
+                                        int64_t col0, int64_t rows, int64_t cols,
+                                        const Access& s, const StagePlan& plan) noexcept
+                {
+                    // Whether the block is whole is the same for every work-item of the group.
+                    const bool full = row0 + Rows <= rows && col0 + Cols <= cols;
+
+                    if constexpr (StagedLanes<T>::K_VALUE > 1 &&
+                                  std::is_same<Access, OperandAccess>::value)
+                    {
+                        constexpr int K_LANES = StagedLanes<T>::K_VALUE;
+                        static_assert(Rows % K_LANES == 0 && Cols % K_LANES == 0,
+                                      "a staged block must split into whole 128-bit loads");
+                        if (full && plan.vector)
+                        {
+                            // One load takes K_LANES rows of a column, or K_LANES columns of a row.
+                            const int row_steps = plan.columns_contiguous ? Rows / K_LANES : Rows;
+                            const int col_steps = plan.columns_contiguous ? Cols : Cols / K_LANES;
+                            for (int v = linear; v < Rows * Cols / K_LANES; v += Items)
+                            {
+                                const int r = plan.columns_contiguous ? (v % row_steps) * K_LANES
+                                                                      : v / col_steps;
+                                const int c = plan.columns_contiguous ? v / row_steps
+                                                                      : (v % col_steps) * K_LANES;
+                                const auto lanes = load_lanes(p + s.index(row0 + r, col0 + c));
+                                for (int l = 0; l < K_LANES; ++l)
+                                    tile[plan.columns_contiguous ? (r + l) * Ld + c
+                                                                 : r * Ld + c + l] = lanes[l];
+                            }
+                            return;
+                        }
+                    }
+
+                    for (int idx = linear; idx < Rows * Cols; idx += Items)
+                    {
+                        const int r = plan.columns_contiguous ? idx % Rows : idx / Cols;
+                        const int c = plan.columns_contiguous ? idx / Rows : idx % Cols;
+                        tile[r * Ld + c] =
+                            full ? load_interior(p, row0, col0, r, c, s, plan.narrow)
+                                 : load_operand(p, row0 + r, col0 + c, rows, cols, s);
+                    }
                 }
 
                 /// @brief Returns whether neighbouring columns of op(X) are neighbouring elements.
@@ -356,12 +503,12 @@ namespace SushiBLAS
                         static_cast<std::size_t>(Configuration::K_WG_COLS));
 
                     // Each operand is staged along the axis its elements are adjacent on.
-                    const bool a_columns_contiguous = has_contiguous_columns(a_access);
-                    const bool b_columns_contiguous = has_contiguous_columns(b_access);
-                    const bool a_narrow = block_fits_int32(a_access, Configuration::K_BLOCK_M,
-                                                           Configuration::K_TILE_K);
-                    const bool b_narrow = block_fits_int32(b_access, Configuration::K_TILE_K,
-                                                           Configuration::K_BLOCK_N);
+                    const StagePlan a_plan =
+                        stage_plan<Configuration::K_BLOCK_M, Configuration::K_TILE_K>(
+                            a, a_access, str_a);
+                    const StagePlan b_plan =
+                        stage_plan<Configuration::K_TILE_K, Configuration::K_BLOCK_N>(
+                            b, b_access, str_b);
 
                     return queue.submit([&](sycl::handler& h)
                     {
@@ -403,44 +550,15 @@ namespace SushiBLAS
                             // One local buffer and two barriers per K-step; see modules/kernels/blas_seam_kernels/README.md.
                             for (int64_t k0 = 0; k0 < k; k0 += Configuration::K_TILE_K)
                             {
-                                // Both flags are the same for every work-item of the group.
-                                const bool a_full = row0 + Configuration::K_BLOCK_M <= m &&
-                                                    k0 + Configuration::K_TILE_K <= k;
-                                const bool b_full = col0 + Configuration::K_BLOCK_N <= n &&
-                                                    k0 + Configuration::K_TILE_K <= k;
                                 // The whole group stages block_m x tile_k of A and tile_k x block_n of B; see modules/kernels/blas_seam_kernels/README.md.
-                                for (int idx = local_linear;
-                                     idx < Configuration::K_BLOCK_M * Configuration::K_TILE_K;
-                                     idx += Configuration::K_WG_ITEMS)
-                                {
-                                    const int r = a_columns_contiguous
-                                                      ? idx % Configuration::K_BLOCK_M
-                                                      : idx / Configuration::K_TILE_K;
-                                    const int kk = a_columns_contiguous
-                                                       ? idx / Configuration::K_BLOCK_M
-                                                       : idx % Configuration::K_TILE_K;
-                                    tile_a[r * Configuration::K_TILE_A_LD + kk] =
-                                        a_full ? load_interior(A, row0, k0, r, kk, a_access,
-                                                               a_narrow)
-                                               : load_operand(A, row0 + r, k0 + kk, m, k,
-                                                              a_access);
-                                }
-                                for (int idx = local_linear;
-                                     idx < Configuration::K_TILE_K * Configuration::K_BLOCK_N;
-                                     idx += Configuration::K_WG_ITEMS)
-                                {
-                                    const int kk = b_columns_contiguous
-                                                       ? idx % Configuration::K_TILE_K
-                                                       : idx / Configuration::K_BLOCK_N;
-                                    const int cc = b_columns_contiguous
-                                                       ? idx / Configuration::K_TILE_K
-                                                       : idx % Configuration::K_BLOCK_N;
-                                    tile_b[kk * Configuration::K_TILE_B_LD + cc] =
-                                        b_full ? load_interior(B, k0, col0, kk, cc, b_access,
-                                                               b_narrow)
-                                               : load_operand(B, k0 + kk, col0 + cc, k, n,
-                                                              b_access);
-                                }
+                                stage_block<Configuration::K_BLOCK_M, Configuration::K_TILE_K,
+                                            Configuration::K_TILE_A_LD,
+                                            Configuration::K_WG_ITEMS>(
+                                    tile_a, local_linear, A, row0, k0, m, k, a_access, a_plan);
+                                stage_block<Configuration::K_TILE_K, Configuration::K_BLOCK_N,
+                                            Configuration::K_TILE_B_LD,
+                                            Configuration::K_WG_ITEMS>(
+                                    tile_b, local_linear, B, k0, col0, k, n, b_access, b_plan);
 
                                 sycl::group_barrier(item.get_group());
 

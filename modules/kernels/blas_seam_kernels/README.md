@@ -369,12 +369,23 @@ jj*K_WG_COLS. Neighbouring work-items touch neighbouring elements, which is what
 conflict-free and the C store coalesced.
 
 The staging loops in `gemm_local_tiled` are cooperative: the whole group fills `K_BLOCK_M x K_TILE_K` of
-A and `K_TILE_K x K_BLOCK_N` of B, each work-item taking a grid-strided share. Each loop walks its
-operand along the axis whose elements are adjacent in memory, so neighbouring work-items read
-neighbouring addresses. `has_contiguous_columns` decides it: A walks its rows first when a column
-of op(A) is contiguous, as for a ColumnMajor NoTrans A, and its depth first otherwise; B walks its
-depth first when a column of op(B) is contiguous, and its columns first otherwise. An operand read
-through another brick, such as `SymmetricAccess`, keeps the depth-first A and column-first B order.
+A and `K_TILE_K x K_BLOCK_N` of B, each work-item taking a grid-strided share. Both go through
+`Detail::stage_block`, which walks its block along the axis whose elements are adjacent in memory,
+so neighbouring work-items read neighbouring addresses: rows first when a column of op(X) is
+contiguous, as for a ColumnMajor NoTrans operand, and columns first otherwise. For A the rows are
+rows of C and the columns are the depth; for B the rows are the depth. An operand read through
+another brick, such as `SymmetricAccess`, walks columns first. The host fills one
+`Detail::StagePlan` per operand: the walking order, whether offsets inside a block fit 32 bits,
+and whether whole blocks take 128-bit loads.
+
+A whole block of an `OperandAccess` operand in FLOAT32, FLOAT64 or HALF is read by `load_lanes`,
+one `sycl::vec` of 16 bytes per load, when `stages_by_vector` finds the base address 16-byte
+aligned and the leading dimension and the batch stride a multiple of the lanes. Block origins are
+multiples of 16 rows or columns, so every load then starts aligned. The lanes run along the
+contiguous axis and land in the tile one element each. A complex operand, a conjugated one and an
+edge block are read by element. For B the depth-first lanes keep the bank spread of
+`K_TILE_B_LD`; for A the rows-first lanes write four rows 17 floats apart per load, a 4-way bank
+conflict on the store that this layout has not been measured against.
 
 A depth-first B store writes 16 neighbouring work-items down one tile column. With an unpadded
 leading dimension of `K_BLOCK_N` == 64 floats, all 16 land on one bank. `K_TILE_B_LD` is
