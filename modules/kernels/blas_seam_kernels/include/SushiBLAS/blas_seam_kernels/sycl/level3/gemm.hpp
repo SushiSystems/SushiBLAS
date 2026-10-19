@@ -72,6 +72,34 @@ namespace SushiBLAS
                     return s.at(p, row, col);
                 }
 
+                /// @brief Returns whether neighbouring columns of op(X) are neighbouring elements.
+                [[nodiscard]] inline constexpr bool has_contiguous_rows(
+                    const OperandAccess& access) noexcept
+                {
+                    return access.col == 1;
+                }
+
+                /// @brief Returns false: a row read through another brick is not known contiguous.
+                template<typename Access>
+                [[nodiscard]] inline constexpr bool has_contiguous_rows(const Access&) noexcept
+                {
+                    return false;
+                }
+
+                /// @brief Returns whether neighbouring rows of op(X) are neighbouring elements.
+                [[nodiscard]] inline constexpr bool has_contiguous_columns(
+                    const OperandAccess& access) noexcept
+                {
+                    return access.row == 1;
+                }
+
+                /// @brief Returns false: a column read through another brick is not known contiguous.
+                template<typename Access>
+                [[nodiscard]] inline constexpr bool has_contiguous_columns(const Access&) noexcept
+                {
+                    return false;
+                }
+
                 /**
                  * @brief Returns element (row0 + r, col0 + c) of an inside block through at().
                  * @pre The whole block lies inside the matrix.
@@ -264,34 +292,6 @@ namespace SushiBLAS
                             full ? load_interior(p, row0, col0, r, c, s, plan.narrow)
                                  : load_operand(p, row0 + r, col0 + c, rows, cols, s);
                     }
-                }
-
-                /// @brief Returns whether neighbouring columns of op(X) are neighbouring elements.
-                [[nodiscard]] inline constexpr bool has_contiguous_rows(
-                    const OperandAccess& access) noexcept
-                {
-                    return access.col == 1;
-                }
-
-                /// @brief Returns false: a row read through another brick is not known contiguous.
-                template<typename Access>
-                [[nodiscard]] inline constexpr bool has_contiguous_rows(const Access&) noexcept
-                {
-                    return false;
-                }
-
-                /// @brief Returns whether neighbouring rows of op(X) are neighbouring elements.
-                [[nodiscard]] inline constexpr bool has_contiguous_columns(
-                    const OperandAccess& access) noexcept
-                {
-                    return access.row == 1;
-                }
-
-                /// @brief Returns false: a column read through another brick is not known contiguous.
-                template<typename Access>
-                [[nodiscard]] inline constexpr bool has_contiguous_columns(const Access&) noexcept
-                {
-                    return false;
                 }
 
                 /**
