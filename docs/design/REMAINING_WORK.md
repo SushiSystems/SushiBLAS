@@ -272,12 +272,12 @@ batches; a 4x4x4 GEMM with batch 65 536 and a GER with m = 70 000 on the card; t
 
 ### RW-52 Add the benchmarks the audit asks for
 - State: open
-- Done when: `benchmark_gemm` sweeps RowMajor, and `benchmark_level2`, `benchmark_syrk`,
-  `benchmark_spatial` and `benchmark_random` exist
+- Done when: `benchmark_gemm`, `benchmark_band_packed` and `benchmark_triangular` sweep both
+  layouts, and `benchmark_spatial` and `benchmark_random` exist
 - Source: `docs/agent/2026_10_19_KERNEL_AUDIT/REPORT.md`
 
-`benchmark_level2` covers gemv in both layouts, ger, symv, syr and trmv; `benchmark_syrk`
-covers syrk and syr2k at orders 256 to 4096.
+`benchmark_gemm` also times HALF, `benchmark_level1` adds copy, scal, swap and rot, and
+`benchmark_band_packed` adds gemv Trans, ger, syr2 and spr2.
 
 ### RW-53 Land the optimisations of the kernel audit
 - State: blocked
