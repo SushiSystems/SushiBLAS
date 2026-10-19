@@ -162,7 +162,7 @@ builds it when `SB_BUILD_BENCHMARKS` is on.
 | --- | --- |
 | `operations/blas/benchmark_gemm.cpp` | GEMM through `BLASOps`, in both layouts |
 | `operations/blas/benchmark_gemm_blocking.cpp` | One square GEMM kernel call under a cache blocking given on the command line |
-| `operations/blas/benchmark_level1.cpp` | `axpy`, `dot`, `nrm2`, `asum`, `iamax` |
+| `operations/blas/benchmark_level1.cpp` | `axpy`, `copy`, `scal`, `swap`, `rot`, `dot`, `nrm2`, `asum`, `iamax` |
 | `operations/blas/benchmark_band_packed.cpp` | The band and packed Level 2 routines beside their dense siblings |
 | `operations/blas/benchmark_triangular.cpp` | The triangular and symmetric BLAS routines, and the TRSM kernel at chosen block widths |
 | `operations/sparse/benchmark_sparse.cpp` | `spmv`, `spsymv`, `spmm`, `sptrsv`, `axpyi`, `doti` |
@@ -201,7 +201,7 @@ prints the name of the device it ran on.
 | --- | --- | --- | --- |
 | `benchmark_gemm` | `gemm`, C = A * B, square, every section once per layout: ColumnMajor, then RowMajor | n = 128, 512, 1024, 2048 | GFLOP/s, 2 * n^3 flops |
 | `benchmark_gemm`, rows `gemm deep` and `gemm strided` | `gemm` in FLOAT32 with a small C and a long K: five shapes of C = A^T * B, where K is contiguous in memory under ColumnMajor, and six of C = A * B^T, where K is the leading axis under ColumnMajor; the size column is K | fixed | GFLOP/s, 2 * m * n * k flops |
-| `benchmark_level1` | `axpy`, `dot`, `nrm2`, `asum`, `iamax` | 2^16, 2^20, 2^24 elements | GB/s |
+| `benchmark_level1` | `axpy`, `copy`, `scal`, `swap`, `rot`, `dot`, `nrm2`, `asum`, `iamax` | 2^16, 2^20, 2^24 elements | GB/s |
 | `benchmark_reductions` | `sum`, `max`, `var` over the whole tensor | 2^16, 2^20, 2^24 elements | GB/s |
 | `benchmark_elementwise` | `add`, in-place `exp`, in-place `relu` | 2^16, 2^20, 2^24 elements | GB/s |
 | `benchmark_band_packed` | `gemv`, `gbmv`, `symv`, `sbmv`, `spmv`, `trmv`, `tbmv`, `tpmv`, `trsv`, `tbsv`, `tpsv`, `syr`, `spr`, column-major | n = 1024, 4096, 8192 | Melem/s |
@@ -227,8 +227,8 @@ those values give (block rows, columns and depth, block count, workers, scratch 
 row in GFLOP/s. It exists to find a blocking by measurement on one machine.
 
 The byte count behind GB/s is one read of each input element and one write of each output
-element: `axpy` 3n, `dot` 2n, `nrm2`, `asum`, `iamax`, `sum`, `max` and `var` n, `add` 3n,
-`exp` and `relu` 2n, each times the element size. A kernel that makes more than one pass, or
+element: `axpy` 3n, `copy` and `scal` 2n, `swap` and `rot` 4n, `dot` 2n, `nrm2`, `asum`,
+`iamax`, `sum`, `max` and `var` n, `add` 3n, `exp` and `relu` 2n, each times the element size. A kernel that makes more than one pass, or
 writes partial results to scratch, moves more bytes than this, so the printed rate is a lower
 bound on the traffic the hardware served.
 

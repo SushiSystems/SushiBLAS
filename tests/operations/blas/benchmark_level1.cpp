@@ -21,7 +21,7 @@
 
 /**
  * @file benchmark_level1.cpp
- * @brief Times axpy, dot, nrm2, asum and iamax and prints GB/s per vector length.
+ * @brief Times nine level 1 routines, axpy to iamax, and prints GB/s per vector length.
  * @author Mustafa Garip
  */
 
@@ -52,9 +52,18 @@ namespace
     /// @brief Scale axpy applies to x.
     constexpr double K_ALPHA = 0.5;
 
-    /// @brief Times the five level 1 routines at one length and prints one row each.
-    void benchmark_length(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
-                      int64_t n)
+    /// @brief Scale scal applies to x: minus one, so repeated iterations keep each magnitude.
+    constexpr double K_SCAL_ALPHA = -1.0;
+
+    /// @brief Cosine of the plane rotation rot applies; with K_ROT_SINE it keeps the norm.
+    constexpr double K_ROT_COSINE = 0.6;
+
+    /// @brief Sine of the plane rotation rot applies.
+    constexpr double K_ROT_SINE = 0.8;
+
+    /// @brief Times the nine level 1 routines at one length and prints one row each.
+    void benchmark_length(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
+                          DataType dtype, int64_t n)
     {
         SushiBLAS::Tensor x = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor y = engine.create_tensor({n}, dtype);
@@ -72,6 +81,23 @@ namespace
                         Bench::measure(
                             engine, [&]() { SushiBLAS::BLASOps(engine).axpy(K_ALPHA, x, y); }),
                         3.0 * vector_bytes, gb);
+        table.print_row("copy", dtype, n,
+                        Bench::measure(engine, [&]() { SushiBLAS::BLASOps(engine).copy(x, y); }),
+                        2.0 * vector_bytes, gb);
+        table.print_row("scal", dtype, n,
+                        Bench::measure(
+                            engine, [&]() { SushiBLAS::BLASOps(engine).scal(K_SCAL_ALPHA, x); }),
+                        2.0 * vector_bytes, gb);
+        table.print_row("swap", dtype, n,
+                        Bench::measure(engine, [&]() { SushiBLAS::BLASOps(engine).swap(x, y); }),
+                        4.0 * vector_bytes, gb);
+        table.print_row("rot", dtype, n,
+                        Bench::measure(engine, [&]()
+                                       {
+                                           SushiBLAS::BLASOps(engine).rot(x, y, K_ROT_COSINE,
+                                                                          K_ROT_SINE);
+                                       }),
+                        4.0 * vector_bytes, gb);
         table.print_row("dot", dtype, n,
                         Bench::measure(
                             engine, [&]() { SushiBLAS::BLASOps(engine).dot(x, y, scalar); }),
