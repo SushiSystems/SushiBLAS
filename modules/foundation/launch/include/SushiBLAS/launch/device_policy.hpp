@@ -34,6 +34,7 @@
 #include <utility>
 #include <algorithm>
 #include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/matrix/matrix.hpp>
 
 namespace SushiBLAS
 {
@@ -129,6 +130,13 @@ namespace SushiBLAS
             /** @brief True when the device supports half precision natively. */
             bool supports_fp16 = false;
 
+            /**
+             * @brief Holds whether a CUDA device offers HALF x HALF -> FLOAT32 joint_matrix
+             *        products of 16 x 16 x 16.
+             * @see modules/foundation/launch/README.md
+             */
+            bool supports_half_matrix = false;
+
             /** @brief Bytes of work-group local memory available to one group. */
             std::size_t local_mem_bytes = 0;
 
@@ -156,6 +164,36 @@ namespace SushiBLAS
 
         namespace Detail
         {
+            /**
+             * @brief Returns whether a CUDA device lists a HALF x HALF -> FLOAT32 joint_matrix
+             *        combination of 16 x 16 x 16.
+             * @see modules/foundation/launch/README.md
+             */
+            [[nodiscard]] inline bool offers_half_matrix(const sycl::device& d)
+            {
+                namespace Experimental = sycl::ext::oneapi::experimental;
+                namespace Matrix = Experimental::matrix;
+                using Matrix::matrix_type;
+
+                // Only CUDA is asked: the HALF matrix kernel is compiled for NVPTX alone.
+                if (d.get_backend() != sycl::backend::ext_oneapi_cuda)
+                    return false;
+
+                const std::vector<Matrix::combination> combinations =
+                    d.get_info<Experimental::info::device::matrix_combinations>();
+                for (const Matrix::combination& c : combinations)
+                {
+                    const bool types = c.atype == matrix_type::fp16 &&
+                                       c.btype == matrix_type::fp16 &&
+                                       c.ctype == matrix_type::fp32 &&
+                                       c.dtype == matrix_type::fp32;
+                    const bool shape = c.msize == 16 && c.nsize == 16 && c.ksize == 16;
+                    if (types && shape)
+                        return true;
+                }
+                return false;
+            }
+
             /** @brief Queries every Profile field from a device. Not cached; call profile_for. */
             inline Profile probe(const sycl::device& d)
             {
@@ -163,6 +201,7 @@ namespace SushiBLAS
                 p.is_cpu = d.is_cpu();
                 p.supports_fp64 = d.has(sycl::aspect::fp64);
                 p.supports_fp16 = d.has(sycl::aspect::fp16);
+                p.supports_half_matrix = offers_half_matrix(d);
                 p.local_mem_bytes = static_cast<std::size_t>(
                     d.get_info<sycl::info::device::local_mem_size>());
                 p.max_work_group_size = static_cast<std::size_t>(

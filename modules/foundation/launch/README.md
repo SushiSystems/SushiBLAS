@@ -70,6 +70,15 @@ the global pointer already reads through. Staging a tile there is a pure extra c
 barriers guarding it are pure loss. So a kernel that asks "is it worth tiling?" must ask this, not
 `local_mem_type`.
 
+### `Profile::supports_half_matrix`
+
+`Detail::offers_half_matrix` reads `matrix_combinations` from the oneAPI matrix
+extension and looks for an entry of 16 x 16 x 16 with HALF A and B and FLOAT32 C and D. It asks a
+CUDA device only and answers false for every other backend: the kernel that uses the field is
+compiled for NVPTX alone, so a true answer from an Intel or OpenCL device would route to a kernel
+with no body there. Asking only CUDA also keeps the query off devices that do not implement it.
+The field is a bool, so no public header names an extension type.
+
 ### Sub-group width in the device probe
 
 At `const std::vector<std::size_t> widths =`: widest reported sub-group: 32 on NVIDIA, 64 on AMD

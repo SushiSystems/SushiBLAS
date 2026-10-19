@@ -174,5 +174,26 @@ namespace SushiBLAS
             EXPECT_GE(first.sub_group_size, std::size_t{1});
             EXPECT_EQ(first.blocking.min_operand_bytes, first.cache_bytes);
         }
+
+        TEST(Medium_DevicePolicy, OnlyACUDADeviceOffersTheHalfMatrix)
+        {
+            const sycl::queue& queue = TestEnvironment::queue(0);
+            const Device::Profile& profile = Device::profile_for(queue);
+
+            if (queue.get_device().get_backend() != sycl::backend::ext_oneapi_cuda)
+                EXPECT_FALSE(profile.supports_half_matrix);
+            if (profile.is_cpu)
+                EXPECT_FALSE(profile.supports_half_matrix);
+        }
+
+        TEST(Large_DevicePolicy, ACUDADeviceOffersTheHalfMatrixOfSixteen)
+        {
+            const sycl::queue& queue = TestEnvironment::queue(0);
+            if (queue.get_device().get_backend() != sycl::backend::ext_oneapi_cuda)
+                GTEST_SKIP() << "the device is not a CUDA device";
+
+            // Every card from sm_70 on lists 16 x 16 x 16 for HALF x HALF -> FLOAT32.
+            EXPECT_TRUE(Device::profile_for(queue).supports_half_matrix);
+        }
     } // namespace Test
 } // namespace SushiBLAS
