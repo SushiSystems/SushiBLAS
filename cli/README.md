@@ -87,9 +87,12 @@ sb build --type debug     # Debug build
 sb build --type relwithdebinfo
 sb build --clean          # delete the build tree first, then build from scratch
 sb build --benchmarks     # also build the benchmark programs (--no-benchmarks stops)
+sb build --jobs 4         # run at most 4 compile jobs at once
 ```
 
 The `--type` (`-t`) option accepts `release`, `debug`, or `relwithdebinfo`.
+`--jobs` (`-j`) reaches `cmake --build` as `--parallel`; left out, the generator chooses the
+count and `CMAKE_BUILD_PARALLEL_LEVEL` is honoured.
 Flags can be combined, e.g. `sb build --type debug --clean`.
 
 There is one build tree. Building with a different `--type` removes it and

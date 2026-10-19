@@ -76,6 +76,7 @@ def _exit_with(step: Callable[[], int]) -> NoReturn:
            "sb build --type debug  # Build with debug settings\n"
            "sb build --clean  # Start from an empty build tree\n"
            "sb build --benchmarks  # Also build the benchmark programs\n"
+           "sb build --jobs 4  # Run at most 4 compile jobs at once\n"
            "sb build --sanitize address-undefined  # Instrument host code with ASan and UBSan\n"
            "sb build -D SB_ENABLE_LOGGING=OFF  # Pass a CMake cache variable through",
 )
@@ -99,6 +100,10 @@ def build(
         help="Pass a CMake cache variable through to configure. Repeatable. "
              "Quote values containing ';', e.g. "
              '-D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86".'),
+    jobs: Optional[int] = typer.Option(
+        None, "--jobs", "-j", min=1,
+        help="Compile jobs run at once. When omitted the generator decides, and "
+             "CMAKE_BUILD_PARALLEL_LEVEL is honoured."),
 ) -> None:
     """Configure and build the project.
 
@@ -111,7 +116,7 @@ def build(
 
     def step() -> int:
         """Builds and announces success."""
-        rc = _service().build(type, clean, define, benchmarks, sanitize)
+        rc = _service().build(type, clean, define, benchmarks, sanitize, jobs)
         console.success("Build completed successfully!")
         return rc
 

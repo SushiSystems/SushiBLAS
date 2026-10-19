@@ -265,6 +265,42 @@ def test_build_passes_the_sanitizer_set_as_a_cache_variable(parts, checkout, san
     assert flags == expected
 
 
+class _CompilingDriver(_Driver):
+    """Stands in for the driver: configures, then records the jobs each compile was given."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.compiled_jobs: list[int | None] = []
+
+    def configure(self, args, cwd: Path, env=None) -> int:
+        """Records the command line and succeeds, so the build goes on to compile."""
+        self.configured.append(list(args))
+        return 0
+
+    def compile(self, cfg, build_dir: Path, cwd: Path, env, **options) -> int:
+        """Records the jobs the compile was asked for and succeeds."""
+        self.compiled_jobs.append(options.get("jobs"))
+        return 0
+
+
+def test_build_hands_the_jobs_to_the_compile(checkout):
+    """The number of compile jobs reaches the driver as given, and is absent when not given."""
+    console = _Console()
+    driver = _CompilingDriver()
+    service = ProjectService(
+        console=console,
+        runner=Runner(console, "sb", catch_interrupt=True),
+        driver=driver,
+        index=_Index(),
+        build_env=_BuildEnv(),
+        find_root=lambda: checkout,
+        load_config=_Config,
+    )
+    assert service.build(BuildType.RELEASE, jobs=4) == 0
+    assert service.build(BuildType.RELEASE) == 0
+    assert driver.compiled_jobs == [4, None]
+
+
 def test_test_runs_small_and_medium_and_leaves_quarantined_out_by_default(parts, checkout):
     """With no label, ctest selects the small and medium labels and excludes quarantined."""
     console, driver, service = parts
@@ -310,8 +346,25 @@ def test_build_command_forwards_the_benchmarks_option(monkeypatch, args, expecte
     received = []
 
     class _Service:
-        def build(self, build_type, clean, define, benchmarks, sanitize):
+        def build(self, build_type, clean, define, benchmarks, sanitize, jobs):
             received.append(benchmarks)
+            return 0
+
+    monkeypatch.setattr(cli, "_service", lambda: _Service())
+    monkeypatch.setattr(cli, "console", _Console())
+    result = CliRunner().invoke(cli.app, args)
+    assert result.exit_code == 0
+    assert received == [expected]
+
+
+@pytest.mark.parametrize(("args", "expected"), [(["build", "--jobs", "4"], 4), (["build"], None)])
+def test_build_command_forwards_the_jobs_option(monkeypatch, args, expected):
+    """The build command hands --jobs to the service unchanged, and None when it is left out."""
+    received = []
+
+    class _Service:
+        def build(self, build_type, clean, define, benchmarks, sanitize, jobs):
+            received.append(jobs)
             return 0
 
     monkeypatch.setattr(cli, "_service", lambda: _Service())

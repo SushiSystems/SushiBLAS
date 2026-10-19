@@ -116,11 +116,13 @@ class ProjectService:
         defines: Sequence[str] | None = None,
         benchmarks: bool | None = None,
         sanitizer: Sanitizer | None = None,
+        jobs: int | None = None,
     ) -> int:
         """Configures and builds the project, replacing a tree it cannot reuse.
 
         *benchmarks* switches the benchmark programs on or off and *sanitizer* sets the
-        sanitizers of host code; None keeps the cached value of either.
+        sanitizers of host code; None keeps the cached value of either. *jobs* caps the
+        compile jobs run at once; None leaves the count to the generator.
 
         Raises:
             InvalidDefineError: An entry of *defines* is not VAR=VALUE; nothing was touched.
@@ -167,7 +169,8 @@ class ProjectService:
         build_dir.mkdir(parents=True, exist_ok=True)
 
         self._console.info("Building...")
-        rc = self._driver.compile(cfg, build_dir, cwd=root, env=env, config=cmake_build_type)
+        rc = self._driver.compile(cfg, build_dir, cwd=root, env=env, config=cmake_build_type,
+                                  jobs=jobs)
         if rc != 0:
             raise StepFailedError("Build failed.", rc)
         return rc
