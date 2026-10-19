@@ -962,6 +962,31 @@ namespace SushiBLAS
                 int64_t batch;           /**< Products in the batch, stored back to back. */
             };
 
+            /** @brief Holds the leading dimensions and batch strides of one LocalTiledCase. */
+            struct LocalTiledStorage
+            {
+                int64_t lda;   /**< Leading dimension of A as stored. */
+                int64_t ldb;   /**< Leading dimension of B as stored. */
+                int64_t ldc;   /**< Leading dimension of C. */
+                int64_t str_a; /**< Elements of one A. */
+                int64_t str_b; /**< Elements of one B. */
+                int64_t str_c; /**< Elements of one C. */
+            };
+
+            /** @brief Returns how the operands of a case are stored, back to back per batch. */
+            [[nodiscard]] LocalTiledStorage storage_of(const LocalTiledCase& c)
+            {
+                // A is stored k x m when it is read transposed and m x k otherwise; B likewise.
+                const bool row_major = c.layout == Core::Layout::RowMajor;
+                const int64_t a_rows = Core::is_transposed(c.trans_a) ? c.k : c.m;
+                const int64_t a_cols = Core::is_transposed(c.trans_a) ? c.m : c.k;
+                const int64_t b_rows = Core::is_transposed(c.trans_b) ? c.n : c.k;
+                const int64_t b_cols = Core::is_transposed(c.trans_b) ? c.k : c.n;
+                return LocalTiledStorage{row_major ? a_cols : a_rows, row_major ? b_cols : b_rows,
+                                         row_major ? c.n : c.m,       a_rows * a_cols,
+                                         b_rows * b_cols,             c.m * c.n};
+            }
+
             /** @brief Returns whether a device hosts the local-tiled work-group of T. */
             template<typename T>
             [[nodiscard]] bool hosts_local_tiled(const Device::Profile& profile)
@@ -990,18 +1015,13 @@ namespace SushiBLAS
             void expect_local_tiled_matches_reference(Engine& engine, const LocalTiledCase& c,
                                                       double tolerance)
             {
-                // A is stored k x m when it is read transposed and m x k otherwise; B likewise.
-                const bool row_major = c.layout == Core::Layout::RowMajor;
-                const int64_t a_rows = Core::is_transposed(c.trans_a) ? c.k : c.m;
-                const int64_t a_cols = Core::is_transposed(c.trans_a) ? c.m : c.k;
-                const int64_t b_rows = Core::is_transposed(c.trans_b) ? c.n : c.k;
-                const int64_t b_cols = Core::is_transposed(c.trans_b) ? c.k : c.n;
-                const int64_t lda = row_major ? a_cols : a_rows;
-                const int64_t ldb = row_major ? b_cols : b_rows;
-                const int64_t ldc = row_major ? c.n : c.m;
-                const int64_t str_a = a_rows * a_cols;
-                const int64_t str_b = b_rows * b_cols;
-                const int64_t str_c = c.m * c.n;
+                const LocalTiledStorage s = storage_of(c);
+                const int64_t lda = s.lda;
+                const int64_t ldb = s.ldb;
+                const int64_t ldc = s.ldc;
+                const int64_t str_a = s.str_a;
+                const int64_t str_b = s.str_b;
+                const int64_t str_c = s.str_c;
 
                 const Core::DataType dtype = sushiblas_dtype<T>();
                 Tensor A = engine.create_tensor({c.batch * str_a}, dtype);
