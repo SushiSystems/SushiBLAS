@@ -141,7 +141,6 @@ namespace SushiBLAS
                     Epilogue epilogue)
                 {
                     using Tile = GemmJointMatrixTile;
-                    using W = Accumulator<sycl::half>;
 
                     const int64_t m_groups = (m + Tile::K_BLOCK - 1) / Tile::K_BLOCK;
                     const int64_t n_groups = (n + Tile::K_BLOCK - 1) / Tile::K_BLOCK;
@@ -166,6 +165,7 @@ namespace SushiBLAS
                             // The body exists for NVPTX alone; see the blas_seam_kernels README.
 #if !defined(__SYCL_DEVICE_ONLY__) || defined(__NVPTX__)
                             namespace Matrix = sycl::ext::oneapi::experimental::matrix;
+                            using W = Accumulator<sycl::half>;
                             using sycl::access::address_space;
                             using sycl::access::decorated;
                             using FragmentA = Matrix::joint_matrix<sycl::sub_group, sycl::half,
