@@ -1,6 +1,6 @@
 # Remaining work
 
-Next id: RW-93
+Next id: RW-104
 
 ## Decisions waiting for the owner
 
@@ -101,6 +101,21 @@ Next id: RW-93
 `DESIGN_RECORDER` section 15, `DESIGN_SUPPORT_MEMORY` 18, `DESIGN_BLAS` 12, `DESIGN_BLAS_L3` 13,
 `DESIGN_BLAS_BAND_PACKED` 14, `DESIGN_GEMM_CPU` 10.3 and 13, `DESIGN_SPARSE` 18, `DESIGN_YOLO26`
 13, and section 7 of `REPORT.md` in the same folder.
+
+
+### RW-101 State and test that tensors may be created from several threads
+- State: open
+- Done when: `TensorFactory::create` and `Engine::create_tensor` state it, and a test creates and
+  releases tensors from eight threads
+
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B7.
+
+### RW-102 State and test host access to a Shared tensor between executions
+- State: open
+- Done when: a plan compiled once copies a source the host rewrites between three executions, and
+  the destination matches each time
+
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B8.
 
 ## Benchmarks and tuning
 
@@ -258,6 +273,67 @@ Next id: RW-93
 ### RW-50 Round host `HALF` in the subnormal range
 - State: open
 - Done when: the host conversion rounds below 2^-13 as a device does
+
+### RW-93 Fill a random tensor from a stream position read when the task runs
+- State: open
+- Done when: `PositionedRandomOps` fills from a position held in a tensor operand, and a plan
+  replayed twice with the position rewritten between runs draws two different fills
+
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B1. SushiAI's dropout waits on it
+(`sushiai RW-94`).
+
+### RW-94 Add an index family: rows by index and one element per row
+- State: open
+- Done when: `IndexOps` gathers rows by an INT32 or INT64 index with a defined result out of range
+  and a gather-form backward, with tests
+
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B2, which also states the two benchmarks
+it lands with. RW-49 designed part of it.
+
+### RW-95 Add a broadcast seam, one value per row or per column under any functor
+- State: open
+- Done when: `Dispatch::execute_broadcast` and `BroadcastOps` exist with tests, and no existing
+  plan records different tasks
+
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B3.
+
+### RW-96 Add bilinear upsampling and its gradient
+- State: open
+- Done when: `upsample_bilinear` and its backward exist in both kernels, with tests
+
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B4.
+
+### RW-97 Add the index of the maximum along one axis
+- State: open
+- Done when: `argmax_along` folds through `Reduce::RunningArgMax`, the lowest index winning a tie,
+  with tests
+
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B5.
+
+### RW-98 Add GELU by the error function
+- State: open
+- Done when: `gelu_erf` and `gelu_erf_backward` exist beside `gelu`, whose formula stays, with tests
+
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B6.
+
+### RW-99 Add a mask of the k largest of each row
+- State: open
+- Done when: `ReductionOps::top_k_mask_along` exists with tests, the lowest index winning a tie
+
+Section 1 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B9.
+
+### RW-100 Add the index of the rows a mask selects
+- State: blocked
+- Blocked by: RW-94
+- Done when: `IndexOps::select_rows` exists with tests
+
+Section 1 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B10.
+
+### RW-103 Add a bfloat16 `DataType`
+- State: open
+- Done when: `Core::DataType` holds bfloat16 and the operations that take HALF take it, with tests
+
+SushiAI's mixed precision waits on it (`sushiai RW-109`).
 
 ## Kernel audit
 
@@ -430,12 +506,6 @@ The runtime carries the same order and groups its own in step (`sushiruntime RW-
 - State: open
 - Done when: `sb run --pick` works and `--sort` stays as a hidden alias (C4)
 
-### RW-81 Settle the panel names, short options and defaults across the command lines
-- State: open
-- Done when: every Sushi command line uses the same panels, short options and defaults (C5, C6)
-
-The work spans every command line; it moves to the repository that coordinates them.
-
 ### RW-82 Link the colour, theme and exit code page from `cli/README.md`
 - State: blocked
 - Blocked by: sushicore RW-40
@@ -480,9 +550,3 @@ The work spans every command line; it moves to the repository that coordinates t
 - State: open
 - Done when: `experimental` is `INTERNAL`, the package test fails on an installed tree that holds
   that folder or a document among its headers, and `sb test --package` passes
-
-### RW-91 Move SushiAI onto the views, the enums and `BLASScalar`
-- State: open
-- Done when: SushiAI builds on this tree's interface
-
-The commits land in SushiAI; the entry moves there when that repository migrates.
