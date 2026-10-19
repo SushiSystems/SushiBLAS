@@ -131,7 +131,7 @@ are not tasks yet; the baseline and B10 decide whether they become ones.
 | B23 | Decode the spatial flat index in 3-D or 32-bit | `benchmark_spatial`, both devices | open |
 | B24 | Transpose through local-memory tiles in `layout_convert` | `benchmark_spatial`, both devices | open |
 | B25 | Scatter the transposed `spmv` and `spsymv` over more than 256 work-items | `benchmark_sparse`, both devices | open |
-| B26 | Read `Device::profile_for` without a mutex and a scan | `benchmark_level1` small sizes, both devices | open |
+| B26 | Read `Device::profile_for` without a mutex and a scan | `benchmark_level1` small sizes, both devices | committed |
 | B27 | Close RW-52 and RW-53: changelog, backlog, module READMEs, this status | The checkers of `AGENTS.md` pass | open |
 
 Every task from B2 on is one build. B15 is five builds, one per task 6 to 10.

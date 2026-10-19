@@ -100,6 +100,13 @@ is not ordered against the SYCL runtime tearing itself down: releasing a device 
 a crash on some backends. One small permanent allocation is the standard price for not having that
 race.
 
+Each thread keeps a `thread_local` pointer to the entry it was last handed. A call for the same
+device compares one handle and returns without the mutex or the scan; any other call takes the
+lock, finds or probes the entry, and repoints. The pointer is safe to follow unlocked because an
+entry is written once, under the lock, before any thread can point at it, and a deque never moves
+an element it holds. The pointer is a raw pointer, so no thread-exit destructor touches a
+`sycl::device`.
+
 ### `Grid1D`
 
 The kernel this describes walks its elements with a stride loop rather than assuming one work-item

@@ -246,17 +246,26 @@ namespace SushiBLAS
         inline const Profile& profile_for(const sycl::device& d)
         {
             // The cache is a deque for stable references and is never freed; see modules/foundation/launch/README.md.
-            static std::deque<std::pair<sycl::device, Profile>>* cache =
-                new std::deque<std::pair<sycl::device, Profile>>();
+            using Entry = std::pair<sycl::device, Profile>;
+            static std::deque<Entry>* cache = new std::deque<Entry>();
             static std::mutex guard;
 
+            // A thread's last entry answers a repeated device without the lock; entries never move.
+            thread_local const Entry* last = nullptr;
+            if (last != nullptr && last->first == d)
+                return last->second;
+
             const std::lock_guard<std::mutex> lock(guard);
-            for (auto& entry : *cache)
+            for (const Entry& entry : *cache)
                 if (entry.first == d)
+                {
+                    last = &entry;
                     return entry.second;
+                }
 
             cache->emplace_back(d, Detail::probe(d));
-            return cache->back().second;
+            last = &cache->back();
+            return last->second;
         }
 
         /** @brief The cached Profile for the device behind @p q. */
