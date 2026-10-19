@@ -144,12 +144,14 @@ namespace SushiBLAS::Bench
     {
         switch (dtype)
         {
+            case Core::DataType::Half:
+                return "HALF";
             case Core::DataType::Float32:
                 return "FLOAT32";
             case Core::DataType::Float64:
                 return "FLOAT64";
             default:
-                throw std::invalid_argument("benchmark dtype is neither FLOAT32 nor FLOAT64");
+                throw std::invalid_argument("benchmark dtype is not HALF, FLOAT32 or FLOAT64");
         }
     }
 
@@ -158,17 +160,31 @@ namespace SushiBLAS::Bench
     {
         switch (dtype)
         {
+            case Core::DataType::Half:
+                return sizeof(sycl::half);
             case Core::DataType::Float32:
                 return sizeof(float);
             case Core::DataType::Float64:
                 return sizeof(double);
             default:
-                throw std::invalid_argument("benchmark dtype is neither FLOAT32 nor FLOAT64");
+                throw std::invalid_argument("benchmark dtype is not HALF, FLOAT32 or FLOAT64");
         }
     }
 
+    /// @brief Returns whether the engine's device holds the aspect a dtype's record check asks.
+    [[nodiscard]] inline bool device_supports(Engine& engine, Core::DataType dtype)
+    {
+        const Tensor probe = engine.create_tensor({1});
+        const Device::Profile& profile = Device::profile_for(probe.device());
+        if (dtype == Core::DataType::Half)
+            return profile.supports_fp16;
+        if (dtype == Core::DataType::Float64 || dtype == Core::DataType::Complex64)
+            return profile.supports_fp64;
+        return true;
+    }
+
     /**
-     * @brief Writes one value into every element of a FLOAT32 or FLOAT64 tensor.
+     * @brief Writes one value into every element of a HALF, FLOAT32 or FLOAT64 tensor.
      * @throws std::invalid_argument for any other dtype.
      */
     inline void fill_tensor(Engine& engine, Tensor& tensor, double value)
@@ -176,6 +192,10 @@ namespace SushiBLAS::Bench
         const std::size_t count = static_cast<std::size_t>(tensor.num_elements);
         switch (tensor.dtype)
         {
+            case Core::DataType::Half:
+                SushiBLAS::IO(engine).from_vector(
+                    tensor, std::vector<sycl::half>(count, static_cast<sycl::half>(value)));
+                return;
             case Core::DataType::Float32:
                 SushiBLAS::IO(engine).from_vector(tensor,
                                         std::vector<float>(count, static_cast<float>(value)));
@@ -184,7 +204,7 @@ namespace SushiBLAS::Bench
                 SushiBLAS::IO(engine).from_vector(tensor, std::vector<double>(count, value));
                 return;
             default:
-                throw std::invalid_argument("benchmark dtype is neither FLOAT32 nor FLOAT64");
+                throw std::invalid_argument("benchmark dtype is not HALF, FLOAT32 or FLOAT64");
         }
     }
 

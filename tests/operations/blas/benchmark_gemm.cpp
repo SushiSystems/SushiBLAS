@@ -21,7 +21,7 @@
 
 /**
  * @file benchmark_gemm.cpp
- * @brief Times GEMM in both layouts, FLOAT32 and FLOAT64, and prints GFLOP/s per size.
+ * @brief Times GEMM in both layouts, FLOAT32, FLOAT64 and HALF, and prints GFLOP/s per size.
  * @author Mustafa Garip
  */
 
@@ -41,8 +41,8 @@ namespace
     /// @brief Square matrix orders timed when no size is given.
     const std::vector<int64_t> K_DEFAULT_SIZES = {128, 512, 1024, 2048};
 
-    /// @brief Data types timed for every size.
-    const std::vector<DataType> K_DTYPES = {DataType::Float32, DataType::Float64};
+    /// @brief Data types timed for every square size, each where the device holds its aspect.
+    const std::vector<DataType> K_DTYPES = {DataType::Float32, DataType::Float64, DataType::Half};
 
     /// @brief Layouts every section is timed in, each on an engine of its own.
     const std::vector<Layout> K_LAYOUTS = {Layout::ColumnMajor, Layout::RowMajor};
@@ -143,6 +143,12 @@ namespace
         const Bench::ResultTable table("GFLOP/s");
         for (const DataType dtype : K_DTYPES)
         {
+            if (!Bench::device_supports(engine, dtype))
+            {
+                std::printf("%-10s %-8s skipped: the device lacks the dtype's aspect\n", "gemm",
+                            Bench::dtype_name(dtype));
+                continue;
+            }
             for (const int64_t n : sizes)
                 benchmark_gemm(engine, table, dtype, n);
         }

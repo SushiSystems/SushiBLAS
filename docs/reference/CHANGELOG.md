@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-19 — benchmarks: Timed the square products of `benchmark_gemm` in HALF and skipped a dtype whose aspect the device lacks (`benchmark_gemm.cpp`, `benchmark_harness.hpp`).
 - 2026-10-19 — benchmarks: Timed every section of `benchmark_gemm` in RowMajor after ColumnMajor and printed the layout among the environment lines (`benchmark_gemm.cpp`, `benchmark_harness.hpp`).
 - 2026-10-19 — cli: Added `--jobs` to `sb build`, which caps the compile jobs through `cmake --build --parallel` (`cli.py`, `project.py`).
 - 2026-10-19 — docs: Moved the backlog and the known issues to the SushiSkills entry format and took the backlog checker with the shared tools (`REMAINING_WORK.md`, `KNOWN_ISSUES.md`, `check_backlog.py`).

@@ -86,7 +86,7 @@ ColumnMajor only.
 | --- | --- | --- | --- |
 | B1 | Configure the build for `spir64;nvidia_gpu_sm_86` with the benchmarks | `benchmark_gemm` prints the RTX 3080 Ti under `cuda:0` and the CPU under `opencl:cpu` | done |
 | B2 | Sweep RowMajor in `benchmark_gemm` beside ColumnMajor | Each section of `benchmark_gemm` names its layout and both layouts print | done |
-| B3 | Time HALF in `benchmark_gemm`, which the harness fills and names | `benchmark_gemm` prints HALF rows on both devices | open |
+| B3 | Time HALF in `benchmark_gemm`, which the harness fills and names | `benchmark_gemm` prints HALF rows on both devices | done |
 | B4 | Time copy, scal, swap and rot in `benchmark_level1` | The program prints one row per routine and length on both devices | open |
 | B5 | Time `benchmark_band_packed` in both layouts, with gemv Trans, ger, syr2 and spr2 added | The program prints one section per layout, with the four new rows, on both devices | open |
 | B6 | Time `benchmark_triangular` in both layouts | The program prints one section per layout, its syrk and syr2k rows among them, on both devices | open |

@@ -208,7 +208,8 @@ prints the name of the device it ran on.
 | `benchmark_triangular` | `gemm`, `symm`, `syrk`, `syr2k`; `trmv` and `trsv` under `ForceSYCL` and `ForceReference`; `trsm` with 8 and with n right-hand sides; the TRSM kernel at block widths 32 to 1024 and at one block | n = 256, 1024, 4096 | GFLOP/s |
 | `benchmark_sparse` | `spmv` (plain, transposed, conjugate-transposed), `spsymv`, `spmm` (plain, transposed), `sptrsv` (plain, transposed), `axpyi`, `doti`; 16 entries per row | n = 2^14, 2^17, 2^20 | GB/s |
 
-Every operation runs in FLOAT32 and then FLOAT64.
+Every operation runs in FLOAT32 and then FLOAT64; the square rows of `benchmark_gemm` also run in
+HALF, and skip a dtype whose aspect the device lacks.
 
 #### `benchmark_gemm_blocking`
 

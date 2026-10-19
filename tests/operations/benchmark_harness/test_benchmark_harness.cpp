@@ -83,8 +83,23 @@ namespace SushiBLAS
             EXPECT_EQ(std::string(Bench::layout_name(Core::Layout::RowMajor)), "RowMajor");
             EXPECT_EQ(std::string(Bench::layout_name(Core::Layout::ColumnMajor)), "ColumnMajor");
             EXPECT_EQ(std::string(Bench::dtype_name(Core::DataType::Float64)), "FLOAT64");
+            EXPECT_EQ(std::string(Bench::dtype_name(Core::DataType::Half)), "HALF");
             EXPECT_EQ(Bench::dtype_bytes(Core::DataType::Float32), sizeof(float));
+            EXPECT_EQ(Bench::dtype_bytes(Core::DataType::Half), std::size_t{2});
             EXPECT_THROW((void)Bench::dtype_name(Core::DataType::Int32), std::invalid_argument);
+        }
+
+        TEST(Medium_BenchmarkHarness, DeviceSupportFollowsTheAspectsOfTheProfile)
+        {
+            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+            Engine engine(runtime);
+            const Tensor probe = engine.create_tensor({1});
+            const Device::Profile& profile = Device::profile_for(probe.device());
+
+            EXPECT_TRUE(Bench::device_supports(engine, Core::DataType::Float32));
+            EXPECT_EQ(Bench::device_supports(engine, Core::DataType::Half), profile.supports_fp16);
+            EXPECT_EQ(Bench::device_supports(engine, Core::DataType::Float64),
+                      profile.supports_fp64);
         }
 
         TEST(Medium_BenchmarkHarness, TimingRunsTheWarmUpAndTheTimedIterations)
