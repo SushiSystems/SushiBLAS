@@ -1,84 +1,259 @@
 # Known issues
 
-Defects and unverified claims that are recorded and not yet settled. The estate audit of
-2026-10-05 found the older ones; its text, with evidence, is
-`docs/agent/2026_10_05_ESTATE_AUDIT/REPORT.md`. The v0.1.0 work of 2026-10-07 added the rest; its
-record is `docs/agent/2026_10_07_V010/`, and a name such as `DESIGN_BLAS_L3` or `PLAN_EXT` below
-is a heading of that folder's `SPEC.md` or `PLAN.md`. Work that is planned and is not a defect is
-in [the backlog](../design/REMAINING_WORK.md).
-
-## Verification state
-
-| Issue | Where |
-| --- | --- |
-| The tree was configured, built and linked whole by `sb build`, test programs included, and `sb test` ran on 2026-10-12: 2 207 tests, none failed. That is one Windows machine, one card (an NVIDIA RTX 3080 Ti) and one toolchain (the pinned intel-llvm). The Linux CI job runs the small and medium tests on the OpenCL CPU device; the tree has not run on an AMD or Intel GPU | the whole tree |
-| Of the benchmark programs only `benchmark_band_packed` has run, on that card; no other design figure about speed is a measurement | `tests/<tier>/<module>/benchmark_*.cpp` |
-| The record-time refusal of a device that cannot host the `syrk` or `syr2k` tile was never seen to throw: the one device the tree ran on hosts both tiles | `modules/operations/blas/include/SushiBLAS/blas/local_tile.hpp`, `require_local_tile` |
-| With `SB_BUILD_TESTS` and `SB_BUILD_EXAMPLES` off, as under a consumer, the tree was never configured, and `tests/package/` was not built against an installed tree in the run of 2026-10-12 | `CMakeLists.txt`, `tests/package/` |
-| The GPU evidence is functional runs on one card, an RTX 3080 Ti, the last on 2026-10-12. None recorded the device profile or which GPU-shaped paths it took, and nothing in sections 2 to 5 of the checklist is measured | [GPU_VALIDATION.md](../design/GPU_VALIDATION.md), section 0 |
-| The kernels have been compiled by one toolchain, for the one card the tests ran on. No other ahead-of-time target has compiled them, and no SPIR-V device has. `Kernels::multiply`, `divide` and `conjugate`, which keep `std::complex` functions out of the SYCL BLAS kernels, are among them | `modules/foundation/arithmetic/include/SushiBLAS/arithmetic/complex_arithmetic.hpp`, `modules/kernels/` |
-| Whether every backend returns memory on the 128-byte boundary `Storage` asks `Runtime::buffer` for is unverified; an address off it fails an `SB_ASSERT`, which a build with `NDEBUG` compiles out | `modules/data/tensor/include/SushiBLAS/tensor/storage.hpp` |
-| The speed of the packed GEMM path is unmeasured, and its blocking defaults are derived from the cache size a device reports, which was never read on a real run | `modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp`, `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/level3/packed_product_plan.hpp` |
-| The solve block widths, 256 on a CPU and 128 on a GPU, come from assumed launch and step costs | `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/triangular_plan.hpp` |
-| The rotation bricks were transcribed from the reference BLAS (`drotg.f90`, `zrotg.f90`, `drotmg.f`) through a summarising fetch, without the source at hand. Whether `drotmg.f` writes the implied entries of H only for flags 0 and 1, as the brick does, is not settled | `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/givens.hpp`, `modified_givens.hpp` |
-| `Core::IndexBase` carries 221 and 222, written from memory of the Sparse BLAS header | `modules/foundation/core/include/SushiBLAS/core/sparse_types.hpp` |
-| The parity allowances of the random reference tests are estimates, and `LargeLambdaPoissonGivesTheSameCounts` asserts equality for one seed, which a device whose `log` or `lgamma` differs from the host's can break | `tests/operations/random/test_random/test_random_reference.cpp` |
-| The open and unverified items each design lists | `docs/agent/2026_10_07_V010/SPEC.md`: `DESIGN_RECORDER` section 15, `DESIGN_SUPPORT_MEMORY` 18, `DESIGN_BLAS` 12, `DESIGN_BLAS_L3` 13, `DESIGN_BLAS_BAND_PACKED` 14, `DESIGN_GEMM_CPU` 10.3 and 13, `DESIGN_SPARSE` 18, `DESIGN_YOLO26` 13; and `REPORT.md`, section 7 |
+Next id: KI-30
 
 ## Behaviour
 
-| Issue | Where |
-| --- | --- |
-| The reference path does host-side work on tensor storage. On Windows with CUDA, SushiRuntime faults (`0xC0000006`) when the host touches a `Residency::Shared` buffer while a kernel runs on the same GPU, so `ForceReference`, a print and a save are exposed whenever another kernel is in flight. Untested here | `modules/engine/engine/include/SushiBLAS/engine/kernel_pair_dispatcher.hpp`, `modules/operations/io/source/io.cpp` |
-| The reference path of the elementwise, nonlinear and logic seams runs the same functor as the SYCL kernel in a serial loop. It catches a wrong launch or a wrong index, not a wrong formula | `modules/foundation/reference/include/SushiBLAS/reference/serial_1d.hpp`, `modules/engine/functor_map/include/SushiBLAS/functor_map/map_task.hpp` |
-| The toolchain's host `sycl::half` truncates a result below 2^-13 (about 1.2e-4) where a device rounds it: its conversion treats the lowest normal exponent as subnormal. `HALF` parity between the two paths is bitwise only above that magnitude, and one unit in the last place apart below it | `modules/foundation/reference/include/SushiBLAS/reference/serial_1d.hpp` |
-| `poisson`, the normal family (`normal`, `he_normal`, `xavier_normal`, `log_normal`), `truncated_normal` and `orthogonal` are not bit-identical between the two paths: each path calls its own math library, and `orthogonal` also sums in another order | `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/`, `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/reference/orthonormalize.hpp` |
-| The OpenCL CPU runtime of oneAPI 2026.1 (device runtime 2026.21.7.0.24_160000, on an AMD EPYC 7763) crashes in its vectorizer pass `vplan-vec` while JIT-compiling `TrmvRow<std::complex<float>>`, and every band and packed triangular test on that device then segfaults. Taking the diagonal out of the row loop did not avoid it. Every CI job sets `CL_CONFIG_CPU_VECTORIZER_MODE=1`, so kernels run unvectorized there; no other device or toolchain has shown the crash | `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/trmv.hpp`, `.github/workflows/ci.yml` |
-| The permutation `shuffle` draws for a seed is not frozen; a parallel shuffle would change it | `modules/operations/random/source/shuffle.cpp` |
-| `IO` takes an `Engine&`, so it is the one class outside the recorder shape, and every call that reads or writes a tensor runs the whole recorded graph first | `modules/operations/io/include/SushiBLAS/io/io.hpp`, `modules/operations/io/source/io.cpp` |
-| `spmv` names two routines: the packed symmetric product on `BLASOps` and the CSR product on `SparseOps`, with kernels of that name in the same two namespaces | `modules/operations/blas/include/SushiBLAS/blas/level2.hpp`, `modules/operations/sparse/include/SushiBLAS/sparse/sparse.hpp` |
-| "Packed" names two things: BLAS packed storage and the packed panels of the CPU GEMM | `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/packed_access.hpp`, `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/packed_product.hpp` |
-| `blas/sparse.hpp` is included only by the umbrella header and `test_sparse.cpp`, and is installed; it declares a `SparseBLAS` class that holds an `Engine&` | `modules/operations/blas/include/SushiBLAS/blas/sparse.hpp` |
-| A lease above 4 KiB is outside the scratch pool's size classes, so a recorded `trmv`, a packed GEMM (megabytes of panels) and a transposed or one-triangle sparse product each allocate and free device memory at every record | `modules/engine/engine/include/SushiBLAS/engine/scratch_shelf.hpp` |
-| A tensor that is recorded and then dropped stays allocated until its graph node dies, and a caller that keeps a compiled plan keeps every operand and scratch block of that plan | `modules/engine/engine/include/SushiBLAS/engine/operand_set.hpp` |
-| A recorder's identity comes from a `static` counter in an inline function, so two binaries that each link the static library can hand out one identity | `modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp` |
-| `rule_task_dependencies` reads text: a kernel that accepts `deps` and never uses it passes. No test shows a kernel that drops its dependency events; `ARecordedTaskComputesItsResult` runs one operation of each seam alone | `tools/layering/check_engine_seams.py`, `tests/library/umbrella/test_SushiBLAS/test_task_dependencies.cpp` |
-| A backward `tbsv` or `tpsv` and a backward `trsv` do not agree to the bit on inexact data, because the blocked dense solve subtracts from the top down | `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/trsm.hpp`, `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/triangular_solve.hpp` |
-| `sptrsv` solves on one work-item; whether a long `single_task` trips a driver watchdog on a display GPU is unknown | `modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sycl/sptrsv.hpp` |
-| A SYCL sum that overflows its accumulation type midway gives an infinity where the host fold in double gives the finite value | `modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp`, `serial_reduce.hpp` |
-| The eight older spatial operations do not check that a written tensor overlaps no read one; only the `window_dot` triple does | `modules/operations/spatial/source/` |
-| A rank-0 tensor prints as `[]`, and `IO::to_vector` zero-fills its result before reading into it | `modules/operations/io/source/io.cpp` |
-| The installed-package test calls no `SparseOps` routine, so it does not show that the sparse headers install | `tests/package/main.cpp` |
-| On the pinned intel-llvm for Windows, a generic lambda handed to `with_element_type` that calls a task body holding a SYCL kernel left the `HostKernel` members of that kernel undefined, and the test executable failed to link; the dtype arms of `execute_random` and `execute_typed_task` are named classes for that reason. `all.cpp`, `any.cpp`, `shuffle.cpp` and `orthogonal.cpp` keep a generic lambda as their arm and linked in the build of 2026-10-12 | `modules/operations/random/include/SushiBLAS/random/dispatch.hpp`, `modules/engine/engine/include/SushiBLAS/engine/task.hpp` |
-| `gelu.cpp` includes `<numbers>`, a C++20 header, in a library built at C++17 | `modules/operations/nonlinear/source/gelu.cpp` |
-| `sb test --package` ends in a traceback when a DLL beside the consumer is locked | `cli/sushiblas/services/project.py` |
-| `sb run --sort` keeps a flag name the sibling CLIs renamed to `--pick` | `cli/sushiblas/cli.py` |
+### KI-1 A print, a save or a reference run can fault on Windows with CUDA
+- Origin: sushiruntime
+- Upstream: sushiruntime KI-1
+- Where: `modules/engine/engine/include/SushiBLAS/engine/kernel_pair_dispatcher.hpp`,
+  `modules/operations/io/source/io.cpp`
+- Recognise: the process stops with `0xC0000006` while another kernel is in flight; `ForceReference`,
+  a print and a save touch `Residency::Shared` storage from the host. Untested here
+- Workaround: finish the queue before a print, a save or a `ForceReference` run
 
-## Comments and documents
+### KI-2 The reference path of the elementwise, nonlinear and logic seams checks launches, not formulas
+- Origin: own
+- Where: `modules/foundation/reference/include/SushiBLAS/reference/serial_1d.hpp`,
+  `modules/engine/functor_map/include/SushiBLAS/functor_map/map_task.hpp`
+- Cause: it runs the same functor as the SYCL kernel in a serial loop
+- Recognise: a wrong formula passes parity; a wrong launch or index fails it
+- Workaround: test a formula against an independent value
+- Fix: none, the shared functor is what keeps the two paths one text
 
-| Issue | Where |
-| --- | --- |
+### KI-3 Host `HALF` truncates below 2^-13 where a device rounds
+- Origin: toolchain
+- Where: `modules/foundation/reference/include/SushiBLAS/reference/serial_1d.hpp`
+- Cause: the toolchain's host `sycl::half` treats the lowest normal exponent as subnormal
+- Recognise: `HALF` parity is one unit in the last place apart below about 1.2e-4, bitwise above
+- Workaround: compare `HALF` below that magnitude to one unit in the last place
+
+`RW-50` rounds the host conversion.
+
+### KI-4 Some random families differ between the two paths
+- Origin: own
+- Where: `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/sycl/`,
+  `modules/kernels/random_kernels/include/SushiBLAS/random_kernels/reference/orthonormalize.hpp`
+- Cause: `poisson`, the normal family, `truncated_normal` and `orthogonal` call each path's own
+  math library, and `orthogonal` also sums in another order
+- Recognise: those draws are not bit-identical between the SYCL and the reference path
+- Workaround: compare them within the allowances of `test_random_reference.cpp`
+- Fix: none, each path calls its own math library
+
+### KI-5 The OpenCL CPU runtime crashes compiling `TrmvRow<std::complex<float>>`
+- Origin: toolchain
+- Where: `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/trmv.hpp`,
+  `.github/workflows/ci.yml`
+- Cause: the vectorizer pass `vplan-vec` of oneAPI 2026.1's OpenCL CPU runtime (device runtime
+  2026.21.7.0.24_160000, AMD EPYC 7763) crashes in the JIT
+- Recognise: every band and packed triangular test on that device then segfaults
+- Workaround: none known; taking the diagonal out of the row loop did not avoid it
+
+### KI-6 The permutation `shuffle` draws for a seed is not frozen
+- Origin: own
+- Where: `modules/operations/random/source/shuffle.cpp`
+- Cause: no test pins it, and a parallel shuffle would change it
+- Recognise: a seed's permutation may change between versions
+- Workaround: none
+- Fix: RW-48
+
+### KI-7 Every `IO` call runs the whole recorded graph first
+- Origin: own
+- Where: `modules/operations/io/include/SushiBLAS/io/io.hpp`, `modules/operations/io/source/io.cpp`
+- Cause: `IO` takes an `Engine&`, the one class outside the recorder shape
+- Recognise: a print or a save waits for every recorded task
+- Workaround: none
+- Fix: RW-4
+
+### KI-8 `spmv` and "packed" each name two things
+- Origin: own
+- Where: `modules/operations/blas/include/SushiBLAS/blas/level2.hpp`,
+  `modules/operations/sparse/include/SushiBLAS/sparse/sparse.hpp`,
+  `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/packed_access.hpp`
+- Cause: `spmv` is the packed symmetric product on `BLASOps` and the CSR product on `SparseOps`;
+  "packed" is BLAS packed storage and the CPU GEMM's packed panels
+- Recognise: one name, two routines or two meanings
+- Workaround: qualify the name by its class or module
+- Fix: RW-1
+
+### KI-9 `blas/sparse.hpp` is installed and used by nothing but the umbrella and one test
+- Origin: own
+- Where: `modules/operations/blas/include/SushiBLAS/blas/sparse.hpp`
+- Cause: it declares a `SparseBLAS` class holding an `Engine&` that `SparseOps` replaced
+- Recognise: the installed tree carries the header
+- Workaround: use `SparseOps`
+- Fix: RW-2
+
+### KI-10 A lease above 4 KiB allocates device memory at every record
+- Origin: own
+- Where: `modules/engine/engine/include/SushiBLAS/engine/scratch_shelf.hpp`
+- Cause: the scratch pool has no size class above 4 KiB
+- Recognise: a recorded `trmv`, a packed GEMM and a transposed or one-triangle sparse product
+  allocate and free at each record
+- Workaround: none
+- Fix: RW-21
+
+### KI-11 A recorded tensor stays allocated until its graph node dies
+- Origin: own
+- Where: `modules/engine/engine/include/SushiBLAS/engine/operand_set.hpp`
+- Cause: a recorded node owns its operands and scratch blocks
+- Recognise: dropping a tensor frees nothing while its node lives; a kept plan keeps every operand
+- Workaround: drop the compiled plan to release its operands
+- Fix: none, a recorded node owns what it reads and writes
+
+### KI-12 Two binaries that link the static library can share a recorder identity
+- Origin: own
+- Where: `modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp`
+- Cause: the identity comes from a `static` counter in an inline function
+- Recognise: two recorders in one process report one identity
+- Workaround: link the shared library
+- Fix: RW-67
+
+### KI-13 The dependency rule reads text
+- Origin: own
+- Where: `tools/layering/check_engine_seams.py`,
+  `tests/library/umbrella/test_SushiBLAS/test_task_dependencies.cpp`
+- Cause: `rule_task_dependencies` passes a kernel that accepts `deps` and never uses it, and
+  `ARecordedTaskComputesItsResult` runs one operation of each seam alone
+- Recognise: no test shows a kernel that drops its dependency events
+- Workaround: none
+- Fix: RW-78
+
+### KI-14 Backward banded and packed solves differ from the dense solve in the last bit
+- Origin: own
+- Where: `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level3/trsm.hpp`,
+  `modules/kernels/blas_kernels/include/SushiBLAS/blas_kernels/sycl/level2/triangular_solve.hpp`
+- Cause: the blocked dense solve subtracts from the top down
+- Recognise: a backward `tbsv` or `tpsv` and a backward `trsv` disagree on inexact data
+- Workaround: compare them within a tolerance
+- Fix: none, the two solves sum in different orders
+
+### KI-15 `sptrsv` solves on one work-item
+- Origin: own
+- Where: `modules/kernels/sparse_kernels/include/SushiBLAS/sparse_kernels/sycl/sptrsv.hpp`
+- Cause: the solve is one `single_task`
+- Recognise: a long solve on a display GPU may trip a driver watchdog; whether it does is unknown
+- Workaround: run long solves on a device without a display
+- Fix: RW-55
+
+### KI-16 A SYCL sum that overflows midway gives an infinity
+- Origin: own
+- Where: `modules/foundation/reduction/include/SushiBLAS/reduction/reduce_1d.hpp`
+- Cause: the device accumulates in the element type, the host fold in double
+- Recognise: the host gives a finite sum where the device gives infinity
+- Workaround: sum in a wider type
+- Fix: none, the device accumulates in the element type
+
+### KI-17 Eight spatial operations accept an output that overlaps an input
+- Origin: own
+- Where: `modules/operations/spatial/source/`
+- Cause: only the `window_dot` triple checks the overlap
+- Recognise: a wrong result when an output aliases an input
+- Workaround: pass distinct tensors
+- Fix: RW-73
+
+### KI-18 A rank-0 tensor prints as `[]`
+- Origin: own
+- Where: `modules/operations/io/source/io.cpp`
+- Cause: the printer walks no axis, and `IO::to_vector` zero-fills its result before reading
+- Recognise: `[]` where a value was expected
+- Workaround: read the value with `to_vector`
+- Fix: RW-64
+
+### KI-19 The package test does not show that the sparse headers install
+- Origin: own
+- Where: `tests/package/main.cpp`
+- Cause: it calls no `SparseOps` routine
+- Recognise: a broken sparse install passes the package test
+- Workaround: none
+- Fix: RW-61
+
+### KI-20 A generic lambda calling a SYCL task body fails to link on Windows
+- Origin: toolchain
+- Where: `modules/operations/random/include/SushiBLAS/random/dispatch.hpp`,
+  `modules/engine/engine/include/SushiBLAS/engine/task.hpp`
+- Cause: the pinned intel-llvm for Windows leaves the `HostKernel` members of the kernel undefined
+- Recognise: an undefined `HostKernel` symbol at link time
+- Workaround: write the dtype arm as a named class, as `execute_random` and `execute_typed_task` do
+
+### KI-21 `gelu.cpp` includes a C++20 header in a C++17 library
+- Origin: own
+- Where: `modules/operations/nonlinear/source/gelu.cpp`
+- Cause: it includes `<numbers>`
+- Recognise: a strict C++17 compiler refuses the file
+- Workaround: none
+- Fix: RW-3
+
+### KI-22 `sb test --package` ends in a traceback when a DLL is locked
+- Origin: own
+- Where: `cli/sushiblas/services/project.py`
+- Cause: the copy beside the consumer does not handle a locked file
+- Recognise: a Python traceback in place of a console error
+- Workaround: close the program holding the DLL
+- Fix: RW-84
+
+### KI-23 `sb run --sort` keeps a name the sibling command lines renamed
+- Origin: own
+- Where: `cli/sushiblas/cli.py`
+- Cause: the rename to `--pick` did not reach this command line
+- Recognise: `--pick` fails here and works in the siblings
+- Workaround: spell `--sort`
+- Fix: RW-80
 
 ## Layout
 
-| Issue | Where |
-| --- | --- |
-| The benchmark programs were not built on the module tree | `tests/<tier>/<module>/benchmark_*.cpp` |
-| No test includes each header of a header-only module first and alone, so a header that forgot an include is caught only where a source of its own module includes it | `modules/foundation/`, `modules/kernels/`, `modules/engine/operands/`, `modules/engine/functor_map/` |
-| `sushi-module.toml` spells the remote in lower case, the remote itself is `SushiSystems/SushiBLAS` | `sushi-module.toml` |
+### KI-24 No test includes each header of a header-only module first and alone
+- Origin: own
+- Where: `modules/foundation/`, `modules/kernels/`, `modules/engine/operands/`,
+  `modules/engine/functor_map/`
+- Cause: no such test exists
+- Recognise: a header that forgot an include builds until a source of another module includes it
+  first
+- Workaround: none
+- Fix: RW-76
+
+### KI-25 `sushi-module.toml` spells the remote in lower case
+- Origin: own
+- Where: `sushi-module.toml`
+- Cause: the remote was written by hand
+- Recognise: the file differs from `SushiSystems/SushiBLAS`
+- Workaround: none needed on a case-blind host
+- Fix: RW-77
 
 ## Continuous integration
 
-| Issue | Where |
-| --- | --- |
-| The build jobs check out SushiRuntime beside this repository and pins no tag of it, so it builds only while the runtime's default branch carries the interface this tree is written against (`Runtime::buffer` with an alignment, `Recorder::task`, `Graph::plan()`) | `.github/workflows/ci.yml`, `cmake/Runtime.cmake` |
-| The Windows job fails because no SYCL device passes its hardware filter, and the nightly Benchmarks and Quarantined jobs fail at configure (`cmake/SushiBLASSushiLog.cmake:23`); the Linux, sanitizer, ThreadSanitizer and SushiAI jobs pass | `.github/workflows/ci.yml`, `.github/workflows/nightly.yml` |
-| The Linux build of the small and medium tests took 48 minutes without a compiler cache, above the pre-merge budget of 45; its timeout is 90 minutes until the ccache numbers are known | `.github/workflows/ci.yml` |
-| The release workflow has never run | `.github/workflows/release.yml` |
+### KI-26 The build pins no SushiRuntime version
+- Origin: own
+- Where: `cmake/Runtime.cmake`, `cmake/SushiBLASConfig.cmake.in`, `.github/workflows/ci.yml`
+- Cause: `find_package(SushiRuntime QUIET)` and `find_dependency(SushiRuntime)` name none, and CI
+  checks out the runtime's default branch
+- Recognise: the build breaks when the runtime's default branch drops `Runtime::buffer` with an
+  alignment, `Recorder::task` or `Graph::plan()`
+- Workaround: check out a runtime commit that carries them
+- Fix: RW-89
 
-## Release state
+### KI-27 The Windows job and two nightly jobs fail
+- Origin: own
+- Where: `.github/workflows/ci.yml`, `.github/workflows/nightly.yml`
+- Cause: no SYCL device passes the Windows job's hardware filter, and the nightly Benchmarks and
+  Quarantined jobs fail at configure in `cmake/SushiBLASSushiLog.cmake`
+- Recognise: those three jobs are red; the Linux, sanitizer, ThreadSanitizer and SushiAI jobs pass
+- Workaround: none
+- Fix: RW-85
 
-| Issue | Where |
-| --- | --- |
-| No release is tagged, and the Unreleased section holds every entry of the changelog | `docs/reference/CHANGELOG.md` |
-| The build files pin no SushiRuntime version: `find_package(SushiRuntime QUIET)` and `find_dependency(SushiRuntime)` name none, and the sibling step takes the checkout as it is | `cmake/Runtime.cmake`, `cmake/SushiBLASConfig.cmake.in` |
+### KI-28 The Linux job of the small and medium tests runs over its budget
+- Origin: own
+- Where: `.github/workflows/ci.yml`
+- Cause: the build took 48 minutes without a compiler cache, against a pre-merge budget of 45
+- Recognise: its timeout is 90 minutes until the ccache figures are known
+- Workaround: none
+- Fix: RW-86
+
+### KI-29 The benchmark programs are not built on the module tree
+- Origin: own
+- Where: `cmake/SushiBLASSushiLog.cmake`
+- Cause: the nightly Benchmarks job fails at configure
+- Recognise: no benchmark binary exists after a nightly run
+- Workaround: build them locally with `sb build --benchmarks`
+- Fix: RW-85

@@ -1,6 +1,6 @@
 # Splitting the library into modules
 
-**Status:** Shipped on 2026-10-09
+**Status:** Shipped — 2026-10-09
 
 SushiBLAS is laid out as one module: `include/SushiBLAS/` and `source/` under the root, one CMake
 target, one test program. The tree already has boundaries, and `tools/layering/check_layering.py`

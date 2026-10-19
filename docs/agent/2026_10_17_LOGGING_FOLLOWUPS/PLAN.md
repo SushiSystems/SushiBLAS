@@ -1,5 +1,7 @@
 # Plan
 
+**Status:** Shipped — 2026-10-17
+
 Closes the three items the logging standard work left open
 (`docs/agent/2026_10_16_LOGGING_STANDARD`). Runs inline on `fix/logging_followups`; the owner
 asked for it to land on main without waiting for main's CI.

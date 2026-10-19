@@ -1,5 +1,7 @@
 # Logging standard
 
+**Status:** Shipped — 2026-10-17
+
 SushiBLAS moves its logging to the SushiSkills `logging` standard and to SushiLog, the one logger
 every Sushi library links (task 9 of SushiSkills `docs/agent/2026_10_16_SUSHILOG_REPOSITORY`).
 SushiBLAS becomes a front on SushiLog's `SL_LOG_FRONT_AT`, links SushiLog directly at the pinned

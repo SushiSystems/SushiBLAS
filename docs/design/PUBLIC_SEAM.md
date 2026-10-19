@@ -1,6 +1,6 @@
 # The public seam
 
-**Status:** Shipped
+**Status:** Shipped — 2026-10-09
 
 The estate audit of 2026-10-05 asked for a record of three properties of the public interface
 that depart from the house C++ style (findings C15 and C21 of

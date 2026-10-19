@@ -1,5 +1,7 @@
 # Plan: repository layout to the current rules
 
+**Status:** Shipped — 2026-10-15. Merged from `refactor/layout`.
+
 Branch `refactor/layout`. No release, no tag. Work is inline, one commit per wave.
 
 ## Decisions

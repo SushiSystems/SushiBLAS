@@ -1,6 +1,6 @@
 # Manual read against the code
 
-**Status:** Closed — 2026-10-09.
+**Status:** Shipped — 2026-10-09
 
 Nine agents read the manual and the module READMEs, sentence by sentence, against the code, and
 corrected in place what the code made false. Each wrote only to its own files. Nothing was built

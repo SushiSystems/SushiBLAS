@@ -1,5 +1,7 @@
 # Spec: the v0.1.0 interface break
 
+**Status:** Shipped — 2026-10-12. Built and run whole; the release is RW-8.
+
 This file holds what was asked and decided for v0.1.0, and the nine design texts written from it.
 `PLAN.md` holds the packages and their waves. `REPORT.md` holds what landed and what did not.
 

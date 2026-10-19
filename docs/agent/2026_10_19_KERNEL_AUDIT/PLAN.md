@@ -1,5 +1,7 @@
 # Plan
 
+**Status:** Open — tasks 1 to 10, in RW-53 and RW-54.
+
 Implements the two decisions the kernel audit left open (`REPORT.md`). The owner delegated both
 to the engineer on 2026-10-19. `draw_index` keeps its modulo; its brief and
 `modules/kernels/README.md` now state the bias.

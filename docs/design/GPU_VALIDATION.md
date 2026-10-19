@@ -1,6 +1,6 @@
 # GPU validation checklist
 
-**Status:** Open. Functional runs on one card exist (section 0); nothing in sections 2 to 5 has been measured.
+**Status:** Open — functional runs on one card exist (section 0); sections 2 to 5 are RW-23 to RW-30.
 
 Until 2026-10-07 everything in this repository and in SushiAI was developed on a machine with no
 usable GPU: `sycl-ls` reported one device, a Ryzen CPU through Intel OpenCL, and the NVIDIA path
