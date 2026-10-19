@@ -334,13 +334,14 @@ unaliased is sound. `a` and `b` are deliberately NOT qualified: a caller computi
 one pointer for both, which is legal, and __restrict__ on both would make it undefined behaviour. Do
 not "fix" this by adding it.
 
-At `for (int64_t k0 = 0; k0 < k; k0 += Configuration::K_TILE_K)`: no double buffering,
-deliberately. Alternating
-between two local buffers would elide one of the two barriers in the K-step loop, but the win over a
-correctly bank-padded single-buffered kernel is modest, and this project has no GPU to measure it
-on: the only reachable device is an OpenCL CPU, which takes the no-local variant and has no barriers
-to elide. Restructuring a barrier sequence that cannot be verified is the wrong risk to take; a
-stated omission beats an unmeasurable optimisation.
+At `for (int64_t k0 = 0; k0 < k; k0 += Configuration::K_TILE_K)`: two buffers of each tile,
+`K_BUFFERS`, and one barrier per K-step. The first tile is staged into buffer 0 before the loop,
+behind a barrier. Step i stages the next tile into the buffer it does not read, multiplies out the
+buffer it does, and ends on one barrier. The buffer step i writes was last read in step i - 1,
+whose closing barrier every work-item has passed; the buffer it reads was written in step i - 1,
+before that barrier. The local tile is twice the size of one buffer pair, and
+`GemmLocalTile::local_mem_bytes()` counts both, so every check that a device hosts the tile
+counts both too. Its effect on the RTX 3080 Ti is unmeasured; RW-92 measures it.
 
 Bank-conflict arithmetic for the A read, worked out for float (32 banks of 4 bytes) at this file's
 widest configuration: K_ITEM_ROWS = K_ITEM_COLS = 8, K_WG_ROWS = K_WG_COLS = 8, K_TILE_K = 16, K_TILE_A_LD = 17.

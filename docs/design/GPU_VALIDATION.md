@@ -181,12 +181,11 @@ combinations.
 It is a correctness result. It says nothing about speed on real scratchpad hardware, and speed
 there is the reason the variant exists.
 
-### 3.4 Double buffering was left out
+### 3.4 Double buffering is unmeasured
 
-Double buffering could not be verified on the development machine, its gain over a single-buffered
-kernel with correct bank padding is modest, and restructuring the barrier sequence untested was
-the larger risk. The kernel records the reason. If a profile shows the tiled GEMM bound by the
-latency of its tile loads, double buffering is the next thing to try.
+The tiled GEMM stages each tile into two local buffers and passes one barrier per K-step, with
+16-byte loads of whole aligned blocks. The tests check the results; the speed on the RTX 3080 Ti
+is unmeasured until RW-92 runs.
 
 ## 4. Code paths the development CPU never took
 

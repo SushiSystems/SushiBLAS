@@ -101,7 +101,7 @@ ColumnMajor only.
 | B10 | Stage each operand of `gemm_local_tiled` along its contiguous axis, the B tile padded to `K_BLOCK_N + 2` | `benchmark_gemm`, `cuda:0` | committed |
 | B11 | Load full tiles without bounds checks, with 32-bit offsets | `benchmark_gemm`, `cuda:0` | committed |
 | B12 | Stage through 128-bit loads | `benchmark_gemm`, `cuda:0` | committed |
-| B13 | Double-buffer the K loop | `benchmark_gemm`, `cuda:0` | open |
+| B13 | Double-buffer the K loop | `benchmark_gemm`, `cuda:0` | committed |
 | B14 | Tune `K_TILE_K` and the `GemmLocalTile` shape | `benchmark_gemm`, `cuda:0` | open |
 | B15 | Tasks 6 to 10 above: the HALF `joint_matrix` path | `benchmark_gemm` HALF, `cuda:0` | open |
 

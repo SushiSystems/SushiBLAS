@@ -138,16 +138,13 @@ these kernels is SushiBLAS's own responsibility from here on.
     `Device::work_group_size` in the no-local one.
   - `tile_k` is a fixed constant, not portBLAS's cache-line-width-driven
     `cl_elems` sizing.
-  - No vectorized `sycl::vec` packet load/store (`Packetize<>`) - scalar
-    element-at-a-time loads throughout.
-  - No "internal vs. edge tile" template-bool fast-path split - every tile
-    takes the bounds-checked path uniformly.
-  - No double buffering - one local-memory buffer, two barriers per
-    K-iteration instead of portBLAS's buffer-flip trick that elides one. Left
-    out on purpose rather than by oversight: the project's only reachable
-    device is an OpenCL CPU, which takes the no-local variant and has no
-    barriers to elide, so a restructured barrier sequence could not be
-    verified here at all. See the comment at the K-loop for the full reason.
+  - `sycl::vec` loads in place of `Packetize<>`: 16-byte loads of whole,
+    aligned blocks of FLOAT32, FLOAT64 and HALF operands, chosen per operand
+    at run time; every other block is read element by element.
+  - The whole-tile fast path is a run-time branch, uniform across a
+    work-group, in place of a template bool.
+  - Two local buffers of each tile and one barrier per K-iteration, flipped
+    by a run-time index.
   - Native `sycl::nd_range<3>` (batch, row-tile, col-tile) instead of
     portBLAS's manual 1-D flattened index decomposition.
   - `sycl::group_barrier()` instead of the older `nd_item::barrier()` member
