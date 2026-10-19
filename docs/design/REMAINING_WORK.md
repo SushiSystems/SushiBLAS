@@ -1,6 +1,6 @@
 # Remaining work
 
-Next id: RW-92
+Next id: RW-93
 
 ## Decisions waiting for the owner
 
@@ -270,21 +270,10 @@ HALF normals in `normal_block`; SYRK tile counts through `Detail::group_count` a
 batches; a 4x4x4 GEMM with batch 65 536 and a GER with m = 70 000 on the card; the event of an empty spatial input; `sycl::vec` loads in place of
 `reinterpret_cast`; the shadowed `k` of `gemv.hpp`.
 
-### RW-52 Add the benchmarks the audit asks for
-- State: open
-- Done when: `benchmark_gemm`, `benchmark_band_packed` and `benchmark_triangular` sweep both
-  layouts, and `benchmark_spatial` and `benchmark_random` exist
-- Source: `docs/agent/2026_10_19_KERNEL_AUDIT/REPORT.md`
-
-`benchmark_gemm` also times HALF, `benchmark_level1` adds copy, scal, swap and rot, and
-`benchmark_band_packed` adds gemv Trans, ger, syr2 and spr2.
-
 ### RW-53 Land the optimisations of the kernel audit
-- State: blocked
-- Blocked by: RW-52
-- Done when: each optimisation is measured on five runs before and five after, release build,
-  same machine, and reverted unless the median moves beyond the spread
-- Source: `docs/agent/2026_10_19_KERNEL_AUDIT/REPORT.md`
+- State: open
+- Done when: each optimisation is its own `perf` commit with its kernel's tests green
+- Source: `docs/agent/2026_10_19_KERNEL_AUDIT/PLAN.md`
 
 GEMM: the staging order from each operand's contiguous axis; full tiles without bounds checks
 and with 32-bit offsets; 128-bit staged loads; a double-buffered K loop; `K_TILE_K` and the
@@ -296,6 +285,13 @@ axis and the stored triangle only; `row_reduction` ending in a sub-group shuffle
 step of `orthonormalize`; a 3-D or 32-bit decode in the spatial kernels; a tiled transpose in
 `layout_convert`; the transposed `spmv` and `spsymv` scatter past 256 work-items; and
 `Device::profile_for` without a mutex and a scan.
+
+### RW-92 Measure the optimisations of RW-53 in one session
+- State: blocked
+- Blocked by: RW-53
+- Done when: the tree of commit `f5173a7` and the tree after RW-53 have run the benchmarks the
+  optimisations touch, in at most an hour, and each change that moves no row is reverted
+- Source: `docs/agent/2026_10_19_KERNEL_AUDIT/PLAN.md`
 
 ### RW-54 Land the refactors of the kernel audit
 - State: open

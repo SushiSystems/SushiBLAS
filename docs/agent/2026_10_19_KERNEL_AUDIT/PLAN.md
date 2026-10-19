@@ -57,23 +57,23 @@ is the owner's choice.
 ## Benchmarks and measured optimisations (RW-52, RW-53)
 
 The owner chose on 2026-10-19 to run RW-52 and then RW-53 inline, in one session, in the order
-below. Each build and each benchmark run waits for the owner's go-ahead. A build runs with
-`CMAKE_BUILD_PARALLEL_LEVEL=4` and a test run with `sb test --jobs 4`.
+below. Each build, test run and benchmark run waits for the owner's go-ahead. A build runs with
+`sb build --jobs 4` and a test run with `sb test --jobs 4`.
 
-### How a task is measured
+### How a task is verified
 
+- The owner ruled on 2026-10-19 that the optimisations land unmeasured and that the benchmarks
+  run once, after the last of them, in one session of at most an hour. B9 was stopped after one
+  round; its logs are not kept as a baseline.
+- Each optimisation is one `perf(...)` commit. Its body says it is unmeasured. Before it, the
+  build passes (`sb build --jobs 4`) and so do the tests of the kernel it touched
+  (`sb test --jobs 4 --filter ...`), each run with the owner's go-ahead.
 - The build is release, configured with `SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86"` and
   `--benchmarks`. The GPU is the RTX 3080 Ti, selected with `ONEAPI_DEVICE_SELECTOR=cuda:0`; the
   CPU is the Ryzen 5 7600X, selected with `opencl:cpu`.
-- One run is one invocation of `sb run benchmark_<name>`. Each program already times 10
-  iterations after 2 warm-ups and prints their median. A figure here is the median of five
-  runs' medians, and its spread is the lowest and highest of the five.
-- The "before" of a task is the "after" of the last task kept on the same kernel, or the
-  baseline of B9 when there is none. Only the "after" costs five new runs.
-- A change is kept when its median moves beyond the spread of its "before". Otherwise it is
-  reverted in the same task and the task is recorded as measured and reverted.
-- A kept change carries the small and medium tests green (`sb test --jobs 4`), and the large
-  tests of the kernel it touched, before its `perf(...)` commit, whose body gives both figures.
+- The one measurement compares the tree before B10, commit `f5173a7`, with the tree after the
+  last optimisation, on the programs and devices the optimisations touch. A change whose rows do
+  not move beyond the spread of the earlier tree is reverted then.
 
 ### Setup and benchmarks (RW-52)
 
@@ -92,18 +92,26 @@ ColumnMajor only.
 | B6 | Time `benchmark_triangular` in both layouts | The program prints one section per layout, its syrk and syr2k rows among them, on both devices | done |
 | B7 | Write `benchmark_spatial` over the spatial kernels | The program prints one row per operation on both devices | done |
 | B8 | Write `benchmark_random` over the draws and `orthonormalize` | The program prints one row per routine on both devices | done |
-| B9 | Record the baseline: five runs of every benchmark on both devices | `REPORT.md` holds the median and spread of every row | open |
+| B9 | Record the baseline: five runs of every benchmark on both devices | `REPORT.md` holds the median and spread of every row | stopped |
 
 ### GEMM on the GPU (RW-53)
 
 | # | Task | Measured on | State |
 | --- | --- | --- | --- |
-| B10 | Stage each operand along its contiguous axis in the tiled, `no_local` and `depth_split` loads | `benchmark_gemm`, `cuda:0` | open |
+| B10 | Stage each operand of `gemm_local_tiled` along its contiguous axis, the B tile padded to `K_BLOCK_N + 2` | `benchmark_gemm`, `cuda:0` | open |
 | B11 | Load full tiles without bounds checks, with 32-bit offsets | `benchmark_gemm`, `cuda:0` | open |
 | B12 | Stage through 128-bit loads | `benchmark_gemm`, `cuda:0` | open |
 | B13 | Double-buffer the K loop | `benchmark_gemm`, `cuda:0` | open |
 | B14 | Tune `K_TILE_K` and the `GemmLocalTile` shape | `benchmark_gemm`, `cuda:0` | open |
 | B15 | Tasks 6 to 10 above: the HALF `joint_matrix` path | `benchmark_gemm` HALF, `cuda:0` | open |
+
+B10 covers `gemm_local_tiled` alone, read on 2026-10-19. `gemm_no_local` runs on neither device:
+the RTX 3080 Ti has dedicated local memory and takes the tiled kernel, and the CPU takes the packed
+path. In `gemm_depth_split` the deep shapes already read both operands along K, and the strided
+shapes read A across depth lanes at a stride of `lda`, which no loop order fixes: it needs A
+staged through local memory, a change of its own. The C store of `gemm_local_tiled` puts
+neighbouring work-items on neighbouring columns, which is coalesced in RowMajor only. These three
+are not tasks yet; the baseline and B10 decide whether they become ones.
 
 ### Elsewhere (RW-53)
 
