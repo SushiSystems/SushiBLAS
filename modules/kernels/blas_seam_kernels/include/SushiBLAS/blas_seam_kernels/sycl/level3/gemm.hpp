@@ -46,6 +46,7 @@
 #include <SushiBLAS/arithmetic/multiply_add.hpp>
 #include <SushiBLAS/blas_seam_kernels/operand_access.hpp>
 #include <SushiBLAS/blas_seam_kernels/level3/gemm_epilogue.hpp>
+#include <SushiBLAS/blas_seam_kernels/sycl/level3/gemm_joint_matrix.hpp>
 
 namespace SushiBLAS
 {
@@ -988,6 +989,23 @@ namespace SushiBLAS
                 const Device::Profile& profile = Device::profile_for(queue);
                 const Device::LocalTileDemand local_demand{local_bytes, local_items};
                 const bool tile_hosted = Device::hosts_local_tile(profile, local_demand);
+
+                // HALF on two strided operands goes to the matrix units where they fit.
+                if constexpr (std::is_same<T, sycl::half>::value &&
+                              std::is_same<AccessA, OperandAccess>::value &&
+                              std::is_same<AccessB, OperandAccess>::value)
+                {
+                    if (Detail::joint_matrix_fits(profile, m, n, k, a, a_access, str_a, b,
+                                                  b_access, str_b))
+                    {
+                        SB_LOG_DEBUG(K_BLAS_SEAM_KERNELS_LOG_CATEGORY,
+                                     "SYCL GEMM [joint_matrix]: batch={} {}x{}x{}", batch_size, m,
+                                     n, k);
+                        return gemm_joint_matrix(queue, m, n, k, alpha, a, a_access, str_a, b,
+                                                 b_access, str_b, beta, c, c_access, str_c,
+                                                 batch_size, deps, epilogue);
+                    }
+                }
 
                 const Detail::DepthSplitPlan split = Detail::plan_depth_split<T>(
                     profile, m, n, k, batch_size, Detail::has_contiguous_rows(b_access));

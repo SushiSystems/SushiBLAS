@@ -65,9 +65,10 @@ below. Each build, test run and benchmark run waits for the owner's go-ahead. A 
 - The owner ruled on 2026-10-19 that the optimisations land unmeasured and that the benchmarks
   run once, after the last of them, in one session of at most an hour. B9 was stopped after one
   round; its logs are not kept as a baseline.
-- Each optimisation is one `perf(...)` commit. Its body says it is unmeasured. Before it, the
-  build passes (`sb build --jobs 4`) and so do the tests of the kernel it touched
-  (`sb test --jobs 4 --filter ...`), each run with the owner's go-ahead.
+- Each optimisation is one `perf(...)` commit. Its body says it is unmeasured. The owner ruled
+  on 2026-10-19 that nothing is built until the last task: every task from B10 on is written and
+  committed first, then one build (`sb build --jobs 4`) and one run of the tests the tasks touched
+  (`sb test --jobs 4`) check them all, and a failure is found by bisecting those commits.
 - The build is release, configured with `SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86"` and
   `--benchmarks`. The GPU is the RTX 3080 Ti, selected with `ONEAPI_DEVICE_SELECTOR=cuda:0`; the
   CPU is the Ryzen 5 7600X, selected with `opencl:cpu`.
@@ -103,7 +104,7 @@ ColumnMajor only.
 | B12 | Stage through 128-bit loads | `benchmark_gemm`, `cuda:0` | committed |
 | B13 | Double-buffer the K loop | `benchmark_gemm`, `cuda:0` | committed |
 | B14 | Tune `K_TILE_K` and the `GemmLocalTile` shape | `benchmark_gemm`, `cuda:0` | deferred to RW-92 |
-| B15 | Tasks 6 to 10 above: the HALF `joint_matrix` path | `benchmark_gemm` HALF, `cuda:0` | open |
+| B15 | Tasks 6 to 10 above: the HALF `joint_matrix` path | `benchmark_gemm` HALF, `cuda:0` | committed |
 
 B14 is deferred: tuning chooses values by measurement, and both values are compile-time
 constants, so each candidate is a build of its own. It runs in RW-92 or not at all.

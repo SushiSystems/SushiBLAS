@@ -490,8 +490,11 @@ the same product:
 
 Resolves the four (layout, transpose) combinations into plain row/column strides on the host, through
 `operand_access`, so the innermost loop carries no layout branch and no extra template
-instantiation, then picks one of three kernel shapes from the device profile:
+instantiation, then picks one of four kernel shapes from the device profile:
 
+- **JOINT_MATRIX** for a HALF product of two `OperandAccess` operands when
+`Detail::joint_matrix_fits` holds: a CUDA device with the HALF matrix units, every extent a
+multiple of 16, and operands a fragment load can read. See `sycl/level3/gemm_joint_matrix.hpp`.
 - **DEPTH_SPLIT** when `Detail::plan_depth_split` returns a width: a GPU, a small C and a
 long K.
 - **LOCAL_TILED** when the device has genuine scratchpad memory and the
@@ -531,9 +534,10 @@ epilogue, which is invertible.
 
 Returns: The submitted work's event.
 
-At `if (profile.has_dedicated_local_memory && tile_hosted)`: all three variants are named
-from this one function, so each is instantiated and each reaches the device image whichever branch a
-given machine takes at runtime: there is no dead-stripping hazard to guard against, and no
+At `if (profile.has_dedicated_local_memory && tile_hosted)`: the three variants every type takes
+are named from this one function, so each is instantiated and each reaches the device image whichever branch a
+given machine takes at runtime, and JOINT_MATRIX is instantiated for every HALF product of two
+`OperandAccess` operands: there is no dead-stripping hazard to guard against, and no
 configuration in which one of them stops compiling unnoticed.
 
 ## `sycl/level3/gemm_joint_matrix.hpp`
