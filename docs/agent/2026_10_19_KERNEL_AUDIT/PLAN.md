@@ -121,17 +121,33 @@ are not tasks yet; the baseline and B10 decide whether they become ones.
 
 | # | Task | Measured on | State |
 | --- | --- | --- | --- |
-| B16 | Run the TRSM trailing update through `gemm_accessed` | `benchmark_triangular`, both devices | open |
-| B17 | Pack each B panel of the CPU GEMM once per depth block | `benchmark_gemm`, `opencl:cpu` | open |
-| B18 | Choose the CPU register block per ISA, AVX-512 on the 7600X | `benchmark_gemm_blocking`, `opencl:cpu` | open |
+| B16 | Run the TRSM trailing update through `gemm_accessed` | `benchmark_triangular`, both devices | owner decision |
+| B17 | Pack each B panel of the CPU GEMM once per depth block | `benchmark_gemm`, `opencl:cpu` | owner decision |
+| B18 | Choose the CPU register block per ISA, AVX-512 on the 7600X | `benchmark_gemm_blocking`, `opencl:cpu` | deferred to RW-92 |
 | B19 | Run unit-stride level 1 through `Launch::map` and `zip_inplace` | `benchmark_level1`, both devices | committed |
 | B20 | Run GER, SYR, SYR2, SPR and SPR2 along the contiguous axis, on the stored triangle only | `benchmark_band_packed`, both devices | committed |
 | B21 | End `row_reduction` in a fixed-order sub-group shuffle | `benchmark_band_packed` gemv, both devices | committed |
-| B22 | Compute ‖vᵢ‖² once per step of `orthonormalize` | `benchmark_random`, both devices | open |
-| B23 | Decode the spatial flat index in 3-D or 32-bit | `benchmark_spatial`, both devices | open |
+| B22 | Compute ‖vᵢ‖² once per step of `orthonormalize` | `benchmark_random`, both devices | owner decision |
+| B23 | Decode the spatial flat index in 3-D or 32-bit | `benchmark_spatial`, both devices | after RW-54 |
 | B24 | Transpose through local-memory tiles in `layout_convert` | `benchmark_spatial`, both devices | committed |
-| B25 | Scatter the transposed `spmv` and `spsymv` over more than 256 work-items | `benchmark_sparse`, both devices | open |
+| B25 | Scatter the transposed `spmv` and `spsymv` over more than 256 work-items | `benchmark_sparse`, both devices | deferred to RW-92 |
 | B26 | Read `Device::profile_for` without a mutex and a scan | `benchmark_level1` small sizes, both devices | committed |
 | B27 | Close RW-52 and RW-53: changelog, backlog, module READMEs, this status | The checkers of `AGENTS.md` pass | open |
+
+### What the rows that did not land wait on
+
+- B16: a GEMM trailing update sums each block apart and with fused multiply-adds, so TRSM would
+  no longer give the same bits at every block width (`Medium_TriangularParallel`,
+  `EveryBlockWidthGivesTheSameBits`) or the bits of the reference (`Medium_SYCLTrsm`). Whether that
+  promise may go is the owner's ruling.
+- B17: packing a B panel once per depth block needs every worker to read one shared packed panel,
+  which is a second launch and a larger scratch than `Level3` leases today: a change to the
+  scratch contract between the operations and the kernel.
+- B22: the norm is recomputed in arithmetic only, since vᵢ is read for the dot product anyway;
+  computing it once needs a leased scratch and a new kernel argument, for a gain no run has shown.
+- B18 and B25 choose a number, the register block per ISA and the scatter budget, which only a
+  measurement can choose.
+- B23 edits the decode of 24 functions; RW-54's one image-index brick comes first, so the 32-bit
+  decode is written once.
 
 Every task from B2 on is one build. B15 is five builds, one per task 6 to 10.
