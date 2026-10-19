@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-20 — docs: Recorded that SushiEngine's native lane keeps its own BLAS and gains no SYCL-free SushiBLAS build (`LAYERED_EXECUTION.md`).
 - 2026-10-20 — docs: Designed SushiBLAS's share of layered execution: no engine graph, the per-index seam, two general operations, the cluster module (`LAYERED_EXECUTION.md`).
 - 2026-10-19 — spatial_kernels: Copied `layout_convert` through 32 x 32 local tiles when it moves the adjacent axis between pixels and channels, with a test on ragged tiles; unmeasured (`broadcast.hpp`).
 - 2026-10-19 — launch: Answered a repeated `Device::profile_for` on one thread from a per-thread pointer, without the mutex and the scan; unmeasured (`device_policy.hpp`).

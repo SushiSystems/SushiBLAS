@@ -13,7 +13,7 @@ Each repository of the stack holds its own share in a document of this name:
 | SushiRuntime | Placement class and key, scopes, topology, placement rules, the distributed layer's needs |
 | SushiBLAS | This document |
 | SushiAI | Data-parallel training over five machines; it also holds the programme's backlog entry |
-| SushiEngine | Every kernel through SushiBLAS, placement scopes, physics islands on several machines |
+| SushiEngine | Two lanes behind one contract, SushiBLAS in the runtime lane; placement scopes; physics islands on several machines in the runtime lane |
 
 ## 1. Roles
 
@@ -203,11 +203,12 @@ B5 waits on SushiAI's A0, which moves SushiAI's two execution helpers and four t
 engine's graph. B6 to B9 have disjoint files and could share a wave; the owner chooses inline or
 waves.
 
-## 6. Open
+## 6. SushiEngine's native lane
 
-- **SushiEngine's native lane.** SushiEngine builds a lane without SYCL for platforms SushiRuntime
-  cannot reach, which runs its nodes on a thread pool (`sushiengine`'s execution README). Every
-  kernel of SushiEngine going through SushiBLAS, which needs SYCL and SushiRuntime, leaves that
-  lane no way to compute. SushiEngine's `LAYERED_EXECUTION.md` asks the owner; one answer is a
-  SushiBLAS build without SYCL that keeps only the serial reference paths, which would be a
-  task of this document.
+SushiEngine builds a lane without SYCL for the platforms SushiRuntime cannot reach. The owner
+ruled on 2026-10-20 that the lane stays fully supported with a runtime and a BLAS of the engine's
+own, bound through the same seams as SushiRuntime and SushiBLAS, and without distributed support.
+SushiBLAS gains no build without SYCL for it. What SushiBLAS keeps doing for that lane is what it
+does today: its SYCL-free value-type and fold headers, such as `BLAS::fold_fixed_order`, are
+included by the engine's native backend, so a change to them is checked against SushiEngine's
+native CI job.
