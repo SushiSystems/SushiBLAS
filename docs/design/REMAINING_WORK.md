@@ -409,16 +409,6 @@ sparse kernels' `DEPENDS`; every dot product through `multiply_add`, tasks 1 to 
 `tbsv` and the include grouping of `gemm.hpp`; the 211 kernel lines over 100 columns; one
 `no_local` warning per device.
 
-### RW-105 Measure the row-reduction shuffle with and without it
-- State: unmeasured
-- Done when: `benchmark_band_packed` on `cuda:0` has run five rounds on a tree with the
-  sub-group shuffle of `row_reduction.hpp` and five on one without it, and the slower is gone
-- Source: `docs/agent/2026_10_19_KERNEL_AUDIT/PLAN.md`
-
-Task B21. One run without the shuffle had `symv` and `trmv` 3 to 25 % slower than one with it,
-but `ger`, which the shuffle does not touch, moved 7 to 23 % in the same run, so the run decides
-nothing.
-
 ### RW-106 Find why 13 bit-equality tests fail on the Ryzen 5 7600X CPU device
 - State: open
 - Done when: the cause is named and the 13 tests pass on `opencl:cpu` of that machine, or carry

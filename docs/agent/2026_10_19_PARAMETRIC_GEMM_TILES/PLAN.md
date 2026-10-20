@@ -6,8 +6,7 @@ has one acceptance criterion and one build. Every build and test carries `--jobs
 
 ## Before task 1
 
-The owner starts the plan (RW-107). RW-105, the measurement of the row-reduction shuffle, lands
-first, so the GEMM work starts from a measured `row_reduction`.
+The owner starts the plan (RW-107).
 
 ## Tasks
 
