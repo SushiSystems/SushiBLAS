@@ -567,10 +567,12 @@ The runtime carries the same order and groups its own in step (`sushiruntime RW-
 - Done when: the Windows job finds a SYCL device past its filter, and the nightly Benchmarks and
   Quarantined jobs configure (`cmake/SushiBLASSushiLog.cmake:23`) and build the benchmarks
 
-On run 39269551240 (commit `067eb86`), 350 of the Windows job's 376 small tests fail in under a
-second with no output; only suites that reach no device pass. The job has been red since the
-SushiLog commits of 2026-10-17; the last green run is of commit `c6d64df`, 2026-10-15. Linux
-and a local Windows build pass the same tests.
+The Windows job, added by commit `3fe1a91`, has never passed. Its runner has the OpenCL ICD
+loader that `sb setup` installs and no OpenCL driver, so `TestEnvironment::SetUp` finds no
+device, `Runtime::create()` fails, and every test of a binary that uses the environment fails
+with it, Small ones included: 350 of 376 on run 39269551240. The job now installs Intel's CPU
+runtime for OpenCL through `.github/actions/setup-opencl-cpu/action.yml`; no run has shown it
+green yet.
 
 ### RW-86 Bring the Linux job of the small and medium tests under 45 minutes
 - State: open

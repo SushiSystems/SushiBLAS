@@ -170,6 +170,8 @@ jobs:
             ccache-windows-intel-llvm-release-
       - name: sb setup --yes --no-gpu
         run: sb setup --yes --no-gpu
+      # sb setup installs the OpenCL ICD loader only; the tests need a SYCL device behind it.
+      - uses: ./sushiblas/.github/actions/setup-opencl-cpu
       - name: sb build
         run: sb build
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
