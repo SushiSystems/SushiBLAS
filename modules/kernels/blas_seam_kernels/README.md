@@ -574,8 +574,12 @@ The body is compiled for NVPTX alone, under `#if !defined(__SYCL_DEVICE_ONLY__) 
 defined(__NVPTX__)`. The SPIR-V image of the same translation unit carries an empty body, so an
 OpenCL or Level Zero runtime never meets a cooperative matrix instruction when it builds the
 module, and `Profile::supports_half_matrix` is false on every backend but CUDA, so the empty body
-is never launched. Its speed on the RTX 3080 Ti is unmeasured until RW-92 runs; the plan reverts
-the routing if it does not beat the local-tiled kernel.
+is never launched. The kernel is the functor `Detail::JointMatrixKernel`, not a lambda, because
+a lambda captures only what its body names: with the body empty in the SPIR-V pass, the host and
+the SPIR-V pass would see kernels of different sizes, which DPC++ refuses at compile time when
+`spir64` is the only target. The functor's members are the same in every pass. On the RTX 3080 Ti
+it is 3 to 5 times faster than the local-tiled kernel in HALF, median of five runs, as
+`docs/agent/2026_10_19_KERNEL_AUDIT/REPORT.md` records.
 
 ## `sycl/level3/gemm_packed.hpp`, `gemm_accessed_packed.hpp`
 
