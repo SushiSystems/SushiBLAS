@@ -20,11 +20,19 @@ Next id: RW-108
 ### RW-3 Remove `core/export.hpp` and the `<numbers>` include
 - State: decision
 - Done when: neither is in the tree (C13)
+- Where: `modules/operations/nonlinear/source/gelu.cpp`
+
+`gelu.cpp` includes a C++20 header in a C++17 library. A strict C++17 compiler refuses the file.
+Cause: it includes `<numbers>`.
 
 ### RW-4 Split `IO` into one reader and writer per format
 - State: decision
 - Done when: the owner has approved the boundary, and each format has a reader and a writer over
   a shared host-copy helper, with a load that returns a status and no `Engine&` (C4)
+- Where: `modules/operations/io/include/SushiBLAS/io/io.hpp`, `modules/operations/io/source/io.cpp`
+
+Every `IO` call runs the whole recorded graph first. A print or a save waits for every recorded
+task. Cause: `IO` takes an `Engine&`, the one class outside the recorder shape.
 
 ### RW-5 Decide whether ELU accepts complex input
 - State: decision
@@ -144,6 +152,11 @@ Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B8.
 - Blocked by: RW-19, RW-20
 - Done when: the runs show whether a recorded `trmv`, a packed GEMM and a scattering sparse
   product need classes above 4 KiB, and the shelf follows
+- Where: `modules/engine/engine/include/SushiBLAS/engine/scratch_shelf.hpp`
+
+A lease above 4 KiB allocates device memory at every record. A recorded `trmv`, a packed GEMM and a
+transposed or one-triangle sparse product allocate and free at each record. Cause: the scratch pool
+has no size class above 4 KiB.
 
 ### RW-22 Run the benchmarks on a device other than the CPU
 - State: unmeasured
@@ -272,6 +285,10 @@ Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B8.
 ### RW-48 Write a parallel `shuffle`, then freeze the permutation a seed gives
 - State: open
 - Done when: `shuffle` runs in parallel and a test pins the permutation of a seed
+- Where: `modules/operations/random/source/shuffle.cpp`
+
+The permutation `shuffle` draws for a seed is not frozen. A seed's permutation may change between
+versions. Cause: no test pins it, and a parallel shuffle would change it.
 
 ### RW-49 Design what SushiAI's gather-based loss asks for
 - State: open
@@ -444,6 +461,10 @@ whether they failed before the kernel audit.
 ### RW-61 Call one `SparseOps` routine from the package test
 - State: open
 - Done when: `tests/package/main.cpp` calls one, so the sparse headers are shown to install
+- Where: `tests/package/main.cpp`
+
+The package test does not show that the sparse headers install. A broken sparse install passes the
+package test. Cause: it calls no `SparseOps` routine.
 
 ## IO
 
@@ -470,7 +491,7 @@ whether they failed before the kernel audit.
 - Done when: tasks B1 to B13 of `docs/design/LAYERED_EXECUTION.md` are closed
 - Source: `docs/design/LAYERED_EXECUTION.md`
 
-B3 closes KI-7; B13 closes KI-26 with RW-89. The programme's entry is `sushiai RW-130`; B5 waits on
+B3 closes RW-4; B13 closes KI-26 with RW-89. The programme's entry is `sushiai RW-130`; B5 waits on
 its A0, B10 on `sushiruntime RW-65`.
 
 ### RW-66 Reword the old bare names in comments and messages
@@ -526,15 +547,30 @@ The runtime carries the same order and groups its own in step (`sushiruntime RW-
 ### RW-76 Include each header of a header-only module first and alone in a test
 - State: open
 - Done when: a header that forgot an include fails in its own test
+- Where: `modules/foundation/`, `modules/kernels/`, `modules/engine/operands/`,
+  `modules/engine/functor_map/`
+
+No test includes each header of a header-only module first and alone. A header that forgot an
+include builds until a source of another module includes it first. Cause: no such test exists.
 
 ### RW-77 Spell the remote in `sushi-module.toml` as GitHub does
 - State: open
 - Done when: `sushi-module.toml` names `SushiSystems/SushiBLAS`
+- Where: `sushi-module.toml`
+
+`sushi-module.toml` spells the remote in lower case. The file differs from `SushiSystems/SushiBLAS`.
+Cause: the remote was written by hand.
 
 ### RW-78 Show the dependency rule on a kernel that drops its events
 - State: open
 - Done when: a test shows a kernel that accepts `deps` and never uses it, and the engine seam
   check reports it
+- Where: `tools/layering/check_engine_seams.py`,
+  `tests/library/umbrella/test_SushiBLAS/test_task_dependencies.cpp`
+
+The dependency rule reads text. No test shows a kernel that drops its dependency events. Cause:
+`rule_task_dependencies` passes a kernel that accepts `deps` and never uses it, and
+`ARecordedTaskComputesItsResult` runs one operation of each seam alone.
 
 ## Command line
 
@@ -566,6 +602,7 @@ The runtime carries the same order and groups its own in step (`sushiruntime RW-
 - State: open
 - Done when: the Windows job finds a SYCL device past its filter, and the nightly Benchmarks and
   Quarantined jobs configure (`cmake/SushiBLASSushiLog.cmake:23`) and build the benchmarks
+- Where: `.github/workflows/ci.yml`, `.github/workflows/nightly.yml`
 
 The Windows job, added by commit `3fe1a91`, has never passed. Its runner has the OpenCL ICD
 loader that `sb setup` installs and no OpenCL driver, so `TestEnvironment::SetUp` finds no
@@ -574,9 +611,19 @@ with it, Small ones included: 350 of 376 on run 39269551240. The job now install
 runtime for OpenCL through `.github/actions/setup-opencl-cpu/action.yml`; no run has shown it
 green yet.
 
+The Windows job and two nightly jobs fail. Those three jobs are red; the Linux, sanitizer,
+ThreadSanitizer and SushiAI jobs pass. Cause: no SYCL device passes the Windows job's hardware
+filter, and the nightly Benchmarks and Quarantined jobs fail at configure in
+`cmake/SushiBLASSushiLog.cmake`.
+
 ### RW-86 Bring the Linux job of the small and medium tests under 45 minutes
 - State: open
 - Done when: the job runs within the pre-merge budget and its timeout drops from 90 minutes
+- Where: `.github/workflows/ci.yml`
+
+The Linux job of the small and medium tests runs over its budget. Its timeout is 90 minutes until
+the ccache figures are known. Cause: the build took 48 minutes without a compiler cache, against a
+pre-merge budget of 45.
 
 ### RW-87 Size the medium suites that reach nothing
 - State: open

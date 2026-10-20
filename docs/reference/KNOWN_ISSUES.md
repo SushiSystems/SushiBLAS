@@ -50,22 +50,6 @@ Next id: KI-30
 - Recognise: every band and packed triangular test on that device then segfaults
 - Workaround: none known; taking the diagonal out of the row loop did not avoid it
 
-### KI-6 The permutation `shuffle` draws for a seed is not frozen
-- Origin: own
-- Where: `modules/operations/random/source/shuffle.cpp`
-- Cause: no test pins it, and a parallel shuffle would change it
-- Recognise: a seed's permutation may change between versions
-- Workaround: none
-- Fix: RW-48
-
-### KI-7 Every `IO` call runs the whole recorded graph first
-- Origin: own
-- Where: `modules/operations/io/include/SushiBLAS/io/io.hpp`, `modules/operations/io/source/io.cpp`
-- Cause: `IO` takes an `Engine&`, the one class outside the recorder shape
-- Recognise: a print or a save waits for every recorded task
-- Workaround: none
-- Fix: RW-4
-
 ### KI-8 `spmv` and "packed" each name two things
 - Origin: own
 - Where: `modules/operations/blas/include/SushiBLAS/blas/level2.hpp`,
@@ -85,15 +69,6 @@ Next id: KI-30
 - Workaround: use `SparseOps`
 - Fix: RW-2
 
-### KI-10 A lease above 4 KiB allocates device memory at every record
-- Origin: own
-- Where: `modules/engine/engine/include/SushiBLAS/engine/scratch_shelf.hpp`
-- Cause: the scratch pool has no size class above 4 KiB
-- Recognise: a recorded `trmv`, a packed GEMM and a transposed or one-triangle sparse product
-  allocate and free at each record
-- Workaround: none
-- Fix: RW-21
-
 ### KI-11 A recorded tensor stays allocated until its graph node dies
 - Origin: own
 - Where: `modules/engine/engine/include/SushiBLAS/engine/operand_set.hpp`
@@ -109,16 +84,6 @@ Next id: KI-30
 - Recognise: two recorders in one process report one identity
 - Workaround: link the shared library
 - Fix: RW-67
-
-### KI-13 The dependency rule reads text
-- Origin: own
-- Where: `tools/layering/check_engine_seams.py`,
-  `tests/library/umbrella/test_SushiBLAS/test_task_dependencies.cpp`
-- Cause: `rule_task_dependencies` passes a kernel that accepts `deps` and never uses it, and
-  `ARecordedTaskComputesItsResult` runs one operation of each seam alone
-- Recognise: no test shows a kernel that drops its dependency events
-- Workaround: none
-- Fix: RW-78
 
 ### KI-14 Backward banded and packed solves differ from the dense solve in the last bit
 - Origin: own
@@ -161,14 +126,6 @@ Next id: KI-30
 - Workaround: read the value with `to_vector`
 - Fix: RW-64
 
-### KI-19 The package test does not show that the sparse headers install
-- Origin: own
-- Where: `tests/package/main.cpp`
-- Cause: it calls no `SparseOps` routine
-- Recognise: a broken sparse install passes the package test
-- Workaround: none
-- Fix: RW-61
-
 ### KI-20 A generic lambda calling a SYCL task body fails to link on Windows
 - Origin: toolchain
 - Where: `modules/operations/random/include/SushiBLAS/random/dispatch.hpp`,
@@ -176,14 +133,6 @@ Next id: KI-30
 - Cause: the pinned intel-llvm for Windows leaves the `HostKernel` members of the kernel undefined
 - Recognise: an undefined `HostKernel` symbol at link time
 - Workaround: write the dtype arm as a named class, as `execute_random` and `execute_typed_task` do
-
-### KI-21 `gelu.cpp` includes a C++20 header in a C++17 library
-- Origin: own
-- Where: `modules/operations/nonlinear/source/gelu.cpp`
-- Cause: it includes `<numbers>`
-- Recognise: a strict C++17 compiler refuses the file
-- Workaround: none
-- Fix: RW-3
 
 ### KI-22 `sb test --package` ends in a traceback when a DLL is locked
 - Origin: own
@@ -201,26 +150,6 @@ Next id: KI-30
 - Workaround: spell `--sort`
 - Fix: RW-80
 
-## Layout
-
-### KI-24 No test includes each header of a header-only module first and alone
-- Origin: own
-- Where: `modules/foundation/`, `modules/kernels/`, `modules/engine/operands/`,
-  `modules/engine/functor_map/`
-- Cause: no such test exists
-- Recognise: a header that forgot an include builds until a source of another module includes it
-  first
-- Workaround: none
-- Fix: RW-76
-
-### KI-25 `sushi-module.toml` spells the remote in lower case
-- Origin: own
-- Where: `sushi-module.toml`
-- Cause: the remote was written by hand
-- Recognise: the file differs from `SushiSystems/SushiBLAS`
-- Workaround: none needed on a case-blind host
-- Fix: RW-77
-
 ## Continuous integration
 
 ### KI-26 The build pins no SushiRuntime version
@@ -232,23 +161,6 @@ Next id: KI-30
   alignment, `Recorder::task` or `Graph::plan()`
 - Workaround: check out a runtime commit that carries them
 - Fix: RW-89
-
-### KI-27 The Windows job and two nightly jobs fail
-- Origin: own
-- Where: `.github/workflows/ci.yml`, `.github/workflows/nightly.yml`
-- Cause: no SYCL device passes the Windows job's hardware filter, and the nightly Benchmarks and
-  Quarantined jobs fail at configure in `cmake/SushiBLASSushiLog.cmake`
-- Recognise: those three jobs are red; the Linux, sanitizer, ThreadSanitizer and SushiAI jobs pass
-- Workaround: none
-- Fix: RW-85
-
-### KI-28 The Linux job of the small and medium tests runs over its budget
-- Origin: own
-- Where: `.github/workflows/ci.yml`
-- Cause: the build took 48 minutes without a compiler cache, against a pre-merge budget of 45
-- Recognise: its timeout is 90 minutes until the ccache figures are known
-- Workaround: none
-- Fix: RW-86
 
 ### KI-29 The benchmark programs are not built on the module tree
 - Origin: own

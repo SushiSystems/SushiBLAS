@@ -61,7 +61,7 @@ Read from the source on 2026-10-19.
   example programs, the package test and about fifteen test files; in SushiAI,
   `run_recorded()` and `discard_recorded()` of `modules/core/execution` and four test files.
   `IO` takes an `Engine&` (`io/io.hpp`), which is why every `IO` call runs the whole recorded
-  graph first (KI-7).
+  graph first (RW-4).
 - `functor_map` holds the per-element seam: `MapTask` (one output from some inputs), `ZipTask`
   (N tensors advanced together), `bind_scalars`, and `bind_reads` with `read_as_element` and
   `read_as<U>`. A functor writes only its own element. Its headers are installed, but no page
@@ -96,7 +96,7 @@ fixture that holds them.
 
 `IO` stops taking an `Engine`. A read or a save is a host action on a tensor whose writer has
 run, and running it is the caller's business: `IO` reads what the storage holds when it is
-called. KI-7 closes with this change.
+called. RW-4 closes with this change.
 
 ### 4.2 The per-index seam
 
@@ -187,7 +187,7 @@ README) change in its own commit.
 | --- | --- | --- | --- | --- |
 | B1 | A test fixture that owns a runtime graph and a `TaskRecorder` over it; `GraphProbe` rebuilt on it instead of `RecordedGraph` | `engine/graph_probe`, the test environment | | Every test that uses `GraphProbe` passes with the probe holding no `RecordedGraph` |
 | B2 | Tests, examples and the package test record on their own graph | `tests/`, `applications/examples/`, `tests/package/` | B1 | No file outside `modules/engine/engine/` calls `Engine::execute()` or `discard_recorded()`, and the suites pass |
-| B3 | `IO` without an engine: host actions on a tensor whose writer has run | `operations/io` | | `IO`'s header names no `Engine`, its tests pass with the caller running the graph, KI-7 closes |
+| B3 | `IO` without an engine: host actions on a tensor whose writer has run | `operations/io` | | `IO`'s header names no `Engine`, its tests pass with the caller running the graph, RW-4 closes |
 | B4 | The benchmark harness times a caller's graph | `operations/benchmark_harness` | B1 | The harness names no `Engine::execute()` and its benchmarks run |
 | B5 | `Engine` without `RecordedGraph`, `TaskRecorder`, `execute()`, `discard_recorded()`, `recorder()`; the family constructors over `Engine&` removed | `engine/engine`, the operation families, `tools/` seam checker | B2, B3, B4, `sushiai` A0 | `engine.hpp` declares none of them, every suite passes, and the seam checker forbids them coming back |
 | B6 | `bind_writes`, `write_as_element`, `write_as<U>` | `engine/functor_map/write_binding.hpp` | | A test declares a read and a write on one task and the runtime orders a later reader after it |
