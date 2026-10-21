@@ -124,14 +124,14 @@ the start.
 - Done when: `TensorFactory::create` and `Engine::create_tensor` state it, and a test creates and
   releases tensors from eight threads
 
-Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B7.
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES/README.md`, B7.
 
 ### RW-102 State and test host access to a Shared tensor between executions
 - State: open
 - Done when: a plan compiled once copies a source the host rewrites between three executions, and
   the destination matches each time
 
-Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B8.
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES/README.md`, B8.
 
 ## Benchmarks and tuning
 
@@ -303,7 +303,7 @@ versions. Cause: no test pins it, and a parallel shuffle would change it.
 - Done when: `PositionedRandomOps` fills from a position held in a tensor operand, and a plan
   replayed twice with the position rewritten between runs draws two different fills
 
-Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B1. SushiAI's dropout waits on it
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES/README.md`, B1. SushiAI's dropout waits on it
 (`sushiai RW-94`).
 
 ### RW-94 Add an index family: rows by index and one element per row
@@ -311,7 +311,7 @@ Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B1. SushiAI's dropou
 - Done when: `IndexOps` gathers rows by an INT32 or INT64 index with a defined result out of range
   and a gather-form backward, with tests
 
-Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B2, which also states the two benchmarks
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES/README.md`, B2, which also states the two benchmarks
 it lands with. RW-49 designed part of it.
 
 ### RW-95 Add a broadcast seam, one value per row or per column under any functor
@@ -319,39 +319,39 @@ it lands with. RW-49 designed part of it.
 - Done when: `Dispatch::execute_broadcast` and `BroadcastOps` exist with tests, and no existing
   plan records different tasks
 
-Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B3.
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES/README.md`, B3.
 
 ### RW-96 Add bilinear upsampling and its gradient
 - State: open
 - Done when: `upsample_bilinear` and its backward exist in both kernels, with tests
 
-Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B4.
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES/README.md`, B4.
 
 ### RW-97 Add the index of the maximum along one axis
 - State: open
 - Done when: `argmax_along` folds through `Reduce::RunningArgMax`, the lowest index winning a tie,
   with tests
 
-Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B5.
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES/README.md`, B5.
 
 ### RW-98 Add GELU by the error function
 - State: open
 - Done when: `gelu_erf` and `gelu_erf_backward` exist beside `gelu`, whose formula stays, with tests
 
-Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B6.
+Section 4 of SushiAI's `docs/design/GRAPH_CAPABILITIES/README.md`, B6.
 
 ### RW-99 Add a mask of the k largest of each row
 - State: open
 - Done when: `ReductionOps::top_k_mask_along` exists with tests, the lowest index winning a tie
 
-Section 1 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B9.
+Section 1 of SushiAI's `docs/design/GRAPH_CAPABILITIES/README.md`, B9.
 
 ### RW-100 Add the index of the rows a mask selects
 - State: blocked
 - Blocked by: RW-94
 - Done when: `IndexOps::select_rows` exists with tests
 
-Section 1 of SushiAI's `docs/design/GRAPH_CAPABILITIES.md`, B10.
+Section 1 of SushiAI's `docs/design/GRAPH_CAPABILITIES/README.md`, B10.
 
 ### RW-103 Add a bfloat16 `DataType`
 - State: open
