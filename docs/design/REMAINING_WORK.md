@@ -1,6 +1,6 @@
 # Remaining work
 
-Next id: RW-108
+Next id: RW-110
 
 ## Decisions waiting for the owner
 
@@ -632,3 +632,17 @@ pre-merge budget of 45.
 - State: open
 - Done when: `experimental` is `INTERNAL`, the package test fails on an installed tree that holds
   that folder or a document among its headers, and `sb test --package` passes
+
+## Documentation architecture
+
+### RW-108 Write the About line of each design topic by hand
+- State: open
+- Done when: each topic has an `**About:**` line of one sentence written for a cold reader
+
+The topic model generated the lines from the first sentence of each document or from its title.
+
+### RW-109 Graduate the shipped design topics
+- State: open
+- Done when: each shipped topic keeps its decisions and their reasons, and what the code now is stands on the module pages
+
+The shipped topics are `MODULE_SPLIT`, `PUBLIC_SEAM`.
