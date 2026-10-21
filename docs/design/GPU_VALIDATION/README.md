@@ -1,13 +1,15 @@
 # GPU validation checklist
 
 **Status:** Open — the suite has run on one card; G2 to G7 wait for a profiled run (RW-23 to RW-30)
+**About:** Several changes in this repository and in SushiAI were made for a GPU, justified by argument and by arithmetic, and checked only as far as a CPU can check them.
+**Modules:** modules/foundation/launch
 
 ## Problem
 
 Several changes in this repository and in SushiAI were made for a GPU, justified by argument and
 by arithmetic, and checked only as far as a CPU can check them. Until 2026-10-07 no usable GPU
 was at hand. The suite has since run on one card, an NVIDIA GeForce RTX 3080 Ti; those runs are in
-[the GPU runs report](../agent/2026_10_21_GPU_RUNS/REPORT.md). A passing functional suite shows
+the GPU runs report. A passing functional suite shows
 that the GPU-shaped paths the tests reach gave the expected values. It measures no bank conflict,
 no register spill and no crossover.
 
@@ -243,7 +245,7 @@ figure from a GPU; the CPU baseline is in the GPU runs report.
 
 ### Items that are not GPU-specific
 
-The open items that are not GPU-specific are in [`REMAINING_WORK.md`](REMAINING_WORK.md), under
+The open items that are not GPU-specific are in [`REMAINING_WORK.md`](../REMAINING_WORK.md), under
 "Kernels and reductions", so that a GPU run is not blamed for them. The log-softmax fix, whose
 measurements other documents cite, is in the GPU runs report.
 
@@ -260,6 +262,12 @@ measurements other documents cite, is in the GPU runs report.
 | G7 | Run the full validation run with a profiled `ms/step` | planned |
 | G8 | The reference sums in double or compensated, after the SYMV parity failure | built |
 | G9 | Log-softmax with a per-row shift | built |
+
+### Work
+
+<!-- work:begin -->
+No open work.
+<!-- work:end -->
 
 ## Open questions
 

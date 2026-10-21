@@ -1,13 +1,15 @@
 # The public seam
 
 **Status:** Shipped — 2026-10-09
+**About:** Three properties of the public interface depart from the house C++ style: SYCL types in the interface, exceptions where the style asks for statuses, and kernel headers that are installed.
+**Modules:** modules/kernels
 
 ## Problem
 
 Three properties of the public interface depart from the house C++ style: SYCL types in the
 interface, exceptions where the style asks for statuses, and kernel headers that are installed.
 The estate audit of 2026-10-05 asked for each to be recorded with its reason (findings C15 and
-C21 of `docs/agent/2026_10_05_ESTATE_AUDIT/REPORT.md`).
+C21 of the estate audit report in the version history).
 
 ## Decision
 
@@ -35,14 +37,14 @@ The reason is the dispatch seams. A caller that fuses its own arithmetic into a 
 library a functor, and that functor has to be compiled as device code in the caller's
 translation unit. A seam that hid SYCL could not take it.
 
-What it costs a consumer is in [the integration guide](../guides/INTEGRATION.md), section 1:
+What it costs a consumer is in [the integration guide](../../guides/INTEGRATION.md), section 1:
 every translation unit that includes a SushiBLAS header needs the SYCL compiler, and `-fsycl` is
 a `PUBLIC` option of `SushiBLAS::sushiblas`.
 
 ### A failure is an exception, except for a file
 
 A record call throws before a task reaches the graph. The four types and what throws each are
-in [the architecture, section 11](../architecture/EXCEPTIONS.md).
+in [the architecture, section 11](../../architecture/EXCEPTIONS.md).
 
 The house style asks for a `[[nodiscard]]` status where an operation fails for a reason outside
 the program, and for no exception across a module's public surface:
@@ -81,6 +83,12 @@ value type that carries plain data, and the kernels and SushiAI read the field d
 | Id | Phase | State |
 | --- | --- | --- |
 | P1 | Record the three properties and their reasons | built |
+
+### Work
+
+<!-- work:begin -->
+No open work.
+<!-- work:end -->
 
 ## Open questions
 

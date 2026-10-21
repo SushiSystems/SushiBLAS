@@ -8,7 +8,7 @@ When starting work on this project:
 
 1. Read `docs/CONTRIBUTING.md` and `docs/DOCUMENTATION_STYLE_GUIDE.md` first and follow them.
 2. Read `docs/README.md` and the pages it links under Architecture and Guides to build context
-   before making changes. `docs/agent/` and `docs/archive/` are records of past work; read one
+   before making changes. `docs/agent/` holds the work in flight; read one
    when your task touches its area.
 3. `docs/design/REMAINING_WORK.md` is the single backlog. A task that adds or finishes work
    updates it in the same commit.

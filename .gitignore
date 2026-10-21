@@ -35,3 +35,4 @@ venv/
 .venv/
 build-*/
 dist/
+docs/archive/

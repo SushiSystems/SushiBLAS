@@ -782,3 +782,9 @@ section.
 `upsample_nearest_backward` runs one work-item per input element, each gathering its own fixed
 `scale_h * scale_w` block in ascending order. The file contains no `sycl::atomic_ref` and none may
 be added.
+
+## Designs
+
+<!-- designs:begin -->
+- [PUBLIC_SEAM](../../docs/design/PUBLIC_SEAM/README.md): Three properties of the public interface depart from the house C++ style: SYCL types in the interface, exceptions where the style asks for statuses, and kernel headers that are installed.
+<!-- designs:end -->

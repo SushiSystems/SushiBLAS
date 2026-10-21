@@ -1,6 +1,8 @@
 # Splitting the library into modules
 
 **Status:** Shipped — 2026-10-09
+**About:** SushiBLAS was laid out as one module: include/SushiBLAS/ and source/ under the root, one CMake target, one test program.
+**Modules:** none
 
 ## Problem
 
@@ -11,7 +13,7 @@ a project with more than one module; the build should enforce the boundaries and
 should name its owner.
 
 The include graph, measured before the move (the table is in
-[the evidence](../agent/2026_10_21_MODULE_SPLIT_EVIDENCE/REPORT.md)), showed four facts:
+the evidence), showed four facts:
 
 - **One cycle.** `sparse_builder.hpp` included `io.hpp`, and `io.hpp` included `tensor.hpp`.
 - **No kernel includes the engine or a tensor.** Every kernel edge goes to `core`, `support` or
@@ -130,6 +132,12 @@ higher tier, and seven that test more than one family, stay under `tests/unit/`:
 | P4 | The nine operation modules and `experimental`, one module per worker | built |
 | P5 | `library/sushiblas`: the umbrella, install and export; the old `include/` and `source/` removed | built |
 | P6 | Tier order in `check_layering.py`, every module README, the architecture pages, the path table, the changelog | built |
+
+### Work
+
+<!-- work:begin -->
+No open work.
+<!-- work:end -->
 
 ## Open questions
 

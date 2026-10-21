@@ -34,4 +34,4 @@ memory and decides where each node runs, and computes nothing of its own. A call
 graph, such as SushiAI's compiled step, builds a `TaskRecorder` over that graph's recorder and the
 operation families over the `TaskRecorder`, and SushiBLAS records into it. Removing the engine's
 own graph, so that every caller does this, is
-[`LAYERED_EXECUTION.md`](../design/LAYERED_EXECUTION.md).
+[`LAYERED_EXECUTION.md`](../design/LAYERED_EXECUTION/README.md).

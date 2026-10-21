@@ -53,9 +53,9 @@ SushiBLAS is below 1.0.0 and a MINOR release may break its public interface; rea
 | Document | Holds |
 | --- | --- |
 | [Design map](design/README.md) | Which design document covers which topic |
-| [GPU validation](design/GPU_VALIDATION.md) | The claims that wait for a run on GPU hardware |
-| [Module split](design/MODULE_SPLIT.md) | How the library is divided into modules and tiers |
-| [Public seam](design/PUBLIC_SEAM.md) | Three properties of the public interface and the reason for each |
+| [GPU validation](design/GPU_VALIDATION/README.md) | The claims that wait for a run on GPU hardware |
+| [Module split](design/MODULE_SPLIT/README.md) | How the library is divided into modules and tiers |
+| [Public seam](design/PUBLIC_SEAM/README.md) | Three properties of the public interface and the reason for each |
 | [Remaining work](design/REMAINING_WORK.md) | The backlog |
 
 ## Contributing

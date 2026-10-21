@@ -58,3 +58,16 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | D1 | The decision that moved `LinalgOps` and `TransformsOps` out of the `Engine` facade into the quarantine. It is recorded in `sushiai/docs/design/ROADMAP.md` |
 | D3 | The three-step resolution of the SushiRuntime dependency in `cmake/Runtime.cmake`: a superproject target, then `find_package(SushiRuntime)`, then a sibling `add_subdirectory` |
 | SB-0 to SB-12 | Numbered slices of the SushiBLAS build-out, used in commit subjects and in older documents. SB-6 is the packaging slice. The numbering comes from `sushiai/docs/design/ROADMAP.md` |
+
+## Design topics
+
+A topic is a module or a subject that spans modules, and it has one design document.
+The list is generated in `docs/design/README.md`.
+
+**GPU_VALIDATION**: Several changes in this repository and in SushiAI were made for a GPU, justified by argument and by arithmetic, and checked only as far as a CPU can check them. See [the design](../design/GPU_VALIDATION/README.md).
+
+**LAYERED_EXECUTION**: SushiBLAS's share of the stack's layered execution: the library becomes the one door to computation for SushiAI and SushiEngine, records only into the graph its caller owns, offers a.... See [the design](../design/LAYERED_EXECUTION/README.md).
+
+**MODULE_SPLIT**: SushiBLAS was laid out as one module: include/SushiBLAS/ and source/ under the root, one CMake target, one test program. See [the design](../design/MODULE_SPLIT/README.md).
+
+**PUBLIC_SEAM**: Three properties of the public interface depart from the house C++ style: SYCL types in the interface, exceptions where the style asks for statuses, and kernel headers that are installed. See [the design](../design/PUBLIC_SEAM/README.md).

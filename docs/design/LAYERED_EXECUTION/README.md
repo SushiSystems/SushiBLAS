@@ -1,6 +1,8 @@
 # Layered execution
 
 **Status:** Open — designed and ruled on 2026-10-19; nothing built
+**About:** SushiBLAS's share of the stack's layered execution: the library becomes the one door to computation for SushiAI and SushiEngine.
+**Modules:** modules/engine/engine
 
 ## Problem
 
@@ -147,7 +149,7 @@ Two things the seam cannot check are part of its contract and written on it:
 
 `IndexOps` is a new operation family in `operations/index/`, beside the index operations RW-94
 asks for. `write_binding.hpp` and `index_task.hpp` join `functor_map`.
-`docs/design/PUBLIC_SEAM.md`'s list of what is public gains `functor_map`'s bindings.
+`docs/design/PUBLIC_SEAM/README.md`'s list of what is public gains `functor_map`'s bindings.
 
 ### Two general operations
 
@@ -162,7 +164,7 @@ Dual-quaternion skinning has no general form and goes through the per-index seam
 ### The cluster module
 
 The tensor side of a training run over several machines. The design is in SushiAI's
-`docs/design/LAYERED_EXECUTION.md`, section 6; this is what lands here.
+`docs/design/LAYERED_EXECUTION/README.md`, section 6; this is what lands here.
 
 ```
 modules/engine/cluster/                  built only when SB_ENABLE_DISTRIBUTED is on
@@ -219,6 +221,12 @@ README) change in its own commit.
 B5 waits on SushiAI's A0, which moves SushiAI's two execution helpers and four tests off the
 engine's graph. B6 to B9 have disjoint files and could share a wave; the owner chooses inline or
 waves.
+
+### Work
+
+<!-- work:begin -->
+No open work.
+<!-- work:end -->
 
 ## Open questions
 

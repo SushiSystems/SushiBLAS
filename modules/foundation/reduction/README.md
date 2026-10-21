@@ -73,7 +73,7 @@ fold starts at, so the fold order *within* a segment did not move and no combina
 was introduced.
 
 That is an argument from what the code does, not a measurement of a GPU: the same limit
-`reduce_1d.hpp` records for itself. See `docs/design/GPU_VALIDATION.md`, "The determinism claim".
+`reduce_1d.hpp` records for itself. See `docs/design/GPU_VALIDATION/README.md`, "The determinism claim".
 
 **No scratch buffer, and that is structural rather than lucky.** A whole-tensor reduction needs one
 because its work-groups all contribute to a single answer and something has to hold the partials
@@ -119,7 +119,7 @@ group-width pass is that threshold.
 - **Otherwise** there is nothing to recover; take the cheap shape.
 
 Warning: The GPU side of this is **derived, not measured**: no GPU run has measured the crossover
-(see `docs/design/GPU_VALIDATION.md`). The threshold is a floor below which the cooperative shape is
+(see `docs/design/GPU_VALIDATION/README.md`). The threshold is a floor below which the cooperative shape is
 certainly wrong, not a tuned crossover, and it is the first knob to reach for if a row-wise
 reduction underperforms on real hardware. It cannot make an answer wrong: the shape is a pure
 function of the device and the span, so it is the same on every run, and both shapes compute the

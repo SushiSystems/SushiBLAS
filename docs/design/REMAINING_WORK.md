@@ -8,7 +8,6 @@ Next id: RW-108
 - State: decision
 - Done when: the owner has ruled whether the CSR `spmv` or the packed `spmv` is renamed, and
   what "packed" names besides BLAS packed storage
-- Source: `docs/agent/2026_10_07_V010/PLAN.md`
 
 `PLAN_EXT`, section 5, point 3.
 
@@ -114,7 +113,6 @@ the start.
 ### RW-18 Settle the open items each design lists
 - State: open
 - Done when: each open or unverified item of the designs is settled or moved here
-- Source: `docs/agent/2026_10_07_V010/SPEC.md`
 
 `DESIGN_RECORDER` section 15, `DESIGN_SUPPORT_MEMORY` 18, `DESIGN_BLAS` 12, `DESIGN_BLAS_L3` 13,
 `DESIGN_BLAS_BAND_PACKED` 14, `DESIGN_GEMM_CPU` 10.3 and 13, `DESIGN_SPARSE` 18, `DESIGN_YOLO26`
@@ -168,44 +166,44 @@ has no size class above 4 KiB.
 ### RW-23 Confirm the device profile on the card
 - State: unmeasured
 - Done when: `Device::Profile` reports `has_dedicated_local_memory = true` on the RTX 3080 Ti
-- Source: `docs/design/GPU_VALIDATION.md`
+- Source: `docs/design/GPU_VALIDATION/README.md`
 
 ### RW-24 Measure the tiled GEMM's bank conflicts and register spill
 - State: unmeasured
 - Done when: the bank conflicts and the spill of the 8x8 block are measured
-- Source: `docs/design/GPU_VALIDATION.md`
+- Source: `docs/design/GPU_VALIDATION/README.md`
 
 ### RW-25 Run the 128-bit vector path and the grid-stride launch
 - State: unmeasured
 - Done when: both shapes of `launch_1d.hpp` have run on a GPU
-- Source: `docs/design/GPU_VALIDATION.md`
+- Source: `docs/design/GPU_VALIDATION/README.md`
 
 ### RW-26 Measure where an axis reduction switches to one work-group per segment
 - State: unmeasured
 - Done when: the switch point is measured on a GPU
-- Source: `docs/design/GPU_VALIDATION.md`
+- Source: `docs/design/GPU_VALIDATION/README.md`
 
 ### RW-27 Run SushiAI's determinism regressions on the GPU
 - State: unmeasured
 - Done when: the regressions have passed on the card
-- Source: `docs/design/GPU_VALIDATION.md`
+- Source: `docs/design/GPU_VALIDATION/README.md`
 
 ### RW-28 Run the group-per-row GEMV and SYMV paths
 - State: unmeasured
 - Done when: both paths have run on a device that chooses them; on the CPU only a 4 x 16384 GEMV
   reaches them and SYMV never does
-- Source: `docs/design/GPU_VALIDATION.md`
+- Source: `docs/design/GPU_VALIDATION/README.md`
 
 ### RW-29 Confirm the device memory alignment on a run
 - State: unmeasured
 - Done when: `Storage` is seen to receive 128-byte aligned memory on CUDA, and on Level Zero when
   a machine with it is at hand
-- Source: `docs/design/GPU_VALIDATION.md`
+- Source: `docs/design/GPU_VALIDATION/README.md`
 
 ### RW-30 Measure the weight gradient of `window_dot`
 - State: unmeasured
 - Done when: the cost of its two 64-bit divisions per term is measured
-- Source: `docs/design/GPU_VALIDATION.md`
+- Source: `docs/design/GPU_VALIDATION/README.md`
 
 ## Kernels and reductions
 
@@ -295,7 +293,6 @@ versions. Cause: no test pins it, and a parallel shuffle would change it.
 - Done when: broadcasting binaries, a concatenation along a non-channel axis and a row gather
   with a gather-form backward are designed, with a general group count for `window_dot` and the
   softmax pair (`DESIGN_YOLO26`, section 14, point 10)
-- Source: `docs/agent/2026_10_07_V010/SPEC.md`
 
 ### RW-50 Round host `HALF` in the subnormal range
 - State: open
@@ -478,8 +475,8 @@ package test. Cause: it calls no `SparseOps` routine.
 
 ### RW-104 Carry out SushiBLAS's share of layered execution
 - State: open
-- Done when: tasks B1 to B13 of `docs/design/LAYERED_EXECUTION.md` are closed
-- Source: `docs/design/LAYERED_EXECUTION.md`
+- Done when: tasks B1 to B13 of `docs/design/LAYERED_EXECUTION/README.md` are closed
+- Source: `docs/design/LAYERED_EXECUTION/README.md`
 
 B3 closes RW-4; B13 closes KI-26 with RW-89. The programme's entry is `sushiai RW-130`; B5 waits on
 its A0, B10 on `sushiruntime RW-65`.

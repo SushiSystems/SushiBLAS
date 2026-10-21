@@ -369,3 +369,9 @@ body that accumulates across work-items would not be, and is not what this is fo
 
 Warning: `op` is inlined into a SYCL device kernel: it must be device-copyable, capture by value
 only, hold no host pointers, allocate nothing and throw nothing.
+
+## Designs
+
+<!-- designs:begin -->
+- [GPU_VALIDATION](../../../docs/design/GPU_VALIDATION/README.md): Several changes in this repository and in SushiAI were made for a GPU, justified by argument and by arithmetic, and checked only as far as a CPU can check them.
+<!-- designs:end -->

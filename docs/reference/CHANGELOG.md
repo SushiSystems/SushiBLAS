@@ -2,7 +2,7 @@
 
 No release is tagged yet; the version in the build files is 0.1.0. The entries dated before
 2026-09-07 were reshaped to one line each on 2026-10-05, and their original text is frozen in
-`docs/archive/CHANGELOG.md`.
+the changelog document in the version history.
 
 ## Unreleased
 
@@ -123,16 +123,16 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 - 2026-10-09 — tools: Added a test that holds the tier order of the checker to the CMake table and the table to the module folders (`test_tier_table.py`).
 - 2026-10-09 — docs: Recorded that no page of the Contributor Covenant states a licence for its text (`NOTICE.md`).
 - 2026-10-09 — tensor: Moved `HostDataType` from the IO header to `tensor/host_data_type.hpp`, so the sparse builder no longer includes IO (`io.hpp`, `sparse_builder.hpp`).
-- 2026-10-09 — build: Split the library into 23 modules under `modules/<tier>/<module>/` and composed the one archive from their object libraries; a header is now `<SushiBLAS/<module>/<name>.hpp>` (`docs/design/MODULE_SPLIT.md`).
+- 2026-10-09 — build: Split the library into 23 modules under `modules/<tier>/<module>/` and composed the one archive from their object libraries; a header is now `<SushiBLAS/<module>/<name>.hpp>` (`docs/design/MODULE_SPLIT/README.md`).
 - 2026-10-09 — tests: Gave each module its own test program and kept the tests that cross modules under `tests/` (`cmake/SushiBLASTests.cmake`).
 - 2026-10-09 — tools: Pointed the layering rules at the module tree and listed every include path the split changed (`check_layering.py`, `tools/naming/sushiblas_include_paths_0_1_0.tsv`).
 - 2026-10-09 — build: Added `sushiblas_add_module` and the tier table, and moved the core headers to `modules/foundation/core/` as the first module; the version header is now `<SushiBLAS/core/version.hpp>`.
-- 2026-10-09 — docs: Proposed the split of the library into modules, with the measured include graph (`docs/design/MODULE_SPLIT.md`).
+- 2026-10-09 — docs: Proposed the split of the library into modules, with the measured include graph (`docs/design/MODULE_SPLIT/README.md`).
 - 2026-10-09 — build: Moved `src/` to `source/` with the private kernels under it, and lifted the unit, integration and regression tests out of `tests/functional/`, as the repository layout names them.
 - 2026-10-09 — io: Made the six file operations of IO, from save to load_npy, return an `IoStatus` where they threw std::runtime_error for a file (`io_status.hpp`, `io.hpp`, `io.cpp`).
 - 2026-10-09 — docs: Added the Random123 and LAPACK licence texts under `third_party/licenses/` and named both works in the license blocks of `philox.hpp`, `givens.hpp` and `modified_givens.hpp`.
 - 2026-10-09 — engine: Spelled the execution modes `ForceReference`, `ForceSycl` and `Auto` in every exception message, where they read FORCE_REFERENCE, FORCE_SYCL and AUTO (`task_recorder.hpp`).
-- 2026-10-09 — docs: Read the manual and every module README against the code and corrected about 150 sentences (`docs/agent/2026_10_09_MANUAL_READ/REPORT.md`).
+- 2026-10-09 — docs: Read the manual and every module README against the code and corrected about 150 sentences (the manual read report in the version history).
 - 2026-10-09 — docs: Split the architecture page into one file per section under `docs/architecture/`, and added `tests/README.md` and the design page `PUBLIC_SEAM.md`.
 - 2026-10-09 — cli: Removed the dead `sushistack/sushicore` candidate from the test fixture (`cli/tests/conftest.py`).
 - 2026-10-09 — docs: Corrected the stale paths, symbols and claims of the manual and removed the em dashes from the integration guide and the GPU checklist (`INTEGRATION.md`, `GPU_VALIDATION.md`, `kernels/README.md`).

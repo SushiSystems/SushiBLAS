@@ -69,7 +69,7 @@ To see whether a kernel spills registers:
 sb build --type release -D SB_SYCL_TARGETS=nvidia_gpu_sm_86 -D SB_SYCL_DEVICE_FLAGS="-Xcuda-ptxas;-v"
 ```
 
-The configure step prints the active targets. The functional suite has run on one card, an RTX 3080 Ti: on 2026-10-12, on Windows with the pinned intel-llvm toolchain, 2 207 tests ran and none failed. [The GPU validation design](../design/GPU_VALIDATION.md) lists what is unverified.
+The configure step prints the active targets. The functional suite has run on one card, an RTX 3080 Ti: on 2026-10-12, on Windows with the pinned intel-llvm toolchain, 2 207 tests ran and none failed. [The GPU validation design](../design/GPU_VALIDATION/README.md) lists what is unverified.
 
 ### Building with CMake directly
 

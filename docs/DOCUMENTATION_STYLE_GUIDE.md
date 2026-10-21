@@ -21,7 +21,7 @@ named follow the `documentation` skill. Neither is restated here.
 - Prose in the manual uses no em dash. The entry format of `reference/CHANGELOG.md` keeps its
   dash, because `tools/documentation/check_changelog.py` requires it.
 - A figure states what was measured, on which device and when. A claim that was derived and not
-  measured says so; [the GPU validation design](design/GPU_VALIDATION.md) holds the claims that
+  measured says so; [the GPU validation design](design/GPU_VALIDATION/README.md) holds the claims that
   wait for hardware.
 - A decision or work item cited by its short name (D1, D3, SB-6) is defined in
   [the glossary](reference/GLOSSARY.md).
@@ -36,4 +36,4 @@ spelling the code uses, such as `K_LICENSE_LINES` or the `LICENSE` file.
 
 ## Pages not yet through the humanizer pass
 
-`design/GPU_VALIDATION.md` has not been through the pass.
+`design/GPU_VALIDATION/README.md` has not been through the pass.

@@ -468,3 +468,9 @@ The `SB_THROW_IF(true, ...)` that ends the dtype switch is unreachable in practi
 a silent no-op gets in, so it ends in a throw rather than in a default return.
 
 `Detail::TypedTaskBody::operator()` throws `std::runtime_error` from that last statement.
+
+## Designs
+
+<!-- designs:begin -->
+- [LAYERED_EXECUTION](../../../docs/design/LAYERED_EXECUTION/README.md): SushiBLAS's share of the stack's layered execution: the library becomes the one door to computation for SushiAI and SushiEngine.
+<!-- designs:end -->

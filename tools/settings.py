@@ -27,3 +27,7 @@ K_CONSOLE_PATHS: tuple[str, ...] = (
     "modules/operations/io/source/print.cpp",
     "cli/sushiblas",
 )
+K_DESIGN_TOPICS = True
+K_FOLDER_CEILING = 60
+K_CLOSED_GRACE_DAYS = 0
+K_ARCHIVE_UNTRACKED = True
