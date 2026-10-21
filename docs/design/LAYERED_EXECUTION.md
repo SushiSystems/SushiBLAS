@@ -1,5 +1,8 @@
 # Layered execution
+
 **Status:** Open — designed and ruled on 2026-10-19; nothing built
+
+## Problem
 
 SushiBLAS's share of the stack's layered execution: the library becomes the one door to
 computation for SushiAI and SushiEngine, records only into the graph its caller owns, offers a
@@ -15,30 +18,7 @@ Each repository of the stack holds its own share in a document of this name:
 | SushiAI | Data-parallel training over five machines; it also holds the programme's backlog entry |
 | SushiEngine | Two lanes behind one contract, SushiBLAS in the runtime lane; placement scopes; physics islands on several machines in the runtime lane |
 
-## 1. Roles
-
-| Layer | Role | Never |
-| --- | --- | --- |
-| SushiRuntime | The one scheduler: graphs, memory, dependencies, placement, transport | Computes |
-| SushiBLAS | The one door to computation: operations recorded into the recorder it is handed | Runs a graph, orders work, picks a device or a machine |
-| SushiAI, SushiEngine | Own a graph per step or per frame, open placement scopes, combine their formulas with SushiBLAS's operations | Write a device kernel outside SushiBLAS, touch a transport |
-| The person running it | Writes the placement rules | |
-
-## 2. The owner's rulings
-
-Made on 2026-10-19.
-
-| # | Subject | Ruling |
-| --- | --- | --- |
-| 1 | The engine's graph | `Engine` keeps no graph and has no `execute()`. Every operation records into a recorder its caller owns |
-| 2 | General operations | The computations SushiEngine writes by hand today and that other fields can use enter SushiBLAS under general names, never as a field's kernel |
-| 3 | Field formulas | A formula of a field, such as a physics constraint projection, stays in its field and runs through a SushiBLAS per-index seam whose reads and writes are declared |
-| 4 | Placement | SushiBLAS stamps no placement of its own; its nodes take the class and key of the caller's scope |
-| 5 | Grain across machines | SushiBLAS does not offload its operations one at a time |
-| 6 | Gradient types | The exchange of a training run works for every data type |
-| 7 | Order | SushiRuntime's share comes first, SushiBLAS's second, SushiAI's third |
-
-## 3. What exists
+What exists in the source, read on 2026-10-19:
 
 Read from the source on 2026-10-19.
 
@@ -71,9 +51,46 @@ Read from the source on 2026-10-19.
   `gemv` (RW-45).
 - The build pins no SushiRuntime version (KI-26, RW-89).
 
-## 4. The design
+## Decision
 
-### 4.1 An engine without a graph
+### Roles
+
+| Layer | Role | Never |
+| --- | --- | --- |
+| SushiRuntime | The one scheduler: graphs, memory, dependencies, placement, transport | Computes |
+| SushiBLAS | The one door to computation: operations recorded into the recorder it is handed | Runs a graph, orders work, picks a device or a machine |
+| SushiAI, SushiEngine | Own a graph per step or per frame, open placement scopes, combine their formulas with SushiBLAS's operations | Write a device kernel outside SushiBLAS, touch a transport |
+| The person running it | Writes the placement rules | |
+
+### The owner's rulings
+
+Made on 2026-10-19.
+
+Made on 2026-10-19.
+
+| # | Subject | Ruling |
+| --- | --- | --- |
+| 1 | The engine's graph | `Engine` keeps no graph and has no `execute()`. Every operation records into a recorder its caller owns |
+| 2 | General operations | The computations SushiEngine writes by hand today and that other fields can use enter SushiBLAS under general names, never as a field's kernel |
+| 3 | Field formulas | A formula of a field, such as a physics constraint projection, stays in its field and runs through a SushiBLAS per-index seam whose reads and writes are declared |
+| 4 | Placement | SushiBLAS stamps no placement of its own; its nodes take the class and key of the caller's scope |
+| 5 | Grain across machines | SushiBLAS does not offload its operations one at a time |
+| 6 | Gradient types | The exchange of a training run works for every data type |
+| 7 | Order | SushiRuntime's share comes first, SushiBLAS's second, SushiAI's third |
+
+### SushiEngine's native lane
+
+SushiEngine builds a lane without SYCL for the platforms SushiRuntime cannot reach. The owner
+ruled on 2026-10-20 that the lane stays fully supported with a runtime and a BLAS of the engine's
+own, bound through the same seams as SushiRuntime and SushiBLAS, and without distributed support.
+SushiBLAS gains no build without SYCL for it. What SushiBLAS keeps doing for that lane is what it
+does today: its SYCL-free value-type and fold headers, such as `BLAS::fold_fixed_order`, are
+included by the engine's native backend, so a change to them is checked against SushiEngine's
+native CI job.
+
+## Design
+
+### An engine without a graph
 
 `Engine` keeps what is per process: the runtime, the scratch pool, the tensor factory, the
 random stream, the execution mode and the layout. It loses `RecordedGraph`, its `TaskRecorder`,
@@ -98,7 +115,7 @@ fixture that holds them.
 run, and running it is the caller's business: `IO` reads what the storage holds when it is
 called. RW-4 closes with this change.
 
-### 4.2 The per-index seam
+### The per-index seam
 
 ```cpp
 SushiBLAS::IndexOps index(recorder);
@@ -132,7 +149,7 @@ Two things the seam cannot check are part of its contract and written on it:
 asks for. `write_binding.hpp` and `index_task.hpp` join `functor_map`.
 `docs/design/PUBLIC_SEAM.md`'s list of what is public gains `functor_map`'s bindings.
 
-### 4.3 Two general operations
+### Two general operations
 
 | Operation | Computes | Its first user |
 | --- | --- | --- |
@@ -142,7 +159,7 @@ asks for. `write_binding.hpp` and `index_task.hpp` join `functor_map`.
 Both have a serial reference path and a SYCL path, and take `Half`, `Float32` and `Float64`.
 Dual-quaternion skinning has no general form and goes through the per-index seam.
 
-### 4.4 The cluster module
+### The cluster module
 
 The tensor side of a training run over several machines. The design is in SushiAI's
 `docs/design/LAYERED_EXECUTION.md`, section 6; this is what lands here.
@@ -169,46 +186,40 @@ modules/operations/elementwise/source/
 `Float64` and both complex types accumulate in their own type; `Int32` and `Int64` add exactly
 and wrap, and refuse a weight other than 1.
 
-### 4.5 Placement
+### Placement
 
 SushiBLAS adds nothing to a node's placement. A node it records inside the runtime's
 `Recorder::within(scope, ...)` carries the scope's class and key, because `TaskRecorder::insert()`
 builds `NodeOptions` without them and the runtime stamps every node that has none. A test pins
 this.
 
-## 5. Plan
+## Phases
 
 Hierarchy first: what callers stand on before the callers move, and the engine's graph goes only
 when nothing calls it. Each task has one acceptance criterion and one build. The manual pages a
 task makes false (`docs/architecture/ENGINE_AND_RECORDER.md`, the module READMEs, the examples
 README) change in its own commit.
 
-| Task | Does | Files, mainly | Waits on | Done when |
-| --- | --- | --- | --- | --- |
-| B1 | A test fixture that owns a runtime graph and a `TaskRecorder` over it; `GraphProbe` rebuilt on it instead of `RecordedGraph` | `engine/graph_probe`, the test environment | | Every test that uses `GraphProbe` passes with the probe holding no `RecordedGraph` |
-| B2 | Tests, examples and the package test record on their own graph | `tests/`, `applications/examples/`, `tests/package/` | B1 | No file outside `modules/engine/engine/` calls `Engine::execute()` or `discard_recorded()`, and the suites pass |
-| B3 | `IO` without an engine: host actions on a tensor whose writer has run | `operations/io` | | `IO`'s header names no `Engine`, its tests pass with the caller running the graph, RW-4 closes |
-| B4 | The benchmark harness times a caller's graph | `operations/benchmark_harness` | B1 | The harness names no `Engine::execute()` and its benchmarks run |
-| B5 | `Engine` without `RecordedGraph`, `TaskRecorder`, `execute()`, `discard_recorded()`, `recorder()`; the family constructors over `Engine&` removed | `engine/engine`, the operation families, `tools/` seam checker | B2, B3, B4, `sushiai` A0 | `engine.hpp` declares none of them, every suite passes, and the seam checker forbids them coming back |
-| B6 | `bind_writes`, `write_as_element`, `write_as<U>` | `engine/functor_map/write_binding.hpp` | | A test declares a read and a write on one task and the runtime orders a later reader after it |
-| B7 | `IndexOps::for_each` with a fixed count and with a late count; `IndexOptions` with the determinism class | `operations/index/`, `engine/functor_map/index_task.hpp` | B6 | A scatter kernel over a coloured batch equals its `ForceReference` run bit for bit, and a late-count call runs the count a previous node wrote |
-| B8 | `SpatialOps::convolve_1d` | `operations/spatial` | | Each of the three float types equals the serial reference within the test's stated tolerance |
-| B9 | `SpatialOps::blend_transforms` | `operations/spatial` | | Each of the three float types equals the serial reference within the test's stated tolerance |
-| B10 | A node recorded inside a runtime scope carries its class and key | `tests/engine/engine/` | `sushiruntime` R2 | The test reads the scope's class and key from a SushiBLAS node |
-| B11 | `ordered_sum()` | `operations/elementwise` | | It equals a serial sum bit for bit for each of the seven types, and refuses a weighted integer sum |
-| B12 | The `cluster` module and `SB_ENABLE_DISTRIBUTED` | `engine/cluster/`, `cmake/`, `cli/` | B11 | A pack of every type round-trips through a worker on `InProcessFabric` with its fingerprint checked |
-| B13 | The runtime pin moves to the tag that carries R1 to R10 | `cli/sushistack.deps.toml` | `sushiruntime` R10 | The build resolves that tag; KI-26 closes with RW-89 |
+| Id | Phase | State |
+| --- | --- | --- |
+| B1 | A test fixture that owns a runtime graph and a `TaskRecorder` over it; `GraphProbe` rebuilt on it instead of `RecordedGraph`. Done when: every test that uses `GraphProbe` passes with the probe holding no `RecordedGraph`. | planned |
+| B2 | Tests, examples and the package test record on their own graph. Done when: no file outside `modules/engine/engine/` calls `Engine::execute()` or `discard_recorded()`, and the suites pass. Waits on B1. | planned |
+| B3 | `IO` without an engine: host actions on a tensor whose writer has run. Done when: `IO`'s header names no `Engine`, its tests pass with the caller running the graph, RW-4 closes. | planned |
+| B4 | The benchmark harness times a caller's graph. Done when: the harness names no `Engine::execute()` and its benchmarks run. Waits on B1. | planned |
+| B5 | `Engine` without `RecordedGraph`, `TaskRecorder`, `execute()`, `discard_recorded()`, `recorder()`; the family constructors over `Engine&` removed. Done when: `engine.hpp` declares none of them, every suite passes, and the seam checker forbids them coming back. Waits on B2, B3, B4, `sushiai` A0. | planned |
+| B6 | `bind_writes`, `write_as_element`, `write_as<U>`. Done when: a test declares a read and a write on one task and the runtime orders a later reader after it. | planned |
+| B7 | `IndexOps::for_each` with a fixed count and with a late count; `IndexOptions` with the determinism class. Done when: a scatter kernel over a coloured batch equals its `ForceReference` run bit for bit, and a late-count call runs the count a previous node wrote. Waits on B6. | planned |
+| B8 | `SpatialOps::convolve_1d`. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | planned |
+| B9 | `SpatialOps::blend_transforms`. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | planned |
+| B10 | A node recorded inside a runtime scope carries its class and key. Done when: the test reads the scope's class and key from a SushiBLAS node. Waits on `sushiruntime` R2. | planned |
+| B11 | `ordered_sum()`. Done when: it equals a serial sum bit for bit for each of the seven types, and refuses a weighted integer sum. | planned |
+| B12 | The `cluster` module and `SB_ENABLE_DISTRIBUTED`. Done when: a pack of every type round-trips through a worker on `InProcessFabric` with its fingerprint checked. Waits on B11. | planned |
+| B13 | The runtime pin moves to the tag that carries R1 to R10. Done when: the build resolves that tag; KI-26 closes with RW-89. Waits on `sushiruntime` R10. | planned |
 
 B5 waits on SushiAI's A0, which moves SushiAI's two execution helpers and four tests off the
 engine's graph. B6 to B9 have disjoint files and could share a wave; the owner chooses inline or
 waves.
 
-## 6. SushiEngine's native lane
+## Open questions
 
-SushiEngine builds a lane without SYCL for the platforms SushiRuntime cannot reach. The owner
-ruled on 2026-10-20 that the lane stays fully supported with a runtime and a BLAS of the engine's
-own, bound through the same seams as SushiRuntime and SushiBLAS, and without distributed support.
-SushiBLAS gains no build without SYCL for it. What SushiBLAS keeps doing for that lane is what it
-does today: its SYCL-free value-type and fold headers, such as `BLAS::fold_fixed_order`, are
-included by the engine's native backend, so a change to them is checked against SushiEngine's
-native CI job.
+- Does the plan run inline or in waves? The owner chooses.

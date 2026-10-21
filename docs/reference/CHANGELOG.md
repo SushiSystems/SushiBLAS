@@ -6,6 +6,7 @@ No release is tagged yet; the version in the build files is 0.1.0. The entries d
 
 ## Unreleased
 
+- 2026-10-21 — docs: Reshaped the four design documents into the five sections with a phase table, and moved the module split and GPU run evidence to two work folders (`docs/design/`, `docs/agent/`).
 - 2026-10-20 — docs: Moved 10 known issues with a scheduled fix and no workaround into the backlog entries that fix them (`KNOWN_ISSUES.md`, `REMAINING_WORK.md`).
 - 2026-10-20 — docs: Recorded that SushiEngine's native lane keeps its own BLAS and gains no SYCL-free SushiBLAS build (`LAYERED_EXECUTION.md`).
 - 2026-10-20 — docs: Designed SushiBLAS's share of layered execution: no engine graph, the per-index seam, two general operations, the cluster module (`LAYERED_EXECUTION.md`).

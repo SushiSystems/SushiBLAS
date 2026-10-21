@@ -1,66 +1,31 @@
 # GPU validation checklist
 
-**Status:** Open — functional runs on one card exist (section 0); sections 2 to 5 are RW-23 to RW-30.
+**Status:** Open — the suite has run on one card; G2 to G7 wait for a profiled run (RW-23 to RW-30)
 
-Until 2026-10-07 everything in this repository and in SushiAI was developed on a machine with no
-usable GPU: `sycl-ls` reported one device, a Ryzen CPU through Intel OpenCL, and the NVIDIA path
-could not be compiled. Sections 1 to 7 were written in that state. Section 0 records the GPU
-runs made since.
+## Problem
 
-Several changes were made for a GPU, justified by argument and by arithmetic, and checked only
-as far as a CPU can check them. This page separates what was observed from what is believed, so
-that the first person who profiles on real hardware knows where to look.
+Several changes in this repository and in SushiAI were made for a GPU, justified by argument and
+by arithmetic, and checked only as far as a CPU can check them. Until 2026-10-07 no usable GPU
+was at hand. The suite has since run on one card, an NVIDIA GeForce RTX 3080 Ti; those runs are in
+[the GPU runs report](../agent/2026_10_21_GPU_RUNS/REPORT.md). A passing functional suite shows
+that the GPU-shaped paths the tests reach gave the expected values. It measures no bank conflict,
+no register spill and no crossover.
 
-Outside section 0, nothing below reports a passing test. It lists claims that wait for one.
+## Decision
 
-## 0. The GPU runs
+This page separates what was observed from what is believed, so that the first person who
+profiles on real hardware knows where to look. Nothing below reports a passing test; it lists
+claims that wait for one.
 
-All three runs were on one card, an NVIDIA GeForce RTX 3080 Ti, which `sycl-ls` named in the first
-two as
-`[cuda:gpu][cuda:0] NVIDIA CUDA BACKEND, NVIDIA GeForce RTX 3080 Ti 8.6 [CUDA 13.3]`.
+- A build that fails at G1 stops the checklist. Report the driver error; do not work around it.
+- A determinism regression that fails on a GPU is reported with the test and the byte. The
+  expectation is not re-recorded.
+- A constant named below as "the first thing to change" is changed only after a measurement on
+  the card.
 
-| | First run | Second run | Third run |
-| --- | --- | --- | --- |
-| Date | 2026-10-07, at 14:15 and repeated at 14:53 | 2026-10-09 | 2026-10-12 |
-| Tree | commit `dd5cdfc`, before the first commit of the v0.1.0 work | the v0.1.0 tree of that day, after the interface break | branch `feature/api_refinement`, built by `sb build` on Windows with the pinned intel-llvm |
-| Result | 790 of 792 tests passed | 2 047 of 2 047 tests passed | 2 207 tests ran, none failed |
-| Skipped | `Medium_LoggerDeathTest.AssertWritesItsMessageBeforeAborting`, a death test that needs a debug build | CTest lists some tests as skipped; their count and their reason were not recorded | not recorded |
-| Failed | `Medium_Level2SyclParityTest.SymvMatchesReferenceLarge<float>` | none | none |
+## Design
 
-The failure of the first run was a finding about the reference kernel. For n = 4096 and the
-lower triangle, at element 1148:
-
-| | Value | Error |
-| --- | --- | --- |
-| Exact, from the test's data | 400.839198 | |
-| SYCL kernel on the GPU | 400.839203 | 5e-6, the float nearest the exact value |
-| Reference kernel | 400.848022 | 8.8e-3 |
-| The test's allowance | | 8.1e-3 |
-
-The reference `symv` added 4096 `FLOAT32` products one after another in a `FLOAT32`, and a sum of
-that length may lose about `4096 * 2^-24 * sum(|term|)`, 0.42 for this row. The GPU kernel
-reduces the row in work-group partials and landed on the nearest float. The test passed on the
-CPU device because a row of 4096 is below the CPU's two-stage threshold there, so the SYCL kernel
-summed in the reference's order and shared its error. The three numbers were reproduced on the
-host from the test's data pattern.
-
-The fix is in the tree the second run tested. Every running sum of a reference BLAS kernel is a
-`Kernels::ReferenceSum<T>`: double for `HALF`, `FLOAT32` and `COMPLEX32` terms, a compensated
-double sum for `FLOAT64` and `COMPLEX64` (`modules/foundation/reference/include/SushiBLAS/reference/reference_accumulator.hpp`).
-The parity test compares each kernel with a double-precision truth under a bound derived from
-the term count (`modules/foundation/blas_test_oracle/include/SushiBLAS/blas_test_oracle/blas_truth.hpp`,
-`tests/operations/blas/test_blas/test_level2_sycl_parity.cpp`).
-
-What the runs do not show:
-
-- Which of the items of sections 2 to 5 they exercised was not recorded. A passing functional
-  suite shows that the GPU-shaped paths the tests reach gave the expected values; it measures no
-  bank conflict, no register spill and no crossover.
-- The device profile of section 2 was not printed in either run.
-- The tree has run on no other card and, since the break, not on the OpenCL CPU device.
-  [REMAINING_WORK.md](REMAINING_WORK.md) lists the runs that settle this.
-
-## 1. Get a CUDA-capable build
+### Get a CUDA-capable build
 
 The default build emits SPIR-V and JITs it, and that never reaches an NVIDIA GPU: NVIDIA's
 OpenCL driver does not implement `clCreateProgramWithIL`, so it cannot take SPIR-V. A binary
@@ -81,14 +46,10 @@ The flag cannot check two prerequisites:
   floor even where the flag is accepted.
 
 Configure prints the active targets either way, so an unreachable device is known at build time.
-
 Expected: configure prints `SushiBLAS: AOT device targets = spir64;nvidia_gpu_sm_86` and the
-build succeeds. Both builds behind section 0 produced a binary that reached the card; what
-configure printed for them was not kept.
+build succeeds.
 
-If the build fails here, nothing below applies. Report the driver error; do not work around it.
-
-## 2. Confirm the device profile is what the kernels assume
+### Confirm the device profile is what the kernels assume
 
 Every architecture decision in this library goes through `SushiBLAS::Device::Profile`
 (`modules/foundation/launch/include/SushiBLAS/launch/device_policy.hpp`). On the development CPU it reports
@@ -102,9 +63,9 @@ count.
 back false on a GPU, the dispatch is inverted and everything below runs the CPU shape without
 saying so.
 
-## 3. Claims that were derived, not measured
+### Claims that were derived, not measured
 
-### 3.1 GEMM bank-conflict arithmetic
+#### GEMM bank-conflict arithmetic
 
 `modules/kernels/blas_seam_kernels/include/SushiBLAS/blas_seam_kernels/sycl/level3/gemm.hpp` uses a padded tile (`K_TILE_K + 1 = 17`)
 and a strided ownership lattice in place of contiguous ownership. The reasoning, for 32 banks of
@@ -120,7 +81,7 @@ and a strided ownership lattice in place of contiguous ownership. The reasoning,
 
 Unverified. `ncu --metrics l1tex__data_bank_conflicts_pipe_lsu_mem_shared` measures it directly.
 
-### 3.1a When an axis reduction switches to a work-group per segment
+#### When an axis reduction switches to a work-group per segment
 
 `Reduce::plan_axis` (`modules/foundation/reduction/include/SushiBLAS/reduction/reduce_axis.hpp`) picks between one work-item
 per segment and one work-group per segment. It takes the item-per-segment shape whenever there
@@ -157,7 +118,7 @@ be measured cannot be justified.
 Column-wise (axis 0) reductions do not have this problem in either shape: consecutive segments
 are adjacent in memory, so consecutive work-items read consecutive addresses.
 
-### 3.2 Register pressure on the 8×8 block
+#### Register pressure on the 8×8 block
 
 The register block is 8×8 for 4-byte types, 256 bytes of accumulator, which matches portBLAS's
 `Tile<8,8,8,8>` default, and 4×4 for wider types. A block that spills its accumulator to local
@@ -171,7 +132,7 @@ Read the register and spill counts of each kernel. A spill count above zero on t
 means the 8×8 block is too wide for the architecture, and the byte budget of
 `Detail::register_block_dim` should come down.
 
-### 3.3 The speed of the tiled GEMM on scratchpad memory is unmeasured
+#### The speed of the tiled GEMM on scratchpad memory is unmeasured
 
 `gemm_local_tiled` ran on the development machine: the OpenCL CPU device reports enough
 `local_mem_size` for two tests to call it directly. That shows it compiles, launches,
@@ -181,7 +142,7 @@ combinations.
 It is a correctness result. It says nothing about speed on real scratchpad hardware, and speed
 there is the reason the variant exists.
 
-### 3.4 The tiled GEMM is slower at order 2048
+#### The tiled GEMM is slower at order 2048
 
 The tiled GEMM stages each tile into one local buffer, with 16-byte loads of whole aligned blocks.
 On the RTX 3080 Ti it is 18 to 42 % faster than the scalar kernel it replaced up to order 1024 in
@@ -191,12 +152,12 @@ order slower, and two local buffers made 2048 slower still, so neither is the ca
 candidates left are the contiguous-axis staging order and the whole-tile path; a register and
 occupancy read of the compiled kernel, under RW-92, decides between them.
 
-## 4. Code paths the development CPU never took
+### Code paths the development CPU never took
 
-The runs of section 0 were on a GPU, where this section expects both paths to be taken. Which
-paths those runs took was not recorded, so the two items stay open until a run prints it.
+The GPU runs expect both paths to be taken. Which paths those runs took was not recorded, so the
+two items stay open until a run prints it.
 
-### 4.1 The 128-bit vector path
+#### The 128-bit vector path
 
 `modules/foundation/launch/include/SushiBLAS/launch/launch_1d.hpp` issues `sycl::vec<T, W>` loads and stores where
 `Device::vector_width` says a wide access pays. That function returns 1 on a CPU by design: the
@@ -208,7 +169,7 @@ On a GPU it runs for every 4-byte and 8-byte elementwise, nonlinear and logic op
 numerical agreement against a CPU run first. A wrong wide path is most likely to show at a size
 that is not a multiple of the vector width, where the scalar tail takes over.
 
-### 4.2 The grid-stride launch shape
+#### The grid-stride launch shape
 
 On a CPU the library takes a flat `range<1>`, because that measured about 19% faster there at
 1M elements and a CPU has nothing to hold resident. The grid-stride `nd_range` path, with
@@ -217,7 +178,7 @@ unmeasured.
 
 If elementwise operations underperform, that constant is the first thing to change.
 
-## 5. The determinism claim
+### The determinism claim
 
 Of the claims on this page, this one is the most likely to break on a GPU.
 
@@ -225,7 +186,7 @@ SushiBLAS links `sushiruntime_deterministic_fp` `PUBLIC`, and its guarantee is b
 equality for the same binary on the same device. SushiAI has regression tests that check it:
 two identical training runs compared as raw bytes, with no tolerance.
 
-Those tests pass on the development CPU. No run of them on a GPU is recorded here.
+Those tests pass on the development CPU. No run of them on a GPU is recorded.
 
 Three things were done so that they keep passing there:
 
@@ -256,64 +217,52 @@ sa test --suite regression
 `Regression_Determinism` holds the tests in question: two SGD runs, two AdamW runs,
 initialisation, the dataset and a bare replay of a compiled step, all compared byte for byte.
 
-If one of them fails on a GPU, report which one and at which byte. Do not re-record the
-expectation.
-
 One limit was already found on the CPU. With compensation removed, the sequential `single_task`
 fallback returned a wrong but reproducible answer, because the OpenCL CPU JIT vectorised and
 reassociated the loop. The same binary on the same device still gives the same bits, so the
 contract holds. The code cannot claim that one work-item means index order, and the comment at
 that branch says so.
 
-## 6. Full validation run
+### Full validation run
 
 ```bash
 # SushiBLAS
 sb build --type release -D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86"
-sb test --suite all          # 403/403 on the development CPU, 2026-08-03
+sb test --suite all
 
 # SushiAI (builds SushiBLAS from source as a subdirectory)
 sa build --type release -D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86"
-sa test --suite all          # 582/582 when last recorded here; not re-run since,
-                              # and this repo has gained tests since, so expect more
+sa test --suite all
 sa demo mlp
 ```
 
 The demo must report `compiles: 1`, a loss that falls from `ln C` toward zero, and 100% accuracy
 on the synthetic problem. `compiles: 1` means one lowering, one compile and N replays, which is
-what the architecture assumes.
+what the architecture assumes. A GPU figure for `ms/step` would be this project's first speed
+figure from a GPU; the CPU baseline is in the GPU runs report.
 
-A GPU figure for `ms/step` would be this project's first speed figure from a GPU. The CPU
-baseline is about 7.5 ms/step on a 12-core Ryzen for a 32→128→6 MLP at batch 32.
+### Items that are not GPU-specific
 
-## 7. Items that are not GPU-specific
+The open items that are not GPU-specific are in [`REMAINING_WORK.md`](REMAINING_WORK.md), under
+"Kernels and reductions", so that a GPU run is not blamed for them. The log-softmax fix, whose
+measurements other documents cite, is in the GPU runs report.
 
-The open items this section listed are in [`REMAINING_WORK.md`](REMAINING_WORK.md), under
-"Kernels and reductions", so that a GPU run is not blamed for them. One closed item stays here
-because other documents cite its measurements.
+## Phases
 
-Log-softmax returned `+inf` for a row far below the batch maximum, and is fixed. The shift used
-the global maximum; it now uses a per-row maximum, computed by `ReductionOps::max_along`. The
-measurement was repeated on binary32, on a [2, 3] input whose true log-probabilities run from
-−0.41 to −2.41. The quantity below is the worst absolute deviation of the row's
-log-probabilities from the answer the same code gives at a gap of 0. It is the one figure
-measured on both sides, by the `EXPECT_EQ` of
-`Regression_LogSoftmaxStability.TheAnswerDoesNotDependOnTheGapAtAll`:
+| Id | Phase | State |
+| --- | --- | --- |
+| G1 | A CUDA-capable build reaches the card | built |
+| G2 | Confirm the device profile on the card (RW-23) | planned |
+| G3 | Measure the tiled GEMM's bank conflicts and register spill (RW-24) | planned |
+| G4 | Run the 128-bit vector path and the grid-stride launch (RW-25) | planned |
+| G5 | Measure where an axis reduction switches to a work-group per segment (RW-26) | planned |
+| G6 | Run SushiAI's determinism regressions on the GPU (RW-27) | planned |
+| G7 | Run the full validation run with a profiled `ms/step` | planned |
+| G8 | The reference sums in double or compensated, after the SYMV parity failure | built |
+| G9 | Log-softmax with a per-row shift | built |
 
-| Gap between the row and the batch maximum | Global shift, before | Per-row shift, after |
-| ---: | ---: | ---: |
-| 90 | 2.15e−06 | 0, exactly |
-| 100 | 2.70e−02 | 0, exactly |
-| 104 | `inf` | 0, exactly |
-| 200 | `inf` | 0, exactly |
+## Open questions
 
-The after column is zero at every gap because the gap does not enter the arithmetic, and the
-assertion is an equality for that reason.
-
-Measured against the hand-computed expectation, and not against the answer at gap 0, the
-gap-100 case came out 2.7033e−02 off, which is 6.6% of the largest true log-probability
-(−0.40761). That is the "about 7% low at 100" an earlier text of this entry recorded.
-
-The residual at the gaps that pass is not stated on either side, because it was not measured: a
-passing `EXPECT_NEAR` bounds it under 1e−4 and says no more. An earlier revision of this entry
-and of the test's header both carried invented figures for it.
+- Does the 2048-order slowdown of the tiled GEMM come from the contiguous-axis staging order or
+  from the whole-tile path? RW-92 decides it.
+- Does a row-wise reduction over a batch need a sub-group-per-segment shape on a GPU?

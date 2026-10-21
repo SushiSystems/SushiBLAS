@@ -2,12 +2,26 @@
 
 **Status:** Shipped — 2026-10-09
 
-The estate audit of 2026-10-05 asked for a record of three properties of the public interface
-that depart from the house C++ style (findings C15 and C21 of
-`docs/agent/2026_10_05_ESTATE_AUDIT/REPORT.md`). This page states each as it stands in the tree
-and gives the reason where one is recorded.
+## Problem
 
-## 1. SYCL types are part of the interface
+Three properties of the public interface depart from the house C++ style: SYCL types in the
+interface, exceptions where the style asks for statuses, and kernel headers that are installed.
+The estate audit of 2026-10-05 asked for each to be recorded with its reason (findings C15 and
+C21 of `docs/agent/2026_10_05_ESTATE_AUDIT/REPORT.md`).
+
+## Decision
+
+The owner decided each case on 2026-10-09:
+
+- SYCL types stay part of the interface, because the dispatch seams inline a caller's functor
+  into a SYCL kernel.
+- A failure is an exception, except for a file, which is a returned `IOStatus`.
+- A kernel is installed only when a dispatch seam inlines a caller's functor into it.
+- `Tensor::storage` stays a public field.
+
+## Design
+
+### SYCL types are part of the interface
 
 | Where | SYCL type |
 | --- | --- |
@@ -25,14 +39,13 @@ What it costs a consumer is in [the integration guide](../guides/INTEGRATION.md)
 every translation unit that includes a SushiBLAS header needs the SYCL compiler, and `-fsycl` is
 a `PUBLIC` option of `SushiBLAS::sushiblas`.
 
-## 2. A failure is an exception, except for a file
+### A failure is an exception, except for a file
 
 A record call throws before a task reaches the graph. The four types and what throws each are
 in [the architecture, section 11](../architecture/EXCEPTIONS.md).
 
 The house style asks for a `[[nodiscard]]` status where an operation fails for a reason outside
-the program, and for no exception across a module's public surface. The owner decided each case
-on 2026-10-09:
+the program, and for no exception across a module's public surface:
 
 | Failure | Mechanism | Reason |
 | --- | --- | --- |
@@ -40,7 +53,7 @@ on 2026-10-09:
 | A file that is missing, damaged or of another shape | `IOStatus`, returned | A failure outside the program, which a caller handles on every call |
 | Tensor creation: a rule of the shape, or a failed allocation | `std::runtime_error` | Every record call already throws, so a status here would give one caller two mechanisms, and each of the tree's 1 120 creation calls would unwrap a result to catch the one outside failure, an exhausted device |
 
-## 3. Some kernels are installed and the rest are private
+### Some kernels are installed and the rest are private
 
 | Folder | Installed | Holds |
 | --- | --- | --- |
@@ -58,8 +71,17 @@ caller's functor into it.
 `tools/layering/check_tier_contents.py` holds the include direction: a kernel includes neither
 `Engine`, `engine/` nor the tensor header.
 
-## 4. Members that stay public
+### Members that stay public
 
-`Tensor::storage`, a `SushiRuntime::sushi_ptr<Storage>`, stays a public field by the owner's
-decision of 2026-10-09: `Tensor` is a value type that carries plain data, and the kernels and
-SushiAI read the field directly.
+`Tensor::storage`, a `SushiRuntime::sushi_ptr<Storage>`, stays a public field: `Tensor` is a
+value type that carries plain data, and the kernels and SushiAI read the field directly.
+
+## Phases
+
+| Id | Phase | State |
+| --- | --- | --- |
+| P1 | Record the three properties and their reasons | built |
+
+## Open questions
+
+None.

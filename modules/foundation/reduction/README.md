@@ -73,7 +73,7 @@ fold starts at, so the fold order *within* a segment did not move and no combina
 was introduced.
 
 That is an argument from what the code does, not a measurement of a GPU: the same limit
-`reduce_1d.hpp` records for itself. See `docs/design/GPU_VALIDATION.md` §5.
+`reduce_1d.hpp` records for itself. See `docs/design/GPU_VALIDATION.md`, "The determinism claim".
 
 **No scratch buffer, and that is structural rather than lucky.** A whole-tensor reduction needs one
 because its work-groups all contribute to a single answer and something has to hold the partials
