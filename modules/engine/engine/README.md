@@ -385,7 +385,9 @@ name and for a class outside the enum. `IndexOps`, `SignalOps` and `BlendOps` ta
 
 `OperandSet` is what an operation declares about one task. `reads`, `writes` and `updates` take a
 tensor, append its `Tensor::region()` to the read list, the write list or both, and retain its
-storage; a tensor without storage adds nothing. `scratch` declares a `ScratchBuffer` as written
+storage; a tensor without storage adds nothing. `updates` is how a task states that it reads what
+it writes: SushiRuntime has no read-write intent of its own and reads a region in both lists as
+one. `functor_map`'s `bind_updates` declares through it. `scratch` declares a `ScratchBuffer` as written
 and retains its block's storage. `merge` adds another set's declarations, which is how a GEMM
 epilogue's operands join the task's. The recorder reads the two region lists for the dependency
 tracker, `retained()` for the keep-alive, `owner_liveness()` for the owners of borrowed storage

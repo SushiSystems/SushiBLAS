@@ -14,6 +14,7 @@ It depends on `core`, `support`, `tensor` and `engine`. Its headers are included
 | `read_binding.hpp` | The binding that declares the tensors an element functor reads and hands them to it as typed pointers |
 | `scalar.hpp` | ElementScalar, a double operation parameter narrowed once to every element type |
 | `scalar_binding.hpp` | The binding that narrows an operation's scalar parameters on the host before its functor reaches a kernel |
+| `update_binding.hpp` | The binding that declares the tensors an element functor reads and writes in place and hands them to it as typed pointers |
 | `write_binding.hpp` | The binding that declares the tensors an element functor writes and hands them to it as typed pointers |
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
@@ -35,7 +36,10 @@ things:
   be a `bind_scalars` bundle, and its scalars then come last;
 - a `bind_writes(bind_reads(fn, ...), write_as_element(t0), write_as<U>(t1), ...)` bundle, whose
   tensors the seam checks, declares as written on the task and passes as writable typed pointers
-  after the read pointers: `fn(elements..., reads..., writes..., scalars...)`.
+  after the read pointers: `fn(elements..., reads..., writes..., scalars...)`;
+- a `bind_updates(bind_reads(fn, ...), update_as_element(t0), update_as<U>(t1), ...)` bundle,
+  whose tensors the seam checks, declares as read and written and passes as writable typed
+  pointers between the read and the write pointers. Only `IndexOps` takes the last two.
 
 ### `functor_map/map_task.hpp`
 
@@ -98,14 +102,43 @@ caller.
 The seam calls `require_declared_reads` and `require_declared_writes`, then `declare_reads` and
 `declare_writes` in that order, and records `task_functor` with the kernel built by `kernel_op`.
 A bundle that declares writes does not suit the elementwise, nonlinear and logic seams, which
-write their own output.
+write their own output. A write that overlaps a region the task already writes is refused; before
+`declare_writes` runs, the only such regions are the task's updates.
 
-`element_dtype_of` returns the dtype of the first `read_as_element` or `write_as_element` tensor of a
-bundle, reads before writes, for a seam that has no tensor of its own to take the element type from.
+`element_dtype_of` returns the dtype of the first `read_as_element`, `update_as_element` or
+`write_as_element` tensor of a bundle, in that order, for a seam that has no tensor of its own to take the element type from.
 `IndexOps` is the one caller.
 
 The kernel functor is narrowed by `narrow_for`, which calls the `narrow<T>()` member of any op that
 has one, as `ScalarBound` and `WriteAddressedOp` do.
+
+### `functor_map/update_binding.hpp`
+
+`bind_updates` declares the tensors a functor reads and writes in place: `update_as_element(t)`
+names one as an array of the operation's element type and `update_as<U>(t)` one as an array of
+`U`. Both take a tensor that outlives the call. A write alone is not enough for such a tensor:
+SushiRuntime's distributed layer pins a write-only buffer on the worker without pulling its
+contents (its worker buffer cache allocates an output and pulls only inputs), so a kernel that reads it there sees
+stale or uninitialised bytes. An update reaches the task through `OperandSet::updates`, as one
+region read and one written.
+
+The call order is `bind_writes(bind_updates(bind_reads(fn, reads...), updates...), writes...)`,
+and the functor takes `fn(i, reads..., updates..., writes...)`: inputs, then the tensors read and
+written, then the outputs. Each layer appends its pointers after those of the layer it wraps, so
+this order needs no new mechanism. `bind_updates` refuses to wrap a `bind_writes` or another
+`bind_updates` bundle at compile time.
+
+- `UpdateBound::require` applies the checks of a read under the operand name `update k`.
+- `UpdateBound::declare_into` runs after `declare_reads` and before `declare_writes`. It refuses an
+  update that overlaps any region the task reads or writes, or another update of the bundle,
+  even when the region is the same: a tensor read and updated would reach the functor through two
+  pointers.
+- The task keeps a `WriteAddressedOp` for the updates, inside the reads' `AddressedOp` and around
+  the writes' `WriteAddressedOp`.
+
+`Detail::IsWriteBound` is true for an update bundle, so the elementwise, nonlinear and logic seams
+refuse it as they refuse a write bundle. A seam that takes updates calls
+`require_declared_updates` and `declare_updates` between the read and the write calls.
 
 ## `functor_map/index_task.hpp`
 

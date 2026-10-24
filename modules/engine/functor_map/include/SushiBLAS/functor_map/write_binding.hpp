@@ -240,8 +240,39 @@ namespace SushiBLAS
                 std::array<void*, sizeof...(Writes)> addresses_;
         };
 
+        /**
+         * @brief Holds an element functor and the tensors it reads and writes in place;
+         *        update_binding.hpp defines it.
+         * @see modules/operations/MATH_README.md
+         */
+        template<typename Inner, typename... Updates>
+        class UpdateBound;
+
         namespace Detail
         {
+            /** @brief Returns an update bundle's element dtype; defined in update_binding.hpp. */
+            template<typename Inner, typename... Updates>
+            [[nodiscard]] inline std::optional<Core::DataType> element_dtype_of(
+                const UpdateBound<Inner, Updates...>& bound) noexcept;
+
+            /** @brief Checks the reads an update bundle wraps; defined in update_binding.hpp. */
+            template<typename Inner, typename... Updates>
+            inline void require_declared_reads(const UpdateBound<Inner, Updates...>& bound,
+                                               Core::DataType element, const char* name);
+
+            /** @brief Adds the reads an update bundle wraps; defined in update_binding.hpp. */
+            template<typename Inner, typename... Updates>
+            inline void declare_reads(const UpdateBound<Inner, Updates...>& bound,
+                                      OperandSet& operands, const char* name);
+
+            /**
+             * @brief Returns the bundle's update and read addresses around make(fn); defined in
+             *        update_binding.hpp.
+             */
+            template<typename Inner, typename... Updates, typename Make>
+            [[nodiscard]] inline auto address_around(const UpdateBound<Inner, Updates...>& bound,
+                                                     const Make& make);
+
             /**
              * @brief Returns make(op) for a functor that declares no reads.
              * @param make Callable that wraps a functor into a WriteAddressedOp.
@@ -302,14 +333,21 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Declares every write in operands, after the task's reads were declared.
-                 *        A tensor already read keeps its read and gains one write; a tensor named
-                 *        twice is declared once.
+                 * @brief Declares every write in operands, after the task's reads and updates were
+                 *        declared. A tensor already read keeps its read and gains one write; a
+                 *        tensor named twice is declared once.
                  * @throws std::invalid_argument for a write that overlaps a region the task reads
-                 *         without being that region.
+                 *         without being that region, or any region the task updates.
                  */
                 void declare_into(OperandSet& operands, const char* name) const
                 {
+                    Detail::require_bound_disjoint<sizeof...(Writes)>(
+                        "write", tensor_at(), operands.write_regions(),
+                        [](const SushiRuntime::BufferRegion&, const SushiRuntime::BufferRegion&)
+                        {
+                            return false;
+                        },
+                        "overlaps a tensor the operation updates", name);
                     Detail::require_bound_disjoint<sizeof...(Writes)>(
                         "write", tensor_at(), operands.read_regions(),
                         [](const SushiRuntime::BufferRegion& own,

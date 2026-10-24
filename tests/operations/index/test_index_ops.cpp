@@ -384,6 +384,122 @@ namespace SushiBLAS
             EXPECT_EQ((*tasks)[1].dependency_count, std::size_t{1});
         }
 
+        TEST_F(Medium_IndexOps, AnUpdateIsOrderedAfterAnEarlierWriterAndBeforeALaterReader)
+        {
+            GraphProbe probe(ExecutionMode::ForceReference);
+            IndexOps index(probe.recorder());
+            Tensor x = engine->create_tensor({4}, Core::DataType::Float32);
+            Tensor sink = engine->create_tensor({4}, Core::DataType::Float32);
+
+            index.for_each(4,
+                           Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
+                                                 Dispatch::write_as<float>(x)),
+                           OperationOptions{"fill_x", SushiRuntime::Determinism::Bitwise});
+            index.for_each(4,
+                           Dispatch::bind_updates([](std::size_t i, float* p) { p[i] += 1.0f; },
+                                                  Dispatch::update_as<float>(x)),
+                           OperationOptions{"bump_x", SushiRuntime::Determinism::Bitwise});
+            index.for_each(4,
+                           Dispatch::bind_writes(
+                               Dispatch::bind_reads([](std::size_t i, const float* in, float* p)
+                                                    { p[i] = in[i]; },
+                                                    Dispatch::read_as<float>(x)),
+                               Dispatch::write_as<float>(sink)),
+                           OperationOptions{"copy_x", SushiRuntime::Determinism::Bitwise});
+
+            const SushiRuntime::Result<std::vector<RecordedTask>> tasks = probe.recorded_tasks();
+            ASSERT_TRUE(tasks);
+            ASSERT_EQ(tasks->size(), std::size_t{3});
+            EXPECT_EQ((*tasks)[1].name, "bump_x");
+            EXPECT_EQ((*tasks)[1].reads.size(), std::size_t{1});
+            EXPECT_EQ((*tasks)[1].writes.size(), std::size_t{1});
+            EXPECT_EQ((*tasks)[0].dependency_count, std::size_t{0});
+            EXPECT_EQ((*tasks)[1].dependency_count, std::size_t{1});
+            EXPECT_EQ((*tasks)[2].dependency_count, std::size_t{1});
+        }
+
+        TEST_F(Medium_IndexOps, AnUpdateHandsTheFunctorThePreviousContentsBetweenReadsAndWrites)
+        {
+            for (const ExecutionMode mode :
+                 {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
+            {
+                set_mode(mode);
+                IndexOps index(recorder());
+                Tensor w = engine->create_tensor({4}, Core::DataType::Float32);
+                Tensor x = engine->create_tensor({4}, Core::DataType::Float32);
+                Tensor before = engine->create_tensor({4}, Core::DataType::Float32);
+                for (std::int64_t i = 0; i < 4; ++i)
+                {
+                    w.data_as<float>()[i] = 0.25f;
+                    x.data_as<float>()[i] = 0.5f * static_cast<float>(i);
+                    before.data_as<float>()[i] = -1.0f;
+                }
+
+                const auto step = [](std::size_t i, const float* weight, auto* value, float* old)
+                {
+                    using Element = std::remove_pointer_t<decltype(value)>;
+                    const float current = static_cast<float>(value[i]);
+                    old[i] = current;
+                    value[i] = static_cast<Element>(2.0f * current + weight[i]);
+                };
+                index.for_each(4,
+                               Dispatch::bind_writes(
+                                   Dispatch::bind_updates(
+                                       Dispatch::bind_reads(step, Dispatch::read_as<float>(w)),
+                                       Dispatch::update_as_element(x)),
+                                   Dispatch::write_as<float>(before)),
+                               OperationOptions{"step_x", SushiRuntime::Determinism::Bitwise});
+
+                EXPECT_TRUE(recording->run_succeeds());
+                EXPECT_EQ(bits_of(read_tensor<float>(before)),
+                          bits_of(std::vector<float>{0.0f, 0.5f, 1.0f, 1.5f}));
+                EXPECT_EQ(bits_of(read_tensor<float>(x)),
+                          bits_of(std::vector<float>{0.25f, 1.25f, 2.25f, 3.25f}));
+            }
+        }
+
+        TEST_F(Medium_IndexOps, AnUpdateThatOverlapsAnotherOperandIsRefused)
+        {
+            GraphProbe probe(ExecutionMode::ForceReference);
+            IndexOps index(probe.recorder());
+            Tensor x = engine->create_tensor({4}, Core::DataType::Float32);
+            Tensor head = x.slice(0, 0, 2);
+            const OperationOptions options{"overlap", SushiRuntime::Determinism::Bitwise};
+
+            EXPECT_THROW(index.for_each(4,
+                                        Dispatch::bind_updates(
+                                            Dispatch::bind_reads(
+                                                [](std::size_t, const float*, float*) {},
+                                                Dispatch::read_as<float>(x)),
+                                            Dispatch::update_as<float>(x)),
+                                        options),
+                         std::invalid_argument);
+            EXPECT_THROW(index.for_each(4,
+                                        Dispatch::bind_writes(
+                                            Dispatch::bind_updates(
+                                                [](std::size_t, float*, float*) {},
+                                                Dispatch::update_as<float>(x)),
+                                            Dispatch::write_as<float>(x)),
+                                        options),
+                         std::invalid_argument);
+            EXPECT_THROW(index.for_each(2,
+                                        Dispatch::bind_writes(
+                                            Dispatch::bind_updates(
+                                                [](std::size_t, float*, float*) {},
+                                                Dispatch::update_as<float>(x)),
+                                            Dispatch::write_as<float>(head)),
+                                        options),
+                         std::invalid_argument);
+            EXPECT_THROW(index.for_each(2,
+                                        Dispatch::bind_updates(
+                                            [](std::size_t, float*, float*) {},
+                                            Dispatch::update_as<float>(x),
+                                            Dispatch::update_as<float>(head)),
+                                        options),
+                         std::invalid_argument);
+            EXPECT_EQ(probe.recorded_count(), std::size_t{0});
+        }
+
         TEST_F(Medium_IndexOps, ALateCountTaskWaitsForTheNodeThatWritesTheCount)
         {
             for (const ExecutionMode mode :

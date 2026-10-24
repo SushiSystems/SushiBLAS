@@ -233,6 +233,19 @@ orchestrator ruled that the hold belongs to the graph's owner. `LateCountHold` i
 recorder takes it by reference, and `RecordingGraph` owns one and releases it after a run or a
 discard. A hold shared by several graphs keeps every token until its owner releases it.
 
+## B21
+
+SushiEngine's physics and matter passes read and write their bodies, positions and lambdas, and
+`for_each` could declare them only as writes. SushiRuntime has no read-write intent of its own: a
+region in both the read and the write list is read-write, and a worker pulls only a node's inputs,
+pinning an output to whatever its cache holds (`dispatch_executor.cpp` 483-494,
+`worker_buffer_cache.cpp` 354-377). So a read-modify-write kernel declared as a write alone reads
+stale bytes on a worker. `bind_updates` declares an operand as one read and one write through the
+existing `OperandSet::updates`; a functor takes reads, then updates, then writes; an update may
+overlap no other operand, not even an equal one, so the functor never holds two pointers to one
+tensor. A `for_each` task carries a lambda no worker can register, so no test offloads one; the
+rule matters for registered kernels.
+
 ## Dispatches
 
 ```
@@ -254,6 +267,7 @@ dispatch: B16 — sonnet medium, 44 turns, passed, rung 1
 dispatch: B17 — sonnet medium, 87 turns over two rounds, passed, rung 1
 dispatch: B18 — opus low, 75 turns, passed, rung 1
 dispatch: B19 and B20 — opus low, 158 turns over two rounds, passed, rung 1
+dispatch: B21 — opus low, passed, rung 1
 dispatch: docs-sync after B5 — sonnet medium, 18 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

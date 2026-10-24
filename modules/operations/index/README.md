@@ -6,7 +6,7 @@ on the device or on the host by the execution mode.
 It depends on `core`, `tensor`, `engine` and `functor_map`. Its headers are included as
 `<SushiBLAS/index/<name>.hpp>`. The task body that runs the functor is
 `index_task.hpp` in [`functor_map`](../../engine/functor_map/README.md); the bindings that declare
-the tensors are `read_binding.hpp` and `write_binding.hpp` there.
+the tensors are `read_binding.hpp`, `update_binding.hpp` and `write_binding.hpp` there.
 
 | File | Declares |
 | --- | --- |
@@ -26,10 +26,15 @@ index.for_each(n,
     SushiBLAS::OperationOptions{"pgs_project", SushiRuntime::Determinism::Bitwise});
 ```
 
-The functor is called as `functor(i, reads..., writes...)`. The call takes a `bind_writes` bundle,
-because a task that declares no write is not ordered against anything. The operation's element
-type is the dtype of the first `read_as_element` or `write_as_element` tensor, reads before
-writes. A call with typed bindings only has no element type and runs under `Float32` for the default
+The functor is called as `functor(i, reads..., updates..., writes...)`. The call takes a
+`bind_writes` or a `bind_updates` bundle, because a task that declares no write is not ordered
+against anything. A tensor the functor reads and writes, such as the positions a constraint pass
+corrects, is bound with `update_as_element` or `update_as<U>` in
+`bind_writes(bind_updates(bind_reads(fn, reads...), updates...), writes...)`; it is declared as
+read and written, so the task waits for its last writer and a worker receives its contents. An
+update that overlaps any other operand of the task is refused at record time. The operation's element
+type is the dtype of the first `read_as_element`, `update_as_element` or `write_as_element` tensor,
+in that order. A call with typed bindings only has no element type and runs under `Float32` for the default
 `Domain::Real`. The `Dom` template argument names the families a generic functor is well-formed
 for, as it does for the elementwise seams; the default is `Domain::Real`.
 

@@ -24,4 +24,5 @@ sushiblas_add_test_program(
         test_read_binding/test_read_binding.cpp
         test_scalar.cpp
         test_scalar_binding.cpp
+        test_update_binding.cpp
         test_write_binding.cpp)

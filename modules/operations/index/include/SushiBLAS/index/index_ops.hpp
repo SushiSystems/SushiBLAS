@@ -41,6 +41,7 @@
 #include <SushiBLAS/functor_map/index_task.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
 #include <SushiBLAS/functor_map/write_binding.hpp>
+#include <SushiBLAS/functor_map/update_binding.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
@@ -62,9 +63,9 @@ namespace SushiBLAS
             ~IndexOps() = default;
 
             /**
-             * @brief Records one task that calls `functor(i, reads..., writes...)` for each i below count.
+             * @brief Records one task that calls `functor(i, reads..., updates..., writes...)` per i.
              * @tparam Dom The element families a generic functor is well-formed for.
-             * @param bound A bind_writes bundle, which may wrap a bind_reads bundle.
+             * @param bound A bind_writes or bind_updates bundle, which may wrap bind_reads.
              * @pre Two indices write one element only when the caller orders them, one call per colour.
              * @throws std::invalid_argument on an empty name or a declared-tensor violation.
              */
@@ -101,7 +102,8 @@ namespace SushiBLAS
                               const OperationOptions& options)
             {
                 static_assert(Dispatch::Detail::IsWriteBound<Bound>::value,
-                              "for_each takes a bind_writes bundle: a task that declares no write "
+                              "for_each takes a bind_writes or bind_updates bundle: a task that "
+                              "declares no write "
                               "is not ordered against anything.");
 
                 Dispatch::require_operation_options(options, "index.for_each");
@@ -112,6 +114,7 @@ namespace SushiBLAS
                                                  .value_or(nominal_dtype<Dom>());
                 Dispatch::require_domain<Dom>(dtype, K_FAMILY, label);
                 Dispatch::Detail::require_declared_reads(bound, dtype, label);
+                Dispatch::Detail::require_declared_updates(bound, dtype, label);
                 Dispatch::Detail::require_declared_writes(bound, dtype, label);
 
                 if (n == 0)
@@ -121,6 +124,7 @@ namespace SushiBLAS
                 if (count != nullptr)
                     operands.reads(*count);
                 Dispatch::Detail::declare_reads(bound, operands, label);
+                Dispatch::Detail::declare_updates(bound, operands, label);
                 Dispatch::Detail::declare_writes(bound, operands, label);
                 if (count != nullptr)
                     require_count_not_written(*count, operands, label);
