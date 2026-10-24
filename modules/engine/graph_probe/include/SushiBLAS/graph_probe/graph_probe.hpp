@@ -32,10 +32,10 @@
 #include <utility>
 #include <vector>
 #include <SushiBLAS/engine/scratch_pool.hpp>
-#include <SushiBLAS/engine/recorded_graph.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiBLAS/engine_fixture/recording_fixture.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
@@ -65,7 +65,7 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Owns a graph, a scratch pool and a recorder over them on the test runtime.
+         * @brief Owns a scratch pool and a recording fixture over it on the test runtime.
          * @see modules/engine/graph_probe/README.md
          */
         class GraphProbe final
@@ -74,8 +74,7 @@ namespace SushiBLAS
                 /** @brief Builds an empty graph whose recorder records under mode. */
                 explicit GraphProbe(ExecutionMode mode = ExecutionMode::Auto)
                     : scratch_pool_(TestEnvironment::runtime()),
-                      graph_(TestEnvironment::runtime()),
-                      recorder_(graph_.recorder(), scratch_pool_, mode)
+                      fixture_(TestEnvironment::runtime(), scratch_pool_, mode)
                 {
 
                 }
@@ -87,7 +86,7 @@ namespace SushiBLAS
                 ~GraphProbe() = default;
 
                 /** @brief Returns the recorder a view or a seam records on this graph through. */
-                [[nodiscard]] TaskRecorder& recorder() noexcept { return recorder_; }
+                [[nodiscard]] TaskRecorder& recorder() noexcept { return fixture_.recorder(); }
 
                 /** @brief Returns the pool tasks recorded here lease their scratch from. */
                 [[nodiscard]] ScratchPool& scratch_pool() noexcept { return scratch_pool_; }
@@ -95,13 +94,13 @@ namespace SushiBLAS
                 /** @brief Returns how many tasks are recorded and have not run. */
                 [[nodiscard]] std::size_t recorded_count() const noexcept
                 {
-                    return graph_.recorded_count();
+                    return fixture_.recorded_count();
                 }
 
                 /** @brief Returns how many tasks wait on the graph and drops them. */
                 [[nodiscard]] std::size_t take_recorded_count()
                 {
-                    return graph_.discard();
+                    return fixture_.discard();
                 }
 
                 /**
@@ -113,10 +112,10 @@ namespace SushiBLAS
                  */
                 [[nodiscard]] SushiRuntime::Result<std::vector<RecordedTask>> recorded_tasks()
                 {
-                    if (graph_.is_empty())
+                    if (fixture_.is_empty())
                         return std::vector<RecordedTask>{};
 
-                    SushiRuntime::Result<SushiRuntime::PlanView> plan = graph_.plan();
+                    SushiRuntime::Result<SushiRuntime::PlanView> plan = fixture_.plan();
                     if (!plan)
                         return SushiRuntime::make_error(std::move(plan.error()));
 
@@ -156,18 +155,15 @@ namespace SushiBLAS
                  */
                 [[nodiscard]] SushiRuntime::Result<void> execute()
                 {
-                    return graph_.run();
+                    return fixture_.run();
                 }
 
             private:
                 /// @brief The pool the recorder hands to operations that lease scratch.
                 ScratchPool scratch_pool_;
 
-                /// @brief The graph the test reads.
-                RecordedGraph graph_;
-
-                /// @brief The recorder bound to the recorder of graph_ and to scratch_pool_.
-                TaskRecorder recorder_;
+                /// @brief The graph the test reads and the recorder over it, bound to scratch_pool_.
+                RecordingFixture fixture_;
         };
     } // namespace Test
 } // namespace SushiBLAS

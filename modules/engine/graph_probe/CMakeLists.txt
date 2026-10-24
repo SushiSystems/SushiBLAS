@@ -11,6 +11,7 @@ sushiblas_add_module(
     INTERNAL
     DEPENDS
         engine
+        engine_fixture
         test_runner)
 
 sushiblas_add_test_program(

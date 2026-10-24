@@ -6,6 +6,7 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — engine_fixture: Added `Test::RecordingFixture`, which owns a runtime graph and a task recorder over it, and rebuilt `GraphProbe` on it in place of the engine's recorded graph (`recording_fixture.hpp`, `graph_probe.hpp`).
 - 2026-10-21 — docs: Reshaped the four design documents into the five sections with a phase table, and moved the module split and GPU run evidence to two work folders (`docs/design/`, `docs/agent/`).
 - 2026-10-20 — docs: Moved 10 known issues with a scheduled fix and no workaround into the backlog entries that fix them (`KNOWN_ISSUES.md`, `REMAINING_WORK.md`).
 - 2026-10-20 — docs: Recorded that SushiEngine's native lane keeps its own BLAS and gains no SYCL-free SushiBLAS build (`LAYERED_EXECUTION.md`).

@@ -204,7 +204,7 @@ README) change in its own commit.
 
 | Id | Phase | State |
 | --- | --- | --- |
-| B1 | A test fixture that owns a runtime graph and a `TaskRecorder` over it; `GraphProbe` rebuilt on it instead of `RecordedGraph`. Done when: every test that uses `GraphProbe` passes with the probe holding no `RecordedGraph`. | planned |
+| B1 | A test fixture that owns a runtime graph and a `TaskRecorder` over it; `GraphProbe` rebuilt on it instead of `RecordedGraph`. Done when: every test that uses `GraphProbe` passes with the probe holding no `RecordedGraph`. | building |
 | B2 | Tests, examples and the package test record on their own graph. Done when: no file outside `modules/engine/engine/` calls `Engine::execute()` or `discard_recorded()`, and the suites pass. Waits on B1. | planned |
 | B3 | `IO` without an engine: host actions on a tensor whose writer has run. Done when: `IO`'s header names no `Engine`, its tests pass with the caller running the graph, RW-4 closes. | planned |
 | B4 | The benchmark harness times a caller's graph. Done when: the harness names no `Engine::execute()` and its benchmarks run. Waits on B1. | planned |
@@ -225,7 +225,7 @@ waves.
 ### Work
 
 <!-- work:begin -->
-No open work.
+- [2026_10_24_LAYERED_EXECUTION](../../agent/2026_10_24_LAYERED_EXECUTION/PLAN.md): B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13
 <!-- work:end -->
 
 ## Open questions
