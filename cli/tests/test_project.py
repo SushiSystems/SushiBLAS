@@ -346,7 +346,7 @@ def test_build_command_forwards_the_benchmarks_option(monkeypatch, args, expecte
     received = []
 
     class _Service:
-        def build(self, build_type, clean, define, benchmarks, sanitize, jobs):
+        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed):
             received.append(benchmarks)
             return 0
 
@@ -363,7 +363,7 @@ def test_build_command_forwards_the_jobs_option(monkeypatch, args, expected):
     received = []
 
     class _Service:
-        def build(self, build_type, clean, define, benchmarks, sanitize, jobs):
+        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed):
             received.append(jobs)
             return 0
 
@@ -372,6 +372,37 @@ def test_build_command_forwards_the_jobs_option(monkeypatch, args, expected):
     result = CliRunner().invoke(cli.app, args)
     assert result.exit_code == 0
     assert received == [expected]
+
+
+@pytest.mark.parametrize(
+    ("args", "expected"),
+    [
+        (["build", "--distributed"], True),
+        (["build", "--no-distributed"], False),
+        (["build"], None),
+    ],
+)
+def test_build_command_forwards_the_distributed_option(monkeypatch, args, expected):
+    """The build command hands the tri-state --distributed option to the service unchanged."""
+    received = []
+
+    class _Service:
+        def build(self, build_type, clean, define, benchmarks, sanitize, jobs, distributed):
+            received.append(distributed)
+            return 0
+
+    monkeypatch.setattr(cli, "_service", lambda: _Service())
+    monkeypatch.setattr(cli, "console", _Console())
+    result = CliRunner().invoke(cli.app, args)
+    assert result.exit_code == 0
+    assert received == [expected]
+
+
+def test_distributed_flags_switch_the_cluster_module():
+    """distributed_flags gives the SB_ENABLE_DISTRIBUTED define, or nothing for None."""
+    assert project.distributed_flags(True) == ["-DSB_ENABLE_DISTRIBUTED=ON"]
+    assert project.distributed_flags(False) == ["-DSB_ENABLE_DISTRIBUTED=OFF"]
+    assert project.distributed_flags(None) == []
 
 
 def test_clean_reports_a_removed_tree(parts, checkout):

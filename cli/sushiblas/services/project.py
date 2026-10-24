@@ -37,6 +37,7 @@ from .test_label import TestLabel, select_labels
 
 K_PACKAGE_CONSUMER = "sushiblas_package_consumer"
 K_BENCHMARKS_VARIABLE = "SB_BUILD_BENCHMARKS"
+K_DISTRIBUTED_VARIABLE = "SB_ENABLE_DISTRIBUTED"
 K_DOXYFILE = Path(".config") / "doxygen" / "Doxyfile"
 K_CLI_DIR = "cli"
 #: Where cmake/SushiBLASTests.cmake places every test and benchmark program, under the build tree.
@@ -83,6 +84,17 @@ def benchmarks_flags(benchmarks: bool | None) -> list[str]:
     return [f"-D{K_BENCHMARKS_VARIABLE}={'ON' if benchmarks else 'OFF'}"]
 
 
+def distributed_flags(distributed: bool | None) -> list[str]:
+    """Returns the -D flag that switches the cluster module and the runtime's distributed layer.
+
+    Args:
+        distributed: True builds them, False stops building them, None leaves the cached value.
+    """
+    if distributed is None:
+        return []
+    return [f"-D{K_DISTRIBUTED_VARIABLE}={'ON' if distributed else 'OFF'}"]
+
+
 @typing.final
 class ProjectService:
     """Builds, tests, runs, cleans and documents one SushiBLAS checkout.
@@ -117,11 +129,13 @@ class ProjectService:
         benchmarks: bool | None = None,
         sanitizer: Sanitizer | None = None,
         jobs: int | None = None,
+        distributed: bool | None = None,
     ) -> int:
         """Configures and builds the project, replacing a tree it cannot reuse.
 
-        *benchmarks* switches the benchmark programs on or off and *sanitizer* sets the
-        sanitizers of host code; None keeps the cached value of either. *jobs* caps the
+        *benchmarks* switches the benchmark programs on or off, *distributed* the cluster
+        module, and *sanitizer* sets the sanitizers of host code; None keeps the cached value
+        of each. *jobs* caps the
         compile jobs run at once; None leaves the count to the generator.
 
         Raises:
@@ -130,8 +144,8 @@ class ProjectService:
             TreeNotRemovedError: A tree that had to go is still there.
             StepFailedError: Configure or compile failed.
         """
-        define_flags = (benchmarks_flags(benchmarks) + sanitize_flags(sanitizer)
-                        + validate_defines(defines))
+        define_flags = (benchmarks_flags(benchmarks) + distributed_flags(distributed)
+                        + sanitize_flags(sanitizer) + validate_defines(defines))
         root = self._find_root()
         cfg = self._load_config()
         cmake_build_type = K_CMAKE_BUILD_TYPE[build_type]

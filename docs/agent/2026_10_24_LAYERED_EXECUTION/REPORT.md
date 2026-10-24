@@ -1,6 +1,6 @@
 # Layered execution in SushiBLAS: report
 
-**Status:** Open — B1, B2, B6, B8, B9 and B11 landed on 2026-10-24; not built yet.
+**Status:** Open — B1, B2, B6, B8, B9, B11 and B12 landed on 2026-10-24; not built yet.
 
 ## B1
 
@@ -75,6 +75,25 @@ since device-resident indices cannot be checked when the call is recorded.
 Seen and kept: signal and blend repeat the dense-rows helper and the kernel structure as the
 family pattern.
 
+## B12
+
+`modules/engine/cluster/` builds under `SB_ENABLE_DISTRIBUTED`, which also turns on SushiRuntime's
+distributed layer. A pack lays its tensors out in one segment per type, in `Core::DataType`
+order, each non-empty segment on a 128-byte boundary; `PackLayout` is its own brick, so a worker
+builds a layout from shapes alone. The fingerprint is a 64-bit FNV-1a over a fixed little-endian
+byte sequence (version, entry count, per entry type, type size, layout, rank, extents, offset and
+size, then each segment and the total); a big-endian host fails to compile. The operation name of
+a remote task is `"<name>:<16 hex digits of the fingerprint>"`, so a worker of another layout
+never advertises it, and `bind_views()` refuses a view count or a size it does not expect. A pack
+allocates shared USM on device 0, so `Cluster::share()` accepts it; gather and scatter record
+through `TaskRecorder::record_pair`. `record_remote()` takes the runtime recorder, since
+`TaskRecorder` has no registered-task path, and cannot keep packs alive: their life is a
+precondition. `ordered_sum()` is not used here; the gradient sum is SushiAI's.
+
+Seen and kept: `PackSpan::as<T>()` uses `Detail::HostDataType` from `tensor`'s internal
+namespace; `tensor_pack.cpp` casts away the const of a scatter target's data. No fingerprint
+golden is pinned yet: the first run gives the value.
+
 ## Dispatches
 
 ```
@@ -83,5 +102,6 @@ dispatch: B2 — sonnet medium, 112 turns, passed, rung 1
 dispatch: B6 — sonnet medium, 46 turns, passed, rung 1
 dispatch: B11 — sonnet medium, 48 turns, passed, rung 1
 dispatch: B9 — sonnet medium, 77 turns, passed, rung 1
+dispatch: B12 — opus low, 99 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

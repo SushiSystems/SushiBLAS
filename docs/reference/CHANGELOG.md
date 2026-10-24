@@ -6,6 +6,8 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — cluster: Added the cluster module, built under `SB_ENABLE_DISTRIBUTED`, which packs tensors by type and records them as a registered task for a worker (`tensor_pack.hpp`, `cluster_binding.hpp`, `remote_task.hpp`).
+- 2026-10-24 — cli: Added `sb build --distributed`, which sets `SB_ENABLE_DISTRIBUTED` and builds SushiRuntime's distributed layer under it (`project.py`, `cli.py`).
 - 2026-10-24 — blend: Added the `BlendOps` family with `blend_transforms()`, the weighted blend of indexed 4×4 or 3×4 transforms applied to points, with a reference and a SYCL kernel (`blend.hpp`, `blend_transforms.cpp`).
 - 2026-10-24 — signal: Added the `SignalOps` family with `convolve_1d()`, a valid-mode 1-D convolution over batched rows with a reference and a SYCL kernel, for the three float types (`signal.hpp`, `convolve_1d.cpp`).
 - 2026-10-24 — elementwise: Added `ElementwiseOps::ordered_sum()`, one kernel that adds up to 32 weighted tensors in index order, `Half` in `Float32` and integers wrapping with weight 1 (`ordered_sum.cpp`).

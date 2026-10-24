@@ -8,6 +8,9 @@
 add_subdirectory(engine)
 add_subdirectory(operands)
 add_subdirectory(functor_map)
+if(SB_ENABLE_DISTRIBUTED)
+    add_subdirectory(cluster)
+endif()
 
 # Test-only modules: a test program includes them, the library never does.
 if(SB_BUILD_TESTS)

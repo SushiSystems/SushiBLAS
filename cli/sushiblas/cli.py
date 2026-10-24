@@ -76,6 +76,7 @@ def _exit_with(step: Callable[[], int]) -> NoReturn:
            "sb build --type debug  # Build with debug settings\n"
            "sb build --clean  # Start from an empty build tree\n"
            "sb build --benchmarks  # Also build the benchmark programs\n"
+           "sb build --distributed  # Also build the cluster module\n"
            "sb build --jobs 4  # Run at most 4 compile jobs at once\n"
            "sb build --sanitize address-undefined  # Instrument host code with ASan and UBSan\n"
            "sb build -D SB_ENABLE_LOGGING=OFF  # Pass a CMake cache variable through",
@@ -91,6 +92,10 @@ def build(
         None, "--benchmarks/--no-benchmarks",
         help="Build the benchmark programs under tests/, or stop building them. "
              "Left out, the setting of the last build stays."),
+    distributed: Optional[bool] = typer.Option(
+        None, "--distributed/--no-distributed",
+        help="Build the cluster module over SushiRuntime's distributed layer, or stop "
+             "building it. Left out, the setting of the last build stays."),
     sanitize: Optional[Sanitizer] = typer.Option(
         None, "--sanitize", case_sensitive=False,
         help="Sanitizers for host code: none | address-undefined | thread. "
@@ -116,7 +121,7 @@ def build(
 
     def step() -> int:
         """Builds and announces success."""
-        rc = _service().build(type, clean, define, benchmarks, sanitize, jobs)
+        rc = _service().build(type, clean, define, benchmarks, sanitize, jobs, distributed)
         console.success("Build completed successfully!")
         return rc
 

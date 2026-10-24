@@ -52,6 +52,7 @@ set(SUSHIBLAS_MODULE_LAYERS
     engine              engine
     operands            engine
     functor_map         engine
+    cluster             engine
     engine_fixture      engine
     execution_mode_sweep engine
     graph_probe         engine
@@ -89,6 +90,7 @@ set(SUSHIBLAS_SAME_LAYER_EDGES
     sparse_kernels      blas_kernels
     operands            engine
     functor_map         engine
+    cluster             engine
     blas_test_oracle    core
     packed_product_harness blas_seam_kernels
     test_runner         core

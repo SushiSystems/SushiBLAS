@@ -21,6 +21,10 @@ include(Toolchain)  # pick the default SYCL compiler (clang++) before the probe
 project(SushiBLAS VERSION 0.1.0 LANGUAGES CXX C)
 
 # --- Post-project: runtime dependency (D3 layered resolution, SB-0), SYCL policy
+option(SB_ENABLE_DISTRIBUTED "Build the cluster module over SushiRuntime's distributed layer" OFF)
+if(SB_ENABLE_DISTRIBUTED)
+    set(SR_ENABLE_DISTRIBUTED ON CACHE BOOL "Build SushiRuntime's distributed layer" FORCE)
+endif()
 include(SushiBLASSushiLog)  # SushiLog::SushiLog, before the runtime links it
 include(Runtime)     # add_subdirectory(sushiruntime) -> SushiRuntime::SushiRuntime,
                       # add_sycl_to_target(), SR_SYCL_TOOLCHAIN

@@ -215,7 +215,7 @@ README) change in its own commit.
 | B9 | `BlendOps::blend_transforms`, in a family of its own (`modules/operations/blend/`, `modules/kernels/blend_kernels/`), as the owner ruled on 2026-10-24 for the same reason as B8. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | building |
 | B10 | A node recorded inside a runtime scope carries its class and key. Done when: the test reads the scope's class and key from a SushiBLAS node. Waits on `sushiruntime` R2. | planned |
 | B11 | `ordered_sum()`. Done when: it equals a serial sum bit for bit for each of the seven types, and refuses a weighted integer sum. | building |
-| B12 | The `cluster` module and `SB_ENABLE_DISTRIBUTED`. Done when: a pack of every type round-trips through a worker on `InProcessFabric` with its fingerprint checked. Waits on B11. | planned |
+| B12 | The `cluster` module and `SB_ENABLE_DISTRIBUTED`. Done when: a pack of every type round-trips through a worker on `InProcessFabric` with its fingerprint checked. Waits on B11. | building |
 | B13 | The runtime pin moves to the tag that carries R1 to R10. Done when: the build resolves that tag; KI-26 closes with RW-89. Waits on `sushiruntime` R10. | planned |
 
 B5 waits on SushiAI's A0, which moves SushiAI's two execution helpers and four tests off the

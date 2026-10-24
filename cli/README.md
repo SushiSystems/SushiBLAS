@@ -87,6 +87,7 @@ sb build --type debug     # Debug build
 sb build --type relwithdebinfo
 sb build --clean          # delete the build tree first, then build from scratch
 sb build --benchmarks     # also build the benchmark programs (--no-benchmarks stops)
+sb build --distributed    # also build the cluster module (--no-distributed stops)
 sb build --jobs 4         # run at most 4 compile jobs at once
 ```
 
@@ -125,6 +126,7 @@ The options SushiBLAS itself defines:
 | `SB_BUILD_TESTS` | `ON` at the top level, `OFF` under a consumer | Build and register the test program of each module from its mirror under `tests/`. |
 | `SB_BUILD_EXAMPLES` | `ON` at the top level, `OFF` under a consumer | Build the example programs under `applications/examples/`. |
 | `SB_BUILD_BENCHMARKS` | `OFF` | Build the benchmark programs of the modules under `tests/`; `sb build --benchmarks` sets it. |
+| `SB_ENABLE_DISTRIBUTED` | `OFF` | Build `modules/engine/cluster/` and SushiRuntime's distributed layer under it; `sb build --distributed` sets it. |
 | `SB_SANITIZE` | *(empty)* | Sanitizers for host code, as `-fsanitize=` takes them; `sb build --sanitize` sets it. |
 | `SB_NATIVE_ARCH` | `OFF` | Build for the host CPU's own instruction set. |
 | `SB_SYCL_TARGETS` | *(empty)* | AOT device targets; empty means the targets SushiRuntime resolved. |
