@@ -30,7 +30,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <string>
 #include <utility>
 
 #include <SushiRuntime/api/data/buffer.hpp>
@@ -41,6 +40,7 @@
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 
+#include <SushiBLAS/graph_primitives/element_window.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
@@ -51,8 +51,21 @@ namespace SushiBLAS
     namespace GraphPrimitives
     {
         /**
+         * @brief Places the operands of counting_sort() inside their buffers, in elements.
+         * @see modules/foundation/graph_primitives/README.md
+         */
+        struct CountingSortWindow
+        {
+            std::size_t keys_offset = 0;    /**< Element of keys that element 0 names. */
+            std::size_t indices_offset = 0; /**< Element of indices the order starts at. */
+            std::size_t offsets_offset = 0; /**< Element of offsets bucket 0 starts at. */
+            std::size_t total_offset = 0;   /**< Element of total that receives the count. */
+            std::size_t counts_offset = 0;  /**< Element of counts bucket 0 sizes. */
+        };
+
+        /**
          * @brief Records a stable argsort of uint32 keys by radix digits, with bucket offsets.
-         * @param indices Receives the sorted order; holds n.capacity() elements.
+         * @param indices Receives the sorted order, as indices into the keys window.
          * @param offsets Receives the bucket starts; holds key_range.capacity() + 1 elements.
          * @param counts  Optional bucket sizes; holds key_range.capacity() elements.
          * @return Nothing, or an error; modules/foundation/graph_primitives/README.md lists them.
@@ -65,7 +78,8 @@ namespace SushiBLAS
                       const SushiRuntime::Buffer<std::uint32_t>& total,
                       SushiRuntime::LateCount n,
                       SushiRuntime::LateCount key_range,
-                      const SushiRuntime::Buffer<std::uint32_t>* counts = nullptr)
+                      const SushiRuntime::Buffer<std::uint32_t>* counts = nullptr,
+                      CountingSortWindow window = {})
         {
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
@@ -80,24 +94,33 @@ namespace SushiBLAS
 
             if (key_capacity == 0)
                 return Detail::invalid_graph("counting_sort: key_range.capacity() is zero.");
-            if (n_capacity > keys.size())
-                return Detail::invalid_graph(
-                    "counting_sort: n.capacity() (" + std::to_string(n_capacity) +
-                    ") exceeds the keys buffer's size (" + std::to_string(keys.size()) + ").");
-            if (indices.size() < n_capacity)
-                return Detail::invalid_graph(
-                    "counting_sort: indices holds " + std::to_string(indices.size()) +
-                    " elements but " + std::to_string(n_capacity) + " are required.");
-            if (offsets.size() < key_capacity + 1)
-                return Detail::invalid_graph(
-                    "counting_sort: offsets holds " + std::to_string(offsets.size()) +
-                    " elements but " + std::to_string(key_capacity + 1) + " are required.");
-            if (total.size() == 0)
-                return Detail::invalid_graph("counting_sort: the total buffer holds no elements.");
-            if (counts != nullptr && counts->size() < key_capacity)
-                return Detail::invalid_graph(
-                    "counting_sort: counts holds " + std::to_string(counts->size()) +
-                    " elements but " + std::to_string(key_capacity) + " are required.");
+
+            using Span = Detail::ElementSpan<std::uint32_t>;
+            const Span keys_span = Detail::elements(keys, window.keys_offset, n_capacity);
+            const Span indices_span = Detail::elements(indices, window.indices_offset, n_capacity);
+            const Span offsets_span =
+                Detail::elements(offsets, window.offsets_offset, key_capacity + 1);
+            const Span total_span = Detail::elements(total, window.total_offset, std::size_t{1});
+            const Span counts_span = (counts != nullptr)
+                ? Detail::elements(*counts, window.counts_offset, key_capacity)
+                : Span{};
+
+            SushiRuntime::Result<void> fits = Detail::require_window(
+                "counting_sort", "keys", keys.size(), keys_span.offset, keys_span.count);
+            if (fits)
+                fits = Detail::require_window("counting_sort", "indices", indices.size(),
+                                              indices_span.offset, indices_span.count);
+            if (fits)
+                fits = Detail::require_window("counting_sort", "offsets", offsets.size(),
+                                              offsets_span.offset, offsets_span.count);
+            if (fits)
+                fits = Detail::require_window("counting_sort", "total", total.size(),
+                                              total_span.offset, total_span.count);
+            if (fits && counts != nullptr)
+                fits = Detail::require_window("counting_sort", "counts", counts->size(),
+                                              counts_span.offset, counts_span.count);
+            if (!fits)
+                return fits;
             if (indices.device_index() != keys.device_index() ||
                 offsets.device_index() != keys.device_index() ||
                 (counts != nullptr && counts->device_index() != keys.device_index()))
@@ -136,10 +159,12 @@ namespace SushiBLAS
             const BufferRegion plan_region = words(plan, plan_words);
 
             // One node resolves both counts, publishes total and fills the digit plan.
-            std::uint32_t* total_base = total.data();
+            std::uint32_t* total_base = total_span.data();
             recorder.resolve(std::array<LateCount, 2>{n, key_range}, keys.device_index(),
-                Access(Reads(), (plan != nullptr) ? Writes(n_state_region, total, plan_region)
-                                                  : Writes(n_state_region, total)),
+                Access(Reads(), (plan != nullptr)
+                                    ? Detail::access_of<Writes>(n_state_region, total_span,
+                                                                plan_region)
+                                    : Detail::access_of<Writes>(n_state_region, total_span)),
                 [n_state, total_base, plan, digit_count](const std::array<std::size_t, 2>& live)
                 {
                     const std::size_t tiles = Detail::next_live_tile_count(live[0]);
@@ -151,16 +176,17 @@ namespace SushiBLAS
                 },
                 NodeOptions{std::size_t{1}});
 
-            std::uint32_t* offsets_base = offsets.data();
-            std::uint32_t* counts_base = (counts != nullptr) ? counts->data() : nullptr;
+            std::uint32_t* offsets_base = offsets_span.data();
+            std::uint32_t* counts_base = (counts != nullptr) ? counts_span.data() : nullptr;
 
             if (n_capacity == 0)
             {
                 // No element ever arrives, so every bucket starts and stays at zero.
                 recorder.kernel(
                     DeviceSized{key_capacity + 1, nullptr, nullptr},
-                    Access(Reads(), (counts != nullptr) ? Writes(offsets, *counts)
-                                                        : Writes(offsets)),
+                    Access(Reads(), (counts != nullptr)
+                                        ? Detail::access_of<Writes>(offsets_span, counts_span)
+                                        : Detail::access_of<Writes>(offsets_span)),
                     [offsets_base, counts_base, key_capacity](std::size_t k)
                     {
                         offsets_base[k] = 0;
@@ -201,10 +227,10 @@ namespace SushiBLAS
                 alternate = *alternate_block;
             }
 
-            const std::uint32_t* keys_base = keys.data();
-            std::uint32_t* indices_base = indices.data();
+            const std::uint32_t* keys_base = keys_span.data();
+            std::uint32_t* indices_base = indices_span.data();
 
-            const BufferRegion indices_region = words(indices_base, n_capacity);
+            const BufferRegion indices_region = Detail::region_of(indices_span);
             const BufferRegion alternate_region = words(alternate, n_capacity);
             const BufferRegion hist_region =
                 words(hist, Detail::K_RADIX_DIGIT_BINS * tile_capacity);
@@ -232,7 +258,7 @@ namespace SushiBLAS
 
                 // Histogram: each tile overwrites its own row, so no run clears hist.
                 {
-                    Reads reads(keys, plan_region);
+                    Reads reads = Detail::access_of<Reads>(keys_span, plan_region);
                     add_sources(reads);
                     recorder.kernel(
                         DeviceSized{tile_capacity, live_tiles, snapshot},
@@ -294,7 +320,8 @@ namespace SushiBLAS
 
                 // Placement: tiles write in ascending index order, so the sort is stable.
                 {
-                    Reads reads(keys, hist_region, bin_base_region, plan_region);
+                    Reads reads = Detail::access_of<Reads>(keys_span, hist_region,
+                                                           bin_base_region, plan_region);
                     add_sources(reads);
                     recorder.kernel(
                         DeviceSized{tile_capacity, live_tiles, snapshot},
@@ -332,7 +359,8 @@ namespace SushiBLAS
             // Offsets: one lower bound per bucket over the sorted keys; no live range is read.
             recorder.kernel(
                 DeviceSized{key_capacity + 1, nullptr, n_state},
-                Access(Reads(keys, indices, n_state_region), Writes(offsets)),
+                Access(Detail::access_of<Reads>(keys_span, indices_span, n_state_region),
+                       Detail::access_of<Writes>(offsets_span)),
                 [keys_base, indices_base, offsets_base](std::size_t k, std::size_t live_n)
                 {
                     std::size_t low = 0;
@@ -355,7 +383,8 @@ namespace SushiBLAS
             // Counts are differences of two settled offsets and need no live scalar.
             recorder.kernel(
                 DeviceSized{key_capacity, nullptr, nullptr},
-                Access(Reads(offsets), Writes(*counts)),
+                Access(Detail::access_of<Reads>(offsets_span),
+                       Detail::access_of<Writes>(counts_span)),
                 [offsets_base, counts_base](std::size_t k)
                 {
                     counts_base[k] = offsets_base[k + 1] - offsets_base[k];

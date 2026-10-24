@@ -229,6 +229,7 @@ README) change in its own commit.
 | B15 | A `UInt32` data type, which the late count of `IndexOps::for_each` takes as it is: SushiEngine's late count is a `uint32` buffer. Ruled by the owner on 2026-10-24 for `sushiengine` E5. Done when: a late-count `for_each` runs over a `UInt32` count, and every operation either takes the type or refuses it in words. | building |
 | B16 | `TensorPack` hands out a `Tensor` view of one entry and a 1-D view of one segment, over its own buffer, so SushiAI's exchange sums result packs with `ordered_sum()` in place instead of copying them out first. Ruled by the orchestrator on 2026-10-24 for `sushiai` A3. Done when: each entry view reads the bytes the gather wrote, each segment view of the eight types has the segment's size and offset, and an `ordered_sum()` over the same segment of three packs into a fourth gives the sum. | building |
 | B17 | `SignalOps::convolve_1d` and `BlendOps::blend_transforms` take the node's name and determinism, through `OperationOptions`, which moves to the engine module with one shared check; the blend's indices may be `UInt32`. Ruled by the orchestrator on 2026-10-24 for `sushiengine` E5: the engine's adapter keeps every verb's name and determinism on its node. Done when: both nodes carry the name and class a caller gives, a call without options keeps the operation's name and `Unstated`, and the three index types give equal bits. | building |
+| B18 | Each graph primitive (`reduce`, `segmented_reduce`, `prefix_scan`, `counting_sort`) takes a trailing window that places each buffer operand at an element offset, declared as that interval of the whole buffer. Ruled by the orchestrator on 2026-10-24 for `sushiengine` E5: SushiRuntime keys an access on its buffer's base, so a borrowed sub-range is never ordered against its parent, and the engine's two lanes must take the same windows. Done when: a window past 0 equals a compact buffer bit for bit, a node over a disjoint window is not ordered after it and an overlapping one is, and a window past its buffer is refused. | building |
 
 B5 waits on SushiAI's A0, which moves SushiAI's two execution helpers and four tests off the
 engine's graph. B6 to B9 have disjoint files and could share a wave; the owner chooses inline or
@@ -237,7 +238,7 @@ waves.
 ### Work
 
 <!-- work:begin -->
-- [2026_10_24_LAYERED_EXECUTION](../../agent/2026_10_24_LAYERED_EXECUTION/PLAN.md): B14, B15, B16, B17, B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13
+- [2026_10_24_LAYERED_EXECUTION](../../agent/2026_10_24_LAYERED_EXECUTION/PLAN.md): B14, B15, B16, B17, B18, B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13
 <!-- work:end -->
 
 ## Open questions

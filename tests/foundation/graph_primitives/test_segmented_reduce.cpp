@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <cstring>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -43,6 +44,7 @@
 #include <SushiBLAS/graph_primitives/combiners.hpp>
 #include <SushiBLAS/graph_primitives/segmented_reduce.hpp>
 #include "device_sized_harness.hpp"
+#include "window_probe.hpp"
 
 namespace SushiBLAS
 {
@@ -82,6 +84,80 @@ namespace SushiBLAS
 
             /** @brief Holds ragged segment bounds with an empty segment and a long one. */
             const std::vector<std::uint32_t> K_RAGGED_OFFSETS = {0, 3, 3, 10, 11, 1011};
+
+            /** @brief Holds the ragged case inside wide buffers and alone. */
+            struct WindowedSegments
+            {
+                static constexpr std::size_t K_VALUES_OFFSET = 5; /**< Values window start. */
+                static constexpr std::size_t K_BOUNDS_OFFSET = 3; /**< Offsets window start. */
+                static constexpr std::size_t K_OUTPUT_OFFSET = 4; /**< Output window start. */
+                static constexpr std::size_t K_TAIL = 7;          /**< Elements past a window. */
+
+                SushiRuntime::Buffer<float> wide_values;          /**< Values inside a window. */
+                SushiRuntime::Buffer<std::uint32_t> wide_bounds;  /**< Offsets inside a window. */
+                SushiRuntime::Buffer<float> wide_out;             /**< Output inside a window. */
+                SushiRuntime::Buffer<float> values;               /**< Values alone. */
+                SushiRuntime::Buffer<std::uint32_t> bounds;       /**< Offsets alone. */
+                SushiRuntime::Buffer<float> out;                  /**< Output alone. */
+
+                /** @brief Allocates both layouts and writes the same values into each. */
+                explicit WindowedSegments(Runtime& runtime)
+                    : wide_values(runtime.buffer<float>(K_VALUES_OFFSET + value_count() + K_TAIL)
+                                      .value()),
+                      wide_bounds(runtime.buffer<std::uint32_t>(
+                                      K_BOUNDS_OFFSET + K_RAGGED_OFFSETS.size() + K_TAIL).value()),
+                      wide_out(runtime.buffer<float>(K_OUTPUT_OFFSET + segments() + K_TAIL)
+                                   .value()),
+                      values(runtime.buffer<float>(value_count()).value()),
+                      bounds(runtime.buffer<std::uint32_t>(K_RAGGED_OFFSETS.size()).value()),
+                      out(runtime.buffer<float>(segments()).value())
+                {
+                    for (std::size_t i = 0; i < wide_values.size(); ++i)
+                        wide_values[i] = 1.0e6f;
+                    for (std::size_t i = 0; i < wide_bounds.size(); ++i)
+                        wide_bounds[i] = 0;
+                    for (std::size_t i = 0; i < wide_out.size(); ++i)
+                        wide_out[i] = K_UNWRITTEN;
+                    for (std::size_t i = 0; i < value_count(); ++i)
+                    {
+                        values[i] = static_cast<float>(i % 13) * 0.25f + 1.0e-3f;
+                        wide_values[K_VALUES_OFFSET + i] = values[i];
+                    }
+                    for (std::size_t i = 0; i < K_RAGGED_OFFSETS.size(); ++i)
+                    {
+                        bounds[i] = K_RAGGED_OFFSETS[i];
+                        wide_bounds[K_BOUNDS_OFFSET + i] = K_RAGGED_OFFSETS[i];
+                    }
+                }
+
+                /** @brief Returns the segments of the ragged case. */
+                [[nodiscard]] static std::size_t segments() { return K_RAGGED_OFFSETS.size() - 1; }
+
+                /** @brief Returns the values the ragged case indexes. */
+                [[nodiscard]] static std::size_t value_count() { return K_RAGGED_OFFSETS.back(); }
+
+                /** @brief Returns the window that names the ragged case inside the wide buffers. */
+                [[nodiscard]] static GraphPrimitives::SegmentedReduceWindow window()
+                {
+                    return GraphPrimitives::SegmentedReduceWindow{
+                        K_VALUES_OFFSET, value_count(), K_BOUNDS_OFFSET, K_OUTPUT_OFFSET};
+                }
+            };
+
+            /** @brief Records a segmented reduction of windows, fixed or late-bound. */
+            SushiRuntime::Result<void>
+            record_windowed(SushiRuntime::Recorder& recorder, const WindowedSegments& buffers,
+                            bool late, const GraphPrimitives::SegmentedReduceWindow& window)
+            {
+                const std::size_t segments = WindowedSegments::segments();
+                if (late)
+                    return segmented_reduce(recorder, buffers.wide_values, buffers.wide_bounds,
+                                            buffers.wide_out, LateCount::fixed(segments),
+                                            Sum<float>{}, window);
+
+                return segmented_reduce(recorder, buffers.wide_values, buffers.wide_bounds,
+                                        buffers.wide_out, segments, Sum<float>{}, window);
+            }
         } // namespace
 
         /** @brief Tests a segmented reduce over ragged segments, an empty one included. */
@@ -313,5 +389,117 @@ namespace SushiBLAS
                 return harness.record(graph);
             });
         }
+        /** @brief Tests that a segmented reduce over windows equals one over compact buffers. */
+        TEST(Medium_GraphPrimitivesSegmentedReduce, WindowMatchesACompactBufferExactly)
+        {
+            auto runtime = Runtime::create().value();
+            const std::size_t segments = WindowedSegments::segments();
+
+            for (const bool late : {false, true})
+            {
+                WindowedSegments buffers(runtime);
+                auto graph = runtime.graph();
+                record_windowed(graph.recorder(), buffers, late, WindowedSegments::window())
+                    .value();
+                segmented_reduce(graph.recorder(), buffers.values, buffers.bounds, buffers.out,
+                                 segments, Sum<float>{}).value();
+                graph.run().value();
+
+                for (std::size_t s = 0; s < segments; ++s)
+                    EXPECT_TRUE(bit_equal(buffers.wide_out[WindowedSegments::K_OUTPUT_OFFSET + s],
+                                          buffers.out[s]))
+                        << "late = " << late << ", segment " << s;
+                EXPECT_TRUE(bit_equal(buffers.wide_out[WindowedSegments::K_OUTPUT_OFFSET - 1],
+                                      K_UNWRITTEN))
+                    << "the element before the output window was written; late = " << late;
+                EXPECT_TRUE(bit_equal(
+                    buffers.wide_out[WindowedSegments::K_OUTPUT_OFFSET + segments], K_UNWRITTEN))
+                    << "the element after the output window was written; late = " << late;
+            }
+        }
+
+        /** @brief Tests that a writer of an operand's buffer waits only when it hits the window. */
+        TEST(Medium_GraphPrimitivesSegmentedReduce, WindowOrdersOnlyOverlappingWriters)
+        {
+            using WindowProbe::region_of;
+            constexpr std::size_t K_VALUES = WindowedSegments::K_VALUES_OFFSET;
+            constexpr std::size_t K_OUTPUT = WindowedSegments::K_OUTPUT_OFFSET;
+            auto runtime = Runtime::create().value();
+            const WindowedSegments buffers(runtime);
+            const std::size_t values_end = K_VALUES + WindowedSegments::value_count();
+            const std::size_t output_end = K_OUTPUT + WindowedSegments::segments();
+
+            const auto predecessors = [&](bool late, const SushiRuntime::BufferRegion& written)
+            {
+                auto graph = runtime.graph();
+                record_windowed(graph.recorder(), buffers, late, WindowedSegments::window())
+                    .value();
+                return WindowProbe::predecessors_of_write(graph, written);
+            };
+
+            for (const bool late : {false, true})
+            {
+                EXPECT_EQ(predecessors(late, region_of(buffers.wide_values, 0, K_VALUES)), 0u)
+                    << "values before the window; late = " << late;
+                EXPECT_EQ(predecessors(late, region_of(buffers.wide_values, values_end, 1)), 0u)
+                    << "values after the window; late = " << late;
+                EXPECT_GT(predecessors(late, region_of(buffers.wide_values, K_VALUES, 1)), 0u)
+                    << "the first value of the window; late = " << late;
+                EXPECT_EQ(predecessors(late, region_of(buffers.wide_bounds, 0, 3)), 0u)
+                    << "offsets before the window; late = " << late;
+                EXPECT_GT(predecessors(late, region_of(buffers.wide_bounds, 3, 1)), 0u)
+                    << "the first offset of the window; late = " << late;
+                EXPECT_EQ(predecessors(late, region_of(buffers.wide_out, output_end, 1)), 0u)
+                    << "output after the window; late = " << late;
+                EXPECT_GT(predecessors(late, region_of(buffers.wide_out, output_end - 1, 1)), 0u)
+                    << "the last output of the window; late = " << late;
+            }
+        }
+
+        /** @brief Tests that a window past its buffer's end is refused, naming the operand. */
+        TEST(Medium_GraphPrimitivesSegmentedReduce, RejectsAWindowPastItsBuffer)
+        {
+            auto runtime = Runtime::create().value();
+            const WindowedSegments buffers(runtime);
+            const GraphPrimitives::SegmentedReduceWindow fits = WindowedSegments::window();
+
+            GraphPrimitives::SegmentedReduceWindow long_values = fits;
+            long_values.values_count =
+                WindowedSegments::value_count() + WindowedSegments::K_TAIL + 1;
+            GraphPrimitives::SegmentedReduceWindow late_values = fits;
+            late_values.values_offset = buffers.wide_values.size() + 1;
+            late_values.values_count = GraphPrimitives::SegmentedReduceWindow::K_TO_END;
+            GraphPrimitives::SegmentedReduceWindow late_bounds = fits;
+            late_bounds.offsets_offset =
+                WindowedSegments::K_BOUNDS_OFFSET + WindowedSegments::K_TAIL + 1;
+            GraphPrimitives::SegmentedReduceWindow late_output = fits;
+            late_output.output_offset =
+                WindowedSegments::K_OUTPUT_OFFSET + WindowedSegments::K_TAIL + 1;
+
+            const struct
+            {
+                GraphPrimitives::SegmentedReduceWindow window;
+                const char* operand;
+            } cases[] = {{long_values, "values"},
+                         {late_values, "values"},
+                         {late_bounds, "segment_offsets"},
+                         {late_output, "output"}};
+
+            auto graph = runtime.graph();
+            for (const bool late : {false, true})
+            {
+                for (const auto& refused : cases)
+                {
+                    const SushiRuntime::Result<void> recorded =
+                        record_windowed(graph.recorder(), buffers, late, refused.window);
+                    ASSERT_FALSE(recorded.has_value()) << refused.operand << "; late = " << late;
+                    EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
+                    EXPECT_NE(recorded.error().message.find(refused.operand), std::string::npos)
+                        << recorded.error().message;
+                }
+            }
+            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
+        }
+
     } // namespace Test
 } // namespace SushiBLAS

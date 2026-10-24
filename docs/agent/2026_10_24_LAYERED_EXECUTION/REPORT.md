@@ -207,6 +207,19 @@ is `OperationOptions` in the engine module, with one shared check, and `index_op
 with no alias since the branch is unreleased. The blend takes `UInt32` indices, a count type held
 and not computed on, as B15 allows.
 
+## B18
+
+Each primitive takes one trailing window struct (`ReduceWindow`, `SegmentedReduceWindow`,
+`PrefixScanWindow`, `CountingSortWindow`) whose default is offset 0, so every existing call compiles
+unchanged; a per-operand window type in place of `Buffer<T>` would break the deduction of `T` and
+double the overloads. Each operand's length is what the primitive touches, and only the segmented
+reduction's values take a count, which runs to the buffer's end by default. Segment offsets and the
+indices the sort writes are relative to the keys' or values' window, so a window equals a compact
+buffer. The access is the window's byte interval on the buffer's own key, narrowed from `Reads()`,
+so the buffer's liveness observer stays. A call without a window now declares the interval it
+touches, not the whole buffer: every real hazard is still ordered, and a node over an untouched
+tail is no longer serialised after it. The fit check is overflow-safe and names the operand.
+
 ## Dispatches
 
 ```
@@ -226,6 +239,7 @@ dispatch: B14 — sonnet medium, 69 turns, passed, rung 1
 dispatch: B15 — sonnet medium, 80 turns, passed, rung 1
 dispatch: B16 — sonnet medium, 44 turns, passed, rung 1
 dispatch: B17 — sonnet medium, 87 turns over two rounds, passed, rung 1
+dispatch: B18 — opus low, 75 turns, passed, rung 1
 dispatch: docs-sync after B5 — sonnet medium, 18 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

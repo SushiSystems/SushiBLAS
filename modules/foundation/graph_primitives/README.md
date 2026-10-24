@@ -28,6 +28,7 @@ if (!report)
 | --- | --- |
 | `combiners.hpp`, `fixed_order_fold.hpp`, `fixed_order_reduce.hpp`, `fixed_order_scan.hpp`, `radix_plan.hpp` | The standard library and each other |
 | `invalid_graph.hpp` | `<SushiRuntime/core/error.hpp>`, `<SushiRuntime/core/result.hpp>` and `<SushiRuntime/api/graph/recorder.hpp>` |
+| `element_window.hpp` | `invalid_graph.hpp` and SushiRuntime's `Buffer`, `Reads`, `Writes`, `BufferRegion` and `Result` |
 | `reduce.hpp`, `segmented_reduce.hpp`, `prefix_scan.hpp`, `counting_sort.hpp` | The headers above and SushiRuntime's public graph headers: `Recorder`, `Access`, `DeviceSized`, `NodeOptions`, `Reads`, `Writes`, `LateCount`, `Buffer`, `BufferRegion`, `Result` |
 
 No header includes another SushiBLAS module, and none names `SushiRuntime::Detail`.
@@ -42,10 +43,11 @@ place the tile size is written.
 
 | Header | Declares |
 | --- | --- |
-| `reduce.hpp` | `reduce(recorder, input, output, n, op[, identity])`, with `n` a `std::size_t` or a `LateCount` |
-| `segmented_reduce.hpp` | `segmented_reduce(recorder, values, segment_offsets, output, segment_count, op[, identity])`, with the count a `std::size_t` or a `LateCount` |
-| `prefix_scan.hpp` | `prefix_scan(recorder, counts, offsets, total, n)`, with `n` a `LateCount` |
-| `counting_sort.hpp` | `counting_sort(recorder, keys, indices, offsets, total, n, key_range[, counts])`, with both counts a `LateCount` |
+| `reduce.hpp` | `reduce(recorder, input, output, n, op[, identity][, window])`, with `n` a `std::size_t` or a `LateCount`; `ReduceWindow` |
+| `segmented_reduce.hpp` | `segmented_reduce(recorder, values, segment_offsets, output, segment_count, op[, identity][, window])`, with the count a `std::size_t` or a `LateCount`; `SegmentedReduceWindow` |
+| `prefix_scan.hpp` | `prefix_scan(recorder, counts, offsets, total, n[, window])`, with `n` a `LateCount`; `PrefixScanWindow` |
+| `counting_sort.hpp` | `counting_sort(recorder, keys, indices, offsets, total, n, key_range[, counts][, window])`, with both counts a `LateCount`; `CountingSortWindow` |
+| `element_window.hpp` | `Detail::ElementSpan`, `Detail::elements`, `Detail::require_window`, `Detail::access_of`, `Detail::region_of` |
 | `combiners.hpp` | `Sum`, `Product`, `Minimum`, `Maximum`: binary functors with a static `identity()` |
 | `fixed_order_fold.hpp` | `K_REDUCE_TILE`, `fold_tile`, `fold_indexed_tile`, `fold_fixed_order` (a host fold, level by level) and `fold_fixed_order_streamed` (the same order on the stack, reading each element once) |
 | `fixed_order_reduce.hpp` | `Detail::ReduceLevel`, `Detail::plan_reduction`, `Detail::reduce_scratch_count` |
@@ -65,7 +67,7 @@ stops the process on an error.
 
 | Error | When |
 | --- | --- |
-| `ErrorCode::InvalidGraph` | A size or device rule is broken. The call returns before any node or scratch is added, and the message starts with the name of the primitive. |
+| `ErrorCode::InvalidGraph` | A size or device rule is broken, or a window does not fit its buffer; that message names the operand. The call returns before any node or scratch is added, and the message starts with the name of the primitive. |
 | `ErrorCode::AllocationFailed` | `Recorder::scratch()` could not allocate. The nodes recorded before it stay on the recorder; `Recorder::clear()` drops them. |
 | The recorder's refusal | The recorder holds a refusal. The primitive returns the first recording the recorder refused since its last `clear()`, which may be older than the call: a refusal an earlier call left on the recorder is returned by every primitive recorded after it, until `clear()`. It is the error the next run returns as well. |
 
@@ -74,6 +76,28 @@ success. A live count above its capacity fails the run, not the recording: `Grap
 that error.
 
 Nothing in this module logs: a primitive records nodes and returns its result.
+
+## Windows
+
+Every primitive takes a last argument, a window struct with one element offset per `Buffer`
+operand: `ReduceWindow`, `SegmentedReduceWindow`, `PrefixScanWindow`, `CountingSortWindow`. The
+primitive reads and writes its operand from that element on, as it would a buffer that started
+there, so a result over a window is bit-identical to the result over a buffer holding only the
+window. A default window has every offset at zero and is the call without a window.
+
+The length of each operand's window is what the primitive touches: `n` or its capacity for an
+input, one element for `output` and `total`, the segment count (plus one for the offsets) and the
+key range (plus one for the offsets). `segment_offsets` index the values window, whose length is
+not fixed by the call, so `SegmentedReduceWindow::values_count` states it; its default,
+`K_TO_END`, runs the window to the end of `values`. The indices `counting_sort` writes are
+positions in the keys window.
+
+Each node declares its access as the byte interval of its windows in the whole buffer, keyed as
+`Reads` keys that buffer, so the runtime orders it against a node over an overlapping part of the
+same buffer and not against one over a disjoint part. A borrowed buffer over the sub-range would
+carry another key, which no node over the parent overlaps. A window that does not fit its buffer
+returns `ErrorCode::InvalidGraph` before anything is recorded. Scratch does not depend on the
+windows.
 
 ## What stays fixed
 
@@ -162,7 +186,7 @@ stays visible; a split that evened it out would break the order.
 | Argument | Rule |
 | --- | --- |
 | `Combine` | A binary functor; trivially copyable |
-| `segment_offsets` | `segment_count + 1` non-decreasing entries, the last no larger than the size of `values` |
+| `segment_offsets` | `segment_count + 1` non-decreasing entries, the last no larger than the length of the values window |
 | `output` | `segment_count` entries |
 | `identity` | The result of an empty segment |
 
@@ -209,7 +233,7 @@ order to `indices`, the exclusive start of each bucket to `offsets`, the live el
 | Argument | Rule |
 | --- | --- |
 | `keys` | At least `n.capacity()` elements; each live key is below the live key range |
-| `indices` | At least `n.capacity()` elements |
+| `indices` | At least `n.capacity()` elements; receives positions in the keys window |
 | `offsets` | At least `key_range.capacity() + 1` elements |
 | `total` | At least one element |
 | `n` | The element capacity and the source of the live element count |

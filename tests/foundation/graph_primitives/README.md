@@ -19,6 +19,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_reduce/test_device_sized_reduce.cpp` | Tests that reduce() with a device count gives one result on the chain and the scheduler |
 | `test_reduce/test_reduce.cpp` | Tests reduce(): its fixed combination order, its late-bound count and its node widths |
 | `test_segmented_reduce.cpp` | Tests segmented_reduce(): its per-segment fold, its late-bound count and its widths |
+| `window_probe.hpp` | Declares the probe the window tests use to read whether a node over a buffer window is ordered |
 
 ## The runtime a test builds
 
@@ -124,3 +125,13 @@ The headers below are shared by tests of this module only, so they sit in this f
 | Header | What it does |
 | --- | --- |
 | `device_sized_harness.hpp` | Runs a primitive with a device count on the chain and on the scheduler and compares the two. |
+
+## Window tests
+
+Each primitive's file holds three window tests. `WindowMatchesACompactBufferExactly` records the
+primitive over windows that start past element 0 and again over buffers that hold only those
+windows, in one graph, and compares the two results bit for bit; the elements around an output
+window hold a canary. `WindowOrdersOnlyOverlappingWriters` adds a node that writes a part of an
+operand's buffer and reads its `predecessor_count` from `Graph::plan()`: zero for a part outside
+the window, at least one for a part inside it. `RejectsAWindowPastItsBuffer` checks the
+`ErrorCode::InvalidGraph` error, the operand its message names, and that nothing was recorded.

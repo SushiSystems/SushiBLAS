@@ -29,6 +29,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -42,6 +43,7 @@
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/prefix_scan.hpp>
 #include "device_sized_harness.hpp"
+#include "window_probe.hpp"
 
 namespace SushiBLAS
 {
@@ -417,5 +419,111 @@ namespace SushiBLAS
             EXPECT_TRUE(report.is_successful);
             EXPECT_EQ(report.layer, ExecutionLayer::Chain);
         }
+        /** @brief Tests that a scan over windows equals one over compact buffers. */
+        TEST(Medium_GraphPrimitivesPrefixScan, WindowMatchesACompactBufferExactly)
+        {
+            constexpr std::size_t K_CAPACITY = K_TWO_LEVEL_CAPACITY;
+            const GraphPrimitives::PrefixScanWindow window{9, 6, 2};
+            const std::vector<std::uint32_t> host = cycling_counts(K_CAPACITY);
+
+            auto runtime = Runtime::create().value();
+            auto wide_counts = runtime.buffer<std::uint32_t>(window.counts_offset + K_CAPACITY + 4)
+                                   .value();
+            auto wide_offsets =
+                runtime.buffer<std::uint32_t>(window.offsets_offset + K_CAPACITY + 1 + 4).value();
+            auto wide_total = runtime.buffer<std::uint32_t>(window.total_offset + 2).value();
+            auto counts = runtime.buffer<std::uint32_t>(K_CAPACITY).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            for (std::size_t i = 0; i < wide_counts.size(); ++i)
+                wide_counts[i] = 1000u;
+            for (std::size_t i = 0; i < wide_offsets.size(); ++i)
+                wide_offsets[i] = K_CANARY;
+            for (std::size_t i = 0; i < wide_total.size(); ++i)
+                wide_total[i] = K_CANARY;
+            for (std::size_t i = 0; i < K_CAPACITY; ++i)
+            {
+                counts[i] = host[i];
+                wide_counts[window.counts_offset + i] = host[i];
+            }
+
+            for (const std::size_t n : {std::size_t{0}, K_TILE + 1, K_CAPACITY})
+            {
+                auto graph = runtime.graph();
+                prefix_scan(graph.recorder(), wide_counts, wide_offsets, wide_total,
+                            LateCount::fixed(n), window).value();
+                prefix_scan(graph.recorder(), counts, offsets, total, LateCount::fixed(n))
+                    .value();
+                graph.run().value();
+
+                for (std::size_t i = 0; i <= n; ++i)
+                    EXPECT_EQ(wide_offsets[window.offsets_offset + i], offsets[i])
+                        << "n = " << n << ", offset " << i;
+                EXPECT_EQ(wide_total[window.total_offset], total[0]) << "n = " << n;
+                EXPECT_EQ(wide_offsets[window.offsets_offset - 1], K_CANARY) << "n = " << n;
+                EXPECT_EQ(wide_total[window.total_offset - 1], K_CANARY) << "n = " << n;
+            }
+        }
+
+        /** @brief Tests that a writer of an operand waits only when it hits the window. */
+        TEST(Medium_GraphPrimitivesPrefixScan, WindowOrdersOnlyOverlappingWriters)
+        {
+            using WindowProbe::region_of;
+            constexpr std::size_t K_CAPACITY = K_TWO_LEVEL_CAPACITY;
+            const GraphPrimitives::PrefixScanWindow window{9, 6, 2};
+
+            auto runtime = Runtime::create().value();
+            auto counts = runtime.buffer<std::uint32_t>(window.counts_offset + K_CAPACITY + 4)
+                              .value();
+            auto offsets =
+                runtime.buffer<std::uint32_t>(window.offsets_offset + K_CAPACITY + 1 + 4).value();
+            auto total = runtime.buffer<std::uint32_t>(window.total_offset + 2).value();
+
+            const auto predecessors = [&](const SushiRuntime::BufferRegion& written)
+            {
+                auto graph = runtime.graph();
+                prefix_scan(graph.recorder(), counts, offsets, total,
+                            LateCount::fixed(K_CAPACITY), window).value();
+                return WindowProbe::predecessors_of_write(graph, written);
+            };
+
+            EXPECT_EQ(predecessors(region_of(counts, 0, window.counts_offset)), 0u);
+            EXPECT_EQ(predecessors(region_of(counts, window.counts_offset + K_CAPACITY, 4)), 0u);
+            EXPECT_GT(predecessors(region_of(counts, window.counts_offset + K_CAPACITY - 1, 1)),
+                      0u);
+            EXPECT_EQ(predecessors(region_of(offsets, window.offsets_offset + K_CAPACITY + 1, 4)),
+                      0u);
+            EXPECT_GT(predecessors(region_of(offsets, window.offsets_offset + K_CAPACITY, 1)), 0u);
+            EXPECT_EQ(predecessors(region_of(total, 0, window.total_offset)), 0u);
+            EXPECT_GT(predecessors(region_of(total, window.total_offset, 1)), 0u);
+        }
+
+        /** @brief Tests that a window past its buffer's end is refused, naming the operand. */
+        TEST(Medium_GraphPrimitivesPrefixScan, RejectsAWindowPastItsBuffer)
+        {
+            auto runtime = Runtime::create().value();
+            auto counts = runtime.buffer<std::uint32_t>(8).value();
+            auto offsets = runtime.buffer<std::uint32_t>(9).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+
+            const struct
+            {
+                GraphPrimitives::PrefixScanWindow window;
+                const char* operand;
+            } cases[] = {{{1, 0, 0}, "counts"}, {{0, 1, 0}, "offsets"}, {{0, 0, 1}, "total"}};
+
+            auto graph = runtime.graph();
+            for (const auto& refused : cases)
+            {
+                const SushiRuntime::Result<void> recorded = prefix_scan(
+                    graph.recorder(), counts, offsets, total, LateCount::fixed(8), refused.window);
+                ASSERT_FALSE(recorded.has_value()) << refused.operand;
+                EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
+                EXPECT_NE(recorded.error().message.find(refused.operand), std::string::npos)
+                    << recorded.error().message;
+            }
+            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
+        }
+
     } // namespace Test
 } // namespace SushiBLAS

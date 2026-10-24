@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -44,6 +45,8 @@
 #include <SushiBLAS/graph_primitives/combiners.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/reduce.hpp>
+
+#include "../window_probe.hpp"
 
 namespace SushiBLAS
 {
@@ -489,6 +492,124 @@ namespace SushiBLAS
             EXPECT_EQ(report.node_events[0].launched_width, 1u);
             EXPECT_EQ(report.node_events[0].live_width, 1u);
             EXPECT_EQ(total[0], 0.0f);
+        }
+
+        /** @brief Tests that a reduce over windows equals one over compact buffers. */
+        TEST(Medium_GraphPrimitivesReduce, WindowMatchesACompactBufferExactly)
+        {
+            constexpr std::size_t K_COUNT = 2 * K_TILE + 11;
+            constexpr std::size_t K_INPUT_OFFSET = 37;
+            constexpr std::size_t K_OUTPUT_OFFSET = 2;
+            const std::vector<float> host = order_sensitive_input(K_COUNT);
+
+            auto runtime = Runtime::create().value();
+            auto wide_in = runtime.buffer<float>(K_INPUT_OFFSET + K_COUNT + 5).value();
+            auto wide_out = runtime.buffer<float>(K_OUTPUT_OFFSET + 3).value();
+            auto compact_in = runtime.buffer<float>(K_COUNT).value();
+            auto compact_out = runtime.buffer<float>(1).value();
+            for (std::size_t i = 0; i < wide_in.size(); ++i)
+                wide_in[i] = 1.0e6f;
+            for (std::size_t i = 0; i < K_COUNT; ++i)
+            {
+                wide_in[K_INPUT_OFFSET + i] = host[i];
+                compact_in[i] = host[i];
+            }
+
+            const GraphPrimitives::ReduceWindow window{K_INPUT_OFFSET, K_OUTPUT_OFFSET};
+            for (const bool late : {false, true})
+            {
+                auto graph = runtime.graph();
+                if (late)
+                {
+                    reduce(graph.recorder(), wide_in, wide_out, LateCount::fixed(K_COUNT),
+                           Sum<float>{}, window).value();
+                    reduce(graph.recorder(), compact_in, compact_out, LateCount::fixed(K_COUNT),
+                           Sum<float>{}).value();
+                }
+                else
+                {
+                    reduce(graph.recorder(), wide_in, wide_out, K_COUNT, Sum<float>{}, window)
+                        .value();
+                    reduce(graph.recorder(), compact_in, compact_out, K_COUNT, Sum<float>{})
+                        .value();
+                }
+                graph.run().value();
+
+                EXPECT_TRUE(bit_equal(wide_out[K_OUTPUT_OFFSET], compact_out[0]))
+                    << "late = " << late << ": got " << wide_out[K_OUTPUT_OFFSET] << ", expected "
+                    << compact_out[0];
+            }
+        }
+
+        /** @brief Tests that a writer of an operand waits only when it hits the window. */
+        TEST(Medium_GraphPrimitivesReduce, WindowOrdersOnlyOverlappingWriters)
+        {
+            constexpr std::size_t K_COUNT = K_TILE + 3;
+            constexpr std::size_t K_OFFSET = 40;
+
+            auto runtime = Runtime::create().value();
+            auto in = runtime.buffer<float>(K_OFFSET + K_COUNT + 8).value();
+            auto out = runtime.buffer<float>(4).value();
+            const GraphPrimitives::ReduceWindow window{K_OFFSET, 1};
+
+            const auto predecessors = [&](bool late, const SushiRuntime::BufferRegion& written)
+            {
+                auto graph = runtime.graph();
+                if (late)
+                    reduce(graph.recorder(), in, out, LateCount::fixed(K_COUNT), Sum<float>{},
+                           window).value();
+                else
+                    reduce(graph.recorder(), in, out, K_COUNT, Sum<float>{}, window).value();
+                return WindowProbe::predecessors_of_write(graph, written);
+            };
+
+            for (const bool late : {false, true})
+            {
+                EXPECT_EQ(predecessors(late, WindowProbe::region_of(in, 0, K_OFFSET)), 0u)
+                    << "elements before the input window; late = " << late;
+                EXPECT_EQ(predecessors(late, WindowProbe::region_of(in, K_OFFSET + K_COUNT, 8)),
+                          0u)
+                    << "elements after the input window; late = " << late;
+                EXPECT_GT(predecessors(late, WindowProbe::region_of(in, K_OFFSET + K_COUNT - 1, 2)),
+                          0u)
+                    << "the last element of the input window; late = " << late;
+                EXPECT_EQ(predecessors(late, WindowProbe::region_of(out, 0, 1)), 0u)
+                    << "the output element before the window; late = " << late;
+                EXPECT_GT(predecessors(late, WindowProbe::region_of(out, 1, 1)), 0u)
+                    << "the output element the window names; late = " << late;
+            }
+        }
+
+        /** @brief Tests that a window past its buffer's end is refused, naming the operand. */
+        TEST(Medium_GraphPrimitivesReduce, RejectsAWindowPastItsBuffer)
+        {
+            auto runtime = Runtime::create().value();
+            auto in = runtime.buffer<float>(16).value();
+            auto out = runtime.buffer<float>(2).value();
+
+            auto graph = runtime.graph();
+            const auto expect_refusal = [&](const SushiRuntime::Result<void>& recorded,
+                                            const char* operand)
+            {
+                expect_invalid_graph(recorded);
+                if (!recorded)
+                    EXPECT_NE(recorded.error().message.find(operand), std::string::npos)
+                        << recorded.error().message;
+            };
+
+            expect_refusal(reduce(graph.recorder(), in, out, std::size_t{4}, Sum<float>{},
+                                  GraphPrimitives::ReduceWindow{13, 0}),
+                           "input");
+            expect_refusal(reduce(graph.recorder(), in, out, std::size_t{4}, Sum<float>{},
+                                  GraphPrimitives::ReduceWindow{0, 2}),
+                           "output");
+            expect_refusal(reduce(graph.recorder(), in, out, LateCount::fixed(4), Sum<float>{},
+                                  GraphPrimitives::ReduceWindow{13, 0}),
+                           "input");
+            expect_refusal(reduce(graph.recorder(), in, out, LateCount::fixed(4), Sum<float>{},
+                                  GraphPrimitives::ReduceWindow{0, 2}),
+                           "output");
+            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
         }
 
     } // namespace Test

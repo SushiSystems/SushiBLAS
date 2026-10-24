@@ -6,6 +6,8 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — graph_primitives: Added a trailing window to the four primitives that places each buffer operand at an element offset, declared as that interval of the whole buffer (`element_window.hpp`).
+- 2026-10-24 — graph_primitives: Made a primitive declare only the interval of each buffer it touches, so a node over an untouched part is not ordered after it (`element_window.hpp`).
 - 2026-10-24 — engine: Moved `IndexOptions` into the engine module as `OperationOptions`, with one record-time check every family calls (`operation_options.hpp`).
 - 2026-10-24 — signal: Made `convolve_1d` take an `OperationOptions` for its node's name and determinism (`signal.hpp`).
 - 2026-10-24 — blend: Made `blend_transforms` take an `OperationOptions` and `UInt32` indices (`blend.hpp`).

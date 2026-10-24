@@ -30,7 +30,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -42,6 +41,7 @@
 #include <SushiRuntime/api/vocabulary/dependencies.hpp>
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 
+#include <SushiBLAS/graph_primitives/element_window.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
@@ -51,11 +51,21 @@ namespace SushiBLAS
     namespace GraphPrimitives
     {
         /**
-         * @brief Records a reduction of the first n values whose combination order never varies.
+         * @brief Places the operands of reduce() inside their buffers, in elements.
+         * @see modules/foundation/graph_primitives/README.md
+         */
+        struct ReduceWindow
+        {
+            std::size_t input_offset = 0;  /**< Element of input the fold starts at. */
+            std::size_t output_offset = 0; /**< Element of output that receives the result. */
+        };
+
+        /**
+         * @brief Records a reduction of n values whose combination order never varies.
          * @tparam Combine Binary functor; must be trivially copyable.
-         * @param output Receives the result in output[0]; identity when n is zero.
-         * @return Nothing, or an error: InvalidGraph if n exceeds the size of input or output
-         *         is empty, AllocationFailed if scratch does not fit, or the recorder's refusal.
+         * @param output Receives the result at window.output_offset; identity when n is zero.
+         * @return Nothing, or an error: InvalidGraph if a window does not fit its buffer,
+         *         AllocationFailed if scratch does not fit, or the recorder's refusal.
          * @see modules/foundation/graph_primitives/README.md
          */
         template <typename T, class Combine>
@@ -63,7 +73,7 @@ namespace SushiBLAS
         reduce(SushiRuntime::Recorder& recorder,
                const SushiRuntime::Buffer<T>& input,
                const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op,
-               T identity)
+               T identity, ReduceWindow window = {})
         {
             using SushiRuntime::Access;
             using SushiRuntime::NodeOptions;
@@ -71,18 +81,23 @@ namespace SushiBLAS
             using SushiRuntime::Writes;
             using SushiRuntime::BufferRegion;
 
-            if (n > input.size())
-                return Detail::invalid_graph(
-                    "reduce: n (" + std::to_string(n) + ") exceeds the input buffer's size (" +
-                    std::to_string(input.size()) + ").");
-            if (output.size() == 0)
-                return Detail::invalid_graph("reduce: the output buffer holds no elements.");
+            const Detail::ElementSpan<T> in_span = Detail::elements(input, window.input_offset, n);
+            const Detail::ElementSpan<T> out_span =
+                Detail::elements(output, window.output_offset, std::size_t{1});
+            SushiRuntime::Result<void> fits = Detail::require_window(
+                "reduce", "input", input.size(), in_span.offset, in_span.count);
+            if (fits)
+                fits = Detail::require_window("reduce", "output", output.size(), out_span.offset,
+                                              out_span.count);
+            if (!fits)
+                return fits;
 
-            T* out_base = output.data();
+            T* out_base = out_span.data();
             if (n == 0)
             {
                 // An empty reduction still records a node, so readers order after it.
-                recorder.kernel(std::size_t{1}, Access(Reads(), Writes(output)),
+                recorder.kernel(std::size_t{1},
+                    Access(Reads(), Detail::access_of<Writes>(out_span)),
                     [out_base, identity](std::size_t)
                     {
                         out_base[0] = identity;
@@ -105,7 +120,7 @@ namespace SushiBLAS
                 scratch = *scratch_block;
             }
 
-            const T* in_base = input.data();
+            const T* in_base = in_span.data();
             void* scratch_key = static_cast<void*>(scratch);
 
             // Every node this call records belongs to one rule.
@@ -122,11 +137,11 @@ namespace SushiBLAS
                 const std::size_t in_count = level.in_count;
 
                 const Reads reads = first
-                    ? Reads(input)
+                    ? Detail::access_of<Reads>(in_span)
                     : Reads(BufferRegion{scratch_key, level.in_offset * sizeof(T),
                                          level.in_count * sizeof(T)});
                 const Writes writes = last
-                    ? Writes(output)
+                    ? Detail::access_of<Writes>(out_span)
                     : Writes(BufferRegion{scratch_key, level.out_offset * sizeof(T),
                                           level.out_count * sizeof(T)});
 
@@ -144,7 +159,7 @@ namespace SushiBLAS
         /**
          * @brief Records a reduction whose live element count is resolved once per run.
          * @tparam Combine Binary functor; must be trivially copyable.
-         * @param output Receives the result in output[0]; identity when the live count is zero.
+         * @param output Receives the result at window.output_offset; identity at live count 0.
          * @return Nothing, or an error as the fixed-count overload returns, for n.capacity();
          *         a run returns an error if the live count exceeds n.capacity().
          */
@@ -153,7 +168,7 @@ namespace SushiBLAS
         reduce(SushiRuntime::Recorder& recorder,
                const SushiRuntime::Buffer<T>& input,
                const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
-               Combine op, T identity)
+               Combine op, T identity, ReduceWindow window = {})
         {
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
@@ -164,20 +179,26 @@ namespace SushiBLAS
             using SushiRuntime::BufferRegion;
 
             const std::size_t capacity = n.capacity();
-            if (capacity > input.size())
-                return Detail::invalid_graph(
-                    "reduce: n.capacity() (" + std::to_string(capacity) +
-                    ") exceeds the input buffer's size (" + std::to_string(input.size()) + ").");
-            if (output.size() == 0)
-                return Detail::invalid_graph("reduce: the output buffer holds no elements.");
+            const Detail::ElementSpan<T> in_span =
+                Detail::elements(input, window.input_offset, capacity);
+            const Detail::ElementSpan<T> out_span =
+                Detail::elements(output, window.output_offset, std::size_t{1});
+            SushiRuntime::Result<void> fits = Detail::require_window(
+                "reduce", "input", input.size(), in_span.offset, in_span.count);
+            if (fits)
+                fits = Detail::require_window("reduce", "output", output.size(), out_span.offset,
+                                              out_span.count);
+            if (!fits)
+                return fits;
 
             const std::vector<Detail::ReduceLevel> levels = Detail::plan_tiled_levels(capacity);
-            T* out_base = output.data();
+            T* out_base = out_span.data();
 
             if (levels.empty())
             {
                 // With capacity zero the identity is the answer on every run.
-                recorder.kernel(std::size_t{1}, Access(Reads(), Writes(output)),
+                recorder.kernel(std::size_t{1},
+                    Access(Reads(), Detail::access_of<Writes>(out_span)),
                     [out_base, identity](std::size_t)
                     {
                         out_base[0] = identity;
@@ -216,7 +237,7 @@ namespace SushiBLAS
                 },
                 NodeOptions{std::size_t{1}});
 
-            const T* in_base = input.data();
+            const T* in_base = in_span.data();
             void* scratch_key = static_cast<void*>(scratch);
 
             for (std::size_t i = 0; i < levels.size(); ++i)
@@ -229,12 +250,12 @@ namespace SushiBLAS
                 T* dst = last ? out_base : (scratch + level.out_offset);
 
                 const Reads reads = first
-                    ? Reads(input, state_region)
+                    ? Detail::access_of<Reads>(in_span, state_region)
                     : Reads(BufferRegion{scratch_key, level.in_offset * sizeof(T),
                                          level.in_count * sizeof(T)},
                             state_region);
                 const Writes writes = last
-                    ? Writes(output)
+                    ? Detail::access_of<Writes>(out_span)
                     : Writes(BufferRegion{scratch_key, level.out_offset * sizeof(T),
                                           level.out_count * sizeof(T)});
 
@@ -251,7 +272,7 @@ namespace SushiBLAS
             // A live count of zero folds no level, so this node is the only writer of identity.
             recorder.kernel(
                 DeviceSized{std::size_t{1}, nullptr, state},
-                Access(Reads(state_region), Writes(output)),
+                Access(Reads(state_region), Detail::access_of<Writes>(out_span)),
                 [out_base, identity](std::size_t, std::size_t live_n)
                 {
                     if (live_n == 0)
@@ -271,10 +292,11 @@ namespace SushiBLAS
         [[nodiscard]] SushiRuntime::Result<void>
         reduce(SushiRuntime::Recorder& recorder,
                const SushiRuntime::Buffer<T>& input,
-               const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op)
+               const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op,
+               ReduceWindow window = {})
         {
             return GraphPrimitives::reduce(recorder, input, output, n, op,
-                                           Combine::identity());
+                                           Combine::identity(), window);
         }
 
         /**
@@ -287,10 +309,10 @@ namespace SushiBLAS
         reduce(SushiRuntime::Recorder& recorder,
                const SushiRuntime::Buffer<T>& input,
                const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
-               Combine op)
+               Combine op, ReduceWindow window = {})
         {
             return GraphPrimitives::reduce(recorder, input, output, n, op,
-                                           Combine::identity());
+                                           Combine::identity(), window);
         }
 
     } // namespace GraphPrimitives

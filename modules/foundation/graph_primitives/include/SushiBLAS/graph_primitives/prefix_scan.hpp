@@ -30,7 +30,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -43,6 +42,7 @@
 #include <SushiRuntime/api/vocabulary/late_count.hpp>
 
 #include <SushiBLAS/graph_primitives/combiners.hpp>
+#include <SushiBLAS/graph_primitives/element_window.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
@@ -51,6 +51,17 @@ namespace SushiBLAS
 {
     namespace GraphPrimitives
     {
+        /**
+         * @brief Places the operands of prefix_scan() inside their buffers, in elements.
+         * @see modules/foundation/graph_primitives/README.md
+         */
+        struct PrefixScanWindow
+        {
+            std::size_t counts_offset = 0;  /**< Element of counts the scan reads first. */
+            std::size_t offsets_offset = 0; /**< Element of offsets that receives offset 0. */
+            std::size_t total_offset = 0;   /**< Element of total that receives the sum. */
+        };
+
         /**
          * @brief Records an exclusive scan of uint32 counts into running offsets.
          * @param counts  Holds at least n.capacity() elements.
@@ -64,7 +75,7 @@ namespace SushiBLAS
                     const SushiRuntime::Buffer<std::uint32_t>& counts,
                     const SushiRuntime::Buffer<std::uint32_t>& offsets,
                     const SushiRuntime::Buffer<std::uint32_t>& total,
-                    SushiRuntime::LateCount n)
+                    SushiRuntime::LateCount n, PrefixScanWindow window = {})
         {
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
@@ -75,32 +86,37 @@ namespace SushiBLAS
             using SushiRuntime::BufferRegion;
 
             const std::size_t capacity = n.capacity();
-            if (capacity > counts.size())
-                return Detail::invalid_graph(
-                    "prefix_scan: n.capacity() (" + std::to_string(capacity) +
-                    ") exceeds the counts buffer's size (" + std::to_string(counts.size()) +
-                    ").");
-            if (offsets.size() < capacity + 1)
-                return Detail::invalid_graph(
-                    "prefix_scan: offsets holds " + std::to_string(offsets.size()) +
-                    " elements but " + std::to_string(capacity + 1) + " are required.");
-            if (total.size() == 0)
-                return Detail::invalid_graph("prefix_scan: the total buffer holds no elements.");
+            const Detail::ElementSpan<std::uint32_t> counts_span =
+                Detail::elements(counts, window.counts_offset, capacity);
+            const Detail::ElementSpan<std::uint32_t> offsets_span =
+                Detail::elements(offsets, window.offsets_offset, capacity + 1);
+            const Detail::ElementSpan<std::uint32_t> total_span =
+                Detail::elements(total, window.total_offset, std::size_t{1});
+            SushiRuntime::Result<void> fits = Detail::require_window(
+                "prefix_scan", "counts", counts.size(), counts_span.offset, counts_span.count);
+            if (fits)
+                fits = Detail::require_window("prefix_scan", "offsets", offsets.size(),
+                                              offsets_span.offset, offsets_span.count);
+            if (fits)
+                fits = Detail::require_window("prefix_scan", "total", total.size(),
+                                              total_span.offset, total_span.count);
+            if (!fits)
+                return fits;
             if (offsets.device_index() != counts.device_index())
                 return Detail::invalid_graph(
                     "prefix_scan: counts and offsets must live on the same device.");
 
             const std::vector<Detail::ReduceLevel> levels = Detail::plan_tiled_levels(capacity);
-            const std::uint32_t* counts_base = counts.data();
-            std::uint32_t* offsets_base = offsets.data();
-            std::uint32_t* total_base = total.data();
+            const std::uint32_t* counts_base = counts_span.data();
+            std::uint32_t* offsets_base = offsets_span.data();
+            std::uint32_t* total_base = total_span.data();
 
             if (levels.empty())
             {
                 // Capacity zero: the resolver checks the live count and writes an empty scan.
                 auto rule = recorder.rule();
                 recorder.resolve(std::array<LateCount, 1>{n}, counts.device_index(),
-                    Access(Reads(), Writes(offsets, total)),
+                    Access(Reads(), Detail::access_of<Writes>(offsets_span, total_span)),
                     [offsets_base, total_base](const std::array<std::size_t, 1>&)
                     {
                         offsets_base[0] = 0;
@@ -167,7 +183,7 @@ namespace SushiBLAS
                 std::uint32_t* dst = up_scratch + level.out_offset;
 
                 const Reads reads = first
-                    ? Reads(counts, state_region)
+                    ? Detail::access_of<Reads>(counts_span, state_region)
                     : Reads(words(up_scratch, level.in_offset, level.in_count), state_region);
                 const Writes writes(words(up_scratch, level.out_offset, level.out_count));
 
@@ -195,12 +211,13 @@ namespace SushiBLAS
                 if (top)
                 {
                     const Reads reads = first
-                        ? Reads(counts, state_region)
+                        ? Detail::access_of<Reads>(counts_span, state_region)
                         : Reads(words(up_scratch, level.in_offset, level.in_count),
                                 state_region);
                     const Writes writes = first
-                        ? Writes(offsets, total)
-                        : Writes(words(down_scratch, level.in_offset, level.in_count), total);
+                        ? Detail::access_of<Writes>(offsets_span, total_span)
+                        : Detail::access_of<Writes>(
+                              words(down_scratch, level.in_offset, level.in_count), total_span);
 
                     // The top pass scans from zero and always runs, so total is published.
                     recorder.kernel(
@@ -229,11 +246,11 @@ namespace SushiBLAS
                     words(down_scratch, level.out_offset, level.out_count);
 
                 const Reads reads = first
-                    ? Reads(counts, bases_region, state_region)
+                    ? Detail::access_of<Reads>(counts_span, bases_region, state_region)
                     : Reads(words(up_scratch, level.in_offset, level.in_count), bases_region,
                             state_region);
                 const Writes writes = first
-                    ? Writes(offsets)
+                    ? Detail::access_of<Writes>(offsets_span)
                     : Writes(words(down_scratch, level.in_offset, level.in_count));
 
                 recorder.kernel(
@@ -261,7 +278,8 @@ namespace SushiBLAS
             // Level 0 stops at offsets[live n - 1]; this node copies total into offsets[live n].
             recorder.kernel(
                 DeviceSized{std::size_t{1}, nullptr, state},
-                Access(Reads(total, state_region), Writes(offsets)),
+                Access(Detail::access_of<Reads>(total_span, state_region),
+                       Detail::access_of<Writes>(offsets_span)),
                 [offsets_base, total_base](std::size_t, std::size_t live_n)
                 {
                     offsets_base[live_n] = total_base[0];

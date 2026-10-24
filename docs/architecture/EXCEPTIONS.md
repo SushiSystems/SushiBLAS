@@ -127,8 +127,9 @@ For a failure of one task the message starts with the task: `node '<name>' (regi
 ## A graph primitive returns a `Result`
 
 The four primitives of `graph_primitives` record nodes on a `SushiRuntime::Recorder` and return
-`SushiRuntime::Result<void>`. An argument that breaks a recording precondition returns
-`ErrorCode::InvalidGraph` and records nothing, and a scratch block the recorder cannot allocate
+`SushiRuntime::Result<void>`. An argument that breaks a recording precondition, such as an
+operand window that does not fit its buffer, returns `ErrorCode::InvalidGraph`, names the operand
+and records nothing, and a scratch block the recorder cannot allocate
 returns `ErrorCode::AllocationFailed`. Otherwise the primitive returns what the recorder holds
 once its nodes are recorded: success, or the first recording the recorder refused since its
 `clear()`, which may be older than the call.
