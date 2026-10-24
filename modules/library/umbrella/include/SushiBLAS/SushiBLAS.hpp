@@ -153,3 +153,4 @@
 #include <SushiBLAS/sparse/sparse_vector_operand.hpp>
 #include <SushiBLAS/spatial/spatial.hpp>
 #include <SushiBLAS/spatial/window.hpp>
+#include <SushiBLAS/signal/signal.hpp>

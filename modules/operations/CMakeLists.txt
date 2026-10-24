@@ -14,6 +14,7 @@ add_subdirectory(logic)
 add_subdirectory(sparse)
 add_subdirectory(spatial)
 add_subdirectory(io)
+add_subdirectory(signal)
 add_subdirectory(experimental)
 
 if(SB_BUILD_BENCHMARKS)

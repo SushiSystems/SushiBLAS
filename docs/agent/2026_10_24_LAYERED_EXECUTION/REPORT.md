@@ -1,6 +1,6 @@
 # Layered execution in SushiBLAS: report
 
-**Status:** Open — B1, B2, B6 and B11 landed on 2026-10-24; not built yet.
+**Status:** Open — B1, B2, B6, B8 and B11 landed on 2026-10-24; not built yet.
 
 ## B1
 
@@ -48,6 +48,20 @@ weight per component, so no complex product enters the rounding; integers add th
 weights by value, which caps n at `K_MAX_ORDERED_SUM_INPUTS` (32); a scratch table would lift
 the cap.
 
+## B8
+
+`SignalOps::convolve_1d` lives in `modules/operations/signal/`, with its kernels in
+`modules/kernels/signal_kernels/`: a first version went into `SpatialOps`, and the owner moved
+it to a family of its own on 2026-10-24. The SYCL kernel runs one work-item per output sample
+over `Device::plan_1d` and accumulates in `Accumulator<T>` (`Half` in `float`), k ascending; it
+is not tiled, for want of a measurement. The reference kernel sums in double. The family has a
+constructor over `TaskRecorder&` only. Its names stay apart from the quarantined
+`TransformsOps` of `experimental/signal`.
+
+Seen and kept: the spatial and signal tests copy the same helper block (`tensor_from`,
+`elements_from`, `residue_pattern`); the spatial_kernels README names dependencies its CMake
+does not list.
+
 ## Dispatches
 
 ```
@@ -55,4 +69,5 @@ dispatch: B1 — sonnet medium, 31 turns, passed, rung 1
 dispatch: B2 — sonnet medium, 112 turns, passed, rung 1
 dispatch: B6 — sonnet medium, 46 turns, passed, rung 1
 dispatch: B11 — sonnet medium, 48 turns, passed, rung 1
+dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

@@ -35,7 +35,8 @@ sushiblas_add_module(
         random
         reductions
         sparse
-        spatial)
+        spatial
+        signal)
 
 # The tests that cross several operation families and so belong to no single family.
 sushiblas_add_test_program(
