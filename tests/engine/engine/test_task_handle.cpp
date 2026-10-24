@@ -36,7 +36,7 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        /** @brief Builds one engine per test for the record calls whose handles are compared. */
+        /** @brief Builds one engine and one graph per test for the record calls whose handles are compared. */
         class Medium_TaskHandleTest : public SushiBLASTest
         {
             protected:
@@ -62,7 +62,7 @@ namespace SushiBLAS
             auto b = vector_of_four(*engine);
             auto c = vector_of_four(*engine);
 
-            EXPECT_TRUE(SushiBLAS::ElementwiseOps(*engine).add(a, b, c).is_valid());
+            EXPECT_TRUE(SushiBLAS::ElementwiseOps(recorder()).add(a, b, c).is_valid());
         }
 
         /** @brief Tests that two record calls on one recorder return unequal handles. */
@@ -72,8 +72,8 @@ namespace SushiBLAS
             auto b = vector_of_four(*engine);
             auto c = vector_of_four(*engine);
 
-            const TaskHandle first = SushiBLAS::ElementwiseOps(*engine).add(a, b, c);
-            const TaskHandle second = SushiBLAS::ElementwiseOps(*engine).add(a, b, c);
+            const TaskHandle first = SushiBLAS::ElementwiseOps(recorder()).add(a, b, c);
+            const TaskHandle second = SushiBLAS::ElementwiseOps(recorder()).add(a, b, c);
 
             EXPECT_TRUE(first != second);
             EXPECT_FALSE(first == second);
@@ -86,7 +86,7 @@ namespace SushiBLAS
             auto b = vector_of_four(*engine);
             auto c = vector_of_four(*engine);
 
-            const TaskHandle recorded = SushiBLAS::ElementwiseOps(*engine).add(a, b, c);
+            const TaskHandle recorded = SushiBLAS::ElementwiseOps(recorder()).add(a, b, c);
             const TaskHandle copy = recorded;
 
             EXPECT_TRUE(copy.is_valid());
@@ -110,21 +110,21 @@ namespace SushiBLAS
             EXPECT_EQ(0u, probe.take_recorded_count());
         }
 
-        /** @brief Tests that the first handles of two engines compare unequal. */
+        /** @brief Tests that the first handles of two recorders compare unequal. */
         TEST_F(Medium_TaskHandleTest, HandlesOfTwoRecordersDiffer)
         {
-            Engine other(TestEnvironment::runtime(), Core::Layout::RowMajor);
+            RecordingFixture other(*engine);
 
             auto a = vector_of_four(*engine);
             auto b = vector_of_four(*engine);
             auto c = vector_of_four(*engine);
-            auto other_a = vector_of_four(other);
-            auto other_b = vector_of_four(other);
-            auto other_c = vector_of_four(other);
+            auto other_a = vector_of_four(*engine);
+            auto other_b = vector_of_four(*engine);
+            auto other_c = vector_of_four(*engine);
 
-            const TaskHandle first = SushiBLAS::ElementwiseOps(*engine).add(a, b, c);
+            const TaskHandle first = SushiBLAS::ElementwiseOps(recorder()).add(a, b, c);
             const TaskHandle second =
-                SushiBLAS::ElementwiseOps(other).add(other_a, other_b, other_c);
+                SushiBLAS::ElementwiseOps(other.recorder()).add(other_a, other_b, other_c);
 
             EXPECT_TRUE(first.is_valid());
             EXPECT_TRUE(second.is_valid());

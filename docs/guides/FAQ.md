@@ -7,16 +7,16 @@ report a problem. Each answer links to the manual page that holds the detail.
 ## What is SushiBLAS?
 
 SushiBLAS is a C++17 tensor and BLAS library built on SushiRuntime's task graph. You create
-tensors and queue operations on them through an `Engine`; the runtime tracks the dependencies
+tensors and queue operations on them through an `Engine` and a graph the program owns; the runtime tracks the dependencies
 between the queued tasks and runs them on a CPU or a GPU through SYCL. No kernel calls a vendor
 math library: there is no oneMKL and no cuBLAS behind it.
 
-Operations are recorded, then run. A call such as `SushiBLAS::BLASOps(engine).gemm(A, B, C)`
-records a task and runs nothing; `engine.execute()` runs the graph and returns a
-`SushiRuntime::Result<void>`. `Engine` is built on a `SushiRuntime::Runtime` and has no accessor
-per operation family. A family is a view class built from the engine: `BLASOps`,
-`SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`,
-`SpatialOps` and `IO`. [The first program](../getting_started/FIRST_PROGRAM.md) has a complete example, and
+Operations are recorded, then run. A call such as `SushiBLAS::BLASOps(recorder).gemm(A, B, C)`
+records a task and runs nothing; `graph.run()` runs the graph and returns a
+`SushiRuntime::Result<SushiRuntime::RunReport>`. `Engine` is built on a `SushiRuntime::Runtime`, holds no graph and has no accessor
+per operation family. A family is a view class built from a `TaskRecorder`: `BLASOps`,
+`SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps` and
+`SpatialOps`. [The first program](../getting_started/FIRST_PROGRAM.md) has a complete example, and
 [the architecture](../architecture/README.md) describes each layer.
 
 ## Is the interface stable?

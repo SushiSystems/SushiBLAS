@@ -11,7 +11,7 @@ It depends on `engine`, `engine_fixture` and `test_runner`. Its headers are incl
 
 ## graph_probe.hpp
 
-`Engine` has no accessor for its graph, so a test that asserts on what an operation declared
+`Engine` owns no graph, so a test that asserts on what an operation declared
 cannot read it from an engine. `GraphProbe` owns a `ScratchPool` and a `RecordingFixture` over it on the shared test
 runtime; the fixture holds the graph and the `TaskRecorder`. A test builds a view on
 `probe.recorder()` and records. `recorded_count()` returns how many tasks wait on the graph, and

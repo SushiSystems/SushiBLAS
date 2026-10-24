@@ -27,7 +27,6 @@
 
 #pragma once
 
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
@@ -45,9 +44,6 @@ namespace SushiBLAS
         public:
             /** @brief Builds a view that records through recorder, which must outlive the view. */
             explicit LogicOps(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
-
-            /** @brief Builds a view that records on engine's own graph. */
-            explicit LogicOps(Engine& engine) noexcept : LogicOps(engine.recorder()) {}
 
             LogicOps(const LogicOps&) = default;
             LogicOps& operator=(const LogicOps&) = delete;

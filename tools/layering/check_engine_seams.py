@@ -30,6 +30,7 @@ from layering.check_tier_contents import (  # noqa: E402
     K_OPERATION_TIER,
     Violation,
     _engine_calls,
+    _file_lines,
     _header_lines,
     _include_matches,
     _module_folders,
@@ -41,7 +42,13 @@ from layering.check_tier_contents import (  # noqa: E402
 
 K_UMBRELLA_HEADER = "modules/library/umbrella/include/SushiBLAS/SushiBLAS.hpp"
 K_ENGINE_INCLUDE = re.compile(r'^\s*#\s*include\s*[<"](SushiBLAS/engine/engine\.hpp)[>"]')
-K_VIEW_ALLOWED_MEMBERS = frozenset({"recorder", "rng"})
+K_VIEW_ALLOWED_MEMBERS = frozenset({"rng"})
+K_REMOVED_ENGINE_MEMBER = re.compile(
+    r"\b(execute|discard_recorded|recorder_?|graph_|RecordedGraph|TaskRecorder)\b"
+)
+K_FAMILY_ENGINE_CONSTRUCTOR = re.compile(
+    r"\b(\w+(?:Ops|BLAS))\s*\(\s*(?:const\s+)?(?:SushiBLAS::)?Engine\s*&"
+)
 K_COMMAND_GROUP = re.compile(r"\.\s*(submit)\s*\(")
 K_QUEUE_SHORTCUT = re.compile(
     r"\b(?:q|q2|queue)\s*\.\s*(parallel_for|single_task|memcpy|memset|fill|copy)\s*\("
@@ -106,12 +113,24 @@ def find_seam_engine_includes(root: Path) -> Iterator[Violation]:
 
 
 def find_view_engine_calls(root: Path) -> Iterator[Violation]:
-    """Yields each call on an engine variable from a public header, other than recorder() and rng()."""
+    """Yields each call on an engine variable from a public header, other than rng()."""
     headers = (
         entry for entry in _library_lines(root, _header_lines(root))
         if _relative(entry[0], root) != K_ENGINE_HEADER
     )
     yield from _engine_calls(headers, K_VIEW_ALLOWED_MEMBERS)
+
+
+def find_removed_engine_members(root: Path) -> Iterator[Violation]:
+    """Yields each removed Engine member named in engine.hpp and each family constructor over Engine&."""
+    for path, number, line in _file_lines(root / K_ENGINE_HEADER):
+        if not K_LINE_COMMENT.match(line):
+            for member in K_REMOVED_ENGINE_MEMBER.findall(line):
+                yield Violation(path, number, member)
+    for path, number, line in _library_lines(root, _header_lines(root)):
+        if not K_LINE_COMMENT.match(line):
+            for family in K_FAMILY_ENGINE_CONSTRUCTOR.findall(line):
+                yield Violation(path, number, f"{family}(Engine&)")
 
 
 def _call_text(lines: list[str], index: int, column: int) -> str:
@@ -150,14 +169,16 @@ def find_task_dependencies(root: Path) -> Iterator[Violation]:
 rule_seam_engine_includes = _screened_rule("rule_seam_engine_includes", find_seam_engine_includes)
 rule_view_engine_calls = _screened_rule("rule_view_engine_calls", find_view_engine_calls)
 rule_task_dependencies = _screened_rule("rule_task_dependencies", find_task_dependencies)
+rule_removed_engine_members = _screened_rule("rule_removed_engine_members", find_removed_engine_members)
 
 K_CHECKER = Checker(
-    description="Checks who includes engine.hpp, what a view calls on an Engine and how a task orders its work.",
+    description="Checks who includes engine.hpp, what a view calls on an Engine, that no removed Engine member or family constructor over Engine& returns, and how a task orders its work.",
     collect=collect,
     rules={
         "rule_seam_engine_includes": rule_seam_engine_includes,
         "rule_view_engine_calls": rule_view_engine_calls,
         "rule_task_dependencies": rule_task_dependencies,
+        "rule_removed_engine_members": rule_removed_engine_members,
     },
 )
 

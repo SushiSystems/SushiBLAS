@@ -27,7 +27,6 @@
 
 #pragma once
 
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
@@ -46,9 +45,6 @@ namespace SushiBLAS
         public:
             /** @brief Builds a view that records through recorder, which must outlive the view. */
             explicit NonLinearOps(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
-
-            /** @brief Builds a view that records on engine's own graph. */
-            explicit NonLinearOps(Engine& engine) noexcept : NonLinearOps(engine.recorder()) {}
 
             NonLinearOps(const NonLinearOps&) = default;
             NonLinearOps& operator=(const NonLinearOps&) = delete;

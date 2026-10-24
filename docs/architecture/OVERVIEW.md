@@ -9,11 +9,11 @@ spatial (windowed) operations.
 
 Two commitments shape every operation.
 
-1. **An operation is a recorded task.** `SushiBLAS::BLASOps(engine).gemm(A, B, C)` adds one task
-   to the engine's graph, with `A` and `B` declared as reads and `C` as a write, and returns a
+1. **An operation is a recorded task.** `SushiBLAS::BLASOps(recorder).gemm(A, B, C)` adds one task
+   to the graph the recorder records on, with `A` and `B` declared as reads and `C` as a write, and returns a
    `TaskHandle`. Nothing runs. SushiRuntime's dependency tracker orders the task against every
-   other recorded task from those declarations. `engine.execute()` runs the graph, returns when
-   every task has finished, and reports the run as a `SushiRuntime::Result<void>`.
+   other recorded task from those declarations. `graph.run()` runs the graph, returns when
+   every task has finished, and reports the run as a `SushiRuntime::Result<SushiRuntime::RunReport>`.
 2. **No vendor math library.** Every kernel is plain C++ or SushiBLAS's own SYCL. The local-memory
    tiling of GEMM and SYRK derives from portBLAS (Apache-2.0, attributed in
    [`NOTICE.md`](../../NOTICE.md)); the rest is written here, the Philox4x32-10 random generator

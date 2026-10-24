@@ -28,12 +28,11 @@
 #pragma once
 
 #include <sycl/sycl.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 
 namespace SushiBLAS 
 {
-    class Engine;
-
     /**
      * @class SparseBLAS
      * @brief Sparse matrix operations.
@@ -44,11 +43,11 @@ namespace SushiBLAS
     class SparseBLAS 
     {
         public:
-            explicit SparseBLAS(Engine& e) : engine_(e) {}
+            explicit SparseBLAS(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
 
         private:
             // Stays unread until this class declares an operation; see modules/operations/blas/README.md.
-            [[maybe_unused]] Engine& engine_;
+            [[maybe_unused]] TaskRecorder& recorder_;
     };
 
 } // namespace SushiBLAS

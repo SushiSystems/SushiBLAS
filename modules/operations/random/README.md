@@ -128,7 +128,7 @@ caller's functor.
   uint64_t offset, int64_t size, auto* pT) -> sycl::event`, generic over the runtime dtype via
   `decltype(scalar_type)`. It returns what `fill(...)` returns.
 
-Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until the caller runs the graph.
 
 Warning: This is a low-level generic seam. The `draw_block` that `task_func` hands to `fill` runs
 on the device: it must be device-copyable, capture by value, hold no host pointers, allocate

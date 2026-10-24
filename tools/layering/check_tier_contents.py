@@ -54,9 +54,7 @@ K_ENGINE_COMPOSED_INCLUDE = re.compile(
 )
 K_ENGINE_BRICKS = frozenset({
     "SushiBLAS/engine/rng_stream.hpp",
-    "SushiBLAS/engine/recorded_graph.hpp",
     "SushiBLAS/engine/scratch_pool.hpp",
-    "SushiBLAS/engine/task_recorder.hpp",
     "SushiBLAS/engine/execution_mode.hpp",
 })
 K_ENGINE_MEMBER_CALL = re.compile(r"\bengine_?\s*(?:\.|->)\s*([A-Za-z_]\w*)\s*\(")

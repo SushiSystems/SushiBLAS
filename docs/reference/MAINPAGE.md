@@ -23,8 +23,9 @@ which are the better place to start:
 | If you want to | Read |
 |---|---|
 | Hold data | `SushiBLAS::Tensor`, `SushiBLAS::Storage`, `SushiBLAS::TensorFactory`: `tensor/tensor.hpp`, `tensor/storage.hpp`, `tensor/tensor_factory.hpp` |
-| Own a graph and run it | `SushiBLAS::Engine`, built on a `SushiRuntime::Runtime`: `engine/engine.hpp`. `execute()` returns a `SushiRuntime::Result<void>` |
-| Call an operation | The view of its family, built from an `Engine` or a `TaskRecorder`: `SushiBLAS::BLASOps` in `blas/blas.hpp`, and `SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`, `SpatialOps`, each in `<family>/<family>.hpp` |
+| Hold what a process shares | `SushiBLAS::Engine`, built on a `SushiRuntime::Runtime`: `engine/engine.hpp`. It holds the scratch pool, tensor factory, random stream and mode, and no graph |
+| Own a graph and run it | `SushiRuntime::Graph` from `Runtime::graph()`, with a `SushiBLAS::TaskRecorder` over its recorder: `engine/task_recorder.hpp`. `Graph::run()` returns a `SushiRuntime::Result<SushiRuntime::RunReport>` |
+| Call an operation | The view of its family, built from a `TaskRecorder`: `SushiBLAS::BLASOps` in `blas/blas.hpp`, and `SparseOps`, `ElementwiseOps`, `NonLinearOps`, `LogicOps`, `ReductionOps`, `RandomOps`, `SpatialOps`, each in `<family>/<family>.hpp` |
 | Pass a BLAS flag or scalar | `SushiBLAS::Core::Transpose`, `Uplo`, `Diag`, `Side` in `core/blas_types.hpp`; `SushiBLAS::BLASScalar` in `operands/scalar.hpp` |
 | Hold a sparse operand | `SushiBLAS::SparseMatrix`, `SparseVector`, `SparseBuilder`: `sparse_storage/sparse_matrix.hpp`, `sparse_storage/sparse_vector.hpp`, `sparse_storage/sparse_builder.hpp` |
 | Move data to and from the host | `SushiBLAS::IO`: `io/io.hpp`; the file operations return `SushiBLAS::IOStatus` |

@@ -9,7 +9,7 @@ kernels a task runs are in the modules under `modules/kernels/`.
 
 | Path | Defines |
 | --- | --- |
-| `modules/engine/engine/source/engine.cpp` | The `Engine` constructor, `Engine::execute` and `Engine::discard_recorded` |
+| `modules/engine/engine/source/engine.cpp` | The `Engine` constructor |
 | `io/source/io.cpp` | `IO`: the `.sushi`, raw binary and `.npy` readers and writers, and the text rendering |
 | `modules/data/sparse_storage/source/sparse_builder.cpp` | The members of `SparseBuilder` that are not templates |
 | `blas/source/level1/`, `level2/`, `level3/` | `Level1`, `Level2` and `Level3`, one file per BLAS routine; a routine and its Hermitian or conjugated sibling share a file |

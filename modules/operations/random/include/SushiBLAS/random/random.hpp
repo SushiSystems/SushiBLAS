@@ -27,7 +27,6 @@
 
 #pragma once
 
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/engine/rng_stream.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
@@ -55,13 +54,6 @@ namespace SushiBLAS
             /** @brief Builds a view over a recorder and a stream; both must outlive the view. */
             RandomOps(TaskRecorder& recorder, RNGStream& stream) noexcept
                 : recorder_(recorder), rng_(stream)
-            {
-
-            }
-
-            /** @brief Builds a view that records on engine's graph and draws from engine's stream. */
-            explicit RandomOps(Engine& engine) noexcept
-                : RandomOps(engine.recorder(), engine.rng())
             {
 
             }

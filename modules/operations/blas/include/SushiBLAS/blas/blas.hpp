@@ -27,7 +27,6 @@
 
 #pragma once
 
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/blas/level1.hpp>
 #include <SushiBLAS/blas/level2.hpp>
@@ -42,13 +41,6 @@ namespace SushiBLAS
     class BLASOps final : public Level1, public Level2, public Level3
     {
         public:
-            /** @brief Builds the view over the recorder an engine composes. */
-            explicit BLASOps(Engine& engine) noexcept
-                : BLASOps(engine.recorder())
-            {
-
-            }
-
             /** @brief Builds the view over a recorder, which must outlive it. */
             explicit BLASOps(TaskRecorder& recorder) noexcept
                 : Level1(recorder), Level2(recorder), Level3(recorder)

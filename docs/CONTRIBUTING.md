@@ -216,7 +216,8 @@ an error that is not an operand rule, as in
 `tensor/storage.hpp`. An unsupported case (dtype, layout, mode) always throws;
 it never does nothing.
 
-Nothing throws at run time. `Engine::execute()` and the graph primitives
+Nothing throws at run time. `Graph::run()` returns a
+`SushiRuntime::Result<SushiRuntime::RunReport>`, the graph primitives
 return a `SushiRuntime::Result<void>`, and a file operation returns an
 `IOStatus`. `SB_ASSERT` is for a defect inside the library, not for a
 caller's input. [The architecture, section 11](architecture/EXCEPTIONS.md)

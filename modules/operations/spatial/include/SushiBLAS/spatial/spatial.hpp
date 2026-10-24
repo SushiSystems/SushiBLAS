@@ -29,7 +29,6 @@
 
 #include <cstdint>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
@@ -45,9 +44,6 @@ namespace SushiBLAS
         public:
             /** @brief Builds a view that records through recorder, which must outlive the view. */
             explicit SpatialOps(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
-
-            /** @brief Builds a view that records on engine's own graph. */
-            explicit SpatialOps(Engine& engine) noexcept : SpatialOps(engine.recorder()) {}
 
             SpatialOps(const SpatialOps&) = default;
             SpatialOps& operator=(const SpatialOps&) = delete;

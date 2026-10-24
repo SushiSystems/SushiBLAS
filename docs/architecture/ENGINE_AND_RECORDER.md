@@ -1,26 +1,19 @@
 # 5. `Engine`, the recorder and the views
 
-`Engine` (`engine/engine.hpp`) is the composition root a program constructs once on a
-`SushiRuntime::Runtime`, with the layout of the tensors it creates. It owns, in this order, the
-`ScratchPool`, the `RecordedGraph`, the `TaskRecorder` bound to both, the `TensorFactory` and the
-`RNGStream`. Its interface is short:
+`Engine` (`engine/engine.hpp`) is what a program holds once per process. It is built on a
+`SushiRuntime::Runtime` with the layout of the tensors it creates, and owns, in this order, the
+`ScratchPool`, the execution mode, the `TensorFactory` and the `RNGStream`. It holds no graph and
+runs nothing. Its interface is short:
 
 - `create_tensor(dims, dtype, residency, device_index)`, from a brace list or a span.
-- `set_mode` and `mode`, which forward to the recorder, and `layout`.
-- `recorder()`, `tensor_factory()`, `rng()`, `scratch_pool()` and `runtime()`.
-- `execute()`, which runs the recorded graph on the runtime and returns when every task has
-  finished. It returns a `SushiRuntime::Result<void>`: success, also when nothing is recorded, or
-  the `SushiRuntime::Error` that ended the run. No exception leaves it. The graph is empty when
-  it returns, except after `ErrorCode::InvalidState` for another run in flight on the runtime,
-  which keeps what was recorded. No thread may be recording on the engine while it runs.
-- `discard_recorded()`, which drops every recorded task that has not run, with the operand
-  storage and the scratch those tasks hold.
+- `set_mode` and `mode`, the execution mode a recorder built from the engine starts with, and
+  `layout`.
+- `tensor_factory()`, `rng()`, `scratch_pool()` and `runtime()`.
 
-No accessor reaches the graph. `RecordedGraph` (`engine/recorded_graph.hpp`) owns the
-`SushiRuntime::Graph` and has the two verbs that change it, `run()` and `discard()`; `execute()`
-and `discard_recorded()` call them. After a run or a discard it replaces the graph with an empty
-one from the runtime, which is what destroys the recorded tasks and the plan. The engine is not copyable or movable, and the `Runtime`
-object must outlive it.
+The program owns the graph. It takes one from `runtime.graph()`, builds a `TaskRecorder` over the
+graph's recorder with the engine's scratch pool and mode, and builds the operation families over
+that recorder. `graph.run()` runs what was recorded; [the first program](../getting_started/FIRST_PROGRAM.md)
+shows the four lines. The engine is not copyable or movable, and the `Runtime` object must outlive it.
 
 ## `TaskRecorder`, `OperandSet` and `TaskHandle`
 
@@ -37,10 +30,10 @@ std::vector<sycl::event>&) -> sycl::event` that must order its work behind the e
 given. On the SYCL side that means every command group calls `h.depends_on(deps)`;
 `check_engine_seams.py` reports a command group without it.
 
-One mutex in the recorder serialises record calls, so several threads may record on one engine
-at once; the tasks reach the graph in the order the threads took the lock. `execute()` and
+One mutex in the recorder serialises record calls, so several threads may record on one recorder
+at once; the tasks reach the graph in the order the threads took the lock. A run of the graph and
 `set_mode` are outside that lock and must not overlap a record call. `run_exclusive(work)` runs a
-callable under the same mutex, and `Engine::discard_recorded()` discards through it.
+callable under the same mutex.
 
 `OperandSet` (`engine/operand_set.hpp`) is how a task says what it touches, and it takes tensors,
 never raw regions:
@@ -63,13 +56,12 @@ look unrelated to the tracker, which emits no edge between them.
 `TaskHandle` (`engine/task_handle.hpp`) is what every record call returns: the identity of the
 recorder and the sequence number the recorder gave the task. A call that records nothing, such as an
 elementwise operation on an empty tensor, returns the default handle, for which `is_valid()` is
-false. The handle is a name for the task and gives no way to wait on it; `execute()` is the only
+false. The handle is a name for the task and gives no way to wait on it; `Graph::run()` is the only
 way to run the graph.
 
 ## Views
 
-A view is a small class of record calls bound to a recorder. Each has two constructors, one
-from an `Engine` and one from a `TaskRecorder` the caller owns:
+A view is a small class of record calls bound to a `TaskRecorder` the caller owns:
 
 ```cpp
 ScratchPool pool(TestEnvironment::runtime());
@@ -84,12 +76,10 @@ ReductionOps(first_recorder).sum(input, first_result);
 Source: `tests/operations/reductions/test_reductions/test_scratch_buffer.cpp`
 
 The test builds two such recorders. `TestEnvironment::runtime()` returns the `SushiRuntime::Runtime&` of the test program. The
-recorder's third constructor argument is the `ExecutionMode`, `Auto` by default.
-
-`ReductionOps(engine)` is the same view over `engine.recorder()`. A caller that builds its own
-recorder owns the graph and runs it with the run verbs of `SushiRuntime::Graph`. `RandomOps` also
-takes the `RNGStream` it draws from, and `IO` (`io/io.hpp`) takes an `Engine`, because every host
-transfer runs the recorded graph first.
+recorder's third constructor argument is the `ExecutionMode`, `Auto` by default. The caller owns
+the graph and runs it with the run verbs of `SushiRuntime::Graph`. `RandomOps` also takes the
+`RNGStream` it draws from. `IO` (`io/io.hpp`) takes neither an engine nor a recorder: it reads and writes what a tensor's storage
+holds when it is called, so the caller runs the graph that writes the tensor first.
 
 | View | Header | Family |
 | --- | --- | --- |

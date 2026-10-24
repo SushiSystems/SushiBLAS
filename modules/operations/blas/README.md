@@ -182,7 +182,7 @@ struct BiasReLU
     }
 };
 
-Dispatch::execute_gemm(engine.recorder(), X, W, Y,
+Dispatch::execute_gemm(recorder, X, W, Y,
                        Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                        "nn.linear_relu", "nn.linear_relu"_op,
                        Dispatch::gemm_epilogue(BiasReLU{bias.data_as<float>()})
@@ -203,7 +203,7 @@ at the same time. See `GemmEpilogue`.
   runtime value and every arm inside the domain is instantiated. A bare functor declares no operands
   of its own and produces exactly the access set this seam has always built; a `GemmEpilogue` adds
   whatever the caller declared on it.
-- `recorder`: The recorder the task is recorded through; `engine.recorder()` for an engine.
+- `recorder`: The recorder the task is recorded through; a `TaskRecorder` over the caller's graph.
 - `transA`, `transB`: `Core::Transpose` values. A value outside the enumeration throws.
 - `C`: The output; must not overlap `A` or `B`.
 - `alpha`, `beta`: `BLASScalar` values. A non-zero imaginary part throws for a real dtype. `beta`
@@ -211,14 +211,14 @@ at the same time. See `GemmEpilogue`.
 - `epilogue`: The per-element epilogue functor, bare or bundled with its operands by
   `gemm_epilogue`.
 
-Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until the caller runs the graph.
 
 Warning: This is a low-level generic seam, not a convenience wrapper. Same device-kernel constraints
 as `execute_binary:` `epilogue` is inlined into a SYCL device kernel, so it must be device-copyable
 and trivially copyable, must capture by value only, must not dereference host pointers or touch
 host-only state, must not allocate, and must not throw: none of which the compiler will always
 diagnose for you. A pointer it carries (a bias vector, say) must be a device-accessible USM pointer,
-and it must stay alive until `Engine::execute()` has completed, since the task holds the functor by
+and it must stay alive until the graph has run, since the task holds the functor by
 value and runs later. Staying alive is not the same as being *ordered*: declare the memory through
 `gemm_epilogue` as well, or nothing sequences this task against whatever else touches it.
 
@@ -249,7 +249,7 @@ count that does not match; see "Operand validation" below. Throws `UnsupportedEx
 
 At the `if constexpr (Dom == Domain::Real)` block: a complex tensor is rejected here, at record
 time, rather than at execution time: the caller learns from the call that recorded the mistake
-instead of from a later Engine::execute() that names a task it did not write.
+instead of from a later run of the graph that names a task it did not write.
 
 At `if (beta.is_zero())`: `C = alpha * op(A) * op(B) + beta * C` reads C whenever beta is
 non-zero: the kernels branch around the read on exactly `beta == 0`. Declaring that read, through
@@ -374,7 +374,7 @@ at the kernel boundary. See "Scalar parameters of `Level1`" for why.
 `Level3` provides an interface for standard BLAS Level 3 operations, which involve matrix-matrix
 computations. These operations are typically the most computationally intensive and benefit greatly
 from optimized implementations like oneMKL. Each operation records one task on the graph and
-returns its `TaskHandle`; the task runs when `Engine::execute()` runs, and that call blocks until
+returns its `TaskHandle`; the task runs when the caller runs the graph, and that call blocks until
 it finishes.
 
 ### `Level3::symm`, `hemm`
@@ -473,7 +473,7 @@ every site.
   const std::vector<sycl::event>&) -> sycl::event`, generic over the runtime dtype via
   `decltype(scalar_type)`.
 
-Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until the caller runs the graph.
 
 Throws `std::invalid_argument` at record time if `dtype` falls outside `Dom`. Throws
 `UnsupportedExecution` at record time if the recorder is in `ForceReference` and a declared tensor

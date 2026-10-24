@@ -27,7 +27,6 @@
 
 #pragma once
 
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/sparse_storage/sparse_matrix.hpp>
 #include <SushiBLAS/sparse_storage/sparse_vector.hpp>
@@ -49,13 +48,6 @@ namespace SushiBLAS
             /** @brief Builds a view that records through recorder, which must outlive the view. */
             explicit SparseOps(TaskRecorder& recorder) noexcept
                 : recorder_(recorder)
-            {
-
-            }
-
-            /** @brief Builds a view that records on engine's own graph. */
-            explicit SparseOps(Engine& engine) noexcept
-                : SparseOps(engine.recorder())
             {
 
             }

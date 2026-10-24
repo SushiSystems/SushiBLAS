@@ -1,7 +1,8 @@
 # 3. Execution modes
 
-`ExecutionMode` (`engine/execution_mode.hpp`) has three enumerators, and `Engine::set_mode` sets
-the mode of every operation recorded from then on.
+`ExecutionMode` (`engine/execution_mode.hpp`) has three enumerators, and `TaskRecorder::set_mode` sets
+the mode of every operation it records from then on. `Engine::set_mode` sets the mode a recorder
+built from the engine afterwards starts with.
 
 | Mode | What a task recorded under it runs |
 | --- | --- |
@@ -9,7 +10,7 @@ the mode of every operation recorded from then on.
 | `ForceSYCL` | The SYCL kernel. |
 | `ForceReference` | The reference path, on the host thread that executes the task. |
 
-`set_mode` is `noexcept` and accepts all three values. No thread may be recording on the engine
+`set_mode` is `noexcept` and accepts all three values. No thread may be recording on the recorder
 while it is called.
 
 **The mode belongs to the task.** `TaskRecorder::record_pair` builds an

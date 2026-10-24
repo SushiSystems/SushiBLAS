@@ -37,13 +37,11 @@ A layer depends on the layers below it and on none above. Four rules state what 
 know, and `tools/layering/check_tier_contents.py` checks them from the include lines and the call
 sites:
 
-- **`Engine` knows no operation.** `engine/engine.hpp` includes the five bricks it composes
-  (`engine/rng_stream.hpp`, `engine/recorded_graph.hpp`, `engine/scratch_pool.hpp`,
-  `engine/task_recorder.hpp`, `engine/execution_mode.hpp`) and no view, seam or experimental
+- **`Engine` knows no operation.** `engine/engine.hpp` includes the three bricks it composes
+  (`engine/rng_stream.hpp`, `engine/scratch_pool.hpp`, `engine/execution_mode.hpp`) and no view, seam or experimental
   header. It has no accessor that returns a view.
-- **A view knows the engine only as a source of bricks.** A view's constructor takes an `Engine&`
-  and calls `recorder()` (and `rng()` for `RandomOps`), or takes the `TaskRecorder&`
-  directly. An operation source under `modules/operations/` never includes `engine/engine.hpp`.
+- **A view knows the recorder and not the engine.** A view's constructor takes the
+  `TaskRecorder&` (and the `RNGStream&` for `RandomOps`). An operation source under `modules/operations/` never includes `engine/engine.hpp`.
 - **Only `TaskRecorder` records a tensor operation.** No seam, view or operation source calls a
   recording member of `SushiRuntime::Recorder` (`task`, `kernel`, `state_rule`, `host`,
   `untracked_kernel`, `dynamic_kernel`, `coupled_rule`). The graph primitives of

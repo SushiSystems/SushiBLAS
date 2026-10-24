@@ -15,7 +15,7 @@ the `SparseBuilder` are in [the sparse_storage module](../../data/sparse_storage
 
 ## `sparse/sparse.hpp`
 
-`SparseOps` is a view over a `TaskRecorder`, built from the recorder or from an `Engine&`, as every
+`SparseOps` is a view over a `TaskRecorder`, built from the recorder, as every
 other view is. It derives from nothing and no class derives from it. Each routine returns a
 `TaskHandle` and records through `Internal::execute_typed_task` under the family name "Sparse
 operation", so a sparse task refuses a device-only operand under `ForceReference` as a dense one

@@ -6,6 +6,9 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — engine: Removed the engine's own graph with `execute()`, `discard_recorded()` and `recorder()`; every operation records into a graph its caller owns (`engine.hpp`, `engine.cpp`).
+- 2026-10-24 — engine: Removed the constructors over `Engine&` of every operation family, and made `SparseBLAS` take a `TaskRecorder&` (`blas.hpp`, `sparse.hpp`).
+- 2026-10-24 — tools: Made `check_engine_seams.py` fail an engine graph member or a family constructor over `Engine&` coming back (`check_engine_seams.py`).
 - 2026-10-24 — index: Added the `IndexOps` family, whose `for_each()` runs a functor over a fixed count or a count a previous node wrote, with the node's name and determinism class (`index_ops.hpp`, `index_task.hpp`).
 - 2026-10-24 — engine: Added `TaskRecorder::record_late_pair()`, which records a task whose launch count the runtime reads from a tensor, and carried `TaskDescription::determinism` into the runtime node (`task_recorder.hpp`).
 - 2026-10-24 — tests: Pinned that a node recorded inside a runtime placement scope carries the scope's class and key (`test_task_recorder.cpp`).

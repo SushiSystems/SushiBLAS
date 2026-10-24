@@ -70,7 +70,7 @@ when a dimension is 0. `Engine::create_tensor` forwards to it.
 A recorded task keeps its operands' storage alive. `OperandSet` takes one reference to the
 `Storage` of every tensor declared on it, in an `Internal::StorageKeepAlive` (six references
 inline, the rest on the heap), and `record_pair` copies that list into the task. The storage of a
-tensor the caller drops between the record call and `execute()` is therefore still referenced when
+tensor the caller drops between the record call and `Graph::run()` is therefore still referenced when
 the task runs. A pointer hidden inside a bare functor is not a declared operand: nothing retains it,
 orders against it, or checks it under `ForceReference`.
 

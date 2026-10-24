@@ -21,7 +21,7 @@
 
 /**
  * @file engine.hpp
- * @brief Declares the Engine, which owns one graph, the bricks that record on it, and runs it.
+ * @brief Declares the Engine, which owns what a process shares between its graphs.
  * @author Mustafa Garip
  */
 
@@ -34,9 +34,7 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/tensor_factory.hpp>
 #include <SushiBLAS/engine/rng_stream.hpp>
-#include <SushiBLAS/engine/recorded_graph.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
-#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
@@ -45,8 +43,9 @@ namespace SushiBLAS
 {
     /**
      * @class Engine
-     * @brief Owns one graph with its scratch pool, recorder, tensor factory and random
-     *        stream, and runs the graph.
+     * @brief Owns a runtime binding, a scratch pool, a tensor factory, a random stream and an
+     *        execution mode; it records and runs no graph.
+     * @see docs/design/LAYERED_EXECUTION/README.md
      * @see modules/README.md
      */
     class Engine final
@@ -66,20 +65,17 @@ namespace SushiBLAS
             Engine& operator=(Engine&&) = delete;
             ~Engine() = default;
 
-            /** @brief Returns the recorder every operation view of this engine records through. */
-            [[nodiscard]] TaskRecorder& recorder() noexcept { return recorder_; }
-
             /** @brief Returns the factory create_tensor forwards to. */
             [[nodiscard]] TensorFactory& tensor_factory() noexcept { return tensor_factory_; }
 
             /**
-             * @brief Returns the random stream every RandomOps view of this engine draws from.
+             * @brief Returns the random stream a RandomOps view built with it draws from.
              * @see modules/engine/engine/README.md
              */
             [[nodiscard]] RNGStream& rng() noexcept { return rng_; }
 
             /**
-             * @brief Returns the pool tasks recorded through this engine lease device scratch from.
+             * @brief Returns the pool tasks recorded over it lease device scratch from.
              * @see modules/engine/engine/README.md
              */
             [[nodiscard]] ScratchPool& scratch_pool() noexcept { return scratch_pool_; }
@@ -91,37 +87,19 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Sets the execution mode of every operation recorded from now on.
-             * @pre No thread is recording on this engine.
+             * @brief Sets the execution mode a recorder built from now on starts with.
+             * @pre No thread is building a recorder from this engine.
              */
-            void set_mode(ExecutionMode mode) noexcept { recorder_.set_mode(mode); }
+            void set_mode(ExecutionMode mode) noexcept { mode_ = mode; }
 
-            /** @brief Returns the execution mode operations are recorded under. */
-            [[nodiscard]] ExecutionMode mode() const noexcept { return recorder_.mode(); }
+            /** @brief Returns the execution mode a recorder built from this engine starts with. */
+            [[nodiscard]] ExecutionMode mode() const noexcept { return mode_; }
 
             /** @brief Returns the memory layout of tensors this engine creates. */
             [[nodiscard]] Core::Layout layout() const noexcept
             {
                 return tensor_factory_.layout();
             }
-
-            /**
-             * @brief Runs the graph recorded through recorder(), returns when every task has
-             *        finished, and leaves the graph empty.
-             * @return Nothing, also when no task was recorded, or the error that ended the run.
-             *         After InvalidState for a run in flight the recorded tasks are kept.
-             * @pre No thread is recording on this engine.
-             * @see modules/README.md
-             */
-            [[nodiscard]] SushiRuntime::Result<void> execute();
-
-            /**
-             * @brief Drops every task recorded through recorder() that has not run, with the
-             *        operand storage and the scratch those tasks hold; the engine stays usable.
-             * @pre No thread is running execute() on this engine.
-             * @see modules/README.md
-             */
-            void discard_recorded();
 
             /**
              * @brief Creates a tensor from a brace list of dimensions.
@@ -162,11 +140,8 @@ namespace SushiBLAS
             /// @brief The pool recorded tasks lease scratch from; see modules/README.md.
             ScratchPool scratch_pool_;
 
-            /// @brief The graph recorded tasks wait in until execute(); no accessor reaches it.
-            RecordedGraph graph_;
-
-            /// @brief The recorder bound to the recorder of graph_ and to scratch_pool_.
-            TaskRecorder recorder_;
+            /// @brief The execution mode a recorder built from this engine starts with.
+            ExecutionMode mode_ = ExecutionMode::Auto;
 
             /// @brief The factory behind create_tensor.
             TensorFactory tensor_factory_;

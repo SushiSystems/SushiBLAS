@@ -75,7 +75,7 @@ arena-packed fp32/fp16 pair this op exists to serve.
   shape and, at rank 2 or more, the same layout as `src`, and not overlap it: each work-item reads one element and writes another of a
   different width, so a partial overlap is a race no launch shape can fix.
 
-Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until the caller runs the graph.
 
 Throws `std::invalid_argument`, naming the offending operand, if it has elements but no storage
 or is non-contiguous, if the two shapes or layouts disagree, if its dtype falls outside `Domain::Real`,
@@ -177,7 +177,7 @@ launch and one pass over memory:
 
 ```cpp
 // theta, g, m, v and ema advanced together, in one kernel.
-Dispatch::execute_zip_inplace(engine.recorder(), std::array{&theta, &g, &m, &v, &ema},
+Dispatch::execute_zip_inplace(recorder, std::array{&theta, &g, &m, &v, &ema},
     "optim.adamw", "optim.adamw"_op,
     [b1, b2, lr, wd, eps, inv_bc1, inv_bc2, decay]
     (auto& theta_i, auto& g_i, auto& m_i, auto& v_i, auto& ema_i)
@@ -215,7 +215,7 @@ against each other.
   element index, or a `bind_scalars` or `bind_reads` bundle of one.
 
 Returns: The `TaskHandle` of the recorded task, or a default one when the tensors hold no
-elements; the work is deferred until `Engine::execute()`.
+elements; the work is deferred until the caller runs the graph.
 
 Warning: Same device-kernel constraints as `execute_binary:` `op_func` is inlined into the kernel,
 so it must be device-copyable, capture by value, hold no host pointers, allocate nothing and throw

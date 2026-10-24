@@ -164,7 +164,7 @@ instead, which is `execute_reduction` with that shape already filled in.
   default, leases nothing and hands the dispatcher an empty `ReductionScratch`.
   `planned_partials_for(t)` computes it from the device `t` lives on.
 
-Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until the caller runs the graph.
 
 Warning: This is a low-level generic seam. Whatever the SYCL path submits runs on the device, so
 any lambda it nests must be device-copyable, capture by value, hold no host pointers, allocate
@@ -224,7 +224,7 @@ is.
   type served.
 - `scratch_elements`: Per-work-group partials to lease; zero leases nothing.
 
-Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until the caller runs the graph.
 
 Warning: Same device-kernel constraints as `execute_reduction`.
 
@@ -263,7 +263,7 @@ would be wrong.
 - `scratch_elements`: How many per-work-group partials the dispatcher wants room for; zero leases
   nothing. `planned_partials_for(t)` is how to compute it.
 
-Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until the caller runs the graph.
 
 Warning: Same device-kernel constraints as `execute_reduction`.
 
@@ -300,7 +300,7 @@ the caller never sees an allocator.
 // A root-mean-square reduction a consumer could write, deterministic and
 // compensated, in one call and one kernel:
 Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(
-    engine.recorder(), t, result, "nn.rms", "nn.rms"_op,
+    recorder, t, result, "nn.rms", "nn.rms"_op,
     [](auto x) { return x * x; },
     [](auto v, std::size_t n) { return sycl::sqrt(v / decltype(v)(n)); });
 ```
@@ -316,7 +316,7 @@ Dispatch::execute_folding_reduction<Reduce::CompensatedSum>(
   either way, so `mean` and `nrm2` cost no more launches than `sum`. `value` is `double` on the
   host path of a sum; see `finalize_keeps_width`.
 
-Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until the caller runs the graph.
 
 Warning: `transform` and `finalize` are inlined into a SYCL device kernel and carry the same
 constraints as every other functor in this family: device-copyable, capture by value, no host
@@ -393,7 +393,7 @@ body is a `Detail::SpanReductionTask`: the SYCL path is the segmented launch of
 // Row-wise maximum of a [rows, cols] tensor into a [rows] vector -
 // the shift a numerically honest log-softmax needs.
 Dispatch::execute_folding_axis_reduction<Reduce::NaNPropagatingMax>(
-    engine.recorder(), x, 1, row_max, "math.max_along", "math.max_along"_op,
+    recorder, x, 1, row_max, "math.max_along", "math.max_along"_op,
     Dispatch::ReduceIdentityTransform{}, Dispatch::ReduceIdentityFinalize{});
 ```
 
@@ -413,7 +413,7 @@ two launch shapes and for the determinism argument, which is the one it makes fo
 - `finalize`: Callable `(auto value, std::size_t n) -> auto`, applied once per segment with `n` that
   segment's element count. `value` is `double` on the host path of a sum.
 
-Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until the caller runs the graph.
 
 Warning: `transform` and `finalize` are inlined into a SYCL device kernel and carry the same
 constraints as every other functor in this family: device-copyable, capture by value, no host

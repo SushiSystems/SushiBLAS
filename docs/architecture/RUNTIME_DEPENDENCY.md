@@ -27,12 +27,12 @@ modules by their own path, such as `<SushiRuntime/core/span.hpp>` and
 
 | SushiRuntime name | Where SushiBLAS uses it |
 | --- | --- |
-| `Runtime` | `Engine`, `TensorFactory`, `Storage`, `ScratchPool` and `RecordedGraph` are each built on a `Runtime&` |
+| `Runtime` | `Engine`, `TensorFactory`, `Storage` and `ScratchPool` are each built on a `Runtime&` |
 | `Runtime::buffer`, `Buffer<std::byte>`, `Residency`, `DeviceIndex` | `Storage` allocates through them (`tensor/storage.hpp`) |
 | `AdvancedControls` (`Runtime::advanced()`) | `Storage::queue()` and the device count the factory checks |
-| `Graph`, `Graph::plan()`, `RunReport` | `RecordedGraph` owns the graph and runs it (`engine/recorded_graph.hpp`) |
+| `Graph`, `Graph::plan()`, `RunReport` | The program owns the graph, records on it through a `TaskRecorder` and runs it |
 | `Recorder::task`, `Access`, `NodeOptions`, `OperationID` | `TaskRecorder` records every tensor operation through them (`engine/task_recorder.hpp`) |
 | `Recorder::refusal()` | `TaskRecorder` reads it to report a recording the runtime refused |
 | `BufferRegion` | `Tensor::region()` and `OperandSet` |
-| `Result`, `Error`, `ErrorCode` | The return of `Engine::execute()` and of the graph primitives |
+| `Result`, `Error`, `ErrorCode` | The return of the graph primitives |
 | `sushi_ptr`, `RefCounted`, `span` | `Storage` ownership and the span parameters of the public headers |

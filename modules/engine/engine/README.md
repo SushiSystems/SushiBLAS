@@ -10,7 +10,6 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | File | Declares |
 | --- | --- |
 | `task_recorder.hpp` | `TaskRecorder`, the one caller of `SushiRuntime::Recorder::task` and `dynamic_kernel` in SushiBLAS |
-| `recorded_graph.hpp` | `RecordedGraph`, the one owner of the graph recorded tasks wait in |
 | `task_handle.hpp` | `TaskHandle`, the value a record call returns for the task it recorded |
 | `task_description.hpp` | `TaskDescription`, what an operation states about the task it records |
 | `operand_set.hpp` | `OperandSet`, the tensors one task reads and writes, and the storage it retains |
@@ -33,11 +32,11 @@ and `ReductionOps` in `math/`, `LogicOps` in `logic/`.
 ## How an operation is recorded
 
 Every view holds a `TaskRecorder&` and nothing else of the engine; `RandomOps` also holds the
-`RNGStream&`. A view is built from an `Engine&` or from the recorder itself. An operation checks
+`RNGStream&`. A view is built from the recorder. An operation checks
 its operands, declares them in an `OperandSet`, and hands the set, a `TaskDescription` and a task
 body to the recorder, directly or through a seam (`execute_typed_task`, `execute_blas_task`, an
 executor of `Dispatch`). It returns the `TaskHandle` of the recorded task. Nothing runs until
-`Engine::execute()`. An operation that has nothing to do, such as one over a tensor without
+the caller runs the graph the recorder records on. An operation that has nothing to do, such as one over a tensor without
 elements, records no task and returns a default `TaskHandle`, for which `is_valid()` is false.
 
 Each section below holds the reasoning a header carried in its comments until 2026-10-05, under the
@@ -49,7 +48,7 @@ this page.
 The shared vocabulary of SushiBLAS's generic op-dispatch seam.
 
 `SushiBLAS::Dispatch` is the low-level, functor-templated layer every op in this library is built
-on: one `execute_*` helper per op family that records a task on the engine's graph, switches on the
+on: one `execute_*` helper per op family that records a task on a recorder's graph, switches on the
 tensor's runtime dtype, and inlines a caller-supplied functor into a single SYCL kernel. The five
 family headers are:
 
@@ -103,7 +102,7 @@ the compile-time domain is known but the arm has not been chosen yet.
 
 Throws `std::invalid_argument` through `Detail::throw_dtype_error`. `with_element_type` would
 reject it too, but not until the task runs, which is a worse place to find
-out: by then the graph is recorded, the caller is inside `Engine::execute()`, and the failure is
+out: by then the graph is recorded, the caller is inside the run of the graph, and the failure is
 attributed to a submission rather than to the line that queued it. This is the same question asked
 at record time, where a caller can still act on the answer.
 
@@ -252,17 +251,17 @@ not change a task already recorded.
 `TaskRecorder` is the only caller of `SushiRuntime::Recorder::task` and `dynamic_kernel` in
 SushiBLAS. It is bound to
 the recorder of one `SushiRuntime::Graph` and to one `ScratchPool`, and holds the execution mode.
-`Engine` owns one; a test or a layer above may build its own over a graph it owns.
+A caller builds one over a graph it owns.
 
 Record calls from several threads on one `TaskRecorder` are serialised by one `std::mutex` in it.
 The lock covers reading the recorder's node count, the call of `Recorder::task` and the draw of
 the sequence number, so each thread gets the handle of its own task and the runtime's recorder
 sees one caller at a time. The order of two tasks recorded from two threads is the order in which
-the threads took the lock. `run_exclusive(work)` runs a callable under the same lock;
-`Engine::discard_recorded` empties the graph through it. Three things are outside the lock:
+the threads took the lock. `run_exclusive(work)` runs a callable under the same lock; a caller
+that empties its graph does it through it. Three things are outside the lock:
 
-- A run. `Engine::execute()` must not be called while a thread records on the engine, and a task
-  body must not record on the engine that runs it.
+- A run. The graph must not run while a thread records on its recorder, and a task body must
+  not record on the recorder of the graph that runs it.
 - `set_mode`. No thread may be recording while the mode changes.
 - A second `TaskRecorder` bound to the same `SushiRuntime::Recorder`. Each has its own mutex.
 
@@ -278,7 +277,7 @@ identity and the task's sequence number. If the runtime's recorder refuses the r
 `record_pair` throws `std::runtime_error` whose message is `<name>: the runtime refused the
 recording: <the runtime's message>`, as every other record-time failure throws. The refusal stays
 in the runtime's recorder: the next run returns it and empties the graph, and
-`Engine::discard_recorded()` forgets it with the tasks.
+emptying the graph forgets it with the tasks.
 
 ### `TaskRecorder::record_late_pair`
 
@@ -305,7 +304,7 @@ must be device copyable. The recorder holds it instead: the owner token passed t
 and the recorder keeps the token in `late_owners_`. The runtime watches the token, so a run after the
 recorder is destroyed is refused as `DanglingResource` and never reads freed memory. The tokens are
 released when a late task is recorded on an empty graph, which is after a run or
-`Engine::discard_recorded()`, or when the recorder is destroyed; a recorder that records late tasks
+an emptied graph, or when the recorder is destroyed; a recorder that records late tasks
 and never empties its graph keeps their storages. The recorder reaches the runtime through the pool's
 `runtime()`, so the pool and the recorder must share one runtime.
 
@@ -325,31 +324,13 @@ The callable stored in the graph. It holds the body, the dispatcher and one refe
 distinct storage the task declared, so an operand's allocation stays alive until the graph drops
 the task even if the caller's `Tensor` is destroyed first.
 
-## `recorded_graph.hpp`
-
-`RecordedGraph` owns one `SushiRuntime::Graph` on one runtime and is the only place that runs or
-empties it. `Engine` holds one, and so does the `GraphProbe` of the tests. `recorder()` returns the
-runtime's recorder of that graph, and the reference stays valid across `run()` and `discard()`.
-`recorded_count()` is the number of tasks waiting, `is_empty()` is true when there is no task and
-no refused recording, and `plan()` returns the runtime's `PlanView` of what is recorded.
-
-- `run()` returns success at once when `is_empty()`. Otherwise it runs the graph into one
-  `SushiRuntime::RunReport` it keeps, so a run allocates no report, and leaves the graph empty.
-  A failed run empties the graph too, with one exception: `ErrorCode::InvalidState` for a run in
-  flight on the runtime, after which every recorded task is still waiting. A refused recording is
-  returned by `run()` and then forgotten, whatever its code.
-- `discard()` empties the graph without running it and returns how many tasks it dropped.
-
-Emptying replaces the graph with a new one from `Runtime::graph()`, so the compiled plan dies
-with the tasks and nothing keeps what their bodies captured.
-
 ## `task_handle.hpp`
 
 `TaskHandle` names one task a recorder recorded, or none. It holds the recorder's identity, a
 process-wide counter value that is never 0, and the count of tasks that recorder had recorded
 before this one. A default handle has identity 0 and `is_valid()` false. Two handles are equal when
-both fields are. The handle exposes no event and no way to wait: the work finishes in
-`Engine::execute()`.
+both fields are. The handle exposes no event and no way to wait: the work finishes when
+the caller runs the graph.
 
 ## `task_description.hpp`
 
@@ -481,7 +462,7 @@ receives already holds it.
 - `family`: What kind of operation this is, for diagnostics: "BLAS operation", "Spatial operation".
   A string literal, because the task body keeps the pointer.
 
-Returns: The `TaskHandle` of the recorded task; the work is deferred until `Engine::execute()`.
+Returns: The `TaskHandle` of the recorded task; the work is deferred until the caller runs the graph.
 
 Throws `std::invalid_argument` at record time if `dtype` falls outside `Dom`, and
 `UnsupportedExecution` at record time as `TaskRecorder::require_host_reachable` describes.

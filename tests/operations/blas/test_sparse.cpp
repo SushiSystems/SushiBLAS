@@ -21,7 +21,7 @@
 
 /**
  * @file test_sparse.cpp
- * @brief Tests that SparseBLAS is built from an engine and only from one.
+ * @brief Tests that SparseBLAS is built from a recorder and only from one.
  * @author Mustafa Garip
  */
 
@@ -34,22 +34,22 @@ namespace SushiBLAS
 {
     namespace Test
     {
-        static_assert(std::is_constructible_v<SparseBLAS, Engine&>,
-                      "SparseBLAS is built over an engine.");
-        static_assert(!std::is_convertible_v<Engine&, SparseBLAS>,
-                      "An engine does not turn into SparseBLAS without being named.");
+        static_assert(std::is_constructible_v<SparseBLAS, TaskRecorder&>,
+                      "SparseBLAS is built over a recorder.");
+        static_assert(!std::is_convertible_v<TaskRecorder&, SparseBLAS>,
+                      "A recorder does not turn into SparseBLAS without being named.");
         static_assert(!std::is_default_constructible_v<SparseBLAS>,
-                      "SparseBLAS has no engine-free form.");
+                      "SparseBLAS has no recorder-free form.");
 
-        /** @brief Builds the facade over the fixture's engine. */
+        /** @brief Builds the facade over the fixture's recorder. */
         class Medium_SparseBLAS : public SushiBLASTest
         {
 
         };
 
-        TEST_F(Medium_SparseBLAS, IsBuiltOverAnEngine)
+        TEST_F(Medium_SparseBLAS, IsBuiltOverARecorder)
         {
-            const SparseBLAS sparse(*engine);
+            const SparseBLAS sparse(recorder());
 
             (void)sparse;
             SUCCEED();

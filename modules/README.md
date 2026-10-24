@@ -57,58 +57,46 @@ this page.
 
 ### `Engine`
 
-`Engine` is a composition root. It is built on a `SushiRuntime::Runtime`, which `runtime()`
-returns, and owns five bricks: a `ScratchPool`, a `RecordedGraph`, a `TaskRecorder` bound to
-that graph's recorder and to the pool, a `TensorFactory` and an `RNGStream`. It declares no
-operation and has no accessor for the graph. A caller that needs a device queue or a wait takes
-it from the runtime: `runtime().advanced().queue(SushiRuntime::DeviceIndex{0})`,
-`runtime().wait()`. An operation view
-(`BLASOps`, `SparseOps`, `SpatialOps`, `ElementwiseOps`, `NonLinearOps`, `ReductionOps`,
-`RandomOps`, `LogicOps`) is built from an `Engine&` or from the bricks it needs: `BLASOps
-blas(engine)` and `BLASOps blas(engine.recorder())` record on the same graph. Every operation
-of a view returns a `TaskHandle`, and the work runs in `Engine::execute()`.
+`Engine` keeps what is per process. It is built on a `SushiRuntime::Runtime`, which `runtime()`
+returns, and owns four bricks: a `ScratchPool`, a `TensorFactory`, an `RNGStream` and an
+`ExecutionMode`. It owns no graph and no `TaskRecorder`, declares no operation and records
+nothing. A caller that needs a device queue or a wait takes it from the runtime:
+`runtime().advanced().queue(SushiRuntime::DeviceIndex{0})`, `runtime().wait()`.
 
-Record calls from several threads on one engine are serialised by the mutex of its
-`TaskRecorder`; `execute()` and `set_mode` are not, and neither may be called while a thread
-records. See [the engine headers](engine/engine/README.md).
+A caller that records owns a graph and builds a `TaskRecorder` over that graph's recorder, with
+the engine's pool and mode. An operation view (`BLASOps`, `SparseOps`, `SpatialOps`,
+`ElementwiseOps`, `NonLinearOps`, `ReductionOps`, `RandomOps`, `LogicOps`) is built over that
+recorder, and `RandomOps` also takes the engine's `rng()`:
 
-`set_mode` and `mode` forward to the recorder, and `layout` to the factory. `set_mode` is
-`noexcept`: `ExecutionMode` has the three enumerators `Auto`, `ForceSYCL` and `ForceReference`,
-and none of them is refused.
+```cpp
+SushiRuntime::Graph graph = engine.runtime().graph();
+SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
+SushiBLAS::BLASOps blas(recorder);
+blas.gemm(a, b, c);
+graph.run();
+```
 
-### `Engine::execute`
+Every operation of a view returns a `TaskHandle`, and the work runs when the caller runs its
+graph. Record calls from several threads on one recorder are serialised by its mutex; running the
+graph and `TaskRecorder::set_mode` are not, and neither may happen while a thread records. See
+[the engine headers](engine/engine/README.md).
 
-Returns a `SushiRuntime::Result<void>` once every recorded task has finished: success, or the
-`SushiRuntime::Error` that ended the run. The result is `[[nodiscard]]`; a caller with no way to go
-on writes `engine.execute().value();`, which stops the process on an error. A call with nothing
-recorded returns success without running: several io.cpp paths call `execute()` before a host-side
-read even when no task is pending, and `SushiRuntime::Graph::run()` refuses a graph with no task.
-A recording the runtime's recorder refused throws `std::runtime_error` from the record call, and
-the refusal stays with the graph: the next `execute()` returns its error unless
-`discard_recorded()` was called first.
+`set_mode` and `mode` read and write the mode a recorder built afterwards starts with; a recorder
+already built keeps its own. `layout` forwards to the factory. `set_mode` is `noexcept`:
+`ExecutionMode` has the three enumerators `Auto`, `ForceSYCL` and `ForceReference`, and none of
+them is refused.
 
-`execute()` is `RecordedGraph::run()`. The graph is empty when it returns, whether the run
-succeeded or failed: the tasks are destroyed with what their bodies captured, so operand storage
-and scratch leases are released. One failure keeps the tasks: the runtime answers
-`ErrorCode::InvalidState` when another graph's run is in flight on the same runtime, no recorded
-task has started, and the caller can call `execute()` again once that run has settled.
-
-### `Engine::discard_recorded`
-
-Drops every task that was recorded through `recorder()` and has not run. A record call that
-throws leaves the tasks recorded before it on the graph, and the next `execute()` would run them;
-a caller that turns such a throw into a status calls `discard_recorded()` and goes on with the
-same engine. The tasks are destroyed with what their bodies captured, so the storage of their
-operands is held only by the tensors that still name it, and each scratch lease returns to the
-pool. Tensors are not changed: a task that has not run has written nothing. The call is
-`RecordedGraph::discard()` on the engine's own graph, the one no accessor reaches; a caller that
-owns a `SushiRuntime::Graph` empties it with `SushiRuntime::Recorder::clear()`.
+A graph the caller owns returns a `SushiRuntime::Result` from `run()`. A recording the runtime's
+recorder refused throws `std::runtime_error` from the record call, and the refusal stays with
+that graph until the caller empties it with `SushiRuntime::Recorder::clear()`. The tasks of an
+emptied or run graph are destroyed with what their bodies captured, so operand storage and
+scratch leases are released.
 
 ### The scratch pool
 
 `Engine::scratch_pool()` returns the `ScratchPool` operations lease device scratch from; the
-recorder hands the same pool out through `TaskRecorder::scratch_pool()`. The engine declares
-the pool before the graph, so the graph and the tasks it holds are destroyed before the pool is.
+recorder hands the same pool out through `TaskRecorder::scratch_pool()`. A graph that holds
+tasks with leases must be destroyed before the engine's pool is.
 [The engine module](engine/engine/README.md) describes the pool, the shelf and the lease.
 
 ### `RNGStream::reseed`

@@ -299,8 +299,8 @@ const Status status = guarded([&]()
 
 Source: `applications/examples/adapter/sushiblas_adapter.cpp`
 
-The call to `discard_recorded()` lets the program go on with the same backend after a refused
-request: without it the next run would start with the tasks the failed call left behind.
+The graph and the recorder belong to the call, so a refused request leaves no recorded task
+behind and the program goes on with the same backend.
 
 **The program.** `adapter_demo.cpp` includes `host_program.hpp` alone and tests a `Status`:
 

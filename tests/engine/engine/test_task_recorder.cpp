@@ -296,7 +296,6 @@ namespace SushiBLAS
             GraphProbe probe;
 
             EXPECT_EQ(&probe.recorder().scratch_pool(), &probe.scratch_pool());
-            EXPECT_EQ(&engine->recorder().scratch_pool(), &engine->scratch_pool());
         }
 
         /** @brief Tests that every family records and runs one task under ForceReference. */
@@ -391,36 +390,6 @@ namespace SushiBLAS
             EXPECT_EQ((std::vector<std::size_t>{0, 1, 1}), *first_counts)
                 << "mul has no producer; add reads mul's output and sum reads add's.";
             EXPECT_EQ(*first_counts, *second_counts);
-        }
-
-        /**
-         * @brief Tests that a discarded task never runs and that the engine records and runs
-         *        again afterwards.
-         */
-        TEST_F(Medium_TaskRecorderTest, ADiscardedTaskDoesNotRunAndTheEngineGoesOn)
-        {
-            auto x = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
-            auto y = create_initialized_tensor<float>({4}, {10.0f, 20.0f, 30.0f, 40.0f});
-
-            SushiBLAS::BLASOps(*engine).axpy(2.0, x, y);
-            engine->discard_recorded();
-            engine->execute().value();
-            EXPECT_TENSOR_NEAR(y, (std::vector<float>{10.0f, 20.0f, 30.0f, 40.0f}), 0.0);
-
-            SushiBLAS::BLASOps(*engine).axpy(2.0, x, y);
-            engine->execute().value();
-            EXPECT_TENSOR_NEAR(y, (std::vector<float>{12.0f, 24.0f, 36.0f, 48.0f}), 1e-6);
-        }
-
-        /** @brief Tests that discarding an engine with nothing recorded does nothing. */
-        TEST_F(Medium_TaskRecorderTest, DiscardingAnEmptyEngineIsHarmless)
-        {
-            auto y = create_initialized_tensor<float>({2}, {5.0f, 6.0f});
-
-            engine->discard_recorded();
-            engine->discard_recorded();
-            engine->execute().value();
-            EXPECT_TENSOR_NEAR(y, (std::vector<float>{5.0f, 6.0f}), 0.0);
         }
     } // namespace Test
 } // namespace SushiBLAS

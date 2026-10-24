@@ -1,6 +1,6 @@
 # Layered execution in SushiBLAS: report
 
-**Status:** Open — B1 to B4 and B6 to B12 landed on 2026-10-24; not built yet.
+**Status:** Open — B1 to B12 landed on 2026-10-24; not built yet.
 
 ## B1
 
@@ -140,6 +140,16 @@ Seen and kept: `ScratchPool` now hands `TaskRecorder` its runtime; a `Runtime&` 
 `TaskRecorder` constructor is the cleaner shape and lands with B5, which changes every
 construction site anyway.
 
+## B5
+
+`Engine` keeps the runtime, the scratch pool, the tensor factory, the random stream, the layout and
+an execution mode, and holds no graph; `RecordedGraph` is deleted with its test. The eight
+families lose their `Engine&` constructor and their include of `engine.hpp`; `SparseBLAS`, an
+unused placeholder (KI-9), takes a `TaskRecorder&`. `check_engine_seams.py` gains
+`rule_removed_engine_members`, which fails an engine graph member or a `*Ops`/`*BLAS` constructor
+over `Engine&`. SushiAI uses none of what went. A docs-sync worker, under the owner's exception of
+2026-10-24, made the manual true again, `ENGINE_AND_RECORDER.md` most of all.
+
 ## Dispatches
 
 ```
@@ -153,5 +163,7 @@ dispatch: B3 — sonnet medium, 53 turns, passed, rung 1
 dispatch: B4 — sonnet medium, passed, rung 1
 dispatch: B7 — sonnet medium, 69 turns, then B7b sonnet medium, 87 turns, then B7c sonnet medium, 88 turns, passed, rung 1
 dispatch: B10 — haiku medium, 38 turns, passed, rung 1
+dispatch: B5 — sonnet medium, 89 turns, passed, rung 1
+dispatch: docs-sync after B5 — sonnet medium, 18 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

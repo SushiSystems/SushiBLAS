@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from layering.check_engine_seams import (  # noqa: E402
     K_CHECKER,
+    rule_removed_engine_members,
     rule_seam_engine_includes,
     rule_task_dependencies,
     rule_view_engine_calls,
@@ -42,10 +43,11 @@ class RegistrationTest(unittest.TestCase):
     """Checks the rule table of the Engine seam checker."""
 
     def test_is_registered(self) -> None:
-        """Lists the three Engine seam rules."""
+        """Lists the four Engine seam rules."""
         self.assertEqual(
             list(K_CHECKER.rules),
-            ["rule_seam_engine_includes", "rule_view_engine_calls", "rule_task_dependencies"],
+            ["rule_seam_engine_includes", "rule_view_engine_calls", "rule_task_dependencies",
+             "rule_removed_engine_members"],
         )
 
 
@@ -74,9 +76,9 @@ class SeamEngineIncludesTest(unittest.TestCase):
 class ViewEngineCallsTest(unittest.TestCase):
     """Checks which Engine members a public header calls."""
 
-    def test_accepts_recorder_and_rng(self) -> None:
-        """Reports nothing for the two members a view constructor reads."""
-        files = {"modules/operations/random/include/SushiBLAS/random/random.hpp": "RandomOps(engine.recorder(), engine.rng())\n"}
+    def test_accepts_rng(self) -> None:
+        """Reports nothing for the one member a header may read."""
+        files = {"modules/operations/random/include/SushiBLAS/random/random.hpp": "RandomOps(recorder, engine.rng())\n"}
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(list(rule_view_engine_calls(_repository(folder, files))), [])
 
@@ -90,6 +92,58 @@ class ViewEngineCallsTest(unittest.TestCase):
             issues = list(rule_view_engine_calls(_repository(folder, files)))
             self.assertEqual([(issue.path.name, issue.message) for issue in issues],
                              [("task.hpp", "layering violation: execute")])
+
+
+class RemovedEngineMembersTest(unittest.TestCase):
+    """Checks that no removed Engine member and no family constructor over Engine& comes back."""
+
+    def test_accepts_the_engine_without_a_graph_and_a_recorder_constructor(self) -> None:
+        """Reports nothing for an engine that keeps its bricks and a family built over a recorder."""
+        files = {
+            "modules/engine/engine/include/SushiBLAS/engine/engine.hpp": (
+                "/** @brief Returns the pool; no recorder() exists. */\n"
+                "ScratchPool& scratch_pool() noexcept;\n"
+                "Engine(const Engine&) = delete;\n"
+            ),
+            "modules/operations/blas/include/SushiBLAS/blas/blas.hpp": "explicit BLASOps(TaskRecorder& recorder);\n",
+            "modules/engine/engine_fixture/include/SushiBLAS/engine_fixture/recording_fixture.hpp": (
+                "explicit RecordingFixture(Engine& engine);\n"
+            ),
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(list(rule_removed_engine_members(_repository(folder, files))), [])
+
+    def test_reports_a_planted_execute_and_a_planted_family_constructor(self) -> None:
+        """Reports Engine::execute() declared in engine.hpp and an XOps(Engine&) constructor."""
+        files = {
+            "modules/engine/engine/include/SushiBLAS/engine/engine.hpp": (
+                "[[nodiscard]] SushiRuntime::Result<void> execute();\n"
+            ),
+            "modules/operations/blas/include/SushiBLAS/blas/blas.hpp": "explicit BLASOps(Engine& engine) noexcept;\n",
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            issues = list(rule_removed_engine_members(_repository(folder, files)))
+            self.assertEqual([(issue.path.name, issue.message) for issue in issues],
+                             [("engine.hpp", "layering violation: execute"),
+                              ("blas.hpp", "layering violation: BLASOps(Engine&)")])
+
+    def test_reports_each_other_removed_member(self) -> None:
+        """Reports discard_recorded, recorder, the graph member and RecordedGraph in engine.hpp."""
+        files = {
+            "modules/engine/engine/include/SushiBLAS/engine/engine.hpp": (
+                "void discard_recorded();\n"
+                "TaskRecorder& recorder() noexcept;\n"
+                "RecordedGraph graph_;\n"
+            ),
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            issues = list(rule_removed_engine_members(_repository(folder, files)))
+            self.assertEqual([issue.message for issue in issues],
+                             ["layering violation: discard_recorded",
+                              "layering violation: TaskRecorder",
+                              "layering violation: recorder",
+                              "layering violation: RecordedGraph",
+                              "layering violation: graph_"])
 
 
 class TaskDependenciesTest(unittest.TestCase):

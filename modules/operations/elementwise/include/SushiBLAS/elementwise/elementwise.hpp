@@ -29,7 +29,6 @@
 
 #include <cstddef>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
@@ -47,13 +46,6 @@ namespace SushiBLAS
         public:
             /** @brief Builds a view that records through recorder, which must outlive the view. */
             explicit ElementwiseOps(TaskRecorder& recorder) noexcept : recorder_(recorder) {}
-
-            /** @brief Builds a view that records on engine's own graph. */
-            explicit ElementwiseOps(Engine& engine) noexcept
-                : ElementwiseOps(engine.recorder())
-            {
-
-            }
 
             ElementwiseOps(const ElementwiseOps&) = default;
             ElementwiseOps& operator=(const ElementwiseOps&) = delete;

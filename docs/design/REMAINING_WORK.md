@@ -518,7 +518,7 @@ its A0, B10 on `sushiruntime RW-65`.
 ### RW-74 Bring the record-time errors to the error table of `cpp-code-style`
 - State: open
 - Done when: an operand that breaks a rule stops the process through `SB_VERIFY` with a
-  replaceable handler, and `UnsupportedExecution` is returned by the next `execute()`
+  replaceable handler, and `UnsupportedExecution` is returned by the next `Graph::run()`
 
 Its own plan, after 0.2.0. It touches the helpers of `operand_check.hpp`, `SB_THROW_IF`, 339
 `EXPECT_THROW` lines in 50 test files, two examples and the catch ladder of SushiAI's

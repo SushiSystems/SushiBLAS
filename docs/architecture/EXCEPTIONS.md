@@ -10,7 +10,7 @@ failure is found:
 | A graph primitive | `SushiRuntime::Result<void>` | `reduce`, `segmented_reduce`, `prefix_scan`, `counting_sort`: a broken recording precondition as `ErrorCode::InvalidGraph`, a scratch block that cannot be allocated as `AllocationFailed`, or the recorder's first refusal since its `clear()` |
 | A file operation | `IOStatus` | `IO::save`, `load`, `save_bin`, `load_bin`, `save_npy`, `load_npy`: a file defect or a mismatch |
 
-No exception leaves `Engine::execute()`, a graph primitive or the SushiRuntime calls below them.
+No exception leaves `Graph::run()`, a graph primitive or the SushiRuntime calls below them.
 `SB_ASSERT` is none of the four: it logs and aborts in a build without `NDEBUG`, and is for a
 defect inside the library, such as an allocation the runtime returned off the storage alignment.
 
@@ -66,8 +66,8 @@ Where each type comes from:
   `UnsupportedExecution`.
 - `TaskRecorder::record_pair` throws `std::runtime_error` when the runtime's recorder refuses the
   task, with the message `<name>: the runtime refused the recording: <the runtime's message>`.
-  The refusal stays in the recorder, so the next `execute()` returns it unless
-  `discard_recorded()` is called first.
+  The refusal stays in the recorder, so the next `Graph::run()` of that graph returns it unless
+  the graph is cleared first.
 - `Storage` throws `std::runtime_error` when `Runtime::buffer` returns an error, with the message
   `Allocation failed for <n> bytes: <the runtime's message>`.
 - `SB_THROW_IF` (`core/logger.hpp`) throws `std::runtime_error`. It ends every dtype switch, so a

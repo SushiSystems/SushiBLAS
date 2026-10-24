@@ -161,18 +161,16 @@ class KernelIncludesTest(unittest.TestCase):
 
 
 class EngineHeaderIncludesTest(unittest.TestCase):
-    """Checks that engine.hpp includes its five bricks and no view, seam or experimental header."""
+    """Checks that engine.hpp includes only its bricks and no view, seam or experimental header."""
 
     def test_accepts_the_bricks_engine_composes(self) -> None:
-        """Reports nothing for the tensor header and the five engine bricks."""
+        """Reports nothing for the tensor header and the engine bricks."""
         files = {
             "modules/engine/engine/include/SushiBLAS/engine/engine.hpp": (
                 "#include <SushiBLAS/tensor/tensor.hpp>\n"
                 "#include <SushiBLAS/tensor/tensor_factory.hpp>\n"
                 "#include <SushiBLAS/engine/rng_stream.hpp>\n"
-                "#include <SushiBLAS/engine/recorded_graph.hpp>\n"
                 "#include <SushiBLAS/engine/scratch_pool.hpp>\n"
-                "#include <SushiBLAS/engine/task_recorder.hpp>\n"
                 "#include <SushiBLAS/engine/execution_mode.hpp>\n"
             ),
         }
