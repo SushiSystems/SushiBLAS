@@ -21,7 +21,8 @@
 
 /**
  * @file ordered_sum.cpp
- * @brief Defines ElementwiseOps::ordered_sum, which records one kernel that adds n tensors in index order.
+ * @brief Defines ElementwiseOps::ordered_sum, which records one kernel that adds n tensors in index
+ *        order.
  * @author Mustafa Garip
  */
 
@@ -60,7 +61,10 @@ namespace SushiBLAS
         /** @brief Holds the capacity of the input table a kernel carries by value. */
         constexpr std::size_t K_CAPACITY = Dispatch::Detail::K_ORDERED_SUM_CAPACITY;
 
-        /** @brief Holds the addresses and weights of one recorded sum, before the element type is known. */
+        /**
+         * @brief Holds the addresses and weights of one recorded sum, before the element type is
+         *        known.
+         */
         struct SumTable
         {
             /** @brief Holds the first element of each input, in index order. */

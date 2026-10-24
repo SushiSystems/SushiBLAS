@@ -556,7 +556,8 @@ namespace SushiBLAS
                 case Core::DataType::Int64:
                     return {static_cast<double>(reinterpret_cast<const int64_t*>(buf)[index]), 0.0};
                 case Core::DataType::UInt32:
-                    return {static_cast<double>(reinterpret_cast<const uint32_t*>(buf)[index]), 0.0};
+                    return {static_cast<double>(reinterpret_cast<const uint32_t*>(buf)[index]),
+                            0.0};
                 default:
                     SB_THROW_IF(true, "Cannot render a tensor of dtype {} as text.",
                                 Core::to_string(dtype));

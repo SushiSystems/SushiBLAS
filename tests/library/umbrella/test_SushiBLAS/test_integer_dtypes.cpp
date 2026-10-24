@@ -21,7 +21,8 @@
 
 /**
  * @file test_integer_dtypes.cpp
- * @brief Tests which operations serve INT32 and INT64 tensors and which refuse them, and that every operation refuses UINT32.
+ * @brief Tests which operations serve INT32 and INT64 tensors and which refuse them, and that every
+ *        operation refuses UINT32.
  * @author Mustafa Garip
  */
 
@@ -324,7 +325,8 @@ namespace SushiBLAS
             auto t = engine->create_tensor({3}, Core::DataType::UInt32);
 
             EXPECT_EQ(4u, Core::bytes_per_element(t.dtype));
-            EXPECT_EQ(12, t.element_span() * static_cast<int64_t>(Core::bytes_per_element(t.dtype)));
+            EXPECT_EQ(12,
+                      t.element_span() * static_cast<int64_t>(Core::bytes_per_element(t.dtype)));
 
             const std::vector<uint32_t> written = {0u, 7u, 4000000000u};
             SushiBLAS::IO().from_vector(t, written);

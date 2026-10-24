@@ -5,8 +5,8 @@ indexed transforms. It depends on `tensor` and `engine`, and its source on `blen
 header is included as `<SushiBLAS/blend/blend.hpp>`.
 
 `BlendOps` is built from a `TaskRecorder` and reaches the task graph only through it. It is not
-part of `SpatialOps`, which stays the operations over an NHWC grid; the owner ruled so on
-2026-10-24, and `docs/design/LAYERED_EXECUTION/README.md` holds the plan.
+part of `SpatialOps`, which stays the operations over an NHWC grid. The design is in
+`docs/design/LAYERED_EXECUTION/README.md`.
 
 ## `blend.hpp`
 
@@ -44,9 +44,9 @@ kernels check each value as they read it: an index outside `[0, T)` adds no term
 influence, in both modes, and no transform is read through it. Nothing throws at run time. A caller
 that wants to find such an index checks its own data before the call.
 
-A UINT32 index is a count type that the operation holds and does not compute on, which the B15
-ruling allows: the kernels widen it to a signed 64-bit slot before the range check, so the largest
-UINT32 is past `T` and adds no term. The same index values give the same bits in all three types.
+A UINT32 index is a count type that the operation holds and does not compute on. The kernels
+widen it to a signed 64-bit slot before the range check, so the largest UINT32 is past `T` and
+adds no term. The same index values give the same bits in all three types.
 
 **Options.** A call may end with an `OperationOptions`, the type `IndexOps::for_each` and `SignalOps::convolve_1d` take: the name
 the node reports under and a `SushiRuntime::Determinism`. A call with none keeps the name

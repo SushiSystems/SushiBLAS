@@ -36,7 +36,7 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-             * @brief Writes `out[n] = sum_k signal[n + K - 1 - k] * taps[k]` for every sample of every row.
+             * @brief Writes `out[n] = sum_k signal[n + K - 1 - k] * taps[k]` per sample.
              * @param rows The number of dense rows; signal and out hold them back to back.
              * @param signal_length The samples in one signal row, L; at least tap_count.
              * @param tap_count The taps, K; at least 1.

@@ -50,11 +50,11 @@ namespace SushiBLAS
             ~SignalOps() = default;
 
             /**
-             * @brief Convolves every row of signal with taps in valid mode: `out[n] = sum_k signal[n + K - 1 - k] * taps[k]`.
-             * @param signal Rank 1 or more; the rows are its last dimension, `L` samples each, batched over the leading ones.
+             * @brief Convolves each row of signal with taps in valid mode; see the module README.
+             * @param signal Rank 1 or more; the rows are its last dimension, `L` samples each.
              * @param taps The rank-1 `[K]` taps, with `1 <= K <= L`.
-             * @param out Shaped like signal with the last dimension `L - K + 1`; it may share no byte with an input.
-             * @throws std::invalid_argument at record time when the ranks, dtypes or extents disagree, an operand is not dense, or out overlaps an input.
+             * @param out Like signal, last dimension `L - K + 1`; no byte shared with an input.
+             * @throws std::invalid_argument at record time on a mismatched or non-dense operand.
              * @see modules/operations/signal/README.md
              */
             TaskHandle convolve_1d(const Tensor& signal, const Tensor& taps, Tensor& out);
@@ -62,8 +62,10 @@ namespace SushiBLAS
             /**
              * @brief Records the convolution as convolve_1d(signal, taps, out) does, under the
              *        name and the determinism class options states.
-             * @param options The label the node reports under and the contract it carries to the plan of the runtime.
-             * @throws std::invalid_argument as the form without options, and for an empty name or a class outside the enum.
+             * @param options The label the node reports under and the contract it carries to the
+             *        plan of the runtime.
+             * @throws std::invalid_argument as the form without options, and for an empty name or a
+             *         class outside the enum.
              */
             TaskHandle convolve_1d(const Tensor& signal, const Tensor& taps, Tensor& out,
                                    const OperationOptions& options);

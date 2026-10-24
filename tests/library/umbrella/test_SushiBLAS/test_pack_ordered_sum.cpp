@@ -90,7 +90,8 @@ namespace SushiBLAS
                     values[element] = static_cast<float>((replica + 1) * 10 + element);
             }
             Tensor result = replicas[3].segment_tensor(Core::DataType::Float32);
-            std::memset(result.data(), 0, static_cast<std::size_t>(result.num_elements) * sizeof(float));
+            std::memset(result.data(), 0,
+                        static_cast<std::size_t>(result.num_elements) * sizeof(float));
 
             ScratchPool scratch(runtime);
             LateCountHold late_counts(runtime);

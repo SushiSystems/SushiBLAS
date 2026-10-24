@@ -65,12 +65,15 @@ namespace SushiBLAS
             /// @brief Holds one signal shape and tap count the operation is run on.
             struct ConvolutionCase
             {
-                /** @brief Returns the output's extents: the signal's with the last one shortened to `L - K + 1`. */
-                [[nodiscard]] std::vector<int64_t> output_dims() const
-                {
-                    std::vector<int64_t> shortened = dims;
-                    shortened.back() = dims.back() - taps + 1;
-                    return shortened;
+                    /**
+                     * @brief Returns the output's extents: the signal's with the last one shortened
+                     *        to `L - K + 1`.
+                     */
+                    [[nodiscard]] std::vector<int64_t> output_dims() const
+                    {
+                        std::vector<int64_t> shortened = dims;
+                        shortened.back() = dims.back() - taps + 1;
+                        return shortened;
                 }
 
                 /** @brief Returns how many rows the signal holds. */
@@ -87,7 +90,10 @@ namespace SushiBLAS
                 int64_t taps = 0;           /**< K. */
             };
 
-            /** @brief Returns the cases every dtype and mode runs: one row, batched rows, K = 1 and K = L. */
+            /**
+             * @brief Returns the cases every dtype and mode runs: one row, batched rows, K = 1 and
+             *        K = L.
+             */
             std::vector<ConvolutionCase> table_cases()
             {
                 return {
@@ -184,7 +190,10 @@ namespace SushiBLAS
                                       std::vector<double>(element_count(dims), K_SENTINEL));
             }
 
-            /** @brief Returns the samples the library writes for signal and taps, shaped as the case says. */
+            /**
+             * @brief Returns the samples the library writes for signal and taps, shaped as the case
+             *        says.
+             */
             template<typename T>
             std::vector<T> convolution_of(Engine& engine, const ConvolutionCase& c,
                                           const Tensor& signal, const Tensor& taps)
@@ -198,7 +207,8 @@ namespace SushiBLAS
 
             /**
              * @brief Returns the sums of the formula for the case, as doubles.
-             * @note The loop runs over k of `signal[n + K - 1 - k]`, written apart from the kernels.
+             * @note The loop runs over k of `signal[n + K - 1 - k]`, written apart from the
+             *       kernels.
              */
             std::vector<double> convolution_by_formula(const ConvolutionCase& c,
                                                        const std::vector<double>& signal,
@@ -253,7 +263,8 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Expects record to throw std::invalid_argument naming the operation and operand.
+             * @brief Expects record to throw std::invalid_argument naming the operation and
+             *        operand.
              * @tparam Record Callable `() -> void` that records one malformed call.
              */
             template<typename Record>
@@ -301,7 +312,10 @@ namespace SushiBLAS
         {
         };
 
-        /** @brief Tests that a two-tap valid convolution gives hand-worked values, the taps applied in reverse. */
+        /**
+         * @brief Tests that a two-tap valid convolution gives hand-worked values, the taps applied
+         *        in reverse.
+         */
         TYPED_TEST(Medium_SignalConvolve1DTyped, TheTwoTapConvolutionGivesItsHandWorkedValues)
         {
             using T = TypeParam;
@@ -323,7 +337,9 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that integer data gives the formula's sums exactly in every shape and mode. */
+        /**
+         * @brief Tests that integer data gives the formula's sums exactly in every shape and mode.
+         */
         TYPED_TEST(Medium_SignalConvolve1DTyped, IntegerDataEqualsTheFormulaExactly)
         {
             using T = TypeParam;
@@ -465,7 +481,10 @@ namespace SushiBLAS
             expect_refusal([&] { ops.convolve_1d(signal, long_taps, no_room); }, "signal");
         }
 
-        /** @brief Tests that a call with options puts the name and the class on the node, and one without keeps the operation id and Unstated. */
+        /**
+         * @brief Tests that a call with options puts the name and the class on the node, and one
+         *        without keeps the operation id and Unstated.
+         */
         TEST_F(Medium_SignalConvolve1D, TheNodeCarriesTheNameAndTheDeterminismClass)
         {
             SignalOps ops(recorder());
@@ -487,7 +506,9 @@ namespace SushiBLAS
             EXPECT_EQ(plan->nodes[1].determinism, SushiRuntime::Determinism::Unstated);
         }
 
-        /** @brief Tests that an empty name and a class outside the enum are refused at record time. */
+        /**
+         * @brief Tests that an empty name and a class outside the enum are refused at record time.
+         */
         TEST_F(Medium_SignalConvolve1D, AnEmptyNameOrAnUnknownClassIsRefused)
         {
             SignalOps ops(recorder());
@@ -502,8 +523,9 @@ namespace SushiBLAS
                                          OperationOptions{std::string_view(),
                                                       SushiRuntime::Determinism::Bitwise}),
                          std::invalid_argument);
-            EXPECT_THROW(ops.convolve_1d(signal, taps, out,
-                                         OperationOptions{"fir", static_cast<SushiRuntime::Determinism>(200)}),
+            EXPECT_THROW(ops.convolve_1d(
+                             signal, taps, out,
+                             OperationOptions{"fir", static_cast<SushiRuntime::Determinism>(200)}),
                          std::invalid_argument);
         }
 
@@ -516,7 +538,7 @@ namespace SushiBLAS
             Tensor signal = tensor_from<float>(*engine, {2, 8}, std::vector<double>(16, 1.0));
             const Tensor one_tap = tensor_from<float>(*engine, {1}, {1});
 
-            // One tap leaves the output shaped like the signal, so the same tensor passes every shape check.
+            // One tap leaves the output shaped like the signal; one tensor passes every shape check.
             expect_refusal([&] { ops.convolve_1d(signal, one_tap, signal); }, "out");
         }
     } // namespace Test

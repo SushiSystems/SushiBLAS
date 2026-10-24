@@ -36,9 +36,9 @@ namespace SushiBLAS
         namespace Reference
         {
             /**
-             * @brief Writes `out[p] = sum_j weights[p][j] * transforms[indices[p][j]] * point[p]` for every point.
-             * @param components The values per point and per output: 3 (a position, w = 1) or 4 (homogeneous).
-             * @param transform_rows The rows of a row-major `[T][rows][4]` transform: 3 (last row `(0, 0, 0, 1)` implied) or 4.
+             * @brief Writes `out[p] = sum_j weights[p][j] * transforms[indices[p][j]] * point[p]`.
+             * @param components 3 (a position, w = 1) or 4 (homogeneous).
+             * @param transform_rows 3 (last row `(0, 0, 0, 1)` implied) or 4, of `[T][rows][4]`.
              * @param transform_count T; an index outside `[0, T)` adds no term.
              * @param out Holds `components` values per point; every one is written.
              * @see kernels/README.md

@@ -94,7 +94,10 @@ namespace SushiBLAS
                 std::vector<int64_t> indices; /**< `[P][J]`, every one inside `[0, T)`. */
             };
 
-            /** @brief Returns the cases every dtype and mode runs: 3x4 and 4x4 transforms, J = 1 and J = 4. */
+            /**
+             * @brief Returns the cases every dtype and mode runs: 3x4 and 4x4 transforms, J = 1 and
+             *        J = 4.
+             */
             std::vector<BlendCase> table_cases()
             {
                 return {
@@ -304,7 +307,10 @@ namespace SushiBLAS
                 return SushiBLAS::IO().to_vector<T>(out);
             }
 
-            /** @brief Returns value `column` of a point as a homogeneous vector: a position has w = 1. */
+            /**
+             * @brief Returns value `column` of a point as a homogeneous vector: a position has w =
+             *        1.
+             */
             double homogeneous_value(const BlendCase& c, const BlendData& data, int64_t point,
                                      int64_t column)
             {
@@ -313,7 +319,10 @@ namespace SushiBLAS
                 return data.points[static_cast<std::size_t>(point * c.components + column)];
             }
 
-            /** @brief Returns entry `[row][column]` of a transform; a 3-row transform ends in `(0, 0, 0, 1)`. */
+            /**
+             * @brief Returns entry `[row][column]` of a transform; a 3-row transform ends in `(0,
+             *        0, 0, 1)`.
+             */
             double matrix_entry(const BlendCase& c, const BlendData& data, int64_t slot,
                                 int64_t row, int64_t column)
             {
@@ -363,7 +372,8 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Returns the exact sum of one output value and the sum of its products' magnitudes.
+             * @brief Returns the exact sum of one output value and the sum of its products'
+             *        magnitudes.
              * @note A product is a weight-times-matrix-entry times a point value. For FLOAT64 the
              *       first factor rounds once in double, which the bound counts.
              */
@@ -422,7 +432,8 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Expects record to throw std::invalid_argument naming the operation and operand.
+             * @brief Expects record to throw std::invalid_argument naming the operation and
+             *        operand.
              * @tparam Record Callable `() -> void` that records one malformed call.
              */
             template<typename Record>
@@ -471,7 +482,10 @@ namespace SushiBLAS
         {
         };
 
-        /** @brief Tests that a translation moves a position, and moves a homogeneous point only when w is 1. */
+        /**
+         * @brief Tests that a translation moves a position, and moves a homogeneous point only when
+         *        w is 1.
+         */
         TYPED_TEST(Medium_BlendTransformsTyped, ATranslationMovesPositionsAndLeavesDirectionsAlone)
         {
             using T = TypeParam;
@@ -506,7 +520,9 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that a 4x4 transform scales w, and that a position takes no division by it. */
+        /**
+         * @brief Tests that a 4x4 transform scales w, and that a position takes no division by it.
+         */
         TYPED_TEST(Medium_BlendTransformsTyped, AFourByFourTransformActsOnAllFourValues)
         {
             using T = TypeParam;
@@ -537,7 +553,9 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that two influences of weight one half give the average of their results. */
+        /**
+         * @brief Tests that two influences of weight one half give the average of their results.
+         */
         TYPED_TEST(Medium_BlendTransformsTyped, TwoInfluencesGiveTheirWeightedSum)
         {
             using T = TypeParam;
@@ -563,7 +581,10 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that integer weights and data give the formula's sums exactly in every shape and mode. */
+        /**
+         * @brief Tests that integer weights and data give the formula's sums exactly in every shape
+         *        and mode.
+         */
         TYPED_TEST(Medium_BlendTransformsTyped, IntegerDataEqualsTheFormulaExactly)
         {
             using T = TypeParam;
@@ -588,7 +609,10 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that weights summing to one give the formula's sums exactly, every value a multiple of one eighth. */
+        /**
+         * @brief Tests that weights summing to one give the formula's sums exactly, every value a
+         *        multiple of one eighth.
+         */
         TYPED_TEST(Medium_BlendTransformsTyped, WeightsThatSumToOneEqualTheFormulaExactly)
         {
             using T = TypeParam;
@@ -614,7 +638,9 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that identity transforms and weights summing to one give each point back. */
+        /**
+         * @brief Tests that identity transforms and weights summing to one give each point back.
+         */
         TYPED_TEST(Medium_BlendTransformsTyped, IdentityTransformsWithUnitWeightsKeepThePoint)
         {
             using T = TypeParam;
@@ -693,7 +719,10 @@ namespace SushiBLAS
             EXPECT_EQ(std::memcmp(first.data(), second.data(), first.size() * sizeof(T)), 0);
         }
 
-        /** @brief Tests that an index outside [0, T) adds no term in either mode, for both index types. */
+        /**
+         * @brief Tests that an index outside [0, T) adds no term in either mode, for both index
+         *        types.
+         */
         TEST_F(Medium_BlendTransforms, AnIndexOutsideTheTransformsAddsNoTerm)
         {
             const BlendCase c{"out of range", 4, 3, 3, 2, 4};
@@ -708,7 +737,7 @@ namespace SushiBLAS
                             -1, -1, -1, -1};
             const std::vector<double> expected = blend_by_formula(c, data);
 
-            // The last point has no valid influence, so it must come out as zeros and not as the sentinel.
+            // The last point has no valid influence, so it comes out as zeros.
             for (std::size_t i = 9; i < 12; ++i)
                 ASSERT_EQ(expected[i], 0.0);
 
@@ -735,7 +764,10 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that an INT32, an INT64 and a UINT32 index tensor of the same values give the same bits in both modes. */
+        /**
+         * @brief Tests that an INT32, an INT64 and a UINT32 index tensor of the same values give
+         *        the same bits in both modes.
+         */
         TEST_F(Medium_BlendTransforms, EveryIndexTypeGivesTheSameBitsForTheSameValues)
         {
             const BlendCase c{"index types", 9, 3, 4, 4, 4};
@@ -764,7 +796,10 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that a UINT32 index at or past T, including the largest one, adds no term in both modes. */
+        /**
+         * @brief Tests that a UINT32 index at or past T, including the largest one, adds no term in
+         *        both modes.
+         */
         TEST_F(Medium_BlendTransforms, AUInt32IndexPastTheTransformsAddsNoTerm)
         {
             const BlendCase c{"uint32 out of range", 3, 3, 3, 2, 3};
@@ -788,7 +823,10 @@ namespace SushiBLAS
             }
         }
 
-        /** @brief Tests that a call with options puts the name and the class on the node, and one without keeps the operation id and Unstated. */
+        /**
+         * @brief Tests that a call with options puts the name and the class on the node, and one
+         *        without keeps the operation id and Unstated.
+         */
         TEST_F(Medium_BlendTransforms, TheNodeCarriesTheNameAndTheDeterminismClass)
         {
             BlendOps ops(recorder());
@@ -799,8 +837,9 @@ namespace SushiBLAS
             Tensor stated = sentinel_tensor<float>(*engine, {2, 3});
             Tensor silent = sentinel_tensor<float>(*engine, {2, 3});
 
-            ops.blend_transforms(points, transforms, indices, weights, stated,
-                                 OperationOptions{"skin_pose", SushiRuntime::Determinism::Tolerant});
+            ops.blend_transforms(
+                points, transforms, indices, weights, stated,
+                OperationOptions{"skin_pose", SushiRuntime::Determinism::Tolerant});
             ops.blend_transforms(points, transforms, indices, weights, silent);
 
             SushiRuntime::Result<SushiRuntime::PlanView> plan = recording->plan();
@@ -812,7 +851,9 @@ namespace SushiBLAS
             EXPECT_EQ(plan->nodes[1].determinism, SushiRuntime::Determinism::Unstated);
         }
 
-        /** @brief Tests that an empty name and a class outside the enum are refused at record time. */
+        /**
+         * @brief Tests that an empty name and a class outside the enum are refused at record time.
+         */
         TEST_F(Medium_BlendTransforms, AnEmptyNameOrAnUnknownClassIsRefused)
         {
             BlendOps ops(recorder());
@@ -822,15 +863,17 @@ namespace SushiBLAS
             const Tensor weights = filled_tensor<float>(*engine, {2, 1});
             Tensor out = sentinel_tensor<float>(*engine, {2, 3});
 
-            EXPECT_THROW(ops.blend_transforms(points, transforms, indices, weights, out,
-                                              OperationOptions{"", SushiRuntime::Determinism::Bitwise}),
-                         std::invalid_argument);
+            EXPECT_THROW(
+                ops.blend_transforms(points, transforms, indices, weights, out,
+                                     OperationOptions{"", SushiRuntime::Determinism::Bitwise}),
+                std::invalid_argument);
             EXPECT_THROW(ops.blend_transforms(points, transforms, indices, weights, out,
                                               OperationOptions{std::string_view(),
                                                            SushiRuntime::Determinism::Bitwise}),
                          std::invalid_argument);
-            EXPECT_THROW(ops.blend_transforms(points, transforms, indices, weights, out,
-                                              OperationOptions{"skin", static_cast<SushiRuntime::Determinism>(200)}),
+            EXPECT_THROW(ops.blend_transforms(
+                             points, transforms, indices, weights, out,
+                             OperationOptions{"skin", static_cast<SushiRuntime::Determinism>(200)}),
                          std::invalid_argument);
         }
 

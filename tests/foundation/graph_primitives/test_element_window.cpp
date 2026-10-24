@@ -85,7 +85,8 @@ namespace SushiBLAS
         TEST(Small_Regression_GraphPrimitivesElementWindow, MessageNamesAnEndThatWraps)
         {
             const std::size_t huge = std::numeric_limits<std::size_t>::max();
-            const SushiRuntime::Result<void> refused = require_window("reduce", "output", 8, 1, huge);
+            const SushiRuntime::Result<void> refused =
+                require_window("reduce", "output", 8, 1, huge);
             ASSERT_FALSE(refused.has_value());
             EXPECT_NE(refused.error().message.find("window [1, past the largest size)"),
                       std::string::npos)

@@ -47,6 +47,10 @@ namespace SushiBLAS
         template<> inline Core::DataType sushiblas_dtype<std::complex<double>>() { return Core::DataType::Complex64; }
         template<> inline Core::DataType sushiblas_dtype<int32_t>() { return Core::DataType::Int32; }
         template<> inline Core::DataType sushiblas_dtype<int64_t>() { return Core::DataType::Int64; }
-        template<> inline Core::DataType sushiblas_dtype<uint32_t>() { return Core::DataType::UInt32; }
+        template <>
+        inline Core::DataType sushiblas_dtype<uint32_t>()
+        {
+            return Core::DataType::UInt32;
+        }
     } // namespace Test
 } // namespace SushiBLAS

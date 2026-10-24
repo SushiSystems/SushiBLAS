@@ -40,8 +40,8 @@ namespace SushiBLAS
         namespace SYCL
         {
             /**
-             * @brief Writes `out[n] = sum_k signal[n + K - 1 - k] * taps[k]` for every sample of every row.
-             * @param rows The number of dense rows, back to back in signal and out; one work-item takes one sample.
+             * @brief Writes `out[n] = sum_k signal[n + K - 1 - k] * taps[k]` per sample.
+             * @param rows The dense rows, back to back in signal and out; one work-item per sample.
              * @param signal_length The samples in one signal row, L; at least tap_count.
              * @param tap_count The taps, K; at least 1.
              * @param out Holds `L - K + 1` samples per row; every one is written.

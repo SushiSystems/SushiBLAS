@@ -177,7 +177,8 @@ namespace SushiBLAS
             /// @brief The storages of graph_'s late-count tasks, released when graph_ is emptied.
             LateCountHold late_counts_;
 
-            /// @brief The recorder bound to the recorder of graph_, a scratch pool and late_counts_.
+            /// @brief The recorder bound to the recorder of graph_, a scratch pool and
+            ///        late_counts_.
             TaskRecorder recorder_;
 
             /// @brief The report every run writes into, so a run allocates none.

@@ -162,7 +162,8 @@ namespace SushiBLAS
                 /// @brief The pool the recorder hands to operations that lease scratch.
                 ScratchPool scratch_pool_;
 
-                /// @brief The graph the test reads and the recorder over it, bound to scratch_pool_.
+                /// @brief The graph the test reads and the recorder over it, bound to
+                ///        scratch_pool_.
                 RecordingFixture fixture_;
         };
     } // namespace Test

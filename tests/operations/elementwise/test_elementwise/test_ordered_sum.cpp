@@ -21,7 +21,8 @@
 
 /**
  * @file test_ordered_sum.cpp
- * @brief Tests ElementwiseOps::ordered_sum against a serial sum of the same order and type, bit for bit, and its refusals.
+ * @brief Tests ElementwiseOps::ordered_sum against a serial sum of the same order and type, bit for
+ *        bit, and its refusals.
  * @author Mustafa Garip
  */
 
@@ -48,7 +49,8 @@ namespace SushiBLAS
     {
         namespace
         {
-            /// @brief Rows of every tensor; the 3 x 347 shape holds 1041 elements, a multiple of no work-group size.
+            /// @brief Rows of every tensor; the 3 x 347 shape holds 1041 elements, a multiple of no
+            ///        work-group size.
             constexpr int64_t K_ROWS = 3;
 
             /// @brief Columns of every tensor; 347 is prime.
@@ -73,7 +75,9 @@ namespace SushiBLAS
             /// @brief Draws a value of about 100 in magnitude with two decimal digits.
             double next_real(std::uint64_t& state)
             {
-                return static_cast<double>(static_cast<std::int64_t>(next_random(state) % 20001u) - 10000) / 97.0;
+                return static_cast<double>(static_cast<std::int64_t>(next_random(state) % 20001u) -
+                                           10000) /
+                       97.0;
             }
 
             /**
@@ -103,11 +107,13 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Sums the inputs element by element in index order, in the accumulation type the operation names.
+             * @brief Sums the inputs element by element in index order, in the accumulation type
+             *        the operation names.
              * @tparam T One of the seven element types.
              */
-            template<typename T>
-            std::vector<T> serial_sum(const std::vector<std::vector<T>>& inputs, const std::vector<double>& weights)
+            template <typename T>
+            std::vector<T> serial_sum(const std::vector<std::vector<T>>& inputs,
+                                      const std::vector<double>& weights)
             {
                 // Contraction is off so a multiply and an add round apart, as in the operation.
                 #pragma clang fp contract(off)
@@ -137,10 +143,12 @@ namespace SushiBLAS
                     }
                     else
                     {
-                        using Accumulation = std::conditional_t<std::is_same_v<T, sycl::half>, float, T>;
+                        using Accumulation =
+                            std::conditional_t<std::is_same_v<T, sycl::half>, float, T>;
                         Accumulation sum = 0;
                         for (std::size_t k = 0; k < inputs.size(); ++k)
-                            sum += static_cast<Accumulation>(weights[k]) * static_cast<Accumulation>(inputs[k][i]);
+                            sum += static_cast<Accumulation>(weights[k]) *
+                                   static_cast<Accumulation>(inputs[k][i]);
                         sums[i] = static_cast<T>(sum);
                     }
                 }
@@ -151,7 +159,8 @@ namespace SushiBLAS
             template<typename T>
             bool same_bits(const std::vector<T>& a, const std::vector<T>& b)
             {
-                return a.size() == b.size() && std::memcmp(a.data(), b.data(), a.size() * sizeof(T)) == 0;
+                return a.size() == b.size() &&
+                       std::memcmp(a.data(), b.data(), a.size() * sizeof(T)) == 0;
             }
 
             /// @brief Returns value as T, with a zero imaginary part for a complex T.
@@ -165,14 +174,16 @@ namespace SushiBLAS
                     return static_cast<T>(value);
             }
 
-            /// @brief The weights a case with n inputs uses: the first n of K_WEIGHTS, or all 1 for an integer type.
+            /// @brief The weights a case with n inputs uses: the first n of K_WEIGHTS, or all 1 for
+            ///        an integer type.
             template<typename T>
             std::vector<double> weights_for(std::size_t n)
             {
                 if constexpr (std::is_integral_v<T>)
                     return std::vector<double>(n, 1.0);
                 else
-                    return std::vector<double>(K_WEIGHTS.begin(), K_WEIGHTS.begin() + static_cast<std::ptrdiff_t>(n));
+                    return std::vector<double>(K_WEIGHTS.begin(),
+                                               K_WEIGHTS.begin() + static_cast<std::ptrdiff_t>(n));
             }
         } // namespace
 
@@ -189,7 +200,8 @@ namespace SushiBLAS
                 {
                     std::vector<Tensor> tensors;
                     for (const std::vector<T>& values : host)
-                        tensors.push_back(this->template create_initialized_tensor<T>({K_ROWS, K_COLUMNS}, values));
+                        tensors.push_back(this->template create_initialized_tensor<T>(
+                            {K_ROWS, K_COLUMNS}, values));
                     return tensors;
                 }
 
@@ -198,7 +210,8 @@ namespace SushiBLAS
                                        const std::vector<double>& weights)
                 {
                     this->set_mode(mode);
-                    Tensor out = this->engine->create_tensor({K_ROWS, K_COLUMNS}, sushiblas_dtype<T>());
+                    Tensor out =
+                        this->engine->create_tensor({K_ROWS, K_COLUMNS}, sushiblas_dtype<T>());
                     SushiBLAS::ElementwiseOps(this->recorder()).ordered_sum(inputs, weights, out);
                     this->recording->run().value();
                     return read_tensor<T>(out);
@@ -216,9 +229,11 @@ namespace SushiBLAS
                     const std::vector<T> expected = serial_sum<T>(host, weights);
                     const std::vector<Tensor> inputs = upload(host);
 
-                    EXPECT_TRUE(same_bits(expected, run_sum(ExecutionMode::ForceReference, inputs, weights)))
+                    EXPECT_TRUE(same_bits(expected,
+                                          run_sum(ExecutionMode::ForceReference, inputs, weights)))
                         << "the reference path differs from the serial sum for n = " << n;
-                    EXPECT_TRUE(same_bits(expected, run_sum(ExecutionMode::ForceSYCL, inputs, weights)))
+                    EXPECT_TRUE(
+                        same_bits(expected, run_sum(ExecutionMode::ForceSYCL, inputs, weights)))
                         << "the SYCL path differs from the serial sum for n = " << n;
                 }
 
@@ -252,7 +267,8 @@ namespace SushiBLAS
             this->expect_serial_equality(5);
         }
 
-        /// @brief Tests the hand-worked values 2 * 1 + 3 * 4 = 14, and 1 + 4 = 5 for an integer type.
+        /// @brief Tests the hand-worked values 2 * 1 + 3 * 4 = 14, and 1 + 4 = 5 for an integer
+        ///        type.
         TYPED_TEST(Medium_OrderedSumTest, HandWorkedSumIsExact)
         {
             using T = TypeParam;
@@ -303,7 +319,8 @@ namespace SushiBLAS
         TYPED_TEST(Medium_OrderedSumTest, RefusesAnOutputOfAnotherShape)
         {
             const std::vector<Tensor> inputs{this->make_tensor()};
-            Tensor out = this->engine->create_tensor({K_ROWS, K_COLUMNS + 1}, sushiblas_dtype<TypeParam>());
+            Tensor out =
+                this->engine->create_tensor({K_ROWS, K_COLUMNS + 1}, sushiblas_dtype<TypeParam>());
             EXPECT_THROW(SushiBLAS::ElementwiseOps(this->recorder()).ordered_sum(
                              inputs, std::vector<double>{1.0}, out),
                          std::invalid_argument);
@@ -315,8 +332,8 @@ namespace SushiBLAS
             using T = TypeParam;
             const Core::DataType other = std::is_same_v<T, float> ? Core::DataType::Float64
                                                                    : Core::DataType::Float32;
-            const std::vector<Tensor> inputs{this->make_tensor(),
-                                             this->engine->create_tensor({K_ROWS, K_COLUMNS}, other)};
+            const std::vector<Tensor> inputs{
+                this->make_tensor(), this->engine->create_tensor({K_ROWS, K_COLUMNS}, other)};
             Tensor out = this->make_tensor();
             EXPECT_THROW(SushiBLAS::ElementwiseOps(this->recorder()).ordered_sum(
                              inputs, std::vector<double>{1.0, 1.0}, out),
@@ -352,9 +369,11 @@ namespace SushiBLAS
             const std::vector<Tensor> inputs(ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS + 1,
                                              this->make_tensor());
             Tensor out = this->make_tensor();
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(this->recorder()).ordered_sum(
-                             inputs,
-                             std::vector<double>(ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS + 1, 1.0), out),
+            EXPECT_THROW(SushiBLAS::ElementwiseOps(this->recorder())
+                             .ordered_sum(inputs,
+                                          std::vector<double>(
+                                              ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS + 1, 1.0),
+                                          out),
                          std::invalid_argument);
         }
 

@@ -41,7 +41,10 @@ namespace SushiBLAS
     {
         namespace
         {
-            /** @brief Returns indices that run from -1 to 4, so each blend meets both ends of an out-of-range one. */
+            /**
+             * @brief Returns indices that run from -1 to 4, so each blend meets both ends of an
+             *        out-of-range one.
+             */
             template<typename Index>
             std::vector<Index> indices_around(std::size_t count)
             {

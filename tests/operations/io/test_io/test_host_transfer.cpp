@@ -21,7 +21,8 @@
 
 /**
  * @file test_host_transfer.cpp
- * @brief Tests IO's host transfer calls, loads after a run, the .npy reader and the text of a tensor.
+ * @brief Tests IO's host transfer calls, loads after a run, the .npy reader and the text of a
+ *        tensor.
  * @author Mustafa Garip
  */
 
