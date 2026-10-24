@@ -102,6 +102,7 @@ set(SUSHIBLAS_SAME_LAYER_EDGES
     recording_graph     engine
     engine_fixture      engine
     engine_fixture      recording_graph
+    graph_probe         engine_fixture
     execution_mode_sweep engine
     graph_probe         engine
     benchmark_harness   io)
