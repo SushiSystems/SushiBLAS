@@ -6,6 +6,9 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — engine: Moved `IndexOptions` into the engine module as `OperationOptions`, with one record-time check every family calls (`operation_options.hpp`).
+- 2026-10-24 — signal: Made `convolve_1d` take an `OperationOptions` for its node's name and determinism (`signal.hpp`).
+- 2026-10-24 — blend: Made `blend_transforms` take an `OperationOptions` and `UInt32` indices (`blend.hpp`).
 - 2026-10-24 — cluster: Added `TensorPack::tensor()` and `segment_tensor()`, tensor views of one entry and of one segment over the pack's own buffer (`tensor_pack.hpp`).
 - 2026-10-24 — core: Added `DataType::UInt32`, a count type a tensor holds and moves and every computing operation refuses through `Domain::None` (`common.hpp`, `dispatch.hpp`).
 - 2026-10-24 — index: Let the late count of `IndexOps::for_each` be a `UInt32` tensor beside an `Int32` one, both read as one unsigned word (`task_recorder.hpp`, `index_task.hpp`).

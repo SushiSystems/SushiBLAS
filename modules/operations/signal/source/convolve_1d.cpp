@@ -25,6 +25,7 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <vector>
 #include <cstdint>
 #include <SushiBLAS/engine/task.hpp>
@@ -39,6 +40,9 @@ namespace SushiBLAS
 
     namespace
     {
+        /** @brief Holds the operation id, which is also the node's name when a call states none. */
+        constexpr const char* K_OPERATION = "signal.convolve_1d";
+
         /**
          * @brief Throws unless a tensor is dense and its last dimension runs along memory.
          * @throws std::invalid_argument on a view, a slice or a column-major tensor of rank 2+.
@@ -54,7 +58,16 @@ namespace SushiBLAS
 
     TaskHandle SignalOps::convolve_1d(const Tensor& signal, const Tensor& taps, Tensor& out)
     {
-        static constexpr const char* NAME = "signal.convolve_1d";
+        return convolve_1d(signal, taps, out, OperationOptions{K_OPERATION});
+    }
+
+    TaskHandle SignalOps::convolve_1d(const Tensor& signal, const Tensor& taps, Tensor& out,
+                                      const OperationOptions& options)
+    {
+        static constexpr const char* NAME = K_OPERATION;
+
+        Dispatch::require_operation_options(options, NAME);
+        const std::string label(options.name);
 
         Dispatch::require_dtype(taps, signal.dtype, NAME, "taps");
         Dispatch::require_dtype(out, signal.dtype, NAME, "out");
@@ -106,8 +119,9 @@ namespace SushiBLAS
         operands.reads(signal).reads(taps).writes(out);
 
         TaskDescription description;
-        description.name = NAME;
+        description.name = label.c_str();
         description.operation = "signal.convolve_1d"_op;
+        description.determinism = options.determinism;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, signal.dtype, "Signal operation",

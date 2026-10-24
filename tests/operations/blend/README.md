@@ -43,6 +43,13 @@ tested: the test shows the term is skipped, and the kernel code shows no transfo
 through it. `TheDeviceRepeatsToTheBit` holds the fixed `j` order: two device runs on one device
 write the same bits.
 
+`EveryIndexTypeGivesTheSameBitsForTheSameValues` runs one case with the same index values stored
+as INT32, INT64 and UINT32 and expects the same bits from all three in both modes.
+`AUInt32IndexPastTheTransformsAddsNoTerm` includes the largest UINT32, which a signed read would
+take as negative. `TheNodeCarriesTheNameAndTheDeterminismClass` reads the name and the class of
+both calls from the runtime plan, and `AnEmptyNameOrAnUnknownClassIsRefused` covers the
+refusals of the options.
+
 The refusal test records one well-formed call as the control, then one call per malformed operand
 and checks that the message names the operation and the operand. Every malformed operand is a
 dtype, a rank, an extent, a zero count, a transposed view or an overlapping output. A value in the

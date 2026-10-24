@@ -27,6 +27,7 @@
 #pragma once
 
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiBLAS/engine/operation_options.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 
@@ -57,6 +58,15 @@ namespace SushiBLAS
              * @see modules/operations/signal/README.md
              */
             TaskHandle convolve_1d(const Tensor& signal, const Tensor& taps, Tensor& out);
+
+            /**
+             * @brief Records the convolution as convolve_1d(signal, taps, out) does, under the
+             *        name and the determinism class options states.
+             * @param options The label the node reports under and the contract it carries to the plan of the runtime.
+             * @throws std::invalid_argument as the form without options, and for an empty name or a class outside the enum.
+             */
+            TaskHandle convolve_1d(const Tensor& signal, const Tensor& taps, Tensor& out,
+                                   const OperationOptions& options);
 
         private:
             /// @brief The recorder every operation of this view records through.

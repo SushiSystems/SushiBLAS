@@ -27,6 +27,7 @@
 
 #include <cmath>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <cstdint>
 #include <cstddef>
@@ -462,6 +463,48 @@ namespace SushiBLAS
                 tensor_from<float>(*engine, {9}, std::vector<double>(9, 1.0));
             Tensor no_room = sentinel_tensor<float>(*engine, {2, 0});
             expect_refusal([&] { ops.convolve_1d(signal, long_taps, no_room); }, "signal");
+        }
+
+        /** @brief Tests that a call with options puts the name and the class on the node, and one without keeps the operation id and Unstated. */
+        TEST_F(Medium_SignalConvolve1D, TheNodeCarriesTheNameAndTheDeterminismClass)
+        {
+            SignalOps ops(recorder());
+            const Tensor signal = tensor_from<float>(*engine, {2, 8}, std::vector<double>(16, 1.0));
+            const Tensor taps = tensor_from<float>(*engine, {3}, {1, 1, 1});
+            Tensor stated = sentinel_tensor<float>(*engine, {2, 6});
+            Tensor silent = sentinel_tensor<float>(*engine, {2, 6});
+
+            ops.convolve_1d(signal, taps, stated,
+                            OperationOptions{"audio_fir", SushiRuntime::Determinism::Bitwise});
+            ops.convolve_1d(signal, taps, silent);
+
+            SushiRuntime::Result<SushiRuntime::PlanView> plan = recording->plan();
+            ASSERT_TRUE(plan);
+            ASSERT_EQ(plan->nodes.size(), std::size_t{2});
+            EXPECT_EQ(plan->nodes[0].name, "audio_fir");
+            EXPECT_EQ(plan->nodes[0].determinism, SushiRuntime::Determinism::Bitwise);
+            EXPECT_EQ(plan->nodes[1].name, "signal.convolve_1d");
+            EXPECT_EQ(plan->nodes[1].determinism, SushiRuntime::Determinism::Unstated);
+        }
+
+        /** @brief Tests that an empty name and a class outside the enum are refused at record time. */
+        TEST_F(Medium_SignalConvolve1D, AnEmptyNameOrAnUnknownClassIsRefused)
+        {
+            SignalOps ops(recorder());
+            const Tensor signal = tensor_from<float>(*engine, {2, 8}, std::vector<double>(16, 1.0));
+            const Tensor taps = tensor_from<float>(*engine, {3}, {1, 1, 1});
+            Tensor out = sentinel_tensor<float>(*engine, {2, 6});
+
+            EXPECT_THROW(ops.convolve_1d(signal, taps, out,
+                                         OperationOptions{"", SushiRuntime::Determinism::Bitwise}),
+                         std::invalid_argument);
+            EXPECT_THROW(ops.convolve_1d(signal, taps, out,
+                                         OperationOptions{std::string_view(),
+                                                      SushiRuntime::Determinism::Bitwise}),
+                         std::invalid_argument);
+            EXPECT_THROW(ops.convolve_1d(signal, taps, out,
+                                         OperationOptions{"fir", static_cast<SushiRuntime::Determinism>(200)}),
+                         std::invalid_argument);
         }
 
         /** @brief Tests that the operation refuses an output that is also an input. */

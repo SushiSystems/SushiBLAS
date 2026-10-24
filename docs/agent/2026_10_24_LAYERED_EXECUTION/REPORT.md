@@ -195,6 +195,18 @@ which holds only a worker-side address, gains nothing until a worker needs a ten
 `ordered_sum()` test sits in the umbrella tests, since `cluster` lies below `elementwise`, and is
 built only under `SB_ENABLE_DISTRIBUTED`.
 
+## B17
+
+SushiEngine's SushiBLAS adapter found that `convolve_1d` and `blend_transforms` took no name and
+no determinism, so their engine nodes were anonymous and `Unstated`. Both take a trailing
+`OperationOptions`; a call without it keeps the operation's name and `Unstated`, through an
+overload, since a default argument cannot hold a name while an empty one is refused. The first
+round made `signal` and `blend` include `index` for its `IndexOptions`, a sibling edge for a type
+no family owns, with the record-time check copied twice. The orchestrator ruled the move: the type
+is `OperationOptions` in the engine module, with one shared check, and `index_options.hpp` is gone,
+with no alias since the branch is unreleased. The blend takes `UInt32` indices, a count type held
+and not computed on, as B15 allows.
+
 ## Dispatches
 
 ```
@@ -213,6 +225,7 @@ dispatch: B4 follow-up — sonnet medium, 52 turns, passed, rung 1
 dispatch: B14 — sonnet medium, 69 turns, passed, rung 1
 dispatch: B15 — sonnet medium, 80 turns, passed, rung 1
 dispatch: B16 — sonnet medium, 44 turns, passed, rung 1
+dispatch: B17 — sonnet medium, 87 turns over two rounds, passed, rung 1
 dispatch: docs-sync after B5 — sonnet medium, 18 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

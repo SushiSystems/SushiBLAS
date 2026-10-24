@@ -21,6 +21,11 @@ dimensions are batched rows, and `out` has the same leading dimensions. `taps` i
 `1 <= K <= L`. A caller that carries a filter's history prepends the last `K - 1` samples of the
 previous block to the row, which is how SushiEngine's audio FIR uses it.
 
+**Options.** A call may end with an `OperationOptions`, the type `IndexOps::for_each` and `BlendOps::blend_transforms` take: the
+name the node reports under and a `SushiRuntime::Determinism`. A call with none keeps the name
+`signal.convolve_1d` and `Unstated`. An empty name, or a class outside the enum, is refused at
+record time. The family includes `<SushiBLAS/engine/operation_options.hpp>`.
+
 All three operands must be dense and row-major, so a row is contiguous; a view or a column-major
 tensor of rank 2 or more is refused. `out` may share no byte with `signal` or `taps`. The domain is
 real: HALF, FLOAT32 and FLOAT64.

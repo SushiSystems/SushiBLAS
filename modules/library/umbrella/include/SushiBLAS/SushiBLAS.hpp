@@ -97,6 +97,7 @@
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/operation_options.hpp>
 #include <SushiBLAS/engine/rng_stream.hpp>
 #include <SushiBLAS/engine/scratch.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
@@ -156,5 +157,4 @@
 #include <SushiBLAS/spatial/window.hpp>
 #include <SushiBLAS/signal/signal.hpp>
 #include <SushiBLAS/blend/blend.hpp>
-#include <SushiBLAS/index/index_options.hpp>
 #include <SushiBLAS/index/index_ops.hpp>

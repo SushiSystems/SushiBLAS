@@ -22,3 +22,6 @@ five for FLOAT64, whose sum is compensated. Each mode then rounds once to the el
 the bound adds as `unit_roundoff<T>() * |sum|`. The reference of the operation is not the oracle:
 the oracle is `TruthSum`, an exact sum of the products. `TheDeviceRepeatsToTheBit` holds the
 fixed `k` order: two device runs on one device write the same bits.
+`TheNodeCarriesTheNameAndTheDeterminismClass` reads the name and the class of a call with options
+and of one without from the runtime plan, and `AnEmptyNameOrAnUnknownClassIsRefused` covers the
+refusals of the options.

@@ -179,7 +179,7 @@ namespace SushiBLAS
                                                      Dispatch::read_as<std::int32_t>(origins[colour]),
                                                      Dispatch::read_as<float>(weights[colour])),
                                 Dispatch::write_as_element(x)),
-                            IndexOptions{"scatter_colour", SushiRuntime::Determinism::Bitwise});
+                            OperationOptions{"scatter_colour", SushiRuntime::Determinism::Bitwise});
                     }
 
                     EXPECT_TRUE(recording->run_succeeds());
@@ -210,14 +210,14 @@ namespace SushiBLAS
                         Dispatch::bind_writes(
                             [written](std::size_t, Count* slot) { slot[0] = written; },
                             Dispatch::write_as<Count>(count)),
-                        IndexOptions{"write_count", SushiRuntime::Determinism::Bitwise});
+                        OperationOptions{"write_count", SushiRuntime::Determinism::Bitwise});
 
                     index.for_each(
                         static_cast<std::size_t>(K_CAPACITY), count,
                         Dispatch::bind_writes(
                             [](std::size_t i, float* out) { out[i] = 1.0f; },
                             Dispatch::write_as<float>(marks)),
-                        IndexOptions{"mark", SushiRuntime::Determinism::Bitwise});
+                        OperationOptions{"mark", SushiRuntime::Determinism::Bitwise});
 
                     EXPECT_TRUE(recording->run_succeeds());
                     return read_tensor<float>(marks);
@@ -286,7 +286,7 @@ namespace SushiBLAS
                 static_cast<std::size_t>(K_CAPACITY), count,
                 Dispatch::bind_writes([](std::size_t i, float* out) { out[i] = 1.0f; },
                                       Dispatch::write_as<float>(marks)),
-                IndexOptions{"mark", SushiRuntime::Determinism::Bitwise});
+                OperationOptions{"mark", SushiRuntime::Determinism::Bitwise});
 
             EXPECT_TRUE(recording->run_succeeds());
             EXPECT_EQ(marks.data_as<float>()[K_WRITTEN - 1], 1.0f);
@@ -334,7 +334,7 @@ namespace SushiBLAS
                                Dispatch::bind_writes(
                                    [](std::size_t i, float* out) { out[i] = 1.0f; },
                                    Dispatch::write_as<float>(marks)),
-                               IndexOptions{"mark", SushiRuntime::Determinism::Bitwise});
+                               OperationOptions{"mark", SushiRuntime::Determinism::Bitwise});
 
                 EXPECT_FALSE(recording->run_succeeds()) << "count " << written;
             }
@@ -349,7 +349,7 @@ namespace SushiBLAS
             const TaskHandle handle = index.for_each(
                 0, Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
                                          Dispatch::write_as<float>(out)),
-                IndexOptions{"empty", SushiRuntime::Determinism::Bitwise});
+                OperationOptions{"empty", SushiRuntime::Determinism::Bitwise});
 
             EXPECT_FALSE(handle.is_valid());
             EXPECT_EQ(probe.recorded_count(), std::size_t{0});
@@ -365,14 +365,14 @@ namespace SushiBLAS
             index.for_each(4,
                            Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
                                                  Dispatch::write_as<float>(out)),
-                           IndexOptions{"fill_out", SushiRuntime::Determinism::Tolerant});
+                           OperationOptions{"fill_out", SushiRuntime::Determinism::Tolerant});
             index.for_each(4,
                            Dispatch::bind_writes(
                                Dispatch::bind_reads([](std::size_t i, const float* in, float* p)
                                                     { p[i] = in[i]; },
                                                     Dispatch::read_as<float>(out)),
                                Dispatch::write_as<float>(sink)),
-                           IndexOptions{"copy_out", SushiRuntime::Determinism::Cosmetic});
+                           OperationOptions{"copy_out", SushiRuntime::Determinism::Cosmetic});
 
             const SushiRuntime::Result<std::vector<RecordedTask>> tasks = probe.recorded_tasks();
             ASSERT_TRUE(tasks);
@@ -399,11 +399,11 @@ namespace SushiBLAS
                                Dispatch::bind_writes(
                                    [](std::size_t, std::int32_t* slot) { slot[0] = 2; },
                                    Dispatch::write_as<std::int32_t>(count)),
-                               IndexOptions{"write_count", SushiRuntime::Determinism::Bitwise});
+                               OperationOptions{"write_count", SushiRuntime::Determinism::Bitwise});
                 index.for_each(4, count,
                                Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
                                                      Dispatch::write_as<float>(out)),
-                               IndexOptions{"use_count", SushiRuntime::Determinism::Bitwise});
+                               OperationOptions{"use_count", SushiRuntime::Determinism::Bitwise});
 
                 const SushiRuntime::Result<std::vector<std::size_t>> counts =
                     probe.dependency_counts();
@@ -427,11 +427,11 @@ namespace SushiBLAS
                                Dispatch::bind_writes(
                                    [](std::size_t, std::int32_t* slot) { slot[0] = 2; },
                                    Dispatch::write_as<std::int32_t>(count)),
-                               IndexOptions{"fixed", SushiRuntime::Determinism::Tolerant});
+                               OperationOptions{"fixed", SushiRuntime::Determinism::Tolerant});
                 index.for_each(4, count,
                                Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
                                                      Dispatch::write_as<float>(out)),
-                               IndexOptions{"late", SushiRuntime::Determinism::Cosmetic});
+                               OperationOptions{"late", SushiRuntime::Determinism::Cosmetic});
 
                 SushiRuntime::Result<SushiRuntime::PlanView> plan = recording->plan();
                 ASSERT_TRUE(plan);
@@ -452,7 +452,7 @@ namespace SushiBLAS
             index.for_each(4,
                            Dispatch::bind_writes([](std::size_t i, float* p) { p[i] = 1.0f; },
                                                  Dispatch::write_as<float>(out)),
-                           IndexOptions{"silent"});
+                           OperationOptions{"silent"});
 
             SushiRuntime::Result<SushiRuntime::PlanView> plan = recording->plan();
             ASSERT_TRUE(plan);
@@ -469,7 +469,7 @@ namespace SushiBLAS
                                         Dispatch::bind_writes(
                                             [](std::size_t i, float* p) { p[i] = 1.0f; },
                                             Dispatch::write_as<float>(out)),
-                                        IndexOptions{"", SushiRuntime::Determinism::Bitwise}),
+                                        OperationOptions{"", SushiRuntime::Determinism::Bitwise}),
                          std::invalid_argument);
         }
 
@@ -494,7 +494,7 @@ namespace SushiBLAS
                                                 Dispatch::bind_writes(
                                                     [](std::size_t i, float* p) { p[i] = 1.0f; },
                                                     Dispatch::write_as<float>(out)),
-                                                IndexOptions{"bad_count",
+                                                OperationOptions{"bad_count",
                                                              SushiRuntime::Determinism::Bitwise}),
                                  std::invalid_argument);
                 }
@@ -511,7 +511,7 @@ namespace SushiBLAS
                                         Dispatch::bind_writes(
                                             [](std::size_t, std::int32_t* slot) { slot[0] = 1; },
                                             Dispatch::write_as<std::int32_t>(count)),
-                                        IndexOptions{"self_count",
+                                        OperationOptions{"self_count",
                                                      SushiRuntime::Determinism::Bitwise}),
                          std::invalid_argument);
         }

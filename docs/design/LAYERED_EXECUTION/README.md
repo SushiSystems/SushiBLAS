@@ -125,7 +125,7 @@ index.for_each(n,
     SushiBLAS::bind_writes(
         SushiBLAS::bind_reads(projection, read_as<Constraint>(constraints), read_as_element(inverse_mass)),
         write_as_element(positions)),
-    SushiBLAS::IndexOptions{"pgs_project", SushiRuntime::Determinism::Bitwise});
+    SushiBLAS::OperationOptions{"pgs_project", SushiRuntime::Determinism::Bitwise});
 ```
 
 `IndexOps::for_each(count, functor, options)` records one task that calls `functor(i, reads...,
@@ -144,7 +144,8 @@ Two things the seam cannot check are part of its contract and written on it:
   fixed count, for the ECS chunks and matter passes of SushiEngine whose size a previous node
   writes. It records through the runtime's dynamic node.
 
-`IndexOptions` carries the node's name and a `SushiRuntime::Determinism` (`Unstated`, the
+`OperationOptions` (`engine/operation_options.hpp`), which `IndexOps`, `SignalOps` and `BlendOps`
+all take and check through one engine function, carries the node's name and a `SushiRuntime::Determinism` (`Unstated`, the
 default, `Bitwise`, `Tolerant` or `Cosmetic`), which rides the task description into the runtime
 node's `NodeOptions::determinism`, so a caller's contract travels with the node; the owner ruled
 on 2026-10-24 that the class lives on the runtime node. A late count is a `UInt32` or `Int32`
@@ -160,10 +161,12 @@ asks for. `write_binding.hpp` and `index_task.hpp` join `functor_map`.
 
 | Operation | Computes | Its first user |
 | --- | --- | --- |
-| `SignalOps::convolve_1d(signal, taps, out)` | For each row, `out[n] = Σ_k signal[n + K - 1 - k] · taps[k]`, valid mode, rows batched over the leading dimensions | SushiEngine's audio FIR, which feeds its history as the first `K - 1` samples |
-| `BlendOps::blend_transforms(points, transforms, indices, weights, out)` | For each point `p`, `out[p] = Σ_j weights[p][j] · transforms[indices[p][j]] · points[p]`, with 4×4 or 3×4 transforms | SushiEngine's linear blend skinning; morph and attachment blends after it |
+| `SignalOps::convolve_1d(signal, taps, out[, options])` | For each row, `out[n] = Σ_k signal[n + K - 1 - k] · taps[k]`, valid mode, rows batched over the leading dimensions | SushiEngine's audio FIR, which feeds its history as the first `K - 1` samples |
+| `BlendOps::blend_transforms(points, transforms, indices, weights, out[, options])` | For each point `p`, `out[p] = Σ_j weights[p][j] · transforms[indices[p][j]] · points[p]`, with 4×4 or 3×4 transforms | SushiEngine's linear blend skinning; morph and attachment blends after it |
 
-Both have a serial reference path and a SYCL path, and take `Half`, `Float32` and `Float64`.
+Both have a serial reference path and a SYCL path, and take `Half`, `Float32` and `Float64`. Both
+take a trailing `OperationOptions` for the node's name and determinism; without it the node is
+named after the operation and `Unstated`. The blend's indices may be `Int32`, `Int64` or `UInt32`.
 Dual-quaternion skinning has no general form and goes through the per-index seam.
 
 ### The cluster module
@@ -215,7 +218,7 @@ README) change in its own commit.
 | B4 | The benchmark harness times a caller's graph. Done when: the harness names no `Engine::execute()` and its benchmarks run. Waits on B1. | building |
 | B5 | `Engine` without `RecordedGraph`, `TaskRecorder`, `execute()`, `discard_recorded()`, `recorder()`; the family constructors over `Engine&` removed. Done when: `engine.hpp` declares none of them, every suite passes, and the seam checker forbids them coming back. Waits on B2, B3, B4, `sushiai` A0. | building |
 | B6 | `bind_writes`, `write_as_element`, `write_as<U>`. Done when: a test declares a read and a write on one task and the runtime orders a later reader after it. | building |
-| B7 | `IndexOps::for_each` with a fixed count and with a late count; `IndexOptions` with the determinism class. Done when: a scatter kernel over a coloured batch equals its `ForceReference` run bit for bit, and a late-count call runs the count a previous node wrote. Waits on B6. | building |
+| B7 | `IndexOps::for_each` with a fixed count and with a late count; `OperationOptions` with the determinism class. Done when: a scatter kernel over a coloured batch equals its `ForceReference` run bit for bit, and a late-count call runs the count a previous node wrote. Waits on B6. | building |
 | B8 | `SignalOps::convolve_1d`, in a family of its own (`modules/operations/signal/`, `modules/kernels/signal_kernels/`): the owner ruled on 2026-10-24 that `SpatialOps` stays the operations over an NHWC grid. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | building |
 | B9 | `BlendOps::blend_transforms`, in a family of its own (`modules/operations/blend/`, `modules/kernels/blend_kernels/`), as the owner ruled on 2026-10-24 for the same reason as B8. Done when: each of the three float types equals the serial reference within the test's stated tolerance. | building |
 | B10 | A node recorded inside a runtime scope carries its class and key. Done when: the test reads the scope's class and key from a SushiBLAS node. Waits on `sushiruntime` R2. | building |
@@ -225,6 +228,7 @@ README) change in its own commit.
 | B14 | A `Storage` that borrows a `SushiRuntime::Buffer<std::byte>` another owner keeps alive, so SushiEngine's BLAS adapter hands operations tensors over its own buffers with no allocation or copy; a task watches the owner. Ruled by the owner on 2026-10-24 for `sushiengine` E5. Done when: a tensor over a borrowed storage records and runs, and a run after the owner lets go is refused as `DanglingResource`. | building |
 | B15 | A `UInt32` data type, which the late count of `IndexOps::for_each` takes as it is: SushiEngine's late count is a `uint32` buffer. Ruled by the owner on 2026-10-24 for `sushiengine` E5. Done when: a late-count `for_each` runs over a `UInt32` count, and every operation either takes the type or refuses it in words. | building |
 | B16 | `TensorPack` hands out a `Tensor` view of one entry and a 1-D view of one segment, over its own buffer, so SushiAI's exchange sums result packs with `ordered_sum()` in place instead of copying them out first. Ruled by the orchestrator on 2026-10-24 for `sushiai` A3. Done when: each entry view reads the bytes the gather wrote, each segment view of the eight types has the segment's size and offset, and an `ordered_sum()` over the same segment of three packs into a fourth gives the sum. | building |
+| B17 | `SignalOps::convolve_1d` and `BlendOps::blend_transforms` take the node's name and determinism, through `OperationOptions`, which moves to the engine module with one shared check; the blend's indices may be `UInt32`. Ruled by the orchestrator on 2026-10-24 for `sushiengine` E5: the engine's adapter keeps every verb's name and determinism on its node. Done when: both nodes carry the name and class a caller gives, a call without options keeps the operation's name and `Unstated`, and the three index types give equal bits. | building |
 
 B5 waits on SushiAI's A0, which moves SushiAI's two execution helpers and four tests off the
 engine's graph. B6 to B9 have disjoint files and could share a wave; the owner chooses inline or
@@ -233,7 +237,7 @@ waves.
 ### Work
 
 <!-- work:begin -->
-- [2026_10_24_LAYERED_EXECUTION](../../agent/2026_10_24_LAYERED_EXECUTION/PLAN.md): B14, B15, B16, B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13
+- [2026_10_24_LAYERED_EXECUTION](../../agent/2026_10_24_LAYERED_EXECUTION/PLAN.md): B14, B15, B16, B17, B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13
 <!-- work:end -->
 
 ## Open questions

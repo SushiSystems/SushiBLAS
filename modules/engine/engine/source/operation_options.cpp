@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_index_options.cpp                                                 */
+/* operation_options.cpp                                                  */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                SushiBLAS                               */
@@ -19,32 +19,30 @@
 /* "as is", without warranty of any kind.                                 */
 
 /**
- * @file test_index_options.cpp
- * @brief Tests that IndexOptions names a task and states no determinism class unless told to.
+ * @file operation_options.cpp
+ * @brief Defines the record-time check every operation family applies to its OperationOptions.
  * @author Mustafa Garip
  */
 
-#include <gtest/gtest.h>
-#include <SushiBLAS/index/index_options.hpp>
-#include <SushiRuntime/core/determinism.hpp>
+#include <SushiBLAS/engine/operation_options.hpp>
+
+#include <cstdint>
+
+#include <SushiBLAS/engine/operand_check.hpp>
 
 namespace SushiBLAS
 {
-    namespace Test
+    namespace Dispatch
     {
-        TEST(Small_IndexOptions, ANameAloneStatesNoDeterminismClass)
+        void require_operation_options(const OperationOptions& options, const char* operation)
         {
-            const IndexOptions options{"pgs_project"};
+            const std::uint8_t held = static_cast<std::uint8_t>(options.determinism);
+            const std::uint8_t last =
+                static_cast<std::uint8_t>(SushiRuntime::Determinism::Cosmetic);
 
-            EXPECT_EQ(options.name, "pgs_project");
-            EXPECT_EQ(options.determinism, SushiRuntime::Determinism::Unstated);
+            require_operand(!options.name.empty(), operation, "options", "names no task");
+            require_operand(held <= last, operation, "options",
+                            "holds a determinism class outside the enum");
         }
-
-        TEST(Small_IndexOptions, AClassIsTheRuntimesOwn)
-        {
-            const IndexOptions options{"pgs_project", SushiRuntime::Determinism::Bitwise};
-
-            EXPECT_EQ(options.determinism, SushiRuntime::Determinism::Bitwise);
-        }
-    } // namespace Test
+    } // namespace Dispatch
 } // namespace SushiBLAS

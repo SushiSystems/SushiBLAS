@@ -9,6 +9,7 @@ sushiblas_add_module(
     LAYER engine
     SOURCES
         engine.cpp
+        operation_options.cpp
     DEPENDS
         core
         launch
@@ -30,6 +31,7 @@ sushiblas_add_test_program(
         test_kernel_pair_dispatcher.cpp
         test_operand_check.cpp
         test_operand_set.cpp
+        test_operation_options.cpp
         test_rng_stream.cpp
         test_scratch.cpp
         test_scratch_pool.cpp

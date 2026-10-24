@@ -20,7 +20,7 @@ and `indices` and `weights` the influences of each vertex.
 | --- | --- | --- |
 | `points` | `[P, 3]` or `[P, 4]` | HALF, FLOAT32 or FLOAT64 |
 | `transforms` | `[T, 4, 4]` or `[T, 3, 4]` | the dtype of `points` |
-| `indices` | `[P, J]` | INT32 or INT64 |
+| `indices` | `[P, J]` | INT32, INT64 or UINT32 |
 | `weights` | `[P, J]` | the dtype of `points` |
 | `out` | the shape of `points` | the dtype of `points` |
 
@@ -43,6 +43,15 @@ recorded, so the call cannot read them. It checks the dtype and the shape of `in
 kernels check each value as they read it: an index outside `[0, T)` adds no term for that
 influence, in both modes, and no transform is read through it. Nothing throws at run time. A caller
 that wants to find such an index checks its own data before the call.
+
+A UINT32 index is a count type that the operation holds and does not compute on, which the B15
+ruling allows: the kernels widen it to a signed 64-bit slot before the range check, so the largest
+UINT32 is past `T` and adds no term. The same index values give the same bits in all three types.
+
+**Options.** A call may end with an `OperationOptions`, the type `IndexOps::for_each` and `SignalOps::convolve_1d` take: the name
+the node reports under and a `SushiRuntime::Determinism`. A call with none keeps the name
+`blend.blend_transforms` and `Unstated`. An empty name, or a class outside the enum, is refused at
+record time. The family includes `<SushiBLAS/engine/operation_options.hpp>`.
 
 **Order and type.** Each output value is one sum over `j` in ascending order, of `weights[p][j]`
 times the row product `sum over c of M[i][c] * v[c]`, with `c` ascending. The SYCL kernel forms

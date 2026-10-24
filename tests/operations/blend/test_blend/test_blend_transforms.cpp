@@ -28,6 +28,7 @@
 #include <cmath>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <cstdint>
 #include <cstddef>
@@ -234,9 +235,7 @@ namespace SushiBLAS
             Tensor index_tensor(Engine& engine, const std::vector<int64_t>& dims,
                                 const std::vector<int64_t>& values)
             {
-                const Core::DataType dtype = std::is_same_v<Index, int32_t>
-                                                 ? Core::DataType::Int32
-                                                 : Core::DataType::Int64;
+                const Core::DataType dtype = sushiblas_dtype<Index>();
                 Tensor t = engine.create_tensor(
                     SushiRuntime::span<const int64_t>(dims.data(), dims.data() + dims.size()),
                     dtype);
@@ -734,6 +733,105 @@ namespace SushiBLAS
                 EXPECT_EQ(widened(blend_of<float>(*engine, c, narrow_in)), expected) << "INT32";
                 EXPECT_EQ(widened(blend_of<float>(*engine, c, wide_in)), expected) << "INT64";
             }
+        }
+
+        /** @brief Tests that an INT32, an INT64 and a UINT32 index tensor of the same values give the same bits in both modes. */
+        TEST_F(Medium_BlendTransforms, EveryIndexTypeGivesTheSameBitsForTheSameValues)
+        {
+            const BlendCase c{"index types", 9, 3, 4, 4, 4};
+            const BlendData data = data_for<float>(c, WeightKind::Integer);
+            const std::vector<double> expected = blend_by_formula(c, data);
+
+            for (const ExecutionMode mode : K_FORCED_MODES)
+            {
+                SCOPED_TRACE(trace_of(c, mode));
+                engine->set_mode(mode);
+
+                const std::vector<float> signed_narrow =
+                    blend_of<float>(*engine, c, tensors_for<float, int32_t>(*engine, c, data));
+                const std::vector<float> signed_wide =
+                    blend_of<float>(*engine, c, tensors_for<float, int64_t>(*engine, c, data));
+                const std::vector<float> unsigned_narrow =
+                    blend_of<float>(*engine, c, tensors_for<float, uint32_t>(*engine, c, data));
+
+                EXPECT_EQ(widened(signed_narrow), expected) << "INT32";
+                ASSERT_EQ(signed_wide.size(), signed_narrow.size());
+                ASSERT_EQ(unsigned_narrow.size(), signed_narrow.size());
+                EXPECT_EQ(std::memcmp(signed_wide.data(), signed_narrow.data(),
+                                      signed_narrow.size() * sizeof(float)), 0) << "INT64";
+                EXPECT_EQ(std::memcmp(unsigned_narrow.data(), signed_narrow.data(),
+                                      signed_narrow.size() * sizeof(float)), 0) << "UINT32";
+            }
+        }
+
+        /** @brief Tests that a UINT32 index at or past T, including the largest one, adds no term in both modes. */
+        TEST_F(Medium_BlendTransforms, AUInt32IndexPastTheTransformsAddsNoTerm)
+        {
+            const BlendCase c{"uint32 out of range", 3, 3, 3, 2, 3};
+            BlendData data = data_for<float>(c, WeightKind::Integer);
+            constexpr int64_t K_LARGEST = std::numeric_limits<uint32_t>::max();
+            data.indices = {0, 2, K_LARGEST,
+                            K_LARGEST, 1, 5,
+                            K_LARGEST, K_LARGEST, K_LARGEST};
+            const std::vector<double> expected = blend_by_formula(c, data);
+
+            for (std::size_t i = 6; i < 9; ++i)
+                ASSERT_EQ(expected[i], 0.0);
+
+            for (const ExecutionMode mode : K_FORCED_MODES)
+            {
+                SCOPED_TRACE(trace_of(c, mode));
+                engine->set_mode(mode);
+
+                const BlendTensors in = tensors_for<float, uint32_t>(*engine, c, data);
+                EXPECT_EQ(widened(blend_of<float>(*engine, c, in)), expected) << "UINT32";
+            }
+        }
+
+        /** @brief Tests that a call with options puts the name and the class on the node, and one without keeps the operation id and Unstated. */
+        TEST_F(Medium_BlendTransforms, TheNodeCarriesTheNameAndTheDeterminismClass)
+        {
+            BlendOps ops(recorder());
+            const Tensor points = filled_tensor<float>(*engine, {2, 3});
+            const Tensor transforms = filled_tensor<float>(*engine, {1, 3, 4});
+            const Tensor indices = zero_indices(*engine, {2, 1});
+            const Tensor weights = filled_tensor<float>(*engine, {2, 1});
+            Tensor stated = sentinel_tensor<float>(*engine, {2, 3});
+            Tensor silent = sentinel_tensor<float>(*engine, {2, 3});
+
+            ops.blend_transforms(points, transforms, indices, weights, stated,
+                                 OperationOptions{"skin_pose", SushiRuntime::Determinism::Tolerant});
+            ops.blend_transforms(points, transforms, indices, weights, silent);
+
+            SushiRuntime::Result<SushiRuntime::PlanView> plan = recording->plan();
+            ASSERT_TRUE(plan);
+            ASSERT_EQ(plan->nodes.size(), std::size_t{2});
+            EXPECT_EQ(plan->nodes[0].name, "skin_pose");
+            EXPECT_EQ(plan->nodes[0].determinism, SushiRuntime::Determinism::Tolerant);
+            EXPECT_EQ(plan->nodes[1].name, "blend.blend_transforms");
+            EXPECT_EQ(plan->nodes[1].determinism, SushiRuntime::Determinism::Unstated);
+        }
+
+        /** @brief Tests that an empty name and a class outside the enum are refused at record time. */
+        TEST_F(Medium_BlendTransforms, AnEmptyNameOrAnUnknownClassIsRefused)
+        {
+            BlendOps ops(recorder());
+            const Tensor points = filled_tensor<float>(*engine, {2, 3});
+            const Tensor transforms = filled_tensor<float>(*engine, {1, 3, 4});
+            const Tensor indices = zero_indices(*engine, {2, 1});
+            const Tensor weights = filled_tensor<float>(*engine, {2, 1});
+            Tensor out = sentinel_tensor<float>(*engine, {2, 3});
+
+            EXPECT_THROW(ops.blend_transforms(points, transforms, indices, weights, out,
+                                              OperationOptions{"", SushiRuntime::Determinism::Bitwise}),
+                         std::invalid_argument);
+            EXPECT_THROW(ops.blend_transforms(points, transforms, indices, weights, out,
+                                              OperationOptions{std::string_view(),
+                                                           SushiRuntime::Determinism::Bitwise}),
+                         std::invalid_argument);
+            EXPECT_THROW(ops.blend_transforms(points, transforms, indices, weights, out,
+                                              OperationOptions{"skin", static_cast<SushiRuntime::Determinism>(200)}),
+                         std::invalid_argument);
         }
 
         /** @brief Tests that the operation refuses every malformed operand at record time. */

@@ -25,6 +25,7 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <vector>
 #include <cstdint>
 #include <SushiBLAS/engine/task.hpp>
@@ -39,6 +40,9 @@ namespace SushiBLAS
 
     namespace
     {
+        /** @brief Holds the operation id, which is also the node's name when a call states none. */
+        constexpr const char* K_OPERATION = "blend.blend_transforms";
+
         /** @brief Holds the extents of one recorded blend, captured by value. */
         struct BlendShape
         {
@@ -108,14 +112,27 @@ namespace SushiBLAS
                                           const Tensor& indices, const Tensor& weights,
                                           Tensor& out)
     {
-        static constexpr const char* NAME = "blend.blend_transforms";
+        return blend_transforms(points, transforms, indices, weights, out,
+                                OperationOptions{K_OPERATION});
+    }
+
+    TaskHandle BlendOps::blend_transforms(const Tensor& points, const Tensor& transforms,
+                                          const Tensor& indices, const Tensor& weights,
+                                          Tensor& out, const OperationOptions& options)
+    {
+        static constexpr const char* NAME = K_OPERATION;
+
+        Dispatch::require_operation_options(options, NAME);
+        const std::string label(options.name);
 
         Dispatch::require_dtype(transforms, points.dtype, NAME, "transforms");
         Dispatch::require_dtype(weights, points.dtype, NAME, "weights");
         Dispatch::require_dtype(out, points.dtype, NAME, "out");
         Dispatch::require_operand(indices.dtype == Core::DataType::Int32 ||
-                                      indices.dtype == Core::DataType::Int64,
-                                  NAME, "indices", "has dtype {}; indices are INT32 or INT64",
+                                      indices.dtype == Core::DataType::Int64 ||
+                                      indices.dtype == Core::DataType::UInt32,
+                                  NAME, "indices",
+                                  "has dtype {}; indices are INT32, INT64 or UINT32",
                                   Core::to_string(indices.dtype));
 
         Dispatch::require_rank(points, 2, NAME, "points");
@@ -177,14 +194,15 @@ namespace SushiBLAS
         const BlendPointers data{points.data_or_null(), transforms.data_or_null(),
                                  indices.data_or_null(), weights.data_or_null(),
                                  out.data_or_null()};
-        const bool wide_indices = indices.dtype == Core::DataType::Int64;
+        const Core::DataType index_dtype = indices.dtype;
 
         OperandSet operands;
         operands.reads(points).reads(transforms).reads(indices).reads(weights).writes(out);
 
         TaskDescription description;
-        description.name = NAME;
+        description.name = label.c_str();
         description.operation = "blend.blend_transforms"_op;
+        description.determinism = options.determinism;
 
         return Internal::execute_typed_task<Dispatch::Domain::Real>(
             recorder_, description, operands, points.dtype, "Blend operation",
@@ -193,9 +211,15 @@ namespace SushiBLAS
             {
                 using T = decltype(scalar_type);
 
-                if (wide_indices)
-                    return run_blend<T, int64_t>(dispatcher, q, deps, shape, data);
-                return run_blend<T, int32_t>(dispatcher, q, deps, shape, data);
+                switch (index_dtype)
+                {
+                    case Core::DataType::Int64:
+                        return run_blend<T, int64_t>(dispatcher, q, deps, shape, data);
+                    case Core::DataType::UInt32:
+                        return run_blend<T, uint32_t>(dispatcher, q, deps, shape, data);
+                    default:
+                        return run_blend<T, int32_t>(dispatcher, q, deps, shape, data);
+                }
             });
     }
 } // namespace SushiBLAS

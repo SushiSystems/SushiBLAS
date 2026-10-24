@@ -26,8 +26,6 @@
 
 #include <SushiBLAS/index/index_ops.hpp>
 
-#include <cstdint>
-
 #include <SushiBLAS/engine/operand_check.hpp>
 
 namespace SushiBLAS
@@ -37,18 +35,6 @@ namespace SushiBLAS
     SushiRuntime::OperationID IndexOps::for_each_operation() noexcept
     {
         return "index.for_each"_op;
-    }
-
-    void IndexOps::require_options(const IndexOptions& options)
-    {
-        const char* const op = "index.for_each";
-        const std::uint8_t held = static_cast<std::uint8_t>(options.determinism);
-
-        Dispatch::require_operand(!options.name.empty(), op, "options", "names no task");
-        const std::uint8_t last = static_cast<std::uint8_t>(SushiRuntime::Determinism::Cosmetic);
-
-        Dispatch::require_operand(held <= last, op, "options",
-                                  "holds a determinism class outside the enum");
     }
 
     void IndexOps::require_count_not_written(const Tensor& count, const OperandSet& operands,

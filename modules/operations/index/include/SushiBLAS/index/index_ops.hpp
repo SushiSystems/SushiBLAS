@@ -34,13 +34,13 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/dispatch.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/operation_options.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 #include <SushiBLAS/functor_map/index_task.hpp>
 #include <SushiBLAS/functor_map/read_binding.hpp>
 #include <SushiBLAS/functor_map/write_binding.hpp>
-#include <SushiBLAS/index/index_options.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 
 namespace SushiBLAS
@@ -69,7 +69,7 @@ namespace SushiBLAS
              * @throws std::invalid_argument on an empty name or a declared-tensor violation.
              */
             template<Dispatch::Domain Dom = Dispatch::Domain::Real, typename Bound>
-            TaskHandle for_each(std::size_t count, Bound&& bound, IndexOptions options)
+            TaskHandle for_each(std::size_t count, Bound&& bound, OperationOptions options)
             {
                 return record<Dom>(count, nullptr, bound, options);
             }
@@ -83,7 +83,7 @@ namespace SushiBLAS
              */
             template<Dispatch::Domain Dom = Dispatch::Domain::Real, typename Bound>
             TaskHandle for_each(std::size_t capacity, const Tensor& count, Bound&& bound,
-                                IndexOptions options)
+                                OperationOptions options)
             {
                 return record<Dom>(capacity, &count, bound, options);
             }
@@ -98,13 +98,13 @@ namespace SushiBLAS
              */
             template<Dispatch::Domain Dom, typename Bound>
             TaskHandle record(std::size_t n, const Tensor* count, const Bound& bound,
-                              const IndexOptions& options)
+                              const OperationOptions& options)
             {
                 static_assert(Dispatch::Detail::IsWriteBound<Bound>::value,
                               "for_each takes a bind_writes bundle: a task that declares no write "
                               "is not ordered against anything.");
 
-                require_options(options);
+                Dispatch::require_operation_options(options, "index.for_each");
                 const std::string name(options.name);
                 const char* const label = name.c_str();
 
@@ -152,12 +152,6 @@ namespace SushiBLAS
 
             /** @brief Returns the operation id every per-index task is recorded under. */
             [[nodiscard]] static SushiRuntime::OperationID for_each_operation() noexcept;
-
-            /**
-             * @brief Checks the name and the determinism class of a call.
-             * @throws std::invalid_argument for an empty name or a class outside the runtime's.
-             */
-            static void require_options(const IndexOptions& options);
 
             /**
              * @brief Checks that no declared write overlaps the count tensor.

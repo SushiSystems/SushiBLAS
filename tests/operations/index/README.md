@@ -8,7 +8,6 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `test_index_options.cpp` | Tests that IndexOptions names a task and states no determinism class unless told to |
 | `test_index_ops.cpp` | Tests IndexOps::for_each with a fixed count and with a count a previous node writes |
 
 ## test_index_ops.cpp

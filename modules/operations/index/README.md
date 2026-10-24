@@ -11,7 +11,6 @@ the tensors are `read_binding.hpp` and `write_binding.hpp` there.
 | File | Declares |
 | --- | --- |
 | `index_ops.hpp` | IndexOps, whose `for_each` records a per-index task with a fixed or a late count |
-| `index_options.hpp` | IndexOptions, the name and the determinism class of a task |
 
 `source/` holds one translation unit: the checks and the operation id `IndexOps` shares across
 its templates.
@@ -24,7 +23,7 @@ index.for_each(n,
     SushiBLAS::Dispatch::bind_writes(
         SushiBLAS::Dispatch::bind_reads(projection, read_as<Constraint>(constraints)),
         write_as_element(positions)),
-    SushiBLAS::IndexOptions{"pgs_project", SushiRuntime::Determinism::Bitwise});
+    SushiBLAS::OperationOptions{"pgs_project", SushiRuntime::Determinism::Bitwise});
 ```
 
 The functor is called as `functor(i, reads..., writes...)`. The call takes a `bind_writes` bundle,
@@ -60,13 +59,3 @@ A device-mode late-count task cannot hold the storage of its tensors itself, bec
 kernel capture must be device copyable. The recorder holds it, and the runtime watches that hold, so
 a run after the recorder is destroyed is refused instead of reading freed memory. The engine README's
 section on `TaskRecorder::record_late_pair` states how long the recorder holds it.
-
-## `index_options.hpp`
-
-`IndexOptions::name` is the label of the node and must not be empty.
-`IndexOptions::determinism` is a `SushiRuntime::Determinism`, with the runtime's values `Unstated`,
-`Bitwise`, `Tolerant` and `Cosmetic`; `Unstated` is the default. `IndexOps` copies it to
-`TaskDescription::determinism`, `TaskRecorder` to `NodeOptions::determinism`, and the runtime's
-plan reports it as `PlanNode::determinism`. The family has no enum of its own: a second one would
-mirror the runtime's value for value and need a mapping, and no class of this family exists that
-the runtime lacks. No parameter slot carries it.

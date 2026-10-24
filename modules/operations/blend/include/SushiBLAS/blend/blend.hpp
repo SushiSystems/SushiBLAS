@@ -27,6 +27,7 @@
 #pragma once
 
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiBLAS/engine/operation_options.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 
@@ -52,13 +53,23 @@ namespace SushiBLAS
              * @brief Moves every point by a weighted sum of transforms: `out[p] = sum_j weights[p][j] * transforms[indices[p][j]] * points[p]`.
              * @param points Row-major `[P, 3]` positions (taken as `w = 1`) or `[P, 4]` homogeneous points.
              * @param transforms Row-major `[T, 4, 4]` or `[T, 3, 4]`, applied to a column vector; a 3-row transform ends in the implicit row `(0, 0, 0, 1)`.
-             * @param indices The `[P, J]` INT32 or INT64 transform of each influence; one outside `[0, T)` adds no term. weights has its shape and the dtype of points.
+             * @param indices The `[P, J]` INT32, INT64 or UINT32 transform of each influence; one outside `[0, T)` adds no term. weights has its shape and the dtype of points.
              * @param out Shaped like points; it may share no byte with an input.
              * @throws std::invalid_argument at record time on a rank, dtype or extent mismatch, an operand that is not dense and row-major, or an out that overlaps an input.
              */
             TaskHandle blend_transforms(const Tensor& points, const Tensor& transforms,
                                         const Tensor& indices, const Tensor& weights,
                                         Tensor& out);
+
+            /**
+             * @brief Records the blend as blend_transforms(points, transforms, indices, weights, out)
+             *        does, under the name and the determinism class options states.
+             * @param options The label the node reports under and the contract it carries to the plan of the runtime.
+             * @throws std::invalid_argument as the form without options, and for an empty name or a class outside the enum.
+             */
+            TaskHandle blend_transforms(const Tensor& points, const Tensor& transforms,
+                                        const Tensor& indices, const Tensor& weights,
+                                        Tensor& out, const OperationOptions& options);
 
         private:
             /// @brief The recorder every operation of this view records through.

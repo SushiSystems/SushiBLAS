@@ -13,6 +13,7 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | `task_handle.hpp` | `TaskHandle`, the value a record call returns for the task it recorded |
 | `task_description.hpp` | `TaskDescription`, what an operation states about the task it records |
 | `operand_set.hpp` | `OperandSet`, the tensors one task reads and writes, and the storage it retains |
+| `operation_options.hpp` | `OperationOptions`, the name and the determinism class a caller states for one node, and the check every family applies to it |
 | `execution_mode.hpp` | `ExecutionMode`, which names the kernel a recorded task runs |
 | `kernel_pair_dispatcher.hpp` | `KernelPairDispatcher`, which runs one kernel of a reference and SYCL pair |
 | `task.hpp` | `execute_typed_task`, the recorder of one dtype-dispatched task that runs a kernel pair |
@@ -354,6 +355,17 @@ the operation, the determinism, and all eight slots as the node's parameters. Th
 slots, so `name` has to outlive the record call only as far as the runtime is concerned; a seam
 that keeps the pointer for its own diagnostics, as `execute_typed_task` does, needs it for the
 life of the task, and every operation passes a string literal.
+
+## `operation_options.hpp`
+
+`OperationOptions::name` is the label of the node and must not be empty.
+`OperationOptions::determinism` is a `SushiRuntime::Determinism`, with the runtime's values
+`Unstated`, `Bitwise`, `Tolerant` and `Cosmetic`; `Unstated` is the default. An operation copies it
+to `TaskDescription::determinism`, `TaskRecorder` to `NodeOptions::determinism`, and the runtime's
+plan reports it as `PlanNode::determinism`. No second enum mirrors the runtime's, and no parameter
+slot carries it. `Dispatch::require_operation_options(options, operation)` is the one record-time
+check: it throws `std::invalid_argument` naming `operation` and `'options'` for an empty or null
+name and for a class outside the enum. `IndexOps`, `SignalOps` and `BlendOps` all call it.
 
 ## `operand_set.hpp`
 
