@@ -32,7 +32,9 @@ against anything. A tensor the functor reads and writes, such as the positions a
 corrects, is bound with `update_as_element` or `update_as<U>` in
 `bind_writes(bind_updates(bind_reads(fn, reads...), updates...), writes...)`; it is declared as
 read and written, so the task waits for its last writer and a worker receives its contents. An
-update that overlaps any other operand of the task is refused at record time. The operation's element
+update that overlaps any other operand of the task is refused at record time. These checks run at any
+count, so a fixed count of zero with overlapping operands is refused; one that passes them
+records nothing and returns an invalid handle. The operation's element
 type is the dtype of the first `read_as_element`, `update_as_element` or `write_as_element` tensor,
 in that order. A call with typed bindings only has no element type and runs under `Float32` for the default
 `Domain::Real`. The `Dom` template argument names the families a generic functor is well-formed

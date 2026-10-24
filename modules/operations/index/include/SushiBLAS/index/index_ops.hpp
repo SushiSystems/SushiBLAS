@@ -117,9 +117,6 @@ namespace SushiBLAS
                 Dispatch::Detail::require_declared_updates(bound, dtype, label);
                 Dispatch::Detail::require_declared_writes(bound, dtype, label);
 
-                if (n == 0)
-                    return TaskHandle();
-
                 OperandSet operands;
                 if (count != nullptr)
                     operands.reads(*count);
@@ -128,6 +125,10 @@ namespace SushiBLAS
                 Dispatch::Detail::declare_writes(bound, operands, label);
                 if (count != nullptr)
                     require_count_not_written(*count, operands, label);
+
+                // The checks above hold at any count; a count of zero then records nothing.
+                if (n == 0)
+                    return TaskHandle();
 
                 TaskDescription description;
                 description.name = label;

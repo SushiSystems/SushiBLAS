@@ -26,4 +26,5 @@ capacity and a negative count fail the run on `ForceSYCL`, where the runtime's d
 them; the host body's refusal is tested in `test_index_task.cpp`. The ordering cases assert on
 `dependency_count`, not on a value, on both paths. The determinism cases read
 `PlanNode::determinism` from the runtime's plan, for a fixed and a late node, and a node that
-states no class reads `Unstated`.
+states no class reads `Unstated`. A fixed count of zero over an update that overlaps a read is
+refused, so a declaration error does not hide behind an empty count.

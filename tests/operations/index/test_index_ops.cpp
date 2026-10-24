@@ -355,6 +355,24 @@ namespace SushiBLAS
             EXPECT_EQ(probe.recorded_count(), std::size_t{0});
         }
 
+        TEST_F(Medium_IndexOps, Regression_ACountOfZeroWithOverlappingOperandsIsRefused)
+        {
+            GraphProbe probe(ExecutionMode::ForceReference);
+            IndexOps index(probe.recorder());
+            Tensor x = engine->create_tensor({4}, Core::DataType::Float32);
+            const OperationOptions options{"overlap_at_zero", SushiRuntime::Determinism::Bitwise};
+
+            EXPECT_THROW(index.for_each(0,
+                                        Dispatch::bind_updates(
+                                            Dispatch::bind_reads(
+                                                [](std::size_t, const float*, float*) {},
+                                                Dispatch::read_as<float>(x)),
+                                            Dispatch::update_as<float>(x)),
+                                        options),
+                         std::invalid_argument);
+            EXPECT_EQ(probe.recorded_count(), std::size_t{0});
+        }
+
         TEST_F(Medium_IndexOps, TheNodeCarriesTheOptionsNameAndOrdersALaterReader)
         {
             GraphProbe probe(ExecutionMode::ForceReference);
