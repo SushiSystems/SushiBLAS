@@ -50,15 +50,16 @@ namespace SushiBLAS
     {
         namespace
         {
-            /** @brief Returns a shared tensor of a type with count elements. */
+            /** @brief Returns a shared tensor of a type with count elements on one device. */
             Tensor shared_tensor(SushiRuntime::Runtime& runtime, Core::DataType dtype,
-                                 std::int64_t count)
+                                 std::int64_t count, std::size_t device_index = 0)
             {
                 const std::int64_t dims[] = {count};
                 const std::size_t bytes =
                     static_cast<std::size_t>(count) * Core::bytes_per_element(dtype);
                 return Tensor(SushiRuntime::make_sushi<Storage>(runtime, bytes,
-                                                                SushiRuntime::Residency::Shared, 0),
+                                                                SushiRuntime::Residency::Shared,
+                                                                device_index),
                               SushiRuntime::span<const std::int64_t>(dims, 1), dtype);
             }
 
@@ -92,12 +93,13 @@ namespace SushiBLAS
             }
 
             const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
-                                               sources.data(), sources.size())));
+                                               sources.data(), sources.size())), 0);
             ScratchPool scratch(runtime);
+            LateCountHold late_counts(runtime);
             auto graph = runtime.graph();
             graph.extend([&](SushiRuntime::Recorder& recorder)
             {
-                TaskRecorder tensors(recorder, scratch);
+                TaskRecorder tensors(recorder, scratch, late_counts);
                 (void)pack.record_gather(tensors, SushiRuntime::span<const Tensor>(
                                                       sources.data(), sources.size()));
                 (void)pack.record_scatter(tensors, SushiRuntime::span<const Tensor>(
@@ -133,12 +135,13 @@ namespace SushiBLAS
             std::vector<Tensor> views;
             {
                 const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
-                                                   sources.data(), sources.size())));
+                                                   sources.data(), sources.size())), 0);
                 ScratchPool scratch(runtime);
+                LateCountHold late_counts(runtime);
                 auto graph = runtime.graph();
                 graph.extend([&](SushiRuntime::Recorder& recorder)
                 {
-                    TaskRecorder tensors(recorder, scratch);
+                    TaskRecorder tensors(recorder, scratch, late_counts);
                     (void)pack.record_gather(tensors, SushiRuntime::span<const Tensor>(
                                                           sources.data(), sources.size()));
                 });
@@ -182,7 +185,7 @@ namespace SushiBLAS
                 sources.push_back(shared_tensor(runtime, types[index], 2));
             }
             const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
-                                               sources.data(), sources.size())));
+                                               sources.data(), sources.size())), 0);
 
             for (const Core::DataType dtype : types)
             {
@@ -210,14 +213,66 @@ namespace SushiBLAS
                 shared_tensor(runtime, Core::DataType::Float32, 4)};
             const std::vector<Tensor> other = {shared_tensor(runtime, Core::DataType::Float32, 5)};
             const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
-                                               layout_tensors.data(), layout_tensors.size())));
+                                               layout_tensors.data(), layout_tensors.size())), 0);
             ScratchPool scratch(runtime);
+            LateCountHold late_counts(runtime);
             auto graph = runtime.graph();
             graph.extend([&](SushiRuntime::Recorder& recorder)
             {
-                TaskRecorder tensors(recorder, scratch);
+                TaskRecorder tensors(recorder, scratch, late_counts);
                 EXPECT_THROW((void)pack.record_gather(tensors, SushiRuntime::span<const Tensor>(
                                                                    other.data(), other.size())),
+                             std::runtime_error);
+            });
+        }
+
+        /** @brief Tests that a pack allocates on the device it is given, not on device 0. */
+        TEST(Medium_Regression_TensorPack, BufferLivesOnTheDeviceItIsGiven)
+        {
+            if (sycl::device::get_devices().empty())
+                GTEST_SKIP() << "SYCL reports no device.";
+
+            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+            const std::size_t device_count = runtime.advanced().device_count();
+            for (std::size_t device = 0; device < device_count; ++device)
+            {
+                const std::vector<Tensor> shapes = {
+                    shared_tensor(runtime, Core::DataType::Float32, 4, device)};
+                const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
+                                                   shapes.data(), shapes.size())), device);
+                EXPECT_EQ(pack.device_index(), device);
+                EXPECT_EQ(pack.tensor(0).storage->device_index(), device);
+            }
+
+            const std::vector<Tensor> shapes = {shared_tensor(runtime, Core::DataType::Float32, 4)};
+            EXPECT_THROW(TensorPack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
+                                                 shapes.data(), shapes.size())), device_count),
+                         std::runtime_error);
+        }
+
+        /** @brief Tests that a gather refuses a tensor on another device than the pack. */
+        TEST(Medium_Regression_TensorPack, GatherRefusesATensorOnAnotherDevice)
+        {
+            if (sycl::device::get_devices().empty())
+                GTEST_SKIP() << "SYCL reports no device.";
+
+            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+            if (runtime.advanced().device_count() < 2)
+                GTEST_SKIP() << "The runtime drives one device; two are needed.";
+
+            const std::vector<Tensor> on_second = {
+                shared_tensor(runtime, Core::DataType::Float32, 4, 1)};
+            const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
+                                               on_second.data(), on_second.size())), 0);
+            ScratchPool scratch(runtime);
+            LateCountHold late_counts(runtime);
+            auto graph = runtime.graph();
+            graph.extend([&](SushiRuntime::Recorder& recorder)
+            {
+                TaskRecorder tensors(recorder, scratch, late_counts);
+                EXPECT_THROW((void)pack.record_gather(tensors, SushiRuntime::span<const Tensor>(
+                                                                   on_second.data(),
+                                                                   on_second.size())),
                              std::runtime_error);
             });
         }

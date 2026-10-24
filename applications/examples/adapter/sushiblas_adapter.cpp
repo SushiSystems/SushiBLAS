@@ -94,8 +94,9 @@ namespace HostProgram
         {
             // The graph lives for this call, so a record call that throws leaves nothing behind.
             SushiRuntime::Graph graph = backend.runtime.graph();
+            SushiBLAS::LateCountHold late_counts(backend.runtime);
             SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(),
-                                             engine.mode());
+                                             late_counts, engine.mode());
             const SushiBLAS::Tensor left = tensor_of(engine, a);
             const SushiBLAS::Tensor right = tensor_of(engine, b);
             const SushiBLAS::Tensor shift = tensor_of(engine, offset);

@@ -220,6 +220,19 @@ so the buffer's liveness observer stays. A call without a window now declares th
 touches, not the whole buffer: every real hazard is still ordered, and a node over an untouched
 tail is no longer serialised after it. The fit check is overflow-safe and names the operand.
 
+## B19 and B20, the branch review
+
+A review found `ordered_sum` reading `double` weights in device code for single-precision types;
+the weights narrow once on the host to the accumulation type, which the old kernel already cast to
+before each multiply, so no bit moves. Three read-only seams took a `bind_writes` bundle depending
+on include order; all eight refuse it, and `read_binding.hpp` declares the write-bundle overloads.
+A pack's device is an argument, since a worker builds a pack from a layout before any tensor
+exists. The late-count hold lived in `TaskRecorder`, while SushiEngine and SushiAI build a recorder
+per call, so every replayed late node would have been refused as `DanglingResource`; the
+orchestrator ruled that the hold belongs to the graph's owner. `LateCountHold` is public, the
+recorder takes it by reference, and `RecordingGraph` owns one and releases it after a run or a
+discard. A hold shared by several graphs keeps every token until its owner releases it.
+
 ## Dispatches
 
 ```
@@ -240,6 +253,7 @@ dispatch: B15 — sonnet medium, 80 turns, passed, rung 1
 dispatch: B16 — sonnet medium, 44 turns, passed, rung 1
 dispatch: B17 — sonnet medium, 87 turns over two rounds, passed, rung 1
 dispatch: B18 — opus low, 75 turns, passed, rung 1
+dispatch: B19 and B20 — opus low, 158 turns over two rounds, passed, rung 1
 dispatch: docs-sync after B5 — sonnet medium, 18 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

@@ -98,7 +98,7 @@ Dispatch::bind_reads(Dispatch::bind_scalars(fn, Dispatch::ElementScalar(2.0)),
                      Dispatch::read_as_element(a))
 ```
 
-Source: `tests/engine/functor_map/test_read_binding.cpp`
+Source: `tests/engine/functor_map/test_read_binding/test_read_binding.cpp`
 
 There `fn` takes `(float element, const float* pointer, float scalar)`.
 

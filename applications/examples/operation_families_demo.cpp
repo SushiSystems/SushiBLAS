@@ -62,7 +62,9 @@ int main()
     SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
     SushiBLAS::Engine engine(runtime);
     SushiRuntime::Graph graph = runtime.graph();
-    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
+    SushiBLAS::LateCountHold late_counts(runtime);
+    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), late_counts,
+                                     engine.mode());
 
     const SushiBLAS::Tensor x = tensor_of(engine, {4}, {1.0f, 2.0f, 3.0f, 4.0f});
     const SushiBLAS::Tensor y = tensor_of(engine, {4}, {4.0f, 3.0f, 2.0f, 1.0f});

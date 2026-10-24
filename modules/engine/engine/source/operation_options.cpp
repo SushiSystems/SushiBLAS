@@ -20,7 +20,7 @@
 
 /**
  * @file operation_options.cpp
- * @brief Defines the record-time check every operation family applies to its OperationOptions.
+ * @brief Defines the record-time check IndexOps, SignalOps and BlendOps apply to OperationOptions.
  * @author Mustafa Garip
  */
 

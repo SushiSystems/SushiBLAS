@@ -298,16 +298,7 @@ namespace SushiBLAS
                 {
                     const std::array<Core::DataType, sizeof...(Writes)> expected{
                         Detail::write_dtype(static_cast<const Writes*>(nullptr), element)...};
-
-                    for (std::size_t k = 0; k < sizeof...(Writes); ++k)
-                    {
-                        const std::string operand = "write " + std::to_string(k);
-                        require_min_elements(*tensors_[k], 1, name, operand.c_str());
-                        require_storage(*tensors_[k], name, operand.c_str());
-                        require_dtype(*tensors_[k], expected[k], name, operand.c_str());
-                        require_device_dtype(*tensors_[k], name, operand.c_str());
-                        require_contiguous(*tensors_[k], name, operand.c_str());
-                    }
+                    Detail::require_bound_tensors("write", tensor_at(), expected, name);
                 }
 
                 /**
@@ -319,17 +310,14 @@ namespace SushiBLAS
                  */
                 void declare_into(OperandSet& operands, const char* name) const
                 {
-                    for (std::size_t k = 0; k < sizeof...(Writes); ++k)
-                    {
-                        const std::string operand = "write " + std::to_string(k);
-                        const SushiRuntime::BufferRegion region = tensors_[k]->region();
-                        for (const SushiRuntime::BufferRegion& read : operands.read_regions())
-                            require_operand(!region.overlaps(read) ||
-                                                Detail::same_region(region, read),
-                                            name, operand.c_str(),
-                                            "overlaps a tensor the operation reads through "
-                                            "another view");
-                    }
+                    Detail::require_bound_disjoint<sizeof...(Writes)>(
+                        "write", tensor_at(), operands.read_regions(),
+                        [](const SushiRuntime::BufferRegion& own,
+                           const SushiRuntime::BufferRegion& read)
+                        {
+                            return Detail::same_region(own, read);
+                        },
+                        "overlaps a tensor the operation reads through another view", name);
 
                     for (std::size_t k = 0; k < sizeof...(Writes); ++k)
                     {
@@ -376,6 +364,12 @@ namespace SushiBLAS
                 }
 
             private:
+                /** @brief Returns a callable that hands the declared tensor at a position. */
+                [[nodiscard]] auto tensor_at() const noexcept
+                {
+                    return [this](std::size_t k) -> const Tensor& { return *tensors_[k]; };
+                }
+
                 /** @brief Reports whether operands already holds a write of exactly region. */
                 [[nodiscard]] static bool is_declared_write(const OperandSet& operands,
                                                             const SushiRuntime::BufferRegion& region)
@@ -453,20 +447,6 @@ namespace SushiBLAS
             {
                 return bound.element_dtype();
             }
-
-            /** @brief Reports whether a type is a bind_writes bundle. */
-            template<typename Op>
-            struct IsWriteBound : std::false_type
-            {
-
-            };
-
-            /** @brief Reports true for a bind_writes bundle. */
-            template<typename Inner, typename... Writes>
-            struct IsWriteBound<WriteBound<Inner, Writes...>> : std::true_type
-            {
-
-            };
 
             /** @brief Checks the reads of the functor a write bundle wraps; see ReadBound::require. */
             template<typename Inner, typename... Writes>

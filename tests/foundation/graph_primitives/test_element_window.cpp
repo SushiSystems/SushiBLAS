@@ -28,6 +28,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <string>
 #include <utility>
 
 #include <gtest/gtest.h>
@@ -69,6 +70,26 @@ namespace SushiBLAS
                 EXPECT_EQ(refused.error().message.rfind("reduce: the output window", 0), 0u)
                     << refused.error().message;
             }
+        }
+
+        /** @brief Tests that a refused window prints its computed end, not the sum unworked. */
+        TEST(Small_Regression_GraphPrimitivesElementWindow, MessagePrintsTheComputedEnd)
+        {
+            const SushiRuntime::Result<void> refused = require_window("reduce", "output", 7, 3, 5);
+            ASSERT_FALSE(refused.has_value());
+            EXPECT_NE(refused.error().message.find("window [3, 8)"), std::string::npos)
+                << refused.error().message;
+        }
+
+        /** @brief Tests that a window whose end wraps says so instead of printing a wrapped end. */
+        TEST(Small_Regression_GraphPrimitivesElementWindow, MessageNamesAnEndThatWraps)
+        {
+            const std::size_t huge = std::numeric_limits<std::size_t>::max();
+            const SushiRuntime::Result<void> refused = require_window("reduce", "output", 8, 1, huge);
+            ASSERT_FALSE(refused.has_value());
+            EXPECT_NE(refused.error().message.find("window [1, past the largest size)"),
+                      std::string::npos)
+                << refused.error().message;
         }
 
         /** @brief Tests that a span narrows its buffer's key to its bytes and keeps the watch. */

@@ -64,7 +64,9 @@ int main()
     SushiBLAS::Engine engine(runtime);
     SushiBLAS::IO io;
     SushiRuntime::Graph graph = runtime.graph();
-    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
+    SushiBLAS::LateCountHold late_counts(runtime);
+    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), late_counts,
+                                     engine.mode());
 
     const std::vector<float> host_x{1.0f, 2.0f, 3.0f, 4.0f};
     SushiBLAS::Tensor x = engine.create_tensor({4});

@@ -70,6 +70,13 @@ namespace SushiBLAS
             const Tensor& tensor;
         };
 
+        /**
+         * @brief Holds an element functor and the tensors it writes; write_binding.hpp defines it.
+         * @see modules/operations/MATH_README.md
+         */
+        template<typename Inner, typename... Writes>
+        class WriteBound;
+
         namespace Detail
         {
             /** @brief Returns the dtype whose element type is U. */
@@ -146,6 +153,52 @@ namespace SushiBLAS
             {
 
             };
+
+            /**
+             * @brief Checks each tensor of a bundle as an operand named "<kind> <k>".
+             * @param tensor_at Callable `(std::size_t k) -> const Tensor&` for k below N.
+             * @throws std::invalid_argument for a tensor that is empty, has no storage, holds
+             *         another dtype than expected, or is not contiguous.
+             * @throws UnsupportedExecution for a tensor whose device cannot compute in its dtype.
+             */
+            template<std::size_t N, typename TensorAt>
+            inline void require_bound_tensors(const char* kind, const TensorAt& tensor_at,
+                                              const std::array<Core::DataType, N>& expected,
+                                              const char* name)
+            {
+                for (std::size_t k = 0; k < N; ++k)
+                {
+                    const Tensor& tensor = tensor_at(k);
+                    const std::string operand = std::string(kind) + " " + std::to_string(k);
+                    require_min_elements(tensor, 1, name, operand.c_str());
+                    require_storage(tensor, name, operand.c_str());
+                    require_dtype(tensor, expected[k], name, operand.c_str());
+                    require_device_dtype(tensor, name, operand.c_str());
+                    require_contiguous(tensor, name, operand.c_str());
+                }
+            }
+
+            /**
+             * @brief Refuses a bundle tensor, named "<kind> <k>", whose region overlaps one of
+             *        regions unless allowed admits the pair.
+             * @param tensor_at Callable `(std::size_t k) -> const Tensor&` for k below N.
+             * @param allowed Callable `(const BufferRegion& own, const BufferRegion& other) -> bool`.
+             * @throws std::invalid_argument with problem as its message.
+             */
+            template<std::size_t N, typename TensorAt, typename Regions, typename Allowed>
+            inline void require_bound_disjoint(const char* kind, const TensorAt& tensor_at,
+                                               const Regions& regions, const Allowed& allowed,
+                                               const char* problem, const char* name)
+            {
+                for (std::size_t k = 0; k < N; ++k)
+                {
+                    const std::string operand = std::string(kind) + " " + std::to_string(k);
+                    const SushiRuntime::BufferRegion region = tensor_at(k).region();
+                    for (const SushiRuntime::BufferRegion& other : regions)
+                        require_operand(!region.overlaps(other) || allowed(region, other), name,
+                                        operand.c_str(), "{}", problem);
+                }
+            }
         } // namespace Detail
 
         /**
@@ -276,16 +329,7 @@ namespace SushiBLAS
                 {
                     const std::array<Core::DataType, sizeof...(Reads)> expected{
                         Detail::read_dtype(static_cast<const Reads*>(nullptr), element)...};
-
-                    for (std::size_t k = 0; k < sizeof...(Reads); ++k)
-                    {
-                        const std::string operand = "read " + std::to_string(k);
-                        require_min_elements(tensors_[k], 1, name, operand.c_str());
-                        require_storage(tensors_[k], name, operand.c_str());
-                        require_dtype(tensors_[k], expected[k], name, operand.c_str());
-                        require_device_dtype(tensors_[k], name, operand.c_str());
-                        require_contiguous(tensors_[k], name, operand.c_str());
-                    }
+                    Detail::require_bound_tensors("read", tensor_at(), expected, name);
                 }
 
                 /**
@@ -294,15 +338,13 @@ namespace SushiBLAS
                  */
                 void declare_into(OperandSet& operands, const char* name) const
                 {
-                    for (std::size_t k = 0; k < sizeof...(Reads); ++k)
-                    {
-                        const std::string operand = "read " + std::to_string(k);
-                        const SushiRuntime::BufferRegion region = tensors_[k].region();
-                        for (const SushiRuntime::BufferRegion& written :
-                             operands.write_regions())
-                            require_operand(!region.overlaps(written), name, operand.c_str(),
-                                            "overlaps a tensor the operation writes");
-                    }
+                    Detail::require_bound_disjoint<sizeof...(Reads)>(
+                        "read", tensor_at(), operands.write_regions(),
+                        [](const SushiRuntime::BufferRegion&, const SushiRuntime::BufferRegion&)
+                        {
+                            return false;
+                        },
+                        "overlaps a tensor the operation writes", name);
 
                     for (const Tensor& tensor : tensors_)
                         operands.reads(tensor);
@@ -349,6 +391,12 @@ namespace SushiBLAS
                 }
 
             private:
+                /** @brief Returns a callable that hands the declared tensor at a position. */
+                [[nodiscard]] auto tensor_at() const noexcept
+                {
+                    return [this](std::size_t k) -> const Tensor& { return tensors_[k]; };
+                }
+
                 /// @brief The element functor, or a bind_scalars bundle of one.
                 Fn fn_;
 
@@ -447,6 +495,39 @@ namespace SushiBLAS
             {
                 return op.typed(tag);
             }
+
+            /** @brief Reports whether a type is a bind_writes bundle. */
+            template<typename Op>
+            struct IsWriteBound : std::false_type
+            {
+
+            };
+
+            /** @brief Reports true for a bind_writes bundle. */
+            template<typename Inner, typename... Writes>
+            struct IsWriteBound<WriteBound<Inner, Writes...>> : std::true_type
+            {
+
+            };
+
+            /** @brief Checks the reads a write bundle wraps; defined in write_binding.hpp. */
+            template<typename Inner, typename... Writes>
+            inline void require_declared_reads(const WriteBound<Inner, Writes...>& bound,
+                                               Core::DataType element, const char* name);
+
+            /** @brief Adds the reads a write bundle wraps; defined in write_binding.hpp. */
+            template<typename Inner, typename... Writes>
+            inline void declare_reads(const WriteBound<Inner, Writes...>& bound,
+                                      OperandSet& operands, const char* name);
+
+            /** @brief Returns a write bundle's element dtype; defined in write_binding.hpp. */
+            template<typename Inner, typename... Writes>
+            [[nodiscard]] inline std::optional<Core::DataType> element_dtype_of(
+                const WriteBound<Inner, Writes...>& bound) noexcept;
+
+            /** @brief Returns a write bundle's addressed functor; write_binding.hpp defines it. */
+            template<typename Inner, typename... Writes>
+            [[nodiscard]] inline auto task_functor(const WriteBound<Inner, Writes...>& bound);
         } // namespace Detail
     } // namespace Dispatch
 } // namespace SushiBLAS

@@ -79,7 +79,9 @@ int main()
     SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
     SushiBLAS::Engine engine(runtime);
     SushiRuntime::Graph graph = runtime.graph();
-    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
+    SushiBLAS::LateCountHold late_counts(runtime);
+    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), late_counts,
+                                     engine.mode());
     SushiBLAS::BLASOps blas(recorder);
     SushiBLAS::IO io;
 

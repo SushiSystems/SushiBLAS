@@ -43,7 +43,9 @@ int main()
     sr::Runtime runtime = sr::Runtime::create().value();
     sb::Engine engine(runtime, sb::Core::Layout::ColumnMajor);
     sr::Graph graph = runtime.graph();
-    sb::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
+    sb::LateCountHold late_counts(runtime);
+    sb::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), late_counts,
+                              engine.mode());
 
     auto A = engine.create_tensor({K_SIZE, K_SIZE});
     auto B = engine.create_tensor({K_SIZE, K_SIZE});

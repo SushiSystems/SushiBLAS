@@ -56,6 +56,7 @@ sushiblas_add_test_program(
     TESTS
         test_elementwise_log_category.cpp
         test_dispatch.cpp
+        test_ordered_sum_element.cpp
         test_elementwise/test_abs.cpp
         test_elementwise/test_acos.cpp
         test_elementwise/test_acosh.cpp

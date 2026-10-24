@@ -26,6 +26,7 @@
  */
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -35,6 +36,7 @@
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 #include <SushiBLAS/recording_graph/recording_graph.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 
 namespace SushiBLAS
@@ -142,6 +144,60 @@ namespace SushiBLAS
 
             EXPECT_TRUE(graph.plan().has_value());
             EXPECT_EQ(graph.recorded_count(), std::size_t{2});
+        }
+
+        /** @brief Records one late-count task over out, whose width count holds, on graph. */
+        static void record_late_task(RecordingGraph& graph, Tensor& out, const Tensor& count)
+        {
+            OperandSet operands;
+            operands.writes(out);
+            graph.recorder().record_late_pair(TaskDescription(), operands, "test", count,
+                                              static_cast<std::size_t>(out.num_elements),
+                                              [] {}, [](std::size_t) {});
+        }
+
+        /** @brief Runs the RecordingGraph tests that guard the release of late-count storage. */
+        class Medium_Regression_RecordingGraph : public Medium_RecordingGraph
+        {
+
+        };
+
+        /**
+         * @brief Tests that after a run the graph holds no late-count storage, so dropping every
+         *        tensor frees it.
+         */
+        TEST_F(Medium_Regression_RecordingGraph, ARunLetsGoOfTheStoragesOfItsLateCountTasks)
+        {
+            RecordingGraph graph(runtime, engine.scratch_pool(), ExecutionMode::ForceSYCL);
+            Tensor out = engine.create_tensor({4}, Core::DataType::Float32);
+            Tensor count = engine.create_tensor({1}, Core::DataType::Int32,
+                                                SushiRuntime::Residency::Host);
+            count.data_as<std::int32_t>()[0] = 2;
+
+            record_late_task(graph, out, count);
+            ASSERT_EQ(graph.late_counts().held_count(), std::size_t{1});
+            EXPECT_GT(out.storage->ref_count(), 1);
+
+            ASSERT_TRUE(graph.run().has_value());
+            EXPECT_EQ(graph.late_counts().held_count(), std::size_t{0});
+            EXPECT_EQ(out.storage->ref_count(), 1);
+            EXPECT_EQ(count.storage->ref_count(), 1);
+        }
+
+        /** @brief Tests that a discard lets go of the storages of its late-count tasks. */
+        TEST_F(Medium_Regression_RecordingGraph, ADiscardLetsGoOfTheStoragesOfItsLateCountTasks)
+        {
+            RecordingGraph graph(runtime, engine.scratch_pool(), ExecutionMode::ForceSYCL);
+            Tensor out = engine.create_tensor({4}, Core::DataType::Float32);
+            Tensor count = engine.create_tensor({1}, Core::DataType::Int32,
+                                                SushiRuntime::Residency::Host);
+            count.data_as<std::int32_t>()[0] = 2;
+
+            record_late_task(graph, out, count);
+            EXPECT_EQ(graph.discard(), std::size_t{1});
+            EXPECT_EQ(graph.late_counts().held_count(), std::size_t{0});
+            EXPECT_EQ(out.storage->ref_count(), 1);
+            EXPECT_EQ(count.storage->ref_count(), 1);
         }
     } // namespace Test
 } // namespace SushiBLAS

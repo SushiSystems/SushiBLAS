@@ -515,5 +515,56 @@ namespace SushiBLAS
                                                      SushiRuntime::Determinism::Bitwise}),
                          std::invalid_argument);
         }
+
+        /** @brief Runs the IndexOps tests that guard who owns a late count's storages. */
+        class Medium_Regression_IndexOps : public Medium_IndexOps
+        {
+
+        };
+
+        /**
+         * @brief Tests that a late for_each recorded through a recorder gone before the graph
+         *        runs replays twice on the live count while its caller keeps the hold, and that
+         *        releasing the hold leaves the tensors the only owners of their storages.
+         */
+        TEST_F(Medium_Regression_IndexOps, AReplayedLateForEachOutlivesItsRecorder)
+        {
+            SushiRuntime::Runtime& runtime = engine->runtime();
+            SushiRuntime::Graph graph = runtime.graph();
+            ScratchPool scratch_pool(runtime);
+            LateCountHold late_counts(runtime);
+            Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
+                                                 SushiRuntime::Residency::Host);
+            Tensor marks = engine->create_tensor({K_CAPACITY}, Core::DataType::Float32,
+                                                 SushiRuntime::Residency::Shared);
+            {
+                TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts,
+                                      ExecutionMode::ForceSYCL);
+                IndexOps(recorder).for_each(
+                    static_cast<std::size_t>(K_CAPACITY), count,
+                    Dispatch::bind_writes([](std::size_t i, float* out) { out[i] = 1.0f; },
+                                          Dispatch::write_as<float>(marks)),
+                    OperationOptions{"mark", SushiRuntime::Determinism::Bitwise});
+            }
+
+            for (const std::int32_t live : {3, 5})
+            {
+                count.data_as<std::int32_t>()[0] = live;
+                for (std::int64_t i = 0; i < K_CAPACITY; ++i)
+                    marks.data_as<float>()[i] = 0.0f;
+                SushiRuntime::RunReport report;
+                const SushiRuntime::Result<SushiRuntime::RunReport*> ran = graph.run(report);
+
+                ASSERT_TRUE(ran) << "run over a count of " << live;
+                EXPECT_EQ(marks.data_as<float>()[live - 1], 1.0f) << "count " << live;
+                EXPECT_EQ(marks.data_as<float>()[live], 0.0f) << "count " << live;
+            }
+
+            graph.clear();
+            late_counts.release();
+            EXPECT_EQ(late_counts.held_count(), std::size_t{0});
+            EXPECT_EQ(count.storage->ref_count(), 1);
+            EXPECT_EQ(marks.storage->ref_count(), 1);
+        }
     } // namespace Test
 } // namespace SushiBLAS

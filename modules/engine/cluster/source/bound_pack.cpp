@@ -51,7 +51,7 @@ namespace SushiBLAS
 
     }
 
-    PackSpan BoundPack::segment(Core::DataType dtype) const noexcept
+    PackSpan BoundPack::segment(Core::DataType dtype) const
     {
         const PackSegment& segment = layout_->segment(dtype);
         return span_at(base_, segment.dtype, segment.offset_bytes, segment.element_count);

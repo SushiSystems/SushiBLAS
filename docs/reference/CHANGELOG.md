@@ -6,9 +6,14 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — engine: Added `LateCountHold`, which the owner of a graph keeps and a `TaskRecorder` records late tasks into, so a replayed late node outlives its recorder (`late_count_hold.hpp`).
+- 2026-10-24 — elementwise: Fixed `ordered_sum` holding `double` weights in device code for single-precision types, which a device without fp64 refused (`ordered_sum_element.hpp`).
+- 2026-10-24 — elementwise: Made the elementwise, logic and nonlinear seams refuse a `bind_writes` bundle, whatever the include order (`read_binding.hpp`).
+- 2026-10-24 — cluster: Made `TensorPack` take the device it lives on and refuse a tensor on another, and `PackLayout::segment()` refuse a type outside the enumeration (`tensor_pack.hpp`).
+- 2026-10-24 — graph_primitives: Printed a window's computed end in its refusal (`element_window.hpp`).
 - 2026-10-24 — graph_primitives: Added a trailing window to the four primitives that places each buffer operand at an element offset, declared as that interval of the whole buffer (`element_window.hpp`).
 - 2026-10-24 — graph_primitives: Made a primitive declare only the interval of each buffer it touches, so a node over an untouched part is not ordered after it (`element_window.hpp`).
-- 2026-10-24 — engine: Moved `IndexOptions` into the engine module as `OperationOptions`, with one record-time check every family calls (`operation_options.hpp`).
+- 2026-10-24 — engine: Moved `IndexOptions` into the engine module as `OperationOptions`, with one record-time check that the index, signal and blend families call (`operation_options.hpp`).
 - 2026-10-24 — signal: Made `convolve_1d` take an `OperationOptions` for its node's name and determinism (`signal.hpp`).
 - 2026-10-24 — blend: Made `blend_transforms` take an `OperationOptions` and `UInt32` indices (`blend.hpp`).
 - 2026-10-24 — cluster: Added `TensorPack::tensor()` and `segment_tensor()`, tensor views of one entry and of one segment over the pack's own buffer (`tensor_pack.hpp`).

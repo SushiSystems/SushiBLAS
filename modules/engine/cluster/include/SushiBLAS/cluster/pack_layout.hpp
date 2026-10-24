@@ -89,8 +89,11 @@ namespace SushiBLAS
                 return entries_;
             }
 
-            /** @brief Returns the segment of a data type; it is empty when no tensor has it. */
-            [[nodiscard]] const PackSegment& segment(Core::DataType dtype) const noexcept;
+            /**
+             * @brief Returns the segment of a data type; it is empty when no tensor has it.
+             * @throws std::runtime_error for a value outside Core::DataType, as of() does.
+             */
+            [[nodiscard]] const PackSegment& segment(Core::DataType dtype) const;
 
             /** @brief Returns the bytes up to the end of the last segment. */
             [[nodiscard]] std::size_t size_bytes() const noexcept { return size_bytes_; }

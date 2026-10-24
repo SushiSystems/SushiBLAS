@@ -28,6 +28,7 @@
 #pragma once
 
 #include <cstddef>
+#include <limits>
 #include <string>
 
 #include <SushiRuntime/api/data/buffer.hpp>
@@ -79,9 +80,11 @@ namespace SushiBLAS
                 if (offset <= size && count <= size - offset)
                     return {};
 
+                const bool end_wraps = count > std::numeric_limits<std::size_t>::max() - offset;
+                const std::string end = end_wraps ? std::string("past the largest size")
+                                                  : std::to_string(offset + count);
                 return invalid_graph(std::string(primitive) + ": the " + operand +
-                                     " window [" + std::to_string(offset) + ", " +
-                                     std::to_string(offset) + " + " + std::to_string(count) +
+                                     " window [" + std::to_string(offset) + ", " + end +
                                      ") does not fit its buffer of " + std::to_string(size) +
                                      " elements.");
             }

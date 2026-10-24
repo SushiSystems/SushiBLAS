@@ -74,7 +74,9 @@ int main()
     sr::Runtime runtime = sr::Runtime::create().value();
     sb::Engine engine(runtime);
     sr::Graph graph = runtime.graph();
-    sb::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
+    sb::LateCountHold late_counts(runtime);
+    sb::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), late_counts,
+                              engine.mode());
 
     constexpr int64_t N = 64;
     auto x = engine.create_tensor({N});

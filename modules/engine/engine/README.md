@@ -10,10 +10,11 @@ Each operation family is a module of its own under `modules/operations/`, with i
 | File | Declares |
 | --- | --- |
 | `task_recorder.hpp` | `TaskRecorder`, the one caller of `SushiRuntime::Recorder::task` and `dynamic_kernel` in SushiBLAS |
+| `late_count_hold.hpp` | `LateCountHold`, which keeps the storages of late-count tasks for as long as the owner of their recording keeps it |
 | `task_handle.hpp` | `TaskHandle`, the value a record call returns for the task it recorded |
 | `task_description.hpp` | `TaskDescription`, what an operation states about the task it records |
 | `operand_set.hpp` | `OperandSet`, the tensors one task reads and writes, and the storage it retains |
-| `operation_options.hpp` | `OperationOptions`, the name and the determinism class a caller states for one node, and the check every family applies to it |
+| `operation_options.hpp` | `OperationOptions`, the name and the determinism class a caller states for one node, and the check the three families that take it apply: `IndexOps`, `SignalOps`, `BlendOps` |
 | `execution_mode.hpp` | `ExecutionMode`, which names the kernel a recorded task runs |
 | `kernel_pair_dispatcher.hpp` | `KernelPairDispatcher`, which runs one kernel of a reference and SYCL pair |
 | `task.hpp` | `execute_typed_task`, the recorder of one dtype-dispatched task that runs a kernel pair |
@@ -254,8 +255,9 @@ not change a task already recorded.
 
 `TaskRecorder` is the only caller of `SushiRuntime::Recorder::task` and `dynamic_kernel` in
 SushiBLAS. It is bound to
-the recorder of one `SushiRuntime::Graph` and to one `ScratchPool`, and holds the execution mode.
-A caller builds one over a graph it owns.
+the recorder of one `SushiRuntime::Graph`, one `ScratchPool` and one `LateCountHold`, and holds the
+execution mode, in that constructor order. A caller builds one over a graph it owns; the recorder
+may be a local of one record call, since it owns nothing a run needs.
 
 Record calls from several threads on one `TaskRecorder` are serialised by one `std::mutex` in it.
 The lock covers reading the recorder's node count, the call of `Recorder::task` and the draw of
@@ -296,21 +298,32 @@ capacity.
 The count tensor is checked before the mode is looked at, so both modes refuse the same tensors:
 it must hold at least one element, have storage, be contiguous, be `UINT32` or `INT32` and live in
 `Residency::Host`. The runtime takes the width as a `Buffer<std::uint32_t>` in host USM, so the call
-borrows one with the runtime's `borrow` call over the whole allocation of the count's storage, reached through
-`ScratchPool::runtime()`, and names the word at `storage_offset` (one word for each `UINT32` or `INT32`
+borrows one with the runtime's `borrow` call over the whole allocation of the count's storage
+and names the word at `storage_offset` (one word for each `UINT32` or `INT32`
 element). `Storage` is not involved beyond its address, size, device and residency. `INT64` is refused, not narrowed:
 narrowing would be a copy of the count or a silent loss of its high word, and the runtime reads one
 32-bit word. `UINT32` is the runtime's own word type; a negative `INT32` reads as a width above the capacity, so it fails the run.
 
 A device-mode task cannot hold its operands' storage itself, because the runtime's kernel captures
-must be device copyable. The recorder holds it instead: the owner token passed to `borrow` is a
-`LivenessToken` whose deleter holds one reference to every storage in `operands` and to the count,
-and the recorder keeps the token in `late_owners_`. The runtime watches the token, so a run after the
-recorder is destroyed is refused as `DanglingResource` and never reads freed memory. The tokens are
-released when a late task is recorded on an empty graph, which is after a run or
-an emptied graph, or when the recorder is destroyed; a recorder that records late tasks
-and never empties its graph keeps their storages. The recorder reaches the runtime through the pool's
-`runtime()`, so the pool and the recorder must share one runtime.
+must be device copyable. The `LateCountHold` (`late_count_hold.hpp`) the recorder was given holds it
+instead. `borrow` makes the owner token, a `LivenessToken` whose deleter holds one reference to
+every storage in `operands` and to the count, and borrows the count under it from the hold's
+runtime; `keep` stores the token once the task is recorded. The runtime watches the token, so a
+run after the hold lets go is refused as `DanglingResource` and never reads freed memory.
+
+The hold belongs to whoever owns the recording's lifetime, never to the recorder, because a recorder
+is often a local of one record call while the graph runs later and again. It takes the runtime in
+its constructor, so the recorder's constructor needs none. It lets go of its tokens, and so of the
+storages, on `release()` and in its destructor:
+
+- A one-shot graph, run once and emptied: the owner releases the hold after the run or a discard.
+  `RecordingGraph` owns one and releases it in `run()` and `discard()`, inside `run_exclusive`,
+  right after it clears its graph.
+- A replayed graph, compiled once and run every step: the owner keeps the hold as long as it keeps
+  the graph's nodes, and releases it, or destroys it, after clearing the graph.
+
+A hold shared by several graphs keeps every token until its owner releases it; it does not know
+which graph a token came from.
 
 ### `TaskRecorder::require_host_reachable`
 
@@ -365,7 +378,8 @@ to `TaskDescription::determinism`, `TaskRecorder` to `NodeOptions::determinism`,
 plan reports it as `PlanNode::determinism`. No second enum mirrors the runtime's, and no parameter
 slot carries it. `Dispatch::require_operation_options(options, operation)` is the one record-time
 check: it throws `std::invalid_argument` naming `operation` and `'options'` for an empty or null
-name and for a class outside the enum. `IndexOps`, `SignalOps` and `BlendOps` all call it.
+name and for a class outside the enum. `IndexOps`, `SignalOps` and `BlendOps` take an
+`OperationOptions` and call it; every other family takes a name and an `OperationID` instead.
 
 ## `operand_set.hpp`
 
@@ -431,7 +445,7 @@ builds a `Storage` for scratch itself.
 `ScratchPool` owns the shelf through a shared pointer, and a lent block holds the shelf too, so
 the shelf outlives the pool for as long as a lease is out. `idle_block_count()` reports how many
 blocks sit idle and `trim()` frees them; neither touches a block out on lease. `runtime()` returns the
-runtime the pool was built over; `TaskRecorder::record_late_pair` takes the `Interop` facade from it. `Engine` owns one
+runtime the pool was built over. `Engine` owns one
 pool and its recorder hands it to operations through `TaskRecorder::scratch_pool()`.
 
 ## `scratch_shelf.hpp`

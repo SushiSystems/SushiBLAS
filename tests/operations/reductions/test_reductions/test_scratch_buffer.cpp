@@ -274,8 +274,9 @@ namespace SushiBLAS
             ScratchPool pool(TestEnvironment::runtime());
             SushiRuntime::Graph first_graph = TestEnvironment::runtime().graph();
             SushiRuntime::Graph second_graph = TestEnvironment::runtime().graph();
-            TaskRecorder first_recorder(first_graph.recorder(), pool);
-            TaskRecorder second_recorder(second_graph.recorder(), pool);
+            LateCountHold late_counts(TestEnvironment::runtime());
+            TaskRecorder first_recorder(first_graph.recorder(), pool, late_counts);
+            TaskRecorder second_recorder(second_graph.recorder(), pool, late_counts);
 
             const std::size_t live_before_record = TestEnvironment::live_allocation_count();
             ReductionOps(first_recorder).sum(input, first_result);

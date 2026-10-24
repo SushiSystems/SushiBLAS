@@ -66,7 +66,8 @@ A view is a small class of record calls bound to a `TaskRecorder` the caller own
 ```cpp
 ScratchPool pool(TestEnvironment::runtime());
 SushiRuntime::Graph first_graph = TestEnvironment::runtime().graph();
-TaskRecorder first_recorder(first_graph.recorder(), pool);
+LateCountHold late_counts(TestEnvironment::runtime());
+TaskRecorder first_recorder(first_graph.recorder(), pool, late_counts);
 
 // ...
 

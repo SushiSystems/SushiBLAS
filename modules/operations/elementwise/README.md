@@ -9,6 +9,7 @@ It depends on `core`, `support`, `tensor`, `engine` and `functor_map`. Its heade
 | --- | --- |
 | `dispatch.hpp` | The elementwise executors of the dispatch seam |
 | `elementwise.hpp` | ElementwiseOps, the per-element math operations on tensors |
+| `ordered_sum_element.hpp` | The element functor of `ordered_sum` and the type its weights take |
 | `wrapping_math.hpp` | The arithmetic functors that wrap modulo 2^N on integer element types |
 
 `source/` holds 33 translation units.
@@ -104,7 +105,11 @@ bit, and a test compares both against a serial sum written with the same order a
   `wrapping_add`, which converts to the unsigned type of the same width.
 - The signature takes `SushiRuntime::span<const Tensor>` and `SushiRuntime::span<const double>`
   (the C++17 span the library already uses for shapes), and the output last, as `add` takes it.
-  A weight is a `double` and is narrowed to the accumulation type, as `pow` narrows its exponent.
+  A weight is a `double` and is narrowed once, on the host when the call is recorded, to the type
+  `Detail::OrderedSumWeight` names (`ordered_sum_element.hpp`): `Float32` for `Half`, `Float32`,
+  `Complex32`, `Float64` for `Float64` and `Complex64`. The kernel holds no `double` for the other
+  types, so a device without `aspect::fp64` runs them. The rounding is the one the kernel did before
+  each multiply, so no result moves.
 - The kernel carries the input addresses and the weights by value, so a call takes at most
   `ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS` (32) inputs.
 - `out` matches the inputs in shape, layout and type, and overlaps none of them.

@@ -29,6 +29,7 @@
 
 #include <complex>
 #include <cstddef>
+#include <type_traits>
 #include <initializer_list>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -60,6 +61,10 @@ namespace SushiBLAS
                                        const char* name, SushiRuntime::OperationID op_id,
                                        Func&& op_func, std::initializer_list<Param> params = {})
         {
+            static_assert(!Detail::IsWriteBound<std::decay_t<Func>>::value,
+                          "execute_logic_unary takes no bind_writes bundle: its output is the "
+                          "write it declares; a functor that writes more records "
+                          "through IndexOps::for_each.");
             require_storage(x, name, "x");
             require_device_dtype(x, name, "x");
             require_storage(result, name, "result");
@@ -105,6 +110,10 @@ namespace SushiBLAS
                                         SushiRuntime::OperationID op_id, Func&& op_func,
                                         std::initializer_list<Param> params = {})
         {
+            static_assert(!Detail::IsWriteBound<std::decay_t<Func>>::value,
+                          "execute_logic_binary takes no bind_writes bundle: its output is the "
+                          "write it declares; a functor that writes more records "
+                          "through IndexOps::for_each.");
             require_storage(A, name, "A");
             require_device_dtype(A, name, "A");
             require_storage(B, name, "B");
@@ -156,6 +165,10 @@ namespace SushiBLAS
                                          SushiRuntime::OperationID op_id, Func&& op_func,
                                          std::initializer_list<Param> params = {})
         {
+            static_assert(!Detail::IsWriteBound<std::decay_t<Func>>::value,
+                          "execute_logic_ternary takes no bind_writes bundle: its output is the "
+                          "write it declares; a functor that writes more records "
+                          "through IndexOps::for_each.");
             require_storage(cond, name, "cond");
             require_device_dtype(cond, name, "cond");
             require_storage(A, name, "A");

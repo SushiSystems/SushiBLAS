@@ -64,14 +64,17 @@ returns, and owns four bricks: a `ScratchPool`, a `TensorFactory`, an `RNGStream
 nothing. A caller that needs a device queue or a wait takes it from the runtime:
 `runtime().advanced().queue(SushiRuntime::DeviceIndex{0})`, `runtime().wait()`.
 
-A caller that records owns a graph and builds a `TaskRecorder` over that graph's recorder, with
-the engine's pool and mode. An operation view (`BLASOps`, `SparseOps`, `SpatialOps`,
+A caller that records owns a graph and a `LateCountHold` that lives as long as the graph's nodes,
+and builds a `TaskRecorder` over that graph's recorder, with the engine's pool, the hold and the
+engine's mode. An operation view (`BLASOps`, `SparseOps`, `SpatialOps`,
 `ElementwiseOps`, `NonLinearOps`, `ReductionOps`, `RandomOps`, `LogicOps`) is built over that
 recorder, and `RandomOps` also takes the engine's `rng()`:
 
 ```cpp
 SushiRuntime::Graph graph = engine.runtime().graph();
-SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
+SushiBLAS::LateCountHold late_counts(engine.runtime());
+SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), late_counts,
+                                 engine.mode());
 SushiBLAS::BLASOps blas(recorder);
 blas.gemm(a, b, c);
 graph.run();

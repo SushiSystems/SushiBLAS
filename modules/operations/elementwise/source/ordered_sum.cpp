@@ -28,9 +28,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <complex>
 #include <string>
-#include <type_traits>
 #include <vector>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -45,7 +43,7 @@
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/elementwise/elementwise.hpp>
-#include <SushiBLAS/elementwise/wrapping_math.hpp>
+#include <SushiBLAS/elementwise/ordered_sum_element.hpp>
 #include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
 #include <SushiBLAS/engine/task_description.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
@@ -60,14 +58,14 @@ namespace SushiBLAS
         constexpr const char* K_NAME = "math.ew.ordered_sum";
 
         /** @brief Holds the capacity of the input table a kernel carries by value. */
-        constexpr std::size_t K_CAPACITY = ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS;
+        constexpr std::size_t K_CAPACITY = Dispatch::Detail::K_ORDERED_SUM_CAPACITY;
 
         /** @brief Holds the addresses and weights of one recorded sum, before the element type is known. */
         struct SumTable
         {
             /** @brief Holds the first element of each input, in index order. */
             std::array<const void*, K_CAPACITY> inputs{};
-            /** @brief Holds the weight of each input, in index order. */
+            /** @brief Holds the weight of each input as the caller gave it, in index order. */
             std::array<double, K_CAPACITY> weights{};
             /** @brief Holds the first element of the output. */
             void* output = nullptr;
@@ -78,61 +76,6 @@ namespace SushiBLAS
         };
 
         /**
-         * @brief Computes `output[i] = ((0 + w0 * x0[i]) + w1 * x1[i]) + ...` for one element type.
-         * @tparam T One of the seven element types.
-         * @see modules/operations/elementwise/README.md
-         */
-        template<typename T>
-        struct OrderedSumElement
-        {
-            /** @brief Holds the first element of each input, in index order. */
-            std::array<const T*, K_CAPACITY> inputs;
-            /** @brief Holds the weight of each input, in index order. */
-            std::array<double, K_CAPACITY> weights;
-            /** @brief Holds the first element of the output. */
-            T* output;
-            /** @brief Holds the number of inputs. */
-            std::size_t input_count;
-
-            /** @brief Writes element i, reading input 0 to input_count - 1 in that order. */
-            void operator()(std::size_t i) const
-            {
-                // Contraction is off so a multiply and an add round apart on the host and the device.
-                #pragma clang fp contract(off)
-                if constexpr (std::is_integral_v<T>)
-                {
-                    T sum = T(0);
-                    for (std::size_t k = 0; k < input_count; ++k)
-                        sum = Dispatch::wrapping_add(sum, inputs[k][i]);
-                    output[i] = sum;
-                }
-                else if constexpr (std::is_same_v<T, std::complex<float>> ||
-                                   std::is_same_v<T, std::complex<double>>)
-                {
-                    using Real = typename T::value_type;
-                    Real real_sum = Real(0);
-                    Real imaginary_sum = Real(0);
-                    for (std::size_t k = 0; k < input_count; ++k)
-                    {
-                        const Real weight = static_cast<Real>(weights[k]);
-                        real_sum += weight * inputs[k][i].real();
-                        imaginary_sum += weight * inputs[k][i].imag();
-                    }
-                    output[i] = T(real_sum, imaginary_sum);
-                }
-                else
-                {
-                    using Accumulation = std::conditional_t<std::is_same_v<T, sycl::half>, float, T>;
-                    Accumulation sum = Accumulation(0);
-                    for (std::size_t k = 0; k < input_count; ++k)
-                        sum += static_cast<Accumulation>(weights[k]) *
-                               static_cast<Accumulation>(inputs[k][i]);
-                    output[i] = static_cast<T>(sum);
-                }
-            }
-        };
-
-        /**
          * @brief Records the task for one concrete element type and returns its handle.
          * @throws UnsupportedExecution under ForceReference when an operand is device-only USM.
          */
@@ -140,11 +83,12 @@ namespace SushiBLAS
         TaskHandle record_sum(TaskRecorder& recorder, const TaskDescription& description,
                               const OperandSet& operands, const SumTable& table)
         {
-            OrderedSumElement<T> element{};
+            using Element = Dispatch::Detail::OrderedSumElement<T>;
+            Element element{};
             for (std::size_t k = 0; k < table.input_count; ++k)
             {
                 element.inputs[k] = static_cast<const T*>(table.inputs[k]);
-                element.weights[k] = table.weights[k];
+                element.weights[k] = static_cast<typename Element::Weight>(table.weights[k]);
             }
             element.output = static_cast<T*>(table.output);
             element.input_count = table.input_count;

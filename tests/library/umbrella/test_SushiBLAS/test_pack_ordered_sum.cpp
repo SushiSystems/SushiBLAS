@@ -79,7 +79,7 @@ namespace SushiBLAS
             std::vector<TensorPack> replicas;
             replicas.reserve(4);
             for (int replica = 0; replica < 4; ++replica)
-                replicas.emplace_back(runtime, layout);
+                replicas.emplace_back(runtime, layout, 0);
 
             std::vector<Tensor> inputs;
             for (int replica = 0; replica < 3; ++replica)
@@ -93,10 +93,11 @@ namespace SushiBLAS
             std::memset(result.data(), 0, static_cast<std::size_t>(result.num_elements) * sizeof(float));
 
             ScratchPool scratch(runtime);
+            LateCountHold late_counts(runtime);
             auto graph = runtime.graph();
             graph.extend([&](SushiRuntime::Recorder& recorder)
             {
-                TaskRecorder tensors(recorder, scratch);
+                TaskRecorder tensors(recorder, scratch, late_counts);
                 const std::array<double, 3> weights = {1.0, 1.0, 1.0};
                 (void)ElementwiseOps(tensors).ordered_sum(
                     SushiRuntime::span<const Tensor>(inputs.data(), inputs.size()),

@@ -43,7 +43,9 @@ int main()
     SushiBLAS::Engine engine(runtime);
     SushiBLAS::IO io;
     SushiRuntime::Graph graph = runtime.graph();
-    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
+    SushiBLAS::LateCountHold late_counts(runtime);
+    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), late_counts,
+                                     engine.mode());
 
     // a and result are host-addressable; b lives in device memory and is reached through IO.
     SushiBLAS::Tensor a = engine.create_tensor({K_COUNT});

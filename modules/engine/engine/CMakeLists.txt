@@ -29,6 +29,7 @@ sushiblas_add_test_program(
         test_engine/test_unsupported_execution.cpp
         test_execution_mode.cpp
         test_kernel_pair_dispatcher.cpp
+        test_late_count_hold.cpp
         test_operand_check.cpp
         test_operand_set.cpp
         test_operation_options.cpp

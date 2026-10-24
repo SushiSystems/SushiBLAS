@@ -39,6 +39,7 @@
 #include <SushiBLAS/core/logger.hpp>
 #include <SushiBLAS/engine/operand_set.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
+#include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
@@ -135,15 +136,17 @@ namespace SushiBLAS
     {
         public:
             /**
-             * @brief Binds the recorder to the graph recorder it records on and the pool its tasks
-             *        lease from.
+             * @brief Binds the recorder to the graph recorder it records on, the pool its tasks
+             *        lease from and the hold its late-count tasks are kept in.
              * @param recorder Receives every task; it must outlive this recorder.
              * @param scratch_pool Lends operation scratch; it must outlive the recorder.
+             * @param late_counts Keeps late-count storages; its owner keeps it while the graph runs.
              */
             TaskRecorder(SushiRuntime::Recorder& recorder, ScratchPool& scratch_pool,
+                         LateCountHold& late_counts,
                          ExecutionMode mode = ExecutionMode::Auto) noexcept
-                : recorder_(&recorder), scratch_pool_(&scratch_pool), mode_(mode),
-                  identity_(Internal::Detail::next_recorder_identity())
+                : recorder_(&recorder), scratch_pool_(&scratch_pool), late_counts_(&late_counts),
+                  mode_(mode), identity_(Internal::Detail::next_recorder_identity())
             {
 
             }
@@ -211,8 +214,8 @@ namespace SushiBLAS
              * @param count A contiguous UINT32 or INT32 tensor in Residency::Host that a previous node writes.
              * @param host_body Callable `() -> void` that runs the indices under ForceReference.
              * @param kernel Device-copyable callable `(std::size_t i)` for every other mode.
-             * @note Outside ForceReference the recorder holds the storages it names; see the README.
-             * @see modules/engine/engine/README.md
+             * @note Outside ForceReference the hold given at construction keeps its storages;
+             *       see modules/engine/engine/README.md.
              */
             template<typename HostBody, typename Kernel>
             TaskHandle record_late_pair(const TaskDescription& description,
@@ -230,20 +233,18 @@ namespace SushiBLAS
                 }
 
                 require_host_reachable(operands, family, description.name);
-                prune_late_owners();
-                const SushiRuntime::LivenessToken owner = keep_alive_token(operands, count);
+                LateCount late = late_counts_->borrow(operands, count);
                 const TaskHandle handle = insert(
                     description,
                     [&](SushiRuntime::Recorder& recorder, const SushiRuntime::NodeOptions& options)
                     {
                         recorder.dynamic_kernel(
                             SushiRuntime::sized_from_device(
-                                borrow_count(count, owner),
-                                static_cast<std::size_t>(count.storage_offset)),
+                                late.words, static_cast<std::size_t>(count.storage_offset)),
                             capacity,
                             access_of(operands), std::forward<Kernel>(kernel), options);
                     });
-                retain_late_owner(owner);
+                late_counts_->keep(std::move(late.owner));
                 return handle;
             }
 
@@ -348,56 +349,14 @@ namespace SushiBLAS
                     SushiRuntime::residency_name(count.storage->residency()));
             }
 
-            /**
-             * @brief Makes the token the runtime watches for a late task's memory.
-             *
-             * The token's deleter holds one reference to every storage the task touches, so the
-             * memory lives while the token does; the recorder keeps the token in late_owners_.
-             */
-            [[nodiscard]] static SushiRuntime::LivenessToken
-            keep_alive_token(const OperandSet& operands, const Tensor& count)
-            {
-                Internal::StorageKeepAlive held = operands.retained();
-                held.retain(count.storage);
-                return SushiRuntime::LivenessToken(
-                    new SushiRuntime::Liveness(),
-                    [held = std::move(held)](SushiRuntime::Liveness* life)
-                    {
-                        delete life;
-                    });
-            }
-
-            /** @brief Views the whole allocation of count as the runtime's word buffer, owned by owner. */
-            [[nodiscard]] SushiRuntime::Buffer<std::uint32_t>
-            borrow_count(const Tensor& count, const SushiRuntime::LivenessToken& owner) const
-            {
-                const Storage& storage = *count.storage;
-                return scratch_pool_->runtime().interop().borrow<std::uint32_t>(
-                    static_cast<std::uint32_t*>(storage.allocation_base()),
-                    storage.size_bytes() / sizeof(std::uint32_t),
-                    SushiRuntime::DeviceIndex{storage.device_index()}, storage.residency(), owner);
-            }
-
-            /** @brief Keeps owner until prune_late_owners() finds the graph empty. */
-            void retain_late_owner(const SushiRuntime::LivenessToken& owner)
-            {
-                const std::lock_guard<std::mutex> lock(recording_mutex_);
-                late_owners_.push_back(owner);
-            }
-
-            /** @brief Releases the owners of a graph that has been run or discarded. */
-            void prune_late_owners()
-            {
-                const std::lock_guard<std::mutex> lock(recording_mutex_);
-                if (recorder_->node_count() == 0)
-                    late_owners_.clear();
-            }
-
             /// @brief The graph recorder every record call adds to; never null.
             SushiRuntime::Recorder* recorder_;
 
             /// @brief The pool handed to operations that lease scratch; never null.
             ScratchPool* scratch_pool_;
+
+            /// @brief The hold late-count tasks are kept in, owned by the graph's owner; never null.
+            LateCountHold* late_counts_;
 
             /// @brief The mode stamped on each task as it is recorded.
             ExecutionMode mode_;
@@ -408,10 +367,7 @@ namespace SushiBLAS
             /// @brief The sequence number the next recorded task takes; guarded by recording_mutex_.
             std::uint64_t next_sequence_ = 0;
 
-            /// @brief The tokens late tasks watch, which hold their storages; guarded by recording_mutex_.
-            std::vector<SushiRuntime::LivenessToken> late_owners_;
-
-            /// @brief Serialises every use of recorder_, next_sequence_ and late_owners_.
+            /// @brief Serialises every use of recorder_ and next_sequence_.
             std::mutex recording_mutex_;
     };
 } // namespace SushiBLAS

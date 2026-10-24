@@ -142,9 +142,12 @@ namespace SushiBLAS
         return layout;
     }
 
-    const PackSegment& PackLayout::segment(Core::DataType dtype) const noexcept
+    const PackSegment& PackLayout::segment(Core::DataType dtype) const
     {
-        return segments_[static_cast<std::size_t>(dtype) % K_PACK_SEGMENT_COUNT];
+        const std::size_t type_index = static_cast<std::size_t>(dtype);
+        SB_THROW_IF(type_index >= K_PACK_SEGMENT_COUNT,
+                    "PackLayout::segment: data type {} is outside the enumeration", type_index);
+        return segments_[type_index];
     }
 
     bool PackLayout::matches(const PackEntry& entry, const Tensor& tensor) noexcept

@@ -131,6 +131,15 @@ namespace SushiBLAS
                                        shaped({4, 2}, Core::DataType::Float32)}).fingerprint());
         }
 
+        /** @brief Tests that a type outside the enumeration is refused, not wrapped onto Half. */
+        TEST(Small_Regression_PackLayout, SegmentRefusesADataTypeOutsideTheEnumeration)
+        {
+            const PackLayout layout = layout_of({shaped({4}, Core::DataType::Half)});
+            const auto outside = static_cast<Core::DataType>(K_PACK_SEGMENT_COUNT);
+            EXPECT_THROW((void)layout.segment(outside), std::runtime_error);
+            EXPECT_EQ(layout.segment(Core::DataType::Half).size_bytes, 4 * sizeof(std::uint16_t));
+        }
+
         /** @brief Tests that a layout refuses an empty list and a list with no element. */
         TEST(Small_PackLayout, RefusesAPackWithNoElement)
         {

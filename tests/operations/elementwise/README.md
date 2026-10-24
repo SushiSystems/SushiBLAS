@@ -43,6 +43,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_elementwise/test_square.cpp` | Tests ElementwiseOps::square against fixed expected values |
 | `test_elementwise/test_sub.cpp` | Tests ElementwiseOps::sub against fixed expected values |
 | `test_elementwise/test_tan.cpp` | Tests ElementwiseOps::tan against fixed expected values |
+| `test_ordered_sum_element.cpp` | Tests that the ordered_sum kernel holds no double outside FLOAT64 and COMPLEX64, and the bits it writes |
 | `test_wrapping_math.cpp` | Tests that integer arithmetic wraps modulo its width and floating arithmetic is plain |
 
 ## test_elementwise/test_convert.cpp

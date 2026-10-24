@@ -33,6 +33,9 @@ namespace SushiBLAS
 {
     /**
      * @brief Holds the name of a recorded node and the determinism contract its caller states.
+     *
+     * IndexOps, SignalOps and BlendOps take it; the other families take a name and an
+     * OperationID.
      * @see docs/design/LAYERED_EXECUTION/README.md
      */
     struct OperationOptions

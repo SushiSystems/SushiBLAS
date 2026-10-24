@@ -31,6 +31,7 @@
 #include <string>
 #include <complex>
 #include <cstddef>
+#include <type_traits>
 #include <initializer_list>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -65,6 +66,10 @@ namespace SushiBLAS
                                          SushiRuntime::OperationID op_id, Func&& op_func,
                                          std::initializer_list<Param> params = {})
         {
+            static_assert(!Detail::IsWriteBound<std::decay_t<Func>>::value,
+                          "execute_unary_inplace takes no bind_writes bundle: its output is the "
+                          "write it declares; a functor that writes more records "
+                          "through IndexOps::for_each.");
             require_storage(t, name, "t");
             require_device_dtype(t, name, "t");
             require_contiguous(t, name, "t");
@@ -104,6 +109,10 @@ namespace SushiBLAS
                                   const char* name, SushiRuntime::OperationID op_id, Func&& op_func,
                                   std::initializer_list<Param> params = {})
         {
+            static_assert(!Detail::IsWriteBound<std::decay_t<Func>>::value,
+                          "execute_binary takes no bind_writes bundle: its output is the "
+                          "write it declares; a functor that writes more records "
+                          "through IndexOps::for_each.");
             require_storage(A, name, "A");
             require_device_dtype(A, name, "A");
             require_storage(B, name, "B");
@@ -154,6 +163,10 @@ namespace SushiBLAS
                                        const char* name, SushiRuntime::OperationID op_id,
                                        Func&& op_func, std::initializer_list<Param> params = {})
         {
+            static_assert(!Detail::IsWriteBound<std::decay_t<Func>>::value,
+                          "execute_zip_inplace takes no bind_writes bundle: its output is the "
+                          "write it declares; a functor that writes more records "
+                          "through IndexOps::for_each.");
             static_assert(N >= 1, "A fused in-place elementwise op needs at least one tensor.");
 
             require_operand(tensors[0] != nullptr, name, "operand 0", "is null");

@@ -45,15 +45,19 @@ namespace SushiBLAS
     /**
      * @brief Owns the buffer of one pack layout and records the copies into and out of it.
      *
-     * The buffer is shared USM on device 0, so Cluster::share() accepts it. Copies of a
-     * pack name the same buffer.
+     * The buffer is shared USM on the device its owner names, so Cluster::share() accepts it.
+     * Copies of a pack name the same buffer.
      * @see modules/engine/cluster/README.md
      */
     class TensorPack final
     {
         public:
-            /** @brief Allocates the buffer of a layout on a runtime. */
-            TensorPack(SushiRuntime::Runtime& runtime, PackLayout layout);
+            /**
+             * @brief Allocates the buffer of a layout on one device of a runtime.
+             * @param device_index The device the packed tensors live on; a device of runtime.
+             * @throws std::runtime_error when runtime drives no such device.
+             */
+            TensorPack(SushiRuntime::Runtime& runtime, PackLayout layout, std::size_t device_index);
 
             /** @brief Returns where each tensor lies in the buffer. */
             [[nodiscard]] const PackLayout& layout() const noexcept { return layout_; }
@@ -66,6 +70,12 @@ namespace SushiBLAS
 
             /** @brief Returns the buffer's address. */
             [[nodiscard]] void* data() const noexcept { return storage_->allocation_base(); }
+
+            /** @brief Returns the device the buffer was allocated on. */
+            [[nodiscard]] std::size_t device_index() const noexcept
+            {
+                return storage_->device_index();
+            }
 
             /** @brief Returns the bytes of the layout, which the buffer holds at least. */
             [[nodiscard]] std::size_t size_bytes() const noexcept { return layout_.size_bytes(); }
@@ -97,7 +107,8 @@ namespace SushiBLAS
             /**
              * @brief Records one task that copies each tensor into its place in the buffer.
              * @param sources One contiguous tensor per entry, in the layout's order.
-             * @throws std::runtime_error when a tensor does not match its entry.
+             * @throws std::runtime_error when a tensor does not match its entry or lives on
+             *         another device than the pack.
              */
             TaskHandle record_gather(TaskRecorder& recorder,
                                      SushiRuntime::span<const Tensor> sources) const;
@@ -105,7 +116,8 @@ namespace SushiBLAS
             /**
              * @brief Records one task that copies each place of the buffer into its tensor.
              * @param targets One contiguous tensor per entry, in the layout's order.
-             * @throws std::runtime_error when a tensor does not match its entry.
+             * @throws std::runtime_error when a tensor does not match its entry or lives on
+             *         another device than the pack.
              */
             TaskHandle record_scatter(TaskRecorder& recorder,
                                       SushiRuntime::span<const Tensor> targets) const;

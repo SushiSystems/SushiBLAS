@@ -80,8 +80,8 @@ namespace SushiBLAS
                 Cluster::attach(runtime, InProcessTransport::make_master(fabric)).value();
             ClusterBinding binding(cluster, SushiRuntime::make_sushi<KernelRegistry>());
 
-            const TensorPack shared(runtime, sixteen_floats());
-            const TensorPack unshared(runtime, sixteen_floats());
+            const TensorPack shared(runtime, sixteen_floats(), 0);
+            const TensorPack unshared(runtime, sixteen_floats(), 0);
             binding.share(shared);
 
             EXPECT_TRUE(binding.is_shared(shared));

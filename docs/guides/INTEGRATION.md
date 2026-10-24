@@ -279,8 +279,9 @@ const Status status = guarded([&]()
 {
     // The graph lives for this call, so a record call that throws leaves nothing behind.
     SushiRuntime::Graph graph = backend.runtime.graph();
+    SushiBLAS::LateCountHold late_counts(backend.runtime);
     SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(),
-                                     engine.mode());
+                                     late_counts, engine.mode());
     // ...
     SushiBLAS::BLASOps(recorder).gemm(left, right, product);
     SushiBLAS::ElementwiseOps(recorder).add(product, shift, shifted);

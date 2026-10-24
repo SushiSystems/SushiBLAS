@@ -27,6 +27,10 @@ inside its segment in the order given, with no gap. A segment that holds anythin
 of `K_PACK_SEGMENT_ALIGNMENT`, 128 bytes; an empty segment takes no bytes. `size_bytes()` ends at
 the end of the last segment. A list that is empty or holds no element is refused.
 
+`PackLayout::segment(dtype)` throws `std::runtime_error` for a value outside `Core::DataType`, as
+`of()` does, instead of returning another type's segment; `BoundPack::segment()` passes the refusal
+on.
+
 ### The fingerprint
 
 `fingerprint()` is the 64-bit FNV-1a hash of this byte sequence, every field little-endian
@@ -57,9 +61,12 @@ clang-based and defines it.
 
 ## tensor_pack.hpp
 
-`TensorPack` allocates a `Storage` of the layout's size as `Residency::Shared` on device 0, so
-`Cluster::share()`, which refuses device-resident memory, accepts it. Copies of a pack name the
-same buffer.
+`TensorPack(runtime, layout, device_index)` allocates a `Storage` of the layout's size as
+`Residency::Shared` on the device its caller names, so `Cluster::share()`, which refuses
+device-resident memory, accepts it, and `device_index()` reports that device. The device is an
+argument, not read from tensors, because a pack is built from a layout alone: a worker builds one
+from shapes, and no tensor exists yet when the buffer is allocated. Copies of a pack name the same
+buffer.
 
 `TensorPack::tensor(index)` returns a `Tensor` over the place of one entry, with the entry's type,
 layout and shape, and `TensorPack::segment_tensor(dtype)` a one-dimensional `Tensor` over the whole
@@ -76,7 +83,7 @@ worker side has no use for them yet. A caller can sum the same segment of severa
 place, and `record_scatter()` one that copies each place into its tensor. The pack enters the
 task's `OperandSet` as a `Float32` tensor over the whole buffer, whose size is a multiple of 128. Each takes one tensor per entry in
 the layout's order, refuses a tensor whose type, layout or shape differs from its entry, and
-refuses one that is not contiguous. The task reads the tensors and writes the pack, or the
+refuses one that is not contiguous or lives on another device than the pack. The task reads the tensors and writes the pack, or the
 reverse, and keeps every storage it touches alive. The copies run one after the other on the
 task's queue, under every execution mode: a `memcpy` between shared allocations has no separate
 reference path.

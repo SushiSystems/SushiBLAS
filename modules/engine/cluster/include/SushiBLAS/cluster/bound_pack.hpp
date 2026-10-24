@@ -69,8 +69,11 @@ namespace SushiBLAS
             /** @brief Binds a base address to a layout; bind_views() checks the size first. */
             BoundPack(void* base, const PackLayout& layout) noexcept;
 
-            /** @brief Returns the segment of a data type; empty when no tensor has it. */
-            [[nodiscard]] PackSpan segment(Core::DataType dtype) const noexcept;
+            /**
+             * @brief Returns the segment of a data type; empty when no tensor has it.
+             * @throws std::runtime_error for a value outside Core::DataType.
+             */
+            [[nodiscard]] PackSpan segment(Core::DataType dtype) const;
 
             /**
              * @brief Returns the elements of the tensor at a position of the layout.

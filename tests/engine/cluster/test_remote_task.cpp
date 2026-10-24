@@ -346,8 +346,8 @@ namespace SushiBLAS
                 trip.worker_joined = worker.start().is_ok() && cluster.wait_for_workers(1, K_WAIT);
 
                 ClusterBinding binding(cluster, kernels);
-                const TensorPack input(master, *layout);
-                const TensorPack output(master, *layout);
+                const TensorPack input(master, *layout, 0);
+                const TensorPack output(master, *layout, 0);
                 binding.share(input);
                 binding.share(output);
 
@@ -357,12 +357,13 @@ namespace SushiBLAS
                 trip.worker_has_op = binding.has_worker_for(task.operation);
 
                 ScratchPool scratch(master);
+                LateCountHold late_counts(master);
                 const TensorPack* inputs[] = {&input};
                 const TensorPack* outputs[] = {&output};
                 auto graph = master.graph();
                 graph.extend([&](SushiRuntime::Recorder& recorder)
                 {
-                    TaskRecorder tensors(recorder, scratch);
+                    TaskRecorder tensors(recorder, scratch, late_counts);
                     (void)input.record_gather(tensors, SushiRuntime::span<const Tensor>(
                                                            sources.data(), sources.size()));
                     (void)record_remote(recorder, binding, task,

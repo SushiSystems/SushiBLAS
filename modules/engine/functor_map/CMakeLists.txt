@@ -20,7 +20,8 @@ sushiblas_add_test_program(
         test_functor_map_log_category.cpp
         test_index_task.cpp
         test_map_task.cpp
-        test_read_binding.cpp
+        test_read_binding/test_include_order.cpp
+        test_read_binding/test_read_binding.cpp
         test_scalar.cpp
         test_scalar_binding.cpp
         test_write_binding.cpp)

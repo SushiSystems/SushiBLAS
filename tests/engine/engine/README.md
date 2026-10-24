@@ -17,6 +17,7 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_engine/test_tensor_view.cpp` | Tests that a tensor view's offset and strides lead to the elements it occupies |
 | `test_engine/test_unsupported_execution.cpp` | Tests which record-time refusals throw UnsupportedExecution and which do not |
 | `test_execution_mode.cpp` | Tests how the engine's execution mode selects and refuses kernels |
+| `test_late_count_hold.cpp` | Tests that a late count's token holds every storage and dies at release |
 | `test_kernel_pair_dispatcher.cpp` | Tests that the dispatcher picks the reference body under ForceReference only |
 | `test_operand_check.cpp` | Tests the operand checks, the scalar binding and the Tensor constructor and transpose guards |
 | `test_operand_set.cpp` | Tests the regions an OperandSet declares, the storages it keeps alive and its merge |

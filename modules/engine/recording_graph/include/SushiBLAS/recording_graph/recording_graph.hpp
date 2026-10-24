@@ -32,6 +32,7 @@
 #include <utility>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
+#include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
@@ -59,8 +60,8 @@ namespace SushiBLAS
              */
             RecordingGraph(SushiRuntime::Runtime& runtime, ScratchPool& scratch_pool,
                            ExecutionMode mode = K_DEFAULT_RECORDING_MODE)
-                : graph_(runtime.graph()),
-                  recorder_(graph_.recorder(), scratch_pool, mode)
+                : graph_(runtime.graph()), late_counts_(runtime),
+                  recorder_(graph_.recorder(), scratch_pool, late_counts_, mode)
             {
 
             }
@@ -88,6 +89,9 @@ namespace SushiBLAS
             /** @brief Returns the recorder a view or a seam records on this graph through. */
             [[nodiscard]] const TaskRecorder& recorder() const noexcept { return recorder_; }
 
+            /** @brief Returns the hold that keeps the storages of this graph's late-count tasks. */
+            [[nodiscard]] const LateCountHold& late_counts() const noexcept { return late_counts_; }
+
             /** @brief Returns how many tasks are recorded and have not run. */
             [[nodiscard]] std::size_t recorded_count() const noexcept
             {
@@ -111,7 +115,8 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Runs the recorded graph, returns when it has finished and leaves it empty.
+             * @brief Runs the recorded graph, returns when it has finished and leaves it empty,
+             *        with the storages of its late-count tasks let go.
              * @return Nothing, also when no task was recorded, or the error that ended the run.
              *         After InvalidState for a run in flight the recorded tasks are kept.
              * @pre No thread is recording on recorder().
@@ -139,7 +144,8 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Drops every recorded task with what its body captured, and the plan.
+             * @brief Drops every recorded task with what its body captured, the storages its
+             *        late-count tasks held, and the plan.
              * @return How many tasks were dropped.
              * @pre No thread is running run().
              */
@@ -151,16 +157,27 @@ namespace SushiBLAS
             }
 
         private:
-            /** @brief Empties the graph while no record call adds a task. */
+            /**
+             * @brief Empties the graph while no record call adds a task, and lets go of the
+             *        storages its late-count tasks held.
+             */
             void forget()
             {
-                recorder_.run_exclusive([this]() { graph_.clear(); });
+                recorder_.run_exclusive(
+                    [this]()
+                    {
+                        graph_.clear();
+                        late_counts_.release();
+                    });
             }
 
             /// @brief The graph recorded tasks wait in.
             SushiRuntime::Graph graph_;
 
-            /// @brief The recorder bound to the recorder of graph_ and to a scratch pool.
+            /// @brief The storages of graph_'s late-count tasks, released when graph_ is emptied.
+            LateCountHold late_counts_;
+
+            /// @brief The recorder bound to the recorder of graph_, a scratch pool and late_counts_.
             TaskRecorder recorder_;
 
             /// @brief The report every run writes into, so a run allocates none.

@@ -29,6 +29,7 @@
 
 #include <complex>
 #include <cstddef>
+#include <type_traits>
 #include <initializer_list>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -62,6 +63,10 @@ namespace SushiBLAS
                                              SushiRuntime::OperationID op_id, Func&& op_func,
                                              std::initializer_list<Param> params = {})
         {
+            static_assert(!Detail::IsWriteBound<std::decay_t<Func>>::value,
+                          "execute_nonlinear_forward takes no bind_writes bundle: its output is the "
+                          "write it declares; a functor that writes more records "
+                          "through IndexOps::for_each.");
             require_storage(t, name, "t");
             require_device_dtype(t, name, "t");
             require_contiguous(t, name, "t");
@@ -102,6 +107,10 @@ namespace SushiBLAS
                                               SushiRuntime::OperationID op_id, Func&& op_func,
                                               std::initializer_list<Param> params = {})
         {
+            static_assert(!Detail::IsWriteBound<std::decay_t<Func>>::value,
+                          "execute_nonlinear_backward takes no bind_writes bundle: its output is the "
+                          "write it declares; a functor that writes more records "
+                          "through IndexOps::for_each.");
             require_storage(dy, name, "dy");
             require_device_dtype(dy, name, "dy");
             require_storage(x, name, "x");

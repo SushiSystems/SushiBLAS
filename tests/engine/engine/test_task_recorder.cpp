@@ -166,7 +166,8 @@ namespace SushiBLAS
         {
             SushiRuntime::Graph graph = engine->runtime().graph();
             ScratchPool scratch_pool(engine->runtime());
-            TaskRecorder recorder(graph.recorder(), scratch_pool);
+            LateCountHold late_counts(engine->runtime());
+            TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts);
             Tensor out = vector_of_four();
             Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
                                                  SushiRuntime::Residency::Host);
@@ -191,10 +192,10 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Tests that a run after the recorder of a late-count task is gone is refused as
+         * @brief Tests that a run after the hold of a late-count task is gone is refused as
          *        DanglingResource, while the tensors are still alive and untouched.
          */
-        TEST_F(Medium_TaskRecorderTest, ALateCountTaskRunAfterItsRecorderIsGoneIsRefused)
+        TEST_F(Medium_TaskRecorderTest, ALateCountTaskRunAfterItsHoldIsGoneIsRefused)
         {
             SushiRuntime::Graph graph = engine->runtime().graph();
             ScratchPool scratch_pool(engine->runtime());
@@ -209,7 +210,8 @@ namespace SushiBLAS
             float* marks = out.data_as<float>();
 
             {
-                TaskRecorder recorder(graph.recorder(), scratch_pool);
+                LateCountHold late_counts(engine->runtime());
+                TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts);
                 recorder.record_late_pair(
                     TaskDescription(), operands, "test", count, 4, [] {},
                     [marks](std::size_t i) { marks[i] = 1.0f; });
@@ -234,7 +236,8 @@ namespace SushiBLAS
             SushiRuntime::Runtime& runtime = engine->runtime();
             SushiRuntime::Graph graph = runtime.graph();
             ScratchPool scratch_pool(runtime);
-            TaskRecorder recorder(graph.recorder(), scratch_pool);
+            LateCountHold late_counts(runtime);
+            TaskRecorder recorder(graph.recorder(), scratch_pool, late_counts);
             const SushiRuntime::PlacementScope scope =
                 runtime.placement_scope("sushiai.replica", 3);
 

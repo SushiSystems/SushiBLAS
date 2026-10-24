@@ -113,6 +113,11 @@ namespace SushiBLAS
                 SB_THROW_IF(!tensor.storage, "{}: tensor {} has no storage", name, index);
                 SB_THROW_IF(!tensor.is_contiguous(), "{}: tensor {} is not contiguous", name,
                             index);
+                SB_THROW_IF(tensor.storage->device_index() != pack.storage->device_index(),
+                            "{}: tensor {} lives on device {} and the pack on device {}; a pack "
+                            "copies within one device",
+                            name, index, tensor.storage->device_index(),
+                            pack.storage->device_index());
 
                 std::byte* place = base + entry.offset_bytes;
                 // Tensor::data() is const-qualified only on its view; the bytes are writable.
@@ -134,10 +139,12 @@ namespace SushiBLAS
         }
     } // namespace
 
-    TensorPack::TensorPack(SushiRuntime::Runtime& runtime, PackLayout layout)
+    TensorPack::TensorPack(SushiRuntime::Runtime& runtime, PackLayout layout,
+                           std::size_t device_index)
         : layout_(std::move(layout)),
           storage_(SushiRuntime::make_sushi<Storage>(runtime, layout_.size_bytes(),
-                                                     SushiRuntime::Residency::Shared, 0))
+                                                     SushiRuntime::Residency::Shared,
+                                                     device_index))
     {
 
     }
