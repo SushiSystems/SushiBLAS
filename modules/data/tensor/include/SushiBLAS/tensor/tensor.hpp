@@ -342,8 +342,8 @@ namespace SushiBLAS
 
         /**
          * @brief Returns whether the first element sits on a K_STORAGE_ALIGNMENT boundary.
-         * @return True for every view at storage_offset 0; a view at another offset is aligned
-         *         to its element size only.
+         * @return True for every view at storage_offset 0 of an owned storage; a borrowed storage
+         *         and a view at another offset are aligned to their element size only.
          * @throws std::runtime_error if the tensor has no storage.
          */
         bool is_aligned() const

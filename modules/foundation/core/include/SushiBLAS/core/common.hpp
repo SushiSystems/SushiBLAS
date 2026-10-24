@@ -55,8 +55,12 @@ namespace SushiBLAS
             Complex32 = 3, /**< A complex number of two 32-bit floats. */
             Complex64 = 4, /**< A complex number of two 64-bit floats. */
             Int32 = 5,     /**< A signed 32-bit integer. */
-            Int64 = 6      /**< A signed 64-bit integer. */
+            Int64 = 6,     /**< A signed 64-bit integer. */
+            UInt32 = 7     /**< An unsigned 32-bit integer; no operation computes on it yet. */
         };
+
+        /** @brief Holds how many enumerators DataType has; the values run from 0 to one less. */
+        inline constexpr size_t K_DATA_TYPE_COUNT = 8;
 
         /** @brief Maximum number of supported tensor ranks. */
         inline constexpr size_t K_MAX_TENSOR_RANK = 6;
@@ -83,6 +87,8 @@ namespace SushiBLAS
                     return "INT32";
                 case DataType::Int64:
                     return "INT64";
+                case DataType::UInt32:
+                    return "UINT32";
             }
             return "UNKNOWN";
         }
@@ -99,7 +105,7 @@ namespace SushiBLAS
         }
 
         /**
-         * @brief Returns whether a DataType is INT32 or INT64.
+         * @brief Returns whether a DataType is the signed INT32 or INT64; UINT32 is not one.
          * @see modules/foundation/core/README.md
          */
         inline constexpr bool is_integer_dtype(DataType dtype)
@@ -115,7 +121,8 @@ namespace SushiBLAS
          */
         inline constexpr bool is_real_dtype(DataType dtype)
         {
-            return !is_complex_dtype(dtype) && !is_integer_dtype(dtype);
+            return dtype == DataType::Half || dtype == DataType::Float32 ||
+                   dtype == DataType::Float64;
         }
 
         /**
@@ -140,6 +147,8 @@ namespace SushiBLAS
                     return 4;
                 case DataType::Int64:
                     return 8;
+                case DataType::UInt32:
+                    return 4;
             }
             // Reached only by a DataType holding a value outside the enumeration; see modules/foundation/core/README.md.
             return 4;

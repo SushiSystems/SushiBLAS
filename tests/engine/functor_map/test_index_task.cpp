@@ -76,10 +76,10 @@ namespace SushiBLAS
                 }
 
                 /** @brief Returns the array after the host body of a late count ran over it. */
-                std::vector<float> run_late_host_body(std::int32_t width)
+                std::vector<float> run_late_host_body(std::uint32_t width)
                 {
                     SharedArray<float> out(queue(), std::vector<float>(K_CAPACITY, 0.0f));
-                    const std::int32_t live = width;
+                    const std::uint32_t live = width;
 
                     const Dispatch::Detail::LateIndexHostRun<NumberTheIndex> body(
                         NumberTheIndex{out.get()}, "index", K_CAPACITY, &live);
@@ -110,7 +110,7 @@ namespace SushiBLAS
         TEST_F(Medium_IndexTask, TheHostBodyOfALateCountReadsTheWidthWhenItRuns)
         {
             SharedArray<float> out(queue(), std::vector<float>(K_CAPACITY, 0.0f));
-            std::int32_t live = 2;
+            std::uint32_t live = 2;
             const Dispatch::Detail::LateIndexHostRun<NumberTheIndex> body(
                 NumberTheIndex{out.get()}, "index", K_CAPACITY, &live);
 
@@ -124,8 +124,10 @@ namespace SushiBLAS
 
         TEST_F(Medium_IndexTask, TheHostBodyOfALateCountRefusesAWidthOutsideTheCapacity)
         {
-            EXPECT_THROW(run_late_host_body(-1), std::runtime_error);
-            EXPECT_THROW(run_late_host_body(static_cast<std::int32_t>(K_CAPACITY + 1)),
+            // A negative INT32 count is the word 0xFFFFFFFF, far above any capacity.
+            EXPECT_THROW(run_late_host_body(static_cast<std::uint32_t>(std::int32_t{-1})),
+                         std::runtime_error);
+            EXPECT_THROW(run_late_host_body(static_cast<std::uint32_t>(K_CAPACITY + 1)),
                          std::runtime_error);
         }
     } // namespace Test

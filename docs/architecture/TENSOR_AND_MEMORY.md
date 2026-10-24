@@ -5,8 +5,10 @@ A `Tensor` (`tensor/tensor.hpp`) is metadata: `shape`, `strides`, `rank`, `dtype
 `slice()` return a new `Tensor` over the same `SushiRuntime::sushi_ptr<Storage>` and move no
 data. `K_MAX_TENSOR_RANK` is 6.
 
-`Core::DataType` is `Half`, `Float32`, `Float64`, `Complex32`, `Complex64`, `Int32`, `Int64`, with
-the values 0 to 6 written out in `core/common.hpp`. The values are a file-format contract: none
+`Core::DataType` is `Half`, `Float32`, `Float64`, `Complex32`, `Complex64`, `Int32`, `Int64`,
+`UInt32`, with the values 0 to 7 written out in `core/common.hpp`; `Core::K_DATA_TYPE_COUNT` is 8.
+`UInt32` is a count type: a tensor of it holds and moves values, the late count of
+`IndexOps::for_each` reads it, and an operation that computes refuses it. The values are a file-format contract: none
 changes, and a new type is appended. `Core::bytes_per_element()` is the one mapping from a dtype
 to its width.
 
@@ -60,12 +62,22 @@ goes. A failed allocation throws `std::runtime_error` with the runtime's message
 size of zero and a device index the runtime does not drive. `Storage::queue()` returns the
 `sycl::queue` of the device that owns the allocation.
 
+A borrowed `Storage`, built with the `Storage::Borrowed` tag over a `Buffer<std::byte>` another
+owner keeps alive (such as one from SushiRuntime's `Interop::borrow`), owns nothing and allocates
+nothing. Its size is the buffer's, and its base is aligned to `alignof(std::max_align_t)` at
+least, so `Tensor::is_aligned()` may be false for it. An empty or misaligned buffer, or one on a
+device the runtime does not drive, throws `std::runtime_error`.
+
 `TensorFactory` (`tensor/tensor_factory.hpp`) allocates dense tensors of one default layout from
 one `SushiRuntime::Runtime`, which must outlive it. `create(dims, dtype, residency, device_index)` checks the rank, the sign of each
 dimension, the byte count for overflow and the device index, and returns a tensor without storage
 when a dimension is 0. `Engine::create_tensor` forwards to it.
 
 ## Retention
+
+A recorded task keeps its operands' owned storage alive, and watches the owner of a borrowed one:
+`OperandSet` collects one liveness observer per borrowed storage and the task declares it, so a run
+after the owner let go is refused as `DanglingResource`.
 
 A recorded task keeps its operands' storage alive. `OperandSet` takes one reference to the
 `Storage` of every tensor declared on it, in an `Internal::StorageKeepAlive` (six references

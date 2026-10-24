@@ -39,20 +39,27 @@
 namespace SushiBLAS
 {
     /**
-     * @brief Holds the byte alignment of every Storage allocation base, which its size is a
-     *        multiple of.
+     * @brief Holds the byte alignment of every owned Storage allocation base, which its size is
+     *        a multiple of.
      * @see modules/README.md
      */
     inline constexpr std::size_t K_STORAGE_ALIGNMENT = 128;
 
     /**
      * @class Storage
-     * @brief Owns one reference-counted USM allocation a tensor's elements live in.
+     * @brief Holds one reference-counted USM allocation a tensor's elements live in, owned or
+     *        borrowed from another owner.
      * @see modules/README.md
      */
     class alignas(64) Storage : public SushiRuntime::RefCounted
     {
         public:
+            /** @brief Selects the constructor that borrows a buffer instead of allocating one. */
+            struct Borrowed
+            {
+
+            };
+
             /**
              * @brief Allocates n_bytes, rounded up to K_STORAGE_ALIGNMENT, at an address aligned to it.
              * @param runtime Allocates the buffer this Storage owns.
@@ -93,19 +100,44 @@ namespace SushiBLAS
                 buffer_ = std::move(*allocated);
             }
 
+            /**
+             * @brief Views a buffer another owner keeps alive, allocating and copying nothing.
+             * @param runtime The runtime the buffer belongs to.
+             * @param buffer Memory that outlives every run naming it, such as the result of
+             *        Interop::borrow; its size is the size of this Storage.
+             * @throws std::runtime_error if the buffer is empty, not aligned to
+             *         alignof(std::max_align_t), or on a device runtime does not drive.
+             */
+            Storage(Borrowed, SushiRuntime::Runtime& runtime,
+                    SushiRuntime::Buffer<std::byte>&& buffer)
+                : controls_(runtime.advanced()), buffer_(std::move(buffer)), is_borrowed_(true)
+            {
+                SB_THROW_IF(buffer_.data() == nullptr || buffer_.size() == 0,
+                            "A borrowed buffer cannot be empty");
+                SB_THROW_IF(reinterpret_cast<std::uintptr_t>(buffer_.data()) %
+                                    alignof(std::max_align_t) != 0,
+                            "A borrowed buffer must be aligned to {} bytes",
+                            alignof(std::max_align_t));
+                SB_THROW_IF(buffer_.device_index().value() >= controls_.device_count(),
+                            "Device index {} is out of range; the runtime drives {} devices",
+                            buffer_.device_index().value(), controls_.device_count());
+            }
+
             Storage(const Storage&) = delete;
             Storage& operator=(const Storage&) = delete;
 
             /**
              * @brief Returns the base address of the whole allocation, ignoring every view's offset.
-             * @return An address that is a multiple of K_STORAGE_ALIGNMENT.
+             * @return An address that is a multiple of K_STORAGE_ALIGNMENT, or of
+             *         alignof(std::max_align_t) for a borrowed Storage.
              * @warning Never a tensor's data; use Tensor::data() to address elements.
              * @see modules/README.md
              */
             void* allocation_base() const noexcept { return buffer_.data(); }
 
             /**
-             * @brief Returns the bytes allocated: the requested size rounded up to K_STORAGE_ALIGNMENT.
+             * @brief Returns the bytes allocated: the requested size rounded up to
+             *        K_STORAGE_ALIGNMENT, or the size of the borrowed buffer.
              */
             [[nodiscard]] std::size_t size_bytes() const noexcept { return buffer_.size(); }
 
@@ -127,6 +159,21 @@ namespace SushiBLAS
                 return buffer_.device_index().value();
             }
 
+            /** @brief Returns whether the memory belongs to another owner. */
+            [[nodiscard]] bool is_borrowed() const noexcept { return is_borrowed_; }
+
+            /**
+             * @brief Returns the observer a run checks first: it expires when the owner of
+             *        borrowed memory lets go.
+             * @return An empty observer for a Storage that owns its allocation.
+             */
+            [[nodiscard]] SushiRuntime::LivenessObserver owner_liveness() const noexcept
+            {
+                if (!is_borrowed_)
+                    return {};
+                return SushiRuntime::On(buffer_).life;
+            }
+
         protected:
             /** @brief Frees the allocation with the buffer that owns it. */
             ~Storage() override = default;
@@ -137,5 +184,8 @@ namespace SushiBLAS
 
             /** @brief The buffer the runtime allocated, which frees the memory with itself. */
             SushiRuntime::Buffer<std::byte> buffer_;
+
+            /** @brief Whether buffer_ views memory another owner keeps alive. */
+            bool is_borrowed_ = false;
     };
 } // namespace SushiBLAS

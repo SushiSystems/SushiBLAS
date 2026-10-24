@@ -147,9 +147,10 @@ Two things the seam cannot check are part of its contract and written on it:
 `IndexOptions` carries the node's name and a `SushiRuntime::Determinism` (`Unstated`, the
 default, `Bitwise`, `Tolerant` or `Cosmetic`), which rides the task description into the runtime
 node's `NodeOptions::determinism`, so a caller's contract travels with the node; the owner ruled
-on 2026-10-24 that the class lives on the runtime node. A late count is an INT32 tensor in host
-memory, read by the runtime's dynamic node through a buffer borrowed over the tensor's storage;
-an INT64 count is refused rather than narrowed.
+on 2026-10-24 that the class lives on the runtime node. A late count is a `UInt32` or `Int32`
+tensor in host memory (SushiEngine's counts are `uint32`, B15), read by the runtime's dynamic node
+through a buffer borrowed over the tensor's storage; an `Int64` count is refused rather than
+narrowed.
 
 `IndexOps` is a new operation family in `operations/index/`, beside the index operations RW-94
 asks for. `write_binding.hpp` and `index_task.hpp` join `functor_map`.
@@ -221,6 +222,8 @@ README) change in its own commit.
 | B11 | `ordered_sum()`. Done when: it equals a serial sum bit for bit for each of the seven types, and refuses a weighted integer sum. | building |
 | B12 | The `cluster` module and `SB_ENABLE_DISTRIBUTED`. Done when: a pack of every type round-trips through a worker on `InProcessFabric` with its fingerprint checked. Waits on B11. | building |
 | B13 | The runtime pin moves to the tag that carries R1 to R10. Done when: the build resolves that tag; KI-26 closes with RW-89. Waits on `sushiruntime` R10. | planned |
+| B14 | A `Storage` that borrows a `SushiRuntime::Buffer<std::byte>` another owner keeps alive, so SushiEngine's BLAS adapter hands operations tensors over its own buffers with no allocation or copy; a task watches the owner. Ruled by the owner on 2026-10-24 for `sushiengine` E5. Done when: a tensor over a borrowed storage records and runs, and a run after the owner lets go is refused as `DanglingResource`. | building |
+| B15 | A `UInt32` data type, which the late count of `IndexOps::for_each` takes as it is: SushiEngine's late count is a `uint32` buffer. Ruled by the owner on 2026-10-24 for `sushiengine` E5. Done when: a late-count `for_each` runs over a `UInt32` count, and every operation either takes the type or refuses it in words. | building |
 
 B5 waits on SushiAI's A0, which moves SushiAI's two execution helpers and four tests off the
 engine's graph. B6 to B9 have disjoint files and could share a wave; the owner chooses inline or
@@ -229,7 +232,7 @@ waves.
 ### Work
 
 <!-- work:begin -->
-- [2026_10_24_LAYERED_EXECUTION](../../agent/2026_10_24_LAYERED_EXECUTION/PLAN.md): B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13
+- [2026_10_24_LAYERED_EXECUTION](../../agent/2026_10_24_LAYERED_EXECUTION/PLAN.md): B14, B15, B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13
 <!-- work:end -->
 
 ## Open questions

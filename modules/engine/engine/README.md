@@ -94,6 +94,9 @@ never instantiated, only compiled as a throw.
 
 ### `domain_of`
 
+Returns `Domain::None` for `UINT32`, which no family admits, so a dtype check refuses it by name
+and a new storage type never lands in `Real` by elimination.
+
 The runtime companion to `domain_admits`, for the few places that must reject a whole family before
 the switch rather than inside it, a shape or dtype-agreement check that runs at record time, where
 the compile-time domain is known but the arm has not been chosen yet.
@@ -121,7 +124,7 @@ tag exists to be:
 
 Runs `arm` instantiated for the C++ type `dtype` denotes, or throws.
 
-The dtype switch, once. A switch written per executor is seven `case` arms, four of them
+The dtype switch, once. A switch written per executor is eight `case` arms, four of them
 differing only in a type name, two of them wrapped in an `if constexpr` domain guard, and one
 `default` carrying the failure message. Eight copies of that is
 eight places to forget an arm when a `DataType` is added, and eight slightly different wordings when
@@ -281,7 +284,7 @@ emptying the graph forgets it with the tasks.
 
 ### `TaskRecorder::record_late_pair`
 
-Records a task over `capacity` indices whose live width is an `INT32` a previous node writes. It
+Records a task over `capacity` indices whose live width is a `UINT32` or an `INT32` a previous node writes. It
 takes what `record_pair` takes, plus the count tensor, the capacity, a host body and a per-index
 kernel. Under `ForceReference` it records the host body, wrapped in `Detail::HostOnlyBody`, through
 `record_pair`: the body runs after the task's predecessors and reads the count itself. Under every
@@ -290,13 +293,13 @@ width in the kernel when the task runs, and the runtime fails the run for a widt
 capacity.
 
 The count tensor is checked before the mode is looked at, so both modes refuse the same tensors:
-it must hold at least one element, have storage, be contiguous, be `INT32` and live in
+it must hold at least one element, have storage, be contiguous, be `UINT32` or `INT32` and live in
 `Residency::Host`. The runtime takes the width as a `Buffer<std::uint32_t>` in host USM, so the call
 borrows one with the runtime's `borrow` call over the whole allocation of the count's storage, reached through
-`ScratchPool::runtime()`, and names the word at `storage_offset` (one word for each `INT32`
+`ScratchPool::runtime()`, and names the word at `storage_offset` (one word for each `UINT32` or `INT32`
 element). `Storage` is not involved beyond its address, size, device and residency. `INT64` is refused, not narrowed:
 narrowing would be a copy of the count or a silent loss of its high word, and the runtime reads one
-32-bit word. A negative `INT32` reads as a width above the capacity, so it fails the run.
+32-bit word. `UINT32` is the runtime's own word type; a negative `INT32` reads as a width above the capacity, so it fails the run.
 
 A device-mode task cannot hold its operands' storage itself, because the runtime's kernel captures
 must be device copyable. The recorder holds it instead: the owner token passed to `borrow` is a
@@ -359,7 +362,8 @@ tensor, append its `Tensor::region()` to the read list, the write list or both, 
 storage; a tensor without storage adds nothing. `scratch` declares a `ScratchBuffer` as written
 and retains its block's storage. `merge` adds another set's declarations, which is how a GEMM
 epilogue's operands join the task's. The recorder reads the two region lists for the dependency
-tracker, `retained()` for the keep-alive, and `has_device_only_operand()` for the refusal under
+tracker, `retained()` for the keep-alive, `owner_liveness()` for the owners of borrowed storage
+the runtime checks before a run, and `has_device_only_operand()` for the refusal under
 `ForceReference`.
 
 ### `Internal::StorageKeepAlive`
@@ -437,7 +441,7 @@ exists, still says "BLAS operation", and forwards here.
 
 The move happened because a second domain arrived. `spatial.im2col` reported as a "BLAS operation"
 when its dtype is refused sends a reader to the wrong half of the library, and the alternative, a
-second copy of the seven-arm dtype switch, is seven arms to forget when a `DataType` is added.
+second copy of the eight-arm dtype switch, is eight arms to forget when a `DataType` is added.
 
 The header includes the recorder, the operand set and the dispatcher, and not
 `<SushiBLAS/engine/engine.hpp>`: the seam takes a `TaskRecorder&` and never sees an `Engine`.
@@ -474,8 +478,8 @@ one-argument, void-returning arm that helper calls. Wrapping it to fit with a ne
 crashes this project's clang outright under -fdelayed-template-parsing (a null-dereference during
 instantiation of the HALF arm; the device pass also fails with "SmallVector unable to grow"). The
 body is therefore a class, `Detail::TypedTaskBody`, whose `operator()` holds the switch, not a
-lambda. Seven arms, the same seven as with_element_type and the same domain rule on the complex
-and integer arms, kept in step by hand until that compiler bug is gone.
+lambda. Eight arms, the same eight as with_element_type (`UINT32` falls to the throw in both) and the
+same domain rule on the complex and integer arms, kept in step by hand until that compiler bug is gone.
 
 The `SB_THROW_IF(true, ...)` that ends the dtype switch is unreachable in practice, because
 `require_domain` rejected the dtype at record time. A switch that can fall through to nothing is how

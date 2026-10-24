@@ -21,7 +21,8 @@
 
 /**
  * @file test_storage.cpp
- * @brief Tests that Storage rounds its size up, aligns its allocation and refuses a bad request.
+ * @brief Tests that Storage rounds its size up, aligns its allocation, refuses a bad request and
+ *        views a buffer it borrows.
  * @author Mustafa Garip
  */
 
@@ -31,6 +32,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 
 namespace SushiBLAS
@@ -41,6 +43,58 @@ namespace SushiBLAS
         static SushiRuntime::sushi_ptr<Storage> storage_of(std::size_t n_bytes)
         {
             return SushiRuntime::make_sushi<Storage>(TestEnvironment::runtime(), n_bytes);
+        }
+
+        /// @brief Holds USM that stands in for memory another owner keeps alive.
+        class OwnedMemory
+        {
+            public:
+                /// @brief Allocates n_bytes of shared USM on the queue of the first device.
+                explicit OwnedMemory(std::size_t n_bytes)
+                    : address_(sycl::malloc_shared<std::byte>(n_bytes, TestEnvironment::queue(0))),
+                      token_(SushiRuntime::make_liveness())
+                {
+
+                }
+
+                OwnedMemory(const OwnedMemory&) = delete;
+                OwnedMemory& operator=(const OwnedMemory&) = delete;
+
+                /// @brief Frees the USM.
+                ~OwnedMemory()
+                {
+                    sycl::free(address_, TestEnvironment::queue(0));
+                }
+
+                /// @brief Returns the first byte.
+                std::byte* data() const noexcept { return address_; }
+
+                /// @brief Returns count bytes from offset, borrowed through Interop.
+                SushiRuntime::Buffer<std::byte> borrow(std::size_t offset, std::size_t count) const
+                {
+                    return TestEnvironment::runtime().interop().borrow<std::byte>(
+                        address_ + offset, count, SushiRuntime::DeviceIndex{0},
+                        SushiRuntime::Residency::Shared, token_);
+                }
+
+                /// @brief Lets go of the memory, as its owner does when it frees it.
+                void release() { token_.reset(); }
+
+            private:
+                /// @brief The USM.
+                std::byte* address_;
+
+                /// @brief Lives as long as the memory is valid.
+                SushiRuntime::LivenessToken token_;
+        };
+
+        /// @brief Returns a storage over count bytes of memory, from offset.
+        static SushiRuntime::sushi_ptr<Storage> borrowed_of(const OwnedMemory& memory,
+                                                           std::size_t offset, std::size_t count)
+        {
+            return SushiRuntime::make_sushi<Storage>(Storage::Borrowed{},
+                                                     TestEnvironment::runtime(),
+                                                     memory.borrow(offset, count));
         }
 
         TEST(Medium_Storage, RoundsItsSizeUpToTheAlignment)
@@ -86,6 +140,63 @@ namespace SushiBLAS
             }
 
             EXPECT_EQ(TestEnvironment::live_allocation_count(), before);
+        }
+
+        TEST(Medium_Storage, ABorrowedStorageViewsTheOwnersMemoryWithoutAllocating)
+        {
+            const OwnedMemory memory(256);
+            const std::size_t before = TestEnvironment::live_allocation_count();
+
+            const auto storage = borrowed_of(memory, 0, 200);
+
+            EXPECT_EQ(TestEnvironment::live_allocation_count(), before);
+            EXPECT_TRUE(storage->is_borrowed());
+            EXPECT_EQ(storage->allocation_base(), static_cast<void*>(memory.data()));
+            EXPECT_EQ(storage->size_bytes(), std::size_t{200});
+            EXPECT_EQ(storage->residency(), SushiRuntime::Residency::Shared);
+            EXPECT_EQ(storage->device_index(), std::size_t{0});
+            EXPECT_EQ(&storage->queue(), &TestEnvironment::queue(0));
+        }
+
+        TEST(Medium_Storage, AnOwnedStorageIsNotBorrowedAndWatchesNoOwner)
+        {
+            const auto storage = storage_of(64);
+
+            EXPECT_FALSE(storage->is_borrowed());
+            EXPECT_TRUE(storage->owner_liveness().expired());
+        }
+
+        TEST(Medium_Storage, ABorrowedStorageWatchesTheOwnerAndLeavesItsMemoryAlone)
+        {
+            OwnedMemory memory(64);
+            memory.data()[0] = std::byte{7};
+            {
+                const auto storage = borrowed_of(memory, 0, 64);
+                EXPECT_FALSE(storage->owner_liveness().expired());
+
+                memory.release();
+                EXPECT_TRUE(storage->owner_liveness().expired());
+            }
+
+            EXPECT_EQ(memory.data()[0], std::byte{7});
+        }
+
+        TEST(Medium_Storage, ABorrowedStorageRefusesAnEmptyOrMisalignedBuffer)
+        {
+            const OwnedMemory memory(64);
+
+            EXPECT_THROW((void)borrowed_of(memory, 0, 0), std::runtime_error);
+            EXPECT_THROW((void)borrowed_of(memory, 1, 32), std::runtime_error);
+        }
+
+        TEST(Medium_Storage, ATensorOverABorrowedStorageIsHeldToTheBufferSize)
+        {
+            const OwnedMemory memory(64);
+            const auto storage = borrowed_of(memory, 0, 64);
+
+            const Tensor fits(storage, {16}, Core::DataType::Float32);
+            EXPECT_EQ(fits.region().base, static_cast<void*>(memory.data()));
+            EXPECT_THROW((void)Tensor(storage, {17}, Core::DataType::Float32), std::runtime_error);
         }
     } // namespace Test
 } // namespace SushiBLAS

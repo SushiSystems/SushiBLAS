@@ -51,17 +51,21 @@ namespace SushiBLAS
                 /** @brief Holds how many storages fit before the list spills to the heap. */
                 static constexpr std::size_t K_INLINE_CAPACITY = 6;
 
-                /** @brief Takes a reference to storage unless it is null or already held. */
-                void retain(const SushiRuntime::sushi_ptr<Storage>& storage)
+                /**
+                 * @brief Takes a reference to storage unless it is null or already held.
+                 * @return Whether storage is newly held.
+                 */
+                bool retain(const SushiRuntime::sushi_ptr<Storage>& storage)
                 {
                     if (storage == nullptr || holds(storage.get()))
-                        return;
+                        return false;
 
                     if (count_ < K_INLINE_CAPACITY)
                         inline_[count_] = storage;
                     else
                         overflow_.push_back(storage);
                     ++count_;
+                    return true;
                 }
 
                 /** @brief Takes a reference to every storage other holds. */
@@ -160,6 +164,7 @@ namespace SushiBLAS
                 for (const SushiRuntime::BufferRegion& region : other.writes_)
                     append(writes_, region);
                 retained_.retain_all(other.retained_);
+                owners_.insert(owners_.end(), other.owners_.begin(), other.owners_.end());
                 has_device_only_operand_ = has_device_only_operand_ || other.has_device_only_operand_;
                 return *this;
             }
@@ -182,6 +187,16 @@ namespace SushiBLAS
             [[nodiscard]] const Internal::StorageKeepAlive& retained() const noexcept
             {
                 return retained_;
+            }
+
+            /**
+             * @brief Returns the observers of the owners of borrowed storage the task names.
+             * @return Empty when every declared tensor lives in storage this library allocated.
+             */
+            [[nodiscard]] const std::vector<SushiRuntime::LivenessObserver>&
+            owner_liveness() const noexcept
+            {
+                return owners_;
             }
 
             /** @brief Reports whether a declared tensor lives in device-only USM. */
@@ -209,7 +224,8 @@ namespace SushiBLAS
              */
             void retain(const Tensor& operand)
             {
-                retained_.retain(operand.storage);
+                if (retained_.retain(operand.storage) && operand.storage->is_borrowed())
+                    owners_.push_back(operand.storage->owner_liveness());
                 if (operand.storage->residency() == SushiRuntime::Residency::Device)
                     has_device_only_operand_ = true;
             }
@@ -222,6 +238,9 @@ namespace SushiBLAS
 
             /// @brief One reference per distinct storage behind the declared regions.
             Internal::StorageKeepAlive retained_;
+
+            /// @brief The owner observer of each distinct borrowed storage behind the regions.
+            std::vector<SushiRuntime::LivenessObserver> owners_;
 
             /// @brief Whether a declared tensor is Residency::Device.
             bool has_device_only_operand_ = false;

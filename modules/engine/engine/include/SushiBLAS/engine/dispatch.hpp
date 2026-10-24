@@ -53,6 +53,7 @@ namespace SushiBLAS
          */
         enum class Domain : uint8_t
         {
+            None              = 0,        /**< An element type no family admits, such as UINT32. */
             Real              = 1u << 0,  /**< HALF, FLOAT32, FLOAT64. */
             Complex           = 1u << 1,  /**< COMPLEX32, COMPLEX64. */
             Integral          = 1u << 2,  /**< INT32, INT64. */
@@ -74,7 +75,8 @@ namespace SushiBLAS
 
         /**
          * @brief Returns the element-type family a runtime dtype belongs to.
-         * @return REAL, COMPLEX or INTEGRAL, never a combination.
+         * @return REAL, COMPLEX, INTEGRAL or NONE, never a combination; NONE for UINT32, so no
+         *         domain admits it.
          * @see modules/engine/engine/README.md
          */
         [[nodiscard]] inline constexpr Domain domain_of(Core::DataType dtype) noexcept
@@ -83,7 +85,9 @@ namespace SushiBLAS
                 return Domain::Complex;
             if (Core::is_integer_dtype(dtype))
                 return Domain::Integral;
-            return Domain::Real;
+            if (Core::is_real_dtype(dtype))
+                return Domain::Real;
+            return Domain::None;
         }
 
         /**
@@ -223,6 +227,9 @@ namespace SushiBLAS
                     break;
                 case Core::DataType::Int64:
                     served = Detail::run_arm_if_admitted<Dom, Domain::Integral, int64_t>(arm);
+                    break;
+                case Core::DataType::UInt32:
+                    // No family admits it; the throw below names it. See modules/engine/engine/README.md.
                     break;
             }
 

@@ -17,7 +17,7 @@ the way it is. [`tests/README.md`](../../README.md) holds the reasoning the test
 
 Each test builds a master runtime of its own and a worker runtime joined over an
 `InProcessFabric`, because `Cluster::attach()` changes the runtime it attaches to and the shared
-test runtime must stay a single machine. The master packs one tensor of each of the seven types,
+test runtime must stay a single machine. The master packs one tensor of each of the eight types,
 `record_remote()` sends the pack to the kernel registered under the layout's fingerprint, the
 kernel checks the fingerprint the task names, binds both views, copies the input into the output
 and transforms each segment, and the master scatters the output and compares it with the

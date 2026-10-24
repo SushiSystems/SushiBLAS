@@ -41,10 +41,10 @@ namespace SushiBLAS
     inline constexpr std::size_t K_PACK_SEGMENT_ALIGNMENT = 128;
 
     /** @brief Holds how many segments a pack has: one per data type. */
-    inline constexpr std::size_t K_PACK_SEGMENT_COUNT = 7;
+    inline constexpr std::size_t K_PACK_SEGMENT_COUNT = Core::K_DATA_TYPE_COUNT;
 
     /** @brief Holds the version of the byte sequence a fingerprint hashes. */
-    inline constexpr std::uint32_t K_PACK_FINGERPRINT_VERSION = 1;
+    inline constexpr std::uint32_t K_PACK_FINGERPRINT_VERSION = 2;
 
     /** @brief Describes one tensor of a pack: its type, layout, shape and place. */
     struct PackEntry

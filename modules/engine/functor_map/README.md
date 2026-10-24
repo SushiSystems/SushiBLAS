@@ -117,8 +117,9 @@ A late count does not go through `IndexTask`. `record_index_task` takes the dtyp
 time and hands `TaskRecorder::record_late_pair` two things built from the same functor: the kernel
 the runtime's dynamic node runs on the device, and `LateIndexHostRun`, the `ForceReference` body.
 The host body reads the width from the count tensor when it runs, which is after the node that
-wrote it, and refuses a width below 0 or above the capacity, as the runtime fails a run for the
-same. `IndexOps` in [`index`](../../operations/index/README.md) records both.
+wrote it. It reads the width as the unsigned 32-bit word the runtime reads and refuses a width
+above the capacity, a negative `INT32` included, as the runtime fails a run for the same.
+`IndexOps` in [`index`](../../operations/index/README.md) records both.
 
 ## `functor_map/scalar.hpp`
 

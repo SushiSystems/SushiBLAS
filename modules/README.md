@@ -200,11 +200,14 @@ buffer frees the memory when the last reference to the `Storage` goes. The resid
 device index are fixed at construction and readable only through these accessors, and `queue()`
 returns the queue of that device. `size_bytes()` returns the bytes allocated, which is the
 requested size rounded up to `K_STORAGE_ALIGNMENT`. The buffer shares ownership of the runtime's
-state, so a `Storage` may outlive the `Runtime` object it was allocated from.
+state, so a `Storage` may outlive the `Runtime` object it was allocated from. A `Storage` built
+with `Storage::Borrowed` views a buffer another owner keeps alive: `size_bytes()` is that buffer's
+size, unrounded, and `owner_liveness()` is the observer that expires when the owner lets go.
 
 ### `K_STORAGE_ALIGNMENT`
 
-Every allocation base is a multiple of 128 bytes, and so is every allocation size. `Storage` passes
+Every allocation base the library makes is a multiple of 128 bytes, and so is every allocation
+size; a borrowed buffer is held only to `alignof(std::max_align_t)`. `Storage` passes
 the constant to `Runtime::buffer` as the alignment it asks for, and the runtime allocates at it;
 an `SB_ASSERT` checks the address in a debug build. `storage.hpp` states the constant itself and
 takes it from no runtime header. `Tensor::is_aligned()` reports whether a view's first element sits

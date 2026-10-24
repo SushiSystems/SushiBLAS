@@ -244,6 +244,7 @@ namespace SushiBLAS
                               : compress_dense<std::complex<double>, int64_t>(dense, base);
             case Core::DataType::Int32:
             case Core::DataType::Int64:
+            case Core::DataType::UInt32:
                 break;
         }
 

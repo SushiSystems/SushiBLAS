@@ -135,6 +135,9 @@ namespace SushiBLAS
                     case Core::DataType::Int64:
                         return submit_transform(queue, span.as<std::int64_t>(), span.count,
                                                 previous);
+                    case Core::DataType::UInt32:
+                        return submit_transform(queue, span.as<std::uint32_t>(), span.count,
+                                                previous);
                 }
                 return sycl::event();
             }
@@ -166,7 +169,8 @@ namespace SushiBLAS
                     const std::size_t size = static_cast<std::size_t>(tensor.num_elements) *
                                              Core::bytes_per_element(tensor.dtype);
                     const bool is_integer = tensor.dtype == Core::DataType::Int32 ||
-                                            tensor.dtype == Core::DataType::Int64;
+                                            tensor.dtype == Core::DataType::Int64 ||
+                                            tensor.dtype == Core::DataType::UInt32;
                     if (is_integer)
                     {
                         for (std::size_t index = 0; index < size; ++index)
@@ -232,6 +236,9 @@ namespace SushiBLAS
                         break;
                     case Core::DataType::Int64:
                         apply(reinterpret_cast<std::int64_t*>(bytes.data()), count);
+                        break;
+                    case Core::DataType::UInt32:
+                        apply(reinterpret_cast<std::uint32_t*>(bytes.data()), count);
                         break;
                 }
                 return bytes;
@@ -382,7 +389,7 @@ namespace SushiBLAS
             }
         } // namespace
 
-        /** @brief Tests that a pack of all seven types returns from the worker bit for bit. */
+        /** @brief Tests that a pack of all eight types returns from the worker bit for bit. */
         TEST(Medium_RemoteTask, PackOfEveryTypeRoundTripsThroughAWorker)
         {
             if (sycl::device::get_devices().empty())

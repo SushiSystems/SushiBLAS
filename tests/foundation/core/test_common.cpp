@@ -46,6 +46,8 @@ namespace SushiBLAS
             static_assert(static_cast<int>(Core::DataType::Complex64) == 4, "COMPLEX64 is 4.");
             static_assert(static_cast<int>(Core::DataType::Int32) == 5, "INT32 is 5.");
             static_assert(static_cast<int>(Core::DataType::Int64) == 6, "INT64 is 6.");
+            static_assert(static_cast<int>(Core::DataType::UInt32) == 7, "UINT32 is 7.");
+            static_assert(Core::K_DATA_TYPE_COUNT == 8, "DataType has eight enumerators.");
 
             EXPECT_EQ(static_cast<int>(Core::DataType::Half), 0);
             EXPECT_EQ(static_cast<int>(Core::DataType::Float32), 1);
@@ -54,6 +56,7 @@ namespace SushiBLAS
             EXPECT_EQ(static_cast<int>(Core::DataType::Complex64), 4);
             EXPECT_EQ(static_cast<int>(Core::DataType::Int32), 5);
             EXPECT_EQ(static_cast<int>(Core::DataType::Int64), 6);
+            EXPECT_EQ(static_cast<int>(Core::DataType::UInt32), 7);
         }
 
         TEST(Small_DataType, IsOneByte)
@@ -72,6 +75,7 @@ namespace SushiBLAS
             EXPECT_EQ(std::string(Core::to_string(Core::DataType::Complex64)), "COMPLEX64");
             EXPECT_EQ(std::string(Core::to_string(Core::DataType::Int32)), "INT32");
             EXPECT_EQ(std::string(Core::to_string(Core::DataType::Int64)), "INT64");
+            EXPECT_EQ(std::string(Core::to_string(Core::DataType::UInt32)), "UINT32");
         }
 
         TEST(Small_DataType, ToStringNamesAValueOutsideTheEnumerationUnknown)
@@ -90,9 +94,10 @@ namespace SushiBLAS
             EXPECT_EQ(Core::bytes_per_element(Core::DataType::Complex64), 16u);
             EXPECT_EQ(Core::bytes_per_element(Core::DataType::Int32), 4u);
             EXPECT_EQ(Core::bytes_per_element(Core::DataType::Int64), 8u);
+            EXPECT_EQ(Core::bytes_per_element(Core::DataType::UInt32), 4u);
         }
 
-        TEST(Small_DataType, EveryTypeIsExactlyOneOfRealComplexAndInteger)
+        TEST(Small_DataType, EveryComputedTypeIsExactlyOneOfRealComplexAndInteger)
         {
             const Core::DataType all[] = {
                 Core::DataType::Half,      Core::DataType::Float32,   Core::DataType::Float64,
@@ -118,6 +123,13 @@ namespace SushiBLAS
             EXPECT_TRUE(Core::is_complex_dtype(Core::DataType::Complex64));
             EXPECT_TRUE(Core::is_integer_dtype(Core::DataType::Int32));
             EXPECT_TRUE(Core::is_integer_dtype(Core::DataType::Int64));
+        }
+
+        TEST(Small_DataType, UInt32IsNeitherRealNorComplexNorSignedInteger)
+        {
+            EXPECT_FALSE(Core::is_real_dtype(Core::DataType::UInt32));
+            EXPECT_FALSE(Core::is_complex_dtype(Core::DataType::UInt32));
+            EXPECT_FALSE(Core::is_integer_dtype(Core::DataType::UInt32));
         }
 
         TEST(Small_Layout, KeepsItsNumbersAndIsOneByte)

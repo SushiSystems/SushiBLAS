@@ -28,7 +28,7 @@ modules by their own path, such as `<SushiRuntime/core/span.hpp>` and
 | SushiRuntime name | Where SushiBLAS uses it |
 | --- | --- |
 | `Runtime` | `Engine`, `TensorFactory`, `Storage` and `ScratchPool` are each built on a `Runtime&` |
-| `Runtime::buffer`, `Buffer<std::byte>`, `Residency`, `DeviceIndex` | `Storage` allocates through them (`tensor/storage.hpp`) |
+| `Runtime::buffer`, `Buffer<std::byte>`, `Residency`, `DeviceIndex` | `Storage` allocates through them, or borrows a buffer another owner keeps alive (`tensor/storage.hpp`) |
 | `AdvancedControls` (`Runtime::advanced()`) | `Storage::queue()` and the device count the factory checks |
 | `Graph`, `Graph::plan()`, `RunReport` | The program owns the graph, records on it through a `TaskRecorder` and runs it |
 | `Recorder::task`, `Access`, `NodeOptions`, `OperationID` | `TaskRecorder` records every tensor operation through them (`engine/task_recorder.hpp`) |

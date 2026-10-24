@@ -207,8 +207,8 @@ namespace SushiBLAS
             }
 
             /**
-             * @brief Records a task over capacity indices whose width is the INT32 in count.
-             * @param count A contiguous INT32 tensor in Residency::Host that a previous node writes.
+             * @brief Records a task over capacity indices whose width is the UINT32 or INT32 in count.
+             * @param count A contiguous UINT32 or INT32 tensor in Residency::Host that a previous node writes.
              * @param host_body Callable `() -> void` that runs the indices under ForceReference.
              * @param kernel Device-copyable callable `(std::size_t i)` for every other mode.
              * @note Outside ForceReference the recorder holds the storages it names; see the README.
@@ -241,9 +241,7 @@ namespace SushiBLAS
                                 borrow_count(count, owner),
                                 static_cast<std::size_t>(count.storage_offset)),
                             capacity,
-                            SushiRuntime::Access(operands.read_regions(),
-                                                 operands.write_regions()),
-                            std::forward<Kernel>(kernel), options);
+                            access_of(operands), std::forward<Kernel>(kernel), options);
                     });
                 retain_late_owner(owner);
                 return handle;
@@ -264,6 +262,17 @@ namespace SushiBLAS
 
         private:
             /**
+             * @brief Builds the access of operands: its regions, and the owners of borrowed
+             *        storage a run checks first.
+             */
+            [[nodiscard]] static SushiRuntime::Access access_of(const OperandSet& operands)
+            {
+                SushiRuntime::Access access(operands.read_regions(), operands.write_regions());
+                access.lives = operands.owner_liveness();
+                return access;
+            }
+
+            /**
              * @brief Records one task under the name, the operation and the parameters of
              *        description.
              * @param work Callable `(sycl::queue&, const std::vector<sycl::event>&)` that returns
@@ -279,9 +288,7 @@ namespace SushiBLAS
                     description,
                     [&](SushiRuntime::Recorder& recorder, const SushiRuntime::NodeOptions& options)
                     {
-                        recorder.task(SushiRuntime::Access(operands.read_regions(),
-                                                           operands.write_regions()),
-                                      std::forward<Work>(work), options);
+                        recorder.task(access_of(operands), std::forward<Work>(work), options);
                     });
             }
 
@@ -323,7 +330,7 @@ namespace SushiBLAS
 
             /**
              * @brief Checks the tensor a late width is read from.
-             * @throws std::invalid_argument for a count that is not a contiguous INT32 tensor of
+             * @throws std::invalid_argument for a count that is not a contiguous UINT32 or INT32 tensor of
              *         at least one element with storage in Residency::Host.
              */
             static void require_late_count(const Tensor& count, const char* name)
@@ -331,7 +338,10 @@ namespace SushiBLAS
                 Dispatch::require_min_elements(count, 1, name, "count");
                 Dispatch::require_storage(count, name, "count");
                 Dispatch::require_contiguous(count, name, "count");
-                Dispatch::require_dtype(count, Core::DataType::Int32, name, "count");
+                Dispatch::require_operand(
+                    count.dtype == Core::DataType::UInt32 || count.dtype == Core::DataType::Int32,
+                    name, "count", "has dtype {}, expected UINT32 or INT32",
+                    Core::to_string(count.dtype));
                 Dispatch::require_operand(
                     count.storage->residency() == SushiRuntime::Residency::Host, name, "count",
                     "lives in {} memory; the runtime reads a late width from Residency::Host",

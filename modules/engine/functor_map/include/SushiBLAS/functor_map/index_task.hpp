@@ -172,10 +172,11 @@ namespace SushiBLAS
                 public:
                     /**
                      * @brief Holds the functor, the capacity and the address of the width.
-                     * @param width The first element of an INT32 tensor in host-readable memory.
+                     * @param width The first element of a UINT32 or INT32 tensor in host-readable memory,
+                     *              read as the unsigned word the runtime reads.
                      */
                     LateIndexHostRun(Fn fn, std::string name, std::size_t capacity,
-                                     const std::int32_t* width)
+                                     const std::uint32_t* width)
                         : fn_(std::move(fn)), name_(std::move(name)), capacity_(capacity),
                           width_(width)
                     {
@@ -184,13 +185,13 @@ namespace SushiBLAS
 
                     /**
                      * @brief Reads the width and runs the indices below it in order.
-                     * @throws std::runtime_error for a width below 0 or above the capacity, as the
-                     *         runtime refuses on the device path.
+                     * @throws std::runtime_error for a width above the capacity, a negative INT32 included,
+                     *         as the runtime refuses on the device path.
                      */
                     void operator()() const
                     {
-                        const std::int32_t live = *width_;
-                        SB_THROW_IF(live < 0 || static_cast<std::size_t>(live) > capacity_,
+                        const std::uint32_t live = *width_;
+                        SB_THROW_IF(static_cast<std::size_t>(live) > capacity_,
                                     "Index operation '{}': the late count {} is outside [0, {}]",
                                     name_, live, capacity_);
                         SB_LOG_TRACE(K_FUNCTOR_MAP_LOG_CATEGORY,
@@ -210,7 +211,7 @@ namespace SushiBLAS
                     std::size_t capacity_;
 
                     /// @brief The width, read when the task runs.
-                    const std::int32_t* width_;
+                    const std::uint32_t* width_;
             };
 
             /**
@@ -271,7 +272,7 @@ namespace SushiBLAS
                         description, operands, family, count, capacity,
                         LateIndexHostRun<std::decay_t<decltype(fn)>>(
                             fn, description.name, capacity,
-                            static_cast<const std::int32_t*>(count.data())),
+                            static_cast<const std::uint32_t*>(count.data())),
                         IndexKernel<std::decay_t<decltype(fn)>>(fn));
                 }
             };

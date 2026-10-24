@@ -90,6 +90,21 @@ namespace SushiBLAS
             EXPECT_EQ(layout.segment(Core::DataType::Float64).size_bytes, 0U);
         }
 
+        /** @brief Tests that UINT32, the last type, has a segment of its own after INT64. */
+        TEST(Small_PackLayout, GivesUInt32ASegmentAfterInt64)
+        {
+            const std::vector<Tensor> tensors = {shaped({3}, Core::DataType::UInt32),
+                                                 shaped({2}, Core::DataType::Int64)};
+            const PackLayout layout = layout_of(tensors);
+
+            EXPECT_EQ(layout.segment(Core::DataType::Int64).offset_bytes, 0U);
+            EXPECT_EQ(layout.segment(Core::DataType::UInt32).offset_bytes, 128U);
+            EXPECT_EQ(layout.segment(Core::DataType::UInt32).size_bytes, 12U);
+            EXPECT_NE(layout.fingerprint(),
+                      layout_of({shaped({3}, Core::DataType::Int32),
+                                 shaped({2}, Core::DataType::Int64)}).fingerprint());
+        }
+
         /** @brief Tests that the same tensors give the same fingerprint. */
         TEST(Small_PackLayout, FingerprintIsStableForEqualLayouts)
         {

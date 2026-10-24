@@ -18,7 +18,7 @@ The words this repository's documents use. Symbols are spelled as the code spell
 | Storage | A ref-counted SushiRuntime USM allocation, aligned to 128 bytes, that one or more tensors view |
 | Task graph | A `SushiRuntime::Graph`. An operation call records one task on it through the task recorder; the program that owns the graph runs it with `graph.run()` |
 | Record time | The moment an operation call adds its task to the graph, before anything runs. Input checks throw here |
-| Dtype | A member of `Core::DataType`: `Half`, `Float32`, `Float64`, `Complex32`, `Complex64`, `Int32`, `Int64`, numbered 0 to 6. The numbers are a file-format contract and a new type is appended |
+| Dtype | A member of `Core::DataType`: `Half`, `Float32`, `Float64`, `Complex32`, `Complex64`, `Int32`, `Int64`, `UInt32`, numbered 0 to 7. The numbers are a file-format contract and a new type is appended |
 | Domain | `Dispatch::Domain`, the dtype families an operation admits: `Real`, `Complex`, `Integral` and their unions |
 | Layout | `Core::Layout`, `RowMajor` or `ColumnMajor`; how a matrix operand is addressed |
 | Reference kernel | The plain C++ implementation of an operation, in the `reference/` folder of its family's kernel module under `modules/kernels/`. The BLAS, sparse and spatial families have one per operation |

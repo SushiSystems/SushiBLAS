@@ -70,6 +70,7 @@ namespace SushiBLAS
                                ? sizeof(Kernels::RunningSolution<std::complex<double>>::Wide) : 0;
                 case Core::DataType::Int32:
                 case Core::DataType::Int64:
+                case Core::DataType::UInt32:
                     return 0;
             }
             return 0;

@@ -47,6 +47,7 @@ namespace SushiBLAS
                       Core::DataType::Complex64);
             EXPECT_EQ(Detail::HostDataType<int32_t>::K_VALUE, Core::DataType::Int32);
             EXPECT_EQ(Detail::HostDataType<int64_t>::K_VALUE, Core::DataType::Int64);
+            EXPECT_EQ(Detail::HostDataType<uint32_t>::K_VALUE, Core::DataType::UInt32);
         }
 
         TEST(Medium_HostDataType, TheDataTypeHasTheSizeOfItsHostType)
@@ -57,6 +58,8 @@ namespace SushiBLAS
                       sizeof(std::complex<double>));
             EXPECT_EQ(Core::bytes_per_element(Detail::HostDataType<int64_t>::K_VALUE),
                       sizeof(int64_t));
+            EXPECT_EQ(Core::bytes_per_element(Detail::HostDataType<uint32_t>::K_VALUE),
+                      sizeof(uint32_t));
         }
     } // namespace Test
 } // namespace SushiBLAS

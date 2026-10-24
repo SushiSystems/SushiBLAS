@@ -75,6 +75,7 @@ namespace SushiBLAS
                     break;
                 case Core::DataType::Int32:
                 case Core::DataType::Int64:
+                case Core::DataType::UInt32:
                     break;
             }
             return plan.selected ? plan.scratch_bytes : std::size_t{0};

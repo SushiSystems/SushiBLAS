@@ -187,18 +187,20 @@ namespace SushiBLAS
                 }
 
                 /**
-                 * @brief Records a node that writes written into a count tensor, then a task over
-                 *        K_CAPACITY indices that marks index i with 1, runs both under mode and
-                 *        returns the marks.
+                 * @brief Records a node that writes written into a count tensor of Count, then a
+                 *        task over K_CAPACITY indices that marks index i with 1, runs both under
+                 *        mode and returns the marks.
+                 * @tparam Count The element type of the count tensor: std::int32_t or std::uint32_t.
                  */
-                std::vector<float> marks_under(ExecutionMode mode, std::int32_t written)
+                template<typename Count>
+                std::vector<float> marks_under_count(ExecutionMode mode, Count written)
                 {
                     set_mode(mode);
                     IndexOps index(recorder());
 
-                    Tensor count = engine->create_tensor({1}, Core::DataType::Int32,
+                    Tensor count = engine->create_tensor({1}, Detail::HostDataType<Count>::K_VALUE,
                                                          SushiRuntime::Residency::Host);
-                    count.data_as<std::int32_t>()[0] = K_CAPACITY + 1;
+                    count.data_as<Count>()[0] = static_cast<Count>(K_CAPACITY + 1);
                     Tensor marks = engine->create_tensor({K_CAPACITY}, Core::DataType::Float32);
                     for (std::int64_t i = 0; i < K_CAPACITY; ++i)
                         marks.data_as<float>()[i] = 0.0f;
@@ -206,8 +208,8 @@ namespace SushiBLAS
                     index.for_each(
                         1,
                         Dispatch::bind_writes(
-                            [written](std::size_t, std::int32_t* slot) { slot[0] = written; },
-                            Dispatch::write_as<std::int32_t>(count)),
+                            [written](std::size_t, Count* slot) { slot[0] = written; },
+                            Dispatch::write_as<Count>(count)),
                         IndexOptions{"write_count", SushiRuntime::Determinism::Bitwise});
 
                     index.for_each(
@@ -219,6 +221,12 @@ namespace SushiBLAS
 
                     EXPECT_TRUE(recording->run_succeeds());
                     return read_tensor<float>(marks);
+                }
+
+                /** @brief Runs marks_under_count over an INT32 count. */
+                std::vector<float> marks_under(ExecutionMode mode, std::int32_t written)
+                {
+                    return marks_under_count<std::int32_t>(mode, written);
                 }
         };
 
@@ -248,6 +256,41 @@ namespace SushiBLAS
                     EXPECT_EQ(marks[static_cast<std::size_t>(i)], i < K_WRITTEN ? 1.0f : 0.0f)
                         << "index " << i;
             }
+        }
+
+        TEST_F(Medium_IndexOps, ALateCountOfTypeUInt32RunsOnlyTheCountAPreviousNodeWrote)
+        {
+            for (const ExecutionMode mode :
+                 {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
+            {
+                const std::vector<float> marks =
+                    marks_under_count<std::uint32_t>(mode, static_cast<std::uint32_t>(K_WRITTEN));
+
+                for (std::int64_t i = 0; i < K_CAPACITY; ++i)
+                    EXPECT_EQ(marks[static_cast<std::size_t>(i)], i < K_WRITTEN ? 1.0f : 0.0f)
+                        << "index " << i;
+            }
+        }
+
+        TEST_F(Medium_IndexOps, ALateCountOfTypeUInt32WrittenOnTheHostIsRead)
+        {
+            Tensor count = engine->create_tensor({1}, Core::DataType::UInt32,
+                                                 SushiRuntime::Residency::Host);
+            count.data_as<std::uint32_t>()[0] = static_cast<std::uint32_t>(K_WRITTEN);
+            Tensor marks = engine->create_tensor({K_CAPACITY}, Core::DataType::Float32);
+            for (std::int64_t i = 0; i < K_CAPACITY; ++i)
+                marks.data_as<float>()[i] = 0.0f;
+
+            set_mode(ExecutionMode::ForceSYCL);
+            IndexOps(recorder()).for_each(
+                static_cast<std::size_t>(K_CAPACITY), count,
+                Dispatch::bind_writes([](std::size_t i, float* out) { out[i] = 1.0f; },
+                                      Dispatch::write_as<float>(marks)),
+                IndexOptions{"mark", SushiRuntime::Determinism::Bitwise});
+
+            EXPECT_TRUE(recording->run_succeeds());
+            EXPECT_EQ(marks.data_as<float>()[K_WRITTEN - 1], 1.0f);
+            EXPECT_EQ(marks.data_as<float>()[K_WRITTEN], 0.0f);
         }
 
         TEST_F(Medium_IndexOps, ALateCountOfZeroRunsNothing)
@@ -430,15 +473,16 @@ namespace SushiBLAS
                          std::invalid_argument);
         }
 
-        TEST_F(Medium_IndexOps, ACountTensorThatIsNotInt32InHostMemoryIsRefused)
+        TEST_F(Medium_IndexOps, ACountTensorThatIsNeitherUInt32NorInt32InHostMemoryIsRefused)
         {
             Tensor out = engine->create_tensor({4}, Core::DataType::Float32);
             IndexOps index(recorder());
 
-            const std::array<Tensor, 3> refused = {
+            const std::array<Tensor, 4> refused = {
                 engine->create_tensor({1}, Core::DataType::Float32, SushiRuntime::Residency::Host),
                 engine->create_tensor({1}, Core::DataType::Int64, SushiRuntime::Residency::Host),
-                engine->create_tensor({1}, Core::DataType::Int32, SushiRuntime::Residency::Shared)};
+                engine->create_tensor({1}, Core::DataType::Int32, SushiRuntime::Residency::Shared),
+                engine->create_tensor({1}, Core::DataType::UInt32, SushiRuntime::Residency::Shared)};
 
             for (const ExecutionMode mode :
                  {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})

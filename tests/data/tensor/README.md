@@ -9,6 +9,6 @@ what a test checks; a section below holds why a test is written the way it is.
 | File | Tests |
 | --- | --- |
 | `test_host_data_type.cpp` | Tests that HostDataType gives each host element type its DataType |
-| `test_storage.cpp` | Tests that Storage rounds its size up, aligns its allocation and refuses a bad request |
+| `test_storage.cpp` | Tests that Storage rounds its size up, aligns its allocation, refuses a bad request and views a buffer it borrows |
 | `test_tensor.cpp` | Tests the strides, views, checks and regions of a Tensor over one storage |
 | `test_tensor_factory.cpp` | Tests the layout, the byte size and the tensors a TensorFactory creates |

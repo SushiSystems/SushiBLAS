@@ -100,6 +100,12 @@ namespace SushiBLAS
                     q.memcpy(tensor.data(), host.data(), size * sizeof(int64_t)).wait();
                     break;
                 }
+                case Core::DataType::UInt32:
+                {
+                    std::vector<uint32_t> host(values.begin(), values.end());
+                    q.memcpy(tensor.data(), host.data(), size * sizeof(uint32_t)).wait();
+                    break;
+                }
             }
         }
 

@@ -68,6 +68,20 @@ namespace SushiBLAS
             EXPECT_EQ(Dispatch::domain_of(Core::DataType::Float64), Domain::Real);
             EXPECT_EQ(Dispatch::domain_of(Core::DataType::Complex32), Domain::Complex);
             EXPECT_EQ(Dispatch::domain_of(Core::DataType::Int64), Domain::Integral);
+            EXPECT_EQ(Dispatch::domain_of(Core::DataType::UInt32), Domain::None);
+        }
+
+        TEST(Medium_Dispatch, NoDomainAdmitsUInt32)
+        {
+            EXPECT_FALSE(Dispatch::domain_admits(
+                Domain::All, Dispatch::domain_of(Core::DataType::UInt32)));
+            EXPECT_THROW(Dispatch::require_domain<Domain::All>(Core::DataType::UInt32, "f", "op"),
+                         std::invalid_argument);
+
+            int bytes = 0;
+            EXPECT_ANY_THROW(Dispatch::with_element_type<Domain::All>(
+                Core::DataType::UInt32, "f", "op", SizeArm{&bytes}));
+            EXPECT_EQ(bytes, 0);
         }
 
         TEST(Medium_Dispatch, RequireDomainRefusesADtypeOutsideIt)

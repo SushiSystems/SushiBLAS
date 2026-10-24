@@ -21,7 +21,7 @@
 
 /**
  * @file test_integer_dtypes.cpp
- * @brief Tests which operations serve INT32 and INT64 tensors and which refuse them.
+ * @brief Tests which operations serve INT32 and INT64 tensors and which refuse them, and that every operation refuses UINT32.
  * @author Mustafa Garip
  */
 
@@ -312,6 +312,52 @@ namespace SushiBLAS
             // Equality has no such problem and must still work.
             EXPECT_NO_THROW(SushiBLAS::LogicOps(recorder()).equal(a, b, r));
             recording->run().value();
+        }
+
+        /**
+         * @brief Tests that a UINT32 tensor is created at four bytes an element and holds the
+         *        values written to it, including one above the INT32 range.
+         * @see tests/library/umbrella/README.md
+         */
+        TEST_F(Medium_IntegerDTypeTest, AUInt32TensorHoldsItsValues)
+        {
+            auto t = engine->create_tensor({3}, Core::DataType::UInt32);
+
+            EXPECT_EQ(4u, Core::bytes_per_element(t.dtype));
+            EXPECT_EQ(12, t.element_span() * static_cast<int64_t>(Core::bytes_per_element(t.dtype)));
+
+            const std::vector<uint32_t> written = {0u, 7u, 4000000000u};
+            SushiBLAS::IO().from_vector(t, written);
+
+            EXPECT_EQ(written, SushiBLAS::IO().to_vector<uint32_t>(t));
+        }
+
+        /**
+         * @brief Tests that operations which compute refuse a UINT32 operand by name before they
+         *        record a task.
+         * @see tests/library/umbrella/README.md
+         */
+        TEST_F(Medium_IntegerDTypeTest, OperationsRefuseAUInt32Operand)
+        {
+            GraphProbe probe;
+
+            auto a = engine->create_tensor({4}, Core::DataType::UInt32);
+            auto b = engine->create_tensor({4}, Core::DataType::UInt32);
+            auto f = engine->create_tensor({4}, Core::DataType::Float32);
+            auto r = engine->create_tensor({4}, Core::DataType::UInt32);
+
+            EXPECT_THROW(SushiBLAS::BLASOps(probe.recorder()).copy(a, b), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::RandomOps(probe.recorder(), engine->rng()).constant(a, 1.0),
+                         std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::LogicOps(probe.recorder()).less(a, b, r),
+                         std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::ElementwiseOps(probe.recorder()).exp(a),
+                         std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::ElementwiseOps(probe.recorder()).convert(a, f),
+                         std::invalid_argument);
+
+            EXPECT_EQ(0u, probe.take_recorded_count())
+                << "A rejected op must throw before it records a task.";
         }
 
     } // namespace Test

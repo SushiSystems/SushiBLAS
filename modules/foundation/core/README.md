@@ -41,14 +41,22 @@ quietly accepted and then silently mishandled is worse than one that is not acce
 for.
 
 **The numeric values are a file-format contract.** Each enumerator is written out with its value,
-`Half = 0` to `Int64 = 6`. No value changes, and a new element type is appended after the last.
+`Half = 0` to `UInt32 = 7`. No value changes, and a new element type is appended after the last.
 
 ### `to_string`
 
 Exists so that a "this operation does not support that dtype" failure can name the offending type
 instead of printing an integer the reader has to decode.
 
+`UInt32` is the unsigned 32-bit integer SushiEngine's late counts are written in. It is a storage
+type: a tensor of it is created, copied through the IO formats and read as a late count, and
+every operation that computes refuses it by name. `K_DATA_TYPE_COUNT` is the one place the number
+of enumerators is written; the cluster module's segment count follows it.
+
 ### `is_integer_dtype`
+
+Names the signed `INT32` and `INT64` only. `UINT32` is neither integer, real nor complex here, so
+no family check admits it by accident.
 
 The counterpart to `is_complex_dtype`, and used the same way: to reject a dtype at record time in
 the handful of places that check a whole family at once rather than switching arm by arm.

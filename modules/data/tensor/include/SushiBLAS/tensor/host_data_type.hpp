@@ -40,7 +40,7 @@ namespace SushiBLAS
         /**
          * @brief Maps a host element type to the DataType a tensor of it carries.
          * @tparam T One of float, double, sycl::half, std::complex<float>,
-         * std::complex<double>, int32_t, int64_t.
+         * std::complex<double>, int32_t, int64_t, uint32_t.
          */
         template<typename T> struct HostDataType;
 
@@ -91,6 +91,13 @@ namespace SushiBLAS
         {
             /** @brief The matching DataType. */
             static constexpr Core::DataType K_VALUE = Core::DataType::Int64;
+        };
+
+        /** @brief Maps uint32_t to UINT32. */
+        template<> struct HostDataType<uint32_t>
+        {
+            /** @brief The matching DataType. */
+            static constexpr Core::DataType K_VALUE = Core::DataType::UInt32;
         };
     } // namespace Detail
 } // namespace SushiBLAS

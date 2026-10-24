@@ -39,8 +39,9 @@ outside the domain at record time with `std::invalid_argument`. `with_element_ty
 dtype switch of the functor seams: an arm outside the domain is never instantiated, which is what
 lets a functor that is ill-formed for `std::complex` be dispatched on a runtime dtype. An arm is
 written as a generic lambda over `Dispatch::ElementTag<T>`, or, at C++20, as a templated lambda.
-`execute_typed_task` spells the same seven arms out in a named class, `Detail::TypedTaskBody`,
-because its body takes a value and returns an event.
+`execute_typed_task` spells the same arms out in a named class, `Detail::TypedTaskBody`,
+because its body takes a value and returns an event. `UInt32` belongs to no domain
+(`Domain::None`), so both refuse it with the operation's dtype error.
 
 ## The fusion hooks
 

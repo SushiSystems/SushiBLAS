@@ -159,6 +159,33 @@ The owner ruled that the fixture and the benchmark harness share one gtest-free 
 directly and `BenchmarkGraph` is gone. Adopting the fixture's run changes two things for the
 benchmarks: an empty graph's run succeeds, and a run refused as `InvalidState` keeps its tasks.
 
+## B14
+
+`make_sushi<Storage>(Storage::Borrowed{}, runtime, std::move(buffer))` builds a storage over a
+buffer it does not own; every `Storage` in the tree is made through `make_sushi`, so a tagged
+constructor keeps the one creation idiom. Its size is the buffer's and its base is aligned to
+`alignof(std::max_align_t)` at least; no kernel relies on the 128-byte alignment of owned storage
+(only the `Tensor::is_aligned()` query names it, and its comment now says so). `OperandSet`
+collects one liveness observer per distinct borrowed storage and `TaskRecorder` declares them on
+the task, so the runtime refuses a run after the owner let go; an owned-only task adds nothing.
+
+Seen and kept: `Storage` serves two lifetimes behind a flag, since a second storage type would
+make `Tensor::storage` polymorphic; two tests carry near-identical helpers for owned memory.
+
+## B15
+
+`UInt32 = 7` is appended, so no value changes, and `K_DATA_TYPE_COUNT` writes the number of types
+once. `is_real_dtype` became an explicit list, since by elimination it would have counted `UInt32`
+as real. `domain_of(UInt32)` is `Domain::None`, which no domain admits, so every computing
+operation refuses it through its existing dtype check and no kernel gains an instantiation; copy,
+fill and comparison stay refused too, which costs nothing and can be widened later on purpose.
+`.npy` and the text render support it; the `.sushi` header stores the enumerator as before and an
+older reader refuses value 7 in words, so the format version stays. A pack gains an eighth segment
+and its fingerprint version moves to 2.
+
+Seen and kept: `TypedTaskBody` and `with_element_type` are two dtype switches kept in step by hand;
+`random/dispatch.hpp` keeps a hand-written dtype list for its message.
+
 ## Dispatches
 
 ```
@@ -174,6 +201,8 @@ dispatch: B7 — sonnet medium, 69 turns, then B7b sonnet medium, 87 turns, then
 dispatch: B10 — haiku medium, 38 turns, passed, rung 1
 dispatch: B5 — sonnet medium, 89 turns, passed, rung 1
 dispatch: B4 follow-up — sonnet medium, 52 turns, passed, rung 1
+dispatch: B14 — sonnet medium, 69 turns, passed, rung 1
+dispatch: B15 — sonnet medium, 80 turns, passed, rung 1
 dispatch: docs-sync after B5 — sonnet medium, 18 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

@@ -78,7 +78,7 @@ namespace SushiBLAS
                     sycl::event operator()(const KernelPairDispatcher& dispatcher, sycl::queue& q,
                                            const std::vector<sycl::event>& deps) const
                     {
-                        // The seven arms mirror Dispatch::with_element_type; see modules/engine/engine/README.md.
+                        // The arms mirror Dispatch::with_element_type; see modules/engine/engine/README.md.
                         switch (dtype_)
                         {
                             case Core::DataType::Half:
@@ -102,6 +102,8 @@ namespace SushiBLAS
                             case Core::DataType::Int64:
                                 if constexpr (Dispatch::domain_admits(Dom, Dispatch::Domain::Integral))
                                     return op_func_(int64_t{}, dispatcher, q, deps);
+                                break;
+                            case Core::DataType::UInt32:
                                 break;
                         }
 

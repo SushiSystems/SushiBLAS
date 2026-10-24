@@ -126,6 +126,7 @@ namespace SushiBLAS
                 case Core::DataType::Half:      return "<f2";
                 case Core::DataType::Int32:     return "<i4";
                 case Core::DataType::Int64:     return "<i8";
+                case Core::DataType::UInt32:    return "<u4";
                 default:
                     SB_THROW_IF(true, "Dtype {} has no .npy descriptor.", Core::to_string(dtype));
                     return "";
@@ -554,6 +555,8 @@ namespace SushiBLAS
                     return {static_cast<double>(reinterpret_cast<const int32_t*>(buf)[index]), 0.0};
                 case Core::DataType::Int64:
                     return {static_cast<double>(reinterpret_cast<const int64_t*>(buf)[index]), 0.0};
+                case Core::DataType::UInt32:
+                    return {static_cast<double>(reinterpret_cast<const uint32_t*>(buf)[index]), 0.0};
                 default:
                     SB_THROW_IF(true, "Cannot render a tensor of dtype {} as text.",
                                 Core::to_string(dtype));
@@ -1021,6 +1024,8 @@ namespace SushiBLAS
             ss << "i32";
         else if (t.dtype == Core::DataType::Int64)
             ss << "i64";
+        else if (t.dtype == Core::DataType::UInt32)
+            ss << "u32";
 
         ss << "):" << std::endl;
         ss << std::fixed << std::setprecision(precision);

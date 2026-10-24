@@ -186,6 +186,7 @@ namespace SushiBLAS
                     case Core::DataType::Complex64: compare_host_elements<std::complex<double>>(tensor, expected, tolerance); break;
                     case Core::DataType::Int32:     compare_host_elements<int32_t>(tensor, expected, tolerance); break;
                     case Core::DataType::Int64:     compare_host_elements<int64_t>(tensor, expected, tolerance); break;
+                    case Core::DataType::UInt32:    compare_host_elements<uint32_t>(tensor, expected, tolerance); break;
                 }
             }
         } // namespace Detail

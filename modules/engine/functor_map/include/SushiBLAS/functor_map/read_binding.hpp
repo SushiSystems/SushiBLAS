@@ -60,7 +60,7 @@ namespace SushiBLAS
 
         /**
          * @brief Names a tensor a functor reads as an array of U, whatever the operation's element type.
-         * @tparam U One of the seven element types.
+         * @tparam U One of the eight element types.
          * @see modules/operations/MATH_README.md
          */
         template<typename U>
@@ -88,10 +88,12 @@ namespace SushiBLAS
                     return Core::DataType::Complex64;
                 else if constexpr (std::is_same_v<U, std::int32_t>)
                     return Core::DataType::Int32;
+                else if constexpr (std::is_same_v<U, std::uint32_t>)
+                    return Core::DataType::UInt32;
                 else
                 {
                     static_assert(std::is_same_v<U, std::int64_t>,
-                                  "A typed read names one of the seven element types.");
+                                  "A typed read names one of the eight element types.");
                     return Core::DataType::Int64;
                 }
             }

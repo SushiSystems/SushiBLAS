@@ -58,6 +58,7 @@ namespace SushiBLAS
                     return sizeof(Kernels::Accumulator<std::complex<double>>);
                 case Core::DataType::Int32:
                 case Core::DataType::Int64:
+                case Core::DataType::UInt32:
                     return 0;
             }
             return 0;

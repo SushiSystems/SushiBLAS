@@ -6,6 +6,10 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — core: Added `DataType::UInt32`, a count type a tensor holds and moves and every computing operation refuses through `Domain::None` (`common.hpp`, `dispatch.hpp`).
+- 2026-10-24 — index: Let the late count of `IndexOps::for_each` be a `UInt32` tensor beside an `Int32` one, both read as one unsigned word (`task_recorder.hpp`, `index_task.hpp`).
+- 2026-10-24 — cluster: Gave a pack an eighth segment for `UInt32` and raised `K_PACK_FINGERPRINT_VERSION` to 2, so a pack of the previous build is refused (`pack_layout.hpp`).
+- 2026-10-24 — tensor: Let a `Storage` borrow a runtime buffer another owner keeps alive, allocating nothing, and made a task watch that owner so a run after it lets go is refused (`storage.hpp`, `operand_set.hpp`, `task_recorder.hpp`).
 - 2026-10-24 — recording_graph: Added `RecordingGraph`, the one gtest-free owner of a graph and a task recorder that the fixture and the benchmark harness share, replacing `BenchmarkGraph` (`recording_graph.hpp`, `recording_fixture.hpp`).
 - 2026-10-24 — tools: Let `check_engine_seams.py` exempt a module built under `SB_BUILD_TESTS OR SB_BUILD_BENCHMARKS` (`check_engine_seams.py`).
 - 2026-10-24 — engine: Removed the engine's own graph with `execute()`, `discard_recorded()` and `recorder()`; every operation records into a graph its caller owns (`engine.hpp`, `engine.cpp`).

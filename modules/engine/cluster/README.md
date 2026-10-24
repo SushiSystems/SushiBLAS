@@ -22,8 +22,8 @@ as `<SushiBLAS/cluster/<name>.hpp>`.
 
 `PackLayout::of()` takes an ordered list of tensors and reads only their type, layout and shape.
 It gives each data type one segment, in the order of `Core::DataType` (`Half`, `Float32`,
-`Float64`, `Complex32`, `Complex64`, `Int32`, `Int64`), and places the tensors of a type inside
-its segment in the order given, with no gap. A segment that holds anything starts on a multiple
+`Float64`, `Complex32`, `Complex64`, `Int32`, `Int64`, `UInt32`), and places the tensors of a type
+inside its segment in the order given, with no gap. A segment that holds anything starts on a multiple
 of `K_PACK_SEGMENT_ALIGNMENT`, 128 bytes; an empty segment takes no bytes. `size_bytes()` ends at
 the end of the last segment. A list that is empty or holds no element is refused.
 
@@ -34,7 +34,7 @@ whatever the host:
 
 | Field | Bytes |
 | --- | --- |
-| `K_PACK_FINGERPRINT_VERSION` (1) | 4 |
+| `K_PACK_FINGERPRINT_VERSION` (2) | 4 |
 | Entry count | 8 |
 | Per entry: data type | 1 |
 | Per entry: size of the type in bytes | 8 |
@@ -42,7 +42,7 @@ whatever the host:
 | Per entry: rank | 4 |
 | Per entry: each extent | 8 each |
 | Per entry: offset and size in bytes | 8 and 8 |
-| Per segment, all seven: offset and size in bytes | 8 and 8 |
+| Per segment, all eight: offset and size in bytes | 8 and 8 |
 | Pack size in bytes | 8 |
 
 Two builds that disagree on any of these, a type size among them, get different fingerprints. A
