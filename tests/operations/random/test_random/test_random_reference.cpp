@@ -432,6 +432,7 @@ namespace SushiBLAS
                     RandomOps random(recorder(), engine->rng());
                     random.set_seed(seed);
                     operation(random, t);
+                    recording->run().value();
                     return io.to_vector<T>(t);
                 }
 

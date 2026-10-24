@@ -158,8 +158,8 @@ namespace SushiBLAS
 
         private:
             /**
-             * @brief Empties the graph while no record call adds a task, and lets go of the
-             *        storages its late-count tasks held.
+             * @brief Empties the graph and frees its compiled plan while no record call adds a
+             *        task, and lets go of the storages its late-count tasks held.
              */
             void forget()
             {
@@ -167,6 +167,10 @@ namespace SushiBLAS
                     [this]()
                     {
                         graph_.clear();
+                        // The compiled plan keeps a copy of every task until it is destroyed.
+                        {
+                            const SushiRuntime::Graph spent(std::move(graph_));
+                        }
                         late_counts_.release();
                     });
             }

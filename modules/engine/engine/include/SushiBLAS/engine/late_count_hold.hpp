@@ -91,8 +91,10 @@ namespace SushiBLAS
                 LateCount late;
                 late.owner = SushiRuntime::LivenessToken(
                     new SushiRuntime::Liveness(),
-                    [held = std::move(held)](SushiRuntime::Liveness* life)
+                    [held = std::move(held)](SushiRuntime::Liveness* life) mutable
                     {
+                        // An observer keeps the deleter alive, so the storages drop here.
+                        held = Internal::StorageKeepAlive();
                         delete life;
                     });
 

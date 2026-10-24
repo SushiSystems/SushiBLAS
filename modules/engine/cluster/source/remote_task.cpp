@@ -88,14 +88,15 @@ namespace SushiBLAS
         append_views(views, binding, inputs, name);
         append_views(views, binding, outputs, name);
 
-        const std::size_t recorded_before = recorder.rule_count();
+        // Inside an open rule scope a node joins the scope's rule, so only nodes are counted.
+        const std::size_t recorded_before = recorder.node_count();
         const std::size_t position = SushiRuntime::Distributed::record_registered_task(
             recorder, binding.kernels(), options,
             SushiRuntime::span<const SushiRuntime::Distributed::BufferView>(views.data(),
                                                                             inputs.size()),
             SushiRuntime::span<const SushiRuntime::Distributed::BufferView>(
                 views.data() + inputs.size(), outputs.size()));
-        if (recorder.rule_count() == recorded_before)
+        if (recorder.node_count() == recorded_before)
         {
             const SushiRuntime::Error* refusal = recorder.refusal();
             SB_THROW_IF(true, "record_remote({}): the runtime refused the recording: {}", name,

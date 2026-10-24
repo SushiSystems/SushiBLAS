@@ -26,5 +26,7 @@ nothing to run for an empty graph and keeps the tasks after a run the runtime tu
 in flight. `discard()` drops the recorded tasks and returns how many, `plan()` returns what the
 plan orders, and `recorded_count()` and `is_empty()` report what waits. It owns the `LateCountHold` its recorder
 records late-count tasks into; each time `run()` or `discard()` empties the graph it releases the
-hold, so no storage of a late-count task outlives the graph that held it. `late_counts()` returns
+hold, so no storage of a late-count task outlives the graph that held it. Emptying the graph also
+destroys its compiled plan, which holds a copy of every task, so a task's operands and scratch are
+freed or back in the pool when `run()` returns. `late_counts()` returns
 the hold.

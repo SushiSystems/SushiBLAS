@@ -263,6 +263,18 @@ count's type and residency checks and let a live count above zero run silently; 
 of zero records nothing now.
 
 
+## The final build
+
+The first configure stopped on `graph_probe`'s edge to `engine_fixture`, which the same-layer edge
+list lacked. The suite then passed 3001 of 3028. In code: an emptied recording graph kept
+SushiRuntime's compiled plan, which holds a copy of every task body, so operands and scratch stayed
+held after `run()` (the graph now destroys its plan as well); a `LateCountHold` token's deleter kept
+its storages for as long as any observer of the token lived (it drops them when the token dies); and
+`record_remote` compared rule counts, which an open rule scope keeps unchanged, so a recording read
+as refused (it compares node counts). In tests: a reference test read a tensor before running its
+graph, which IO has not done since it stopped running graphs, and a plan-label helper looped over a
+member of a destroyed temporary. All 3028 pass, with the CLI's 104 and the package check.
+
 ## Dispatches
 
 ```
@@ -286,6 +298,7 @@ dispatch: B18 — opus low, 75 turns, passed, rung 1
 dispatch: B19 and B20 — opus low, 158 turns over two rounds, passed, rung 1
 dispatch: B21 — opus low, passed, rung 1
 dispatch: B22 — sonnet medium, passed, rung 1
+dispatch: final-build fixes — opus low, passed, rung 1
 dispatch: docs-sync after B5 — sonnet medium, 18 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

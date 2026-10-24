@@ -47,7 +47,8 @@ namespace SushiBLAS
             [[nodiscard]] inline std::vector<std::string> names_of(SushiRuntime::Graph& graph)
             {
                 std::vector<std::string> names;
-                for (const SushiRuntime::PlanNode& node : graph.plan().value().nodes)
+                const SushiRuntime::PlanView plan = graph.plan().value();
+                for (const SushiRuntime::PlanNode& node : plan.nodes)
                     names.push_back(node.name);
                 return names;
             }
@@ -57,7 +58,8 @@ namespace SushiBLAS
             determinisms_of(SushiRuntime::Graph& graph)
             {
                 std::vector<SushiRuntime::Determinism> classes;
-                for (const SushiRuntime::PlanNode& node : graph.plan().value().nodes)
+                const SushiRuntime::PlanView plan = graph.plan().value();
+                for (const SushiRuntime::PlanNode& node : plan.nodes)
                     classes.push_back(node.determinism);
                 return classes;
             }

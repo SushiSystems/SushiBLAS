@@ -6,6 +6,9 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — recording_graph: Fixed an emptied graph keeping its compiled plan, so a task's operands and scratch stayed held after the run (`recording_graph.hpp`).
+- 2026-10-24 — engine: Fixed `LateCountHold` keeping its storages after release while an observer of a token lived (`late_count_hold.hpp`).
+- 2026-10-24 — cluster: Fixed `record_remote` reading a recording inside an open rule scope as refused (`remote_task.cpp`).
 - 2026-10-24 — index: Fixed a late `for_each` at a capacity of zero skipping its count's checks and running a live count above it without failing (`index_ops.hpp`).
 - 2026-10-24 — index: Fixed a `for_each` with a fixed count of zero skipping its overlap and count checks (`index_ops.hpp`).
 - 2026-10-24 — graph_primitives: Added a trailing `PrimitiveOptions` to the four primitives, which names each node they record `<name>` or `<name>.<stage>` and states its determinism (`primitive_options.hpp`).
