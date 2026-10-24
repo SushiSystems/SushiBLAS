@@ -121,7 +121,7 @@ class Medium_ReferenceModeGuardTest : public SushiBLASTest
             fill_tensor(c, {0.0f, 0.0f, 0.0f, 0.0f});
             SushiBLAS::BLASOps(recorder()).gemm(a, b, c);
             recording->run().value();
-            return SushiBLAS::IO(*engine).to_vector<float>(c);
+            return SushiBLAS::IO().to_vector<float>(c);
         }
 };
 

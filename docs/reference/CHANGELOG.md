@@ -6,6 +6,9 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — io: Removed the `Engine` parameter of `IO` and the graph run it did before every call; it reads what the storage holds and the caller runs the graph (`io.hpp`, `io.cpp`).
+- 2026-10-24 — io: Removed `IOStatus::RunFailed`, which no file operation returns once `IO` runs no graph (`io_status.hpp`).
+- 2026-10-24 — benchmark_harness: Dropped the unused `Engine&` of `fill_tensor()` (`benchmark_harness.hpp`).
 - 2026-10-24 — cluster: Added the cluster module, built under `SB_ENABLE_DISTRIBUTED`, which packs tensors by type and records them as a registered task for a worker (`tensor_pack.hpp`, `cluster_binding.hpp`, `remote_task.hpp`).
 - 2026-10-24 — cli: Added `sb build --distributed`, which sets `SB_ENABLE_DISTRIBUTED` and builds SushiRuntime's distributed layer under it (`project.py`, `cli.py`).
 - 2026-10-24 — blend: Added the `BlendOps` family with `blend_transforms()`, the weighted blend of indexed 4×4 or 3×4 transforms applied to points, with a reference and a SYCL kernel (`blend.hpp`, `blend_transforms.cpp`).

@@ -187,21 +187,21 @@ namespace SushiBLAS::Bench
      * @brief Writes one value into every element of a HALF, FLOAT32 or FLOAT64 tensor.
      * @throws std::invalid_argument for any other dtype.
      */
-    inline void fill_tensor(Engine& engine, Tensor& tensor, double value)
+    inline void fill_tensor(Tensor& tensor, double value)
     {
         const std::size_t count = static_cast<std::size_t>(tensor.num_elements);
         switch (tensor.dtype)
         {
             case Core::DataType::Half:
-                SushiBLAS::IO(engine).from_vector(
+                SushiBLAS::IO().from_vector(
                     tensor, std::vector<sycl::half>(count, static_cast<sycl::half>(value)));
                 return;
             case Core::DataType::Float32:
-                SushiBLAS::IO(engine).from_vector(tensor,
+                SushiBLAS::IO().from_vector(tensor,
                                         std::vector<float>(count, static_cast<float>(value)));
                 return;
             case Core::DataType::Float64:
-                SushiBLAS::IO(engine).from_vector(tensor, std::vector<double>(count, value));
+                SushiBLAS::IO().from_vector(tensor, std::vector<double>(count, value));
                 return;
             default:
                 throw std::invalid_argument("benchmark dtype is not HALF, FLOAT32 or FLOAT64");

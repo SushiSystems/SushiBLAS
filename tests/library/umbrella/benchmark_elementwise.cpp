@@ -56,8 +56,8 @@ namespace
         SushiBLAS::Tensor a = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor b = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor c = engine.create_tensor({n}, dtype);
-        Bench::fill_tensor(engine, a, K_A_VALUE);
-        Bench::fill_tensor(engine, b, K_B_VALUE);
+        Bench::fill_tensor(a, K_A_VALUE);
+        Bench::fill_tensor(b, K_B_VALUE);
 
         const double tensor_bytes =
             static_cast<double>(n) * static_cast<double>(Bench::dtype_bytes(dtype));

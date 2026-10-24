@@ -27,13 +27,13 @@ int main()
     auto C = engine.create_tensor({K_SIZE, K_SIZE});
 
     const size_t count = static_cast<size_t>(K_SIZE * K_SIZE);
-    SushiBLAS::IO(engine).from_vector(A, std::vector<float>(count, K_A_VALUE));
-    SushiBLAS::IO(engine).from_vector(B, std::vector<float>(count, K_B_VALUE));
+    SushiBLAS::IO().from_vector(A, std::vector<float>(count, K_A_VALUE));
+    SushiBLAS::IO().from_vector(B, std::vector<float>(count, K_B_VALUE));
 
     SushiBLAS::BLASOps(recorder).gemm(A, B, C);
     graph.run().value();
 
-    const std::vector<float> result = SushiBLAS::IO(engine).to_vector<float>(C);
+    const std::vector<float> result = SushiBLAS::IO().to_vector<float>(C);
 
     // ...
 }

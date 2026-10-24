@@ -43,7 +43,6 @@
 #include <sstream>
 #include <string_view>
 #include <SushiBLAS/io/io.hpp>
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/operand_check.hpp>
 
 namespace SushiBLAS
@@ -66,32 +65,6 @@ namespace SushiBLAS
         {
             SB_LOG_ERROR(K_IO_LOG_CATEGORY, "io: {}", SushiLog::format_text(format, args...));
             throw IOFailure{status};
-        }
-
-        /**
-         * @brief Runs the tasks recorded on the engine, so a host transfer sees what they wrote.
-         * @throws std::runtime_error with the runtime's message if the run fails.
-         */
-        void run_recorded(Engine& engine)
-        {
-            const SushiRuntime::Result<void> ran = engine.execute();
-            SB_THROW_IF(!ran, "io: the recorded tasks failed before the host transfer: {}",
-                        ran.error().message);
-        }
-
-        /**
-         * @brief Runs the tasks recorded on the engine, so a file operation sees what they wrote.
-         * @return Ok, or RunFailed after the runtime's message is logged once.
-         */
-        [[nodiscard]] IOStatus run_before_file(Engine& engine)
-        {
-            const SushiRuntime::Result<void> ran = engine.execute();
-            if (ran)
-                return IOStatus::Ok;
-
-            SB_LOG_ERROR(K_IO_LOG_CATEGORY, "io: the recorded tasks failed before the file operation: {}",
-                         ran.error().message);
-            return IOStatus::RunFailed;
         }
 
         /** @brief Runs file work and returns Ok, or the status of the IOFailure that ended it. */
@@ -824,10 +797,6 @@ namespace SushiBLAS
         for (int i = 0; i < t.rank; ++i)
             header.shape[i] = t.shape[i];
 
-        const IOStatus ran = run_before_file(engine_);
-        if (ran != IOStatus::Ok)
-            return ran;
-
         const IOStatus status = status_of([&]()
         {
             write_file(path, [&](std::ofstream& ofs)
@@ -845,10 +814,6 @@ namespace SushiBLAS
     IOStatus IO::load(Tensor& t, const std::string& path)
     {
         require_dense_payload(t, "io.load");
-
-        const IOStatus ran = run_before_file(engine_);
-        if (ran != IOStatus::Ok)
-            return ran;
 
         return status_of([&]()
         {
@@ -896,10 +861,6 @@ namespace SushiBLAS
     {
         require_dense_payload(t, "io.save_bin");
 
-        const IOStatus ran = run_before_file(engine_);
-        if (ran != IOStatus::Ok)
-            return ran;
-
         return status_of([&]()
         {
             write_file(path, [&](std::ofstream& ofs)
@@ -912,10 +873,6 @@ namespace SushiBLAS
     IOStatus IO::load_bin(Tensor& t, const std::string& path)
     {
         require_dense_payload(t, "io.load_bin");
-
-        const IOStatus ran = run_before_file(engine_);
-        if (ran != IOStatus::Ok)
-            return ran;
 
         return status_of([&]()
         {
@@ -931,10 +888,6 @@ namespace SushiBLAS
     {
         require_dense_payload(t, "io.save_npy");
         require_npy_layout(t, "io.save_npy");
-
-        const IOStatus ran = run_before_file(engine_);
-        if (ran != IOStatus::Ok)
-            return ran;
 
         const char magic[] = "\x93NUMPY";
         uint8_t major = 1;
@@ -990,10 +943,6 @@ namespace SushiBLAS
         require_dense_payload(t, "io.load_npy");
         require_npy_layout(t, "io.load_npy");
 
-        const IOStatus ran = run_before_file(engine_);
-        if (ran != IOStatus::Ok)
-            return ran;
-
         const IOStatus status = status_of([&]()
         {
             std::ifstream ifs(path, std::ios::binary);
@@ -1028,8 +977,6 @@ namespace SushiBLAS
         require_dense_payload(t, "io.read");
         require_payload_bytes(t, bytes, "io.read");
 
-        run_recorded(engine_);
-
         if (bytes > 0)
             storage_queue(t).memcpy(dst, t.data(), bytes).wait();
     }
@@ -1038,8 +985,6 @@ namespace SushiBLAS
     {
         require_dense_payload(t, "io.write");
         require_payload_bytes(t, bytes, "io.write");
-
-        run_recorded(engine_);
 
         if (bytes > 0)
             storage_queue(t).memcpy(t.data(), src, bytes).wait();
@@ -1052,8 +997,6 @@ namespace SushiBLAS
 
     std::string IO::to_string(const Tensor& t, int precision, int edge_items)
     {
-        run_recorded(engine_);
-
         Dispatch::require_storage(t, "io.to_string", "t");
 
         std::stringstream ss;

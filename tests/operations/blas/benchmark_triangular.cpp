@@ -123,7 +123,7 @@ namespace
             for (std::size_t row = col + 1; row < order; ++row)
                 values[by_columns ? col * order + row : row * order + col] = below;
         }
-        SushiBLAS::IO(engine).from_vector(tensor, values);
+        SushiBLAS::IO().from_vector(tensor, values);
     }
 
     /**
@@ -151,7 +151,7 @@ namespace
                                                     int64_t rows, int64_t cols, double value)
     {
         SushiBLAS::Tensor tensor = engine.create_tensor({rows, cols}, dtype);
-        Bench::fill_tensor(engine, tensor, value);
+        Bench::fill_tensor(tensor, value);
         return tensor;
     }
 
@@ -160,7 +160,7 @@ namespace
                                                 int64_t n)
     {
         SushiBLAS::Tensor tensor = engine.create_tensor({n}, dtype);
-        Bench::fill_tensor(engine, tensor, K_ONE);
+        Bench::fill_tensor(tensor, K_ONE);
         return tensor;
     }
 

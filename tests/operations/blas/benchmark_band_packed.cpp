@@ -85,12 +85,12 @@ namespace
 
         // Every matrix element is 1 / n; with a unit diagonal no result leaves the float range.
         const double matrix_value = 1.0 / static_cast<double>(n);
-        Bench::fill_tensor(engine, dense, matrix_value);
-        Bench::fill_tensor(engine, band, matrix_value);
-        Bench::fill_tensor(engine, triangle_band, matrix_value);
-        Bench::fill_tensor(engine, packed, matrix_value);
-        Bench::fill_tensor(engine, x, K_VECTOR_VALUE);
-        Bench::fill_tensor(engine, y, K_VECTOR_VALUE);
+        Bench::fill_tensor(dense, matrix_value);
+        Bench::fill_tensor(band, matrix_value);
+        Bench::fill_tensor(triangle_band, matrix_value);
+        Bench::fill_tensor(packed, matrix_value);
+        Bench::fill_tensor(x, K_VECTOR_VALUE);
+        Bench::fill_tensor(y, K_VECTOR_VALUE);
 
         const double order = static_cast<double>(n);
         const double dense_elements = order * order;

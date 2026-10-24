@@ -343,7 +343,7 @@ namespace SushiBLAS
                                                            {0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f});
             const Tensor view = source.transpose(0, 1);
 
-            const std::string text = SushiBLAS::IO(*engine).to_string(view, K_PRINT_PRECISION);
+            const std::string text = SushiBLAS::IO().to_string(view, K_PRINT_PRECISION);
 
             EXPECT_NE(text.find("[0.0, 3.0]"), std::string::npos) << text;
             EXPECT_NE(text.find("[1.0, 4.0]"), std::string::npos) << text;
@@ -356,10 +356,10 @@ namespace SushiBLAS
             const std::string path = temp_path("round_trip.sushi");
 
             auto source = create_initialized_tensor<float>({2, 2}, values);
-            ASSERT_EQ(SushiBLAS::IO(*engine).save(source, path), SushiBLAS::IOStatus::Ok);
+            ASSERT_EQ(SushiBLAS::IO().save(source, path), SushiBLAS::IOStatus::Ok);
 
             auto target = engine->create_tensor({2, 2}, Core::DataType::Float32);
-            ASSERT_EQ(SushiBLAS::IO(*engine).load(target, path), SushiBLAS::IOStatus::Ok);
+            ASSERT_EQ(SushiBLAS::IO().load(target, path), SushiBLAS::IOStatus::Ok);
 
             EXPECT_TENSOR_NEAR(target, values, 0.0);
         }

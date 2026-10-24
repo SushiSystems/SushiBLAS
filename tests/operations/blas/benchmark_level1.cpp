@@ -69,8 +69,8 @@ namespace
         SushiBLAS::Tensor y = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor scalar = engine.create_tensor({1}, dtype);
         SushiBLAS::Tensor index = engine.create_tensor({1}, DataType::Int64);
-        Bench::fill_tensor(engine, x, K_X_VALUE);
-        Bench::fill_tensor(engine, y, K_Y_VALUE);
+        Bench::fill_tensor(x, K_X_VALUE);
+        Bench::fill_tensor(y, K_Y_VALUE);
 
         const double vector_bytes =
             static_cast<double>(n) * static_cast<double>(Bench::dtype_bytes(dtype));

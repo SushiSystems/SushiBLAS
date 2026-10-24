@@ -568,7 +568,7 @@ namespace
     {
         Tensor t = engine.create_tensor(SushiRuntime::span<const int64_t>(dims.data(), dims.size()),
                                         sushiblas_dtype<T>());
-        SushiBLAS::IO(engine).from_vector(t, values);
+        SushiBLAS::IO().from_vector(t, values);
         return t;
     }
 

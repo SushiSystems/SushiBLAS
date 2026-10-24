@@ -27,11 +27,11 @@ Cause: it includes `<numbers>`.
 ### RW-4 Split `IO` into one reader and writer per format
 - State: decision
 - Done when: the owner has approved the boundary, and each format has a reader and a writer over
-  a shared host-copy helper, with a load that returns a status and no `Engine&` (C4)
+  a shared host-copy helper, with a load that returns a status (C4)
 - Where: `modules/operations/io/include/SushiBLAS/io/io.hpp`, `modules/operations/io/source/io.cpp`
 
-Every `IO` call runs the whole recorded graph first. A print or a save waits for every recorded
-task. Cause: `IO` takes an `Engine&`, the one class outside the recorder shape.
+`io.cpp` holds three file formats in about 1000 lines. `IO` no longer takes an `Engine&` or runs
+a graph (LAYERED_EXECUTION B3); what remains is the split by format.
 
 ### RW-5 Decide whether ELU accepts complex input
 - State: decision
@@ -624,7 +624,7 @@ pre-merge budget of 45.
 
 ### RW-89 Pin the runtime
 - State: blocked
-- Blocked by: sushiruntime RW-3
+- Blocked by: external: the SushiRuntime tag that carries LAYERED_EXECUTION R1 to R10, which B13 pins
 - Done when: `cmake/SushiBLASConfig.cmake.in` finds SushiRuntime 0.4, `cmake/Runtime.cmake`
   names the same version, a sibling checkout's version is checked, and CI builds on the tag
 

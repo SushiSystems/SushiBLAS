@@ -225,7 +225,7 @@ namespace SushiBLAS
                     sushiblas_dtype<T>());
 
                 if (t.num_elements > 0)
-                    SushiBLAS::IO(engine).from_vector(t, elements_from<T>(values));
+                    SushiBLAS::IO().from_vector(t, elements_from<T>(values));
                 return t;
             }
 
@@ -246,7 +246,7 @@ namespace SushiBLAS
                     std::vector<Index> converted(values.size());
                     for (std::size_t i = 0; i < values.size(); ++i)
                         converted[i] = static_cast<Index>(values[i]);
-                    SushiBLAS::IO(engine).from_vector(t, converted);
+                    SushiBLAS::IO().from_vector(t, converted);
                 }
                 return t;
             }
@@ -302,7 +302,7 @@ namespace SushiBLAS
                 SushiBLAS::BlendOps(graph.recorder())
                     .blend_transforms(in.points, in.transforms, in.indices, in.weights, out);
                 graph.run().value();
-                return SushiBLAS::IO(engine).to_vector<T>(out);
+                return SushiBLAS::IO().to_vector<T>(out);
             }
 
             /** @brief Returns value `column` of a point as a homogeneous vector: a position has w = 1. */

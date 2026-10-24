@@ -290,7 +290,7 @@ const Status status = guarded([&]()
     if (!ran)
         return status_of_error(ran.error());
 
-    SushiBLAS::IO io(engine);
+    SushiBLAS::IO io;
     result = Matrix{a.rows, b.columns, io.to_vector<float>(shifted)};
     result_sum = io.to_vector<float>(total)[0];
     return Status{};

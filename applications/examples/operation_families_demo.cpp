@@ -43,15 +43,15 @@ namespace
                                               const Values& values)
     {
         SushiBLAS::Tensor tensor = engine.create_tensor(shape);
-        SushiBLAS::IO(engine).from_vector(tensor, values);
+        SushiBLAS::IO().from_vector(tensor, values);
         return tensor;
     }
 
     /** @brief Prints whether the tensor holds expected, and returns it. */
-    [[nodiscard]] bool holds(SushiBLAS::Engine& engine, const char* family,
+    [[nodiscard]] bool holds(const char* family,
                              const SushiBLAS::Tensor& tensor, const Values& expected)
     {
-        const bool equal = SushiBLAS::IO(engine).to_vector<float>(tensor) == expected;
+        const bool equal = SushiBLAS::IO().to_vector<float>(tensor) == expected;
         std::cout << family << ": " << (equal ? "ok" : "MISMATCH") << "\n";
         return equal;
     }
@@ -109,24 +109,24 @@ int main()
 
     graph.run().value();
 
-    bool correct = holds(engine, "blas level 1, dot", dot, {20.0f});
-    correct = holds(engine, "blas level 2, gemv", matrix_vector, {3.0f, 7.0f}) && correct;
-    correct = holds(engine, "blas level 3, gemm", matrix_matrix, {7.0f, 10.0f, 15.0f, 22.0f}) &&
+    bool correct = holds("blas level 1, dot", dot, {20.0f});
+    correct = holds("blas level 2, gemv", matrix_vector, {3.0f, 7.0f}) && correct;
+    correct = holds("blas level 3, gemm", matrix_matrix, {7.0f, 10.0f, 15.0f, 22.0f}) &&
               correct;
-    correct = holds(engine, "elementwise, mul", product, {4.0f, 6.0f, 6.0f, 4.0f}) && correct;
-    correct = holds(engine, "nonlinear, relu", signed_values, {0.0f, 2.0f, 0.0f, 4.0f}) && correct;
-    correct = holds(engine, "logic, greater", greater, {0.0f, 0.0f, 1.0f, 1.0f}) && correct;
-    correct = holds(engine, "reductions, max", maximum, {4.0f}) && correct;
-    correct = holds(engine, "sparse, spmv", sparse_vector, {7.0f, 6.0f}) && correct;
-    correct = holds(engine, "spatial, upsample_nearest", upsampled,
+    correct = holds("elementwise, mul", product, {4.0f, 6.0f, 6.0f, 4.0f}) && correct;
+    correct = holds("nonlinear, relu", signed_values, {0.0f, 2.0f, 0.0f, 4.0f}) && correct;
+    correct = holds("logic, greater", greater, {0.0f, 0.0f, 1.0f, 1.0f}) && correct;
+    correct = holds("reductions, max", maximum, {4.0f}) && correct;
+    correct = holds("sparse, spmv", sparse_vector, {7.0f, 6.0f}) && correct;
+    correct = holds("spatial, upsample_nearest", upsampled,
                     {1.0f, 1.0f, 2.0f, 2.0f, 1.0f, 1.0f, 2.0f, 2.0f,
                      3.0f, 3.0f, 4.0f, 4.0f, 3.0f, 3.0f, 4.0f, 4.0f}) && correct;
 
-    const Values draw = SushiBLAS::IO(engine).to_vector<float>(first_draw);
+    const Values draw = SushiBLAS::IO().to_vector<float>(first_draw);
     bool in_range = true;
     for (const float value : draw)
         in_range = in_range && value >= 0.0f && value < 1.0f;
-    correct = holds(engine, "random, uniform with seed 42 drawn twice", second_draw, draw) &&
+    correct = holds("random, uniform with seed 42 drawn twice", second_draw, draw) &&
               in_range && correct;
 
     std::cout << "operation_families_demo: " << (correct ? "ok" : "MISMATCH") << "\n";

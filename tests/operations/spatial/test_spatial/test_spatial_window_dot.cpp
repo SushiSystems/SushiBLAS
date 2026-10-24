@@ -300,7 +300,7 @@ namespace SushiBLAS
                     sushiblas_dtype<T>());
 
                 if (t.num_elements > 0)
-                    SushiBLAS::IO(engine).from_vector(t, elements_from<T>(values));
+                    SushiBLAS::IO().from_vector(t, elements_from<T>(values));
                 return t;
             }
 
@@ -321,7 +321,7 @@ namespace SushiBLAS
                 RecordingFixture graph(engine);
                 SushiBLAS::SpatialOps(graph.recorder()).window_dot(in, weights, out, c.geometry);
                 graph.run().value();
-                return SushiBLAS::IO(engine).to_vector<T>(out);
+                return SushiBLAS::IO().to_vector<T>(out);
             }
 
             /** @brief Returns the input gradient the library writes for dy and weights. */
@@ -334,7 +334,7 @@ namespace SushiBLAS
                 SushiBLAS::SpatialOps(graph.recorder())
                     .window_dot_backward(dy, weights, dx, c.geometry);
                 graph.run().value();
-                return SushiBLAS::IO(engine).to_vector<T>(dx);
+                return SushiBLAS::IO().to_vector<T>(dx);
             }
 
             /** @brief Returns the weight gradient the library writes for dy and in. */
@@ -347,7 +347,7 @@ namespace SushiBLAS
                 SushiBLAS::SpatialOps(graph.recorder())
                     .window_dot_weights_backward(dy, in, dweights, c.geometry);
                 graph.run().value();
-                return SushiBLAS::IO(engine).to_vector<T>(dweights);
+                return SushiBLAS::IO().to_vector<T>(dweights);
             }
 
             /**

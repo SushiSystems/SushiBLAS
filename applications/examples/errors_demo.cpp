@@ -81,7 +81,7 @@ int main()
     SushiRuntime::Graph graph = runtime.graph();
     SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
     SushiBLAS::BLASOps blas(recorder);
-    SushiBLAS::IO io(engine);
+    SushiBLAS::IO io;
 
     SushiBLAS::Tensor x = engine.create_tensor({4});
     SushiBLAS::Tensor y = engine.create_tensor({4});

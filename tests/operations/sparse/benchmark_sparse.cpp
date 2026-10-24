@@ -146,10 +146,10 @@ namespace
         SushiBLAS::Tensor B = engine.create_tensor({n, K_DENSE_COLUMNS}, dtype);
         SushiBLAS::Tensor C = engine.create_tensor({n, K_DENSE_COLUMNS}, dtype);
         SushiBLAS::Tensor scalar = engine.create_tensor({1}, dtype);
-        Bench::fill_tensor(engine, x, K_X_VALUE);
-        Bench::fill_tensor(engine, y, K_Y_VALUE);
-        Bench::fill_tensor(engine, B, K_X_VALUE);
-        Bench::fill_tensor(engine, C, K_Y_VALUE);
+        Bench::fill_tensor(x, K_X_VALUE);
+        Bench::fill_tensor(y, K_Y_VALUE);
+        Bench::fill_tensor(B, K_X_VALUE);
+        Bench::fill_tensor(C, K_Y_VALUE);
 
         // Bytes count each stored entry with its index and each dense element once.
         const double element = static_cast<double>(Bench::dtype_bytes(dtype));

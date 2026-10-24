@@ -110,7 +110,7 @@ namespace SushiBLAS
                     for (int64_t i = 0; i < t.num_elements; ++i)
                         host[static_cast<std::size_t>(i)] = sycl::half(value_at(i));
 
-                    SushiBLAS::IO(*engine).from_vector(t, host);
+                    SushiBLAS::IO().from_vector(t, host);
                     return t;
                 }
 
@@ -176,7 +176,7 @@ namespace SushiBLAS
                 void expect_values(const Tensor& t, const std::vector<float>& expected)
                 {
                     const std::vector<sycl::half> got =
-                        SushiBLAS::IO(*engine).to_vector<sycl::half>(t);
+                        SushiBLAS::IO().to_vector<sycl::half>(t);
 
                     ASSERT_EQ(got.size(), expected.size());
                     for (std::size_t i = 0; i < expected.size(); ++i)
@@ -189,9 +189,9 @@ namespace SushiBLAS
                 void expect_equal_bits(const ModeOutputs& outputs)
                 {
                     const std::vector<sycl::half> expected =
-                        SushiBLAS::IO(*engine).to_vector<sycl::half>(outputs.reference);
+                        SushiBLAS::IO().to_vector<sycl::half>(outputs.reference);
                     const std::vector<sycl::half> got =
-                        SushiBLAS::IO(*engine).to_vector<sycl::half>(outputs.device);
+                        SushiBLAS::IO().to_vector<sycl::half>(outputs.device);
 
                     ASSERT_EQ(got.size(), expected.size()) << outputs.operation;
                     for (std::size_t i = 0; i < expected.size(); ++i)
@@ -396,8 +396,8 @@ namespace SushiBLAS
                   &upsample, &upsample_backward, &concat, &slice, &affine, &broadcast, &convert})
                 expect_equal_bits(*outputs);
 
-            EXPECT_EQ(SushiBLAS::IO(*engine).to_vector<int64_t>(indices.device),
-                      SushiBLAS::IO(*engine).to_vector<int64_t>(indices.reference))
+            EXPECT_EQ(SushiBLAS::IO().to_vector<int64_t>(indices.device),
+                      SushiBLAS::IO().to_vector<int64_t>(indices.reference))
                 << "pool_max indices";
         }
 

@@ -1,6 +1,6 @@
 # Layered execution in SushiBLAS: report
 
-**Status:** Open — B1, B2, B6, B8, B9, B11 and B12 landed on 2026-10-24; not built yet.
+**Status:** Open — B1, B2, B3, B6, B8, B9, B11 and B12 landed on 2026-10-24; not built yet.
 
 ## B1
 
@@ -94,6 +94,18 @@ Seen and kept: `PackSpan::as<T>()` uses `Detail::HostDataType` from `tensor`'s i
 namespace; `tensor_pack.cpp` casts away the const of a scatter target's data. No fingerprint
 golden is pinned yet: the first run gives the value.
 
+## B3
+
+`IO` needed nothing in place of the engine: it copied through each tensor's own queue and used
+the engine only to run its graph first. It now has no constructor and no member. A host or shared
+tensor is read in place; a device tensor is copied with `queue.memcpy(...).wait()` on the event
+the copy returns. The three host-transfer tests that checked the flush now record, run and read in
+the caller's order. `IOStatus::RunFailed`, which nothing returns any more, is removed by the
+owner's ruling of 2026-10-24. RW-4 keeps only the split by format.
+
+SushiAI's two checkpoint savers never call `IO`; their unread `Engine&` can go (A0 left it for
+this change).
+
 ## Dispatches
 
 ```
@@ -103,5 +115,6 @@ dispatch: B6 — sonnet medium, 46 turns, passed, rung 1
 dispatch: B11 — sonnet medium, 48 turns, passed, rung 1
 dispatch: B9 — sonnet medium, 77 turns, passed, rung 1
 dispatch: B12 — opus low, 99 turns, passed, rung 1
+dispatch: B3 — sonnet medium, 53 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

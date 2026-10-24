@@ -62,7 +62,7 @@ int main()
 {
     SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
     SushiBLAS::Engine engine(runtime);
-    SushiBLAS::IO io(engine);
+    SushiBLAS::IO io;
     SushiRuntime::Graph graph = runtime.graph();
     SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
 

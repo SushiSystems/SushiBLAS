@@ -90,7 +90,7 @@ namespace
                                           int64_t w, int64_t c)
     {
         SushiBLAS::Tensor t = engine.create_tensor({K_BATCH, h, w, c}, dtype);
-        Bench::fill_tensor(engine, t, K_VALUE);
+        Bench::fill_tensor(t, K_VALUE);
         return t;
     }
 
@@ -135,8 +135,8 @@ namespace
         SushiBLAS::Tensor dweights = engine.create_tensor({K_WINDOW, K_WINDOW, c}, dtype);
         SushiBLAS::Tensor small = image(engine, dtype, half, half, c);
         SushiBLAS::Tensor argmax = engine.create_tensor({K_BATCH, half, half, c}, DataType::Int64);
-        Bench::fill_tensor(engine, cols, K_VALUE);
-        Bench::fill_tensor(engine, weights, K_VALUE);
+        Bench::fill_tensor(cols, K_VALUE);
+        Bench::fill_tensor(weights, K_VALUE);
 
         // A 3x3 window reads nine elements for each element it writes into cols.
         table.print_row("im2col", dtype, side,
@@ -201,9 +201,9 @@ namespace
         SushiBLAS::Tensor plane = engine.create_tensor({K_BATCH, c}, dtype);
         SushiBLAS::Tensor nchw_storage = image(engine, dtype, side, side, c);
         SushiBLAS::Tensor nchw = nchw_view(nchw_storage, side, side, c);
-        Bench::fill_tensor(engine, gamma, K_VALUE);
-        Bench::fill_tensor(engine, beta, K_VALUE);
-        Bench::fill_tensor(engine, plane, K_VALUE);
+        Bench::fill_tensor(gamma, K_VALUE);
+        Bench::fill_tensor(beta, K_VALUE);
+        Bench::fill_tensor(plane, K_VALUE);
 
         table.print_row("upsample", dtype, side,
                         Bench::measure(engine, [&]()

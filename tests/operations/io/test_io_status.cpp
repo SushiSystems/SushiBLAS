@@ -42,7 +42,7 @@ namespace SushiBLAS
             const IOStatus statuses[] = {
                 IOStatus::Ok,            IOStatus::FileUnreadable, IOStatus::FileUnwritable,
                 IOStatus::MalformedFile, IOStatus::Truncated,      IOStatus::ShapeMismatch,
-                IOStatus::DtypeMismatch, IOStatus::LayoutMismatch, IOStatus::RunFailed,
+                IOStatus::DtypeMismatch, IOStatus::LayoutMismatch,
             };
             std::set<std::string> names;
 

@@ -8,6 +8,6 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `test_io/test_host_transfer.cpp` | Tests IO's host transfer calls, load ordering, the .npy reader and the text of a tensor |
+| `test_io/test_host_transfer.cpp` | Tests IO's host transfer calls, loads after a run, the .npy reader and the text of a tensor |
 | `test_io/test_regression.cpp` | Pins that IO refuses a file it cannot read whole and reaches device storage by copy |
 | `test_io_status.cpp` | Tests that every IOStatus has its own name and that Ok is the zero value |

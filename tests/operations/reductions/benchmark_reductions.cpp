@@ -52,7 +52,7 @@ namespace
     {
         SushiBLAS::Tensor input = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor result = engine.create_tensor({1}, dtype);
-        Bench::fill_tensor(engine, input, K_INPUT_VALUE);
+        Bench::fill_tensor(input, K_INPUT_VALUE);
 
         // Bytes count the input read once; the one-element result is ignored.
         const double input_bytes =

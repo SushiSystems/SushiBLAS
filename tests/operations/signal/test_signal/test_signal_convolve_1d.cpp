@@ -171,7 +171,7 @@ namespace SushiBLAS
                     sushiblas_dtype<T>());
 
                 if (t.num_elements > 0)
-                    SushiBLAS::IO(engine).from_vector(t, elements_from<T>(values));
+                    SushiBLAS::IO().from_vector(t, elements_from<T>(values));
                 return t;
             }
 
@@ -192,7 +192,7 @@ namespace SushiBLAS
                 RecordingFixture graph(engine);
                 SushiBLAS::SignalOps(graph.recorder()).convolve_1d(signal, taps, out);
                 graph.run().value();
-                return SushiBLAS::IO(engine).to_vector<T>(out);
+                return SushiBLAS::IO().to_vector<T>(out);
             }
 
             /**

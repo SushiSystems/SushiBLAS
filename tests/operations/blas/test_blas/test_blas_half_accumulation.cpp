@@ -82,7 +82,7 @@ namespace SushiBLAS
                     Tensor t = engine->create_tensor(dims, Core::DataType::Half);
                     const std::vector<sycl::half> values(static_cast<std::size_t>(t.num_elements),
                                                          sycl::half(1.0f));
-                    SushiBLAS::IO(*engine).from_vector(t, values);
+                    SushiBLAS::IO().from_vector(t, values);
                     return t;
                 }
 
@@ -92,7 +92,7 @@ namespace SushiBLAS
                     Tensor t = engine->create_tensor(dims, Core::DataType::Half);
                     const std::vector<sycl::half> values(static_cast<std::size_t>(t.num_elements),
                                                          sycl::half(0.0f));
-                    SushiBLAS::IO(*engine).from_vector(t, values);
+                    SushiBLAS::IO().from_vector(t, values);
                     return t;
                 }
 
@@ -101,7 +101,7 @@ namespace SushiBLAS
                                                  const std::vector<sycl::half>& values)
                 {
                     Tensor t = engine->create_tensor(dims, Core::DataType::Half);
-                    SushiBLAS::IO(*engine).from_vector(t, values);
+                    SushiBLAS::IO().from_vector(t, values);
                     return t;
                 }
 
@@ -218,7 +218,7 @@ namespace SushiBLAS
                     SushiBLAS::BLASOps(recorder()).trsm(A, B, side, Core::Uplo::Lower,
                                                      Core::Transpose::NoTrans, Core::Diag::Unit);
                     recording->run().value();
-                    return SushiBLAS::IO(*engine).to_vector<sycl::half>(B);
+                    return SushiBLAS::IO().to_vector<sycl::half>(B);
                 }
 
                 /** @brief Returns the x of the unit-lower TRSV, computed in mode. */
@@ -231,7 +231,7 @@ namespace SushiBLAS
                     SushiBLAS::BLASOps(recorder()).trsv(A, b, Core::Uplo::Lower,
                                                      Core::Transpose::NoTrans, Core::Diag::Unit);
                     recording->run().value();
-                    return SushiBLAS::IO(*engine).to_vector<sycl::half>(b);
+                    return SushiBLAS::IO().to_vector<sycl::half>(b);
                 }
 
                 /** @brief Returns the bit pattern of a HALF value. */
@@ -293,7 +293,7 @@ namespace SushiBLAS
                     SushiBLAS::BLASOps(recorder()).gemm(A, B, C, Core::Transpose::NoTrans,
                                                      Core::Transpose::NoTrans, 1.0, 0.0);
                     recording->run().value();
-                    return SushiBLAS::IO(*engine).to_vector<sycl::half>(C);
+                    return SushiBLAS::IO().to_vector<sycl::half>(C);
                 }
 
                 /** @brief Returns the lower triangle of C = A * A^T for an all-ones A, computed in mode. */
@@ -307,7 +307,7 @@ namespace SushiBLAS
                     recording->run().value();
 
                     const std::vector<sycl::half> full =
-                        SushiBLAS::IO(*engine).to_vector<sycl::half>(C);
+                        SushiBLAS::IO().to_vector<sycl::half>(C);
                     std::vector<sycl::half> lower;
                     for (int64_t i = 0; i < K_OUTPUT_EDGE; ++i)
                         for (int64_t j = 0; j <= i; ++j)
@@ -325,7 +325,7 @@ namespace SushiBLAS
                     SushiBLAS::BLASOps(recorder())
                         .gemv(A, x, y, Core::Transpose::NoTrans, 1.0, 0.0);
                     recording->run().value();
-                    return SushiBLAS::IO(*engine).to_vector<sycl::half>(y);
+                    return SushiBLAS::IO().to_vector<sycl::half>(y);
                 }
 
                 /**
@@ -342,7 +342,7 @@ namespace SushiBLAS
                     call(x, result);
                     recording->run().value();
                     const sycl::half value =
-                        SushiBLAS::IO(*engine).to_vector<sycl::half>(result)[0];
+                        SushiBLAS::IO().to_vector<sycl::half>(result)[0];
                     return static_cast<double>(static_cast<float>(value));
                 }
 

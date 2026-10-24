@@ -63,7 +63,7 @@ namespace HostProgram
             const auto rows = static_cast<std::int64_t>(matrix.rows);
             const auto columns = static_cast<std::int64_t>(matrix.columns);
             SushiBLAS::Tensor tensor = engine.create_tensor({rows, columns});
-            SushiBLAS::IO(engine).from_vector(tensor, matrix.values);
+            SushiBLAS::IO().from_vector(tensor, matrix.values);
             return tensor;
         }
     } // namespace
@@ -113,7 +113,7 @@ namespace HostProgram
             if (!ran)
                 return status_of_error(ran.error());
 
-            SushiBLAS::IO io(engine);
+            SushiBLAS::IO io;
             result = Matrix{a.rows, b.columns, io.to_vector<float>(shifted)};
             result_sum = io.to_vector<float>(total)[0];
             return Status{};

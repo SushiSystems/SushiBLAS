@@ -75,7 +75,7 @@ int main()
 {
     SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
     SushiBLAS::Engine engine(runtime);
-    SushiBLAS::IO io(engine);
+    SushiBLAS::IO io;
 
     const std::vector<float> values{0.0f, 1.5f, 3.0f, 4.5f, 6.0f, 7.5f};
     SushiBLAS::Tensor written = engine.create_tensor({2, 3});

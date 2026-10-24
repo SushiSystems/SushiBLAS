@@ -426,7 +426,7 @@ namespace SushiBLAS
                     set_mode(mode);
 
                     Tensor t = engine->create_tensor(dims, sushiblas_dtype<T>());
-                    SushiBLAS::IO io(*engine);
+                    SushiBLAS::IO io;
                     io.from_vector(t, initial);
 
                     RandomOps random(recorder(), engine->rng());

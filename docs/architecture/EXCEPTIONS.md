@@ -6,9 +6,9 @@ failure is found:
 | When | Channel | What reports through it |
 | --- | --- | --- |
 | Record time and creation | An exception | A wrong operand, flag or scalar; a mode or a device that cannot run the operation; a tensor, storage or scratch block that cannot be made; a recording the runtime refuses |
-| Run time | `SushiRuntime::Result<void>` | `Engine::execute()`: a graph that does not compile, a task that fails, a device fault, a run refused because another is in flight |
+| Run time | `SushiRuntime::Result<SushiRuntime::RunReport>` | `Graph::run()` of the caller's graph: a graph that does not compile, a task that fails, a device fault, a run refused because another is in flight |
 | A graph primitive | `SushiRuntime::Result<void>` | `reduce`, `segmented_reduce`, `prefix_scan`, `counting_sort`: a broken recording precondition as `ErrorCode::InvalidGraph`, a scratch block that cannot be allocated as `AllocationFailed`, or the recorder's first refusal since its `clear()` |
-| A file operation | `IOStatus` | `IO::save`, `load`, `save_bin`, `load_bin`, `save_npy`, `load_npy`: a file defect, a mismatch, or `RunFailed` |
+| A file operation | `IOStatus` | `IO::save`, `load`, `save_bin`, `load_bin`, `save_npy`, `load_npy`: a file defect or a mismatch |
 
 No exception leaves `Engine::execute()`, a graph primitive or the SushiRuntime calls below them.
 `SB_ASSERT` is none of the four: it logs and aborts in a build without `NDEBUG`, and is for a
@@ -73,9 +73,9 @@ Where each type comes from:
 - `SB_THROW_IF` (`core/logger.hpp`) throws `std::runtime_error`. It ends every dtype switch, so a
   dtype that slipped past the record-time check cannot fall through to nothing.
 - `IO` throws `std::invalid_argument` for an operand rule (a strided tensor, a dtype or byte-count
-  mismatch). A file does not throw: the six file operations return an `IOStatus`. `IO::read`,
-  `write` and `to_string` run the recorded graph first and have no status to return, so a failed
-  run leaves them as `std::runtime_error` with the runtime's message.
+  mismatch). A file does not throw: the six file operations return an `IOStatus`. `IO` runs no graph:
+  it reads and writes what the storage holds when it is called, so the caller runs the graph that
+  writes a tensor before reading it.
 
 Every helper logs at error level before it throws. A record call that throws leaves the tasks
 recorded before it on the caller's graph; `graph.clear()` drops them.
@@ -150,7 +150,6 @@ level, where the failure is found.
 | `ShapeMismatch` | The file's rank or a dimension differs from the tensor's |
 | `DtypeMismatch` | The file's element type differs from the tensor's |
 | `LayoutMismatch` | The file's memory order differs from the tensor's layout |
-| `RunFailed` | The tasks recorded on the engine failed in the run every file operation starts with; no file was opened and the tensor holds what the tasks left |
 
 The tiled SYRK and SYR2K are refused at record time, with `UnsupportedExecution`, on a device that
 cannot host their local tile.

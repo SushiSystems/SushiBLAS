@@ -170,9 +170,10 @@ refusal here is `std::runtime_error`.
 
 ### `IO::read`, `IO::write`, `IO::to_vector`, `IO::from_vector`
 
-These four calls move a tensor's elements between host memory and its storage. Each one first runs
-the recorded graph with `Engine::execute()`, then copies through the storage's queue, so a
-`Residency::Device` tensor works the same way as a shared one. The tensor must have storage and be
+These four calls move a tensor's elements between host memory and its storage. Each one copies
+through the storage's queue and waits for that copy, so a `Residency::Device` tensor works the
+same way as a shared one. `IO` takes no `Engine` and runs no graph: the caller runs the graph that
+writes a tensor before it reads the tensor. The tensor must have storage and be
 contiguous, and the host byte count must equal `num_elements * bytes_per_element(dtype)`. The typed
 helpers also check that `T` maps to the tensor's dtype through `Detail::HostDataType`. Every
 violation throws `std::invalid_argument`.
@@ -182,15 +183,14 @@ violation throws `std::invalid_argument`.
 `save`, `load`, `save_bin`, `load_bin`, `save_npy` and `load_npy` return an `IOStatus` and are
 `[[nodiscard]]`. A wrong operand still throws `std::invalid_argument`; a file that is missing,
 short, malformed or of another shape, dtype or layout is reported through the status, and the
-reason is logged once at error level. Each of the six runs the recorded graph first, and a run
-that fails returns `RunFailed` before the file is opened. `read`, `write` and `to_string` have no
-status to return and throw `std::runtime_error` with the runtime's message for the same failure. `to_string(IOStatus)` gives the enumerator's name.
+reason is logged once at error level. `to_string(IOStatus)` gives the enumerator's name.
 [The architecture, section 11](../docs/architecture/EXCEPTIONS.md) lists the values.
 
-### Loads run the recorded graph first
+### Loads overwrite what the caller's run left
 
-`load`, `load_bin` and `load_npy` call `Engine::execute()` before they write, so a task recorded
-earlier that writes the same tensor finishes before the file's data arrives and cannot overwrite it.
+`load`, `load_bin` and `load_npy` write the file's data into the storage when they are called. A
+task still recorded that writes the same tensor would run after the load and overwrite it, so the
+caller runs the graph first.
 
 ### `IO::load_npy`
 

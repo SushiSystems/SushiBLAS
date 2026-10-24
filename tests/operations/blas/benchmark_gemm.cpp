@@ -60,8 +60,8 @@ namespace
         SushiBLAS::Tensor a = engine.create_tensor({n, n}, dtype);
         SushiBLAS::Tensor b = engine.create_tensor({n, n}, dtype);
         SushiBLAS::Tensor c = engine.create_tensor({n, n}, dtype);
-        Bench::fill_tensor(engine, a, K_A_VALUE);
-        Bench::fill_tensor(engine, b, K_B_VALUE);
+        Bench::fill_tensor(a, K_A_VALUE);
+        Bench::fill_tensor(b, K_B_VALUE);
 
         const Bench::Timing timing =
             Bench::measure(engine, [&]() { SushiBLAS::BLASOps(engine).gemm(a, b, c); });
@@ -91,8 +91,8 @@ namespace
         SushiBLAS::Tensor a = engine.create_tensor({shape.k, shape.m}, dtype);
         SushiBLAS::Tensor b = engine.create_tensor({shape.k, shape.n}, dtype);
         SushiBLAS::Tensor c = engine.create_tensor({shape.m, shape.n}, dtype);
-        Bench::fill_tensor(engine, a, K_A_VALUE);
-        Bench::fill_tensor(engine, b, K_B_VALUE);
+        Bench::fill_tensor(a, K_A_VALUE);
+        Bench::fill_tensor(b, K_B_VALUE);
 
         // Under ColumnMajor, A^T and B hold K along consecutive addresses.
         const Bench::Timing timing = Bench::measure(engine, [&]()
@@ -118,8 +118,8 @@ namespace
         SushiBLAS::Tensor a = engine.create_tensor({shape.m, shape.k}, dtype);
         SushiBLAS::Tensor b = engine.create_tensor({shape.n, shape.k}, dtype);
         SushiBLAS::Tensor c = engine.create_tensor({shape.m, shape.n}, dtype);
-        Bench::fill_tensor(engine, a, K_A_VALUE);
-        Bench::fill_tensor(engine, b, K_B_VALUE);
+        Bench::fill_tensor(a, K_A_VALUE);
+        Bench::fill_tensor(b, K_B_VALUE);
 
         // Under ColumnMajor, A and B^T hold one K-step along consecutive addresses.
         const Bench::Timing timing = Bench::measure(engine, [&]()
