@@ -30,8 +30,7 @@ Cause: it includes `<numbers>`.
   a shared host-copy helper, with a load that returns a status (C4)
 - Where: `modules/operations/io/include/SushiBLAS/io/io.hpp`, `modules/operations/io/source/io.cpp`
 
-`io.cpp` holds three file formats in about 1000 lines. `IO` no longer takes an `Engine&` or runs
-a graph (LAYERED_EXECUTION B3); what remains is the split by format.
+`io.cpp` holds three file formats in about 1000 lines; the split by format is what remains.
 
 ### RW-5 Decide whether ELU accepts complex input
 - State: decision

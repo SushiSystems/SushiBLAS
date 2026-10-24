@@ -68,39 +68,41 @@ namespace
     void benchmark_length(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                           DataType dtype, int64_t n)
     {
-        SushiBLAS::RandomOps random(engine);
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
+        SushiBLAS::RandomOps random(recorder, engine.rng());
         random.set_seed(K_SEED);
         SushiBLAS::Tensor t = engine.create_tensor({n}, dtype);
         const double elements = static_cast<double>(n);
         const double unit = K_ELEMENTS_PER_MEGAELEMENT;
 
         table.print_row("uniform", dtype, n,
-                        Bench::measure(engine, [&]() { random.uniform(t); }), elements, unit);
+                        Bench::measure(graph, [&]() { random.uniform(t); }), elements, unit);
         table.print_row("normal", dtype, n,
-                        Bench::measure(engine, [&]() { random.normal(t); }), elements, unit);
+                        Bench::measure(graph, [&]() { random.normal(t); }), elements, unit);
         table.print_row("lognormal", dtype, n,
-                        Bench::measure(engine, [&]() { random.log_normal(t); }), elements, unit);
+                        Bench::measure(graph, [&]() { random.log_normal(t); }), elements, unit);
         table.print_row("exp", dtype, n,
-                        Bench::measure(engine, [&]() { random.exponential(t); }), elements,
+                        Bench::measure(graph, [&]() { random.exponential(t); }), elements,
                         unit);
         table.print_row("poisson 4", dtype, n,
-                        Bench::measure(engine, [&]() { random.poisson(t, K_SMALL_LAMBDA); }),
+                        Bench::measure(graph, [&]() { random.poisson(t, K_SMALL_LAMBDA); }),
                         elements, unit);
         table.print_row("poisson 30", dtype, n,
-                        Bench::measure(engine, [&]() { random.poisson(t, K_LARGE_LAMBDA); }),
+                        Bench::measure(graph, [&]() { random.poisson(t, K_LARGE_LAMBDA); }),
                         elements, unit);
         table.print_row("discrete", dtype, n,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { random.discrete_uniform(t, 0, K_DISCRETE_MAX); }),
                         elements, unit);
         table.print_row("truncnorm", dtype, n,
-                        Bench::measure(engine, [&]() { random.truncated_normal(t); }), elements,
+                        Bench::measure(graph, [&]() { random.truncated_normal(t); }), elements,
                         unit);
         table.print_row("bernoulli", dtype, n,
-                        Bench::measure(engine, [&]() { random.bernoulli(t); }), elements, unit);
+                        Bench::measure(graph, [&]() { random.bernoulli(t); }), elements, unit);
         if (n <= K_SHUFFLE_MAX_LENGTH)
             table.print_row("shuffle", dtype, n,
-                            Bench::measure(engine, [&]() { random.shuffle(t); }), elements,
+                            Bench::measure(graph, [&]() { random.shuffle(t); }), elements,
                             unit);
     }
 
@@ -108,11 +110,13 @@ namespace
     void benchmark_orthogonal(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                               DataType dtype, int64_t n)
     {
-        SushiBLAS::RandomOps random(engine);
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
+        SushiBLAS::RandomOps random(recorder, engine.rng());
         random.set_seed(K_SEED);
         SushiBLAS::Tensor t = engine.create_tensor({n, n}, dtype);
         table.print_row("orthogonal", dtype, n,
-                        Bench::measure(engine, [&]() { random.orthogonal(t); }),
+                        Bench::measure(graph, [&]() { random.orthogonal(t); }),
                         static_cast<double>(n) * static_cast<double>(n),
                         K_ELEMENTS_PER_MEGAELEMENT);
     }

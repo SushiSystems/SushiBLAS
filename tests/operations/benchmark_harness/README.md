@@ -8,4 +8,5 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
+| `test_benchmark_graph.cpp` | Tests that a benchmark measures a task recorded on the graph it owns |
 | `test_benchmark_harness.cpp` | Tests the size parsing, the names, the timing and the guard the benchmarks share |

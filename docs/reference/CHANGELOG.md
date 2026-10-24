@@ -6,6 +6,7 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — benchmark_harness: Made `measure()` time a graph the benchmark owns, recorded, run and cleared each iteration, through the new `BenchmarkGraph` (`benchmark_graph.hpp`, `benchmark_harness.hpp`).
 - 2026-10-24 — io: Removed the `Engine` parameter of `IO` and the graph run it did before every call; it reads what the storage holds and the caller runs the graph (`io.hpp`, `io.cpp`).
 - 2026-10-24 — io: Removed `IOStatus::RunFailed`, which no file operation returns once `IO` runs no graph (`io_status.hpp`).
 - 2026-10-24 — benchmark_harness: Dropped the unused `Engine&` of `fill_tensor()` (`benchmark_harness.hpp`).

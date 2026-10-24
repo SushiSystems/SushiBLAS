@@ -73,21 +73,21 @@ namespace
     /// @brief Value written into every element of B and of x.
     constexpr double K_ONE = 1.0;
 
-    /// @brief Sets an engine's execution mode and restores the earlier one on destruction.
+    /// @brief Sets a recorder's execution mode and restores the earlier one on destruction.
     class ModeScope final
     {
         public:
-            /// @brief Records the engine's mode and sets the given one; the engine outlives this.
-            ModeScope(SushiBLAS::Engine& engine, ExecutionMode mode)
-                : engine_(engine), restored_(engine.mode())
+            /// @brief Keeps the recorder's mode and sets the given one; the recorder outlives this.
+            ModeScope(SushiBLAS::TaskRecorder& recorder, ExecutionMode mode)
+                : recorder_(recorder), restored_(recorder.mode())
             {
-                engine_.set_mode(mode);
+                recorder_.set_mode(mode);
             }
 
-            /// @brief Restores the mode the engine had at construction.
+            /// @brief Restores the mode the recorder had at construction.
             ~ModeScope()
             {
-                engine_.set_mode(restored_);
+                recorder_.set_mode(restored_);
             }
 
             ModeScope(const ModeScope&) = delete;
@@ -96,10 +96,10 @@ namespace
             ModeScope& operator=(ModeScope&&) = delete;
 
         private:
-            /// @brief The engine whose mode is set.
-            SushiBLAS::Engine& engine_;
+            /// @brief The recorder whose mode is set.
+            SushiBLAS::TaskRecorder& recorder_;
 
-            /// @brief The mode the engine had at construction.
+            /// @brief The mode the recorder had at construction.
             ExecutionMode restored_;
     };
 
@@ -168,6 +168,8 @@ namespace
     void benchmark_products(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                         DataType dtype, int64_t n, const SushiBLAS::Tensor& a)
     {
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const SushiBLAS::Tensor g = constant_matrix(engine, dtype, n, n, K_G_VALUE);
         const SushiBLAS::Tensor h = constant_matrix(engine, dtype, n, n, K_H_VALUE);
         const SushiBLAS::Tensor b = constant_matrix(engine, dtype, n, n, K_ONE);
@@ -175,24 +177,24 @@ namespace
         const double cube = as_factor(n) * as_factor(n) * as_factor(n);
 
         const Bench::Timing gemm =
-            Bench::measure(engine, [&]() { SushiBLAS::BLASOps(engine).gemm(g, b, c); });
+            Bench::measure(graph, [&]() { SushiBLAS::BLASOps(recorder).gemm(g, b, c); });
         table.print_row("gemm", dtype, n, gemm, 2.0 * cube, Bench::K_FLOPS_PER_GIGAFLOP);
 
-        const Bench::Timing symm = Bench::measure(engine, [&]()
+        const Bench::Timing symm = Bench::measure(graph, [&]()
         {
-            SushiBLAS::BLASOps(engine).symm(a, b, c, Side::Left, Uplo::Lower);
+            SushiBLAS::BLASOps(recorder).symm(a, b, c, Side::Left, Uplo::Lower);
         });
         table.print_row("symm", dtype, n, symm, 2.0 * cube, Bench::K_FLOPS_PER_GIGAFLOP);
 
-        const Bench::Timing syrk = Bench::measure(engine, [&]()
+        const Bench::Timing syrk = Bench::measure(graph, [&]()
         {
-            SushiBLAS::BLASOps(engine).syrk(g, c, Uplo::Lower);
+            SushiBLAS::BLASOps(recorder).syrk(g, c, Uplo::Lower);
         });
         table.print_row("syrk", dtype, n, syrk, cube, Bench::K_FLOPS_PER_GIGAFLOP);
 
-        const Bench::Timing syr2k = Bench::measure(engine, [&]()
+        const Bench::Timing syr2k = Bench::measure(graph, [&]()
         {
-            SushiBLAS::BLASOps(engine).syr2k(g, h, c, Uplo::Lower);
+            SushiBLAS::BLASOps(recorder).syr2k(g, h, c, Uplo::Lower);
         });
         table.print_row("syr2k", dtype, n, syr2k, 2.0 * cube, Bench::K_FLOPS_PER_GIGAFLOP);
     }
@@ -201,11 +203,13 @@ namespace
     void benchmark_trmv(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                     int64_t n, const SushiBLAS::Tensor& a, ExecutionMode mode, const char* label)
     {
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor x = ones_vector(engine, dtype, n);
-        const ModeScope scope(engine, mode);
-        const Bench::Timing timing = Bench::measure(engine, [&]()
+        const ModeScope scope(recorder, mode);
+        const Bench::Timing timing = Bench::measure(graph, [&]()
         {
-            SushiBLAS::BLASOps(engine).trmv(a, x, Uplo::Lower);
+            SushiBLAS::BLASOps(recorder).trmv(a, x, Uplo::Lower);
         });
         table.print_row(label, dtype, n, timing, as_factor(n) * as_factor(n),
                         Bench::K_FLOPS_PER_GIGAFLOP);
@@ -215,11 +219,13 @@ namespace
     void benchmark_trsv(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                     int64_t n, const SushiBLAS::Tensor& a, ExecutionMode mode, const char* label)
     {
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor x = ones_vector(engine, dtype, n);
-        const ModeScope scope(engine, mode);
-        const Bench::Timing timing = Bench::measure(engine, [&]()
+        const ModeScope scope(recorder, mode);
+        const Bench::Timing timing = Bench::measure(graph, [&]()
         {
-            SushiBLAS::BLASOps(engine).trsv(a, x, Uplo::Lower);
+            SushiBLAS::BLASOps(recorder).trsv(a, x, Uplo::Lower);
         });
         table.print_row(label, dtype, n, timing, as_factor(n) * as_factor(n),
                         Bench::K_FLOPS_PER_GIGAFLOP);
@@ -229,10 +235,12 @@ namespace
     void benchmark_trsm(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                     int64_t n, const SushiBLAS::Tensor& a, int64_t columns, const char* label)
     {
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor b = constant_matrix(engine, dtype, n, columns, K_ONE);
-        const Bench::Timing timing = Bench::measure(engine, [&]()
+        const Bench::Timing timing = Bench::measure(graph, [&]()
         {
-            SushiBLAS::BLASOps(engine).trsm(a, b, Side::Left, Uplo::Lower);
+            SushiBLAS::BLASOps(recorder).trsm(a, b, Side::Left, Uplo::Lower);
         });
         table.print_row(label, dtype, n, timing, as_factor(n) * as_factor(n) * as_factor(columns),
                         Bench::K_FLOPS_PER_GIGAFLOP);
@@ -242,7 +250,7 @@ namespace
      * @brief Times the SYCL TRSM kernel under one block width, called on the tensors' pointers.
      * @tparam T Element type of a's dtype.
      * @param block Steps of one diagonal block; the kernel clamps it to [1, n].
-     * @pre No task is recorded on the engine that owns a.
+     * @pre No graph holds a recorded task that touches a.
      */
     template<typename T>
     void benchmark_solve_kernel(sycl::queue& queue, SushiBLAS::Engine& engine,

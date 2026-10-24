@@ -20,4 +20,5 @@ sushiblas_add_module(
 sushiblas_add_test_program(
     MODULE benchmark_harness
     TESTS
+        test_benchmark_graph.cpp
         test_benchmark_harness.cpp)

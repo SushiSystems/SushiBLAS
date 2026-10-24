@@ -73,7 +73,9 @@ namespace
     void benchmark_order(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                          DataType dtype, int64_t n)
     {
-        SushiBLAS::BLASOps blas(engine);
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
+        SushiBLAS::BLASOps blas(recorder);
 
         const int64_t packed_length = n * (n + 1) / 2;
         SushiBLAS::Tensor dense = engine.create_tensor({n, n}, dtype);
@@ -103,75 +105,75 @@ namespace
         const auto unit_diag = SushiBLAS::Core::Diag::Unit;
 
         table.print_row("gemv", dtype, n,
-                        Bench::measure(engine, [&]() { blas.gemv(dense, x, y); }),
+                        Bench::measure(graph, [&]() { blas.gemv(dense, x, y); }),
                         dense_elements, unit);
         table.print_row("gemv T", dtype, n,
-                        Bench::measure(engine, [&]() { blas.gemv(dense, x, y, trans); }),
+                        Bench::measure(graph, [&]() { blas.gemv(dense, x, y, trans); }),
                         dense_elements, unit);
         table.print_row("gbmv", dtype, n,
-                        Bench::measure(engine, [&]() { blas.gbmv(band, x, y, K_BAND, K_BAND); }),
+                        Bench::measure(graph, [&]() { blas.gbmv(band, x, y, K_BAND, K_BAND); }),
                         band_elements, unit);
 
         table.print_row("symv", dtype, n,
-                        Bench::measure(engine, [&]() { blas.symv(dense, x, y, Uplo::Upper); }),
+                        Bench::measure(graph, [&]() { blas.symv(dense, x, y, Uplo::Upper); }),
                         dense_elements, unit);
         table.print_row("sbmv", dtype, n,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { blas.sbmv(triangle_band, x, y, Uplo::Upper, K_BAND); }),
                         band_elements, unit);
         table.print_row("spmv", dtype, n,
-                        Bench::measure(engine, [&]() { blas.spmv(packed, x, y, Uplo::Upper); }),
+                        Bench::measure(graph, [&]() { blas.spmv(packed, x, y, Uplo::Upper); }),
                         dense_elements, unit);
 
         table.print_row("trmv", dtype, n,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { blas.trmv(dense, x, Uplo::Upper, no_trans, unit_diag); }),
                         triangle_elements, unit);
         table.print_row("tbmv", dtype, n,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        {
                                            blas.tbmv(triangle_band, x, Uplo::Upper, K_BAND,
                                                      no_trans, unit_diag);
                                        }),
                         triangle_band_elements, unit);
         table.print_row("tpmv", dtype, n,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { blas.tpmv(packed, x, Uplo::Upper, no_trans, unit_diag); }),
                         triangle_elements, unit);
 
         table.print_row("trsv", dtype, n,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { blas.trsv(dense, x, Uplo::Upper, no_trans, unit_diag); }),
                         triangle_elements, unit);
         table.print_row("tbsv", dtype, n,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        {
                                            blas.tbsv(triangle_band, x, Uplo::Upper, K_BAND,
                                                      no_trans, unit_diag);
                                        }),
                         triangle_band_elements, unit);
         table.print_row("tpsv", dtype, n,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { blas.tpsv(packed, x, Uplo::Upper, no_trans, unit_diag); }),
                         triangle_elements, unit);
 
         table.print_row("ger", dtype, n,
-                        Bench::measure(engine, [&]() { blas.ger(x, y, dense, K_UPDATE_SCALE); }),
+                        Bench::measure(graph, [&]() { blas.ger(x, y, dense, K_UPDATE_SCALE); }),
                         dense_elements, unit);
         table.print_row("syr", dtype, n,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { blas.syr(y, dense, Uplo::Upper, K_UPDATE_SCALE); }),
                         triangle_elements, unit);
         table.print_row("syr2", dtype, n,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { blas.syr2(x, y, dense, Uplo::Upper, K_UPDATE_SCALE); }),
                         triangle_elements, unit);
         table.print_row("spr", dtype, n,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { blas.spr(y, packed, Uplo::Upper, K_UPDATE_SCALE); }),
                         triangle_elements, unit);
         table.print_row("spr2", dtype, n,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { blas.spr2(x, y, packed, Uplo::Upper, K_UPDATE_SCALE); }),
                         triangle_elements, unit);
     }

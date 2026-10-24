@@ -50,6 +50,8 @@ namespace
     void benchmark_count(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                      int64_t n)
     {
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor input = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor result = engine.create_tensor({1}, dtype);
         Bench::fill_tensor(input, K_INPUT_VALUE);
@@ -60,16 +62,25 @@ namespace
         const double gb = Bench::K_BYTES_PER_GIGABYTE;
 
         table.print_row("sum", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SushiBLAS::ReductionOps(engine).sum(input, result); }),
+                        Bench::measure(graph,
+                                       [&]()
+                                       {
+                                           SushiBLAS::ReductionOps(recorder).sum(input, result);
+                                       }),
                         input_bytes, gb);
         table.print_row("max", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SushiBLAS::ReductionOps(engine).max(input, result); }),
+                        Bench::measure(graph,
+                                       [&]()
+                                       {
+                                           SushiBLAS::ReductionOps(recorder).max(input, result);
+                                       }),
                         input_bytes, gb);
         table.print_row("var", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SushiBLAS::ReductionOps(engine).var(input, result); }),
+                        Bench::measure(graph,
+                                       [&]()
+                                       {
+                                           SushiBLAS::ReductionOps(recorder).var(input, result);
+                                       }),
                         input_bytes, gb);
     }
 

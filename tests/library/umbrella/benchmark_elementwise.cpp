@@ -53,6 +53,8 @@ namespace
     void benchmark_count(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                      int64_t n)
     {
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor a = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor b = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor c = engine.create_tensor({n}, dtype);
@@ -65,16 +67,15 @@ namespace
 
         // add reads two tensors and writes one; exp and relu read and write the same tensor.
         table.print_row("add", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SushiBLAS::ElementwiseOps(engine).add(a, b, c); }),
+                        Bench::measure(graph,
+                                       [&]() { SushiBLAS::ElementwiseOps(recorder).add(a, b, c); }),
                         3.0 * tensor_bytes, gb);
         table.print_row("exp", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SushiBLAS::ElementwiseOps(engine).exp(c); }),
+                        Bench::measure(graph,
+                                       [&]() { SushiBLAS::ElementwiseOps(recorder).exp(c); }),
                         2.0 * tensor_bytes, gb);
         table.print_row("relu", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SushiBLAS::NonLinearOps(engine).relu(a); }),
+                        Bench::measure(graph, [&]() { SushiBLAS::NonLinearOps(recorder).relu(a); }),
                         2.0 * tensor_bytes, gb);
     }
 

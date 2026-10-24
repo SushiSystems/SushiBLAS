@@ -57,6 +57,8 @@ namespace
     void benchmark_gemm(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                     int64_t n)
     {
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor a = engine.create_tensor({n, n}, dtype);
         SushiBLAS::Tensor b = engine.create_tensor({n, n}, dtype);
         SushiBLAS::Tensor c = engine.create_tensor({n, n}, dtype);
@@ -64,7 +66,7 @@ namespace
         Bench::fill_tensor(b, K_B_VALUE);
 
         const Bench::Timing timing =
-            Bench::measure(engine, [&]() { SushiBLAS::BLASOps(engine).gemm(a, b, c); });
+            Bench::measure(graph, [&]() { SushiBLAS::BLASOps(recorder).gemm(a, b, c); });
         const double order = static_cast<double>(n);
         const double flops = 2.0 * order * order * order;
         table.print_row("gemm", dtype, n, timing, flops, Bench::K_FLOPS_PER_GIGAFLOP);
@@ -87,6 +89,8 @@ namespace
     void benchmark_deep_gemm(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                              const DeepShape& shape)
     {
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const DataType dtype = DataType::Float32;
         SushiBLAS::Tensor a = engine.create_tensor({shape.k, shape.m}, dtype);
         SushiBLAS::Tensor b = engine.create_tensor({shape.k, shape.n}, dtype);
@@ -95,10 +99,10 @@ namespace
         Bench::fill_tensor(b, K_B_VALUE);
 
         // Under ColumnMajor, A^T and B hold K along consecutive addresses.
-        const Bench::Timing timing = Bench::measure(engine, [&]()
+        const Bench::Timing timing = Bench::measure(graph, [&]()
         {
-            SushiBLAS::BLASOps(engine).gemm(a, b, c, SushiBLAS::Core::Transpose::Trans,
-                                            SushiBLAS::Core::Transpose::NoTrans);
+            SushiBLAS::BLASOps(recorder).gemm(a, b, c, SushiBLAS::Core::Transpose::Trans,
+                                              SushiBLAS::Core::Transpose::NoTrans);
         });
         const double flops = 2.0 * static_cast<double>(shape.m) * static_cast<double>(shape.n) *
                              static_cast<double>(shape.k);
@@ -114,6 +118,8 @@ namespace
     void benchmark_strided_gemm(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                                 const DeepShape& shape)
     {
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const DataType dtype = DataType::Float32;
         SushiBLAS::Tensor a = engine.create_tensor({shape.m, shape.k}, dtype);
         SushiBLAS::Tensor b = engine.create_tensor({shape.n, shape.k}, dtype);
@@ -122,10 +128,10 @@ namespace
         Bench::fill_tensor(b, K_B_VALUE);
 
         // Under ColumnMajor, A and B^T hold one K-step along consecutive addresses.
-        const Bench::Timing timing = Bench::measure(engine, [&]()
+        const Bench::Timing timing = Bench::measure(graph, [&]()
         {
-            SushiBLAS::BLASOps(engine).gemm(a, b, c, SushiBLAS::Core::Transpose::NoTrans,
-                                            SushiBLAS::Core::Transpose::Trans);
+            SushiBLAS::BLASOps(recorder).gemm(a, b, c, SushiBLAS::Core::Transpose::NoTrans,
+                                              SushiBLAS::Core::Transpose::Trans);
         });
         const double flops = 2.0 * static_cast<double>(shape.m) * static_cast<double>(shape.n) *
                              static_cast<double>(shape.k);

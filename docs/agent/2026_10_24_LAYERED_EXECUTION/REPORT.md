@@ -1,6 +1,6 @@
 # Layered execution in SushiBLAS: report
 
-**Status:** Open — B1, B2, B3, B6, B8, B9, B11 and B12 landed on 2026-10-24; not built yet.
+**Status:** Open — B1 to B4, B6, B8, B9, B11 and B12 landed on 2026-10-24; not built yet.
 
 ## B1
 
@@ -106,6 +106,21 @@ owner's ruling of 2026-10-24. RW-4 keeps only the split by format.
 SushiAI's two checkpoint savers never call `IO`; their unread `Engine&` can go (A0 left it for
 this change).
 
+## B4
+
+`Bench::measure(BenchmarkGraph&, Record)` records each iteration on an empty graph, runs it and
+clears it, so recording, the plan compile and the run stay inside the timing as they were;
+replaying one recording would skip the compile, since `PlanCache::stale` is false for an
+unchanged graph, and would change what a number means. `BenchmarkGraph` owns a runtime graph, a
+`TaskRecorder` over it and a reused `RunReport`; it is not `Test::RecordingFixture` because that
+fixture includes gtest and the benchmark programs link none. One `Graph` construction per
+iteration leaves the timing, and the environment line reads `record mode:`.
+
+Seen and kept: `BenchmarkGraph` repeats the fixture's graph, recorder and run-and-clear logic; a
+gtest-free base in `engine_fixture` would serve both, a boundary for the owner.
+`print_environment` and `device_supports` still take an `Engine&` for a probe tensor and the
+layout.
+
 ## Dispatches
 
 ```
@@ -116,5 +131,6 @@ dispatch: B11 — sonnet medium, 48 turns, passed, rung 1
 dispatch: B9 — sonnet medium, 77 turns, passed, rung 1
 dispatch: B12 — opus low, 99 turns, passed, rung 1
 dispatch: B3 — sonnet medium, 53 turns, passed, rung 1
+dispatch: B4 — sonnet medium, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

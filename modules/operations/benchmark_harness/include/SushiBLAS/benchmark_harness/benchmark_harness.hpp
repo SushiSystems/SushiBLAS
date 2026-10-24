@@ -41,6 +41,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
+#include <SushiBLAS/benchmark_harness/benchmark_graph.hpp>
 #include <SushiBLAS/io/io.hpp>
 
 /// @brief Holds the helpers shared by the benchmark programs.
@@ -120,7 +121,10 @@ namespace SushiBLAS::Bench
         return "UNKNOWN";
     }
 
-    /// @brief Prints the device a probe tensor lives on, the build, the engine mode and layout.
+    /**
+     * @brief Prints the device a probe tensor lives on, the build, the mode a BenchmarkGraph
+     *        records under unless a benchmark sets another, and the layout.
+     */
     inline void print_environment(Engine& engine)
     {
         const Tensor probe = engine.create_tensor({1});
@@ -133,7 +137,7 @@ namespace SushiBLAS::Bench
         std::printf("blocking:      inner %zu, outer %zu, stream %zu, min operand %zu\n",
                     profile.blocking.inner_bytes, profile.blocking.outer_bytes,
                     profile.blocking.stream_bytes, profile.blocking.min_operand_bytes);
-        std::printf("engine mode:   %s\n", execution_mode_name(engine.mode()));
+        std::printf("record mode:   %s\n", execution_mode_name(K_DEFAULT_MODE));
         std::printf("layout:        %s\n", layout_name(engine.layout()));
         std::printf("iterations:    %d warm-up, %d timed\n\n", K_WARMUP_ITERATIONS,
                     K_TIMED_ITERATIONS);
@@ -246,16 +250,20 @@ namespace SushiBLAS::Bench
     }
 
     /**
-     * @brief Times recording one operation and executing the engine's graph.
-     * @tparam Record Callable that records one operation on the engine's graph.
+     * @brief Times recording one operation on a graph the benchmark owns and running that graph.
+     *
+     * Each iteration records on a graph that is empty, runs it and leaves it empty, so the
+     * recording, the plan build and the run are all inside the timing.
+     * @tparam Record Callable that records one operation through graph.recorder().
+     * @throws std::runtime_error when a run fails or the recording is refused.
      */
     template<typename Record>
-    [[nodiscard]] Timing measure(Engine& engine, Record record)
+    [[nodiscard]] Timing measure(BenchmarkGraph& graph, Record record)
     {
         return time_iterations([&]()
         {
             record();
-            engine.execute().value();
+            graph.run().value();
         });
     }
 

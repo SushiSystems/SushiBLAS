@@ -113,7 +113,9 @@ namespace
     void benchmark_windows(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                            DataType dtype, int64_t side)
     {
-        SushiBLAS::SpatialOps spatial(engine);
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
+        SushiBLAS::SpatialOps spatial(recorder);
         const int64_t c = K_CHANNELS;
         const int64_t half = side / K_FACTOR;
         const double element = static_cast<double>(Bench::dtype_bytes(dtype));
@@ -140,40 +142,40 @@ namespace
 
         // A 3x3 window reads nine elements for each element it writes into cols.
         table.print_row("im2col", dtype, side,
-                        Bench::measure(engine, [&]() { spatial.im2col(in, cols, same); }),
+                        Bench::measure(graph, [&]() { spatial.im2col(in, cols, same); }),
                         e + taps * e, gb);
         table.print_row("col2im", dtype, side,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { spatial.col2im(cols, out, same, side, side); }),
                         taps * e + e, gb);
         table.print_row("wdot", dtype, side,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { spatial.window_dot(in, weights, out, same); }),
                         2.0 * e + weight_bytes, gb);
         table.print_row("wdot dx", dtype, side,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { spatial.window_dot_backward(dy, weights, out, same); }),
                         2.0 * e + weight_bytes, gb);
         table.print_row("wdot dw", dtype, side,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        {
                                            spatial.window_dot_weights_backward(dy, in, dweights,
                                                                                same);
                                        }),
                         2.0 * e + weight_bytes, gb);
         table.print_row("pool max", dtype, side,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { spatial.pool_max(in, small, argmax, pool); }),
                         e + pooled + indices, gb);
         table.print_row("pmax dx", dtype, side,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { spatial.pool_max_backward(small, argmax, out, pool); }),
                         pooled + indices + e, gb);
         table.print_row("pool avg", dtype, side,
-                        Bench::measure(engine, [&]() { spatial.pool_avg(in, small, pool); }),
+                        Bench::measure(graph, [&]() { spatial.pool_avg(in, small, pool); }),
                         e + pooled, gb);
         table.print_row("pavg dx", dtype, side,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { spatial.pool_avg_backward(small, out, pool); }),
                         pooled + e, gb);
     }
@@ -182,7 +184,9 @@ namespace
     void benchmark_copies(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                           DataType dtype, int64_t side)
     {
-        SushiBLAS::SpatialOps spatial(engine);
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
+        SushiBLAS::SpatialOps spatial(recorder);
         const int64_t c = K_CHANNELS;
         const int64_t big = side * K_FACTOR;
         const double element = static_cast<double>(Bench::dtype_bytes(dtype));
@@ -206,38 +210,38 @@ namespace
         Bench::fill_tensor(plane, K_VALUE);
 
         table.print_row("upsample", dtype, side,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        {
                                            spatial.upsample_nearest(in, large, K_FACTOR,
                                                                     K_FACTOR);
                                        }),
                         e + upsampled, gb);
         table.print_row("ups dx", dtype, side,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        {
                                            spatial.upsample_nearest_backward(large, out, K_FACTOR,
                                                                              K_FACTOR);
                                        }),
                         upsampled + e, gb);
         table.print_row("concat", dtype, side,
-                        Bench::measure(engine, [&]() { spatial.concat_channels(in, wide, c); }),
+                        Bench::measure(graph, [&]() { spatial.concat_channels(in, wide, c); }),
                         2.0 * e, gb);
         table.print_row("slice", dtype, side,
-                        Bench::measure(engine, [&]() { spatial.slice_channels(wide, c, out); }),
+                        Bench::measure(graph, [&]() { spatial.slice_channels(wide, c, out); }),
                         2.0 * e, gb);
         table.print_row("affine", dtype, side,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { spatial.channel_affine(in, gamma, beta, out); }),
                         2.0 * e + 2.0 * channel_bytes, gb);
         table.print_row("broadcast", dtype, side,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        { spatial.broadcast_spatial(plane, out, K_VALUE); }),
                         plane_bytes + e, gb);
         table.print_row("to nchw", dtype, side,
-                        Bench::measure(engine, [&]() { spatial.layout_convert(in, nchw); }),
+                        Bench::measure(graph, [&]() { spatial.layout_convert(in, nchw); }),
                         2.0 * e, gb);
         table.print_row("to nhwc", dtype, side,
-                        Bench::measure(engine, [&]() { spatial.layout_convert(nchw, out); }),
+                        Bench::measure(graph, [&]() { spatial.layout_convert(nchw, out); }),
                         2.0 * e, gb);
     }
 

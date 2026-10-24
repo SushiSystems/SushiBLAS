@@ -65,6 +65,8 @@ namespace
     void benchmark_length(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                           DataType dtype, int64_t n)
     {
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor x = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor y = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor scalar = engine.create_tensor({1}, dtype);
@@ -78,41 +80,44 @@ namespace
 
         // Bytes count each input element read once and each output element written once.
         table.print_row("axpy", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SushiBLAS::BLASOps(engine).axpy(K_ALPHA, x, y); }),
+                        Bench::measure(graph,
+                                       [&]() { SushiBLAS::BLASOps(recorder).axpy(K_ALPHA, x, y); }),
                         3.0 * vector_bytes, gb);
         table.print_row("copy", dtype, n,
-                        Bench::measure(engine, [&]() { SushiBLAS::BLASOps(engine).copy(x, y); }),
+                        Bench::measure(graph, [&]() { SushiBLAS::BLASOps(recorder).copy(x, y); }),
                         2.0 * vector_bytes, gb);
         table.print_row("scal", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SushiBLAS::BLASOps(engine).scal(K_SCAL_ALPHA, x); }),
+                        Bench::measure(graph,
+                                       [&]()
+                                       {
+                                           SushiBLAS::BLASOps(recorder).scal(K_SCAL_ALPHA, x);
+                                       }),
                         2.0 * vector_bytes, gb);
         table.print_row("swap", dtype, n,
-                        Bench::measure(engine, [&]() { SushiBLAS::BLASOps(engine).swap(x, y); }),
+                        Bench::measure(graph, [&]() { SushiBLAS::BLASOps(recorder).swap(x, y); }),
                         4.0 * vector_bytes, gb);
         table.print_row("rot", dtype, n,
-                        Bench::measure(engine, [&]()
+                        Bench::measure(graph, [&]()
                                        {
-                                           SushiBLAS::BLASOps(engine).rot(x, y, K_ROT_COSINE,
-                                                                          K_ROT_SINE);
+                                           SushiBLAS::BLASOps(recorder).rot(x, y, K_ROT_COSINE,
+                                                                            K_ROT_SINE);
                                        }),
                         4.0 * vector_bytes, gb);
         table.print_row("dot", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SushiBLAS::BLASOps(engine).dot(x, y, scalar); }),
+                        Bench::measure(graph,
+                                       [&]() { SushiBLAS::BLASOps(recorder).dot(x, y, scalar); }),
                         2.0 * vector_bytes, gb);
         table.print_row("nrm2", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SushiBLAS::BLASOps(engine).nrm2(x, scalar); }),
+                        Bench::measure(graph,
+                                       [&]() { SushiBLAS::BLASOps(recorder).nrm2(x, scalar); }),
                         vector_bytes, gb);
         table.print_row("asum", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SushiBLAS::BLASOps(engine).asum(x, scalar); }),
+                        Bench::measure(graph,
+                                       [&]() { SushiBLAS::BLASOps(recorder).asum(x, scalar); }),
                         vector_bytes, gb);
         table.print_row("iamax", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SushiBLAS::BLASOps(engine).iamax(x, index); }),
+                        Bench::measure(graph,
+                                       [&]() { SushiBLAS::BLASOps(recorder).iamax(x, index); }),
                         vector_bytes, gb);
     }
 

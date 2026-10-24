@@ -123,6 +123,8 @@ namespace
     void benchmark_order(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                      int64_t n)
     {
+        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const SushiBLAS::SparseBuilder builder(engine.tensor_factory());
 
         const Triplets<T> general = spread_triplets<T>(n);
@@ -163,43 +165,49 @@ namespace
         const double gb = Bench::K_BYTES_PER_GIGABYTE;
 
         table.print_row("spmv", dtype, n,
-                        Bench::measure(engine, [&]() { SparseOps(engine).spmv(A, x, y); }),
+                        Bench::measure(graph, [&]() { SparseOps(recorder).spmv(A, x, y); }),
                         product_bytes, gb);
         table.print_row("spmv_t", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SparseOps(engine).spmv(A, x, y, Transpose::Trans); }),
-                        product_bytes, gb);
-        table.print_row("spmv_at", dtype, n,
-                        Bench::measure(engine, [&]() { SparseOps(engine).spmv(At, x, y); }),
-                        product_bytes, gb);
-        table.print_row("spsymv", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SparseOps(engine).spsymv(L, x, y, Uplo::Lower); }),
-                        solve_bytes, gb);
-        table.print_row("spmm", dtype, n,
-                        Bench::measure(engine, [&]() { SparseOps(engine).spmm(A, B, C); }),
-                        dense_bytes, gb);
-        table.print_row("spmm_t", dtype, n,
-                        Bench::measure(
-                            engine, [&]() { SparseOps(engine).spmm(A, B, C, Transpose::Trans); }),
-                        dense_bytes, gb);
-        table.print_row("sptrsv", dtype, n,
-                        Bench::measure(engine,
-                                       [&]() { SparseOps(engine).sptrsv(L, y, Uplo::Lower); }),
-                        solve_bytes, gb);
-        table.print_row("sptrsv_t", dtype, n,
-                        Bench::measure(engine,
+                        Bench::measure(graph,
                                        [&]()
                                        {
-                                           SparseOps(engine).sptrsv(L, y, Uplo::Lower,
-                                                                    Transpose::Trans);
+                                           SparseOps(recorder).spmv(A, x, y, Transpose::Trans);
+                                       }),
+                        product_bytes, gb);
+        table.print_row("spmv_at", dtype, n,
+                        Bench::measure(graph, [&]() { SparseOps(recorder).spmv(At, x, y); }),
+                        product_bytes, gb);
+        table.print_row("spsymv", dtype, n,
+                        Bench::measure(graph,
+                                       [&]() { SparseOps(recorder).spsymv(L, x, y, Uplo::Lower); }),
+                        solve_bytes, gb);
+        table.print_row("spmm", dtype, n,
+                        Bench::measure(graph, [&]() { SparseOps(recorder).spmm(A, B, C); }),
+                        dense_bytes, gb);
+        table.print_row("spmm_t", dtype, n,
+                        Bench::measure(graph,
+                                       [&]()
+                                       {
+                                           SparseOps(recorder).spmm(A, B, C, Transpose::Trans);
+                                       }),
+                        dense_bytes, gb);
+        table.print_row("sptrsv", dtype, n,
+                        Bench::measure(graph,
+                                       [&]() { SparseOps(recorder).sptrsv(L, y, Uplo::Lower); }),
+                        solve_bytes, gb);
+        table.print_row("sptrsv_t", dtype, n,
+                        Bench::measure(graph,
+                                       [&]()
+                                       {
+                                           SparseOps(recorder).sptrsv(L, y, Uplo::Lower,
+                                                                      Transpose::Trans);
                                        }),
                         solve_bytes, gb);
         table.print_row("axpyi", dtype, n,
-                        Bench::measure(engine, [&]() { SparseOps(engine).axpyi(K_ALPHA, sx, y); }),
+                        Bench::measure(graph, [&]() { SparseOps(recorder).axpyi(K_ALPHA, sx, y); }),
                         stored * (entry + 2.0 * element), gb);
         table.print_row("doti", dtype, n,
-                        Bench::measure(engine, [&]() { SparseOps(engine).doti(sx, y, scalar); }),
+                        Bench::measure(graph, [&]() { SparseOps(recorder).doti(sx, y, scalar); }),
                         stored * (entry + element), gb);
     }
 
