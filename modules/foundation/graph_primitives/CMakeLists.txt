@@ -14,6 +14,8 @@ sushiblas_add_test_program(
         test_combiners.cpp
         test_counting_sort.cpp
         test_element_window.cpp
+        test_node_stamper.cpp
+        test_primitive_options.cpp
         test_fixed_order_fold.cpp
         test_fixed_order_reduce.cpp
         test_fixed_order_scan.cpp

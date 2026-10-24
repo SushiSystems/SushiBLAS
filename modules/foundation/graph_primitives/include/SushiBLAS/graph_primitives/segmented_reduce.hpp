@@ -30,6 +30,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 #include <SushiRuntime/api/data/buffer.hpp>
@@ -43,6 +44,8 @@
 #include <SushiBLAS/graph_primitives/element_window.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
+#include <SushiBLAS/graph_primitives/node_stamper.hpp>
+#include <SushiBLAS/graph_primitives/primitive_options.hpp>
 
 namespace SushiBLAS
 {
@@ -120,7 +123,8 @@ namespace SushiBLAS
          * @tparam Combine Binary functor; must be trivially copyable.
          * @param segment_offsets segment_count + 1 non-decreasing indices into the values window.
          * @param output Receives one result per segment; identity for an empty segment.
-         * @return Nothing, InvalidGraph for a window that does not fit, or the recorder's refusal.
+         * @param options Names and classes every node; none leaves them unnamed and Unstated.
+         * @return Nothing, InvalidGraph (a window or options), or the recorder's refusal.
          */
         template <typename T, class Combine>
         [[nodiscard]] SushiRuntime::Result<void>
@@ -129,12 +133,17 @@ namespace SushiBLAS
                          const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
                          const SushiRuntime::Buffer<T>& output,
                          std::size_t segment_count, Combine op, T identity,
-                         SegmentedReduceWindow window = {})
+                         SegmentedReduceWindow window = {},
+                         const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
             using SushiRuntime::Access;
-            using SushiRuntime::NodeOptions;
             using SushiRuntime::Reads;
             using SushiRuntime::Writes;
+
+            SushiRuntime::Result<void> named = Detail::require_options("segmented_reduce", options);
+            if (!named)
+                return named;
+            Detail::NodeStamper stamper(options);
 
             Detail::ElementSpan<T> value_span;
             Detail::ElementSpan<std::uint32_t> offset_span;
@@ -156,7 +165,7 @@ namespace SushiBLAS
                 {
                     out_base[s] = Detail::fold_segment(op, value_base, offset_base, s, identity);
                 },
-                NodeOptions{segment_count});
+                stamper.node(segment_count));
 
             return Detail::recording_outcome(recorder);
         }
@@ -166,8 +175,8 @@ namespace SushiBLAS
          * @tparam Combine Binary functor; must be trivially copyable.
          * @param segment_offsets segment_count.capacity() + 1 indices into the values window.
          * @param output segment_count.capacity() entries; those past the live count are kept.
-         * @return Nothing, or an error as the fixed-count overload returns, or AllocationFailed;
-         *         a run returns an error if the live count exceeds the capacity.
+         * @param options Names and classes every node; none leaves them unnamed and Unstated.
+         * @return As the fixed-count overload, or AllocationFailed; a run fails past the capacity.
          */
         template <typename T, class Combine>
         [[nodiscard]] SushiRuntime::Result<void>
@@ -176,15 +185,20 @@ namespace SushiBLAS
                          const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
                          const SushiRuntime::Buffer<T>& output,
                          SushiRuntime::LateCount segment_count, Combine op, T identity,
-                         SegmentedReduceWindow window = {})
+                         SegmentedReduceWindow window = {},
+                         const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
             using SushiRuntime::LateCount;
-            using SushiRuntime::NodeOptions;
             using SushiRuntime::Reads;
             using SushiRuntime::Writes;
             using SushiRuntime::BufferRegion;
+
+            SushiRuntime::Result<void> named = Detail::require_options("segmented_reduce", options);
+            if (!named)
+                return named;
+            Detail::NodeStamper stamper(options);
 
             const std::size_t capacity = segment_count.capacity();
             Detail::ElementSpan<T> value_span;
@@ -217,7 +231,7 @@ namespace SushiBLAS
                 {
                     state[0] = static_cast<std::uint32_t>(live[0]);
                 },
-                NodeOptions{std::size_t{1}});
+                stamper.stage("resolve", std::size_t{1}));
 
             recorder.kernel(
                 DeviceSized{capacity, state, nullptr},
@@ -227,7 +241,7 @@ namespace SushiBLAS
                 {
                     out_base[s] = Detail::fold_segment(op, value_base, offset_base, s, identity);
                 },
-                NodeOptions{capacity});
+                stamper.stage("segment", capacity));
 
             return Detail::recording_outcome(recorder);
         }
@@ -244,11 +258,12 @@ namespace SushiBLAS
                          const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
                          const SushiRuntime::Buffer<T>& output,
                          std::size_t segment_count, Combine op,
-                         SegmentedReduceWindow window = {})
+                         SegmentedReduceWindow window = {},
+                         const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
             return GraphPrimitives::segmented_reduce(recorder, values, segment_offsets, output,
                                                      segment_count, op, Combine::identity(),
-                                                     window);
+                                                     window, options);
         }
 
         /**
@@ -263,11 +278,12 @@ namespace SushiBLAS
                          const SushiRuntime::Buffer<std::uint32_t>& segment_offsets,
                          const SushiRuntime::Buffer<T>& output,
                          SushiRuntime::LateCount segment_count, Combine op,
-                         SegmentedReduceWindow window = {})
+                         SegmentedReduceWindow window = {},
+                         const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
             return GraphPrimitives::segmented_reduce(recorder, values, segment_offsets, output,
                                                      segment_count, op, Combine::identity(),
-                                                     window);
+                                                     window, options);
         }
 
     } // namespace GraphPrimitives

@@ -246,6 +246,16 @@ overlap no other operand, not even an equal one, so the functor never holds two 
 tensor. A `for_each` task carries a lambda no worker can register, so no test offloads one; the
 rule matters for registered kernels.
 
+## B22
+
+The graph primitives sit in `foundation`, below the engine that holds `OperationOptions`, so they
+take a `PrimitiveOptions` of their own with the same two fields; `std::nullopt` keeps an unnamed
+call as it was, since an empty name is a refusal. A primitive that records one node names it
+`<name>`; one that records several names each `<name>.<stage>`, with the stages listed in the
+module README, so a fixed `segmented_reduce` reports `<name>` and a late one `<name>.resolve` and
+`<name>.segment`. A null or empty name, or a class outside the enum, is `InvalidGraph` before
+anything is recorded.
+
 ## Dispatches
 
 ```
@@ -268,6 +278,7 @@ dispatch: B17 — sonnet medium, 87 turns over two rounds, passed, rung 1
 dispatch: B18 — opus low, 75 turns, passed, rung 1
 dispatch: B19 and B20 — opus low, 158 turns over two rounds, passed, rung 1
 dispatch: B21 — opus low, passed, rung 1
+dispatch: B22 — sonnet medium, passed, rung 1
 dispatch: docs-sync after B5 — sonnet medium, 18 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

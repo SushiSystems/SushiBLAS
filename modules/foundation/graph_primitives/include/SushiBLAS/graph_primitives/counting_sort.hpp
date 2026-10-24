@@ -30,6 +30,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <utility>
 
 #include <SushiRuntime/api/data/buffer.hpp>
@@ -44,6 +45,8 @@
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
+#include <SushiBLAS/graph_primitives/node_stamper.hpp>
+#include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/radix_plan.hpp>
 
 namespace SushiBLAS
@@ -68,6 +71,7 @@ namespace SushiBLAS
          * @param indices Receives the sorted order, as indices into the keys window.
          * @param offsets Receives the bucket starts; holds key_range.capacity() + 1 elements.
          * @param counts  Optional bucket sizes; holds key_range.capacity() elements.
+         * @param options Names and classes every node; none leaves them unnamed and Unstated.
          * @return Nothing, or an error; modules/foundation/graph_primitives/README.md lists them.
          */
         [[nodiscard]] inline SushiRuntime::Result<void>
@@ -79,15 +83,20 @@ namespace SushiBLAS
                       SushiRuntime::LateCount n,
                       SushiRuntime::LateCount key_range,
                       const SushiRuntime::Buffer<std::uint32_t>* counts = nullptr,
-                      CountingSortWindow window = {})
+                      CountingSortWindow window = {},
+                      const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
             using SushiRuntime::LateCount;
-            using SushiRuntime::NodeOptions;
             using SushiRuntime::Reads;
             using SushiRuntime::Writes;
             using SushiRuntime::BufferRegion;
+
+            SushiRuntime::Result<void> named = Detail::require_options("counting_sort", options);
+            if (!named)
+                return named;
+            Detail::NodeStamper stamper(options);
 
             const std::size_t n_capacity = n.capacity();
             const std::size_t key_capacity = key_range.capacity();
@@ -174,7 +183,7 @@ namespace SushiBLAS
                     if (plan != nullptr)
                         Detail::fill_radix_plan(digit_count, live[0], tiles, live[1], plan);
                 },
-                NodeOptions{std::size_t{1}});
+                stamper.stage("resolve", std::size_t{1}));
 
             std::uint32_t* offsets_base = offsets_span.data();
             std::uint32_t* counts_base = (counts != nullptr) ? counts_span.data() : nullptr;
@@ -193,7 +202,7 @@ namespace SushiBLAS
                         if (counts_base != nullptr && k < key_capacity)
                             counts_base[k] = 0;
                     },
-                    NodeOptions{key_capacity + 1});
+                    stamper.stage("offsets", key_capacity + 1));
                 return Detail::recording_outcome(recorder);
             }
 
@@ -281,7 +290,7 @@ namespace SushiBLAS
                             for (std::size_t b = 0; b < Detail::K_RADIX_DIGIT_BINS; ++b)
                                 hist[b * tile_capacity + t] = local[b];
                         },
-                        NodeOptions{tile_capacity});
+                        stamper.stage("histogram", tile_capacity));
                 }
 
                 // Column scan: exactly one work-item touches each bin's column of hist.
@@ -301,7 +310,7 @@ namespace SushiBLAS
                         }
                         column_total[b] = running;
                     },
-                    NodeOptions{Detail::K_RADIX_DIGIT_BINS});
+                    stamper.stage("column_scan", Detail::K_RADIX_DIGIT_BINS));
 
                 // Bin base: one work-item walks the bin totals, whatever n is.
                 recorder.kernel(
@@ -316,7 +325,7 @@ namespace SushiBLAS
                             running += column_total[b];
                         }
                     },
-                    NodeOptions{std::size_t{1}});
+                    stamper.stage("bin_base", std::size_t{1}));
 
                 // Placement: tiles write in ascending index order, so the sort is stable.
                 {
@@ -352,7 +361,7 @@ namespace SushiBLAS
                                     static_cast<std::uint32_t>(element);
                             }
                         },
-                        NodeOptions{tile_capacity});
+                        stamper.stage("placement", tile_capacity));
                 }
             }
 
@@ -375,7 +384,7 @@ namespace SushiBLAS
                     }
                     offsets_base[k] = static_cast<std::uint32_t>(low);
                 },
-                NodeOptions{key_capacity + 1});
+                stamper.stage("offsets", key_capacity + 1));
 
             if (counts == nullptr)
                 return Detail::recording_outcome(recorder);
@@ -389,7 +398,7 @@ namespace SushiBLAS
                 {
                     counts_base[k] = offsets_base[k + 1] - offsets_base[k];
                 },
-                NodeOptions{key_capacity});
+                stamper.stage("counts", key_capacity));
 
             return Detail::recording_outcome(recorder);
         }

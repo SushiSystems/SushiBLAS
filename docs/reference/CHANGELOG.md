@@ -6,6 +6,7 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — graph_primitives: Added a trailing `PrimitiveOptions` to the four primitives, which names each node they record `<name>` or `<name>.<stage>` and states its determinism (`primitive_options.hpp`).
 - 2026-10-24 — functor_map: Added `bind_updates`, `update_as_element` and `update_as<U>` for an operand a task reads and writes, declared to SushiRuntime as both (`update_binding.hpp`).
 - 2026-10-24 — index: Made `for_each` take an update bundle and refuse an update or a write that overlaps another operand (`index_ops.hpp`).
 - 2026-10-24 — engine: Added `LateCountHold`, which the owner of a graph keeps and a `TaskRecorder` records late tasks into, so a replayed late node outlives its recorder (`late_count_hold.hpp`).

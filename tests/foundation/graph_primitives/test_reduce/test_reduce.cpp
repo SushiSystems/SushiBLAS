@@ -31,6 +31,7 @@
 #include <cstring>
 #include <functional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -44,8 +45,11 @@
 
 #include <SushiBLAS/graph_primitives/combiners.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
+#include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
+#include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/reduce.hpp>
 
+#include "../plan_labels.hpp"
 #include "../window_probe.hpp"
 
 namespace SushiBLAS
@@ -609,6 +613,99 @@ namespace SushiBLAS
             expect_refusal(reduce(graph.recorder(), in, out, LateCount::fixed(4), Sum<float>{},
                                   GraphPrimitives::ReduceWindow{0, 2}),
                            "output");
+            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
+        }
+
+        /** @brief Tests that a named reduce names every node by its stage and states its class. */
+        TEST(Medium_GraphPrimitivesReduce, NamedCallNamesItsNodesAndStatesTheirClass)
+        {
+            constexpr std::size_t K_COUNT = 2 * K_TILE + 88;
+            const GraphPrimitives::PrimitiveOptions options{
+                "sum", SushiRuntime::Determinism::Bitwise};
+
+            auto runtime = Runtime::create().value();
+            auto values = runtime.buffer<float>(K_COUNT).value();
+            auto total = runtime.buffer<float>(1).value();
+            const std::size_t levels = GraphPrimitives::Detail::plan_tiled_levels(K_COUNT).size();
+
+            auto fixed = runtime.graph();
+            reduce(fixed.recorder(), values, total, K_COUNT, Sum<float>{},
+                   GraphPrimitives::ReduceWindow{}, options).value();
+            EXPECT_EQ(PlanLabels::names_of(fixed),
+                      (std::vector<std::string>(
+                          GraphPrimitives::Detail::plan_reduction(K_COUNT).size(), "sum.level")));
+            for (const auto determinism : PlanLabels::determinisms_of(fixed))
+                EXPECT_EQ(determinism, SushiRuntime::Determinism::Bitwise);
+
+            std::vector<std::string> late_stages = {"resolve"};
+            late_stages.insert(late_stages.end(), levels, "level");
+            late_stages.push_back("close");
+            auto late = runtime.graph();
+            reduce(late.recorder(), values, total, LateCount::fixed(K_COUNT), Sum<float>{},
+                   GraphPrimitives::ReduceWindow{}, options).value();
+            EXPECT_EQ(PlanLabels::names_of(late), PlanLabels::staged("sum", late_stages));
+            for (const auto determinism : PlanLabels::determinisms_of(late))
+                EXPECT_EQ(determinism, SushiRuntime::Determinism::Bitwise);
+
+            auto empty = runtime.graph();
+            reduce(empty.recorder(), values, total, std::size_t{0}, Sum<float>{},
+                   GraphPrimitives::ReduceWindow{}, options).value();
+            EXPECT_EQ(PlanLabels::names_of(empty), std::vector<std::string>{"sum.level"});
+        }
+
+        /** @brief Tests that a call with no options keeps its nodes unnamed and Unstated. */
+        TEST(Medium_GraphPrimitivesReduce, UnnamedCallKeepsItsNodesUnnamed)
+        {
+            constexpr std::size_t K_COUNT = 2 * K_TILE + 88;
+
+            auto runtime = Runtime::create().value();
+            auto values = runtime.buffer<float>(K_COUNT).value();
+            auto total = runtime.buffer<float>(1).value();
+            const std::string unnamed = PlanLabels::unnamed_name(runtime);
+
+            for (const bool late : {false, true})
+            {
+                auto graph = runtime.graph();
+                if (late)
+                    reduce(graph.recorder(), values, total, LateCount::fixed(K_COUNT),
+                           Sum<float>{}).value();
+                else
+                    reduce(graph.recorder(), values, total, K_COUNT, Sum<float>{}).value();
+
+                const std::vector<std::string> names = PlanLabels::names_of(graph);
+                EXPECT_FALSE(names.empty());
+                for (const std::string& name : names)
+                    EXPECT_EQ(name, unnamed) << "late = " << late;
+                for (const auto determinism : PlanLabels::determinisms_of(graph))
+                    EXPECT_EQ(determinism, SushiRuntime::Determinism::Unstated);
+            }
+        }
+
+        /** @brief Tests that options with no name are refused, naming the operand 'options'. */
+        TEST(Medium_GraphPrimitivesReduce, RejectsOptionsThatNameNothing)
+        {
+            auto runtime = Runtime::create().value();
+            auto in = runtime.buffer<float>(16).value();
+            auto out = runtime.buffer<float>(1).value();
+            const GraphPrimitives::PrimitiveOptions unnamed{};
+            const GraphPrimitives::PrimitiveOptions null_name{std::string_view{},
+                                                              SushiRuntime::Determinism::Bitwise};
+            const GraphPrimitives::PrimitiveOptions bad_class{
+                "sum", static_cast<SushiRuntime::Determinism>(250)};
+
+            auto graph = runtime.graph();
+            for (const auto& options : {unnamed, null_name, bad_class})
+            {
+                expect_invalid_graph(reduce(graph.recorder(), in, out, std::size_t{4},
+                                            Sum<float>{}, GraphPrimitives::ReduceWindow{},
+                                            options));
+                const auto late = reduce(graph.recorder(), in, out, LateCount::fixed(4),
+                                         Sum<float>{}, GraphPrimitives::ReduceWindow{}, options);
+                expect_invalid_graph(late);
+                if (!late)
+                    EXPECT_NE(late.error().message.find("'options'"), std::string::npos)
+                        << late.error().message;
+            }
             EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
         }
 

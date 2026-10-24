@@ -28,6 +28,8 @@ if (!report)
 | --- | --- |
 | `combiners.hpp`, `fixed_order_fold.hpp`, `fixed_order_reduce.hpp`, `fixed_order_scan.hpp`, `radix_plan.hpp` | The standard library and each other |
 | `invalid_graph.hpp` | `<SushiRuntime/core/error.hpp>`, `<SushiRuntime/core/result.hpp>` and `<SushiRuntime/api/graph/recorder.hpp>` |
+| `primitive_options.hpp` | `invalid_graph.hpp` and SushiRuntime's `Determinism` and `Result` |
+| `node_stamper.hpp` | `primitive_options.hpp` and SushiRuntime's `NodeOptions` and `K_WIDTH_UNKNOWN` |
 | `element_window.hpp` | `invalid_graph.hpp` and SushiRuntime's `Buffer`, `Reads`, `Writes`, `BufferRegion` and `Result` |
 | `reduce.hpp`, `segmented_reduce.hpp`, `prefix_scan.hpp`, `counting_sort.hpp` | The headers above and SushiRuntime's public graph headers: `Recorder`, `Access`, `DeviceSized`, `NodeOptions`, `Reads`, `Writes`, `LateCount`, `Buffer`, `BufferRegion`, `Result` |
 
@@ -43,10 +45,10 @@ place the tile size is written.
 
 | Header | Declares |
 | --- | --- |
-| `reduce.hpp` | `reduce(recorder, input, output, n, op[, identity][, window])`, with `n` a `std::size_t` or a `LateCount`; `ReduceWindow` |
-| `segmented_reduce.hpp` | `segmented_reduce(recorder, values, segment_offsets, output, segment_count, op[, identity][, window])`, with the count a `std::size_t` or a `LateCount`; `SegmentedReduceWindow` |
-| `prefix_scan.hpp` | `prefix_scan(recorder, counts, offsets, total, n[, window])`, with `n` a `LateCount`; `PrefixScanWindow` |
-| `counting_sort.hpp` | `counting_sort(recorder, keys, indices, offsets, total, n, key_range[, counts][, window])`, with both counts a `LateCount`; `CountingSortWindow` |
+| `reduce.hpp` | `reduce(recorder, input, output, n, op[, identity][, window][, options])`, with `n` a `std::size_t` or a `LateCount`; `ReduceWindow` |
+| `segmented_reduce.hpp` | `segmented_reduce(recorder, values, segment_offsets, output, segment_count, op[, identity][, window][, options])`, with the count a `std::size_t` or a `LateCount`; `SegmentedReduceWindow` |
+| `prefix_scan.hpp` | `prefix_scan(recorder, counts, offsets, total, n[, window][, options])`, with `n` a `LateCount`; `PrefixScanWindow` |
+| `counting_sort.hpp` | `counting_sort(recorder, keys, indices, offsets, total, n, key_range[, counts][, window][, options])`, with both counts a `LateCount`; `CountingSortWindow` |
 | `element_window.hpp` | `Detail::ElementSpan`, `Detail::elements`, `Detail::require_window`, `Detail::access_of`, `Detail::region_of` |
 | `combiners.hpp` | `Sum`, `Product`, `Minimum`, `Maximum`: binary functors with a static `identity()` |
 | `fixed_order_fold.hpp` | `K_REDUCE_TILE`, `fold_tile`, `fold_indexed_tile`, `fold_fixed_order` (a host fold, level by level) and `fold_fixed_order_streamed` (the same order on the stack, reading each element once) |
@@ -54,6 +56,8 @@ place the tile size is written.
 | `fixed_order_scan.hpp` | `Detail::LiveTileLevel`, `Detail::plan_tiled_levels`, `Detail::next_live_tile_count`, `Detail::fill_live_tile_levels`, `Detail::fill_live_level_words`, `Detail::live_tile_levels` |
 | `radix_plan.hpp` | `Detail::K_RADIX_*`, `Detail::radix_digit_count`, `Detail::radix_digit`, `Detail::fill_radix_plan` |
 | `invalid_graph.hpp` | `Detail::invalid_graph`, `Detail::recording_outcome` |
+| `primitive_options.hpp` | `PrimitiveOptions`, `Detail::require_options` |
+| `node_stamper.hpp` | `Detail::NodeStamper` |
 
 A `LateCount` carries a capacity, which the primitive plans for when it records, and the source
 of the live count, which the runtime resolves once per run: `LateCount::fixed`,
@@ -67,7 +71,7 @@ stops the process on an error.
 
 | Error | When |
 | --- | --- |
-| `ErrorCode::InvalidGraph` | A size or device rule is broken, or a window does not fit its buffer; that message names the operand. The call returns before any node or scratch is added, and the message starts with the name of the primitive. |
+| `ErrorCode::InvalidGraph` | A size or device rule is broken, a window does not fit its buffer, or `options` has a null or empty name or a determinism class outside the runtime's; that message names the operand (`'options'` for the last). The call returns before any node or scratch is added, and the message starts with the name of the primitive. |
 | `ErrorCode::AllocationFailed` | `Recorder::scratch()` could not allocate. The nodes recorded before it stay on the recorder; `Recorder::clear()` drops them. |
 | The recorder's refusal | The recorder holds a refusal. The primitive returns the first recording the recorder refused since its last `clear()`, which may be older than the call: a refusal an earlier call left on the recorder is returned by every primitive recorded after it, until `clear()`. It is the error the next run returns as well. |
 
@@ -99,14 +103,35 @@ carry another key, which no node over the parent overlaps. A window that does no
 returns `ErrorCode::InvalidGraph` before anything is recorded. Scratch does not depend on the
 windows.
 
+## Names and determinism
+
+Every primitive takes a trailing `std::optional<PrimitiveOptions>` after its window. A call
+without it records what it recorded before: nodes the runtime reports as unnamed, with
+`Determinism::Unstated`. With it, every node the call records carries `PrimitiveOptions::determinism`
+and a name built from `PrimitiveOptions::name`: `<name>` for a primitive that records one node,
+`<name>.<stage>` for one that records several. A stage name is fixed per primitive, and every node
+of a stage carries it: the levels of a reduction are all `<name>.level`. A null or empty name, or a
+class outside `SushiRuntime::Determinism`, returns `ErrorCode::InvalidGraph` naming `'options'`
+before anything is recorded. The module does not use the engine's `OperationOptions`: a foundation
+module includes no engine header, so `PrimitiveOptions` holds the same two fields.
+
+| Primitive | Stages, in recording order |
+| --- | --- |
+| `reduce`, fixed count | `level` (one node per level; a count of zero records one `level` node) |
+| `reduce`, `LateCount` | `resolve`, `level` (one per level), `close` (a capacity of zero records only `close`) |
+| `segmented_reduce`, fixed count | None: the one node is `<name>` |
+| `segmented_reduce`, `LateCount` | `resolve`, `segment` |
+| `prefix_scan` | `resolve`, `up_sweep` (one per level but the top), `down_sweep` (the top pass, then one per lower level), `close` (absent for a plan of one level) |
+| `counting_sort` | `resolve`, then per digit `histogram`, `column_scan`, `bin_base`, `placement`, then `offsets` and, when `counts` is given, `counts` (a capacity of zero elements records `resolve` and `offsets`) |
+
 ## What stays fixed
 
 The results are bit-identical across runs, worker counts, devices and steal patterns. The tests
 pin the node count of each call, the rule it forms, the width each node launches at and the
 order values are combined in.
 
-Every node one call records sits in one rule, so the nodes share one registration index and one
-name. Scratch comes from `Recorder::scratch()`, on the device and with the residency of the input
+Every node one call records sits in one rule, so the nodes share one registration index. Scratch
+comes from `Recorder::scratch()`, on the device and with the residency of the input
 buffer, and lives as long as the recorder.
 
 ## `fixed_order_reduce.hpp`

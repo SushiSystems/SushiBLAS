@@ -30,6 +30,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -46,6 +47,8 @@
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
+#include <SushiBLAS/graph_primitives/node_stamper.hpp>
+#include <SushiBLAS/graph_primitives/primitive_options.hpp>
 
 namespace SushiBLAS
 {
@@ -67,23 +70,28 @@ namespace SushiBLAS
          * @param counts  Holds at least n.capacity() elements.
          * @param offsets Holds at least n.capacity() + 1; offsets[live n] receives the sum.
          * @param total   Holds at least one element; total[0] receives the sum.
-         * @return Nothing, or an error; modules/foundation/graph_primitives/README.md lists them.
-         *         A run returns an error past n.capacity().
+         * @param options Names and classes every node; none leaves them unnamed and Unstated.
+         * @return Nothing, or an error the README lists; a run fails past n.capacity().
          */
         [[nodiscard]] inline SushiRuntime::Result<void>
         prefix_scan(SushiRuntime::Recorder& recorder,
                     const SushiRuntime::Buffer<std::uint32_t>& counts,
                     const SushiRuntime::Buffer<std::uint32_t>& offsets,
                     const SushiRuntime::Buffer<std::uint32_t>& total,
-                    SushiRuntime::LateCount n, PrefixScanWindow window = {})
+                    SushiRuntime::LateCount n, PrefixScanWindow window = {},
+                    const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
             using SushiRuntime::LateCount;
-            using SushiRuntime::NodeOptions;
             using SushiRuntime::Reads;
             using SushiRuntime::Writes;
             using SushiRuntime::BufferRegion;
+
+            SushiRuntime::Result<void> named = Detail::require_options("prefix_scan", options);
+            if (!named)
+                return named;
+            Detail::NodeStamper stamper(options);
 
             const std::size_t capacity = n.capacity();
             const Detail::ElementSpan<std::uint32_t> counts_span =
@@ -122,7 +130,7 @@ namespace SushiBLAS
                         offsets_base[0] = 0;
                         total_base[0] = 0;
                     },
-                    NodeOptions{std::size_t{1}});
+                    stamper.stage("resolve", std::size_t{1}));
                 return Detail::recording_outcome(recorder);
             }
 
@@ -165,7 +173,7 @@ namespace SushiBLAS
                 {
                     Detail::fill_live_level_words(level_count, live[0], state);
                 },
-                NodeOptions{std::size_t{1}});
+                stamper.stage("resolve", std::size_t{1}));
 
             const auto words = [](std::uint32_t* base, std::size_t offset, std::size_t count)
             {
@@ -195,7 +203,7 @@ namespace SushiBLAS
                         dst[t] = fold_indexed_tile(Sum<std::uint32_t>{}, src, t,
                                                            in_count);
                     },
-                    NodeOptions{level.out_count});
+                    stamper.stage("up_sweep", level.out_count));
             }
 
             // The down-sweep runs from the top level, which has no level above it, to level 0.
@@ -236,7 +244,7 @@ namespace SushiBLAS
                             if (first)
                                 offsets_base[in_count] = running;
                         },
-                        NodeOptions{std::size_t{1}});
+                        stamper.stage("down_sweep", std::size_t{1}));
                     continue;
                 }
 
@@ -269,7 +277,7 @@ namespace SushiBLAS
                             running += src[j];
                         }
                     },
-                    NodeOptions{level.out_count});
+                    stamper.stage("down_sweep", level.out_count));
             }
 
             if (level_count == 1)
@@ -284,7 +292,7 @@ namespace SushiBLAS
                 {
                     offsets_base[live_n] = total_base[0];
                 },
-                NodeOptions{std::size_t{1}});
+                stamper.stage("close", std::size_t{1}));
 
             return Detail::recording_outcome(recorder);
         }

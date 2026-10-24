@@ -30,6 +30,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -45,6 +46,8 @@
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/fixed_order_scan.hpp>
 #include <SushiBLAS/graph_primitives/invalid_graph.hpp>
+#include <SushiBLAS/graph_primitives/node_stamper.hpp>
+#include <SushiBLAS/graph_primitives/primitive_options.hpp>
 
 namespace SushiBLAS
 {
@@ -64,8 +67,8 @@ namespace SushiBLAS
          * @brief Records a reduction of n values whose combination order never varies.
          * @tparam Combine Binary functor; must be trivially copyable.
          * @param output Receives the result at window.output_offset; identity when n is zero.
-         * @return Nothing, or an error: InvalidGraph if a window does not fit its buffer,
-         *         AllocationFailed if scratch does not fit, or the recorder's refusal.
+         * @param options Names and classes every node; none leaves them unnamed and Unstated.
+         * @return Nothing, InvalidGraph, AllocationFailed or the recorder's refusal.
          * @see modules/foundation/graph_primitives/README.md
          */
         template <typename T, class Combine>
@@ -73,13 +76,18 @@ namespace SushiBLAS
         reduce(SushiRuntime::Recorder& recorder,
                const SushiRuntime::Buffer<T>& input,
                const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op,
-               T identity, ReduceWindow window = {})
+               T identity, ReduceWindow window = {},
+               const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
             using SushiRuntime::Access;
-            using SushiRuntime::NodeOptions;
             using SushiRuntime::Reads;
             using SushiRuntime::Writes;
             using SushiRuntime::BufferRegion;
+
+            SushiRuntime::Result<void> named = Detail::require_options("reduce", options);
+            if (!named)
+                return named;
+            Detail::NodeStamper stamper(options);
 
             const Detail::ElementSpan<T> in_span = Detail::elements(input, window.input_offset, n);
             const Detail::ElementSpan<T> out_span =
@@ -102,7 +110,7 @@ namespace SushiBLAS
                     {
                         out_base[0] = identity;
                     },
-                    NodeOptions{std::size_t{1}});
+                    stamper.stage("level", std::size_t{1}));
                 return Detail::recording_outcome(recorder);
             }
 
@@ -150,7 +158,7 @@ namespace SushiBLAS
                     {
                         dst[t] = fold_indexed_tile(op, src, t, in_count);
                     },
-                    NodeOptions{level.out_count});
+                    stamper.stage("level", level.out_count));
             }
 
             return Detail::recording_outcome(recorder);
@@ -160,6 +168,7 @@ namespace SushiBLAS
          * @brief Records a reduction whose live element count is resolved once per run.
          * @tparam Combine Binary functor; must be trivially copyable.
          * @param output Receives the result at window.output_offset; identity at live count 0.
+         * @param options Names and classes every node; none leaves them unnamed and Unstated.
          * @return Nothing, or an error as the fixed-count overload returns, for n.capacity();
          *         a run returns an error if the live count exceeds n.capacity().
          */
@@ -168,15 +177,20 @@ namespace SushiBLAS
         reduce(SushiRuntime::Recorder& recorder,
                const SushiRuntime::Buffer<T>& input,
                const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
-               Combine op, T identity, ReduceWindow window = {})
+               Combine op, T identity, ReduceWindow window = {},
+               const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
             using SushiRuntime::Access;
             using SushiRuntime::DeviceSized;
             using SushiRuntime::LateCount;
-            using SushiRuntime::NodeOptions;
             using SushiRuntime::Reads;
             using SushiRuntime::Writes;
             using SushiRuntime::BufferRegion;
+
+            SushiRuntime::Result<void> named = Detail::require_options("reduce", options);
+            if (!named)
+                return named;
+            Detail::NodeStamper stamper(options);
 
             const std::size_t capacity = n.capacity();
             const Detail::ElementSpan<T> in_span =
@@ -202,7 +216,8 @@ namespace SushiBLAS
                     [out_base, identity](std::size_t)
                     {
                         out_base[0] = identity;
-                    });
+                    },
+                    stamper.stage("close"));
                 return Detail::recording_outcome(recorder);
             }
 
@@ -235,7 +250,7 @@ namespace SushiBLAS
                 {
                     Detail::fill_live_level_words(level_count, live[0], state);
                 },
-                NodeOptions{std::size_t{1}});
+                stamper.stage("resolve", std::size_t{1}));
 
             const T* in_base = in_span.data();
             void* scratch_key = static_cast<void*>(scratch);
@@ -266,7 +281,7 @@ namespace SushiBLAS
                     {
                         dst[t] = fold_indexed_tile(op, src, t, in_count);
                     },
-                    NodeOptions{level.out_count});
+                    stamper.stage("level", level.out_count));
             }
 
             // A live count of zero folds no level, so this node is the only writer of identity.
@@ -278,7 +293,7 @@ namespace SushiBLAS
                     if (live_n == 0)
                         out_base[0] = identity;
                 },
-                NodeOptions{std::size_t{1}});
+                stamper.stage("close", std::size_t{1}));
 
             return Detail::recording_outcome(recorder);
         }
@@ -293,10 +308,11 @@ namespace SushiBLAS
         reduce(SushiRuntime::Recorder& recorder,
                const SushiRuntime::Buffer<T>& input,
                const SushiRuntime::Buffer<T>& output, std::size_t n, Combine op,
-               ReduceWindow window = {})
+               ReduceWindow window = {},
+               const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
             return GraphPrimitives::reduce(recorder, input, output, n, op,
-                                           Combine::identity(), window);
+                                           Combine::identity(), window, options);
         }
 
         /**
@@ -309,10 +325,11 @@ namespace SushiBLAS
         reduce(SushiRuntime::Recorder& recorder,
                const SushiRuntime::Buffer<T>& input,
                const SushiRuntime::Buffer<T>& output, SushiRuntime::LateCount n,
-               Combine op, ReduceWindow window = {})
+               Combine op, ReduceWindow window = {},
+               const std::optional<PrimitiveOptions>& options = std::nullopt)
         {
             return GraphPrimitives::reduce(recorder, input, output, n, op,
-                                           Combine::identity(), window);
+                                           Combine::identity(), window, options);
         }
 
     } // namespace GraphPrimitives

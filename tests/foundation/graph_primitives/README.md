@@ -14,11 +14,14 @@ what a test checks; a section below holds why a test is written the way it is.
 | `test_fixed_order_reduce.cpp` | Tests the level plan and the tile folds of the fixed-order reduction, without a device |
 | `test_fixed_order_scan.cpp` | Tests the tiled level plan and the live level widths of the fixed-order scan |
 | `test_invalid_graph.cpp` | Tests the InvalidGraph error a primitive returns and the outcome of a recording |
+| `test_node_stamper.cpp` | Tests the options a node stamper builds for a named and an unnamed call, without a device |
 | `test_prefix_scan.cpp` | Tests prefix_scan() against a host scan, across live counts, replays and node widths |
+| `test_primitive_options.cpp` | Tests the check that refuses options naming no node or holding no class of the runtime, without a device |
 | `test_radix_plan.cpp` | Tests the digit count, the digit of a key and the per-digit plan, without a device |
 | `test_reduce/test_device_sized_reduce.cpp` | Tests that reduce() with a device count gives one result on the chain and the scheduler |
 | `test_reduce/test_reduce.cpp` | Tests reduce(): its fixed combination order, its late-bound count and its node widths |
 | `test_segmented_reduce.cpp` | Tests segmented_reduce(): its per-segment fold, its late-bound count and its widths |
+| `plan_labels.hpp` | Declares the probe the naming tests use to read the names and determinism classes of a graph's nodes |
 | `window_probe.hpp` | Declares the probe the window tests use to read whether a node over a buffer window is ordered |
 
 ## The runtime a test builds
@@ -32,6 +35,9 @@ settings in one test, which the shared test runtime could not give.
 Four files (`test_combiners.cpp`, `test_fixed_order_fold.cpp`, `test_fixed_order_reduce.cpp`,
 `test_radix_plan.cpp`) include
 no SushiRuntime header and submit nothing to a device.
+
+`test_node_stamper.cpp` and `test_primitive_options.cpp` include SushiRuntime's option and error
+headers and submit nothing to a device.
 
 ## Exact comparisons
 

@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -42,7 +43,9 @@
 
 #include <SushiBLAS/graph_primitives/fixed_order_reduce.hpp>
 #include <SushiBLAS/graph_primitives/prefix_scan.hpp>
+#include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include "device_sized_harness.hpp"
+#include "plan_labels.hpp"
 #include "window_probe.hpp"
 
 namespace SushiBLAS
@@ -520,6 +523,74 @@ namespace SushiBLAS
                 ASSERT_FALSE(recorded.has_value()) << refused.operand;
                 EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
                 EXPECT_NE(recorded.error().message.find(refused.operand), std::string::npos)
+                    << recorded.error().message;
+            }
+            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
+        }
+
+        /** @brief Tests that a named call names its nodes by stage and states their class. */
+        TEST(Medium_GraphPrimitivesPrefixScan, NamedCallNamesItsNodesAndStatesTheirClass)
+        {
+            const GraphPrimitives::PrimitiveOptions options{
+                "offsets", SushiRuntime::Determinism::Bitwise};
+
+            auto runtime = Runtime::create().value();
+            auto counts = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+
+            auto graph = runtime.graph();
+            prefix_scan(graph.recorder(), counts, offsets, total,
+                        LateCount::fixed(K_TWO_LEVEL_CAPACITY),
+                        GraphPrimitives::PrefixScanWindow{}, options).value();
+
+            EXPECT_EQ(PlanLabels::names_of(graph),
+                      PlanLabels::staged("offsets", {"resolve", "up_sweep", "down_sweep",
+                                                     "down_sweep", "close"}));
+            for (const auto determinism : PlanLabels::determinisms_of(graph))
+                EXPECT_EQ(determinism, SushiRuntime::Determinism::Bitwise);
+        }
+
+        /** @brief Tests that a call with no options keeps its nodes unnamed and Unstated. */
+        TEST(Medium_GraphPrimitivesPrefixScan, UnnamedCallKeepsItsNodesUnnamed)
+        {
+            auto runtime = Runtime::create().value();
+            auto counts = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_TWO_LEVEL_CAPACITY + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            const std::string unnamed = PlanLabels::unnamed_name(runtime);
+
+            auto graph = runtime.graph();
+            prefix_scan(graph.recorder(), counts, offsets, total,
+                        LateCount::fixed(K_TWO_LEVEL_CAPACITY)).value();
+
+            EXPECT_EQ(PlanLabels::names_of(graph), std::vector<std::string>(5, unnamed));
+            for (const auto determinism : PlanLabels::determinisms_of(graph))
+                EXPECT_EQ(determinism, SushiRuntime::Determinism::Unstated);
+        }
+
+        /** @brief Tests that options with no name are refused, naming the operand 'options'. */
+        TEST(Medium_GraphPrimitivesPrefixScan, RejectsOptionsThatNameNothing)
+        {
+            auto runtime = Runtime::create().value();
+            auto counts = runtime.buffer<std::uint32_t>(8).value();
+            auto offsets = runtime.buffer<std::uint32_t>(9).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            const GraphPrimitives::PrimitiveOptions unnamed{};
+            const GraphPrimitives::PrimitiveOptions null_name{std::string_view{},
+                                                              SushiRuntime::Determinism::Bitwise};
+            const GraphPrimitives::PrimitiveOptions bad_class{
+                "offsets", static_cast<SushiRuntime::Determinism>(250)};
+
+            auto graph = runtime.graph();
+            for (const auto& options : {unnamed, null_name, bad_class})
+            {
+                const SushiRuntime::Result<void> recorded = prefix_scan(
+                    graph.recorder(), counts, offsets, total, LateCount::fixed(8),
+                    GraphPrimitives::PrefixScanWindow{}, options);
+                ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
+                EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
+                EXPECT_NE(recorded.error().message.find("'options'"), std::string::npos)
                     << recorded.error().message;
             }
             EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";

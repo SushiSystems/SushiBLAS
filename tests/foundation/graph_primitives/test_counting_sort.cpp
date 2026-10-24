@@ -36,6 +36,7 @@
 #include <utility>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -49,8 +50,10 @@
 
 #include <SushiBLAS/graph_primitives/counting_sort.hpp>
 #include <SushiBLAS/graph_primitives/prefix_scan.hpp>
+#include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/radix_plan.hpp>
 #include "device_sized_harness.hpp"
+#include "plan_labels.hpp"
 #include "window_probe.hpp"
 
 namespace SushiBLAS
@@ -937,6 +940,96 @@ namespace SushiBLAS
                 ASSERT_FALSE(recorded.has_value()) << refused.operand;
                 EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
                 EXPECT_NE(recorded.error().message.find(refused.operand), std::string::npos)
+                    << recorded.error().message;
+            }
+            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
+        }
+
+        /** @brief Tests that a named call names its nodes by stage and states their class. */
+        TEST(Medium_GraphPrimitivesCountingSort, NamedCallNamesItsNodesAndStatesTheirClass)
+        {
+            constexpr std::size_t K_KEY_RANGE = 4;
+            const GraphPrimitives::PrimitiveOptions options{
+                "sort", SushiRuntime::Determinism::Bitwise};
+
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(8).value();
+            auto indices = runtime.buffer<std::uint32_t>(8).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            auto counts = runtime.buffer<std::uint32_t>(K_KEY_RANGE).value();
+
+            std::vector<std::string> stages = {"resolve"};
+            const std::size_t digits = GraphPrimitives::Detail::radix_digit_count(K_KEY_RANGE);
+            for (std::size_t d = 0; d < digits; ++d)
+                for (const char* stage : {"histogram", "column_scan", "bin_base", "placement"})
+                    stages.push_back(stage);
+            stages.push_back("offsets");
+
+            auto without_counts = runtime.graph();
+            counting_sort(without_counts.recorder(), keys, indices, offsets, total,
+                          LateCount::fixed(8), LateCount::fixed(K_KEY_RANGE), nullptr,
+                          GraphPrimitives::CountingSortWindow{}, options).value();
+            EXPECT_EQ(PlanLabels::names_of(without_counts), PlanLabels::staged("sort", stages));
+
+            stages.push_back("counts");
+            auto with_counts = runtime.graph();
+            counting_sort(with_counts.recorder(), keys, indices, offsets, total,
+                          LateCount::fixed(8), LateCount::fixed(K_KEY_RANGE), &counts,
+                          GraphPrimitives::CountingSortWindow{}, options).value();
+            EXPECT_EQ(PlanLabels::names_of(with_counts), PlanLabels::staged("sort", stages));
+
+            for (auto* graph : {&without_counts, &with_counts})
+                for (const auto determinism : PlanLabels::determinisms_of(*graph))
+                    EXPECT_EQ(determinism, SushiRuntime::Determinism::Bitwise);
+        }
+
+        /** @brief Tests that a call with no options keeps its nodes unnamed and Unstated. */
+        TEST(Medium_GraphPrimitivesCountingSort, UnnamedCallKeepsItsNodesUnnamed)
+        {
+            constexpr std::size_t K_KEY_RANGE = 4;
+
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(8).value();
+            auto indices = runtime.buffer<std::uint32_t>(8).value();
+            auto offsets = runtime.buffer<std::uint32_t>(K_KEY_RANGE + 1).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            const std::string unnamed = PlanLabels::unnamed_name(runtime);
+
+            auto graph = runtime.graph();
+            counting_sort(graph.recorder(), keys, indices, offsets, total, LateCount::fixed(8),
+                          LateCount::fixed(K_KEY_RANGE)).value();
+
+            const std::size_t digits = GraphPrimitives::Detail::radix_digit_count(K_KEY_RANGE);
+            const std::size_t expected = 1 + digits * K_NODES_PER_DIGIT + 1;
+            EXPECT_EQ(PlanLabels::names_of(graph), std::vector<std::string>(expected, unnamed));
+            for (const auto determinism : PlanLabels::determinisms_of(graph))
+                EXPECT_EQ(determinism, SushiRuntime::Determinism::Unstated);
+        }
+
+        /** @brief Tests that options with no name are refused, naming the operand 'options'. */
+        TEST(Medium_GraphPrimitivesCountingSort, RejectsOptionsThatNameNothing)
+        {
+            auto runtime = Runtime::create().value();
+            auto keys = runtime.buffer<std::uint32_t>(8).value();
+            auto indices = runtime.buffer<std::uint32_t>(8).value();
+            auto offsets = runtime.buffer<std::uint32_t>(5).value();
+            auto total = runtime.buffer<std::uint32_t>(1).value();
+            const GraphPrimitives::PrimitiveOptions unnamed{};
+            const GraphPrimitives::PrimitiveOptions null_name{std::string_view{},
+                                                              SushiRuntime::Determinism::Bitwise};
+            const GraphPrimitives::PrimitiveOptions bad_class{
+                "sort", static_cast<SushiRuntime::Determinism>(250)};
+
+            auto graph = runtime.graph();
+            for (const auto& options : {unnamed, null_name, bad_class})
+            {
+                const SushiRuntime::Result<void> recorded = counting_sort(
+                    graph.recorder(), keys, indices, offsets, total, LateCount::fixed(8),
+                    LateCount::fixed(4), nullptr, GraphPrimitives::CountingSortWindow{}, options);
+                ASSERT_FALSE(recorded.has_value()) << "the call recorded instead of refusing";
+                EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
+                EXPECT_NE(recorded.error().message.find("'options'"), std::string::npos)
                     << recorded.error().message;
             }
             EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";

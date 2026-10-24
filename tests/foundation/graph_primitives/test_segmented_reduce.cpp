@@ -31,6 +31,7 @@
 #include <cstring>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <gtest/gtest.h>
@@ -42,8 +43,10 @@
 #include <SushiRuntime/core/error.hpp>
 
 #include <SushiBLAS/graph_primitives/combiners.hpp>
+#include <SushiBLAS/graph_primitives/primitive_options.hpp>
 #include <SushiBLAS/graph_primitives/segmented_reduce.hpp>
 #include "device_sized_harness.hpp"
+#include "plan_labels.hpp"
 #include "window_probe.hpp"
 
 namespace SushiBLAS
@@ -496,6 +499,91 @@ namespace SushiBLAS
                     EXPECT_EQ(recorded.error().code, SushiRuntime::ErrorCode::InvalidGraph);
                     EXPECT_NE(recorded.error().message.find(refused.operand), std::string::npos)
                         << recorded.error().message;
+                }
+            }
+            EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
+        }
+
+        /** @brief Tests that a named call names its nodes by stage and states their class. */
+        TEST(Medium_GraphPrimitivesSegmentedReduce, NamedCallNamesItsNodesAndStatesTheirClass)
+        {
+            const GraphPrimitives::PrimitiveOptions options{
+                "gather", SushiRuntime::Determinism::Bitwise};
+
+            auto runtime = Runtime::create().value();
+            auto values = runtime.buffer<float>(8).value();
+            auto bounds = runtime.buffer<std::uint32_t>(3).value();
+            auto out = runtime.buffer<float>(2).value();
+
+            auto fixed = runtime.graph();
+            segmented_reduce(fixed.recorder(), values, bounds, out, std::size_t{2}, Sum<float>{},
+                             GraphPrimitives::SegmentedReduceWindow{}, options).value();
+            EXPECT_EQ(PlanLabels::names_of(fixed), std::vector<std::string>{"gather"});
+            EXPECT_EQ(PlanLabels::determinisms_of(fixed),
+                      std::vector<SushiRuntime::Determinism>{SushiRuntime::Determinism::Bitwise});
+
+            auto late = runtime.graph();
+            segmented_reduce(late.recorder(), values, bounds, out, LateCount::fixed(2),
+                             Sum<float>{}, GraphPrimitives::SegmentedReduceWindow{},
+                             options).value();
+            EXPECT_EQ(PlanLabels::names_of(late),
+                      PlanLabels::staged("gather", {"resolve", "segment"}));
+            EXPECT_EQ(PlanLabels::determinisms_of(late),
+                      (std::vector<SushiRuntime::Determinism>(
+                          2, SushiRuntime::Determinism::Bitwise)));
+        }
+
+        /** @brief Tests that a call with no options keeps its nodes unnamed and Unstated. */
+        TEST(Medium_GraphPrimitivesSegmentedReduce, UnnamedCallKeepsItsNodesUnnamed)
+        {
+            auto runtime = Runtime::create().value();
+            auto values = runtime.buffer<float>(8).value();
+            auto bounds = runtime.buffer<std::uint32_t>(3).value();
+            auto out = runtime.buffer<float>(2).value();
+            const std::string unnamed = PlanLabels::unnamed_name(runtime);
+
+            auto fixed = runtime.graph();
+            segmented_reduce(fixed.recorder(), values, bounds, out, std::size_t{2},
+                             Sum<float>{}).value();
+            auto late = runtime.graph();
+            segmented_reduce(late.recorder(), values, bounds, out, LateCount::fixed(2),
+                             Sum<float>{}).value();
+
+            EXPECT_EQ(PlanLabels::names_of(fixed), std::vector<std::string>(1, unnamed));
+            EXPECT_EQ(PlanLabels::names_of(late), std::vector<std::string>(2, unnamed));
+            for (auto* graph : {&fixed, &late})
+                for (const auto determinism : PlanLabels::determinisms_of(*graph))
+                    EXPECT_EQ(determinism, SushiRuntime::Determinism::Unstated);
+        }
+
+        /** @brief Tests that options with no name are refused, naming the operand 'options'. */
+        TEST(Medium_GraphPrimitivesSegmentedReduce, RejectsOptionsThatNameNothing)
+        {
+            auto runtime = Runtime::create().value();
+            auto values = runtime.buffer<float>(8).value();
+            auto bounds = runtime.buffer<std::uint32_t>(3).value();
+            auto out = runtime.buffer<float>(2).value();
+            const GraphPrimitives::PrimitiveOptions unnamed{};
+            const GraphPrimitives::PrimitiveOptions null_name{std::string_view{},
+                                                              SushiRuntime::Determinism::Bitwise};
+            const GraphPrimitives::PrimitiveOptions bad_class{
+                "gather", static_cast<SushiRuntime::Determinism>(250)};
+
+            auto graph = runtime.graph();
+            for (const auto& options : {unnamed, null_name, bad_class})
+            {
+                const auto fixed = segmented_reduce(
+                    graph.recorder(), values, bounds, out, std::size_t{2}, Sum<float>{},
+                    GraphPrimitives::SegmentedReduceWindow{}, options);
+                const auto late = segmented_reduce(
+                    graph.recorder(), values, bounds, out, LateCount::fixed(2), Sum<float>{},
+                    GraphPrimitives::SegmentedReduceWindow{}, options);
+                for (const auto* recorded : {&fixed, &late})
+                {
+                    ASSERT_FALSE(recorded->has_value()) << "the call recorded instead of refusing";
+                    EXPECT_EQ(recorded->error().code, SushiRuntime::ErrorCode::InvalidGraph);
+                    EXPECT_NE(recorded->error().message.find("'options'"), std::string::npos)
+                        << recorded->error().message;
                 }
             }
             EXPECT_EQ(graph.recorder().node_count(), 0u) << "a refused call must record nothing";
