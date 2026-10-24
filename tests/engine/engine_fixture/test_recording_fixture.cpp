@@ -21,7 +21,7 @@
 
 /**
  * @file test_recording_fixture.cpp
- * @brief Tests that RecordingFixture records on its own graph, runs it and leaves it empty.
+ * @brief Tests that RecordingFixture forwards to its RecordingGraph and asserts on a run.
  * @author Mustafa Garip
  */
 
@@ -71,23 +71,21 @@ namespace SushiBLAS
 
         };
 
-        TEST_F(Medium_RecordingFixture, AFreshFixtureIsEmptyAndRunsNothing)
+        TEST_F(Medium_RecordingFixture, RunSucceedsAcceptsAnEmptyFixture)
         {
             RecordingFixture fixture(*engine);
 
-            EXPECT_TRUE(fixture.is_empty());
-            EXPECT_EQ(fixture.recorded_count(), std::size_t{0});
             EXPECT_TRUE(fixture.run_succeeds());
         }
 
-        TEST_F(Medium_RecordingFixture, RunningTheGraphEmptiesIt)
+        TEST_F(Medium_RecordingFixture, RunSucceedsRunsTheRecordedTaskAndEmptiesTheFixture)
         {
             RecordingFixture fixture(*engine);
             record_nothing(fixture);
             EXPECT_EQ(fixture.recorded_count(), std::size_t{1});
 
             EXPECT_TRUE(fixture.run_succeeds());
-            EXPECT_EQ(fixture.recorded_count(), std::size_t{0});
+            EXPECT_TRUE(fixture.is_empty());
         }
 
         TEST_F(Medium_RecordingFixture, DiscardDropsTheTasksAndCountsThem)
@@ -106,17 +104,6 @@ namespace SushiBLAS
             RecordingFixture fixture(*engine);
 
             EXPECT_EQ(fixture.recorder().mode(), ExecutionMode::ForceReference);
-        }
-
-        TEST_F(Medium_RecordingFixture, TheGraphRunsAgainAfterItWasEmptied)
-        {
-            RecordingFixture fixture(*engine);
-            record_nothing(fixture);
-            ASSERT_TRUE(fixture.run_succeeds());
-
-            record_nothing(fixture);
-            EXPECT_EQ(fixture.recorded_count(), std::size_t{1});
-            EXPECT_TRUE(fixture.run_succeeds());
         }
     } // namespace Test
 } // namespace SushiBLAS

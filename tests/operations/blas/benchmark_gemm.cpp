@@ -57,7 +57,7 @@ namespace
     void benchmark_gemm(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                     int64_t n)
     {
-        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(engine);
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor a = engine.create_tensor({n, n}, dtype);
         SushiBLAS::Tensor b = engine.create_tensor({n, n}, dtype);
@@ -89,7 +89,7 @@ namespace
     void benchmark_deep_gemm(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                              const DeepShape& shape)
     {
-        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(engine);
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const DataType dtype = DataType::Float32;
         SushiBLAS::Tensor a = engine.create_tensor({shape.k, shape.m}, dtype);
@@ -118,7 +118,7 @@ namespace
     void benchmark_strided_gemm(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                                 const DeepShape& shape)
     {
-        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(engine);
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const DataType dtype = DataType::Float32;
         SushiBLAS::Tensor a = engine.create_tensor({shape.m, shape.k}, dtype);

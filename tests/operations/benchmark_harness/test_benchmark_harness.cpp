@@ -21,10 +21,11 @@
 
 /**
  * @file test_benchmark_harness.cpp
- * @brief Tests the size parsing, the names, the timing and the guard the benchmarks share.
+ * @brief Tests the size parsing, the names, the timing, measure and the guard the benchmarks share.
  * @author Mustafa Garip
  */
 
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <stdexcept>
@@ -33,6 +34,10 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
+#include <SushiBLAS/engine/kernel_pair_dispatcher.hpp>
+#include <SushiBLAS/engine/operand_set.hpp>
+#include <SushiBLAS/engine/task_description.hpp>
+#include <SushiBLAS/recording_graph/recording_graph.hpp>
 #include <SushiBLAS/benchmark_harness/benchmark_harness.hpp>
 
 namespace SushiBLAS
@@ -58,6 +63,20 @@ namespace SushiBLAS
             void operator()(int, char**) const
             {
                 throw std::runtime_error("refused");
+            }
+        };
+
+        /** @brief A task body that counts its runs and orders no work. */
+        struct CountingBody
+        {
+            std::atomic<int>* runs; /**< Receives one per run of the task. */
+
+            /** @brief Adds one to the count and returns an event that is already complete. */
+            sycl::event operator()(const KernelPairDispatcher&, sycl::queue&,
+                                   const std::vector<sycl::event>&) const
+            {
+                runs->fetch_add(1);
+                return sycl::event();
             }
         };
 
@@ -118,6 +137,29 @@ namespace SushiBLAS
             char* arguments[] = {program};
 
             EXPECT_EQ(Bench::run_guarded(ThrowingBody{}, 1, arguments), EXIT_FAILURE);
+        }
+
+        TEST(Medium_BenchmarkHarness, MeasureRecordsAndRunsOneTaskPerIterationOnTheGraphItIsGiven)
+        {
+            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+            Engine engine(runtime);
+            RecordingGraph graph(engine);
+            Tensor out = engine.create_tensor({4});
+            std::atomic<int> runs{0};
+
+            const Bench::Timing timing = Bench::measure(graph, [&]()
+            {
+                OperandSet operands;
+                operands.writes(out);
+                TaskDescription description;
+                description.name = "counted";
+                graph.recorder().record_pair(description, operands, "test",
+                                             CountingBody{&runs});
+            });
+
+            EXPECT_EQ(runs.load(), Bench::K_WARMUP_ITERATIONS + Bench::K_TIMED_ITERATIONS);
+            EXPECT_LE(timing.min_seconds, timing.median_seconds);
+            EXPECT_TRUE(graph.is_empty());
         }
     } // namespace Test
 } // namespace SushiBLAS

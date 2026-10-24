@@ -53,6 +53,7 @@ set(SUSHIBLAS_MODULE_LAYERS
     operands            engine
     functor_map         engine
     cluster             engine
+    recording_graph     engine
     engine_fixture      engine
     execution_mode_sweep engine
     graph_probe         engine
@@ -98,7 +99,9 @@ set(SUSHIBLAS_SAME_LAYER_EDGES
     sparse_fixtures     core
     sparse_fixtures     arithmetic
     tensor_expectations tensor
+    recording_graph     engine
     engine_fixture      engine
+    engine_fixture      recording_graph
     execution_mode_sweep engine
     graph_probe         engine
     benchmark_harness   io)

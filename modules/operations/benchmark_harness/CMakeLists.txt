@@ -15,10 +15,10 @@ sushiblas_add_module(
         launch
         tensor
         engine
-        io)
+        io
+        recording_graph)
 
 sushiblas_add_test_program(
     MODULE benchmark_harness
     TESTS
-        test_benchmark_graph.cpp
         test_benchmark_harness.cpp)

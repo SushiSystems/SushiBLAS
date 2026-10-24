@@ -55,7 +55,7 @@ K_QUEUE_SHORTCUT = re.compile(
 )
 K_DEPENDS_ON_CALL = re.compile(r"\bdepends_on\s*\(")
 K_DEPENDENCY_ARGUMENT = re.compile(r"\bdeps\w*\b")
-K_TESTS_SWITCH = re.compile(r"^\s*if\s*\(\s*SB_BUILD_(?:TESTS|BENCHMARKS)\s*\)", re.M)
+K_TESTS_SWITCH = re.compile(r"^\s*if\s*\(\s*SB_BUILD_(?:TESTS|BENCHMARKS)(?:\s+OR\s+SB_BUILD_(?:TESTS|BENCHMARKS))?\s*\)", re.M)
 K_ENDIF = re.compile(r"^\s*endif\s*\(", re.M)
 K_SUBDIRECTORY = re.compile(r"add_subdirectory\(\s*([A-Za-z0-9_]+)\s*\)")
 K_INTERNAL_FLAG = re.compile(r"^\s*INTERNAL\b", re.M)

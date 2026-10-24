@@ -41,8 +41,8 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
-#include <SushiBLAS/benchmark_harness/benchmark_graph.hpp>
 #include <SushiBLAS/io/io.hpp>
+#include <SushiBLAS/recording_graph/recording_graph.hpp>
 
 /// @brief Holds the helpers shared by the benchmark programs.
 namespace SushiBLAS::Bench
@@ -122,7 +122,7 @@ namespace SushiBLAS::Bench
     }
 
     /**
-     * @brief Prints the device a probe tensor lives on, the build, the mode a BenchmarkGraph
+     * @brief Prints the device a probe tensor lives on, the build, the mode a RecordingGraph
      *        records under unless a benchmark sets another, and the layout.
      */
     inline void print_environment(Engine& engine)
@@ -137,7 +137,7 @@ namespace SushiBLAS::Bench
         std::printf("blocking:      inner %zu, outer %zu, stream %zu, min operand %zu\n",
                     profile.blocking.inner_bytes, profile.blocking.outer_bytes,
                     profile.blocking.stream_bytes, profile.blocking.min_operand_bytes);
-        std::printf("record mode:   %s\n", execution_mode_name(K_DEFAULT_MODE));
+        std::printf("record mode:   %s\n", execution_mode_name(K_DEFAULT_RECORDING_MODE));
         std::printf("layout:        %s\n", layout_name(engine.layout()));
         std::printf("iterations:    %d warm-up, %d timed\n\n", K_WARMUP_ITERATIONS,
                     K_TIMED_ITERATIONS);
@@ -258,7 +258,7 @@ namespace SushiBLAS::Bench
      * @throws std::runtime_error when a run fails or the recording is refused.
      */
     template<typename Record>
-    [[nodiscard]] Timing measure(BenchmarkGraph& graph, Record record)
+    [[nodiscard]] Timing measure(RecordingGraph& graph, Record record)
     {
         return time_iterations([&]()
         {

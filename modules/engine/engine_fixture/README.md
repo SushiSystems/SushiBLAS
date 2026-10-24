@@ -1,10 +1,10 @@
 # engine_fixture
 
 `SushiBLASTest`, the GoogleTest fixture that gives each test a fresh `Engine` on the shared
-runtime, and `RecordingFixture`, the graph and recorder a test records on. The module is internal and test-only: its headers are not
+runtime, and `RecordingFixture`, the `RecordingGraph` a test records on with its GoogleTest helper. The module is internal and test-only: its headers are not
 installed, and it is added only when `SB_BUILD_TESTS` is on.
 
-It depends on `core`, `tensor`, `engine`, `test_runner`, `tensor_expectations` and GoogleTest. Its headers are included as `<SushiBLAS/engine_fixture/<name>.hpp>`.
+It depends on `core`, `tensor`, `engine`, `recording_graph`, `test_runner`, `tensor_expectations` and GoogleTest. Its headers are included as `<SushiBLAS/engine_fixture/<name>.hpp>`.
 
 | File | Declares |
 | --- | --- |
@@ -23,17 +23,13 @@ creates a tensor of `T`'s dtype and copies a host vector into it.
 
 ## recording_fixture.hpp
 
-`Engine` keeps no graph for a test to run. `RecordingFixture` is the four lines a caller that
-owns a graph writes: it holds a `SushiRuntime::Graph` and a `TaskRecorder` over that graph's
-recorder. The constructor that takes an `Engine&` borrows the engine's scratch pool and
-execution mode; the one that takes a runtime takes a pool and a mode of its own.
-`recorder()` is what a test builds its operation families on.
-
-`run()` runs the graph, returns when every task has finished and empties it, so the fixture
-records and runs again; it returns the run's `SushiRuntime::Result<void>`, also when nothing was
-recorded. `run_succeeds()` is `run()` as a GoogleTest assertion that prints the runtime's
-message on failure. `discard()` drops the recorded tasks and returns how many, `plan()` returns
-what the plan orders and `recorded_count()` and `is_empty()` report what waits.
+`RecordingFixture` holds a `RecordingGraph` (`modules/engine/recording_graph/README.md`), which
+owns the graph, the `TaskRecorder`, `run()`, `discard()` and `plan()`, and forwards its
+`recorder()`, `run()`, `plan()`, `discard()`, `recorded_count()` and `is_empty()`. It adds
+`run_succeeds()`, `run()` as a GoogleTest assertion that prints the runtime's message on failure.
+It holds the graph rather than deriving from it, so `RecordingGraph` keeps its non-virtual
+destructor and a fixture exposes only the calls a test makes. The constructors mirror those of
+`RecordingGraph`.
 
 The fixture includes no operation family. A test includes the headers of the families it
 records, or `<SushiBLAS/SushiBLAS.hpp>`.

@@ -21,7 +21,7 @@
 
 /**
  * @file recording_fixture.hpp
- * @brief Declares RecordingFixture, a graph a test owns with a TaskRecorder recording on it.
+ * @brief Declares RecordingFixture, a RecordingGraph a test owns, with its GoogleTest helpers.
  * @author Mustafa Garip
  * @see modules/engine/engine_fixture/README.md
  */
@@ -29,12 +29,12 @@
 #pragma once
 
 #include <cstddef>
-#include <utility>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiBLAS/recording_graph/recording_graph.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 
 namespace SushiBLAS
@@ -42,8 +42,7 @@ namespace SushiBLAS
     namespace Test
     {
         /**
-         * @brief Owns a runtime graph and a TaskRecorder over its recorder, the way a caller
-         *        that records a few operations does.
+         * @brief Holds a RecordingGraph for a test and adds the GoogleTest assertion on a run.
          * @see modules/engine/engine_fixture/README.md
          */
         class RecordingFixture final
@@ -57,8 +56,7 @@ namespace SushiBLAS
                  */
                 RecordingFixture(SushiRuntime::Runtime& runtime, ScratchPool& scratch_pool,
                                  ExecutionMode mode = ExecutionMode::Auto)
-                    : graph_(runtime.graph()),
-                      recorder_(graph_.recorder(), scratch_pool, mode)
+                    : graph_(runtime, scratch_pool, mode)
                 {
 
                 }
@@ -69,7 +67,7 @@ namespace SushiBLAS
                  * @param engine Must outlive the fixture.
                  */
                 explicit RecordingFixture(Engine& engine)
-                    : RecordingFixture(engine.runtime(), engine.scratch_pool(), engine.mode())
+                    : graph_(engine)
                 {
 
                 }
@@ -81,57 +79,25 @@ namespace SushiBLAS
                 ~RecordingFixture() = default;
 
                 /** @brief Returns the recorder a view or a seam records on this graph through. */
-                [[nodiscard]] TaskRecorder& recorder() noexcept { return recorder_; }
+                [[nodiscard]] TaskRecorder& recorder() noexcept { return graph_.recorder(); }
 
                 /** @brief Returns how many tasks are recorded and have not run. */
                 [[nodiscard]] std::size_t recorded_count() const noexcept
                 {
-                    return graph_.recorder().node_count();
+                    return graph_.recorded_count();
                 }
 
                 /** @brief Reports whether a run would have nothing to do and nothing to report. */
-                [[nodiscard]] bool is_empty() const noexcept
-                {
-                    return recorded_count() == 0 && graph_.recorder().refusal() == nullptr;
-                }
+                [[nodiscard]] bool is_empty() const noexcept { return graph_.is_empty(); }
 
-                /**
-                 * @brief Returns what the plan orders, building the plan when none is current.
-                 * @return One entry per recorded task in record order, or the error that kept the
-                 *         graph from compiling.
-                 */
+                /** @brief Returns what the plan orders, as RecordingGraph::plan() does. */
                 [[nodiscard]] SushiRuntime::Result<SushiRuntime::PlanView> plan()
                 {
                     return graph_.plan();
                 }
 
-                /**
-                 * @brief Runs the recorded graph, returns when it has finished and leaves it empty.
-                 * @return Nothing, also when no task was recorded, or the error that ended the run.
-                 *         After InvalidState for a run in flight the recorded tasks are kept.
-                 * @pre No thread is recording on recorder().
-                 */
-                [[nodiscard]] SushiRuntime::Result<void> run()
-                {
-                    if (is_empty())
-                        return {};
-
-                    const bool recording_refused = graph_.recorder().refusal() != nullptr;
-                    SushiRuntime::Result<SushiRuntime::RunReport*> ran = graph_.run(report_);
-                    if (ran)
-                    {
-                        forget();
-                        return {};
-                    }
-
-                    // A run the runtime turned away for one in flight started no recorded task.
-                    const bool turned_away =
-                        !recording_refused &&
-                        ran.error().code == SushiRuntime::ErrorCode::InvalidState;
-                    if (!turned_away)
-                        forget();
-                    return SushiRuntime::make_error(std::move(ran.error()));
-                }
+                /** @brief Runs the recorded graph as RecordingGraph::run() does. */
+                [[nodiscard]] SushiRuntime::Result<void> run() { return graph_.run(); }
 
                 /**
                  * @brief Runs the recorded graph as run() does and reports whether it succeeded.
@@ -146,33 +112,12 @@ namespace SushiBLAS
                            << "the graph did not run: " << ran.error().message;
                 }
 
-                /**
-                 * @brief Drops every recorded task with what its body captured, and the plan.
-                 * @return How many tasks were dropped.
-                 * @pre No thread is running run().
-                 */
-                std::size_t discard()
-                {
-                    const std::size_t dropped = recorded_count();
-                    forget();
-                    return dropped;
-                }
+                /** @brief Drops every recorded task as RecordingGraph::discard() does. */
+                std::size_t discard() { return graph_.discard(); }
 
             private:
-                /** @brief Empties the graph while no record call adds a task. */
-                void forget()
-                {
-                    recorder_.run_exclusive([this]() { graph_.clear(); });
-                }
-
-                /// @brief The graph recorded tasks wait in.
-                SushiRuntime::Graph graph_;
-
-                /// @brief The recorder bound to the recorder of graph_ and to a scratch pool.
-                TaskRecorder recorder_;
-
-                /// @brief The report every run writes into, so a run allocates none.
-                SushiRuntime::RunReport report_;
+                /// @brief The graph and recorder this fixture holds.
+                RecordingGraph graph_;
         };
     } // namespace Test
 } // namespace SushiBLAS

@@ -13,6 +13,7 @@ sushiblas_add_module(
         core
         tensor
         engine
+        recording_graph
         test_runner
         tensor_expectations
     EXTERNAL

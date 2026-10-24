@@ -37,6 +37,7 @@ in one line.
 | engine | `engine_fixture` | Test-only: `SushiBLASTest`, a fresh `Engine` per test | [README](engine/engine_fixture/README.md) |
 | engine | `execution_mode_sweep` | Test-only: the execution modes a routine's tests run it in | [README](engine/execution_mode_sweep/README.md) |
 | engine | `graph_probe` | Test-only: `GraphProbe`, a graph a test reads its recorded tasks from | [README](engine/graph_probe/README.md) |
+| engine | `recording_graph` | `RecordingGraph`, a runtime graph with a recorder on it, shared by the test fixture and the benchmark programs | [README](engine/recording_graph/README.md) |
 | operations | `blas` | BLAS levels 1 to 3 and the GEMM executor | [README](operations/blas/README.md) |
 | operations | `elementwise`, `nonlinear`, `random`, `reductions` | The four math families | [elementwise](operations/elementwise/README.md), [nonlinear](operations/nonlinear/README.md), [random](operations/random/README.md), [reductions](operations/reductions/README.md) |
 | operations | `logic` | Comparison and logical operations | [README](operations/logic/README.md) |

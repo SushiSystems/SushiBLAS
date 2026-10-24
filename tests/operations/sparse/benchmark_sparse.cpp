@@ -123,7 +123,7 @@ namespace
     void benchmark_order(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                      int64_t n)
     {
-        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(engine);
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const SushiBLAS::SparseBuilder builder(engine.tensor_factory());
 

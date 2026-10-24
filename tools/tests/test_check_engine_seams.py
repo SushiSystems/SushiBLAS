@@ -223,6 +223,16 @@ class TestOnlyModuleTest(unittest.TestCase):
             for rule in (rule_seam_engine_includes, rule_view_engine_calls, rule_task_dependencies):
                 self.assertEqual(list(rule(repository)), [])
 
+    def test_exempts_a_module_built_for_tests_or_benchmarks(self) -> None:
+        """Reports nothing for an INTERNAL module the tier adds under SB_BUILD_TESTS OR SB_BUILD_BENCHMARKS."""
+        with tempfile.TemporaryDirectory() as folder:
+            files = self._files(K_TEST_ONLY_MODULE)
+            files["modules/engine/CMakeLists.txt"] = K_TEST_ONLY_TIER.replace(
+                "SB_BUILD_TESTS", "SB_BUILD_TESTS OR SB_BUILD_BENCHMARKS")
+            repository = _repository(folder, files)
+            for rule in (rule_seam_engine_includes, rule_view_engine_calls, rule_task_dependencies):
+                self.assertEqual(list(rule(repository)), [])
+
     def test_checks_a_module_that_is_not_internal(self) -> None:
         """Reports all three findings when the module under the switch is not INTERNAL."""
         with tempfile.TemporaryDirectory() as folder:

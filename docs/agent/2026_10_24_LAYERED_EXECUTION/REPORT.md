@@ -150,6 +150,15 @@ unused placeholder (KI-9), takes a `TaskRecorder&`. `check_engine_seams.py` gain
 over `Engine&`. SushiAI uses none of what went. A docs-sync worker, under the owner's exception of
 2026-10-24, made the manual true again, `ENGINE_AND_RECORDER.md` most of all.
 
+## B4, follow-up
+
+The owner ruled that the fixture and the benchmark harness share one gtest-free owner of a graph.
+`RecordingGraph` lives in a new engine-tier module `recording_graph`, built under
+`SB_BUILD_TESTS OR SB_BUILD_BENCHMARKS`, since B5 took graphs out of `engine` itself.
+`RecordingFixture` holds one by composition and adds `run_succeeds()`; the benchmarks use it
+directly and `BenchmarkGraph` is gone. Adopting the fixture's run changes two things for the
+benchmarks: an empty graph's run succeeds, and a run refused as `InvalidState` keeps its tasks.
+
 ## Dispatches
 
 ```
@@ -164,6 +173,7 @@ dispatch: B4 — sonnet medium, passed, rung 1
 dispatch: B7 — sonnet medium, 69 turns, then B7b sonnet medium, 87 turns, then B7c sonnet medium, 88 turns, passed, rung 1
 dispatch: B10 — haiku medium, 38 turns, passed, rung 1
 dispatch: B5 — sonnet medium, 89 turns, passed, rung 1
+dispatch: B4 follow-up — sonnet medium, 52 turns, passed, rung 1
 dispatch: docs-sync after B5 — sonnet medium, 18 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

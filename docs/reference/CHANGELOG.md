@@ -6,6 +6,8 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — recording_graph: Added `RecordingGraph`, the one gtest-free owner of a graph and a task recorder that the fixture and the benchmark harness share, replacing `BenchmarkGraph` (`recording_graph.hpp`, `recording_fixture.hpp`).
+- 2026-10-24 — tools: Let `check_engine_seams.py` exempt a module built under `SB_BUILD_TESTS OR SB_BUILD_BENCHMARKS` (`check_engine_seams.py`).
 - 2026-10-24 — engine: Removed the engine's own graph with `execute()`, `discard_recorded()` and `recorder()`; every operation records into a graph its caller owns (`engine.hpp`, `engine.cpp`).
 - 2026-10-24 — engine: Removed the constructors over `Engine&` of every operation family, and made `SparseBLAS` take a `TaskRecorder&` (`blas.hpp`, `sparse.hpp`).
 - 2026-10-24 — tools: Made `check_engine_seams.py` fail an engine graph member or a family constructor over `Engine&` coming back (`check_engine_seams.py`).

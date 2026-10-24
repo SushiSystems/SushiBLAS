@@ -13,6 +13,11 @@ if(SB_ENABLE_DISTRIBUTED)
 endif()
 
 # Test-only modules: a test program includes them, the library never does.
+# The recording graph serves the test fixtures and the benchmark programs, and nothing else.
+if(SB_BUILD_TESTS OR SB_BUILD_BENCHMARKS)
+    add_subdirectory(recording_graph)
+endif()
+
 if(SB_BUILD_TESTS)
     add_subdirectory(engine_fixture)
     add_subdirectory(execution_mode_sweep)

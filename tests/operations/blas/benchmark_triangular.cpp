@@ -168,7 +168,7 @@ namespace
     void benchmark_products(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                         DataType dtype, int64_t n, const SushiBLAS::Tensor& a)
     {
-        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(engine);
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         const SushiBLAS::Tensor g = constant_matrix(engine, dtype, n, n, K_G_VALUE);
         const SushiBLAS::Tensor h = constant_matrix(engine, dtype, n, n, K_H_VALUE);
@@ -203,7 +203,7 @@ namespace
     void benchmark_trmv(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                     int64_t n, const SushiBLAS::Tensor& a, ExecutionMode mode, const char* label)
     {
-        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(engine);
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor x = ones_vector(engine, dtype, n);
         const ModeScope scope(recorder, mode);
@@ -219,7 +219,7 @@ namespace
     void benchmark_trsv(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                     int64_t n, const SushiBLAS::Tensor& a, ExecutionMode mode, const char* label)
     {
-        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(engine);
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor x = ones_vector(engine, dtype, n);
         const ModeScope scope(recorder, mode);
@@ -235,7 +235,7 @@ namespace
     void benchmark_trsm(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                     int64_t n, const SushiBLAS::Tensor& a, int64_t columns, const char* label)
     {
-        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(engine);
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor b = constant_matrix(engine, dtype, n, columns, K_ONE);
         const Bench::Timing timing = Bench::measure(graph, [&]()

@@ -152,7 +152,7 @@ emits no edge at all. That cost SushiAI's first arena-packed training run.
 ## Benchmarks
 
 Ten programs that time SushiBLAS operations, one per `benchmark_*.cpp` file. Eight go through the
-public API: an `Engine`, `create_tensor`, `IO::from_vector`, a `Bench::BenchmarkGraph` of their own and the operation views (`BLASOps`,
+public API: an `Engine`, `create_tensor`, `IO::from_vector`, a `RecordingGraph` of their own and the operation views (`BLASOps`,
 `SparseOps`, `ReductionOps`, `ElementwiseOps`, `NonLinearOps`, `SpatialOps`, `RandomOps`). `benchmark_gemm_blocking` calls the
 GEMM kernel directly, and `benchmark_triangular` calls the TRSM kernel directly for some of its
 rows. They use no test framework, carry the target label `benchmark` and never pass or fail on a
@@ -248,7 +248,7 @@ Each program prints the device name, the build configuration (`release` when `ND
 `debug` otherwise), the compute units, cache bytes and cache blocking of the device profile, the
 engine's execution mode and its layout. It fills the inputs once, runs 2 warm-up iterations, then times 10
 iterations with `std::chrono::steady_clock`. One iteration of a program that goes through the public
-API records the operation on the program's own `BenchmarkGraph`, runs that graph and clears it, so
+API records the operation on the program's own `RecordingGraph`, runs that graph and clears it, so
 recording, graph compilation and dispatch are inside the measured time. Each iteration records on an
 empty graph; no iteration replays a compiled plan. The table gives the median and minimum time per iteration in
 milliseconds, and the rate computed from the median.

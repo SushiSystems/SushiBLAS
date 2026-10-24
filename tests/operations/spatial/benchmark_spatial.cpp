@@ -113,7 +113,7 @@ namespace
     void benchmark_windows(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                            DataType dtype, int64_t side)
     {
-        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(engine);
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::SpatialOps spatial(recorder);
         const int64_t c = K_CHANNELS;
@@ -184,7 +184,7 @@ namespace
     void benchmark_copies(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                           DataType dtype, int64_t side)
     {
-        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(engine);
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::SpatialOps spatial(recorder);
         const int64_t c = K_CHANNELS;

@@ -68,7 +68,7 @@ namespace
     void benchmark_length(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                           DataType dtype, int64_t n)
     {
-        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(engine);
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::RandomOps random(recorder, engine.rng());
         random.set_seed(K_SEED);
@@ -110,7 +110,7 @@ namespace
     void benchmark_orthogonal(SushiBLAS::Engine& engine, const Bench::ResultTable& table,
                               DataType dtype, int64_t n)
     {
-        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(engine);
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::RandomOps random(recorder, engine.rng());
         random.set_seed(K_SEED);

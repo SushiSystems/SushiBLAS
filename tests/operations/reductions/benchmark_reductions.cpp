@@ -50,7 +50,7 @@ namespace
     void benchmark_count(SushiBLAS::Engine& engine, const Bench::ResultTable& table, DataType dtype,
                      int64_t n)
     {
-        Bench::BenchmarkGraph graph(engine);
+        SushiBLAS::RecordingGraph graph(engine);
         SushiBLAS::TaskRecorder& recorder = graph.recorder();
         SushiBLAS::Tensor input = engine.create_tensor({n}, dtype);
         SushiBLAS::Tensor result = engine.create_tensor({1}, dtype);
