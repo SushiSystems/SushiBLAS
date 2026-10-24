@@ -98,8 +98,8 @@ namespace SushiBLAS
             const float sentinel = -99.0f;
             auto dst = filled(1, 1, 2, 5, sentinel);
 
-            SushiBLAS::SpatialOps(*engine).concat_channels(a, dst, 0);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).concat_channels(a, dst, 0);
+            recording->run().value();
 
             const float* got = dst.data_as<float>();
 
@@ -109,8 +109,8 @@ namespace SushiBLAS
             for (std::size_t i = 0; i < after_a.size(); ++i)
                 EXPECT_FLOAT_EQ(got[i], after_a[i]) << "element " << i << " after the first concat";
 
-            SushiBLAS::SpatialOps(*engine).concat_channels(b, dst, 2);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).concat_channels(b, dst, 2);
+            recording->run().value();
 
             const std::vector<float> expected = {10, 11, 20, 21, 22,
                                                  12, 13, 23, 24, 25};
@@ -124,14 +124,14 @@ namespace SushiBLAS
             auto b = patterned(2, 3, 4, 5, 7);
 
             auto joined = filled(2, 3, 4, 7, -1.0f);
-            SushiBLAS::SpatialOps(*engine).concat_channels(a, joined, 0);
-            SushiBLAS::SpatialOps(*engine).concat_channels(b, joined, 2);
+            SushiBLAS::SpatialOps(recorder()).concat_channels(a, joined, 0);
+            SushiBLAS::SpatialOps(recorder()).concat_channels(b, joined, 2);
 
             auto a_back = filled(2, 3, 4, 2, 0.0f);
             auto b_back = filled(2, 3, 4, 5, 0.0f);
-            SushiBLAS::SpatialOps(*engine).slice_channels(joined, 0, a_back);
-            SushiBLAS::SpatialOps(*engine).slice_channels(joined, 2, b_back);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).slice_channels(joined, 0, a_back);
+            SushiBLAS::SpatialOps(recorder()).slice_channels(joined, 2, b_back);
+            recording->run().value();
 
             const float* a_in = a.data_as<float>();
             const float* a_out = a_back.data_as<float>();
@@ -153,12 +153,12 @@ namespace SushiBLAS
             auto b = patterned(1, 2, 2, 4, 11);
 
             auto c = filled(1, 2, 2, 7, -1.0f);
-            SushiBLAS::SpatialOps(*engine).concat_channels(a, c, 0);
-            SushiBLAS::SpatialOps(*engine).concat_channels(b, c, 3);
+            SushiBLAS::SpatialOps(recorder()).concat_channels(a, c, 0);
+            SushiBLAS::SpatialOps(recorder()).concat_channels(b, c, 3);
 
             auto a_grad = filled(1, 2, 2, 3, 0.0f);
-            SushiBLAS::SpatialOps(*engine).slice_channels(c, 0, a_grad);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).slice_channels(c, 0, a_grad);
+            recording->run().value();
 
             const float* expected = a.data_as<float>();
             const float* got = a_grad.data_as<float>();
@@ -175,7 +175,7 @@ namespace SushiBLAS
             // Writing three channels starting at 3 needs six, and there are five.
             try
             {
-                SushiBLAS::SpatialOps(*engine).concat_channels(three, five, 3);
+                SushiBLAS::SpatialOps(recorder()).concat_channels(three, five, 3);
                 FAIL() << "a concat past the destination's channel count was accepted";
             }
             catch (const std::invalid_argument& e)
@@ -189,7 +189,7 @@ namespace SushiBLAS
             auto destination = filled(1, 2, 2, 3, 0.0f);
             try
             {
-                SushiBLAS::SpatialOps(*engine).slice_channels(five, 4, destination);
+                SushiBLAS::SpatialOps(recorder()).slice_channels(five, 4, destination);
                 FAIL() << "a slice past the source's channel count was accepted";
             }
             catch (const std::invalid_argument& e)
@@ -217,8 +217,8 @@ namespace SushiBLAS
                               parent.storage_offset, parent.layout);
 
             auto dst = filled(1, 2, 2, 2, -1.0f);
-            SushiBLAS::SpatialOps(*engine).concat_channels(view, dst, 0);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).concat_channels(view, dst, 0);
+            recording->run().value();
 
             const std::vector<float> expected = {0, 2,   4, 6,
                                                  8, 10,  12, 14};
@@ -238,13 +238,13 @@ namespace SushiBLAS
             auto from_reference = patterned(N, H, W, WIDE, 13);
             auto from_device = patterned(N, H, W, WIDE, 13);
 
-            engine->set_mode(ExecutionMode::ForceReference);
-            SushiBLAS::SpatialOps(*engine).concat_channels(src, from_reference, OFFSET);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceReference);
+            SushiBLAS::SpatialOps(recorder()).concat_channels(src, from_reference, OFFSET);
+            recording->run().value();
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
-            SushiBLAS::SpatialOps(*engine).concat_channels(src, from_device, OFFSET);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceSYCL);
+            SushiBLAS::SpatialOps(recorder()).concat_channels(src, from_device, OFFSET);
+            recording->run().value();
 
             const float* expected = from_reference.data_as<float>();
             const float* got = from_device.data_as<float>();
@@ -256,13 +256,14 @@ namespace SushiBLAS
             auto sliced_reference = filled(N, H, W, C, 0.0f);
             auto sliced_device = filled(N, H, W, C, 0.0f);
 
-            engine->set_mode(ExecutionMode::ForceReference);
-            SushiBLAS::SpatialOps(*engine).slice_channels(from_reference, OFFSET, sliced_reference);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceReference);
+            SushiBLAS::SpatialOps(recorder())
+                .slice_channels(from_reference, OFFSET, sliced_reference);
+            recording->run().value();
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
-            SushiBLAS::SpatialOps(*engine).slice_channels(from_reference, OFFSET, sliced_device);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceSYCL);
+            SushiBLAS::SpatialOps(recorder()).slice_channels(from_reference, OFFSET, sliced_device);
+            recording->run().value();
 
             const float* expected_slice = sliced_reference.data_as<float>();
             const float* got_slice = sliced_device.data_as<float>();
@@ -298,7 +299,7 @@ namespace SushiBLAS
             g.stride_h = 2;
             g.stride_w = 2;
 
-            SushiBLAS::SpatialOps spatial(*engine);
+            SushiBLAS::SpatialOps spatial(recorder());
 
             auto rank3 = engine->create_tensor({1, 4, 4}, Core::DataType::Float32);
             auto pooled = filled(1, 2, 2, 1, 0.0f);

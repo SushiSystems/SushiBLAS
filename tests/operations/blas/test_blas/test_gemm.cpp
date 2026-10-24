@@ -90,15 +90,15 @@ namespace SushiBLAS
                     // Both C buffers must start identical. See tests/operations/blas/README.md.
                     seed_output(C_actual, C_expected, beta == 0.0);
 
-                    engine->set_mode(ExecutionMode::ForceSYCL);
-                    SushiBLAS::BLASOps(*engine).gemm(A, B, C_actual, transpose_of(transA),
+                    set_mode(ExecutionMode::ForceSYCL);
+                    SushiBLAS::BLASOps(recorder()).gemm(A, B, C_actual, transpose_of(transA),
                                                      transpose_of(transB), alpha, beta);
-                    engine->execute().value();
+                    recording->run().value();
 
-                    engine->set_mode(ExecutionMode::ForceReference);
-                    SushiBLAS::BLASOps(*engine).gemm(A, B, C_expected, transpose_of(transA),
+                    set_mode(ExecutionMode::ForceReference);
+                    SushiBLAS::BLASOps(recorder()).gemm(A, B, C_expected, transpose_of(transA),
                                                      transpose_of(transB), alpha, beta);
-                    engine->execute().value();
+                    recording->run().value();
 
                     SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tolerance_for(dtype, k), T);
                 }
@@ -126,15 +126,15 @@ namespace SushiBLAS
                     fill_random<T>(B);
                     seed_output(C_actual, C_expected, beta == 0.0);
 
-                    engine->set_mode(ExecutionMode::ForceSYCL);
-                    SushiBLAS::BLASOps(*engine).gemm(A, B, C_actual, Core::Transpose::NoTrans,
+                    set_mode(ExecutionMode::ForceSYCL);
+                    SushiBLAS::BLASOps(recorder()).gemm(A, B, C_actual, Core::Transpose::NoTrans,
                                                      Core::Transpose::NoTrans, alpha, beta);
-                    engine->execute().value();
+                    recording->run().value();
 
-                    engine->set_mode(ExecutionMode::ForceReference);
-                    SushiBLAS::BLASOps(*engine).gemm(A, B, C_expected, Core::Transpose::NoTrans,
+                    set_mode(ExecutionMode::ForceReference);
+                    SushiBLAS::BLASOps(recorder()).gemm(A, B, C_expected, Core::Transpose::NoTrans,
                                                      Core::Transpose::NoTrans, alpha, beta);
-                    engine->execute().value();
+                    recording->run().value();
 
                     SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tolerance_for(dtype, k), T);
                 }
@@ -373,9 +373,9 @@ namespace SushiBLAS
                 auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 0, 1, 1, 1});
                 auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::ForceSYCL);
-                SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-                engine->execute().value();
+                set_mode(ExecutionMode::ForceSYCL);
+                SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
+                recording->run().value();
 
                 // C = [[1+3, 2+3], [4+6, 5+6]] = [[4,5],[10,11]], row-major.
                 EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 5, 10, 11}), 1e-5);
@@ -390,9 +390,9 @@ namespace SushiBLAS
                 auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 1, 0, 1, 1});
                 auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::ForceSYCL);
-                SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-                engine->execute().value();
+                set_mode(ExecutionMode::ForceSYCL);
+                SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
+                recording->run().value();
 
                 // C = [[4,5],[10,11]] again, stored column-major with ldc = 2.
                 EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 10, 5, 11}), 1e-5);
@@ -407,9 +407,9 @@ namespace SushiBLAS
                 auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 1, 0, 1, 1});
                 auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::ForceReference);
-                SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-                engine->execute().value();
+                set_mode(ExecutionMode::ForceReference);
+                SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
+                recording->run().value();
 
                 EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 10, 5, 11}), 1e-5);
             }
@@ -421,10 +421,10 @@ namespace SushiBLAS
                 auto B = create_initialized_tensor<float>({3, 2}, {1, 0, 0, 1, 1, 1});
                 auto C = engine->create_tensor({2, 2}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::ForceSYCL);
-                SushiBLAS::BLASOps(*engine).gemm(A, B, C, Core::Transpose::Trans,
+                set_mode(ExecutionMode::ForceSYCL);
+                SushiBLAS::BLASOps(recorder()).gemm(A, B, C, Core::Transpose::Trans,
                                                  Core::Transpose::NoTrans);
-                engine->execute().value();
+                recording->run().value();
 
                 EXPECT_TENSOR_NEAR(C, (std::vector<float>{4, 5, 10, 11}), 1e-5);
             }
@@ -518,13 +518,13 @@ namespace SushiBLAS
                 const BiasReLUEpilogue epilogue{row_bias.data_as<float>(),
                                                 col_bias.data_as<float>()};
 
-                engine->set_mode(ExecutionMode::ForceSYCL);
-                Dispatch::execute_gemm(engine->recorder(), A, B, C,
+                set_mode(ExecutionMode::ForceSYCL);
+                Dispatch::execute_gemm(recorder(), A, B, C,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bias_relu", "test.gemm_bias_relu"_op,
                                        epilogue);
-                engine->execute().value();
+                recording->run().value();
 
                 EXPECT_TENSOR_NEAR(C, expected(), 1e-5);
             }
@@ -541,13 +541,13 @@ namespace SushiBLAS
                 const BiasReLUEpilogue epilogue{row_bias.data_as<float>(),
                                                 col_bias.data_as<float>()};
 
-                engine->set_mode(ExecutionMode::ForceReference);
-                Dispatch::execute_gemm(engine->recorder(), A, B, C,
+                set_mode(ExecutionMode::ForceReference);
+                Dispatch::execute_gemm(recorder(), A, B, C,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bias_relu_ref", "test.gemm_bias_relu_ref"_op,
                                        epilogue);
-                engine->execute().value();
+                recording->run().value();
 
                 EXPECT_TENSOR_NEAR(C, expected(), 1e-5);
             }
@@ -562,14 +562,14 @@ namespace SushiBLAS
                 fill_random<float>(A);
                 fill_random<float>(B);
 
-                SushiBLAS::BLASOps(*engine).gemm(A, B, via_api, Core::Transpose::NoTrans,
+                SushiBLAS::BLASOps(recorder()).gemm(A, B, via_api, Core::Transpose::NoTrans,
                                                  Core::Transpose::NoTrans, 1.5, 0.0);
-                Dispatch::execute_gemm(engine->recorder(), A, B, via_seam,
+                Dispatch::execute_gemm(recorder(), A, B, via_seam,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.5, 0.0,
                                        "test.gemm_identity", "test.gemm_identity"_op,
                                        Kernels::GemmIdentityEpilogue{});
-                engine->execute().value();
+                recording->run().value();
 
                 SB_ASSERT_TENSOR_NEAR(via_seam, via_api, 1e-6, float);
             }
@@ -804,19 +804,19 @@ namespace SushiBLAS
                 auto bare = engine->create_tensor({3, 3}, Core::DataType::Float32);
                 auto declared = engine->create_tensor({3, 3}, Core::DataType::Float32);
 
-                engine->set_mode(ExecutionMode::ForceSYCL);
-                Dispatch::execute_gemm(engine->recorder(), A, B, bare,
+                set_mode(ExecutionMode::ForceSYCL);
+                Dispatch::execute_gemm(recorder(), A, B, bare,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bias_bare", "test.gemm_bias_bare"_op,
                                        BiasColumnEpilogue{bias.data_as<float>()});
-                Dispatch::execute_gemm(engine->recorder(), A, B, declared,
+                Dispatch::execute_gemm(recorder(), A, B, declared,
                                        Core::Transpose::NoTrans, Core::Transpose::NoTrans,
                                        1.0, 0.0,
                                        "test.gemm_bias_declared", "test.gemm_bias_declared"_op,
                                        Dispatch::gemm_epilogue(
                                            BiasColumnEpilogue{bias.data_as<float>()}).reads(bias));
-                engine->execute().value();
+                recording->run().value();
 
                 // A*B = [[1,2,3], [4,5,6], [5,7,9]] plus the column bias [1, -8, 3].
                 EXPECT_TENSOR_NEAR(declared, (std::vector<float>{2, -6, 6,

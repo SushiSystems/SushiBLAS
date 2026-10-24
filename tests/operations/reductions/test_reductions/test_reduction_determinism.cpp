@@ -112,8 +112,9 @@ namespace SushiBLAS
                         TestEnvironment::queue().memcpy(t.data(), host.data(),
                                                host.size() * sizeof(float)).wait();
 
-                        op(eng, t, res);
-                        eng.execute().value();
+                        RecordingFixture fixture(eng);
+                        op(fixture.recorder(), t, res);
+                        fixture.run().value();
 
                         const float got = scalar(res);
                         if (r == 0)
@@ -176,7 +177,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_ReductionDeterminism, SumIsBitwiseStable)
         {
-            auto op = [](Engine& e, const Tensor& t, Tensor& r)
+            auto op = [](TaskRecorder& e, const Tensor& t, Tensor& r)
             {
                 SushiBLAS::ReductionOps(e).sum(t, r);
             };
@@ -186,7 +187,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_ReductionDeterminism, MeanIsBitwiseStable)
         {
-            auto op = [](Engine& e, const Tensor& t, Tensor& r)
+            auto op = [](TaskRecorder& e, const Tensor& t, Tensor& r)
             {
                 SushiBLAS::ReductionOps(e).mean(t, r);
             };
@@ -196,7 +197,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_ReductionDeterminism, AsumIsBitwiseStable)
         {
-            auto op = [](Engine& e, const Tensor& t, Tensor& r)
+            auto op = [](TaskRecorder& e, const Tensor& t, Tensor& r)
             {
                 SushiBLAS::ReductionOps(e).asum(t, r);
             };
@@ -206,7 +207,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_ReductionDeterminism, Nrm2IsBitwiseStable)
         {
-            auto op = [](Engine& e, const Tensor& t, Tensor& r)
+            auto op = [](TaskRecorder& e, const Tensor& t, Tensor& r)
             {
                 SushiBLAS::ReductionOps(e).nrm2(t, r);
             };
@@ -216,7 +217,7 @@ namespace SushiBLAS
 
         TEST_F(Medium_ReductionDeterminism, ProdIsBitwiseStable)
         {
-            auto op = [](Engine& e, const Tensor& t, Tensor& r)
+            auto op = [](TaskRecorder& e, const Tensor& t, Tensor& r)
             {
                 SushiBLAS::ReductionOps(e).prod(t, r);
             };
@@ -232,15 +233,15 @@ namespace SushiBLAS
             ASSERT_TRUE(is_two_stage(K_MOMENTS))
                 << "kMoments must exercise the two-stage shape.";
 
-            auto var = [](Engine& e, const Tensor& t, Tensor& r)
+            auto var = [](TaskRecorder& e, const Tensor& t, Tensor& r)
             {
                 SushiBLAS::ReductionOps(e).var(t, r);
             };
-            auto std_dev = [](Engine& e, const Tensor& t, Tensor& r)
+            auto std_dev = [](TaskRecorder& e, const Tensor& t, Tensor& r)
             {
                 SushiBLAS::ReductionOps(e).std(t, r);
             };
-            auto logsumexp = [](Engine& e, const Tensor& t, Tensor& r)
+            auto logsumexp = [](TaskRecorder& e, const Tensor& t, Tensor& r)
             {
                 SushiBLAS::ReductionOps(e).logsumexp(t, r);
             };
@@ -266,8 +267,8 @@ namespace SushiBLAS
                 .memcpy(t.data(), host.data(), host.size() * sizeof(float)).wait();
 
             auto res = engine->create_tensor({1});
-            SushiBLAS::ReductionOps(*engine).sum(t, res);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).sum(t, res);
+            recording->run().value();
 
             EXPECT_FLOAT_EQ(kHead + static_cast<float>(kOnes), scalar(res))
                 << "Naive summation returns " << kHead << " here, because every 1.0 falls "
@@ -287,8 +288,8 @@ namespace SushiBLAS
 
                 auto t = filled(n, 0.1f);
                 auto res = engine->create_tensor({1});
-                SushiBLAS::ReductionOps(*engine).sum(t, res);
-                engine->execute().value();
+                SushiBLAS::ReductionOps(recorder()).sum(t, res);
+                recording->run().value();
 
                 // 0.1f is 0.100000001490116..., and n copies of it sum to n times that.
                 const double exact = static_cast<double>(n) * static_cast<double>(0.1f);

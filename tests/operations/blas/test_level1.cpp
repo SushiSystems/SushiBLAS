@@ -52,13 +52,13 @@ namespace SushiBLAS
             const Tensor x = create_initialized_tensor<float>({3}, {1.0f, -2.0f, 3.0f});
             Tensor y = create_initialized_tensor<float>({3}, {0.0f, 0.0f, 0.0f});
             Tensor z = create_initialized_tensor<float>({3}, {7.0f, 8.0f, 9.0f});
-            BLASOps blas(*engine);
+            BLASOps blas(recorder());
             Level1& level1 = blas;
 
             level1.copy(x, y);
             level1.scal(2.0f, y);
             level1.swap(y, z);
-            ASSERT_TRUE(engine->execute().has_value());
+            ASSERT_TRUE(recording->run().has_value());
 
             EXPECT_EQ(read_tensor<float>(z), (std::vector<float>{2.0f, -4.0f, 6.0f}));
             EXPECT_EQ(read_tensor<float>(y), (std::vector<float>{7.0f, 8.0f, 9.0f}));

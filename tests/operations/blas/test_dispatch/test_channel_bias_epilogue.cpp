@@ -96,13 +96,13 @@ namespace SushiBLAS
 
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
-            Dispatch::execute_gemm(engine->recorder(), A, B, C, Core::Transpose::NoTrans,
+            set_mode(ExecutionMode::ForceSYCL);
+            Dispatch::execute_gemm(recorder(), A, B, C, Core::Transpose::NoTrans,
                                    Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.gemm_channel_bias_col",
                                    "test.gemm_channel_bias_col"_op,
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));
-            engine->execute().value();
+            recording->run().value();
 
             // [[1,2,3],[4,5,6],[5,7,9]] + bias[col] = [1,-8,3] down every row.
             EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, -6, 6,
@@ -120,13 +120,13 @@ namespace SushiBLAS
 
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 1, 0};
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
-            Dispatch::execute_gemm(engine->recorder(), A, B, C, Core::Transpose::NoTrans,
+            set_mode(ExecutionMode::ForceSYCL);
+            Dispatch::execute_gemm(recorder(), A, B, C, Core::Transpose::NoTrans,
                                    Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.gemm_channel_bias_row",
                                    "test.gemm_channel_bias_row"_op,
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));
-            engine->execute().value();
+            recording->run().value();
 
             // [[1,2,3],[4,5,6],[5,7,9]] + bias[row] = +1, -8, +3 across each row.
             EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, 3, 4,
@@ -144,13 +144,13 @@ namespace SushiBLAS
 
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 1, 0};
 
-            engine->set_mode(ExecutionMode::ForceReference);
-            Dispatch::execute_gemm(engine->recorder(), A, B, C, Core::Transpose::NoTrans,
+            set_mode(ExecutionMode::ForceReference);
+            Dispatch::execute_gemm(recorder(), A, B, C, Core::Transpose::NoTrans,
                                    Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.gemm_channel_bias_row_ref",
                                    "test.gemm_channel_bias_row_ref"_op,
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));
-            engine->execute().value();
+            recording->run().value();
 
             EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, 3, 4,
                                                       -4, -3, -2,
@@ -166,20 +166,20 @@ namespace SushiBLAS
             auto plain = engine->create_tensor({3, 3}, Core::DataType::Float32);
             auto bias = create_initialized_tensor<float>({3}, {0.0f, 0.0f, 0.0f});
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
-            Dispatch::execute_gemm(engine->recorder(), A, B, fused, Core::Transpose::NoTrans,
+            set_mode(ExecutionMode::ForceSYCL);
+            Dispatch::execute_gemm(recorder(), A, B, fused, Core::Transpose::NoTrans,
                                    Core::Transpose::NoTrans, 1.5, 0.0,
                                    "test.gemm_zero_channel_bias",
                                    "test.gemm_zero_channel_bias"_op,
                                    Dispatch::gemm_epilogue(
                                        Kernels::ChannelBiasEpilogue{bias.data(), 0, 1})
                                        .reads(bias));
-            Dispatch::execute_gemm(engine->recorder(), A, B, plain, Core::Transpose::NoTrans,
+            Dispatch::execute_gemm(recorder(), A, B, plain, Core::Transpose::NoTrans,
                                    Core::Transpose::NoTrans, 1.5, 0.0,
                                    "test.gemm_zero_identity",
                                    "test.gemm_zero_identity"_op,
                                    Kernels::GemmIdentityEpilogue{});
-            engine->execute().value();
+            recording->run().value();
 
             const std::vector<float> fused_host = download(fused);
             const std::vector<float> plain_host = download(plain);
@@ -235,17 +235,17 @@ namespace SushiBLAS
             auto bias = engine->create_tensor({3}, Core::DataType::Float32);
 
             // bias = seed*seed = [1, 4, 9], a value no uninitialised buffer would hold.
-            SushiBLAS::ElementwiseOps(*engine).mul(seed, seed, bias);
+            SushiBLAS::ElementwiseOps(recorder()).mul(seed, seed, bias);
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
-            Dispatch::execute_gemm(engine->recorder(), A, B, C, Core::Transpose::NoTrans,
+            set_mode(ExecutionMode::ForceSYCL);
+            Dispatch::execute_gemm(recorder(), A, B, C, Core::Transpose::NoTrans,
                                    Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.gemm_channel_bias_produced",
                                    "test.gemm_channel_bias_produced"_op,
                                    Dispatch::gemm_epilogue(
                                        Kernels::ChannelBiasEpilogue{bias.data(), 0, 1})
                                        .reads(bias));
-            engine->execute().value();
+            recording->run().value();
 
             // [[1,2,3],[4,5,6],[5,7,9]] + [1,4,9] down every row.
             EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, 6, 12,

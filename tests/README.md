@@ -94,9 +94,10 @@ The source comments state what a test checks. A module's README holds why a test
 way it is: the defect it pins, the number it was measured against, the quirk of the machine it ran
 on. The reasoning below holds for tests of several modules.
 
-A test builds its operation views on the fixture's engine, as in `BLASOps(*engine)`, or on a
-`GraphProbe` when it asserts on the recorded graph; `modules/engine/engine_fixture/README.md`
-and `modules/engine/graph_probe/README.md` describe them. A refusal at record time is asserted as
+A test builds its operation views on the recorder of the fixture's graph, as in
+`BLASOps(recorder())`, and runs them with `recording->run()`, or on a `GraphProbe` when it
+asserts on the recorded graph; `modules/engine/engine_fixture/README.md` and
+`modules/engine/graph_probe/README.md` describe them. A refusal at record time is asserted as
 `std::invalid_argument`, and a mode or device refusal as `SushiBLAS::UnsupportedExecution`.
 
 ### Expectations are worked out by hand

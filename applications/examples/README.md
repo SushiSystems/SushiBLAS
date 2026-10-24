@@ -8,9 +8,9 @@ The numbers are the same on every machine, with or without a GPU.
 | Source | Target | Subject |
 | --- | --- | --- |
 | `adapter/` | `adapter_demo` | A host program that reaches the library through one file, in its own types and its own status |
-| `errors_demo.cpp` | `errors_demo` | What a wrong record call throws, what `execute()` returns, and what a file operation returns |
-| `run_failure_demo.cpp` | `run_failure_demo` | A run that fails: the error `execute()` returns, and the same engine running again |
-| `recording_demo.cpp` | `recording_demo` | Several operations recorded, one `execute()`, tensors of two residencies, results read back |
+| `errors_demo.cpp` | `errors_demo` | What a wrong record call throws, what `Graph::run()` returns, and what a file operation returns |
+| `run_failure_demo.cpp` | `run_failure_demo` | A run that fails: the error `Graph::run()` returns, and the same graph running again |
+| `recording_demo.cpp` | `recording_demo` | Several operations recorded, one run of the graph, tensors of two residencies, results read back |
 | `operation_families_demo.cpp` | `operation_families_demo` | One checked call of each operation family |
 | `graph_primitives_demo.cpp` | `graph_primitives_demo` | The four graph primitives on a SushiRuntime graph, without an engine |
 | `quickstart_demo.cpp` | `quickstart_demo` | One 256 x 256 GEMM on shared-memory tensors with a column-major engine, the program the root README quotes |
@@ -35,14 +35,15 @@ The two adapter files, `sushiblas_adapter.cpp` and `status_mapping.hpp`, are the
 include `<SushiBLAS/SushiBLAS.hpp>`.
 
 `multiply_add` computes `a * b + offset` and the sum of the result with `BLASOps::gemm`,
-`ElementwiseOps::add` and `ReductionOps::sum`, recorded on one engine and run by one
-`execute()`. Two functions of `status_mapping.hpp` turn a failure into a `Status`. `guarded` runs the
-work inside one `try` and catches `UnsupportedExecution`, `std::invalid_argument`,
-`std::bad_alloc` and `std::exception`, most derived first. `status_of_error` is a `switch` over
-the ten values of `SushiRuntime::ErrorCode` with no `default`, so a compiler that warns on an
-unhandled enumerator names the code a runtime release adds. After a failure `multiply_add`
-calls `Engine::discard_recorded()`, because a record call that throws leaves the tasks
-recorded before it on the engine.
+`ElementwiseOps::add` and `ReductionOps::sum`, recorded through a `TaskRecorder` over a
+`SushiRuntime::Graph` that lives for the call and run by one `Graph::run()`. Two functions of
+`status_mapping.hpp` turn a failure into a `Status`. `guarded` runs the work inside one `try`
+and catches `UnsupportedExecution`, `std::invalid_argument`, `std::bad_alloc` and
+`std::exception`, most derived first. `status_of_error` is a `switch` over the ten values of
+`SushiRuntime::ErrorCode` with no `default`, so a compiler that warns on an unhandled enumerator
+names the code a runtime release adds. A record call that throws leaves the tasks recorded
+before it on the graph, and the graph dies with the call, so `multiply_add` needs no cleanup
+after a failure.
 
 `main` multiplies a 2 x 3 matrix by a 3 x 2 one, adds 0.5 and compares the four elements and
 their sum with three loops on the host. It then asks for `a * a`, which has no meaning for a
@@ -63,10 +64,10 @@ each.
 | Step | What the program does | What comes back |
 | --- | --- | --- |
 | A wrong operand | `axpy` on a vector of 4 elements and one of 3 | `std::invalid_argument` |
-| A recorded task dropped | `Engine::discard_recorded()` after that throw, then a read of `y` | `y` is unchanged: the `axpy` recorded before the throw did not run |
+| A recorded task dropped | `Graph::clear()` after that throw, then a read of `y` | `y` is unchanged: the `axpy` recorded before the throw did not run |
 | A mode that cannot run the call | `axpy` on a `Residency::Device` tensor under `ExecutionMode::ForceReference` | `SushiBLAS::UnsupportedExecution` |
 | A tensor that cannot be made | `create_tensor({-1})` | `std::runtime_error` |
-| A run | `execute()`, with its `SushiRuntime::Result<void>` tested and the `Error` printed on failure | Success, and `y` equals `2 * x` |
+| A run | `Graph::run()`, with its `SushiRuntime::Result` tested and the `Error` printed on failure | Success, and `y` equals `2 * x` |
 | A file | `IO::load_npy` of a file that does not exist | `IOStatus::FileUnreadable` |
 
 `outcome_of` holds the three `catch` clauses, `UnsupportedExecution` first because it derives
@@ -82,20 +83,20 @@ The run in this program succeeds, so the branch that prints `ran.error().code` a
 
 No operation of the views fails a run on every machine, so the program records a task of
 its own whose body throws. `TaskRecorder::record_pair`, reached through
-`Engine::recorder()`, takes a `TaskDescription`, an `OperandSet` and a body; every view
+the program's `TaskRecorder`, takes a `TaskDescription`, an `OperandSet` and a body; every view
 method records through it. The body is host code that the scheduler calls to submit the
 task's kernels, so it runs on the host under every `ExecutionMode` and on a machine with or
 without a GPU, and the program sets no mode. Recording succeeds, because the body has not
 run yet.
 
-`execute()` then returns an error and throws nothing. The program tests the `Result`, prints
-`ErrorCode::KernelFailed` and the message, which names the task and ends with the sentence
-the body threw, and goes on with the same engine: a second `execute()` succeeds because the
-failed run emptied the graph, and an `axpy` recorded after it gives `y = 2 * x`. The output
-is `execute: KernelFailed: node 'run_failure_demo.failing' (registration index 0) failed:
-the consumer's kernel refused to run`, then `execute after the failure: ok, y = 2 * x` and
-`run_failure_demo: ok`. The registration index in the message is the runtime's and may
-differ.
+`Graph::run()` then returns an error and throws nothing. The program tests the `Result`, prints
+`ErrorCode::KernelFailed` and the message, which names the task and ends with the sentence the
+body threw, and goes on with the same graph: a failed run leaves the failing task on the graph,
+so the program calls `Graph::clear()`, checks that no node is left, and an `axpy` recorded after
+it gives `y = 2 * x`. The output is `run: KernelFailed: node 'run_failure_demo.failing'
+(registration index 0) failed: the consumer's kernel refused to run`, then `run after the
+failure: ok, y = 2 * x` and `run_failure_demo: ok`. The registration index in the message is the
+runtime's and may differ.
 
 The body's first parameter is the library's kernel-pair dispatcher, a type of its `Internal`
 namespace. The lambda takes it as `const auto&` and does not use it.
@@ -105,7 +106,7 @@ namespace. The lambda takes it as `const auto&` and does not use it.
 
 An operation of a view records a task and runs nothing. The program shows that with a tensor
 the host can read directly: it fills `result` with -1, records `scal`, `add` and `sum`, and
-reads `result[0]` through `Tensor::data_as` before and after `Engine::execute()`. The first
+reads `result[0]` through `Tensor::data_as` before and after `Graph::run()`. The first
 read is still -1 and the second is `2 * a[0] + b[0]`, which is 12.
 
 `a` and `result` are `Residency::Shared`, the default, and `b` is `Residency::Device`. The
@@ -114,13 +115,13 @@ and `IO::to_vector`, which work for every residency. One `add` reads both.
 
 The program also prints the bytes behind `result`: 6 FLOAT32 elements need 24 bytes and
 `Storage::size_bytes()` reports 128, because every allocation is a multiple of
-`K_STORAGE_ALIGNMENT`. A second `execute()` with nothing recorded returns success. The last
-lines are `total = 252 (expected 252)` and `recording_demo: ok`.
+`K_STORAGE_ALIGNMENT`. After the run the program calls `Graph::clear()` and checks that no node
+is left. The last lines are `total = 252 (expected 252)` and `recording_demo: ok`.
 
 ## `operation_families_demo.cpp`: one call of each family
 
-Every family is a view built from the engine. The program records one operation of each,
-runs them with one `execute()` and compares each result with numbers written in the source.
+Every family is a view built from a `TaskRecorder`. The program records one operation of each,
+runs them with one `Graph::run()` and compares each result with numbers written in the source.
 
 | View | Call | Expected |
 | --- | --- | --- |

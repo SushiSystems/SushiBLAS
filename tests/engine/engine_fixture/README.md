@@ -8,5 +8,5 @@ what a test checks; a section below holds why a test is written the way it is.
 
 | File | Tests |
 | --- | --- |
-| `test_sushiblas_test.cpp` | Tests that SushiBLASTest gives each test a row-major engine and initialised tensors |
+| `test_sushiblas_test.cpp` | Tests that SushiBLASTest gives each test a row-major engine, a graph and initialised tensors |
 | `test_recording_fixture.cpp` | Tests that RecordingFixture records on its own graph, runs it and leaves it empty |

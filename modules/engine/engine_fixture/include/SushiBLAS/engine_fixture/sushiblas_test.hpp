@@ -36,6 +36,8 @@
 #include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/engine/execution_mode.hpp>
+#include <SushiBLAS/engine_fixture/recording_fixture.hpp>
 #include <SushiBLAS/test_runner/test_environment.hpp>
 #include <SushiBLAS/tensor_expectations/scalar_dtype.hpp>
 #include <SushiBLAS/tensor_expectations/tensor_fill.hpp>
@@ -52,21 +54,45 @@ namespace SushiBLAS
             protected:
                 std::unique_ptr<Engine> engine;
 
+                /// @brief The graph and the recorder a test builds its families on and runs.
+                std::unique_ptr<RecordingFixture> recording;
+
                 void SetUp() override 
                 {
                     engine = std::make_unique<Engine>(TestEnvironment::runtime(),
                                                       Core::Layout::RowMajor);
+                    recording = std::make_unique<RecordingFixture>(*engine);
                     reset_fill_random_generator();
                 }
 
                 void TearDown() override 
                 {
+                    recording.reset();
                     engine.reset();
                 }
 
                 void reinit_engine(Core::Layout layout)
                 {
+                    recording.reset();
                     engine = std::make_unique<Engine>(TestEnvironment::runtime(), layout);
+                    recording = std::make_unique<RecordingFixture>(*engine);
+                }
+
+                /**
+                * @brief Returns the recorder of recording, the one a test builds its families on.
+                */
+                TaskRecorder& recorder() noexcept
+                {
+                    return recording->recorder();
+                }
+
+                /**
+                * @brief Sets the execution mode of the engine and of the recorder of recording.
+                */
+                void set_mode(ExecutionMode mode) noexcept
+                {
+                    engine->set_mode(mode);
+                    recording->recorder().set_mode(mode);
                 }
 
                 /**

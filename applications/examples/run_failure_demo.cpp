@@ -21,7 +21,7 @@
 
 /**
  * @file run_failure_demo.cpp
- * @brief Runs a task whose body throws, reads the error execute() returns and runs again.
+ * @brief Runs a task whose body throws, reads the error run() returns and runs again.
  * @author Mustafa Garip
  */
 
@@ -38,7 +38,7 @@ namespace
     constexpr const char* K_FAILURE = "the consumer's kernel refused to run";
 
     /** @brief Records a task of the caller's own that writes target and throws when it runs. */
-    void record_failing_task(SushiBLAS::Engine& engine, const SushiBLAS::Tensor& target)
+    void record_failing_task(SushiBLAS::TaskRecorder& recorder, const SushiBLAS::Tensor& target)
     {
         using namespace SushiRuntime::Literals;
 
@@ -49,7 +49,7 @@ namespace
         SushiBLAS::OperandSet operands;
         operands.writes(target);
 
-        engine.recorder().record_pair(
+        recorder.record_pair(
             description, operands, "Example operation",
             [](const auto&, sycl::queue&, const std::vector<sycl::event>&) -> sycl::event
             {
@@ -63,6 +63,8 @@ int main()
     SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
     SushiBLAS::Engine engine(runtime);
     SushiBLAS::IO io(engine);
+    SushiRuntime::Graph graph = runtime.graph();
+    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
 
     const std::vector<float> host_x{1.0f, 2.0f, 3.0f, 4.0f};
     SushiBLAS::Tensor x = engine.create_tensor({4});
@@ -71,35 +73,36 @@ int main()
     io.from_vector(y, std::vector<float>(4, 0.0f));
 
     // Recording succeeds: the body has not run, so nothing has thrown yet.
-    record_failing_task(engine, y);
+    record_failing_task(recorder, y);
 
-    const SushiRuntime::Result<void> failed = engine.execute();
+    const SushiRuntime::Result<SushiRuntime::RunReport> failed = graph.run();
     if (failed)
     {
-        std::cerr << "execute: the run succeeded, and the task was meant to fail it\n";
+        std::cerr << "run: the run succeeded, and the task was meant to fail it\n";
         return 1;
     }
 
     const SushiRuntime::Error& error = failed.error();
-    std::cout << "execute: " << SushiRuntime::to_string(error.code) << ": " << error.message
+    std::cout << "run: " << SushiRuntime::to_string(error.code) << ": " << error.message
               << "\n";
     const bool reported = error.code == SushiRuntime::ErrorCode::KernelFailed &&
                           error.message.find(K_FAILURE) != std::string::npos;
 
-    // The failed run emptied the graph, so this execute has nothing to run and succeeds.
-    const bool nothing_left = engine.execute().has_value();
+    // A failed run leaves the failing task on the graph, so the caller clears it.
+    graph.clear();
+    const bool nothing_left = graph.recorder().node_count() == 0;
 
-    SushiBLAS::BLASOps(engine).axpy(2.0, x, y);
-    const SushiRuntime::Result<void> ran = engine.execute();
+    SushiBLAS::BLASOps(recorder).axpy(2.0, x, y);
+    const SushiRuntime::Result<SushiRuntime::RunReport> ran = graph.run();
     if (!ran)
     {
-        std::cerr << "execute after the failure: " << SushiRuntime::to_string(ran.error().code)
+        std::cerr << "run after the failure: " << SushiRuntime::to_string(ran.error().code)
                   << ": " << ran.error().message << "\n";
         return 1;
     }
 
     const bool survived = io.to_vector<float>(y) == std::vector<float>{2.0f, 4.0f, 6.0f, 8.0f};
-    std::cout << "execute after the failure: ok, y = 2 * x\n";
+    std::cout << "run after the failure: ok, y = 2 * x\n";
 
     const bool correct = reported && nothing_left && survived;
     std::cout << "run_failure_demo: " << (correct ? "ok" : "MISMATCH") << "\n";

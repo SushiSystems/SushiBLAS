@@ -65,16 +65,16 @@ TEST_F(Medium_DependencyStressTest, ManyReadersOneWriter)
     fill_tensor(dummy_weights, std::vector<float>(N * N, 2.0f));
 
     // writer_tensor is the GEMM's output, so this call writes it.
-    SushiBLAS::BLASOps(*engine).gemm(dummy_weights, dummy_weights, writer_tensor);
+    SushiBLAS::BLASOps(recorder()).gemm(dummy_weights, dummy_weights, writer_tensor);
     
     // Now submit 5000 reads! (writer_tensor is A, so it is read)
     for (int i = 0; i < num_readers; ++i) 
     {
-        SushiBLAS::BLASOps(*engine).gemm(writer_tensor, dummy_weights, reader_outputs[i]);
+        SushiBLAS::BLASOps(recorder()).gemm(writer_tensor, dummy_weights, reader_outputs[i]);
     }
     
     auto start = std::chrono::high_resolution_clock::now();
-    engine->execute().value();
+    recording->run().value();
     auto end = std::chrono::high_resolution_clock::now();
     
     std::chrono::duration<double, std::milli> duration = end - start;
@@ -110,11 +110,11 @@ TEST_F(Medium_DependencyStressTest, ShardCollisionStress)
     
     for (int i = 0; i < num_ops; ++i) 
     {
-        SushiBLAS::BLASOps(*engine).gemm(As[i], Bs[i], Cs[i]);
+        SushiBLAS::BLASOps(recorder()).gemm(As[i], Bs[i], Cs[i]);
     }
     
     auto start = std::chrono::high_resolution_clock::now();
-    engine->execute().value();
+    recording->run().value();
     auto end = std::chrono::high_resolution_clock::now();
     
     std::chrono::duration<double, std::milli> duration = end - start;

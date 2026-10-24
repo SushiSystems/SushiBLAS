@@ -237,17 +237,17 @@ namespace SushiBLAS
                                                  const Wide& x, std::complex<double> beta,
                                                  const Wide& y)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     const SparseMatrix A = build(host, base);
                     const Tensor tx = vector_of(x);
                     Tensor ty = vector_of(y);
 
-                    SparseOps ops(*engine);
+                    SparseOps ops(recorder());
                     if (mirror == Mirror::Hermitian)
                         ops.sphemv(A, tx, ty, uplo, BLASScalar(alpha), BLASScalar(beta));
                     else
                         ops.spsymv(A, tx, ty, uplo, BLASScalar(alpha), BLASScalar(beta));
-                    engine->execute().value();
+                    recording->run().value();
                     return read_tensor<T>(ty);
                 }
 
@@ -471,15 +471,15 @@ namespace SushiBLAS
             const HostTriplets<T> empty;
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
-                this->engine->set_mode(mode);
+                this->set_mode(mode);
                 const SparseMatrix A = this->build(empty, Core::IndexBase::Zero);
                 const Tensor x = this->engine->create_tensor({0}, sushiblas_dtype<T>());
                 Tensor y = this->engine->create_tensor({0}, sushiblas_dtype<T>());
 
-                SparseOps ops(*this->engine);
+                SparseOps ops(this->recorder());
                 EXPECT_NO_THROW(ops.spsymv(A, x, y, Core::Uplo::Lower));
                 EXPECT_NO_THROW(ops.sphemv(A, x, y, Core::Uplo::Upper));
-                EXPECT_TRUE(this->engine->execute().has_value());
+                EXPECT_TRUE(this->recording->run().has_value());
             }
         }
 

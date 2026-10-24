@@ -43,8 +43,8 @@ TEST_F(Medium_DivTest, FloatForward)
     fill_tensor(a, {1.0f, 2.0f, -3.0f, 0.5f});
     fill_tensor(b, {2.0f, 0.5f, 4.0f, -1.5f});
     
-    SushiBLAS::ElementwiseOps(*engine).div(a, b, c);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).div(a, b, c);
+    recording->run().value();
     
     verify_tensor(c, {0.50000f, 4.00000f, -0.75000f, -0.33333f});
 }

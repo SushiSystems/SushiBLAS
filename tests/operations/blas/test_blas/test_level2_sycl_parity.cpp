@@ -144,13 +144,13 @@ namespace SushiBLAS
                 [[nodiscard]] std::vector<T> run_gemv(ExecutionMode mode, int64_t m, int64_t n,
                                                       const ParityData& data = K_PATTERNED)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     Tensor A = filled({m, n}, data, K_SEED_A);
                     Tensor x = filled({n}, data, K_SEED_X);
                     Tensor y = filled({m}, data, K_SEED_Y);
-                    SushiBLAS::BLASOps(*engine).gemv(A, x, y, Core::Transpose::NoTrans,
+                    SushiBLAS::BLASOps(recorder()).gemv(A, x, y, Core::Transpose::NoTrans,
                                                      data.alpha, data.beta);
-                    engine->execute().value();
+                    recording->run().value();
                     return read_back(y);
                 }
 
@@ -158,13 +158,13 @@ namespace SushiBLAS
                 [[nodiscard]] std::vector<T> run_symv(ExecutionMode mode, int64_t n, bool upper,
                                                       const ParityData& data = K_PATTERNED)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     Tensor A = filled({n, n}, data, K_SEED_A);
                     Tensor x = filled({n}, data, K_SEED_X);
                     Tensor y = filled({n}, data, K_SEED_Y);
-                    SushiBLAS::BLASOps(*engine).symv(A, x, y, uplo_of(upper), data.alpha,
+                    SushiBLAS::BLASOps(recorder()).symv(A, x, y, uplo_of(upper), data.alpha,
                                                      data.beta);
-                    engine->execute().value();
+                    recording->run().value();
                     return read_back(y);
                 }
 

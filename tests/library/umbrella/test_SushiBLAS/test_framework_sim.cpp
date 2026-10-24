@@ -81,17 +81,17 @@ TEST_F(Medium_FrameworkSimTest, DeepForwardPass)
     for (int i = 0; i < num_layers; ++i) 
     {
         // H_{i+1} = H_{i} * W_i
-        SushiBLAS::BLASOps(*engine).gemm(activations[i], weights[i], activations[i+1]);
+        SushiBLAS::BLASOps(recorder()).gemm(activations[i], weights[i], activations[i+1]);
         
         // Add activation after GEMM
         if (i < num_layers - 1) 
         {
-            SushiBLAS::NonLinearOps(*engine).relu(activations[i+1]);
+            SushiBLAS::NonLinearOps(recorder()).relu(activations[i+1]);
         }
     }
     
     // Execute all deep operations asynchronously
-    engine->execute().value();
+    recording->run().value();
     
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> duration = end_time - start_time;
@@ -150,12 +150,12 @@ TEST_F(Medium_FrameworkSimTest, ParallelBatchedInference)
     // Submit all models to the DAG
     for (int i = 0; i < num_models; ++i) 
     {
-        SushiBLAS::BLASOps(*engine).gemm(inputs[i], weights[i], outputs[i]);
-        SushiBLAS::NonLinearOps(*engine).relu(outputs[i]);
+        SushiBLAS::BLASOps(recorder()).gemm(inputs[i], weights[i], outputs[i]);
+        SushiBLAS::NonLinearOps(recorder()).relu(outputs[i]);
     }
     
     // The scheduler should dispatch these horizontally to all worker threads
-    engine->execute().value();
+    recording->run().value();
     
     auto end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> duration = end_time - start_time;

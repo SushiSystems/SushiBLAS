@@ -40,8 +40,8 @@ TEST_F(Medium_CeilTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
-    SushiBLAS::ElementwiseOps(*engine).ceil(t);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).ceil(t);
+    recording->run().value();
     
     verify_tensor(t, {1.00000f, 2.00000f, -3.00000f, 1.00000f});
 }

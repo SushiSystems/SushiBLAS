@@ -40,8 +40,8 @@ TEST_F(Medium_SigmoidTest, Forward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {0.0f, 1.0f, -1.0f, 2.0f});
     
-    SushiBLAS::NonLinearOps(*engine).sigmoid(t);
-    engine->execute().value();
+    SushiBLAS::NonLinearOps(recorder()).sigmoid(t);
+    recording->run().value();
     
     verify_tensor(t, {0.5f, 0.731058f, 0.268941f, 0.880797f});
 }
@@ -56,8 +56,8 @@ TEST_F(Medium_SigmoidTest, Backward)
     fill_tensor(y, {0.5f, 0.731058f, 0.268941f, 0.880797f});
     fill_tensor(dx, {0.0f, 0.0f, 0.0f, 0.0f});
     
-    SushiBLAS::NonLinearOps(*engine).sigmoid_backward(dy, y, dx);
-    engine->execute().value();
+    SushiBLAS::NonLinearOps(recorder()).sigmoid_backward(dy, y, dx);
+    recording->run().value();
     
     verify_tensor(dx, {0.25f, 0.196612f, 0.196612f, 0.104994f});
 }

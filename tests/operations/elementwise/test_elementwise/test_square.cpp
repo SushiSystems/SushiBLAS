@@ -40,8 +40,8 @@ TEST_F(Medium_SquareTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
-    SushiBLAS::ElementwiseOps(*engine).square(t);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).square(t);
+    recording->run().value();
     
     verify_tensor(t, {1.00000f, 4.00000f, 9.00000f, 0.25000f});
 }

@@ -46,9 +46,9 @@ TEST_F(Medium_DOTTest, SimpleDOT)
     fill_tensor(Y, {4, 5, 6});
     fill_tensor(R, {0.0f});
 
-    SushiBLAS::BLASOps(*engine).dot(X, Y, R);
+    SushiBLAS::BLASOps(recorder()).dot(X, Y, R);
     
-    engine->execute().value();
+    recording->run().value();
 
     // Expected: 1*4 + 2*5 + 3*6 = 4 + 10 + 18 = 32
     verify_tensor(R, {32.0f});

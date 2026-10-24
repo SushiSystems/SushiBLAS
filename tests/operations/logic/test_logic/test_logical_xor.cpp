@@ -43,8 +43,8 @@ TEST_F(Medium_Logical_xorTest, FloatForward)
     fill_tensor(a, {1.0f, 0.0f, 3.0f, 0.0f});
     fill_tensor(b, {1.0f, 1.0f, 0.0f, 0.0f});
     
-    SushiBLAS::LogicOps(*engine).logical_xor(a, b, c);
-    engine->execute().value();
+    SushiBLAS::LogicOps(recorder()).logical_xor(a, b, c);
+    recording->run().value();
     
     verify_tensor(c, {0.00000f, 1.00000f, 1.00000f, 0.00000f});
 }

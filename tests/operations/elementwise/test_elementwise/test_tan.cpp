@@ -40,8 +40,8 @@ TEST_F(Medium_TanTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
-    SushiBLAS::ElementwiseOps(*engine).tan(t);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).tan(t);
+    recording->run().value();
     
     verify_tensor(t, {1.55741f, -2.18504f, 0.14255f, 0.54630f});
 }

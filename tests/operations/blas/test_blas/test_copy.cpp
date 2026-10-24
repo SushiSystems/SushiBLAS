@@ -44,9 +44,9 @@ TEST_F(Medium_COPYTest, SimpleCOPY)
     fill_tensor(X, {1, 2, 3});
     fill_tensor(Y, {0, 0, 0});
 
-    SushiBLAS::BLASOps(*engine).copy(X, Y);
+    SushiBLAS::BLASOps(recorder()).copy(X, Y);
     
-    engine->execute().value();
+    recording->run().value();
 
     // Expected: Y = X
     verify_tensor(Y, {1, 2, 3});

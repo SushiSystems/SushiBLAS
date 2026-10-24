@@ -129,7 +129,7 @@ namespace SushiBLAS
                 /** @brief Runs the recorded graph, then returns the first FLOAT32 of t. */
                 float run_and_read(const Tensor& t)
                 {
-                    engine->execute().value();
+                    recording->run().value();
                     float host = 0.0f;
                     TestEnvironment::queue()
                         .memcpy(&host, t.data(), sizeof(float)).wait();
@@ -141,7 +141,7 @@ namespace SushiBLAS
                 {
                     auto t = create_initialized_tensor<float>({static_cast<int64_t>(data.size())}, data);
                     auto result = engine->create_tensor({1}, Core::DataType::Float32);
-                    SushiBLAS::ReductionOps(*engine).sum(t, result);
+                    SushiBLAS::ReductionOps(recorder()).sum(t, result);
                     return run_and_read(result);
                 }
 
@@ -220,7 +220,7 @@ namespace SushiBLAS
             auto a = engine->create_tensor({2, 3}, Core::DataType::Float32);
             auto b = engine->create_tensor({3, 2}, Core::DataType::Float32);
             auto c = engine->create_tensor({2, 3}, Core::DataType::Float32);
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).add(a, b, c), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).add(a, b, c), std::invalid_argument);
         }
 
         TEST_F(Medium_MathValidationTest, AddRejectsTransposedView)
@@ -228,7 +228,7 @@ namespace SushiBLAS
             auto a = engine->create_tensor({2, 3}, Core::DataType::Float32).transpose(0, 1);
             auto b = engine->create_tensor({3, 2}, Core::DataType::Float32);
             auto c = engine->create_tensor({3, 2}, Core::DataType::Float32);
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).add(a, b, c), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).add(a, b, c), std::invalid_argument);
         }
 
         TEST_F(Medium_MathValidationTest, AddRejectsTensorWithoutStorage)
@@ -236,40 +236,40 @@ namespace SushiBLAS
             Tensor a(SushiRuntime::sushi_ptr<Storage>(), {4});
             auto b = engine->create_tensor({4}, Core::DataType::Float32);
             auto c = engine->create_tensor({4}, Core::DataType::Float32);
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).add(a, b, c), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).add(a, b, c), std::invalid_argument);
         }
 
         TEST_F(Medium_MathValidationTest, UnaryInPlaceRejectsTensorWithoutStorage)
         {
             Tensor t(SushiRuntime::sushi_ptr<Storage>(), {4});
-            EXPECT_THROW(SushiBLAS::ElementwiseOps(*engine).exp(t), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::ElementwiseOps(recorder()).exp(t), std::invalid_argument);
         }
 
         TEST_F(Medium_MathValidationTest, SumRejectsTensorWithoutStorage)
         {
             Tensor t(SushiRuntime::sushi_ptr<Storage>(), {4});
             auto result = engine->create_tensor({1}, Core::DataType::Float32);
-            EXPECT_THROW(SushiBLAS::ReductionOps(*engine).sum(t, result), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::ReductionOps(recorder()).sum(t, result), std::invalid_argument);
         }
 
         TEST_F(Medium_MathValidationTest, VarRejectsEmptyTensor)
         {
             Tensor t(SushiRuntime::sushi_ptr<Storage>(), {0});
             auto result = engine->create_tensor({1}, Core::DataType::Float32);
-            EXPECT_THROW(SushiBLAS::ReductionOps(*engine).var(t, result), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::ReductionOps(recorder()).var(t, result), std::invalid_argument);
         }
 
         TEST_F(Medium_MathValidationTest, SoftplusOfLargeInputIsFinite)
         {
             auto t = create_initialized_tensor<float>({1}, {K_SOFTPLUS_LARGE_INPUT});
-            SushiBLAS::NonLinearOps(*engine).softplus(t);
+            SushiBLAS::NonLinearOps(recorder()).softplus(t);
             EXPECT_NEAR(run_and_read(t), K_SOFTPLUS_LARGE_EXPECTED, K_SOFTPLUS_TOLERANCE);
         }
 
         TEST_F(Medium_MathValidationTest, SoftplusOfLargeNegativeInputIsTinyAndNonNegative)
         {
             auto t = create_initialized_tensor<float>({1}, {K_SOFTPLUS_SMALL_INPUT});
-            SushiBLAS::NonLinearOps(*engine).softplus(t);
+            SushiBLAS::NonLinearOps(recorder()).softplus(t);
             const float value = run_and_read(t);
             EXPECT_TRUE(std::isfinite(value));
             EXPECT_GE(value, 0.0f);
@@ -279,7 +279,7 @@ namespace SushiBLAS
         TEST_F(Medium_MathValidationTest, ReLURejectsComplexTensor)
         {
             auto t = engine->create_tensor({2}, Core::DataType::Complex32);
-            EXPECT_THROW(SushiBLAS::NonLinearOps(*engine).relu(t), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::NonLinearOps(recorder()).relu(t), std::invalid_argument);
         }
 
         /**
@@ -352,7 +352,7 @@ namespace SushiBLAS
             auto c = engine->create_tensor({4}, Core::DataType::Float32);
 
             const std::string text =
-                refusal_of([&] { SushiBLAS::ElementwiseOps(*engine).add(a, b, c); });
+                refusal_of([&] { SushiBLAS::ElementwiseOps(recorder()).add(a, b, c); });
             EXPECT_TRUE(holds(text, "operand 'B'")) << text;
             EXPECT_TRUE(holds(text, "FLOAT64")) << text;
             EXPECT_TRUE(holds(text, "FLOAT32")) << text;

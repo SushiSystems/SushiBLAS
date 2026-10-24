@@ -212,25 +212,25 @@ namespace SushiBLAS
                 [[nodiscard]] std::vector<sycl::half> run_trsm(ExecutionMode mode, Core::Side side,
                                                                int64_t rows, int64_t cols)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     Tensor A = half_tensor({K_SYSTEM_ORDER, K_SYSTEM_ORDER}, unit_lower_values());
                     Tensor B = half_tensor({rows, cols}, right_hand_side_values(rows * cols));
-                    SushiBLAS::BLASOps(*engine).trsm(A, B, side, Core::Uplo::Lower,
+                    SushiBLAS::BLASOps(recorder()).trsm(A, B, side, Core::Uplo::Lower,
                                                      Core::Transpose::NoTrans, Core::Diag::Unit);
-                    engine->execute().value();
+                    recording->run().value();
                     return SushiBLAS::IO(*engine).to_vector<sycl::half>(B);
                 }
 
                 /** @brief Returns the x of the unit-lower TRSV, computed in mode. */
                 [[nodiscard]] std::vector<sycl::half> run_trsv(ExecutionMode mode)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     Tensor A = half_tensor({K_SYSTEM_ORDER, K_SYSTEM_ORDER}, unit_lower_values());
                     Tensor b = half_tensor({K_SYSTEM_ORDER},
                                            right_hand_side_values(K_SYSTEM_ORDER));
-                    SushiBLAS::BLASOps(*engine).trsv(A, b, Core::Uplo::Lower,
+                    SushiBLAS::BLASOps(recorder()).trsv(A, b, Core::Uplo::Lower,
                                                      Core::Transpose::NoTrans, Core::Diag::Unit);
-                    engine->execute().value();
+                    recording->run().value();
                     return SushiBLAS::IO(*engine).to_vector<sycl::half>(b);
                 }
 
@@ -286,25 +286,25 @@ namespace SushiBLAS
                 /** @brief Returns C = A * B for all-ones A and B, computed in mode. */
                 [[nodiscard]] std::vector<sycl::half> run_gemm(ExecutionMode mode)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     Tensor A = ones({K_OUTPUT_EDGE, K_REDUCTION_LENGTH});
                     Tensor B = ones({K_REDUCTION_LENGTH, K_OUTPUT_EDGE});
                     Tensor C = zeros({K_OUTPUT_EDGE, K_OUTPUT_EDGE});
-                    SushiBLAS::BLASOps(*engine).gemm(A, B, C, Core::Transpose::NoTrans,
+                    SushiBLAS::BLASOps(recorder()).gemm(A, B, C, Core::Transpose::NoTrans,
                                                      Core::Transpose::NoTrans, 1.0, 0.0);
-                    engine->execute().value();
+                    recording->run().value();
                     return SushiBLAS::IO(*engine).to_vector<sycl::half>(C);
                 }
 
                 /** @brief Returns the lower triangle of C = A * A^T for an all-ones A, computed in mode. */
                 [[nodiscard]] std::vector<sycl::half> run_syrk(ExecutionMode mode)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     Tensor A = ones({K_OUTPUT_EDGE, K_REDUCTION_LENGTH});
                     Tensor C = zeros({K_OUTPUT_EDGE, K_OUTPUT_EDGE});
-                    SushiBLAS::BLASOps(*engine).syrk(A, C, Core::Uplo::Lower,
+                    SushiBLAS::BLASOps(recorder()).syrk(A, C, Core::Uplo::Lower,
                                                      Core::Transpose::NoTrans, 1.0, 0.0);
-                    engine->execute().value();
+                    recording->run().value();
 
                     const std::vector<sycl::half> full =
                         SushiBLAS::IO(*engine).to_vector<sycl::half>(C);
@@ -318,12 +318,13 @@ namespace SushiBLAS
                 /** @brief Returns y = A * x for all-ones A and x, computed in mode. */
                 [[nodiscard]] std::vector<sycl::half> run_gemv(ExecutionMode mode)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     Tensor A = ones({K_OUTPUT_EDGE, K_REDUCTION_LENGTH});
                     Tensor x = ones({K_REDUCTION_LENGTH});
                     Tensor y = zeros({K_OUTPUT_EDGE});
-                    SushiBLAS::BLASOps(*engine).gemv(A, x, y, Core::Transpose::NoTrans, 1.0, 0.0);
-                    engine->execute().value();
+                    SushiBLAS::BLASOps(recorder())
+                        .gemv(A, x, y, Core::Transpose::NoTrans, 1.0, 0.0);
+                    recording->run().value();
                     return SushiBLAS::IO(*engine).to_vector<sycl::half>(y);
                 }
 
@@ -335,11 +336,11 @@ namespace SushiBLAS
                 template<typename Call>
                 [[nodiscard]] double run_level1(ExecutionMode mode, Call call)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     Tensor x = ones({K_REDUCTION_LENGTH});
                     Tensor result = zeros({1});
                     call(x, result);
-                    engine->execute().value();
+                    recording->run().value();
                     const sycl::half value =
                         SushiBLAS::IO(*engine).to_vector<sycl::half>(result)[0];
                     return static_cast<double>(static_cast<float>(value));
@@ -397,7 +398,7 @@ namespace SushiBLAS
         {
             auto dot = [this](Tensor& x, Tensor& result)
             {
-                SushiBLAS::BLASOps(*engine).dot(x, x, result);
+                SushiBLAS::BLASOps(recorder()).dot(x, x, result);
             };
             EXPECT_NEAR(run_level1(ExecutionMode::ForceReference, dot), K_EXPECTED_SUM,
                         K_HALF_ROUNDING_AT_SUM);
@@ -409,7 +410,7 @@ namespace SushiBLAS
         {
             auto asum = [this](Tensor& x, Tensor& result)
             {
-                SushiBLAS::BLASOps(*engine).asum(x, result);
+                SushiBLAS::BLASOps(recorder()).asum(x, result);
             };
             EXPECT_NEAR(run_level1(ExecutionMode::ForceReference, asum), K_EXPECTED_SUM,
                         K_HALF_ROUNDING_AT_SUM);
@@ -421,7 +422,7 @@ namespace SushiBLAS
         {
             auto nrm2 = [this](Tensor& x, Tensor& result)
             {
-                SushiBLAS::BLASOps(*engine).nrm2(x, result);
+                SushiBLAS::BLASOps(recorder()).nrm2(x, result);
             };
             EXPECT_NEAR(run_level1(ExecutionMode::ForceReference, nrm2), K_EXPECTED_NORM,
                         K_HALF_ROUNDING_AT_NORM);

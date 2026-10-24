@@ -40,8 +40,8 @@ TEST_F(Medium_ClampTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
-    SushiBLAS::ElementwiseOps(*engine).clamp(t, -1.5f, 1.5f);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).clamp(t, -1.5f, 1.5f);
+    recording->run().value();
     
     verify_tensor(t, {1.00000f, 1.50000f, -1.50000f, 0.50000f});
 }

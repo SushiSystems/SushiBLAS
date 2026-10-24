@@ -21,7 +21,8 @@
 
 /**
  * @file test_sushiblas_test.cpp
- * @brief Tests that SushiBLASTest gives each test a row-major engine and initialised tensors.
+ * @brief Tests that SushiBLASTest gives each test a row-major engine, a graph and initialised
+ *        tensors.
  * @author Mustafa Garip
  */
 
@@ -53,6 +54,23 @@ namespace SushiBLAS
             reinit_engine(Core::Layout::ColumnMajor);
 
             EXPECT_EQ(engine->layout(), Core::Layout::ColumnMajor);
+        }
+
+        TEST_F(Medium_SushiBLASTest, ReinitGivesTheNewEngineAFreshGraph)
+        {
+            reinit_engine(Core::Layout::ColumnMajor);
+
+            ASSERT_TRUE(recording);
+            EXPECT_TRUE(recording->is_empty());
+            EXPECT_EQ(recorder().mode(), engine->mode());
+        }
+
+        TEST_F(Medium_SushiBLASTest, SetModeReachesTheEngineAndTheRecorder)
+        {
+            set_mode(ExecutionMode::ForceReference);
+
+            EXPECT_EQ(engine->mode(), ExecutionMode::ForceReference);
+            EXPECT_EQ(recorder().mode(), ExecutionMode::ForceReference);
         }
 
         TEST_F(Medium_SushiBLASTest, AnInitialisedTensorHoldsTheHostValues)

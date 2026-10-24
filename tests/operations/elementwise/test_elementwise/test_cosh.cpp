@@ -40,8 +40,8 @@ TEST_F(Medium_CoshTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
-    SushiBLAS::ElementwiseOps(*engine).cosh(t);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).cosh(t);
+    recording->run().value();
     
     verify_tensor(t, {1.54308f, 3.76220f, 10.06766f, 1.12763f});
 }

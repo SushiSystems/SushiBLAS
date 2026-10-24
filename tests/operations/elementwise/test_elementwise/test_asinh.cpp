@@ -40,8 +40,8 @@ TEST_F(Medium_AsinhTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
-    SushiBLAS::ElementwiseOps(*engine).asinh(t);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).asinh(t);
+    recording->run().value();
     
     verify_tensor(t, {0.88137f, 1.44364f, -1.81845f, 0.48121f});
 }

@@ -48,6 +48,7 @@ namespace HostProgram
                 case SushiRuntime::ErrorCode::InvalidAccess:
                 case SushiRuntime::ErrorCode::DanglingResource:
                 case SushiRuntime::ErrorCode::InvalidState:
+                case SushiRuntime::ErrorCode::InvalidArgument:
                     return Status{StatusCode::InvalidRequest, error.message};
                 case SushiRuntime::ErrorCode::Unsupported:
                     return Status{StatusCode::Unsupported, error.message};

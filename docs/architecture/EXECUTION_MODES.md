@@ -18,22 +18,22 @@ in the task. Changing the mode afterwards changes later record calls only, so on
 tasks of different modes:
 
 ```cpp
-engine->set_mode(ExecutionMode::ForceSYCL);
-SushiBLAS::BLASOps(*engine).gemm(A, B, C_actual, transpose_of(transA),
+set_mode(ExecutionMode::ForceSYCL);
+SushiBLAS::BLASOps(recorder()).gemm(A, B, C_actual, transpose_of(transA),
                                  transpose_of(transB), alpha, beta);
-engine->execute().value();
+recording->run().value();
 
-engine->set_mode(ExecutionMode::ForceReference);
-SushiBLAS::BLASOps(*engine).gemm(A, B, C_expected, transpose_of(transA),
+set_mode(ExecutionMode::ForceReference);
+SushiBLAS::BLASOps(recorder()).gemm(A, B, C_expected, transpose_of(transA),
                                  transpose_of(transB), alpha, beta);
-engine->execute().value();
+recording->run().value();
 
 SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, tolerance_for(dtype, k), T);
 ```
 
 Source: `tests/operations/blas/test_blas/test_gemm.cpp`
 
-`engine` is the fixture's pointer. This is how the tests compare the two paths of an operation: the same call under each mode into
+`set_mode()` is the test fixture's: it sets the mode of the engine and of the fixture's recorder, and `recording` is the fixture's graph. This is how the tests compare the two paths of an operation: the same call under each mode into
 two tensors, then a comparison of the tensors. The test runs the graph between the two calls; the
 two tasks could also wait in one graph.
 

@@ -78,35 +78,34 @@ Where each type comes from:
   run leaves them as `std::runtime_error` with the runtime's message.
 
 Every helper logs at error level before it throws. A record call that throws leaves the tasks
-recorded before it on the graph; `Engine::discard_recorded()` drops them.
+recorded before it on the caller's graph; `graph.clear()` drops them.
 
 ## A run returns a `Result`
 
-`Engine::execute()` returns `SushiRuntime::Result<void>` and is `[[nodiscard]]`: success, or a
-`SushiRuntime::Error` with an `ErrorCode` and a message. The graph is empty after the call except
-after `ErrorCode::InvalidState` for a run in flight on the runtime, which started no task and
-keeps what was recorded. A caller with no way to go on writes `engine.execute().value();`, which
-stops the process on an error. A caller that goes on tests the result, as the example of a run
-that fails does:
+The operations record into a graph the caller owns, and the caller runs it. `Graph::run()`
+returns a `SushiRuntime::Result<SushiRuntime::RunReport>`: the report, or a
+`SushiRuntime::Error` with an `ErrorCode` and a message. A caller with no way to go on writes
+`graph.run().value();`, which stops the process on an error. A caller that goes on tests the
+result, as the example of a run that fails does:
 
 ```cpp
-const SushiRuntime::Result<void> failed = engine.execute();
-if (failed)
-{
-    std::cerr << "execute: the run succeeded, and the task was meant to fail it\n";
-    return 1;
-}
+    const SushiRuntime::Result<SushiRuntime::RunReport> failed = graph.run();
+    if (failed)
+    {
+        std::cerr << "run: the run succeeded, and the task was meant to fail it\n";
+        return 1;
+    }
 
-const SushiRuntime::Error& error = failed.error();
-std::cout << "execute: " << SushiRuntime::to_string(error.code) << ": " << error.message
-          << "\n";
+    const SushiRuntime::Error& error = failed.error();
+    std::cout << "run: " << SushiRuntime::to_string(error.code) << ": " << error.message
+              << "\n";
 ```
 
 Source: `applications/examples/run_failure_demo.cpp`
 
 The task that program records throws from its body, and the run returns `KernelFailed` with the
-body's sentence. The engine is usable afterwards: its graph is empty, and the next operation
-records and runs. `tests/engine/engine/test_engine/test_run_failure.cpp` tests all three.
+body's sentence. A failed run leaves its nodes on the graph; the caller clears it with
+`graph.clear()`, and the next operation records and runs.
 
 The code says which kind of failure it was. The mapping is SushiRuntime's, made in engine
 modules that are internal to it and not installed (`task_scheduler.cpp`, `chain_run.cpp` and its

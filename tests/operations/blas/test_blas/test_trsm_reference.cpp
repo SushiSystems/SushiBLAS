@@ -53,7 +53,7 @@ namespace SushiBLAS
                 void SetUp() override
                 {
                     SushiBLASTest::SetUp();
-                    engine->set_mode(ExecutionMode::ForceReference);
+                    set_mode(ExecutionMode::ForceReference);
                 }
 
                 /** @brief Returns U = [[1,2,3],[0,4,5],[0,0,6]] with its lower part poisoned. */
@@ -100,10 +100,10 @@ namespace SushiBLAS
                     auto B = engine->create_tensor({b_rows, b_cols}, Core::DataType::Float32);
                     fill_tensor(B, b_values);
 
-                    SushiBLAS::BLASOps(*engine).trsm(
+                    SushiBLAS::BLASOps(recorder()).trsm(
                         A, B, side_of(left_side), uplo_of(upper), transpose_of(trans_a),
                         diag_of(unit_diag), alpha);
-                    engine->execute().value();
+                    recording->run().value();
 
                     EXPECT_TENSOR_NEAR(B, expected, K_TOLERANCE);
                 }

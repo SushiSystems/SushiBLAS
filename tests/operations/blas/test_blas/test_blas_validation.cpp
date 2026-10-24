@@ -71,7 +71,7 @@ namespace SushiBLAS
             auto B = engine->create_tensor({4, 2});
             auto C = engine->create_tensor({2, 2});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemm(A, B, C), std::invalid_argument);
         }
 
         TEST_F(Medium_BlasValidationTest, GemmRejectsMixedLayouts)
@@ -82,7 +82,7 @@ namespace SushiBLAS
             const Tensor B(row_major_B.storage, {2, 2}, Core::DataType::Float32, 0,
                            Core::Layout::ColumnMajor);
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemm(A, B, C), std::invalid_argument);
         }
 
         TEST_F(Medium_BlasValidationTest, GemmRejectsBatchCountMismatch)
@@ -91,7 +91,7 @@ namespace SushiBLAS
             auto B = engine->create_tensor({2, 2, 2});
             auto C = engine->create_tensor({2, 2, 2});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemm(A, B, C), std::invalid_argument);
         }
 
         TEST_F(Medium_BlasValidationTest, GemmRejectsTransposedView)
@@ -101,7 +101,7 @@ namespace SushiBLAS
             auto B = engine->create_tensor({2, 2});
             auto C = engine->create_tensor({3, 2});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemm(A, B, C), std::invalid_argument);
         }
 
         TEST_F(Medium_BlasValidationTest, GemmBroadcastsRankTwoBOverBatchedA)
@@ -110,8 +110,8 @@ namespace SushiBLAS
             auto B = create_initialized_tensor<float>({2, 2}, K_SHARED_B);
             auto C = engine->create_tensor({2, 2, 2});
 
-            SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-            engine->execute().value();
+            SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
+            recording->run().value();
 
             verify_tensor(C, K_BROADCAST_C, K_TOLERANCE);
         }
@@ -121,7 +121,7 @@ namespace SushiBLAS
             auto A = engine->create_tensor({3, 2});
             auto C = engine->create_tensor({3, 2});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syrk(A, C, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syrk(A, C, Core::Uplo::Lower),
                          std::invalid_argument);
         }
 
@@ -130,7 +130,7 @@ namespace SushiBLAS
             auto A = engine->create_tensor({2, 3});
             auto B = engine->create_tensor({2, 2});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trsm(A, B, Core::Side::Left,
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trsm(A, B, Core::Side::Left,
                                                           Core::Uplo::Lower),
                          std::invalid_argument);
         }
@@ -141,7 +141,7 @@ namespace SushiBLAS
             auto y = engine->create_tensor({4});
             auto result = engine->create_tensor({1}, Core::DataType::Half);
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).dot(x, y, result), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).dot(x, y, result), std::invalid_argument);
         }
 
         TEST_F(Medium_BlasValidationTest, ScalarResultsRejectMoreThanOneElement)
@@ -151,10 +151,11 @@ namespace SushiBLAS
             auto wide = engine->create_tensor({2});
             auto wide_index = engine->create_tensor({2}, Core::DataType::Int64);
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).dot(x, y, wide), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).asum(x, wide), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).nrm2(x, wide), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).iamax(x, wide_index), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).dot(x, y, wide), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).asum(x, wide), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).nrm2(x, wide), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder())
+                .iamax(x, wide_index), std::invalid_argument);
         }
 
         TEST_F(Medium_BlasValidationTest, GemmRejectsBatchAxesThatDifferWithEqualProduct)
@@ -163,7 +164,7 @@ namespace SushiBLAS
             auto B = engine->create_tensor({2, 2});
             auto C = engine->create_tensor({3, 2, 2, 2});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemm(A, B, C), std::invalid_argument);
         }
 
         TEST_F(Medium_BlasValidationTest, SyrkAndTrsmRejectBatchAxesThatDiffer)
@@ -171,9 +172,9 @@ namespace SushiBLAS
             auto A = engine->create_tensor({2, 3, 2, 2});
             auto C = engine->create_tensor({6, 2, 2});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syrk(A, C, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syrk(A, C, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trsm(A, C, Core::Side::Left,
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trsm(A, C, Core::Side::Left,
                                                           Core::Uplo::Lower),
                          std::invalid_argument);
         }
@@ -184,8 +185,8 @@ namespace SushiBLAS
             auto B = create_initialized_tensor<float>({1, 2, 2}, K_SHARED_B);
             auto C = engine->create_tensor({2, 2, 2});
 
-            SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-            engine->execute().value();
+            SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
+            recording->run().value();
 
             verify_tensor(C, K_BROADCAST_C, K_TOLERANCE);
         }
@@ -196,17 +197,17 @@ namespace SushiBLAS
             auto x = engine->create_tensor({3});
             auto y = engine->create_tensor({3});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemv(A, x, y), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).ger(x, y, A), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).symv(A, x, y, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemv(A, x, y), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).ger(x, y, A), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).symv(A, x, y, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syr(x, A, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syr(x, A, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syr2(x, y, A, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syr2(x, y, A, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trmv(A, x, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trmv(A, x, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trsv(A, x, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trsv(A, x, Core::Uplo::Lower),
                          std::invalid_argument);
         }
 
@@ -234,7 +235,7 @@ namespace SushiBLAS
             Tensor x(parent.storage, dims, strides, Core::DataType::Float32, 0,
                      Core::Layout::RowMajor);
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).scal(2.0, x), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).scal(2.0, x), std::invalid_argument);
         }
 
         TEST_F(Medium_BlasValidationTest, Level1RejectsOperandsOfDifferentDtypes)
@@ -243,11 +244,11 @@ namespace SushiBLAS
             auto y = engine->create_tensor({4}, Core::DataType::Float64);
             auto result = engine->create_tensor({1});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).axpy(2.0, x, y), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).copy(x, y), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).swap(x, y), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).rot(x, y, 0.6, 0.8), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).dot(x, y, result), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).axpy(2.0, x, y), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).copy(x, y), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).swap(x, y), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).rot(x, y, 0.6, 0.8), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).dot(x, y, result), std::invalid_argument);
         }
 
         TEST_F(Medium_BlasValidationTest, Level1RejectsOperandsOfDifferentLengths)
@@ -256,11 +257,11 @@ namespace SushiBLAS
             auto y = engine->create_tensor({5});
             auto result = engine->create_tensor({1});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).axpy(2.0, x, y), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).copy(x, y), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).swap(x, y), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).rot(x, y, 0.6, 0.8), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).dot(x, y, result), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).axpy(2.0, x, y), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).copy(x, y), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).swap(x, y), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).rot(x, y, 0.6, 0.8), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).dot(x, y, result), std::invalid_argument);
         }
 
         TEST_F(Medium_BlasValidationTest, ScalRejectsNonContiguousVectorOfRankTwo)
@@ -269,7 +270,7 @@ namespace SushiBLAS
             Tensor x = parent.transpose(0, 1);
             ASSERT_FALSE(x.is_contiguous());
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).scal(2.0, x), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).scal(2.0, x), std::invalid_argument);
         }
 
         TEST_F(Medium_BlasValidationTest, Level2RejectsMatrixBelowRankTwo)
@@ -278,17 +279,17 @@ namespace SushiBLAS
             auto x = engine->create_tensor({3});
             auto y = engine->create_tensor({3});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemv(A, x, y), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).ger(x, y, A), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).symv(A, x, y, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemv(A, x, y), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).ger(x, y, A), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).symv(A, x, y, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syr(x, A, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syr(x, A, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syr2(x, y, A, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syr2(x, y, A, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trmv(A, x, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trmv(A, x, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trsv(A, x, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trsv(A, x, Core::Uplo::Lower),
                          std::invalid_argument);
         }
 
@@ -298,15 +299,15 @@ namespace SushiBLAS
             auto x = engine->create_tensor({3});
             auto y = engine->create_tensor({3});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).symv(A, x, y, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).symv(A, x, y, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syr(x, A, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syr(x, A, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syr2(x, y, A, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syr2(x, y, A, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trmv(A, x, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trmv(A, x, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trsv(A, x, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trsv(A, x, Core::Uplo::Lower),
                          std::invalid_argument);
         }
 
@@ -316,17 +317,17 @@ namespace SushiBLAS
             auto x = engine->create_tensor({2});
             auto y = engine->create_tensor({3});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemv(A, x, y), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).ger(x, y, A), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).symv(A, x, y, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemv(A, x, y), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).ger(x, y, A), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).symv(A, x, y, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syr(x, A, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syr(x, A, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syr2(x, y, A, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syr2(x, y, A, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trmv(A, x, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trmv(A, x, Core::Uplo::Lower),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trsv(A, x, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trsv(A, x, Core::Uplo::Lower),
                          std::invalid_argument);
         }
 
@@ -339,7 +340,7 @@ namespace SushiBLAS
             Tensor b(parent.storage, dims, strides, Core::DataType::Float32, 0,
                      Core::Layout::RowMajor);
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trsv(A, b, Core::Uplo::Lower),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trsv(A, b, Core::Uplo::Lower),
                          std::invalid_argument);
         }
 
@@ -350,15 +351,16 @@ namespace SushiBLAS
             auto x = engine->create_tensor({3});
             auto y = engine->create_tensor({3});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).symv(A, x, y, static_cast<Core::Uplo>(0)),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).symv(A, x, y, static_cast<Core::Uplo>(0)),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemv(A, x, y, static_cast<Core::Transpose>(0)),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder())
+                .gemv(A, x, y, static_cast<Core::Transpose>(0)),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trmv(A, x, Core::Uplo::Lower,
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trmv(A, x, Core::Uplo::Lower,
                                                           Core::Transpose::NoTrans,
                                                           static_cast<Core::Diag>(0)),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trsm(A, B, static_cast<Core::Side>(0),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trsm(A, B, static_cast<Core::Side>(0),
                                                           Core::Uplo::Lower),
                          std::invalid_argument);
         }
@@ -371,22 +373,22 @@ namespace SushiBLAS
             auto x = engine->create_tensor({3});
             auto y = engine->create_tensor({3});
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).axpy(K_COMPLEX_ALPHA, x, y),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).axpy(K_COMPLEX_ALPHA, x, y),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).scal(K_COMPLEX_ALPHA, x),
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).scal(K_COMPLEX_ALPHA, x),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemv(A, x, y, Core::Transpose::NoTrans,
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemv(A, x, y, Core::Transpose::NoTrans,
                                                           K_COMPLEX_ALPHA),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).gemm(A, B, C, Core::Transpose::NoTrans,
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).gemm(A, B, C, Core::Transpose::NoTrans,
                                                           Core::Transpose::NoTrans,
                                                           K_COMPLEX_ALPHA),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syrk(A, C, Core::Uplo::Lower,
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syrk(A, C, Core::Uplo::Lower,
                                                           Core::Transpose::NoTrans,
                                                           K_COMPLEX_ALPHA),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).trsm(A, B, Core::Side::Left,
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).trsm(A, B, Core::Side::Left,
                                                           Core::Uplo::Lower,
                                                           Core::Transpose::NoTrans,
                                                           Core::Diag::NonUnit, K_COMPLEX_ALPHA),
@@ -400,8 +402,8 @@ namespace SushiBLAS
             auto y = engine->create_tensor({3}, Core::DataType::Complex32);
             auto result = engine->create_tensor({1}, Core::DataType::Complex32);
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).dot(x, y, result), std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).ger(x, y, A), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).dot(x, y, result), std::invalid_argument);
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).ger(x, y, A), std::invalid_argument);
         }
 
         TEST_F(Medium_BlasValidationTest, SyrkAndHerkRejectTheOtherTransposeOnComplexTensors)
@@ -409,10 +411,10 @@ namespace SushiBLAS
             auto A = engine->create_tensor({3, 2}, Core::DataType::Complex32);
             auto C = engine->create_tensor({2, 2}, Core::DataType::Complex32);
 
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).syrk(A, C, Core::Uplo::Lower,
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).syrk(A, C, Core::Uplo::Lower,
                                                           Core::Transpose::ConjTrans),
                          std::invalid_argument);
-            EXPECT_THROW(SushiBLAS::BLASOps(*engine).herk(A, C, Core::Uplo::Lower,
+            EXPECT_THROW(SushiBLAS::BLASOps(recorder()).herk(A, C, Core::Uplo::Lower,
                                                           Core::Transpose::Trans),
                          std::invalid_argument);
         }
@@ -424,7 +426,7 @@ namespace SushiBLAS
             auto C = engine->create_tensor({2, 2}, Core::DataType::Complex32);
 
             EXPECT_THROW(Dispatch::execute_gemm<Dispatch::Domain::Real>(
-                             engine->recorder(), A, B, C, Core::Transpose::NoTrans,
+                             recorder(), A, B, C, Core::Transpose::NoTrans,
                              Core::Transpose::NoTrans, 1.0, 0.0, "test.gemm_real_domain",
                              "test.gemm_real_domain"_op, Kernels::GemmIdentityEpilogue{}),
                          std::invalid_argument);

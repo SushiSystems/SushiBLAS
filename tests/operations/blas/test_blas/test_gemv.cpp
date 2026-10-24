@@ -51,9 +51,9 @@ TEST_F(Medium_GEMVTest, SimpleGEMV)
     // Y is [0, 0].
     fill_tensor(Y, {0, 0});
 
-    SushiBLAS::BLASOps(*engine).gemv(A, X, Y);
+    SushiBLAS::BLASOps(recorder()).gemv(A, X, Y);
     
-    engine->execute().value();
+    recording->run().value();
 
     // Expected: Y = A * X = [1+2+3, 4+5+6] = [6, 15]
     verify_tensor(Y, {6, 15});
@@ -75,8 +75,8 @@ TEST_F(Medium_GEMVTest, FewLongStridedRows)
     fill_tensor(X, std::vector<float>(M, 0.5f));
     fill_tensor(Y, {0, 0, 0});
 
-    SushiBLAS::BLASOps(*engine).gemv(A, X, Y, SushiBLAS::Core::Transpose::Trans);
-    engine->execute().value();
+    SushiBLAS::BLASOps(recorder()).gemv(A, X, Y, SushiBLAS::Core::Transpose::Trans);
+    recording->run().value();
 
     verify_tensor(Y, {10000, 20000, 30000});
 }

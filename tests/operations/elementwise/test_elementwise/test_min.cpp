@@ -46,8 +46,8 @@ TEST_F(Medium_MinTest, FloatForward)
     fill_tensor(a, {1.0f, 2.0f, -3.0f, 0.5f});
     fill_tensor(b, {2.0f, 0.5f, 4.0f, -1.5f});
     
-    SushiBLAS::ElementwiseOps(*engine).min(a, b, c);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).min(a, b, c);
+    recording->run().value();
     
     verify_tensor(c, {1.00000f, 0.50000f, -3.00000f, -1.50000f});
 }
@@ -62,8 +62,8 @@ TEST_F(Medium_MinTest, NaNInEitherOperandPropagates)
     auto b = create_initialized_tensor<float>({3}, {1.0f, nan, 3.0f});
     auto c = engine->create_tensor({3});
 
-    SushiBLAS::ElementwiseOps(*engine).min(a, b, c);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).min(a, b, c);
+    recording->run().value();
 
     const std::vector<float> got = read_tensor<float>(c);
     EXPECT_TRUE(std::isnan(got[0]));

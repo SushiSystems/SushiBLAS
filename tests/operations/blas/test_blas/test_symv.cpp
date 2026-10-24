@@ -51,9 +51,9 @@ TEST_F(Medium_SYMVTest, SimpleSYMV)
     // Y:
     fill_tensor(Y, {0, 0, 0});
 
-    SushiBLAS::BLASOps(*engine).symv(A, X, Y, SushiBLAS::Core::Uplo::Lower);
+    SushiBLAS::BLASOps(recorder()).symv(A, X, Y, SushiBLAS::Core::Uplo::Lower);
     
-    engine->execute().value();
+    recording->run().value();
 
     // Y = A * X = [1+2+3, 2+4+5, 3+5+6] = [6, 11, 14].
     verify_tensor(Y, {6, 11, 14});
@@ -79,8 +79,8 @@ TEST_F(Medium_SYMVTest, LowerIgnoresAPoisonedUpperTriangle)
     fill_tensor(X, K_X);
     fill_tensor(Y, {0, 0, 0});
 
-    SushiBLAS::BLASOps(*engine).symv(A, X, Y, SushiBLAS::Core::Uplo::Lower);
-    engine->execute().value();
+    SushiBLAS::BLASOps(recorder()).symv(A, X, Y, SushiBLAS::Core::Uplo::Lower);
+    recording->run().value();
 
     // S * [1 2 3] = [2+2+12, 1+6+15, 4+10+21].
     verify_tensor(Y, {16, 22, 35});
@@ -97,8 +97,8 @@ TEST_F(Medium_SYMVTest, UpperIgnoresAPoisonedLowerTriangle)
     fill_tensor(X, K_X);
     fill_tensor(Y, {0, 0, 0});
 
-    SushiBLAS::BLASOps(*engine).symv(A, X, Y, SushiBLAS::Core::Uplo::Upper);
-    engine->execute().value();
+    SushiBLAS::BLASOps(recorder()).symv(A, X, Y, SushiBLAS::Core::Uplo::Upper);
+    recording->run().value();
 
     // S * [1 2 3] = [1+4+9, 2+8+15, 3+10+18].
     verify_tensor(Y, {14, 25, 31});

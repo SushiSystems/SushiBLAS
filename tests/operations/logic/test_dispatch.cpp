@@ -89,14 +89,14 @@ namespace SushiBLAS
             {
                 Tensor not_zero = create_initialized_tensor<float>({4}, {9, 9, 9, 9});
                 Tensor equal = create_initialized_tensor<float>({4}, {9, 9, 9, 9});
-                engine->recorder().set_mode(mode);
+                set_mode(mode);
 
-                Dispatch::execute_logic_unary(engine->recorder(), a, not_zero, "not_zero",
+                Dispatch::execute_logic_unary(recorder(), a, not_zero, "not_zero",
                                               SushiRuntime::OperationID(), NotZeroIndicator{});
                 Dispatch::execute_logic_binary<Dispatch::Domain::All>(
-                    engine->recorder(), a, b, equal, "equal", SushiRuntime::OperationID(),
+                    recorder(), a, b, equal, "equal", SushiRuntime::OperationID(),
                     EqualIndicator{});
-                ASSERT_TRUE(engine->execute().has_value());
+                ASSERT_TRUE(recording->run().has_value());
 
                 EXPECT_EQ(read_tensor<float>(not_zero), (std::vector<float>{0, 1, 1, 1}));
                 EXPECT_EQ(read_tensor<float>(equal), (std::vector<float>{1, 0, 1, 0}));

@@ -44,9 +44,9 @@ TEST_F(Medium_ASUMTest, SimpleASUM)
     fill_tensor(X, {-1, 2, -3, 4});
     fill_tensor(R, {0.0f});
 
-    SushiBLAS::BLASOps(*engine).asum(X, R);
+    SushiBLAS::BLASOps(recorder()).asum(X, R);
     
-    engine->execute().value();
+    recording->run().value();
 
     // Expected asum: |-1| + |2| + |-3| + |4| = 1 + 2 + 3 + 4 = 10
     verify_tensor(R, {10.0f});

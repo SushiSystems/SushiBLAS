@@ -73,8 +73,8 @@ namespace SushiBLAS
             auto cols = engine->create_tensor({2 * 3 * 4, 5}, Core::DataType::Float32);
 
             Spatial::ConvGeometry g;   // 1x1, stride 1, dilation 1, no pad
-            SushiBLAS::SpatialOps(*engine).im2col(in, cols, g);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).im2col(in, cols, g);
+            recording->run().value();
 
             const float* out = cols.data_as<float>();
             for (int64_t i = 0; i < in.num_elements; ++i)
@@ -91,8 +91,8 @@ namespace SushiBLAS
             g.kernel_h = 2;
             g.kernel_w = 2;
 
-            SushiBLAS::SpatialOps(*engine).im2col(in, cols, g);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).im2col(in, cols, g);
+            recording->run().value();
 
             // Element (h, w, c) holds (h*3 + w)*2 + c; row 0 is the window at (0,0).
             const std::vector<float> row0 = {0, 1, 2, 3, 6, 7, 8, 9};
@@ -122,8 +122,8 @@ namespace SushiBLAS
             g.pad_top = 1;
             g.pad_left = 1;
 
-            SushiBLAS::SpatialOps(*engine).im2col(in, cols, g);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).im2col(in, cols, g);
+            recording->run().value();
 
             // Row 0 is the window centred on (0,0); only taps 4, 5, 7, 8 of its 3x3 are in bounds.
             const std::vector<float> row0 = {0, 0, 0, 0, 0, 1, 0, 2, 3};
@@ -144,8 +144,8 @@ namespace SushiBLAS
             g.dilation_h = 2;
             g.dilation_w = 2;
 
-            SushiBLAS::SpatialOps(*engine).im2col(in, cols, g);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).im2col(in, cols, g);
+            recording->run().value();
 
             // The single window's taps are rows {0,2,4} x columns {0,2,4}.
             const std::vector<float> expected = {0, 2, 4, 10, 12, 14, 20, 22, 24};
@@ -166,10 +166,10 @@ namespace SushiBLAS
             g.kernel_w = 2;
 
             // Symmetric-padding derivation gives W_o = 2, which does not divide 9.
-            EXPECT_THROW(SushiBLAS::SpatialOps(*engine).im2col(in, cols, g), std::exception);
+            EXPECT_THROW(SushiBLAS::SpatialOps(recorder()).im2col(in, cols, g), std::exception);
 
-            SushiBLAS::SpatialOps(*engine).im2col(in, cols, g, 3, 3);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).im2col(in, cols, g, 3, 3);
+            recording->run().value();
 
             const float* out = cols.data_as<float>();
 
@@ -207,13 +207,13 @@ namespace SushiBLAS
             auto from_reference = engine->create_tensor({rows, width}, Core::DataType::Float32);
             auto from_device = engine->create_tensor({rows, width}, Core::DataType::Float32);
 
-            engine->set_mode(ExecutionMode::ForceReference);
-            SushiBLAS::SpatialOps(*engine).im2col(in, from_reference, g, out_h, out_w);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceReference);
+            SushiBLAS::SpatialOps(recorder()).im2col(in, from_reference, g, out_h, out_w);
+            recording->run().value();
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
-            SushiBLAS::SpatialOps(*engine).im2col(in, from_device, g, out_h, out_w);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceSYCL);
+            SushiBLAS::SpatialOps(recorder()).im2col(in, from_device, g, out_h, out_w);
+            recording->run().value();
 
             const float* expected = from_reference.data_as<float>();
             const float* got = from_device.data_as<float>();
@@ -233,7 +233,7 @@ namespace SushiBLAS
 
             try
             {
-                SushiBLAS::SpatialOps(*engine).im2col(in, cols, g, 3, 3);
+                SushiBLAS::SpatialOps(recorder()).im2col(in, cols, g, 3, 3);
                 FAIL() << "a column matrix whose width is not kernel_h*kernel_w*C must be refused";
             }
             catch (const std::exception& e)
@@ -250,7 +250,8 @@ namespace SushiBLAS
             auto in = engine->create_tensor({4, 4, 2}, Core::DataType::Float32);
             auto cols = engine->create_tensor({16, 8}, Core::DataType::Float32);
 
-            EXPECT_THROW(SushiBLAS::SpatialOps(*engine).im2col(in, cols, Spatial::ConvGeometry{}),
+            EXPECT_THROW(SushiBLAS::SpatialOps(recorder())
+                .im2col(in, cols, Spatial::ConvGeometry{}),
                          std::exception);
         }
     }

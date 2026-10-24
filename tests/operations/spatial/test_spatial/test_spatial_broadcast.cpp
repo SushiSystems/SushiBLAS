@@ -112,8 +112,8 @@ namespace SushiBLAS
             auto beta = filled({3}, {10.0f, 20.0f, 30.0f});
             auto out = engine->create_tensor({1, 2, 2, 3}, Core::DataType::Float32);
 
-            SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, out);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).channel_affine(in, gamma, beta, out);
+            recording->run().value();
 
             // Element k has channel k % 3, so it becomes k * gamma[k % 3] + beta[k % 3].
             const std::vector<float> expected = {10, 23, 38,
@@ -133,8 +133,8 @@ namespace SushiBLAS
             auto beta = uniform({5}, 0.0f);
             auto out = engine->create_tensor({2, 3, 4, 5}, Core::DataType::Float32);
 
-            SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, out);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).channel_affine(in, gamma, beta, out);
+            recording->run().value();
 
             const float* source = in.data_as<float>();
             const float* got = out.data_as<float>();
@@ -151,8 +151,8 @@ namespace SushiBLAS
                                       4, 5, 6});
             auto out = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
-            SushiBLAS::SpatialOps(*engine).broadcast_spatial(in, out, 0.5);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).broadcast_spatial(in, out, 0.5);
+            recording->run().value();
 
             const float* source = in.data_as<float>();
             const float* got = out.data_as<float>();
@@ -173,8 +173,8 @@ namespace SushiBLAS
             auto in = uniform({N, C}, 1.0f);
             auto out = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
-            SushiBLAS::SpatialOps(*engine).broadcast_spatial(in, out, scale);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).broadcast_spatial(in, out, scale);
+            recording->run().value();
 
             // float(1/20) is one rounding of an exact double, so every element is identical.
             const float share = static_cast<float>(scale);
@@ -208,10 +208,10 @@ namespace SushiBLAS
             auto destination = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
             // NHWC to NCHW and back: the same call, with the permuted strides on the other operand.
-            SushiBLAS::SpatialOps(*engine).layout_convert(source, middle);
-            engine->execute().value();
-            SushiBLAS::SpatialOps(*engine).layout_convert(middle, destination);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).layout_convert(source, middle);
+            recording->run().value();
+            SushiBLAS::SpatialOps(recorder()).layout_convert(middle, destination);
+            recording->run().value();
 
             const float* expected = source.data_as<float>();
             const float* got = destination.data_as<float>();
@@ -229,8 +229,8 @@ namespace SushiBLAS
             auto nchw_storage = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             auto nchw = nchw_view(nchw_storage, N, H, W, C);
 
-            SushiBLAS::SpatialOps(*engine).layout_convert(source, nchw);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).layout_convert(source, nchw);
+            recording->run().value();
 
             // Element (h, w, c) sits at h*4 + w*2 + c and must land at c*4 + h*2 + w in NCHW.
             const std::vector<float> expected = {0, 2, 4, 6,    // channel 0
@@ -251,9 +251,9 @@ namespace SushiBLAS
             auto nchw = nchw_view(nchw_storage, N, H, W, C);
             auto back = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
-            SushiBLAS::SpatialOps(*engine).layout_convert(source, nchw);
-            SushiBLAS::SpatialOps(*engine).layout_convert(nchw, back);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).layout_convert(source, nchw);
+            SushiBLAS::SpatialOps(recorder()).layout_convert(nchw, back);
+            recording->run().value();
 
             const float* converted = nchw_storage.data_as<float>();
             const float* returned = back.data_as<float>();
@@ -307,17 +307,18 @@ namespace SushiBLAS
             auto convert_reference = nchw_view(convert_reference_storage, N, H, W, C);
             auto convert_device = nchw_view(convert_device_storage, N, H, W, C);
 
-            engine->set_mode(ExecutionMode::ForceReference);
-            SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, affine_reference);
-            SushiBLAS::SpatialOps(*engine).broadcast_spatial(plane, spread_reference, 1.0 / 15.0);
-            SushiBLAS::SpatialOps(*engine).layout_convert(in, convert_reference);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceReference);
+            SushiBLAS::SpatialOps(recorder()).channel_affine(in, gamma, beta, affine_reference);
+            SushiBLAS::SpatialOps(recorder())
+                .broadcast_spatial(plane, spread_reference, 1.0 / 15.0);
+            SushiBLAS::SpatialOps(recorder()).layout_convert(in, convert_reference);
+            recording->run().value();
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
-            SushiBLAS::SpatialOps(*engine).channel_affine(in, gamma, beta, affine_device);
-            SushiBLAS::SpatialOps(*engine).broadcast_spatial(plane, spread_device, 1.0 / 15.0);
-            SushiBLAS::SpatialOps(*engine).layout_convert(in, convert_device);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceSYCL);
+            SushiBLAS::SpatialOps(recorder()).channel_affine(in, gamma, beta, affine_device);
+            SushiBLAS::SpatialOps(recorder()).broadcast_spatial(plane, spread_device, 1.0 / 15.0);
+            SushiBLAS::SpatialOps(recorder()).layout_convert(in, convert_device);
+            recording->run().value();
 
             const float* affine_expected = affine_reference.data_as<float>();
             const float* affine_got = affine_device.data_as<float>();

@@ -117,8 +117,8 @@ namespace SushiBLAS
                     auto b = this->template create_initialized_tensor<Int>({4}, Case::b());
                     auto c = this->engine->create_tensor({4}, sushiblas_dtype<Int>());
 
-                    op(SushiBLAS::ElementwiseOps(*this->engine), a, b, c);
-                    this->engine->execute().value();
+                    op(SushiBLAS::ElementwiseOps(this->recorder()), a, b, c);
+                    this->recording->run().value();
                     return read_tensor<Int>(c);
                 }
         };
@@ -188,9 +188,9 @@ namespace SushiBLAS
             auto n = this->template create_initialized_tensor<Int>({3}, {5, -3, k_min});
             auto m = this->template create_initialized_tensor<Int>({3}, {5, -3, k_min});
 
-            SushiBLAS::ElementwiseOps(*this->engine).neg(n);
-            SushiBLAS::ElementwiseOps(*this->engine).abs(m);
-            this->engine->execute().value();
+            SushiBLAS::ElementwiseOps(this->recorder()).neg(n);
+            SushiBLAS::ElementwiseOps(this->recorder()).abs(m);
+            this->recording->run().value();
 
             EXPECT_EQ((std::vector<Int>{-5, 3, k_min}), read_tensor<Int>(n));
             EXPECT_EQ((std::vector<Int>{5, 3, k_min}), read_tensor<Int>(m));
@@ -204,8 +204,8 @@ namespace SushiBLAS
             using Int = TypeParam;
             auto t = this->template create_initialized_tensor<Int>({3}, {-10, 0, 10});
 
-            SushiBLAS::ElementwiseOps(*this->engine).clamp(t, K_CLAMP_LOW, K_CLAMP_HIGH);
-            this->engine->execute().value();
+            SushiBLAS::ElementwiseOps(this->recorder()).clamp(t, K_CLAMP_LOW, K_CLAMP_HIGH);
+            this->recording->run().value();
 
             EXPECT_EQ((std::vector<Int>{-2, 0, 7}), read_tensor<Int>(t));
         }
@@ -238,12 +238,12 @@ namespace SushiBLAS
             auto c = this->engine->create_tensor({2}, sushiblas_dtype<Int>());
 
             Dispatch::execute_binary<Dispatch::Domain::RealAndIntegral>(
-                this->engine->recorder(), a, b, c, "test.safe_ew_add", "test.safe_ew_add"_op,
+                this->recorder(), a, b, c, "test.safe_ew_add", "test.safe_ew_add"_op,
                 [](auto x, auto y)
                 {
                     return Dispatch::safe_ew_add(x, y);
                 });
-            this->engine->execute().value();
+            this->recording->run().value();
 
             EXPECT_EQ((std::vector<Int>{Case::K_MIN, 12}), read_tensor<Int>(c));
         }
@@ -258,8 +258,8 @@ namespace SushiBLAS
         {
             auto t = create_initialized_tensor<double>({2}, {1.0, 1.5});
 
-            SushiBLAS::ElementwiseOps(*engine).clamp(t, K_FINE_LOW, K_FINE_HIGH);
-            engine->execute().value();
+            SushiBLAS::ElementwiseOps(recorder()).clamp(t, K_FINE_LOW, K_FINE_HIGH);
+            recording->run().value();
 
             const std::vector<double> got = read_tensor<double>(t);
             EXPECT_DOUBLE_EQ(K_FINE_LOW, got[0]);

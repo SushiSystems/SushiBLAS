@@ -53,11 +53,11 @@ namespace SushiBLAS
             const Tensor a = create_initialized_tensor<float>({2, 2}, {1, 2, 3, 4});
             const Tensor b = create_initialized_tensor<float>({2, 2}, {0, 1, 1, 0});
             Tensor c = create_initialized_tensor<float>({2, 2}, {1, 1, 1, 1});
-            BLASOps blas(*engine);
+            BLASOps blas(recorder());
             Level3& level3 = blas;
 
             level3.gemm(a, b, c, Core::Transpose::NoTrans, Core::Transpose::NoTrans, 2.0, -1.0);
-            ASSERT_TRUE(engine->execute().has_value());
+            ASSERT_TRUE(recording->run().has_value());
 
             EXPECT_EQ(read_tensor<float>(c), (std::vector<float>{3, 1, 7, 5}));
         }

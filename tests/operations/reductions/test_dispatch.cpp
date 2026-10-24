@@ -76,12 +76,12 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 Tensor result = create_initialized_tensor<int64_t>({1}, {-1});
-                engine->recorder().set_mode(mode);
+                set_mode(mode);
                 Dispatch::execute_index_reduction(
-                    engine->recorder(), t, result, "argmax", SushiRuntime::OperationID(),
+                    recorder(), t, result, "argmax", SushiRuntime::OperationID(),
                     Dispatch::ArgReductionDispatch<Reduce::RunningArgMax>{},
                     Dispatch::planned_partials_for(t));
-                ASSERT_TRUE(engine->execute().has_value());
+                ASSERT_TRUE(recording->run().has_value());
 
                 EXPECT_EQ(read_tensor<int64_t>(result), (std::vector<int64_t>{1}));
             }

@@ -484,7 +484,7 @@ namespace SushiBLAS
                 void start(Core::Layout layout, ExecutionMode mode)
                 {
                     this->reinit_engine(layout);
-                    this->engine->set_mode(mode);
+                    this->set_mode(mode);
                 }
 
                 /**
@@ -587,7 +587,7 @@ namespace SushiBLAS
                     Tensor from_second = vector_of(initial);
                     first(from_first);
                     second(from_second);
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     const std::vector<T> result = read_tensor<T>(from_first);
                     expect_equal(result, read_tensor<T>(from_second));
@@ -608,7 +608,7 @@ namespace SushiBLAS
                     Tensor from_dense = dense_of(n, dense);
                     packed_call(from_packed);
                     dense_call(from_dense);
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     expect_equal(read_tensor<T>(from_packed),
                                  packed(read_row_ordered(from_dense, n), n, uplo));
@@ -634,7 +634,7 @@ namespace SushiBLAS
                     for (std::size_t update = K_SPR; update < K_ROUTINE_COUNT; ++update)
                         results.push_back(vector_of(in.ap));
 
-                    SushiBLAS::BLASOps ops(*this->engine);
+                    SushiBLAS::BLASOps ops(this->recorder());
                     ops.spmv(ap, x, results[K_SPMV], in.uplo, in.alpha, in.beta);
                     ops.hpmv(ap, x, results[K_HPMV], in.uplo, in.alpha, in.beta);
                     ops.tpmv(triangular, results[K_TPMV], in.uplo);
@@ -643,7 +643,7 @@ namespace SushiBLAS
                     ops.hpr(x, results[K_HPR], in.uplo, in.alpha);
                     ops.spr2(x, y, results[K_SPR2], in.uplo, in.alpha);
                     ops.hpr2(x, y, results[K_HPR2], in.uplo, in.alpha);
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     std::vector<std::vector<T>> values;
                     values.reserve(results.size());
@@ -669,10 +669,10 @@ namespace SushiBLAS
                     Tensor from_packed = vector_of(y);
                     Tensor from_dense = vector_of(y);
 
-                    SushiBLAS::BLASOps ops(*this->engine);
+                    SushiBLAS::BLASOps ops(this->recorder());
                     ops.spmv(ap, x, from_packed, Core::Uplo::Upper, K_ALPHA, K_BETA);
                     ops.symv(full, x, from_dense, Core::Uplo::Upper, K_ALPHA, K_BETA);
-                    this->engine->execute().value();
+                    this->recording->run().value();
                     return {{read_tensor<T>(from_packed), read_tensor<T>(from_dense)}};
                 }
         };
@@ -722,8 +722,8 @@ namespace SushiBLAS
                     const Tensor x = this->vector_of(elements<T>({1, -1, 2}));
                     Tensor y = this->vector_of(std::vector<T>(3, poison<T>()));
 
-                    SushiBLAS::BLASOps(*this->engine).spmv(AP, x, y, uplo);
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder()).spmv(AP, x, y, uplo);
+                    this->recording->run().value();
 
                     expect_equal(read_tensor<T>(y), elements<T>({5, 8, 10}));
                 }
@@ -745,8 +745,8 @@ namespace SushiBLAS
                     const Tensor AP = this->hand_triangle(row.uplo);
                     Tensor x = this->vector_of(elements<T>({1, 2, 3}));
 
-                    SushiBLAS::BLASOps(*this->engine).tpmv(AP, x, row.uplo, row.trans, row.diag);
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder()).tpmv(AP, x, row.uplo, row.trans, row.diag);
+                    this->recording->run().value();
 
                     expect_equal(read_tensor<T>(x),
                                  elements<T>({row.product[0], row.product[1], row.product[2]}));
@@ -770,8 +770,8 @@ namespace SushiBLAS
                     Tensor b = this->vector_of(
                         elements<T>({row.product[0], row.product[1], row.product[2]}));
 
-                    SushiBLAS::BLASOps(*this->engine).tpsv(AP, b, row.uplo, row.trans, row.diag);
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder()).tpsv(AP, b, row.uplo, row.trans, row.diag);
+                    this->recording->run().value();
 
                     expect_equal(read_tensor<T>(b), elements<T>({1, 2, 3}));
                 }
@@ -793,8 +793,8 @@ namespace SushiBLAS
                     const Tensor x = this->vector_of(elements<T>({1, 2, 3}));
                     Tensor AP = this->vector_of(elements<T>({0, 0, 0, 0, 0, 0}));
 
-                    SushiBLAS::BLASOps(*this->engine).spr(x, AP, uplo, 2.0);
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder()).spr(x, AP, uplo, 2.0);
+                    this->recording->run().value();
 
                     expect_equal(read_tensor<T>(AP),
                                  is_growing(uplo, layout) ? elements<T>({2, 4, 8, 6, 12, 18})
@@ -819,8 +819,8 @@ namespace SushiBLAS
                     const Tensor y = this->vector_of(elements<T>({3, 5}));
                     Tensor AP = this->vector_of(elements<T>({0, 0, 0}));
 
-                    SushiBLAS::BLASOps(*this->engine).spr2(x, y, AP, uplo, 1.0);
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder()).spr2(x, y, AP, uplo, 1.0);
+                    this->recording->run().value();
 
                     expect_equal(read_tensor<T>(AP), elements<T>({6, 11, 20}));
                 }
@@ -839,7 +839,7 @@ namespace SushiBLAS
             this->for_each_engine([&](Core::Layout)
             {
                 std::mt19937 generator(K_SEED);
-                SushiBLAS::BLASOps ops(*this->engine);
+                SushiBLAS::BLASOps ops(this->recorder());
                 const std::vector<T> dense = random_elements<T>(generator, n * n);
                 const Tensor full = this->dense_of(n, dense);
 
@@ -891,7 +891,7 @@ namespace SushiBLAS
 
             this->for_each_engine([&](Core::Layout)
             {
-                SushiBLAS::BLASOps ops(*this->engine);
+                SushiBLAS::BLASOps ops(this->recorder());
 
                 for (const Core::Uplo uplo : K_TRIANGLES)
                 {
@@ -1043,8 +1043,8 @@ namespace SushiBLAS
                     const Tensor x_tensor = this->vector_of(narrowed_all<T>(x));
                     Tensor y = this->vector_of(std::vector<T>(3, poison<T>()));
 
-                    SushiBLAS::BLASOps(*this->engine).hpmv(AP, x_tensor, y, uplo);
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder()).hpmv(AP, x_tensor, y, uplo);
+                    this->recording->run().value();
 
                     expect_equal(read_tensor<T>(y),
                                  narrowed_all<T>({Wide(0, 2), Wide(10, -2), Wide(8, 4)}));
@@ -1069,8 +1069,8 @@ namespace SushiBLAS
                     Tensor AP = this->vector_of(
                         narrowed_all<T>({Wide(0, 7), Wide(0, 0), Wide(0, 7)}));
 
-                    SushiBLAS::BLASOps(*this->engine).hpr(x, AP, uplo, 2.0);
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder()).hpr(x, AP, uplo, 2.0);
+                    this->recording->run().value();
 
                     const double sign = (uplo == Core::Uplo::Upper) ? 1.0 : -1.0;
                     expect_equal(read_tensor<T>(AP),
@@ -1095,8 +1095,8 @@ namespace SushiBLAS
                     const Tensor y = this->vector_of(narrowed_all<T>({Wide(1, 1), Wide(2, 0)}));
                     Tensor AP = this->vector_of(std::vector<T>(3));
 
-                    SushiBLAS::BLASOps(*this->engine).hpr2(x, y, AP, uplo, Wide(0.0, 1.0));
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder()).hpr2(x, y, AP, uplo, Wide(0.0, 1.0));
+                    this->recording->run().value();
 
                     const double sign = (uplo == Core::Uplo::Upper) ? 1.0 : -1.0;
                     expect_equal(read_tensor<T>(AP),
@@ -1119,7 +1119,7 @@ namespace SushiBLAS
 
             for_each_engine([&](Core::Layout)
             {
-                SushiBLAS::BLASOps ops(*engine);
+                SushiBLAS::BLASOps ops(recorder());
                 const Tensor AP = vector_of(packed(elements<T>(square), n, Core::Uplo::Upper));
                 const Tensor ones = vector_of(elements<T>({1, 1, 1, 1}));
 
@@ -1127,7 +1127,7 @@ namespace SushiBLAS
                 ops.spmv(AP, ones, from_spmv, Core::Uplo::Upper);
                 Tensor from_tpmv = vector_of(elements<T>({1, 1, 1, 1}));
                 ops.tpmv(AP, from_tpmv, Core::Uplo::Upper);
-                engine->execute().value();
+                recording->run().value();
 
                 expect_equal(read_tensor<T>(from_spmv), elements<T>({2, 1, 1, -2048}));
                 expect_equal(read_tensor<T>(from_tpmv), elements<T>({2, 0, 0, 0}));
@@ -1149,8 +1149,8 @@ namespace SushiBLAS
                     vector_of(packed(elements<T>(lower), K_HAND_ORDER, Core::Uplo::Lower));
                 Tensor b = vector_of(elements<T>({2048, 1, 2050}));
 
-                SushiBLAS::BLASOps(*engine).tpsv(AP, b, Core::Uplo::Lower);
-                engine->execute().value();
+                SushiBLAS::BLASOps(recorder()).tpsv(AP, b, Core::Uplo::Lower);
+                recording->run().value();
 
                 expect_equal(read_tensor<T>(b), elements<T>({2048, 2048, 1}));
             });

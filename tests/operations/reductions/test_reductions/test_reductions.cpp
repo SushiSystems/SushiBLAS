@@ -93,8 +93,8 @@ TYPED_TEST(Medium_ReductionOpsTyped, Sum)
     auto t = this->template create_initialized_tensor<T>({100}, data);
     auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
-    SushiBLAS::ReductionOps(*this->engine).sum(t, res);
-    this->engine->execute().value();
+    SushiBLAS::ReductionOps(this->recorder()).sum(t, res);
+    this->recording->run().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -108,8 +108,8 @@ TYPED_TEST(Medium_ReductionOpsTyped, Mean)
     auto t = this->template create_initialized_tensor<T>({100}, data);
     auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
-    SushiBLAS::ReductionOps(*this->engine).mean(t, res);
-    this->engine->execute().value();
+    SushiBLAS::ReductionOps(this->recorder()).mean(t, res);
+    this->recording->run().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -124,8 +124,8 @@ TYPED_TEST(Medium_ReductionOpsTyped, Max)
     auto t = this->template create_initialized_tensor<T>({100}, data);
     auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
-    SushiBLAS::ReductionOps(*this->engine).max(t, res);
-    this->engine->execute().value();
+    SushiBLAS::ReductionOps(this->recorder()).max(t, res);
+    this->recording->run().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -140,8 +140,8 @@ TYPED_TEST(Medium_ReductionOpsTyped, Min)
     auto t = this->template create_initialized_tensor<T>({100}, data);
     auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
-    SushiBLAS::ReductionOps(*this->engine).min(t, res);
-    this->engine->execute().value();
+    SushiBLAS::ReductionOps(this->recorder()).min(t, res);
+    this->recording->run().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -158,8 +158,8 @@ TYPED_TEST(Medium_ReductionOpsTyped, ArgMax)
     // The index is INT64 and is compared exactly. See tests/operations/reductions/README.md.
     auto res = this->engine->create_tensor({1}, Core::DataType::Int64);
 
-    SushiBLAS::ReductionOps(*this->engine).argmax(t, res);
-    this->engine->execute().value();
+    SushiBLAS::ReductionOps(this->recorder()).argmax(t, res);
+    this->recording->run().value();
 
     EXPECT_TENSOR_NEAR(res, {static_cast<float>(expected)}, 0.0);
 }
@@ -176,8 +176,8 @@ TYPED_TEST(Medium_ReductionOpsTyped, ArgMin)
     // INT64 for the same reason as ArgMax above.
     auto res = this->engine->create_tensor({1}, Core::DataType::Int64);
 
-    SushiBLAS::ReductionOps(*this->engine).argmin(t, res);
-    this->engine->execute().value();
+    SushiBLAS::ReductionOps(this->recorder()).argmin(t, res);
+    this->recording->run().value();
 
     EXPECT_TENSOR_NEAR(res, {static_cast<float>(expected)}, 0.0);
 }
@@ -191,8 +191,8 @@ TYPED_TEST(Medium_ReductionOpsTyped, Var)
     auto t = this->template create_initialized_tensor<T>({5}, data);
     auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
-    SushiBLAS::ReductionOps(*this->engine).var(t, res);
-    this->engine->execute().value();
+    SushiBLAS::ReductionOps(this->recorder()).var(t, res);
+    this->recording->run().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -206,8 +206,8 @@ TYPED_TEST(Medium_ReductionOpsTyped, Std)
     auto t = this->template create_initialized_tensor<T>({5}, data);
     auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
-    SushiBLAS::ReductionOps(*this->engine).std(t, res);
-    this->engine->execute().value();
+    SushiBLAS::ReductionOps(this->recorder()).std(t, res);
+    this->recording->run().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -221,8 +221,8 @@ TYPED_TEST(Medium_ReductionOpsTyped, Prod)
     auto t = this->template create_initialized_tensor<T>({5}, data);
     auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
-    SushiBLAS::ReductionOps(*this->engine).prod(t, res);
-    this->engine->execute().value();
+    SushiBLAS::ReductionOps(this->recorder()).prod(t, res);
+    this->recording->run().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -236,8 +236,8 @@ TYPED_TEST(Medium_ReductionOpsTyped, LogSumExp)
     auto t = this->template create_initialized_tensor<T>({3}, data);
     auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
-    SushiBLAS::ReductionOps(*this->engine).logsumexp(t, res);
-    this->engine->execute().value();
+    SushiBLAS::ReductionOps(this->recorder()).logsumexp(t, res);
+    this->recording->run().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -251,8 +251,8 @@ TYPED_TEST(Medium_ReductionOpsTyped, Asum)
     auto t = this->template create_initialized_tensor<T>({5}, data);
     auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
-    SushiBLAS::ReductionOps(*this->engine).asum(t, res);
-    this->engine->execute().value();
+    SushiBLAS::ReductionOps(this->recorder()).asum(t, res);
+    this->recording->run().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -266,8 +266,8 @@ TYPED_TEST(Medium_ReductionOpsTyped, Nrm2)
     auto t = this->template create_initialized_tensor<T>({4}, data);
     auto res = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
-    SushiBLAS::ReductionOps(*this->engine).nrm2(t, res);
-    this->engine->execute().value();
+    SushiBLAS::ReductionOps(this->recorder()).nrm2(t, res);
+    this->recording->run().value();
 
     EXPECT_TENSOR_NEAR(res, {expected}, static_cast<float>(1e-4));
 }
@@ -583,7 +583,10 @@ namespace
             tensor_of(engine, {shape.images, shape.height, shape.width, shape.channels}, values)};
     }
 
-    /** @brief Records call under each forced mode on engine, runs both and returns what each wrote. */
+    /**
+     * @brief Records call under each forced mode on a graph of its own, runs both and returns
+     *        what each wrote.
+     */
     template<typename Out>
     ModeResults<Out> in_both_modes(Engine& engine, const ReductionCall& call)
     {
@@ -592,6 +595,7 @@ namespace
         for (ExecutionMode mode : {ExecutionMode::ForceReference, ExecutionMode::ForceSYCL})
         {
             engine.set_mode(mode);
+            RecordingFixture recording(engine);
 
             Tensor result = engine.create_tensor(
                 SushiRuntime::span<const int64_t>(call.result_dims.data(), call.result_dims.size()),
@@ -599,9 +603,9 @@ namespace
             fill_tensor(result, std::vector<float>(static_cast<std::size_t>(result.num_elements),
                                                    K_UNWRITTEN));
 
-            ReductionOps reductions(engine);
+            ReductionOps reductions(recording.recorder());
             call.record(reductions, result);
-            engine.execute().value();
+            recording.run().value();
 
             std::vector<Out>& written =
                 mode == ExecutionMode::ForceReference ? results.reference : results.device;
@@ -819,8 +823,8 @@ class Medium_ReductionOps : public SushiBLASTest
             fill_tensor(t, values);
 
             auto result = engine->create_tensor({1});
-            SushiBLAS::ReductionOps(*engine).logsumexp(t, result);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).logsumexp(t, result);
+            recording->run().value();
 
             verify_tensor(result, {expected}, K_LOGSUMEXP_TOLERANCE);
         }
@@ -834,9 +838,9 @@ class Medium_ReductionOps : public SushiBLASTest
             auto at_max = engine->create_tensor({1}, Core::DataType::Int64);
             auto at_min = engine->create_tensor({1}, Core::DataType::Int64);
 
-            SushiBLAS::ReductionOps(*engine).argmax(t, at_max);
-            SushiBLAS::ReductionOps(*engine).argmin(t, at_min);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).argmax(t, at_max);
+            SushiBLAS::ReductionOps(recorder()).argmin(t, at_min);
+            recording->run().value();
 
             EXPECT_EQ(expected_max, read_tensor<int64_t>(at_max)[0]);
             EXPECT_EQ(expected_min, read_tensor<int64_t>(at_min)[0]);
@@ -869,7 +873,7 @@ class Medium_ReductionOps : public SushiBLASTest
  */
 TEST_F(Medium_ReductionOps, NonRealDtypesAreRefusedByName)
 {
-    SushiBLAS::ReductionOps reductions(*engine);
+    SushiBLAS::ReductionOps reductions(recorder());
 
     for (Core::DataType dtype : {Core::DataType::Int32, Core::DataType::Int64})
     {
@@ -1022,16 +1026,16 @@ TEST_F(Medium_ReductionOps, AHostMeanDividesBeforeItNarrows)
     const float divided_first = 8388610.0f;
     const float narrowed_first = 8388611.0f;
 
-    engine->set_mode(ExecutionMode::ForceReference);
+    set_mode(ExecutionMode::ForceReference);
 
     auto t = create_initialized_tensor<float>({3}, values);
     auto image = create_initialized_tensor<float>({1, 3, 1, 1}, values);
     auto mean = engine->create_tensor({1});
     auto spatial_mean = engine->create_tensor({1, 1});
 
-    ReductionOps(*engine).mean(t, mean);
-    ReductionOps(*engine).mean_spatial(image, spatial_mean);
-    engine->execute().value();
+    ReductionOps(recorder()).mean(t, mean);
+    ReductionOps(recorder()).mean_spatial(image, spatial_mean);
+    recording->run().value();
 
     const float got_mean = read_tensor<float>(mean)[0];
     const float got_spatial_mean = read_tensor<float>(spatial_mean)[0];
@@ -1151,9 +1155,9 @@ TYPED_TEST(Medium_ReductionMomentsTyped, VarianceMatchesATwoPassHostReference)
         auto variance = this->engine->create_tensor({1}, sushiblas_dtype<T>());
         auto deviation = this->engine->create_tensor({1}, sushiblas_dtype<T>());
 
-        SushiBLAS::ReductionOps(*this->engine).var(t, variance);
-        SushiBLAS::ReductionOps(*this->engine).std(t, deviation);
-        this->engine->execute().value();
+        SushiBLAS::ReductionOps(this->recorder()).var(t, variance);
+        SushiBLAS::ReductionOps(this->recorder()).std(t, deviation);
+        this->recording->run().value();
 
         const long double expected_variance = host_variance(values);
         const long double expected_deviation = std::sqrt(expected_variance);

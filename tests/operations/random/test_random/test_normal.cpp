@@ -71,9 +71,9 @@ class Medium_NormalTest : public SushiBLASTest
         std::vector<double> draw(uint64_t seed)
         {
             auto t = engine->create_tensor({K_DRAWS}, sushiblas_dtype<T>());
-            SushiBLAS::RandomOps(*engine).set_seed(seed);
-            SushiBLAS::RandomOps(*engine).normal(t, K_MEAN, K_STDDEV);
-            engine->execute().value();
+            SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(seed);
+            SushiBLAS::RandomOps(recorder(), engine->rng()).normal(t, K_MEAN, K_STDDEV);
+            recording->run().value();
             const std::vector<T> host = read_tensor<T>(t);
             return std::vector<double>(host.begin(), host.end());
         }

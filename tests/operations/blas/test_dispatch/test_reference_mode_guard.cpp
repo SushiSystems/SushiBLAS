@@ -116,11 +116,11 @@ class Medium_ReferenceModeGuardTest : public SushiBLASTest
          */
         std::vector<float> run_gemm(ExecutionMode mode, const Tensor& a, const Tensor& b)
         {
-            engine->set_mode(mode);
+            set_mode(mode);
             Tensor c = engine->create_tensor({2, 2});
             fill_tensor(c, {0.0f, 0.0f, 0.0f, 0.0f});
-            SushiBLAS::BLASOps(*engine).gemm(a, b, c);
-            engine->execute().value();
+            SushiBLAS::BLASOps(recorder()).gemm(a, b, c);
+            recording->run().value();
             return SushiBLAS::IO(*engine).to_vector<float>(c);
         }
 };
@@ -133,10 +133,10 @@ TEST_F(Medium_ReferenceModeGuardTest, ForceReferenceGemmRefusesADeviceOperand)
     const Tensor b = make_shared_b();
     Tensor c = engine->create_tensor({2, 2});
 
-    engine->set_mode(ExecutionMode::ForceReference);
+    set_mode(ExecutionMode::ForceReference);
     try
     {
-        SushiBLAS::BLASOps(*engine).gemm(*a, b, c);
+        SushiBLAS::BLASOps(recorder()).gemm(*a, b, c);
         FAIL() << "ForceReference must refuse a device-only operand.";
     }
     catch (const std::invalid_argument& e)
@@ -156,8 +156,8 @@ TEST_F(Medium_ReferenceModeGuardTest, ForceReferenceRefusesADeviceOperandDeclare
     Tensor c = engine->create_tensor({2, 2});
     const Kernels::ChannelBiasEpilogue epilogue{bias->data(), 0, 1};
 
-    engine->set_mode(ExecutionMode::ForceReference);
-    EXPECT_THROW(Dispatch::execute_gemm(engine->recorder(), a, b, c, Core::Transpose::NoTrans,
+    set_mode(ExecutionMode::ForceReference);
+    EXPECT_THROW(Dispatch::execute_gemm(recorder(), a, b, c, Core::Transpose::NoTrans,
                                         Core::Transpose::NoTrans, 1.0, 0.0,
                                         "test.gemm_device_bias", "test.gemm_device_bias"_op,
                                         Dispatch::gemm_epilogue(epilogue).reads(*bias)),

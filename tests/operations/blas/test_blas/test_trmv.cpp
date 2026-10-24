@@ -49,11 +49,11 @@ TEST_F(Medium_TRMVTest, SimpleTRMV)
     // X:
     fill_tensor(X, {1, 1, 1});
 
-    SushiBLAS::BLASOps(*engine).trmv(A, X, SushiBLAS::Core::Uplo::Lower,
+    SushiBLAS::BLASOps(recorder()).trmv(A, X, SushiBLAS::Core::Uplo::Lower,
                                      SushiBLAS::Core::Transpose::NoTrans,
                                      SushiBLAS::Core::Diag::NonUnit);
     
-    engine->execute().value();
+    recording->run().value();
 
     // X = A * X = [1, 2+4, 3+5+6] = [1, 6, 14].
     verify_tensor(X, {1, 6, 14});
@@ -88,9 +88,9 @@ class Medium_TRMVPoisonTest : public SushiBLASTest
             fill_tensor(A, matrix);
             fill_tensor(X, K_X);
 
-            SushiBLAS::BLASOps(*engine).trmv(A, X, uplo_of(upper), transpose_of(trans_a),
+            SushiBLAS::BLASOps(recorder()).trmv(A, X, uplo_of(upper), transpose_of(trans_a),
                                              SushiBLAS::Core::Diag::NonUnit);
-            engine->execute().value();
+            recording->run().value();
 
             verify_tensor(X, expected);
         }

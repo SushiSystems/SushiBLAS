@@ -40,8 +40,8 @@ TEST_F(Medium_SinhTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
-    SushiBLAS::ElementwiseOps(*engine).sinh(t);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).sinh(t);
+    recording->run().value();
     
     verify_tensor(t, {1.17520f, 3.62686f, -10.01787f, 0.52110f});
 }

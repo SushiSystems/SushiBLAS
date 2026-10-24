@@ -479,13 +479,13 @@ namespace SushiBLAS
                                                         Core::Transpose trans, Wide alpha,
                                                         double beta)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     const Tensor A = upload(a);
                     const Tensor B = upload(b);
                     Tensor C = upload(c);
-                    SushiBLAS::BLASOps ops(*engine);
+                    SushiBLAS::BLASOps ops(recorder());
                     record_update<Conj>(ops, A, B, C, uplo, trans, blas_scalar(alpha), beta);
-                    engine->execute().value();
+                    recording->run().value();
                     return read_tensor<T>(C);
                 }
 
@@ -618,17 +618,17 @@ namespace SushiBLAS
                         SCOPED_TRACE(case_name(layout, uplo, Core::Transpose::NoTrans) + " " +
                                      mode_name(mode) +
                                      (a_is_batched ? ", A batched" : ", A of rank 2"));
-                        this->engine->set_mode(mode);
+                        this->set_mode(mode);
                         const Tensor A = a_is_batched
                             ? this->upload({K_BATCH, n, k}, concatenated(a))
                             : this->upload(a[0]);
                         const Tensor B = this->upload({K_BATCH, n, k}, concatenated(b));
                         Tensor C = this->upload({K_BATCH, n, n}, concatenated(c));
 
-                        SushiBLAS::BLASOps(*this->engine).syr2k(A, B, C, uplo,
+                        SushiBLAS::BLASOps(this->recorder()).syr2k(A, B, C, uplo,
                                                                 Core::Transpose::NoTrans,
                                                                 K_INTEGER_ALPHA, K_INTEGER_BETA);
-                        this->engine->execute().value();
+                        this->recording->run().value();
 
                         expect_equal(read_tensor<T>(C), concatenated(expected));
                     }
@@ -750,14 +750,14 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_MODES)
             {
                 SCOPED_TRACE(mode_name(mode));
-                engine->set_mode(mode);
+                set_mode(mode);
                 const Tensor A = upload({1, 3}, a);
                 const Tensor B = upload({1, 3}, ones);
                 Tensor C = upload({1, 1}, std::vector<sycl::half>(1, sycl::half(0.0f)));
 
-                SushiBLAS::BLASOps(*engine).syr2k(A, B, C, Core::Uplo::Upper,
+                SushiBLAS::BLASOps(recorder()).syr2k(A, B, C, Core::Uplo::Upper,
                                                   Core::Transpose::NoTrans, 1.0, 0.0);
-                engine->execute().value();
+                recording->run().value();
 
                 // Each product sums 2048 + 1 - 2048, which is 1 in FLOAT32 and 0 in HALF.
                 const std::vector<sycl::half> result = read_tensor<sycl::half>(C);
@@ -1048,22 +1048,23 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_MODES)
             {
                 SCOPED_TRACE(mode_name(mode));
-                engine->set_mode(mode);
+                set_mode(mode);
 
                 const Tensor no_rows_A = engine->create_tensor({0, 2});
                 const Tensor no_rows_B = engine->create_tensor({0, 2});
                 Tensor no_rows_C = engine->create_tensor({0, 0});
-                EXPECT_NO_THROW(SushiBLAS::BLASOps(*engine).syr2k(no_rows_A, no_rows_B, no_rows_C,
+                EXPECT_NO_THROW(SushiBLAS::BLASOps(recorder())
+                    .syr2k(no_rows_A, no_rows_B, no_rows_C,
                                                                   Core::Uplo::Upper));
-                EXPECT_TRUE(engine->execute().has_value());
+                EXPECT_TRUE(recording->run().has_value());
 
                 const Tensor no_cols_A = engine->create_tensor({3, 0});
                 const Tensor no_cols_B = engine->create_tensor({3, 0});
                 Tensor C = upload(c);
-                EXPECT_NO_THROW(SushiBLAS::BLASOps(*engine).syr2k(
+                EXPECT_NO_THROW(SushiBLAS::BLASOps(recorder()).syr2k(
                     no_cols_A, no_cols_B, C, Core::Uplo::Lower, Core::Transpose::NoTrans,
                     K_INTEGER_ALPHA, 1.0));
-                EXPECT_TRUE(engine->execute().has_value());
+                EXPECT_TRUE(recording->run().has_value());
                 expect_same_bytes(read_tensor<float>(C), c.values);
             }
         }

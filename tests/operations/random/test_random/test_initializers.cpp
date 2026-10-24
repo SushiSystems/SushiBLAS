@@ -38,8 +38,8 @@ TEST_F(Medium_InitializersTest, XavierUniform)
 {
     const int N = 10;
     auto t = engine->create_tensor({N, N});
-    SushiBLAS::RandomOps(*engine).xavier_uniform(t, N, N);
-    engine->execute().value();
+    SushiBLAS::RandomOps(recorder(), engine->rng()).xavier_uniform(t, N, N);
+    recording->run().value();
     
     const float* ptr = t.data_as<float>();
     float limit = std::sqrt(6.0f / (N + N));
@@ -53,8 +53,8 @@ TEST_F(Medium_InitializersTest, XavierNormal)
 {
     const int N = 10;
     auto t = engine->create_tensor({N, N});
-    SushiBLAS::RandomOps(*engine).xavier_normal(t, N, N);
-    engine->execute().value();
+    SushiBLAS::RandomOps(recorder(), engine->rng()).xavier_normal(t, N, N);
+    recording->run().value();
     // Normal distribution values are unbounded, but we check for non-NaN.
     const float* ptr = t.data_as<float>();
     for (int i = 0; i < N * N; ++i) {
@@ -66,8 +66,8 @@ TEST_F(Medium_InitializersTest, HeUniform)
 {
     const int N = 10;
     auto t = engine->create_tensor({N, N});
-    SushiBLAS::RandomOps(*engine).he_uniform(t, N);
-    engine->execute().value();
+    SushiBLAS::RandomOps(recorder(), engine->rng()).he_uniform(t, N);
+    recording->run().value();
     
     const float* ptr = t.data_as<float>();
     float limit = std::sqrt(6.0f / N);
@@ -81,8 +81,8 @@ TEST_F(Medium_InitializersTest, HeNormal)
 {
     const int N = 10;
     auto t = engine->create_tensor({N, N});
-    SushiBLAS::RandomOps(*engine).he_normal(t, N);
-    engine->execute().value();
+    SushiBLAS::RandomOps(recorder(), engine->rng()).he_normal(t, N);
+    recording->run().value();
     const float* ptr = t.data_as<float>();
     for (int i = 0; i < N * N; ++i) {
         EXPECT_FALSE(std::isnan(ptr[i]));

@@ -322,7 +322,7 @@ namespace SushiBLAS
                 void start(Core::Layout layout, ExecutionMode mode)
                 {
                     this->reinit_engine(layout);
-                    this->engine->set_mode(mode);
+                    this->set_mode(mode);
                 }
 
                 /** @brief Returns a tensor of one element that holds value. */
@@ -348,7 +348,7 @@ namespace SushiBLAS
                     c.reserve(pairs.size());
                     s.reserve(pairs.size());
 
-                    SushiBLAS::BLASOps ops(*this->engine);
+                    SushiBLAS::BLASOps ops(this->recorder());
                     for (const std::pair<T, T>& pair : pairs)
                     {
                         a.push_back(scalar_tensor(pair.first));
@@ -357,7 +357,7 @@ namespace SushiBLAS
                         s.push_back(scalar_tensor(make<T>(K_POISON, K_POISON)));
                         ops.rotg(a.back(), b.back(), c.back(), s.back());
                     }
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     std::vector<Rotation> rotations;
                     rotations.reserve(pairs.size());
@@ -516,10 +516,10 @@ namespace SushiBLAS
                     Tensor c = this->scalar_tensor(make<T>(K_POISON));
                     Tensor s = this->scalar_tensor(make<T>(K_POISON));
 
-                    SushiBLAS::BLASOps ops(*this->engine);
+                    SushiBLAS::BLASOps ops(this->recorder());
                     ops.dot(ones, ones, a);
                     ops.rotg(a, b, c, s);
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     EXPECT_EQ(Detail::to_double(read_tensor<T>(a)[0]), expected.r);
                     EXPECT_EQ(Detail::to_double(read_tensor<T>(b)[0]), expected.z);

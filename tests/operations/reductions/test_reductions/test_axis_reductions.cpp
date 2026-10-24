@@ -162,8 +162,8 @@ namespace SushiBLAS
             auto out = this->engine->create_tensor({3}, sushiblas_dtype<T>());
             fill_tensor(x, K_ROW_MAJOR);
 
-            SushiBLAS::ReductionOps(*this->engine).max_along(x, 1, out);
-            this->engine->execute().value();
+            SushiBLAS::ReductionOps(this->recorder()).max_along(x, 1, out);
+            this->recording->run().value();
 
             verify_tensor(out, K_ROW_MAX);
         }
@@ -175,8 +175,8 @@ namespace SushiBLAS
             auto out = this->engine->create_tensor({4}, sushiblas_dtype<T>());
             fill_tensor(x, K_ROW_MAJOR);
 
-            SushiBLAS::ReductionOps(*this->engine).max_along(x, 0, out);
-            this->engine->execute().value();
+            SushiBLAS::ReductionOps(this->recorder()).max_along(x, 0, out);
+            this->recording->run().value();
 
             verify_tensor(out, K_COL_MAX);
         }
@@ -188,8 +188,8 @@ namespace SushiBLAS
             auto out = this->engine->create_tensor({3}, sushiblas_dtype<T>());
             fill_tensor(x, K_ROW_MAJOR);
 
-            SushiBLAS::ReductionOps(*this->engine).sum_along(x, 1, out);
-            this->engine->execute().value();
+            SushiBLAS::ReductionOps(this->recorder()).sum_along(x, 1, out);
+            this->recording->run().value();
 
             verify_tensor(out, K_ROW_SUM);
         }
@@ -201,8 +201,8 @@ namespace SushiBLAS
             auto out = this->engine->create_tensor({4}, sushiblas_dtype<T>());
             fill_tensor(x, K_ROW_MAJOR);
 
-            SushiBLAS::ReductionOps(*this->engine).sum_along(x, 0, out);
-            this->engine->execute().value();
+            SushiBLAS::ReductionOps(this->recorder()).sum_along(x, 0, out);
+            this->recording->run().value();
 
             verify_tensor(out, K_COL_SUM);
         }
@@ -222,9 +222,9 @@ namespace SushiBLAS
             auto cols = engine->create_tensor({4});
             fill_tensor(x, K_COLUMN_MAJOR);
 
-            SushiBLAS::ReductionOps(*engine).max_along(x, 1, rows);
-            SushiBLAS::ReductionOps(*engine).sum_along(x, 0, cols);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).max_along(x, 1, rows);
+            SushiBLAS::ReductionOps(recorder()).sum_along(x, 0, cols);
+            recording->run().value();
 
             verify_tensor(rows, K_ROW_MAX);
             verify_tensor(cols, K_COL_SUM);
@@ -250,8 +250,8 @@ namespace SushiBLAS
             fill_tensor(tail, K_ROW_MAJOR);
 
             auto out = engine->create_tensor({3});
-            SushiBLAS::ReductionOps(*engine).max_along(tail, 1, out);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).max_along(tail, 1, out);
+            recording->run().value();
 
             verify_tensor(out, K_ROW_MAX);
         }
@@ -280,9 +280,9 @@ namespace SushiBLAS
             SushiBLAS::ElementwiseOps(probe.recorder()).mul(source, source, packed);
             SushiBLAS::ReductionOps(probe.recorder()).sum_along(packed, 1, out);
 
-            SushiBLAS::ElementwiseOps(*engine).mul(source, source, packed);
-            SushiBLAS::ReductionOps(*engine).sum_along(packed, 1, out);
-            engine->execute().value();
+            SushiBLAS::ElementwiseOps(recorder()).mul(source, source, packed);
+            SushiBLAS::ReductionOps(recorder()).sum_along(packed, 1, out);
+            recording->run().value();
 
             verify_tensor(out, {36.0f, 36.0f, 36.0f});
 
@@ -304,41 +304,41 @@ namespace SushiBLAS
 
             // Rank 1 in: there is no axis to fold away.
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).max_along(vector, 0, rows),
+                SushiBLAS::ReductionOps(recorder()).max_along(vector, 0, rows),
                 std::invalid_argument);
 
             // Rank 3 is refused by name, not reduced along the wrong stride.
             auto cube = engine->create_tensor({2, 3, 4});
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).sum_along(cube, 1, rows),
+                SushiBLAS::ReductionOps(recorder()).sum_along(cube, 1, rows),
                 std::invalid_argument);
 
             // Axis out of range.
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).max_along(matrix, 2, rows),
+                SushiBLAS::ReductionOps(recorder()).max_along(matrix, 2, rows),
                 std::invalid_argument);
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).max_along(matrix, -1, rows),
+                SushiBLAS::ReductionOps(recorder()).max_along(matrix, -1, rows),
                 std::invalid_argument);
 
             // Result of the wrong length: folding axis 1 of a [3, 4] leaves 3 values.
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).max_along(matrix, 1, cols),
+                SushiBLAS::ReductionOps(recorder()).max_along(matrix, 1, cols),
                 std::invalid_argument);
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).max_along(matrix, 0, rows),
+                SushiBLAS::ReductionOps(recorder()).max_along(matrix, 0, rows),
                 std::invalid_argument);
 
             // Result of the wrong rank.
             auto square = engine->create_tensor({3, 1});
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).sum_along(matrix, 1, square),
+                SushiBLAS::ReductionOps(recorder()).sum_along(matrix, 1, square),
                 std::invalid_argument);
 
             // Mismatched dtypes.
             auto halves = engine->create_tensor({3}, Core::DataType::Half);
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).sum_along(matrix, 1, halves),
+                SushiBLAS::ReductionOps(recorder()).sum_along(matrix, 1, halves),
                 std::invalid_argument);
         }
 
@@ -352,9 +352,9 @@ namespace SushiBLAS
             auto cols = engine->create_tensor({4});
             fill_tensor(matrix, K_ROW_MAJOR);
 
-            SushiBLAS::ReductionOps(*engine).min_along(matrix, 1, rows);
-            SushiBLAS::ReductionOps(*engine).min_along(matrix, 0, cols);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).min_along(matrix, 1, rows);
+            SushiBLAS::ReductionOps(recorder()).min_along(matrix, 0, cols);
+            recording->run().value();
 
             verify_tensor(rows, K_ROW_MIN);
             verify_tensor(cols, K_COL_MIN);
@@ -362,35 +362,35 @@ namespace SushiBLAS
             // Rank 1 in: there is no axis to fold away.
             auto vector = engine->create_tensor({4});
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).min_along(vector, 0, rows),
+                SushiBLAS::ReductionOps(recorder()).min_along(vector, 0, rows),
                 std::invalid_argument);
 
             // Axis out of range.
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).min_along(matrix, 2, rows),
+                SushiBLAS::ReductionOps(recorder()).min_along(matrix, 2, rows),
                 std::invalid_argument);
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).min_along(matrix, -1, rows),
+                SushiBLAS::ReductionOps(recorder()).min_along(matrix, -1, rows),
                 std::invalid_argument);
 
             // Result of the wrong length: folding axis 1 of a [3, 4] leaves 3 values.
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).min_along(matrix, 1, cols),
+                SushiBLAS::ReductionOps(recorder()).min_along(matrix, 1, cols),
                 std::invalid_argument);
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).min_along(matrix, 0, rows),
+                SushiBLAS::ReductionOps(recorder()).min_along(matrix, 0, rows),
                 std::invalid_argument);
 
             // Result of the wrong rank.
             auto square = engine->create_tensor({3, 1});
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).min_along(matrix, 1, square),
+                SushiBLAS::ReductionOps(recorder()).min_along(matrix, 1, square),
                 std::invalid_argument);
 
             // Mismatched dtypes.
             auto halves = engine->create_tensor({3}, Core::DataType::Half);
             EXPECT_THROW(
-                SushiBLAS::ReductionOps(*engine).min_along(matrix, 1, halves),
+                SushiBLAS::ReductionOps(recorder()).min_along(matrix, 1, halves),
                 std::invalid_argument);
         }
 
@@ -409,10 +409,10 @@ namespace SushiBLAS
                 auto out = engine->create_tensor({3}, dtype);
 
                 EXPECT_THROW(
-                    SushiBLAS::ReductionOps(*engine).max_along(x, 1, out),
+                    SushiBLAS::ReductionOps(recorder()).max_along(x, 1, out),
                     std::invalid_argument);
                 EXPECT_THROW(
-                    SushiBLAS::ReductionOps(*engine).sum_along(x, 1, out),
+                    SushiBLAS::ReductionOps(recorder()).sum_along(x, 1, out),
                     std::invalid_argument);
             }
         }
@@ -566,8 +566,8 @@ namespace SushiBLAS
                 .memcpy(x.data(), host.data(), host.size() * sizeof(float)).wait();
 
             auto out = engine->create_tensor({kRows});
-            SushiBLAS::ReductionOps(*engine).sum_along(x, 1, out);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).sum_along(x, 1, out);
+            recording->run().value();
 
             const std::vector<float> got = host_floats(out);
             for (int64_t r = 0; r < kRows; ++r)
@@ -662,9 +662,9 @@ namespace SushiBLAS
             auto row_max = engine->create_tensor({kRows});
             auto global_max = engine->create_tensor({1});
 
-            SushiBLAS::ReductionOps(*engine).max_along(logits, 1, row_max);
-            SushiBLAS::ReductionOps(*engine).max(logits, global_max);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).max_along(logits, 1, row_max);
+            SushiBLAS::ReductionOps(recorder()).max(logits, global_max);
+            recording->run().value();
 
             const std::vector<float> peaks = host_floats(row_max);
             ASSERT_EQ(2u, peaks.size());
@@ -684,11 +684,11 @@ namespace SushiBLAS
 
             auto row_sums = engine->create_tensor({kRows});
 
-            SushiBLAS::BLASOps(*engine).copy(logits, shifted);
-            SushiBLAS::BLASOps(*engine).ger(row_max, ones_cols, shifted, -1.0f);
-            SushiBLAS::ElementwiseOps(*engine).exp(shifted);
-            SushiBLAS::ReductionOps(*engine).sum_along(shifted, 1, row_sums);
-            engine->execute().value();
+            SushiBLAS::BLASOps(recorder()).copy(logits, shifted);
+            SushiBLAS::BLASOps(recorder()).ger(row_max, ones_cols, shifted, -1.0f);
+            SushiBLAS::ElementwiseOps(recorder()).exp(shifted);
+            SushiBLAS::ReductionOps(recorder()).sum_along(shifted, 1, row_sums);
+            recording->run().value();
 
             const std::vector<float> rowwise = host_floats(row_sums);
             for (std::size_t r = 0; r < rowwise.size(); ++r)
@@ -707,13 +707,13 @@ namespace SushiBLAS
 
             auto global_sums = engine->create_tensor({kRows});
 
-            SushiBLAS::BLASOps(*engine).gemv(ones_column, global_max, peak_row,
+            SushiBLAS::BLASOps(recorder()).gemv(ones_column, global_max, peak_row,
                                              Core::Transpose::NoTrans, 1.0f, 0.0f);
-            SushiBLAS::BLASOps(*engine).copy(logits, shifted);
-            SushiBLAS::BLASOps(*engine).ger(ones_rows, peak_row, shifted, -1.0f);
-            SushiBLAS::ElementwiseOps(*engine).exp(shifted);
-            SushiBLAS::ReductionOps(*engine).sum_along(shifted, 1, global_sums);
-            engine->execute().value();
+            SushiBLAS::BLASOps(recorder()).copy(logits, shifted);
+            SushiBLAS::BLASOps(recorder()).ger(ones_rows, peak_row, shifted, -1.0f);
+            SushiBLAS::ElementwiseOps(recorder()).exp(shifted);
+            SushiBLAS::ReductionOps(recorder()).sum_along(shifted, 1, global_sums);
+            recording->run().value();
 
             const std::vector<float> global = host_floats(global_sums);
             EXPECT_FLOAT_EQ(3.0f, global[0]);

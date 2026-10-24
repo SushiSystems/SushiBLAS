@@ -508,7 +508,7 @@ namespace SushiBLAS
             if (!queue().get_device().has(sycl::aspect::fp16))
                 GTEST_SKIP() << "the device does not report the fp16 aspect";
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
+            set_mode(ExecutionMode::ForceSYCL);
 
             Tensor map = engine->create_tensor({1, K_MAP_SIDE, K_MAP_SIDE, K_MAP_CHANNELS},
                                                Core::DataType::Half);
@@ -516,8 +516,8 @@ namespace SushiBLAS
             fill_tensor(map, std::vector<float>(static_cast<std::size_t>(map.num_elements),
                                                 K_MAP_VALUE));
 
-            SushiBLAS::ReductionOps(*engine).mean_spatial(map, means);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).mean_spatial(map, means);
+            recording->run().value();
 
             const std::vector<sycl::half> got = read_tensor<sycl::half>(means);
             ASSERT_EQ(got.size(), static_cast<std::size_t>(K_MAP_CHANNELS));

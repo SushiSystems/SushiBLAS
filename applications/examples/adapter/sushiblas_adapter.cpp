@@ -92,6 +92,10 @@ namespace HostProgram
         SushiBLAS::Engine& engine = backend.engine;
         const Status status = guarded([&]()
         {
+            // The graph lives for this call, so a record call that throws leaves nothing behind.
+            SushiRuntime::Graph graph = backend.runtime.graph();
+            SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(),
+                                             engine.mode());
             const SushiBLAS::Tensor left = tensor_of(engine, a);
             const SushiBLAS::Tensor right = tensor_of(engine, b);
             const SushiBLAS::Tensor shift = tensor_of(engine, offset);
@@ -101,11 +105,11 @@ namespace HostProgram
             SushiBLAS::Tensor shifted = engine.create_tensor({rows, columns});
             SushiBLAS::Tensor total = engine.create_tensor({1});
 
-            SushiBLAS::BLASOps(engine).gemm(left, right, product);
-            SushiBLAS::ElementwiseOps(engine).add(product, shift, shifted);
-            SushiBLAS::ReductionOps(engine).sum(shifted, total);
+            SushiBLAS::BLASOps(recorder).gemm(left, right, product);
+            SushiBLAS::ElementwiseOps(recorder).add(product, shift, shifted);
+            SushiBLAS::ReductionOps(recorder).sum(shifted, total);
 
-            const SushiRuntime::Result<void> ran = engine.execute();
+            const SushiRuntime::Result<SushiRuntime::RunReport> ran = graph.run();
             if (!ran)
                 return status_of_error(ran.error());
 
@@ -114,10 +118,6 @@ namespace HostProgram
             result_sum = io.to_vector<float>(total)[0];
             return Status{};
         });
-
-        // A record call that throws leaves the tasks recorded before it on the engine.
-        if (status.code != StatusCode::Ok)
-            engine.discard_recorded();
 
         return status;
     }

@@ -82,7 +82,7 @@ namespace SushiBLAS
                 void SetUp() override
                 {
                     SushiBLASTest::SetUp();
-                    engine->set_mode(ExecutionMode::ForceSYCL);
+                    set_mode(ExecutionMode::ForceSYCL);
                 }
 
                 /** @brief Returns a FLOAT32 tensor holding @p host. */
@@ -152,8 +152,8 @@ namespace SushiBLAS
                 auto x = upload(hx);
                 auto y = upload(hy);
                 auto r = engine->create_tensor({1});
-                SushiBLAS::BLASOps(*engine).dot(x, y, r);
-                engine->execute().value();
+                SushiBLAS::BLASOps(recorder()).dot(x, y, r);
+                recording->run().value();
 
                 EXPECT_NEAR(static_cast<double>(read_scalar<float>(r)), expected, K_EXACT_TOLERANCE);
             }
@@ -176,8 +176,8 @@ namespace SushiBLAS
 
                 auto x = upload(hx);
                 auto r = engine->create_tensor({1});
-                SushiBLAS::BLASOps(*engine).asum(x, r);
-                engine->execute().value();
+                SushiBLAS::BLASOps(recorder()).asum(x, r);
+                recording->run().value();
 
                 EXPECT_NEAR(static_cast<double>(read_scalar<float>(r)), expected, K_EXACT_TOLERANCE);
             }
@@ -201,8 +201,8 @@ namespace SushiBLAS
 
                 auto x = upload(hx);
                 auto r = engine->create_tensor({1});
-                SushiBLAS::BLASOps(*engine).nrm2(x, r);
-                engine->execute().value();
+                SushiBLAS::BLASOps(recorder()).nrm2(x, r);
+                recording->run().value();
 
                 EXPECT_NEAR(static_cast<double>(read_scalar<float>(r)), expected,
                             expected * K_NRM2_RELATIVE_TOLERANCE);
@@ -225,8 +225,8 @@ namespace SushiBLAS
 
                 auto x = upload(hx);
                 auto r = engine->create_tensor({1}, Core::DataType::Int64);
-                SushiBLAS::BLASOps(*engine).iamax(x, r);
-                engine->execute().value();
+                SushiBLAS::BLASOps(recorder()).iamax(x, r);
+                recording->run().value();
 
                 EXPECT_EQ(read_scalar<int64_t>(r), expected);
             }
@@ -253,10 +253,10 @@ namespace SushiBLAS
             auto first = engine->create_tensor({1});
             auto second = engine->create_tensor({1});
 
-            SushiBLAS::BLASOps(*engine).dot(x, y, first);
-            engine->execute().value();
-            SushiBLAS::BLASOps(*engine).dot(x, y, second);
-            engine->execute().value();
+            SushiBLAS::BLASOps(recorder()).dot(x, y, first);
+            recording->run().value();
+            SushiBLAS::BLASOps(recorder()).dot(x, y, second);
+            recording->run().value();
 
             const float a = read_scalar<float>(first);
             const float b = read_scalar<float>(second);
@@ -289,8 +289,8 @@ namespace SushiBLAS
 
             auto x = upload(hx);
             auto r = engine->create_tensor({1}, Core::DataType::Int64);
-            SushiBLAS::BLASOps(*engine).iamax(x, r);
-            engine->execute().value();
+            SushiBLAS::BLASOps(recorder()).iamax(x, r);
+            recording->run().value();
 
             EXPECT_EQ(read_scalar<int64_t>(r), static_cast<int64_t>(lower));
         }
@@ -309,8 +309,8 @@ namespace SushiBLAS
             auto t = create_initialized_tensor<sycl::half>({2}, host);
             auto r = engine->create_tensor({1}, Core::DataType::Half);
 
-            SushiBLAS::ReductionOps(*engine).mean(t, r);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).mean(t, r);
+            recording->run().value();
 
             EXPECT_EQ(static_cast<float>(read_scalar<sycl::half>(r)), K_EXPECTED_MEAN);
         }
@@ -327,8 +327,8 @@ namespace SushiBLAS
             auto t = create_initialized_tensor<sycl::half>({2}, host);
             auto r = engine->create_tensor({1}, Core::DataType::Half);
 
-            SushiBLAS::ReductionOps(*engine).sum(t, r);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).sum(t, r);
+            recording->run().value();
 
             const float value = static_cast<float>(read_scalar<sycl::half>(r));
             EXPECT_TRUE(std::isinf(value) && value > 0.0f);

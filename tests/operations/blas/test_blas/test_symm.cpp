@@ -280,12 +280,12 @@ namespace SushiBLAS
                     EXPECT_EQ(actual[i], expected[i]) << "index " << i;
             }
 
-            /** @brief Records the product of a routine on the recorder of engine. */
-            TaskHandle record_product(Engine& engine, Routine routine, const Tensor& A,
+            /** @brief Records the product of a routine on recorder. */
+            TaskHandle record_product(TaskRecorder& recorder, Routine routine, const Tensor& A,
                                       const Tensor& B, Tensor& C, Core::Side side,
                                       Core::Uplo uplo, BLASScalar alpha, BLASScalar beta)
             {
-                SushiBLAS::BLASOps ops(engine);
+                SushiBLAS::BLASOps ops(recorder);
                 return routine == Routine::Hemm ? ops.hemm(A, B, C, side, uplo, alpha, beta)
                                                 : ops.symm(A, B, C, side, uplo, alpha, beta);
             }
@@ -295,7 +295,8 @@ namespace SushiBLAS
              *        for each side, triangle and mode.
              */
             template<typename T>
-            void expect_product_equals_gemm(Engine& engine, Routine routine)
+            void expect_product_equals_gemm(Engine& engine, RecordingFixture& recording,
+                                            Routine routine)
             {
                 std::mt19937 generator(K_SEED);
                 for (const Core::Side side : K_SIDES)
@@ -326,6 +327,7 @@ namespace SushiBLAS
                         {
                             SCOPED_TRACE(mode_name(mode));
                             engine.set_mode(mode);
+                            recording.recorder().set_mode(mode);
 
                             const Tensor A = upload(engine, {order, order}, a);
                             const Tensor S = upload(engine, {order, order}, full);
@@ -333,13 +335,14 @@ namespace SushiBLAS
                             Tensor from_routine = upload(engine, {K_ROWS, K_COLS}, c);
                             Tensor from_gemm = upload(engine, {K_ROWS, K_COLS}, c);
 
-                            record_product(engine, routine, A, B, from_routine, side, uplo,
+                            TaskRecorder& recorder = recording.recorder();
+                            record_product(recorder, routine, A, B, from_routine, side, uplo,
                                            K_ALPHA, K_BETA);
-                            SushiBLAS::BLASOps(engine).gemm(left ? S : B, left ? B : S, from_gemm,
-                                                            Core::Transpose::NoTrans,
-                                                            Core::Transpose::NoTrans,
-                                                            K_ALPHA, K_BETA);
-                            engine.execute().value();
+                            SushiBLAS::BLASOps(recorder).gemm(left ? S : B, left ? B : S,
+                                                              from_gemm, Core::Transpose::NoTrans,
+                                                              Core::Transpose::NoTrans,
+                                                              K_ALPHA, K_BETA);
+                            recording.run().value();
 
                             expect_same_bytes(read_tensor<T>(from_routine),
                                               read_tensor<T>(from_gemm));
@@ -373,14 +376,14 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_MODES)
             {
                 SCOPED_TRACE(mode_name(mode));
-                this->engine->set_mode(mode);
+                this->set_mode(mode);
                 const Tensor A = upload(*this->engine, {3, 3}, a);
                 const Tensor B = upload(*this->engine, {3, 2}, b);
                 Tensor C = upload(*this->engine, {3, 2}, ones);
 
-                SushiBLAS::BLASOps(*this->engine).symm(A, B, C, Core::Side::Left,
+                SushiBLAS::BLASOps(this->recorder()).symm(A, B, C, Core::Side::Left,
                                                        Core::Uplo::Upper, 2.0, -1.0);
-                this->engine->execute().value();
+                this->recording->run().value();
 
                 // A * B is {22 28, 39 50, 48 62}; C is twice that minus one.
                 expect_equal(read_tensor<T>(C), elements<T>({43, 55, 77, 99, 95, 123}));
@@ -398,14 +401,14 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_MODES)
             {
                 SCOPED_TRACE(mode_name(mode));
-                this->engine->set_mode(mode);
+                this->set_mode(mode);
                 const Tensor A = upload(*this->engine, {2, 2}, a);
                 const Tensor B = upload(*this->engine, {3, 2}, b);
                 Tensor C = upload(*this->engine, {3, 2}, std::vector<T>(6, poison<T>()));
 
-                SushiBLAS::BLASOps(*this->engine).symm(A, B, C, Core::Side::Right,
+                SushiBLAS::BLASOps(this->recorder()).symm(A, B, C, Core::Side::Right,
                                                        Core::Uplo::Lower, 1.0, 0.0);
-                this->engine->execute().value();
+                this->recording->run().value();
 
                 expect_equal(read_tensor<T>(C), elements<T>({5, 8, 11, 18, 17, 28}));
             }
@@ -413,7 +416,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Medium_Symm, EqualsGemmOnTheFullMatrixToTheBit)
         {
-            expect_product_equals_gemm<TypeParam>(*this->engine, Routine::Symm);
+            expect_product_equals_gemm<TypeParam>(*this->engine, *this->recording, Routine::Symm);
         }
 
         TYPED_TEST(Medium_Symm, ABatchIsMultipliedMatrixByMatrix)
@@ -434,7 +437,7 @@ namespace SushiBLAS
                     {
                         SCOPED_TRACE(std::string(Core::to_string(side)) + " " + mode_name(mode) +
                                      (a_is_batched ? ", A batched" : ", A of rank 2"));
-                        this->engine->set_mode(mode);
+                        this->set_mode(mode);
 
                         const Tensor A = a_is_batched
                             ? upload(*this->engine, {K_BATCH, order, order}, a)
@@ -444,9 +447,9 @@ namespace SushiBLAS
                             upload(*this->engine, {K_BATCH, K_BATCH_ROWS, K_BATCH_COLS}, b);
                         Tensor C =
                             upload(*this->engine, {K_BATCH, K_BATCH_ROWS, K_BATCH_COLS}, c);
-                        SushiBLAS::BLASOps(*this->engine).symm(A, B, C, side, Core::Uplo::Upper,
+                        SushiBLAS::BLASOps(this->recorder()).symm(A, B, C, side, Core::Uplo::Upper,
                                                                2.0, -1.0);
-                        this->engine->execute().value();
+                        this->recording->run().value();
                         const std::vector<T> batched = read_tensor<T>(C);
 
                         for (int64_t index = 0; index < K_BATCH; ++index)
@@ -460,9 +463,9 @@ namespace SushiBLAS
                                                         matrix_of(b, index, matrix));
                             Tensor one_c = upload(*this->engine, {K_BATCH_ROWS, K_BATCH_COLS},
                                                   matrix_of(c, index, matrix));
-                            SushiBLAS::BLASOps(*this->engine).symm(one_a, one_b, one_c, side,
+                            SushiBLAS::BLASOps(this->recorder()).symm(one_a, one_b, one_c, side,
                                                                    Core::Uplo::Upper, 2.0, -1.0);
-                            this->engine->execute().value();
+                            this->recording->run().value();
 
                             expect_equal(matrix_of(batched, index, matrix),
                                          read_tensor<T>(one_c));
@@ -486,16 +489,16 @@ namespace SushiBLAS
                 for (const ExecutionMode mode : K_MODES)
                 {
                     SCOPED_TRACE(std::string(Core::to_string(side)) + " " + mode_name(mode));
-                    this->engine->set_mode(mode);
+                    this->set_mode(mode);
                     const Tensor A = upload(*this->engine, {order, order}, a);
                     const Tensor B = upload(*this->engine, {K_ROWS, K_COLS}, b);
                     Tensor C = upload(*this->engine, {K_ROWS, K_COLS},
                                       std::vector<T>(static_cast<std::size_t>(K_ROWS * K_COLS),
                                                      poison<T>()));
 
-                    SushiBLAS::BLASOps(*this->engine).symm(A, B, C, side, Core::Uplo::Lower,
+                    SushiBLAS::BLASOps(this->recorder()).symm(A, B, C, side, Core::Uplo::Lower,
                                                            K_ALPHA, 0.0);
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     const std::vector<T> result = read_tensor<T>(C);
                     for (std::size_t i = 0; i < result.size(); ++i)
@@ -521,14 +524,14 @@ namespace SushiBLAS
                     for (const ExecutionMode mode : K_MODES)
                     {
                         SCOPED_TRACE(std::string(Core::to_string(side)) + " " + mode_name(mode));
-                        this->engine->set_mode(mode);
+                        this->set_mode(mode);
                         const Tensor A = this->engine->create_tensor({order, order}, dtype);
                         const Tensor B = this->engine->create_tensor({rows, cols}, dtype);
                         Tensor C = this->engine->create_tensor({rows, cols}, dtype);
 
-                        EXPECT_NO_THROW(SushiBLAS::BLASOps(*this->engine).symm(
+                        EXPECT_NO_THROW(SushiBLAS::BLASOps(this->recorder()).symm(
                             A, B, C, side, Core::Uplo::Upper));
-                        EXPECT_TRUE(this->engine->execute().has_value());
+                        EXPECT_TRUE(this->recording->run().has_value());
                     }
                 }
             }
@@ -546,7 +549,7 @@ namespace SushiBLAS
 
         TYPED_TEST(Medium_Hemm, EqualsGemmOnTheFullHermitianMatrixToTheBit)
         {
-            expect_product_equals_gemm<TypeParam>(*this->engine, Routine::Hemm);
+            expect_product_equals_gemm<TypeParam>(*this->engine, *this->recording, Routine::Hemm);
         }
 
         TYPED_TEST(Medium_Hemm, MatchesAHandComputedProduct)
@@ -559,14 +562,14 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_MODES)
             {
                 SCOPED_TRACE(mode_name(mode));
-                this->engine->set_mode(mode);
+                this->set_mode(mode);
                 const Tensor A = upload(*this->engine, {2, 2}, a);
                 const Tensor B = upload(*this->engine, {2, 1}, b);
                 Tensor C = upload(*this->engine, {2, 1}, std::vector<T>(2, poison<T>()));
 
-                SushiBLAS::BLASOps(*this->engine).hemm(A, B, C, Core::Side::Left,
+                SushiBLAS::BLASOps(this->recorder()).hemm(A, B, C, Core::Side::Left,
                                                        Core::Uplo::Upper, 1.0, 0.0);
-                this->engine->execute().value();
+                this->recording->run().value();
 
                 // Row 0 is 2 * 1 + (1 + i) * i; row 1 is conj(1 + i) * 1 + 3 * i.
                 expect_equal(read_tensor<T>(C), std::vector<T>{T(1, 1), T(1, 2)});
@@ -628,17 +631,17 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_MODES)
             {
                 SCOPED_TRACE(mode_name(mode));
-                engine->set_mode(mode);
+                set_mode(mode);
                 const Tensor A = upload(*engine, {K_ROWS, K_ROWS}, a);
                 const Tensor B = upload(*engine, {K_ROWS, K_COLS}, b);
                 Tensor from_hemm = upload(*engine, {K_ROWS, K_COLS}, c);
                 Tensor from_symm = upload(*engine, {K_ROWS, K_COLS}, c);
 
-                record_product(*engine, Routine::Hemm, A, B, from_hemm, Core::Side::Left,
+                record_product(recorder(), Routine::Hemm, A, B, from_hemm, Core::Side::Left,
                                Core::Uplo::Upper, K_ALPHA, K_BETA);
-                record_product(*engine, Routine::Symm, A, B, from_symm, Core::Side::Left,
+                record_product(recorder(), Routine::Symm, A, B, from_symm, Core::Side::Left,
                                Core::Uplo::Upper, K_ALPHA, K_BETA);
-                engine->execute().value();
+                recording->run().value();
 
                 expect_same_bytes(read_tensor<float>(from_hemm), read_tensor<float>(from_symm));
             }
@@ -659,15 +662,15 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_MODES)
             {
                 SCOPED_TRACE(mode_name(mode));
-                engine->set_mode(mode);
+                set_mode(mode);
                 const Tensor A = upload(*engine, {3, 3}, a);
                 const Tensor B = upload(*engine, {3, 1}, ones);
                 Tensor C = upload(*engine, {3, 1},
                                   std::vector<sycl::half>(3, poison<sycl::half>()));
 
-                SushiBLAS::BLASOps(*engine).symm(A, B, C, Core::Side::Left, Core::Uplo::Upper,
+                SushiBLAS::BLASOps(recorder()).symm(A, B, C, Core::Side::Left, Core::Uplo::Upper,
                                                  1.0, 0.0);
-                engine->execute().value();
+                recording->run().value();
 
                 // Row 0 sums 2048 + 1 - 2048, which is 1 in FLOAT32 and 0 in HALF.
                 const std::vector<sycl::half> result = read_tensor<sycl::half>(C);
@@ -764,10 +767,10 @@ namespace SushiBLAS
             const Tensor B = engine->create_tensor({3, 2});
             Tensor C = engine->create_tensor({3, 2});
 
-            engine->set_mode(ExecutionMode::ForceReference);
+            set_mode(ExecutionMode::ForceReference);
             try
             {
-                SushiBLAS::BLASOps(*engine).symm(*A, B, C, Core::Side::Left, Core::Uplo::Upper);
+                SushiBLAS::BLASOps(recorder()).symm(*A, B, C, Core::Side::Left, Core::Uplo::Upper);
                 FAIL() << "ForceReference must refuse a device-only operand.";
             }
             catch (const std::invalid_argument& e)

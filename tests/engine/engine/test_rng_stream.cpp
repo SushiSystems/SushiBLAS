@@ -65,9 +65,9 @@ class Medium_RngStreamTest : public SushiBLASTest
         std::vector<float> normal_fill(uint64_t seed)
         {
             auto t = engine->create_tensor({K_FILL_SIZE});
-            SushiBLAS::RandomOps(*engine).set_seed(seed);
-            SushiBLAS::RandomOps(*engine).normal(t, 0.0, 1.0);
-            engine->execute().value();
+            SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(seed);
+            SushiBLAS::RandomOps(recorder(), engine->rng()).normal(t, 0.0, 1.0);
+            recording->run().value();
             return read_tensor<float>(t);
         }
 };

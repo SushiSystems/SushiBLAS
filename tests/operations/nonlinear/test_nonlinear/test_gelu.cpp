@@ -40,8 +40,8 @@ TEST_F(Medium_GELUTest, Forward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {-1.0f, 0.0f, 1.0f, 2.0f});
     
-    SushiBLAS::NonLinearOps(*engine).gelu(t);
-    engine->execute().value();
+    SushiBLAS::NonLinearOps(recorder()).gelu(t);
+    recording->run().value();
     
     verify_tensor(t, {-0.158865f, 0.0f, 0.841135f, 1.954598f});
 }
@@ -56,8 +56,8 @@ TEST_F(Medium_GELUTest, Backward)
     fill_tensor(x, {-1.0f, 0.0f, 1.0f, 2.0f});
     fill_tensor(dx, {0.0f, 0.0f, 0.0f, 0.0f});
     
-    SushiBLAS::NonLinearOps(*engine).gelu_backward(dy, x, dx);
-    engine->execute().value();
+    SushiBLAS::NonLinearOps(recorder()).gelu_backward(dy, x, dx);
+    recording->run().value();
     
     verify_tensor(dx, {-0.082937f, 0.5f, 1.082937f, 1.086099f});
 }

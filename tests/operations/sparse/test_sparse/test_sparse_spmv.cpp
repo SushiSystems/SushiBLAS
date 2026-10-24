@@ -189,13 +189,13 @@ namespace SushiBLAS
                                                  std::complex<double> alpha, const Wide& x,
                                                  std::complex<double> beta, const Wide& y)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     const SparseMatrix A = build(host, base);
                     const Tensor tx = vector_of(x);
                     Tensor ty = vector_of(y);
-                    SushiBLAS::SparseOps(*engine).spmv(A, tx, ty, trans, BLASScalar(alpha),
+                    SushiBLAS::SparseOps(recorder()).spmv(A, tx, ty, trans, BLASScalar(alpha),
                                                        BLASScalar(beta));
-                    engine->execute().value();
+                    recording->run().value();
                     return read_tensor<T>(ty);
                 }
 
@@ -432,7 +432,7 @@ namespace SushiBLAS
 
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
-                this->engine->set_mode(mode);
+                this->set_mode(mode);
                 const SparseMatrix wide_matrix = this->build(no_rows, Core::IndexBase::Zero);
                 const SparseMatrix tall_matrix = this->build(no_columns, Core::IndexBase::One);
 
@@ -443,12 +443,12 @@ namespace SushiBLAS
                 Tensor y_wide = this->vector_of(five);
                 Tensor y_tall = this->vector_of(five);
 
-                SparseOps ops(*this->engine);
+                SparseOps ops(this->recorder());
                 ops.spmv(wide_matrix, x, no_result, Core::Transpose::NoTrans, alpha, beta);
                 ops.spmv(wide_matrix, nothing, y_wide, Core::Transpose::Trans, alpha, beta);
                 ops.spmv(tall_matrix, nothing, y_tall, Core::Transpose::NoTrans, alpha, beta);
                 ops.spmv(tall_matrix, x, no_result, Core::Transpose::Trans, alpha, beta);
-                this->engine->execute().value();
+                this->recording->run().value();
 
                 this->expect_near(read_tensor<T>(y_wide), scaled, 0.0);
                 this->expect_near(read_tensor<T>(y_tall), scaled, 0.0);
@@ -472,16 +472,16 @@ namespace SushiBLAS
             {
                 for (const Core::IndexBase base : K_BOTH_BASES)
                 {
-                    this->engine->set_mode(mode);
+                    this->set_mode(mode);
                     const SparseMatrix A = this->build(host, base);
                     const Tensor wide_x = this->interleaved(x);
                     const Tensor wide_y = this->interleaved(y);
                     const Tensor tx = this->every_second(wide_x);
                     Tensor ty = this->every_second(wide_y);
 
-                    SparseOps(*this->engine).spmv(A, tx, ty, trans, BLASScalar(alpha),
+                    SparseOps(this->recorder()).spmv(A, tx, ty, trans, BLASScalar(alpha),
                                                   BLASScalar(beta));
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     this->expect_interleaved(read_tensor<T>(wide_y), expected,
                                              K_SAMPLE_TOLERANCE);
@@ -504,7 +504,7 @@ namespace SushiBLAS
             {
                 for (const Core::IndexBase base : K_BOTH_BASES)
                 {
-                    this->engine->set_mode(mode);
+                    this->set_mode(mode);
                     const SparseMatrix A =
                         this->matrix_of_arrays(2, 3, offsets, columns, values, base);
                     const Tensor by_columns =
@@ -513,10 +513,10 @@ namespace SushiBLAS
                     Tensor product = this->vector_of(Wide(2, zero));
                     Tensor transposed = this->vector_of(Wide(3, zero));
 
-                    SparseOps ops(*this->engine);
+                    SparseOps ops(this->recorder());
                     ops.spmv(A, by_columns, product);
                     ops.spmv(A, by_rows, transposed, Core::Transpose::Trans);
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     this->expect_near(read_tensor<T>(product), {{50.0, 0.0}, {400.0, 0.0}}, 0.0);
                     this->expect_near(read_tensor<T>(transposed),

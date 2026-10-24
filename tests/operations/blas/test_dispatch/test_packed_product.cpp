@@ -623,13 +623,13 @@ namespace SushiBLAS
                     Tensor reference_result =
                         engine->create_tensor({s, s}, sushiblas_dtype<T>());
 
-                    engine->set_mode(ExecutionMode::ForceSYCL);
-                    SushiBLAS::BLASOps(*engine).gemm(A, B, sycl_result);
-                    engine->execute().value();
+                    set_mode(ExecutionMode::ForceSYCL);
+                    SushiBLAS::BLASOps(recorder()).gemm(A, B, sycl_result);
+                    recording->run().value();
 
-                    engine->set_mode(ExecutionMode::ForceReference);
-                    SushiBLAS::BLASOps(*engine).gemm(A, B, reference_result);
-                    engine->execute().value();
+                    set_mode(ExecutionMode::ForceReference);
+                    SushiBLAS::BLASOps(recorder()).gemm(A, B, reference_result);
+                    recording->run().value();
 
                     expect_parity<T>(sycl_result, reference_result, s, 0.0);
                 }
@@ -648,17 +648,17 @@ namespace SushiBLAS
             Tensor sycl_result = engine->create_tensor({s, s}, Core::DataType::Float32);
             Tensor reference_result = engine->create_tensor({s, s}, Core::DataType::Float32);
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
+            set_mode(ExecutionMode::ForceSYCL);
             const std::size_t live_before_sycl = TestEnvironment::live_allocation_count();
-            SushiBLAS::BLASOps(*engine).gemm(A, B, sycl_result);
+            SushiBLAS::BLASOps(recorder()).gemm(A, B, sycl_result);
             EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before_sycl + 1);
-            engine->execute().value();
+            recording->run().value();
 
-            engine->set_mode(ExecutionMode::ForceReference);
+            set_mode(ExecutionMode::ForceReference);
             const std::size_t live_before_reference = TestEnvironment::live_allocation_count();
-            SushiBLAS::BLASOps(*engine).gemm(A, B, reference_result);
+            SushiBLAS::BLASOps(recorder()).gemm(A, B, reference_result);
             EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before_reference);
-            engine->execute().value();
+            recording->run().value();
 
             expect_parity<float>(sycl_result, reference_result, s, 0.0);
         }
@@ -671,11 +671,11 @@ namespace SushiBLAS
             Tensor C = engine->create_tensor({K_SMALL_ORDER, K_SMALL_ORDER},
                                              Core::DataType::Float32);
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
+            set_mode(ExecutionMode::ForceSYCL);
             const std::size_t live_before = TestEnvironment::live_allocation_count();
-            SushiBLAS::BLASOps(*engine).gemm(A, B, C);
+            SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
             EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before);
-            engine->execute().value();
+            recording->run().value();
         }
 
         /** @brief Tests HALF and COMPLEX64 through the packed seam against the reference path. */
@@ -707,20 +707,20 @@ namespace SushiBLAS
             // (0, 1): the bias element is chosen by the column of C.
             const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
-            Dispatch::execute_gemm(engine->recorder(), A, B, sycl_result,
+            set_mode(ExecutionMode::ForceSYCL);
+            Dispatch::execute_gemm(recorder(), A, B, sycl_result,
                                    Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.packed_gemm_bias", "test.packed_gemm_bias"_op,
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));
-            engine->execute().value();
+            recording->run().value();
 
-            engine->set_mode(ExecutionMode::ForceReference);
-            Dispatch::execute_gemm(engine->recorder(), A, B, reference_result,
+            set_mode(ExecutionMode::ForceReference);
+            Dispatch::execute_gemm(recorder(), A, B, reference_result,
                                    Core::Transpose::NoTrans, Core::Transpose::NoTrans, 1.0, 0.0,
                                    "test.packed_gemm_bias_reference",
                                    "test.packed_gemm_bias_reference"_op,
                                    Dispatch::gemm_epilogue(epilogue).reads(bias));
-            engine->execute().value();
+            recording->run().value();
 
             expect_parity<float>(sycl_result, reference_result, s, K_BIAS_MAGNITUDE);
         }

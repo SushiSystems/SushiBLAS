@@ -90,8 +90,8 @@ namespace SushiBLAS
             g.pad_left = 1;
 
             auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
-            SushiBLAS::SpatialOps(*engine).pool_avg(in, out, g);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).pool_avg(in, out, g);
+            recording->run().value();
 
             const float* got = out.data_as<float>();
 
@@ -116,8 +116,8 @@ namespace SushiBLAS
             g.stride_w = 2;
 
             auto out = engine->create_tensor({1, 2, 2, 1}, Core::DataType::Float32);
-            SushiBLAS::SpatialOps(*engine).pool_avg(in, out, g);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).pool_avg(in, out, g);
+            recording->run().value();
 
             const float* got = out.data_as<float>();
             EXPECT_FLOAT_EQ(got[0], 2.5f);   // (1+3+4+2)/4
@@ -138,8 +138,8 @@ namespace SushiBLAS
                                          12, 16});
             auto dx = engine->create_tensor({1, 4, 4, 1}, Core::DataType::Float32);
 
-            SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).pool_avg_backward(dy, dx, g);
+            recording->run().value();
 
             // Non-overlapping quadrants, each receiving its window's dy/4.
             const std::vector<float> expected = {1, 1, 2, 2,
@@ -163,8 +163,8 @@ namespace SushiBLAS
                                          3, 4});
             auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::Float32);
 
-            SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).pool_avg_backward(dy, dx, g);
+            recording->run().value();
 
             const float* got = dx.data_as<float>();
             EXPECT_FLOAT_EQ(got[0], 0.25f);                    // (0,0): window 0 only
@@ -186,8 +186,8 @@ namespace SushiBLAS
             auto dy = uniform(1, 4, 4, 1, 1.0f);
             auto dx = engine->create_tensor({1, 3, 3, 1}, Core::DataType::Float32);
 
-            SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).pool_avg_backward(dy, dx, g);
+            recording->run().value();
 
             const float* got = dx.data_as<float>();
             for (int64_t i = 0; i < dx.num_elements; ++i)
@@ -219,13 +219,13 @@ namespace SushiBLAS
             auto from_reference = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Float32);
             auto from_device = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Float32);
 
-            engine->set_mode(ExecutionMode::ForceReference);
-            SushiBLAS::SpatialOps(*engine).pool_avg(in, from_reference, g);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceReference);
+            SushiBLAS::SpatialOps(recorder()).pool_avg(in, from_reference, g);
+            recording->run().value();
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
-            SushiBLAS::SpatialOps(*engine).pool_avg(in, from_device, g);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceSYCL);
+            SushiBLAS::SpatialOps(recorder()).pool_avg(in, from_device, g);
+            recording->run().value();
 
             const float* expected = from_reference.data_as<float>();
             const float* got = from_device.data_as<float>();

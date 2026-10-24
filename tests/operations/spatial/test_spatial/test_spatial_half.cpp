@@ -212,7 +212,7 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
                 SCOPED_TRACE(forced_mode_name(mode));
-                engine->set_mode(mode);
+                set_mode(mode);
 
                 // Pixel 2 gathers (window 3, tap 0), (window 2, tap 1), (window 1, tap 2).
                 Tensor cols = half_tensor({5, 3}, {0, 0, 0,
@@ -222,8 +222,8 @@ namespace SushiBLAS
                                                    0, 0, 0});
                 Tensor image = half_zeros({1, 1, 5, 1});
 
-                SushiBLAS::SpatialOps(*engine).col2im(cols, image, g, 1, 5);
-                engine->execute().value();
+                SushiBLAS::SpatialOps(recorder()).col2im(cols, image, g, 1, 5);
+                recording->run().value();
 
                 expect_values(image, {0, 0, 2050, 0, 0});
             }
@@ -239,7 +239,7 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
                 SCOPED_TRACE(forced_mode_name(mode));
-                engine->set_mode(mode);
+                set_mode(mode);
 
                 // Windows 1, 2 and 3 select pixel 2, which gathers them as 3, 2, 1.
                 Tensor in = half_tensor({1, 1, 5, 1}, {0, 0, 9, 0, 0});
@@ -248,9 +248,9 @@ namespace SushiBLAS
                 Tensor dy = half_tensor({1, 1, 5, 1}, {0, 1, 1, 2048, 0});
                 Tensor dx = half_zeros({1, 1, 5, 1});
 
-                SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
-                SushiBLAS::SpatialOps(*engine).pool_max_backward(dy, indices, dx, g);
-                engine->execute().value();
+                SushiBLAS::SpatialOps(recorder()).pool_max(in, out, indices, g);
+                SushiBLAS::SpatialOps(recorder()).pool_max_backward(dy, indices, dx, g);
+                recording->run().value();
 
                 expect_values(dx, {0, 0, 2050, 0, 0});
             }
@@ -262,14 +262,14 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
                 SCOPED_TRACE(forced_mode_name(mode));
-                engine->set_mode(mode);
+                set_mode(mode);
 
                 Tensor dy = half_tensor({1, 2, 2, 1}, {2048, 1,
                                                        1, 0});
                 Tensor dx = half_zeros({1, 1, 1, 1});
 
-                SushiBLAS::SpatialOps(*engine).upsample_nearest_backward(dy, dx, 2, 2);
-                engine->execute().value();
+                SushiBLAS::SpatialOps(recorder()).upsample_nearest_backward(dy, dx, 2, 2);
+                recording->run().value();
 
                 expect_values(dx, {2050});
             }
@@ -285,14 +285,14 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
                 SCOPED_TRACE(forced_mode_name(mode));
-                engine->set_mode(mode);
+                set_mode(mode);
 
                 Tensor in = half_tensor({1, 2, 2, 1}, {2048, 1,
                                                        1, 0});
                 Tensor out = half_zeros({1, 1, 1, 1});
 
-                SushiBLAS::SpatialOps(*engine).pool_avg(in, out, g);
-                engine->execute().value();
+                SushiBLAS::SpatialOps(recorder()).pool_avg(in, out, g);
+                recording->run().value();
 
                 expect_values(out, {512.5f});
             }
@@ -308,14 +308,14 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
                 SCOPED_TRACE(forced_mode_name(mode));
-                engine->set_mode(mode);
+                set_mode(mode);
 
                 // Pixel w gathers the shares dy / 4 of windows w + 3 down to w.
                 Tensor dy = half_tensor({1, 1, 7, 1}, {0, 4, 4, 8192, 0, 0, 0});
                 Tensor dx = half_zeros({1, 1, 4, 1});
 
-                SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
-                engine->execute().value();
+                SushiBLAS::SpatialOps(recorder()).pool_avg_backward(dy, dx, g);
+                recording->run().value();
 
                 expect_values(dx, {2050, 2050, 2048, 2048});
             }
@@ -369,8 +369,8 @@ namespace SushiBLAS
 
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
-                engine->set_mode(mode);
-                SushiBLAS::SpatialOps spatial(*engine);
+                set_mode(mode);
+                SushiBLAS::SpatialOps spatial(recorder());
                 Tensor converted = nchw_view(convert.in(mode), N, H, W, C);
 
                 spatial.im2col(image, im2col.in(mode), g, out_h, out_w);
@@ -388,7 +388,7 @@ namespace SushiBLAS
                 spatial.channel_affine(image, gamma, beta, affine.in(mode));
                 spatial.broadcast_spatial(plane, broadcast.in(mode), 0.5);
                 spatial.layout_convert(image, converted);
-                engine->execute().value();
+                recording->run().value();
             }
 
             for (const ModeOutputs* outputs :
@@ -410,14 +410,14 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
                 SCOPED_TRACE(forced_mode_name(mode));
-                engine->set_mode(mode);
+                set_mode(mode);
 
                 Tensor in = half_tensor({1, 1, 2, 1}, {-60000, -65504});
                 Tensor out = half_zeros({1, 1, 1, 1});
                 Tensor indices = engine->create_tensor({1, 1, 1, 1}, Core::DataType::Int64);
 
-                SushiBLAS::SpatialOps(*engine).pool_max(in, out, indices, g);
-                engine->execute().value();
+                SushiBLAS::SpatialOps(recorder()).pool_max(in, out, indices, g);
+                recording->run().value();
 
                 expect_values(out, {-60000});
             }

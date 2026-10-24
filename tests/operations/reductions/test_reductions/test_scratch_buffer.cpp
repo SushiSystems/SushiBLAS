@@ -247,15 +247,15 @@ namespace SushiBLAS
                 GTEST_SKIP() << "This device plans no partials for 2^20 elements.";
 
             const std::size_t live_before_record = TestEnvironment::live_allocation_count();
-            ReductionOps(*engine).sum(input, result);
+            ReductionOps(recorder()).sum(input, result);
             ASSERT_EQ(TestEnvironment::live_allocation_count(), live_before_record + 1);
 
-            engine->execute().value();
+            recording->run().value();
             const std::size_t live_after_first = TestEnvironment::live_allocation_count();
             verify_tensor(result, {static_cast<float>(K_REDUCTION_ELEMENTS)}, K_SUM_TOLERANCE);
 
-            ReductionOps(*engine).sum(input, result);
-            engine->execute().value();
+            ReductionOps(recorder()).sum(input, result);
+            recording->run().value();
             const std::size_t live_after_second = TestEnvironment::live_allocation_count();
             verify_tensor(result, {static_cast<float>(K_REDUCTION_ELEMENTS)}, K_SUM_TOLERANCE);
 

@@ -78,7 +78,9 @@ int main()
 {
     SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
     SushiBLAS::Engine engine(runtime);
-    SushiBLAS::BLASOps blas(engine);
+    SushiRuntime::Graph graph = runtime.graph();
+    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
+    SushiBLAS::BLASOps blas(recorder);
     SushiBLAS::IO io(engine);
 
     SushiBLAS::Tensor x = engine.create_tensor({4});
@@ -96,16 +98,16 @@ int main()
         blas.axpy(2.0, x, shorter);
     });
 
-    // The axpy recorded above is still on the engine; discard_recorded drops it.
-    engine.discard_recorded();
+    // The axpy recorded above is still on the graph; clear drops it.
+    graph.clear();
     const bool discarded = io.to_vector<float>(y) == std::vector<float>(4, 0.0f);
 
-    engine.set_mode(SushiBLAS::ExecutionMode::ForceReference);
+    recorder.set_mode(SushiBLAS::ExecutionMode::ForceReference);
     const Outcome wrong_mode = outcome_of("axpy on device memory under ForceReference", [&]()
     {
         blas.axpy(2.0, on_device, y);
     });
-    engine.set_mode(SushiBLAS::ExecutionMode::Auto);
+    recorder.set_mode(SushiBLAS::ExecutionMode::Auto);
 
     const Outcome wrong_shape = outcome_of("create_tensor({-1})", [&]()
     {
@@ -114,16 +116,16 @@ int main()
     });
 
     blas.axpy(2.0, x, y);
-    const SushiRuntime::Result<void> ran = engine.execute();
+    const SushiRuntime::Result<SushiRuntime::RunReport> ran = graph.run();
     if (!ran)
     {
-        std::cerr << "execute: " << SushiRuntime::to_string(ran.error().code) << ": "
+        std::cerr << "run: " << SushiRuntime::to_string(ran.error().code) << ": "
                   << ran.error().message << "\n";
         return 1;
     }
     const bool ran_correctly =
         io.to_vector<float>(y) == std::vector<float>{2.0f, 4.0f, 6.0f, 8.0f};
-    std::cout << "execute: ok, y = 2 * x\n";
+    std::cout << "run: ok, y = 2 * x\n";
 
     const SushiBLAS::IOStatus loaded = io.load_npy(y, "errors_demo_no_such_file.npy");
     std::cout << "load_npy of a missing file: " << SushiBLAS::to_string(loaded) << "\n";

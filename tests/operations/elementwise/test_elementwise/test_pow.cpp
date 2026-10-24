@@ -40,8 +40,8 @@ TEST_F(Medium_PowTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, 3.0f, 0.5f});
     
-    SushiBLAS::ElementwiseOps(*engine).pow(t, 2.0f);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).pow(t, 2.0f);
+    recording->run().value();
     
     verify_tensor(t, {1.0f, 4.0f, 9.0f, 0.25f});
 }

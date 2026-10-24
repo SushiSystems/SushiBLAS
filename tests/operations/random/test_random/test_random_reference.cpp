@@ -423,13 +423,13 @@ namespace SushiBLAS
                                                        const std::vector<T>& initial,
                                                        const Operation& operation)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
 
                     Tensor t = engine->create_tensor(dims, sushiblas_dtype<T>());
                     SushiBLAS::IO io(*engine);
                     io.from_vector(t, initial);
 
-                    RandomOps random(*engine);
+                    RandomOps random(recorder(), engine->rng());
                     random.set_seed(seed);
                     operation(random, t);
                     return io.to_vector<T>(t);
@@ -736,10 +736,10 @@ namespace SushiBLAS
             if (!values || !matrix)
                 GTEST_SKIP() << "This device offers no device-only USM.";
 
-            RandomOps random(*engine);
+            RandomOps random(recorder(), engine->rng());
             random.set_seed(K_SEED);
 
-            engine->set_mode(ExecutionMode::ForceReference);
+            set_mode(ExecutionMode::ForceReference);
             const uint64_t offset_before = engine->rng().reserve(0).offset;
 
             EXPECT_THROW(random.uniform(*values), std::invalid_argument);
@@ -748,10 +748,10 @@ namespace SushiBLAS
             EXPECT_EQ(offset_before, engine->rng().reserve(0).offset);
 
             // The same call reserves one offset once the mode lets it record.
-            engine->set_mode(ExecutionMode::ForceSYCL);
+            set_mode(ExecutionMode::ForceSYCL);
             random.uniform(*values);
             EXPECT_EQ(offset_before + 1, engine->rng().reserve(0).offset);
-            engine->execute().value();
+            recording->run().value();
         }
 
         /** @brief Tests that two ForceReference runs of normal from one seed write equal bits. */

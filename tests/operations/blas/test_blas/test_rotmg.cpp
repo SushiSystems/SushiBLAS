@@ -187,7 +187,7 @@ namespace SushiBLAS
                 void start(Core::Layout layout, ExecutionMode mode)
                 {
                     this->reinit_engine(layout);
-                    this->engine->set_mode(mode);
+                    this->set_mode(mode);
                 }
 
                 /** @brief Returns a rank-1 tensor of count elements that all hold value. */
@@ -218,7 +218,7 @@ namespace SushiBLAS
                     y1.reserve(calls.size());
                     param.reserve(calls.size());
 
-                    SushiBLAS::BLASOps ops(*this->engine);
+                    SushiBLAS::BLASOps ops(this->recorder());
                     for (const Operands& call : calls)
                     {
                         d1.push_back(filled(1, call.d1));
@@ -228,7 +228,7 @@ namespace SushiBLAS
                         param.push_back(filled(K_PARAMETERS, K_UNWRITTEN));
                         ops.rotmg(d1.back(), d2.back(), x1.back(), y1.back(), param.back());
                     }
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     std::vector<Outcome> outcomes;
                     outcomes.reserve(calls.size());

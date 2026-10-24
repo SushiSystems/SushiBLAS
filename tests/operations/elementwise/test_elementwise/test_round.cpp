@@ -40,8 +40,8 @@ TEST_F(Medium_RoundTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.1f, 2.9f, -3.2f, 0.0f});
     
-    SushiBLAS::ElementwiseOps(*engine).round(t);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).round(t);
+    recording->run().value();
     
     verify_tensor(t, {1.00000f, 3.00000f, -3.00000f, 0.00000f});
 }

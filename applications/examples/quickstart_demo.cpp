@@ -42,6 +42,8 @@ int main()
 
     sr::Runtime runtime = sr::Runtime::create().value();
     sb::Engine engine(runtime, sb::Core::Layout::ColumnMajor);
+    sr::Graph graph = runtime.graph();
+    sb::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
 
     auto A = engine.create_tensor({K_SIZE, K_SIZE});
     auto B = engine.create_tensor({K_SIZE, K_SIZE});
@@ -51,7 +53,8 @@ int main()
     SushiBLAS::IO(engine).from_vector(A, std::vector<float>(count, K_A_VALUE));
     SushiBLAS::IO(engine).from_vector(B, std::vector<float>(count, K_B_VALUE));
 
-    SushiBLAS::BLASOps(engine).gemm(A, B, C);
+    SushiBLAS::BLASOps(recorder).gemm(A, B, C);
+    graph.run().value();
 
     const std::vector<float> result = SushiBLAS::IO(engine).to_vector<float>(C);
 

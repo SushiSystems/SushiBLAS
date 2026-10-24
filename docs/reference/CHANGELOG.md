@@ -6,6 +6,8 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — tests: Moved the tests, the examples and the package test off the engine's graph onto graphs they own, through `SushiBLASTest::recorder()` and the four lines of the design (`sushiblas_test.hpp`, `quickstart_demo.cpp`).
+- 2026-10-24 — examples: Mapped SushiRuntime's `ErrorCode::InvalidArgument` to `InvalidRequest` in the adapter (`status_mapping.hpp`).
 - 2026-10-24 — engine_fixture: Added `Test::RecordingFixture`, which owns a runtime graph and a task recorder over it, and rebuilt `GraphProbe` on it in place of the engine's recorded graph (`recording_fixture.hpp`, `graph_probe.hpp`).
 - 2026-10-21 — docs: Reshaped the four design documents into the five sections with a phase table, and moved the module split and GPU run evidence to two work folders (`docs/design/`, `docs/agent/`).
 - 2026-10-20 — docs: Moved 10 known issues with a scheduled fix and no workaround into the backlog entries that fix them (`KNOWN_ISSUES.md`, `REMAINING_WORK.md`).

@@ -130,7 +130,7 @@ relu      = [[2.5, 3,  0], [7.5, 8,  0]]
 `Medium_GEMMSeamTest` runs the epilogue through the public seam and not through the kernel. The
 kernel test calls `Kernels::SYCL::gemm` directly, which no consumer can do through the Engine
 API. The seam tests go through `Dispatch::execute_gemm`: recorded as a task on the graph, run
-by `Engine::execute()`, dispatched on the runtime dtype. That is the seam that is supported,
+by `RecordingFixture::run()`, dispatched on the runtime dtype. That is the seam that is supported,
 and a hook that only works when called from inside this repository is what these tests rule
 out. C is square (3x3) on purpose, and both biases are distinct. A square C makes a transposed
 `row`/`col` a wrong answer and not an out-of-range read: with a 2x3 C, swapping the coordinates

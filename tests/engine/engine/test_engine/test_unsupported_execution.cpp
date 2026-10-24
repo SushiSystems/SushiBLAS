@@ -183,9 +183,9 @@ namespace SushiBLAS
             const Tensor b = engine->create_tensor({3, 2});
             Tensor c = engine->create_tensor({2, 2});
 
-            engine->set_mode(ExecutionMode::ForceReference);
+            set_mode(ExecutionMode::ForceReference);
             const Outcome outcome =
-                outcome_of([&] { SushiBLAS::BLASOps(*engine).gemm(*a, b, c); });
+                outcome_of([&] { SushiBLAS::BLASOps(recorder()).gemm(*a, b, c); });
 
             EXPECT_EQ(outcome, Outcome::UnsupportedExecution);
         }
@@ -196,9 +196,9 @@ namespace SushiBLAS
             const Tensor b = engine->create_tensor({3, 2}, Core::DataType::Int32);
             Tensor c = engine->create_tensor({2, 2});
 
-            engine->set_mode(ExecutionMode::ForceReference);
+            set_mode(ExecutionMode::ForceReference);
             const Outcome outcome =
-                outcome_of([&] { SushiBLAS::BLASOps(*engine).gemm(a, b, c); });
+                outcome_of([&] { SushiBLAS::BLASOps(recorder()).gemm(a, b, c); });
 
             EXPECT_EQ(outcome, Outcome::InvalidArgument);
         }
@@ -210,7 +210,7 @@ namespace SushiBLAS
             Tensor c = engine->create_tensor({2, 2});
 
             const Outcome outcome =
-                outcome_of([&] { SushiBLAS::BLASOps(*engine).gemm(a, b, c); });
+                outcome_of([&] { SushiBLAS::BLASOps(recorder()).gemm(a, b, c); });
 
             EXPECT_EQ(outcome, Outcome::InvalidArgument);
         }
@@ -231,9 +231,12 @@ namespace SushiBLAS
             Tensor t = engine->create_tensor({4});
 
             const Outcome outcome =
-                outcome_of([&] { SushiBLAS::RandomOps(*engine).poisson(t, 1.0); });
+                outcome_of([&]
+                {
+                    SushiBLAS::RandomOps(recorder(), engine->rng()).poisson(t, 1.0);
+                });
             if (outcome == Outcome::Returned)
-                engine->execute().value();
+                recording->run().value();
 
             EXPECT_EQ(outcome, outcome_on(Device::profile_for(t.device()).supports_fp64));
         }

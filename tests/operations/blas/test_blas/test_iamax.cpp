@@ -55,8 +55,8 @@ TEST_F(Medium_IAMAXTest, SimpleIAMAX)
 
     fill_tensor(X, {1.0f, -5.0f, 3.0f, 2.0f});
 
-    SushiBLAS::BLASOps(*engine).iamax(X, R);
-    engine->execute().value();
+    SushiBLAS::BLASOps(recorder()).iamax(X, R);
+    recording->run().value();
 
     // Largest magnitude is |-5| at index 1. Zero-based, as the C++ BLAS bindings are.
     EXPECT_EQ(1, index_of(R));
@@ -69,8 +69,8 @@ TEST_F(Medium_IAMAXTest, TiesGoToTheLowestIndex)
 
     fill_tensor(X, {2.0f, -7.0f, 1.0f, 7.0f, 0.0f});
 
-    SushiBLAS::BLASOps(*engine).iamax(X, R);
-    engine->execute().value();
+    SushiBLAS::BLASOps(recorder()).iamax(X, R);
+    recording->run().value();
 
     // |-7| and |7| tie, and BLAS specifies the first. See tests/operations/blas/README.md.
     EXPECT_EQ(1, index_of(R));
@@ -91,7 +91,7 @@ TEST_F(Medium_IAMAXTest, RejectsAResultTensorTooNarrowToHoldTheIndex)
                        SushiBLAS::Core::DataType::Half})
     {
         auto R = engine->create_tensor({1}, dtype);
-        EXPECT_THROW(SushiBLAS::BLASOps(*engine).iamax(X, R), std::invalid_argument)
+        EXPECT_THROW(SushiBLAS::BLASOps(recorder()).iamax(X, R), std::invalid_argument)
             << "iamax must refuse a " << SushiBLAS::Core::to_string(dtype)
             << " result rather than write an int64_t into it.";
     }

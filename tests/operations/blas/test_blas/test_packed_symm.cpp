@@ -448,10 +448,10 @@ namespace SushiBLAS
             }
 
             /** @brief Records the product of a routine with its default scalars. */
-            TaskHandle record_product(Engine& engine, Routine routine, const Tensor& A,
+            TaskHandle record_product(TaskRecorder& recorder, Routine routine, const Tensor& A,
                                       const Tensor& B, Tensor& C, Core::Side side, Core::Uplo uplo)
             {
-                SushiBLAS::BLASOps ops(engine);
+                SushiBLAS::BLASOps ops(recorder);
                 return routine == Routine::Hemm ? ops.hemm(A, B, C, side, uplo)
                                                 : ops.symm(A, B, C, side, uplo);
             }
@@ -533,20 +533,20 @@ namespace SushiBLAS
                     Tensor sycl_result = this->engine->create_tensor({s, s}, dtype);
                     Tensor reference_result = this->engine->create_tensor({s, s}, dtype);
 
-                    this->engine->set_mode(ExecutionMode::ForceSYCL);
+                    this->set_mode(ExecutionMode::ForceSYCL);
                     const std::size_t live_before_sycl = TestEnvironment::live_allocation_count();
-                    record_product(*this->engine, routine, A, B, sycl_result, side,
+                    record_product(this->recorder(), routine, A, B, sycl_result, side,
                                    Core::Uplo::Upper);
                     EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before_sycl + 1);
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
-                    this->engine->set_mode(ExecutionMode::ForceReference);
+                    this->set_mode(ExecutionMode::ForceReference);
                     const std::size_t live_before_reference =
                         TestEnvironment::live_allocation_count();
-                    record_product(*this->engine, routine, A, B, reference_result, side,
+                    record_product(this->recorder(), routine, A, B, reference_result, side,
                                    Core::Uplo::Upper);
                     EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before_reference);
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     const std::vector<T> got = read_tensor<T>(sycl_result);
                     const std::vector<T> want = read_tensor<T>(reference_result);

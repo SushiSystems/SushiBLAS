@@ -48,9 +48,9 @@ TEST_F(Medium_ROTTest, SimpleROT)
     float c = 0.0f;
     float s = 1.0f;
 
-    SushiBLAS::BLASOps(*engine).rot(X, Y, c, s);
+    SushiBLAS::BLASOps(recorder()).rot(X, Y, c, s);
     
-    engine->execute().value();
+    recording->run().value();
 
     // With c = 0 and s = 1, x becomes y and y becomes -x.
     verify_tensor(X, {0, 1});

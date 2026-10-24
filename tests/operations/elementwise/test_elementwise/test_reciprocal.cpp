@@ -40,8 +40,8 @@ TEST_F(Medium_ReciprocalTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 2.0f, -3.0f, 0.5f});
     
-    SushiBLAS::ElementwiseOps(*engine).reciprocal(t);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).reciprocal(t);
+    recording->run().value();
     
     verify_tensor(t, {1.00000f, 0.50000f, -0.33333f, 2.00000f});
 }

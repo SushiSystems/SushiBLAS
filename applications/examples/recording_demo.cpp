@@ -21,7 +21,7 @@
 
 /**
  * @file recording_demo.cpp
- * @brief Records three operations on tensors of two residencies and runs them with one execute.
+ * @brief Records three operations on tensors of two residencies and runs them as one graph.
  * @author Mustafa Garip
  */
 
@@ -42,6 +42,8 @@ int main()
     SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
     SushiBLAS::Engine engine(runtime);
     SushiBLAS::IO io(engine);
+    SushiRuntime::Graph graph = runtime.graph();
+    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
 
     // a and result are host-addressable; b lives in device memory and is reached through IO.
     SushiBLAS::Tensor a = engine.create_tensor({K_COUNT});
@@ -64,20 +66,21 @@ int main()
               << SushiBLAS::K_STORAGE_ALIGNMENT << "\n";
 
     // Each call records one task and runs nothing: a = 2 * a, result = a + b, total = sum(result).
-    SushiBLAS::BLASOps(engine).scal(2.0, a);
-    SushiBLAS::ElementwiseOps(engine).add(a, b, result);
-    SushiBLAS::ReductionOps(engine).sum(result, total);
+    SushiBLAS::BLASOps(recorder).scal(2.0, a);
+    SushiBLAS::ElementwiseOps(recorder).add(a, b, result);
+    SushiBLAS::ReductionOps(recorder).sum(result, total);
 
     const float before = result.data_as<float>()[0];
-    std::cout << "before execute: result[0] = " << before << "\n";
+    std::cout << "before run:     result[0] = " << before << "\n";
 
-    engine.execute().value();
+    graph.run().value();
 
     const float after = result.data_as<float>()[0];
-    std::cout << "after execute:  result[0] = " << after << "\n";
+    std::cout << "after run:      result[0] = " << after << "\n";
 
-    // The graph is empty after a run, so a second execute has nothing to do and succeeds.
-    const bool empty_run_succeeds = engine.execute().has_value();
+    // A graph keeps its tasks after a run, so the caller empties it before it records again.
+    graph.clear();
+    const bool graph_is_empty = graph.recorder().node_count() == 0;
 
     std::vector<float> expected(host_a.size());
     float expected_total = 0.0f;
@@ -93,7 +96,7 @@ int main()
     std::cout << "total = " << read_total << " (expected " << expected_total << ")\n";
 
     const bool correct = residencies_hold && storage_is_aligned && before == K_UNWRITTEN &&
-                         empty_run_succeeds && read_back == expected &&
+                         graph_is_empty && read_back == expected &&
                          read_total == expected_total && device_unchanged;
     std::cout << (correct ? "recording_demo: ok\n" : "recording_demo: MISMATCH\n");
     return correct ? 0 : 1;

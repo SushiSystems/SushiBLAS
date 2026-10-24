@@ -223,8 +223,8 @@ class Medium_DispatchSeamTest : public SushiBLASTest
             const std::vector<T> input = exact_values<T>({-3.0f, -1.0f, 0.0f, 2.0f, 3.0f, 5.0f});
             auto t = create_initialized_tensor<T>({6}, input);
 
-            sb::ElementwiseOps(*engine).clamp(t, K_CLAMP_LOW, K_CLAMP_HIGH);
-            engine->execute().value();
+            sb::ElementwiseOps(recorder()).clamp(t, K_CLAMP_LOW, K_CLAMP_HIGH);
+            recording->run().value();
 
             const T low = sb::Dispatch::ElementScalar(K_CLAMP_LOW).as<T>();
             const T high = sb::Dispatch::ElementScalar(K_CLAMP_HIGH).as<T>();
@@ -271,12 +271,12 @@ class Medium_DispatchSeamTest : public SushiBLASTest
             auto elu_dx = engine->create_tensor({4}, sushiblas_dtype<T>());
             auto leaky_dx = engine->create_tensor({4}, sushiblas_dtype<T>());
 
-            sb::ElementwiseOps(*engine).pow(raised, K_POW_EXPONENT);
-            sb::NonLinearOps(*engine).elu(elu, K_ALPHA);
-            sb::NonLinearOps(*engine).elu_backward(dy, saved, elu_dx, K_ALPHA);
-            sb::NonLinearOps(*engine).leaky_relu(leaky, K_ALPHA);
-            sb::NonLinearOps(*engine).leaky_relu_backward(dy, saved, leaky_dx, K_ALPHA);
-            engine->execute().value();
+            sb::ElementwiseOps(recorder()).pow(raised, K_POW_EXPONENT);
+            sb::NonLinearOps(recorder()).elu(elu, K_ALPHA);
+            sb::NonLinearOps(recorder()).elu_backward(dy, saved, elu_dx, K_ALPHA);
+            sb::NonLinearOps(recorder()).leaky_relu(leaky, K_ALPHA);
+            sb::NonLinearOps(recorder()).leaky_relu_backward(dy, saved, leaky_dx, K_ALPHA);
+            recording->run().value();
 
             expect_elements(raised, positive, tolerance, "pow",
                             [=](double v) { return std::pow(v, exponent); });
@@ -384,9 +384,9 @@ TEST_F(Medium_DispatchSeamTest, FusesAConsumerFunctorIntoOneBinaryKernel)
 
     // mul, add and div in one functor: one task where the public API records three.
     sb::Dispatch::execute_binary(
-        engine->recorder(), a, b, c, "test.fused_binary", "test.fused_binary"_op,
+        recorder(), a, b, c, "test.fused_binary", "test.fused_binary"_op,
         [](auto x, auto y) { return (x * y + decltype(x)(1)) / decltype(x)(2); });
-    engine->execute().value();
+    recording->run().value();
 
     verify_tensor(c, {1.5f, 4.5f, 9.5f, 16.5f});
 }
@@ -398,9 +398,9 @@ TEST_F(Medium_DispatchSeamTest, FusesAConsumerFunctorIntoOneUnaryKernel)
 
     // A consumer's own softplus-like activation, written against safe_math.
     sb::Dispatch::execute_unary_inplace(
-        engine->recorder(), t, "test.fused_unary", "test.fused_unary"_op,
+        recorder(), t, "test.fused_unary", "test.fused_unary"_op,
         [](auto x) { return sb::Dispatch::safe_log(decltype(x)(1) + sb::Dispatch::safe_exp(x)); });
-    engine->execute().value();
+    recording->run().value();
 
     verify_tensor(t, {0.693147f, 1.313262f, 2.126928f, 3.048587f}, 1e-4);
 }
@@ -415,9 +415,9 @@ TEST_F(Medium_DispatchSeamTest, ConsumerFunctorCanOptIntoComplex)
 
     // (1+i)(i) + (1+i) = 2i and (2-i)(1+i) + (2-i) = 5.
     sb::Dispatch::execute_binary<sb::Dispatch::Domain::RealAndComplex>(
-        engine->recorder(), a, b, c, "test.fused_complex", "test.fused_complex"_op,
+        recorder(), a, b, c, "test.fused_complex", "test.fused_complex"_op,
         [](auto x, auto y) { return x * y + x; });
-    engine->execute().value();
+    recording->run().value();
 
     auto expected = create_initialized_tensor<cf>({2}, {cf(0.0f, 2.0f), cf(5.0f, 0.0f)});
     SB_ASSERT_TENSOR_NEAR(c, expected, 1e-4, cf);
@@ -433,19 +433,19 @@ TEST_F(Medium_DispatchSeamTest, ConsumerCanDriveTheLogicAndReductionSeamsToo)
 
     // "within 2 of b" - a predicate SushiBLAS does not ship.
     sb::Dispatch::execute_logic_binary(
-        engine->recorder(), a, b, mask, "test.near", "test.near"_op,
+        recorder(), a, b, mask, "test.near", "test.near"_op,
         [](auto x, auto y)
         {
             auto d = x - y;
             return (d < decltype(x)(0) ? -d : d) <= decltype(x)(2) ? decltype(x)(1) : decltype(x)(0);
         });
-    engine->execute().value();
+    recording->run().value();
     verify_tensor(mask, {1.0f, 1.0f, 1.0f, 0.0f});
 
     auto total = engine->create_tensor({1});
     sb::Dispatch::execute_reduction(
-        engine->recorder(), mask, total, "test.count", "test.count"_op, PlainSumDispatch{});
-    engine->execute().value();
+        recorder(), mask, total, "test.count", "test.count"_op, PlainSumDispatch{});
+    recording->run().value();
     verify_tensor(total, {3.0f});
 }
 
@@ -458,7 +458,7 @@ TEST_F(Medium_DispatchSeamTest, RealOnlyDomainRejectsComplexAtRecordTime)
     // The default domain is REAL. See tests/library/umbrella/README.md.
     EXPECT_THROW(
         sb::Dispatch::execute_binary(
-            engine->recorder(), a, b, c, "test.real_only", "test.real_only"_op,
+            recorder(), a, b, c, "test.real_only", "test.real_only"_op,
             [](auto x, auto y) { return x + y; }),
         std::invalid_argument);
 }
@@ -498,7 +498,7 @@ TEST_F(Medium_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
     auto th_steps = seeded(th0), m_steps = seeded(m0), v_steps = seeded(v0), ema_steps = seeded(th0);
 
     // g is an operand although the functor only reads it. See tests/library/umbrella/README.md.
-    sb::Dispatch::execute_zip_inplace(engine->recorder(),
+    sb::Dispatch::execute_zip_inplace(recorder(),
         std::array{&th_fused, &g, &m_fused, &v_fused, &ema_fused},
         "test.adamw_fused", "test.adamw_fused"_op,
         [b1, b2, lr, wd, eps, inv_bc1, inv_bc2, ema_decay]
@@ -518,30 +518,30 @@ TEST_F(Medium_DispatchSeamTest, FusesAFiveTensorAdamWUpdateIntoOneKernel)
     auto eps_vec = engine->create_tensor({k_n});
     fill_tensor(eps_vec, std::vector<float>(static_cast<size_t>(k_n), eps));
 
-    SushiBLAS::BLASOps(*engine).scal(static_cast<double>(b1), m_steps);
-    SushiBLAS::BLASOps(*engine).axpy(static_cast<double>(1.0f - b1), g, m_steps);
+    SushiBLAS::BLASOps(recorder()).scal(static_cast<double>(b1), m_steps);
+    SushiBLAS::BLASOps(recorder()).axpy(static_cast<double>(1.0f - b1), g, m_steps);
 
-    SushiBLAS::BLASOps(*engine).copy(g, scratch_a);
-    SushiBLAS::ElementwiseOps(*engine).square(scratch_a);
-    SushiBLAS::BLASOps(*engine).scal(static_cast<double>(b2), v_steps);
-    SushiBLAS::BLASOps(*engine).axpy(static_cast<double>(1.0f - b2), scratch_a, v_steps);
+    SushiBLAS::BLASOps(recorder()).copy(g, scratch_a);
+    SushiBLAS::ElementwiseOps(recorder()).square(scratch_a);
+    SushiBLAS::BLASOps(recorder()).scal(static_cast<double>(b2), v_steps);
+    SushiBLAS::BLASOps(recorder()).axpy(static_cast<double>(1.0f - b2), scratch_a, v_steps);
 
-    SushiBLAS::BLASOps(*engine).copy(v_steps, scratch_a);
-    SushiBLAS::BLASOps(*engine).scal(static_cast<double>(inv_bc2), scratch_a);
-    SushiBLAS::ElementwiseOps(*engine).sqrt(scratch_a);
-    SushiBLAS::ElementwiseOps(*engine).add(scratch_a, eps_vec, scratch_a);
+    SushiBLAS::BLASOps(recorder()).copy(v_steps, scratch_a);
+    SushiBLAS::BLASOps(recorder()).scal(static_cast<double>(inv_bc2), scratch_a);
+    SushiBLAS::ElementwiseOps(recorder()).sqrt(scratch_a);
+    SushiBLAS::ElementwiseOps(recorder()).add(scratch_a, eps_vec, scratch_a);
 
-    SushiBLAS::BLASOps(*engine).copy(m_steps, scratch_b);
-    SushiBLAS::BLASOps(*engine).scal(static_cast<double>(inv_bc1), scratch_b);
-    SushiBLAS::ElementwiseOps(*engine).div(scratch_b, scratch_a, scratch_b);
+    SushiBLAS::BLASOps(recorder()).copy(m_steps, scratch_b);
+    SushiBLAS::BLASOps(recorder()).scal(static_cast<double>(inv_bc1), scratch_b);
+    SushiBLAS::ElementwiseOps(recorder()).div(scratch_b, scratch_a, scratch_b);
 
-    SushiBLAS::BLASOps(*engine).scal(static_cast<double>(1.0f - lr * wd), th_steps);
-    SushiBLAS::BLASOps(*engine).axpy(static_cast<double>(-lr), scratch_b, th_steps);
+    SushiBLAS::BLASOps(recorder()).scal(static_cast<double>(1.0f - lr * wd), th_steps);
+    SushiBLAS::BLASOps(recorder()).axpy(static_cast<double>(-lr), scratch_b, th_steps);
 
-    SushiBLAS::BLASOps(*engine).scal(static_cast<double>(ema_decay), ema_steps);
-    SushiBLAS::BLASOps(*engine).axpy(static_cast<double>(1.0f - ema_decay), th_steps, ema_steps);
+    SushiBLAS::BLASOps(recorder()).scal(static_cast<double>(ema_decay), ema_steps);
+    SushiBLAS::BLASOps(recorder()).axpy(static_cast<double>(1.0f - ema_decay), th_steps, ema_steps);
 
-    engine->execute().value();
+    recording->run().value();
 
     SB_ASSERT_TENSOR_NEAR(m_fused, m_steps, 1e-6, float);
     SB_ASSERT_TENSOR_NEAR(v_fused, v_steps, 1e-6, float);
@@ -569,7 +569,7 @@ TEST_F(Medium_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
         fill_tensor(b, seed);
         fill_tensor(c, seed);
 
-        sb::Dispatch::execute_zip_inplace(engine->recorder(), std::array{&a, &b, &c},
+        sb::Dispatch::execute_zip_inplace(recorder(), std::array{&a, &b, &c},
             "test.zip_determinism", "test.zip_determinism"_op,
             [](auto& x, auto& y, auto& z)
             {
@@ -578,7 +578,7 @@ TEST_F(Medium_DispatchSeamTest, FusedInPlaceUpdateIsRepeatableToTheByte)
                 y = y - x * T(0.25);
                 z = sb::Dispatch::safe_sqrt(x * x + y * y);
             });
-        engine->execute().value();
+        recording->run().value();
 
         std::vector<float> out(static_cast<size_t>(k_n) * 3);
         auto& q = SushiBLAS::Test::TestEnvironment::queue();
@@ -612,26 +612,26 @@ TEST_F(Medium_DispatchSeamTest, FusedInPlaceUpdateRejectsDisagreeingOperands)
     // The message names the disagreeing operand; "sizes must match" is no help at N = 5.
     EXPECT_THROW(
         sb::Dispatch::execute_zip_inplace(
-            engine->recorder(), std::array{&four, &eight},
+            recorder(), std::array{&four, &eight},
             "test.zip_size", "test.zip_size"_op, accumulate),
         std::invalid_argument);
 
     EXPECT_THROW(
         sb::Dispatch::execute_zip_inplace(
-            engine->recorder(), std::array{&four, &wide},
+            recorder(), std::array{&four, &wide},
             "test.zip_dtype", "test.zip_dtype"_op, accumulate),
         std::invalid_argument);
 
     EXPECT_THROW(
         sb::Dispatch::execute_zip_inplace(
-            engine->recorder(), std::array{&four, missing},
+            recorder(), std::array{&four, missing},
             "test.zip_null", "test.zip_null"_op, accumulate),
         std::invalid_argument);
 
     // Default domain is REAL, exactly as for execute_unary_inplace/execute_binary.
     EXPECT_THROW(
         sb::Dispatch::execute_zip_inplace(
-            engine->recorder(), std::array{&cplx, &cplx},
+            recorder(), std::array{&cplx, &cplx},
             "test.zip_complex", "test.zip_complex"_op, accumulate),
         std::invalid_argument);
 }
@@ -679,7 +679,7 @@ TEST_F(Medium_DispatchSeamTest, TooManyTaskParamsThrowsInsteadOfDroppingThem)
                   "the list below is one longer than the capacity");
     EXPECT_THROW(
         sb::Dispatch::execute_unary_inplace(
-            engine->recorder(), t, "test.overflow", "test.overflow"_op,
+            recorder(), t, "test.overflow", "test.overflow"_op,
             [](auto x) { return x; },
             {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}),
         std::invalid_argument);
@@ -712,10 +712,10 @@ TEST_F(Medium_DispatchSeamTest, ABoundFunctorWorksInAFusedUpdate)
     auto x = create_initialized_tensor<float>({4}, {2.0f, 4.0f, 6.0f, 8.0f});
 
     sb::Dispatch::execute_zip_inplace(
-        engine->recorder(), std::array{&y, &x}, "test.zip_bound", "test.zip_bound"_op,
+        recorder(), std::array{&y, &x}, "test.zip_bound", "test.zip_bound"_op,
         sb::Dispatch::bind_scalars([](auto& yi, auto& xi, auto a) { yi = yi + a * xi; },
                                    sb::Dispatch::ElementScalar(0.5)));
-    engine->execute().value();
+    recording->run().value();
 
     verify_tensor(y, {2.0f, 4.0f, 6.0f, 8.0f}, K_REAL_TOLERANCE);
     verify_tensor(x, {2.0f, 4.0f, 6.0f, 8.0f}, K_REAL_TOLERANCE);
@@ -735,7 +735,7 @@ TEST_F(Medium_DispatchSeamTest, ATypedTaskReportsTheFamilyItsCallerDeclared)
     try
     {
         (void)sb::Internal::execute_typed_task<sb::Dispatch::Domain::Real>(
-            engine->recorder(), description, SushiBLAS::OperandSet(), t.dtype, "Spatial operation",
+            recorder(), description, SushiBLAS::OperandSet(), t.dtype, "Spatial operation",
             [](auto, const sb::KernelPairDispatcher&, sycl::queue&,
                const std::vector<sycl::event>&) -> sycl::event
             {
@@ -789,13 +789,13 @@ TEST_F(Medium_DispatchSeamTest, ADeclaredReadIsKeptAllocated)
     auto y = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
     std::optional<sb::Tensor> factor(create_initialized_tensor<float>({1}, {2.0f}));
 
-    record_scaled(engine->recorder(), y, *factor);
+    record_scaled(recorder(), y, *factor);
 
     const size_t live_before = TestEnvironment::live_allocation_count();
     factor.reset();
     EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before);
 
-    engine->execute().value();
+    recording->run().value();
     verify_tensor(y, {2.0f, 4.0f, 6.0f, 8.0f}, K_EXACT_TOLERANCE);
 }
 
@@ -835,7 +835,7 @@ TEST_F(Medium_DispatchSeamTest, ADeclaredReadWorksOnEverySeam)
     auto logic_binary = engine->create_tensor({4});
     auto logic_ternary = engine->create_tensor({4});
 
-    sb::TaskRecorder& recorder = engine->recorder();
+    sb::TaskRecorder& recorder = this->recorder();
     const auto read = sb::Dispatch::read_as_element(factor);
 
     sb::Dispatch::execute_binary(
@@ -871,7 +871,7 @@ TEST_F(Medium_DispatchSeamTest, ADeclaredReadWorksOnEverySeam)
                 return c != decltype(c)(0) ? x * f[0] : y;
             },
             read));
-    engine->execute().value();
+    recording->run().value();
 
     verify_tensor(binary, {6.0f, 10.0f, 18.0f, 22.0f}, K_EXACT_TOLERANCE);
     verify_tensor(forward, {2.0f, 4.0f, 6.0f, 8.0f}, K_EXACT_TOLERANCE);

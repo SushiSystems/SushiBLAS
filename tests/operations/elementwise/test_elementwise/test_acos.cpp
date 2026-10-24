@@ -40,8 +40,8 @@ TEST_F(Medium_AcosTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {0.0f, 0.5f, -0.5f, 1.0f});
     
-    SushiBLAS::ElementwiseOps(*engine).acos(t);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).acos(t);
+    recording->run().value();
     
     verify_tensor(t, {1.570796f, 1.047197f, 2.094395f, 0.00000f});
 }

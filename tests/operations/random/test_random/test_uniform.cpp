@@ -80,9 +80,9 @@ class Medium_UniformTest : public SushiBLASTest
         std::vector<double> draw(uint64_t seed)
         {
             auto t = engine->create_tensor({K_DRAWS}, sushiblas_dtype<T>());
-            SushiBLAS::RandomOps(*engine).set_seed(seed);
-            SushiBLAS::RandomOps(*engine).uniform(t, K_MIN, K_MAX);
-            engine->execute().value();
+            SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(seed);
+            SushiBLAS::RandomOps(recorder(), engine->rng()).uniform(t, K_MIN, K_MAX);
+            recording->run().value();
             const std::vector<T> host = read_tensor<T>(t);
             return std::vector<double>(host.begin(), host.end());
         }

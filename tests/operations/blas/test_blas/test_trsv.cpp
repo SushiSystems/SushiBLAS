@@ -49,11 +49,11 @@ TEST_F(Medium_TRSVTest, SimpleTRSV)
     // b: (results from multiplying A by x = [1, 1, 1] which is [1, 3, 8])
     fill_tensor(b, {1, 3, 8});
 
-    SushiBLAS::BLASOps(*engine).trsv(A, b, SushiBLAS::Core::Uplo::Lower,
+    SushiBLAS::BLASOps(recorder()).trsv(A, b, SushiBLAS::Core::Uplo::Lower,
                                      SushiBLAS::Core::Transpose::NoTrans,
                                      SushiBLAS::Core::Diag::NonUnit);
     
-    engine->execute().value();
+    recording->run().value();
 
     // Expected: b solved to x = [1, 1, 1]
     verify_tensor(b, {1, 1, 1});
@@ -88,9 +88,9 @@ class Medium_TRSVPoisonTest : public SushiBLASTest
             fill_tensor(A, matrix);
             fill_tensor(b, rhs);
 
-            SushiBLAS::BLASOps(*engine).trsv(A, b, uplo_of(upper), transpose_of(trans_a),
+            SushiBLAS::BLASOps(recorder()).trsv(A, b, uplo_of(upper), transpose_of(trans_a),
                                              SushiBLAS::Core::Diag::NonUnit);
-            engine->execute().value();
+            recording->run().value();
 
             verify_tensor(b, K_SOLUTION);
         }

@@ -79,9 +79,9 @@ class Medium_RandomLargeLambdaTest : public SushiBLASTest
         std::vector<double> draw(double lambda, uint64_t seed)
         {
             auto t = engine->create_tensor({K_DRAWS}, DataType::Float64);
-            SushiBLAS::RandomOps(*engine).set_seed(seed);
-            SushiBLAS::RandomOps(*engine).poisson(t, lambda);
-            engine->execute().value();
+            SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(seed);
+            SushiBLAS::RandomOps(recorder(), engine->rng()).poisson(t, lambda);
+            recording->run().value();
 
             std::vector<double> host(static_cast<size_t>(K_DRAWS));
             auto& q = TestEnvironment::queue();
@@ -145,8 +145,9 @@ TEST_F(Medium_RandomLargeLambdaTest, PoissonReplaysBitForBitInBothMethods)
 TEST_F(Medium_RandomLargeLambdaTest, PoissonAcceptsTheCap)
 {
     auto t = engine->create_tensor({4}, DataType::Float64);
-    EXPECT_NO_THROW(SushiBLAS::RandomOps(*engine).poisson(t, SushiBLAS::K_MAX_POISSON_LAMBDA));
-    engine->execute().value();
+    EXPECT_NO_THROW(SushiBLAS::RandomOps(recorder(), engine->rng())
+        .poisson(t, SushiBLAS::K_MAX_POISSON_LAMBDA));
+    recording->run().value();
 
     std::vector<double> host(4);
     auto& q = TestEnvironment::queue();

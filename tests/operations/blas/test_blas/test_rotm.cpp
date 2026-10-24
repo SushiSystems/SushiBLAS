@@ -166,7 +166,7 @@ namespace SushiBLAS
                 void start(Core::Layout layout, ExecutionMode mode)
                 {
                     this->reinit_engine(layout);
-                    this->engine->set_mode(mode);
+                    this->set_mode(mode);
                 }
 
                 /** @brief Returns a rank-1 tensor that holds values. */
@@ -246,8 +246,8 @@ namespace SushiBLAS
                         Tensor y = this->vector_of({make<T>(3.0), make<T>(4.0)});
                         const Tensor param = this->vector_of(make_all<T>(row.param));
 
-                        SushiBLAS::BLASOps(*this->engine).rotm(x, y, param);
-                        this->engine->execute().value();
+                        SushiBLAS::BLASOps(this->recorder()).rotm(x, y, param);
+                        this->recording->run().value();
 
                         expect_equal(read_tensor<T>(x), make_all<T>(row.x));
                         expect_equal(read_tensor<T>(y), make_all<T>(row.y));
@@ -276,8 +276,8 @@ namespace SushiBLAS
                     Tensor y = this->vector_of({make<T>(3.0), make<T>(4.0)});
                     const Tensor param = this->vector_of(make_all<T>(identity));
 
-                    SushiBLAS::BLASOps(*this->engine).rotm(x, y, param);
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder()).rotm(x, y, param);
+                    this->recording->run().value();
 
                     const std::vector<T> x_after = read_tensor<T>(x);
                     const std::vector<T> y_after = read_tensor<T>(y);
@@ -315,8 +315,8 @@ namespace SushiBLAS
                     Tensor y = TestFixture::every_second_element(y_parent);
                     const Tensor param = this->vector_of(make_all<T>(K_ROWS[0].param));
 
-                    SushiBLAS::BLASOps(*this->engine).rotm(x, y, param);
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder()).rotm(x, y, param);
+                    this->recording->run().value();
 
                     expect_equal(read_tensor<T>(x_parent), make_all<T>(x_expected));
                     expect_equal(read_tensor<T>(y_parent), make_all<T>(y_expected));
@@ -342,8 +342,8 @@ namespace SushiBLAS
                     Tensor y = this->vector_of({});
                     const Tensor param = this->vector_of(make_all<T>(K_FULL_PARAM));
 
-                    EXPECT_NO_THROW(SushiBLAS::BLASOps(*this->engine).rotm(x, y, param));
-                    EXPECT_TRUE(this->engine->execute().has_value());
+                    EXPECT_NO_THROW(SushiBLAS::BLASOps(this->recorder()).rotm(x, y, param));
+                    EXPECT_TRUE(this->recording->run().has_value());
                     expect_equal(read_tensor<T>(param), make_all<T>(K_FULL_PARAM));
                 }
             }
@@ -372,8 +372,8 @@ namespace SushiBLAS
                     Tensor y = this->vector_of(y_values);
                     const Tensor param = this->vector_of(make_all<T>(K_FULL_PARAM));
 
-                    SushiBLAS::BLASOps(*this->engine).rotm(x, y, param);
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder()).rotm(x, y, param);
+                    this->recording->run().value();
 
                     results[mode][0] = read_tensor<T>(x);
                     results[mode][1] = read_tensor<T>(y);
@@ -425,10 +425,10 @@ namespace SushiBLAS
                     Tensor x = this->vector_of({make<T>(4.0)});
                     Tensor y = this->vector_of({make<T>(2.0)});
 
-                    SushiBLAS::BLASOps ops(*this->engine);
+                    SushiBLAS::BLASOps ops(this->recorder());
                     ops.rotmg(d1, d2, x1, y1, param);
                     ops.rotm(x, y, param);
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     // H is [1, 0.5; -0.5, 1], so (4, 2) becomes (5, 0).
                     expect_equal(read_tensor<T>(x), std::vector<T>{make<T>(5.0)});

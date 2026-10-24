@@ -81,9 +81,9 @@ class Medium_MaxMinNaNTest : public SushiBLASTest
 
             auto max = engine->create_tensor({1});
             auto min = engine->create_tensor({1});
-            SushiBLAS::ReductionOps(*engine).max(t, max);
-            SushiBLAS::ReductionOps(*engine).min(t, min);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).max(t, max);
+            SushiBLAS::ReductionOps(recorder()).min(t, min);
+            recording->run().value();
 
             verify_tensor(max, {expected_max}, K_TOLERANCE);
             verify_tensor(min, {expected_min}, K_TOLERANCE);
@@ -116,9 +116,9 @@ TEST_F(Medium_MaxMinNaNTest, SignedZerosGivePositiveMaxAndNegativeMinInEitherOrd
 
         auto max = engine->create_tensor({1});
         auto min = engine->create_tensor({1});
-        SushiBLAS::ReductionOps(*engine).max(t, max);
-        SushiBLAS::ReductionOps(*engine).min(t, min);
-        engine->execute().value();
+        SushiBLAS::ReductionOps(recorder()).max(t, max);
+        SushiBLAS::ReductionOps(recorder()).min(t, min);
+        recording->run().value();
 
         const float got_max = read_tensor<float>(max)[0];
         const float got_min = read_tensor<float>(min)[0];
@@ -135,8 +135,8 @@ TEST_F(Medium_MaxMinNaNTest, MaxAlongARowOfNegativeInfinitiesGivesNegativeInfini
     fill_tensor(x, {-K_INF, -K_INF});
 
     auto out = engine->create_tensor({1});
-    SushiBLAS::ReductionOps(*engine).max_along(x, 1, out);
-    engine->execute().value();
+    SushiBLAS::ReductionOps(recorder()).max_along(x, 1, out);
+    recording->run().value();
 
     verify_tensor(out, {-K_INF}, K_TOLERANCE);
 }
@@ -204,9 +204,9 @@ TEST_F(Medium_MaxMinNaNTest, AxisExtremaPropagateNaN)
 
     auto max = engine->create_tensor({static_cast<int64_t>(K_AXIS_ROWS)});
     auto min = engine->create_tensor({static_cast<int64_t>(K_AXIS_ROWS)});
-    SushiBLAS::ReductionOps(*engine).max_along(x, 1, max);
-    SushiBLAS::ReductionOps(*engine).min_along(x, 1, min);
-    engine->execute().value();
+    SushiBLAS::ReductionOps(recorder()).max_along(x, 1, max);
+    SushiBLAS::ReductionOps(recorder()).min_along(x, 1, min);
+    recording->run().value();
 
     verify_tensor(max, expected_max, K_TOLERANCE);
     verify_tensor(min, expected_min, K_TOLERANCE);

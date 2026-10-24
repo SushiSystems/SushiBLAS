@@ -73,16 +73,16 @@ namespace SushiBLAS
                     double beta = 0.5;
 
                     // 2. Compute SYCL (Optimized) result
-                    engine->set_mode(ExecutionMode::ForceSYCL);
-                    SushiBLAS::BLASOps(*engine).syrk(A, C_actual, uplo_of(upper),
+                    set_mode(ExecutionMode::ForceSYCL);
+                    SushiBLAS::BLASOps(recorder()).syrk(A, C_actual, uplo_of(upper),
                                                      transpose_of(transA), alpha, beta);
-                    engine->execute().value();
+                    recording->run().value();
 
                     // 3. Compute Reference (CPU) result
-                    engine->set_mode(ExecutionMode::ForceReference);
-                    SushiBLAS::BLASOps(*engine).syrk(A, C_expected, uplo_of(upper),
+                    set_mode(ExecutionMode::ForceReference);
+                    SushiBLAS::BLASOps(recorder()).syrk(A, C_expected, uplo_of(upper),
                                                      transpose_of(transA), alpha, beta);
-                    engine->execute().value();
+                    recording->run().value();
 
                     // 4. Compare
                     double tol = (dtype == Core::DataType::Half) ? 1e-2 : 1e-4;

@@ -82,8 +82,8 @@ namespace SushiBLAS
                                          2, 3});
 
             auto out = engine->create_tensor({1, 4, 4, 1}, Core::DataType::Float32);
-            SushiBLAS::SpatialOps(*engine).upsample_nearest(in, out, 2, 2);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).upsample_nearest(in, out, 2, 2);
+            recording->run().value();
 
             const std::vector<float> expected = {0, 0, 1, 1,
                                                  0, 0, 1, 1,
@@ -102,8 +102,8 @@ namespace SushiBLAS
                                          3, 4});
 
             auto out = engine->create_tensor({1, 4, 6, 1}, Core::DataType::Float32);
-            SushiBLAS::SpatialOps(*engine).upsample_nearest(in, out, 2, 3);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).upsample_nearest(in, out, 2, 3);
+            recording->run().value();
 
             const std::vector<float> expected = {1, 1, 1, 2, 2, 2,
                                                  1, 1, 1, 2, 2, 2,
@@ -120,8 +120,8 @@ namespace SushiBLAS
             auto in = ramp(2, 3, 4, 2);
             auto out = engine->create_tensor({2, 3, 4, 2}, Core::DataType::Float32);
 
-            SushiBLAS::SpatialOps(*engine).upsample_nearest(in, out, 1, 1);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).upsample_nearest(in, out, 1, 1);
+            recording->run().value();
 
             const float* expected = in.data_as<float>();
             const float* got = out.data_as<float>();
@@ -138,8 +138,8 @@ namespace SushiBLAS
             auto dy = ramp(N, out_h, out_w, C);
             auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
-            SushiBLAS::SpatialOps(*engine).upsample_nearest_backward(dy, dx, scale_h, scale_w);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).upsample_nearest_backward(dy, dx, scale_h, scale_w);
+            recording->run().value();
 
             // The block is summed index by index. See tests/operations/spatial/README.md.
             const float* source = dy.data_as<float>();
@@ -182,7 +182,7 @@ namespace SushiBLAS
             bool zero_threw = false;
             try
             {
-                SushiBLAS::SpatialOps(*engine).upsample_nearest(in, out, 0, 2);
+                SushiBLAS::SpatialOps(recorder()).upsample_nearest(in, out, 0, 2);
             }
             catch (const std::exception& e)
             {
@@ -196,7 +196,7 @@ namespace SushiBLAS
             bool negative_threw = false;
             try
             {
-                SushiBLAS::SpatialOps(*engine).upsample_nearest(in, out, 2, -3);
+                SushiBLAS::SpatialOps(recorder()).upsample_nearest(in, out, 2, -3);
             }
             catch (const std::exception& e)
             {
@@ -225,13 +225,14 @@ namespace SushiBLAS
             auto from_device = engine->create_tensor({N, out_h, out_w, C},
                                                      Core::DataType::Float32);
 
-            engine->set_mode(ExecutionMode::ForceReference);
-            SushiBLAS::SpatialOps(*engine).upsample_nearest(in, from_reference, scale_h, scale_w);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceReference);
+            SushiBLAS::SpatialOps(recorder())
+                .upsample_nearest(in, from_reference, scale_h, scale_w);
+            recording->run().value();
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
-            SushiBLAS::SpatialOps(*engine).upsample_nearest(in, from_device, scale_h, scale_w);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceSYCL);
+            SushiBLAS::SpatialOps(recorder()).upsample_nearest(in, from_device, scale_h, scale_w);
+            recording->run().value();
 
             const float* expected = from_reference.data_as<float>();
             const float* got = from_device.data_as<float>();

@@ -73,13 +73,16 @@ int main()
 {
     sr::Runtime runtime = sr::Runtime::create().value();
     sb::Engine engine(runtime);
+    sr::Graph graph = runtime.graph();
+    sb::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
 
     constexpr int64_t N = 64;
     auto x = engine.create_tensor({N});
     auto y = engine.create_tensor({N});
 
-    SushiBLAS::BLASOps(engine).axpy(2.0f, x, y);
-    engine.execute().value();
+    SushiBLAS::BLASOps(recorder).axpy(2.0f, x, y);
+    graph.run().value();
+    graph.clear();
     runtime.wait().value();
 
     // One consumer-authored functor runs multiply, add and divide as a single task.
@@ -98,9 +101,10 @@ int main()
     q.memcpy(b.data(), host_b.data(), N * sizeof(float)).wait();
 
     sb::Dispatch::execute_binary(
-        engine.recorder(), a, b, c, "consumer.fused", "consumer.fused"_op,
+        recorder, a, b, c, "consumer.fused", "consumer.fused"_op,
         [](auto p, auto r) { return (p * r + decltype(p)(1)) / decltype(p)(2); });
-    engine.execute().value();
+    graph.run().value();
+    graph.clear();
     runtime.wait().value();
 
     std::vector<float> host_c(N);
@@ -120,7 +124,7 @@ int main()
     }
 
     // One consumer-authored functor advances three tensors in a single task.
-    sb::Dispatch::execute_zip_inplace(engine.recorder(), std::array{&a, &b, &c},
+    sb::Dispatch::execute_zip_inplace(recorder, std::array{&a, &b, &c},
         "consumer.zip", "consumer.zip"_op,
         [](auto& p, auto& r, auto& s)
         {
@@ -128,7 +132,8 @@ int main()
             s = p + r;
             p = p * T(2);
         });
-    engine.execute().value();
+    graph.run().value();
+    graph.clear();
     runtime.wait().value();
 
     std::vector<float> host_p(N), host_s(N);
@@ -165,11 +170,12 @@ int main()
     q.memcpy(col_bias.data(), host_col_bias.data(), host_col_bias.size() * sizeof(float)).wait();
 
     sb::Dispatch::execute_gemm(
-        engine.recorder(), gemm_a, gemm_b, gemm_c,
+        recorder, gemm_a, gemm_b, gemm_c,
         sb::Core::Transpose::NoTrans, sb::Core::Transpose::NoTrans, 1.0, 0.0,
         "consumer.linear_relu", "consumer.linear_relu"_op,
         ConsumerBiasReLU{row_bias.data_as<float>(), col_bias.data_as<float>()});
-    engine.execute().value();
+    graph.run().value();
+    graph.clear();
     runtime.wait().value();
 
     const std::vector<float> want_gemm{2, 0, 6, 0, 0, 3, 11, 4, 17};

@@ -250,7 +250,7 @@ namespace SushiBLAS
                         {
                             SCOPED_TRACE(engine_name(layout, mode));
                             reinit_engine(layout);
-                            engine->set_mode(mode);
+                            set_mode(mode);
                             body(layout);
                         }
                     }
@@ -343,9 +343,9 @@ namespace SushiBLAS
                 void expect_refused(const std::string& what, Record&& record)
                 {
                     SCOPED_TRACE(what);
-                    SushiBLAS::BLASOps ops(*engine);
+                    SushiBLAS::BLASOps ops(recorder());
                     EXPECT_THROW((void)record(ops), std::invalid_argument);
-                    EXPECT_TRUE(engine->execute().has_value());
+                    EXPECT_TRUE(recording->run().has_value());
                 }
 
                 /**
@@ -397,7 +397,7 @@ namespace SushiBLAS
                     Tensor from_second = holding(dims, initial);
                     first(from_first);
                     second(from_second);
-                    engine->execute().value();
+                    recording->run().value();
 
                     const std::vector<float> a = read_tensor<float>(from_first);
                     const std::vector<float> b = read_tensor<float>(from_second);
@@ -417,9 +417,9 @@ namespace SushiBLAS
                 {
                     SCOPED_TRACE(routine.name);
                     Operands operands = valid_operands();
-                    SushiBLAS::BLASOps ops(*engine);
+                    SushiBLAS::BLASOps ops(recorder());
                     EXPECT_NO_THROW((void)routine.record(ops, operands));
-                    EXPECT_TRUE(engine->execute().has_value());
+                    EXPECT_TRUE(recording->run().has_value());
                 }
 
                 Tensor a = ones({1});
@@ -430,11 +430,11 @@ namespace SushiBLAS
                 Tensor y = ones({K_ORDER});
                 Tensor param = ones({K_PARAMETERS});
 
-                SushiBLAS::BLASOps ops(*engine);
+                SushiBLAS::BLASOps ops(recorder());
                 EXPECT_NO_THROW((void)ops.rotg(a, b, c, s));
                 EXPECT_NO_THROW((void)ops.rotmg(a, b, c, s, param));
                 EXPECT_NO_THROW((void)ops.rotm(x, y, param));
-                EXPECT_TRUE(engine->execute().has_value());
+                EXPECT_TRUE(recording->run().has_value());
             });
         }
 
@@ -938,7 +938,7 @@ namespace SushiBLAS
             for_each_engine([&](Core::Layout)
             {
                 std::mt19937 generator(K_SEED);
-                SushiBLAS::BLASOps ops(*engine);
+                SushiBLAS::BLASOps ops(recorder());
                 const Tensor A = holding(band_dims(K_ORDER, K_TRIANGLE_LD),
                                          random_values(generator, K_ORDER * K_TRIANGLE_LD));
                 const Tensor x = holding({K_ORDER}, random_values(generator, K_ORDER));
@@ -963,7 +963,7 @@ namespace SushiBLAS
             for_each_engine([&](Core::Layout)
             {
                 std::mt19937 generator(K_SEED);
-                SushiBLAS::BLASOps ops(*engine);
+                SushiBLAS::BLASOps ops(recorder());
                 const Tensor AP =
                     holding({K_PACKED_COUNT}, random_values(generator, K_PACKED_COUNT));
                 const Tensor x = holding({K_ORDER}, random_values(generator, K_ORDER));
@@ -988,7 +988,7 @@ namespace SushiBLAS
             for_each_engine([&](Core::Layout)
             {
                 std::mt19937 generator(K_SEED);
-                SushiBLAS::BLASOps ops(*engine);
+                SushiBLAS::BLASOps ops(recorder());
                 const std::vector<float> ap = random_values(generator, K_PACKED_COUNT);
                 const Tensor x = holding({K_ORDER}, random_values(generator, K_ORDER));
                 const Tensor y = holding({K_ORDER}, random_values(generator, K_ORDER));

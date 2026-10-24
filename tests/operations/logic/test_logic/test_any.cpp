@@ -40,8 +40,8 @@ TEST_F(Medium_AnyTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {1.0f, 0.0f, 3.0f, 0.0f});
     auto out = engine->create_tensor({1});
-    SushiBLAS::LogicOps(*engine).any(t, out);
-    engine->execute().value();
+    SushiBLAS::LogicOps(recorder()).any(t, out);
+    recording->run().value();
     
     verify_tensor(out, {1.0f});
 }

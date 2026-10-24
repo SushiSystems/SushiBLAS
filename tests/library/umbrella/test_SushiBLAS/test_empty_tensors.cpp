@@ -117,8 +117,8 @@ namespace SushiBLAS
             Tensor out = engine->create_tensor({1});
             fill_tensor(out, {0.5f});
 
-            EXPECT_NO_THROW(SushiBLAS::LogicOps(*engine).all(t, out));
-            engine->execute().value();
+            EXPECT_NO_THROW(SushiBLAS::LogicOps(recorder()).all(t, out));
+            recording->run().value();
             verify_tensor(out, {1.0f});
         }
 
@@ -131,8 +131,8 @@ namespace SushiBLAS
             Tensor out = engine->create_tensor({1});
             fill_tensor(out, {0.5f});
 
-            EXPECT_NO_THROW(SushiBLAS::LogicOps(*engine).any(t, out));
-            engine->execute().value();
+            EXPECT_NO_THROW(SushiBLAS::LogicOps(recorder()).any(t, out));
+            recording->run().value();
             verify_tensor(out, {0.0f});
         }
 
@@ -169,7 +169,7 @@ namespace SushiBLAS
         TEST_F(Medium_EmptyTensorTest, IdentityReductionsOfNothingWriteTheirIdentity)
         {
             Tensor t = empty_tensor();
-            SushiBLAS::ReductionOps reductions(*engine);
+            SushiBLAS::ReductionOps reductions(recorder());
 
             Tensor sum = engine->create_tensor({1});
             Tensor asum = engine->create_tensor({1});
@@ -189,7 +189,7 @@ namespace SushiBLAS
             EXPECT_NO_THROW(reductions.nrm2(t, nrm2));
             EXPECT_NO_THROW(reductions.prod(t, prod));
             EXPECT_NO_THROW(reductions.count_nonfinite(t, count));
-            engine->execute().value();
+            recording->run().value();
 
             verify_tensor(sum, {0.0f});
             verify_tensor(asum, {0.0f});
@@ -236,8 +236,8 @@ namespace SushiBLAS
             Tensor sums = engine->create_tensor({5});
             fill_tensor(sums, std::vector<float>(5, 0.5f));
 
-            EXPECT_NO_THROW(SushiBLAS::ReductionOps(*engine).sum_along(no_rows, 0, sums));
-            engine->execute().value();
+            EXPECT_NO_THROW(SushiBLAS::ReductionOps(recorder()).sum_along(no_rows, 0, sums));
+            recording->run().value();
             verify_tensor(sums, std::vector<float>(5, 0.0f));
 
             // Folding axis 0 of a [5, 0] tensor leaves no position to write.

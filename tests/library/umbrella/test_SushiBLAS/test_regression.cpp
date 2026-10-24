@@ -56,11 +56,11 @@ namespace SushiBLAS
             fill_random<sycl::half>(A);
             fill_random<sycl::half>(C);
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
+            set_mode(ExecutionMode::ForceSYCL);
             EXPECT_NO_THROW({
-                SushiBLAS::BLASOps(*engine).syrk(A, C, Core::Uplo::Lower,
+                SushiBLAS::BLASOps(recorder()).syrk(A, C, Core::Uplo::Lower,
                                                  Core::Transpose::NoTrans, 1.0, 0.0);
-                engine->execute().value();
+                recording->run().value();
             }) << "SYRK must accept HALF (SB-2 removed the oneMKL-era restriction).";
         }
 
@@ -84,9 +84,9 @@ namespace SushiBLAS
                 auto B = create_initialized_tensor<float>({2, 2}, {1, 1, 0, 1});
                 auto C = engine->create_tensor({3, 2}, Core::DataType::Float32);
 
-                engine->set_mode(mode);
-                SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-                engine->execute().value();
+                set_mode(mode);
+                SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
+                recording->run().value();
 
                 EXPECT_TENSOR_NEAR(C, expected, 1e-5);
             }
@@ -103,9 +103,9 @@ namespace SushiBLAS
             auto draw = [&](uint64_t seed)
             {
                 auto t = engine->create_tensor({static_cast<int64_t>(kN)});
-                SushiBLAS::RandomOps(*engine).set_seed(seed);
-                SushiBLAS::RandomOps(*engine).uniform(t, 0.0, 1.0);
-                engine->execute().value();
+                SushiBLAS::RandomOps(recorder(), engine->rng()).set_seed(seed);
+                SushiBLAS::RandomOps(recorder(), engine->rng()).uniform(t, 0.0, 1.0);
+                recording->run().value();
 
                 std::vector<float> host(kN);
                 auto& q = TestEnvironment::queue();
@@ -142,8 +142,8 @@ namespace SushiBLAS
             q.memcpy(x.data(), &one, sizeof(double)).wait();
             q.memcpy(y.data(), &zero, sizeof(double)).wait();
 
-            SushiBLAS::BLASOps(*engine).axpy(kAlpha, x, y);
-            engine->execute().value();
+            SushiBLAS::BLASOps(recorder()).axpy(kAlpha, x, y);
+            recording->run().value();
 
             double got = 0.0;
             q.memcpy(&got, y.data(), sizeof(double)).wait();
@@ -155,8 +155,8 @@ namespace SushiBLAS
 
             // scal is the same defect in the other Level 1 entry point.
             q.memcpy(x.data(), &one, sizeof(double)).wait();
-            SushiBLAS::BLASOps(*engine).scal(kAlpha, x);
-            engine->execute().value();
+            SushiBLAS::BLASOps(recorder()).scal(kAlpha, x);
+            recording->run().value();
             q.memcpy(&got, x.data(), sizeof(double)).wait();
 
             EXPECT_DOUBLE_EQ(kAlpha, got) << "an fp64 SCAL must apply alpha at fp64 precision.";
@@ -204,9 +204,9 @@ namespace SushiBLAS
                     EXPECT_EQ(4, C.strides[0]);
                     EXPECT_TRUE(A.is_contiguous()) << "is_contiguous must agree with the layout rule.";
 
-                    engine->set_mode(mode);
-                    SushiBLAS::BLASOps(*engine).gemm(A, B, C);
-                    engine->execute().value();
+                    set_mode(mode);
+                    SushiBLAS::BLASOps(recorder()).gemm(A, B, C);
+                    recording->run().value();
 
                     EXPECT_TENSOR_NEAR(C, c.expected, 1e-4);
                 }
@@ -294,9 +294,9 @@ namespace SushiBLAS
             SushiBLAS::ReductionOps(probe.recorder()).sum(packed, total);
 
             // And the same thing behaviourally, for the reader who wants to see it.
-            SushiBLAS::ElementwiseOps(*engine).mul(source, source, packed);
-            SushiBLAS::ReductionOps(*engine).sum(packed, total);
-            engine->execute().value();
+            SushiBLAS::ElementwiseOps(recorder()).mul(source, source, packed);
+            SushiBLAS::ReductionOps(recorder()).sum(packed, total);
+            recording->run().value();
 
             EXPECT_TENSOR_NEAR(total, {static_cast<float>(kN) * 9.0f}, 1e-5);
 
@@ -343,9 +343,9 @@ namespace SushiBLAS
             auto reduction_result = engine->create_tensor({1});
             auto level1_result = engine->create_tensor({1});
 
-            SushiBLAS::ReductionOps(*engine).nrm2(x, reduction_result);
-            SushiBLAS::BLASOps(*engine).nrm2(x, level1_result);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).nrm2(x, reduction_result);
+            SushiBLAS::BLASOps(recorder()).nrm2(x, level1_result);
+            recording->run().value();
 
             const std::pair<const char*, Tensor> answers[] = {
                 {"reductions().nrm2", reduction_result},
@@ -378,9 +378,9 @@ namespace SushiBLAS
             auto reduction_result = engine->create_tensor({1});
             auto level1_result = engine->create_tensor({1});
 
-            SushiBLAS::ReductionOps(*engine).nrm2(x, reduction_result);
-            SushiBLAS::BLASOps(*engine).nrm2(x, level1_result);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).nrm2(x, reduction_result);
+            SushiBLAS::BLASOps(recorder()).nrm2(x, level1_result);
+            recording->run().value();
 
             const std::pair<const char*, Tensor> answers[] = {
                 {"reductions().nrm2", reduction_result},
@@ -410,8 +410,8 @@ namespace SushiBLAS
             auto x = create_initialized_tensor<std::complex<float>>({1}, data);
             auto result = engine->create_tensor({1}, Core::DataType::Float32);
 
-            SushiBLAS::BLASOps(*engine).nrm2(x, result);
-            engine->execute().value();
+            SushiBLAS::BLASOps(recorder()).nrm2(x, result);
+            recording->run().value();
 
             // |3 + 4i| = 5. `abs1` would have given |3| + |4| = 7.
             EXPECT_NEAR(scalar_of(result), 5.0f, 1e-4f)

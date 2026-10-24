@@ -414,15 +414,15 @@ namespace SushiBLAS
                                    start.size() * sizeof(T)).wait();
 
 
-                    engine->set_mode(ExecutionMode::ForceSYCL);
+                    set_mode(ExecutionMode::ForceSYCL);
                     const std::size_t live_before = TestEnvironment::live_allocation_count();
                     record(A, sycl_result);
                     EXPECT_EQ(TestEnvironment::live_allocation_count(), live_before + 1);
-                    engine->execute().value();
+                    recording->run().value();
 
-                    engine->set_mode(ExecutionMode::ForceReference);
+                    set_mode(ExecutionMode::ForceReference);
                     record(A, reference_result);
-                    engine->execute().value();
+                    recording->run().value();
 
                     const std::vector<T> got = read_tensor<T>(sycl_result);
                     const std::vector<T> want = read_tensor<T>(reference_result);
@@ -552,11 +552,11 @@ namespace SushiBLAS
 
                 this->expect_seam_parity(s, [&](const Tensor& A, Tensor& C)
                 {
-                    SushiBLAS::BLASOps(*this->engine).syrk(A, C, uplo);
+                    SushiBLAS::BLASOps(this->recorder()).syrk(A, C, uplo);
                 });
                 this->expect_seam_parity(s, [&](const Tensor& A, Tensor& C)
                 {
-                    SushiBLAS::BLASOps(*this->engine).herk(A, C, uplo);
+                    SushiBLAS::BLASOps(this->recorder()).herk(A, C, uplo);
                 });
             }
         }

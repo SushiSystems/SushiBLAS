@@ -126,8 +126,8 @@ namespace SushiBLAS
                     fill_order_sensitive(cols.data_as<float>(), cols.num_elements);
 
                     auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
-                    SushiBLAS::SpatialOps(*engine).col2im(cols, dx, g, out_h, out_w);
-                    engine->execute().value();
+                    SushiBLAS::SpatialOps(recorder()).col2im(cols, dx, g, out_h, out_w);
+                    recording->run().value();
 
                     capture(dx, sink);
                 },
@@ -157,8 +157,8 @@ namespace SushiBLAS
 
             auto indices = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Int64);
             auto pooled = engine->create_tensor({N, out_h, out_w, C}, Core::DataType::Float32);
-            SushiBLAS::SpatialOps(*engine).pool_max(in, pooled, indices, g);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).pool_max(in, pooled, indices, g);
+            recording->run().value();
 
             expect_bit_identical_across_runs(
                 [&](std::vector<uint32_t>& sink)
@@ -167,8 +167,8 @@ namespace SushiBLAS
                     fill_order_sensitive(dy.data_as<float>(), dy.num_elements);
 
                     auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
-                    SushiBLAS::SpatialOps(*engine).pool_max_backward(dy, indices, dx, g);
-                    engine->execute().value();
+                    SushiBLAS::SpatialOps(recorder()).pool_max_backward(dy, indices, dx, g);
+                    recording->run().value();
 
                     capture(dx, sink);
                 },
@@ -194,8 +194,8 @@ namespace SushiBLAS
                     fill_order_sensitive(dy.data_as<float>(), dy.num_elements);
 
                     auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
-                    SushiBLAS::SpatialOps(*engine).pool_avg_backward(dy, dx, g);
-                    engine->execute().value();
+                    SushiBLAS::SpatialOps(recorder()).pool_avg_backward(dy, dx, g);
+                    recording->run().value();
 
                     capture(dx, sink);
                 },
@@ -226,8 +226,8 @@ namespace SushiBLAS
                     fill_ones(weights.data_as<float>(), weights.num_elements);
 
                     auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
-                    SushiBLAS::SpatialOps(*engine).window_dot_backward(dy, weights, dx, g);
-                    engine->execute().value();
+                    SushiBLAS::SpatialOps(recorder()).window_dot_backward(dy, weights, dx, g);
+                    recording->run().value();
 
                     capture(dx, sink);
                 },
@@ -258,8 +258,9 @@ namespace SushiBLAS
                     fill_ones(in.data_as<float>(), in.num_elements);
 
                     auto dweights = engine->create_tensor({3, 3, C}, Core::DataType::Float32);
-                    SushiBLAS::SpatialOps(*engine).window_dot_weights_backward(dy, in, dweights, g);
-                    engine->execute().value();
+                    SushiBLAS::SpatialOps(recorder())
+                        .window_dot_weights_backward(dy, in, dweights, g);
+                    recording->run().value();
 
                     capture(dweights, sink);
                 },
@@ -280,8 +281,9 @@ namespace SushiBLAS
                     fill_order_sensitive(dy.data_as<float>(), dy.num_elements);
 
                     auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
-                    SushiBLAS::SpatialOps(*engine).upsample_nearest_backward(dy, dx, scale, scale);
-                    engine->execute().value();
+                    SushiBLAS::SpatialOps(recorder())
+                        .upsample_nearest_backward(dy, dx, scale, scale);
+                    recording->run().value();
 
                     capture(dx, sink);
                 },
@@ -300,8 +302,8 @@ namespace SushiBLAS
                     fill_order_sensitive(in.data_as<float>(), in.num_elements);
 
                     auto out = engine->create_tensor({N, C}, Core::DataType::Float32);
-                    SushiBLAS::ReductionOps(*engine).mean_spatial(in, out);
-                    engine->execute().value();
+                    SushiBLAS::ReductionOps(recorder()).mean_spatial(in, out);
+                    recording->run().value();
 
                     capture(out, sink);
                 },

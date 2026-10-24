@@ -200,10 +200,10 @@ namespace SushiBLAS
                                                    Core::Uplo uplo, Core::Transpose trans,
                                                    Core::Diag diag, const Wide& b)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     Tensor tb = vector_of(b);
-                    SushiBLAS::SparseOps(*engine).sptrsv(A, tb, uplo, trans, diag);
-                    engine->execute().value();
+                    SushiBLAS::SparseOps(recorder()).sptrsv(A, tb, uplo, trans, diag);
+                    recording->run().value();
                     return read_tensor<T>(tb);
                 }
 
@@ -425,11 +425,11 @@ namespace SushiBLAS
                                                 reals({2})),
                                       reals({0.5}), K_SOLVE_TOLERANCE);
 
-                this->engine->set_mode(mode);
+                this->set_mode(mode);
                 const SparseMatrix A = this->build(empty, Core::IndexBase::Zero);
                 Tensor b = this->engine->create_tensor({0}, sushiblas_dtype<T>());
-                EXPECT_NO_THROW(SparseOps(*this->engine).sptrsv(A, b, Core::Uplo::Lower));
-                EXPECT_TRUE(this->engine->execute().has_value());
+                EXPECT_NO_THROW(SparseOps(this->recorder()).sptrsv(A, b, Core::Uplo::Lower));
+                EXPECT_TRUE(this->recording->run().has_value());
             }
         }
 

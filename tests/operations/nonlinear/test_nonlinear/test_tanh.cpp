@@ -40,8 +40,8 @@ TEST_F(Medium_TanhTest, Forward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {0.0f, 1.0f, -1.0f, 2.0f});
     
-    SushiBLAS::NonLinearOps(*engine).tanh(t);
-    engine->execute().value();
+    SushiBLAS::NonLinearOps(recorder()).tanh(t);
+    recording->run().value();
     
     verify_tensor(t, {0.0f, 0.761594f, -0.761594f, 0.964028f});
 }
@@ -56,8 +56,8 @@ TEST_F(Medium_TanhTest, Backward)
     fill_tensor(y, {0.0f, 0.761594f, -0.761594f, 0.964028f});
     fill_tensor(dx, {0.0f, 0.0f, 0.0f, 0.0f});
     
-    SushiBLAS::NonLinearOps(*engine).tanh_backward(dy, y, dx);
-    engine->execute().value();
+    SushiBLAS::NonLinearOps(recorder()).tanh_backward(dy, y, dx);
+    recording->run().value();
     
     verify_tensor(dx, {1.0f, 0.419974f, 0.419974f, 0.070651f});
 }

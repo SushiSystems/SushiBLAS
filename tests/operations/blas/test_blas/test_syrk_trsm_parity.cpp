@@ -75,15 +75,15 @@ namespace SushiBLAS
                     fill_random<T>(C_actual);
                     copy_contents(C_actual, C_expected);
 
-                    engine->set_mode(ExecutionMode::ForceSYCL);
-                    SushiBLAS::BLASOps(*engine).syrk(A, C_actual, uplo_of(upper),
+                    set_mode(ExecutionMode::ForceSYCL);
+                    SushiBLAS::BLASOps(recorder()).syrk(A, C_actual, uplo_of(upper),
                                                      transpose_of(trans_a), 1.5, 0.5);
-                    engine->execute().value();
+                    recording->run().value();
 
-                    engine->set_mode(ExecutionMode::ForceReference);
-                    SushiBLAS::BLASOps(*engine).syrk(A, C_expected, uplo_of(upper),
+                    set_mode(ExecutionMode::ForceReference);
+                    SushiBLAS::BLASOps(recorder()).syrk(A, C_expected, uplo_of(upper),
                                                      transpose_of(trans_a), 1.5, 0.5);
-                    engine->execute().value();
+                    recording->run().value();
 
                     SB_ASSERT_TENSOR_NEAR(C_actual, C_expected, K_TOLERANCE, T);
                 }
@@ -105,17 +105,17 @@ namespace SushiBLAS
                     fill_random<T>(B_actual);
                     copy_contents(B_actual, B_expected);
 
-                    engine->set_mode(ExecutionMode::ForceSYCL);
-                    SushiBLAS::BLASOps(*engine).trsm(
+                    set_mode(ExecutionMode::ForceSYCL);
+                    SushiBLAS::BLASOps(recorder()).trsm(
                         A, B_actual, side_of(left_side), uplo_of(upper), transpose_of(trans_a),
                         diag_of(unit_diag), 1.5);
-                    engine->execute().value();
+                    recording->run().value();
 
-                    engine->set_mode(ExecutionMode::ForceReference);
-                    SushiBLAS::BLASOps(*engine).trsm(
+                    set_mode(ExecutionMode::ForceReference);
+                    SushiBLAS::BLASOps(recorder()).trsm(
                         A, B_expected, side_of(left_side), uplo_of(upper), transpose_of(trans_a),
                         diag_of(unit_diag), 1.5);
-                    engine->execute().value();
+                    recording->run().value();
 
                     SB_ASSERT_TENSOR_NEAR(B_actual, B_expected, K_TOLERANCE, T);
                 }

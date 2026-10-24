@@ -92,8 +92,8 @@ namespace SushiBLAS
                         {static_cast<int64_t>(data.size())}, data);
                     auto result = this->engine->create_tensor({1}, Core::DataType::Int64);
 
-                    SushiBLAS::ReductionOps(*this->engine).count_nonfinite(t, result);
-                    this->engine->execute().value();
+                    SushiBLAS::ReductionOps(this->recorder()).count_nonfinite(t, result);
+                    this->recording->run().value();
 
                     int64_t host = -1;
                     TestEnvironment::queue()
@@ -250,9 +250,9 @@ namespace SushiBLAS
             auto count = engine->create_tensor({1}, Core::DataType::Int64);
             auto total = engine->create_tensor({1}, Core::DataType::Half);
 
-            SushiBLAS::ReductionOps(*engine).count_nonfinite(t, count);
-            SushiBLAS::ReductionOps(*engine).asum(t, total);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).count_nonfinite(t, count);
+            SushiBLAS::ReductionOps(recorder()).asum(t, total);
+            recording->run().value();
 
             EXPECT_EQ(0, read_count(count))
                 << "Every element is 20000, which binary16 represents exactly. The tensor "
@@ -297,12 +297,12 @@ namespace SushiBLAS
 
             auto wrong_dtype = engine->create_tensor({1}, Core::DataType::Float32);
             const std::string dtype_msg = message_of(
-                [&]{ SushiBLAS::ReductionOps(*engine).count_nonfinite(t, wrong_dtype); });
+                [&]{ SushiBLAS::ReductionOps(recorder()).count_nonfinite(t, wrong_dtype); });
             EXPECT_NE(std::string::npos, dtype_msg.find("INT64")) << dtype_msg;
 
             auto not_scalar = engine->create_tensor({2}, Core::DataType::Int64);
             const std::string scalar_msg = message_of(
-                [&]{ SushiBLAS::ReductionOps(*engine).count_nonfinite(t, not_scalar); });
+                [&]{ SushiBLAS::ReductionOps(recorder()).count_nonfinite(t, not_scalar); });
             EXPECT_NE(std::string::npos, scalar_msg.find("scalar")) << scalar_msg;
         }
 
@@ -351,9 +351,9 @@ namespace SushiBLAS
             auto count = engine->create_tensor({1}, Core::DataType::Int64);
 
             // 1e30 * 1e30 overflows binary32; the other three stay at 1.
-            SushiBLAS::ElementwiseOps(*engine).mul(big, big, squared);
-            SushiBLAS::ReductionOps(*engine).count_nonfinite(squared, count);
-            engine->execute().value();
+            SushiBLAS::ElementwiseOps(recorder()).mul(big, big, squared);
+            SushiBLAS::ReductionOps(recorder()).count_nonfinite(squared, count);
+            recording->run().value();
 
             EXPECT_EQ(1, read_count(count));
         }

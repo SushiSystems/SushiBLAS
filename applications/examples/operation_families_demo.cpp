@@ -61,6 +61,8 @@ int main()
 {
     SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
     SushiBLAS::Engine engine(runtime);
+    SushiRuntime::Graph graph = runtime.graph();
+    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
 
     const SushiBLAS::Tensor x = tensor_of(engine, {4}, {1.0f, 2.0f, 3.0f, 4.0f});
     const SushiBLAS::Tensor y = tensor_of(engine, {4}, {4.0f, 3.0f, 2.0f, 1.0f});
@@ -87,25 +89,25 @@ int main()
     SushiBLAS::Tensor first_draw = engine.create_tensor({64});
     SushiBLAS::Tensor second_draw = engine.create_tensor({64});
 
-    SushiBLAS::BLASOps blas(engine);
+    SushiBLAS::BLASOps blas(recorder);
     blas.dot(x, y, dot);
     blas.gemv(matrix, ones, matrix_vector);
     blas.gemm(matrix, matrix, matrix_matrix);
-    SushiBLAS::ElementwiseOps(engine).mul(x, y, product);
-    SushiBLAS::NonLinearOps(engine).relu(signed_values);
-    SushiBLAS::LogicOps(engine).greater(x, y, greater);
-    SushiBLAS::ReductionOps(engine).max(x, maximum);
-    SushiBLAS::SparseOps(engine).spmv(sparse, dense, sparse_vector);
-    SushiBLAS::SpatialOps(engine).upsample_nearest(image, upsampled, 2, 2);
+    SushiBLAS::ElementwiseOps(recorder).mul(x, y, product);
+    SushiBLAS::NonLinearOps(recorder).relu(signed_values);
+    SushiBLAS::LogicOps(recorder).greater(x, y, greater);
+    SushiBLAS::ReductionOps(recorder).max(x, maximum);
+    SushiBLAS::SparseOps(recorder).spmv(sparse, dense, sparse_vector);
+    SushiBLAS::SpatialOps(recorder).upsample_nearest(image, upsampled, 2, 2);
 
     // The same seed gives the same stream, so the two draws must hold the same numbers.
-    SushiBLAS::RandomOps random(engine);
+    SushiBLAS::RandomOps random(recorder, engine.rng());
     random.set_seed(42);
     random.uniform(first_draw);
     random.set_seed(42);
     random.uniform(second_draw);
 
-    engine.execute().value();
+    graph.run().value();
 
     bool correct = holds(engine, "blas level 1, dot", dot, {20.0f});
     correct = holds(engine, "blas level 2, gemv", matrix_vector, {3.0f, 7.0f}) && correct;

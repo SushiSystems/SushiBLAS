@@ -213,13 +213,13 @@ namespace SushiBLAS
             {
                 const SparseMatrix A = sample();
                 live_with_matrix = live_allocations();
-                SparseOps(*engine).spmv(A, x, y);
+                SparseOps(recorder()).spmv(A, x, y);
             }
 
             EXPECT_GE(live_allocations(), live_with_matrix)
                 << "The recorded task is the last holder of the three arrays and must keep them.";
 
-            engine->execute().value();
+            recording->run().value();
 
             verify_tensor(y, std::vector<float>{9, 0, 43, 41}, K_TOLERANCE);
         }

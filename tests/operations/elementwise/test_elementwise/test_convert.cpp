@@ -160,8 +160,8 @@ namespace SushiBLAS
             auto dst = engine->create_tensor({1}, Core::DataType::Half);
             write_exact(src, {static_cast<double>(0.1f)});
 
-            SushiBLAS::ElementwiseOps(*engine).convert(src, dst);
-            engine->execute().value();
+            SushiBLAS::ElementwiseOps(recorder()).convert(src, dst);
+            recording->run().value();
 
             const auto got = read_exact(dst);
             EXPECT_EQ(K_TENTH_AS_HALF, got[0])
@@ -182,8 +182,8 @@ namespace SushiBLAS
             write_exact(src, {1.0 + 0.00048828125,        // 1 + 2^-11, exactly halfway
                               1.0 + 0.000732421875});     // 1 + 3*2^-12, past halfway
 
-            SushiBLAS::ElementwiseOps(*engine).convert(src, dst);
-            engine->execute().value();
+            SushiBLAS::ElementwiseOps(recorder()).convert(src, dst);
+            recording->run().value();
 
             const auto got = read_exact(dst);
             EXPECT_EQ(1.0, got[0]) << "A tie must resolve to the neighbour with the even mantissa.";
@@ -200,8 +200,8 @@ namespace SushiBLAS
             auto dst = engine->create_tensor({4}, Core::DataType::Half);
             write_exact(src, {K_HALF_MAX, 70000.0, -70000.0, 1.0e30});
 
-            SushiBLAS::ElementwiseOps(*engine).convert(src, dst);
-            engine->execute().value();
+            SushiBLAS::ElementwiseOps(recorder()).convert(src, dst);
+            recording->run().value();
 
             const auto got = read_exact(dst);
             EXPECT_EQ(K_HALF_MAX, got[0]) << "The largest finite binary16 value must stay finite.";
@@ -220,8 +220,8 @@ namespace SushiBLAS
             auto dst = engine->create_tensor({2}, Core::DataType::Half);
             write_exact(src, {1.0e-8, 1.0e-7});
 
-            SushiBLAS::ElementwiseOps(*engine).convert(src, dst);
-            engine->execute().value();
+            SushiBLAS::ElementwiseOps(recorder()).convert(src, dst);
+            recording->run().value();
 
             const auto got = read_exact(dst);
             EXPECT_EQ(0.0, got[0]) << "1e-8 is below half the smallest binary16 subnormal.";
@@ -243,9 +243,9 @@ namespace SushiBLAS
                               -std::numeric_limits<double>::infinity(),
                               std::numeric_limits<double>::quiet_NaN()});
 
-            SushiBLAS::ElementwiseOps(*engine).convert(src, down);
-            SushiBLAS::ElementwiseOps(*engine).convert(src, up);
-            engine->execute().value();
+            SushiBLAS::ElementwiseOps(recorder()).convert(src, down);
+            SushiBLAS::ElementwiseOps(recorder()).convert(src, up);
+            recording->run().value();
 
             for (const Tensor* t : {&down, &up})
             {
@@ -267,9 +267,9 @@ namespace SushiBLAS
             auto back = engine->create_tensor({1}, Core::DataType::Float32);
             write_exact(src, {static_cast<double>(0.1f)});
 
-            SushiBLAS::ElementwiseOps(*engine).convert(src, narrow);
-            SushiBLAS::ElementwiseOps(*engine).convert(narrow, back);
-            engine->execute().value();
+            SushiBLAS::ElementwiseOps(recorder()).convert(src, narrow);
+            SushiBLAS::ElementwiseOps(recorder()).convert(narrow, back);
+            recording->run().value();
 
             const auto got = read_exact(back);
             EXPECT_EQ(K_TENTH_AS_HALF, got[0])
@@ -293,8 +293,8 @@ namespace SushiBLAS
                     auto dst = engine->create_tensor({6}, to);
                     write_exact(src, values);
 
-                    SushiBLAS::ElementwiseOps(*engine).convert(src, dst);
-                    engine->execute().value();
+                    SushiBLAS::ElementwiseOps(recorder()).convert(src, dst);
+                    recording->run().value();
 
                     const auto got = read_exact(dst);
                     for (size_t i = 0; i < values.size(); ++i)
@@ -318,8 +318,8 @@ namespace SushiBLAS
             // 2^40 is exact in fp32; 1e30 would not be. See tests/operations/elementwise/README.md.
             write_exact(src, {1.5, -2.25, 1099511627776.0});
 
-            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(*engine).convert(src, dst));
-            engine->execute().value();
+            EXPECT_NO_THROW(SushiBLAS::ElementwiseOps(recorder()).convert(src, dst));
+            recording->run().value();
 
             const auto got = read_exact(dst);
             EXPECT_EQ(1.5, got[0]);
@@ -337,8 +337,8 @@ namespace SushiBLAS
                 values[i] = static_cast<double>(i) - 5.0;
             write_exact(src, values);
 
-            SushiBLAS::ElementwiseOps(*engine).convert(src, dst);
-            engine->execute().value();
+            SushiBLAS::ElementwiseOps(recorder()).convert(src, dst);
+            recording->run().value();
 
             const auto got = read_exact(dst);
             for (size_t i = 0; i < values.size(); ++i)
@@ -407,11 +407,11 @@ namespace SushiBLAS
             auto wrong_rank = engine->create_tensor({12}, Core::DataType::Half);
 
             const std::string dim =
-                message_of([&]{ SushiBLAS::ElementwiseOps(*engine).convert(src, wrong_dim); });
+                message_of([&]{ SushiBLAS::ElementwiseOps(recorder()).convert(src, wrong_dim); });
             EXPECT_NE(std::string::npos, dim.find("dimension")) << dim;
 
             const std::string rank =
-                message_of([&]{ SushiBLAS::ElementwiseOps(*engine).convert(src, wrong_rank); });
+                message_of([&]{ SushiBLAS::ElementwiseOps(recorder()).convert(src, wrong_rank); });
             EXPECT_NE(std::string::npos, rank.find("rank")) << rank;
         }
 
@@ -427,7 +427,7 @@ namespace SushiBLAS
 
             ASSERT_FALSE(inner.is_contiguous());
             const std::string msg =
-                message_of([&]{ SushiBLAS::ElementwiseOps(*engine).convert(inner, dst); });
+                message_of([&]{ SushiBLAS::ElementwiseOps(recorder()).convert(inner, dst); });
             EXPECT_NE(std::string::npos, msg.find("strided")) << msg;
         }
 
@@ -448,7 +448,7 @@ namespace SushiBLAS
             Tensor b(storage, {kN}, Core::DataType::Float32, kN / 2);
 
             const std::string msg =
-                message_of([&]{ SushiBLAS::ElementwiseOps(*engine).convert(a, b); });
+                message_of([&]{ SushiBLAS::ElementwiseOps(recorder()).convert(a, b); });
             EXPECT_NE(std::string::npos, msg.find("overlap")) << msg;
         }
 
@@ -576,8 +576,8 @@ namespace SushiBLAS
             write_exact(tail, {5.0, 6.0, 7.0, 8.0});
             write_exact(out_head, {-1.0, -1.0, -1.0, -1.0});
 
-            SushiBLAS::ElementwiseOps(*engine).convert(tail, out_tail);
-            engine->execute().value();
+            SushiBLAS::ElementwiseOps(recorder()).convert(tail, out_tail);
+            recording->run().value();
 
             const auto got_tail = read_exact(out_tail);
             EXPECT_EQ(5.0, got_tail[0]);

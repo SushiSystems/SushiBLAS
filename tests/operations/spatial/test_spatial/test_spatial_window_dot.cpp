@@ -318,7 +318,9 @@ namespace SushiBLAS
                                       const Tensor& weights)
             {
                 Tensor out = sentinel_tensor<T>(engine, c.output_dims());
-                SushiBLAS::SpatialOps(engine).window_dot(in, weights, out, c.geometry);
+                RecordingFixture graph(engine);
+                SushiBLAS::SpatialOps(graph.recorder()).window_dot(in, weights, out, c.geometry);
+                graph.run().value();
                 return SushiBLAS::IO(engine).to_vector<T>(out);
             }
 
@@ -328,7 +330,10 @@ namespace SushiBLAS
                                              const Tensor& weights)
             {
                 Tensor dx = sentinel_tensor<T>(engine, c.input_dims());
-                SushiBLAS::SpatialOps(engine).window_dot_backward(dy, weights, dx, c.geometry);
+                RecordingFixture graph(engine);
+                SushiBLAS::SpatialOps(graph.recorder())
+                    .window_dot_backward(dy, weights, dx, c.geometry);
+                graph.run().value();
                 return SushiBLAS::IO(engine).to_vector<T>(dx);
             }
 
@@ -338,8 +343,10 @@ namespace SushiBLAS
                                               const Tensor& in)
             {
                 Tensor dweights = sentinel_tensor<T>(engine, c.tap_dims());
-                SushiBLAS::SpatialOps(engine).window_dot_weights_backward(dy, in, dweights,
-                                                                          c.geometry);
+                RecordingFixture graph(engine);
+                SushiBLAS::SpatialOps(graph.recorder())
+                    .window_dot_weights_backward(dy, in, dweights, c.geometry);
+                graph.run().value();
                 return SushiBLAS::IO(engine).to_vector<T>(dweights);
             }
 
@@ -605,7 +612,7 @@ namespace SushiBLAS
                 for (const ExecutionMode mode : K_FORCED_MODES)
                 {
                     SCOPED_TRACE(std::string(c.id) + " " + forced_mode_name(mode));
-                    engine->set_mode(mode);
+                    set_mode(mode);
 
                     const Tensor in = tensor_from<double>(*engine, c.input_dims(), x);
                     const Tensor weights = tensor_from<double>(*engine, c.tap_dims(), w);
@@ -722,7 +729,7 @@ namespace SushiBLAS
                 for (const ExecutionMode mode : K_FORCED_MODES)
                 {
                     SCOPED_TRACE(std::string(c.id) + " " + forced_mode_name(mode));
-                    engine->set_mode(mode);
+                    set_mode(mode);
 
                     const Tensor dy = tensor_from<float>(*engine, c.output_dims(), g);
                     const Tensor in = tensor_from<float>(*engine, c.input_dims(), x);
@@ -742,7 +749,7 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
                 SCOPED_TRACE(forced_mode_name(mode));
-                engine->set_mode(mode);
+                set_mode(mode);
 
                 const Tensor in = tensor_from<float>(*engine, c.input_dims(), {3, 5, 7});
                 const Tensor weights = tensor_from<float>(*engine, c.tap_dims(), {2});
@@ -774,7 +781,7 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
                 SCOPED_TRACE(forced_mode_name(mode));
-                engine->set_mode(mode);
+                set_mode(mode);
 
                 const Tensor larger = tensor_from<float>(*engine, larger_dims, larger_values);
                 const Tensor view = larger.slice(0, 1, c.batch + 1).slice(2, 1, c.in_w + 1);
@@ -801,7 +808,7 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_FORCED_MODES)
             {
                 SCOPED_TRACE(forced_mode_name(mode));
-                engine->set_mode(mode);
+                set_mode(mode);
 
                 const Tensor dy = tensor_from<float>(*engine, c.output_dims(), {});
                 const Tensor in = tensor_from<float>(*engine, c.input_dims(), {});
@@ -821,7 +828,7 @@ namespace SushiBLAS
             Tensor in = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             Tensor weights = engine->create_tensor({3, 3, C}, Core::DataType::Float32);
             Tensor out = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
-            SushiBLAS::SpatialOps spatial(*engine);
+            SushiBLAS::SpatialOps spatial(recorder());
 
             Tensor flat_weights = engine->create_tensor({3, 3}, Core::DataType::Float32);
             expect_refusal([&] { spatial.window_dot(in, flat_weights, out, g); }, NAME, "weights");
@@ -871,14 +878,14 @@ namespace SushiBLAS
             const Tensor weights =
                 tensor_from<float>(*engine, c.tap_dims(), tap_pattern(c.tap_dims()));
             Tensor out = sentinel_tensor<float>(*engine, c.output_dims());
-            SushiBLAS::SpatialOps spatial(*engine);
+            SushiBLAS::SpatialOps spatial(recorder());
 
-            engine->set_mode(ExecutionMode::ForceReference);
+            set_mode(ExecutionMode::ForceReference);
             EXPECT_THROW(spatial.window_dot(*in, weights, out, g), std::invalid_argument);
 
-            engine->set_mode(ExecutionMode::Auto);
+            set_mode(ExecutionMode::Auto);
             EXPECT_NO_THROW(spatial.window_dot(*in, weights, out, g));
-            engine->execute().value();
+            recording->run().value();
         }
     }
 }

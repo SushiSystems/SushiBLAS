@@ -76,8 +76,8 @@ namespace SushiBLAS
             auto cols = filled_cols(N * out_h * out_w, 3 * 3 * C, 1.0f);
             auto dx = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
-            SushiBLAS::SpatialOps(*engine).col2im(cols, dx, g, out_h, out_w);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).col2im(cols, dx, g, out_h, out_w);
+            recording->run().value();
 
             const float* got = dx.data_as<float>();
             for (int64_t n = 0; n < N; ++n)
@@ -116,8 +116,8 @@ namespace SushiBLAS
             auto cols = filled_cols(out_h * out_w, 2 * 2 * C, 1.0f);
             auto dx = engine->create_tensor({1, H, W, C}, Core::DataType::Float32);
 
-            SushiBLAS::SpatialOps(*engine).col2im(cols, dx, g, out_h, out_w);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).col2im(cols, dx, g, out_h, out_w);
+            recording->run().value();
 
             // Non-overlapping 2x2 tiles: every pixel is read exactly once.
             const float* got = dx.data_as<float>();
@@ -146,8 +146,8 @@ namespace SushiBLAS
             for (int64_t i = 0; i < dx.num_elements; ++i)
                 seed[i] = sentinel;
 
-            SushiBLAS::SpatialOps(*engine).col2im(cols, dx, g, out_h, out_w);
-            engine->execute().value();
+            SushiBLAS::SpatialOps(recorder()).col2im(cols, dx, g, out_h, out_w);
+            recording->run().value();
 
             const float* got = dx.data_as<float>();
             for (int64_t h = 0; h < H; ++h)
@@ -184,13 +184,13 @@ namespace SushiBLAS
             auto from_reference = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
             auto from_device = engine->create_tensor({N, H, W, C}, Core::DataType::Float32);
 
-            engine->set_mode(ExecutionMode::ForceReference);
-            SushiBLAS::SpatialOps(*engine).col2im(cols, from_reference, g, out_h, out_w);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceReference);
+            SushiBLAS::SpatialOps(recorder()).col2im(cols, from_reference, g, out_h, out_w);
+            recording->run().value();
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
-            SushiBLAS::SpatialOps(*engine).col2im(cols, from_device, g, out_h, out_w);
-            engine->execute().value();
+            set_mode(ExecutionMode::ForceSYCL);
+            SushiBLAS::SpatialOps(recorder()).col2im(cols, from_device, g, out_h, out_w);
+            recording->run().value();
 
             const float* expected = from_reference.data_as<float>();
             const float* got = from_device.data_as<float>();

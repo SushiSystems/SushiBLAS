@@ -170,13 +170,13 @@ namespace SushiBLAS
                                                               std::complex<double> beta,
                                                               const Columns& c)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     const SparseMatrix A = build(host, base);
                     const Tensor B = matrix_of(b);
                     Tensor C = matrix_of(c);
-                    SushiBLAS::SparseOps(*engine).spmm(A, B, C, trans, BLASScalar(alpha),
+                    SushiBLAS::SparseOps(recorder()).spmm(A, B, C, trans, BLASScalar(alpha),
                                                        BLASScalar(beta));
-                    engine->execute().value();
+                    recording->run().value();
                     return columns_of(C);
                 }
 
@@ -368,13 +368,13 @@ namespace SushiBLAS
                 this->reinit_engine(layout);
                 for (const ExecutionMode mode : K_BOTH_MODES)
                 {
-                    this->engine->set_mode(mode);
+                    this->set_mode(mode);
                     const SparseMatrix A = this->build(host, Core::IndexBase::Zero);
                     const Tensor B = this->engine->create_tensor({5, 0}, sushiblas_dtype<T>());
                     Tensor C = this->engine->create_tensor({4, 0}, sushiblas_dtype<T>());
 
-                    EXPECT_NO_THROW(SparseOps(*this->engine).spmm(A, B, C));
-                    EXPECT_TRUE(this->engine->execute().has_value());
+                    EXPECT_NO_THROW(SparseOps(this->recorder()).spmm(A, B, C));
+                    EXPECT_TRUE(this->recording->run().has_value());
                 }
             }
         }

@@ -13,9 +13,12 @@ It depends on `core`, `tensor`, `engine`, `test_runner`, `tensor_expectations` a
 
 ## sushiblas_test.hpp
 
-`SetUp` builds a row-major `Engine` on `TestEnvironment::runtime()` and restarts the
-generator of `fill_random`, so a test sees the same inputs whether it runs alone or with its
-suite. `reinit_engine` rebuilds the engine in another layout. `create_initialized_tensor<T>`
+`SetUp` builds a row-major `Engine` on `TestEnvironment::runtime()`, a `RecordingFixture` over
+it, reachable as `recording`, and restarts the generator of `fill_random`, so a test sees the
+same inputs whether it runs alone or with its suite. A test builds its operation views on
+`recorder()` and runs them with `recording->run()`. `set_mode` sets the execution mode of the
+engine and of that recorder. `reinit_engine` rebuilds the engine in another layout, and the
+graph with it. `create_initialized_tensor<T>`
 creates a tensor of `T`'s dtype and copies a host vector into it.
 
 ## recording_fixture.hpp

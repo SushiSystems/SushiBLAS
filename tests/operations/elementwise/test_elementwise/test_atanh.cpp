@@ -40,8 +40,8 @@ TEST_F(Medium_AtanhTest, FloatForward)
     auto t = engine->create_tensor({4});
     fill_tensor(t, {0.0f, 0.5f, -0.5f, 0.8f});
     
-    SushiBLAS::ElementwiseOps(*engine).atanh(t);
-    engine->execute().value();
+    SushiBLAS::ElementwiseOps(recorder()).atanh(t);
+    recording->run().value();
     
     verify_tensor(t, {0.00000f, 0.549306f, -0.549306f, 1.098612f});
 }

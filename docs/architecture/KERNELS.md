@@ -71,10 +71,10 @@ standard defines as real (`rot`'s `c` and `s`, the `alpha` of `her`, `hpr` and `
 of `herk` and `her2k`, and `ger`'s `alpha`) are `double`.
 
 ```cpp
-SushiBLAS::BLASOps(*this->engine).herk(A, C, uplo, Core::Transpose::ConjTrans,
-                                       2.0, 3.0);
+SushiBLAS::BLASOps(this->recorder())
+    .herk(A, C, uplo, Core::Transpose::ConjTrans, 2.0, 3.0);
 // ...
-SushiBLAS::BLASOps(*engine).trsv(A, b, uplo, a.trans, Core::Diag::NonUnit);
+SushiBLAS::BLASOps(recorder()).trsv(A, b, uplo, a.trans, Core::Diag::NonUnit);
 ```
 
 Source: `tests/operations/blas/test_blas/test_blas_complex.cpp`
@@ -175,7 +175,7 @@ return builder.matrix_from_triplets(
 const SparseMatrix A = build(host, base);
 const Tensor tx = vector_of(x);
 Tensor ty = vector_of(y);
-SushiBLAS::SparseOps(*engine).spmv(A, tx, ty, trans, BLASScalar(alpha),
+SushiBLAS::SparseOps(recorder()).spmv(A, tx, ty, trans, BLASScalar(alpha),
                                    BLASScalar(beta));
 ```
 
@@ -245,7 +245,8 @@ g.pad_top = pad_top;
 g.pad_left = pad_left;
 // ...
 Tensor out = sentinel_tensor<T>(engine, c.output_dims());
-SushiBLAS::SpatialOps(engine).window_dot(in, weights, out, c.geometry);
+RecordingFixture graph(engine);
+SushiBLAS::SpatialOps(graph.recorder()).window_dot(in, weights, out, c.geometry);
 ```
 
 Source: `tests/operations/spatial/test_spatial/test_spatial_window_dot.cpp`

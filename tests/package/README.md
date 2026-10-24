@@ -18,10 +18,10 @@ in this project's translation unit under the toolchain the consumer chose, and t
 links and runs end to end through SushiBLAS and its SushiRuntime dependency.
 
 The second thing under test is that `SushiBLAS::Dispatch` is reachable from here: the
-`dispatch.hpp` headers of the families are installed. `execute_binary` receives
-`engine.recorder()` and a lambda this file wrote, and it compiles and runs. Nothing in
-sushiblas's own suite can show it, because in-tree every header is on the include path whether
-it gets installed or not.
+`dispatch.hpp` headers of the families are installed. `execute_binary` receives the
+`TaskRecorder` over the program's own graph and a lambda this file wrote, and it compiles and
+runs. Nothing in sushiblas's own suite can show it, because in-tree every header is on the
+include path whether it gets installed or not.
 
 The third is that `SushiBLAS::Dispatch::execute_gemm` reaches a consumer with the consumer's own
 epilogue functor. This one differs from the others. It instantiates a tiling kernel

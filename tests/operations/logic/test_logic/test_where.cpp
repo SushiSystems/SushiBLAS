@@ -44,8 +44,8 @@ TEST_F(Medium_WhereTest, FloatForward)
     fill_tensor(cond, {1.0f, 0.0f, 3.0f, 0.0f}); // act as cond
     fill_tensor(a, {1.0f, 0.0f, 3.0f, 0.0f});
     fill_tensor(b, {10.0f, 20.0f, 30.0f, 40.0f});
-    SushiBLAS::LogicOps(*engine).where(cond, a, b, c);
-    engine->execute().value();
+    SushiBLAS::LogicOps(recorder()).where(cond, a, b, c);
+    recording->run().value();
     
     verify_tensor(c, {1.00000f, 20.00000f, 3.00000f, 40.00000f});
 }

@@ -73,13 +73,13 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 Tensor t = create_initialized_tensor<float>({4}, {-2, -1, 0, 3});
-                engine->recorder().set_mode(mode);
+                set_mode(mode);
 
                 Dispatch::execute_nonlinear_forward(
-                    engine->recorder(), t, "scale_negative", SushiRuntime::OperationID(),
+                    recorder(), t, "scale_negative", SushiRuntime::OperationID(),
                     Dispatch::bind_scalars(ScaleNegative{}, Dispatch::ElementScalar(0.5)),
                     {0.5});
-                ASSERT_TRUE(engine->execute().has_value());
+                ASSERT_TRUE(recording->run().has_value());
 
                 EXPECT_EQ(read_tensor<float>(t), (std::vector<float>{-1, -0.5f, 0, 3}));
             }
@@ -93,12 +93,12 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 Tensor dx = create_initialized_tensor<double>({3}, {9, 9, 9});
-                engine->recorder().set_mode(mode);
+                set_mode(mode);
 
                 Dispatch::execute_nonlinear_backward(
-                    engine->recorder(), dy, x, dx, "gate", SushiRuntime::OperationID(),
+                    recorder(), dy, x, dx, "gate", SushiRuntime::OperationID(),
                     PositiveGate{});
-                ASSERT_TRUE(engine->execute().has_value());
+                ASSERT_TRUE(recording->run().has_value());
 
                 EXPECT_EQ(read_tensor<double>(dx), (std::vector<double>{0, 5, 0}));
             }

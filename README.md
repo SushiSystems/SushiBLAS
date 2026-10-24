@@ -9,6 +9,8 @@ task graph and run by its kernels, with no vendor math library behind them.
 ```cpp
 sr::Runtime runtime = sr::Runtime::create().value();
 sb::Engine engine(runtime, sb::Core::Layout::ColumnMajor);
+sr::Graph graph = runtime.graph();
+sb::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
 
 auto A = engine.create_tensor({K_SIZE, K_SIZE});
 auto B = engine.create_tensor({K_SIZE, K_SIZE});
@@ -18,15 +20,16 @@ const size_t count = static_cast<size_t>(K_SIZE * K_SIZE);
 SushiBLAS::IO(engine).from_vector(A, std::vector<float>(count, K_A_VALUE));
 SushiBLAS::IO(engine).from_vector(B, std::vector<float>(count, K_B_VALUE));
 
-SushiBLAS::BLASOps(engine).gemm(A, B, C);
+SushiBLAS::BLASOps(recorder).gemm(A, B, C);
+graph.run().value();
 
 const std::vector<float> result = SushiBLAS::IO(engine).to_vector<float>(C);
 ```
 
 Source: `applications/examples/quickstart_demo.cpp`
 
-`gemm` records a task and runs nothing; `to_vector` runs the graph and copies `C` to the host.
-[A first program](docs/getting_started/FIRST_PROGRAM.md) goes through it line by line.
+`gemm` records a task and runs nothing; `graph.run()` runs it, and `to_vector` copies `C` to the
+host. [A first program](docs/getting_started/FIRST_PROGRAM.md) goes through it line by line.
 
 ## Build
 

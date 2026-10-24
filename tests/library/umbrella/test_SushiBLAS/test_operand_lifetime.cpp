@@ -63,13 +63,13 @@ namespace SushiBLAS
             {
                 const Tensor x = create_initialized_tensor<float>({4}, {1.0f, 2.0f, 3.0f, 4.0f});
                 live_with_input = live_allocations();
-                SushiBLAS::ElementwiseOps(*engine).add(x, x, out);
+                SushiBLAS::ElementwiseOps(recorder()).add(x, x, out);
             }
 
             EXPECT_EQ(live_with_input, live_allocations())
                 << "The recorded task is the last holder of x's storage and must keep it.";
 
-            engine->execute().value();
+            recording->run().value();
 
             EXPECT_TENSOR_NEAR(out, (std::vector<float>{2.0f, 4.0f, 6.0f, 8.0f}), 1e-5);
             EXPECT_EQ(live_with_input - 1, live_allocations())
@@ -84,13 +84,13 @@ namespace SushiBLAS
             auto C = engine->create_tensor({3, 3}, Core::DataType::Float32);
             std::size_t live_with_bias = 0;
 
-            engine->set_mode(ExecutionMode::ForceSYCL);
+            set_mode(ExecutionMode::ForceSYCL);
             {
                 const Tensor bias = create_initialized_tensor<float>({3}, {1.0f, -8.0f, 3.0f});
                 live_with_bias = live_allocations();
 
                 const Kernels::ChannelBiasEpilogue epilogue{bias.data(), 0, 1};
-                Dispatch::execute_gemm(engine->recorder(), A, B, C, Core::Transpose::NoTrans,
+                Dispatch::execute_gemm(recorder(), A, B, C, Core::Transpose::NoTrans,
                                        Core::Transpose::NoTrans, 1.0, 0.0,
                                        "test.gemm_kept_epilogue",
                                        "test.gemm_kept_epilogue"_op,
@@ -100,7 +100,7 @@ namespace SushiBLAS
             EXPECT_GE(live_allocations(), live_with_bias)
                 << "The recorded GEMM must keep the bias its epilogue reads.";
 
-            engine->execute().value();
+            recording->run().value();
 
             // [[1,2,3],[4,5,6],[5,7,9]] plus bias[column] = [1,-8,3] down every row.
             EXPECT_TENSOR_NEAR(C, (std::vector<float>{2, -6, 6,
@@ -121,8 +121,8 @@ namespace SushiBLAS
             ScratchPool& pool = engine->scratch_pool();
             const std::size_t outstanding_before = live_allocations() - pool.idle_block_count();
 
-            SushiBLAS::ReductionOps(*engine).sum(values, total);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).sum(values, total);
+            recording->run().value();
 
             EXPECT_EQ(outstanding_before, live_allocations() - pool.idle_block_count())
                 << "Every allocation the sum made must be idle in the pool or freed.";
@@ -131,8 +131,8 @@ namespace SushiBLAS
             const std::size_t live_after_first = live_allocations();
             const std::size_t idle_after_first = pool.idle_block_count();
 
-            SushiBLAS::ReductionOps(*engine).sum(values, total);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).sum(values, total);
+            recording->run().value();
 
             EXPECT_EQ(live_after_first, live_allocations());
             EXPECT_EQ(idle_after_first, pool.idle_block_count());

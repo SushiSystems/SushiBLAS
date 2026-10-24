@@ -842,7 +842,7 @@ namespace SushiBLAS
                                                                     ExecutionMode mode)
                     {
                         const TriangularFlags& flags = system.flags();
-                        engine->set_mode(mode);
+                        set_mode(mode);
 
                         Tensor a_buffer = device_buffer<T>(*engine, system.stored_matrix());
                         Tensor b_buffer = device_buffer<T>(*engine, b);
@@ -851,9 +851,10 @@ namespace SushiBLAS
                         Tensor B = matrix_view(b_buffer, {system.rows(), system.cols()},
                                                flags.layout);
 
-                        SushiBLAS::BLASOps(*engine).trsm(A, B, flags.side, flags.uplo, flags.trans,
+                        SushiBLAS::BLASOps(recorder())
+                            .trsm(A, B, flags.side, flags.uplo, flags.trans,
                                                          flags.diag, alpha);
-                        engine->execute().value();
+                        recording->run().value();
                         return read_buffer<T>(b_buffer);
                     }
 
@@ -862,15 +863,16 @@ namespace SushiBLAS
                         const HostSolve<T>& system, const std::vector<T>& b, ExecutionMode mode)
                     {
                         const TriangularFlags& flags = system.flags();
-                        engine->set_mode(mode);
+                        set_mode(mode);
 
                         Tensor a_buffer = device_buffer<T>(*engine, system.stored_matrix());
                         Tensor x = device_buffer<T>(*engine, b);
                         Tensor A = matrix_view(a_buffer, {system.order(), system.order()},
                                                flags.layout);
 
-                        SushiBLAS::BLASOps(*engine).trsv(A, x, flags.uplo, flags.trans, flags.diag);
-                        engine->execute().value();
+                        SushiBLAS::BLASOps(recorder())
+                            .trsv(A, x, flags.uplo, flags.trans, flags.diag);
+                        recording->run().value();
                         return read_buffer<T>(x);
                     }
 
@@ -883,7 +885,7 @@ namespace SushiBLAS
                         int64_t increment, ExecutionMode mode)
                     {
                         const TriangularFlags& flags = system.flags();
-                        engine->set_mode(mode);
+                        set_mode(mode);
 
                         Tensor a_buffer = device_buffer<T>(*engine, system.stored_matrix());
                         Tensor x_buffer = device_buffer<T>(*engine, spaced_x);
@@ -891,8 +893,9 @@ namespace SushiBLAS
                                                flags.layout);
                         Tensor x = strided_view(x_buffer, system.order(), increment);
 
-                        SushiBLAS::BLASOps(*engine).trmv(A, x, flags.uplo, flags.trans, flags.diag);
-                        engine->execute().value();
+                        SushiBLAS::BLASOps(recorder())
+                            .trmv(A, x, flags.uplo, flags.trans, flags.diag);
+                        recording->run().value();
                         return read_buffer<T>(x_buffer);
                     }
 
@@ -982,7 +985,7 @@ namespace SushiBLAS
                         const std::vector<T>& b)
                     {
                         const TriangularFlags& flags = system.flags();
-                        engine->set_mode(ExecutionMode::ForceSYCL);
+                        set_mode(ExecutionMode::ForceSYCL);
 
                         Tensor buffer = device_buffer<T>(
                             *engine, packed_storage(flags, system.order(), full));
@@ -990,8 +993,9 @@ namespace SushiBLAS
                         Tensor AP = matrix_view(
                             buffer, {static_cast<int64_t>(buffer.num_elements)}, flags.layout);
 
-                        SushiBLAS::BLASOps(*engine).tpsv(AP, x, flags.uplo, flags.trans, flags.diag);
-                        engine->execute().value();
+                        SushiBLAS::BLASOps(recorder())
+                            .tpsv(AP, x, flags.uplo, flags.trans, flags.diag);
+                        recording->run().value();
                         return read_buffer<T>(x);
                     }
 
@@ -1002,7 +1006,7 @@ namespace SushiBLAS
                     {
                         const TriangularFlags& flags = system.flags();
                         const bool by_rows = (flags.layout == Core::Layout::RowMajor);
-                        engine->set_mode(ExecutionMode::ForceSYCL);
+                        set_mode(ExecutionMode::ForceSYCL);
 
                         Tensor buffer = device_buffer<T>(
                             *engine, band_storage(flags, system.order(), k, full));
@@ -1011,9 +1015,9 @@ namespace SushiBLAS
                             ? matrix_view(buffer, {system.order(), k + 1}, flags.layout)
                             : matrix_view(buffer, {k + 1, system.order()}, flags.layout);
 
-                        SushiBLAS::BLASOps(*engine).tbsv(A, x, flags.uplo, k, flags.trans,
+                        SushiBLAS::BLASOps(recorder()).tbsv(A, x, flags.uplo, k, flags.trans,
                                                          flags.diag);
-                        engine->execute().value();
+                        recording->run().value();
                         return read_buffer<T>(x);
                     }
 
@@ -1403,12 +1407,12 @@ namespace SushiBLAS
                                    Core::Layout::RowMajor);
 
             ScratchPool& pool = this->engine->scratch_pool();
-            this->engine->set_mode(ExecutionMode::ForceSYCL);
+            this->set_mode(ExecutionMode::ForceSYCL);
             const std::size_t outstanding_before =
                 TestEnvironment::live_allocation_count() - pool.idle_block_count();
 
-            SushiBLAS::BLASOps(*this->engine).trmv(A, x, Core::Uplo::Lower);
-            this->engine->execute().value();
+            SushiBLAS::BLASOps(this->recorder()).trmv(A, x, Core::Uplo::Lower);
+            this->recording->run().value();
 
             EXPECT_EQ(outstanding_before,
                       TestEnvironment::live_allocation_count() - pool.idle_block_count())
@@ -1417,8 +1421,8 @@ namespace SushiBLAS
             const std::size_t live_after_first = TestEnvironment::live_allocation_count();
             const std::size_t idle_after_first = pool.idle_block_count();
 
-            SushiBLAS::BLASOps(*this->engine).trmv(A, x, Core::Uplo::Lower);
-            this->engine->execute().value();
+            SushiBLAS::BLASOps(this->recorder()).trmv(A, x, Core::Uplo::Lower);
+            this->recording->run().value();
 
             EXPECT_EQ(live_after_first, TestEnvironment::live_allocation_count());
             EXPECT_EQ(idle_after_first, pool.idle_block_count());
@@ -1908,15 +1912,15 @@ namespace SushiBLAS
             {
                 SCOPED_TRACE(mode == ExecutionMode::ForceSYCL ? "ForceSYCL"
                                                                : "ForceReference");
-                engine->set_mode(mode);
+                set_mode(mode);
 
                 Tensor a_buffer = device_buffer<sycl::half>(*engine, a);
                 Tensor x = device_buffer<sycl::half>(*engine,
                                                      std::vector<sycl::half>(3, one));
                 Tensor A = matrix_view(a_buffer, {3, 3}, Core::Layout::RowMajor);
 
-                SushiBLAS::BLASOps(*engine).trmv(A, x, Core::Uplo::Lower);
-                engine->execute().value();
+                SushiBLAS::BLASOps(recorder()).trmv(A, x, Core::Uplo::Lower);
+                recording->run().value();
 
                 const std::vector<sycl::half> product = read_buffer<sycl::half>(x);
                 ASSERT_EQ(std::size_t{3}, product.size());

@@ -10,7 +10,7 @@ SushiBLAS's kernels are compiled into the library. They are not header templates
 in your translation units, which is the opposite of SushiRuntime. When you write
 
 ```cpp
-SushiBLAS::BLASOps(engine).gemm(A, B, C);
+    SushiBLAS::BLASOps(recorder).gemm(A, B, C);
 ```
 
 Source: `applications/examples/quickstart_demo.cpp`
@@ -19,7 +19,7 @@ the call resolves to a function already compiled into the `sushiblas` static lib
 compiler does not
 see the GEMM kernel's source, instantiates no device lambda and produces no device code for it.
 `Level3::gemm` is an ordinary library call that records a task and returns a `TaskHandle`; the
-task runs when you call `engine.execute()`.
+task runs when you run the graph the recorder records into, `graph.run()`.
 
 The exception is the `SushiBLAS::Dispatch` seams: `execute_binary`, `execute_gemm` and the
 others listed in
@@ -251,6 +251,7 @@ has no `default`, so `-Wswitch` reports a code the function does not name:
         case SushiRuntime::ErrorCode::InvalidAccess:
         case SushiRuntime::ErrorCode::DanglingResource:
         case SushiRuntime::ErrorCode::InvalidState:
+        case SushiRuntime::ErrorCode::InvalidArgument:
             return Status{StatusCode::InvalidRequest, error.message};
         case SushiRuntime::ErrorCode::Unsupported:
             return Status{StatusCode::Unsupported, error.message};
@@ -276,13 +277,16 @@ of the run and reads the tensors back into the host's types. Both channels leave
 ```cpp
 const Status status = guarded([&]()
 {
+    // The graph lives for this call, so a record call that throws leaves nothing behind.
+    SushiRuntime::Graph graph = backend.runtime.graph();
+    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(),
+                                     engine.mode());
     // ...
+    SushiBLAS::BLASOps(recorder).gemm(left, right, product);
+    SushiBLAS::ElementwiseOps(recorder).add(product, shift, shifted);
+    SushiBLAS::ReductionOps(recorder).sum(shifted, total);
 
-    SushiBLAS::BLASOps(engine).gemm(left, right, product);
-    SushiBLAS::ElementwiseOps(engine).add(product, shift, shifted);
-    SushiBLAS::ReductionOps(engine).sum(shifted, total);
-
-    const SushiRuntime::Result<void> ran = engine.execute();
+    const SushiRuntime::Result<SushiRuntime::RunReport> ran = graph.run();
     if (!ran)
         return status_of_error(ran.error());
 
@@ -291,10 +295,6 @@ const Status status = guarded([&]()
     result_sum = io.to_vector<float>(total)[0];
     return Status{};
 });
-
-// A record call that throws leaves the tasks recorded before it on the engine.
-if (status.code != StatusCode::Ok)
-    engine.discard_recorded();
 ```
 
 Source: `applications/examples/adapter/sushiblas_adapter.cpp`

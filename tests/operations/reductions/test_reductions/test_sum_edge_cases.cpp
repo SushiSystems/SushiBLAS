@@ -75,11 +75,11 @@ class Medium_SumEdgeCasesTest : public SushiBLASTest
             auto mean = engine->create_tensor({1});
             auto max = engine->create_tensor({1});
             auto min = engine->create_tensor({1});
-            SushiBLAS::ReductionOps(*engine).sum(t, sum);
-            SushiBLAS::ReductionOps(*engine).mean(t, mean);
-            SushiBLAS::ReductionOps(*engine).max(t, max);
-            SushiBLAS::ReductionOps(*engine).min(t, min);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).sum(t, sum);
+            SushiBLAS::ReductionOps(recorder()).mean(t, mean);
+            SushiBLAS::ReductionOps(recorder()).max(t, max);
+            SushiBLAS::ReductionOps(recorder()).min(t, min);
+            recording->run().value();
 
             verify_tensor(sum, {expected.sum}, K_TOLERANCE);
             verify_tensor(mean, {expected.mean}, K_TOLERANCE);
@@ -97,9 +97,9 @@ class Medium_SumEdgeCasesTest : public SushiBLASTest
 
             auto sum = engine->create_tensor({1});
             auto mean = engine->create_tensor({1});
-            SushiBLAS::ReductionOps(*engine).sum(t, sum);
-            SushiBLAS::ReductionOps(*engine).mean(t, mean);
-            engine->execute().value();
+            SushiBLAS::ReductionOps(recorder()).sum(t, sum);
+            SushiBLAS::ReductionOps(recorder()).mean(t, mean);
+            recording->run().value();
 
             verify_tensor(sum, {expected_sum}, K_TOLERANCE);
             verify_tensor(mean, {expected_mean}, K_TOLERANCE);

@@ -158,7 +158,7 @@ namespace SushiBLAS
                                                 const std::vector<int64_t>& positions,
                                                 const Wide& entries, const Wide& dense)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     return Operands{
                         build(static_cast<int64_t>(dense.size()), positions, entries, base),
                         vector_of(dense), vector_of(Wide(1, std::complex<double>(9.0, 0.0)))};
@@ -212,8 +212,8 @@ namespace SushiBLAS
                 for (const Core::IndexBase base : K_BOTH_BASES)
                 {
                     auto on = this->operands(mode, base);
-                    SparseOps(*this->engine).axpyi(2.0, on.x, on.y);
-                    this->engine->execute().value();
+                    SparseOps(this->recorder()).axpyi(2.0, on.x, on.y);
+                    this->recording->run().value();
 
                     this->expect_near(read_tensor<T>(on.y), reals({1, 42, 3, 4, 65, 6, 27, 8}),
                                       0.0);
@@ -233,8 +233,8 @@ namespace SushiBLAS
                     if (!Core::is_complex_v<T>)
                     {
                         // 10 * 7 + 20 * 2 + 30 * 5.
-                        SparseOps(*this->engine).doti(on.x, on.y, on.result);
-                        this->engine->execute().value();
+                        SparseOps(this->recorder()).doti(on.x, on.y, on.result);
+                        this->recording->run().value();
                         this->expect_near(read_tensor<T>(on.result), reals({260}), 0.0);
                         continue;
                     }
@@ -242,7 +242,7 @@ namespace SushiBLAS
                     std::string refusal;
                     try
                     {
-                        SparseOps(*this->engine).doti(on.x, on.y, on.result);
+                        SparseOps(this->recorder()).doti(on.x, on.y, on.result);
                     }
                     catch (const std::invalid_argument& error)
                     {
@@ -270,10 +270,10 @@ namespace SushiBLAS
                     auto on = this->operands(mode, base, {3}, entry, dense);
                     Tensor conjugated = this->vector_of(reals({9}));
 
-                    SparseOps ops(*this->engine);
+                    SparseOps ops(this->recorder());
                     ops.dotui(on.x, on.y, on.result);
                     ops.dotci(on.x, on.y, conjugated);
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     if (Core::is_complex_v<T>)
                     {
@@ -302,11 +302,11 @@ namespace SushiBLAS
                 Tensor unconjugated = this->vector_of(reals({9}));
                 Tensor conjugated = this->vector_of(reals({9}));
 
-                SparseOps ops(*this->engine);
+                SparseOps ops(this->recorder());
                 ops.doti(on.x, on.y, on.result);
                 ops.dotui(on.x, on.y, unconjugated);
                 ops.dotci(on.x, on.y, conjugated);
-                this->engine->execute().value();
+                this->recording->run().value();
 
                 const T plain = read_tensor<T>(on.result)[0];
                 EXPECT_EQ(widened(plain), std::complex<double>(260.0, 0.0));
@@ -324,8 +324,8 @@ namespace SushiBLAS
                 for (const Core::IndexBase base : K_BOTH_BASES)
                 {
                     auto on = this->operands(mode, base);
-                    SparseOps(*this->engine).gthr(on.y, on.x);
-                    this->engine->execute().value();
+                    SparseOps(this->recorder()).gthr(on.y, on.x);
+                    this->recording->run().value();
 
                     this->expect_near(read_tensor<T>(on.x.values), reals({7, 2, 5}), 0.0);
                     this->expect_near(read_tensor<T>(on.y), reals({1, 2, 3, 4, 5, 6, 7, 8}), 0.0);
@@ -342,8 +342,8 @@ namespace SushiBLAS
                 for (const Core::IndexBase base : K_BOTH_BASES)
                 {
                     auto on = this->operands(mode, base);
-                    SparseOps(*this->engine).gthrz(on.y, on.x);
-                    this->engine->execute().value();
+                    SparseOps(this->recorder()).gthrz(on.y, on.x);
+                    this->recording->run().value();
 
                     this->expect_near(read_tensor<T>(on.x.values), reals({7, 2, 5}), 0.0);
                     this->expect_near(read_tensor<T>(on.y), reals({1, 0, 3, 4, 0, 6, 0, 8}), 0.0);
@@ -360,8 +360,8 @@ namespace SushiBLAS
                 for (const Core::IndexBase base : K_BOTH_BASES)
                 {
                     auto on = this->operands(mode, base);
-                    SparseOps(*this->engine).sctr(on.x, on.y);
-                    this->engine->execute().value();
+                    SparseOps(this->recorder()).sctr(on.x, on.y);
+                    this->recording->run().value();
 
                     this->expect_near(read_tensor<T>(on.y), reals({1, 20, 3, 4, 30, 6, 10, 8}),
                                       0.0);
@@ -380,8 +380,8 @@ namespace SushiBLAS
                 for (const Core::IndexBase base : K_BOTH_BASES)
                 {
                     auto on = this->operands(mode, base);
-                    SparseOps(*this->engine).roti(on.x, on.y, 0.25, 0.5);
-                    this->engine->execute().value();
+                    SparseOps(this->recorder()).roti(on.x, on.y, 0.25, 0.5);
+                    this->recording->run().value();
 
                     this->expect_near(read_tensor<T>(on.x.values), reals({6, 6, 10}), 0.0);
                     this->expect_near(read_tensor<T>(on.y),
@@ -408,14 +408,14 @@ namespace SushiBLAS
             {
                 for (const Core::IndexBase base : K_BOTH_BASES)
                 {
-                    this->engine->set_mode(mode);
+                    this->set_mode(mode);
                     const SparseVector x =
                         this->build(K_SIZE, sample_positions(), sample_entries(), base);
                     const Tensor wide = this->vector_of(spread);
                     Tensor y = this->every_second(wide);
 
-                    SparseOps(*this->engine).axpyi(2.0, x, y);
-                    this->engine->execute().value();
+                    SparseOps(this->recorder()).axpyi(2.0, x, y);
+                    this->recording->run().value();
 
                     this->expect_near(read_tensor<T>(wide), expected, 0.0);
                 }
@@ -436,10 +436,10 @@ namespace SushiBLAS
                     ASSERT_EQ(on.x.nnz(), 0);
 
                     // dotui serves every element type; on a real tensor it records doti.
-                    SparseOps ops(*this->engine);
+                    SparseOps ops(this->recorder());
                     ops.axpyi(2.0, on.x, on.y);
                     ops.dotui(on.x, on.y, on.result);
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     this->expect_near(read_tensor<T>(on.y), dense, 0.0);
                     this->expect_near(read_tensor<T>(on.result), reals({0}), 0.0);
@@ -470,8 +470,8 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 auto on = this->operands(mode, Core::IndexBase::One, positions, entries, dense);
-                SparseOps(*this->engine).dotui(on.x, on.y, on.result);
-                this->engine->execute().value();
+                SparseOps(this->recorder()).dotui(on.x, on.y, on.result);
+                this->recording->run().value();
 
                 this->expect_near(read_tensor<T>(on.result), reals({sum}), 0.0);
             }
@@ -495,8 +495,8 @@ namespace SushiBLAS
             for (const ExecutionMode mode : K_BOTH_MODES)
             {
                 auto on = operands(mode, Core::IndexBase::Zero, {2}, reals({683}), dense);
-                SparseOps(*engine).axpyi(3.0, on.x, on.y);
-                engine->execute().value();
+                SparseOps(recorder()).axpyi(3.0, on.x, on.y);
+                recording->run().value();
 
                 expect_near(read_tensor<sycl::half>(on.y), expected, 0.0);
             }
@@ -520,7 +520,7 @@ namespace SushiBLAS
                 template<typename V>
                 [[nodiscard]] Operands operands(ExecutionMode mode)
                 {
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     const SparseBuilder builder(engine->tensor_factory());
                     return Operands{
                         builder.vector_from_entries(K_SIZE, std::vector<int32_t>{6, 1, 4},
@@ -536,22 +536,22 @@ namespace SushiBLAS
                     for (const ExecutionMode mode : K_BOTH_MODES)
                     {
                         Operands gathered = operands<V>(mode);
-                        SparseOps(*engine).gthr(gathered.y, gathered.x);
-                        engine->execute().value();
+                        SparseOps(recorder()).gthr(gathered.y, gathered.x);
+                        recording->run().value();
                         EXPECT_EQ(read_tensor<V>(gathered.x.values), (std::vector<V>{7, 2, 5}));
                         EXPECT_EQ(read_tensor<V>(gathered.y),
                                   (std::vector<V>{1, 2, 3, 4, 5, 6, 7, 8}));
 
                         Operands zeroed = operands<V>(mode);
-                        SparseOps(*engine).gthrz(zeroed.y, zeroed.x);
-                        engine->execute().value();
+                        SparseOps(recorder()).gthrz(zeroed.y, zeroed.x);
+                        recording->run().value();
                         EXPECT_EQ(read_tensor<V>(zeroed.x.values), (std::vector<V>{7, 2, 5}));
                         EXPECT_EQ(read_tensor<V>(zeroed.y),
                                   (std::vector<V>{1, 0, 3, 4, 0, 6, 0, 8}));
 
                         Operands scattered = operands<V>(mode);
-                        SparseOps(*engine).sctr(scattered.x, scattered.y);
-                        engine->execute().value();
+                        SparseOps(recorder()).sctr(scattered.x, scattered.y);
+                        recording->run().value();
                         EXPECT_EQ(read_tensor<V>(scattered.y),
                                   (std::vector<V>{1, 20, 3, 4, 30, 6, 10, 8}));
                     }
@@ -564,7 +564,7 @@ namespace SushiBLAS
                     for (const ExecutionMode mode : K_BOTH_MODES)
                     {
                         Operands on = operands<V>(mode);
-                        SparseOps ops(*engine);
+                        SparseOps ops(recorder());
                         EXPECT_THROW(ops.axpyi(2.0, on.x, on.y), std::invalid_argument);
                         EXPECT_THROW(ops.doti(on.x, on.y, on.result), std::invalid_argument);
                         EXPECT_THROW(ops.roti(on.x, on.y, 0.25, 0.5), std::invalid_argument);

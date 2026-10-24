@@ -55,12 +55,12 @@ namespace SushiBLAS
             const Tensor u = create_initialized_tensor<double>({2}, {1, 1});
             Tensor y = create_initialized_tensor<double>({2}, {0, 0});
             Tensor w = create_initialized_tensor<double>({3}, {0, 0, 0});
-            BLASOps blas(*engine);
+            BLASOps blas(recorder());
             Level2& level2 = blas;
 
             level2.gemv(a, x, y);
             level2.gemv(a, u, w, Core::Transpose::Trans);
-            ASSERT_TRUE(engine->execute().has_value());
+            ASSERT_TRUE(recording->run().has_value());
 
             EXPECT_EQ(read_tensor<double>(y), (std::vector<double>{5, 11}));
             EXPECT_EQ(read_tensor<double>(w), (std::vector<double>{5, 7, 9}));
@@ -71,11 +71,11 @@ namespace SushiBLAS
             const Tensor x = create_initialized_tensor<double>({2}, {1, 2});
             const Tensor y = create_initialized_tensor<double>({2}, {3, -1});
             Tensor a = create_initialized_tensor<double>({2, 2}, {1, 1, 1, 1});
-            BLASOps blas(*engine);
+            BLASOps blas(recorder());
             Level2& level2 = blas;
 
             level2.ger(x, y, a, 2.0);
-            ASSERT_TRUE(engine->execute().has_value());
+            ASSERT_TRUE(recording->run().has_value());
 
             EXPECT_EQ(read_tensor<double>(a), (std::vector<double>{7, -1, 13, -3}));
         }

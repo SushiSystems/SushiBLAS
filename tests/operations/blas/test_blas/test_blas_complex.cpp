@@ -140,7 +140,7 @@ namespace SushiBLAS
                 void start(Core::Layout layout, ExecutionMode mode)
                 {
                     reinit_engine(layout);
-                    engine->set_mode(mode);
+                    set_mode(mode);
                     restart_data();
                 }
 
@@ -282,9 +282,9 @@ namespace SushiBLAS
                     Tensor y = vector_of(random_values(K_CASE_ORDER));
                     Tensor result = vector_of(std::vector<T>(1));
 
-                    SushiBLAS::BLASOps ops(*engine);
+                    SushiBLAS::BLASOps ops(recorder());
                     (ops.*call)(x, y, result);
-                    engine->execute().value();
+                    recording->run().value();
                     return read_row_ordered(result);
                 }
 
@@ -297,9 +297,9 @@ namespace SushiBLAS
                     Tensor A = matrix_of(K_CASE_ROWS, K_CASE_COLS,
                                          random_values(K_CASE_ROWS * K_CASE_COLS));
 
-                    SushiBLAS::BLASOps ops(*engine);
+                    SushiBLAS::BLASOps ops(recorder());
                     (ops.*call)(x, y, A, scale);
-                    engine->execute().value();
+                    recording->run().value();
                     return read_row_ordered(A);
                 }
 
@@ -312,9 +312,9 @@ namespace SushiBLAS
                     Tensor x = vector_of(random_values(K_CASE_ORDER));
                     Tensor y = vector_of(random_values(K_CASE_ORDER));
 
-                    SushiBLAS::BLASOps ops(*engine);
+                    SushiBLAS::BLASOps ops(recorder());
                     (ops.*call)(A, x, y, uplo, scalar(alpha()), scalar(beta()));
-                    engine->execute().value();
+                    recording->run().value();
                     return read_row_ordered(y);
                 }
 
@@ -326,9 +326,9 @@ namespace SushiBLAS
                     Tensor A = matrix_of(K_CASE_ORDER, K_CASE_ORDER,
                                          random_values(K_CASE_ORDER * K_CASE_ORDER));
 
-                    SushiBLAS::BLASOps ops(*engine);
+                    SushiBLAS::BLASOps ops(recorder());
                     (ops.*call)(x, A, uplo, K_REAL_ALPHA);
-                    engine->execute().value();
+                    recording->run().value();
                     return read_row_ordered(A);
                 }
 
@@ -341,9 +341,9 @@ namespace SushiBLAS
                     Tensor A = matrix_of(K_CASE_ORDER, K_CASE_ORDER,
                                          random_values(K_CASE_ORDER * K_CASE_ORDER));
 
-                    SushiBLAS::BLASOps ops(*engine);
+                    SushiBLAS::BLASOps ops(recorder());
                     (ops.*call)(x, y, A, uplo, scalar(alpha()));
-                    engine->execute().value();
+                    recording->run().value();
                     return read_row_ordered(A);
                 }
 
@@ -359,9 +359,9 @@ namespace SushiBLAS
                     Tensor C = matrix_of(K_CASE_ORDER, K_CASE_ORDER,
                                          random_values(K_CASE_ORDER * K_CASE_ORDER));
 
-                    SushiBLAS::BLASOps ops(*engine);
+                    SushiBLAS::BLASOps ops(recorder());
                     (ops.*call)(A, C, uplo, trans, K_REAL_ALPHA, K_REAL_BETA);
-                    engine->execute().value();
+                    recording->run().value();
                     return read_row_ordered(C);
                 }
 
@@ -387,9 +387,9 @@ namespace SushiBLAS
                     Tensor C = matrices_of(batch_axes, K_CASE_ROWS, K_CASE_COLS,
                                            random_values(batch * K_CASE_ROWS * K_CASE_COLS));
 
-                    SushiBLAS::BLASOps(*engine).gemm(A, B, C, a.trans, b.trans, scalar(alpha()),
+                    SushiBLAS::BLASOps(recorder()).gemm(A, B, C, a.trans, b.trans, scalar(alpha()),
                                                      scalar(beta()));
-                    engine->execute().value();
+                    recording->run().value();
                     return read_row_ordered(C);
                 }
 
@@ -402,9 +402,9 @@ namespace SushiBLAS
                     Tensor x = vector_of(random_values(transposed ? K_CASE_ROWS : K_CASE_COLS));
                     Tensor y = vector_of(random_values(transposed ? K_CASE_COLS : K_CASE_ROWS));
 
-                    SushiBLAS::BLASOps(*engine).gemv(A, x, y, a.trans, scalar(alpha()),
+                    SushiBLAS::BLASOps(recorder()).gemv(A, x, y, a.trans, scalar(alpha()),
                                                      scalar(beta()));
-                    engine->execute().value();
+                    recording->run().value();
                     return read_row_ordered(y);
                 }
 
@@ -415,8 +415,8 @@ namespace SushiBLAS
                                          triangular_values(K_CASE_ORDER, a));
                     Tensor x = vector_of(random_values(K_CASE_ORDER));
 
-                    SushiBLAS::BLASOps(*engine).trmv(A, x, uplo, a.trans, Core::Diag::NonUnit);
-                    engine->execute().value();
+                    SushiBLAS::BLASOps(recorder()).trmv(A, x, uplo, a.trans, Core::Diag::NonUnit);
+                    recording->run().value();
                     return read_row_ordered(x);
                 }
 
@@ -427,8 +427,8 @@ namespace SushiBLAS
                                          triangular_values(K_CASE_ORDER, a));
                     Tensor b = vector_of(random_values(K_CASE_ORDER));
 
-                    SushiBLAS::BLASOps(*engine).trsv(A, b, uplo, a.trans, Core::Diag::NonUnit);
-                    engine->execute().value();
+                    SushiBLAS::BLASOps(recorder()).trsv(A, b, uplo, a.trans, Core::Diag::NonUnit);
+                    recording->run().value();
                     return read_row_ordered(b);
                 }
 
@@ -441,9 +441,9 @@ namespace SushiBLAS
                     Tensor B = matrix_of(K_CASE_ROWS, K_CASE_COLS,
                                          random_values(K_CASE_ROWS * K_CASE_COLS));
 
-                    SushiBLAS::BLASOps(*engine).trsm(A, B, side, uplo, a.trans,
+                    SushiBLAS::BLASOps(recorder()).trsm(A, B, side, uplo, a.trans,
                                                      Core::Diag::NonUnit, scalar(alpha()));
-                    engine->execute().value();
+                    recording->run().value();
                     return read_row_ordered(B);
                 }
 
@@ -620,8 +620,8 @@ namespace SushiBLAS
                 Tensor y_tensor = this->vector_of(y);
                 Tensor result = this->vector_of(std::vector<T>(1));
 
-                SushiBLAS::BLASOps(*this->engine).dotu(x_tensor, y_tensor, result);
-                this->engine->execute().value();
+                SushiBLAS::BLASOps(this->recorder()).dotu(x_tensor, y_tensor, result);
+                this->recording->run().value();
 
                 TestFixture::expect_near(this->read_row_ordered(result), expected,
                                          K_HAND_TOLERANCE);
@@ -643,8 +643,8 @@ namespace SushiBLAS
                 Tensor y_tensor = this->vector_of(y);
                 Tensor result = this->vector_of(std::vector<T>(1));
 
-                SushiBLAS::BLASOps(*this->engine).dotc(x_tensor, y_tensor, result);
-                this->engine->execute().value();
+                SushiBLAS::BLASOps(this->recorder()).dotc(x_tensor, y_tensor, result);
+                this->recording->run().value();
 
                 TestFixture::expect_near(this->read_row_ordered(result), expected,
                                          K_HAND_TOLERANCE);
@@ -667,9 +667,9 @@ namespace SushiBLAS
                 Tensor y_tensor = this->vector_of(y);
                 Tensor A = this->matrix_of(2, 3, std::vector<T>(6, z(1, 0)));
 
-                SushiBLAS::BLASOps(*this->engine).geru(x_tensor, y_tensor, A,
+                SushiBLAS::BLASOps(this->recorder()).geru(x_tensor, y_tensor, A,
                                                        std::complex<double>(0.0, 1.0));
-                this->engine->execute().value();
+                this->recording->run().value();
 
                 TestFixture::expect_near(this->read_row_ordered(A), expected, K_HAND_TOLERANCE);
             }
@@ -691,9 +691,9 @@ namespace SushiBLAS
                 Tensor y_tensor = this->vector_of(y);
                 Tensor A = this->matrix_of(2, 3, std::vector<T>(6, z(1, 0)));
 
-                SushiBLAS::BLASOps(*this->engine).gerc(x_tensor, y_tensor, A,
+                SushiBLAS::BLASOps(this->recorder()).gerc(x_tensor, y_tensor, A,
                                                        std::complex<double>(0.0, 1.0));
-                this->engine->execute().value();
+                this->recording->run().value();
 
                 TestFixture::expect_near(this->read_row_ordered(A), expected, K_HAND_TOLERANCE);
             }
@@ -719,8 +719,9 @@ namespace SushiBLAS
                     Tensor x_tensor = this->vector_of(x);
                     Tensor y_tensor = this->vector_of(std::vector<T>(3));
 
-                    SushiBLAS::BLASOps(*this->engine).hemv(A, x_tensor, y_tensor, uplo, 1.0, 0.0);
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder())
+                        .hemv(A, x_tensor, y_tensor, uplo, 1.0, 0.0);
+                    this->recording->run().value();
 
                     TestFixture::expect_near(this->read_row_ordered(y_tensor), expected,
                                              K_HAND_TOLERANCE);
@@ -749,9 +750,9 @@ namespace SushiBLAS
                     Tensor x_tensor = this->vector_of(x);
                     Tensor y_tensor = this->vector_of(y);
 
-                    SushiBLAS::BLASOps(*this->engine).hemv(A, x_tensor, y_tensor, uplo,
+                    SushiBLAS::BLASOps(this->recorder()).hemv(A, x_tensor, y_tensor, uplo,
                                                            std::complex<double>(1.0, 1.0), 2.0);
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     TestFixture::expect_near(this->read_row_ordered(y_tensor), expected,
                                              K_HAND_TOLERANCE);
@@ -778,8 +779,8 @@ namespace SushiBLAS
                     Tensor A = this->matrix_of(3, 3, TestFixture::with_imaginary_diagonal(
                         TestFixture::keep_triangle(ones, 3, uplo), 3));
 
-                    SushiBLAS::BLASOps(*this->engine).her(x_tensor, A, uplo, 2.0);
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder()).her(x_tensor, A, uplo, 2.0);
+                    this->recording->run().value();
 
                     const std::vector<T> result = this->read_row_ordered(A);
                     TestFixture::expect_near(result, TestFixture::keep_triangle(updated, 3, uplo),
@@ -809,9 +810,9 @@ namespace SushiBLAS
                     Tensor A = this->matrix_of(2, 2, TestFixture::with_imaginary_diagonal(
                         TestFixture::keep_triangle(zeros, 2, uplo), 2));
 
-                    SushiBLAS::BLASOps(*this->engine).her2(x_tensor, y_tensor, A, uplo,
+                    SushiBLAS::BLASOps(this->recorder()).her2(x_tensor, y_tensor, A, uplo,
                                                            std::complex<double>(1.0, 1.0));
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     const std::vector<T> result = this->read_row_ordered(A);
                     TestFixture::expect_near(result, TestFixture::keep_triangle(updated, 2, uplo),
@@ -841,9 +842,9 @@ namespace SushiBLAS
                     Tensor C = this->matrix_of(2, 2, TestFixture::with_imaginary_diagonal(
                         TestFixture::keep_triangle(prior, 2, uplo), 2));
 
-                    SushiBLAS::BLASOps(*this->engine).herk(A, C, uplo, Core::Transpose::NoTrans,
+                    SushiBLAS::BLASOps(this->recorder()).herk(A, C, uplo, Core::Transpose::NoTrans,
                                                            2.0, 3.0);
-                    this->engine->execute().value();
+                    this->recording->run().value();
 
                     const std::vector<T> result = this->read_row_ordered(C);
                     TestFixture::expect_near(result, TestFixture::keep_triangle(updated, 2, uplo),
@@ -874,9 +875,9 @@ namespace SushiBLAS
                     Tensor C = this->matrix_of(2, 2, TestFixture::with_imaginary_diagonal(
                         TestFixture::keep_triangle(prior, 2, uplo), 2));
 
-                    SushiBLAS::BLASOps(*this->engine).herk(A, C, uplo, Core::Transpose::ConjTrans,
-                                                           2.0, 3.0);
-                    this->engine->execute().value();
+                    SushiBLAS::BLASOps(this->recorder())
+                        .herk(A, C, uplo, Core::Transpose::ConjTrans, 2.0, 3.0);
+                    this->recording->run().value();
 
                     const std::vector<T> result = this->read_row_ordered(C);
                     TestFixture::expect_near(result, TestFixture::keep_triangle(updated, 2, uplo),
