@@ -318,6 +318,39 @@ namespace SushiBLAS
             }
         }
 
+        TEST_F(Medium_IndexOps, Regression_ALateCountAboveACapacityOfZeroFailsTheRun)
+        {
+            set_mode(ExecutionMode::ForceSYCL);
+            IndexOps index(recorder());
+            Tensor count =
+                engine->create_tensor({1}, Core::DataType::Int32, SushiRuntime::Residency::Host);
+            count.data_as<std::int32_t>()[0] = 2;
+            Tensor marks = engine->create_tensor({K_CAPACITY}, Core::DataType::Float32);
+
+            index.for_each(std::size_t{0}, count,
+                           Dispatch::bind_writes([](std::size_t i, float* out) { out[i] = 1.0f; },
+                                                 Dispatch::write_as<float>(marks)),
+                           OperationOptions{"mark", SushiRuntime::Determinism::Bitwise});
+
+            EXPECT_FALSE(recording->run_succeeds());
+        }
+
+        TEST_F(Medium_IndexOps, Regression_ALateCountOfAWrongTypeIsRefusedAtACapacityOfZero)
+        {
+            set_mode(ExecutionMode::ForceSYCL);
+            IndexOps index(recorder());
+            Tensor count =
+                engine->create_tensor({1}, Core::DataType::Float32, SushiRuntime::Residency::Host);
+            Tensor marks = engine->create_tensor({K_CAPACITY}, Core::DataType::Float32);
+
+            EXPECT_THROW(
+                index.for_each(std::size_t{0}, count,
+                               Dispatch::bind_writes([](std::size_t i, float* out) { out[i] = 1.0f; },
+                                                     Dispatch::write_as<float>(marks)),
+                               OperationOptions{"mark", SushiRuntime::Determinism::Bitwise}),
+                std::invalid_argument);
+        }
+
         TEST_F(Medium_IndexOps, ALateCountOutsideTheCapacityFailsTheRun)
         {
             for (const std::int32_t written :

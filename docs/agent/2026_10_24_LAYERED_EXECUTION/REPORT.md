@@ -256,6 +256,13 @@ module README, so a fixed `segmented_reduce` reports `<name>` and a late one `<n
 `<name>.segment`. A null or empty name, or a class outside the enum, is `InvalidGraph` before
 anything is recorded.
 
+## The audit
+
+A late `for_each` planned at a capacity of zero returned before recording, which skipped its
+count's type and residency checks and let a live count above zero run silently; only a fixed count
+of zero records nothing now.
+
+
 ## Dispatches
 
 ```

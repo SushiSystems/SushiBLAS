@@ -6,6 +6,7 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — index: Fixed a late `for_each` at a capacity of zero skipping its count's checks and running a live count above it without failing (`index_ops.hpp`).
 - 2026-10-24 — index: Fixed a `for_each` with a fixed count of zero skipping its overlap and count checks (`index_ops.hpp`).
 - 2026-10-24 — graph_primitives: Added a trailing `PrimitiveOptions` to the four primitives, which names each node they record `<name>` or `<name>.<stage>` and states its determinism (`primitive_options.hpp`).
 - 2026-10-24 — functor_map: Added `bind_updates`, `update_as_element` and `update_as<U>` for an operand a task reads and writes, declared to SushiRuntime as both (`update_binding.hpp`).

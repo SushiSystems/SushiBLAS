@@ -126,8 +126,8 @@ namespace SushiBLAS
                 if (count != nullptr)
                     require_count_not_written(*count, operands, label);
 
-                // The checks above hold at any count; a count of zero then records nothing.
-                if (n == 0)
+                // A fixed count of zero records nothing; a late count records at any capacity.
+                if (n == 0 && count == nullptr)
                     return TaskHandle();
 
                 TaskDescription description;
