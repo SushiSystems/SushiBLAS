@@ -40,10 +40,17 @@ sushiblas_add_module(
         blend
         index)
 
-# The tests that cross several operation families and so belong to no single family.
+# The tests that cross several operation families and so belong to no single family. The pack
+# test needs the cluster module, which only SB_ENABLE_DISTRIBUTED builds.
+set(sushiblas_umbrella_distributed_tests "")
+if(SB_ENABLE_DISTRIBUTED)
+    set(sushiblas_umbrella_distributed_tests test_SushiBLAS/test_pack_ordered_sum.cpp)
+endif()
+
 sushiblas_add_test_program(
     MODULE umbrella
     TESTS
+        ${sushiblas_umbrella_distributed_tests}
         test_SushiBLAS/test_dependency_stress.cpp
         test_SushiBLAS/test_dispatch_complex.cpp
         test_SushiBLAS/test_dispatch_seam.cpp

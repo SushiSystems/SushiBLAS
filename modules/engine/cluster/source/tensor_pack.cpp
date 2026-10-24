@@ -142,6 +142,29 @@ namespace SushiBLAS
 
     }
 
+    Tensor TensorPack::tensor(std::size_t index) const
+    {
+        const PackEntry& entry = layout_.entries().at(index);
+        // An entry lies at a multiple of its element size: its segment starts on 128 bytes.
+        return Tensor(storage_,
+                      SushiRuntime::span<const std::int64_t>(entry.shape.data(),
+                                                             static_cast<std::size_t>(entry.rank)),
+                      entry.dtype,
+                      static_cast<std::int64_t>(entry.offset_bytes /
+                                                Core::bytes_per_element(entry.dtype)),
+                      entry.layout);
+    }
+
+    Tensor TensorPack::segment_tensor(Core::DataType dtype) const
+    {
+        const PackSegment& segment = layout_.segment(dtype);
+        const std::int64_t dims[] = {static_cast<std::int64_t>(segment.element_count)};
+        // A segment starts on 128 bytes, so on a multiple of its element size.
+        return Tensor(storage_, SushiRuntime::span<const std::int64_t>(dims, 1), dtype,
+                      static_cast<std::int64_t>(segment.offset_bytes /
+                                                Core::bytes_per_element(dtype)));
+    }
+
     TaskHandle TensorPack::record_gather(TaskRecorder& recorder,
                                          SushiRuntime::span<const Tensor> sources) const
     {

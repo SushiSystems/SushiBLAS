@@ -183,7 +183,7 @@ modules/operations/elementwise/source/
 
 | Brick | Does one thing |
 | --- | --- |
-| `TensorPack` | Lays an ordered list of tensors out in one flat buffer, one segment per type, and records the gather into it and the scatter out of it; its fingerprint hashes every offset, type, shape and type size |
+| `TensorPack` | Lays an ordered list of tensors out in one flat buffer, one segment per type, and records the gather into it and the scatter out of it; hands out `tensor(index)` and `segment_tensor(dtype)` views over its buffer, so a sum reads the packs in place; its fingerprint hashes every offset, type, shape and type size |
 | `ClusterBinding` | Holds the cluster and the kernel registry one engine works with and keeps a pack's buffer shared for the pack's life; it exposes only what the bricks use, never the whole `Cluster` |
 | `record_remote()` | Records a registered task over packs: the tensor form of the runtime's `record_registered_task()` |
 | `bind_views()` | On a worker, checks each `BufferView` against a pack's layout and hands the segments back typed |
@@ -224,6 +224,7 @@ README) change in its own commit.
 | B13 | The runtime pin moves to the tag that carries R1 to R10. Done when: the build resolves that tag; KI-26 closes with RW-89. Waits on `sushiruntime` R10. | planned |
 | B14 | A `Storage` that borrows a `SushiRuntime::Buffer<std::byte>` another owner keeps alive, so SushiEngine's BLAS adapter hands operations tensors over its own buffers with no allocation or copy; a task watches the owner. Ruled by the owner on 2026-10-24 for `sushiengine` E5. Done when: a tensor over a borrowed storage records and runs, and a run after the owner lets go is refused as `DanglingResource`. | building |
 | B15 | A `UInt32` data type, which the late count of `IndexOps::for_each` takes as it is: SushiEngine's late count is a `uint32` buffer. Ruled by the owner on 2026-10-24 for `sushiengine` E5. Done when: a late-count `for_each` runs over a `UInt32` count, and every operation either takes the type or refuses it in words. | building |
+| B16 | `TensorPack` hands out a `Tensor` view of one entry and a 1-D view of one segment, over its own buffer, so SushiAI's exchange sums result packs with `ordered_sum()` in place instead of copying them out first. Ruled by the orchestrator on 2026-10-24 for `sushiai` A3. Done when: each entry view reads the bytes the gather wrote, each segment view of the eight types has the segment's size and offset, and an `ordered_sum()` over the same segment of three packs into a fourth gives the sum. | building |
 
 B5 waits on SushiAI's A0, which moves SushiAI's two execution helpers and four tests off the
 engine's graph. B6 to B9 have disjoint files and could share a wave; the owner chooses inline or
@@ -232,7 +233,7 @@ waves.
 ### Work
 
 <!-- work:begin -->
-- [2026_10_24_LAYERED_EXECUTION](../../agent/2026_10_24_LAYERED_EXECUTION/PLAN.md): B14, B15, B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13
+- [2026_10_24_LAYERED_EXECUTION](../../agent/2026_10_24_LAYERED_EXECUTION/PLAN.md): B14, B15, B16, B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13
 <!-- work:end -->
 
 ## Open questions

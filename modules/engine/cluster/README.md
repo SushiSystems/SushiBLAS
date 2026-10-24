@@ -16,7 +16,7 @@ as `<SushiBLAS/cluster/<name>.hpp>`.
 | `cluster_binding.hpp` | `ClusterBinding`, the cluster and the kernel registry one engine works with |
 | `pack_layout.hpp` | `PackLayout`, `PackEntry` and `PackSegment`, where each tensor of a pack lies |
 | `remote_task.hpp` | `record_remote()`, `bind_views()`, `remote_operation()` and `remote_operation_name()` |
-| `tensor_pack.hpp` | `TensorPack`, the buffer of one layout and the gather and scatter tasks |
+| `tensor_pack.hpp` | `TensorPack`, the buffer of one layout, tensor views over it and the gather and scatter tasks |
 
 ## pack_layout.hpp
 
@@ -60,6 +60,17 @@ clang-based and defines it.
 `TensorPack` allocates a `Storage` of the layout's size as `Residency::Shared` on device 0, so
 `Cluster::share()`, which refuses device-resident memory, accepts it. Copies of a pack name the
 same buffer.
+
+`TensorPack::tensor(index)` returns a `Tensor` over the place of one entry, with the entry's type,
+layout and shape, and `TensorPack::segment_tensor(dtype)` a one-dimensional `Tensor` over the whole
+segment of a type, every entry of that type one after the other. A type no entry has gives an empty
+tensor. Both are views of the pack's own `Storage`: nothing is copied or allocated beyond the
+`Tensor`, and the view holds the storage, so it outlives the pack. `tensor()` throws
+`std::out_of_range` for an index past the entry count. The two names follow
+`BoundPack::tensor()` and `BoundPack::segment()`; `view()` already names the `BufferView` of the
+buffer. `BoundPack` offers no tensor views: it holds a raw address, not a `Storage`, and the
+worker side has no use for them yet. A caller can sum the same segment of several packs with
+`ElementwiseOps::ordered_sum()` without scattering any of them first.
 
 `record_gather()` records through a `TaskRecorder` one task that copies each tensor into its
 place, and `record_scatter()` one that copies each place into its tensor. The pack enters the

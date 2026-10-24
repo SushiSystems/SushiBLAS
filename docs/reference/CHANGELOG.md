@@ -6,6 +6,7 @@ the changelog document in the version history.
 
 ## Unreleased
 
+- 2026-10-24 — cluster: Added `TensorPack::tensor()` and `segment_tensor()`, tensor views of one entry and of one segment over the pack's own buffer (`tensor_pack.hpp`).
 - 2026-10-24 — core: Added `DataType::UInt32`, a count type a tensor holds and moves and every computing operation refuses through `Domain::None` (`common.hpp`, `dispatch.hpp`).
 - 2026-10-24 — index: Let the late count of `IndexOps::for_each` be a `UInt32` tensor beside an `Int32` one, both read as one unsigned word (`task_recorder.hpp`, `index_task.hpp`).
 - 2026-10-24 — cluster: Gave a pack an eighth segment for `UInt32` and raised `K_PACK_FINGERPRINT_VERSION` to 2, so a pack of the previous build is refused (`pack_layout.hpp`).

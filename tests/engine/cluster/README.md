@@ -11,7 +11,7 @@ the way it is. [`tests/README.md`](../../README.md) holds the reasoning the test
 | `test_cluster_binding.cpp` | Tests that ClusterBinding shares a pack with a cluster and reports what it supports |
 | `test_pack_layout.cpp` | Tests that PackLayout groups tensors by type, aligns segments and fingerprints the layout |
 | `test_remote_task.cpp` | Tests that a pack of every type round-trips through a worker and a stale worker refuses |
-| `test_tensor_pack.cpp` | Tests that TensorPack gathers tensors into its buffer and scatters them back unchanged |
+| `test_tensor_pack.cpp` | Tests that TensorPack gathers tensors into its buffer, scatters them back unchanged and hands out tensor views of its entries and segments |
 
 ## test_remote_task.cpp
 

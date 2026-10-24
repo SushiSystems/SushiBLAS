@@ -186,6 +186,15 @@ and its fingerprint version moves to 2.
 Seen and kept: `TypedTaskBody` and `with_element_type` are two dtype switches kept in step by hand;
 `random/dispatch.hpp` keeps a hand-written dtype list for its message.
 
+## B16
+
+`TensorPack::tensor(index)` and `segment_tensor(dtype)` mirror `BoundPack::tensor()` and
+`segment()`; `view()` already names the runtime `BufferView`, so the names stay apart. Both are
+plain `Tensor`s over the pack's storage, so a view outlives the pack it came from. `BoundPack`,
+which holds only a worker-side address, gains nothing until a worker needs a tensor there. The
+`ordered_sum()` test sits in the umbrella tests, since `cluster` lies below `elementwise`, and is
+built only under `SB_ENABLE_DISTRIBUTED`.
+
 ## Dispatches
 
 ```
@@ -203,6 +212,7 @@ dispatch: B5 — sonnet medium, 89 turns, passed, rung 1
 dispatch: B4 follow-up — sonnet medium, 52 turns, passed, rung 1
 dispatch: B14 — sonnet medium, 69 turns, passed, rung 1
 dispatch: B15 — sonnet medium, 80 turns, passed, rung 1
+dispatch: B16 — sonnet medium, 44 turns, passed, rung 1
 dispatch: docs-sync after B5 — sonnet medium, 18 turns, passed, rung 1
 dispatch: B8 — sonnet medium, 55 turns, then B8b sonnet medium, 28 turns, passed, rung 1
 ```

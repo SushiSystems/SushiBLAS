@@ -30,6 +30,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <SushiBLAS/cluster/pack_layout.hpp>
+#include <SushiBLAS/core/common.hpp>
 #include <SushiBLAS/engine/task_handle.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/tensor/storage.hpp>
@@ -74,6 +75,24 @@ namespace SushiBLAS
             {
                 return SushiRuntime::Distributed::BufferView{data(), size_bytes()};
             }
+
+            /**
+             * @brief Returns a tensor over the place of one entry; no byte is copied.
+             *
+             * The view has the entry's type, layout and shape and holds the pack's storage, so
+             * it stays valid after the pack is gone.
+             * @param index The position of the entry in the layout.
+             * @throws std::out_of_range when index is not below the layout's entry count.
+             */
+            [[nodiscard]] Tensor tensor(std::size_t index) const;
+
+            /**
+             * @brief Returns a one-dimensional tensor over the whole segment of a data type.
+             *
+             * It holds every entry of that type, one after the other, and holds the pack's
+             * storage. A type no entry has gives an empty tensor.
+             */
+            [[nodiscard]] Tensor segment_tensor(Core::DataType dtype) const;
 
             /**
              * @brief Records one task that copies each tensor into its place in the buffer.

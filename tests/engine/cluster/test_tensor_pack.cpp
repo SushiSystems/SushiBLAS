@@ -25,6 +25,7 @@
  * @author Mustafa Garip
  */
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -109,6 +110,93 @@ namespace SushiBLAS
                                       byte_count(sources[index])),
                           0)
                     << "tensor " << index;
+        }
+
+        /** @brief Tests that the tensor of an entry reads the bytes the gather wrote. */
+        TEST(Medium_TensorPack, EntryTensorReadsTheBytesTheGatherWrote)
+        {
+            if (sycl::device::get_devices().empty())
+                GTEST_SKIP() << "SYCL reports no device.";
+
+            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+            std::vector<Tensor> sources = {shared_tensor(runtime, Core::DataType::Float64, 9),
+                                           shared_tensor(runtime, Core::DataType::Half, 5),
+                                           shared_tensor(runtime, Core::DataType::Float64, 2),
+                                           shared_tensor(runtime, Core::DataType::Int32, 3)};
+            for (std::size_t index = 0; index < sources.size(); ++index)
+            {
+                auto* bytes = static_cast<std::uint8_t*>(sources[index].data());
+                for (std::size_t offset = 0; offset < byte_count(sources[index]); ++offset)
+                    bytes[offset] = static_cast<std::uint8_t>(offset * 17 + index * 5 + 3);
+            }
+
+            std::vector<Tensor> views;
+            {
+                const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
+                                                   sources.data(), sources.size())));
+                ScratchPool scratch(runtime);
+                auto graph = runtime.graph();
+                graph.extend([&](SushiRuntime::Recorder& recorder)
+                {
+                    TaskRecorder tensors(recorder, scratch);
+                    (void)pack.record_gather(tensors, SushiRuntime::span<const Tensor>(
+                                                          sources.data(), sources.size()));
+                });
+                graph.run().value();
+
+                for (std::size_t index = 0; index < sources.size(); ++index)
+                    views.push_back(pack.tensor(index));
+                EXPECT_THROW((void)pack.tensor(sources.size()), std::out_of_range);
+            }
+
+            // The pack is gone; the views hold its storage.
+            for (std::size_t index = 0; index < sources.size(); ++index)
+            {
+                EXPECT_EQ(views[index].dtype, sources[index].dtype) << "entry " << index;
+                EXPECT_EQ(views[index].num_elements, sources[index].num_elements)
+                    << "entry " << index;
+                EXPECT_EQ(views[index].shape[0], sources[index].shape[0]) << "entry " << index;
+                EXPECT_EQ(std::memcmp(views[index].data(), sources[index].data(),
+                                      byte_count(sources[index])),
+                          0)
+                    << "entry " << index;
+            }
+        }
+
+        /** @brief Tests that the segment tensor of each type has the segment's size and offset. */
+        TEST(Medium_TensorPack, SegmentTensorHasTheSegmentsSizeAndOffset)
+        {
+            if (sycl::device::get_devices().empty())
+                GTEST_SKIP() << "SYCL reports no device.";
+
+            SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+            const std::array<Core::DataType, 8> types = {
+                Core::DataType::UInt32,    Core::DataType::Int64,     Core::DataType::Int32,
+                Core::DataType::Complex64, Core::DataType::Complex32, Core::DataType::Float64,
+                Core::DataType::Float32,   Core::DataType::Half};
+            std::vector<Tensor> sources;
+            for (std::size_t index = 0; index < types.size(); ++index)
+            {
+                sources.push_back(shared_tensor(runtime, types[index],
+                                                static_cast<std::int64_t>(index + 1)));
+                sources.push_back(shared_tensor(runtime, types[index], 2));
+            }
+            const TensorPack pack(runtime, PackLayout::of(SushiRuntime::span<const Tensor>(
+                                               sources.data(), sources.size())));
+
+            for (const Core::DataType dtype : types)
+            {
+                const PackSegment& segment = pack.layout().segment(dtype);
+                const Tensor view = pack.segment_tensor(dtype);
+                EXPECT_EQ(view.rank, 1);
+                EXPECT_EQ(view.dtype, dtype);
+                EXPECT_EQ(static_cast<std::size_t>(view.num_elements), segment.element_count);
+                EXPECT_EQ(static_cast<std::size_t>(view.num_elements) *
+                              Core::bytes_per_element(dtype),
+                          segment.size_bytes);
+                EXPECT_EQ(static_cast<const std::byte*>(view.data()),
+                          static_cast<const std::byte*>(pack.data()) + segment.offset_bytes);
+            }
         }
 
         /** @brief Tests that a gather refuses a tensor whose shape differs from its entry. */
